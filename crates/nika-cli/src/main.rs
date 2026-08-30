@@ -641,6 +641,20 @@ fn concierge_json(plain_theme: Theme) -> std::process::ExitCode {
     emit(&verbs::welcome::run(true, plain_theme)).into()
 }
 
+/// Machine-only pre-clap adapter used by SDKs before any workflow effect.
+fn sdk_identity() -> std::process::ExitCode {
+    match serde_json::to_string(nika_runtime::engine_identity()) {
+        Ok(identity) => {
+            println!("{identity}");
+            std::process::ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("nika: cannot serialize engine identity: {error}");
+            std::process::ExitCode::from(3)
+        }
+    }
+}
+
 /// Human default help · B67 · ≤ 6 lines. The rest lives on `--help --all`.
 fn human_help() -> &'static str {
     "nika             a plan from a file\n\
@@ -694,6 +708,7 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             println!("nika {}", nika_runtime::engine_identity().version_long());
             Some(std::process::ExitCode::SUCCESS)
         }
+        Some("--sdk-identity") if positional.len() == 1 => Some(sdk_identity()),
         Some("thread") if positional.len() == 1 => {
             let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
             Some(std::process::ExitCode::from(verbs::session::run(
@@ -1198,6 +1213,20 @@ mod tests {
                 "--sdk-snapshot",
             ])
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn sdk_identity_is_a_hidden_pre_clap_adapter_not_a_new_verb() {
+        assert_eq!(
+            front_door(&[std::ffi::OsString::from("--sdk-identity")]),
+            Some(std::process::ExitCode::SUCCESS)
+        );
+        assert!(
+            !Cli::command()
+                .render_long_help()
+                .to_string()
+                .contains("sdk-identity")
         );
     }
 
