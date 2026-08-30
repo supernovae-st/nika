@@ -20,6 +20,7 @@ type Reply<T> = oneshot::Sender<Result<T, JobStoreError>>;
 pub(super) struct EventPage {
     pub events: Vec<JobEvent>,
     pub record: JobRecord,
+    pub terminal_sequence: Option<u64>,
 }
 
 enum RequestCommand {
@@ -59,11 +60,12 @@ enum ControlCommand {
         receipt: Option<JobReceipt>,
         reply: Reply<JobRecord>,
     },
-    StampIdentity {
+    StartExecution {
         id: JobId,
         execution_id: String,
         trace_id: String,
         snapshot_digest: String,
+        event: Value,
         reply: Reply<JobRecord>,
     },
     Interrupt {
@@ -113,19 +115,21 @@ impl StoreHandle {
         receive(answer).await
     }
 
-    pub(super) async fn stamp_identity(
+    pub(super) async fn start_execution(
         &self,
         id: JobId,
         execution_id: String,
         trace_id: String,
         snapshot_digest: String,
+        event: Value,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control(ControlCommand::StampIdentity {
+        self.send_control(ControlCommand::StartExecution {
             id,
             execution_id,
             trace_id,
             snapshot_digest,
+            event,
             reply,
         })?;
         receive(answer).await
@@ -361,12 +365,14 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             limit,
             reply,
         } => {
-            let result = store.events_after(&id, after, limit).and_then(|events| {
+            let result =
                 store
-                    .get(&id)?
-                    .ok_or(JobStoreError::JobNotFound(id))
-                    .map(|record| EventPage { events, record })
-            });
+                    .event_page(&id, after, limit)
+                    .map(|(events, record, terminal_sequence)| EventPage {
+                        events,
+                        record,
+                        terminal_sequence,
+                    });
             let _result = reply.send(result);
         }
     }
@@ -408,15 +414,23 @@ fn serve_control(
             notify_persisted(&result, events);
             let _result = reply.send(result);
         }
-        ControlCommand::StampIdentity {
+        ControlCommand::StartExecution {
             id,
             execution_id,
             trace_id,
             snapshot_digest,
+            event,
             reply,
         } => {
-            let result =
-                store.stamp_execution_identity(&id, execution_id, trace_id, snapshot_digest);
+            let result = store
+                .start_execution(
+                    &id,
+                    execution_id,
+                    trace_id,
+                    snapshot_digest,
+                    std::slice::from_ref(&event),
+                )
+                .map(|mutation| mutation.record().clone());
             notify_persisted(&result, events);
             let _result = reply.send(result);
         }

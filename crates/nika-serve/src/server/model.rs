@@ -107,7 +107,56 @@ pub(crate) struct HealthResponse {
     status: &'static str,
     service: &'static str,
     #[serde(flatten)]
-    identity: nika_runtime::EngineIdentity,
+    identity: HttpAdapterIdentity,
+}
+
+const HTTP_ADAPTER_CAPABILITIES: &[&str] = &["check", "executionSnapshot", "eventStream"];
+
+#[derive(Debug, Serialize)]
+struct HttpAdapterIdentity {
+    engine_version: &'static str,
+    build_sha: &'static str,
+    spec_sha: &'static str,
+    api_version: &'static str,
+    #[serde(rename = "engineVersion")]
+    engine_version_sdk: &'static str,
+    #[serde(rename = "buildSha")]
+    build_sha_sdk: &'static str,
+    #[serde(rename = "specSha")]
+    spec_sha_sdk: &'static str,
+    #[serde(rename = "machineProtocolVersion")]
+    machine_protocol_version: u32,
+    #[serde(rename = "snapshotFormatVersion")]
+    snapshot_format_version: u32,
+    #[serde(rename = "checkReportVersion")]
+    check_report_version: u32,
+    #[serde(rename = "eventFormatVersion")]
+    event_format_version: u32,
+    #[serde(rename = "traceFormatVersion")]
+    trace_format_version: u32,
+    #[serde(rename = "supportedCapabilities")]
+    supported_capabilities: &'static [&'static str],
+}
+
+impl HttpAdapterIdentity {
+    fn current() -> Self {
+        let identity = nika_runtime::engine_identity();
+        Self {
+            engine_version: identity.engine_version(),
+            build_sha: identity.build_sha(),
+            spec_sha: identity.spec_sha(),
+            api_version: identity.api_version(),
+            engine_version_sdk: identity.engine_version(),
+            build_sha_sdk: identity.build_sha(),
+            spec_sha_sdk: identity.spec_sha(),
+            machine_protocol_version: identity.machine_protocol_version(),
+            snapshot_format_version: identity.snapshot_format_version(),
+            check_report_version: identity.check_report_version(),
+            event_format_version: identity.event_format_version(),
+            trace_format_version: identity.trace_format_version(),
+            supported_capabilities: HTTP_ADAPTER_CAPABILITIES,
+        }
+    }
 }
 
 impl HealthResponse {
@@ -115,7 +164,7 @@ impl HealthResponse {
         Self {
             status: "ok",
             service: "nika-serve",
-            identity: *nika_runtime::engine_identity(),
+            identity: HttpAdapterIdentity::current(),
         }
     }
 }

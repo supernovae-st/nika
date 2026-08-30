@@ -463,9 +463,6 @@ async fn serve_connection(stream: TcpStream, state: Arc<AppState>) {
 
 async fn run_job(state: Arc<AppState>, task: ExecutionTask) -> Result<(), ServerError> {
     let mut guard = RunningGuard::new(state.store.clone(), task.id.clone());
-    if !start_running(&mut guard).await? {
-        return Ok(());
-    }
     let admitted = match admit_workflow(&state, &task).await {
         Ok(admitted) => admitted,
         Err(error) => {
@@ -490,15 +487,23 @@ async fn run_job(state: Arc<AppState>, task: ExecutionTask) -> Result<(), Server
             return Ok(());
         }
     };
+    if !start_running(&mut guard, &admitted).await? {
+        return Ok(());
+    }
     settle_disposition(&state, &mut guard, admitted).await
 }
 
-async fn start_running(guard: &mut RunningGuard) -> Result<bool, ServerError> {
+async fn start_running(
+    guard: &mut RunningGuard,
+    admitted: &nika_execution::AdmittedExecution,
+) -> Result<bool, ServerError> {
     match guard
         .store
-        .transition_with_events(
+        .start_execution(
             guard.id.clone(),
-            JobStatus::Running,
+            admitted.execution_id().to_string(),
+            admitted.trace_id().to_string(),
+            admitted.snapshot().digest().to_owned(),
             json!({"kind": "execution.started", "status": "running"}),
         )
         .await
@@ -523,23 +528,13 @@ async fn admit_workflow(
         .map_err(|_| None)?;
     let service = state.service;
     let limits = state.snapshot_limits;
-    let store = state.store.clone();
-    let id = task.id.clone();
     let admission = tokio::task::spawn_blocking(move || {
         let snapshot = nika_execution::ExecutionSnapshot::decode_with_limits(&encoded, limits)?;
         service.readmit_snapshot(snapshot)
     })
     .await
     .map_err(|_| None)?;
-    let admitted = admission.map_err(Some)?;
-    let execution_id = admitted.execution_id().to_string();
-    let trace_id = admitted.trace_id().to_string();
-    let snapshot_digest = admitted.snapshot().digest().to_owned();
-    store
-        .stamp_identity(id, execution_id, trace_id, snapshot_digest)
-        .await
-        .map_err(|_| None)?;
-    Ok(admitted)
+    admission.map_err(Some)
 }
 
 async fn settle_disposition(

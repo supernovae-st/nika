@@ -334,6 +334,19 @@ async fn health_is_public_and_contains_only_compile_bound_identity() {
     for field in fields {
         assert!(object.contains_key(field), "missing {field}: {body}");
     }
+    assert_eq!(
+        body["supportedCapabilities"],
+        json!(["check", "executionSnapshot", "eventStream"]),
+        "HTTP advertises only its snapshot check, admission, and SSE subset"
+    );
+    assert!(
+        !body["supportedCapabilities"]
+            .as_array()
+            .expect("capability array")
+            .iter()
+            .any(|capability| capability == "trace"),
+        "trace format identity must not claim a trace route"
+    );
     assert!(
         !response
             .headers
@@ -1117,8 +1130,35 @@ async fn sse_outlives_request_timeout_and_disconnect_does_not_block_execution() 
         .request(&get_request(&format!("/v1/jobs/{id}")))
         .await
         .json();
+    assert!(running["execution_id"].as_str().is_some(), "{running}");
+    assert!(running["trace_id"].as_str().is_some(), "{running}");
     assert!(running.get("outputs").is_none(), "{running}");
     assert!(running.get("receipt").is_none(), "{running}");
+    let durable: Value = serde_json::from_slice(
+        &std::fs::read(world.state.join("jobs/state.json")).expect("read running state"),
+    )
+    .expect("decode running state");
+    let durable_job = durable["jobs"]
+        .as_array()
+        .expect("durable jobs")
+        .iter()
+        .find(|job| job["record"]["id"].as_str() == Some(id.as_str()))
+        .expect("durable running job");
+    assert_eq!(durable_job["record"]["status"], "running");
+    assert_eq!(
+        durable_job["record"]["snapshot_digest"]
+            .as_str()
+            .expect("durable snapshot digest")
+            .len(),
+        64
+    );
+    assert_eq!(
+        durable_job["identity_digest"]
+            .as_str()
+            .expect("durable identity binding")
+            .len(),
+        64
+    );
 
     let (mut stream, headers) = open_sse(server.address, &events_request(&id, None)).await;
     assert_eq!(headers.status, 200, "{}", headers.body);

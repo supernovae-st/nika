@@ -7,6 +7,8 @@ use serde_json::json;
 
 use super::*;
 
+type StateEdit = (&'static str, fn(&mut serde_json::Value));
+
 fn key(value: &str) -> IdempotencyKey {
     IdempotencyKey::new(value).expect("valid key")
 }
@@ -84,7 +86,7 @@ fn mismatched_receipts(
 }
 
 #[test]
-fn pre_result_state_deserializes_with_absent_terminal_fields() {
+fn terminal_settlement_requires_complete_result_binding_before_mutation() {
     let root = tempfile::tempdir().expect("root");
     let store = JobStore::open(root.path()).expect("store");
     let created = admitted_record(
@@ -100,33 +102,19 @@ fn pre_result_state_deserializes_with_absent_terminal_fields() {
             "legacy-trace".to_owned(),
         )
         .expect("legacy identity");
-    transition(&store, created.id(), JobStatus::Succeeded);
-    drop(store);
-
-    let state_path = root.path().join("jobs/state.json");
-    let mut state: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(&state_path).expect("read state"))
-            .expect("decode state");
-    let record = state["jobs"][0]["record"]
-        .as_object_mut()
-        .expect("record object");
-    record.remove("snapshot_digest");
-    record.remove("outputs");
-    record.remove("receipt");
-    let mut legacy = serde_json::to_vec(&state).expect("encode legacy state");
-    legacy.push(b'\n');
-    std::fs::write(&state_path, legacy).expect("write legacy state");
-
-    let reopened = JobStore::open(root.path()).expect("legacy state remains readable");
-    let record = reopened
+    assert!(matches!(
+        store.transition_with_events(
+            created.id(),
+            JobStatus::Succeeded,
+            &[json!({"kind": "execution.settled", "status": "succeeded"})]
+        ),
+        Err(JobStoreError::InvalidReceipt)
+    ));
+    let running = store
         .get(created.id())
-        .expect("get legacy record")
-        .expect("legacy record exists");
-    assert_eq!(record.status(), JobStatus::Succeeded);
-    assert_eq!(record.execution_id(), Some("legacy-execution"));
-    assert_eq!(record.trace_id(), Some("legacy-trace"));
-    assert_eq!(record.outputs(), None);
-    assert_eq!(record.receipt(), None);
+        .expect("get running")
+        .expect("running exists");
+    assert_eq!(running.status(), JobStatus::Running);
 }
 
 #[test]
@@ -279,6 +267,118 @@ fn persisted_receipt_identity_mismatches_are_refused_on_reopen() {
         );
         std::fs::write(&state_path, &pristine).expect("restore pristine state");
     }
+}
+
+#[test]
+fn terminal_chain_binds_coherent_identity_outputs_and_receipt_edits() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    let created = admitted_record(
+        store
+            .create_or_replay(key("request-terminal-binding"), digest(52))
+            .expect("create"),
+    );
+    let snapshot_digest = digest(53).as_str().to_owned();
+    store
+        .stamp_execution_identity(
+            created.id(),
+            "execution-52".to_owned(),
+            "trace-52".to_owned(),
+            snapshot_digest.clone(),
+        )
+        .expect("stamp identity");
+    transition(&store, created.id(), JobStatus::Running);
+    let receipt = JobReceipt::new(
+        created.id().clone(),
+        "execution-52",
+        "trace-52",
+        snapshot_digest,
+        Some("chain-head-52".to_owned()),
+    )
+    .expect("receipt");
+    store
+        .settle_with_events(
+            created.id(),
+            JobStatus::Succeeded,
+            &[json!({"kind": "execution.settled", "status": "succeeded"})],
+            Some(BTreeMap::from([("answer".to_owned(), json!(52))])),
+            Some(receipt),
+        )
+        .expect("settle");
+    drop(store);
+
+    let state_path = root.path().join("jobs/state.json");
+    let pristine = std::fs::read(&state_path).expect("read pristine state");
+    let edits: [StateEdit; 5] = [
+        ("execution", |state| {
+            state["jobs"][0]["record"]["execution_id"] = json!("forged-execution");
+            state["jobs"][0]["record"]["receipt"]["execution_id"] = json!("forged-execution");
+        }),
+        ("trace", |state| {
+            state["jobs"][0]["record"]["trace_id"] = json!("forged-trace");
+            state["jobs"][0]["record"]["receipt"]["trace_id"] = json!("forged-trace");
+        }),
+        ("snapshot", |state| {
+            let forged = digest(54).as_str().to_owned();
+            state["jobs"][0]["record"]["snapshot_digest"] = json!(forged);
+            state["jobs"][0]["record"]["receipt"]["snapshot_digest"] =
+                state["jobs"][0]["record"]["snapshot_digest"].clone();
+        }),
+        ("outputs", |state| {
+            state["jobs"][0]["record"]["outputs"]["answer"] = json!(999);
+        }),
+        ("receipt", |state| {
+            state["jobs"][0]["record"]["receipt"]["chain_head"] = json!("forged-head");
+        }),
+    ];
+    for (name, edit) in edits {
+        let mut state: serde_json::Value =
+            serde_json::from_slice(&pristine).expect("decode pristine state");
+        edit(&mut state);
+        let mut tampered = serde_json::to_vec(&state).expect("encode tampered state");
+        tampered.push(b'\n');
+        std::fs::write(&state_path, tampered).expect("write tampered state");
+        assert!(
+            matches!(JobStore::open(root.path()), Err(JobStoreError::Corrupt(_))),
+            "coherent {name} edit must break terminal proof"
+        );
+        std::fs::write(&state_path, &pristine).expect("restore pristine state");
+    }
+}
+
+#[test]
+fn running_identity_binding_refuses_forgery_before_restart_receipt() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    let created = admitted_record(
+        store
+            .create_or_replay(key("request-running-binding"), digest(60))
+            .expect("create"),
+    );
+    store
+        .stamp_execution_identity(
+            created.id(),
+            "execution-60".to_owned(),
+            "trace-60".to_owned(),
+            digest(61).as_str().to_owned(),
+        )
+        .expect("stamp identity");
+    transition(&store, created.id(), JobStatus::Running);
+    drop(store);
+
+    let state_path = root.path().join("jobs/state.json");
+    let mut state: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&state_path).expect("read state"))
+            .expect("decode state");
+    state["jobs"][0]["record"]["execution_id"] = json!("forged-execution");
+    let mut tampered = serde_json::to_vec(&state).expect("encode tampered state");
+    tampered.push(b'\n');
+    std::fs::write(&state_path, tampered).expect("write tampered state");
+
+    assert!(matches!(
+        JobStore::open(root.path()),
+        Err(JobStoreError::Corrupt(_))
+    ));
 }
 
 #[test]
