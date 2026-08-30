@@ -334,13 +334,14 @@ enum Command {
         #[arg(long = "clientProcessId", hide = true)]
         client_process_id: Option<u32>,
     },
-    /// Run the MCP server (validate: check/explain · learn:
-    /// schema/examples/templates/canon — the in-binary Model Context Protocol
-    /// surface for Cursor · Claude Desktop · agents). Default transport:
-    /// stdio; `--transport http` serves Streamable HTTP for managed hosts.
-    /// `approve` runs the CLIENT side: the MCP tool-pinning re-approval over
-    /// the servers configured in `.nika/mcp_servers.json`.
-    #[command(hide = true, display_order = 60)]
+    /// Run the read-only MCP oracle (validate + learn — never execute). Default
+    /// transport: stdio; `--transport http` serves Streamable HTTP for managed
+    /// hosts. `approve` re-pins tools from `.nika/mcp_servers.json`.
+    #[command(
+        hide = true,
+        display_order = 60,
+        after_help = verbs::mcp_pins::OPERATOR_HELP
+    )]
     Mcp {
         #[command(subcommand)]
         action: Option<verbs::mcp_pins::McpAction>,

@@ -847,6 +847,7 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::mcp_pins::McpTransp
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::mcp_pins::McpTransportArg
 impl<T> typenum::type_operators::Same for nika_cli::verbs::mcp_pins::McpTransportArg
 pub type nika_cli::verbs::mcp_pins::McpTransportArg::Output = T
+pub const nika_cli::verbs::mcp_pins::OPERATOR_HELP: &str
 pub fn nika_cli::verbs::mcp_pins::approve(server: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::mcp_pins::mcp_verb(action: core::option::Option<nika_cli::verbs::mcp_pins::McpAction>, transport: nika_cli::verbs::mcp_pins::McpTransportArg, port: u16, bind: &str) -> u8
 pub mod nika_cli::verbs::model
