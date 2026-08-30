@@ -304,15 +304,25 @@ async fn health_is_public_and_contains_only_compile_bound_identity() {
     assert_eq!(response.status, 200);
     let body = response.json();
     let object = body.as_object().expect("health object");
-    assert_eq!(object.len(), 6, "health field allowlist: {body}");
-    for field in [
+    let fields = [
         "status",
         "service",
         "engine_version",
         "build_sha",
         "spec_sha",
         "api_version",
-    ] {
+        "engineVersion",
+        "buildSha",
+        "specSha",
+        "machineProtocolVersion",
+        "snapshotFormatVersion",
+        "checkReportVersion",
+        "eventFormatVersion",
+        "traceFormatVersion",
+        "supportedCapabilities",
+    ];
+    assert_eq!(object.len(), fields.len(), "health field allowlist: {body}");
+    for field in fields {
         assert!(object.contains_key(field), "missing {field}: {body}");
     }
     assert!(
