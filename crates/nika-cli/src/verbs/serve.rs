@@ -270,6 +270,9 @@ fn run_admitted_http_job(
                         _ => nika_serve::ExecutionDisposition::Failed,
                     };
                     let mut mapped = nika_serve::ExecutionOutcome::from(disposition);
+                    if !outcome.outputs().is_empty() {
+                        mapped = mapped.with_outputs(outcome.outputs().clone());
+                    }
                     if let Some((code, message)) = outcome.error() {
                         mapped = mapped.with_error(code, message);
                     }
@@ -616,6 +619,30 @@ mod tests {
         text.parse::<jiff::Timestamp>()
             .expect("ts")
             .to_zoned(jiff::tz::TimeZone::UTC)
+    }
+
+    #[tokio::test]
+    async fn production_http_backend_carries_declared_outputs() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let source = "nika: http-output\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  value:\n    invoke: { tool: nika:jq, args: { input: 42, expression: \".\" } }\noutputs:\n  answer: ${{ tasks.value.output }}\n";
+        std::fs::write(directory.path().join("flow.nika.yaml"), source).expect("workflow");
+        let project = nika_fs::OwnedDir::open(directory.path()).expect("owned project");
+        let service = nika_execution::ExecutionService::default();
+        let admitted = service
+            .admit(&project, Path::new("flow.nika.yaml"))
+            .expect("admitted");
+        let session = service.begin(admitted);
+
+        let outcome = drive_http_execution(PathBuf::new(), session.context()).await;
+
+        assert_eq!(
+            outcome.disposition(),
+            nika_serve::ExecutionDisposition::Succeeded
+        );
+        assert_eq!(
+            outcome.outputs().expect("declared outputs")["answer"],
+            serde_json::json!(42)
+        );
     }
 
     /// A tempdir project (registry + workflow shelf) — the arm precedent.
