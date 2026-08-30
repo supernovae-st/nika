@@ -11,6 +11,7 @@ pub(super) struct AdmittedWorld {
     pub(super) driver: nika_service_execution::ServiceExecutionDriver,
     pub(super) execution_id: nika_types::id::ExecutionId,
     pub(super) trace_id: nika_types::id::TraceId,
+    pub(super) snapshot_digest: String,
 }
 
 impl AdmittedWorld {
@@ -21,6 +22,7 @@ impl AdmittedWorld {
     ) -> Option<Self> {
         let execution_id = context.execution_id();
         let trace_id = context.trace_id();
+        let snapshot_digest = context.snapshot().digest().to_owned();
         let driver = nika_service_execution::ServiceExecutionDriver::for_local_interface(
             context,
             display_root,
@@ -32,6 +34,7 @@ impl AdmittedWorld {
             driver,
             execution_id,
             trace_id,
+            snapshot_digest,
         })
     }
 }

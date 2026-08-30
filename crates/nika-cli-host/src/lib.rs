@@ -37,6 +37,7 @@ pub mod output;
 pub mod probe;
 pub mod repair;
 pub mod retention;
+pub mod run_settlement;
 pub mod source;
 pub mod text;
 pub mod welcome;
