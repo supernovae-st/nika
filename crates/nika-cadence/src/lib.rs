@@ -79,6 +79,7 @@ pub mod next;
 pub mod parse;
 pub mod phrase;
 pub mod registry;
+pub mod schedule;
 pub mod tick;
 
 pub use cron::{CronSpec, Field};
@@ -94,6 +95,10 @@ pub use ledger::{
 pub use next::{Shift, Slot, next_slots};
 pub use parse::{parse_registry, validate};
 pub use registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};
+pub use schedule::{
+    ScheduleDefinition, ScheduleDraft, ScheduleFinding, ScheduleFindingKind, ScheduleJitter,
+    ScheduleOrigin, ScheduleRevision, ScheduleWhen, ScheduleWhenDraft,
+};
 pub use tick::{TickDecision, tick_decision, v0_unsupported};
 
 #[cfg(test)]
