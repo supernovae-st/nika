@@ -1441,7 +1441,78 @@ fn check_json_carries_the_typed_engine_identity() {
         "the payload IS the compile-time stamp: {payload:#}"
     );
     assert_eq!(payload["spec_sha"], identity.spec_sha());
+    assert_eq!(payload["api_version"], identity.api_version());
     assert_eq!(payload["report_version"], nika_check::REPORT_VERSION);
+    assert_eq!(payload["engineVersion"], identity.engine_version());
+    assert_eq!(payload["buildSha"], identity.build_sha());
+    assert_eq!(payload["specSha"], identity.spec_sha());
+    assert_eq!(
+        payload["machineProtocolVersion"],
+        identity.machine_protocol_version()
+    );
+    assert_eq!(
+        payload["snapshotFormatVersion"],
+        identity.snapshot_format_version()
+    );
+    assert_eq!(
+        payload["checkReportVersion"],
+        identity.check_report_version()
+    );
+    assert_eq!(
+        payload["eventFormatVersion"],
+        identity.event_format_version()
+    );
+    assert_eq!(
+        payload["traceFormatVersion"],
+        identity.trace_format_version()
+    );
+    assert_eq!(
+        payload["supportedCapabilities"],
+        serde_json::json!(identity.supported_capabilities())
+    );
+    assert!(
+        payload.get("execution_snapshot").is_none(),
+        "ordinary --json must never carry snapshot bytes: {payload:#}"
+    );
+    assert_eq!(
+        nika_runtime::MACHINE_SNAPSHOT_FORMAT_VERSION,
+        nika_execution::SNAPSHOT_FORMAT_VERSION,
+        "the sibling L3 format clocks must stay in parity"
+    );
+}
+
+#[test]
+fn snapshot_export_is_explicit_machine_only_and_round_trips() {
+    let dir = std::env::temp_dir().join(format!("nika-cli-snapshot-export-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join("snapshot-export.nika.yaml");
+    std::fs::write(
+        &path,
+        "nika: snapshot-export\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n",
+    )
+    .expect("fixture body");
+
+    let out = run_snapshot_export(
+        path.to_str().expect("utf8 path"),
+        Theme::new(false, true, false),
+    );
+    assert_eq!(out.code, 0, "{}", out.text);
+    let payload: serde_json::Value = serde_json::from_str(&out.text).expect("machine json");
+    let encoded = payload["execution_snapshot"]
+        .as_str()
+        .expect("opt-in snapshot string");
+    let snapshot = nika_execution::ExecutionSnapshot::decode(encoded).expect("decode export");
+    let root = snapshot.root().to_owned();
+    let admitted = nika_execution::ExecutionService::default()
+        .readmit_snapshot(snapshot)
+        .expect("readmit export");
+
+    assert_eq!(root, "snapshot-export.nika.yaml");
+    assert_eq!(admitted.snapshot().root(), root);
+    assert_eq!(
+        payload["snapshotFormatVersion"],
+        nika_execution::SNAPSHOT_FORMAT_VERSION
+    );
 }
 
 /// #774 · the `--version` stamp contract: the bare version stays the

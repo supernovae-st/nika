@@ -421,6 +421,10 @@ impl ExecutionSnapshot {
 
     /// Rebuild a snapshot from [`Self::encode`] output without filesystem I/O.
     ///
+    /// The default execution ceilings are applied before hexadecimal unit
+    /// bodies are decoded. Use [`Self::decode_with_limits`] when an adapter
+    /// owns stricter ceilings.
+    ///
     /// # Errors
     ///
     /// Returns [`ExecutionError::UnsupportedSnapshotFormat`] for an unknown
@@ -428,7 +432,23 @@ impl ExecutionSnapshot {
     /// [`ExecutionError::UnitDigestMismatch`] / [`ExecutionError::SnapshotDigestMismatch`]
     /// when the payload is truncated, mis-typed, or tampered.
     pub fn decode(text: &str) -> Result<Self, ExecutionError> {
-        let wire: WireSnapshot =
+        Self::decode_with_limits(text, SnapshotLimits::default())
+    }
+
+    /// Rebuild an encoded snapshot under explicit resource ceilings.
+    ///
+    /// Count, per-unit, and aggregate byte limits are checked before unit
+    /// bodies are allocated. Readmission subsequently re-applies the rooted
+    /// dependency-depth bound and all semantic checks to the owned bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns the typed limit variants of [`ExecutionError`] for an
+    /// oversized encoded world, [`ExecutionError::UnsupportedSnapshotFormat`]
+    /// for an unknown version, or a typed structure/digest mismatch when the
+    /// payload is malformed or tampered.
+    pub fn decode_with_limits(text: &str, limits: SnapshotLimits) -> Result<Self, ExecutionError> {
+        let wire: BorrowedWireSnapshot<'_> =
             serde_json::from_str(text).map_err(|_| ExecutionError::SnapshotStructureMismatch)?;
         if wire.format_version != SNAPSHOT_FORMAT_VERSION {
             return Err(ExecutionError::UnsupportedSnapshotFormat {
@@ -436,10 +456,37 @@ impl ExecutionSnapshot {
                 expected: SNAPSHOT_FORMAT_VERSION,
             });
         }
+        if wire.units.len() > limits.units {
+            return Err(ExecutionError::UnitCountLimit {
+                limit: limits.units,
+            });
+        }
+        let mut total_bytes = 0usize;
+        for unit in &wire.units {
+            let byte_len = encoded_hex_byte_len(unit.bytes_hex)?;
+            if byte_len > limits.unit_bytes {
+                return Err(ExecutionError::UnitSizeLimit {
+                    logical_path: unit.path.clone(),
+                    limit: limits.unit_bytes,
+                });
+            }
+            total_bytes =
+                total_bytes
+                    .checked_add(byte_len)
+                    .ok_or(ExecutionError::TotalSizeLimit {
+                        limit: limits.total_bytes,
+                    })?;
+            if total_bytes > limits.total_bytes {
+                return Err(ExecutionError::TotalSizeLimit {
+                    limit: limits.total_bytes,
+                });
+            }
+        }
+
         let mut units = BTreeMap::new();
         for unit in wire.units {
             let kind = SnapshotUnitKind::from_tag(unit.kind)?;
-            let bytes = decode_hex_bytes(&unit.bytes_hex)?;
+            let bytes = decode_hex_bytes(unit.bytes_hex)?;
             let captured = CapturedUnit::new(unit.path, kind, bytes);
             if captured.digest != unit.digest {
                 return Err(ExecutionError::UnitDigestMismatch {
@@ -872,6 +919,24 @@ struct WireUnit {
     bytes_hex: String,
 }
 
+#[derive(serde::Deserialize)]
+struct BorrowedWireSnapshot<'a> {
+    format_version: u32,
+    root: String,
+    digest: String,
+    #[serde(borrow)]
+    units: Vec<BorrowedWireUnit<'a>>,
+}
+
+#[derive(serde::Deserialize)]
+struct BorrowedWireUnit<'a> {
+    path: String,
+    kind: u8,
+    digest: String,
+    #[serde(borrow)]
+    bytes_hex: &'a str,
+}
+
 fn encode_hex_bytes(bytes: &[u8]) -> String {
     let mut output = String::with_capacity(bytes.len().saturating_mul(2));
     for byte in bytes {
@@ -882,14 +947,8 @@ fn encode_hex_bytes(bytes: &[u8]) -> String {
 }
 
 fn decode_hex_bytes(hex: &str) -> Result<Vec<u8>, ExecutionError> {
-    if !hex.len().is_multiple_of(2)
-        || !hex
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
-    {
-        return Err(ExecutionError::SnapshotStructureMismatch);
-    }
-    let mut bytes = Vec::with_capacity(hex.len() / 2);
+    let byte_len = decoded_hex_len(hex)?;
+    let mut bytes = Vec::with_capacity(byte_len);
     let chars = hex.as_bytes();
     for chunk in chars.chunks_exact(2) {
         let text =
@@ -899,6 +958,24 @@ fn decode_hex_bytes(hex: &str) -> Result<Vec<u8>, ExecutionError> {
         bytes.push(byte);
     }
     Ok(bytes)
+}
+
+fn encoded_hex_byte_len(hex: &str) -> Result<usize, ExecutionError> {
+    if !hex.len().is_multiple_of(2) {
+        return Err(ExecutionError::SnapshotStructureMismatch);
+    }
+    Ok(hex.len() / 2)
+}
+
+fn decoded_hex_len(hex: &str) -> Result<usize, ExecutionError> {
+    let byte_len = encoded_hex_byte_len(hex)?;
+    if !hex
+        .bytes()
+        .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        return Err(ExecutionError::SnapshotStructureMismatch);
+    }
+    Ok(byte_len)
 }
 
 fn snapshot_digest(root: &str, units: &BTreeMap<String, CapturedUnit>) -> String {
@@ -1062,6 +1139,56 @@ mod tests {
             Err(ExecutionError::SnapshotDigestMismatch)
         ));
         assert!(ExecutionSnapshot::decode("{").is_err());
+    }
+
+    #[test]
+    fn encoded_snapshot_limits_fail_with_typed_errors_before_readmission() {
+        let snapshot = valid_snapshot();
+        let encoded = snapshot.encode().expect("encode");
+
+        let count = SnapshotLimits::new(64, 0, usize::MAX, usize::MAX);
+        assert!(matches!(
+            ExecutionSnapshot::decode_with_limits(&encoded, count),
+            Err(ExecutionError::UnitCountLimit { limit: 0 })
+        ));
+
+        let unit = SnapshotLimits::new(64, 1, 1, usize::MAX);
+        assert!(matches!(
+            ExecutionSnapshot::decode_with_limits(&encoded, unit),
+            Err(ExecutionError::UnitSizeLimit { limit: 1, .. })
+        ));
+
+        let total = SnapshotLimits::new(64, 1, usize::MAX, 1);
+        assert!(matches!(
+            ExecutionSnapshot::decode_with_limits(&encoded, total),
+            Err(ExecutionError::TotalSizeLimit { limit: 1 })
+        ));
+    }
+
+    #[test]
+    fn aggregate_limit_preflights_every_unit_before_decoding_any_body() {
+        let mut snapshot = valid_snapshot();
+        let root_bytes = snapshot
+            .units
+            .get("root.nika.yaml")
+            .map(|unit| unit.bytes.len())
+            .unwrap_or_default();
+        snapshot.units.insert(
+            "z.import".to_owned(),
+            CapturedUnit::new("z.import".to_owned(), SnapshotUnitKind::Import, vec![7]),
+        );
+        snapshot.digest = snapshot_digest(&snapshot.root, &snapshot.units);
+
+        let encoded = snapshot.encode().expect("encode");
+        let mut wire: serde_json::Value = serde_json::from_str(&encoded).expect("wire json");
+        wire["units"][0]["digest"] = serde_json::Value::String("0".repeat(64));
+        let tampered = serde_json::to_string(&wire).expect("tampered wire");
+        let limits = SnapshotLimits::new(64, 2, usize::MAX, root_bytes);
+
+        assert!(matches!(
+            ExecutionSnapshot::decode_with_limits(&tampered, limits),
+            Err(ExecutionError::TotalSizeLimit { limit }) if limit == root_bytes
+        ));
     }
 
     proptest::proptest! {

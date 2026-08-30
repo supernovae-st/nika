@@ -477,6 +477,144 @@ pub(crate) fn run_admitted_pair(
     )
 }
 
+/// Emit the normal machine check report plus its exact execution snapshot.
+///
+/// This is an explicit adapter API rather than part of [`run`]: ordinary
+/// `check --json` responses stay small, while SDK callers that need a durable
+/// owned-byte world opt into the `execution_snapshot` field. The workflow is
+/// captured and judged once through `nika-execution`, so the report and the
+/// exported bytes cannot observe different filesystem states.
+#[must_use]
+pub fn run_snapshot_export(path: &str, theme: Theme) -> VerbOutput {
+    if path == "-" {
+        return snapshot_export_refusal(
+            "stdin snapshot export requires an already-held project adapter",
+            crate::verbs::exit::ENV,
+        );
+    }
+    let (project, root) = match snapshot_project(path) {
+        Ok(parts) => parts,
+        Err(error) => return snapshot_export_refusal(&error, crate::verbs::exit::ENV),
+    };
+    let service = nika_execution::ExecutionService::default();
+    let admitted = match service.admit(&project, &root) {
+        Ok(admitted) => admitted,
+        Err(error) => {
+            let code = if matches!(&error, nika_execution::ExecutionError::Io { .. }) {
+                crate::verbs::exit::ENV
+            } else {
+                crate::verbs::exit::FILE
+            };
+            return snapshot_export_refusal(&error.to_string(), code);
+        }
+    };
+    let snapshot = admitted.snapshot();
+    let encoded = match snapshot.encode() {
+        Ok(encoded) => encoded,
+        Err(error) => {
+            return snapshot_export_refusal(&error.to_string(), crate::verbs::exit::FILE);
+        }
+    };
+    let Some(source) = snapshot.text(snapshot.root()) else {
+        return snapshot_export_refusal(
+            "execution snapshot lost its UTF-8 root unit",
+            crate::verbs::exit::FILE,
+        );
+    };
+    let target = CheckTarget::workspace(path);
+    let out = run_admitted_pair(
+        source,
+        path,
+        target.repair_target,
+        admitted.workflow(),
+        admitted.check(),
+        admitted.skills(),
+        true,
+        theme,
+    );
+    attach_execution_snapshot(out, encoded)
+}
+
+fn attach_execution_snapshot(mut out: VerbOutput, encoded: String) -> VerbOutput {
+    let mut payload: serde_json::Value = match serde_json::from_str(&out.text) {
+        Ok(payload) => payload,
+        Err(error) => {
+            return snapshot_export_refusal(
+                &format!("cannot extend machine check report: {error}"),
+                crate::verbs::exit::ENV,
+            );
+        }
+    };
+    let Some(object) = payload.as_object_mut() else {
+        return snapshot_export_refusal(
+            "machine check report is not a JSON object",
+            crate::verbs::exit::ENV,
+        );
+    };
+    object.insert(
+        "execution_snapshot".to_owned(),
+        serde_json::Value::String(encoded),
+    );
+    out.text = format!("{payload:#}");
+    out
+}
+
+fn snapshot_export_refusal(message: &str, code: u8) -> VerbOutput {
+    let payload = serde_json::json!({
+        "error": {
+            "message": format!("cannot export execution snapshot: {message}"),
+        },
+    });
+    VerbOutput {
+        text: format!("{payload:#}"),
+        code,
+    }
+}
+
+fn snapshot_project(path: &str) -> Result<(nika_fs::OwnedDir, std::path::PathBuf), String> {
+    let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
+    let authored = std::path::Path::new(path);
+    let absolute = if authored.is_absolute() {
+        authored.to_path_buf()
+    } else {
+        cwd.join(authored)
+    };
+    let absolute = lexical_snapshot_path(&absolute);
+    let (project_root, logical_root) = absolute.strip_prefix(&cwd).map_or_else(
+        |_| {
+            let parent = absolute
+                .parent()
+                .ok_or_else(|| format!("`{path}` has no project directory"))?;
+            let name = absolute
+                .file_name()
+                .ok_or_else(|| format!("`{path}` has no workflow filename"))?;
+            Ok::<_, String>((parent.to_path_buf(), std::path::PathBuf::from(name)))
+        },
+        |relative| Ok((cwd, relative.to_path_buf())),
+    )?;
+    let project = nika_fs::OwnedDir::open(&project_root)
+        .map_err(|error| format!("cannot hold project `{}`: {error}", project_root.display()))?;
+    Ok((project, logical_root))
+}
+
+fn lexical_snapshot_path(path: &std::path::Path) -> std::path::PathBuf {
+    let mut normalized = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
+            std::path::Component::RootDir => {
+                normalized.push(std::path::Path::new(std::path::MAIN_SEPARATOR_STR));
+            }
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            std::path::Component::Normal(part) => normalized.push(part),
+        }
+    }
+    normalized
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_checked_with_profile(
     source: &str,
@@ -683,6 +821,13 @@ fn json_verdict(
         Ok(v) => v,
         Err(e) => return VerbOutput::env(format!("cannot serialize report: {e}")),
     };
+    let identity = match serde_json::to_value(nika_runtime::engine_identity()) {
+        Ok(serde_json::Value::Object(identity)) => identity,
+        Ok(_) => return VerbOutput::env("engine identity is not a JSON object".to_owned()),
+        Err(error) => {
+            return VerbOutput::env(format!("cannot serialize engine identity: {error}"));
+        }
+    };
     if let Some(obj) = payload.as_object_mut() {
         if let Some(hints) = obj
             .get_mut("hints")
@@ -740,10 +885,7 @@ fn json_verdict(
             "risk_grade".to_owned(),
             serde_json::Value::String(grade.as_str().to_owned()),
         );
-        let identity = nika_runtime::engine_identity();
-        obj.insert("engine_version".into(), identity.engine_version().into());
-        obj.insert("build_sha".into(), identity.build_sha().into());
-        obj.insert("spec_sha".into(), identity.spec_sha().into());
+        obj.extend(identity);
         if profile == Profile::Operational {
             obj.insert(
                 "operational_clean".to_owned(),
