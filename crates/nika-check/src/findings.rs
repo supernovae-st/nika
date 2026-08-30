@@ -766,4 +766,68 @@ mod tests {
             hit.message
         );
     }
+
+    /// B04 / B28 · issue 1294 — check fail-closed on a host passwd read
+    /// (and the `../` climb of the same class). The repair must not
+    /// teach granting the host file. `tools:` is granted so the row is
+    /// the PATH, not a missing-tools conjunct.
+    #[test]
+    fn check_fails_closed_on_host_passwd_read() {
+        let host = "nika: passwd-read\npermits:\n  tools: [\"nika:read\"]\n  fs: { read: [\"./**\"] }\ntasks:\n  p:\n    invoke: { tool: nika:read, args: { path: /etc/passwd } }\n";
+        let r = report(host);
+        assert!(
+            !r.is_clean(),
+            "check must fail-closed on a host passwd read: {:?}",
+            r.capability_escapes
+        );
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.code.as_deref() == Some("NIKA-SEC-004"))
+            .unwrap_or_else(|| panic!("expected NIKA-SEC-004, got {:#?}", r.findings));
+        assert!(
+            hit.message.contains("/etc/passwd"),
+            "the finding names the host path: {}",
+            hit.message
+        );
+        assert!(
+            r.capability_escapes.iter().all(|e| {
+                e.fix
+                    .as_deref()
+                    .is_none_or(|f| !f.contains("passwd") && !f.contains("/etc/"))
+            }),
+            "no shovel toward the host file: {:?}",
+            r.capability_escapes
+        );
+        assert!(
+            r.capability_escapes
+                .iter()
+                .any(|e| e.detail.contains("escapes the workspace") && e.fix.is_none()),
+            "the host path is an escape, never a grant: {:?}",
+            r.capability_escapes
+        );
+
+        let climb = "nika: passwd-climb\npermits:\n  tools: [\"nika:read\"]\n  fs: { read: [\"./**\"] }\ntasks:\n  p:\n    invoke: { tool: nika:read, args: { path: ../secret } }\n";
+        let r = report(climb);
+        assert!(
+            !r.is_clean(),
+            "check must fail-closed on a relative climb: {:?}",
+            r.capability_escapes
+        );
+        assert!(
+            r.findings
+                .iter()
+                .any(|f| f.code.as_deref() == Some("NIKA-SEC-004")),
+            "the climb is NIKA-SEC-004: {:#?}",
+            r.findings
+        );
+
+        let inside = "nika: in-tree\npermits:\n  tools: [\"nika:read\"]\n  fs: { read: [\"./**\"] }\ntasks:\n  p:\n    invoke: { tool: nika:read, args: { path: ./notes.md } }\n";
+        let r = report(inside);
+        assert!(
+            !r.capability_escapes.iter().any(|e| e.category == "fs"),
+            "an in-tree read under ./** stays granted: {:?}",
+            r.capability_escapes
+        );
+    }
 }

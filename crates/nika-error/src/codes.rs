@@ -536,7 +536,9 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
             "  The boundary is default-deny once `permits:` is present: an \
              effect the block does not cover is refused, and the FINDING \
              names the exact path, host, program or tool that fell outside \
-             — grant that named thing, in its category, never more.\n\n  \
+             — grant that named thing when it is inside the workspace, in \
+             its category, never more. An absolute host path is never the \
+             grant.\n\n  \
              the grant grammar (measured · CONVENTIONS §2):\n    \
              · a directory grant does NOT cover its children — `data` \
              covers `data` itself, not `data/a.csv`\n    \
@@ -546,13 +548,16 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              `exec:` lists program names\n\n  \
              exits (pick one):\n    \
              · grant the named path:       fs: { read: [\"./dir/*\"] } — \
-             the file the finding printed, or its one-level glob\n    \
+             an in-workspace file the finding printed, or its one-level \
+             glob, never an absolute host path\n    \
              · grant the named host:       net: { http: [\"api.example.com\"] }\n    \
              · grant the named tool:       add it to `permits.tools`\n    \
              · the effect was NOT intended — then the boundary just did \
              its job; the refusal is the feature, not the failure.\n\n  \
              Never widen to a root `**` to silence the message — the \
-             tightest grant that covers the body is the whole point.\n\n  \
+             tightest grant that covers the body is the whole point. \
+             Never grant an absolute host path or a `..` climb to silence \
+             a host-file read; keep the task inside the tree.\n\n  \
              And a green `check` was never this refusal's promise: check \
              judges the LITERAL shape — a computed path (a glob result · \
              an interpolated binding) is judged HERE, at run. Two tools \
@@ -688,6 +693,27 @@ mod tests {
         // Only the earned codes teach — the rest keep the registry row.
         assert!(spec_contract_help("NIKA-SEC-001").is_none());
         assert!(spec_contract_help("NIKA-DAG-001").is_none());
+    }
+
+    /// B04 / B28 · issue 1294 — explain must not teach granting a host
+    /// file. The finding may name `/etc/passwd`; the lesson names the
+    /// in-tree grant grammar and says an absolute host path is never
+    /// the repair.
+    #[test]
+    fn sec_004_explain_never_teaches_granting_a_host_passwd_path() {
+        let help = spec_contract_help("NIKA-SEC-004").expect("teaches");
+        assert!(
+            !help.contains("/etc/passwd"),
+            "explain must not name the host file as a grant: {help}"
+        );
+        assert!(
+            help.contains("never an absolute host path"),
+            "the lesson must refuse the host-file grant: {help}"
+        );
+        assert!(
+            help.contains("the effect was NOT intended") || help.contains("refusal is the feature"),
+            "the honest not-intended arm survives: {help}"
+        );
     }
 
     #[test]
