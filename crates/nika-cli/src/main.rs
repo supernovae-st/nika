@@ -805,6 +805,26 @@ fn inspect_arm(file: &str, format: Option<verbs::graph::GraphFormatArg>, plain_t
 }
 
 fn check_arm(args: verbs::check::CheckArgs, plain_theme: Theme) -> u8 {
+    if args.sdk_snapshot {
+        let output = match args.files.as_slice() {
+            [file]
+                if args.json
+                    && !args.fix
+                    && !args.infer_permits
+                    && !args.native_strict
+                    && args.profile == verbs::check::Profile::Advisory
+                    && args.model.is_none() =>
+            {
+                verbs::check::run_snapshot_export(file, interactive_theme(plain_theme))
+            }
+            _ => verbs::VerbOutput {
+                text: "check: --sdk-snapshot requires exactly one file and --json, with no other check overrides\n"
+                    .to_owned(),
+                code: verbs::exit::ENV,
+            },
+        };
+        return emit(&output);
+    }
     let flags = verbs::check::CheckFlags {
         json: args.json,
         infer_permits: args.infer_permits,
@@ -1158,6 +1178,27 @@ mod tests {
         ] {
             assert!(Cli::try_parse_from(&argv).is_ok(), "{argv:?} must parse");
         }
+    }
+
+    #[test]
+    fn sdk_snapshot_is_a_hidden_check_adapter_not_a_new_verb() {
+        let mut command = Cli::command();
+        let check = command.find_subcommand_mut("check").expect("check");
+        let adapter = check
+            .get_arguments()
+            .find(|argument| argument.get_long() == Some("sdk-snapshot"))
+            .expect("hidden sdk snapshot adapter");
+        assert!(adapter.is_hide_set());
+        assert!(
+            Cli::try_parse_from([
+                "nika",
+                "check",
+                "flow.nika.yaml",
+                "--json",
+                "--sdk-snapshot",
+            ])
+            .is_ok()
+        );
     }
 
     #[test]

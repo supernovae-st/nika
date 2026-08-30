@@ -45,6 +45,9 @@ pub struct CheckArgs {
     /// Price as if this `<provider>/<model>` replaced the envelope default.
     #[arg(long)]
     pub model: Option<String>,
+    /// Internal SDK adapter: emit the report with its immutable snapshot.
+    #[arg(long, hide = true)]
+    pub sdk_snapshot: bool,
 }
 
 /// Check input plus `--fix` provenance; a registry cache path is never writable.
