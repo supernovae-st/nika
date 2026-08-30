@@ -80,6 +80,7 @@ pub mod parse;
 pub mod phrase;
 pub mod registry;
 pub mod schedule;
+pub mod schedule_plan;
 pub mod tick;
 
 pub use cron::{CronSpec, Field};
@@ -98,6 +99,10 @@ pub use registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Ove
 pub use schedule::{
     ScheduleDefinition, ScheduleDraft, ScheduleFinding, ScheduleFindingKind, ScheduleJitter,
     ScheduleOrigin, ScheduleRevision, ScheduleWhen, ScheduleWhenDraft,
+};
+pub use schedule_plan::{
+    MAX_SCHEDULE_PROJECTION_SLOTS, ScheduleDecisionState, ScheduleDueVerdict, ScheduleLastSlot,
+    SchedulePlan, SchedulePlanError, ScheduleProjection, ScheduleSlot, plan_schedule,
 };
 pub use tick::{TickDecision, tick_decision, v0_unsupported};
 
