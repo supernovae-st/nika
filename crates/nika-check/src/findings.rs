@@ -830,4 +830,45 @@ mod tests {
             r.capability_escapes
         );
     }
+
+    /// B05 / B29 · issue 1295 — `permits.exec: ["cat"]` grants the
+    /// PROGRAM, not a host-file read. native-first/002 names `cat` as
+    /// file plumbing; that table is now the door (a finding, not a
+    /// hint) when the operand leaves the workspace. The in-cwd grant
+    /// stays green — the mutation that must not close over the door.
+    #[test]
+    fn exec_cat_of_a_host_path_is_sec004_when_only_the_program_is_granted() {
+        let host = "nika: dump\npermits:\n  exec: [\"cat\"]\ntasks:\n  p:\n    exec: { command: [\"cat\", \"/etc/passwd\"] }\n";
+        let r = report(host);
+        assert!(
+            !r.is_clean(),
+            "check must fail-closed on exec cat of a host path: {:?}",
+            r.capability_escapes
+        );
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.code.as_deref() == Some("NIKA-SEC-004"))
+            .unwrap_or_else(|| panic!("expected NIKA-SEC-004, got {:#?}", r.findings));
+        assert_eq!(hit.kind, "capability_escape");
+        assert!(
+            r.capability_escapes.iter().all(|e| {
+                e.fix
+                    .as_deref()
+                    .is_none_or(|f| !f.contains("/etc/") && !f.contains("passwd"))
+            }),
+            "no shovel toward the host file: {:?}",
+            r.capability_escapes
+        );
+
+        let granted = "nika: in-cwd\npermits:\n  exec: [\"cat\"]\n  fs: { read: [\"./**\"] }\ntasks:\n  p:\n    exec: { command: [\"cat\", \"README.md\"] }\n";
+        let r = report(granted);
+        assert!(
+            !r.findings
+                .iter()
+                .any(|f| f.code.as_deref() == Some("NIKA-SEC-004")),
+            "cat of a cwd file the jail admits stays green: {:#?}",
+            r.findings
+        );
+    }
 }

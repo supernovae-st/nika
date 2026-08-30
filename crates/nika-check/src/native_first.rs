@@ -51,10 +51,10 @@ const KIND: &str = "native-first";
 
 /// HTTP client programs (001).
 const HTTP_PROGRAMS: [&str; 5] = ["curl", "wget", "xh", "http", "https"];
-/// File-op programs (002).
-const FILE_PROGRAMS: [&str; 9] = [
-    "cat", "tee", "cp", "mv", "mkdir", "touch", "head", "tail", "ls",
-];
+/// File-op programs (002) — the SAME list the B05 host-dump door walks
+/// ([`nika_cap::FILE_PLUMBING_PROGRAMS`]), so a hint and a finding cannot
+/// disagree about whether `cat` is file plumbing.
+const FILE_PROGRAMS: &[&str] = nika_cap::FILE_PLUMBING_PROGRAMS;
 /// Data-transform programs (003).
 const DATA_PROGRAMS: [&str; 3] = ["jq", "sed", "awk"];
 /// Script interpreters (005 · and the 001 one-liner carve-in).

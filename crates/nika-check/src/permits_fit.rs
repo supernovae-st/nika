@@ -530,10 +530,15 @@ fn check_exec(
 ///   interpreter, not a guess about the program's semantics —
 ///   [`nika_types::exec::interpreter_script_operand`] walks the same table
 ///   the exec floor walks, so the two cannot drift.
-/// - **LEFT** · every other argv operand. Whether `cat x` reads `x`, or
-///   `rm -f x` writes it, or `docker ps --format {{.Names}}` names a path
-///   at all, is the PROGRAM's semantics — a per-program effect table the
-///   checker does not have and would be wrong about. Those stay the
+/// - **DECIDED** · a literal argv whose program is FILE PLUMBING
+///   (native-first/002 · [`nika_cap::FILE_PLUMBING_PROGRAMS`]) AND whose
+///   operand leaves the workspace. `permits.exec: ["cat"]` grants the
+///   program, not a host-file read (B05 / B29 · issue 1295). An in-tree
+///   relative (`cat README.md`) stays the runtime jail's — the door is
+///   the escaping face, not every cat.
+/// - **LEFT** · every other argv operand. Whether `echo hello.txt` names
+///   a path, or `rm -f x` writes it, or `docker ps --format {{.Names}}`
+///   names a path at all, is the PROGRAM's semantics. Those stay the
 ///   runtime jail's verdict, exactly as the PERMITS panel says.
 /// - **LEFT** · a templated `cwd:`. The script's resolved identity is not
 ///   knowable, so no claim holds. An earlier draft of this arm ignored
@@ -560,17 +565,25 @@ fn check_exec_fs(
     if program.contains("${{") || args.iter().any(|a| a.contains("${{")) {
         return; // the resolved argv is the RUN's verdict
     }
-    let Some(script) = nika_types::exec::interpreter_script_operand(program, &args) else {
-        return; // not an interpreter · inline eval · no path named
-    };
     let cwd = action.cwd.as_ref().map(|c| c.value.as_str());
-    let Some(resolved) = resolve_against_cwd(script, cwd) else {
-        return; // a computed cwd makes the script's identity unknowable
-    };
-    if permits.jail_admits_read(&resolved) {
+    if let Some(script) = nika_types::exec::interpreter_script_operand(program, &args) {
+        let Some(resolved) = resolve_against_cwd(script, cwd) else {
+            return; // a computed cwd makes the script's identity unknowable
+        };
+        if permits.jail_admits_read(&resolved) {
+            return;
+        }
+        out.push(fs_escape(id, program, &resolved, "fs.read", permits, false));
         return;
     }
-    out.push(fs_escape(id, program, &resolved, "fs.read", permits, false));
+    // B05 / B29 · issue 1295 — native-first/002 is the door for a host
+    // dump: `cat` of an escaping path is an fs escape, never a granted
+    // program doing what programs do.
+    if let Some(path) =
+        nika_cap::file_plumbing_host_escape(program, &args, cwd, |p| permits.jail_admits_read(p))
+    {
+        out.push(fs_escape(id, program, path, "fs.read", permits, false));
+    }
 }
 
 /// Where the interpreter will look for its script. An ABSOLUTE script

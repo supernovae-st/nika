@@ -280,13 +280,49 @@ async fn a_command_with_a_spec_is_confined_by_the_backend() {
     // confine() before spawning — proven by the marker backend replacing the
     // command (the real read would have been `cat`).
     let shell = TokioShell::with_sandbox(Arc::new(MarkerSandbox));
-    let mut c = cmd("cat", &["/etc/hosts"]);
+    let mut c = cmd("echo", &["hi"]);
     c.sandbox = Some(SandboxSpec::new());
     let r = shell.run(c).await.unwrap();
     assert_eq!(
         r.stdout.trim(),
         "CONFINED",
         "the backend confined the command"
+    );
+}
+
+#[tokio::test]
+async fn confined_cat_of_a_host_path_is_blocked_before_spawn() {
+    // B05 / B29 · issue 1295 — a SandboxSpec (even empty) is the jail;
+    // `cat` of a host absolute path is refused before the backend runs.
+    // MarkerSandbox would have printed CONFINED if confine() were reached.
+    let shell = TokioShell::with_sandbox(Arc::new(MarkerSandbox));
+    let mut c = cmd("cat", &["/etc/passwd"]);
+    c.sandbox = Some(SandboxSpec::new());
+    let err = shell.run(c).await.unwrap_err();
+    match err {
+        ShellError::Blocked { reason } => {
+            assert!(
+                reason.contains("NIKA-SEC-004"),
+                "the refusal speaks the code, not a host-file dump: {reason}"
+            );
+        }
+        other => panic!("expected Blocked, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn confined_cat_of_a_cwd_file_still_reaches_the_backend() {
+    // The mutation: a relative in-cwd operand is not this door.
+    let shell = TokioShell::with_sandbox(Arc::new(MarkerSandbox));
+    let mut spec = SandboxSpec::new();
+    spec.fs_read = vec!["./README.md".into()];
+    let mut c = cmd("cat", &["README.md"]);
+    c.sandbox = Some(spec);
+    let r = shell.run(c).await.unwrap();
+    assert_eq!(
+        r.stdout.trim(),
+        "CONFINED",
+        "cat of a cwd file still reaches confine"
     );
 }
 
