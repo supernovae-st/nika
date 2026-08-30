@@ -1,6 +1,11 @@
 use std::io;
 
-use nika_cadence::{ScheduleDefinition, ScheduleFinding, ScheduleRevision};
+use jiff::Timestamp;
+use nika_cadence::{
+    ArmGeneration, ScheduleDecision, ScheduleDefinition, ScheduleFinding, ScheduleLastSlot,
+    ScheduleOrigin, ScheduleRevision, ScheduleSlot,
+};
+use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
 use thiserror::Error;
 
 /// Maximum number of API-origin schedules in one resident store.
@@ -9,6 +14,8 @@ pub const MAX_API_SCHEDULES: usize = 64;
 pub const MAX_ENCODED_SCHEDULE_BYTES: usize = 7 * 1024;
 /// Maximum deterministic JSON bytes for the complete resident schedule snapshot.
 pub const MAX_SCHEDULE_STORE_BYTES: usize = 1024 * 1024;
+/// Maximum origin-local last-slot decisions retained by the resident.
+pub(crate) const MAX_DURABLE_SCHEDULE_DECISIONS: usize = 256;
 
 /// Declarative concurrency precondition supplied by the future HTTP adapter.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,8 +44,133 @@ pub enum ScheduleApplyOutcome {
     },
 }
 
+/// Durable resident action that consumed one canonical slot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ScheduleSlotAction {
+    Claimed,
+    Skipped,
+}
+
+/// Durable run identity and generation fencing one claimed schedule slot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ScheduleClaimEvidence {
+    run_id: String,
+    execution_id: String,
+    trace_id: String,
+    generation: ArmGeneration,
+}
+
+impl ScheduleClaimEvidence {
+    pub(crate) fn new(
+        run_id: String,
+        execution_id: String,
+        trace_id: String,
+        generation: ArmGeneration,
+    ) -> Self {
+        Self {
+            run_id,
+            execution_id,
+            trace_id,
+            generation,
+        }
+    }
+
+    pub(crate) fn run_id(&self) -> &str {
+        &self.run_id
+    }
+
+    pub(crate) fn execution_id(&self) -> &str {
+        &self.execution_id
+    }
+
+    pub(crate) fn trace_id(&self) -> &str {
+        &self.trace_id
+    }
+
+    pub(crate) const fn generation(&self) -> &ArmGeneration {
+        &self.generation
+    }
+}
+
+/// Bounded last-slot evidence restored by status and the resident planner.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ScheduleDecisionRecord {
+    pub(super) origin: ScheduleOrigin,
+    pub(super) schedule_id: String,
+    pub(super) revision: ScheduleRevision,
+    pub(super) slot: ScheduleLastSlot,
+    pub(super) decision: ScheduleDecision,
+    pub(super) action: ScheduleSlotAction,
+    pub(super) decided_at: Timestamp,
+    pub(super) reason: Option<String>,
+    pub(super) claim: Option<ScheduleClaimEvidence>,
+}
+
+impl ScheduleDecisionRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        origin: ScheduleOrigin,
+        schedule_id: String,
+        revision: ScheduleRevision,
+        slot: &ScheduleSlot,
+        decision: ScheduleDecision,
+        action: ScheduleSlotAction,
+        decided_at: Timestamp,
+        reason: Option<String>,
+        claim: Option<ScheduleClaimEvidence>,
+    ) -> Self {
+        Self {
+            origin,
+            schedule_id,
+            revision,
+            slot: slot.durable_state(),
+            decision,
+            action,
+            decided_at,
+            reason,
+            claim,
+        }
+    }
+
+    pub(crate) const fn origin(&self) -> ScheduleOrigin {
+        self.origin
+    }
+
+    pub(crate) fn schedule_id(&self) -> &str {
+        &self.schedule_id
+    }
+
+    pub(crate) const fn revision(&self) -> &ScheduleRevision {
+        &self.revision
+    }
+
+    pub(crate) const fn slot(&self) -> &ScheduleLastSlot {
+        &self.slot
+    }
+
+    pub(crate) const fn decision(&self) -> ScheduleDecision {
+        self.decision
+    }
+
+    pub(crate) const fn action(&self) -> ScheduleSlotAction {
+        self.action
+    }
+
+    pub(crate) const fn decided_at(&self) -> Timestamp {
+        self.decided_at
+    }
+
+    pub(crate) fn reason(&self) -> Option<&str> {
+        self.reason.as_deref()
+    }
+
+    pub(crate) const fn claim(&self) -> Option<&ScheduleClaimEvidence> {
+        self.claim.as_ref()
+    }
+}
+
 /// Typed failures from the durable API schedule store.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum ScheduleStoreError {
     /// Descriptor-rooted filesystem access failed.
@@ -61,6 +193,12 @@ pub enum ScheduleStoreError {
         /// Maximum admitted schedule count.
         maximum: usize,
     },
+    /// The bounded last-slot decision table is full.
+    #[error("schedule decision store reached its maximum of {maximum} entries")]
+    DecisionLimit {
+        /// Maximum retained origin-local decisions.
+        maximum: usize,
+    },
     /// The complete deterministic snapshot exceeded its encoded ceiling.
     #[error("schedule store snapshot is {bytes} bytes; maximum is {maximum}")]
     SnapshotTooLarge {
@@ -78,6 +216,12 @@ pub enum ScheduleStoreError {
     /// The in-process serialization lock was poisoned.
     #[error("schedule store lock is poisoned")]
     LockPoisoned,
+}
+
+impl NikaErrorCode for ScheduleStoreError {
+    fn nika_code(&self) -> NikaCode {
+        codes::NIKA_018
+    }
 }
 
 impl From<io::Error> for ScheduleStoreError {

@@ -12,7 +12,7 @@ use hyper::header::{CONTENT_TYPE, WWW_AUTHENTICATE};
 use hyper::{Response, StatusCode};
 use thiserror::Error;
 
-use crate::JobStoreError;
+use crate::{JobStoreError, ScheduleStoreError};
 
 /// Why a credential source was refused. Never carries a path or secret bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,6 +61,9 @@ pub enum ServerError {
     /// Durable job state refused startup or mutation.
     #[error("durable job state refused: {0}")]
     JobStore(#[from] JobStoreError),
+    /// Durable schedule state refused startup or mutation.
+    #[error("durable schedule state refused: {0}")]
+    ScheduleStore(#[from] ScheduleStoreError),
     /// The listener could not bind or accept.
     #[error("HTTP listener failed: {0}")]
     Listener(io::ErrorKind),

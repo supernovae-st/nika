@@ -84,7 +84,7 @@ pub(crate) async fn handle(
     state: Arc<AppState>,
 ) -> Result<Response<ResponseBody>, Infallible> {
     let response = if request.uri().path() == "/health" && request.method() == Method::GET {
-        json_response(StatusCode::OK, &HealthResponse::current())
+        json_response(StatusCode::OK, &HealthResponse::current(true))
     } else if request.uri().path().starts_with("/v1/") {
         protected(request, state).await
     } else {
@@ -130,6 +130,13 @@ async fn route_authenticated(
 ) -> Response<ResponseBody> {
     let path = request.uri().path().to_owned();
     match (request.method(), path.as_str()) {
+        (&Method::PUT, path) if path.starts_with("/v1/schedules/") => {
+            let Some(id) = schedule_route(path) else {
+                return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
+                    .into_response();
+            };
+            super::schedule_http::put(request, id.to_owned(), state).await
+        }
         (&Method::POST, "/v1/jobs") => create_job(request, state).await,
         (&Method::POST, "/v1/check") => check_snapshot(request, state).await,
         (&Method::GET, "/v1/openapi.json") => {
@@ -139,9 +146,21 @@ async fn route_authenticated(
         (&Method::GET, path) if path.starts_with("/v1/workflows/") => {
             workflow_metadata(path, &state).await
         }
+        (&Method::GET, path) if path.starts_with("/v1/schedules/") => {
+            let Some(id) = schedule_route(path) else {
+                return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
+                    .into_response();
+            };
+            super::schedule_http::get(id.to_owned(), &state).await
+        }
         (&Method::GET, _) => get_job(&path, &state).await,
         _ => ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found").into_response(),
     }
+}
+
+fn schedule_route(path: &str) -> Option<&str> {
+    let id = path.strip_prefix("/v1/schedules/")?;
+    (!id.is_empty() && !id.contains('/')).then_some(id)
 }
 
 async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Response<ResponseBody> {
@@ -441,7 +460,10 @@ fn job_route(path: &str) -> Option<(&str, bool)> {
     }
 }
 
-async fn collect_body(request: Request<Incoming>, limit: usize) -> Result<Bytes, ApiError> {
+pub(super) async fn collect_body(
+    request: Request<Incoming>,
+    limit: usize,
+) -> Result<Bytes, ApiError> {
     Limited::new(request.into_body(), limit)
         .collect()
         .await
@@ -488,7 +510,7 @@ fn coarse_body_too_large(request: &Request<Incoming>, limit: usize) -> bool {
         .is_none_or(|length| length > limit)
 }
 
-fn is_json(headers: &hyper::HeaderMap) -> bool {
+pub(super) fn is_json(headers: &hyper::HeaderMap) -> bool {
     let mut values = headers.get_all(CONTENT_TYPE).iter();
     let Some(value) = values.next() else {
         return false;
@@ -504,7 +526,10 @@ fn is_json(headers: &hyper::HeaderMap) -> bool {
     })
 }
 
-fn json_response<T: serde::Serialize>(status: StatusCode, value: &T) -> Response<ResponseBody> {
+pub(super) fn json_response<T: serde::Serialize>(
+    status: StatusCode,
+    value: &T,
+) -> Response<ResponseBody> {
     let bytes = serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec());
     let mut response = Response::new(once_body(bytes));
     *response.status_mut() = status;

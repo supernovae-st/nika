@@ -3,6 +3,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use jiff::{Timestamp, Zoned};
+use nika_error::NikaErrorCode;
 
 use super::*;
 use crate::{
@@ -567,4 +568,16 @@ fn active_timed_hash_jitter_refuses_until_a_law_exists() {
         .due(),
         ScheduleDueVerdict::NotDue
     ));
+}
+
+#[test]
+fn planner_refusals_speak_the_schedule_registry_code() {
+    assert_eq!(
+        SchedulePlanError::UnsupportedHashJitter.nika_code(),
+        nika_error::codes::NIKA_017
+    );
+    assert_eq!(
+        SchedulePlanError::InvalidCanonicalCadence("bad".to_owned()).nika_code(),
+        nika_error::codes::NIKA_017
+    );
 }

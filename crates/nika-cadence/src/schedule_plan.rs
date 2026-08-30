@@ -13,6 +13,7 @@
 use jiff::civil::DateTime;
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, Zoned};
+use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
 
 use crate::due::{MISSED_SLOTS_CAP, ON_TIME_WINDOW};
 use crate::firing::SlotId;
@@ -309,7 +310,7 @@ impl SchedulePlan {
 }
 
 /// Typed planner refusals. A refusal yields no effective schedule hint.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum SchedulePlanError {
     /// No deterministic slot-offset law exists for `jitter: hash` yet.
@@ -318,6 +319,12 @@ pub enum SchedulePlanError {
     /// A validated canonical cadence failed to re-enter the shared parser.
     #[error("canonical cadence failed to re-parse: {0}")]
     InvalidCanonicalCadence(String),
+}
+
+impl NikaErrorCode for SchedulePlanError {
+    fn nika_code(&self) -> NikaCode {
+        codes::NIKA_017
+    }
 }
 
 /// Recompute one canonical schedule from current facts.

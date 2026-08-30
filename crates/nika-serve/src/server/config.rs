@@ -2,13 +2,43 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 use std::fmt;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
+use jiff::Zoned;
 use nika_execution::SnapshotLimits;
 
 use crate::MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES;
+
+/// Injected time and wait authority for the resident schedule planner.
+///
+/// Production uses [`SystemResidentClock`]. Tests and embedders can advance a
+/// deterministic clock without sleeping on wall time.
+pub trait ResidentClock: fmt::Debug + Send + Sync {
+    /// Fresh zoned time for one planning or pre-claim decision.
+    fn now(&self) -> Zoned;
+
+    /// Wait until the next clock or scheduler edge.
+    fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+}
+
+/// System-backed resident clock.
+#[derive(Debug)]
+pub struct SystemResidentClock;
+
+impl ResidentClock for SystemResidentClock {
+    fn now(&self) -> Zoned {
+        Zoned::now()
+    }
+
+    fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(tokio::time::sleep(duration))
+    }
+}
 
 /// Explicit ceilings for the remote HTTP and execution boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -142,8 +172,10 @@ impl Default for ServerLimits {
 #[non_exhaustive]
 pub struct ResidentConfig {
     state_root: PathBuf,
+    workflow_root: Option<PathBuf>,
     limits: ServerLimits,
     snapshot_limits: SnapshotLimits,
+    clock: Arc<dyn ResidentClock>,
 }
 
 impl ResidentConfig {
@@ -152,8 +184,10 @@ impl ResidentConfig {
     pub fn new(state_root: impl Into<PathBuf>) -> Self {
         Self {
             state_root: state_root.into(),
+            workflow_root: None,
             limits: ServerLimits::default(),
             snapshot_limits: SnapshotLimits::default(),
+            clock: Arc::new(SystemResidentClock),
         }
     }
 
@@ -171,8 +205,26 @@ impl ResidentConfig {
         self
     }
 
+    /// Attach the contained workflow root used by the resident scheduler.
+    #[must_use]
+    pub fn with_workflow_root(mut self, root: impl Into<PathBuf>) -> Self {
+        self.workflow_root = Some(root.into());
+        self
+    }
+
+    /// Replace the schedule clock and wait authority.
+    #[must_use]
+    pub fn with_clock(mut self, clock: Arc<dyn ResidentClock>) -> Self {
+        self.clock = clock;
+        self
+    }
+
     pub(crate) fn state_root(&self) -> &Path {
         &self.state_root
+    }
+
+    pub(crate) fn workflow_root(&self) -> Option<&Path> {
+        self.workflow_root.as_deref()
     }
 
     pub(crate) const fn limits(&self) -> ServerLimits {
@@ -181,6 +233,10 @@ impl ResidentConfig {
 
     pub(crate) const fn snapshot_limits(&self) -> SnapshotLimits {
         self.snapshot_limits
+    }
+
+    pub(crate) fn clock(&self) -> &Arc<dyn ResidentClock> {
+        &self.clock
     }
 }
 

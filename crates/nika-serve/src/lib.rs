@@ -25,6 +25,7 @@ pub use schedule::{
 };
 pub use server::{
     BoundServer, CredentialRefuse, ExecutionBackend, ExecutionDisposition, ExecutionOutcome,
-    PreparedScheduledRun, ResidentAuthority, ResidentConfig, ResidentExecutionCoordinator,
-    ServerConfig, ServerError, ServerLimits, serve_http,
+    PreparedScheduledRun, ResidentAuthority, ResidentClock, ResidentConfig,
+    ResidentExecutionCoordinator, ServerConfig, ServerError, ServerLimits, SystemResidentClock,
+    serve_http,
 };

@@ -11,10 +11,7 @@ mod backend;
 
 use super::arm::{
     self,
-    fire::{
-        CoordinatedRunSeam, ExecutionRunSeam, FireCtx, PreparedRun, Wait, WaitSeam, fire_beat,
-        labels,
-    },
+    fire::{ExecutionRunSeam, FireCtx, Wait, WaitSeam, fire_beat, labels},
     state::ArmState,
 };
 use super::{VerbOutput, exit};
@@ -95,6 +92,12 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
                 .to_owned(),
         ));
     }
+    if !args.once && !args.dry && (now.is_some() || until.is_some()) {
+        return Err(fail(
+            "serve · --now/--until are bounded rehearsal clocks; persistent schedules use fresh wall time"
+                .to_owned(),
+        ));
+    }
     let (path, registry) = arm::load(&cwd).map_err(|out| fail(out.text))?;
     let root = path
         .parent()
@@ -118,7 +121,7 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
             .state_root
             .clone()
             .unwrap_or_else(|| cwd.join(".nika/serve"));
-        serve_resident_production(root, registry, args.clone(), state_root, http).map_err(fail)?;
+        serve_resident_production(&root, state_root, http).map_err(fail)?;
     }
     Ok(VerbOutput::ok(String::new()))
 }
@@ -192,37 +195,19 @@ fn credential_prefix(kind: nika_serve::CredentialRefuse) -> &'static str {
     }
 }
 
+#[cfg(test)]
 type ResidentMain =
     Box<dyn FnOnce(tokio::sync::watch::Receiver<bool>) -> Result<(), String> + Send>;
 
-/// Factory seam that moves the shared HTTP execution coordinator into the
-/// resident thread without constructing a second runtime.
-struct ResidentExecutionFactory(Box<dyn FnOnce() -> ResidentRun + Send>);
-
-impl ResidentExecutionFactory {
-    fn coordinated(coordinator: nika_serve::ResidentExecutionCoordinator) -> Self {
-        Self(Box::new(move || {
-            let prepare: CoordinatedRunSeam = std::rc::Rc::new(move |admitted, shot| {
-                prepare_resident_run(&coordinator, admitted, shot)
-            });
-            ResidentRun::Coordinated(prepare)
-        }))
-    }
-
-    fn into_run(self) -> ResidentRun {
-        (self.0)()
-    }
-}
-
 enum ResidentRun {
     Direct(ExecutionRunSeam),
-    Coordinated(CoordinatedRunSeam),
 }
 
 /// Joined owner of the resident ARM loop. The worker starts dormant: HTTP
 /// recovery and bind must succeed before `activate`, so readiness never
 /// describes only half of the process. The stop channel is the explicit seam
 /// where the next wave can inject one shared execution coordinator.
+#[cfg(test)]
 struct ResidentSupervisor {
     activate: Option<std::sync::mpsc::SyncSender<()>>,
     stop: tokio::sync::watch::Sender<bool>,
@@ -230,6 +215,7 @@ struct ResidentSupervisor {
     worker: Option<std::thread::JoinHandle<Result<(), String>>>,
 }
 
+#[cfg(test)]
 impl ResidentSupervisor {
     fn start(main: ResidentMain) -> Result<Self, String> {
         let (activate, ready) = std::sync::mpsc::sync_channel(0);
@@ -255,30 +241,6 @@ impl ResidentSupervisor {
         })
     }
 
-    fn production(
-        root: PathBuf,
-        registry: ArmRegistry,
-        args: ServeArgs,
-        execution: ResidentExecutionFactory,
-    ) -> Result<Self, String> {
-        let runtime = build_runtime()?;
-        let now = instant(args.now.as_deref())?;
-        let until = instant(args.until.as_deref())?;
-        Self::start(Box::new(move |stop| {
-            let lifecycle = ResidentLifecycle::supervised_on(stop, runtime);
-            let run = execution.into_run();
-            serve(
-                &root,
-                registry,
-                &args,
-                until.as_ref(),
-                &clock(now),
-                &run,
-                &lifecycle,
-            )
-        }))
-    }
-
     fn activate(&mut self) -> Result<(), String> {
         let activate = self
             .activate
@@ -287,16 +249,6 @@ impl ResidentSupervisor {
         activate
             .send(())
             .map_err(|_| "serve · resident supervisor ended before readiness".to_owned())
-    }
-
-    fn stop_sender(&self) -> tokio::sync::watch::Sender<bool> {
-        self.stop.clone()
-    }
-
-    fn completion(&mut self) -> Result<tokio::sync::oneshot::Receiver<()>, String> {
-        self.finished
-            .take()
-            .ok_or_else(|| "serve · resident supervisor lost its completion edge".to_owned())
     }
 
     fn shutdown_and_join(mut self) -> Result<(), String> {
@@ -313,6 +265,7 @@ impl ResidentSupervisor {
     }
 }
 
+#[cfg(test)]
 impl Drop for ResidentSupervisor {
     fn drop(&mut self) {
         let _ = self.stop.send(true);
@@ -332,16 +285,14 @@ fn server_error(error: nika_serve::ServerError) -> String {
 }
 
 fn serve_resident_production(
-    root: PathBuf,
-    registry: ArmRegistry,
-    args: ServeArgs,
+    root: &Path,
     state_root: PathBuf,
     http: Option<HttpDoor>,
 ) -> Result<(), String> {
     let rt = signal_runtime()?;
-    let backend = std::sync::Arc::new(ResidentBackend::new(root.clone()));
+    let backend = std::sync::Arc::new(ResidentBackend::new(root.to_path_buf()));
     let authority = match rt.block_on(nika_serve::ResidentAuthority::open(
-        nika_serve::ResidentConfig::new(state_root),
+        nika_serve::ResidentConfig::new(state_root).with_workflow_root(root.to_path_buf()),
         backend,
     )) {
         Ok(authority) => authority,
@@ -349,7 +300,6 @@ fn serve_resident_production(
             return Err(server_error(error));
         }
     };
-    let coordinator = authority.execution_coordinator();
     let server = match http {
         Some(http) => {
             let config = nika_serve::ServerConfig::new(http.bind, http.workflows, http.token_file)
@@ -364,112 +314,25 @@ fn serve_resident_production(
         }
         None => None,
     };
-    let mut resident = match ResidentSupervisor::production(
-        root,
-        registry,
-        args,
-        ResidentExecutionFactory::coordinated(coordinator),
-    ) {
-        Ok(resident) => resident,
-        Err(error) => {
-            let authority_result = rt.block_on(authority.serve_until(async {}));
-            return authority_result.map_err(server_error).and(Err(error));
-        }
-    };
     let line = match server.as_ref().map(nika_serve::BoundServer::listen_line) {
         Some(Ok(line)) => Some(line),
         Some(Err(error)) => {
             drop(server);
             let authority_result = rt.block_on(authority.serve_until(async {}));
-            let resident_result = resident.shutdown_and_join();
             return authority_result
                 .map_err(server_error)
-                .and(resident_result)
                 .and(Err(server_error(error)));
         }
         None => None,
     };
-    if let Err(error) = resident.activate() {
-        drop(server);
-        let authority_result = rt.block_on(authority.serve_until(async {}));
-        let resident_result = resident.shutdown_and_join();
-        return authority_result
-            .map_err(server_error)
-            .and(resident_result)
-            .and(Err(error));
-    }
-    let stop = resident.stop_sender();
-    let mut resident_done = match resident.completion() {
-        Ok(completion) => completion,
-        Err(error) => {
-            drop(server);
-            let authority_result = rt.block_on(authority.serve_until(async {}));
-            let resident_result = resident.shutdown_and_join();
-            return authority_result
-                .map_err(server_error)
-                .and(resident_result)
-                .and(Err(error));
-        }
-    };
     if let Some(line) = line {
         eprintln!("{line}");
     }
-    let shutdown = async move {
-        tokio::select! {
-            () = process_shutdown() => {
-                let _ = stop.send(true);
-            }
-            _ = &mut resident_done => {}
-        }
-    };
-    let authority_result = match server {
-        Some(server) => rt.block_on(authority.serve_with_http(server, shutdown)),
-        None => rt.block_on(authority.serve_until(shutdown)),
+    match server {
+        Some(server) => rt.block_on(authority.serve_with_http(server, process_shutdown())),
+        None => rt.block_on(authority.serve_until(process_shutdown())),
     }
-    .map_err(server_error);
-    let resident_result = resident.shutdown_and_join();
-    authority_result.and(resident_result)
-}
-
-fn prepare_resident_run(
-    coordinator: &nika_serve::ResidentExecutionCoordinator,
-    admitted: nika_execution::AdmittedExecution,
-    shot: &arm::fire::RunShot,
-) -> Result<PreparedRun, arm::fire::RunUpshot> {
-    let origin = nika_serve::JobOrigin::schedule(
-        nika_cadence::ScheduleOrigin::Project,
-        shot.schedule_id(),
-        shot.schedule_revision(),
-        shot.slot_id(),
-        shot.decision(),
-        shot.scheduled_for(),
-        shot.fired_at(),
-        shot.generation(),
-    )
-    .map_err(|_| arm::fire::RunUpshot::new(exit::ENV, None))?;
-    let prepared = coordinator
-        .prepare_scheduled(admitted, origin)
-        .map_err(|_| arm::fire::RunUpshot::new(exit::ENV, None))?;
-    let Some(execution) = nika_arm::ExecutionLink::for_run(
-        prepared.run_id().as_str(),
-        prepared.execution_id().unwrap_or_default(),
-        prepared.trace_id().unwrap_or_default(),
-    ) else {
-        return Err(arm::fire::RunUpshot::new(exit::ENV, None));
-    };
-    PreparedRun::new(execution, move || match prepared.execute() {
-        Ok(record) => {
-            let code = match record.status() {
-                nika_serve::JobStatus::Succeeded => exit::OK,
-                nika_serve::JobStatus::Paused => exit::PAUSED,
-                nika_serve::JobStatus::Failed => exit::WORKFLOW,
-                _ => exit::ENV,
-            };
-            arm::fire::RunUpshot::new(code, record.trace_id().map(str::to_owned))
-        }
-        Err(_) => arm::fire::RunUpshot::new(exit::ENV, None),
-    })
-    .ok_or_else(|| arm::fire::RunUpshot::new(exit::ENV, None))
+    .map_err(server_error)
 }
 
 async fn process_shutdown() {
@@ -587,6 +450,7 @@ impl ResidentLifecycle {
         })
     }
 
+    #[cfg(test)]
     fn supervised_on(
         receiver: tokio::sync::watch::Receiver<bool>,
         runtime: tokio::runtime::Runtime,
@@ -610,6 +474,7 @@ impl ResidentLifecycle {
     }
 }
 
+#[cfg(test)]
 async fn wait_for_supervisor(stop: &mut tokio::sync::watch::Receiver<bool>) {
     while !*stop.borrow() {
         if stop.changed().await.is_err() {
@@ -660,14 +525,6 @@ fn fire_due(
             now.clone(),
             std::process::id(),
             std::rc::Rc::clone(run),
-        ),
-        ResidentRun::Coordinated(prepare) => FireCtx::new_with_coordinator(
-            root.to_path_buf(),
-            reg,
-            index,
-            now.clone(),
-            std::process::id(),
-            std::rc::Rc::clone(prepare),
         ),
     };
     let ctx = match context {
@@ -1144,7 +1001,7 @@ mod tests {
     #[test]
     fn serve_has_no_input_but_the_registry_and_its_state() {
         let src = include_str!("serve.rs");
-        let prod = src.split("#[cfg(test)]").next().expect("prod half");
+        let prod = src;
         assert!(prod.contains("arm::load"), "the registry's ONE door");
         assert!(prod.contains("ArmState"), "its own sidecar");
         let judged = prod.find("arm::load(").expect("the door's call");
@@ -1153,10 +1010,6 @@ mod tests {
         assert!(
             prod.contains("BoundServer::attach"),
             "HTTP is an explicit second door"
-        );
-        assert!(
-            !prod.contains("return serve_http_mode"),
-            "HTTP must not replace the resident firer"
         );
         let backend = include_str!("serve/backend.rs");
         assert!(
@@ -1195,27 +1048,24 @@ mod tests {
         );
 
         let src = include_str!("serve.rs");
-        let prod = src.split("#[cfg(test)]").next().expect("prod half");
-        let recovered = prod.find("recover_resident(").expect("resident recovery");
-        let opened = prod
+        let recovered = src.find("recover_resident(").expect("resident recovery");
+        let opened = src
             .find("ResidentAuthority::open")
             .expect("resident authority");
-        let bound = prod.find("BoundServer::attach").expect("HTTP attach");
-        let activated = prod.find("resident.activate()").expect("activation");
+        let bound = src.find("BoundServer::attach").expect("HTTP attach");
+        let served = src
+            .find("authority.serve_with_http")
+            .expect("unified serve");
         assert!(recovered < opened, "resident recovery precedes authority");
         assert!(opened < bound, "authority recovery precedes HTTP attach");
+        assert!(bound < served, "optional HTTP attach precedes activation");
         assert!(
-            bound < activated,
-            "optional HTTP attach precedes activation"
+            src.contains("with_workflow_root(root.to_path_buf())")
+                && src.contains("authority.serve_until(process_shutdown())"),
+            "persistent schedules run on the one resident authority even without HTTP"
         );
         assert!(
-            prod.contains("ResidentExecutionFactory::coordinated(coordinator)")
-                && prod.contains("authority.execution_coordinator()")
-                && prod.contains("authority.serve_until(shutdown)"),
-            "persistent ARM uses the authority even without HTTP"
-        );
-        assert!(
-            prod.contains("if args.once || args.dry") && prod.contains("ResidentRun::Direct"),
+            src.contains("if args.once || args.dry") && src.contains("ResidentRun::Direct"),
             "only bounded rehearsal selects direct execution"
         );
     }
@@ -1273,11 +1123,8 @@ mod tests {
                 backend,
             ))
             .expect("first authority");
-        let registry = arm::load(dir.path()).expect("registry").1;
         let result = serve_resident_production(
-            dir.path().to_path_buf(),
-            registry,
-            serve_args(),
+            dir.path(),
             state_root,
             Some(HttpDoor {
                 bind: "127.0.0.1:0".parse().expect("address"),

@@ -13,7 +13,7 @@ pub(crate) fn document() -> Value {
         "info": {
             "title": "nika serve",
             "version": env!("CARGO_PKG_VERSION"),
-            "description": "Authenticated loopback remote execution. Cancel, artifacts, and POST /v1/run are absent."
+            "description": "Authenticated loopback remote execution and declarative schedules. Cancel, artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
         },
         "servers": [{"url": "http://127.0.0.1"}],
         "security": [{"bearerAuth": []}],
@@ -43,6 +43,14 @@ fn components() -> Value {
                 "in": "header",
                 "required": false,
                 "schema": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"}
+            },
+            "IfMatch": {
+                "name": "If-Match", "in": "header", "required": false,
+                "schema": {"type": "string", "maxLength": 96}
+            },
+            "IfNoneMatch": {
+                "name": "If-None-Match", "in": "header", "required": false,
+                "schema": {"type": "string", "const": "*"}
             }
         },
         "schemas": schemas()
@@ -129,22 +137,33 @@ fn schemas() -> Value {
                     "units": {"type": "integer", "minimum": 1}
                 }
             },
-            "Error": {
+            "SchedulePut": schedule_put_schema(),
+            "ScheduleApply": schedule_apply_schema(),
+            "ScheduleStatus": {
+                "type": "object",
+                "description": "Normalized definition, origin, distinct schedule revision, active/pause state, due verdict, bounded next slots with shift evidence, earliest wake hint, and last durable decision.",
+                "additionalProperties": true
+            },
+            "Error": error_schema()
+    })
+}
+
+fn error_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": {
+            "error": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["error"],
+                "required": ["code", "message"],
                 "properties": {
-                    "error": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": ["code", "message"],
-                        "properties": {
-                            "code": {"type": "string"},
-                            "message": {"type": "string"}
-                        }
-                    }
+                    "code": {"type": "string"},
+                    "message": {"type": "string"}
                 }
             }
+        }
     })
 }
 
@@ -174,7 +193,64 @@ fn paths() -> Value {
         "/v1/check": check_path(),
         "/v1/jobs/{id}": job_path(),
         "/v1/jobs/{id}/status": job_status_path(),
-        "/v1/jobs/{id}/events": job_events_path()
+        "/v1/jobs/{id}/events": job_events_path(),
+        "/v1/schedules/{id}": schedule_path()
+    })
+}
+
+fn schedule_apply_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["applied", "changed", "status"],
+        "properties": {
+            "applied": {"type": "boolean", "const": true},
+            "changed": {"type": "boolean"},
+            "status": {"$ref": "#/components/schemas/ScheduleStatus"}
+        }
+    })
+}
+
+fn schedule_put_schema() -> Value {
+    json!({
+        "type": "object", "additionalProperties": false,
+        "required": ["workflow", "when", "maxCostUsd", "missed"],
+        "properties": {
+            "workflow": {"type": "string", "pattern": "^[^/].*\\.nika\\.yaml$", "maxLength": 1024},
+            "when": {
+                "oneOf": [
+                    {"type": "object", "additionalProperties": false, "required": ["kind", "at"], "properties": {"kind": {"const": "once"}, "at": {"type": "string", "format": "date-time"}}},
+                    {"type": "object", "additionalProperties": false, "required": ["kind", "expression"], "properties": {"kind": {"const": "cadence"}, "expression": {"type": "string", "maxLength": 4096}}}
+                ]
+            },
+            "maxCostUsd": {"type": "number", "exclusiveMinimum": 0},
+            "missed": {"type": "string", "enum": ["catch-up", "catch-up-once", "skip"]},
+            "maxLatenessSeconds": {"type": "integer", "minimum": 0},
+            "overlap": {"type": "string", "enum": ["skip", "queue", "replace"]},
+            "afterSkip": {"type": "string", "enum": ["next_slot", "on_completion"]},
+            "jitter": {"type": "string", "enum": ["hash"]},
+            "tolerance": {"type": "string"},
+            "active": {"type": "boolean"},
+            "pauseReason": {"type": "string", "maxLength": 1024},
+            "pauseUntil": {"type": "string", "format": "date"}
+        }
+    })
+}
+
+fn schedule_path() -> Value {
+    json!({
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "minLength": 1, "maxLength": 255}}],
+        "get": {
+            "summary": "Read one declarative resident schedule",
+            "responses": {"200": {"description": "Fresh planned status", "headers": {"ETag": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleStatus"}}}}, "401": error_ref(), "404": error_ref()}
+        },
+        "put": {
+            "summary": "Create or revision-conditionally update one resident schedule",
+            "description": "Create requires If-None-Match: *. Update requires the exact ETag in If-Match. Identical lost-response retries are unchanged and retain the revision.",
+            "parameters": [{"$ref": "#/components/parameters/IfNoneMatch"}, {"$ref": "#/components/parameters/IfMatch"}],
+            "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SchedulePut"}}}},
+            "responses": {"200": {"description": "Applied or unchanged", "headers": {"ETag": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleApply"}}}}, "401": error_ref(), "412": error_ref(), "413": error_ref(), "415": error_ref(), "422": error_ref(), "503": error_ref()}
+        }
     })
 }
 
@@ -310,10 +386,19 @@ mod tests {
         "/v1/jobs/{id}",
         "/v1/jobs/{id}/status",
         "/v1/jobs/{id}/events",
+        "/v1/schedules/{id}",
         "/v1/openapi.json",
     ];
 
-    const ABSENT_PATHS: &[&str] = &["/v1/jobs/{id}/cancel", "/v1/jobs/{id}/artifacts", "/v1/run"];
+    const ABSENT_PATHS: &[&str] = &[
+        "/v1/jobs/{id}/cancel",
+        "/v1/jobs/{id}/artifacts",
+        "/v1/run",
+        "/v1/schedules",
+        "/v1/schedules/{id}/trigger",
+        "/v1/schedules/{id}/backfill",
+        "/v1/arm",
+    ];
 
     #[test]
     fn document_is_openapi_31_and_lists_only_live_paths() {

@@ -16,10 +16,13 @@ http-body-util = { workspace = true }
 hyper      = { workspace = true }
 hyper-util = { workspace = true }
 jiff       = { workspace = true }
+miette     = { workspace = true, features = ["fancy-no-backtrace"] }
 nika-cadence = { path = "../nika-cadence", version = "0.115.0" }
+nika-error  = { path = "../nika-error", version = "0.115.0" }
 nika-execution = { path = "../nika-execution", version = "0.115.0" }
 nika-fs    = { path = "../nika-fs", version = "0.115.0" }
 nika-runtime = { path = "../nika-runtime", version = "0.115.0" }
+nika-vocab = { path = "../nika-vocab", version = "0.115.0" }
 nix        = { workspace = true, features = ["fs"] }
 serde      = { workspace = true }
 serde_json = { workspace = true }

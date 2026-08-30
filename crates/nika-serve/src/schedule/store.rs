@@ -4,8 +4,9 @@ use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 
 use nika_cadence::{
-    AfterSkip, MissPolicy, Overlap, ScheduleDefinition, ScheduleDraft, ScheduleJitter,
-    ScheduleRevision, ScheduleWhen,
+    AfterSkip, MissPolicy, Overlap, ScheduleDecision, ScheduleDecisionState, ScheduleDefinition,
+    ScheduleDraft, ScheduleJitter, ScheduleLastSlot, ScheduleOrigin, ScheduleRevision,
+    ScheduleSlot, ScheduleWhen, ScheduleWhenDraft, SlotId,
 };
 use nika_fs::OwnedDir;
 use nix::fcntl::{Flock, FlockArg};
@@ -15,7 +16,8 @@ use sha2::{Digest as _, Sha256};
 
 use super::{
     MAX_API_SCHEDULES, MAX_ENCODED_SCHEDULE_BYTES, MAX_SCHEDULE_STORE_BYTES, ScheduleApplyOutcome,
-    ScheduleApplyPrecondition, ScheduleStoreError,
+    ScheduleApplyPrecondition, ScheduleClaimEvidence, ScheduleDecisionRecord, ScheduleSlotAction,
+    ScheduleStoreError, model::MAX_DURABLE_SCHEDULE_DECISIONS,
 };
 
 const SCHEDULES_DIR: &str = "schedules";
@@ -127,6 +129,186 @@ impl ScheduleStore {
         }
     }
 
+    /// Read one API-origin definition from a freshly locked durable snapshot.
+    ///
+    /// # Errors
+    /// Returns a typed I/O or corruption failure.
+    pub(crate) fn get(&self, id: &str) -> Result<Option<ScheduleDefinition>, ScheduleStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let state = self.load_state()?;
+        state
+            .schedules
+            .binary_search_by(|stored| stored.id.as_str().cmp(id))
+            .ok()
+            .map(|index| state.schedules[index].definition())
+            .transpose()
+    }
+
+    /// Read all API-origin definitions from one bounded durable snapshot.
+    ///
+    /// # Errors
+    /// Returns a typed I/O or corruption failure.
+    pub(crate) fn all(&self) -> Result<Box<[ScheduleDefinition]>, ScheduleStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let state = self.load_state()?;
+        state
+            .schedules
+            .iter()
+            .map(PersistedSchedule::definition)
+            .collect::<Result<Vec<_>, _>>()
+            .map(Vec::into_boxed_slice)
+    }
+
+    /// Restore the last consumed slot for an origin-local schedule id.
+    ///
+    /// # Errors
+    /// Returns a typed I/O or corruption failure.
+    pub(crate) fn decision_state(
+        &self,
+        origin: ScheduleOrigin,
+        id: &str,
+    ) -> Result<ScheduleDecisionState, ScheduleStoreError> {
+        self.last_decision(origin, id).map(|record| {
+            ScheduleDecisionState::new(record.map(|decision| decision.slot().clone()))
+        })
+    }
+
+    /// Read the bounded last durable action for status projection.
+    ///
+    /// # Errors
+    /// Returns a typed I/O or corruption failure.
+    pub(crate) fn last_decision(
+        &self,
+        origin: ScheduleOrigin,
+        id: &str,
+    ) -> Result<Option<ScheduleDecisionRecord>, ScheduleStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let state = self.load_state()?;
+        let key = decision_key(origin, id);
+        state
+            .decisions
+            .binary_search_by(|stored| stored.key.as_str().cmp(&key))
+            .ok()
+            .map(|index| state.decisions[index].record())
+            .transpose()
+    }
+
+    /// Atomically consume one slot as a claim or skip.
+    ///
+    /// The current API definition must still carry `revision`. Project
+    /// definitions are reloaded and compared by the caller immediately before
+    /// this transaction. `false` means another caller already consumed the
+    /// same slot or an API mutation made the candidate stale.
+    ///
+    /// # Errors
+    /// Returns a typed I/O, corruption, or size failure before acknowledgement.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn consume_slot(
+        &self,
+        origin: ScheduleOrigin,
+        definition: &ScheduleDefinition,
+        slot: &ScheduleSlot,
+        decision: ScheduleDecision,
+        action: ScheduleSlotAction,
+        decided_at: jiff::Timestamp,
+        reason: Option<String>,
+    ) -> Result<bool, ScheduleStoreError> {
+        self.consume_slot_with_claim(
+            origin, definition, slot, decision, action, decided_at, reason, None,
+        )
+    }
+
+    /// Atomically persist a claimed slot with its run and generation fence.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn consume_claimed_slot(
+        &self,
+        origin: ScheduleOrigin,
+        definition: &ScheduleDefinition,
+        slot: &ScheduleSlot,
+        decision: ScheduleDecision,
+        decided_at: jiff::Timestamp,
+        claim: ScheduleClaimEvidence,
+    ) -> Result<bool, ScheduleStoreError> {
+        self.consume_slot_with_claim(
+            origin,
+            definition,
+            slot,
+            decision,
+            ScheduleSlotAction::Claimed,
+            decided_at,
+            None,
+            Some(claim),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn consume_slot_with_claim(
+        &self,
+        origin: ScheduleOrigin,
+        definition: &ScheduleDefinition,
+        slot: &ScheduleSlot,
+        decision: ScheduleDecision,
+        action: ScheduleSlotAction,
+        decided_at: jiff::Timestamp,
+        reason: Option<String>,
+        claim: Option<ScheduleClaimEvidence>,
+    ) -> Result<bool, ScheduleStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let mut state = self.load_state()?;
+        if origin == ScheduleOrigin::Api {
+            let Ok(index) = state
+                .schedules
+                .binary_search_by(|stored| stored.id.as_str().cmp(definition.id()))
+            else {
+                return Ok(false);
+            };
+            if state.schedules[index].revision()? != definition.revision() {
+                return Ok(false);
+            }
+        }
+        let record = ScheduleDecisionRecord::new(
+            origin,
+            definition.id().to_owned(),
+            definition.revision(),
+            slot,
+            decision,
+            action,
+            decided_at,
+            reason,
+            claim,
+        );
+        let persisted = PersistedDecision::from_record(&record);
+        let key = persisted.key.clone();
+        match state
+            .decisions
+            .binary_search_by(|stored| stored.key.as_str().cmp(&key))
+        {
+            Ok(index) if state.decisions[index].slot_id == slot.id().as_str() => Ok(false),
+            Ok(index) if state.decisions[index].scheduled_timestamp()? >= slot.scheduled_for() => {
+                Ok(false)
+            }
+            Ok(index) => {
+                state.decisions[index] = persisted;
+                self.persist(&state)?;
+                Ok(true)
+            }
+            Err(index) => {
+                if state.decisions.len() >= MAX_DURABLE_SCHEDULE_DECISIONS {
+                    return Err(ScheduleStoreError::DecisionLimit {
+                        maximum: MAX_DURABLE_SCHEDULE_DECISIONS,
+                    });
+                }
+                state.decisions.insert(index, persisted);
+                self.persist(&state)?;
+                Ok(true)
+            }
+        }
+    }
+
     fn local_guard(&self) -> Result<MutexGuard<'_, ()>, ScheduleStoreError> {
         self.local
             .lock()
@@ -210,6 +392,8 @@ impl ScheduleStore {
 struct PersistedState {
     version: u32,
     schedules: Vec<PersistedSchedule>,
+    #[serde(default)]
+    decisions: Vec<PersistedDecision>,
 }
 
 impl PersistedState {
@@ -217,6 +401,7 @@ impl PersistedState {
         Self {
             version: STATE_VERSION,
             schedules: Vec::new(),
+            decisions: Vec::new(),
         }
     }
 
@@ -240,6 +425,21 @@ impl PersistedState {
             }
             stored.validate()?;
             previous = Some(&stored.id);
+        }
+        let mut previous_decision: Option<&str> = None;
+        if self.decisions.len() > MAX_DURABLE_SCHEDULE_DECISIONS {
+            return Err(ScheduleStoreError::Corrupt(
+                "schedule decision count exceeds its bound".to_owned(),
+            ));
+        }
+        for stored in &self.decisions {
+            if previous_decision.is_some_and(|key| key >= stored.key.as_str()) {
+                return Err(ScheduleStoreError::Corrupt(
+                    "schedule decisions are duplicated or not sorted".to_owned(),
+                ));
+            }
+            stored.validate()?;
+            previous_decision = Some(&stored.key);
         }
         Ok(())
     }
@@ -342,7 +542,65 @@ impl PersistedSchedule {
                 "schedule integrity does not match its deterministic record".to_owned(),
             ));
         }
+        let definition = self.definition()?;
+        if definition.revision() != self.revision()? {
+            return Err(ScheduleStoreError::Corrupt(
+                "schedule revision does not match its canonical definition".to_owned(),
+            ));
+        }
         Ok(())
+    }
+
+    fn definition(&self) -> Result<ScheduleDefinition, ScheduleStoreError> {
+        let when = match &self.when {
+            PersistedWhen::Once { at } => ScheduleWhenDraft::Once { at: at.clone() },
+            PersistedWhen::Cadence { expression } => ScheduleWhenDraft::Cadence {
+                expression: expression.clone(),
+            },
+            PersistedWhen::Webhook => ScheduleWhenDraft::Webhook,
+        };
+        let missed = match self.missed.as_str() {
+            "catch-up" => MissPolicy::Rattraper,
+            "catch-up-once" => MissPolicy::RattraperUneFois,
+            "skip" => MissPolicy::Sauter,
+            _ => return Err(corrupt_value("missed")),
+        };
+        let overlap = match self.overlap.as_str() {
+            "skip" => Overlap::Sauter,
+            "queue" => Overlap::File,
+            "replace" => Overlap::Remplacer,
+            _ => return Err(corrupt_value("overlap")),
+        };
+        let after_skip = match self.after_skip.as_str() {
+            "next-slot" => AfterSkip::ProchainCreneau,
+            "on-completion" => AfterSkip::ACompletion,
+            _ => return Err(corrupt_value("after_skip")),
+        };
+        let jitter = match self.jitter.as_deref() {
+            None => None,
+            Some("hash") => Some(ScheduleJitter::Hash),
+            Some(_) => return Err(corrupt_value("jitter")),
+        };
+        let mut draft = ScheduleDraft::new(
+            self.id.clone(),
+            self.workflow.clone(),
+            when,
+            self.max_cost_usd,
+            missed,
+        );
+        draft.max_lateness_seconds = self.max_lateness_seconds;
+        draft.overlap = Some(overlap);
+        draft.after_skip = Some(after_skip);
+        draft.jitter = jitter;
+        draft.tolerance.clone_from(&self.tolerance);
+        draft.active = Some(self.active);
+        draft.pause_reason.clone_from(&self.pause_reason);
+        draft.pause_until.clone_from(&self.pause_until);
+        draft.validate().map_err(|finding| {
+            ScheduleStoreError::Corrupt(format!(
+                "stored schedule failed canonical validation: {finding}"
+            ))
+        })
     }
 
     fn revision(&self) -> Result<ScheduleRevision, ScheduleStoreError> {
@@ -415,6 +673,170 @@ enum PersistedWhen {
     Once { at: String },
     Cadence { expression: String },
     Webhook,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PersistedDecision {
+    key: String,
+    origin: String,
+    schedule_id: String,
+    revision: String,
+    slot_id: String,
+    scheduled_for: String,
+    decision: String,
+    action: String,
+    decided_at: String,
+    reason: Option<String>,
+    #[serde(default)]
+    run_id: Option<String>,
+    #[serde(default)]
+    execution_id: Option<String>,
+    #[serde(default)]
+    trace_id: Option<String>,
+    #[serde(default)]
+    arm_generation: Option<String>,
+}
+
+impl PersistedDecision {
+    fn from_record(record: &ScheduleDecisionRecord) -> Self {
+        Self {
+            key: decision_key(record.origin(), record.schedule_id()),
+            origin: origin_word(record.origin()).to_owned(),
+            schedule_id: record.schedule_id().to_owned(),
+            revision: record.revision().as_str().to_owned(),
+            slot_id: record.slot().id().as_str().to_owned(),
+            scheduled_for: record.slot().scheduled_for().to_string(),
+            decision: decision_word(record.decision()).to_owned(),
+            action: action_word(record.action()).to_owned(),
+            decided_at: record.decided_at().to_string(),
+            reason: record.reason().map(str::to_owned),
+            run_id: record.claim().map(|claim| claim.run_id().to_owned()),
+            execution_id: record.claim().map(|claim| claim.execution_id().to_owned()),
+            trace_id: record.claim().map(|claim| claim.trace_id().to_owned()),
+            arm_generation: record
+                .claim()
+                .map(|claim| claim.generation().as_str().to_owned()),
+        }
+    }
+
+    fn validate(&self) -> Result<(), ScheduleStoreError> {
+        let record = self.record()?;
+        if self.key != decision_key(record.origin(), record.schedule_id()) {
+            return Err(ScheduleStoreError::Corrupt(
+                "schedule decision key does not match its identity".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn record(&self) -> Result<ScheduleDecisionRecord, ScheduleStoreError> {
+        let origin = match self.origin.as_str() {
+            "project" => ScheduleOrigin::Project,
+            "api" => ScheduleOrigin::Api,
+            _ => return Err(corrupt_value("decision origin")),
+        };
+        let revision = ScheduleRevision::from_wire(&self.revision)
+            .ok_or_else(|| corrupt_value("decision revision"))?;
+        let slot_id =
+            SlotId::from_wire(&self.slot_id).ok_or_else(|| corrupt_value("decision slot id"))?;
+        let scheduled_for = self
+            .scheduled_for
+            .parse()
+            .map_err(|_| corrupt_value("decision scheduled_for"))?;
+        let decision = match self.decision.as_str() {
+            "scheduled" => ScheduleDecision::Scheduled,
+            "catch_up" => ScheduleDecision::CatchUp,
+            _ => return Err(corrupt_value("decision kind")),
+        };
+        let action = match self.action.as_str() {
+            "claimed" => ScheduleSlotAction::Claimed,
+            "skipped" => ScheduleSlotAction::Skipped,
+            _ => return Err(corrupt_value("decision action")),
+        };
+        let decided_at = self
+            .decided_at
+            .parse()
+            .map_err(|_| corrupt_value("decision decided_at"))?;
+        let claim = match (
+            self.run_id.as_deref(),
+            self.execution_id.as_deref(),
+            self.trace_id.as_deref(),
+            self.arm_generation.as_deref(),
+        ) {
+            (None, None, None, None) => None,
+            (Some(run_id), Some(execution_id), Some(trace_id), Some(generation))
+                if crate::JobId::parse(run_id).is_ok()
+                    && !execution_id.is_empty()
+                    && execution_id.len() <= 128
+                    && !trace_id.is_empty()
+                    && trace_id.len() <= 128 =>
+            {
+                let generation = nika_cadence::ArmGeneration::from_wire(generation)
+                    .ok_or_else(|| corrupt_value("decision arm generation"))?;
+                Some(ScheduleClaimEvidence::new(
+                    run_id.to_owned(),
+                    execution_id.to_owned(),
+                    trace_id.to_owned(),
+                    generation,
+                ))
+            }
+            _ => return Err(corrupt_value("decision claim evidence")),
+        };
+        if self.schedule_id.is_empty()
+            || self.schedule_id.len() > nika_cadence::schedule::MAX_SCHEDULE_ID_BYTES
+            || self
+                .reason
+                .as_ref()
+                .is_some_and(|reason| reason.len() > 1_024)
+        {
+            return Err(corrupt_value("decision metadata"));
+        }
+        Ok(ScheduleDecisionRecord {
+            origin,
+            schedule_id: self.schedule_id.clone(),
+            revision,
+            slot: ScheduleLastSlot::new(slot_id, scheduled_for),
+            decision,
+            action,
+            decided_at,
+            reason: self.reason.clone(),
+            claim,
+        })
+    }
+
+    fn scheduled_timestamp(&self) -> Result<jiff::Timestamp, ScheduleStoreError> {
+        self.scheduled_for
+            .parse()
+            .map_err(|_| corrupt_value("decision scheduled_for"))
+    }
+}
+
+fn decision_key(origin: ScheduleOrigin, id: &str) -> String {
+    format!("{}:{id}", origin_word(origin))
+}
+
+const fn origin_word(origin: ScheduleOrigin) -> &'static str {
+    match origin {
+        ScheduleOrigin::Project => "project",
+        ScheduleOrigin::Api => "api",
+        _ => "unknown",
+    }
+}
+
+const fn decision_word(decision: ScheduleDecision) -> &'static str {
+    match decision {
+        ScheduleDecision::Scheduled => "scheduled",
+        ScheduleDecision::CatchUp => "catch_up",
+        _ => "unknown",
+    }
+}
+
+const fn action_word(action: ScheduleSlotAction) -> &'static str {
+    match action {
+        ScheduleSlotAction::Claimed => "claimed",
+        ScheduleSlotAction::Skipped => "skipped",
+    }
 }
 
 fn validate_marker(marker: &str) -> Result<(), ScheduleStoreError> {

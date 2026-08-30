@@ -27,6 +27,8 @@ thiserror     = { workspace = true }
 jiff          = { workspace = true }
 jiff-tzdb     = { workspace = true }   # the EMBEDDED IANA tzdb — never the host's zoneinfo
 sha2          = { workspace = true }   # the firing machine's identities (SlotId · ArmGeneration — W7 · the source-identity convention)
+nika-error    = { path = "../nika-error", version = "0.115.0" }
+miette        = { workspace = true, features = ["fancy-no-backtrace"] }
 
 [dev-dependencies]
 proptest = { workspace = true }

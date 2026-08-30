@@ -8,6 +8,7 @@
 //! in this module.
 
 use jiff::Timestamp;
+use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
 
 use crate::cron::Field;
 use crate::firing::{quoted, sha256_hex};
@@ -87,6 +88,35 @@ pub struct ScheduleDraft {
 }
 
 impl ScheduleDraft {
+    /// Construct the canonical lowering target shared by non-YAML adapters.
+    ///
+    /// Required semantic choices are explicit. Optional policy fields retain
+    /// the same safe defaults as project-origin lowering.
+    #[must_use]
+    pub fn new(
+        id: impl Into<String>,
+        workflow: impl Into<String>,
+        when: ScheduleWhenDraft,
+        max_cost_usd: f64,
+        missed: MissPolicy,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            workflow: workflow.into(),
+            when,
+            max_cost_usd,
+            missed,
+            max_lateness_seconds: None,
+            overlap: None,
+            after_skip: None,
+            jitter: None,
+            tolerance: None,
+            active: None,
+            pause_reason: None,
+            pause_until: None,
+        }
+    }
+
     /// Lower a parsed project beat into the one canonical vocabulary.
     ///
     /// # Errors
@@ -370,6 +400,26 @@ impl ScheduleFindingKind {
     }
 }
 
+impl std::fmt::Display for ScheduleFindingKind {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.code())
+    }
+}
+
+impl std::error::Error for ScheduleFindingKind {}
+
+impl miette::Diagnostic for ScheduleFindingKind {}
+
+impl NikaErrorCode for ScheduleFindingKind {
+    fn nika_code(&self) -> NikaCode {
+        codes::NIKA_016
+    }
+
+    fn spec_code(&self) -> String {
+        self.code().to_owned()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("{} · {detail}", kind.code())]
 #[non_exhaustive]
@@ -548,6 +598,7 @@ const fn after_skip_word(v: AfterSkip) -> &'static str {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+    use nika_error::NikaErrorCode;
 
     fn draft(when: ScheduleWhenDraft) -> ScheduleDraft {
         ScheduleDraft {
@@ -565,6 +616,13 @@ mod tests {
             pause_reason: None,
             pause_until: None,
         }
+    }
+
+    #[test]
+    fn finding_kind_keeps_spec_and_registry_identities_distinct() {
+        let kind = ScheduleFindingKind::Workflow;
+        assert_eq!(kind.spec_code(), "schedule.workflow");
+        assert_eq!(kind.nika_code(), codes::NIKA_016);
     }
 
     #[test]

@@ -89,6 +89,22 @@ impl ResidentExecutionCoordinator {
         admitted: AdmittedExecution,
         origin: JobOrigin,
     ) -> Result<PreparedScheduledRun, ServerError> {
+        self.prepare_scheduled_with_max_cost(admitted, origin, None)
+    }
+
+    /// Prepare a scheduled run carrying its required per-fire spend ceiling.
+    ///
+    /// # Errors
+    /// Returns the same typed refusals as [`Self::prepare_scheduled`].
+    pub fn prepare_scheduled_with_max_cost(
+        &self,
+        admitted: AdmittedExecution,
+        origin: JobOrigin,
+        max_cost_usd: Option<f64>,
+    ) -> Result<PreparedScheduledRun, ServerError> {
+        if max_cost_usd.is_some_and(|cost| !cost.is_finite() || cost <= 0.0) {
+            return Err(ServerError::ScheduledAdmission);
+        }
         let key = scheduled_key(&origin)?;
         let world = admitted
             .snapshot()
@@ -123,6 +139,7 @@ impl ResidentExecutionCoordinator {
                 record,
                 admitted,
                 permit,
+                max_cost_usd,
             )),
             Admission::Existing(record) => {
                 drop(permit);
@@ -202,6 +219,7 @@ pub struct PreparedScheduledRun {
     admitted: Option<AdmittedExecution>,
     permit: Option<tokio::sync::mpsc::OwnedPermit<ExecutionTask>>,
     abort_on_drop: bool,
+    max_cost_usd: Option<f64>,
 }
 
 impl fmt::Debug for PreparedScheduledRun {
@@ -220,6 +238,7 @@ impl PreparedScheduledRun {
         record: JobRecord,
         admitted: AdmittedExecution,
         permit: tokio::sync::mpsc::OwnedPermit<ExecutionTask>,
+        max_cost_usd: Option<f64>,
     ) -> Self {
         Self {
             coordinator,
@@ -227,6 +246,7 @@ impl PreparedScheduledRun {
             admitted: Some(admitted),
             permit: Some(permit),
             abort_on_drop: true,
+            max_cost_usd,
         }
     }
 
@@ -237,6 +257,7 @@ impl PreparedScheduledRun {
             admitted: None,
             permit: None,
             abort_on_drop: false,
+            max_cost_usd: None,
         }
     }
 
@@ -270,6 +291,7 @@ impl PreparedScheduledRun {
                 self.record.id().clone(),
                 admitted,
                 self.record.origin().clone(),
+                self.max_cost_usd,
             ));
         }
         self.coordinator.observe_terminal(self.record.id())

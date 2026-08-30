@@ -59,10 +59,46 @@ impl TestWorld {
         let resident = ResidentConfig::new(&self.state)
             .with_limits(limits)
             .with_snapshot_limits(snapshot_limits);
-        let authority = ResidentAuthority::open(resident, backend).await.expect("authority");
+        self.start_with_config(backend, resident).await
+    }
+
+    #[rustfmt::skip]
+    pub(super) async fn start_with_clock(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits, clock: Arc<dyn super::ResidentClock>) -> TestServer {
+        let resident = ResidentConfig::new(&self.state)
+            .with_limits(limits)
+            .with_clock(clock);
+        self.start_with_config(backend, resident).await
+    }
+
+    #[rustfmt::skip]
+    pub(super) async fn start_with_workflow_roots(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits, resident_root: &std::path::Path, http_root: &std::path::Path) -> TestServer {
+        let resident = ResidentConfig::new(&self.state)
+            .with_limits(limits)
+            .with_workflow_root(resident_root);
+        self.start_with_config_and_http_root(backend, resident, http_root).await
+    }
+
+    async fn start_with_config(
+        &self,
+        backend: Arc<dyn ExecutionBackend>,
+        resident: ResidentConfig,
+    ) -> TestServer {
+        self.start_with_config_and_http_root(backend, resident, &self.workflows)
+            .await
+    }
+
+    async fn start_with_config_and_http_root(
+        &self,
+        backend: Arc<dyn ExecutionBackend>,
+        resident: ResidentConfig,
+        http_root: &std::path::Path,
+    ) -> TestServer {
+        let authority = ResidentAuthority::open(resident, backend)
+            .await
+            .expect("authority");
         let config = ServerConfig::new(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
-            &self.workflows,
+            http_root,
             &self.token,
         );
         let bound = BoundServer::attach(config, &authority).await.expect("bind");
@@ -337,8 +373,8 @@ async fn health_is_public_and_contains_only_compile_bound_identity() {
     }
     assert_eq!(
         body["supportedCapabilities"],
-        json!(["check", "executionSnapshot", "eventStream"]),
-        "HTTP advertises only its snapshot check, admission, and SSE subset"
+        json!(["check", "executionSnapshot", "eventStream", "schedule"]),
+        "the live resident HTTP authority advertises its exact route subset"
     );
     assert!(
         !body["supportedCapabilities"]
@@ -1469,6 +1505,13 @@ impl WireResponse {
 
     pub(super) fn json(&self) -> Value {
         serde_json::from_str(&self.body).expect("JSON response")
+    }
+
+    pub(super) fn header(&self, name: &str) -> Option<&str> {
+        self.headers.lines().find_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            key.eq_ignore_ascii_case(name).then_some(value.trim())
+        })
     }
 
     fn challenge(&self) -> bool {

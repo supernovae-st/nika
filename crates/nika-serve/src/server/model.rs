@@ -111,6 +111,8 @@ pub(crate) struct HealthResponse {
 }
 
 const HTTP_ADAPTER_CAPABILITIES: &[&str] = &["check", "executionSnapshot", "eventStream"];
+const HTTP_ADAPTER_SCHEDULE_CAPABILITIES: &[&str] =
+    &["check", "executionSnapshot", "eventStream", "schedule"];
 
 #[derive(Debug, Serialize)]
 struct HttpAdapterIdentity {
@@ -139,7 +141,7 @@ struct HttpAdapterIdentity {
 }
 
 impl HttpAdapterIdentity {
-    fn current() -> Self {
+    fn current(schedule_live: bool) -> Self {
         let identity = nika_runtime::engine_identity();
         Self {
             engine_version: identity.engine_version(),
@@ -154,17 +156,21 @@ impl HttpAdapterIdentity {
             check_report_version: identity.check_report_version(),
             event_format_version: identity.event_format_version(),
             trace_format_version: identity.trace_format_version(),
-            supported_capabilities: HTTP_ADAPTER_CAPABILITIES,
+            supported_capabilities: if schedule_live {
+                HTTP_ADAPTER_SCHEDULE_CAPABILITIES
+            } else {
+                HTTP_ADAPTER_CAPABILITIES
+            },
         }
     }
 }
 
 impl HealthResponse {
-    pub(crate) fn current() -> Self {
+    pub(crate) fn current(schedule_live: bool) -> Self {
         Self {
             status: "ok",
             service: "nika-serve",
-            identity: HttpAdapterIdentity::current(),
+            identity: HttpAdapterIdentity::current(schedule_live),
         }
     }
 }

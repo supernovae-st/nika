@@ -260,6 +260,15 @@ pub fn code_help(code: NikaCode) -> &'static str {
         }
         14 => "max_output_tokens exceeds context_window_tokens. Fix the model capability rule.",
         15 => "Unrecognised json_mode value. Valid values: none, object, schema.",
+        16 => {
+            "The schedule declaration is invalid. Repair the named schedule field and apply it again."
+        }
+        17 => {
+            "The schedule planner refused to guess. Remove unsupported hash jitter or repair the canonical cadence."
+        }
+        18 => {
+            "Durable schedule state could not be read or changed safely. Check storage integrity, permissions, and configured bounds."
+        }
         50..=99 => {
             "Shell/process execution failed. Check command path, permissions, and timeout settings."
         }

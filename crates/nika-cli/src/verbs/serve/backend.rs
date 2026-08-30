@@ -23,6 +23,19 @@ impl nika_serve::ExecutionBackend for ResidentBackend {
         let display_root = self.display_root.clone();
         Box::pin(async move { drive_resident_execution(display_root, context).await })
     }
+
+    fn execute_with_max_cost<'a>(
+        &'a self,
+        context: nika_execution::ExecutionContext<'a>,
+        max_cost_usd: Option<f64>,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = nika_serve::ExecutionOutcome> + Send + 'a>,
+    > {
+        let display_root = self.display_root.clone();
+        Box::pin(async move {
+            drive_resident_execution_with_max_cost(display_root, context, max_cost_usd).await
+        })
+    }
 }
 
 /// Dropping the execute future stops its blocking worker.
@@ -40,6 +53,14 @@ pub(super) async fn drive_resident_execution(
     display_root: PathBuf,
     context: nika_execution::ExecutionContext<'_>,
 ) -> nika_serve::ExecutionOutcome {
+    drive_resident_execution_with_max_cost(display_root, context, None).await
+}
+
+async fn drive_resident_execution_with_max_cost(
+    display_root: PathBuf,
+    context: nika_execution::ExecutionContext<'_>,
+    max_cost_usd: Option<f64>,
+) -> nika_serve::ExecutionOutcome {
     use nika_service_execution::ServiceExecutionDriver;
 
     let Some(driver) = ServiceExecutionDriver::new(context, display_root) else {
@@ -50,7 +71,11 @@ pub(super) async fn drive_resident_execution(
     };
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     let _cancel = CancelOnDrop(Some(cancel_tx));
-    match tokio::task::spawn_blocking(move || run_admitted_resident_job(driver, cancel_rx)).await {
+    match tokio::task::spawn_blocking(move || {
+        run_admitted_resident_job(driver, cancel_rx, max_cost_usd)
+    })
+    .await
+    {
         Ok(outcome) => outcome,
         Err(_) => {
             nika_serve::ExecutionOutcome::failed("NIKA-COMP-001", "execution worker did not finish")
@@ -61,6 +86,7 @@ pub(super) async fn drive_resident_execution(
 fn run_admitted_resident_job(
     driver: nika_service_execution::ServiceExecutionDriver,
     cancel: tokio::sync::oneshot::Receiver<()>,
+    max_cost_usd: Option<f64>,
 ) -> nika_serve::ExecutionOutcome {
     use nika_service_execution::{ServiceExecutionOptions, ServiceExecutionStatus};
 
@@ -75,7 +101,7 @@ fn run_admitted_resident_job(
     };
     rt.block_on(async move {
         tokio::select! {
-            result = driver.execute(ServiceExecutionOptions::new()) => match result {
+            result = driver.execute(ServiceExecutionOptions::new().with_max_cost_usd(max_cost_usd)) => match result {
                 Ok(outcome) => {
                     let disposition = match outcome.status() {
                         ServiceExecutionStatus::Succeeded => {

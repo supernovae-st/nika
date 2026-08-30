@@ -522,8 +522,12 @@ async fn restart_surfaces_running_schedule_as_interrupted_ambiguity() {
         .await;
     let record = replacement.request(&get_job(run_id.as_str())).await.json();
     assert_eq!(record["status"], "interrupted");
+    assert_eq!(record["receipt"]["job_id"], run_id.as_str());
+    assert!(record["receipt"]["execution_id"].is_string());
+    assert!(record["receipt"]["trace_id"].is_string());
     assert_eq!(record["receipt"]["origin"]["kind"], "schedule");
     assert_eq!(record["receipt"]["origin"]["schedule_id"], "restart");
+    assert!(record["receipt"]["origin"]["arm_generation"].is_string());
     let replay = prepare(replacement.coordinator(), admitted(&world), origin).await;
     assert_eq!(replay.run_id(), &run_id);
     assert_eq!(execute(replay).await.status(), JobStatus::Interrupted);
@@ -584,14 +588,22 @@ async fn terminal_receipts_preserve_scheduled_and_catch_up_decisions() {
         )
         .await;
         let record = execute(prepared).await;
-        let origin = record
-            .receipt()
-            .and_then(crate::JobReceipt::origin)
-            .expect("scheduled terminal origin");
+        let receipt = record.receipt().expect("scheduled terminal receipt");
+        assert_eq!(receipt.job_id(), record.id());
+        assert_eq!(Some(receipt.execution_id()), record.execution_id());
+        assert_eq!(Some(receipt.trace_id()), record.trace_id());
+        let origin = receipt.origin().expect("scheduled terminal origin");
         assert_eq!(origin.schedule_decision(), Some(decision));
-        assert_eq!(
-            serde_json::to_value(origin).expect("receipt origin wire")["decision"],
-            wire
+        let wire_origin = serde_json::to_value(origin).expect("receipt origin wire");
+        assert_eq!(wire_origin["decision"], wire);
+        assert!(
+            nika_cadence::ArmGeneration::from_wire(
+                wire_origin["arm_generation"]
+                    .as_str()
+                    .expect("terminal generation")
+            )
+            .is_some(),
+            "terminal settlement binds its schedule generation"
         );
     }
     assert_eq!(backend.calls(), 2);

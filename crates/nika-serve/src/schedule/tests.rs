@@ -1,8 +1,12 @@
 use std::sync::Arc;
 
+use jiff::{Timestamp, Zoned};
 use nika_cadence::{
-    ScheduleDraft, ScheduleFindingKind, ScheduleRevision, ScheduleWhenDraft, parse_registry,
+    MissPolicy, ScheduleDecision, ScheduleDecisionState, ScheduleDraft, ScheduleDueVerdict,
+    ScheduleFindingKind, ScheduleOrigin, ScheduleRevision, ScheduleWhenDraft, parse_registry,
+    plan_schedule,
 };
+use nika_error::NikaErrorCode;
 
 use super::*;
 
@@ -25,6 +29,38 @@ fn created_revision(outcome: ScheduleApplyOutcome) -> Option<ScheduleRevision> {
         ScheduleApplyOutcome::Created(definition) => Some(definition.revision()),
         _ => None,
     }
+}
+
+fn created_definition(outcome: ScheduleApplyOutcome) -> Option<nika_cadence::ScheduleDefinition> {
+    match outcome {
+        ScheduleApplyOutcome::Created(definition) => Some(definition),
+        _ => None,
+    }
+}
+
+fn once_draft(id: &str, workflow: &str) -> ScheduleDraft {
+    ScheduleDraft::new(
+        id.to_owned(),
+        workflow.to_owned(),
+        ScheduleWhenDraft::Once {
+            at: "2026-09-01T09:00:00Z".to_owned(),
+        },
+        0.25,
+        MissPolicy::RattraperUneFois,
+    )
+}
+
+fn due_once(definition: &nika_cadence::ScheduleDefinition) -> nika_cadence::ScheduleSlot {
+    let now: Zoned = "2026-09-01T09:00:01Z[UTC]".parse().expect("now");
+    let plan =
+        plan_schedule(definition, &now, &ScheduleDecisionState::empty(), 1).expect("once plan");
+    match plan.due() {
+        ScheduleDueVerdict::ScheduledOnTime { slot } | ScheduleDueVerdict::CatchUp { slot, .. } => {
+            Some(slot.clone())
+        }
+        _ => None,
+    }
+    .expect("due once slot")
 }
 
 #[test]
@@ -176,6 +212,233 @@ fn restart_recovers_and_replays() {
         )
         .expect("replay");
     assert!(matches!(outcome, ScheduleApplyOutcome::Unchanged(_)));
+}
+
+#[test]
+fn consumed_once_and_origin_collision_survive_restart() {
+    let root = tempfile::tempdir().expect("root");
+    let store = ScheduleStore::open(root.path()).expect("store");
+    let api = created_definition(
+        store
+            .apply(
+                once_draft("same", "base.nika.yaml"),
+                ScheduleApplyPrecondition::Create,
+            )
+            .expect("create"),
+    )
+    .expect("created definition");
+    let slot = due_once(&api);
+    let decided_at: Timestamp = "2026-09-01T09:00:01Z".parse().expect("decision time");
+    assert!(
+        store
+            .consume_slot(
+                ScheduleOrigin::Api,
+                &api,
+                &slot,
+                ScheduleDecision::CatchUp,
+                ScheduleSlotAction::Claimed,
+                decided_at,
+                None,
+            )
+            .expect("api claim")
+    );
+    assert!(
+        store
+            .consume_slot(
+                ScheduleOrigin::Project,
+                &api,
+                &slot,
+                ScheduleDecision::Scheduled,
+                ScheduleSlotAction::Skipped,
+                decided_at,
+                Some("project collision".to_owned()),
+            )
+            .expect("project skip")
+    );
+    drop(store);
+
+    let reopened = ScheduleStore::open(root.path()).expect("reopen");
+    let api_state = reopened
+        .decision_state(ScheduleOrigin::Api, "same")
+        .expect("api state");
+    let project = reopened
+        .last_decision(ScheduleOrigin::Project, "same")
+        .expect("project state")
+        .expect("project decision");
+    assert_eq!(project.action(), ScheduleSlotAction::Skipped);
+    assert_eq!(project.reason(), Some("project collision"));
+    let now: Zoned = "2026-09-01T08:59:00Z[UTC]"
+        .parse()
+        .expect("rolled-back clock");
+    let replay = plan_schedule(&api, &now, &api_state, 1).expect("replay plan");
+    assert!(matches!(
+        replay.due(),
+        ScheduleDueVerdict::OnceConsumed { .. }
+    ));
+}
+
+#[test]
+fn mutation_immediately_before_claim_invalidates_stale_candidate() {
+    let root = tempfile::tempdir().expect("root");
+    let store = ScheduleStore::open(root.path()).expect("store");
+    let old = created_definition(
+        store
+            .apply(
+                once_draft("near-fire", "base.nika.yaml"),
+                ScheduleApplyPrecondition::Create,
+            )
+            .expect("create"),
+    )
+    .expect("created definition");
+    let slot = due_once(&old);
+    let updated = once_draft("near-fire", "changed.nika.yaml");
+    assert!(matches!(
+        store
+            .apply(updated, ScheduleApplyPrecondition::Revision(old.revision()))
+            .expect("update"),
+        ScheduleApplyOutcome::Updated(_)
+    ));
+    let decided_at: Timestamp = "2026-09-01T09:00:01Z".parse().expect("decision time");
+    assert!(
+        !store
+            .consume_slot(
+                ScheduleOrigin::Api,
+                &old,
+                &slot,
+                ScheduleDecision::CatchUp,
+                ScheduleSlotAction::Claimed,
+                decided_at,
+                None,
+            )
+            .expect("stale claim")
+    );
+    assert!(
+        store
+            .last_decision(ScheduleOrigin::Api, "near-fire")
+            .expect("last decision")
+            .is_none()
+    );
+}
+
+#[test]
+fn durable_decisions_are_monotone_and_have_a_fixed_count_ceiling() {
+    let root = tempfile::tempdir().expect("root");
+    let store = ScheduleStore::open(root.path()).expect("store");
+    let decided_at: Timestamp = "2026-09-01T10:00:01Z".parse().expect("decision time");
+    let newer = once_draft("monotone", "base.nika.yaml")
+        .validate()
+        .expect("newer definition");
+    let newer_slot = due_once(&newer);
+    assert!(
+        store
+            .consume_slot(
+                ScheduleOrigin::Project,
+                &newer,
+                &newer_slot,
+                ScheduleDecision::Scheduled,
+                ScheduleSlotAction::Claimed,
+                decided_at,
+                None,
+            )
+            .expect("newer claim")
+    );
+    let mut older_draft = once_draft("monotone", "base.nika.yaml");
+    older_draft.when = ScheduleWhenDraft::Once {
+        at: "2026-08-01T09:00:00Z".to_owned(),
+    };
+    let older = older_draft.validate().expect("older definition");
+    let older_now: Zoned = "2026-08-01T09:00:01Z[UTC]".parse().expect("older now");
+    let older_plan =
+        plan_schedule(&older, &older_now, &ScheduleDecisionState::empty(), 1).expect("older plan");
+    let older_slot = match older_plan.due() {
+        ScheduleDueVerdict::ScheduledOnTime { slot } | ScheduleDueVerdict::CatchUp { slot, .. } => {
+            Some(slot.clone())
+        }
+        _ => None,
+    }
+    .expect("older slot");
+    assert!(
+        !store
+            .consume_slot(
+                ScheduleOrigin::Project,
+                &older,
+                &older_slot,
+                ScheduleDecision::Scheduled,
+                ScheduleSlotAction::Claimed,
+                decided_at,
+                None,
+            )
+            .expect("monotone refusal")
+    );
+
+    for index in 1..super::model::MAX_DURABLE_SCHEDULE_DECISIONS {
+        let definition = once_draft(&format!("bounded-{index}"), "base.nika.yaml")
+            .validate()
+            .expect("bounded definition");
+        let slot = due_once(&definition);
+        assert!(
+            store
+                .consume_slot(
+                    ScheduleOrigin::Project,
+                    &definition,
+                    &slot,
+                    ScheduleDecision::Scheduled,
+                    ScheduleSlotAction::Claimed,
+                    decided_at,
+                    None,
+                )
+                .expect("within decision bound")
+        );
+    }
+    let excess = once_draft("one-decision-too-many", "base.nika.yaml")
+        .validate()
+        .expect("excess definition");
+    let excess_slot = due_once(&excess);
+    assert!(matches!(
+        store.consume_slot(
+            ScheduleOrigin::Project,
+            &excess,
+            &excess_slot,
+            ScheduleDecision::Scheduled,
+            ScheduleSlotAction::Claimed,
+            decided_at,
+            None,
+        ),
+        Err(ScheduleStoreError::DecisionLimit { maximum })
+            if maximum == super::model::MAX_DURABLE_SCHEDULE_DECISIONS
+    ));
+}
+
+#[test]
+fn unknown_persisted_decision_enum_refuses_recovery() {
+    let root = tempfile::tempdir().expect("root");
+    let store = ScheduleStore::open(root.path()).expect("store");
+    let definition = once_draft("closed-decision", "base.nika.yaml")
+        .validate()
+        .expect("definition");
+    let slot = due_once(&definition);
+    let decided_at: Timestamp = "2026-09-01T09:00:01Z".parse().expect("decision time");
+    store
+        .consume_slot(
+            ScheduleOrigin::Project,
+            &definition,
+            &slot,
+            ScheduleDecision::Scheduled,
+            ScheduleSlotAction::Claimed,
+            decided_at,
+            None,
+        )
+        .expect("decision");
+    drop(store);
+    let path = root.path().join("schedules/state.json");
+    let state = std::fs::read_to_string(&path).expect("state");
+    let forged = state.replace("\"action\":\"claimed\"", "\"action\":\"future\"");
+    assert_ne!(forged, state, "test must alter the closed enum");
+    std::fs::write(path, forged).expect("forged state");
+    assert!(matches!(
+        ScheduleStore::open(root.path()),
+        Err(ScheduleStoreError::Corrupt(_))
+    ));
 }
 
 #[test]
@@ -369,4 +632,12 @@ fn persisted_schema_refuses_secret_fields() {
         ScheduleStore::open(root.path()),
         Err(ScheduleStoreError::Corrupt(_))
     ));
+}
+
+#[test]
+fn store_failures_speak_the_schedule_registry_code() {
+    assert_eq!(
+        ScheduleStoreError::LockPoisoned.nika_code(),
+        nika_error::codes::NIKA_018
+    );
 }

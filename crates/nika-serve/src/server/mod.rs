@@ -10,6 +10,8 @@ mod model;
 mod openapi;
 mod registry;
 mod route;
+mod schedule_http;
+mod scheduler;
 mod sse;
 mod store;
 
@@ -18,7 +20,7 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -27,15 +29,16 @@ use nika_execution::{ExecutionContext, ExecutionService, SnapshotLimits};
 use nika_fs::OwnedDir;
 use serde_json::json;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{Semaphore, mpsc};
+use tokio::sync::{Notify, Semaphore, mpsc};
 use tokio::task::JoinSet;
 
 use crate::{
     EventPageLimit, JobId, JobOrigin, JobReceipt, JobStatus, JobStore, MAX_EVENT_PAGE_LEN,
+    ScheduleStore,
 };
 
 use auth::BearerToken;
-pub use config::{ResidentConfig, ServerConfig, ServerLimits};
+pub use config::{ResidentClock, ResidentConfig, ServerConfig, ServerLimits, SystemResidentClock};
 pub use coordinator::{PreparedScheduledRun, ResidentExecutionCoordinator};
 use error::diagnose_capture;
 pub use error::{CredentialRefuse, ServerError};
@@ -155,6 +158,15 @@ pub trait ExecutionBackend: Send + Sync + 'static {
         &'a self,
         context: ExecutionContext<'a>,
     ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>>;
+
+    /// Execute with an optional schedule-owned per-fire spend ceiling.
+    fn execute_with_max_cost<'a>(
+        &'a self,
+        context: ExecutionContext<'a>,
+        _max_cost_usd: Option<f64>,
+    ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        self.execute(context)
+    }
 }
 
 struct AppState {
@@ -167,6 +179,9 @@ struct AppState {
     snapshot_limits: SnapshotLimits,
     sse_slots: Arc<Semaphore>,
     event_page_limit: EventPageLimit,
+    schedules: Arc<ScheduleStore>,
+    schedule_wake: Arc<Notify>,
+    clock: Arc<dyn ResidentClock>,
 }
 
 struct AuthorityState {
@@ -175,6 +190,11 @@ struct AuthorityState {
     backend: Arc<dyn ExecutionBackend>,
     limits: ServerLimits,
     snapshot_limits: SnapshotLimits,
+    project: Arc<OnceLock<Arc<OwnedDir>>>,
+    schedules: Arc<ScheduleStore>,
+    schedule_wake: Arc<Notify>,
+    coordinator: ResidentExecutionCoordinator,
+    clock: Arc<dyn ResidentClock>,
 }
 
 #[derive(Debug)]
@@ -183,6 +203,7 @@ struct ExecutionTask {
     admitted: Option<nika_execution::AdmittedExecution>,
     prestarted: bool,
     origin: JobOrigin,
+    max_cost_usd: Option<f64>,
 }
 
 impl ExecutionTask {
@@ -192,6 +213,7 @@ impl ExecutionTask {
             admitted: None,
             prestarted: false,
             origin: JobOrigin::Manual,
+            max_cost_usd: None,
         }
     }
 
@@ -199,12 +221,14 @@ impl ExecutionTask {
         id: JobId,
         admitted: nika_execution::AdmittedExecution,
         origin: JobOrigin,
+        max_cost_usd: Option<f64>,
     ) -> Self {
         Self {
             id,
             admitted: Some(admitted),
             prestarted: true,
             origin,
+            max_cost_usd,
         }
     }
 }
@@ -251,12 +275,23 @@ impl ResidentAuthority {
             .collect();
         let coordinator =
             ResidentExecutionCoordinator::new(store_actor.handle(), jobs, config.limits());
+        let project = Arc::new(OnceLock::new());
+        if let Some(held) = prepared.project {
+            let _set = project.set(held);
+        }
+        let schedules = Arc::new(prepared.schedules);
+        let schedule_wake = Arc::new(Notify::new());
         let state = Arc::new(AuthorityState {
             store: store_actor.handle(),
             service: ExecutionService::new(config.snapshot_limits()),
             backend,
             limits: config.limits(),
             snapshot_limits: config.snapshot_limits(),
+            project,
+            schedules,
+            schedule_wake,
+            coordinator: coordinator.clone(),
+            clock: Arc::clone(config.clock()),
         });
         Ok(Self {
             state,
@@ -324,19 +359,28 @@ impl BoundServer {
             ServerError::InvalidConfig("SSE event page limit must be within the store cap")
         })?;
         let prepared = prepare_http(&config).await?;
+        let project = if let Some(project) = authority.state.project.get() {
+            Arc::clone(project)
+        } else {
+            let _set = authority.state.project.set(Arc::clone(&prepared.project));
+            Arc::clone(&prepared.project)
+        };
         let listener = TcpListener::bind(config.bind())
             .await
             .map_err(|error| ServerError::Listener(error.kind()))?;
         let state = Arc::new(AppState {
             token: prepared.token,
             store: authority.state.store.clone(),
-            project: prepared.project,
+            project,
             service: authority.state.service,
             coordinator: authority.coordinator.clone(),
             limits: authority.state.limits,
             snapshot_limits: authority.state.snapshot_limits,
             sse_slots: Arc::new(Semaphore::new(authority.state.limits.max_sse_clients())),
             event_page_limit,
+            schedules: Arc::clone(&authority.state.schedules),
+            schedule_wake: Arc::clone(&authority.state.schedule_wake),
+            clock: Arc::clone(&authority.state.clock),
         });
         Ok(Self { listener, state })
     }
@@ -393,6 +437,8 @@ pub async fn serve_http(
 struct PreparedAuthority {
     store: Arc<JobStore>,
     incarnation: crate::ServerIncarnation,
+    schedules: ScheduleStore,
+    project: Option<Arc<OwnedDir>>,
 }
 
 struct PreparedHttp {
@@ -402,12 +448,26 @@ struct PreparedHttp {
 
 async fn prepare_authority(config: &ResidentConfig) -> Result<PreparedAuthority, ServerError> {
     let state_root = config.state_root().to_owned();
+    let workflow_root = config.workflow_root().map(Path::to_owned);
     tokio::task::spawn_blocking(move || {
         ensure_state_root(&state_root)?;
         let store = Arc::new(JobStore::open_fail_fast(&state_root)?);
+        let schedules = ScheduleStore::open(&state_root).map_err(ServerError::ScheduleStore)?;
+        let project = workflow_root
+            .map(|root| {
+                OwnedDir::open(&root)
+                    .map(Arc::new)
+                    .map_err(|error| ServerError::WorkflowRoot(error.kind()))
+            })
+            .transpose()?;
         let incarnation = store.claim_server_incarnation()?;
         store.settle_interrupted_jobs(&incarnation)?;
-        Ok(PreparedAuthority { store, incarnation })
+        Ok(PreparedAuthority {
+            store,
+            incarnation,
+            schedules,
+            project,
+        })
     })
     .await
     .map_err(|_| ServerError::BlockingTask)?
@@ -476,6 +536,12 @@ async fn run_authority_until<F>(
 where
     F: Future<Output = ()>,
 {
+    let (schedule_stop, schedule_receiver) = tokio::sync::watch::channel(false);
+    let mut schedule_task = tokio::spawn(scheduler::run(
+        Arc::clone(&authority.state),
+        schedule_receiver,
+    ));
+    let mut schedule_done = false;
     let mut executions = JoinSet::new();
     let mut fatal = None;
     tokio::pin!(shutdown);
@@ -502,10 +568,23 @@ where
                     break;
                 }
             }
+            schedule = &mut schedule_task => {
+                fatal = Some(schedule_failure(schedule));
+                schedule_done = true;
+                break;
+            }
         }
     }
 
-    finish_authority(authority, executions, fatal).await
+    if !schedule_done {
+        let _ = schedule_stop.send(true);
+    }
+    let authority_result = finish_authority(authority, executions, fatal).await;
+    if schedule_done {
+        authority_result
+    } else {
+        combine_schedule_result(authority_result, schedule_task.await)
+    }
 }
 
 async fn run_authority_with_http<F>(
@@ -516,6 +595,12 @@ async fn run_authority_with_http<F>(
 where
     F: Future<Output = ()>,
 {
+    let (schedule_stop, schedule_receiver) = tokio::sync::watch::channel(false);
+    let mut schedule_task = tokio::spawn(scheduler::run(
+        Arc::clone(&authority.state),
+        schedule_receiver,
+    ));
+    let mut schedule_done = false;
     let listener = server.listener;
     let http_state = server.state;
     let mut connections = JoinSet::new();
@@ -558,13 +643,45 @@ where
                 }
             }
             _ = connections.join_next(), if !connections.is_empty() => {}
+            schedule = &mut schedule_task => {
+                fatal = Some(schedule_failure(schedule));
+                schedule_done = true;
+                break;
+            }
         }
     }
 
     drop(listener);
     connections.abort_all();
     while connections.join_next().await.is_some() {}
-    finish_authority(authority, executions, fatal).await
+    if !schedule_done {
+        let _ = schedule_stop.send(true);
+    }
+    let authority_result = finish_authority(authority, executions, fatal).await;
+    if schedule_done {
+        authority_result
+    } else {
+        combine_schedule_result(authority_result, schedule_task.await)
+    }
+}
+
+fn schedule_failure(
+    result: Result<Result<(), ServerError>, tokio::task::JoinError>,
+) -> ServerError {
+    match result {
+        Ok(Err(error)) => error,
+        Ok(Ok(())) | Err(_) => ServerError::ExecutionTask,
+    }
+}
+
+fn combine_schedule_result(
+    authority: Result<(), ServerError>,
+    schedule: Result<Result<(), ServerError>, tokio::task::JoinError>,
+) -> Result<(), ServerError> {
+    match authority {
+        Err(error) => Err(error),
+        Ok(()) => schedule.map_err(|_| ServerError::ExecutionTask)?,
+    }
 }
 
 async fn finish_authority(
@@ -693,7 +810,7 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
     if !task.prestarted && !start_running(&mut guard, &admitted).await? {
         return Ok(());
     }
-    settle_disposition(&state, &mut guard, admitted, task.origin).await
+    settle_disposition(&state, &mut guard, admitted, task.origin, task.max_cost_usd).await
 }
 
 async fn admit_task(
@@ -755,11 +872,14 @@ async fn settle_disposition(
     guard: &mut RunningGuard,
     admitted: nika_execution::AdmittedExecution,
     origin: JobOrigin,
+    max_cost_usd: Option<f64>,
 ) -> Result<(), ServerError> {
     let session = state.service.begin(admitted);
     let outcome = tokio::time::timeout(
         state.limits.execution_timeout(),
-        state.backend.execute(session.context()),
+        state
+            .backend
+            .execute_with_max_cost(session.context(), max_cost_usd),
     )
     .await;
     let Ok(outcome) = outcome else {
@@ -877,6 +997,8 @@ mod credential_tests;
 mod failure_tests;
 #[cfg(test)]
 mod result_tests;
+#[cfg(test)]
+mod schedule_tests;
 #[cfg(test)]
 mod test_support;
 #[cfg(test)]

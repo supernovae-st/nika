@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 /// Operator stderr after bind. Next hops live here, not on GET /health
 /// (ADR-117 identity allowlist).
 pub(crate) fn listen_line(addr: SocketAddr) -> String {
-    let hops = "GET /health · GET /v1/openapi.json (Bearer) · POST /v1/check (Bearer) · POST /v1/jobs (Bearer + Idempotency-Key)";
+    let hops = "GET /health · GET /v1/openapi.json (Bearer) · POST /v1/check (Bearer) · POST /v1/jobs (Bearer + Idempotency-Key) · PUT/GET /v1/schedules/:id (Bearer + ETag)";
     if addr.ip().is_loopback() {
         format!("nika serve · listening http://{addr} · {hops}")
     } else {
