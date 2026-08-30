@@ -32,7 +32,7 @@ pub(crate) fn gates(
     if let Some(err) = required_inputs_refusal(wf, overrides) {
         return Err(err);
     }
-    if let Some(err) = budget_floor_refusal(wf, report, budget, model_override) {
+    if let Some(err) = budget_floor_at(wf, report, budget, model_override, overrides) {
         return Err(err);
     }
     if let Some(err) = access_pin_refusal(wf, report, probes, access_pin, model_override) {
@@ -61,6 +61,11 @@ pub(crate) fn gates(
 /// envelope: `nika check` still skips `invoke:` (no token bound), but a
 /// catalog floor already over the cap must refuse before HTTP — the
 /// mid-run NIKA-1704 abort is the spend-then-apologise this gate closes.
+///
+/// B20 R1 / issue 1297: a `--var` that resolves an envelope or task
+/// `model:` CEL is not on the static report. [`gates`] passes those
+/// bindings so the live id is judged here; this 4-arg form (the CLI
+/// preflight) still prices `--model` and the file.
 #[must_use]
 pub fn budget_floor_refusal(
     wf: &RawWorkflow,
@@ -68,7 +73,20 @@ pub fn budget_floor_refusal(
     budget: Option<f64>,
     model_override: Option<&str>,
 ) -> Option<RuntimeError> {
+    budget_floor_at(wf, report, budget, model_override, &BTreeMap::new())
+}
+
+fn budget_floor_at(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    budget: Option<f64>,
+    model_override: Option<&str>,
+    overrides: &BTreeMap<String, Value>,
+) -> Option<RuntimeError> {
     let budget = budget?;
+    if let Some(err) = unpriced_cloud_on_resolved_ids(wf, budget, model_override, overrides) {
+        return Some(err);
+    }
     let owned;
     let effective = match model_override {
         Some(m) => {
@@ -90,13 +108,34 @@ pub fn budget_floor_refusal(
 /// zero spend). Mock and local unpriced seats are the sparing arms —
 /// they never trip this gate.
 fn unpriced_cloud_cap_refusal(report: &CheckReport, budget: f64) -> Option<RuntimeError> {
-    let unpriced: Vec<&str> = report
+    let unpriced: Vec<String> = report
         .data_journey
         .model_endpoints
         .iter()
         .filter(|endpoint| endpoint.locus == nika_check::EndpointLocus::Cloud && !endpoint.priced)
-        .map(|endpoint| endpoint.model.as_str())
+        .map(|endpoint| endpoint.model.clone())
         .collect();
+    unpriced_cloud_message(&unpriced, budget)
+}
+
+/// The resolved-id walk (W0-D-R1): after the run model is known —
+/// CLI `--model`, envelope/task CEL that a `--var` or a declared
+/// default fills, the envelope literal — an unpriced cloud seat
+/// under a cap refuses even when `nika check` named a priced default.
+fn unpriced_cloud_on_resolved_ids(
+    wf: &RawWorkflow,
+    budget: f64,
+    model_override: Option<&str>,
+    overrides: &BTreeMap<String, Value>,
+) -> Option<RuntimeError> {
+    let unpriced: Vec<String> = resolved_infer_models(wf, model_override, overrides)
+        .into_iter()
+        .filter(|model| unpriced_cloud_seat(model))
+        .collect();
+    unpriced_cloud_message(&unpriced, budget)
+}
+
+fn unpriced_cloud_message(unpriced: &[String], budget: f64) -> Option<RuntimeError> {
     if unpriced.is_empty() {
         return None;
     }
@@ -109,6 +148,74 @@ fn unpriced_cloud_cap_refusal(report: &CheckReport, budget: f64) -> Option<Runti
              seat, or drop the cap for a local/mock rehearsal.\n"
         ),
     })
+}
+
+fn resolved_infer_models(
+    wf: &RawWorkflow,
+    model_override: Option<&str>,
+    overrides: &BTreeMap<String, Value>,
+) -> Vec<String> {
+    let envelope = wf.model.as_ref().map(|m| m.value.as_str());
+    let default = model_override
+        .map(str::to_owned)
+        .or_else(|| envelope.and_then(|expr| resolve_model_expr(expr, wf, overrides)));
+    wf.tasks
+        .iter()
+        .filter_map(|task| {
+            let declared = match &task.value.action {
+                RawAction::Infer(action) => action.model.as_ref().map(|m| m.value.as_str()),
+                RawAction::Agent(action) => action.model.as_ref().map(|m| m.value.as_str()),
+                _ => return None,
+            };
+            match declared {
+                Some(expr) => resolve_model_expr(expr, wf, overrides),
+                None => default.clone(),
+            }
+        })
+        .collect()
+}
+
+fn resolve_model_expr(
+    expr: &str,
+    wf: &RawWorkflow,
+    overrides: &BTreeMap<String, Value>,
+) -> Option<String> {
+    if !expr.contains("${{") {
+        return Some(expr.to_owned());
+    }
+    if let Some((authority, name)) = nika_check::analyzer::bare_static_ref(expr)
+        && authority == "inputs."
+        && let Some(value) = overrides.get(name).and_then(Value::as_str)
+    {
+        return Some(value.to_owned());
+    }
+    nika_check::static_literal_of(wf, expr)?
+        .as_str()
+        .map(str::to_owned)
+}
+
+/// A recognized third-party cloud seat with no snapshot row. Unknown
+/// providers stay unknown (never promoted to cloud). Mock and local
+/// are the sparing arms — unpriced, never this class.
+pub(crate) fn unpriced_cloud_seat(model: &str) -> bool {
+    if model == "mock" || model.starts_with("mock/") {
+        return false;
+    }
+    let provider = model.split_once('/').map_or(model, |(p, _)| p);
+    let Some(entry) = nika_catalog::find_provider(provider) else {
+        return false;
+    };
+    let local = entry
+        .tags
+        .iter()
+        .any(|tag| matches!(tag, nika_catalog::Tag::Local))
+        || entry
+            .data_policy
+            .is_some_and(|policy| policy.zdr == "local");
+    if local {
+        return false;
+    }
+    nika_catalog::find_pricing_for(model).is_none()
 }
 
 /// Unavoidable catalog spend of priced `invoke:` tasks (cheapest path:

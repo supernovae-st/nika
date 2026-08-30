@@ -47,6 +47,8 @@
 #![forbid(unsafe_code)]
 
 mod admit;
+#[cfg(test)]
+mod admit_resolved_tests;
 mod agent_events;
 pub mod approval;
 #[cfg(test)]
