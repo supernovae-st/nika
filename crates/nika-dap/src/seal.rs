@@ -721,7 +721,7 @@ pub fn candidate_pubkeys(key_file: Option<&Path>) -> Result<Vec<(String, String)
         // seam-bypass-ok: reading the operator-named key file (the custody idiom above)
         let text = std::fs::read_to_string(path)
             .map_err(|e| format!("cannot read --key {}: {e}", path.display()))?;
-        out.push((text.trim().to_owned(), path.display().to_string()));
+        extend_candidate_pubkeys(&mut out, &text, &path.display().to_string());
     }
     for name in ["run-signing.pub", "retired.pub"] {
         let Some(path) = keys_path(name) else {
@@ -731,14 +731,36 @@ pub fn candidate_pubkeys(key_file: Option<&Path>) -> Result<Vec<(String, String)
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
-        for line in text.lines() {
-            let line = line.trim();
-            if !line.is_empty() {
-                out.push((line.to_owned(), format!("~/.nika/keys/{name}")));
-            }
-        }
+        extend_candidate_pubkeys(&mut out, &text, &format!("~/.nika/keys/{name}"));
     }
     Ok(out)
+}
+
+/// Read one or more minisign public-key boxes from a custody file. A public
+/// box is two lines (comment + payload); splitting the file line-by-line turns
+/// both halves into invalid candidates and makes the default key appear
+/// absent. The retired ledger is the same shape repeated with blank separators.
+fn extend_candidate_pubkeys(out: &mut Vec<(String, String)>, text: &str, source: &str) {
+    let mut lines = text.lines().map(str::trim).filter(|line| !line.is_empty());
+    while let Some(comment) = lines.next() {
+        if !comment.starts_with("untrusted comment:") {
+            continue;
+        }
+        let Some(payload) = lines.next() else {
+            break;
+        };
+        let candidate = format!("{comment}\n{payload}");
+        if minisign::PublicKeyBox::from_string(&candidate).is_err() {
+            continue;
+        }
+        let candidate_fp = fingerprint(&candidate);
+        if !out
+            .iter()
+            .any(|(known, _)| fingerprint(known) == candidate_fp)
+        {
+            out.push((candidate, source.to_owned()));
+        }
+    }
 }
 
 /// `~/.nika/keys/<name>` — a config path, never a secret read (the
@@ -787,6 +809,32 @@ mod tests {
         assert_eq!(fp.len(), 16);
         assert!(fp.bytes().all(|b| b.is_ascii_hexdigit()));
         assert_eq!(fingerprint(&pk), fp, "deterministic");
+    }
+
+    #[test]
+    fn custody_candidates_keep_whole_boxes_and_dedupe_current_from_retired() {
+        let (current, _) = keypair();
+        let (retired, _) = keypair();
+        let mut candidates = Vec::new();
+
+        extend_candidate_pubkeys(&mut candidates, &current, "run-signing.pub");
+        extend_candidate_pubkeys(
+            &mut candidates,
+            &format!("garbage is not a key\n\n{current}\n\n{retired}\n"),
+            "retired.pub",
+        );
+
+        assert_eq!(candidates.len(), 2, "one current and one retired key");
+        assert_eq!(candidates[0].0, current.trim());
+        assert_eq!(candidates[0].1, "run-signing.pub");
+        assert_eq!(candidates[1].0, retired.trim());
+        assert_eq!(candidates[1].1, "retired.pub");
+        assert!(
+            candidates
+                .iter()
+                .all(|(key, _)| minisign::PublicKeyBox::from_string(key).is_ok()),
+            "every custody candidate remains a complete minisign box"
+        );
     }
 
     #[test]
