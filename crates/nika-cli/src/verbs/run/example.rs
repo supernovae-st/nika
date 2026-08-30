@@ -54,6 +54,33 @@ fn stage_room(slug: &str, yaml: &str) -> Result<(std::path::PathBuf, crate::cwd:
 /// printed to stderr (#145: the offline-model nudge for infer/provider
 /// failures · the real missing dependency for an exec `program not
 /// found`) · the original exit code is returned unchanged.
+/// Fold `try`'s `--answer` / `--resume` into the same request `run` builds.
+/// Relative resume paths pin to the operator cwd BEFORE the rehearsal
+/// room chdir, or a `--resume traces/t.ndjson` would look inside the temp
+/// staging dir.
+fn try_gate_request(
+    answers: &[String],
+    resume: Option<&std::path::Path>,
+    operator_cwd: Option<&std::path::Path>,
+) -> Option<nika_dap::resume::ResumeRequest> {
+    if resume.is_none() && answers.is_empty() {
+        return None;
+    }
+    Some(nika_dap::resume::ResumeRequest {
+        trace: resume.map(|path| {
+            if path.is_absolute() {
+                path.to_path_buf()
+            } else {
+                operator_cwd.map_or_else(|| path.to_path_buf(), |cwd| cwd.join(path))
+            }
+        }),
+        from: None,
+        answers: answers.to_vec(),
+        compat: None,
+        allow_unverified: false,
+    })
+}
+
 #[must_use]
 #[allow(clippy::fn_params_excessive_bools)] // the run trio, verbatim (two switches)
 pub fn example(
@@ -63,6 +90,7 @@ pub fn example(
     vars: &[String],
     (quiet, no_progress): (bool, bool),
     max_cost_usd: Option<f64>,
+    (answers, resume): (&[String], Option<&std::path::Path>),
     theme: Theme,
 ) -> u8 {
     // V5 seat law (RAMS-4): the raw --model flag resolves here — bare =
@@ -72,6 +100,9 @@ pub fn example(
         eprintln!("unknown example `{slug}` — bare `nika try` names the embedded set");
         return exit::FILE;
     };
+    // Pin `--resume` to the operator cwd before the room chdir.
+    let operator_cwd = std::env::current_dir().ok();
+    let resume_req = try_gate_request(answers, resume, operator_cwd.as_deref());
     let (path, room_lease) = match stage_room(slug, yaml) {
         Ok(pair) => pair,
         Err(code) => return code,
@@ -103,10 +134,11 @@ pub fn example(
         model_override,
         access_pin,
         vars,
-        None,
+        resume_req.as_ref(),
         // No run journal: the example is staged to a TEMP file — `.nika/
         // traces/` belongs to workspace runs (the same drive underneath,
-        // deliberately disabled here).
+        // deliberately disabled here). `--resume` still reads the path
+        // the operator named (pinned to their cwd above).
         true,
         // Examples always run whole (tiny by design · no scoping surface).
         None,
@@ -257,6 +289,41 @@ fn example_tip(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn try_gate_request_is_none_when_neither_flag_is_set() {
+        assert!(try_gate_request(&[], None, None).is_none());
+    }
+
+    #[test]
+    fn try_gate_request_preseeds_answers_without_a_trace() {
+        let req = try_gate_request(&["approve=true".into()], None, None)
+            .expect("answers-only is a request");
+        assert_eq!(req.answers, ["approve=true"]);
+        assert!(req.trace.is_none(), "C01 one-pass gate has no --resume");
+        assert!(req.from.is_none());
+        assert!(req.compat.is_none());
+        assert!(!req.allow_unverified);
+    }
+
+    #[test]
+    fn try_gate_request_pins_a_relative_resume_to_the_operator_cwd() {
+        let cwd = std::path::Path::new("/tmp/op");
+        let req = try_gate_request(&[], Some(std::path::Path::new("t.ndjson")), Some(cwd))
+            .expect("resume is a request");
+        assert_eq!(
+            req.trace.as_deref(),
+            Some(std::path::Path::new("/tmp/op/t.ndjson"))
+        );
+    }
+
+    #[test]
+    fn try_gate_request_keeps_an_absolute_resume() {
+        let abs = std::path::Path::new("/abs/t.ndjson");
+        let req = try_gate_request(&[], Some(abs), Some(std::path::Path::new("/tmp/op")))
+            .expect("resume is a request");
+        assert_eq!(req.trace.as_deref(), Some(abs));
+    }
 
     /// A failed verdict carrying one typed task error (the policy's input).
     fn failed(code: &str, message: &str) -> RunVerdict {
