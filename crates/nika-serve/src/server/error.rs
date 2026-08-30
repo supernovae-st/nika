@@ -76,6 +76,18 @@ pub enum ServerError {
     /// The bounded durable-state command queue is full.
     #[error("HTTP server durable-state queue is full")]
     StoreQueueFull,
+    /// The shared HTTP/ARM execution queue has no admission slot.
+    #[error("resident execution queue is full")]
+    ExecutionQueueFull,
+    /// A scheduled snapshot or provenance binding was not canonical.
+    #[error("scheduled execution admission was refused")]
+    ScheduledAdmission,
+    /// A slot replay resolved to different immutable snapshot bytes.
+    #[error("scheduled execution idempotency key conflicts with another snapshot")]
+    ScheduledIdempotencyConflict,
+    /// A scheduled run did not reach durable terminal observation in bounds.
+    #[error("scheduled execution observation timed out")]
+    ScheduledObservationTimeout,
 }
 
 #[derive(Debug, Clone, Copy)]

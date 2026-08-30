@@ -9,8 +9,8 @@ use serde_json::Value;
 use tokio::sync::{Notify, oneshot};
 
 use crate::{
-    Admission, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobReceipt, JobRecord, JobStatus,
-    JobStore, JobStoreError, RequestDigest, ServerIncarnation,
+    Admission, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobOrigin, JobReceipt, JobRecord,
+    JobStatus, JobStore, JobStoreError, RequestDigest, ServerIncarnation,
 };
 
 use super::ServerError;
@@ -30,6 +30,19 @@ enum RequestCommand {
         max_jobs: usize,
         workflow: String,
         world: String,
+        reply: Reply<Admission>,
+    },
+    PrepareScheduled {
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        max_jobs: usize,
+        workflow: String,
+        world: String,
+        origin: Box<JobOrigin>,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        event: Value,
         reply: Reply<Admission>,
     },
     Get {
@@ -57,7 +70,7 @@ enum ControlCommand {
         status: JobStatus,
         event: Value,
         outputs: Option<BTreeMap<String, Value>>,
-        receipt: Option<JobReceipt>,
+        receipt: Option<Box<JobReceipt>>,
         reply: Reply<JobRecord>,
     },
     StartExecution {
@@ -109,6 +122,37 @@ impl StoreHandle {
         receive(answer).await
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn prepare_scheduled_blocking(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        max_jobs: usize,
+        workflow: String,
+        world: String,
+        origin: JobOrigin,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        event: Value,
+    ) -> Result<Admission, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_request(RequestCommand::PrepareScheduled {
+            key,
+            digest,
+            max_jobs,
+            workflow,
+            world,
+            origin: Box::new(origin),
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            event,
+            reply,
+        })?;
+        receive_blocking(answer)
+    }
+
     pub(super) async fn load_world(&self, id: JobId) -> Result<String, ServerError> {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::LoadWorld { id, reply })?;
@@ -145,6 +189,12 @@ impl StoreHandle {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::Get { id, reply })?;
         receive(answer).await
+    }
+
+    pub(super) fn get_blocking(&self, id: JobId) -> Result<Option<JobRecord>, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_request(RequestCommand::Get { id, reply })?;
+        receive_blocking(answer)
     }
 
     pub(super) async fn events_after(
@@ -199,10 +249,30 @@ impl StoreHandle {
             status,
             event,
             outputs,
-            receipt,
+            receipt: receipt.map(Box::new),
             reply,
         })?;
         receive(answer).await
+    }
+
+    pub(super) fn settle_with_result_blocking(
+        &self,
+        id: JobId,
+        status: JobStatus,
+        event: Value,
+        outputs: Option<BTreeMap<String, Value>>,
+        receipt: Option<JobReceipt>,
+    ) -> Result<JobRecord, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_control(ControlCommand::Transition {
+            id,
+            status,
+            event,
+            outputs,
+            receipt: receipt.map(Box::new),
+            reply,
+        })?;
+        receive_blocking(answer)
     }
 
     pub(super) async fn interrupt(&self, id: JobId) -> Result<JobRecord, ServerError> {
@@ -246,6 +316,15 @@ impl StoreHandle {
 async fn receive<T>(answer: oneshot::Receiver<Result<T, JobStoreError>>) -> Result<T, ServerError> {
     answer
         .await
+        .map_err(|_| ServerError::BlockingTask)?
+        .map_err(ServerError::JobStore)
+}
+
+fn receive_blocking<T>(
+    answer: oneshot::Receiver<Result<T, JobStoreError>>,
+) -> Result<T, ServerError> {
+    answer
+        .blocking_recv()
         .map_err(|_| ServerError::BlockingTask)?
         .map_err(ServerError::JobStore)
 }
@@ -350,6 +429,33 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             let result = store.create_or_replay_captured(key, digest, max_jobs, workflow, &world);
             let _result = reply.send(result);
         }
+        RequestCommand::PrepareScheduled {
+            key,
+            digest,
+            max_jobs,
+            workflow,
+            world,
+            origin,
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            event,
+            reply,
+        } => {
+            let result = store.prepare_scheduled_captured(
+                key,
+                digest,
+                max_jobs,
+                workflow,
+                &world,
+                *origin,
+                execution_id,
+                trace_id,
+                snapshot_digest,
+                &event,
+            );
+            let _result = reply.send(result);
+        }
         RequestCommand::Get { id, reply } => {
             let _result = reply.send(store.get(&id));
         }
@@ -405,7 +511,7 @@ fn serve_control(
                     status,
                     std::slice::from_ref(&event),
                     outputs,
-                    receipt,
+                    receipt.map(|receipt| *receipt),
                 )
             } else {
                 store.transition_with_events(&id, status, std::slice::from_ref(&event))

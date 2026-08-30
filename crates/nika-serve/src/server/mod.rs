@@ -3,6 +3,7 @@
 
 mod auth;
 mod config;
+mod coordinator;
 mod error;
 mod listen;
 mod model;
@@ -29,10 +30,13 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{Semaphore, mpsc};
 use tokio::task::JoinSet;
 
-use crate::{EventPageLimit, JobId, JobReceipt, JobStatus, JobStore, MAX_EVENT_PAGE_LEN};
+use crate::{
+    EventPageLimit, JobId, JobOrigin, JobReceipt, JobStatus, JobStore, MAX_EVENT_PAGE_LEN,
+};
 
 use auth::BearerToken;
 pub use config::{ServerConfig, ServerLimits};
+pub use coordinator::{PreparedScheduledRun, ResidentExecutionCoordinator};
 use error::diagnose_capture;
 pub use error::{CredentialRefuse, ServerError};
 use listen::listen_line;
@@ -159,7 +163,7 @@ struct AppState {
     project: Arc<OwnedDir>,
     service: ExecutionService,
     backend: Arc<dyn ExecutionBackend>,
-    jobs: mpsc::Sender<ExecutionTask>,
+    coordinator: ResidentExecutionCoordinator,
     limits: ServerLimits,
     snapshot_limits: SnapshotLimits,
     sse_slots: Arc<Semaphore>,
@@ -169,11 +173,32 @@ struct AppState {
 #[derive(Debug)]
 struct ExecutionTask {
     id: JobId,
+    admitted: Option<nika_execution::AdmittedExecution>,
+    prestarted: bool,
+    origin: JobOrigin,
 }
 
 impl ExecutionTask {
     fn new(id: JobId) -> Self {
-        Self { id }
+        Self {
+            id,
+            admitted: None,
+            prestarted: false,
+            origin: JobOrigin::Manual,
+        }
+    }
+
+    fn scheduled(
+        id: JobId,
+        admitted: nika_execution::AdmittedExecution,
+        origin: JobOrigin,
+    ) -> Self {
+        Self {
+            id,
+            admitted: Some(admitted),
+            prestarted: true,
+            origin,
+        }
     }
 }
 
@@ -220,13 +245,15 @@ impl BoundServer {
                 break;
             }
         }
+        let coordinator =
+            ResidentExecutionCoordinator::new(store_actor.handle(), jobs, config.limits());
         let state = Arc::new(AppState {
             token: prepared.token,
             store: store_actor.handle(),
             project: prepared.project,
             service: ExecutionService::new(config.snapshot_limits()),
             backend,
-            jobs,
+            coordinator,
             limits: config.limits(),
             snapshot_limits: config.snapshot_limits(),
             sse_slots: Arc::new(Semaphore::new(config.limits().max_sse_clients())),
@@ -238,6 +265,13 @@ impl BoundServer {
             jobs: receiver,
             store_actor,
         })
+    }
+
+    /// Clone the one admission/queue/observation authority shared by HTTP and
+    /// the resident ARM callback.
+    #[must_use]
+    pub fn execution_coordinator(&self) -> ResidentExecutionCoordinator {
+        self.state.coordinator.clone()
     }
 
     /// Return the actual socket address, including an ephemeral port.
@@ -468,9 +502,9 @@ async fn serve_connection(stream: TcpStream, state: Arc<AppState>) {
         .await;
 }
 
-async fn run_job(state: Arc<AppState>, task: ExecutionTask) -> Result<(), ServerError> {
+async fn run_job(state: Arc<AppState>, mut task: ExecutionTask) -> Result<(), ServerError> {
     let mut guard = RunningGuard::new(state.store.clone(), task.id.clone());
-    let admitted = match admit_workflow(&state, &task).await {
+    let admitted = match admit_task(&state, &mut task).await {
         Ok(admitted) => admitted,
         Err(error) => {
             let (code, message) = match &error {
@@ -494,10 +528,20 @@ async fn run_job(state: Arc<AppState>, task: ExecutionTask) -> Result<(), Server
             return Ok(());
         }
     };
-    if !start_running(&mut guard, &admitted).await? {
+    if !task.prestarted && !start_running(&mut guard, &admitted).await? {
         return Ok(());
     }
-    settle_disposition(&state, &mut guard, admitted).await
+    settle_disposition(&state, &mut guard, admitted, task.origin).await
+}
+
+async fn admit_task(
+    state: &AppState,
+    task: &mut ExecutionTask,
+) -> Result<nika_execution::AdmittedExecution, Option<nika_execution::ExecutionError>> {
+    if let Some(admitted) = task.admitted.take() {
+        return Ok(admitted);
+    }
+    admit_workflow(state, task).await
 }
 
 async fn start_running(
@@ -548,6 +592,7 @@ async fn settle_disposition(
     state: &AppState,
     guard: &mut RunningGuard,
     admitted: nika_execution::AdmittedExecution,
+    origin: JobOrigin,
 ) -> Result<(), ServerError> {
     let session = state.service.begin(admitted);
     let outcome = tokio::time::timeout(
@@ -573,12 +618,13 @@ async fn settle_disposition(
     let receipt = status
         .is_settled()
         .then(|| {
-            JobReceipt::new(
+            JobReceipt::with_origin(
                 guard.id.clone(),
                 verdict.execution_id().to_string(),
                 verdict.trace_id().to_string(),
                 verdict.snapshot_digest().to_owned(),
                 outcome.chain_head.clone(),
+                origin,
             )
         })
         .transpose()?;
@@ -675,6 +721,8 @@ fn execution_result(
     }
 }
 
+#[cfg(test)]
+mod coordinator_tests;
 #[cfg(test)]
 mod credential_tests;
 #[cfg(test)]

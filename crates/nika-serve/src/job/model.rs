@@ -3,6 +3,8 @@ use std::fmt;
 use std::fs::File;
 use std::io;
 
+use nika_cadence::firing::{ArmGeneration, SlotId};
+use nika_cadence::{ScheduleOrigin, ScheduleRevision};
 use nix::fcntl::Flock;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -267,6 +269,120 @@ pub enum JobStatus {
     Failed,
 }
 
+/// Durable origin of one normal run and its terminal receipt.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[non_exhaustive]
+pub enum JobOrigin {
+    /// A caller submitted the run directly through the job API.
+    #[default]
+    Manual,
+    /// A resident schedule prepared the run before its fenced ARM claim.
+    Schedule {
+        /// Namespace of the schedule declaration.
+        schedule_origin: String,
+        /// Origin-local schedule identifier.
+        schedule_id: String,
+        /// Canonical revision of the normalized schedule.
+        schedule_revision: String,
+        /// Stable identity of the calendar slot.
+        slot_id: String,
+        /// Slot instant selected by cadence.
+        scheduled_for: String,
+        /// Resident decision instant.
+        fired_at: String,
+        /// Workflow and schedule generation pinned for this attempt.
+        arm_generation: String,
+    },
+}
+
+impl JobOrigin {
+    /// Construct a validated scheduled origin binding.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::InvalidReceipt`] if any wire identity is not
+    /// canonical.
+    #[allow(clippy::too_many_arguments)]
+    pub fn schedule(
+        origin: ScheduleOrigin,
+        schedule_id: impl Into<String>,
+        revision: &ScheduleRevision,
+        slot_id: &SlotId,
+        scheduled_for: jiff::Timestamp,
+        fired_at: jiff::Timestamp,
+        generation: &ArmGeneration,
+    ) -> Result<Self, JobStoreError> {
+        let schedule_origin = match origin {
+            ScheduleOrigin::Project => "project",
+            ScheduleOrigin::Api => "api",
+            _ => return Err(JobStoreError::InvalidReceipt),
+        };
+        let value = Self::Schedule {
+            schedule_origin: schedule_origin.to_owned(),
+            schedule_id: schedule_id.into(),
+            schedule_revision: revision.as_str().to_owned(),
+            slot_id: slot_id.as_str().to_owned(),
+            scheduled_for: scheduled_for.to_string(),
+            fired_at: fired_at.to_string(),
+            arm_generation: generation.as_str().to_owned(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), JobStoreError> {
+        let Self::Schedule {
+            schedule_origin,
+            schedule_id,
+            schedule_revision,
+            slot_id,
+            scheduled_for,
+            fired_at,
+            arm_generation,
+        } = self
+        else {
+            return Ok(());
+        };
+        if !matches!(schedule_origin.as_str(), "project" | "api")
+            || schedule_id.is_empty()
+            || schedule_id.len() > nika_cadence::schedule::MAX_SCHEDULE_ID_BYTES
+            || ScheduleRevision::from_wire(schedule_revision).is_none()
+            || SlotId::from_wire(slot_id).is_none()
+            || scheduled_for.parse::<jiff::Timestamp>().is_err()
+            || fired_at.parse::<jiff::Timestamp>().is_err()
+            || ArmGeneration::from_wire(arm_generation).is_none()
+        {
+            return Err(JobStoreError::InvalidReceipt);
+        }
+        Ok(())
+    }
+
+    /// Schedule namespace and id when this is a resident run.
+    #[must_use]
+    pub fn schedule_identity(&self) -> Option<(&str, &str)> {
+        match self {
+            Self::Manual => None,
+            Self::Schedule {
+                schedule_origin,
+                schedule_id,
+                ..
+            } => Some((schedule_origin, schedule_id)),
+        }
+    }
+
+    pub(crate) fn schedule_key_parts(&self) -> Option<(&str, &str, &str)> {
+        match self {
+            Self::Manual => None,
+            Self::Schedule {
+                schedule_origin,
+                schedule_id,
+                slot_id,
+                ..
+            } => Some((schedule_origin, schedule_id, slot_id)),
+        }
+    }
+}
+
 impl JobStatus {
     pub(crate) fn allows(self, next: Self) -> bool {
         matches!(
@@ -305,6 +421,9 @@ pub struct JobRecord {
     pub(crate) idempotency_key: IdempotencyKey,
     pub(crate) request_digest: RequestDigest,
     pub(crate) status: JobStatus,
+    /// Manual or schedule provenance, defaulting to manual for v3 stores.
+    #[serde(default)]
+    pub(crate) origin: JobOrigin,
     /// Contained `.nika.yaml` name captured at admission. Empty on stores
     /// written before this field existed; those queued rows cannot be
     /// rescheduled after a crash.
@@ -362,6 +481,12 @@ impl JobRecord {
         self.status
     }
 
+    /// Durable admission origin.
+    #[must_use]
+    pub const fn origin(&self) -> &JobOrigin {
+        &self.origin
+    }
+
     /// Return the contained workflow name captured at admission.
     #[must_use]
     pub fn workflow(&self) -> &str {
@@ -378,6 +503,12 @@ impl JobRecord {
     #[must_use]
     pub fn trace_id(&self) -> Option<&str> {
         (!self.trace_id.is_empty()).then_some(self.trace_id.as_str())
+    }
+
+    /// Immutable snapshot digest after execution identity preparation.
+    #[must_use]
+    pub fn snapshot_digest(&self) -> Option<&str> {
+        (!self.snapshot_digest.is_empty()).then_some(self.snapshot_digest.as_str())
     }
 
     /// Return the redacted failure diagnosis after a failed settlement.
@@ -417,6 +548,11 @@ pub struct JobReceipt {
     execution_id: String,
     trace_id: String,
     snapshot_digest: String,
+    /// `None` is reserved for receipts loaded from stores written before
+    /// provenance was introduced. Newly-created receipts always bind an
+    /// explicit manual or schedule origin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    origin: Option<JobOrigin>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     chain_head: Option<String>,
 }
@@ -440,6 +576,32 @@ impl JobReceipt {
             execution_id: execution_id.into(),
             trace_id: trace_id.into(),
             snapshot_digest: snapshot_digest.into(),
+            origin: Some(JobOrigin::Manual),
+            chain_head,
+        };
+        receipt.validate()?;
+        Ok(receipt)
+    }
+
+    /// Bind terminal proof material with explicit durable provenance.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::InvalidReceipt`] for malformed identity or
+    /// schedule provenance.
+    pub fn with_origin(
+        job_id: JobId,
+        execution_id: impl Into<String>,
+        trace_id: impl Into<String>,
+        snapshot_digest: impl Into<String>,
+        chain_head: Option<String>,
+        origin: JobOrigin,
+    ) -> Result<Self, JobStoreError> {
+        let receipt = Self {
+            job_id,
+            execution_id: execution_id.into(),
+            trace_id: trace_id.into(),
+            snapshot_digest: snapshot_digest.into(),
+            origin: Some(origin),
             chain_head,
         };
         receipt.validate()?;
@@ -448,6 +610,9 @@ impl JobReceipt {
 
     pub(crate) fn validate(&self) -> Result<(), JobStoreError> {
         self.job_id.validate()?;
+        if let Some(origin) = &self.origin {
+            origin.validate()?;
+        }
         if self.execution_id.is_empty()
             || self.trace_id.is_empty()
             || validate_digest(&self.snapshot_digest).is_err()
@@ -480,6 +645,12 @@ impl JobReceipt {
     #[must_use]
     pub fn snapshot_digest(&self) -> &str {
         &self.snapshot_digest
+    }
+
+    /// Manual or schedule provenance bound into the terminal event hash.
+    #[must_use]
+    pub const fn origin(&self) -> Option<&JobOrigin> {
+        self.origin.as_ref()
     }
 
     /// Trace chain head when the execution adapter exposes one.

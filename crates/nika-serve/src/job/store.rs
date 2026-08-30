@@ -12,8 +12,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 
+mod admission;
+mod binding;
 mod migration;
 
+use binding::{
+    attach_interrupted_receipt, ensure_receipt_matches, has_complete_execution_identity,
+    hash_execution_identity, migrate_legacy_nonterminal_record, validate_identity_binding,
+    validate_snapshot_digest, validate_terminal_record,
+};
 use migration::decode_state;
 
 use super::model::{EventHash, IncarnationGeneration};
@@ -261,6 +268,7 @@ impl JobStore {
             idempotency_key: key,
             request_digest: digest,
             status: JobStatus::Queued,
+            origin: crate::JobOrigin::Manual,
             workflow,
             execution_id: String::new(),
             trace_id: String::new(),
@@ -1146,116 +1154,6 @@ fn unique_job_id(state: &PersistedState) -> JobId {
             return candidate;
         }
     }
-}
-
-fn validate_snapshot_digest(value: &str) -> Result<(), JobStoreError> {
-    RequestDigest::new(value.to_owned()).map(|_| ())
-}
-
-fn ensure_receipt_matches(record: &JobRecord, receipt: &JobReceipt) -> Result<(), JobStoreError> {
-    if receipt.job_id() != &record.id
-        || receipt.execution_id() != record.execution_id
-        || receipt.trace_id() != record.trace_id
-        || receipt.snapshot_digest() != record.snapshot_digest
-    {
-        return Err(JobStoreError::ReceiptIdentityMismatch);
-    }
-    Ok(())
-}
-
-fn attach_interrupted_receipt(record: &mut JobRecord) -> Result<(), JobStoreError> {
-    if !has_complete_execution_identity(record) {
-        return Err(JobStoreError::InvalidReceipt);
-    }
-    record.receipt = Some(JobReceipt::new(
-        record.id.clone(),
-        record.execution_id.clone(),
-        record.trace_id.clone(),
-        record.snapshot_digest.clone(),
-        None,
-    )?);
-    Ok(())
-}
-
-fn has_complete_execution_identity(record: &JobRecord) -> bool {
-    !record.execution_id.is_empty()
-        && !record.trace_id.is_empty()
-        && !record.snapshot_digest.is_empty()
-}
-
-fn migrate_legacy_nonterminal_record(mut record: JobRecord) -> JobRecord {
-    record.execution_id.clear();
-    record.trace_id.clear();
-    record.snapshot_digest.clear();
-    record
-}
-
-fn validate_identity_binding(job: &StoredJob) -> Result<(), JobStoreError> {
-    if job.record.execution_id.is_empty() {
-        if job.identity_digest.is_some() {
-            return Err(JobStoreError::Corrupt(
-                "identity digest is present without an execution identity".to_owned(),
-            ));
-        }
-        return Ok(());
-    }
-    let persisted = job.identity_digest.as_ref().ok_or_else(|| {
-        JobStoreError::Corrupt("execution identity is missing its binding digest".to_owned())
-    })?;
-    persisted.validate()?;
-    if persisted != &hash_execution_identity(&job.record)? {
-        return Err(JobStoreError::Corrupt(
-            "execution identity does not match its canonical binding digest".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
-fn hash_execution_identity(record: &JobRecord) -> Result<EventHash, JobStoreError> {
-    let preimage = serde_json::json!({
-        "execution_id": &record.execution_id,
-        "job_id": record.id.as_str(),
-        "request_digest": record.request_digest.as_str(),
-        "snapshot_digest": &record.snapshot_digest,
-        "trace_id": &record.trace_id,
-    });
-    let canonical = serde_json::to_vec(&preimage)
-        .map_err(|_| JobStoreError::Corrupt("identity preimage cannot be encoded".to_owned()))?;
-    let mut hasher = Sha256::new();
-    hasher.update(IDENTITY_HASH_DOMAIN);
-    hasher.update(canonical);
-    Ok(EventHash::from_bytes(hasher.finalize().into()))
-}
-
-fn validate_terminal_record(record: &JobRecord) -> Result<(), JobStoreError> {
-    if record.execution_id.is_empty() != record.trace_id.is_empty() {
-        return Err(JobStoreError::Corrupt(
-            "execution and trace identities must be present together".to_owned(),
-        ));
-    }
-    if !record.snapshot_digest.is_empty() {
-        if record.execution_id.is_empty() {
-            return Err(JobStoreError::Corrupt(
-                "snapshot digest is missing its execution identity".to_owned(),
-            ));
-        }
-        validate_snapshot_digest(&record.snapshot_digest)
-            .map_err(|_| JobStoreError::Corrupt("snapshot digest is invalid".to_owned()))?;
-    }
-    if !record.status.is_settled() && (record.outputs.is_some() || record.receipt.is_some()) {
-        return Err(JobStoreError::Corrupt(
-            "unsettled job carries terminal result data".to_owned(),
-        ));
-    }
-    if let Some(receipt) = &record.receipt {
-        receipt
-            .validate()
-            .map_err(|_| JobStoreError::Corrupt("terminal receipt is invalid".to_owned()))?;
-        ensure_receipt_matches(record, receipt).map_err(|_| {
-            JobStoreError::Corrupt("terminal receipt identity mismatches".to_owned())
-        })?;
-    }
-    Ok(())
 }
 
 fn validate_events(job: &StoredJob) -> Result<(), JobStoreError> {

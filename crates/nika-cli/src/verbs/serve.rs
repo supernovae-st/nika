@@ -9,7 +9,10 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 use super::arm::{
     self,
-    fire::{ExecutionRunSeam, FireCtx, Wait, WaitSeam, fire_beat, labels},
+    fire::{
+        CoordinatedRunSeam, ExecutionRunSeam, FireCtx, PreparedRun, Wait, WaitSeam, fire_beat,
+        labels,
+    },
     state::ArmState,
 };
 use super::{VerbOutput, exit};
@@ -97,7 +100,7 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
     if let Some(http) = http {
         serve_resident_with_http(root, registry, args.clone(), http).map_err(fail)?;
     } else {
-        let run: ExecutionRunSeam = std::rc::Rc::new(arm::fire::prod_run);
+        let run = ResidentRun::Direct(std::rc::Rc::new(arm::fire::prod_run));
         let lifecycle = ResidentLifecycle::process().map_err(&fail)?;
         serve(
             &root,
@@ -191,19 +194,28 @@ fn credential_prefix(kind: nika_serve::CredentialRefuse) -> &'static str {
 type ResidentMain =
     Box<dyn FnOnce(tokio::sync::watch::Receiver<bool>) -> Result<(), String> + Send>;
 
-/// Factory seam for the resident lane's execution admission. Today it
-/// constructs the direct ARM adapter; the next wave can capture one shared,
-/// thread-safe execution coordinator here without cloning a runtime.
-struct ResidentExecutionFactory(Box<dyn FnOnce() -> ExecutionRunSeam + Send>);
+/// Factory seam that moves the shared HTTP execution coordinator into the
+/// resident thread without constructing a second runtime.
+struct ResidentExecutionFactory(Box<dyn FnOnce() -> ResidentRun + Send>);
 
 impl ResidentExecutionFactory {
-    fn direct() -> Self {
-        Self(Box::new(|| std::rc::Rc::new(arm::fire::prod_run)))
+    fn coordinated(coordinator: nika_serve::ResidentExecutionCoordinator) -> Self {
+        Self(Box::new(move || {
+            let prepare: CoordinatedRunSeam = std::rc::Rc::new(move |admitted, shot| {
+                prepare_resident_run(&coordinator, admitted, shot)
+            });
+            ResidentRun::Coordinated(prepare)
+        }))
     }
 
-    fn into_run(self) -> ExecutionRunSeam {
+    fn into_run(self) -> ResidentRun {
         (self.0)()
     }
+}
+
+enum ResidentRun {
+    Direct(ExecutionRunSeam),
+    Coordinated(CoordinatedRunSeam),
 }
 
 /// Joined owner of the resident ARM loop. The worker starts dormant: HTTP
@@ -321,13 +333,23 @@ fn serve_resident_with_http(
     let config =
         nika_serve::ServerConfig::new(http.bind, http.workflows, http.state_root, http.token_file)
             .with_allow_remote(http.allow_remote);
-    let mut resident =
-        ResidentSupervisor::production(root, registry, args, ResidentExecutionFactory::direct())?;
     let server = match rt.block_on(nika_serve::BoundServer::bind(config, backend)) {
         Ok(server) => server,
         Err(error) => {
-            let resident_result = resident.shutdown_and_join();
-            return resident_result.and(Err(server_error(error)));
+            return Err(server_error(error));
+        }
+    };
+    let coordinator = server.execution_coordinator();
+    let mut resident = match ResidentSupervisor::production(
+        root,
+        registry,
+        args,
+        ResidentExecutionFactory::coordinated(coordinator),
+    ) {
+        Ok(resident) => resident,
+        Err(error) => {
+            let server_result = rt.block_on(server.serve_until(async {}));
+            return server_result.map_err(server_error).and(Err(error));
         }
     };
     let line = match server.listen_line() {
@@ -374,6 +396,46 @@ fn serve_resident_with_http(
         .map_err(server_error);
     let resident_result = resident.shutdown_and_join();
     server_result.and(resident_result)
+}
+
+fn prepare_resident_run(
+    coordinator: &nika_serve::ResidentExecutionCoordinator,
+    admitted: nika_execution::AdmittedExecution,
+    shot: &arm::fire::RunShot,
+) -> Result<PreparedRun, arm::fire::RunUpshot> {
+    let origin = nika_serve::JobOrigin::schedule(
+        nika_cadence::ScheduleOrigin::Project,
+        shot.schedule_id(),
+        shot.schedule_revision(),
+        shot.slot_id(),
+        shot.scheduled_for(),
+        shot.fired_at(),
+        shot.generation(),
+    )
+    .map_err(|_| arm::fire::RunUpshot::new(exit::ENV, None))?;
+    let prepared = coordinator
+        .prepare_scheduled(admitted, origin)
+        .map_err(|_| arm::fire::RunUpshot::new(exit::ENV, None))?;
+    let Some(execution) = nika_arm::ExecutionLink::for_run(
+        prepared.run_id().as_str(),
+        prepared.execution_id().unwrap_or_default(),
+        prepared.trace_id().unwrap_or_default(),
+    ) else {
+        return Err(arm::fire::RunUpshot::new(exit::ENV, None));
+    };
+    PreparedRun::new(execution, move || match prepared.execute() {
+        Ok(record) => {
+            let code = match record.status() {
+                nika_serve::JobStatus::Succeeded => exit::OK,
+                nika_serve::JobStatus::Paused => exit::PAUSED,
+                nika_serve::JobStatus::Failed => exit::WORKFLOW,
+                _ => exit::ENV,
+            };
+            arm::fire::RunUpshot::new(code, record.trace_id().map(str::to_owned))
+        }
+        Err(_) => arm::fire::RunUpshot::new(exit::ENV, None),
+    })
+    .ok_or_else(|| arm::fire::RunUpshot::new(exit::ENV, None))
 }
 
 async fn http_shutdown() {
@@ -646,17 +708,28 @@ fn fire_due(
     index: usize,
     now: &Zoned,
     wait: WaitSeam,
-    run: &ExecutionRunSeam,
+    run: &ResidentRun,
     stop: &std::rc::Rc<std::cell::Cell<bool>>,
 ) -> (ArmRegistry, bool) {
-    let ctx = match FireCtx::new_with_execution(
-        root.to_path_buf(),
-        reg,
-        index,
-        now.clone(),
-        std::process::id(),
-        std::rc::Rc::clone(run),
-    ) {
+    let context = match run {
+        ResidentRun::Direct(run) => FireCtx::new_with_execution(
+            root.to_path_buf(),
+            reg,
+            index,
+            now.clone(),
+            std::process::id(),
+            std::rc::Rc::clone(run),
+        ),
+        ResidentRun::Coordinated(prepare) => FireCtx::new_with_coordinator(
+            root.to_path_buf(),
+            reg,
+            index,
+            now.clone(),
+            std::process::id(),
+            std::rc::Rc::clone(prepare),
+        ),
+    };
+    let ctx = match context {
         Ok(ctx) => ctx.with_wait(wait),
         Err(error) => {
             println!("failed serve · {error}");
@@ -729,7 +802,7 @@ fn serve(
     args: &ServeArgs,
     until: Option<&Zoned>,
     clock: &Clock,
-    run: &ExecutionRunSeam,
+    run: &ResidentRun,
     lifecycle: &ResidentLifecycle,
 ) -> Result<(), String> {
     // Set when a signal broke an overlap wait — the loop stops after
@@ -937,8 +1010,8 @@ mod tests {
 
     /// The run seam that must NEVER fire — the skip-only ticks (the
     /// reload + refusal tests) prove their point by never calling it.
-    fn never_run() -> ExecutionRunSeam {
-        std::rc::Rc::new(|_, _| panic!("this tick runs nothing"))
+    fn never_run() -> ResidentRun {
+        ResidentRun::Direct(std::rc::Rc::new(|_, _| panic!("this tick runs nothing")))
     }
 
     fn test_lifecycle() -> (tokio::sync::watch::Sender<bool>, ResidentLifecycle) {
@@ -951,14 +1024,14 @@ mod tests {
     /// A run stub that counts its shots (the real in-process run
     /// chdirs — parallel tests race on the process CWD, so the seam is
     /// stubbed; the binary tests own the real ground).
-    fn stub_run() -> (std::rc::Rc<std::cell::Cell<u32>>, ExecutionRunSeam) {
+    fn stub_run() -> (std::rc::Rc<std::cell::Cell<u32>>, ResidentRun) {
         let count = std::rc::Rc::new(std::cell::Cell::new(0u32));
         let seen = std::rc::Rc::clone(&count);
         let seam: ExecutionRunSeam = std::rc::Rc::new(move |_, _: &RunShot| {
             seen.set(seen.get() + 1);
             RunUpshot::new(exit::OK, None)
         });
-        (count, seam)
+        (count, ResidentRun::Direct(seam))
     }
 
     /// R7 · `chevauchement: file` under serve: the bounded wait rides
@@ -1184,8 +1257,9 @@ mod tests {
         assert!(recovered < bound, "resident recovery precedes HTTP setup");
         assert!(bound < activated, "HTTP setup precedes resident activation");
         assert!(
-            prod.contains("ResidentExecutionFactory::direct()") && prod.contains("HttpBackend"),
-            "the distinct ARM and HTTP admission edges stay explicit"
+            prod.contains("ResidentExecutionFactory::coordinated(coordinator)")
+                && prod.contains("HttpBackend"),
+            "ARM and HTTP share the bound server's execution coordinator"
         );
     }
 

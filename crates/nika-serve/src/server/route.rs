@@ -16,6 +16,7 @@ use crate::{
     MAX_EXECUTION_SNAPSHOT_PATH_BYTES, RequestDigest,
 };
 
+use super::AppState;
 use super::error::{ApiError, ResponseBody, capture_refused, once_body};
 use super::model::{
     HealthResponse, JobResponse, JobStatusResponse, SnapshotValidationAck, WorkflowListResponse,
@@ -23,7 +24,6 @@ use super::model::{
 };
 use super::registry::{list_workflows, valid_workflow_name, workflow_exists};
 use super::sse;
-use super::{AppState, ExecutionTask};
 
 const IDEMPOTENCY_KEY: &str = "idempotency-key";
 pub(super) const SNAPSHOT_WIRE_UNIT_CEILING: usize = 256;
@@ -340,18 +340,9 @@ async fn admit_job(
     workflow: String,
     world: String,
 ) -> Response<ResponseBody> {
-    let Ok(permit) = state.jobs.try_reserve() else {
-        return queue_full();
-    };
     let admission = match state
-        .store
-        .create_or_replay(
-            key,
-            digest,
-            state.limits.max_jobs(),
-            workflow.clone(),
-            world,
-        )
+        .coordinator
+        .admit_manual(key, digest, workflow, world)
         .await
     {
         Ok(admission) => admission,
@@ -362,15 +353,9 @@ async fn admit_job(
             super::ServerError::JobStore(crate::JobStoreError::Busy)
             | super::ServerError::StoreQueueFull,
         ) => return store_busy(),
+        Err(super::ServerError::ExecutionQueueFull) => return queue_full(),
         Err(_) => return internal_error(),
     };
-    enqueue_admission(permit, admission)
-}
-
-fn enqueue_admission(
-    permit: tokio::sync::mpsc::Permit<'_, ExecutionTask>,
-    admission: Admission,
-) -> Response<ResponseBody> {
     match admission {
         Admission::Conflict(_) => ApiError::new(
             StatusCode::CONFLICT,
@@ -379,21 +364,10 @@ fn enqueue_admission(
         )
         .into_response(),
         Admission::Created(record) => {
-            permit.send(ExecutionTask::new(record.id().clone()));
             json_response(StatusCode::ACCEPTED, &JobResponse::from(&record))
         }
-        Admission::Existing(record) => replay_existing(permit, &record),
+        Admission::Existing(record) => json_response(StatusCode::OK, &JobResponse::from(&record)),
     }
-}
-
-fn replay_existing(
-    permit: tokio::sync::mpsc::Permit<'_, ExecutionTask>,
-    record: &crate::JobRecord,
-) -> Response<ResponseBody> {
-    if record.status() == crate::JobStatus::Queued {
-        permit.send(ExecutionTask::new(record.id().clone()));
-    }
-    json_response(StatusCode::OK, &JobResponse::from(record))
 }
 
 async fn list_registry(state: &AppState) -> Response<ResponseBody> {

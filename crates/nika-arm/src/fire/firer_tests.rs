@@ -373,6 +373,115 @@ fn claim_and_receipt_carry_the_same_service_execution_identity() {
 }
 
 #[test]
+fn coordinated_run_is_prepared_before_claim_and_run_id_follows_the_fence() {
+    let dir = project("coordinated-run-id");
+    let fixture = registry_with(SAUTER);
+    std::fs::write(dir.path().join("nika.yaml"), &fixture.0).expect("project registry");
+    let root = dir.path().to_path_buf();
+    let during_root = root.clone();
+    let preparations = Rc::new(Cell::new(0u32));
+    let prepared = Rc::clone(&preparations);
+    let executions = Rc::new(Cell::new(0u32));
+    let executed = Rc::clone(&executions);
+    let run_id = "11111111-1111-4111-8111-111111111111".to_owned();
+    let linked_run_id = run_id.clone();
+    let prepare: CoordinatedRunSeam = Rc::new(move |admitted, shot| {
+        assert!(
+            history(&root, "doctor").is_empty(),
+            "normal admission is allocated before the ARM claim"
+        );
+        assert_eq!(shot.schedule_id(), "doctor");
+        assert_eq!(shot.scheduled_for(), ts("2026-08-19T03:00:00Z"));
+        prepared.set(prepared.get() + 1);
+        let link = ExecutionLink::for_run(
+            linked_run_id.clone(),
+            admitted.execution_id().to_string(),
+            admitted.trace_id().to_string(),
+        )
+        .expect("coordinated execution link");
+        let during_run_id = linked_run_id.clone();
+        let during = during_root.clone();
+        let ran = Rc::clone(&executed);
+        PreparedRun::new(link, move || {
+            let text = history(&during, "doctor");
+            let claim: serde_json::Value =
+                serde_json::from_str(text.lines().last().expect("claim line")).expect("claim json");
+            assert_eq!(claim["kind"], "claimed");
+            assert_eq!(claim["payload"]["run_id"], during_run_id);
+            ran.set(ran.get() + 1);
+            RunUpshot::new(exit::OK, Some("shared-trace.ndjson".to_owned()))
+        })
+        .ok_or_else(|| RunUpshot::new(exit::ENV, None))
+    });
+    let ctx = FireCtx::new_with_coordinator(
+        dir.path().to_path_buf(),
+        fixture.1,
+        0,
+        at("2026-08-19T03:02:00Z"),
+        std::process::id(),
+        prepare,
+    )
+    .expect("coordinated context")
+    .with_wait(instant_wait());
+
+    let verdict = fire_beat(&ctx);
+    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+    assert_eq!(preparations.get(), 1);
+    assert_eq!(executions.get(), 1);
+    let text = history(dir.path(), "doctor");
+    let docs = text
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("ledger json"))
+        .collect::<Vec<_>>();
+    assert_eq!(docs.len(), 2);
+    assert_eq!(docs[0]["payload"]["run_id"], run_id);
+    assert_eq!(docs[1]["payload"]["run_id"], run_id);
+    assert_eq!(docs[1]["payload"]["fencing"], docs[0]["seq"]);
+}
+
+#[test]
+fn prepared_callback_never_effects_when_the_claim_append_loses() {
+    let dir = project("coordinated-claim-loss");
+    let fixture = registry_with(SAUTER);
+    std::fs::write(dir.path().join("nika.yaml"), &fixture.0).expect("project registry");
+    let root = dir.path().to_path_buf();
+    let executions = Rc::new(Cell::new(0u32));
+    let executed = Rc::clone(&executions);
+    let prepare: CoordinatedRunSeam = Rc::new(move |admitted, _shot| {
+        let sidecar = root.join(".nika/arm/doctor");
+        std::fs::create_dir_all(&sidecar).expect("sidecar");
+        std::fs::write(sidecar.join("history.ndjson"), b"not-ledger\n").expect("claim obstruction");
+        let link = ExecutionLink::for_run(
+            "22222222-2222-4222-8222-222222222222",
+            admitted.execution_id().to_string(),
+            admitted.trace_id().to_string(),
+        )
+        .expect("coordinated execution link");
+        let ran = Rc::clone(&executed);
+        PreparedRun::new(link, move || {
+            ran.set(ran.get() + 1);
+            RunUpshot::new(exit::OK, None)
+        })
+        .ok_or_else(|| RunUpshot::new(exit::ENV, None))
+    });
+    let ctx = FireCtx::new_with_coordinator(
+        dir.path().to_path_buf(),
+        fixture.1,
+        0,
+        at("2026-08-19T03:02:00Z"),
+        std::process::id(),
+        prepare,
+    )
+    .expect("coordinated context")
+    .with_wait(instant_wait());
+
+    let verdict = fire_beat(&ctx);
+    assert_eq!(verdict.code, exit::ENV, "{}", verdict.line);
+    assert!(verdict.line.contains("record refused"), "{}", verdict.line);
+    assert_eq!(executions.get(), 0, "claim loss cannot reach effects");
+}
+
+#[test]
 fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
     let dir = project("pin-edit");
     let source = dir.path().join("workflows/doctor.nika.yaml");

@@ -12,7 +12,7 @@ pub mod server;
 
 pub use job::{
     Admission, ApprovalHistory, ApprovalHistoryError, EventPageLimit, IdempotencyKey, JobEvent,
-    JobId, JobMutation, JobReceipt, JobRecord, JobStatus, JobStore, JobStoreError,
+    JobId, JobMutation, JobOrigin, JobReceipt, JobRecord, JobStatus, JobStore, JobStoreError,
     MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES, MAX_EVENT_BATCH_LEN, MAX_EVENT_PAGE_LEN,
     MAX_EVENT_PAYLOAD_BYTES, MAX_EXECUTION_SNAPSHOT_METADATA_BYTES,
     MAX_EXECUTION_SNAPSHOT_PATH_BYTES, MAX_JOB_SNAPSHOT_BYTES, RequestDigest, ServerIncarnation,
@@ -23,5 +23,6 @@ pub use schedule::{
 };
 pub use server::{
     BoundServer, CredentialRefuse, ExecutionBackend, ExecutionDisposition, ExecutionOutcome,
-    ServerConfig, ServerError, ServerLimits, serve_http,
+    PreparedScheduledRun, ResidentExecutionCoordinator, ServerConfig, ServerError, ServerLimits,
+    serve_http,
 };

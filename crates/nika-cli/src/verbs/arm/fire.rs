@@ -11,8 +11,8 @@ use jiff::{Timestamp, Zoned};
 use nika_vocab::project;
 
 pub use nika_arm::fire::{
-    ExecutionRunSeam, FireCtx, FireCtxError, FireVerdict, RunSeam, RunShot, RunUpshot, Wait,
-    WaitSeam, fire_beat, labels,
+    CoordinatedRunSeam, ExecutionRunSeam, FireCtx, FireCtxError, FireVerdict, PreparedRun, RunSeam,
+    RunShot, RunUpshot, Wait, WaitSeam, fire_beat, labels,
 };
 
 use super::args::FireArgs;
