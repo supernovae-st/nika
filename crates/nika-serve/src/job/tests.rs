@@ -521,6 +521,15 @@ fn interrupted_running_job_is_settled_before_replay() {
             .expect("create"),
     );
     transition(&store, record.id(), JobStatus::Running);
+    let snapshot_digest = digest(48).as_str().to_owned();
+    store
+        .stamp_execution_identity(
+            record.id(),
+            "execution-interrupted".to_owned(),
+            "trace-interrupted".to_owned(),
+            snapshot_digest.clone(),
+        )
+        .expect("stamp interrupted identity");
     drop(store);
 
     let restarted = JobStore::open(root.path()).expect("restart");
@@ -561,6 +570,14 @@ fn interrupted_running_job_is_settled_before_replay() {
     let replayed = admitted_record(replay);
     assert_eq!(replayed.id(), record.id());
     assert_eq!(replayed.status(), JobStatus::Interrupted);
+    assert_eq!(replayed.execution_id(), Some("execution-interrupted"));
+    assert_eq!(replayed.trace_id(), Some("trace-interrupted"));
+    let receipt = replayed.receipt().expect("interrupted receipt");
+    assert_eq!(receipt.job_id(), record.id());
+    assert_eq!(receipt.execution_id(), "execution-interrupted");
+    assert_eq!(receipt.trace_id(), "trace-interrupted");
+    assert_eq!(receipt.snapshot_digest(), snapshot_digest);
+    assert_eq!(receipt.chain_head(), None);
     assert_eq!(restarted.load_state().expect("state").jobs.len(), 1);
 
     drop(restarted);
@@ -935,7 +952,8 @@ fn event_pages_are_bounded_and_resume_without_overlap() {
 }
 
 #[test]
-fn oversized_snapshot_refuses_load_and_persist_without_rewrite() {
+fn snapshot_limit_is_sixteen_mib_and_never_truncates_or_rewrites() {
+    assert_eq!(MAX_JOB_SNAPSHOT_BYTES, 16 * 1024 * 1024);
     let root = tempfile::tempdir().expect("root");
     let store = JobStore::open(root.path()).expect("store");
     let record = admitted_record(
@@ -945,21 +963,53 @@ fn oversized_snapshot_refuses_load_and_persist_without_rewrite() {
     );
     let maximum_payload = json!("x".repeat(MAX_EVENT_PAYLOAD_BYTES - 2));
     let maximum_batch = vec![maximum_payload; MAX_EVENT_BATCH_LEN];
+    for _ in 0..3 {
+        store
+            .append_events(record.id(), &maximum_batch)
+            .expect("three maximum batches remain below 16 MiB");
+    }
+    let state_path = root.path().join("jobs/state.json");
+    let intact = std::fs::read(&state_path).expect("read intact snapshot");
+    assert!(
+        intact.len() > 4 * 1024 * 1024,
+        "the former 4 MiB ceiling must be crossed explicitly"
+    );
+    assert!(intact.len() <= MAX_JOB_SNAPSHOT_BYTES);
+    let events = store
+        .events_after(record.id(), 0, page_limit(MAX_EVENT_PAGE_LEN))
+        .expect("read intact events");
+    assert_eq!(events.len(), MAX_EVENT_BATCH_LEN * 3);
+    assert!(
+        events
+            .iter()
+            .all(|event| event.payload() == &maximum_batch[0])
+    );
     assert!(matches!(
         store
             .append_events(record.id(), &maximum_batch)
-            .expect_err("snapshot cap"),
+            .expect_err("fourth maximum batch crosses 16 MiB"),
         JobStoreError::SnapshotTooLarge { .. }
     ));
-    assert!(
-        store
-            .events_after(record.id(), 0, page_limit(1))
-            .expect("refused append left no events")
-            .is_empty()
+    assert_eq!(
+        std::fs::read(&state_path).expect("read refused snapshot"),
+        intact,
+        "an oversized replacement must leave the durable snapshot byte-exact"
     );
     drop(store);
 
-    let state_path = root.path().join("jobs/state.json");
+    let reopened = JobStore::open(root.path()).expect("reopen intact state above 4 MiB");
+    let events = reopened
+        .events_after(record.id(), 0, page_limit(MAX_EVENT_PAGE_LEN))
+        .expect("read untruncated events");
+    assert_eq!(events.len(), MAX_EVENT_BATCH_LEN * 3);
+    assert!(
+        events
+            .iter()
+            .all(|event| event.payload() == &maximum_batch[0]),
+        "every maximum-size payload must survive without truncation"
+    );
+    drop(reopened);
+
     let state = std::fs::OpenOptions::new()
         .write(true)
         .open(&state_path)

@@ -1093,6 +1093,12 @@ async fn sse_outlives_request_timeout_and_disconnect_does_not_block_execution() 
     wait_for_status(&server, &id, "running")
         .await
         .expect("running");
+    let running = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    assert!(running.get("outputs").is_none(), "{running}");
+    assert!(running.get("receipt").is_none(), "{running}");
 
     let (mut stream, headers) = open_sse(server.address, &events_request(&id, None)).await;
     assert_eq!(headers.status, 200, "{}", headers.body);
@@ -1188,6 +1194,28 @@ async fn interrupted_event_stream_redacts_payload_fields() {
         assert!(!streamed.body.contains(TOKEN));
         assert!(!streamed.body.contains("/jobs"));
     }
+    let job = second
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    assert_eq!(job["status"], "interrupted");
+    assert_eq!(job["receipt"]["job_id"], id);
+    assert_eq!(job["receipt"]["execution_id"], job["execution_id"]);
+    assert_eq!(job["receipt"]["trace_id"], job["trace_id"]);
+    assert_eq!(
+        job["receipt"]["snapshot_digest"]
+            .as_str()
+            .expect("snapshot digest")
+            .len(),
+        64
+    );
+    assert!(job.get("outputs").is_none());
+    let terminal = events
+        .iter()
+        .find(|event| event["status"] == "interrupted")
+        .expect("interrupted event");
+    assert_eq!(terminal["receipt"], job["receipt"]);
+    assert!(terminal.get("outputs").is_none());
     second.stop().await.expect("clean stop");
 }
 

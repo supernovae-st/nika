@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::File;
 use std::io;
@@ -16,7 +17,11 @@ pub const MAX_EVENT_PAYLOAD_BYTES: usize = 64 * 1024;
 /// Maximum number of event payloads admitted by one append operation.
 pub const MAX_EVENT_BATCH_LEN: usize = 64;
 /// Maximum encoded size of the complete durable job snapshot.
-pub const MAX_JOB_SNAPSHOT_BYTES: usize = 4 * 1024 * 1024;
+///
+/// This matches the aggregate [`nika_execution::ExecutionSnapshot`] ceiling.
+/// Larger terminal outputs are refused with [`JobStoreError::SnapshotTooLarge`]
+/// before the existing durable snapshot is replaced; they are never truncated.
+pub const MAX_JOB_SNAPSHOT_BYTES: usize = 16 * 1024 * 1024;
 /// Maximum number of events returned by one resume page.
 pub const MAX_EVENT_PAGE_LEN: usize = 256;
 
@@ -259,6 +264,12 @@ impl JobStatus {
                 | (Self::Running, Self::Paused | Self::Succeeded | Self::Failed)
         )
     }
+
+    /// Whether this status is a durable terminal settlement.
+    #[must_use]
+    pub const fn is_settled(self) -> bool {
+        matches!(self, Self::Succeeded | Self::Failed | Self::Interrupted)
+    }
 }
 
 impl fmt::Display for JobStatus {
@@ -295,12 +306,24 @@ pub struct JobRecord {
     /// Trace identity derived from [`Self::execution_id`]. Empty until readmit.
     #[serde(default)]
     pub(crate) trace_id: String,
+    /// Digest of the immutable world bound at snapshot readmission. Empty on
+    /// legacy records and before readmission.
+    #[serde(default)]
+    pub(crate) snapshot_digest: String,
     /// Redacted NIKA / admission code. Empty until a failed settlement.
     #[serde(default)]
     pub(crate) error_code: String,
     /// Redacted operator message. Empty until a failed settlement.
     #[serde(default)]
     pub(crate) error_message: String,
+    /// Declared workflow outputs returned by the execution adapter. `None`
+    /// distinguishes an unavailable legacy/upstream result from a declared
+    /// empty output map.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) outputs: Option<BTreeMap<String, Value>>,
+    /// Receipt bound atomically to a terminal settlement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) receipt: Option<JobReceipt>,
 }
 
 impl JobRecord {
@@ -351,6 +374,107 @@ impl JobRecord {
     pub fn error(&self) -> Option<(&str, &str)> {
         (!self.error_code.is_empty())
             .then_some((self.error_code.as_str(), self.error_message.as_str()))
+    }
+
+    /// Return declared workflow outputs after a terminal settlement.
+    #[must_use]
+    pub fn outputs(&self) -> Option<&BTreeMap<String, Value>> {
+        if self.status.is_settled() {
+            self.outputs.as_ref()
+        } else {
+            None
+        }
+    }
+
+    /// Return the execution receipt after a terminal settlement.
+    #[must_use]
+    pub fn receipt(&self) -> Option<&JobReceipt> {
+        if self.status.is_settled() {
+            self.receipt.as_ref()
+        } else {
+            None
+        }
+    }
+}
+
+/// Durable receipt binding a terminal job to the exact admitted execution.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[non_exhaustive]
+pub struct JobReceipt {
+    job_id: JobId,
+    execution_id: String,
+    trace_id: String,
+    snapshot_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chain_head: Option<String>,
+}
+
+impl JobReceipt {
+    /// Bind terminal proof material to one durable job.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::InvalidReceipt`] when an identity is empty,
+    /// the snapshot digest is not canonical lowercase SHA-256, or an exposed
+    /// chain head is empty.
+    pub fn new(
+        job_id: JobId,
+        execution_id: impl Into<String>,
+        trace_id: impl Into<String>,
+        snapshot_digest: impl Into<String>,
+        chain_head: Option<String>,
+    ) -> Result<Self, JobStoreError> {
+        let receipt = Self {
+            job_id,
+            execution_id: execution_id.into(),
+            trace_id: trace_id.into(),
+            snapshot_digest: snapshot_digest.into(),
+            chain_head,
+        };
+        receipt.validate()?;
+        Ok(receipt)
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), JobStoreError> {
+        self.job_id.validate()?;
+        if self.execution_id.is_empty()
+            || self.trace_id.is_empty()
+            || validate_digest(&self.snapshot_digest).is_err()
+            || self.chain_head.as_ref().is_some_and(String::is_empty)
+        {
+            return Err(JobStoreError::InvalidReceipt);
+        }
+        Ok(())
+    }
+
+    /// Durable job identity.
+    #[must_use]
+    pub const fn job_id(&self) -> &JobId {
+        &self.job_id
+    }
+
+    /// Engine execution identity.
+    #[must_use]
+    pub fn execution_id(&self) -> &str {
+        &self.execution_id
+    }
+
+    /// Root trace identity.
+    #[must_use]
+    pub fn trace_id(&self) -> &str {
+        &self.trace_id
+    }
+
+    /// Digest of the immutable execution snapshot.
+    #[must_use]
+    pub fn snapshot_digest(&self) -> &str {
+        &self.snapshot_digest
+    }
+
+    /// Trace chain head when the execution adapter exposes one.
+    #[must_use]
+    pub fn chain_head(&self) -> Option<&str> {
+        self.chain_head.as_deref()
     }
 }
 
@@ -500,6 +624,12 @@ pub enum JobStoreError {
     /// A request digest was not canonical lowercase hexadecimal.
     #[error("request digest must contain exactly 64 lowercase hexadecimal characters")]
     InvalidRequestDigest,
+    /// A terminal receipt omitted or malformed an identity binding.
+    #[error("terminal job receipt is invalid")]
+    InvalidReceipt,
+    /// A terminal receipt did not match the job's stamped identity.
+    #[error("terminal job receipt does not match the durable execution identity")]
+    ReceiptIdentityMismatch,
     /// Durable state was unreadable or violated an invariant.
     #[error("job store state is corrupt: {0}")]
     Corrupt(String),

@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
-use crate::{JobRecord, JobStatus};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::{JobReceipt, JobRecord, JobStatus};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -21,6 +24,10 @@ pub(crate) struct JobResponse<'a> {
     trace_id: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<JobErrorBody<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    outputs: Option<&'a BTreeMap<String, Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    receipt: Option<&'a JobReceipt>,
 }
 
 #[derive(Debug, Serialize)]
@@ -41,6 +48,8 @@ impl<'a> From<&'a JobRecord> for JobResponse<'a> {
             execution_id: record.execution_id(),
             trace_id: record.trace_id(),
             error,
+            outputs: record.outputs(),
+            receipt: record.receipt(),
         }
     }
 }

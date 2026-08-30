@@ -12,6 +12,7 @@ mod route;
 mod sse;
 mod store;
 
+use std::collections::BTreeMap;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::path::Path;
@@ -28,7 +29,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{Semaphore, mpsc};
 use tokio::task::JoinSet;
 
-use crate::{EventPageLimit, JobId, JobStatus, JobStore, MAX_EVENT_PAGE_LEN};
+use crate::{EventPageLimit, JobId, JobReceipt, JobStatus, JobStore, MAX_EVENT_PAGE_LEN};
 
 use auth::BearerToken;
 pub use config::{ServerConfig, ServerLimits};
@@ -49,12 +50,15 @@ pub enum ExecutionDisposition {
     Failed,
 }
 
-/// Disposition plus an optional redacted diagnosis (NIKA code + message).
+/// Adapter result: disposition plus optional redacted diagnosis, declared
+/// workflow outputs, and trace chain head.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionOutcome {
     disposition: ExecutionDisposition,
     error_code: Option<String>,
     error_message: Option<String>,
+    outputs: Option<BTreeMap<String, serde_json::Value>>,
+    chain_head: Option<String>,
 }
 
 impl From<ExecutionDisposition> for ExecutionOutcome {
@@ -63,6 +67,8 @@ impl From<ExecutionDisposition> for ExecutionOutcome {
             disposition,
             error_code: None,
             error_message: None,
+            outputs: None,
+            chain_head: None,
         }
     }
 }
@@ -75,6 +81,8 @@ impl ExecutionOutcome {
             disposition: ExecutionDisposition::Failed,
             error_code: Some(code.into()),
             error_message: Some(message.into()),
+            outputs: None,
+            chain_head: None,
         }
     }
 
@@ -88,6 +96,35 @@ impl ExecutionOutcome {
     #[must_use]
     pub fn error(&self) -> Option<(&str, &str)> {
         Some((self.error_code.as_deref()?, self.error_message.as_deref()?))
+    }
+
+    /// Attach the runtime's redacted declared workflow outputs.
+    ///
+    /// A present empty map is preserved and differs from an adapter that did
+    /// not supply outputs.
+    #[must_use]
+    pub fn with_outputs(mut self, outputs: BTreeMap<String, serde_json::Value>) -> Self {
+        self.outputs = Some(outputs);
+        self
+    }
+
+    /// Attach the trace chain head when the execution lane exposes one.
+    #[must_use]
+    pub fn with_chain_head(mut self, chain_head: impl Into<String>) -> Self {
+        self.chain_head = Some(chain_head.into());
+        self
+    }
+
+    /// Declared workflow outputs supplied by the execution adapter.
+    #[must_use]
+    pub fn outputs(&self) -> Option<&BTreeMap<String, serde_json::Value>> {
+        self.outputs.as_ref()
+    }
+
+    /// Trace chain head supplied by the execution adapter.
+    #[must_use]
+    pub fn chain_head(&self) -> Option<&str> {
+        self.chain_head.as_deref()
     }
 
     /// Attach a diagnosis. Ignored unless this outcome is
@@ -491,8 +528,9 @@ async fn admit_workflow(
     let admitted = admission.map_err(Some)?;
     let execution_id = admitted.execution_id().to_string();
     let trace_id = admitted.trace_id().to_string();
+    let snapshot_digest = admitted.snapshot().digest().to_owned();
     store
-        .stamp_identity(id, execution_id, trace_id)
+        .stamp_identity(id, execution_id, trace_id, snapshot_digest)
         .await
         .map_err(|_| None)?;
     Ok(admitted)
@@ -524,7 +562,24 @@ async fn settle_disposition(
         event["code"] = json!(code);
         event["message"] = json!(message);
     }
-    guard.settle(status, event).await?;
+    let receipt = status
+        .is_settled()
+        .then(|| {
+            JobReceipt::new(
+                guard.id.clone(),
+                verdict.execution_id().to_string(),
+                verdict.trace_id().to_string(),
+                verdict.snapshot_digest().to_owned(),
+                outcome.chain_head.clone(),
+            )
+        })
+        .transpose()?;
+    let outputs = if status.is_settled() {
+        outcome.outputs.clone()
+    } else {
+        None
+    };
+    guard.settle_result(status, event, outputs, receipt).await?;
     Ok(())
 }
 
@@ -554,6 +609,20 @@ impl RunningGuard {
     ) -> Result<(), ServerError> {
         self.store
             .transition_with_events(self.id.clone(), status, event)
+            .await?;
+        self.disarm();
+        Ok(())
+    }
+
+    async fn settle_result(
+        &mut self,
+        status: JobStatus,
+        event: serde_json::Value,
+        outputs: Option<BTreeMap<String, serde_json::Value>>,
+        receipt: Option<JobReceipt>,
+    ) -> Result<(), ServerError> {
+        self.store
+            .settle_with_result(self.id.clone(), status, event, outputs, receipt)
             .await?;
         self.disarm();
         Ok(())
@@ -602,6 +671,8 @@ fn execution_result(
 mod credential_tests;
 #[cfg(test)]
 mod failure_tests;
+#[cfg(test)]
+mod result_tests;
 #[cfg(test)]
 mod test_support;
 #[cfg(test)]

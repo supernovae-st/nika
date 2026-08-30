@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -18,7 +19,7 @@ use tokio::sync::TryAcquireError;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use crate::{JobEvent, JobId, JobStatus, JobStoreError};
+use crate::{JobEvent, JobId, JobReceipt, JobRecord, JobStatus, JobStoreError};
 
 use super::error::{ApiError, ResponseBody};
 use super::store::EventPage;
@@ -150,24 +151,48 @@ struct ProjectedEvent<'a> {
     code: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    outputs: Option<&'a BTreeMap<String, Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    receipt: Option<&'a JobReceipt>,
 }
 
-fn projected(event: &JobEvent) -> ProjectedEvent<'_> {
+fn projected<'a>(event: &'a JobEvent, record: &'a JobRecord) -> ProjectedEvent<'a> {
+    let terminal = event_settles_record(event, record);
     ProjectedEvent {
         sequence: event.sequence(),
         kind: string_field(event.payload(), "kind"),
         status: string_field(event.payload(), "status"),
         code: string_field(event.payload(), "code"),
         message: string_field(event.payload(), "message"),
+        outputs: if terminal { record.outputs() } else { None },
+        receipt: if terminal { record.receipt() } else { None },
     }
+}
+
+fn event_settles_record(event: &JobEvent, record: &JobRecord) -> bool {
+    let kind = string_field(event.payload(), "kind");
+    let status = string_field(event.payload(), "status");
+    record.status().is_settled()
+        && match record.status() {
+            JobStatus::Succeeded => {
+                kind == Some("execution.settled") && status == Some("succeeded")
+            }
+            JobStatus::Failed => kind == Some("execution.settled") && status == Some("failed"),
+            JobStatus::Interrupted => {
+                matches!(kind, Some("execution.interrupted" | "interrupted"))
+                    && status == Some("interrupted")
+            }
+            JobStatus::Queued | JobStatus::Running | JobStatus::Paused => false,
+        }
 }
 
 fn string_field<'a>(payload: &'a Value, key: &'a str) -> Option<&'a str> {
     payload.get(key).and_then(Value::as_str)
 }
 
-fn encode_frame(event: &JobEvent) -> Option<Bytes> {
-    let json = serde_json::to_string(&projected(event)).ok()?;
+fn encode_frame(event: &JobEvent, record: &JobRecord) -> Option<Bytes> {
+    let json = serde_json::to_string(&projected(event, record)).ok()?;
     Some(Bytes::from(format!(
         "id: {}\ndata: {json}\n\n",
         event.sequence()
@@ -194,13 +219,13 @@ async fn pump_events(
             return;
         };
         if page.events.is_empty() {
-            if is_terminal(page.status) {
+            if is_terminal(page.record.status()) {
                 return;
             }
             notified.await;
             continue;
         }
-        if !emit_page(&tx, &page.events, &mut after, lag).await {
+        if !emit_page(&tx, &page.events, &page.record, &mut after, lag).await {
             return;
         }
     }
@@ -209,11 +234,12 @@ async fn pump_events(
 async fn emit_page(
     tx: &mpsc::Sender<Bytes>,
     events: &[JobEvent],
+    record: &JobRecord,
     after: &mut u64,
     lag: Duration,
 ) -> bool {
     for event in events {
-        let Some(frame) = encode_frame(event) else {
+        let Some(frame) = encode_frame(event, record) else {
             continue;
         };
         if !send_frame(tx, frame, lag).await {
@@ -339,6 +365,8 @@ mod tests {
             status: string_field(payload, "status"),
             code: string_field(payload, "code"),
             message: string_field(payload, "message"),
+            outputs: None,
+            receipt: None,
         }
     }
 

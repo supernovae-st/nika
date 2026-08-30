@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
@@ -8,8 +9,8 @@ use serde_json::Value;
 use tokio::sync::{Notify, oneshot};
 
 use crate::{
-    Admission, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobRecord, JobStatus, JobStore,
-    JobStoreError, RequestDigest, ServerIncarnation,
+    Admission, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobReceipt, JobRecord, JobStatus,
+    JobStore, JobStoreError, RequestDigest, ServerIncarnation,
 };
 
 use super::ServerError;
@@ -18,7 +19,7 @@ type Reply<T> = oneshot::Sender<Result<T, JobStoreError>>;
 
 pub(super) struct EventPage {
     pub events: Vec<JobEvent>,
-    pub status: JobStatus,
+    pub record: JobRecord,
 }
 
 enum RequestCommand {
@@ -54,12 +55,15 @@ enum ControlCommand {
         id: JobId,
         status: JobStatus,
         event: Value,
+        outputs: Option<BTreeMap<String, Value>>,
+        receipt: Option<JobReceipt>,
         reply: Reply<JobRecord>,
     },
     StampIdentity {
         id: JobId,
         execution_id: String,
         trace_id: String,
+        snapshot_digest: String,
         reply: Reply<JobRecord>,
     },
     Interrupt {
@@ -114,12 +118,14 @@ impl StoreHandle {
         id: JobId,
         execution_id: String,
         trace_id: String,
+        snapshot_digest: String,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
         self.send_control(ControlCommand::StampIdentity {
             id,
             execution_id,
             trace_id,
+            snapshot_digest,
             reply,
         })?;
         receive(answer).await
@@ -168,6 +174,28 @@ impl StoreHandle {
             id,
             status,
             event,
+            outputs: None,
+            receipt: None,
+            reply,
+        })?;
+        receive(answer).await
+    }
+
+    pub(super) async fn settle_with_result(
+        &self,
+        id: JobId,
+        status: JobStatus,
+        event: Value,
+        outputs: Option<BTreeMap<String, Value>>,
+        receipt: Option<JobReceipt>,
+    ) -> Result<JobRecord, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_control(ControlCommand::Transition {
+            id,
+            status,
+            event,
+            outputs,
+            receipt,
             reply,
         })?;
         receive(answer).await
@@ -337,10 +365,7 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
                 store
                     .get(&id)?
                     .ok_or(JobStoreError::JobNotFound(id))
-                    .map(|record| EventPage {
-                        events,
-                        status: record.status(),
-                    })
+                    .map(|record| EventPage { events, record })
             });
             let _result = reply.send(result);
         }
@@ -364,11 +389,22 @@ fn serve_control(
             id,
             status,
             event,
+            outputs,
+            receipt,
             reply,
         } => {
-            let result = store
-                .transition_with_events(&id, status, std::slice::from_ref(&event))
-                .map(|mutation| mutation.record().clone());
+            let result = if outputs.is_some() || receipt.is_some() {
+                store.settle_with_events(
+                    &id,
+                    status,
+                    std::slice::from_ref(&event),
+                    outputs,
+                    receipt,
+                )
+            } else {
+                store.transition_with_events(&id, status, std::slice::from_ref(&event))
+            }
+            .map(|mutation| mutation.record().clone());
             notify_persisted(&result, events);
             let _result = reply.send(result);
         }
@@ -376,9 +412,11 @@ fn serve_control(
             id,
             execution_id,
             trace_id,
+            snapshot_digest,
             reply,
         } => {
-            let result = store.stamp_identity(&id, execution_id, trace_id);
+            let result =
+                store.stamp_execution_identity(&id, execution_id, trace_id, snapshot_digest);
             notify_persisted(&result, events);
             let _result = reply.send(result);
         }

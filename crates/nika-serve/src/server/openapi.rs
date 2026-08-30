@@ -59,6 +59,12 @@ fn components() -> Value {
                     "status": {"$ref": "#/components/schemas/JobStatus"},
                     "execution_id": {"type": "string"},
                     "trace_id": {"type": "string"},
+                    "outputs": {
+                        "type": "object",
+                        "description": "Declared workflow outputs; present only after settlement when supplied by the execution adapter",
+                        "additionalProperties": true
+                    },
+                    "receipt": {"$ref": "#/components/schemas/JobReceipt"},
                     "error": {
                         "type": "object",
                         "additionalProperties": false,
@@ -70,6 +76,7 @@ fn components() -> Value {
                     }
                 }
             },
+            "JobReceipt": job_receipt_schema(),
             "JobStatusOnly": {
                 "type": "object",
                 "additionalProperties": false,
@@ -103,6 +110,22 @@ fn components() -> Value {
                     }
                 }
             }
+        }
+    })
+}
+
+fn job_receipt_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Terminal binding to the exact immutable admitted execution",
+        "required": ["job_id", "execution_id", "trace_id", "snapshot_digest"],
+        "properties": {
+            "job_id": {"type": "string", "format": "uuid"},
+            "execution_id": {"type": "string", "minLength": 1},
+            "trace_id": {"type": "string", "minLength": 1},
+            "snapshot_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "chain_head": {"type": "string", "minLength": 1}
         }
     })
 }
@@ -191,7 +214,7 @@ fn paths() -> Value {
                     {"$ref": "#/components/parameters/LastEventId"}
                 ],
                 "responses": {
-                    "200": {"description": "text/event-stream; data is {sequence,kind,status} plus optional redacted error {code,message}"},
+                    "200": {"description": "text/event-stream; terminal data adds declared outputs and receipt when available; failures add redacted {code,message}"},
                     "400": error_ref(),
                     "401": error_ref(),
                     "404": error_ref()
@@ -271,6 +294,24 @@ mod tests {
         assert!(
             status_summary.contains("diagnosis"),
             "status route must say diagnosis lives elsewhere"
+        );
+        let receipt = &spec["components"]["schemas"]["JobReceipt"];
+        assert_eq!(receipt["additionalProperties"], false);
+        assert_eq!(
+            receipt["required"],
+            serde_json::json!(["job_id", "execution_id", "trace_id", "snapshot_digest"])
+        );
+        assert_eq!(
+            receipt["properties"]["snapshot_digest"]["pattern"],
+            "^[0-9a-f]{64}$"
+        );
+        assert!(
+            !spec["components"]["schemas"]["Job"]["required"]
+                .as_array()
+                .expect("job required fields")
+                .iter()
+                .any(|field| field == "outputs" || field == "receipt"),
+            "terminal result fields remain optional for legacy and unavailable adapters"
         );
     }
 }
