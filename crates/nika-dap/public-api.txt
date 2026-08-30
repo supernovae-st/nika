@@ -2700,6 +2700,7 @@ pub nika_dap::seal::SealTeardown::memory_rejected: alloc::vec::Vec<nika_dap::mem
 pub nika_dap::seal::SealTeardown::outcome: core::option::Option<alloc::string::String>
 pub nika_dap::seal::SealTeardown::proves: core::option::Option<alloc::string::String>
 pub nika_dap::seal::SealTeardown::quarantine: core::option::Option<serde_json::value::Value>
+pub nika_dap::seal::SealTeardown::sdk_receipt: core::option::Option<serde_json::value::Value>
 impl nika_dap::seal::SealTeardown
 pub fn nika_dap::seal::SealTeardown::new() -> Self
 impl core::clone::Clone for nika_dap::seal::SealTeardown
