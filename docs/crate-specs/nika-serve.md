@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WORKSPACE WIP**. Durable jobs, loopback HTTP, SSE, OpenAPI 3.1, SIGTERM drain, typed token-file refusal, failed-job NIKA codes, and 422 capture diagnosis. Cancel/artifacts/`POST /v1/run` stay absent. 12-gate crate admission still pending. |
+| Status | **WORKSPACE WIP**. Durable jobs, loopback HTTP, idempotent engine-token cancellation, resumable SSE with heartbeat/reconnect guidance, OpenAPI 3.1, SIGTERM drain, typed token-file refusal, failed-job NIKA codes, and 422 capture diagnosis. Artifacts/`POST /v1/run` stay absent; trace verification returns an honest typed refusal until a real remote journal authority exists. 12-gate crate admission still pending. |
 | Layer | L4 — remote execution interface projection |
 | Purpose | Persist request admission, lifecycle status, and resumable event cursors, and project the first authenticated HTTP routes over that state. |
 | LOC budget | ≤5,000 source lines for the state plane; ≤15,000 hard crate cap. |
@@ -43,8 +43,8 @@ becomes a child name.
   snapshot, never a filename.
 - `RequestDigest` is a canonical 32-byte digest encoded as lowercase hex.
   Uppercase and mixed-case strings are rejected, never normalized.
-- `JobStatus` is exactly `queued | running | interrupted | paused | succeeded |
-  failed`.
+- `JobStatus` is exactly
+  `queued | running | interrupted | paused | succeeded | failed | cancelled`.
 - `JobRecord` binds id, key, request digest, and status.
 - `JobEvent` carries one JSON payload, a store-assigned per-job sequence, and
   its previous/current chain hashes.
@@ -74,8 +74,10 @@ becomes a child name.
 - `BoundServer::bind` validates and acquires all authority before listening;
   `serve_until` stops admission and gives active jobs a bounded grace period.
 - `ExecutionBackend` receives only `ExecutionContext` over the immutable
-  world admitted by `ExecutionService`. It is asynchronous, cancellable by
-  drop, and maps only `Succeeded | Paused | Failed` onto durable status.
+  world admitted by `ExecutionService`. It is asynchronous, receives the
+  run-scoped `CancelCtx` through an additive default method, remains
+  cancellable by drop, and maps `Succeeded | Paused | Failed | Cancelled`
+  onto durable status.
 
 No public job mutation accepts a filesystem path. Startup paths live only in
 `ServerConfig`; its `Debug` view deliberately omits them and the token source.
@@ -91,16 +93,19 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | `GET` | `/v1/jobs/{id}` | exactly one Bearer | opaque id + status · optional `{error:{code,message}}` on `failed` |
 | `GET` | `/v1/jobs/{id}/status` | exactly one Bearer | status only · diagnosis lives on GET job and SSE |
 | `GET` | `/v1/jobs/{id}/events` | exactly one Bearer | SSE `text/event-stream`; `id:` sequence; `data:` `{sequence,kind,status}` plus optional redacted `{code,message}` |
+| `POST` | `/v1/jobs/{id}/cancel` | exactly one Bearer | idempotent terminal job result; active runs receive the engine cancellation token before durable `cancelled` settlement |
+| `GET` | `/v1/jobs/{id}/trace/verify` | exactly one Bearer | typed `unavailable` verdict; no path or invented verification while the remote trace-journal authority is absent |
 | `GET` | `/v1/openapi.json` | exactly one Bearer | OpenAPI 3.1 document of the live routes |
 
-Cancel and artifact routes return 404. No route returns source bytes,
+Artifact routes return 404. No route returns source bytes,
 idempotency keys, request digests, event payloads, provider/tool data, paths,
 token material, or internal error text. CORS headers are not emitted.
 `Last-Event-ID` resumes after that sequence. An invalid cursor is 400; a
 cursor beyond the latest persisted sequence is a typed 400. The request
 timeout does not bound an open event stream. Events become visible only
 after durable persist. A slow client is dropped rather than stalling
-execution.
+execution. Every stream advertises a 100–30,000 ms bounded reconnect delay;
+heartbeat comments carry no `id:` and therefore never advance replay state.
 
 On Unix, the token file must be opened no-follow/nonblocking as a regular
 owner-only file. It contains 32–512 visible ASCII bytes (one trailing line
@@ -129,12 +134,12 @@ fixed-size constant-time equality. Compressed request bodies are refused.
 6. A new record starts `queued`. Legal edges are:
 
    ```text
-   queued  -> running | failed
-   running -> paused | succeeded | failed
-   paused  -> running | failed
+   queued  -> running | failed | cancelled
+   running -> paused | succeeded | failed | cancelled
+   paused  -> running | failed | cancelled
    ```
 
-   `interrupted`, `succeeded`, and `failed` are terminal. `interrupted` has no
+   `interrupted`, `succeeded`, `failed`, and `cancelled` are terminal. `interrupted` has no
    public incoming edge; only the crate-internal startup settlement may assign
    it after the higher layer establishes a new exclusive server incarnation.
    Every other edge refuses before the snapshot changes. A legal transition
@@ -209,8 +214,8 @@ Inline library tests cover:
 - valid authentication plus uniform missing, duplicate, malformed, wrong, and
   oversized credential refusal;
 - auth-before-parse, invalid JSON/content type, coarse and streaming body
-  limits, slow-body timeout, contained-path refusal, and absent authority
-  routes including cancel/artifacts;
+  limits, slow-body timeout, contained-path refusal, and absent artifact
+  authority routes;
 - twelve concurrent identical POSTs producing one backend call and one id;
 - `paused` through both public response types;
 - bounded execution timeout and bounded graceful shutdown;
@@ -222,7 +227,13 @@ Inline library tests cover:
 - SSE Bearer-before-lookup, allowlisted `{sequence,kind,status}` frames,
   `Last-Event-ID` resume, invalid and future cursors, request-timeout bypass,
   slow-client drop, disconnect without blocking execution, SSE client ceiling,
-  and redaction of payload extras including interrupted incarnation fields.
+  bounded reconnect guidance, cursor-neutral heartbeat comments, and redaction
+  of payload extras including interrupted incarnation fields.
+- queued cancellation without backend entry, twelve-way running cancel races,
+  terminal idempotent replay, durable cancellation receipt identity, and
+  authentication before job lookup.
+- run-scoped trace verification returns a typed `unavailable` reason without a
+  remote filesystem path; no artifact or trace store is invented.
 
 The W05/W07 focused command contract is:
 
@@ -255,11 +266,13 @@ admission wave closes the gates whose authority does not exist in W05.
 
 ## 6. Explicit non-goals
 
-No TLS · no workflow upload · no cancellation route · no artifact
-authority · no `POST /v1/run` · no automatic retry of interrupted
+No TLS · no workflow upload · no artifact authority · no `POST /v1/run` · no
+automatic retry of interrupted
 execution. OpenAPI 3.1 is the live authenticated route table
 (`GET /v1/openapi.json`): it names the live POST statuses and omits
-cancel, artifacts, and `POST /v1/run`. The store records the lost
+artifacts and `POST /v1/run`. The typed trace-verification route refuses
+`unavailable` until execution supplies a held remote journal authority; a
+chain head alone is not verification. The store records the lost
 ownership but cannot prove whether an effect committed before the
 crash. W05 also provides no concrete durable
 `ApprovalHistory`; an in-process or same-filesystem sidecar that the state

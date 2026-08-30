@@ -310,6 +310,19 @@ fn bounded_queue_limits() -> ServerLimits {
     )
 }
 
+fn one_active_queue_limits() -> ServerLimits {
+    ServerLimits::new(
+        1024,
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+        Duration::from_millis(200),
+        1,
+        4,
+        16,
+        32,
+    )
+}
+
 fn one_job_limits() -> ServerLimits {
     ServerLimits::new(
         1024,
@@ -437,6 +450,7 @@ fn live_sse_limits() -> ServerLimits {
         64,
         32,
     )
+    .with_sse_timing(Duration::from_millis(20), Duration::from_secs(1))
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -685,6 +699,262 @@ async fn interrupted_event_stream_redacts_payload_fields() {
     second.stop().await.expect("clean stop");
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn concurrent_cancel_is_idempotent_and_wins_the_running_settlement_race() {
+    let world = TestWorld::new();
+    let backend = Arc::new(GatedBackend::new());
+    let server = world.start(backend.clone(), limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "cancel-race",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "running")
+        .await
+        .expect("running");
+
+    let request = cancel_request(&id);
+    let mut racers = JoinSet::new();
+    for _ in 0..12 {
+        let request = request.clone();
+        let address = server.address;
+        racers.spawn(async move { wire_request(address, &request).await });
+    }
+    while let Some(response) = racers.join_next().await {
+        let response = response.expect("cancel request");
+        assert!(matches!(response.status, 200 | 202), "{response:#?}");
+        assert_eq!(response.json()["id"], id);
+    }
+    backend.release(1);
+    wait_for_status(&server, &id, "cancelled")
+        .await
+        .expect("cancelled");
+
+    let job = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    assert_eq!(job["status"], "cancelled");
+    assert_eq!(job["receipt"]["job_id"], id);
+    assert_eq!(job["receipt"]["execution_id"], job["execution_id"]);
+    assert_eq!(job["receipt"]["trace_id"], job["trace_id"]);
+    let replay = server.request(&cancel_request(&id)).await;
+    assert_eq!(replay.status, 200, "{}", replay.body);
+    assert_eq!(replay.json(), job);
+
+    let streamed = server.request(&events_request(&id, None)).await;
+    let events = parse_sse_data(&streamed.body);
+    let terminal = events
+        .iter()
+        .find(|event| event["status"] == "cancelled")
+        .expect("cancelled terminal event");
+    assert_eq!(terminal["receipt"], job["receipt"]);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn queued_cancel_mints_identity_and_receipt_without_entering_the_backend() {
+    let world = TestWorld::new();
+    let backend = Arc::new(GatedBackend::new());
+    let server = world
+        .start(backend.clone(), one_active_queue_limits())
+        .await;
+    let first = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "cancel-queue-blocker",
+            &auth_header(),
+        ))
+        .await;
+    let first_id = first.json()["id"].as_str().expect("first id").to_owned();
+    wait_for_status(&server, &first_id, "running")
+        .await
+        .expect("first running");
+
+    let queued = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "cancel-queued",
+            &auth_header(),
+        ))
+        .await;
+    let queued_id = queued.json()["id"].as_str().expect("queued id").to_owned();
+    assert_eq!(queued.json()["status"], "queued");
+    let cancelled = server.request(&cancel_request(&queued_id)).await;
+    assert_eq!(cancelled.status, 200, "{}", cancelled.body);
+    let body = cancelled.json();
+    assert_eq!(body["status"], "cancelled");
+    assert_eq!(body["receipt"]["job_id"], queued_id);
+    assert_eq!(body["receipt"]["execution_id"], body["execution_id"]);
+    assert_eq!(
+        backend.calls(),
+        1,
+        "queued cancellation never enters backend"
+    );
+
+    backend.release(1);
+    wait_for_status(&server, &first_id, "succeeded")
+        .await
+        .expect("first settled");
+    tokio::time::sleep(Duration::from_millis(30)).await;
+    assert_eq!(backend.calls(), 1, "cancelled queue row stays inert");
+    server.stop().await.expect("clean stop");
+    let replacement = world
+        .start(
+            Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded)),
+            limits(),
+        )
+        .await;
+    let durable = replacement
+        .request(&get_request(&format!("/v1/jobs/{queued_id}")))
+        .await
+        .json();
+    assert_eq!(durable["status"], "cancelled");
+    assert_eq!(durable["receipt"], body["receipt"]);
+    replacement.stop().await.expect("replacement stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cancel_authenticates_before_job_lookup() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend, limits()).await;
+    let response = server
+        .request(
+            "POST /v1/jobs/not-an-id/cancel HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+        )
+        .await;
+    assert_eq!(response.status, 401);
+    assert_eq!(response.json()["error"]["code"], "unauthorized");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cancel_after_terminal_settlement_is_a_read_only_replay() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend, limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "cancel-after-terminal",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("succeeded");
+    let before = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    let replay = server.request(&cancel_request(&id)).await;
+    assert_eq!(replay.status, 200, "{}", replay.body);
+    assert_eq!(replay.json(), before);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sse_timing_bounds_refuse_before_state_io() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    for reconnect in [Duration::from_millis(99), Duration::from_millis(30_001)] {
+        let config = ResidentConfig::new(&world.state)
+            .with_limits(limits().with_sse_timing(Duration::from_secs(1), reconnect));
+        assert!(matches!(
+            ResidentAuthority::open(config, backend.clone()).await,
+            Err(ServerError::InvalidConfig(_))
+        ));
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn live_sse_advertises_bounded_reconnect_and_heartbeats_without_advancing_cursor() {
+    let world = TestWorld::new();
+    let backend = Arc::new(GatedBackend::new());
+    let server = world.start(backend.clone(), live_sse_limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "sse-heartbeat",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "running")
+        .await
+        .expect("running");
+
+    let (mut stream, headers) = open_sse(server.address, &events_request(&id, Some("1"))).await;
+    assert_eq!(headers.status, 200, "{}", headers.body);
+    let mut body = headers.body;
+    for _ in 0..100 {
+        if body.contains("retry: ") && body.contains(": heartbeat\n\n") {
+            break;
+        }
+        let mut chunk = [0; 512];
+        if let Ok(Ok(n)) =
+            tokio::time::timeout(Duration::from_millis(20), stream.read(&mut chunk)).await
+        {
+            if n == 0 {
+                break;
+            }
+            body.push_str(std::str::from_utf8(&chunk[..n]).expect("utf8"));
+        }
+    }
+    assert!(body.contains("retry: 1000\n\n"), "{body:?}");
+    assert!(body.contains(": heartbeat\n\n"), "{body:?}");
+    assert!(
+        !body.contains("id: 1\n"),
+        "heartbeat cannot advance replay cursor: {body:?}"
+    );
+
+    drop(stream);
+    backend.release(1);
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("settled");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn trace_verification_refuses_honestly_without_a_remote_trace_authority() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend, limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "trace-verdict",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("settled");
+
+    let verdict = server
+        .request(&get_request(&format!("/v1/jobs/{id}/trace/verify")))
+        .await;
+    assert_eq!(verdict.status, 200, "{}", verdict.body);
+    let body = verdict.json();
+    assert_eq!(body["verdict"], "unavailable");
+    assert_eq!(body["reason"], "trace_journal_unavailable");
+    assert_eq!(body["trace_id"].as_str().map(str::len), Some(32));
+    assert!(
+        !verdict
+            .body
+            .contains(world.root.path().to_string_lossy().as_ref())
+    );
+    assert!(!verdict.body.contains(".nika/traces"));
+    server.stop().await.expect("clean stop");
+}
+
 pub(super) async fn wait_for_status(
     server: &TestServer,
     id: &str,
@@ -770,6 +1040,13 @@ fn encode_hex(bytes: &[u8]) -> String {
 pub(super) fn get_request(path: &str) -> String {
     format!(
         "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{}\r\n",
+        auth_header()
+    )
+}
+
+fn cancel_request(id: &str) -> String {
+    format!(
+        "POST /v1/jobs/{id}/cancel HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: 0\r\n{}\r\n",
         auth_header()
     )
 }
@@ -888,7 +1165,7 @@ impl WireResponse {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn openapi_is_authenticated_and_omits_absent_authorities() {
+async fn openapi_is_authenticated_and_lists_only_real_authorities() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend, limits()).await;
@@ -904,7 +1181,8 @@ async fn openapi_is_authenticated_and_omits_absent_authorities() {
     assert_eq!(body["openapi"], "3.1.0");
     assert!(body["paths"].get("/v1/jobs").is_some());
     assert!(body["paths"].get("/v1/jobs/{id}/events").is_some());
-    assert!(body["paths"].get("/v1/jobs/{id}/cancel").is_none());
+    assert!(body["paths"].get("/v1/jobs/{id}/cancel").is_some());
+    assert!(body["paths"].get("/v1/jobs/{id}/trace/verify").is_some());
     assert!(body["paths"].get("/v1/jobs/{id}/artifacts").is_none());
     server.stop().await.expect("clean stop");
 }

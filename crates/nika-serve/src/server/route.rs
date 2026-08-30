@@ -19,8 +19,8 @@ use crate::{
 use super::AppState;
 use super::error::{ApiError, ResponseBody, capture_refused, once_body};
 use super::model::{
-    HealthResponse, JobResponse, JobStatusResponse, SnapshotValidationAck, WorkflowListResponse,
-    WorkflowMetadataResponse,
+    HealthResponse, JobResponse, JobStatusResponse, SnapshotValidationAck,
+    TraceVerificationResponse, WorkflowListResponse, WorkflowMetadataResponse,
 };
 use super::registry::{list_workflows, valid_workflow_name, workflow_exists};
 use super::sse;
@@ -139,6 +139,7 @@ async fn route_authenticated(
         }
         (&Method::POST, "/v1/jobs") => create_job(request, state).await,
         (&Method::POST, "/v1/check") => check_snapshot(request, state).await,
+        (&Method::POST, path) if path.ends_with("/cancel") => cancel_job(path, &state).await,
         (&Method::GET, "/v1/openapi.json") => {
             json_response(StatusCode::OK, &super::openapi::document())
         }
@@ -153,6 +154,7 @@ async fn route_authenticated(
             };
             super::schedule_http::get(id.to_owned(), &state).await
         }
+        (&Method::GET, path) if path.ends_with("/trace/verify") => verify_trace(path, &state).await,
         (&Method::GET, _) => get_job(&path, &state).await,
         _ => ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found").into_response(),
     }
@@ -446,6 +448,176 @@ async fn get_job(path: &str, state: &AppState) -> Response<ResponseBody> {
     } else {
         json_response(StatusCode::OK, &JobResponse::from(&record))
     }
+}
+
+async fn cancel_job(path: &str, state: &AppState) -> Response<ResponseBody> {
+    let Some(raw_id) = job_action_id(path, "/cancel") else {
+        return job_not_found();
+    };
+    let Ok(id) = JobId::parse(raw_id) else {
+        return job_not_found();
+    };
+    state.cancellations.cancel(&id);
+    let record = match state.store.get(id.clone()).await {
+        Ok(Some(record)) => record,
+        Ok(None) => {
+            state.cancellations.retire(&id);
+            return job_not_found();
+        }
+        Err(
+            super::ServerError::JobStore(crate::JobStoreError::Busy)
+            | super::ServerError::StoreQueueFull,
+        ) => return store_busy(),
+        Err(_) => return internal_error(),
+    };
+    if record.status().is_settled() {
+        state.cancellations.retire(&id);
+        return json_response(StatusCode::OK, &JobResponse::from(&record));
+    }
+    let record = match ensure_cancel_identity(state, id.clone(), record).await {
+        Ok(record) => record,
+        Err(response) => return response,
+    };
+    if record.status().is_settled() {
+        state.cancellations.retire(&id);
+        return json_response(StatusCode::OK, &JobResponse::from(&record));
+    }
+    let receipt = cancellation_receipt(&record);
+    let event = serde_json::json!({
+        "kind": "execution.cancelled",
+        "status": "cancelled"
+    });
+    match state
+        .store
+        .settle_with_result(
+            id.clone(),
+            crate::JobStatus::Cancelled,
+            event,
+            None,
+            receipt,
+        )
+        .await
+    {
+        Ok(cancelled) => {
+            state.cancellations.retire(&id);
+            json_response(StatusCode::OK, &JobResponse::from(&cancelled))
+        }
+        Err(super::ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) => {
+            current_job(state, id).await
+        }
+        Err(
+            super::ServerError::JobStore(crate::JobStoreError::Busy)
+            | super::ServerError::StoreQueueFull,
+        ) => store_busy(),
+        Err(_) => internal_error(),
+    }
+}
+
+async fn ensure_cancel_identity(
+    state: &AppState,
+    id: JobId,
+    record: crate::JobRecord,
+) -> Result<crate::JobRecord, Response<ResponseBody>> {
+    if record.execution_id().is_some() {
+        return Ok(record);
+    }
+    let encoded = state.store.load_world(id.clone()).await.map_err(|error| {
+        if matches!(
+            error,
+            super::ServerError::JobStore(crate::JobStoreError::Busy)
+                | super::ServerError::StoreQueueFull
+        ) {
+            store_busy()
+        } else {
+            internal_error()
+        }
+    })?;
+    let service = state.service;
+    let limits = state.snapshot_limits;
+    let admitted = tokio::task::spawn_blocking(move || {
+        let snapshot = nika_execution::ExecutionSnapshot::decode_with_limits(&encoded, limits)?;
+        service.readmit_snapshot(snapshot)
+    })
+    .await
+    .map_err(|_| internal_error())?
+    .map_err(|_| internal_error())?;
+    match state
+        .store
+        .start_execution(
+            id.clone(),
+            admitted.execution_id().to_string(),
+            admitted.trace_id().to_string(),
+            admitted.snapshot().digest().to_owned(),
+            serde_json::json!({"kind": "execution.started", "status": "running"}),
+        )
+        .await
+    {
+        Ok(started) => Ok(started),
+        Err(super::ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) => {
+            match state.store.get(id).await {
+                Ok(Some(current)) => Ok(current),
+                Ok(None) => Err(job_not_found()),
+                Err(_) => Err(store_busy()),
+            }
+        }
+        Err(
+            super::ServerError::JobStore(crate::JobStoreError::Busy)
+            | super::ServerError::StoreQueueFull,
+        ) => Err(store_busy()),
+        Err(_) => Err(internal_error()),
+    }
+}
+
+fn cancellation_receipt(record: &crate::JobRecord) -> Option<crate::JobReceipt> {
+    crate::JobReceipt::with_origin(
+        record.id().clone(),
+        record.execution_id()?,
+        record.trace_id()?,
+        record.snapshot_digest()?,
+        None,
+        record.origin().clone(),
+    )
+    .ok()
+}
+
+async fn current_job(state: &AppState, id: JobId) -> Response<ResponseBody> {
+    match state.store.get(id.clone()).await {
+        Ok(Some(record)) => {
+            if record.status().is_settled() {
+                state.cancellations.retire(&id);
+            }
+            json_response(StatusCode::OK, &JobResponse::from(&record))
+        }
+        Ok(None) => job_not_found(),
+        Err(_) => store_busy(),
+    }
+}
+
+async fn verify_trace(path: &str, state: &AppState) -> Response<ResponseBody> {
+    let Some(raw_id) = job_action_id(path, "/trace/verify") else {
+        return job_not_found();
+    };
+    let Ok(id) = JobId::parse(raw_id) else {
+        return job_not_found();
+    };
+    match state.store.get(id).await {
+        Ok(Some(record)) => json_response(
+            StatusCode::OK,
+            &TraceVerificationResponse::unavailable(&record),
+        ),
+        Ok(None) => job_not_found(),
+        Err(
+            super::ServerError::JobStore(crate::JobStoreError::Busy)
+            | super::ServerError::StoreQueueFull,
+        ) => store_busy(),
+        Err(_) => internal_error(),
+    }
+}
+
+fn job_action_id<'a>(path: &'a str, suffix: &str) -> Option<&'a str> {
+    let tail = path.strip_prefix("/v1/jobs/")?;
+    let id = tail.strip_suffix(suffix)?;
+    (!id.is_empty() && !id.contains('/')).then_some(id)
 }
 
 fn job_route(path: &str) -> Option<(&str, bool)> {

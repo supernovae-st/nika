@@ -54,6 +54,8 @@ pub struct ServerLimits {
     max_headers: usize,
     max_jobs: usize,
     max_sse_clients: usize,
+    sse_heartbeat: Duration,
+    sse_reconnect: Duration,
 }
 
 impl ServerLimits {
@@ -81,6 +83,8 @@ impl ServerLimits {
             max_headers,
             max_jobs: 10_000,
             max_sse_clients: max_connections,
+            sse_heartbeat: Duration::from_secs(15),
+            sse_reconnect: Duration::from_secs(1),
         }
     }
 
@@ -98,6 +102,14 @@ impl ServerLimits {
         self
     }
 
+    /// Replace SSE heartbeat and client reconnect guidance.
+    #[must_use]
+    pub const fn with_sse_timing(mut self, heartbeat: Duration, reconnect: Duration) -> Self {
+        self.sse_heartbeat = heartbeat;
+        self.sse_reconnect = reconnect;
+        self
+    }
+
     pub(crate) const fn valid(self) -> bool {
         self.max_body_bytes != 0
             && !self.request_timeout.is_zero()
@@ -109,6 +121,9 @@ impl ServerLimits {
             && self.max_headers != 0
             && self.max_jobs != 0
             && self.max_sse_clients != 0
+            && !self.sse_heartbeat.is_zero()
+            && self.sse_reconnect.as_millis() >= 100
+            && self.sse_reconnect.as_millis() <= 30_000
     }
 
     pub(crate) const fn max_body_bytes(self) -> usize {
@@ -149,6 +164,14 @@ impl ServerLimits {
 
     pub(crate) const fn max_sse_clients(self) -> usize {
         self.max_sse_clients
+    }
+
+    pub(crate) const fn sse_heartbeat(self) -> Duration {
+        self.sse_heartbeat
+    }
+
+    pub(crate) const fn sse_reconnect(self) -> Duration {
+        self.sse_reconnect
     }
 }
 

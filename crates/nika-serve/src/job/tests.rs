@@ -151,6 +151,7 @@ fn lifecycle_transition_table_is_exhaustive() {
         JobStatus::Paused,
         JobStatus::Succeeded,
         JobStatus::Failed,
+        JobStatus::Cancelled,
     ];
     let legal = [
         (JobStatus::Queued, JobStatus::Running),
@@ -160,6 +161,9 @@ fn lifecycle_transition_table_is_exhaustive() {
         (JobStatus::Running, JobStatus::Failed),
         (JobStatus::Paused, JobStatus::Running),
         (JobStatus::Paused, JobStatus::Failed),
+        (JobStatus::Queued, JobStatus::Cancelled),
+        (JobStatus::Running, JobStatus::Cancelled),
+        (JobStatus::Paused, JobStatus::Cancelled),
     ];
 
     for current in statuses {

@@ -138,7 +138,7 @@ fn parse_cursor(value: &str) -> Result<u64, ApiError> {
 fn is_terminal(status: JobStatus) -> bool {
     matches!(
         status,
-        JobStatus::Succeeded | JobStatus::Failed | JobStatus::Interrupted
+        JobStatus::Succeeded | JobStatus::Failed | JobStatus::Interrupted | JobStatus::Cancelled
     )
 }
 
@@ -198,6 +198,10 @@ async fn pump_events(
     lag: Duration,
 ) {
     let notify = state.store.event_notify();
+    let reconnect_ms = state.limits.sse_reconnect().as_millis();
+    if !send_frame(&tx, Bytes::from(format!("retry: {reconnect_ms}\n\n")), lag).await {
+        return;
+    }
     loop {
         let notified = notify.clone().notified_owned();
         tokio::pin!(notified);
@@ -213,7 +217,14 @@ async fn pump_events(
             if is_terminal(page.record.status()) {
                 return;
             }
-            notified.await;
+            tokio::select! {
+                () = &mut notified => {}
+                () = tokio::time::sleep(state.limits.sse_heartbeat()) => {
+                    if !send_frame(&tx, Bytes::from_static(b": heartbeat\n\n"), lag).await {
+                        return;
+                    }
+                }
+            }
             continue;
         }
         if !emit_page(

@@ -267,6 +267,8 @@ pub enum JobStatus {
     Succeeded,
     /// Execution settled unsuccessfully.
     Failed,
+    /// Execution was cancelled by an authenticated operator request.
+    Cancelled,
 }
 
 /// Durable origin of one normal run and its terminal receipt.
@@ -407,6 +409,7 @@ impl JobStatus {
         matches!(
             (self, next),
             (Self::Queued | Self::Paused, Self::Running | Self::Failed)
+                | (Self::Queued | Self::Running | Self::Paused, Self::Cancelled)
                 | (Self::Running, Self::Paused | Self::Succeeded | Self::Failed)
         )
     }
@@ -414,7 +417,10 @@ impl JobStatus {
     /// Whether this status is a durable terminal settlement.
     #[must_use]
     pub const fn is_settled(self) -> bool {
-        matches!(self, Self::Succeeded | Self::Failed | Self::Interrupted)
+        matches!(
+            self,
+            Self::Succeeded | Self::Failed | Self::Interrupted | Self::Cancelled
+        )
     }
 }
 
@@ -427,6 +433,7 @@ impl fmt::Display for JobStatus {
             Self::Paused => "paused",
             Self::Succeeded => "succeeded",
             Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
         })
     }
 }

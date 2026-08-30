@@ -2,6 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 mod auth;
+mod cancel;
 mod config;
 mod coordinator;
 mod error;
@@ -39,6 +40,7 @@ use crate::{
 };
 
 use auth::BearerToken;
+use cancel::{ActiveCancellations, CancellationRegistration};
 pub use config::{ResidentClock, ResidentConfig, ServerConfig, ServerLimits, SystemResidentClock};
 pub use coordinator::{PreparedScheduledRun, ResidentExecutionCoordinator};
 use error::diagnose_capture;
@@ -60,6 +62,8 @@ pub enum ExecutionDisposition {
     Paused,
     /// The admitted workflow settled unsuccessfully.
     Failed,
+    /// The operator cancelled the admitted workflow.
+    Cancelled,
 }
 
 /// Adapter result: disposition plus optional redacted diagnosis, declared
@@ -172,6 +176,20 @@ pub trait ExecutionBackend: Send + Sync + 'static {
     ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         self.execute(context)
     }
+
+    /// Execute with a run-scoped cooperative cancellation token.
+    ///
+    /// The default preserves existing adapters; the resident owner also drops
+    /// this future when the token fires, so an adapter cannot make HTTP
+    /// cancellation depend on polling the token itself.
+    fn execute_with_cancel<'a>(
+        &'a self,
+        context: ExecutionContext<'a>,
+        max_cost_usd: Option<f64>,
+        _cancel: nika_types::cancel::CancelCtx,
+    ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        self.execute_with_max_cost(context, max_cost_usd)
+    }
 }
 
 struct AppState {
@@ -187,6 +205,7 @@ struct AppState {
     schedules: Arc<ScheduleStore>,
     schedule_wake: Arc<Notify>,
     clock: Arc<dyn ResidentClock>,
+    cancellations: Arc<ActiveCancellations>,
 }
 
 struct AuthorityState {
@@ -200,6 +219,7 @@ struct AuthorityState {
     schedule_wake: Arc<Notify>,
     coordinator: ResidentExecutionCoordinator,
     clock: Arc<dyn ResidentClock>,
+    cancellations: Arc<ActiveCancellations>,
 }
 
 #[derive(Debug)]
@@ -286,6 +306,7 @@ impl ResidentAuthority {
         }
         let schedules = Arc::new(prepared.schedules);
         let schedule_wake = Arc::new(Notify::new());
+        let cancellations = Arc::new(ActiveCancellations::default());
         let state = Arc::new(AuthorityState {
             store: store_actor.handle(),
             service: ExecutionService::new(config.snapshot_limits()),
@@ -297,6 +318,7 @@ impl ResidentAuthority {
             schedule_wake,
             coordinator: coordinator.clone(),
             clock: Arc::clone(config.clock()),
+            cancellations,
         });
         Ok(Self {
             state,
@@ -386,6 +408,7 @@ impl BoundServer {
             schedules: Arc::clone(&authority.state.schedules),
             schedule_wake: Arc::clone(&authority.state.schedule_wake),
             clock: Arc::clone(&authority.state.clock),
+            cancellations: Arc::clone(&authority.state.cancellations),
         });
         Ok(Self { listener, state })
     }
@@ -787,6 +810,8 @@ async fn serve_connection(stream: TcpStream, state: Arc<AppState>) {
 }
 
 async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<(), ServerError> {
+    let (_registration, cancel) =
+        CancellationRegistration::new(Arc::clone(&state.cancellations), task.id.clone());
     let mut guard = RunningGuard::new(state.store.clone(), task.id.clone());
     let admitted = match admit_task(&state, &mut task).await {
         Ok(admitted) => admitted,
@@ -815,7 +840,15 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
     if !task.prestarted && !start_running(&mut guard, &admitted).await? {
         return Ok(());
     }
-    settle_disposition(&state, &mut guard, admitted, task.origin, task.max_cost_usd).await
+    settle_disposition(
+        &state,
+        &mut guard,
+        admitted,
+        task.origin,
+        task.max_cost_usd,
+        cancel,
+    )
+    .await
 }
 
 async fn admit_task(
@@ -878,24 +911,35 @@ async fn settle_disposition(
     admitted: nika_execution::AdmittedExecution,
     origin: JobOrigin,
     max_cost_usd: Option<f64>,
+    cancel: nika_types::cancel::CancelCtx,
 ) -> Result<(), ServerError> {
     let session = state.service.begin(admitted);
-    let outcome = tokio::time::timeout(
-        state.limits.execution_timeout(),
+    let execute =
         state
             .backend
-            .execute_with_max_cost(session.context(), max_cost_usd),
-    )
+            .execute_with_cancel(session.context(), max_cost_usd, cancel.clone());
+    let outcome = tokio::time::timeout(state.limits.execution_timeout(), async {
+        tokio::select! {
+            outcome = execute => outcome,
+            () = cancel::cancelled(cancel.clone()) => ExecutionDisposition::Cancelled.into(),
+        }
+    })
     .await;
     let Ok(outcome) = outcome else {
         guard.interrupt().await?;
         return Ok(());
+    };
+    let outcome = if cancel.is_cancelled() {
+        ExecutionDisposition::Cancelled.into()
+    } else {
+        outcome
     };
     let verdict = session.complete(outcome.disposition());
     let status = match *verdict.outcome() {
         ExecutionDisposition::Succeeded => JobStatus::Succeeded,
         ExecutionDisposition::Paused => JobStatus::Paused,
         ExecutionDisposition::Failed => JobStatus::Failed,
+        ExecutionDisposition::Cancelled => JobStatus::Cancelled,
     };
     let mut event = json!({"kind": "execution.settled", "status": status});
     if let Some((code, message)) = outcome.error() {
@@ -962,9 +1006,23 @@ impl RunningGuard {
         outputs: Option<BTreeMap<String, serde_json::Value>>,
         receipt: Option<JobReceipt>,
     ) -> Result<(), ServerError> {
-        self.store
+        let result = self
+            .store
             .settle_with_result(self.id.clone(), status, event, outputs, receipt)
-            .await?;
+            .await;
+        if let Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) = &result
+        {
+            let already_cancelled = self
+                .store
+                .get(self.id.clone())
+                .await?
+                .is_some_and(|record| record.status() == JobStatus::Cancelled);
+            if already_cancelled {
+                self.disarm();
+                return Ok(());
+            }
+        }
+        result?;
         self.disarm();
         Ok(())
     }

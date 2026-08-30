@@ -80,6 +80,28 @@ impl From<&JobRecord> for JobStatusResponse {
     }
 }
 
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct TraceVerificationResponse<'a> {
+    verdict: &'static str,
+    reason: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trace_id: Option<&'a str>,
+}
+
+impl<'a> TraceVerificationResponse<'a> {
+    pub(crate) fn unavailable(record: &'a JobRecord) -> Self {
+        Self {
+            verdict: "unavailable",
+            reason: if record.status().is_settled() {
+                "trace_journal_unavailable"
+            } else {
+                "run_not_terminal"
+            },
+            trace_id: record.trace_id(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub(crate) struct WorkflowListResponse {
     workflows: Vec<String>,

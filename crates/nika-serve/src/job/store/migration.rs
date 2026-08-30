@@ -112,7 +112,7 @@ fn validate_legacy_terminal_event(job: &LegacyStoredJobV2) -> Result<(), JobStor
             matches!(kind, Some("execution.interrupted" | "interrupted"))
                 && status == Some("interrupted")
         }
-        JobStatus::Queued | JobStatus::Running | JobStatus::Paused => false,
+        JobStatus::Queued | JobStatus::Running | JobStatus::Paused | JobStatus::Cancelled => false,
     };
     if !valid {
         return Err(JobStoreError::Corrupt(

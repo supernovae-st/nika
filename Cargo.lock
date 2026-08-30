@@ -4972,6 +4972,7 @@ dependencies = [
  "nika-fs",
  "nika-runtime",
  "nika-service-execution",
+ "nika-types",
  "nika-vocab",
  "nix 0.31.3",
  "serde",

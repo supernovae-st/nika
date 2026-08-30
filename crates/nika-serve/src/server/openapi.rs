@@ -5,15 +5,14 @@ use serde_json::{Value, json};
 
 /// [`OpenAPI`](https://spec.openapis.org/oas/v3.1.0) document of the live HTTP surface.
 ///
-/// Cancel, artifact, and `POST /v1/run` paths are omitted until those
-/// authorities exist.
+/// Artifact and `POST /v1/run` paths are omitted until those authorities exist.
 pub(crate) fn document() -> Value {
     json!({
         "openapi": "3.1.0",
         "info": {
             "title": "nika serve",
             "version": env!("CARGO_PKG_VERSION"),
-            "description": "Authenticated loopback remote execution and declarative schedules. Cancel, artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
+            "description": "Authenticated loopback remote execution and declarative schedules. Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
         },
         "servers": [{"url": "http://127.0.0.1"}],
         "security": [{"bearerAuth": []}],
@@ -61,7 +60,7 @@ fn schemas() -> Value {
     json!({
             "JobStatus": {
                 "type": "string",
-                "enum": ["queued", "running", "interrupted", "paused", "succeeded", "failed"]
+                "enum": ["queued", "running", "interrupted", "paused", "succeeded", "failed", "cancelled"]
             },
             "Job": {
                 "type": "object",
@@ -90,6 +89,7 @@ fn schemas() -> Value {
                 }
             },
             "JobReceipt": job_receipt_schema(),
+            "TraceVerification": trace_verification_schema(),
             "JobStatusOnly": {
                 "type": "object",
                 "additionalProperties": false,
@@ -183,6 +183,20 @@ fn job_receipt_schema() -> Value {
     })
 }
 
+fn trace_verification_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Run-scoped typed verdict. Unavailable is an honest refusal: this server has no remote trace-journal authority and never scans or returns filesystem paths.",
+        "required": ["verdict", "reason"],
+        "properties": {
+            "verdict": {"type": "string", "enum": ["unavailable"]},
+            "reason": {"type": "string", "enum": ["run_not_terminal", "trace_journal_unavailable"]},
+            "trace_id": {"type": "string", "minLength": 1}
+        }
+    })
+}
+
 fn paths() -> Value {
     json!({
         "/health": health_path(),
@@ -194,6 +208,8 @@ fn paths() -> Value {
         "/v1/jobs/{id}": job_path(),
         "/v1/jobs/{id}/status": job_status_path(),
         "/v1/jobs/{id}/events": job_events_path(),
+        "/v1/jobs/{id}/cancel": job_cancel_path(),
+        "/v1/jobs/{id}/trace/verify": job_trace_verify_path(),
         "/v1/schedules/{id}": schedule_path()
     })
 }
@@ -340,9 +356,27 @@ fn job_events_path() -> Value {
         "summary": "Job event SSE",
         "parameters": [job_id_param(), {"$ref": "#/components/parameters/LastEventId"}],
         "responses": {
-            "200": {"description": "text/event-stream; terminal data adds declared outputs and receipt when available; failures add redacted {code,message}"},
+            "200": {"description": "text/event-stream; sends bounded retry guidance and cursor-neutral heartbeat comments; Last-Event-ID replays only persisted events after that sequence; terminal data adds declared outputs and receipt when available; failures add redacted {code,message}"},
             "400": error_ref(), "401": error_ref(), "404": error_ref()
         }
+    }})
+}
+
+fn job_cancel_path() -> Value {
+    json!({"post": {
+        "summary": "Idempotently cancel a queued, running, or paused job",
+        "description": "Cancellation signals the run-scoped engine token before durable terminal settlement. A terminal replay returns the existing result unchanged.",
+        "parameters": [job_id_param()],
+        "responses": {"200": {"description": "Cancelled or already terminal job", "content": json_job()}, "401": error_ref(), "404": error_ref(), "503": error_ref()}
+    }})
+}
+
+fn job_trace_verify_path() -> Value {
+    json!({"get": {
+        "summary": "Return the run-scoped trace verification verdict",
+        "description": "Returns a typed honest refusal while no remote trace-journal authority exists. It never scans a trace directory or exposes a filesystem path.",
+        "parameters": [job_id_param()],
+        "responses": {"200": {"description": "Typed trace verdict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TraceVerification"}}}}, "401": error_ref(), "404": error_ref()}
     }})
 }
 
@@ -386,12 +420,13 @@ mod tests {
         "/v1/jobs/{id}",
         "/v1/jobs/{id}/status",
         "/v1/jobs/{id}/events",
+        "/v1/jobs/{id}/cancel",
+        "/v1/jobs/{id}/trace/verify",
         "/v1/schedules/{id}",
         "/v1/openapi.json",
     ];
 
     const ABSENT_PATHS: &[&str] = &[
-        "/v1/jobs/{id}/cancel",
         "/v1/jobs/{id}/artifacts",
         "/v1/run",
         "/v1/schedules",
