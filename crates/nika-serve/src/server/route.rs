@@ -11,11 +11,14 @@ use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
 use hyper::{Method, Request, Response, StatusCode};
 use sha2::{Digest as _, Sha256};
 
-use crate::{Admission, IdempotencyKey, JobId, RequestDigest};
+use crate::{
+    Admission, IdempotencyKey, JobId, MAX_EXECUTION_SNAPSHOT_METADATA_BYTES,
+    MAX_EXECUTION_SNAPSHOT_PATH_BYTES, RequestDigest,
+};
 
 use super::error::{ApiError, ResponseBody, capture_refused, once_body};
 use super::model::{
-    CreateJobRequest, HealthResponse, JobResponse, JobStatusResponse, WorkflowListResponse,
+    HealthResponse, JobResponse, JobStatusResponse, SnapshotValidationAck, WorkflowListResponse,
     WorkflowMetadataResponse,
 };
 use super::registry::{list_workflows, valid_workflow_name, workflow_exists};
@@ -23,6 +26,58 @@ use super::sse;
 use super::{AppState, ExecutionTask};
 
 const IDEMPOTENCY_KEY: &str = "idempotency-key";
+pub(super) const SNAPSHOT_WIRE_UNIT_CEILING: usize = 256;
+const UNIT_COUNT_PROBE_MARKER: &str = "nika snapshot wire unit count exceeded";
+
+#[derive(serde::Deserialize)]
+struct SnapshotWireProbe<'a> {
+    root: &'a str,
+    digest: &'a str,
+    #[serde(borrow)]
+    units: BoundedWireUnits<'a>,
+}
+
+struct BoundedWireUnits<'a>(Vec<SnapshotWireUnit<'a>>);
+
+#[derive(serde::Deserialize)]
+struct SnapshotWireUnit<'a> {
+    path: &'a str,
+    digest: &'a str,
+    bytes_hex: &'a str,
+}
+
+impl<'de: 'a, 'a> serde::Deserialize<'de> for BoundedWireUnits<'a> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct UnitsVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for UnitsVisitor {
+            type Value = BoundedWireUnits<'de>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a bounded execution snapshot unit array")
+            }
+
+            fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut units = Vec::new();
+                while let Some(unit) = sequence.next_element()? {
+                    if units.len() == SNAPSHOT_WIRE_UNIT_CEILING {
+                        return Err(serde::de::Error::custom(UNIT_COUNT_PROBE_MARKER));
+                    }
+                    units.push(unit);
+                }
+                Ok(BoundedWireUnits(units))
+            }
+        }
+
+        deserializer.deserialize_seq(UnitsVisitor)
+    }
+}
 
 pub(crate) async fn handle(
     request: Request<Incoming>,
@@ -76,6 +131,7 @@ async fn route_authenticated(
     let path = request.uri().path().to_owned();
     match (request.method(), path.as_str()) {
         (&Method::POST, "/v1/jobs") => create_job(request, state).await,
+        (&Method::POST, "/v1/check") => check_snapshot(request, state).await,
         (&Method::GET, "/v1/openapi.json") => {
             json_response(StatusCode::OK, &super::openapi::document())
         }
@@ -89,7 +145,7 @@ async fn route_authenticated(
 }
 
 async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Response<ResponseBody> {
-    if let Some(error) = refuse_job_envelope(&request) {
+    if let Some(error) = refuse_snapshot_envelope(&request) {
         return error.into_response();
     }
     let key = match idempotency_key(request.headers()) {
@@ -100,28 +156,55 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
         Ok(body) => body,
         Err(error) => return error.into_response(),
     };
-    let payload = match parse_job_request(&body) {
-        Ok(payload) => payload,
-        Err(error) => return error.into_response(),
+    let admitted = match readmit_body(&body, &state).await {
+        Ok(admitted) => admitted,
+        Err(response) => return response,
     };
     let digest = RequestDigest::from_bytes(Sha256::digest(&body).into());
-    admit_job(state, key, digest, payload.workflow).await
+    let workflow = admitted.snapshot().root().to_owned();
+    let Ok(world) = String::from_utf8(body.to_vec()) else {
+        return malformed_snapshot_encoding().into_response();
+    };
+    admit_job(state, key, digest, workflow, world).await
 }
 
-async fn capture_world(state: &AppState, workflow: &str) -> Result<String, Response<ResponseBody>> {
+async fn check_snapshot(
+    request: Request<Incoming>,
+    state: Arc<AppState>,
+) -> Response<ResponseBody> {
+    if let Some(error) = refuse_snapshot_envelope(&request) {
+        return error.into_response();
+    }
+    let body = match collect_body(request, state.limits.max_body_bytes()).await {
+        Ok(body) => body,
+        Err(error) => return error.into_response(),
+    };
+    match readmit_body(&body, &state).await {
+        Ok(admitted) => json_response(
+            StatusCode::OK,
+            &SnapshotValidationAck::accepted(admitted.snapshot()),
+        ),
+        Err(response) => response,
+    }
+}
+
+async fn readmit_body(
+    body: &[u8],
+    state: &AppState,
+) -> Result<nika_execution::AdmittedExecution, Response<ResponseBody>> {
+    let encoded = std::str::from_utf8(body)
+        .map_err(|_| malformed_snapshot_encoding().into_response())?
+        .to_owned();
+    validate_wire_envelope(&encoded).map_err(ApiError::into_response)?;
     let service = state.service;
     let limits = state.snapshot_limits;
-    let project = Arc::clone(&state.project);
-    let workflow = std::path::PathBuf::from(workflow);
-    let captured = tokio::task::spawn_blocking(move || {
-        let snapshot = nika_execution::ExecutionSnapshot::capture(&project, &workflow, limits)?;
-        let encoded = snapshot.encode()?;
-        service.readmit_snapshot(snapshot)?;
-        Ok::<String, nika_execution::ExecutionError>(encoded)
+    let admitted = tokio::task::spawn_blocking(move || {
+        let snapshot = nika_execution::ExecutionSnapshot::decode_with_limits(&encoded, limits)?;
+        service.readmit_snapshot(snapshot)
     })
     .await
     .map_err(|_| admission_refused().into_response())?;
-    captured.map_err(|error| capture_refused(&error))
+    admitted.map_err(|error| capture_refused(&error))
 }
 
 fn admission_refused() -> ApiError {
@@ -132,7 +215,7 @@ fn admission_refused() -> ApiError {
     )
 }
 
-fn refuse_job_envelope(request: &Request<Incoming>) -> Option<ApiError> {
+fn refuse_snapshot_envelope(request: &Request<Incoming>) -> Option<ApiError> {
     if !is_json(request.headers()) {
         return Some(ApiError::new(
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
@@ -150,23 +233,104 @@ fn refuse_job_envelope(request: &Request<Incoming>) -> Option<ApiError> {
     None
 }
 
-fn parse_job_request(body: &[u8]) -> Result<CreateJobRequest, ApiError> {
-    let payload: CreateJobRequest = serde_json::from_slice(body).map_err(|_| {
-        ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "invalid_json",
-            "request body is not valid job JSON",
-        )
-    })?;
-    if valid_workflow_name(&payload.workflow) {
-        Ok(payload)
-    } else {
-        Err(ApiError::new(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "invalid_workflow",
-            "workflow must be a contained .nika.yaml path",
-        ))
+fn malformed_snapshot_encoding() -> ApiError {
+    ApiError::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "malformed_snapshot",
+        "request body is not a UTF-8 execution snapshot",
+    )
+}
+
+fn validate_wire_envelope(encoded: &str) -> Result<(), ApiError> {
+    let probe = match serde_json::from_str::<SnapshotWireProbe<'_>>(encoded) {
+        Ok(probe) => probe,
+        Err(error) if error.to_string().contains(UNIT_COUNT_PROBE_MARKER) => {
+            return Err(ApiError::new(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "snapshot_unit_count_limit",
+                "snapshot exceeds the wire unit-count limit",
+            ));
+        }
+        Err(_) => {
+            return Err(ApiError::new(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "malformed_snapshot",
+                "request body is not a valid execution snapshot",
+            ));
+        }
+    };
+    if probe.root.len() > MAX_EXECUTION_SNAPSHOT_PATH_BYTES
+        || probe
+            .units
+            .0
+            .iter()
+            .any(|unit| unit.path.len() > MAX_EXECUTION_SNAPSHOT_PATH_BYTES)
+    {
+        return Err(ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "snapshot_path_limit",
+            "snapshot logical path exceeds the encoded metadata limit",
+        ));
     }
+    if !canonical_digest(probe.digest)
+        || probe
+            .units
+            .0
+            .iter()
+            .any(|unit| !canonical_digest(unit.digest))
+    {
+        return Err(ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "malformed_snapshot_digest",
+            "snapshot digests must be canonical lowercase SHA-256",
+        ));
+    }
+    if probe
+        .units
+        .0
+        .iter()
+        .any(|unit| malformed_hex(unit.bytes_hex))
+    {
+        return Err(ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "malformed_snapshot_hex",
+            "snapshot unit bytes must be even-length lowercase hexadecimal",
+        ));
+    }
+    let hex_bytes = probe
+        .units
+        .0
+        .iter()
+        .try_fold(0usize, |total, unit| {
+            total.checked_add(unit.bytes_hex.len())
+        })
+        .ok_or_else(snapshot_metadata_limit)?;
+    if encoded.len().saturating_sub(hex_bytes) > MAX_EXECUTION_SNAPSHOT_METADATA_BYTES {
+        return Err(snapshot_metadata_limit());
+    }
+    Ok(())
+}
+
+fn canonical_digest(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+fn malformed_hex(value: &str) -> bool {
+    !value.len().is_multiple_of(2)
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+fn snapshot_metadata_limit() -> ApiError {
+    ApiError::new(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "snapshot_metadata_limit",
+        "snapshot exceeds the encoded JSON metadata limit",
+    )
 }
 
 async fn admit_job(
@@ -174,11 +338,8 @@ async fn admit_job(
     key: IdempotencyKey,
     digest: RequestDigest,
     workflow: String,
+    world: String,
 ) -> Response<ResponseBody> {
-    let world = match capture_world(&state, &workflow).await {
-        Ok(world) => world,
-        Err(response) => return response,
-    };
     let Ok(permit) = state.jobs.try_reserve() else {
         return queue_full();
     };

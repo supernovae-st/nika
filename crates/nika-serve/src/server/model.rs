@@ -3,15 +3,28 @@
 
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::{JobReceipt, JobRecord, JobStatus};
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct CreateJobRequest {
-    pub(crate) workflow: String,
+#[derive(Debug, Serialize)]
+pub(crate) struct SnapshotValidationAck<'a> {
+    status: &'static str,
+    snapshot_digest: &'a str,
+    root: &'a str,
+    units: usize,
+}
+
+impl<'a> SnapshotValidationAck<'a> {
+    pub(crate) fn accepted(snapshot: &'a nika_execution::ExecutionSnapshot) -> Self {
+        Self {
+            status: "accepted",
+            snapshot_digest: snapshot.digest(),
+            root: snapshot.root(),
+            units: snapshot.len(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]

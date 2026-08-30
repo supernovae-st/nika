@@ -18,10 +18,21 @@ pub const MAX_EVENT_PAYLOAD_BYTES: usize = 64 * 1024;
 pub const MAX_EVENT_BATCH_LEN: usize = 64;
 /// Maximum encoded size of the complete durable job snapshot.
 ///
-/// This matches the aggregate [`nika_execution::ExecutionSnapshot`] ceiling.
 /// Larger terminal outputs are refused with [`JobStoreError::SnapshotTooLarge`]
 /// before the existing durable snapshot is replaced; they are never truncated.
 pub const MAX_JOB_SNAPSHOT_BYTES: usize = 16 * 1024 * 1024;
+/// Maximum encoded JSON metadata beside hexadecimal unit bodies.
+pub const MAX_EXECUTION_SNAPSHOT_METADATA_BYTES: usize = 1024 * 1024;
+/// Maximum UTF-8 bytes in the root or one unit's contained logical path.
+pub const MAX_EXECUTION_SNAPSHOT_PATH_BYTES: usize = 4096;
+/// Maximum encoded size of one transported immutable execution snapshot.
+///
+/// An execution world contains at most 16 MiB of decoded unit bytes. Its wire
+/// format hex-encodes those bytes (a strict 2x expansion), then adds bounded
+/// JSON metadata. The extra 1 MiB is the independent encoded-metadata budget;
+/// exceeding it is a body/store refusal even when decoded unit bytes fit.
+pub const MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES: usize =
+    (2 * 16 * 1024 * 1024) + MAX_EXECUTION_SNAPSHOT_METADATA_BYTES;
 /// Maximum number of events returned by one resume page.
 pub const MAX_EVENT_PAGE_LEN: usize = 256;
 

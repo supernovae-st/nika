@@ -10,12 +10,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use serde_json::{Value, json};
+use sha2::{Digest as _, Sha256};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 
+use super::route::SNAPSHOT_WIRE_UNIT_CEILING;
 use super::test_support::assert_allowlisted;
 use super::*;
+use crate::{MAX_EXECUTION_SNAPSHOT_METADATA_BYTES, MAX_EXECUTION_SNAPSHOT_PATH_BYTES};
 
 pub(super) const TOKEN: &str = "remote-test-token-012345678901234567890123456789";
 const WORKFLOW: &str = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
@@ -48,13 +51,19 @@ impl TestWorld {
 
     #[rustfmt::skip]
     pub(super) async fn start(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits) -> TestServer {
+        self.start_with_snapshot_limits(backend, limits, SnapshotLimits::default()).await
+    }
+
+    #[rustfmt::skip]
+    async fn start_with_snapshot_limits(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits, snapshot_limits: SnapshotLimits) -> TestServer {
         let config = ServerConfig::new(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
             &self.workflows,
             &self.state,
             &self.token,
         )
-        .with_limits(limits);
+        .with_limits(limits)
+        .with_snapshot_limits(snapshot_limits);
         let bound = BoundServer::bind(config, backend).await.expect("bind");
         let address = bound.local_addr().expect("local address");
         let (shutdown, receiver) = oneshot::channel();
@@ -409,8 +418,8 @@ async fn authenticated_invalid_json_and_content_type_are_stable_refusals() {
     );
     let compressed = server.request(&compressed).await;
 
-    assert_eq!(malformed.status, 400);
-    assert_eq!(malformed.json()["error"]["code"], "invalid_json");
+    assert_eq!(malformed.status, 422);
+    assert_eq!(malformed.json()["error"]["code"], "malformed_snapshot");
     assert_eq!(wrong_type.status, 415);
     assert_eq!(wrong_type.json()["error"]["code"], "unsupported_media_type");
     assert_eq!(compressed.status, 415);
@@ -540,6 +549,7 @@ async fn traversal_extension_confusion_and_oversize_never_execute() {
         .request(&post_request(&oversized, "oversized", &auth_header()))
         .await;
     assert_eq!(response.status, 413);
+    assert_eq!(response.json()["error"]["code"], "body_too_large");
     assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");
 }
@@ -563,7 +573,7 @@ async fn symlinked_workflow_refuses_before_backend_execution() {
         ))
         .await;
     assert_eq!(response.status, 422, "{}", response.body);
-    assert_eq!(response.json()["error"]["code"], "admission_refused");
+    assert_eq!(response.json()["error"]["code"], "malformed_snapshot");
     assert!(response.json().get("id").is_none());
     assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");
@@ -977,8 +987,8 @@ async fn missing_idempotency_key_and_deep_json_refuse_without_execution() {
     let deep = server
         .request(&post_request(&deep, "deep-json", &auth_header()))
         .await;
-    assert_eq!(deep.status, 400);
-    assert_eq!(deep.json()["error"]["code"], "invalid_json");
+    assert_eq!(deep.status, 422);
+    assert_eq!(deep.json()["error"]["code"], "malformed_snapshot");
     assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");
 }
@@ -1257,15 +1267,71 @@ async fn wire_request(address: SocketAddr, request: &str) -> WireResponse {
 }
 
 pub(super) fn post_request(body: &str, key: &str, authorization: &str) -> String {
+    let body = if body == r#"{"workflow":"root.nika.yaml"}"# {
+        snapshot_body(WORKFLOW)
+    } else {
+        body.to_owned()
+    };
     format!(
         "POST /v1/jobs HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\nIdempotency-Key: {key}\r\n{authorization}\r\n{body}",
         body.len()
     )
 }
 
+pub(super) fn snapshot_body(source: &str) -> String {
+    let path = "root.nika.yaml";
+    let unit_digest = hex_digest(source.as_bytes());
+    let mut world = Sha256::new();
+    world.update(b"nika-execution-snapshot\0");
+    world.update(1_u32.to_be_bytes());
+    hash_snapshot_field(&mut world, path.as_bytes());
+    world.update([0]);
+    hash_snapshot_field(&mut world, path.as_bytes());
+    hash_snapshot_field(&mut world, source.as_bytes());
+    json!({
+        "format_version": 1,
+        "root": path,
+        "digest": format!("{:x}", world.finalize()),
+        "units": [{
+            "path": path,
+            "kind": 0,
+            "digest": unit_digest,
+            "bytes_hex": encode_hex(source.as_bytes())
+        }]
+    })
+    .to_string()
+}
+
+fn hash_snapshot_field(hasher: &mut Sha256, bytes: &[u8]) {
+    hasher.update(u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_be_bytes());
+    hasher.update(bytes);
+}
+
+fn hex_digest(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+
+    let mut encoded = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        write!(encoded, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    encoded
+}
+
 pub(super) fn get_request(path: &str) -> String {
     format!(
         "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{}\r\n",
+        auth_header()
+    )
+}
+
+fn check_request(body: &str) -> String {
+    format!(
+        "POST /v1/check HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{body}",
+        body.len(),
         auth_header()
     )
 }
@@ -1391,7 +1457,198 @@ async fn openapi_is_authenticated_and_omits_absent_authorities() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn restart_reschedules_durable_queued_jobs() {
+async fn machine_check_and_job_admission_judge_identical_caller_bytes_not_server_paths() {
+    let world = TestWorld::new();
+    std::fs::write(
+        world.workflows.join("root.nika.yaml"),
+        "nika: divergent-server-copy\ntasks: {}\n",
+    )
+    .expect("divergent server-local path");
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let snapshot = snapshot_body(WORKFLOW);
+
+    let checked = server.request(&check_request(&snapshot)).await;
+    assert_eq!(checked.status, 200, "{}", checked.body);
+    assert_eq!(checked.json()["status"], "accepted");
+
+    let created = server
+        .request(&post_request(&snapshot, "bytes-first", &auth_header()))
+        .await;
+    assert_eq!(created.status, 202, "{}", created.body);
+    let id = created.json()["id"].as_str().expect("job id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("caller snapshot executes");
+    let job = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    assert_eq!(
+        job["receipt"]["snapshot_digest"],
+        checked.json()["snapshot_digest"]
+    );
+    assert_eq!(backend.calls(), 1);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn idempotency_is_bound_to_exact_snapshot_body_bytes() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let compact = snapshot_body(WORKFLOW);
+    let pretty = serde_json::to_string_pretty(
+        &serde_json::from_str::<Value>(&compact).expect("snapshot JSON"),
+    )
+    .expect("pretty snapshot");
+
+    let first = server
+        .request(&post_request(&compact, "same-world", &auth_header()))
+        .await;
+    let second = server
+        .request(&post_request(&pretty, "same-world", &auth_header()))
+        .await;
+    let replay = server
+        .request(&post_request(&compact, "same-world", &auth_header()))
+        .await;
+    assert_eq!(first.status, 202, "{}", first.body);
+    assert_eq!(second.status, 409, "{}", second.body);
+    assert_eq!(second.json()["error"]["code"], "idempotency_conflict");
+    assert_eq!(replay.status, 200, "{}", replay.body);
+    assert_eq!(first.json()["id"], replay.json()["id"]);
+    let id = first.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("one execution");
+    assert_eq!(backend.calls(), 1);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn snapshot_wire_refusals_have_stable_typed_codes_and_never_execute() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let valid = serde_json::from_str::<Value>(&snapshot_body(WORKFLOW)).expect("snapshot");
+    let mut cases = Vec::new();
+
+    let mut hex = valid.clone();
+    hex["units"][0]["bytes_hex"] = json!("0g");
+    cases.push(("bad-hex", hex, "malformed_snapshot_hex"));
+    let mut version = valid.clone();
+    version["format_version"] = json!(2);
+    cases.push(("bad-version", version, "unsupported_snapshot_version"));
+    let mut tampered = valid;
+    tampered["units"][0]["digest"] = json!("0".repeat(64));
+    cases.push(("bad-digest", tampered, "snapshot_tampered"));
+
+    for (key, payload, code) in cases {
+        let response = server
+            .request(&post_request(&payload.to_string(), key, &auth_header()))
+            .await;
+        assert_eq!(response.status, 422, "{key}: {}", response.body);
+        assert_eq!(response.json()["error"]["code"], code, "{key}");
+        assert!(response.json().get("id").is_none(), "{key}");
+    }
+    assert_eq!(backend.calls(), 0);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn snapshot_resource_bounds_have_stable_typed_codes_and_never_execute() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), ServerLimits::default()).await;
+    let mut long_path = serde_json::from_str::<Value>(&snapshot_body(WORKFLOW)).expect("snapshot");
+    long_path["root"] = json!("p".repeat(MAX_EXECUTION_SNAPSHOT_PATH_BYTES + 1));
+    let path_response = server
+        .request(&post_request(
+            &long_path.to_string(),
+            "path-limit",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(path_response.status, 413, "{}", path_response.body);
+    assert_eq!(path_response.json()["error"]["code"], "snapshot_path_limit");
+
+    let mut too_many = serde_json::from_str::<Value>(&snapshot_body(WORKFLOW)).expect("snapshot");
+    let unit = too_many["units"][0].clone();
+    too_many["units"] = Value::Array(vec![unit; SNAPSHOT_WIRE_UNIT_CEILING + 1]);
+    let count_response = server
+        .request(&post_request(
+            &too_many.to_string(),
+            "wire-count-limit",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(count_response.status, 413, "{}", count_response.body);
+    assert_eq!(
+        count_response.json()["error"]["code"],
+        "snapshot_unit_count_limit"
+    );
+
+    let compact = snapshot_body(WORKFLOW);
+    let split = compact.len() - 1;
+    let metadata_heavy = format!(
+        "{}{}{}",
+        &compact[..split],
+        " ".repeat(MAX_EXECUTION_SNAPSHOT_METADATA_BYTES + 1),
+        &compact[split..]
+    );
+    let metadata_response = server
+        .request(&post_request(
+            &metadata_heavy,
+            "metadata-limit",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(metadata_response.status, 413, "{}", metadata_response.body);
+    assert_eq!(
+        metadata_response.json()["error"]["code"],
+        "snapshot_metadata_limit"
+    );
+    assert_eq!(backend.calls(), 0);
+    server.stop().await.expect("clean stop");
+
+    for (name, snapshot_limits, expected) in [
+        (
+            "count",
+            SnapshotLimits::new(64, 0, 1024 * 1024, 16 * 1024 * 1024),
+            "snapshot_unit_count_limit",
+        ),
+        (
+            "unit",
+            SnapshotLimits::new(64, 256, 8, 16 * 1024 * 1024),
+            "snapshot_unit_size_limit",
+        ),
+        (
+            "aggregate",
+            SnapshotLimits::new(64, 256, 1024 * 1024, 8),
+            "snapshot_total_size_limit",
+        ),
+    ] {
+        let world = TestWorld::new();
+        let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+        let server = world
+            .start_with_snapshot_limits(backend.clone(), limits(), snapshot_limits)
+            .await;
+        let response = server
+            .request(&post_request(
+                &snapshot_body(WORKFLOW),
+                name,
+                &auth_header(),
+            ))
+            .await;
+        assert_eq!(response.status, 413, "{name}: {}", response.body);
+        assert_eq!(response.json()["error"]["code"], expected, "{name}");
+        assert_eq!(backend.calls(), 0);
+        server.stop().await.expect("clean stop");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn post_admission_path_mutation_cannot_change_queued_world_across_restart() {
     let world = TestWorld::new();
     let hanging = Arc::new(GatedBackend::new());
     let first = world.start(hanging.clone(), bounded_queue_limits()).await;
@@ -1416,7 +1673,7 @@ async fn restart_reschedules_durable_queued_jobs() {
         Err(ServerError::ShutdownTimeout)
     ));
     std::fs::write(world.workflows.join("root.nika.yaml"), "not-a-workflow")
-        .expect("mutate live bytes after POST capture");
+        .expect("mutate server-local bytes after snapshot admission");
     let replacement = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let second = world.start(replacement.clone(), limits()).await;
     wait_for_calls(replacement.as_ref(), 2)

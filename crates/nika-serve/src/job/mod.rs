@@ -3,8 +3,10 @@ mod store;
 
 pub use model::{
     Admission, ApprovalHistoryError, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobMutation,
-    JobReceipt, JobRecord, JobStatus, JobStoreError, MAX_EVENT_BATCH_LEN, MAX_EVENT_PAGE_LEN,
-    MAX_EVENT_PAYLOAD_BYTES, MAX_JOB_SNAPSHOT_BYTES, RequestDigest, ServerIncarnation,
+    JobReceipt, JobRecord, JobStatus, JobStoreError, MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES,
+    MAX_EVENT_BATCH_LEN, MAX_EVENT_PAGE_LEN, MAX_EVENT_PAYLOAD_BYTES,
+    MAX_EXECUTION_SNAPSHOT_METADATA_BYTES, MAX_EXECUTION_SNAPSHOT_PATH_BYTES,
+    MAX_JOB_SNAPSHOT_BYTES, RequestDigest, ServerIncarnation,
 };
 pub use store::{ApprovalHistory, JobStore};
 

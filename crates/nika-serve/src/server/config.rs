@@ -8,6 +8,8 @@ use std::time::Duration;
 
 use nika_execution::SnapshotLimits;
 
+use crate::MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES;
+
 /// Explicit ceilings for the remote HTTP and execution boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -123,7 +125,7 @@ impl ServerLimits {
 impl Default for ServerLimits {
     fn default() -> Self {
         Self::new(
-            64 * 1024,
+            MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES,
             Duration::from_secs(5),
             Duration::from_secs(15 * 60),
             Duration::from_secs(30),

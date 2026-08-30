@@ -334,6 +334,11 @@ fn validate_config(config: &ServerConfig) -> Result<(), ServerError> {
             "all size, timeout, concurrency, queue, connection, sse, and header ceilings must be non-zero",
         ));
     }
+    if config.limits().max_body_bytes() > crate::MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES {
+        return Err(ServerError::InvalidConfig(
+            "request body ceiling exceeds the durable encoded-snapshot ceiling",
+        ));
+    }
     if !config.bind().ip().is_loopback() && !config.allow_remote() {
         return Err(ServerError::InvalidConfig(
             "a non-loopback bind requires explicit remote acknowledgement",
@@ -517,10 +522,11 @@ async fn admit_workflow(
         .await
         .map_err(|_| None)?;
     let service = state.service;
+    let limits = state.snapshot_limits;
     let store = state.store.clone();
     let id = task.id.clone();
     let admission = tokio::task::spawn_blocking(move || {
-        let snapshot = nika_execution::ExecutionSnapshot::decode(&encoded)?;
+        let snapshot = nika_execution::ExecutionSnapshot::decode_with_limits(&encoded, limits)?;
         service.readmit_snapshot(snapshot)
     })
     .await

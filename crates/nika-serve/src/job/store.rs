@@ -15,8 +15,9 @@ use sha2::{Digest as _, Sha256};
 use super::model::{EventHash, IncarnationGeneration};
 use super::{
     Admission, ApprovalHistoryError, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobMutation,
-    JobReceipt, JobRecord, JobStatus, JobStoreError, MAX_EVENT_BATCH_LEN, MAX_EVENT_PAYLOAD_BYTES,
-    MAX_JOB_SNAPSHOT_BYTES, RequestDigest, ServerIncarnation,
+    JobReceipt, JobRecord, JobStatus, JobStoreError, MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES,
+    MAX_EVENT_BATCH_LEN, MAX_EVENT_PAYLOAD_BYTES, MAX_JOB_SNAPSHOT_BYTES, RequestDigest,
+    ServerIncarnation,
 };
 
 const JOBS_DIR: &str = "jobs";
@@ -221,6 +222,14 @@ impl JobStore {
     ) -> Result<Admission, JobStoreError> {
         key.validate()?;
         digest.validate()?;
+        if let Some(world) = world
+            && world.len() > MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES
+        {
+            return Err(JobStoreError::SnapshotTooLarge {
+                bytes: world.len() as u64,
+                maximum: MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES,
+            });
+        }
         let _local = self.local_guard()?;
         let _lease = self.kernel_lease()?;
         let mut state = self.load_state()?;
@@ -276,9 +285,28 @@ impl JobStore {
     pub fn load_world(&self, id: &JobId) -> Result<String, JobStoreError> {
         let _local = self.local_guard()?;
         let _lease = self.kernel_lease()?;
-        self.dir
-            .read_optional(&world_file(id))?
-            .ok_or_else(|| JobStoreError::Corrupt("execution world is missing".to_owned()))
+        let mut file = self
+            .dir
+            .open_relative(Path::new(&world_file(id)))
+            .map_err(|error| {
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    JobStoreError::Corrupt("execution world is missing".to_owned())
+                } else {
+                    JobStoreError::Io(error.kind())
+                }
+            })?;
+        let mut body = Vec::new();
+        std::io::Read::by_ref(&mut file)
+            .take(MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES as u64 + 1)
+            .read_to_end(&mut body)?;
+        if body.len() > MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES {
+            return Err(JobStoreError::SnapshotTooLarge {
+                bytes: body.len() as u64,
+                maximum: MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES,
+            });
+        }
+        String::from_utf8(body)
+            .map_err(|_| JobStoreError::Corrupt("execution world is not valid UTF-8".to_owned()))
     }
 
     /// Persist engine identities minted by snapshot readmission.

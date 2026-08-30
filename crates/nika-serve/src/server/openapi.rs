@@ -45,7 +45,12 @@ fn components() -> Value {
                 "schema": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"}
             }
         },
-        "schemas": {
+        "schemas": schemas()
+    })
+}
+
+fn schemas() -> Value {
+    json!({
             "JobStatus": {
                 "type": "string",
                 "enum": ["queued", "running", "interrupted", "paused", "succeeded", "failed"]
@@ -86,12 +91,42 @@ fn components() -> Value {
                     "status": {"$ref": "#/components/schemas/JobStatus"}
                 }
             },
-            "CreateJob": {
+            "ExecutionSnapshot": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["workflow"],
+                "description": "Immutable byte-owned execution world. Unit bytes are canonical lowercase hexadecimal and digests are canonical lowercase SHA-256. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
+                "required": ["format_version", "root", "digest", "units"],
                 "properties": {
-                    "workflow": {"type": "string"}
+                    "format_version": {"type": "integer", "const": 1},
+                    "root": {"type": "string", "minLength": 1, "maxLength": 4096},
+                    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "units": {
+                        "type": "array",
+                        "maxItems": 256,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["path", "kind", "digest", "bytes_hex"],
+                            "properties": {
+                                "path": {"type": "string", "minLength": 1, "maxLength": 4096},
+                                "kind": {"type": "integer", "minimum": 0, "maximum": 3},
+                                "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                                "bytes_hex": {"type": "string", "pattern": "^(?:[0-9a-f]{2})*$"}
+                            }
+                        }
+                    }
+                }
+            },
+            "SnapshotValidationAck": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Compact remote acknowledgement that the exact snapshot was revalidated. This is not the engine's public full check report; SDK callers retain the engine-owned report captured with the snapshot and return it only after this acknowledgement succeeds.",
+                "required": ["status", "snapshot_digest", "root", "units"],
+                "properties": {
+                    "status": {"type": "string", "const": "accepted"},
+                    "snapshot_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "root": {"type": "string", "minLength": 1},
+                    "units": {"type": "integer", "minimum": 1}
                 }
             },
             "Error": {
@@ -110,7 +145,6 @@ fn components() -> Value {
                     }
                 }
             }
-        }
     })
 }
 
@@ -132,95 +166,114 @@ fn job_receipt_schema() -> Value {
 
 fn paths() -> Value {
     json!({
-        "/health": {
-            "get": {
-                "security": [],
-                "summary": "Public process liveness",
-                "responses": {"200": {"description": "Engine identity only"}}
-            }
-        },
-        "/v1/openapi.json": {
-            "get": {
-                "summary": "This document",
-                "responses": {
-                    "200": {"description": "OpenAPI 3.1"},
-                    "401": {"description": "Bearer required"}
-                }
-            }
-        },
-        "/v1/workflows": {
-            "get": {
-                "summary": "Contained workflow names",
-                "responses": {"200": {"description": "Relative .nika.yaml names"}, "401": error_ref()}
-            }
-        },
-        "/v1/workflows/{name}": {
-            "get": {
-                "summary": "Workflow metadata without source bytes",
-                "parameters": [{"name": "name", "in": "path", "required": true, "schema": {"type": "string"}}],
-                "responses": {"200": {"description": "Contained name"}, "401": error_ref(), "404": error_ref()}
-            }
-        },
-        "/v1/jobs": {
-            "post": {
-                "summary": "Admit a job",
-                "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}],
-                "requestBody": {
-                    "required": true,
-                    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateJob"}}}
-                },
-                "responses": {
-                    "202": {"description": "Created", "content": json_job()},
-                    "200": {"description": "Idempotent replay", "content": json_job()},
-                    "400": error_named("Invalid JSON or idempotency key"),
-                    "401": error_ref(),
-                    "408": error_named("Request deadline"),
-                    "409": error_named("Idempotency key already bound to another request"),
-                    "413": error_named("Request body exceeds the configured limit"),
-                    "415": error_named("Content-Type or Content-Encoding refused"),
-                    "422": error_named("Admission or contained workflow name refused"),
-                    "503": error_named("Execution queue or durable store unavailable"),
-                    "507": error_named("Durable job capacity exhausted")
-                }
-            }
-        },
-        "/v1/jobs/{id}": {
-            "get": {
-                "summary": "Job identity and status",
-                "parameters": [job_id_param()],
-                "responses": {
-                    "200": {"description": "Job", "content": json_job()},
-                    "401": error_ref(),
-                    "404": error_ref()
-                }
-            }
-        },
-        "/v1/jobs/{id}/status": {
-            "get": {
-                "summary": "Status only; diagnosis lives on GET /v1/jobs/{id} and SSE",
-                "parameters": [job_id_param()],
-                "responses": {
-                    "200": {"description": "Status", "content": json_status()},
-                    "401": error_ref(),
-                    "404": error_ref()
-                }
-            }
-        },
-        "/v1/jobs/{id}/events": {
-            "get": {
-                "summary": "Job event SSE",
-                "parameters": [
-                    job_id_param(),
-                    {"$ref": "#/components/parameters/LastEventId"}
-                ],
-                "responses": {
-                    "200": {"description": "text/event-stream; terminal data adds declared outputs and receipt when available; failures add redacted {code,message}"},
-                    "400": error_ref(),
-                    "401": error_ref(),
-                    "404": error_ref()
-                }
-            }
+        "/health": health_path(),
+        "/v1/openapi.json": openapi_path(),
+        "/v1/workflows": workflow_list_path(),
+        "/v1/workflows/{name}": workflow_metadata_path(),
+        "/v1/jobs": jobs_path(),
+        "/v1/check": check_path(),
+        "/v1/jobs/{id}": job_path(),
+        "/v1/jobs/{id}/status": job_status_path(),
+        "/v1/jobs/{id}/events": job_events_path()
+    })
+}
+
+fn health_path() -> Value {
+    json!({"get": {
+        "security": [],
+        "summary": "Public process liveness",
+        "responses": {"200": {"description": "Engine identity only"}}
+    }})
+}
+
+fn openapi_path() -> Value {
+    json!({"get": {
+        "summary": "This document",
+        "responses": {"200": {"description": "OpenAPI 3.1"}, "401": {"description": "Bearer required"}}
+    }})
+}
+
+fn workflow_list_path() -> Value {
+    json!({"get": {
+        "summary": "Contained workflow names",
+        "responses": {"200": {"description": "Relative .nika.yaml names"}, "401": error_ref()}
+    }})
+}
+
+fn workflow_metadata_path() -> Value {
+    json!({"get": {
+        "summary": "Workflow metadata without source bytes",
+        "parameters": [{"name": "name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "Contained name"}, "401": error_ref(), "404": error_ref()}
+    }})
+}
+
+fn jobs_path() -> Value {
+    json!({"post": {
+        "summary": "Admit immutable snapshot bytes as a durable job",
+        "description": "The server decodes and readmits this exact body through ExecutionService and never interprets a caller filesystem path. Idempotency binds to the exact snapshot payload bytes.",
+        "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}],
+        "requestBody": snapshot_request_body(),
+        "responses": {
+            "202": {"description": "Created", "content": json_job()},
+            "200": {"description": "Idempotent replay", "content": json_job()},
+            "400": error_named("Invalid idempotency key"), "401": error_ref(),
+            "408": error_named("Request deadline"),
+            "409": error_named("Idempotency key already bound to another request"),
+            "413": error_named("Encoded body or decoded snapshot resource limit"),
+            "415": error_named("Content-Type or Content-Encoding refused"),
+            "422": error_named("Malformed, unsupported, tampered, or semantically refused snapshot"),
+            "503": error_named("Execution queue or durable store unavailable"),
+            "507": error_named("Durable job capacity exhausted")
         }
+    }})
+}
+
+fn check_path() -> Value {
+    json!({"post": {
+        "summary": "Judge immutable snapshot bytes without creating a job",
+        "description": "Runs the same decode and ExecutionService readmission as POST /v1/jobs over the exact request body.",
+        "requestBody": snapshot_request_body(),
+        "responses": {
+            "200": {"description": "Compact snapshot validation acknowledgement, not the full engine check report", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SnapshotValidationAck"}}}},
+            "401": error_ref(), "408": error_named("Request deadline"),
+            "413": error_named("Encoded body or decoded snapshot resource limit"),
+            "415": error_named("Content-Type or Content-Encoding refused"),
+            "422": error_named("Malformed, unsupported, tampered, or semantically refused snapshot")
+        }
+    }})
+}
+
+fn job_path() -> Value {
+    json!({"get": {
+        "summary": "Job identity and status", "parameters": [job_id_param()],
+        "responses": {"200": {"description": "Job", "content": json_job()}, "401": error_ref(), "404": error_ref()}
+    }})
+}
+
+fn job_status_path() -> Value {
+    json!({"get": {
+        "summary": "Status only; diagnosis lives on GET /v1/jobs/{id} and SSE",
+        "parameters": [job_id_param()],
+        "responses": {"200": {"description": "Status", "content": json_status()}, "401": error_ref(), "404": error_ref()}
+    }})
+}
+
+fn job_events_path() -> Value {
+    json!({"get": {
+        "summary": "Job event SSE",
+        "parameters": [job_id_param(), {"$ref": "#/components/parameters/LastEventId"}],
+        "responses": {
+            "200": {"description": "text/event-stream; terminal data adds declared outputs and receipt when available; failures add redacted {code,message}"},
+            "400": error_ref(), "401": error_ref(), "404": error_ref()
+        }
+    }})
+}
+
+fn snapshot_request_body() -> Value {
+    json!({
+        "required": true,
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ExecutionSnapshot"}}}
     })
 }
 
@@ -252,6 +305,7 @@ mod tests {
         "/health",
         "/v1/workflows",
         "/v1/workflows/{name}",
+        "/v1/check",
         "/v1/jobs",
         "/v1/jobs/{id}",
         "/v1/jobs/{id}/status",

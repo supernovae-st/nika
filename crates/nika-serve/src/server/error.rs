@@ -176,8 +176,52 @@ pub(crate) fn json_error(status: StatusCode, code: &str, message: &str) -> Respo
 }
 
 pub(crate) fn capture_refused(error: &nika_execution::ExecutionError) -> Response<ResponseBody> {
+    if let Some(api) = snapshot_api_error(error) {
+        return api.into_response();
+    }
     let (code, message) = diagnose_capture(error);
     json_error(StatusCode::UNPROCESSABLE_ENTITY, &code, &message)
+}
+
+fn snapshot_api_error(error: &nika_execution::ExecutionError) -> Option<ApiError> {
+    use nika_execution::ExecutionError;
+
+    let error = match error {
+        ExecutionError::UnsupportedSnapshotFormat { .. } => ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "unsupported_snapshot_version",
+            "snapshot format version is not supported",
+        ),
+        ExecutionError::UnitDigestMismatch { .. } | ExecutionError::SnapshotDigestMismatch => {
+            ApiError::new(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "snapshot_tampered",
+                "snapshot bytes do not match their immutable digest",
+            )
+        }
+        ExecutionError::SnapshotStructureMismatch => ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "malformed_snapshot",
+            "request body is not a valid execution snapshot",
+        ),
+        ExecutionError::UnitCountLimit { .. } => ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "snapshot_unit_count_limit",
+            "snapshot exceeds the configured unit-count limit",
+        ),
+        ExecutionError::UnitSizeLimit { .. } => ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "snapshot_unit_size_limit",
+            "snapshot unit exceeds the configured byte limit",
+        ),
+        ExecutionError::TotalSizeLimit { .. } => ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "snapshot_total_size_limit",
+            "snapshot exceeds the configured decoded-byte limit",
+        ),
+        _ => return None,
+    };
+    Some(error)
 }
 
 pub(crate) fn diagnose_capture(error: &nika_execution::ExecutionError) -> (String, String) {
