@@ -73,7 +73,7 @@ pub(super) fn lane(
     hints: &mut Vec<Hint>,
 ) -> EffectivePermits {
     let effective = crate::effective::collect(wf);
-    crate::legal_zero_hint(wf, escapes_empty, judged, hints);
+    crate::hints::legal_zero_hint(wf, escapes_empty, judged, hints);
     if judged && escapes_empty {
         offer_tightest(&effective, hints);
     }

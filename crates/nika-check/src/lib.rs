@@ -600,46 +600,6 @@ fn drop_refs_the_coded_walk_refused(
         .collect()
 }
 
-/// Run the full static pre-flight over a parsed workflow — INFALLIBLE
-/// (the rustc model: maximal information per run).
-///
-/// Core conformance runs first. Its violations do not abort the check —
-/// they land in [`CheckReport::conformance`] and every DAG-independent
-/// analysis still runs, so an agent repairs conformance AND findings in
-/// ONE round-trip. The plan (`waves`) and the IFC secret analysis need
-/// a valid topological order and are skipped when conformance fails
-/// (empty · documented on the fields).
-/// F-O8 « absent = zero authority »: a MISSING `permits:` block whose
-/// body escapes NOTHING (pure compute) is the LEGAL zero — stated, not
-/// punished: the hint teaches the explicit `permits: {}` form (the
-/// only legal spelling of « I touch nothing »).
-///
-/// `judged` is false when core conformance failed. The hint asserts a property
-/// OF THE BODY (« pure compute so nothing escapes »), and a body that does not
-/// conform was never analysed, so the sentence would be unearned. Measured
-/// 2026-08-15: a jq program reaching for the ambient environment reported its
-/// `NIKA-VAR-005` refusal and this hint in the same output, one line apart.
-/// Same lesson as `section_or_skip` in the renderer — a green that means
-/// nobody looked is worse than no line at all.
-pub(crate) fn legal_zero_hint(
-    wf: &RawWorkflow,
-    escapes_empty: bool,
-    judged: bool,
-    hints: &mut Vec<Hint>,
-) {
-    if judged && wf.permits.is_none() && escapes_empty {
-        hints.push(Hint {
-            kind: "permits",
-            code: None,
-            task: "-".to_owned(),
-            advice: "no `permits:` block declared · zero authority (F-O8) — the body is \
-                     pure compute so nothing escapes; declare `permits: {}` to state the \
-                     zero explicitly"
-                .to_owned(),
-        });
-    }
-}
-
 /// Map one analyzer error to its report-row form (the canonical spec
 /// code · the docs URL · the did-you-mean pair) — extracted from
 /// [`check`] at the fn-length ratchet.
@@ -865,6 +825,10 @@ pub fn check_composed(
             call.gated,
         );
     }
+    // C04 — MCP server presence needs the injected reader (L0, zero I/O).
+    report
+        .unknown_tools
+        .extend(tools::scan_mcp_against_registry(wf, read));
     // Re-fold the class-erased list over the finished lane (one truth).
     report.findings = findings::collect(&report);
     report

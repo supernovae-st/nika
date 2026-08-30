@@ -2655,6 +2655,7 @@ pub fn nika_check::UnifiedFinding::as_any(&self) -> &(dyn core::any::Any + 'stat
 #[non_exhaustive] pub struct nika_check::UnknownArg
 pub nika_check::UnknownArg::arg: alloc::string::String
 pub nika_check::UnknownArg::declared: alloc::vec::Vec<alloc::string::String>
+pub nika_check::UnknownArg::invalid_value: core::option::Option<alloc::string::String>
 pub nika_check::UnknownArg::suggestion: core::option::Option<alloc::string::String>
 pub nika_check::UnknownArg::task: alloc::string::String
 pub nika_check::UnknownArg::tool: alloc::string::String

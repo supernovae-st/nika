@@ -518,6 +518,15 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              · the path exists + `overwrite: false` is its own code — \
              `nika explain NIKA-BUILTIN-WRITE-002`.\n",
         ),
+        ("notify", "001") => Some(
+            "  `nika:notify` v0.1 MUST support the `webhook` channel (POST \
+             `{ message, severity, data? }` to `target:`). Other channels \
+             (`slack` · `email` · `discord` · `sms`) are not configured — they \
+             throw this code at run, and `nika check` refuses them too.\n\n  \
+             exits (pick one):\n    \
+             · use the wired channel:      args: { channel: webhook, target: https://..., message: ... }\n    \
+             · drop the notify task until a later engine wires `slack`.\n",
+        ),
         _ => None,
     }
 }
@@ -639,6 +648,21 @@ mod tests {
         ] {
             assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
         }
+    }
+
+    /// C05 / issue 1300 — `nika explain NOTIFY-001` must cite the v0.1
+    /// webhook-only contract (the public 5c5bd1ab5 binary answered a
+    /// generic builtin stub).
+    #[test]
+    fn notify_001_explain_cites_the_v0_1_webhook() {
+        let help = namespace_help("NIKA-BUILTIN-NOTIFY-001", "docs").expect("teaches");
+        for lesson in ["webhook", "v0.1", "channel"] {
+            assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
+        }
+        assert!(
+            !help.contains("per-builtin runtime diagnostic"),
+            "must not stay the generic stub: {help}"
+        );
     }
 
     /// The 452 lesson (issue 814 · 2026-08-03): the way a user meets

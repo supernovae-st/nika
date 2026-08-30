@@ -1378,6 +1378,27 @@ pub(super) fn hint(kind: &'static str, task: &str, advice: String) -> Hint {
     }
 }
 
+/// F-O8 legal zero — a missing `permits:` block whose body escapes
+/// nothing is stated, not punished. Lives here so `check` stays under
+/// the file-length ratchet.
+pub(crate) fn legal_zero_hint(
+    wf: &RawWorkflow,
+    escapes_empty: bool,
+    judged: bool,
+    hints: &mut Vec<Hint>,
+) {
+    if judged && wf.permits.is_none() && escapes_empty {
+        hints.push(hint(
+            "permits",
+            "-",
+            "no `permits:` block declared · zero authority (F-O8) — the body is \
+             pure compute so nothing escapes; declare `permits: {}` to state the \
+             zero explicitly"
+                .to_owned(),
+        ));
+    }
+}
+
 mod catalog;
 mod jq_as_map;
 pub use catalog::hint_help;
