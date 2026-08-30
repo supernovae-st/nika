@@ -251,6 +251,14 @@ impl BoundServer {
             .map_err(|error| ServerError::Listener(error.kind()))
     }
 
+    /// Render the operator-facing readiness line for this bound listener.
+    ///
+    /// # Errors
+    /// Returns a listener error when the socket cannot report its address.
+    pub fn listen_line(&self) -> Result<String, ServerError> {
+        self.local_addr().map(listen_line)
+    }
+
     /// Serve until the supplied shutdown future resolves.
     ///
     /// # Errors
@@ -289,10 +297,9 @@ pub async fn serve_http(
     )
     .with_allow_remote(allow_remote);
     let server = BoundServer::bind(config, backend).await?;
-    let addr = server.local_addr()?;
     // Operator-facing: `--bind …:0` is useless without the chosen port.
     // Next hops live here, not on GET /health (ADR-117 identity allowlist).
-    eprintln!("{}", listen_line(addr));
+    eprintln!("{}", server.listen_line()?);
     server.serve_until(shutdown).await
 }
 

@@ -17,7 +17,7 @@ use jiff::{SignedDuration, Zoned};
 use nika_cadence::registry::{ArmRegistry, Locus};
 use std::path::{Path, PathBuf};
 /// `nika serve` — the resident firer's args, plus the explicit HTTP pair.
-#[derive(Debug, clap::Args)]
+#[derive(Debug, Clone, clap::Args)]
 pub struct ServeArgs {
     /// Fire what is due once, then exit — the rehearsal.
     #[arg(long)]
@@ -60,6 +60,7 @@ struct Clock {
 }
 /// The sleeper's shape: a span in, a future out (factored for the lint).
 type SleepFn = Box<dyn Fn(SignedDuration) -> std::pin::Pin<Box<dyn Future<Output = ()>>>>;
+type LifecycleWait = std::rc::Rc<dyn Fn(SignedDuration, &SleepFn) -> bool>;
 /// The shared SIGTERM stream cell (W5-bis) — the overlap wait and the
 /// between-fires race take turns owning the receiver: the stream is
 /// TAKEN out of the cell for the await and put back after, so no
@@ -78,9 +79,8 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
         text,
         code: exit::WORKFLOW,
     };
-    if http_requested(args) {
-        return serve_http_mode(args).map_err(fail);
-    }
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let http = http_door(args, &cwd).map_err(&fail)?;
     let now = instant(args.now.as_deref()).map_err(&fail)?;
     let until = instant(args.until.as_deref()).map_err(&fail)?;
     if now.is_some() && !args.once && until.is_none() {
@@ -89,13 +89,27 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
                 .to_owned(),
         ));
     }
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let (path, registry) = arm::load(&cwd).map_err(|out| fail(out.text))?;
     let root = path
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-    let run: ExecutionRunSeam = std::rc::Rc::new(arm::fire::prod_run);
-    serve(&root, registry, args, until.as_ref(), &clock(now), &run).map_err(fail)?;
+    recover_resident(&root, &registry, args.dry).map_err(&fail)?;
+    if let Some(http) = http {
+        serve_resident_with_http(root, registry, args.clone(), http).map_err(fail)?;
+    } else {
+        let run: ExecutionRunSeam = std::rc::Rc::new(arm::fire::prod_run);
+        let lifecycle = ResidentLifecycle::process().map_err(&fail)?;
+        serve(
+            &root,
+            registry,
+            args,
+            until.as_ref(),
+            &clock(now),
+            &run,
+            &lifecycle,
+        )
+        .map_err(fail)?;
+    }
     Ok(VerbOutput::ok(String::new()))
 }
 
@@ -105,6 +119,52 @@ fn http_requested(args: &ServeArgs) -> bool {
         || args.token_file.is_some()
         || args.state_root.is_some()
         || args.allow_remote
+}
+
+#[derive(Debug)]
+struct HttpDoor {
+    bind: std::net::SocketAddr,
+    workflows: PathBuf,
+    state_root: PathBuf,
+    token_file: PathBuf,
+    allow_remote: bool,
+}
+
+fn http_door(args: &ServeArgs, cwd: &Path) -> Result<Option<HttpDoor>, String> {
+    if !http_requested(args) {
+        return Ok(None);
+    }
+    let bind = args
+        .bind
+        .as_deref()
+        .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
+    let workflows = args
+        .workflows
+        .clone()
+        .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
+    let token_file = args
+        .token_file
+        .clone()
+        .ok_or_else(|| token_file_refused("--bind requires --token-file"))?;
+    if args.once || args.dry {
+        return Err("serve · --once/--dry cannot bind a listener".to_owned());
+    }
+    if args.now.is_some() || args.until.is_some() {
+        return Err("serve · scripted clock is the resident firer harness, not HTTP".to_owned());
+    }
+    let bind = bind
+        .parse()
+        .map_err(|_| "serve · server configuration refused: bind address is invalid".to_owned())?;
+    Ok(Some(HttpDoor {
+        bind,
+        workflows,
+        state_root: args
+            .state_root
+            .clone()
+            .unwrap_or_else(|| cwd.join(".nika/serve")),
+        token_file,
+        allow_remote: args.allow_remote,
+    }))
 }
 
 /// Operator-visible mint. `openssl rand -hex 24` is 48 graphic ASCII bytes.
@@ -128,48 +188,192 @@ fn credential_prefix(kind: nika_serve::CredentialRefuse) -> &'static str {
     }
 }
 
-fn serve_http_mode(args: &ServeArgs) -> Result<VerbOutput, String> {
-    let bind = args
-        .bind
-        .as_deref()
-        .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
-    let workflows = args
-        .workflows
-        .as_deref()
-        .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
-    let token_file = args
-        .token_file
-        .as_deref()
-        .ok_or_else(|| token_file_refused("--bind requires --token-file"))?;
-    if args.once || args.dry {
-        return Err("serve · --once/--dry cannot bind a listener".to_owned());
+type ResidentMain =
+    Box<dyn FnOnce(tokio::sync::watch::Receiver<bool>) -> Result<(), String> + Send>;
+
+/// Factory seam for the resident lane's execution admission. Today it
+/// constructs the direct ARM adapter; the next wave can capture one shared,
+/// thread-safe execution coordinator here without cloning a runtime.
+struct ResidentExecutionFactory(Box<dyn FnOnce() -> ExecutionRunSeam + Send>);
+
+impl ResidentExecutionFactory {
+    fn direct() -> Self {
+        Self(Box::new(|| std::rc::Rc::new(arm::fire::prod_run)))
     }
-    if args.now.is_some() || args.until.is_some() {
-        return Err("serve · scripted clock is the resident firer harness, not HTTP".to_owned());
+
+    fn into_run(self) -> ExecutionRunSeam {
+        (self.0)()
     }
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let state_root = args
-        .state_root
-        .clone()
-        .unwrap_or_else(|| cwd.join(".nika/serve"));
-    let backend = std::sync::Arc::new(HttpBackend {
-        display_root: workflows.to_path_buf(),
-    });
-    let rt = signal_runtime()?;
-    rt.block_on(nika_serve::serve_http(
-        bind,
-        workflows,
-        &state_root,
-        token_file,
-        args.allow_remote,
-        backend,
-        http_shutdown(),
-    ))
-    .map_err(|error| match error {
+}
+
+/// Joined owner of the resident ARM loop. The worker starts dormant: HTTP
+/// recovery and bind must succeed before `activate`, so readiness never
+/// describes only half of the process. The stop channel is the explicit seam
+/// where the next wave can inject one shared execution coordinator.
+struct ResidentSupervisor {
+    activate: Option<std::sync::mpsc::SyncSender<()>>,
+    stop: tokio::sync::watch::Sender<bool>,
+    finished: Option<tokio::sync::oneshot::Receiver<()>>,
+    worker: Option<std::thread::JoinHandle<Result<(), String>>>,
+}
+
+impl ResidentSupervisor {
+    fn start(main: ResidentMain) -> Result<Self, String> {
+        let (activate, ready) = std::sync::mpsc::sync_channel(0);
+        let (stop, receiver) = tokio::sync::watch::channel(false);
+        let (finished, completion) = tokio::sync::oneshot::channel();
+        let worker = std::thread::Builder::new()
+            .name("nika-resident-arm".to_owned())
+            .spawn(move || {
+                let result = if ready.recv().is_err() {
+                    Ok(())
+                } else {
+                    main(receiver)
+                };
+                let _ = finished.send(());
+                result
+            })
+            .map_err(|error| format!("serve · resident supervisor refused: {error}"))?;
+        Ok(Self {
+            activate: Some(activate),
+            stop,
+            finished: Some(completion),
+            worker: Some(worker),
+        })
+    }
+
+    fn production(
+        root: PathBuf,
+        registry: ArmRegistry,
+        args: ServeArgs,
+        execution: ResidentExecutionFactory,
+    ) -> Result<Self, String> {
+        let runtime = build_runtime()?;
+        Self::start(Box::new(move |stop| {
+            let lifecycle = ResidentLifecycle::supervised_on(stop, runtime);
+            let run = execution.into_run();
+            serve(&root, registry, &args, None, &clock(None), &run, &lifecycle)
+        }))
+    }
+
+    fn activate(&mut self) -> Result<(), String> {
+        let activate = self
+            .activate
+            .take()
+            .ok_or_else(|| "serve · resident supervisor activated twice".to_owned())?;
+        activate
+            .send(())
+            .map_err(|_| "serve · resident supervisor ended before readiness".to_owned())
+    }
+
+    fn stop_sender(&self) -> tokio::sync::watch::Sender<bool> {
+        self.stop.clone()
+    }
+
+    fn completion(&mut self) -> Result<tokio::sync::oneshot::Receiver<()>, String> {
+        self.finished
+            .take()
+            .ok_or_else(|| "serve · resident supervisor lost its completion edge".to_owned())
+    }
+
+    fn shutdown_and_join(mut self) -> Result<(), String> {
+        let _ = self.stop.send(true);
+        self.activate.take();
+        self.finished.take();
+        let worker = self
+            .worker
+            .take()
+            .ok_or_else(|| "serve · resident supervisor lost its worker".to_owned())?;
+        worker
+            .join()
+            .map_err(|_| "serve · resident supervisor worker failed".to_owned())?
+    }
+}
+
+impl Drop for ResidentSupervisor {
+    fn drop(&mut self) {
+        let _ = self.stop.send(true);
+        self.activate.take();
+        self.finished.take();
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+
+fn server_error(error: nika_serve::ServerError) -> String {
+    match error {
         nika_serve::ServerError::Credential(kind) => token_file_refused(credential_prefix(kind)),
         other => format!("serve · {other}"),
-    })?;
-    Ok(VerbOutput::ok(String::new()))
+    }
+}
+
+fn serve_resident_with_http(
+    root: PathBuf,
+    registry: ArmRegistry,
+    args: ServeArgs,
+    http: HttpDoor,
+) -> Result<(), String> {
+    let rt = signal_runtime()?;
+    let backend = std::sync::Arc::new(HttpBackend {
+        display_root: http.workflows.clone(),
+    });
+    let config =
+        nika_serve::ServerConfig::new(http.bind, http.workflows, http.state_root, http.token_file)
+            .with_allow_remote(http.allow_remote);
+    let mut resident =
+        ResidentSupervisor::production(root, registry, args, ResidentExecutionFactory::direct())?;
+    let server = match rt.block_on(nika_serve::BoundServer::bind(config, backend)) {
+        Ok(server) => server,
+        Err(error) => {
+            let resident_result = resident.shutdown_and_join();
+            return resident_result.and(Err(server_error(error)));
+        }
+    };
+    let line = match server.listen_line() {
+        Ok(line) => line,
+        Err(error) => {
+            let server_result = rt.block_on(server.serve_until(async {}));
+            let resident_result = resident.shutdown_and_join();
+            return server_result
+                .map_err(server_error)
+                .and(resident_result)
+                .and(Err(server_error(error)));
+        }
+    };
+    if let Err(error) = resident.activate() {
+        let server_result = rt.block_on(server.serve_until(async {}));
+        let resident_result = resident.shutdown_and_join();
+        return server_result
+            .map_err(server_error)
+            .and(resident_result)
+            .and(Err(error));
+    }
+    let stop = resident.stop_sender();
+    let mut resident_done = match resident.completion() {
+        Ok(completion) => completion,
+        Err(error) => {
+            let server_result = rt.block_on(server.serve_until(async {}));
+            let resident_result = resident.shutdown_and_join();
+            return server_result
+                .map_err(server_error)
+                .and(resident_result)
+                .and(Err(error));
+        }
+    };
+    eprintln!("{line}");
+    let server_result = rt
+        .block_on(server.serve_until(async move {
+            tokio::select! {
+                () = http_shutdown() => {
+                    let _ = stop.send(true);
+                }
+                _ = &mut resident_done => {}
+            }
+        }))
+        .map_err(server_error);
+    let resident_result = resident.shutdown_and_join();
+    server_result.and(resident_result)
 }
 
 async fn http_shutdown() {
@@ -329,70 +533,86 @@ fn clock(start: Option<Zoned>) -> Clock {
         }
     }
 }
-/// The prod half of the overlap wait: the span races ctrl-c/SIGTERM on
-/// the runtime — a heard signal sets the stop flag the loop checks
-/// after each fire, and the wait answers `Interrupted`. The SIGTERM
-/// receiver is taken out of its cell for the await and put back after
-/// (never a `RefCell` borrow held across an await point).
-#[cfg(unix)]
-fn prod_wait(
-    rt: &std::rc::Rc<tokio::runtime::Runtime>,
-    stop: &std::rc::Rc<std::cell::Cell<bool>>,
-    term: &TermCell,
-) -> WaitSeam {
-    let rt = std::rc::Rc::clone(rt);
-    let stop = std::rc::Rc::clone(stop);
-    let term = std::rc::Rc::clone(term);
-    Box::new(move |span| {
-        let heard = rt.block_on(async {
-            let span = std::time::Duration::try_from(span).unwrap_or_default();
-            let mut stream = term.borrow_mut().take();
-            let sig = async {
-                if let Some(s) = stream.as_mut() {
-                    s.recv().await;
-                } else {
-                    std::future::pending::<()>().await;
-                }
-            };
-            let heard = tokio::select! {
-                () = tokio::time::sleep(span) => false,
-                _ = tokio::signal::ctrl_c() => true,
-                () = sig => true,
-            };
-            *term.borrow_mut() = stream;
-            heard
-        });
-        if heard {
-            stop.set(true);
-            Wait::Interrupted
-        } else {
-            Wait::Elapsed
-        }
-    })
+/// One lifecycle authority for the resident loop. Standalone mode listens
+/// to process signals; composed mode listens to the supervisor's shared
+/// stop channel. Both race the injected sleeper, preserving scripted-clock
+/// law without ever lending that clock to HTTP.
+#[derive(Clone)]
+struct ResidentLifecycle {
+    wait: LifecycleWait,
 }
-/// The non-unix wait: no SIGTERM surface — the span races ctrl-c alone.
-#[cfg(not(unix))]
-fn prod_wait(
-    rt: &std::rc::Rc<tokio::runtime::Runtime>,
-    stop: &std::rc::Rc<std::cell::Cell<bool>>,
-) -> WaitSeam {
-    let rt = std::rc::Rc::clone(rt);
-    let stop = std::rc::Rc::clone(stop);
-    Box::new(move |span| {
-        let heard = rt.block_on(async {
-            let span = std::time::Duration::try_from(span).unwrap_or_default();
-            tokio::select! {
-                () = tokio::time::sleep(span) => false,
-                _ = tokio::signal::ctrl_c() => true,
-            }
-        });
-        if heard {
-            stop.set(true);
-            Wait::Interrupted
-        } else {
-            Wait::Elapsed
+
+impl ResidentLifecycle {
+    fn process() -> Result<Self, String> {
+        let rt = signal_runtime()?;
+        #[cfg(unix)]
+        let term: TermCell = std::rc::Rc::new(std::cell::RefCell::new(rt.block_on(async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).ok()
+        })));
+        Ok(Self {
+            wait: std::rc::Rc::new(move |span, sleep| {
+                #[cfg(unix)]
+                let mut stream = term.borrow_mut().take();
+                let heard = rt.block_on(async {
+                    #[cfg(unix)]
+                    let sig = async {
+                        if let Some(signal) = stream.as_mut() {
+                            signal.recv().await;
+                        } else {
+                            std::future::pending::<()>().await;
+                        }
+                    };
+                    #[cfg(unix)]
+                    let heard = tokio::select! {
+                        () = sleep(span) => false,
+                        _ = tokio::signal::ctrl_c() => true,
+                        () = sig => true,
+                    };
+                    #[cfg(not(unix))]
+                    let heard = tokio::select! {
+                        () = sleep(span) => false,
+                        _ = tokio::signal::ctrl_c() => true,
+                    };
+                    heard
+                });
+                #[cfg(unix)]
+                {
+                    *term.borrow_mut() = stream;
+                }
+                heard
+            }),
+        })
+    }
+
+    fn supervised_on(
+        receiver: tokio::sync::watch::Receiver<bool>,
+        runtime: tokio::runtime::Runtime,
+    ) -> Self {
+        let rt = std::rc::Rc::new(runtime);
+        Self {
+            wait: std::rc::Rc::new(move |span, sleep| {
+                let mut stop = receiver.clone();
+                rt.block_on(async {
+                    tokio::select! {
+                        () = sleep(span) => false,
+                        () = wait_for_supervisor(&mut stop) => true,
+                    }
+                })
+            }),
         }
-    })
+    }
+
+    fn wait(&self, span: SignedDuration, sleep: &SleepFn) -> bool {
+        (self.wait)(span, sleep)
+    }
+}
+
+async fn wait_for_supervisor(stop: &mut tokio::sync::watch::Receiver<bool>) {
+    while !*stop.borrow() {
+        if stop.changed().await.is_err() {
+            return;
+        }
+    }
 }
 /// The reload on change (« le fichier propose »): a fresher file is
 /// re-read — a broken edit is told and the last-good registry keeps
@@ -447,49 +667,6 @@ fn fire_due(
     println!("{line}");
     (ctx.into_registry(), stop.get())
 }
-/// The between-fires wait: the span to the next slot races ctrl-c/
-/// SIGTERM on the runtime — `true` says a signal was heard and the
-/// loop stops clean. The SIGTERM receiver is taken out of its cell for
-/// the await and put back after (never a `RefCell` borrow across it).
-#[cfg(unix)]
-fn race_sleep_or_signal(
-    rt: &std::rc::Rc<tokio::runtime::Runtime>,
-    clock: &Clock,
-    term: &TermCell,
-    secs: i64,
-) -> bool {
-    rt.block_on(async {
-        let mut stream = term.borrow_mut().take();
-        let sig = async {
-            if let Some(s) = stream.as_mut() {
-                s.recv().await;
-            } else {
-                std::future::pending::<()>().await;
-            }
-        };
-        let heard = tokio::select! {
-            () = (clock.sleep)(SignedDuration::from_secs(secs)) => false,
-            _ = tokio::signal::ctrl_c() => true,
-            () = sig => true,
-        };
-        *term.borrow_mut() = stream;
-        heard
-    })
-}
-/// The non-unix between-fires wait: no SIGTERM surface — ctrl-c alone.
-#[cfg(not(unix))]
-fn race_sleep_or_signal(
-    rt: &std::rc::Rc<tokio::runtime::Runtime>,
-    clock: &Clock,
-    secs: i64,
-) -> bool {
-    rt.block_on(async {
-        tokio::select! {
-            () = (clock.sleep)(SignedDuration::from_secs(secs)) => false,
-            _ = tokio::signal::ctrl_c() => true,
-        }
-    })
-}
 /// The loop: the clock, the reload on change (« le fichier propose » —
 /// re-read, never cache; a broken edit is told and the last-good registry
 /// keeps serving), the SAME firer for what is due, then the sleep to the
@@ -500,10 +677,13 @@ fn race_sleep_or_signal(
 /// never blocks, and a broken wait sets the stop flag the loop checks
 /// after each fire.
 fn signal_runtime() -> Result<std::rc::Rc<tokio::runtime::Runtime>, String> {
+    build_runtime().map(std::rc::Rc::new)
+}
+
+fn build_runtime() -> Result<tokio::runtime::Runtime, String> {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .map(std::rc::Rc::new)
         .map_err(|error| format!("serve · the signal runtime refused: {error}"))
 }
 
@@ -515,6 +695,34 @@ fn next_sleep_seconds(registry: &ArmRegistry, now: &Zoned) -> Result<i64, String
     }))
 }
 
+fn resident_last_fired(
+    root: &Path,
+    registry: &ArmRegistry,
+    dry: bool,
+) -> Result<Vec<Option<Zoned>>, String> {
+    let state = ArmState::at_project(root);
+    let names = labels(registry);
+    registry
+        .beats()
+        .zip(&names)
+        .map(|(beat, label)| {
+            if beat.locus() == Locus::Cloud {
+                Ok(None)
+            } else if dry {
+                state.peek_last_fired(label)
+            } else {
+                state.last_fired(label)
+            }
+        })
+        .collect::<std::io::Result<_>>()
+        .map_err(|error| format!("serve · corrupt arm sidecar refused: {error}"))
+}
+
+/// Recover every resident beat before any composed door may announce ready.
+fn recover_resident(root: &Path, registry: &ArmRegistry, dry: bool) -> Result<(), String> {
+    resident_last_fired(root, registry, dry).map(|_| ())
+}
+
 fn serve(
     root: &Path,
     mut reg: ArmRegistry,
@@ -522,12 +730,8 @@ fn serve(
     until: Option<&Zoned>,
     clock: &Clock,
     run: &ExecutionRunSeam,
+    lifecycle: &ResidentLifecycle,
 ) -> Result<(), String> {
-    let rt = signal_runtime()?;
-    #[cfg(unix)]
-    let term: TermCell = std::rc::Rc::new(std::cell::RefCell::new(rt.block_on(async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).ok()
-    })));
     // Set when a signal broke an overlap wait — the loop stops after
     // the current beat's line (a beat mid-run still finishes first).
     let stop = std::rc::Rc::new(std::cell::Cell::new(false));
@@ -542,14 +746,21 @@ fn serve(
                 Wait::Elapsed
             });
         }
-        #[cfg(unix)]
-        {
-            prod_wait(&rt, &stop, &term)
-        }
-        #[cfg(not(unix))]
-        {
-            prod_wait(&rt, &stop)
-        }
+        let lifecycle = lifecycle.clone();
+        let stop = std::rc::Rc::clone(&stop);
+        Box::new(move |span| {
+            let sleep: SleepFn = Box::new(|duration| {
+                Box::pin(tokio::time::sleep(
+                    std::time::Duration::try_from(duration).unwrap_or_default(),
+                ))
+            });
+            if lifecycle.wait(span, &sleep) {
+                stop.set(true);
+                Wait::Interrupted
+            } else {
+                Wait::Elapsed
+            }
+        })
     };
     let path = root.join(nika_vocab::project::FILE_NAME);
     let mut mtime = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
@@ -561,22 +772,8 @@ fn serve(
         let (reloaded, fresh_mtime) = reload_on_change(root, &path, reg, mtime);
         reg = reloaded;
         mtime = fresh_mtime;
-        let state = ArmState::at_project(root);
         let names = labels(&reg);
-        let last_fired: Vec<Option<jiff::Zoned>> = reg
-            .beats()
-            .zip(&names)
-            .map(|(beat, label)| {
-                if beat.locus() == Locus::Cloud {
-                    Ok(None)
-                } else if args.dry {
-                    state.peek_last_fired(label)
-                } else {
-                    state.last_fired(label)
-                }
-            })
-            .collect::<std::io::Result<_>>()
-            .map_err(|error| format!("serve · corrupt arm sidecar refused: {error}"))?;
+        let last_fired = resident_last_fired(root, &reg, args.dry)?;
         let dues: Vec<(usize, nika_cadence::Slot)> =
             nika_cadence::due(&reg, &now, &|i| last_fired.get(i).and_then(Clone::clone))
                 .map_err(|e| format!("serve · a validated registry refuses: {e}"))?
@@ -598,11 +795,7 @@ fn serve(
             return Ok(());
         }
         let secs = next_sleep_seconds(&reg, &now)?;
-        #[cfg(unix)]
-        let heard = race_sleep_or_signal(&rt, clock, &term, secs);
-        #[cfg(not(unix))]
-        let heard = race_sleep_or_signal(&rt, clock, secs);
-        if heard {
+        if lifecycle.wait(SignedDuration::from_secs(secs), &clock.sleep) {
             return Ok(());
         }
     }
@@ -748,6 +941,13 @@ mod tests {
         std::rc::Rc::new(|_, _| panic!("this tick runs nothing"))
     }
 
+    fn test_lifecycle() -> (tokio::sync::watch::Sender<bool>, ResidentLifecycle) {
+        let (stop, receiver) = tokio::sync::watch::channel(false);
+        let lifecycle =
+            ResidentLifecycle::supervised_on(receiver, build_runtime().expect("test runtime"));
+        (stop, lifecycle)
+    }
+
     /// A run stub that counts its shots (the real in-process run
     /// chdirs — parallel tests race on the process CWD, so the seam is
     /// stubbed; the binary tests own the real ground).
@@ -814,6 +1014,7 @@ mod tests {
         let (runs, seam) = stub_run();
         let clock = scripted("2026-08-19T04:02:00Z", || {});
         let until = at("2026-08-19T04:10:00Z");
+        let (_stop, lifecycle) = test_lifecycle();
         let rc = serve(
             dir.path(),
             registry,
@@ -821,6 +1022,7 @@ mod tests {
             Some(&until),
             &clock,
             &seam,
+            &lifecycle,
         );
         assert!(rc.is_ok(), "{rc:?}");
         // doctor: the wait burned the SCRIPTED clock, bounded by the
@@ -867,6 +1069,7 @@ mod tests {
             flag.set(true);
         });
         let until = at("2026-08-19T03:35:00Z");
+        let (_stop, lifecycle) = test_lifecycle();
         let rc = serve(
             dir.path(),
             registry,
@@ -874,6 +1077,7 @@ mod tests {
             Some(&until),
             &clock,
             &never_run(),
+            &lifecycle,
         );
         assert!(rc.is_ok(), "{rc:?}");
         assert!(rewritten.get(), "the actor ran");
@@ -919,7 +1123,8 @@ mod tests {
     /// firer reads ONLY the registry (through the ONE arm door, judged by
     /// vocab + cadence BEFORE any shot) and its own sidecar. HTTP is a
     /// second clap-gated door (`nika_serve::serve_http`) and must not
-    /// mention sockets in this file. A static pin over the prod half.
+    /// mention sockets in its lifecycle slice. A static pin over the
+    /// resident recovery + loop, while the HTTP door is judged separately.
     #[test]
     fn serve_has_no_input_but_the_registry_and_its_state() {
         let src = include_str!("serve.rs");
@@ -930,13 +1135,21 @@ mod tests {
         let fired = prod.find("fire_beat(").expect("the firer's call");
         assert!(judged < fired, "vocab + cadence judge BEFORE any shot");
         assert!(
-            prod.contains("nika_serve::serve_http"),
+            prod.contains("BoundServer::bind"),
             "HTTP is an explicit second door"
+        );
+        assert!(
+            !prod.contains("return serve_http_mode"),
+            "HTTP must not replace the resident firer"
         );
         assert!(
             prod.contains("CancelOnDrop") && prod.contains("driver.execute"),
             "HTTP must cancel the blocking worker when the execute future is dropped"
         );
+        let resident = prod
+            .split("fn resident_last_fired")
+            .nth(1)
+            .expect("resident lifecycle slice");
         for banned in [
             "reqwest",
             "std::net",
@@ -946,8 +1159,116 @@ mod tests {
             "env::args",
             "stdin",
         ] {
-            assert!(!prod.contains(banned), "serve must not read {banned}");
+            assert!(
+                !resident.contains(banned),
+                "resident serve must not read {banned}"
+            );
         }
+    }
+
+    #[test]
+    fn http_remains_optional_and_cannot_replace_the_resident_plan() {
+        let args = serve_args();
+        assert!(
+            http_door(&args, Path::new("."))
+                .expect("optional door")
+                .is_none(),
+            "plain serve owns only the resident loop"
+        );
+
+        let src = include_str!("serve.rs");
+        let prod = src.split("#[cfg(test)]").next().expect("prod half");
+        let recovered = prod.find("recover_resident(").expect("resident recovery");
+        let bound = prod.find("BoundServer::bind").expect("HTTP bind");
+        let activated = prod.find("resident.activate()").expect("activation");
+        assert!(recovered < bound, "resident recovery precedes HTTP setup");
+        assert!(bound < activated, "HTTP setup precedes resident activation");
+        assert!(
+            prod.contains("ResidentExecutionFactory::direct()") && prod.contains("HttpBackend"),
+            "the distinct ARM and HTTP admission edges stay explicit"
+        );
+    }
+
+    #[test]
+    fn resident_supervisor_does_not_fire_before_activation_and_shutdown_is_joined() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let entered = std::sync::Arc::new(AtomicBool::new(false));
+        let joined = std::sync::Arc::new(AtomicBool::new(false));
+        let worker_entered = std::sync::Arc::clone(&entered);
+        let worker_joined = std::sync::Arc::clone(&joined);
+        let (ready, heard_ready) = std::sync::mpsc::sync_channel(0);
+        let mut supervisor = ResidentSupervisor::start(Box::new(move |mut stop| {
+            worker_entered.store(true, Ordering::SeqCst);
+            ready.send(()).expect("ready receiver");
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("runtime");
+            rt.block_on(wait_for_supervisor(&mut stop));
+            worker_joined.store(true, Ordering::SeqCst);
+            Ok(())
+        }))
+        .expect("supervisor");
+
+        assert!(!entered.load(Ordering::SeqCst), "worker starts dormant");
+        supervisor.activate().expect("activate after all setup");
+        heard_ready
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .expect("resident entered");
+        assert!(entered.load(Ordering::SeqCst));
+        supervisor.shutdown_and_join().expect("joined shutdown");
+        assert!(joined.load(Ordering::SeqCst), "join observes worker exit");
+    }
+
+    #[test]
+    fn second_http_authority_fails_closed_before_the_resident_can_fire() {
+        let dir = project("second-authority", HOURLY_A);
+        write_workflow(dir.path(), "doctor.nika.yaml");
+        let token = dir.path().join("serve.token");
+        std::fs::write(&token, "a".repeat(32)).expect("token");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(&token, std::fs::Permissions::from_mode(0o600)).expect("mode");
+        }
+        let state_root = dir.path().join("serve-state");
+        let workflow_root = dir.path().join("workflows");
+        let backend = std::sync::Arc::new(HttpBackend {
+            display_root: workflow_root.clone(),
+        });
+        let rt = signal_runtime().expect("runtime");
+        let first = rt
+            .block_on(nika_serve::BoundServer::bind(
+                nika_serve::ServerConfig::new(
+                    "127.0.0.1:0".parse().expect("address"),
+                    &workflow_root,
+                    &state_root,
+                    &token,
+                ),
+                backend,
+            ))
+            .expect("first authority");
+        let registry = arm::load(dir.path()).expect("registry").1;
+        let result = serve_resident_with_http(
+            dir.path().to_path_buf(),
+            registry,
+            serve_args(),
+            HttpDoor {
+                bind: "127.0.0.1:0".parse().expect("address"),
+                workflows: workflow_root,
+                state_root,
+                token_file: token,
+                allow_remote: false,
+            },
+        );
+        assert!(result.is_err(), "second authority must refuse");
+        assert!(
+            !dir.path().join(".nika/arm/doctor/history.ndjson").exists(),
+            "dormant resident leaves no firing behind"
+        );
+        rt.block_on(first.serve_until(async {}))
+            .expect("first authority shutdown joins");
     }
 
     #[test]
