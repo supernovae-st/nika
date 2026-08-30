@@ -7,6 +7,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
 use nika_service_execution::{
     ServiceExecutionDriver, ServiceExecutionOptions, ServiceExecutionStatus,
 };
@@ -125,7 +126,7 @@ fn run_admitted_resident_job(
 }
 
 /// Why optional HTTP launch flags could not form one complete listener.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum ServerLaunchRefuse {
     /// `--bind` and `--workflows` were not both supplied.
@@ -143,6 +144,12 @@ pub enum ServerLaunchRefuse {
     /// The bind string is not a socket address.
     #[error("serve · server configuration refused: bind address is invalid")]
     InvalidBind,
+}
+
+impl NikaErrorCode for ServerLaunchRefuse {
+    fn nika_code(&self) -> NikaCode {
+        codes::NIKA_001
+    }
 }
 
 /// Validate the optional HTTP flag group without opening credentials or sockets.
@@ -287,5 +294,28 @@ pub async fn process_shutdown() {
     #[cfg(not(unix))]
     {
         let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nika_error::prelude::{NikaErrorCode as _, codes};
+
+    use super::ServerLaunchRefuse;
+
+    #[test]
+    fn launch_refusals_share_the_validation_wire_code() {
+        let refusals = [
+            ServerLaunchRefuse::MissingBindOrWorkflows,
+            ServerLaunchRefuse::MissingTokenFile,
+            ServerLaunchRefuse::RehearsalWithListener,
+            ServerLaunchRefuse::ScriptedClockWithListener,
+            ServerLaunchRefuse::InvalidBind,
+        ];
+        assert!(
+            refusals
+                .into_iter()
+                .all(|refusal| refusal.nika_code() == codes::NIKA_001)
+        );
     }
 }
