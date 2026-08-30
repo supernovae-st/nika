@@ -1018,7 +1018,10 @@ async fn execute_json_lane(
         let label = notify::workflow_label(wf);
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
-    let teardown = attended_facts(wf, report, &outcome, trace.path());
+    let mut teardown = attended_facts(wf, report, &outcome, trace.path());
+    teardown.sdk_receipt = Some(nika_cli_host::run_settlement::local_receipt_binding(
+        identity.0, identity.1,
+    ));
     let surface = match surfaced_trace(surface_trace(
         trace,
         TraceNote::Stderr,

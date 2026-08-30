@@ -39,7 +39,13 @@ async fn health_is_public_and_contains_only_compile_bound_identity() {
     }
     assert_eq!(
         body["supportedCapabilities"],
-        json!(["check", "executionSnapshot", "eventStream", "schedule"]),
+        json!([
+            "check",
+            "executionSnapshot",
+            "eventStream",
+            "cancel",
+            "schedule"
+        ]),
         "the live resident HTTP authority advertises its exact route subset"
     );
     assert!(

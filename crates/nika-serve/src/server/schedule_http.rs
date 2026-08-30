@@ -6,9 +6,9 @@ use hyper::header::{CONTENT_ENCODING, ETAG, HeaderValue, IF_MATCH, IF_NONE_MATCH
 use hyper::{Request, Response, StatusCode};
 use jiff::Zoned;
 use nika_cadence::{
-    AfterSkip, MissPolicy, Overlap, ScheduleDefinition, ScheduleDraft, ScheduleDueVerdict,
-    ScheduleFinding, ScheduleJitter, ScheduleOrigin, SchedulePlanError, ScheduleRevision,
-    ScheduleSlot, ScheduleWhen, ScheduleWhenDraft, Shift, plan_schedule,
+    AfterSkip, MissPolicy, Overlap, ScheduleDecisionState, ScheduleDefinition, ScheduleDraft,
+    ScheduleDueVerdict, ScheduleFinding, ScheduleJitter, ScheduleOrigin, SchedulePlanError,
+    ScheduleRevision, ScheduleSlot, ScheduleWhen, ScheduleWhenDraft, Shift, plan_schedule,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -152,6 +152,14 @@ pub(super) async fn put(
         Ok(candidate) => candidate,
         Err(finding) => return finding_response(&finding),
     };
+    if let Err(error) = plan_schedule(
+        &candidate,
+        &state.clock.now(),
+        &ScheduleDecisionState::empty(),
+        1,
+    ) {
+        return planner_error_response(&error);
+    }
     if let Err(response) = validate_workflow(&candidate, &state).await {
         return response;
     }
@@ -442,6 +450,13 @@ fn planner_finding(error: &SchedulePlanError) -> Value {
         _ => "schedule.plan",
     };
     json!({"code": code, "detail": error.to_string()})
+}
+
+fn planner_error_response(error: &SchedulePlanError) -> Response<ResponseBody> {
+    json_response(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        &json!({"findings": [planner_finding(error)]}),
+    )
 }
 
 fn finding_response(finding: &ScheduleFinding) -> Response<ResponseBody> {

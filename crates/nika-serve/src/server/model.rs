@@ -132,9 +132,14 @@ pub(crate) struct HealthResponse {
     identity: HttpAdapterIdentity,
 }
 
-const HTTP_ADAPTER_CAPABILITIES: &[&str] = &["check", "executionSnapshot", "eventStream"];
-const HTTP_ADAPTER_SCHEDULE_CAPABILITIES: &[&str] =
-    &["check", "executionSnapshot", "eventStream", "schedule"];
+const HTTP_ADAPTER_CAPABILITIES: &[&str] = &["check", "executionSnapshot", "eventStream", "cancel"];
+const HTTP_ADAPTER_SCHEDULE_CAPABILITIES: &[&str] = &[
+    "check",
+    "executionSnapshot",
+    "eventStream",
+    "cancel",
+    "schedule",
+];
 
 #[derive(Debug, Serialize)]
 struct HttpAdapterIdentity {

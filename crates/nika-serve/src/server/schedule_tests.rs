@@ -492,6 +492,35 @@ async fn lowering_requires_cost_and_refuses_arbitrary_vars() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn active_unplannable_schedule_is_refused_before_persistence() {
+    let world = TestWorld::new();
+    let server = world.start(Arc::new(NoopBackend), limits()).await;
+    let candidate = json!({
+        "workflow": "root.nika.yaml",
+        "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
+        "maxCostUsd": 0.25,
+        "missed": "skip",
+        "jitter": "hash"
+    })
+    .to_string();
+    let refused = server
+        .request(&put_request(
+            "unplannable",
+            &candidate,
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    assert_eq!(refused.json()["findings"][0]["code"], "schedule.jitter");
+    let absent = server
+        .request(&get_request("/v1/schedules/unplannable"))
+        .await;
+    assert_eq!(absent.status, 404, "schedule must not be persisted");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn validation_and_fire_share_the_resident_workflow_root() {
     let world = TestWorld::new();
     let decoy = world.root.path().join("decoy-workflows");

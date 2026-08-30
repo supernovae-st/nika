@@ -506,6 +506,10 @@ pub struct SealTeardown {
     pub budgets: Option<serde_json::Value>,
     /// The effects ε fold (exercised vs declared), pre-shaped by the caller.
     pub effects: Option<serde_json::Value>,
+    /// Local SDK receipt claims known before the seal mints. The signed
+    /// `covers.sdk_receipt` binding lets a verifier reject a genuine trace
+    /// paired with fabricated execution, trace, or snapshot identity.
+    pub sdk_receipt: Option<serde_json::Value>,
     /// The memory fold (F-P8 · SMSR signed memory): `{"v": 1, "stores":
     /// [{store, set_digest, admitted_count, rejected} | {store,
     /// error}]}` — the admitted set NAMED by ONE constant-size digest
@@ -636,6 +640,9 @@ fn extend_covers(
     }
     if let Some(effects) = &teardown.effects {
         covers["effects"] = effects.clone();
+    }
+    if let Some(binding) = &teardown.sdk_receipt {
+        covers["sdk_receipt"] = binding.clone();
     }
     // F-P8 · the signed-memory fold rides verbatim: the seal pins the
     // verified SET (its ONE set digest + the admitted count) and the
@@ -918,6 +925,12 @@ mod tests {
             "spent_usd": 0.012, "priced_calls": 3, "unpriced_calls": 0, "budget_exceeded": false
         }));
         teardown.effects = Some(serde_json::json!({ "exercised": 2, "escapes": 0 }));
+        teardown.sdk_receipt = Some(serde_json::json!({
+            "receipt_format": 1,
+            "execution_id": "exe-7",
+            "trace_id": "trace-7",
+            "snapshot_digest": "snapshot-7"
+        }));
         let ev = seal_event_with(
             EventId::generate(),
             Timestamp::from_unix_ms(1_700_000_000_000),
@@ -949,6 +962,7 @@ mod tests {
         assert_eq!(covers["engine"], serde_json::json!("0.105.0"));
         assert_eq!(covers["budgets"]["priced_calls"], serde_json::json!(3));
         assert_eq!(covers["effects"]["exercised"], serde_json::json!(2));
+        assert_eq!(covers["sdk_receipt"], teardown.sdk_receipt.unwrap());
 
         // The receipt digest recomputes from the same inputs (the
         // seal's own pre-seal chain facts + the run's certificate).

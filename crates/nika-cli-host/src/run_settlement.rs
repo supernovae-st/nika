@@ -98,6 +98,20 @@ impl<'a> LocalRunReceipt<'a> {
     }
 }
 
+/// Claims known before sealing and therefore attributable inside the seal.
+#[must_use]
+pub fn local_receipt_binding(
+    execution: nika_types::id::ExecutionId,
+    snapshot_digest: &str,
+) -> serde_json::Value {
+    serde_json::json!({
+        "receipt_format": 1,
+        "execution_id": execution.to_string(),
+        "trace_id": nika_types::id::TraceId::from(execution).to_string(),
+        "snapshot_digest": snapshot_digest,
+    })
+}
+
 #[derive(Serialize)]
 struct RunSettlement<'a, T> {
     kind: &'static str,
@@ -203,5 +217,18 @@ mod tests {
         let value: serde_json::Value = serde_json::from_slice(&out).expect("valid JSON");
         assert_eq!(value["status"], "paused");
         assert!(value.get("receipt").is_none());
+    }
+
+    #[test]
+    fn pre_seal_binding_carries_every_admission_identity_claim() {
+        let execution = nika_types::id::ExecutionId::nil();
+        let binding = local_receipt_binding(execution, "snapshot-abc");
+        assert_eq!(binding["receipt_format"], 1);
+        assert_eq!(binding["execution_id"], execution.to_string());
+        assert_eq!(
+            binding["trace_id"],
+            nika_types::id::TraceId::from(execution).to_string()
+        );
+        assert_eq!(binding["snapshot_digest"], "snapshot-abc");
     }
 }
