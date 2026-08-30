@@ -123,21 +123,72 @@ pub fn recovered_ok(view: &RunView) -> bool {
     view.verdict == Some(true) && view.recovered_count() > 0
 }
 
-/// Every model the stream named is a mock — the run was a REHEARSAL and
-/// the closing surface must say so (Zoe and Ben read the echo as the
-/// product). `false` when no model spoke at all (nothing to announce).
+/// A mock infer model or a mock image/tts provider — the run was a
+/// REHEARSAL and the closing surface must say so (Zoe and Ben read the
+/// echo as the product · C08 the mock OG card as a real render).
+/// `false` when nothing mock spoke, or when any real model/provider did.
 #[must_use]
 pub fn rehearsal(view: &RunView) -> bool {
     let mut any = false;
     for row in view.rows() {
         if let Some(model) = row.model.as_deref() {
-            if !(model == "mock" || model.starts_with("mock/")) {
+            if !is_mock_model(model) {
                 return false;
             }
             any = true;
         }
+        if is_real_media(row) {
+            return false;
+        }
+        if is_mock_media(row) {
+            any = true;
+        }
     }
     any
+}
+
+fn is_mock_model(model: &str) -> bool {
+    model == "mock" || model.starts_with("mock/")
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MediaKind {
+    Image,
+    Tts,
+}
+
+fn media_kind(row: &TaskRow) -> Option<MediaKind> {
+    let note = row.started_note.as_deref().unwrap_or(row.note.as_str());
+    if note.contains("nika:image_generate") {
+        Some(MediaKind::Image)
+    } else if note.contains("nika:tts_generate") {
+        Some(MediaKind::Tts)
+    } else {
+        None
+    }
+}
+
+fn output_provider_is_mock(row: &TaskRow) -> Option<bool> {
+    let raw = row.output_json.as_deref()?;
+    let value: serde_json::Value = serde_json::from_str(raw).ok()?;
+    Some(value.get("provider").and_then(|p| p.as_str()) == Some("mock"))
+}
+
+fn warning_names_rehearsal(row: &TaskRow) -> bool {
+    row.warning.as_deref().is_some_and(|w| {
+        w.contains("rehearsal")
+            || w.contains("not a real image")
+            || w.contains("not a real recording")
+    })
+}
+
+fn is_mock_media(row: &TaskRow) -> bool {
+    media_kind(row).is_some()
+        && (output_provider_is_mock(row) == Some(true) || warning_names_rehearsal(row))
+}
+
+fn is_real_media(row: &TaskRow) -> bool {
+    media_kind(row).is_some() && output_provider_is_mock(row) == Some(false)
 }
 
 /// The head of an answer that ASKS FOR ITS INPUTS instead of answering
@@ -218,15 +269,48 @@ pub fn cautions(view: &RunView, ascii: bool) -> Vec<String> {
             "{mark} {n} of {n} inputs recovered · the model answered from fallbacks"
         ));
     }
+    // C08 · a mock image/tts settle is a green that would otherwise
+    // read as a real render. ⚠ here is earned: the builtin JSON used
+    // to ship `warnings: []`.
+    for row in view.rows() {
+        if row.state != TaskState::Ok || !is_mock_media(row) {
+            continue;
+        }
+        let kind = match media_kind(row) {
+            Some(MediaKind::Image) => "not a real image",
+            Some(MediaKind::Tts) => "not a real recording",
+            None => continue,
+        };
+        lines.push(format!("{mark} {} · {kind} — mock provider", row.id));
+    }
     lines
 }
 
 /// The rehearsal note — a fact, not a caution (mock is a delight: 11 of
 /// 19 personas cited it) and NEVER a taught command: it states what the
-/// output is, the operator decides what to do next.
+/// output is, the operator decides what to do next. Media mock is the
+/// C08 class (`not a real image` / recording) so the OG card cannot
+/// collapse to `nika OK · $0.00`.
 #[must_use]
 pub fn rehearsal_note(view: &RunView) -> Option<&'static str> {
-    rehearsal(view).then_some("rehearsal · a mock model echoed the prompt — not a real answer")
+    if !rehearsal(view) {
+        return None;
+    }
+    if view
+        .rows()
+        .iter()
+        .any(|row| media_kind(row) == Some(MediaKind::Image) && is_mock_media(row))
+    {
+        return Some("rehearsal · not a real image");
+    }
+    if view
+        .rows()
+        .iter()
+        .any(|row| media_kind(row) == Some(MediaKind::Tts) && is_mock_media(row))
+    {
+        return Some("rehearsal · not a real recording");
+    }
+    Some("rehearsal · a mock model echoed the prompt — not a real answer")
 }
 
 #[cfg(test)]
@@ -446,6 +530,108 @@ mod tests {
 
         let toolless = RunView::new();
         assert!(!rehearsal(&toolless), "no model spoke → nothing to say");
+    }
+
+    /// C08 · issue 1302: a mock `nika:image_generate` run has no infer
+    /// model, so the old "every named model is mock" read stayed silent
+    /// and the card was only `nika OK · $0.00`. The output JSON names
+    /// `provider: mock` — that IS a rehearsal, and the note must say so
+    /// (`rehearsal` or `not a real image`). A real provider does not.
+    #[test]
+    fn mock_image_generate_is_a_rehearsal_not_a_silent_ok() {
+        let mock_out = r#"{"provider":"mock","warnings":[],"images":[]}"#;
+        let mut view = RunView::new();
+        view.apply(&ev(
+            EventKind::WorkflowStarted,
+            0,
+            &[("workflow", "og-images")],
+        ));
+        view.apply(&ev(
+            EventKind::TaskStarted,
+            1,
+            &[("task", "hero"), ("note", "invoke · nika:image_generate")],
+        ));
+        view.apply(&ev(
+            EventKind::TaskCompleted,
+            2,
+            &[("task", "hero"), ("output", mock_out)],
+        ));
+        view.apply(&ev(EventKind::WorkflowCompleted, 3, &[]));
+
+        assert!(
+            rehearsal(&view),
+            "provider=mock image_generate is a rehearsal, even with no infer model"
+        );
+        let note = rehearsal_note(&view).expect("the closing surface must name the rehearsal");
+        assert!(
+            note.contains("rehearsal") || note.contains("not a real image"),
+            "C08 flag missing from rehearsal_note: {note}"
+        );
+        // The JSON the builtin returned had `warnings: []` — the card
+        // still has to speak. A caution OR the rehearsal fact counts;
+        // silence is the bug.
+        let caution_lines = cautions(&view, true);
+        assert!(
+            !caution_lines.is_empty() || note.contains("rehearsal"),
+            "warnings/cautions stayed empty on a mock OG run: {caution_lines:?} note={note}"
+        );
+
+        let ascii = crate::theme::Theme::new(false, true, false);
+        let card = crate::flow::verdict_card(&view, &ascii, &[]).join("\n");
+        assert!(
+            card.contains("rehearsal") || card.contains("not a real image"),
+            "the shareable card hid the mock: {card}"
+        );
+        // C08: a card that names the rehearsal is not the lying
+        // `nika OK · $0.00` storefront, even when spend still reads $0.
+        assert!(
+            card.contains("rehearsal") || !card.contains("$0.00"),
+            "card said only nika OK · $0.00: {card}"
+        );
+
+        // A billed provider is not a rehearsal — flipping this predicate
+        // is the mutation the test must catch.
+        let real_out = r#"{"provider":"xai","warnings":[],"images":[]}"#;
+        let mut real = RunView::new();
+        real.apply(&ev(
+            EventKind::TaskStarted,
+            0,
+            &[("task", "hero"), ("note", "invoke · nika:image_generate")],
+        ));
+        real.apply(&ev(
+            EventKind::TaskCompleted,
+            1,
+            &[("task", "hero"), ("output", real_out)],
+        ));
+        assert!(
+            !rehearsal(&real),
+            "a real image provider must not wear the rehearsal flag"
+        );
+        assert_eq!(rehearsal_note(&real), None);
+    }
+
+    /// C08 · the TTS twin: mock `nika:tts_generate` is the same honesty
+    /// class as mock image — the card must not read as a real recording.
+    #[test]
+    fn mock_tts_generate_is_a_rehearsal() {
+        let mock_out = r#"{"provider":"mock","warnings":[]}"#;
+        let mut view = RunView::new();
+        view.apply(&ev(
+            EventKind::TaskStarted,
+            0,
+            &[("task", "speak"), ("note", "invoke · nika:tts_generate")],
+        ));
+        view.apply(&ev(
+            EventKind::TaskCompleted,
+            1,
+            &[("task", "speak"), ("output", mock_out)],
+        ));
+        assert!(rehearsal(&view), "mock tts is a rehearsal");
+        let note = rehearsal_note(&view).expect("tts rehearsal must speak");
+        assert!(
+            note.contains("rehearsal") || note.contains("not a real"),
+            "C08 flag missing from tts rehearsal_note: {note}"
+        );
     }
 
     /// The ask-back head phrases fire; a legit answer quoting one deep

@@ -1117,3 +1117,47 @@ fn fruit_notes_and_rehearsal_land_on_the_closing_surfaces() {
             .contains("rehearsal"),
     );
 }
+
+/// C08 · issue 1302: the mock OG storyboard / closing surfaces must
+/// name the rehearsal. `nika OK · $0.00` alone is the lying card.
+#[test]
+fn mock_image_storyboard_names_the_rehearsal() {
+    use nika_event::EventKind as K;
+    use nika_types::resource::{KeyValue, Value};
+    let ev = |kind, ms, fields: &[(&str, &str)]| {
+        let mut e = demo::bare_event(kind, ms);
+        for (k, v) in fields {
+            e = e.with_field(KeyValue::new(*k, Value::String((*v).to_owned())));
+        }
+        e
+    };
+    let mock_out = r#"{"provider":"mock","warnings":[]}"#;
+    let mut view = RunView::new();
+    view.apply(&ev(K::WorkflowStarted, 0, &[("workflow", "og-images")]));
+    view.apply(&ev(
+        K::TaskStarted,
+        1,
+        &[("task", "hero"), ("note", "invoke · nika:image_generate")],
+    ));
+    view.apply(&ev(
+        K::TaskCompleted,
+        2,
+        &[("task", "hero"), ("output", mock_out)],
+    ));
+    view.apply(&ev(K::WorkflowCompleted, 3, &[]));
+
+    let close = stream_summary(&view, &ASCII, &[]).join("\n");
+    assert!(
+        close.contains("rehearsal") || close.contains("not a real image"),
+        "streamed close hid the mock: {close}"
+    );
+    let card = crate::flow::verdict_card(&view, &ASCII, &[]).join("\n");
+    assert!(
+        card.contains("rehearsal") || card.contains("not a real image"),
+        "verdict card hid the mock: {card}"
+    );
+    assert!(
+        card.contains("og-images"),
+        "the card must still name the workflow: {card}"
+    );
+}
