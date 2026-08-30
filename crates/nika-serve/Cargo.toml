@@ -15,6 +15,7 @@ bytes      = { workspace = true }
 http-body-util = { workspace = true }
 hyper      = { workspace = true }
 hyper-util = { workspace = true }
+nika-cadence = { path = "../nika-cadence", version = "0.115.0" }
 nika-execution = { path = "../nika-execution", version = "0.115.0" }
 nika-fs    = { path = "../nika-fs", version = "0.115.0" }
 nika-runtime = { path = "../nika-runtime", version = "0.115.0" }
