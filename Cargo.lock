@@ -4971,6 +4971,7 @@ dependencies = [
  "nika-execution",
  "nika-fs",
  "nika-runtime",
+ "nika-service-execution",
  "nika-vocab",
  "nix 0.31.3",
  "serde",

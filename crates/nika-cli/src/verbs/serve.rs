@@ -7,7 +7,6 @@
 //! is always present in persistent mode; HTTP is an optional second door.
 // A server's whole job is its log lines (the run/mod.rs precedent).
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
-mod backend;
 
 use super::arm::{
     self,
@@ -15,7 +14,6 @@ use super::arm::{
     state::ArmState,
 };
 use super::{VerbOutput, exit};
-use backend::ResidentBackend;
 use jiff::{SignedDuration, Zoned};
 use nika_cadence::registry::{ArmRegistry, Locus};
 use std::path::{Path, PathBuf};
@@ -83,7 +81,16 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
         code: exit::WORKFLOW,
     };
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let http = http_door(args, &cwd).map_err(&fail)?;
+    let http = nika_serve::optional_server_config(
+        args.bind.as_deref(),
+        args.workflows.as_deref(),
+        args.token_file.as_deref(),
+        args.allow_remote,
+        args.once || args.dry,
+        args.now.is_some() || args.until.is_some(),
+    )
+    .map_err(nika_serve::launch_operator_message)
+    .map_err(&fail)?;
     let now = instant(args.now.as_deref()).map_err(&fail)?;
     let until = instant(args.until.as_deref()).map_err(&fail)?;
     if now.is_some() && !args.once && until.is_none() {
@@ -121,78 +128,9 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
             .state_root
             .clone()
             .unwrap_or_else(|| cwd.join(".nika/serve"));
-        serve_resident_production(&root, state_root, http).map_err(fail)?;
+        nika_serve::serve_resident_process(&root, state_root, http).map_err(fail)?;
     }
     Ok(VerbOutput::ok(String::new()))
-}
-
-fn http_requested(args: &ServeArgs) -> bool {
-    args.bind.is_some()
-        || args.workflows.is_some()
-        || args.token_file.is_some()
-        || args.allow_remote
-}
-
-#[derive(Debug)]
-struct HttpDoor {
-    bind: std::net::SocketAddr,
-    workflows: PathBuf,
-    token_file: PathBuf,
-    allow_remote: bool,
-}
-
-fn http_door(args: &ServeArgs, _cwd: &Path) -> Result<Option<HttpDoor>, String> {
-    if !http_requested(args) {
-        return Ok(None);
-    }
-    let bind = args
-        .bind
-        .as_deref()
-        .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
-    let workflows = args
-        .workflows
-        .clone()
-        .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
-    let token_file = args
-        .token_file
-        .clone()
-        .ok_or_else(|| token_file_refused("--bind requires --token-file"))?;
-    if args.once || args.dry {
-        return Err("serve · --once/--dry cannot bind a listener".to_owned());
-    }
-    if args.now.is_some() || args.until.is_some() {
-        return Err("serve · scripted clock is the resident firer harness, not HTTP".to_owned());
-    }
-    let bind = bind
-        .parse()
-        .map_err(|_| "serve · server configuration refused: bind address is invalid".to_owned())?;
-    Ok(Some(HttpDoor {
-        bind,
-        workflows,
-        token_file,
-        allow_remote: args.allow_remote,
-    }))
-}
-
-/// Operator-visible mint. `openssl rand -hex 24` is 48 graphic ASCII bytes.
-const TOKEN_FILE_MINT: &str =
-    "umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token";
-const TOKEN_FILE_RULE: &str = "32–512 visible ASCII bytes, mode 0600, never argv";
-
-fn token_file_refused(prefix: &str) -> String {
-    format!("serve · {prefix} ({TOKEN_FILE_RULE})\n  {TOKEN_FILE_MINT}")
-}
-
-fn credential_prefix(kind: nika_serve::CredentialRefuse) -> &'static str {
-    match kind {
-        nika_serve::CredentialRefuse::Unreadable => "token file unreadable",
-        nika_serve::CredentialRefuse::FollowRefused => {
-            "token file must be a regular file, not a symlink"
-        }
-        nika_serve::CredentialRefuse::InsecureMode => "token file must be mode 0600",
-        nika_serve::CredentialRefuse::InvalidMaterial => "token file must be 32–512 visible ASCII",
-        _ => "token file refused",
-    }
 }
 
 #[cfg(test)]
@@ -274,86 +212,6 @@ impl Drop for ResidentSupervisor {
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
-    }
-}
-
-fn server_error(error: nika_serve::ServerError) -> String {
-    match error {
-        nika_serve::ServerError::Credential(kind) => token_file_refused(credential_prefix(kind)),
-        other => format!("serve · {other}"),
-    }
-}
-
-fn serve_resident_production(
-    root: &Path,
-    state_root: PathBuf,
-    http: Option<HttpDoor>,
-) -> Result<(), String> {
-    let rt = signal_runtime()?;
-    let backend = std::sync::Arc::new(ResidentBackend::new(root.to_path_buf()));
-    let authority = match rt.block_on(nika_serve::ResidentAuthority::open(
-        nika_serve::ResidentConfig::new(state_root).with_workflow_root(root.to_path_buf()),
-        backend,
-    )) {
-        Ok(authority) => authority,
-        Err(error) => {
-            return Err(server_error(error));
-        }
-    };
-    let server = match http {
-        Some(http) => {
-            let config = nika_serve::ServerConfig::new(http.bind, http.workflows, http.token_file)
-                .with_allow_remote(http.allow_remote);
-            match rt.block_on(nika_serve::BoundServer::attach(config, &authority)) {
-                Ok(server) => Some(server),
-                Err(error) => {
-                    drop(authority);
-                    return Err(server_error(error));
-                }
-            }
-        }
-        None => None,
-    };
-    let line = match server.as_ref().map(nika_serve::BoundServer::listen_line) {
-        Some(Ok(line)) => Some(line),
-        Some(Err(error)) => {
-            drop(server);
-            let authority_result = rt.block_on(authority.serve_until(async {}));
-            return authority_result
-                .map_err(server_error)
-                .and(Err(server_error(error)));
-        }
-        None => None,
-    };
-    if let Some(line) = line {
-        eprintln!("{line}");
-    }
-    match server {
-        Some(server) => rt.block_on(authority.serve_with_http(server, process_shutdown())),
-        None => rt.block_on(authority.serve_until(process_shutdown())),
-    }
-    .map_err(server_error)
-}
-
-async fn process_shutdown() {
-    #[cfg(unix)]
-    {
-        let mut term =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).ok();
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {}
-            () = async {
-                if let Some(s) = term.as_mut() {
-                    s.recv().await;
-                } else {
-                    std::future::pending::<()>().await;
-                }
-            } => {}
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
     }
 }
 
@@ -699,7 +557,8 @@ mod tests {
             .expect("admitted");
         let session = service.begin(admitted);
 
-        let outcome = backend::drive_resident_execution(PathBuf::new(), session.context()).await;
+        let backend = nika_serve::ResidentExecutionBackend::new(PathBuf::new());
+        let outcome = nika_serve::ExecutionBackend::execute(&backend, session.context()).await;
 
         assert_eq!(
             outcome.disposition(),
@@ -1007,13 +866,11 @@ mod tests {
         let judged = prod.find("arm::load(").expect("the door's call");
         let fired = prod.find("fire_beat(").expect("the firer's call");
         assert!(judged < fired, "vocab + cadence judge BEFORE any shot");
+        let backend = include_str!("../../../nika-serve/src/server/production.rs");
         assert!(
-            prod.contains("BoundServer::attach"),
-            "HTTP is an explicit second door"
-        );
-        let backend = include_str!("serve/backend.rs");
-        assert!(
-            backend.contains("CancelOnDrop") && backend.contains("driver.execute"),
+            backend.contains("BoundServer::attach")
+                && backend.contains("CancelOnDrop")
+                && backend.contains("driver.execute"),
             "resident shutdown must cancel a dropped blocking execution"
         );
         let resident = prod
@@ -1041,27 +898,40 @@ mod tests {
         let mut args = serve_args();
         args.state_root = Some(PathBuf::from("durable-state"));
         assert!(
-            http_door(&args, Path::new("."))
-                .expect("optional door")
-                .is_none(),
+            nika_serve::optional_server_config(
+                args.bind.as_deref(),
+                args.workflows.as_deref(),
+                args.token_file.as_deref(),
+                args.allow_remote,
+                args.once || args.dry,
+                args.now.is_some() || args.until.is_some(),
+            )
+            .expect("optional door")
+            .is_none(),
             "state root alone opens no HTTP door"
         );
 
         let src = include_str!("serve.rs");
+        let service = include_str!("../../../nika-serve/src/server/production.rs");
         let recovered = src.find("recover_resident(").expect("resident recovery");
-        let opened = src
+        let delegated = src.find("nika_serve::serve_resident").expect("delegation");
+        let opened = service
             .find("ResidentAuthority::open")
             .expect("resident authority");
-        let bound = src.find("BoundServer::attach").expect("HTTP attach");
-        let served = src
+        let bound = service.find("BoundServer::attach").expect("HTTP attach");
+        let served = service
             .find("authority.serve_with_http")
             .expect("unified serve");
-        assert!(recovered < opened, "resident recovery precedes authority");
+        assert!(
+            recovered < delegated,
+            "resident recovery precedes authority"
+        );
         assert!(opened < bound, "authority recovery precedes HTTP attach");
         assert!(bound < served, "optional HTTP attach precedes activation");
         assert!(
-            src.contains("with_workflow_root(root.to_path_buf())")
-                && src.contains("authority.serve_until(process_shutdown())"),
+            service.contains("with_workflow_root(workflow_root.to_path_buf())")
+                && service.contains("process_shutdown()")
+                && service.contains("authority.serve_until(shutdown)"),
             "persistent schedules run on the one resident authority even without HTTP"
         );
         assert!(
@@ -1115,7 +985,8 @@ mod tests {
         }
         let state_root = dir.path().join("serve-state");
         let workflow_root = dir.path().join("workflows");
-        let backend = std::sync::Arc::new(ResidentBackend::new(workflow_root.clone()));
+        let backend =
+            std::sync::Arc::new(nika_serve::ResidentExecutionBackend::new(&workflow_root));
         let rt = signal_runtime().expect("runtime");
         let first = rt
             .block_on(nika_serve::ResidentAuthority::open(
@@ -1123,15 +994,14 @@ mod tests {
                 backend,
             ))
             .expect("first authority");
-        let result = serve_resident_production(
+        let result = nika_serve::serve_resident_process(
             dir.path(),
             state_root,
-            Some(HttpDoor {
-                bind: "127.0.0.1:0".parse().expect("address"),
-                workflows: workflow_root,
-                token_file: token,
-                allow_remote: false,
-            }),
+            Some(nika_serve::ServerConfig::new(
+                "127.0.0.1:0".parse().expect("address"),
+                workflow_root,
+                token,
+            )),
         );
         assert!(result.is_err(), "second authority must refuse");
         assert!(

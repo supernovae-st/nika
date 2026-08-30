@@ -8,15 +8,14 @@ fn http_attach_failure_closes_authority_without_activating_arm() {
     let dir = project("attach-failure", HOURLY_A);
     write_workflow(dir.path(), "doctor.nika.yaml");
     let state_root = dir.path().join("serve-state");
-    let result = serve_resident_production(
+    let result = nika_serve::serve_resident_process(
         dir.path(),
         state_root.clone(),
-        Some(HttpDoor {
-            bind: "127.0.0.1:0".parse().expect("address"),
-            workflows: dir.path().join("workflows"),
-            token_file: dir.path().join("missing.token"),
-            allow_remote: false,
-        }),
+        Some(nika_serve::ServerConfig::new(
+            "127.0.0.1:0".parse().expect("address"),
+            dir.path().join("workflows"),
+            dir.path().join("missing.token"),
+        )),
     );
     assert!(
         result.is_err_and(|error| error.contains("token file unreadable")),

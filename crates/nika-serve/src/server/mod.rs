@@ -8,6 +8,7 @@ mod error;
 mod listen;
 mod model;
 mod openapi;
+mod production;
 mod registry;
 mod route;
 mod schedule_http;
@@ -43,6 +44,10 @@ pub use coordinator::{PreparedScheduledRun, ResidentExecutionCoordinator};
 use error::diagnose_capture;
 pub use error::{CredentialRefuse, ServerError};
 use listen::listen_line;
+pub use production::{
+    ResidentExecutionBackend, ServerLaunchRefuse, launch_operator_message, optional_server_config,
+    process_shutdown, serve_resident, serve_resident_process, server_operator_message,
+};
 use store::{StoreActor, StoreHandle};
 
 /// Backend-owned terminal class projected onto the durable job lifecycle.
@@ -423,15 +428,15 @@ pub async fn serve_http(
     let bind = bind
         .parse()
         .map_err(|_| ServerError::InvalidConfig("bind address is invalid"))?;
-    let authority =
-        ResidentAuthority::open(ResidentConfig::new(state_root.as_ref()), backend).await?;
     let config = ServerConfig::new(bind, workflow_root.as_ref(), token_file.as_ref())
         .with_allow_remote(allow_remote);
-    let server = BoundServer::attach(config, &authority).await?;
-    // Operator-facing: `--bind …:0` is useless without the chosen port.
-    // Next hops live here, not on GET /health (ADR-117 identity allowlist).
-    eprintln!("{}", server.listen_line()?);
-    authority.serve_with_http(server, shutdown).await
+    serve_resident(
+        ResidentConfig::new(state_root.as_ref()),
+        Some(config),
+        backend,
+        shutdown,
+    )
+    .await
 }
 
 struct PreparedAuthority {
