@@ -867,14 +867,9 @@ fn claim_run_receipt(
             )
         }
     };
-    claim.execution = Some(execution);
-    let mut repaired = 0u64;
-    let fencing = match ArmState::record_claim_with_lease(lease, &claim) {
-        Ok(outcome) => {
-            repaired = repaired.saturating_add(outcome.repaired);
-            outcome.seq
-        }
-        Err(e) => return record_refused(ctx, &e),
+    let (mut repaired, fencing) = match record_execution_claim(ctx, lease, &mut claim, execution) {
+        Ok(recorded) => recorded,
+        Err(verdict) => return verdict,
     };
     let upshot = run();
     let folded = fold_finished_run(&claim, fencing, upshot.code);
@@ -904,6 +899,18 @@ fn claim_run_receipt(
         line: with_repair(line, repaired),
         code: upshot.code,
     }
+}
+
+fn record_execution_claim(
+    ctx: &FireCtx,
+    lease: &super::state::LockLease,
+    claim: &mut Claim,
+    execution: ExecutionLink,
+) -> Result<(u64, u64), FireVerdict> {
+    claim.execution = Some(execution);
+    ArmState::record_claim_with_lease(lease, claim)
+        .map(|outcome| (outcome.repaired, outcome.seq))
+        .map_err(|error| record_refused(ctx, &error))
 }
 
 /// Project the pure tick evidence onto the closed durable receipt vocabulary.

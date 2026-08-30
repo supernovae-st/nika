@@ -803,6 +803,26 @@ fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
     )
 }
 
+fn extend_model_audit(
+    object: &mut serde_json::Map<String, serde_json::Value>,
+    audit: &ModelsAudit,
+) {
+    if audit.unjudged > 0 {
+        object.insert(
+            "models_unjudged".to_owned(),
+            serde_json::json!(audit.unjudged),
+        );
+    }
+    for (key, findings) in [
+        ("model_findings", audit.findings.as_slice()),
+        ("models_catalog_warnings", audit.catalog_warnings.as_slice()),
+    ] {
+        if !findings.is_empty() {
+            object.insert(key.to_owned(), model_finding_rows(findings));
+        }
+    }
+}
+
 /// `--json` verdict object. Drift and one-obvious-way rows append to
 /// `hints[]` plus their `code`. Both families are warnings — `clean`
 /// never reads them.
@@ -843,28 +863,8 @@ fn json_verdict(
             "models_resolve".to_owned(),
             serde_json::Value::Bool(model_findings.is_empty()),
         );
-        // Presence-gated: judged-green ≠ never-judged.
-        if models_audit.unjudged > 0 {
-            obj.insert(
-                "models_unjudged".to_owned(),
-                serde_json::json!(models_audit.unjudged),
-            );
-        }
-        if !model_findings.is_empty() {
-            obj.insert(
-                "model_findings".to_owned(),
-                model_finding_rows(model_findings),
-            );
-        }
-        // Presence-gated like its siblings: the catalog cross-check
-        // (advisory — `clean` is untouched; a machine consumer that
-        // wants to block on it can).
-        if !models_audit.catalog_warnings.is_empty() {
-            obj.insert(
-                "models_catalog_warnings".to_owned(),
-                model_finding_rows(&models_audit.catalog_warnings),
-            );
-        }
+        // Presence-gated model truth stays advisory; `clean` is untouched.
+        extend_model_audit(obj, models_audit);
         // The access-plan rows (D-2026-08-04-N1 · P2.5): HOW this
         // machine would reach each judged model — MACHINE truth (env
         // key presence), presence-gated and advisory like its
