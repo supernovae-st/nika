@@ -137,48 +137,27 @@ impl Default for ServerLimits {
     }
 }
 
-/// Complete startup authority for one HTTP server.
+/// Complete startup authority for resident durable execution.
 #[derive(Clone)]
 #[non_exhaustive]
-pub struct ServerConfig {
-    bind: SocketAddr,
-    workflow_root: PathBuf,
+pub struct ResidentConfig {
     state_root: PathBuf,
-    token_file: PathBuf,
-    allow_remote: bool,
     limits: ServerLimits,
     snapshot_limits: SnapshotLimits,
 }
 
-impl ServerConfig {
-    /// Build a deny-by-default configuration with explicit bind, registry,
-    /// durable-state, and secret-source paths.
+impl ResidentConfig {
+    /// Build resident authority rooted at one durable state directory.
     #[must_use]
-    pub fn new(
-        bind: SocketAddr,
-        workflow_root: impl Into<PathBuf>,
-        state_root: impl Into<PathBuf>,
-        token_file: impl Into<PathBuf>,
-    ) -> Self {
+    pub fn new(state_root: impl Into<PathBuf>) -> Self {
         Self {
-            bind,
-            workflow_root: workflow_root.into(),
             state_root: state_root.into(),
-            token_file: token_file.into(),
-            allow_remote: false,
             limits: ServerLimits::default(),
             snapshot_limits: SnapshotLimits::default(),
         }
     }
 
-    /// Acknowledge a non-loopback listener without weakening authentication.
-    #[must_use]
-    pub const fn with_allow_remote(mut self, allow: bool) -> Self {
-        self.allow_remote = allow;
-        self
-    }
-
-    /// Replace the HTTP and execution ceilings.
+    /// Replace execution, queue, store, and shutdown ceilings.
     #[must_use]
     pub const fn with_limits(mut self, limits: ServerLimits) -> Self {
         self.limits = limits;
@@ -192,24 +171,8 @@ impl ServerConfig {
         self
     }
 
-    pub(crate) const fn bind(&self) -> SocketAddr {
-        self.bind
-    }
-
-    pub(crate) fn workflow_root(&self) -> &Path {
-        &self.workflow_root
-    }
-
     pub(crate) fn state_root(&self) -> &Path {
         &self.state_root
-    }
-
-    pub(crate) fn token_file(&self) -> &Path {
-        &self.token_file
-    }
-
-    pub(crate) const fn allow_remote(&self) -> bool {
-        self.allow_remote
     }
 
     pub(crate) const fn limits(&self) -> ServerLimits {
@@ -221,13 +184,72 @@ impl ServerConfig {
     }
 }
 
+impl fmt::Debug for ResidentConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ResidentConfig")
+            .field("limits", &self.limits)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Complete authenticated HTTP-listener configuration.
+#[derive(Clone)]
+#[non_exhaustive]
+pub struct ServerConfig {
+    bind: SocketAddr,
+    workflow_root: PathBuf,
+    token_file: PathBuf,
+    allow_remote: bool,
+}
+
+impl ServerConfig {
+    /// Build a deny-by-default listener with explicit bind, registry, and
+    /// secret-source paths. Durable state belongs to [`ResidentConfig`].
+    #[must_use]
+    pub fn new(
+        bind: SocketAddr,
+        workflow_root: impl Into<PathBuf>,
+        token_file: impl Into<PathBuf>,
+    ) -> Self {
+        Self {
+            bind,
+            workflow_root: workflow_root.into(),
+            token_file: token_file.into(),
+            allow_remote: false,
+        }
+    }
+
+    /// Acknowledge a non-loopback listener without weakening authentication.
+    #[must_use]
+    pub const fn with_allow_remote(mut self, allow: bool) -> Self {
+        self.allow_remote = allow;
+        self
+    }
+
+    pub(crate) const fn bind(&self) -> SocketAddr {
+        self.bind
+    }
+
+    pub(crate) fn workflow_root(&self) -> &Path {
+        &self.workflow_root
+    }
+
+    pub(crate) fn token_file(&self) -> &Path {
+        &self.token_file
+    }
+
+    pub(crate) const fn allow_remote(&self) -> bool {
+        self.allow_remote
+    }
+}
+
 impl fmt::Debug for ServerConfig {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("ServerConfig")
             .field("bind", &self.bind)
             .field("allow_remote", &self.allow_remote)
-            .field("limits", &self.limits)
             .finish_non_exhaustive()
     }
 }

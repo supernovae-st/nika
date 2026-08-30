@@ -45,7 +45,7 @@ pub(crate) fn once_body(bytes: impl Into<Bytes>) -> ResponseBody {
     Full::new(bytes.into()).boxed_unsync()
 }
 
-/// Typed startup and lifecycle failures from the HTTP server.
+/// Typed startup and lifecycle failures from resident execution and HTTP.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum ServerError {
@@ -65,16 +65,16 @@ pub enum ServerError {
     #[error("HTTP listener failed: {0}")]
     Listener(io::ErrorKind),
     /// In-flight executions exceeded the configured graceful-stop budget.
-    #[error("HTTP server shutdown exceeded its grace period")]
+    #[error("resident execution shutdown exceeded its grace period")]
     ShutdownTimeout,
     /// An internal execution task panicked or was cancelled unexpectedly.
-    #[error("HTTP server execution task failed")]
+    #[error("resident execution task failed")]
     ExecutionTask,
     /// A blocking filesystem task panicked or was cancelled unexpectedly.
-    #[error("HTTP server filesystem task failed")]
+    #[error("resident execution filesystem task failed")]
     BlockingTask,
     /// The bounded durable-state command queue is full.
-    #[error("HTTP server durable-state queue is full")]
+    #[error("resident durable-state queue is full")]
     StoreQueueFull,
     /// The shared HTTP/ARM execution queue has no admission slot.
     #[error("resident execution queue is full")]

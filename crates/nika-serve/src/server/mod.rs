@@ -13,7 +13,7 @@ mod route;
 mod sse;
 mod store;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::future::Future;
 use std::net::SocketAddr;
 use std::path::Path;
@@ -35,7 +35,7 @@ use crate::{
 };
 
 use auth::BearerToken;
-pub use config::{ServerConfig, ServerLimits};
+pub use config::{ResidentConfig, ServerConfig, ServerLimits};
 pub use coordinator::{PreparedScheduledRun, ResidentExecutionCoordinator};
 use error::diagnose_capture;
 pub use error::{CredentialRefuse, ServerError};
@@ -162,12 +162,19 @@ struct AppState {
     store: StoreHandle,
     project: Arc<OwnedDir>,
     service: ExecutionService,
-    backend: Arc<dyn ExecutionBackend>,
     coordinator: ResidentExecutionCoordinator,
     limits: ServerLimits,
     snapshot_limits: SnapshotLimits,
     sse_slots: Arc<Semaphore>,
     event_page_limit: EventPageLimit,
+}
+
+struct AuthorityState {
+    store: StoreHandle,
+    service: ExecutionService,
+    backend: Arc<dyn ExecutionBackend>,
+    limits: ServerLimits,
+    snapshot_limits: SnapshotLimits,
 }
 
 #[derive(Debug)]
@@ -202,33 +209,28 @@ impl ExecutionTask {
     }
 }
 
-/// Bound HTTP listener holding the exclusive durable-server incarnation.
-pub struct BoundServer {
-    listener: TcpListener,
-    state: Arc<AppState>,
+/// Resident durable execution authority, independent of any HTTP listener.
+pub struct ResidentAuthority {
+    state: Arc<AuthorityState>,
+    coordinator: ResidentExecutionCoordinator,
     jobs: mpsc::Receiver<ExecutionTask>,
-    store_actor: StoreActor,
+    recovered: VecDeque<ExecutionTask>,
+    store_actor: Option<StoreActor>,
 }
 
-impl BoundServer {
-    /// Validate authority, recover durable state, then bind the listener.
+impl ResidentAuthority {
+    /// Recover durable state and open the one store, queue, execution, and
+    /// admission authority. This performs no socket or credential I/O.
     ///
     /// # Errors
-    /// Refuses invalid limits, unacknowledged remote binds, unsafe credential
-    /// sources, inaccessible held roots, a competing incarnation, or bind
-    /// failure. Recovery completes before the socket becomes reachable.
-    pub async fn bind(
-        config: ServerConfig,
+    /// Refuses invalid ceilings, inaccessible state, corrupt recovery, a
+    /// competing incarnation, or store-actor startup failure.
+    pub async fn open(
+        config: ResidentConfig,
         backend: Arc<dyn ExecutionBackend>,
     ) -> Result<Self, ServerError> {
-        validate_config(&config)?;
-        let event_page_limit = EventPageLimit::new(MAX_EVENT_PAGE_LEN).map_err(|_| {
-            ServerError::InvalidConfig("SSE event page limit must be within the store cap")
-        })?;
+        validate_resident_config(&config)?;
         let prepared = prepare_authority(&config).await?;
-        let listener = TcpListener::bind(config.bind())
-            .await
-            .map_err(|error| ServerError::Listener(error.kind()))?;
         let store_actor = StoreActor::start(
             prepared.store,
             prepared.incarnation,
@@ -240,38 +242,103 @@ impl BoundServer {
                 .saturating_add(4),
         )?;
         let (jobs, receiver) = mpsc::channel(config.limits().queue_capacity());
-        for (id, _workflow) in store_actor.handle().queued_jobs().await? {
-            if jobs.try_send(ExecutionTask::new(id)).is_err() {
-                break;
-            }
-        }
+        let recovered = store_actor
+            .handle()
+            .queued_jobs()
+            .await?
+            .into_iter()
+            .map(|(id, _workflow)| ExecutionTask::new(id))
+            .collect();
         let coordinator =
             ResidentExecutionCoordinator::new(store_actor.handle(), jobs, config.limits());
-        let state = Arc::new(AppState {
-            token: prepared.token,
+        let state = Arc::new(AuthorityState {
             store: store_actor.handle(),
-            project: prepared.project,
             service: ExecutionService::new(config.snapshot_limits()),
             backend,
-            coordinator,
             limits: config.limits(),
             snapshot_limits: config.snapshot_limits(),
-            sse_slots: Arc::new(Semaphore::new(config.limits().max_sse_clients())),
-            event_page_limit,
         });
         Ok(Self {
-            listener,
             state,
+            coordinator,
             jobs: receiver,
-            store_actor,
+            recovered,
+            store_actor: Some(store_actor),
         })
     }
 
-    /// Clone the one admission/queue/observation authority shared by HTTP and
-    /// the resident ARM callback.
+    /// Clone the one admission, queue, and terminal-observation capability.
     #[must_use]
     pub fn execution_coordinator(&self) -> ResidentExecutionCoordinator {
-        self.state.coordinator.clone()
+        self.coordinator.clone()
+    }
+
+    /// Drive queue executions without opening a network listener.
+    ///
+    /// # Errors
+    /// Returns a typed execution, store, or shutdown failure.
+    pub async fn serve_until<F>(self, shutdown: F) -> Result<(), ServerError>
+    where
+        F: Future<Output = ()>,
+    {
+        run_authority_until(self, shutdown).await
+    }
+
+    /// Drive queue executions and one already-attached HTTP listener under a
+    /// single shutdown and join boundary.
+    ///
+    /// # Errors
+    /// Returns a typed listener, execution, store, or shutdown failure.
+    pub async fn serve_with_http<F>(
+        self,
+        server: BoundServer,
+        shutdown: F,
+    ) -> Result<(), ServerError>
+    where
+        F: Future<Output = ()>,
+    {
+        run_authority_with_http(self, server, shutdown).await
+    }
+}
+
+/// Bound authenticated HTTP listener attached to a resident authority.
+pub struct BoundServer {
+    listener: TcpListener,
+    state: Arc<AppState>,
+}
+
+impl BoundServer {
+    /// Acquire HTTP credentials and registry, then attach a listener to an
+    /// already recovered resident authority.
+    ///
+    /// # Errors
+    /// Refuses unacknowledged remote binds, unsafe credential sources,
+    /// inaccessible held roots, or bind failure. No listener is created until
+    /// the supplied authority has already recovered.
+    pub async fn attach(
+        config: ServerConfig,
+        authority: &ResidentAuthority,
+    ) -> Result<Self, ServerError> {
+        validate_server_config(&config)?;
+        let event_page_limit = EventPageLimit::new(MAX_EVENT_PAGE_LEN).map_err(|_| {
+            ServerError::InvalidConfig("SSE event page limit must be within the store cap")
+        })?;
+        let prepared = prepare_http(&config).await?;
+        let listener = TcpListener::bind(config.bind())
+            .await
+            .map_err(|error| ServerError::Listener(error.kind()))?;
+        let state = Arc::new(AppState {
+            token: prepared.token,
+            store: authority.state.store.clone(),
+            project: prepared.project,
+            service: authority.state.service,
+            coordinator: authority.coordinator.clone(),
+            limits: authority.state.limits,
+            snapshot_limits: authority.state.snapshot_limits,
+            sse_slots: Arc::new(Semaphore::new(authority.state.limits.max_sse_clients())),
+            event_page_limit,
+        });
+        Ok(Self { listener, state })
     }
 
     /// Return the actual socket address, including an ephemeral port.
@@ -292,24 +359,13 @@ impl BoundServer {
     pub fn listen_line(&self) -> Result<String, ServerError> {
         self.local_addr().map(listen_line)
     }
-
-    /// Serve until the supplied shutdown future resolves.
-    ///
-    /// # Errors
-    /// Returns a typed listener or shutdown-timeout failure.
-    pub async fn serve_until<F>(self, shutdown: F) -> Result<(), ServerError>
-    where
-        F: Future<Output = ()>,
-    {
-        run_until(self, shutdown).await
-    }
 }
 
 /// Parse a CLI bind string and serve until `shutdown` resolves.
 ///
 /// # Errors
-/// Returns the same typed failures as [`BoundServer::bind`] and
-/// [`BoundServer::serve_until`].
+/// Returns the same typed failures as [`ResidentAuthority::open`],
+/// [`BoundServer::attach`], and [`ResidentAuthority::serve_with_http`].
 #[allow(clippy::disallowed_macros, clippy::print_stderr)]
 pub async fn serve_http(
     bind: &str,
@@ -323,53 +379,56 @@ pub async fn serve_http(
     let bind = bind
         .parse()
         .map_err(|_| ServerError::InvalidConfig("bind address is invalid"))?;
-    let config = ServerConfig::new(
-        bind,
-        workflow_root.as_ref(),
-        state_root.as_ref(),
-        token_file.as_ref(),
-    )
-    .with_allow_remote(allow_remote);
-    let server = BoundServer::bind(config, backend).await?;
+    let authority =
+        ResidentAuthority::open(ResidentConfig::new(state_root.as_ref()), backend).await?;
+    let config = ServerConfig::new(bind, workflow_root.as_ref(), token_file.as_ref())
+        .with_allow_remote(allow_remote);
+    let server = BoundServer::attach(config, &authority).await?;
     // Operator-facing: `--bind …:0` is useless without the chosen port.
     // Next hops live here, not on GET /health (ADR-117 identity allowlist).
     eprintln!("{}", server.listen_line()?);
-    server.serve_until(shutdown).await
+    authority.serve_with_http(server, shutdown).await
 }
 
 struct PreparedAuthority {
-    token: BearerToken,
-    project: Arc<OwnedDir>,
     store: Arc<JobStore>,
     incarnation: crate::ServerIncarnation,
 }
 
-async fn prepare_authority(config: &ServerConfig) -> Result<PreparedAuthority, ServerError> {
+struct PreparedHttp {
+    token: BearerToken,
+    project: Arc<OwnedDir>,
+}
+
+async fn prepare_authority(config: &ResidentConfig) -> Result<PreparedAuthority, ServerError> {
+    let state_root = config.state_root().to_owned();
+    tokio::task::spawn_blocking(move || {
+        ensure_state_root(&state_root)?;
+        let store = Arc::new(JobStore::open_fail_fast(&state_root)?);
+        let incarnation = store.claim_server_incarnation()?;
+        store.settle_interrupted_jobs(&incarnation)?;
+        Ok(PreparedAuthority { store, incarnation })
+    })
+    .await
+    .map_err(|_| ServerError::BlockingTask)?
+}
+
+async fn prepare_http(config: &ServerConfig) -> Result<PreparedHttp, ServerError> {
     let token_file = config.token_file().to_owned();
     let workflow_root = config.workflow_root().to_owned();
-    let state_root = config.state_root().to_owned();
     tokio::task::spawn_blocking(move || {
         let token = BearerToken::from_file(&token_file)?;
         let project = Arc::new(
             OwnedDir::open(&workflow_root)
                 .map_err(|error| ServerError::WorkflowRoot(error.kind()))?,
         );
-        ensure_state_root(&state_root)?;
-        let store = Arc::new(JobStore::open_fail_fast(&state_root)?);
-        let incarnation = store.claim_server_incarnation()?;
-        store.settle_interrupted_jobs(&incarnation)?;
-        Ok(PreparedAuthority {
-            token,
-            project,
-            store,
-            incarnation,
-        })
+        Ok(PreparedHttp { token, project })
     })
     .await
     .map_err(|_| ServerError::BlockingTask)?
 }
 
-fn validate_config(config: &ServerConfig) -> Result<(), ServerError> {
+fn validate_resident_config(config: &ResidentConfig) -> Result<(), ServerError> {
     if !config.limits().valid() {
         return Err(ServerError::InvalidConfig(
             "all size, timeout, concurrency, queue, connection, sse, and header ceilings must be non-zero",
@@ -380,6 +439,10 @@ fn validate_config(config: &ServerConfig) -> Result<(), ServerError> {
             "request body ceiling exceeds the durable encoded-snapshot ceiling",
         ));
     }
+    Ok(())
+}
+
+fn validate_server_config(config: &ServerConfig) -> Result<(), ServerError> {
     if !config.bind().ip().is_loopback() && !config.allow_remote() {
         return Err(ServerError::InvalidConfig(
             "a non-loopback bind requires explicit remote acknowledgement",
@@ -406,23 +469,74 @@ fn ensure_state_root(path: &Path) -> Result<(), ServerError> {
     }
 }
 
-async fn run_until<F>(mut server: BoundServer, shutdown: F) -> Result<(), ServerError>
+async fn run_authority_until<F>(
+    mut authority: ResidentAuthority,
+    shutdown: F,
+) -> Result<(), ServerError>
 where
     F: Future<Output = ()>,
 {
+    let mut executions = JoinSet::new();
+    let mut fatal = None;
+    tokio::pin!(shutdown);
+
+    loop {
+        if executions.len() < authority.state.limits.max_concurrent_jobs()
+            && let Some(task) = authority.recovered.pop_front()
+        {
+            executions.spawn(run_job(Arc::clone(&authority.state), task));
+            continue;
+        }
+        tokio::select! {
+            () = &mut shutdown => break,
+            task = authority.jobs.recv(),
+                if executions.len() < authority.state.limits.max_concurrent_jobs() => {
+                if let Some(task) = task {
+                    executions.spawn(run_job(Arc::clone(&authority.state), task));
+                }
+            }
+            joined = executions.join_next(), if !executions.is_empty() => {
+                if let Some(joined) = joined
+                    && let Err(error) = execution_result(joined) {
+                    fatal = Some(error);
+                    break;
+                }
+            }
+        }
+    }
+
+    finish_authority(authority, executions, fatal).await
+}
+
+async fn run_authority_with_http<F>(
+    mut authority: ResidentAuthority,
+    server: BoundServer,
+    shutdown: F,
+) -> Result<(), ServerError>
+where
+    F: Future<Output = ()>,
+{
+    let listener = server.listener;
+    let http_state = server.state;
     let mut connections = JoinSet::new();
     let mut executions = JoinSet::new();
     let mut fatal = None;
     tokio::pin!(shutdown);
 
     loop {
+        if executions.len() < authority.state.limits.max_concurrent_jobs()
+            && let Some(task) = authority.recovered.pop_front()
+        {
+            executions.spawn(run_job(Arc::clone(&authority.state), task));
+            continue;
+        }
         tokio::select! {
             () = &mut shutdown => break,
-            accepted = server.listener.accept(),
-                if connections.len() < server.state.limits.max_connections() => {
+            accepted = listener.accept(),
+                if connections.len() < http_state.limits.max_connections() => {
                 match accepted {
                     Ok((stream, _)) => {
-                        connections.spawn(serve_connection(stream, Arc::clone(&server.state)));
+                        connections.spawn(serve_connection(stream, Arc::clone(&http_state)));
                     }
                     Err(error) => {
                         fatal = Some(ServerError::Listener(error.kind()));
@@ -430,10 +544,10 @@ where
                     }
                 }
             }
-            task = server.jobs.recv(),
-                if executions.len() < server.state.limits.max_concurrent_jobs() => {
+            task = authority.jobs.recv(),
+                if executions.len() < authority.state.limits.max_concurrent_jobs() => {
                 if let Some(task) = task {
-                    executions.spawn(run_job(Arc::clone(&server.state), task));
+                    executions.spawn(run_job(Arc::clone(&authority.state), task));
                 }
             }
             joined = executions.join_next(), if !executions.is_empty() => {
@@ -447,25 +561,33 @@ where
         }
     }
 
-    finish_serve(server, connections, executions, fatal).await
+    drop(listener);
+    connections.abort_all();
+    while connections.join_next().await.is_some() {}
+    finish_authority(authority, executions, fatal).await
 }
 
-async fn finish_serve(
-    mut server: BoundServer,
-    mut connections: JoinSet<()>,
+async fn finish_authority(
+    mut authority: ResidentAuthority,
     mut executions: JoinSet<Result<(), ServerError>>,
     fatal: Option<ServerError>,
 ) -> Result<(), ServerError> {
-    server.jobs.close();
-    connections.abort_all();
-    while connections.join_next().await.is_some() {}
+    authority.jobs.close();
     if fatal.is_some() {
         executions.abort_all();
     }
-    let grace = server.state.limits.shutdown_grace();
-    let result = if let Ok(result) = tokio::time::timeout(grace, drain(&mut executions)).await {
-        if let Some(error) = fatal.or_else(|| result.err()) {
-            match server.state.store.settle_interrupted().await {
+    let grace = authority.state.limits.shutdown_grace();
+    let result = if let Some(error) = fatal {
+        while executions.join_next().await.is_some() {}
+        match authority.state.store.settle_interrupted().await {
+            Ok(_) => Err(error),
+            Err(settlement) => Err(settlement),
+        }
+    } else if let Ok(result) =
+        tokio::time::timeout(grace, drain_authority(&mut authority, &mut executions)).await
+    {
+        if let Some(error) = result.err() {
+            match authority.state.store.settle_interrupted().await {
                 Ok(_) => Err(error),
                 Err(settlement) => Err(settlement),
             }
@@ -475,15 +597,55 @@ async fn finish_serve(
     } else {
         executions.abort_all();
         while executions.join_next().await.is_some() {}
-        match server.state.store.settle_interrupted().await {
+        match authority.state.store.settle_interrupted().await {
             Ok(_) => Err(ServerError::ShutdownTimeout),
             Err(settlement) => Err(settlement),
         }
     };
-    let actor_shutdown = server.store_actor.shutdown().await;
+    let actor_shutdown = match authority.store_actor.take() {
+        Some(actor) => actor.shutdown().await,
+        None => Err(ServerError::BlockingTask),
+    };
     match result {
         Err(error) => Err(error),
         Ok(()) => actor_shutdown,
+    }
+}
+
+async fn drain_authority(
+    authority: &mut ResidentAuthority,
+    executions: &mut JoinSet<Result<(), ServerError>>,
+) -> Result<(), ServerError> {
+    let mut failure = None;
+    let mut queue_drained = false;
+    loop {
+        if executions.len() < authority.state.limits.max_concurrent_jobs()
+            && let Some(task) = authority.recovered.pop_front()
+        {
+            executions.spawn(run_job(Arc::clone(&authority.state), task));
+            continue;
+        }
+        if executions.is_empty() && authority.recovered.is_empty() && queue_drained {
+            return failure.map_or(Ok(()), Err);
+        }
+        tokio::select! {
+            task = authority.jobs.recv(),
+                if !queue_drained
+                    && executions.len() < authority.state.limits.max_concurrent_jobs() => {
+                match task {
+                    Some(task) => {
+                        executions.spawn(run_job(Arc::clone(&authority.state), task));
+                    }
+                    None => queue_drained = true,
+                }
+            }
+            joined = executions.join_next(), if !executions.is_empty() => {
+                if let Some(joined) = joined
+                    && let Err(error) = execution_result(joined) {
+                    failure.get_or_insert(error);
+                }
+            }
+        }
     }
 }
 
@@ -502,7 +664,7 @@ async fn serve_connection(stream: TcpStream, state: Arc<AppState>) {
         .await;
 }
 
-async fn run_job(state: Arc<AppState>, mut task: ExecutionTask) -> Result<(), ServerError> {
+async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<(), ServerError> {
     let mut guard = RunningGuard::new(state.store.clone(), task.id.clone());
     let admitted = match admit_task(&state, &mut task).await {
         Ok(admitted) => admitted,
@@ -535,7 +697,7 @@ async fn run_job(state: Arc<AppState>, mut task: ExecutionTask) -> Result<(), Se
 }
 
 async fn admit_task(
-    state: &AppState,
+    state: &AuthorityState,
     task: &mut ExecutionTask,
 ) -> Result<nika_execution::AdmittedExecution, Option<nika_execution::ExecutionError>> {
     if let Some(admitted) = task.admitted.take() {
@@ -569,7 +731,7 @@ async fn start_running(
 }
 
 async fn admit_workflow(
-    state: &AppState,
+    state: &AuthorityState,
     task: &ExecutionTask,
 ) -> Result<nika_execution::AdmittedExecution, Option<nika_execution::ExecutionError>> {
     let encoded = state
@@ -589,7 +751,7 @@ async fn admit_workflow(
 }
 
 async fn settle_disposition(
-    state: &AppState,
+    state: &AuthorityState,
     guard: &mut RunningGuard,
     admitted: nika_execution::AdmittedExecution,
     origin: JobOrigin,
@@ -694,20 +856,6 @@ impl Drop for RunningGuard {
         if self.armed {
             self.store.interrupt_detached(self.id.clone());
         }
-    }
-}
-
-async fn drain(set: &mut JoinSet<Result<(), ServerError>>) -> Result<(), ServerError> {
-    let mut failure = None;
-    while let Some(joined) = set.join_next().await {
-        if let Err(error) = execution_result(joined) {
-            failure.get_or_insert(error);
-        }
-    }
-    if let Some(error) = failure {
-        Err(error)
-    } else {
-        Ok(())
     }
 }
 

@@ -56,18 +56,19 @@ impl TestWorld {
 
     #[rustfmt::skip]
     async fn start_with_snapshot_limits(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits, snapshot_limits: SnapshotLimits) -> TestServer {
+        let resident = ResidentConfig::new(&self.state)
+            .with_limits(limits)
+            .with_snapshot_limits(snapshot_limits);
+        let authority = ResidentAuthority::open(resident, backend).await.expect("authority");
         let config = ServerConfig::new(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
             &self.workflows,
-            &self.state,
             &self.token,
-        )
-        .with_limits(limits)
-        .with_snapshot_limits(snapshot_limits);
-        let bound = BoundServer::bind(config, backend).await.expect("bind");
+        );
+        let bound = BoundServer::attach(config, &authority).await.expect("bind");
         let address = bound.local_addr().expect("local address");
         let (shutdown, receiver) = oneshot::channel();
-        let join = tokio::spawn(bound.serve_until(async move {
+        let join = tokio::spawn(authority.serve_with_http(bound, async move {
             let _result = receiver.await;
         }));
         TestServer {
@@ -830,16 +831,19 @@ async fn restart_settles_running_job_and_replay_never_reexecutes() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn non_loopback_bind_requires_explicit_acknowledgement_before_io() {
+    let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let authority = ResidentAuthority::open(ResidentConfig::new(&world.state), backend)
+        .await
+        .expect("authority");
     let config = ServerConfig::new(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0),
-        "/does/not/exist",
         "/does/not/exist",
         "/does/not/exist",
     );
 
     assert!(matches!(
-        BoundServer::bind(config, backend).await,
+        BoundServer::attach(config, &authority).await,
         Err(ServerError::InvalidConfig(_))
     ));
 }

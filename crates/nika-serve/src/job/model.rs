@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io;
 
 use nika_cadence::firing::{ArmGeneration, SlotId};
-use nika_cadence::{ScheduleOrigin, ScheduleRevision};
+use nika_cadence::{ScheduleDecision, ScheduleOrigin, ScheduleRevision};
 use nix::fcntl::Flock;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -287,6 +287,8 @@ pub enum JobOrigin {
         schedule_revision: String,
         /// Stable identity of the calendar slot.
         slot_id: String,
+        /// Typed cadence verdict for this firing.
+        decision: ScheduleDecision,
         /// Slot instant selected by cadence.
         scheduled_for: String,
         /// Resident decision instant.
@@ -308,6 +310,7 @@ impl JobOrigin {
         schedule_id: impl Into<String>,
         revision: &ScheduleRevision,
         slot_id: &SlotId,
+        decision: ScheduleDecision,
         scheduled_for: jiff::Timestamp,
         fired_at: jiff::Timestamp,
         generation: &ArmGeneration,
@@ -322,6 +325,7 @@ impl JobOrigin {
             schedule_id: schedule_id.into(),
             schedule_revision: revision.as_str().to_owned(),
             slot_id: slot_id.as_str().to_owned(),
+            decision,
             scheduled_for: scheduled_for.to_string(),
             fired_at: fired_at.to_string(),
             arm_generation: generation.as_str().to_owned(),
@@ -336,6 +340,7 @@ impl JobOrigin {
             schedule_id,
             schedule_revision,
             slot_id,
+            decision,
             scheduled_for,
             fired_at,
             arm_generation,
@@ -343,7 +348,12 @@ impl JobOrigin {
         else {
             return Ok(());
         };
-        if !matches!(schedule_origin.as_str(), "project" | "api")
+        let known_decision = matches!(
+            decision,
+            ScheduleDecision::Scheduled | ScheduleDecision::CatchUp
+        );
+        if !known_decision
+            || !matches!(schedule_origin.as_str(), "project" | "api")
             || schedule_id.is_empty()
             || schedule_id.len() > nika_cadence::schedule::MAX_SCHEDULE_ID_BYTES
             || ScheduleRevision::from_wire(schedule_revision).is_none()
@@ -355,6 +365,15 @@ impl JobOrigin {
             return Err(JobStoreError::InvalidReceipt);
         }
         Ok(())
+    }
+
+    /// Typed cadence verdict when this is a resident scheduled run.
+    #[must_use]
+    pub const fn schedule_decision(&self) -> Option<ScheduleDecision> {
+        match self {
+            Self::Manual => None,
+            Self::Schedule { decision, .. } => Some(*decision),
+        }
     }
 
     /// Schedule namespace and id when this is a resident run.

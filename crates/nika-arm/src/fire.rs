@@ -47,7 +47,9 @@ use jiff::Timestamp;
 use jiff::{SignedDuration, Zoned};
 use nika_cadence::firing::{self, ArmGeneration, FencingToken, FiringEvent, FiringState, SlotId};
 use nika_cadence::registry::{ArmRegistry, Beat, Cadence, Overlap};
-use nika_cadence::{ScheduleDraft, ScheduleRevision, TickDecision, tick_decision};
+use nika_cadence::{
+    ScheduleDecision, ScheduleDraft, ScheduleRevision, TickDecision, tick_decision,
+};
 use nika_execution::{AdmittedExecution, ExecutionContext, ExecutionService};
 use nika_fs::OwnedDir;
 
@@ -363,6 +365,7 @@ pub struct RunShot {
     schedule_id: String,
     schedule_revision: ScheduleRevision,
     slot_id: SlotId,
+    decision: ScheduleDecision,
     scheduled_for: jiff::Timestamp,
     fired_at: jiff::Timestamp,
 }
@@ -416,6 +419,12 @@ impl RunShot {
     #[must_use]
     pub const fn slot_id(&self) -> &SlotId {
         &self.slot_id
+    }
+
+    /// Typed cadence evidence carried into the durable run receipt.
+    #[must_use]
+    pub const fn decision(&self) -> ScheduleDecision {
+        self.decision
     }
 
     /// Calendar instant selected by cadence.
@@ -806,12 +815,7 @@ fn claim_run_receipt(
     let slot_id = SlotId::derive(&beat.workflow, &beat.cadence, slot);
     let mut claim = Claim::new(slot_id.clone(), claim_deadline(ctx), ctx.now.timestamp());
     claim.generation = Some(pinned.generation.clone());
-    let Some(source) = pinned
-        .admitted
-        .snapshot()
-        .text(pinned.admitted.snapshot().root())
-        .map(str::to_owned)
-    else {
+    let Some(source) = admitted_root_source(&pinned.admitted) else {
         return invalid_execution_identity(ctx);
     };
     let schedule_revision = match ScheduleDraft::from_project(ctx.label.clone(), beat)
@@ -830,6 +834,7 @@ fn claim_run_receipt(
         schedule_id: ctx.label.clone(),
         schedule_revision,
         slot_id,
+        decision: schedule_decision(slots),
         scheduled_for: slot.timestamp(),
         fired_at: ctx.now.timestamp(),
     };
@@ -899,6 +904,22 @@ fn claim_run_receipt(
         line: with_repair(line, repaired),
         code: upshot.code,
     }
+}
+
+/// Project the pure tick evidence onto the closed durable receipt vocabulary.
+const fn schedule_decision(missed_slots: Option<u32>) -> ScheduleDecision {
+    if missed_slots.is_some() {
+        ScheduleDecision::CatchUp
+    } else {
+        ScheduleDecision::Scheduled
+    }
+}
+
+fn admitted_root_source(admitted: &AdmittedExecution) -> Option<String> {
+    admitted
+        .snapshot()
+        .text(admitted.snapshot().root())
+        .map(str::to_owned)
 }
 
 fn schedule_identity_refused(ctx: &FireCtx, error: &nika_cadence::ScheduleFinding) -> FireVerdict {
@@ -1176,6 +1197,7 @@ mod tests {
             schedule_id: "doctor".to_owned(),
             schedule_revision: schedule.revision(),
             slot_id: slot_id.clone(),
+            decision: ScheduleDecision::CatchUp,
             scheduled_for,
             fired_at,
         };
@@ -1187,6 +1209,7 @@ mod tests {
         assert_eq!(shot.schedule_id(), "doctor");
         assert_eq!(shot.schedule_revision(), &schedule.revision());
         assert_eq!(shot.slot_id(), &slot_id);
+        assert_eq!(shot.decision(), ScheduleDecision::CatchUp);
         assert_eq!(shot.scheduled_for(), scheduled_for);
         assert_eq!(shot.fired_at(), fired_at);
 
@@ -1197,6 +1220,13 @@ mod tests {
         .into_parts();
         assert_eq!(line, "paused doctor");
         assert_eq!(code, exit::PAUSED);
+    }
+
+    #[test]
+    fn tick_fire_slot_evidence_maps_to_closed_schedule_provenance() {
+        assert_eq!(schedule_decision(None), ScheduleDecision::Scheduled);
+        assert_eq!(schedule_decision(Some(1)), ScheduleDecision::CatchUp);
+        assert_eq!(schedule_decision(Some(17)), ScheduleDecision::CatchUp);
     }
 
     #[test]

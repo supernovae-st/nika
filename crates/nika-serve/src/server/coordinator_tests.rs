@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use jiff::Timestamp;
 use nika_cadence::firing::{ArmGeneration, SlotId};
-use nika_cadence::{ScheduleOrigin, ScheduleRevision};
+use nika_cadence::{ScheduleDecision, ScheduleOrigin, ScheduleRevision};
 use nika_execution::{AdmittedExecution, ExecutionService, SnapshotLimits};
 use nika_fs::OwnedDir;
 use serde_json::Value;
@@ -55,18 +55,20 @@ impl TestWorld {
     }
 
     async fn start(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits) -> TestServer {
+        let resident = ResidentConfig::new(&self.state).with_limits(limits);
+        let authority = ResidentAuthority::open(resident, backend)
+            .await
+            .expect("authority");
         let config = ServerConfig::new(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
             &self.workflows,
-            &self.state,
             &self.token,
-        )
-        .with_limits(limits);
-        let bound = BoundServer::bind(config, backend).await.expect("bind");
+        );
+        let bound = BoundServer::attach(config, &authority).await.expect("bind");
         let address = bound.local_addr().expect("local address");
-        let coordinator = bound.execution_coordinator();
+        let coordinator = authority.execution_coordinator();
         let (shutdown, receiver) = oneshot::channel();
-        let join = tokio::spawn(bound.serve_until(async move {
+        let join = tokio::spawn(authority.serve_with_http(bound, async move {
             let _result = receiver.await;
         }));
         TestServer {
@@ -251,6 +253,15 @@ fn admitted(world: &TestWorld) -> AdmittedExecution {
 }
 
 fn scheduled_origin(origin: ScheduleOrigin, schedule_id: &str, slot: char) -> JobOrigin {
+    scheduled_origin_with_decision(origin, schedule_id, slot, ScheduleDecision::Scheduled)
+}
+
+fn scheduled_origin_with_decision(
+    origin: ScheduleOrigin,
+    schedule_id: &str,
+    slot: char,
+    decision: ScheduleDecision,
+) -> JobOrigin {
     let revision =
         ScheduleRevision::from_wire(&format!("sha256:{}", "a".repeat(64))).expect("revision");
     let slot_id = SlotId::from_wire(&slot.to_string().repeat(64)).expect("slot id");
@@ -260,6 +271,7 @@ fn scheduled_origin(origin: ScheduleOrigin, schedule_id: &str, slot: char) -> Jo
         schedule_id,
         &revision,
         &slot_id,
+        decision,
         "2026-08-30T10:00:00Z"
             .parse::<Timestamp>()
             .expect("scheduled instant"),
@@ -269,6 +281,22 @@ fn scheduled_origin(origin: ScheduleOrigin, schedule_id: &str, slot: char) -> Jo
         &generation,
     )
     .expect("scheduled origin")
+}
+
+#[test]
+fn schedule_origin_deserialization_refuses_unknown_decision_provenance() {
+    let mut wire = serde_json::to_value(scheduled_origin(
+        ScheduleOrigin::Project,
+        "closed-wire",
+        '9',
+    ))
+    .expect("origin wire");
+    assert_eq!(wire["decision"], "scheduled");
+    wire["decision"] = serde_json::json!("late");
+    assert!(
+        serde_json::from_value::<JobOrigin>(wire).is_err(),
+        "unchecked provenance must not enter durable state"
+    );
 }
 
 async fn prepare(
@@ -297,6 +325,54 @@ async fn wait_for_backend_calls(backend: &GatedBackend, expected: usize) {
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
     assert_eq!(backend.calls(), expected, "backend call deadline");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn resident_authority_without_http_persists_a_normal_run_and_receipt() {
+    let world = TestWorld::new();
+    let admitted = admitted(&world);
+    std::fs::remove_file(&world.token).expect("prove no credential source is required");
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let authority = ResidentAuthority::open(ResidentConfig::new(&world.state), backend.clone())
+        .await
+        .expect("authority opens without HTTP");
+    let coordinator = authority.execution_coordinator();
+    let (shutdown, receiver) = oneshot::channel();
+    let runner = tokio::spawn(authority.serve_until(async move {
+        let _result = receiver.await;
+    }));
+
+    let prepared = prepare(
+        coordinator,
+        admitted,
+        scheduled_origin(ScheduleOrigin::Project, "resident-only", 'a'),
+    )
+    .await;
+    let run_id = prepared.run_id().clone();
+    let record = execute(prepared).await;
+    assert_eq!(record.status(), JobStatus::Succeeded);
+    let receipt = record.receipt().expect("terminal receipt");
+    assert_eq!(receipt.job_id(), &run_id);
+    assert!(
+        receipt
+            .origin()
+            .and_then(JobOrigin::schedule_key_parts)
+            .is_some()
+    );
+    assert_eq!(backend.calls(), 1);
+
+    shutdown.send(()).ok();
+    runner
+        .await
+        .expect("authority join")
+        .expect("clean authority shutdown");
+    let reopened = crate::JobStore::open_fail_fast(&world.state).expect("reopen durable state");
+    let persisted = reopened
+        .get(&run_id)
+        .expect("read persisted run")
+        .expect("normal run remains");
+    assert_eq!(persisted.status(), JobStatus::Succeeded);
+    assert!(persisted.receipt().is_some(), "receipt survives restart");
 }
 
 fn get_job(id: &str) -> String {
@@ -485,7 +561,121 @@ async fn scheduled_run_uses_existing_sse_with_bound_receipt_origin() {
     assert!(response.body.contains("execution.prepared"));
     assert!(response.body.contains("execution.settled"));
     assert!(response.body.contains("schedule_origin"));
+    assert!(response.body.contains("\"decision\":\"scheduled\""));
     assert!(response.body.contains("scheduled_for"));
     assert!(response.body.contains("arm_generation"));
     server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn terminal_receipts_preserve_scheduled_and_catch_up_decisions() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+
+    for (decision, wire, slot) in [
+        (ScheduleDecision::Scheduled, "scheduled", '7'),
+        (ScheduleDecision::CatchUp, "catch_up", '8'),
+    ] {
+        let prepared = prepare(
+            server.coordinator(),
+            admitted(&world),
+            scheduled_origin_with_decision(ScheduleOrigin::Project, wire, slot, decision),
+        )
+        .await;
+        let record = execute(prepared).await;
+        let origin = record
+            .receipt()
+            .and_then(crate::JobReceipt::origin)
+            .expect("scheduled terminal origin");
+        assert_eq!(origin.schedule_decision(), Some(decision));
+        assert_eq!(
+            serde_json::to_value(origin).expect("receipt origin wire")["decision"],
+            wire
+        );
+    }
+    assert_eq!(backend.calls(), 2);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn restart_drains_more_queued_jobs_than_live_channel_capacity() {
+    const QUEUE_CAPACITY: usize = 2;
+    const QUEUED: usize = QUEUE_CAPACITY + 7;
+
+    let world = TestWorld::new();
+    let captured = admitted(&world);
+    let encoded = captured
+        .snapshot()
+        .encode()
+        .expect("encoded execution world");
+    let store = crate::JobStore::open_fail_fast(&world.state).expect("initial durable store");
+    let mut ids = Vec::with_capacity(QUEUED);
+    for index in 0..QUEUED {
+        let admission = store
+            .create_or_replay_captured(
+                crate::IdempotencyKey::new(format!("recovered-{index}")).expect("idempotency key"),
+                crate::RequestDigest::from_bytes(
+                    [u8::try_from(index).expect("test queue count fits one byte"); 32],
+                ),
+                QUEUED,
+                "root.nika.yaml".to_owned(),
+                &encoded,
+            )
+            .expect("queued durable run");
+        ids.push(admission.record().id().clone());
+    }
+    drop(store);
+
+    let backlog_limits = ServerLimits::new(
+        1024,
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+        2,
+        QUEUE_CAPACITY,
+        4,
+        32,
+    )
+    .with_max_jobs(QUEUED);
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let authority = ResidentAuthority::open(
+        ResidentConfig::new(&world.state).with_limits(backlog_limits),
+        backend.clone(),
+    )
+    .await
+    .expect("recovered authority");
+    let (shutdown, receiver) = oneshot::channel();
+    let runner = tokio::spawn(authority.serve_until(async move {
+        let _result = receiver.await;
+    }));
+    for _ in 0..400 {
+        if backend.calls() == QUEUED {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    assert_eq!(
+        backend.calls(),
+        QUEUED,
+        "every recovered job reached effects"
+    );
+    shutdown.send(()).ok();
+    tokio::time::timeout(Duration::from_secs(3), runner)
+        .await
+        .expect("shutdown remains bounded")
+        .expect("authority task")
+        .expect("clean authority shutdown");
+
+    let reopened = crate::JobStore::open_fail_fast(&world.state).expect("reopen durable state");
+    for id in ids {
+        assert_eq!(
+            reopened
+                .get(&id)
+                .expect("read recovered job")
+                .expect("recovered job remains")
+                .status(),
+            JobStatus::Succeeded
+        );
+    }
 }

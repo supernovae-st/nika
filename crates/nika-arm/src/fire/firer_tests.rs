@@ -392,6 +392,7 @@ fn coordinated_run_is_prepared_before_claim_and_run_id_follows_the_fence() {
         );
         assert_eq!(shot.schedule_id(), "doctor");
         assert_eq!(shot.scheduled_for(), ts("2026-08-19T03:00:00Z"));
+        assert_eq!(shot.decision(), nika_cadence::ScheduleDecision::Scheduled);
         prepared.set(prepared.get() + 1);
         let link = ExecutionLink::for_run(
             linked_run_id.clone(),

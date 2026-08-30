@@ -104,7 +104,7 @@ pub use schedule_plan::{
     MAX_SCHEDULE_PROJECTION_SLOTS, ScheduleDecisionState, ScheduleDueVerdict, ScheduleLastSlot,
     SchedulePlan, SchedulePlanError, ScheduleProjection, ScheduleSlot, plan_schedule,
 };
-pub use tick::{TickDecision, tick_decision, v0_unsupported};
+pub use tick::{ScheduleDecision, TickDecision, tick_decision, v0_unsupported};
 
 #[cfg(test)]
 mod tests;

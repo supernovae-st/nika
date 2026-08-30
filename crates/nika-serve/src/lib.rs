@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Durable state and authenticated loopback HTTP for Nika remote execution.
+//! Resident durable execution authority with optional authenticated HTTP.
 
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
@@ -9,6 +9,8 @@
 pub mod job;
 pub mod schedule;
 pub mod server;
+
+pub use nika_cadence::ScheduleDecision;
 
 pub use job::{
     Admission, ApprovalHistory, ApprovalHistoryError, EventPageLimit, IdempotencyKey, JobEvent,
@@ -23,6 +25,6 @@ pub use schedule::{
 };
 pub use server::{
     BoundServer, CredentialRefuse, ExecutionBackend, ExecutionDisposition, ExecutionOutcome,
-    PreparedScheduledRun, ResidentExecutionCoordinator, ServerConfig, ServerError, ServerLimits,
-    serve_http,
+    PreparedScheduledRun, ResidentAuthority, ResidentConfig, ResidentExecutionCoordinator,
+    ServerConfig, ServerError, ServerLimits, serve_http,
 };

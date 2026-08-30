@@ -375,13 +375,28 @@ impl StoreActor {
     pub(super) async fn shutdown(mut self) -> Result<(), ServerError> {
         let (reply, answer) = oneshot::channel();
         self.handle
-            .send_control(ControlCommand::Shutdown { reply })?;
+            .controls
+            .send(ControlCommand::Shutdown { reply })
+            .map_err(|_| ServerError::BlockingTask)?;
         answer.await.map_err(|_| ServerError::BlockingTask)?;
         let thread = self.thread.take().ok_or(ServerError::BlockingTask)?;
         tokio::task::spawn_blocking(move || thread.join())
             .await
             .map_err(|_| ServerError::BlockingTask)?
             .map_err(|_| ServerError::BlockingTask)
+    }
+}
+
+impl Drop for StoreActor {
+    fn drop(&mut self) {
+        let (reply, _answer) = oneshot::channel();
+        let _result = self
+            .handle
+            .controls
+            .send(ControlCommand::Shutdown { reply });
+        if let Some(thread) = self.thread.take() {
+            let _result = thread.join();
+        }
     }
 }
 
