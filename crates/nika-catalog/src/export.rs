@@ -107,6 +107,8 @@ pub struct ModelExport {
     pub id: &'static str,
     /// Wire identifier sent to the provider API.
     pub model: &'static str,
+    /// Pasteable workflow id (`xai/grok-3`) — canonical provider + wire id.
+    pub paste_id: String,
     /// Maximum context window in tokens (input + output combined).
     pub context_window_tokens: u32,
     /// Maximum tokens the model can emit in one response.
@@ -135,13 +137,14 @@ pub struct CapabilitiesExport {
 }
 
 impl ProviderExport {
-    /// The human listing's model cell — wire ids, joined, so `nika catalog`
-    /// prints `grok-3` instead of only `2 models` (B18 / issue 1306).
+    /// The human listing's model cell — pasteable ids, joined, so
+    /// `nika catalog` prints `xai/grok-3` instead of only `2 models`
+    /// (B18 / issue 1306).
     #[must_use]
     pub fn human_model_ids(&self) -> String {
         self.models
             .iter()
-            .map(|m| m.model)
+            .map(|m| m.paste_id.as_str())
             .collect::<Vec<_>>()
             .join(" · ")
     }
@@ -214,6 +217,7 @@ fn model_export(provider_id: &str, m: &ProviderModel) -> ModelExport {
     ModelExport {
         id: m.id,
         model: m.model,
+        paste_id: format!("{provider_id}/{}", m.model),
         context_window_tokens: m.context_window_tokens,
         max_output_tokens: m.max_output_tokens,
         capabilities: CapabilitiesExport {
@@ -296,8 +300,8 @@ mod tests {
         );
     }
 
-    /// B18 / issue 1306: the human cell prints wire ids (`grok-3`), not
-    /// only a count, and gpt-4o-mini has entered the openai row.
+    /// B18 / issue 1306: the human cell prints pasteable ids (`xai/grok-3`),
+    /// not only a count, and gpt-4o-mini has entered the openai row.
     #[test]
     fn human_model_ids_print_the_wire_names() {
         let export = catalog_export();
@@ -308,8 +312,13 @@ mod tests {
             .expect("xai");
         let ids = xai.human_model_ids();
         assert!(
-            ids.contains("grok-3"),
-            "xai prints grok-3, not only a count: {ids}"
+            ids.contains("xai/grok-3"),
+            "xai prints the pasteable id, not only a count: {ids}"
+        );
+        assert!(
+            xai.models.iter().any(|m| m.paste_id == "xai/grok-3"),
+            "JSON/API paste_id is xai/grok-3: {:?}",
+            xai.models.iter().map(|m| &m.paste_id).collect::<Vec<_>>()
         );
         let openai = export
             .providers
@@ -357,6 +366,13 @@ mod tests {
         ] {
             assert!(first.contains_key(key), "provider entry missing `{key}`");
         }
+        let model = first["models"][0]
+            .as_object()
+            .expect("model entries are objects");
+        assert!(
+            model.contains_key("paste_id"),
+            "model entry missing paste_id (B18 pasteable id)"
+        );
     }
 
     #[test]

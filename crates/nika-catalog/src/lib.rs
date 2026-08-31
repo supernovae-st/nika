@@ -50,6 +50,8 @@ pub mod validate;
 // ── Re-exports for ergonomic usage ──────────────────────────────────────
 
 pub use error::CatalogError;
+#[cfg(feature = "providers")]
+pub use suggest::pasteable_for;
 pub use suggest::{Namespace, Suggestion, suggest, suggest_in};
 // `types::*` already brings `validate_key_format`, `Tag`, and the rest of the
 // type surface into scope — it's a pure-logic function requiring no feature.

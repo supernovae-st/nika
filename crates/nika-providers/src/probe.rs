@@ -591,6 +591,7 @@ where
     H: nika_kernel::http::HttpPostDyn + Send + Sync + 'static,
 {
     let (provider_id, _) = model.split_once('/')?;
+    let provider_id = crate::profile::canonical_provider(provider_id);
     let profile = registry.profiles().iter().find(|p| p.id == provider_id)?;
     // The gate mirrors collect_local_pings' own filter: server-backed
     // keyless engines only.

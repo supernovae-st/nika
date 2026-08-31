@@ -450,6 +450,11 @@ pub fn namespace_help(code: &str, docs: &str) -> Option<String> {
              {docs}.\n"
         ));
     }
+    if code == "NIKA-PROVIDER" {
+        return spec_contract_help(code).map(|lesson| {
+            format!("{code} · provider · the `model:` form\n\n{lesson}  see {docs}.\n")
+        });
+    }
     is_provider_code(code).then(|| {
         format!(
             "{code} · provider · a provider-adapter runtime error\n\n  \
@@ -561,7 +566,16 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              `model:` is envelope-only: a per-task `model:` pin stays live \
              and metered (it does not inherit a parent `--model mock/echo` \
              rehearsal). Keep testing offline with `--model mock/echo` on \
-             a workflow that has no per-task pins, or `--access <seat>`.\n",
+             a workflow that has no per-task pins, or `--access <seat>`. \
+             A catalog alias (`grok`) is the same seat as its canonical \
+             id (`xai`) and uses that seat's key (`XAI_API_KEY`).\n",
+        ),
+        "NIKA-PROVIDER" => Some(
+            "  `model:` is `<provider>/<model>` — a pasteable id \
+             (`xai/grok-3`), never a bare wire name (`grok-3`). Catalog \
+             aliases (`grok`) resolve to the canonical provider (`xai`) \
+             and that seat's key (`XAI_API_KEY`). `nika catalog` prints \
+             pasteable ids.\n",
         ),
         "NIKA-SEC-004" => Some(
             "  The boundary is default-deny once `permits:` is present: an \
@@ -770,6 +784,20 @@ mod tests {
         assert!(help.contains("envelope-only"), "{help}");
         assert!(help.contains("per-task"), "{help}");
         assert!(help.contains("mock/echo"), "{help}");
+        assert!(help.contains("xai"), "{help}");
+        assert!(help.contains("XAI_API_KEY"), "{help}");
+    }
+
+    /// B18 / issue 1306: NIKA-PROVIDER names the pasteable id, not a
+    /// 16-name dump that puts groq next to xai as if they were siblings.
+    #[test]
+    fn provider_explain_names_the_pasteable_id() {
+        let help = spec_contract_help("NIKA-PROVIDER").expect("teaches");
+        assert!(help.contains("xai/grok-3"), "{help}");
+        assert!(help.contains("XAI_API_KEY"), "{help}");
+        assert!(!help.contains("groq"), "{help}");
+        let ns = namespace_help("NIKA-PROVIDER", "docs").expect("bare NIKA-PROVIDER teaches");
+        assert!(ns.contains("xai/grok-3"), "{ns}");
     }
 
     /// B04 / B28 · issue 1294 — explain must not teach granting a host

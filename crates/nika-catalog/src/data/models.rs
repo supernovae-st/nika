@@ -565,6 +565,18 @@ mod tests {
         assert!(find_pricing_for("ollama/qwen3.5:4b").is_none());
     }
 
+    /// B18 / issue 1306: `groq/grok-3` is not an xAI seat. Contains-fallback
+    /// must not price grok-3 through groq, or MODELS would call it ready.
+    #[test]
+    fn groq_grok_3_is_not_priced_ready() {
+        assert!(
+            find_pricing_for("groq/grok-3").is_none(),
+            "grok-3 is xAI — groq must not inherit its snapshot row"
+        );
+        assert!(find_pricing_for("xai/grok-3").is_some());
+        assert!(find_pricing_scoped("groq", "grok-3").is_none());
+    }
+
     /// B20 / issue 1297: the snapshot prices Gemini Flash under models.dev's
     /// `google` id; the engine seat is `gemini` (alias `google`). Lookup
     /// must resolve the runnable form to that real row — `priced: false`

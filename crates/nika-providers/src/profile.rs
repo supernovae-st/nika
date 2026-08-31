@@ -216,6 +216,14 @@ pub fn access_class_for(provider: &str) -> nika_types::access::AccessClass {
 /// `NIKA-PROVIDER-NNN` codes stay per-adapter runtime errors (spec 05).
 pub const PREFIX_REFUSAL_CODE: &str = "NIKA-PROVIDER";
 
+/// Catalog aliases (`grok` → `xai`, `claude` → `anthropic`) resolve to
+/// the canonical provider id this binary seeds. Unknown names pass
+/// through so the unknown-provider arm still names the raw prefix.
+#[must_use]
+pub fn canonical_provider(id: &str) -> &str {
+    nika_catalog::find_provider(id).map_or(id, |row| row.id)
+}
+
 /// Why a `model:` cannot resolve in THIS binary (#320 / #761).
 ///
 /// `code` is `Some(PREFIX_REFUSAL_CODE)` when the claim is a spec claim
@@ -258,20 +266,29 @@ impl ResolveRefusal {
 #[must_use]
 pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
     match model.split_once('/') {
-        None => Some(
-            ResolveRefusal::new(format!(
-                "`{model}` is a bare model id — the contract is `<provider>/<model>` \
-                 (pick the provider that serves it; `nika catalog` names the \
-                 {} runnable providers under LOCAL and CLOUD)",
-                CANONICAL_IDS.len()
-            ))
-            .with_code(PREFIX_REFUSAL_CODE),
-        ),
+        None => {
+            // A known wire id / nickname gets the pasteable repair
+            // (`grok-3` → `xai/grok-3`). The 16-name dump put `groq`
+            // next to `xai` and that was the whole B18 miss.
+            let why = match nika_catalog::pasteable_for(model) {
+                Some(id) => format!(
+                    "`{model}` is a bare model id — the contract is \
+                     `<provider>/<model>` — write `{id}`"
+                ),
+                None => format!(
+                    "`{model}` is a bare model id — the contract is `<provider>/<model>` \
+                     (pick the provider that serves it; `nika catalog` names the \
+                     {} runnable providers under LOCAL and CLOUD)",
+                    CANONICAL_IDS.len()
+                ),
+            };
+            Some(ResolveRefusal::new(why).with_code(PREFIX_REFUSAL_CODE))
+        }
         Some((provider, _)) => {
             // Catalog aliases (`grok` → `xai`) are the same seat as the
             // canonical id. Without this, `grok/grok-3` did-you-mean'd
             // `groq` (B18 / issue 1306).
-            let canonical = nika_catalog::find_provider(provider).map_or(provider, |row| row.id);
+            let canonical = canonical_provider(provider);
             if CANONICAL_IDS.contains(&canonical) {
                 return None;
             }
@@ -322,7 +339,7 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
 #[must_use]
 pub fn catalog_warning(model: &str) -> Option<String> {
     let (provider, name) = model.split_once('/')?;
-    let provider = nika_catalog::find_provider(provider).map_or(provider, |row| row.id);
+    let provider = canonical_provider(provider);
     if !CANONICAL_IDS.contains(&provider) {
         return None; // resolve_refusal owns the unknown-provider class
     }
@@ -610,9 +627,11 @@ mod tests {
     }
 
     /// B18 / issue 1306: `grok` is xAI's alias. `grok/grok-3` must
-    /// resolve as xAI, never did-you-mean `groq`.
+    /// resolve as xAI, never did-you-mean `groq`. Bare `grok-3` repairs
+    /// to the pasteable id. `groq/grok-3` is not a priced-ready groq seat.
     #[test]
     fn grok_alias_resolves_as_xai_not_groq() {
+        assert_eq!(canonical_provider("grok"), "xai");
         assert!(
             resolve_refusal("grok/grok-3").is_none(),
             "grok is the xAI alias — runnable: {:?}",
@@ -622,6 +641,26 @@ mod tests {
             catalog_warning("grok/grok-3").is_none(),
             "grok-3 is an xAI catalog model: {:?}",
             catalog_warning("grok/grok-3")
+        );
+        let bare = resolve_refusal("grok-3").expect("bare id refused");
+        assert!(
+            bare.why.contains("xai/grok-3"),
+            "bare grok-3 must name the pasteable id: {}",
+            bare.why
+        );
+        assert!(
+            !bare.why.contains("groq"),
+            "repair must not dump groq next to xai: {}",
+            bare.why
+        );
+        let groq_ghost = catalog_warning("groq/grok-3").expect("grok-3 is not a groq model");
+        assert!(
+            groq_ghost.contains("matches none of `groq`'s"),
+            "{groq_ghost}"
+        );
+        assert!(
+            nika_catalog::find_pricing_for("groq/grok-3").is_none(),
+            "unknown model on groq is not priced-ready"
         );
     }
 

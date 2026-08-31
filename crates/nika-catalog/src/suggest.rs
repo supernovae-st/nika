@@ -163,6 +163,22 @@ pub fn suggest(query: &str) -> Vec<Suggestion> {
 
 #[cfg(feature = "providers")]
 fn push_provider_hits(q: &str, hits: &mut Vec<Suggestion>) {
+    // An exact model wire-id / nickname is the pasteable-id class
+    // (`grok-3` → xAI). Fuzzy-matching provider ids after that is how
+    // `groq` used to outrank `xai` (Jaro-Winkler on the `grok`/`groq`
+    // prefix). When a unique exact model hit exists, stop there.
+    let mut exact = false;
+    for p in generated::ALL_PROVIDERS {
+        for m in p.models {
+            if m.id.eq_ignore_ascii_case(q) || m.model.eq_ignore_ascii_case(q) {
+                consider(hits, p.id, Namespace::Provider, 1.0);
+                exact = true;
+            }
+        }
+    }
+    if exact {
+        return;
+    }
     for p in generated::ALL_PROVIDERS {
         consider(
             hits,
@@ -178,17 +194,14 @@ fn push_provider_hits(q: &str, hits: &mut Vec<Suggestion>) {
                 jaro_winkler(q, &alias.to_ascii_lowercase()),
             );
         }
-        // Model wire ids and nicknames suggest the PROVIDER that
-        // serves them (B18 / issue 1306: `grok-3` is xAI, not groq).
         for m in p.models {
             for cand in [m.id, m.model] {
-                let lower = cand.to_ascii_lowercase();
-                let score = if lower == q {
-                    1.0
-                } else {
-                    jaro_winkler(q, &lower)
-                };
-                consider(hits, p.id, Namespace::Provider, score);
+                consider(
+                    hits,
+                    p.id,
+                    Namespace::Provider,
+                    jaro_winkler(q, &cand.to_ascii_lowercase()),
+                );
             }
         }
     }
@@ -237,6 +250,27 @@ pub fn suggest_in(query: &str, namespace: Namespace) -> Vec<Suggestion> {
         .into_iter()
         .filter(|s| s.namespace == namespace)
         .collect()
+}
+
+/// The pasteable `provider/model` id for a bare model name, when exactly
+/// one catalog row serves it. `None` when the name is unknown or
+/// ambiguous across providers (B18 / issue 1306: `grok-3` → `xai/grok-3`).
+#[must_use]
+#[cfg(feature = "providers")]
+pub fn pasteable_for(bare: &str) -> Option<String> {
+    let mut hit: Option<String> = None;
+    for p in generated::ALL_PROVIDERS {
+        for m in p.models {
+            if m.id.eq_ignore_ascii_case(bare) || m.model.eq_ignore_ascii_case(bare) {
+                let id = format!("{}/{}", p.id, m.model);
+                if hit.as_ref().is_some_and(|h| h != &id) {
+                    return None;
+                }
+                hit = Some(id);
+            }
+        }
+    }
+    hit
 }
 
 // Suggestion tests reference specific catalog entries (filesystem, anthropic,
@@ -337,9 +371,16 @@ mod tests {
 
     /// B18 / issue 1306: a model wire id suggests the provider that
     /// serves it. `grok-3` is xAI; Jaro-Winkler against provider ids
-    /// alone preferred `groq`.
+    /// alone preferred `groq`. The repair is the pasteable id, not a
+    /// 16-name dump that puts groq in the same breath.
     #[test]
     fn grok_3_suggests_xai_not_groq() {
+        let paste = pasteable_for("grok-3").expect("grok-3 is uniquely xAI");
+        assert_eq!(paste, "xai/grok-3");
+        assert!(
+            !paste.contains("groq"),
+            "pasteable id must not name groq: {paste}"
+        );
         let hits = suggest("grok-3");
         assert!(
             !hits.is_empty(),
@@ -352,5 +393,10 @@ mod tests {
             hits.iter().map(|h| h.name).collect::<Vec<_>>()
         );
         assert_eq!(hits[0].namespace, Namespace::Provider);
+        assert!(
+            hits.iter().all(|h| h.name != "groq"),
+            "groq must not be a suggested provider: {:?}",
+            hits.iter().map(|h| h.name).collect::<Vec<_>>()
+        );
     }
 }

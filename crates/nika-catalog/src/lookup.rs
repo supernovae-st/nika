@@ -98,6 +98,13 @@ mod tests {
         assert!(find_provider("claude").is_some());
     }
 
+    /// B18 / issue 1306: `grok` is xAI's alias, never a sibling of groq.
+    #[test]
+    fn grok_alias_resolves_to_xai() {
+        assert_eq!(find_provider("grok").map(|p| p.id), Some("xai"));
+        assert_eq!(find_provider("xai").map(|p| p.id), Some("xai"));
+    }
+
     #[test]
     fn provider_unknown() {
         assert!(find_provider("not-a-provider").is_none());

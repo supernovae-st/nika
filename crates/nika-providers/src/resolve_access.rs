@@ -121,7 +121,8 @@ const fn sovereign_rank(class: AccessClass) -> u8 {
 /// (a fourth hand copy is how lanes drift).
 #[must_use]
 pub fn provider_of(model: &str) -> &str {
-    model.split_once('/').map_or(model, |(prefix, _)| prefix)
+    let prefix = model.split_once('/').map_or(model, |(prefix, _)| prefix);
+    crate::profile::canonical_provider(prefix)
 }
 
 /// A pin names a path by its ID or by its CLASS wire string —
@@ -597,6 +598,7 @@ fn classify_pin_refusal(model: &str, pin: &str, refusal: &AccessRefusal) -> PinR
 /// must not (a `mock/echo` rehearsal is always an offered path).
 #[must_use]
 pub fn candidates_for(probes: &[ProviderProbe], provider: &str) -> Vec<AccessCandidate> {
+    let provider = crate::profile::canonical_provider(provider);
     if provider == "mock" {
         return vec![AccessCandidate::new("mock", AccessClass::Mock, true)];
     }
@@ -732,6 +734,14 @@ mod tests {
 
     fn api(id: &str, configured: bool, fix: &str) -> AccessCandidate {
         AccessCandidate::new(id, AccessClass::Api, configured).with_fix_var(fix)
+    }
+
+    /// B18 / issue 1306: `grok/grok-3` is the xAI seat for doctor/access.
+    /// B18 / issue 1306: `grok/grok-3` is the xAI seat for doctor/access.
+    #[test]
+    fn grok_alias_provider_of_is_xai() {
+        assert_eq!(provider_of("grok/grok-3"), "xai");
+        assert_eq!(provider_of("xai/grok-3"), "xai");
     }
 
     #[test]

@@ -1032,6 +1032,7 @@ pub nika_catalog::export::ModelExport::context_window_tokens: u32
 pub nika_catalog::export::ModelExport::id: &'static str
 pub nika_catalog::export::ModelExport::max_output_tokens: u32
 pub nika_catalog::export::ModelExport::model: &'static str
+pub nika_catalog::export::ModelExport::paste_id: alloc::string::String
 impl core::clone::Clone for nika_catalog::export::ModelExport
 pub fn nika_catalog::export::ModelExport::clone(&self) -> nika_catalog::export::ModelExport
 impl core::fmt::Debug for nika_catalog::export::ModelExport
@@ -2175,6 +2176,7 @@ impl<T> core::convert::From<T> for nika_catalog::suggest::Suggestion
 pub fn nika_catalog::suggest::Suggestion::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::suggest::Suggestion where T: 'static
 pub fn nika_catalog::suggest::Suggestion::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_catalog::suggest::pasteable_for(bare: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_catalog::suggest::suggest(query: &str) -> alloc::vec::Vec<nika_catalog::suggest::Suggestion>
 pub fn nika_catalog::suggest::suggest_in(query: &str, namespace: nika_catalog::suggest::Namespace) -> alloc::vec::Vec<nika_catalog::suggest::Suggestion>
 pub mod nika_catalog::tags
@@ -9337,6 +9339,7 @@ pub fn nika_catalog::is_known_builtin(name: &str) -> bool
 pub fn nika_catalog::is_known_mcp_server(name: &str) -> bool
 pub fn nika_catalog::is_known_transform(name: &str) -> bool
 pub fn nika_catalog::model_capabilities(provider: &str, model: &str) -> nika_catalog::model::ModelCapabilities
+pub fn nika_catalog::pasteable_for(bare: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_catalog::pricing_snapshot() -> &'static nika_catalog::model::PricingSnapshot
 pub fn nika_catalog::resolve_mcp_name(name: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_catalog::suggest(query: &str) -> alloc::vec::Vec<nika_catalog::suggest::Suggestion>
