@@ -641,6 +641,20 @@ fn concierge_json(plain_theme: Theme) -> std::process::ExitCode {
     emit(&verbs::welcome::run(true, plain_theme)).into()
 }
 
+/// Machine-only pre-clap adapter used by SDKs before any workflow effect.
+fn sdk_identity() -> std::process::ExitCode {
+    match serde_json::to_string(nika_runtime::engine_identity()) {
+        Ok(identity) => {
+            println!("{identity}");
+            std::process::ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("nika: cannot serialize engine identity: {error}");
+            std::process::ExitCode::from(3)
+        }
+    }
+}
+
 /// Human default help · B67 · ≤ 6 lines. The rest lives on `--help --all`.
 fn human_help() -> &'static str {
     "nika             a plan from a file\n\
@@ -694,6 +708,7 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             println!("nika {}", nika_runtime::engine_identity().version_long());
             Some(std::process::ExitCode::SUCCESS)
         }
+        Some("--sdk-identity") if positional.len() == 1 => Some(sdk_identity()),
         Some("thread") if positional.len() == 1 => {
             let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
             Some(std::process::ExitCode::from(verbs::session::run(
@@ -805,6 +820,26 @@ fn inspect_arm(file: &str, format: Option<verbs::graph::GraphFormatArg>, plain_t
 }
 
 fn check_arm(args: verbs::check::CheckArgs, plain_theme: Theme) -> u8 {
+    if args.sdk_snapshot {
+        let output = match args.files.as_slice() {
+            [file]
+                if args.json
+                    && !args.fix
+                    && !args.infer_permits
+                    && !args.native_strict
+                    && args.profile == verbs::check::Profile::Advisory
+                    && args.model.is_none() =>
+            {
+                verbs::check::run_snapshot_export(file, interactive_theme(plain_theme))
+            }
+            _ => verbs::VerbOutput {
+                text: "check: --sdk-snapshot requires exactly one file and --json, with no other check overrides\n"
+                    .to_owned(),
+                code: verbs::exit::ENV,
+            },
+        };
+        return emit(&output);
+    }
     let flags = verbs::check::CheckFlags {
         json: args.json,
         infer_permits: args.infer_permits,
@@ -1158,6 +1193,41 @@ mod tests {
         ] {
             assert!(Cli::try_parse_from(&argv).is_ok(), "{argv:?} must parse");
         }
+    }
+
+    #[test]
+    fn sdk_snapshot_is_a_hidden_check_adapter_not_a_new_verb() {
+        let mut command = Cli::command();
+        let check = command.find_subcommand_mut("check").expect("check");
+        let adapter = check
+            .get_arguments()
+            .find(|argument| argument.get_long() == Some("sdk-snapshot"))
+            .expect("hidden sdk snapshot adapter");
+        assert!(adapter.is_hide_set());
+        assert!(
+            Cli::try_parse_from([
+                "nika",
+                "check",
+                "flow.nika.yaml",
+                "--json",
+                "--sdk-snapshot",
+            ])
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn sdk_identity_is_a_hidden_pre_clap_adapter_not_a_new_verb() {
+        assert_eq!(
+            front_door(&[std::ffi::OsString::from("--sdk-identity")]),
+            Some(std::process::ExitCode::SUCCESS)
+        );
+        assert!(
+            !Cli::command()
+                .render_long_help()
+                .to_string()
+                .contains("sdk-identity")
+        );
     }
 
     #[test]

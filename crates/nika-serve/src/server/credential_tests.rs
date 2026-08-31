@@ -12,7 +12,7 @@ use std::time::Duration;
 use super::tests::TestWorld;
 use super::{
     BoundServer, CredentialRefuse, ExecutionBackend, ExecutionContext, ExecutionDisposition,
-    ExecutionOutcome, ServerConfig, ServerError,
+    ExecutionOutcome, ResidentAuthority, ResidentConfig, ServerConfig, ServerError,
 };
 
 struct CompletingBackend;
@@ -40,12 +40,14 @@ async fn credential_world_readable_refuses_insecure_mode() {
     let config = ServerConfig::new(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
         &world.workflows,
-        &world.state,
         &world.token,
     );
+    let authority = ResidentAuthority::open(ResidentConfig::new(&world.state), backend())
+        .await
+        .expect("authority");
 
     assert!(matches!(
-        BoundServer::bind(config, backend()).await,
+        BoundServer::attach(config, &authority).await,
         Err(ServerError::Credential(CredentialRefuse::InsecureMode))
     ));
 }
@@ -63,12 +65,14 @@ async fn credential_short_material_refuses_invalid_material() {
     let config = ServerConfig::new(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
         &world.workflows,
-        &world.state,
         &world.token,
     );
+    let authority = ResidentAuthority::open(ResidentConfig::new(&world.state), backend())
+        .await
+        .expect("authority");
 
     assert!(matches!(
-        BoundServer::bind(config, backend()).await,
+        BoundServer::attach(config, &authority).await,
         Err(ServerError::Credential(CredentialRefuse::InvalidMaterial))
     ));
 }
@@ -80,12 +84,14 @@ async fn credential_missing_file_refuses_unreadable() {
     let config = ServerConfig::new(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
         &world.workflows,
-        &world.state,
         missing,
     );
+    let authority = ResidentAuthority::open(ResidentConfig::new(&world.state), backend())
+        .await
+        .expect("authority");
 
     assert!(matches!(
-        BoundServer::bind(config, backend()).await,
+        BoundServer::attach(config, &authority).await,
         Err(ServerError::Credential(CredentialRefuse::Unreadable))
     ));
 }
@@ -101,12 +107,14 @@ async fn credential_symlink_refuses_follow() {
     let config = ServerConfig::new(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
         &world.workflows,
-        &world.state,
         linked,
     );
+    let authority = ResidentAuthority::open(ResidentConfig::new(&world.state), backend())
+        .await
+        .expect("authority");
 
     assert!(matches!(
-        BoundServer::bind(config, backend()).await,
+        BoundServer::attach(config, &authority).await,
         Err(ServerError::Credential(CredentialRefuse::FollowRefused))
     ));
 }
@@ -123,13 +131,15 @@ async fn credential_fifo_refuses_without_waiting_for_a_writer() {
     let config = ServerConfig::new(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
         &world.workflows,
-        &world.state,
         fifo,
     );
+    let authority = ResidentAuthority::open(ResidentConfig::new(&world.state), backend())
+        .await
+        .expect("authority");
 
     let result = tokio::time::timeout(
         Duration::from_millis(100),
-        BoundServer::bind(config, backend()),
+        BoundServer::attach(config, &authority),
     )
     .await
     .expect("FIFO acquisition must not block");

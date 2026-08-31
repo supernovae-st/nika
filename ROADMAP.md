@@ -105,8 +105,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `5c5bd1ab5` (`5c5bd1ab512be089728d548a8bafe0bb3dfa587e`)             |
-| workspace        | v0.115.0                                  |
+| HEAD             | `08fb9e289` (`08fb9e2895998e6ff3786bc0e955b2ec2e53fe77`)             |
+| workspace        | v0.116.0                                  |
 | crates (workspace)| 71                                              |
 | crates (admitted)| 63                                             |
 | crates (WIP)     | 8 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve                                  |
@@ -117,7 +117,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 5                                              |
 | L3               | 3                                              |
 | L4               | 14                                              |
-| lib tests        | 6669 passed, 0 failed                              |
+| lib tests        | 6788 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
@@ -639,7 +639,9 @@ Per D-2026-05-22-N18.)
 - **Homebrew** — `brew install supernovae-st/tap/nika` (formula at `supernovae-st/homebrew-tap` · SHIPPED since v0.90.0)
 - **`curl | sh`** — `curl -LsSf https://nika.sh/install.sh | sh` (platform detection, fallback to GH release tarball · SHIPPED)
 - **crates.io** — `cargo install nika` joins at the 1.0.0 launch
-- **GitHub Releases** — pre-built binaries via cargo-dist (macOS arm64/x86_64, Linux x86_64)
+- **GitHub Releases** — four pre-built tarballs from the tag-triggered release
+  train (macOS arm64/x86_64, Linux arm64/x86_64), with checksums, GitHub
+  attestations and SLSA provenance; `RELEASING.md` is the ceremony authority
 
 ### Site + docs + design
 

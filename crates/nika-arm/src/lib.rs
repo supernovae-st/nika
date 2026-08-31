@@ -16,8 +16,8 @@ pub mod fire;
 pub mod state;
 
 pub use fire::{
-    ExecutionRunSeam, FireCtx, FireCtxError, FireVerdict, RunSeam, RunShot, RunUpshot, Wait,
-    WaitSeam, fire_beat, labels,
+    CoordinatedRunSeam, ExecutionRunSeam, FireCtx, FireCtxError, FireVerdict, PreparedRun, RunSeam,
+    RunShot, RunUpshot, Wait, WaitSeam, fire_beat, labels,
 };
 pub use state::{
     ArmState, Claim, ExecutionLink, FireKind, Folded, HealOutcome, HistoryEntry, LastRecord,

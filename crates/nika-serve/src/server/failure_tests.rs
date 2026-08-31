@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use super::tests::{
     TestWorld, auth_header, events_request, get_request, limits, parse_sse_data, post_request,
-    wait_for_status,
+    snapshot_body, wait_for_status,
 };
 use super::{ExecutionBackend, ExecutionContext, ExecutionDisposition, ExecutionOutcome};
 
@@ -48,6 +48,16 @@ async fn failed_job_get_and_sse_name_the_redacted_nika_code() {
         .await;
     let body = job.json();
     assert_eq!(body["status"], "failed", "{}", job.body);
+    assert_eq!(body["id"], id, "failed admission keeps its job identity");
+    assert!(
+        body["execution_id"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("exe-")),
+        "failed admission keeps its execution identity: {}",
+        job.body
+    );
+    assert_eq!(body["receipt"]["job_id"], id);
+    assert_eq!(body["receipt"]["execution_id"], body["execution_id"]);
     assert_eq!(body["error"]["code"], "NIKA-ASSERT-001", "{}", job.body);
     assert_eq!(
         body["error"]["message"], "task boom: expected true",
@@ -110,7 +120,7 @@ async fn parse_fatal_post_names_the_nika_parse_code() {
     let server = world.start(Arc::new(SucceedingBackend), limits()).await;
     let response = server
         .request(&post_request(
-            r#"{"workflow":"bad.nika.yaml"}"#,
+            &snapshot_body("nika: v1\nworkflow: nope\n"),
             "parse-fatal",
             &auth_header(),
         ))
@@ -135,7 +145,7 @@ async fn check_fatal_post_names_the_nika_analysis_code() {
     let server = world.start(Arc::new(SucceedingBackend), limits()).await;
     let response = server
         .request(&post_request(
-            r#"{"workflow":"boom.nika.yaml"}"#,
+            &snapshot_body("nika: boom\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n"),
             "check-fatal",
             &auth_header(),
         ))

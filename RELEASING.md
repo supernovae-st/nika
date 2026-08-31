@@ -122,6 +122,12 @@ without an explicit operator decision.
    Nothing else. `workflow_dispatch` can rebuild an existing tag; know that
    re-dispatching an old tag re-points `latest` (docker + release ordering).
 
+   The portable Agent Plugins mirror is downstream of this immutable tag.
+   After the release assets are green, its release-heal lane runs
+   `python3 scripts/resync-mirror.py --ref v<NEXT>` in `nika-plugins` and
+   opens a reviewable PR. Never copy `nika-plugins@main` back into `.agents/`:
+   that reverses ownership and can downgrade a prepared engine release.
+
 6. **Close the release record.** Add the engine release entry to the pinned
    `nika-spec/timeline/timeline.yaml`, let its timeline CI re-prove the tag and
    publication claims, and verify it renders at [nika.sh/timeline](https://nika.sh/timeline)

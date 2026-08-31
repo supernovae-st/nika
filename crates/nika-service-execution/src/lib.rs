@@ -775,6 +775,7 @@ pub enum ServiceExecutionStatus {
 pub struct ServiceExecutionResult {
     status: ServiceExecutionStatus,
     events: Vec<ServiceEvent>,
+    outputs: BTreeMap<String, Value>,
     error_code: Option<String>,
     error_message: Option<String>,
 }
@@ -795,6 +796,7 @@ impl ServiceExecutionResult {
         Self {
             status,
             events,
+            outputs: BTreeMap::new(),
             error_code: None,
             error_message: None,
         }
@@ -813,6 +815,9 @@ impl ServiceExecutionResult {
             Ok(outcome) => (ServiceExecutionStatus::Failed, Some(first_failure(outcome))),
         };
         let mut result = Self::new(status, events);
+        if let Ok(outcome) = outcome {
+            result.outputs.clone_from(&outcome.outputs);
+        }
         if let Some((code, message)) = error {
             result.error_code = Some(code);
             result.error_message = Some(redact_service_message(&message));
@@ -830,6 +835,12 @@ impl ServiceExecutionResult {
     #[must_use]
     pub fn events(&self) -> &[ServiceEvent] {
         &self.events
+    }
+
+    /// Declared workflow outputs only; task/provider payloads stay private.
+    #[must_use]
+    pub fn outputs(&self) -> &BTreeMap<String, Value> {
+        &self.outputs
     }
 
     /// Redacted `(code, message)` for a refused or failed run.

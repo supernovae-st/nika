@@ -16,6 +16,41 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.116.0](https://github.com/supernovae-st/nika/compare/v0.115.0..v0.116.0) - 2026-08-31
+
+### Added
+
+- **One SDK gains a durable resident HTTP authority.** `nika serve`
+  admits immutable execution snapshots, persists job identity, outputs,
+  receipts and ordered events, supports idempotent cancellation and replay,
+  exposes contained workflow discovery, status, schedule CAS and typed trace
+  verification, and publishes the owning OpenAPI contract. Hidden CLI
+  identity and snapshot probes let the TypeScript client prove local/remote
+  compatibility before admission; receipt job, execution and trace bindings
+  fail closed across event and durable settlement paths.
+
+### Changed
+
+- **The One SDK contract is machine-complete at its live boundaries.** Health,
+  workflow discovery/metadata, and the SSE event projection now carry owning
+  OpenAPI schemas instead of description-only 200 responses. The engine
+  release kit under `.agents/` is explicitly engine-owned and mirrored
+  downstream from immutable tags; the client-registry resync can no longer
+  overwrite it from a moving plugin branch.
+- **The MCP oracle closes the repair loop.** `nika_check` gains
+  `fix: true`: the same transactional repair ladder as `nika check --fix`
+  (typed renames · dead-form migrations · the VAR-021 hoist) runs IN
+  MEMORY over the submitted source, re-audits, and answers JSON —
+  `repairs`, `applied`, `changed`, the repaired `workflow` text and the
+  plain `verdict` of that text. The caller writes the text back; nothing
+  on the server writes a file (the tool takes source, never a path, and
+  the same catalog rides the HTTP transport). The three codes that
+  prescribe `nika check --fix` are now reachable by a no-shell agent.
+  `nika_examples` gains `builtin:` — one JSONL row per embedded example
+  that calls one `nika:*` tool. The server instructions teach the repair
+  door and are pinned ⊆ the catalog: every tool named is served, every
+  served tool is named, a declared `fix` is taught, and a read-only /
+  never-run claim is checked against every tool's annotations.
 ## [0.115.0](https://github.com/supernovae-st/nika/compare/v0.114.0..v0.115.0) - 2026-08-26
 
 ### Added

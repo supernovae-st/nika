@@ -459,6 +459,13 @@ pub fn spawn_ping(addr: &str, timeout: Duration) -> std::sync::mpsc::Receiver<Op
     rx
 }
 
+fn receive_ping_state(rx: &std::sync::mpsc::Receiver<Option<u64>>, budget: Duration) -> PingState {
+    match rx.recv_timeout(budget) {
+        Ok(Some(ms)) => PingState::Reachable(ms),
+        _ => PingState::Unreachable,
+    }
+}
+
 /// Ping collection · the LOCAL surfaces only (keyless providers + the
 /// media planes when their URL is configured) · 300ms cap per port.
 #[must_use]
@@ -498,10 +505,7 @@ pub fn collect_local_pings(
         .into_iter()
         .map(|(id, addr, rx)| {
             let budget = deadline.saturating_duration_since(Instant::now()); // seam-bypass-ok: same deadline
-            let state = match rx.recv_timeout(budget) {
-                Ok(Some(ms)) => PingState::Reachable(ms),
-                _ => PingState::Unreachable,
-            };
+            let state = receive_ping_state(&rx, budget);
             (id, addr, state)
         })
         .collect()
@@ -615,6 +619,48 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn receive_ping_state_classifies_every_channel_outcome() {
+        let (reachable_tx, reachable_rx) = std::sync::mpsc::channel();
+        reachable_tx.send(Some(7)).expect("reachable result");
+        assert_eq!(
+            receive_ping_state(&reachable_rx, Duration::ZERO),
+            PingState::Reachable(7)
+        );
+
+        let (refused_tx, refused_rx) = std::sync::mpsc::channel();
+        refused_tx.send(None).expect("refused result");
+        assert_eq!(
+            receive_ping_state(&refused_rx, Duration::ZERO),
+            PingState::Unreachable
+        );
+
+        let (waiting_tx, waiting_rx) = std::sync::mpsc::channel();
+        assert_eq!(
+            receive_ping_state(&waiting_rx, Duration::ZERO),
+            PingState::Unreachable
+        );
+        drop(waiting_tx);
+
+        let (dropped_tx, dropped_rx) = std::sync::mpsc::channel();
+        drop(dropped_tx);
+        assert_eq!(
+            receive_ping_state(&dropped_rx, Duration::ZERO),
+            PingState::Unreachable
+        );
+    }
+
+    #[test]
+    fn spawn_ping_reaches_a_held_loopback_listener() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr").to_string();
+        let rx = spawn_ping(&addr, Duration::from_millis(300));
+        assert!(matches!(
+            receive_ping_state(&rx, Duration::from_millis(300)),
+            PingState::Reachable(_)
+        ));
+    }
 
     #[test]
     fn ping_addr_extracts_host_and_default_port() {

@@ -14,7 +14,7 @@
 [package]
 name          = "nika-acp"
 description   = "The harness access class (D-2026-08-04-N1 · P3) — ACP conformance harness + the mock agent instrument. Quarantined workspace: the official SDK's serde_json preserve_order requirement must never unify into the engine's feature graph."
-version       = "0.115.0"
+version       = "0.116.0"
 edition       = "2024"
 license       = "AGPL-3.0-or-later"
 publish       = false

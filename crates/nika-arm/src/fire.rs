@@ -47,7 +47,9 @@ use jiff::Timestamp;
 use jiff::{SignedDuration, Zoned};
 use nika_cadence::firing::{self, ArmGeneration, FencingToken, FiringEvent, FiringState, SlotId};
 use nika_cadence::registry::{ArmRegistry, Beat, Cadence, Overlap};
-use nika_cadence::{TickDecision, tick_decision};
+use nika_cadence::{
+    ScheduleDecision, ScheduleDraft, ScheduleRevision, TickDecision, tick_decision,
+};
 use nika_execution::{AdmittedExecution, ExecutionContext, ExecutionService};
 use nika_fs::OwnedDir;
 
@@ -186,6 +188,30 @@ impl FireCtx {
             now,
             pid,
             RunAdapter::Execution(run),
+        )
+    }
+
+    /// Build a firing transaction whose two-phase callback prepares a normal
+    /// run before the ARM claim, then executes it only after that claim lands.
+    ///
+    /// # Errors
+    /// The same custody and registry conditions as [`Self::new`].
+    #[must_use = "an invalid registry index must be handled"]
+    pub fn new_with_coordinator(
+        project_root: PathBuf,
+        registry: ArmRegistry,
+        index: usize,
+        now: Zoned,
+        pid: u32,
+        prepare: CoordinatedRunSeam,
+    ) -> Result<Self, FireCtxError> {
+        Self::build(
+            project_root,
+            registry,
+            index,
+            now,
+            pid,
+            RunAdapter::Coordinated(prepare),
         )
     }
 
@@ -336,6 +362,12 @@ pub struct RunShot {
     source: String,
     generation: ArmGeneration,
     ceiling: f64,
+    schedule_id: String,
+    schedule_revision: ScheduleRevision,
+    slot_id: SlotId,
+    decision: ScheduleDecision,
+    scheduled_for: jiff::Timestamp,
+    fired_at: jiff::Timestamp,
 }
 
 impl RunShot {
@@ -370,6 +402,42 @@ impl RunShot {
     pub fn ceiling(&self) -> f64 {
         self.ceiling
     }
+
+    /// Project-origin schedule id resolved by the one ARM label authority.
+    #[must_use]
+    pub fn schedule_id(&self) -> &str {
+        &self.schedule_id
+    }
+
+    /// Canonical normalized schedule revision pinned for this attempt.
+    #[must_use]
+    pub const fn schedule_revision(&self) -> &ScheduleRevision {
+        &self.schedule_revision
+    }
+
+    /// Stable calendar-slot identity.
+    #[must_use]
+    pub const fn slot_id(&self) -> &SlotId {
+        &self.slot_id
+    }
+
+    /// Typed cadence evidence carried into the durable run receipt.
+    #[must_use]
+    pub const fn decision(&self) -> ScheduleDecision {
+        self.decision
+    }
+
+    /// Calendar instant selected by cadence.
+    #[must_use]
+    pub const fn scheduled_for(&self) -> jiff::Timestamp {
+        self.scheduled_for
+    }
+
+    /// Resident decision instant.
+    #[must_use]
+    pub const fn fired_at(&self) -> jiff::Timestamp {
+        self.fired_at
+    }
 }
 
 #[non_exhaustive]
@@ -394,9 +462,47 @@ pub type RunSeam = Rc<dyn Fn(&RunShot) -> RunUpshot>;
 /// Typed runner seam for adapters consuming the service-admitted world.
 pub type ExecutionRunSeam = Rc<dyn for<'a> Fn(ExecutionContext<'a>, &RunShot) -> RunUpshot>;
 
+/// Two-phase resident callback: allocate one normal run before ARM's claim.
+pub type CoordinatedRunSeam =
+    Rc<dyn Fn(AdmittedExecution, &RunShot) -> Result<PreparedRun, RunUpshot>>;
+
+/// A normal run prepared before, and effecting only after, the ARM claim.
+pub struct PreparedRun {
+    execution: ExecutionLink,
+    run: Option<Box<dyn FnOnce() -> RunUpshot>>,
+}
+
+impl PreparedRun {
+    /// Bind the coordinator's durable link and deferred execution closure.
+    #[must_use]
+    pub fn new(
+        execution: ExecutionLink,
+        run: impl FnOnce() -> RunUpshot + 'static,
+    ) -> Option<Self> {
+        execution.run_id()?;
+        Some(Self {
+            execution,
+            run: Some(Box::new(run)),
+        })
+    }
+
+    /// Durable normal-run association copied into claim and receipt.
+    #[must_use]
+    pub const fn execution(&self) -> &ExecutionLink {
+        &self.execution
+    }
+
+    fn execute(mut self) -> RunUpshot {
+        self.run
+            .take()
+            .map_or_else(|| RunUpshot::new(exit::ENV, None), |run| run())
+    }
+}
+
 enum RunAdapter {
     Legacy(RunSeam),
     Execution(ExecutionRunSeam),
+    Coordinated(CoordinatedRunSeam),
 }
 
 impl RunAdapter {
@@ -404,6 +510,7 @@ impl RunAdapter {
         match self {
             Self::Legacy(run) => run(shot),
             Self::Execution(run) => run(execution, shot),
+            Self::Coordinated(_) => RunUpshot::new(exit::ENV, None),
         }
     }
 }
@@ -705,33 +812,17 @@ fn claim_run_receipt(
         Ok(admitted) => admitted,
         Err(verdict) => return verdict,
     };
-    let mut claim = Claim::new(
-        SlotId::derive(&beat.workflow, &beat.cadence, slot),
-        claim_deadline(ctx),
-        ctx.now.timestamp(),
-    );
+    let slot_id = SlotId::derive(&beat.workflow, &beat.cadence, slot);
+    let mut claim = Claim::new(slot_id.clone(), claim_deadline(ctx), ctx.now.timestamp());
     claim.generation = Some(pinned.generation.clone());
-    let execution_id = pinned.admitted.execution_id();
-    let trace_id = pinned.admitted.trace_id();
-    let Some(source) = pinned
-        .admitted
-        .snapshot()
-        .text(pinned.admitted.snapshot().root())
-        .map(str::to_owned)
-    else {
+    let Some(source) = admitted_root_source(&pinned.admitted) else {
         return invalid_execution_identity(ctx);
     };
-    let Some(execution) = direct_execution_link(&pinned.admitted) else {
-        return invalid_execution_identity(ctx);
-    };
-    claim.execution = Some(execution);
-    let mut repaired = 0u64;
-    let fencing = match ArmState::record_claim_with_lease(lease, &claim) {
-        Ok(outcome) => {
-            repaired = repaired.saturating_add(outcome.repaired);
-            outcome.seq
-        }
-        Err(e) => return record_refused(ctx, &e),
+    let schedule_revision = match ScheduleDraft::from_project(ctx.label.clone(), beat)
+        .and_then(ScheduleDraft::validate)
+    {
+        Ok(schedule) => schedule.revision(),
+        Err(error) => return schedule_identity_refused(ctx, &error),
     };
     let request = RunShot {
         project: pinned.project,
@@ -740,13 +831,47 @@ fn claim_run_receipt(
         source,
         generation: pinned.generation,
         ceiling: plafond,
+        schedule_id: ctx.label.clone(),
+        schedule_revision,
+        slot_id,
+        decision: schedule_decision(slots),
+        scheduled_for: slot.timestamp(),
+        fired_at: ctx.now.timestamp(),
     };
-    let session = ctx.service.begin(pinned.admitted);
-    let upshot = ctx.run.run(session.context(), &request);
-    let executed = session.complete(upshot);
-    debug_assert_eq!(executed.execution_id(), execution_id);
-    debug_assert_eq!(executed.trace_id(), trace_id);
-    let upshot = executed.into_outcome();
+    let (execution, run): (ExecutionLink, Box<dyn FnOnce() -> RunUpshot + '_>) = match &ctx.run {
+        RunAdapter::Coordinated(prepare) => match prepare(pinned.admitted, &request) {
+            Ok(prepared) => {
+                let execution = prepared.execution().clone();
+                (execution, Box::new(move || prepared.execute()))
+            }
+            Err(upshot) => return preparation_refused(ctx, upshot.code),
+        },
+        RunAdapter::Legacy(_) | RunAdapter::Execution(_) => {
+            let execution_id = pinned.admitted.execution_id();
+            let trace_id = pinned.admitted.trace_id();
+            let Some(execution) = direct_execution_link(&pinned.admitted) else {
+                return invalid_execution_identity(ctx);
+            };
+            let service = ctx.service;
+            let adapter = &ctx.run;
+            (
+                execution,
+                Box::new(move || {
+                    let session = service.begin(pinned.admitted);
+                    let upshot = adapter.run(session.context(), &request);
+                    let executed = session.complete(upshot);
+                    debug_assert_eq!(executed.execution_id(), execution_id);
+                    debug_assert_eq!(executed.trace_id(), trace_id);
+                    executed.into_outcome()
+                }),
+            )
+        }
+    };
+    let (mut repaired, fencing) = match record_execution_claim(ctx, lease, &mut claim, execution) {
+        Ok(recorded) => recorded,
+        Err(verdict) => return verdict,
+    };
+    let upshot = run();
     let folded = fold_finished_run(&claim, fencing, upshot.code);
     let (kind, line) = verdict_line(
         ctx,
@@ -773,6 +898,51 @@ fn claim_run_receipt(
     FireVerdict {
         line: with_repair(line, repaired),
         code: upshot.code,
+    }
+}
+
+fn record_execution_claim(
+    ctx: &FireCtx,
+    lease: &super::state::LockLease,
+    claim: &mut Claim,
+    execution: ExecutionLink,
+) -> Result<(u64, u64), FireVerdict> {
+    claim.execution = Some(execution);
+    ArmState::record_claim_with_lease(lease, claim)
+        .map(|outcome| (outcome.repaired, outcome.seq))
+        .map_err(|error| record_refused(ctx, &error))
+}
+
+/// Project the pure tick evidence onto the closed durable receipt vocabulary.
+const fn schedule_decision(missed_slots: Option<u32>) -> ScheduleDecision {
+    if missed_slots.is_some() {
+        ScheduleDecision::CatchUp
+    } else {
+        ScheduleDecision::Scheduled
+    }
+}
+
+fn admitted_root_source(admitted: &AdmittedExecution) -> Option<String> {
+    admitted
+        .snapshot()
+        .text(admitted.snapshot().root())
+        .map(str::to_owned)
+}
+
+fn schedule_identity_refused(ctx: &FireCtx, error: &nika_cadence::ScheduleFinding) -> FireVerdict {
+    FireVerdict {
+        line: format!("failed {} · schedule identity refused: {error}", ctx.label),
+        code: exit::FILE,
+    }
+}
+
+fn preparation_refused(ctx: &FireCtx, code: u8) -> FireVerdict {
+    FireVerdict {
+        line: format!(
+            "failed {} · resident execution admission refused · exit {code}",
+            ctx.label
+        ),
+        code,
     }
 }
 
@@ -1013,6 +1183,17 @@ mod tests {
             registry.beats().next().expect("beat"),
             b"schema: nika/workflow@0.12\ntasks: {}\n",
         );
+        let schedule =
+            ScheduleDraft::from_project("doctor", registry.beats().next().expect("beat"))
+                .and_then(ScheduleDraft::validate)
+                .expect("schedule");
+        let scheduled_for = at("2026-08-19T03:00:00Z").timestamp();
+        let fired_at = at("2026-08-19T03:02:00Z").timestamp();
+        let slot_id = SlotId::derive(
+            schedule.workflow(),
+            schedule.when().cadence_expression().expect("cadence"),
+            &scheduled_for.to_zoned(jiff::tz::TimeZone::UTC),
+        );
         let shot = RunShot {
             project: OwnedDir::open(project.path()).expect("project capability"),
             root: project.path().to_path_buf(),
@@ -1020,12 +1201,24 @@ mod tests {
             source: "nika: doctor\ntasks: {}\n".to_owned(),
             generation: generation.clone(),
             ceiling: 0.25,
+            schedule_id: "doctor".to_owned(),
+            schedule_revision: schedule.revision(),
+            slot_id: slot_id.clone(),
+            decision: ScheduleDecision::CatchUp,
+            scheduled_for,
+            fired_at,
         };
         assert_eq!(shot.root(), project.path());
         assert_eq!(shot.workflow(), "workflows/doctor.nika.yaml");
         assert_eq!(shot.source(), "nika: doctor\ntasks: {}\n");
         assert_eq!(shot.generation(), &generation);
         assert_eq!(shot.ceiling().to_bits(), 0.25f64.to_bits());
+        assert_eq!(shot.schedule_id(), "doctor");
+        assert_eq!(shot.schedule_revision(), &schedule.revision());
+        assert_eq!(shot.slot_id(), &slot_id);
+        assert_eq!(shot.decision(), ScheduleDecision::CatchUp);
+        assert_eq!(shot.scheduled_for(), scheduled_for);
+        assert_eq!(shot.fired_at(), fired_at);
 
         let (line, code) = FireVerdict {
             line: "paused doctor".to_owned(),
@@ -1034,6 +1227,13 @@ mod tests {
         .into_parts();
         assert_eq!(line, "paused doctor");
         assert_eq!(code, exit::PAUSED);
+    }
+
+    #[test]
+    fn tick_fire_slot_evidence_maps_to_closed_schedule_provenance() {
+        assert_eq!(schedule_decision(None), ScheduleDecision::Scheduled);
+        assert_eq!(schedule_decision(Some(1)), ScheduleDecision::CatchUp);
+        assert_eq!(schedule_decision(Some(17)), ScheduleDecision::CatchUp);
     }
 
     #[test]

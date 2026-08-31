@@ -280,10 +280,12 @@ pub mod nika_cli::verbs::arm::emit
 pub fn nika_cli::verbs::arm::emit::disarm(label: &str, write: bool) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::arm::emit::run(args: &nika_cli::verbs::arm::args::ArmArgs, emit_target: nika_cli::verbs::arm::args::EmitTarget) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::arm::fire
+pub use nika_cli::verbs::arm::fire::CoordinatedRunSeam
 pub use nika_cli::verbs::arm::fire::ExecutionRunSeam
 pub use nika_cli::verbs::arm::fire::FireCtx
 pub use nika_cli::verbs::arm::fire::FireCtxError
 pub use nika_cli::verbs::arm::fire::FireVerdict
+pub use nika_cli::verbs::arm::fire::PreparedRun
 pub use nika_cli::verbs::arm::fire::RunSeam
 pub use nika_cli::verbs::arm::fire::RunShot
 pub use nika_cli::verbs::arm::fire::RunUpshot
@@ -368,6 +370,7 @@ pub nika_cli::verbs::check::CheckArgs::json: bool
 pub nika_cli::verbs::check::CheckArgs::model: core::option::Option<alloc::string::String>
 pub nika_cli::verbs::check::CheckArgs::native_strict: bool
 pub nika_cli::verbs::check::CheckArgs::profile: nika_cli::verbs::check::Profile
+pub nika_cli::verbs::check::CheckArgs::sdk_snapshot: bool
 impl clap_builder::derive::Args for nika_cli::verbs::check::CheckArgs
 pub fn nika_cli::verbs::check::CheckArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
 pub fn nika_cli::verbs::check::CheckArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
@@ -481,6 +484,7 @@ pub fn nika_cli::verbs::check::dispatch_targets(targets: &[nika_cli::verbs::chec
 pub fn nika_cli::verbs::check::run(path: &str, json: bool, native_strict: bool, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::check::run_many(paths: &[alloc::string::String], native_strict: bool, profile: nika_cli::verbs::check::Profile, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::check::run_snapshot_export(path: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::check::run_with_profile(path: &str, json: bool, native_strict: bool, profile: nika_cli::verbs::check::Profile, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::context
 pub fn nika_cli::verbs::context::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
@@ -983,6 +987,8 @@ pub fn nika_cli::verbs::serve::ServeArgs::from_arg_matches(__clap_arg_matches: &
 pub fn nika_cli::verbs::serve::ServeArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
 pub fn nika_cli::verbs::serve::ServeArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 pub fn nika_cli::verbs::serve::ServeArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::clone::Clone for nika_cli::verbs::serve::ServeArgs
+pub fn nika_cli::verbs::serve::ServeArgs::clone(&self) -> nika_cli::verbs::serve::ServeArgs
 impl core::fmt::Debug for nika_cli::verbs::serve::ServeArgs
 pub fn nika_cli::verbs::serve::ServeArgs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::serve::ServeArgs
@@ -994,14 +1000,22 @@ pub fn nika_cli::verbs::serve::ServeArgs::try_from(value: U) -> core::result::Re
 impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::serve::ServeArgs where U: core::convert::TryFrom<T>
 pub type nika_cli::verbs::serve::ServeArgs::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_cli::verbs::serve::ServeArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::serve::ServeArgs where T: core::clone::Clone
+pub type nika_cli::verbs::serve::ServeArgs::Owned = T
+pub fn nika_cli::verbs::serve::ServeArgs::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::serve::ServeArgs::to_owned(&self) -> T
 impl<T> core::any::Any for nika_cli::verbs::serve::ServeArgs where T: 'static + ?core::marker::Sized
 pub fn nika_cli::verbs::serve::ServeArgs::type_id(&self) -> core::any::TypeId
 impl<T> core::borrow::Borrow<T> for nika_cli::verbs::serve::ServeArgs where T: ?core::marker::Sized
 pub fn nika_cli::verbs::serve::ServeArgs::borrow(&self) -> &T
 impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::serve::ServeArgs where T: ?core::marker::Sized
 pub fn nika_cli::verbs::serve::ServeArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::serve::ServeArgs where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::serve::ServeArgs::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli::verbs::serve::ServeArgs
 pub fn nika_cli::verbs::serve::ServeArgs::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::serve::ServeArgs where T: core::clone::Clone
+pub fn nika_cli::verbs::serve::ServeArgs::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_cli::verbs::serve::ServeArgs where T: 'static
 pub fn nika_cli::verbs::serve::ServeArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::serve::ServeArgs where T: ?core::marker::Sized

@@ -75,20 +75,10 @@ fn git(args: &[&str]) -> Option<String> {
 }
 
 fn watch_git() {
-    let Some(gitdir) = git(&["rev-parse", "--absolute-git-dir"]) else {
-        return;
-    };
-    let root = Path::new(&gitdir);
-    let head = root.join("HEAD");
-    println!("cargo:rerun-if-changed={}", head.display());
-    let Ok(target) = std::fs::read_to_string(&head) else {
-        return;
-    };
-    let Some(reference) = target.trim().strip_prefix("ref: ") else {
-        return;
-    };
-    let loose = root.join(reference);
-    if loose.exists() {
-        println!("cargo:rerun-if-changed={}", loose.display());
+    for path in build_support::git_watch_paths(
+        |name| git(&["rev-parse", "--git-path", name]).map(PathBuf::from),
+        |path| std::fs::read_to_string(path).ok(),
+    ) {
+        println!("cargo:rerun-if-changed={}", path.display());
     }
 }

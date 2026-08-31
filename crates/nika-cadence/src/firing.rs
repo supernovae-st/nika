@@ -707,7 +707,7 @@ fn after_skip_word(after: AfterSkip) -> &'static str {
 /// A quoted canonical string — the JSON escapes (a free-text field
 /// must never redraw the field boundaries). The same shape the CLI's
 /// ledger speaks; the planes stay separate, the shape is the law.
-fn quoted(raw: &str) -> String {
+pub(crate) fn quoted(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len() + 2);
     out.push('"');
     for ch in raw.chars() {
@@ -728,7 +728,7 @@ fn quoted(raw: &str) -> String {
 /// sha256 hex over the exact bytes — the source-identity convention
 /// (`nika-event`'s `workflow_sha256` speaks it; the primitive is pure,
 /// so it lives here directly rather than as a dependency).
-fn sha256_hex(bytes: &[u8]) -> String {
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::Digest as _;
     let digest = sha2::Sha256::digest(bytes);
     let mut hex = String::with_capacity(64);

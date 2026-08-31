@@ -274,3 +274,21 @@ fn emit_and_tick_share_the_same_v0_policy_set() {
         other => panic!("emit must refuse the same D6 pair, got {other:?}"),
     }
 }
+
+#[test]
+fn schedule_decision_wire_is_closed_and_exact() {
+    use crate::ScheduleDecision;
+
+    assert_eq!(
+        serde_json::to_string(&ScheduleDecision::Scheduled).expect("scheduled wire"),
+        "\"scheduled\""
+    );
+    assert_eq!(
+        serde_json::to_string(&ScheduleDecision::CatchUp).expect("catch-up wire"),
+        "\"catch_up\""
+    );
+    assert!(
+        serde_json::from_str::<ScheduleDecision>("\"late\"").is_err(),
+        "unknown provenance fails closed"
+    );
+}

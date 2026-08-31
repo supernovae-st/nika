@@ -73,6 +73,22 @@ fn history(dir: &std::path::Path, label: &str) -> String {
         .unwrap_or_default()
 }
 
+fn succeeded_resident_job(dir: &std::path::Path, label: &str) -> Option<serde_json::Value> {
+    let text = std::fs::read_to_string(dir.join(".nika/serve/jobs/state.json")).ok()?;
+    let state: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let workflow = format!("workflows/{label}.nika.yaml");
+    state["jobs"].as_array()?.iter().find_map(|job| {
+        let record = job.get("record")?;
+        let origin = &record["receipt"]["origin"];
+        (record["status"].as_str() == Some("succeeded")
+            && record["workflow"].as_str() == Some(workflow.as_str())
+            && origin["kind"].as_str() == Some("schedule")
+            && origin["schedule_origin"].as_str() == Some("project")
+            && origin["schedule_id"].as_str() == Some(label))
+        .then(|| record.clone())
+    })
+}
+
 fn tree_snapshot(root: &std::path::Path) -> Vec<(std::path::PathBuf, Option<Vec<u8>>)> {
     fn walk(
         base: &std::path::Path,
@@ -258,8 +274,8 @@ fn serve_never_fires_a_cloud_beat() {
     );
 }
 
-/// unix: SIGTERM while the resident idles between two slots — it exits
-/// clean (0) and releases its kernel lease. The stable metadata inode remains.
+/// unix: SIGTERM while the resident idles after one settled execution — it
+/// exits clean (0) and releases its server-incarnation lease.
 #[cfg(unix)]
 #[test]
 fn serve_stops_cleanly_on_sigterm() {
@@ -271,15 +287,38 @@ fn serve_stops_cleanly_on_sigterm() {
         .stderr(std::process::Stdio::null())
         .spawn()
         .expect("spawn serve");
-    // Wait for the first fire (the sidecar attests it), then TERM.
+    // Wait for terminal job authority, not the legacy ARM sidecar or the
+    // earlier schedule claim: only succeeded + receipt proves execution.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-    while last_json(&dir, "doctor").is_none() {
+    let fired = loop {
+        if let Some(job) = succeeded_resident_job(&dir, "doctor") {
+            break job;
+        }
         assert!(
             std::time::Instant::now() < deadline,
-            "the first fire never landed"
+            "the first resident execution never settled"
         );
         std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    let receipt = &fired["receipt"];
+    assert_eq!(receipt["job_id"], fired["id"]);
+    assert_eq!(receipt["execution_id"], fired["execution_id"]);
+    assert_eq!(receipt["trace_id"], fired["trace_id"]);
+    assert_eq!(receipt["snapshot_digest"], fired["snapshot_digest"]);
+    assert_eq!(receipt["origin"], fired["origin"]);
+
+    let lock_path = dir.join(".nika/serve/jobs/server.lock");
+    let held_file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+        .expect("resident server lock");
+    match nix::fcntl::Flock::lock(held_file, nix::fcntl::FlockArg::LockExclusiveNonblock) {
+        Err((_file, nix::errno::Errno::EAGAIN)) => {}
+        Err((_file, error)) => panic!("resident lease probe refused: {error}"),
+        Ok(_lease) => panic!("resident server lease was not held"),
     }
+
     let pid = nix::unistd::Pid::from_raw(i32::try_from(child.id()).expect("pid"));
     nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGTERM).expect("kill -TERM");
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
@@ -297,8 +336,8 @@ fn serve_stops_cleanly_on_sigterm() {
     let file = std::fs::OpenOptions::new()
         .read(true)
         .write(true)
-        .open(dir.join(".nika/arm/doctor/lock"))
-        .expect("stable lock metadata");
+        .open(lock_path)
+        .expect("stable server lock metadata");
     let lease = nix::fcntl::Flock::lock(file, nix::fcntl::FlockArg::LockExclusiveNonblock)
         .map_err(|(_, error)| error)
         .expect("the kernel lease is released");

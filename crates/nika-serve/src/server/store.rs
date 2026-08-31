@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
@@ -8,8 +9,8 @@ use serde_json::Value;
 use tokio::sync::{Notify, oneshot};
 
 use crate::{
-    Admission, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobRecord, JobStatus, JobStore,
-    JobStoreError, RequestDigest, ServerIncarnation,
+    Admission, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobOrigin, JobReceipt, JobRecord,
+    JobStatus, JobStore, JobStoreError, RequestDigest, ServerIncarnation,
 };
 
 use super::ServerError;
@@ -18,7 +19,8 @@ type Reply<T> = oneshot::Sender<Result<T, JobStoreError>>;
 
 pub(super) struct EventPage {
     pub events: Vec<JobEvent>,
-    pub status: JobStatus,
+    pub record: JobRecord,
+    pub terminal_sequence: Option<u64>,
 }
 
 enum RequestCommand {
@@ -28,6 +30,19 @@ enum RequestCommand {
         max_jobs: usize,
         workflow: String,
         world: String,
+        reply: Reply<Admission>,
+    },
+    PrepareScheduled {
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        max_jobs: usize,
+        workflow: String,
+        world: String,
+        origin: Box<JobOrigin>,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        event: Value,
         reply: Reply<Admission>,
     },
     Get {
@@ -54,12 +69,16 @@ enum ControlCommand {
         id: JobId,
         status: JobStatus,
         event: Value,
+        outputs: Option<BTreeMap<String, Value>>,
+        receipt: Option<Box<JobReceipt>>,
         reply: Reply<JobRecord>,
     },
-    StampIdentity {
+    StartExecution {
         id: JobId,
         execution_id: String,
         trace_id: String,
+        snapshot_digest: String,
+        event: Value,
         reply: Reply<JobRecord>,
     },
     Interrupt {
@@ -103,23 +122,58 @@ impl StoreHandle {
         receive(answer).await
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn prepare_scheduled_blocking(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        max_jobs: usize,
+        workflow: String,
+        world: String,
+        origin: JobOrigin,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        event: Value,
+    ) -> Result<Admission, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_request(RequestCommand::PrepareScheduled {
+            key,
+            digest,
+            max_jobs,
+            workflow,
+            world,
+            origin: Box::new(origin),
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            event,
+            reply,
+        })?;
+        receive_blocking(answer)
+    }
+
     pub(super) async fn load_world(&self, id: JobId) -> Result<String, ServerError> {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::LoadWorld { id, reply })?;
         receive(answer).await
     }
 
-    pub(super) async fn stamp_identity(
+    pub(super) async fn start_execution(
         &self,
         id: JobId,
         execution_id: String,
         trace_id: String,
+        snapshot_digest: String,
+        event: Value,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control(ControlCommand::StampIdentity {
+        self.send_control(ControlCommand::StartExecution {
             id,
             execution_id,
             trace_id,
+            snapshot_digest,
+            event,
             reply,
         })?;
         receive(answer).await
@@ -135,6 +189,12 @@ impl StoreHandle {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::Get { id, reply })?;
         receive(answer).await
+    }
+
+    pub(super) fn get_blocking(&self, id: JobId) -> Result<Option<JobRecord>, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_request(RequestCommand::Get { id, reply })?;
+        receive_blocking(answer)
     }
 
     pub(super) async fn events_after(
@@ -168,9 +228,51 @@ impl StoreHandle {
             id,
             status,
             event,
+            outputs: None,
+            receipt: None,
             reply,
         })?;
         receive(answer).await
+    }
+
+    pub(super) async fn settle_with_result(
+        &self,
+        id: JobId,
+        status: JobStatus,
+        event: Value,
+        outputs: Option<BTreeMap<String, Value>>,
+        receipt: Option<JobReceipt>,
+    ) -> Result<JobRecord, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_control(ControlCommand::Transition {
+            id,
+            status,
+            event,
+            outputs,
+            receipt: receipt.map(Box::new),
+            reply,
+        })?;
+        receive(answer).await
+    }
+
+    pub(super) fn settle_with_result_blocking(
+        &self,
+        id: JobId,
+        status: JobStatus,
+        event: Value,
+        outputs: Option<BTreeMap<String, Value>>,
+        receipt: Option<JobReceipt>,
+    ) -> Result<JobRecord, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_control(ControlCommand::Transition {
+            id,
+            status,
+            event,
+            outputs,
+            receipt: receipt.map(Box::new),
+            reply,
+        })?;
+        receive_blocking(answer)
     }
 
     pub(super) async fn interrupt(&self, id: JobId) -> Result<JobRecord, ServerError> {
@@ -214,6 +316,15 @@ impl StoreHandle {
 async fn receive<T>(answer: oneshot::Receiver<Result<T, JobStoreError>>) -> Result<T, ServerError> {
     answer
         .await
+        .map_err(|_| ServerError::BlockingTask)?
+        .map_err(ServerError::JobStore)
+}
+
+fn receive_blocking<T>(
+    answer: oneshot::Receiver<Result<T, JobStoreError>>,
+) -> Result<T, ServerError> {
+    answer
+        .blocking_recv()
         .map_err(|_| ServerError::BlockingTask)?
         .map_err(ServerError::JobStore)
 }
@@ -264,13 +375,28 @@ impl StoreActor {
     pub(super) async fn shutdown(mut self) -> Result<(), ServerError> {
         let (reply, answer) = oneshot::channel();
         self.handle
-            .send_control(ControlCommand::Shutdown { reply })?;
+            .controls
+            .send(ControlCommand::Shutdown { reply })
+            .map_err(|_| ServerError::BlockingTask)?;
         answer.await.map_err(|_| ServerError::BlockingTask)?;
         let thread = self.thread.take().ok_or(ServerError::BlockingTask)?;
         tokio::task::spawn_blocking(move || thread.join())
             .await
             .map_err(|_| ServerError::BlockingTask)?
             .map_err(|_| ServerError::BlockingTask)
+    }
+}
+
+impl Drop for StoreActor {
+    fn drop(&mut self) {
+        let (reply, _answer) = oneshot::channel();
+        let _result = self
+            .handle
+            .controls
+            .send(ControlCommand::Shutdown { reply });
+        if let Some(thread) = self.thread.take() {
+            let _result = thread.join();
+        }
     }
 }
 
@@ -318,6 +444,33 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             let result = store.create_or_replay_captured(key, digest, max_jobs, workflow, &world);
             let _result = reply.send(result);
         }
+        RequestCommand::PrepareScheduled {
+            key,
+            digest,
+            max_jobs,
+            workflow,
+            world,
+            origin,
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            event,
+            reply,
+        } => {
+            let result = store.prepare_scheduled_captured(
+                key,
+                digest,
+                max_jobs,
+                workflow,
+                &world,
+                *origin,
+                execution_id,
+                trace_id,
+                snapshot_digest,
+                &event,
+            );
+            let _result = reply.send(result);
+        }
         RequestCommand::Get { id, reply } => {
             let _result = reply.send(store.get(&id));
         }
@@ -333,15 +486,14 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             limit,
             reply,
         } => {
-            let result = store.events_after(&id, after, limit).and_then(|events| {
+            let result =
                 store
-                    .get(&id)?
-                    .ok_or(JobStoreError::JobNotFound(id))
-                    .map(|record| EventPage {
+                    .event_page(&id, after, limit)
+                    .map(|(events, record, terminal_sequence)| EventPage {
                         events,
-                        status: record.status(),
-                    })
-            });
+                        record,
+                        terminal_sequence,
+                    });
             let _result = reply.send(result);
         }
     }
@@ -364,21 +516,42 @@ fn serve_control(
             id,
             status,
             event,
+            outputs,
+            receipt,
             reply,
         } => {
-            let result = store
-                .transition_with_events(&id, status, std::slice::from_ref(&event))
-                .map(|mutation| mutation.record().clone());
+            let result = if outputs.is_some() || receipt.is_some() {
+                store.settle_with_events(
+                    &id,
+                    status,
+                    std::slice::from_ref(&event),
+                    outputs,
+                    receipt.map(|receipt| *receipt),
+                )
+            } else {
+                store.transition_with_events(&id, status, std::slice::from_ref(&event))
+            }
+            .map(|mutation| mutation.record().clone());
             notify_persisted(&result, events);
             let _result = reply.send(result);
         }
-        ControlCommand::StampIdentity {
+        ControlCommand::StartExecution {
             id,
             execution_id,
             trace_id,
+            snapshot_digest,
+            event,
             reply,
         } => {
-            let result = store.stamp_identity(&id, execution_id, trace_id);
+            let result = store
+                .start_execution(
+                    &id,
+                    execution_id,
+                    trace_id,
+                    snapshot_digest,
+                    std::slice::from_ref(&event),
+                )
+                .map(|mutation| mutation.record().clone());
             notify_persisted(&result, events);
             let _result = reply.send(result);
         }
