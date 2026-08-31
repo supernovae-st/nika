@@ -926,6 +926,8 @@ pub fn nika_cap::chart_vl_sibling(tool: &str, args: core::option::Option<&serde_
 pub fn nika_cap::code_bearing_path_class(path: &str) -> core::option::Option<(&'static str, &'static str)>
 pub fn nika_cap::compose_child_env(lookup: impl core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>, passthrough: &[alloc::string::String], authored: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_cap::expand_home_grant(glob: &str, home: &str) -> alloc::string::String
+pub fn nika_cap::file_plumbing_computed_operand(program: &str, args: &[&str]) -> bool
+pub fn nika_cap::file_plumbing_computed_shell(line: &str) -> bool
 pub fn nika_cap::file_plumbing_host_escape<'a>(program: &str, args: &'a [&str], cwd: core::option::Option<&str>, admits: impl core::ops::function::Fn(&str) -> bool) -> core::option::Option<&'a str>
 pub fn nika_cap::file_plumbing_host_escape_shell<'a>(line: &'a str, cwd: core::option::Option<&str>, admits: impl core::ops::function::Fn(&str) -> bool) -> core::option::Option<&'a str>
 pub fn nika_cap::file_plumbing_path_operands<'a>(program: &str, args: &'a [&str]) -> alloc::vec::Vec<&'a str>

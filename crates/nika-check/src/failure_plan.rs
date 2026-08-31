@@ -196,6 +196,29 @@ mod tests {
     }
 
     #[test]
+    fn exec_true_templated_cat_is_on_the_plan() {
+        let p = plan(
+            "nika: dump-tmpl\ninputs:\n  pth: { type: string, default: \"/etc/passwd\" }\npermits:\n  exec: true\ntasks:\n  p:\n    exec: { shell: \"cat ${{ inputs.pth }}\" }\n",
+        );
+        assert!(
+            p.iter()
+                .any(|e| e.shape == "exec_cat_host" && e.code == "NIKA-SEC-004"),
+            "{p:?}"
+        );
+    }
+
+    #[test]
+    fn a_host_grant_leaves_templated_cat_to_the_run() {
+        let p = plan(
+            "nika: dump-granted\ninputs:\n  pth: { type: string, default: \"/etc/passwd\" }\npermits:\n  exec: true\n  fs:\n    read: [\"/etc/passwd\"]\ntasks:\n  p:\n    exec: { shell: \"cat ${{ inputs.pth }}\" }\n",
+        );
+        assert!(
+            p.iter().all(|e| e.shape != "exec_cat_host"),
+            "an explicit host grant is the operator's act: {p:?}"
+        );
+    }
+
+    #[test]
     fn priced_image_is_on_the_plan() {
         let p = plan(
             "nika: b24\npermits: { tools: [\"nika:image_generate\"], fs: { write: [\"./out/**\"] } }\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { provider: xai, prompt: \"a monarch butterfly\", output_dir: \"./out\" } }\n",

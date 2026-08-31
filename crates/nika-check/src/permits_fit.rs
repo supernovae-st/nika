@@ -546,9 +546,10 @@ fn check_exec(
 ///   `exec:` runs a script relative to a computed working directory.
 /// - **DECIDED** · a literal shell line whose tokens are file-plumbing +
 ///   a host path (`cat /etc/passwd` under `exec: true`). Templated
-///   shell stays the run's.
-/// - **LEFT** · a `${{ }}` program or operand — the run re-judges the
-///   resolved argv.
+///   file-plumbing is also this door when the jail would refuse a host
+///   dump (`/etc/passwd`); an explicit host grant is the operator's act.
+/// - **LEFT** · a `${{ }}` program, or a templated operand on a
+///   non-plumbing program — the run re-judges the resolved argv.
 fn check_exec_fs(
     id: &str,
     action: &RawExecAction,
@@ -556,11 +557,14 @@ fn check_exec_fs(
     out: &mut Vec<CapabilityEscape>,
 ) {
     let cwd = action.cwd.as_ref().map(|c| c.value.as_str());
+    let admits_host = permits.jail_admits_read("/etc/passwd");
     if let RawCommand::Shell(line) = &action.command {
         if let Some(path) = nika_cap::file_plumbing_host_escape_shell(&line.value, cwd, |p| {
             permits.jail_admits_read(p)
         }) {
             out.push(fs_escape(id, "shell", path, "fs.read", permits, false));
+        } else if !admits_host && nika_cap::file_plumbing_computed_shell(&line.value) {
+            out.push(computed_plumbing_escape(id, "shell"));
         }
         return;
     }
@@ -572,8 +576,14 @@ fn check_exec_fs(
         return;
     };
     let args: Vec<&str> = elements.collect();
-    if program.contains("${{") || args.iter().any(|a| a.contains("${{")) {
-        return; // the resolved argv is the RUN's verdict
+    if program.contains("${{") {
+        return; // the resolved program is the RUN's verdict
+    }
+    if args.iter().any(|a| a.contains("${{")) {
+        if !admits_host && nika_cap::file_plumbing_computed_operand(program, &args) {
+            out.push(computed_plumbing_escape(id, program));
+        }
+        return;
     }
     if let Some(script) = nika_types::exec::interpreter_script_operand(program, &args) {
         let Some(resolved) = resolve_against_cwd(script, cwd) else {
@@ -748,6 +758,20 @@ fn check_builtin_effect(
 /// auto-widen a boundary toward an escape (the floor-escape precedent:
 /// no permits entry is the honest repair) — and the detail teaches the
 /// narrow way first, the widening named as the deliberate second.
+fn computed_plumbing_escape(id: &str, program: &str) -> CapabilityEscape {
+    CapabilityEscape {
+        task: id.to_owned(),
+        category: "fs",
+        detail: format!(
+            "`{program}` operand is computed — the run refuses a host path (NIKA-SEC-004). \
+             Pin a literal or use nika:read inside permits.fs.read"
+        ),
+        fix: None,
+        floor: false,
+        undeclared: false,
+    }
+}
+
 fn fs_escape(
     id: &str,
     tool: &str,

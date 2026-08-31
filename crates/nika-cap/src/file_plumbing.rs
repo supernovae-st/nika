@@ -104,6 +104,42 @@ pub fn file_plumbing_host_escape<'a>(
     None
 }
 
+/// Split an `exec.shell` line on whitespace and pipe/list metacharacters.
+fn shell_tokens(line: &str) -> Vec<&str> {
+    line.split(|c: char| c.is_whitespace() || matches!(c, '|' | ';' | '&' | '`'))
+        .filter(|t| !t.is_empty())
+        .map(|t| t.trim_matches(|c| c == '"' || c == '\''))
+        .filter(|t| !t.is_empty())
+        .collect()
+}
+
+/// File-plumbing argv whose path operand is computed (`${{ }}`).
+#[must_use]
+pub fn file_plumbing_computed_operand(program: &str, args: &[&str]) -> bool {
+    file_plumbing_path_operands(program, args)
+        .iter()
+        .any(|o| o.contains("${{"))
+}
+
+/// File-plumbing on an `exec.shell` line whose operand is computed.
+#[must_use]
+pub fn file_plumbing_computed_shell(line: &str) -> bool {
+    let tokens = shell_tokens(line);
+    for i in 0..tokens.len() {
+        if tokens[i].contains("${{") {
+            continue;
+        }
+        let base = tokens[i].rsplit(['/', '\\']).next().unwrap_or(tokens[i]);
+        if !FILE_PLUMBING_PROGRAMS.contains(&base) {
+            continue;
+        }
+        if tokens[i + 1..].iter().any(|t| t.contains("${{")) {
+            return true;
+        }
+    }
+    false
+}
+
 /// Scan a literal `exec.shell` line for file-plumbing + a host path.
 ///
 /// `exec: true` grants any program, not a host-file read. A shell string
@@ -117,12 +153,7 @@ pub fn file_plumbing_host_escape_shell<'a>(
     cwd: Option<&str>,
     admits: impl Fn(&str) -> bool,
 ) -> Option<&'a str> {
-    let tokens: Vec<&str> = line
-        .split(|c: char| c.is_whitespace() || matches!(c, '|' | ';' | '&' | '`'))
-        .filter(|t| !t.is_empty())
-        .map(|t| t.trim_matches(|c| c == '"' || c == '\''))
-        .filter(|t| !t.is_empty())
-        .collect();
+    let tokens = shell_tokens(line);
     for i in 0..tokens.len() {
         if tokens[i].contains("${{") {
             continue;
@@ -224,8 +255,18 @@ mod tests {
         assert_eq!(
             file_plumbing_host_escape_shell("cat ${{ inputs.pth }}", None, |_| false),
             None,
-            "templated operand stays the run's"
+            "host-escape stays silent on a computed operand"
         );
+        assert!(file_plumbing_computed_shell("cat ${{ inputs.pth }}"));
+        assert!(file_plumbing_computed_operand(
+            "cat",
+            &["${{ inputs.pth }}"]
+        ));
+        assert!(!file_plumbing_computed_operand(
+            "echo",
+            &["${{ inputs.pth }}"]
+        ));
+        assert!(!file_plumbing_computed_shell("cat README.md"));
         assert_eq!(
             file_plumbing_host_escape_shell("cat /etc/passwd; echo ${{ inputs.x }}", None, |_| {
                 false
