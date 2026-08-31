@@ -183,17 +183,17 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 120
-  aggregate_sha256: bde5aeeba491d21d8f24ca46aa5c649c9163b14cde448eb71177b36c8b0e230e
+  aggregate_sha256: b8661f69c282227885cd39cbebccc036fc653d79c7deada1a59733cc1b25641b
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
   match_count: 176
-  aggregate_sha256: 89482fcb5fcd1c995d26de649dae536de2ad32c043c785f4237150fd93698921
+  aggregate_sha256: 83517952b06b41d485d338362fc15fd3460ddcc823a670068ec4bfe34f5fd532
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: f91b7f7a7340b757c3d19154b727b656f3b28eda0028f03b8c6c3f01d9b4a5b7
+  aggregate_sha256: 7818307c03dece4e21b50b093ba471216385e5cbcd02eeea4622fe84d47c4a53
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -249,7 +249,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: e6078c867412a975ea84ffdbfe27021383a31bf140e14ad4cf52d49769343df1
+  aggregate_sha256: f472eb9968dd92e97ae57979552678d1cee166183bcd7fd5d883f861b81ff09a
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

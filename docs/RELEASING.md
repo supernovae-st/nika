@@ -67,8 +67,11 @@ That tag fires **`.github/workflows/release.yml`**, which:
    bump the formula by hand (§2).
 
 Re-run a tag's build without re-tagging via the **workflow_dispatch** input.
-Runs for the same tag serialize; an already-published asset is downloaded and
+Runs for the same tag never overlap. GitHub retains one pending replay and may
+replace it with a newer one; an already-published asset is downloaded and
 compared, and a replay refuses to replace it when the bytes differ.
+The workflow reads replay tooling from its own exact commit, not from the
+historical tag. Existing SLSA provenance is preserved rather than regenerated.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.

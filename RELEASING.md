@@ -120,9 +120,13 @@ without an explicit operator decision.
    ```
 
    Nothing else. `workflow_dispatch` can rebuild an existing tag. Runs for the
-   same tag serialize, and replay refuses to replace an occupied release asset
-   with different bytes. Know that re-dispatching an old tag still re-points
-   `latest` (docker + release ordering).
+   same tag never overlap; GitHub retains one pending replay and may replace it
+   with a newer one. Replay refuses to replace an occupied release asset with
+   different bytes. Know that re-dispatching an old tag still re-points
+   `latest` (docker + release ordering). The replay helper comes from the exact
+   workflow commit, so a historical tag does not need to contain future
+   release tooling. Existing SLSA provenance is preserved byte-for-byte;
+   absence is healed once.
 
    The portable Agent Plugins mirror is downstream of this immutable tag.
    After the release assets are green, its release-heal lane runs

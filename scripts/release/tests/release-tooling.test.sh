@@ -297,16 +297,28 @@ done
 if grep -q -- '--clobber' "$ROOT/.github/workflows/release.yml"; then
   fail 'the release workflow can overwrite bytes under an occupied asset name'
 fi
-grep -q 'upload-assets-immutable.sh' "$ROOT/.github/workflows/release.yml" \
+grep -q '.release-tooling/scripts/release/upload-assets-immutable.sh' \
+  "$ROOT/.github/workflows/release.yml" \
   || fail 'the release workflow bypasses the immutable asset uploader'
 npm_publish_job="$(sed -n '/^  npm-wasm-publish:/,/^  docker:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$npm_publish_job" | grep -q 'actions/checkout@' \
   || fail 'the isolated npm publish job cannot access the immutable asset helper'
+# The GitHub context is matched literally.
+# shellcheck disable=SC2016
+printf '%s\n' "$npm_publish_job" | grep -q 'ref: \${{ github.workflow_sha }}' \
+  || fail 'a historical replay reads its helper from the old release tree'
 printf '%s\n' "$npm_publish_job" | grep -q 'sparse-checkout: scripts/release/upload-assets-immutable.sh' \
   || fail 'the elevated npm publish job checks out more source than its one helper'
 printf '%s\n' "$npm_publish_job" | grep -q 'persist-credentials: false' \
   || fail 'the elevated npm publish checkout persists its write credential'
+provenance_job="$(sed -n '/^  provenance:/,/^  bump-formula:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$provenance_job" \
+  | grep -q "if: needs.release_state.outputs.intoto_exists != 'true'" \
+  || fail 'a replay can replace the occupied SLSA provenance asset'
+grep -q '^  release_state:' "$ROOT/.github/workflows/release.yml" \
+  || fail 'the workflow never probes whether SLSA provenance is occupied'
 bash "$ROOT/scripts/release/tests/immutable-assets.test.sh" >/dev/null \
   || fail 'the immutable asset replay regression failed'
 grep -q 'TAP_DEPLOY_KEY' "$ROOT/docs/RELEASING.md" \

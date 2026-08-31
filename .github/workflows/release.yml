@@ -22,9 +22,10 @@ on:
 permissions:
   contents: read # least privilege at the top — release job elevates (Scorecard Token-Permissions)
 
-# One tag is one publication lane. A manual replay must queue behind the live
-# train instead of racing it for release assets, the floating image tag, or the
-# Homebrew formula. Never cancel a train after an irreversible registry write.
+# One tag is one publication lane. A manual replay cannot overlap the live
+# train for release assets, the floating image tag, or the Homebrew formula.
+# Never cancel a running train after an irreversible registry write. GitHub's
+# default retains one pending replay and may replace it with a newer one.
 concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
@@ -34,6 +35,42 @@ env:
   CARGO_INCREMENTAL: '0'
 
 jobs:
+  release_state:
+    name: inspect existing release assets
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      intoto_exists: ${{ steps.probe.outputs.intoto_exists }}
+    steps:
+      - name: Probe the occupied SLSA asset name
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          response="$RUNNER_TEMP/release.json"
+          error="$RUNNER_TEMP/release.err"
+          if gh api "repos/${REPO}/releases/tags/${TAG}" > "$response" 2> "$error"; then
+            matches="$(jq '[.assets[] | select(.name == "multiple.intoto.jsonl")] | length' "$response")"
+            case "$matches" in
+              0) echo "intoto_exists=false" >> "$GITHUB_OUTPUT" ;;
+              1) echo "intoto_exists=true" >> "$GITHUB_OUTPUT" ;;
+              *)
+                echo "::error::release has duplicate multiple.intoto.jsonl assets"
+                exit 73
+                ;;
+            esac
+          elif grep -q 'HTTP 404' "$error"; then
+            echo "intoto_exists=false" >> "$GITHUB_OUTPUT"
+          else
+            cat "$error" >&2
+            echo "::error::could not determine existing release state"
+            exit 69
+          fi
+
   build:
     name: build ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -63,6 +100,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
+      # workflow_dispatch may rebuild a tag older than this helper. Pull the
+      # one first-party script from the exact commit whose workflow is running,
+      # never from the historical release tree and never from a floating ref.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release/upload-assets-immutable.sh
+          sparse-checkout-cone-mode: false
       - name: Verify tag matches Cargo workspace version
         env:
           REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
@@ -326,7 +373,7 @@ jobs:
           # rewrite one whose public name is already occupied.
           if gh release view "$REF_NAME" --repo "$REPO" > /dev/null 2>&1; then
             echo "::notice::release ${REF_NAME} already exists — verifying immutable assets"
-            bash scripts/release/upload-assets-immutable.sh "$REF_NAME" "$REPO" \
+            bash .release-tooling/scripts/release/upload-assets-immutable.sh "$REF_NAME" "$REPO" \
               artifacts/nika-*.tar.gz artifacts/SHA256SUMS
           else
             gh release create "$REF_NAME" \
@@ -353,7 +400,11 @@ jobs:
     # verifier refuses SHA refs) — the one documented exception to the
     # SHA-pin law; scorecard's Pinned-Dependencies knows this exception.
     name: slsa provenance (intoto asset)
-    needs: release
+    needs: [release, release_state]
+    # The upstream generator's release uploader deletes and replaces an
+    # occupied same-name asset. SLSA signatures are run-specific, so a replay
+    # would necessarily rewrite public bytes. Run it only to fill absence.
+    if: needs.release_state.outputs.intoto_exists != 'true'
     permissions:
       actions: read # read the workflow run for provenance
       id-token: write # sign the provenance (Sigstore OIDC)
@@ -530,7 +581,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.sha }}
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
           persist-credentials: false
           sparse-checkout: scripts/release/upload-assets-immutable.sh
           sparse-checkout-cone-mode: false
@@ -555,7 +607,7 @@ jobs:
           set -euo pipefail
           # A replay may heal an absent asset, but a public name is immutable
           # once occupied. Different bytes fail closed.
-          bash scripts/release/upload-assets-immutable.sh \
+          bash .release-tooling/scripts/release/upload-assets-immutable.sh \
             "$TAG" "$REPO" ./*.tgz ./*.tgz.sha256
       - name: Attest build provenance (the npm tarball · verifiable via `gh attestation verify`)
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
