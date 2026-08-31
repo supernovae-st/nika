@@ -172,6 +172,50 @@ impl<T> core::convert::From<T> for nika_providers::probe::ExecutionLocus
 pub fn nika_providers::probe::ExecutionLocus::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ExecutionLocus where T: 'static
 pub fn nika_providers::probe::ExecutionLocus::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_providers::probe::KeyAuth
+pub nika_providers::probe::KeyAuth::Absent
+pub nika_providers::probe::KeyAuth::Implausible
+pub nika_providers::probe::KeyAuth::Ok
+pub nika_providers::probe::KeyAuth::PaymentRequired
+pub nika_providers::probe::KeyAuth::Present
+pub nika_providers::probe::KeyAuth::Unauthorized
+impl nika_providers::probe::KeyAuth
+pub const fn nika_providers::probe::KeyAuth::as_str(self) -> &'static str
+pub const fn nika_providers::probe::KeyAuth::is_ready(self) -> bool
+impl core::clone::Clone for nika_providers::probe::KeyAuth
+pub fn nika_providers::probe::KeyAuth::clone(&self) -> nika_providers::probe::KeyAuth
+impl core::cmp::Eq for nika_providers::probe::KeyAuth
+impl core::cmp::PartialEq for nika_providers::probe::KeyAuth
+pub fn nika_providers::probe::KeyAuth::eq(&self, other: &nika_providers::probe::KeyAuth) -> bool
+impl core::fmt::Debug for nika_providers::probe::KeyAuth
+pub fn nika_providers::probe::KeyAuth::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers::probe::KeyAuth
+impl core::marker::StructuralPartialEq for nika_providers::probe::KeyAuth
+impl<D> owo_colors::OwoColorize for nika_providers::probe::KeyAuth
+impl<T, U> core::convert::Into<U> for nika_providers::probe::KeyAuth where U: core::convert::From<T>
+pub fn nika_providers::probe::KeyAuth::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::probe::KeyAuth where U: core::convert::Into<T>
+pub type nika_providers::probe::KeyAuth::Error = core::convert::Infallible
+pub fn nika_providers::probe::KeyAuth::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::probe::KeyAuth where U: core::convert::TryFrom<T>
+pub type nika_providers::probe::KeyAuth::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::probe::KeyAuth::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::probe::KeyAuth where T: core::clone::Clone
+pub type nika_providers::probe::KeyAuth::Owned = T
+pub fn nika_providers::probe::KeyAuth::clone_into(&self, target: &mut T)
+pub fn nika_providers::probe::KeyAuth::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::probe::KeyAuth where T: 'static + ?core::marker::Sized
+pub fn nika_providers::probe::KeyAuth::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::probe::KeyAuth where T: ?core::marker::Sized
+pub fn nika_providers::probe::KeyAuth::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::probe::KeyAuth where T: ?core::marker::Sized
+pub fn nika_providers::probe::KeyAuth::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::probe::KeyAuth where T: core::clone::Clone
+pub unsafe fn nika_providers::probe::KeyAuth::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::probe::KeyAuth
+pub fn nika_providers::probe::KeyAuth::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::probe::KeyAuth where T: 'static
+pub fn nika_providers::probe::KeyAuth::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub enum nika_providers::probe::LocalLiveness
 pub nika_providers::probe::LocalLiveness::Live(u64)
 pub nika_providers::probe::LocalLiveness::Mute(alloc::string::String)
@@ -334,6 +378,8 @@ impl<T> core::convert::From<T> for nika_providers::probe::ProviderReadiness
 pub fn nika_providers::probe::ProviderReadiness::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ProviderReadiness where T: 'static
 pub fn nika_providers::probe::ProviderReadiness::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_providers::probe::classify_http_status(status: u16) -> nika_providers::probe::KeyAuth
+pub fn nika_providers::probe::classify_key_value(prefixes: &[&str], value: &str) -> nika_providers::probe::KeyAuth
 pub fn nika_providers::probe::collect_access_probes(registry: &nika_providers::registry::ProviderRegistry) -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_providers::probe::collect_access_probes_env(config: nika_providers::registry::ProvidersConfig) -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_providers::probe::collect_local_pings(registry: &nika_providers::registry::ProviderRegistry, image_url: core::option::Option<&str>, tts_url: core::option::Option<&str>) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String, nika_providers::probe::PingState)>
@@ -751,6 +797,50 @@ pub fn nika_providers::resolve_access::refuse_pin<'m>(models: impl core::iter::t
 pub fn nika_providers::resolve_access::refuse_pin_for_verbs<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str, _has_infer: bool, _has_agent: bool) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub fn nika_providers::resolve_access::resolve_access(model: &str, candidates: &[nika_providers::resolve_access::AccessCandidate], allow_providers: core::option::Option<&[alloc::string::String]>, pin: core::option::Option<&str>) -> core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>
 pub mod nika_providers::wire
+#[non_exhaustive] pub enum nika_providers::KeyAuth
+pub nika_providers::KeyAuth::Absent
+pub nika_providers::KeyAuth::Implausible
+pub nika_providers::KeyAuth::Ok
+pub nika_providers::KeyAuth::PaymentRequired
+pub nika_providers::KeyAuth::Present
+pub nika_providers::KeyAuth::Unauthorized
+impl nika_providers::probe::KeyAuth
+pub const fn nika_providers::probe::KeyAuth::as_str(self) -> &'static str
+pub const fn nika_providers::probe::KeyAuth::is_ready(self) -> bool
+impl core::clone::Clone for nika_providers::probe::KeyAuth
+pub fn nika_providers::probe::KeyAuth::clone(&self) -> nika_providers::probe::KeyAuth
+impl core::cmp::Eq for nika_providers::probe::KeyAuth
+impl core::cmp::PartialEq for nika_providers::probe::KeyAuth
+pub fn nika_providers::probe::KeyAuth::eq(&self, other: &nika_providers::probe::KeyAuth) -> bool
+impl core::fmt::Debug for nika_providers::probe::KeyAuth
+pub fn nika_providers::probe::KeyAuth::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers::probe::KeyAuth
+impl core::marker::StructuralPartialEq for nika_providers::probe::KeyAuth
+impl<D> owo_colors::OwoColorize for nika_providers::probe::KeyAuth
+impl<T, U> core::convert::Into<U> for nika_providers::probe::KeyAuth where U: core::convert::From<T>
+pub fn nika_providers::probe::KeyAuth::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::probe::KeyAuth where U: core::convert::Into<T>
+pub type nika_providers::probe::KeyAuth::Error = core::convert::Infallible
+pub fn nika_providers::probe::KeyAuth::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::probe::KeyAuth where U: core::convert::TryFrom<T>
+pub type nika_providers::probe::KeyAuth::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::probe::KeyAuth::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::probe::KeyAuth where T: core::clone::Clone
+pub type nika_providers::probe::KeyAuth::Owned = T
+pub fn nika_providers::probe::KeyAuth::clone_into(&self, target: &mut T)
+pub fn nika_providers::probe::KeyAuth::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::probe::KeyAuth where T: 'static + ?core::marker::Sized
+pub fn nika_providers::probe::KeyAuth::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::probe::KeyAuth where T: ?core::marker::Sized
+pub fn nika_providers::probe::KeyAuth::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::probe::KeyAuth where T: ?core::marker::Sized
+pub fn nika_providers::probe::KeyAuth::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::probe::KeyAuth where T: core::clone::Clone
+pub unsafe fn nika_providers::probe::KeyAuth::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::probe::KeyAuth
+pub fn nika_providers::probe::KeyAuth::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::probe::KeyAuth where T: 'static
+pub fn nika_providers::probe::KeyAuth::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_providers::PinRefusal
 pub nika_providers::PinRefusal::NoPath
 pub nika_providers::PinRefusal::NoPath::message: alloc::string::String
@@ -1271,6 +1361,8 @@ pub const nika_providers::PREFIX_REFUSAL_CODE: &str
 pub fn nika_providers::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>
 pub fn nika_providers::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
 pub fn nika_providers::catalog_warning(model: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_providers::classify_http_status(status: u16) -> nika_providers::probe::KeyAuth
+pub fn nika_providers::classify_key_value(prefixes: &[&str], value: &str) -> nika_providers::probe::KeyAuth
 pub fn nika_providers::first_ready_harness(probes: &[nika_providers::probe::ProviderProbe]) -> core::option::Option<&str>
 pub fn nika_providers::provider_of(model: &str) -> &str
 pub fn nika_providers::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>

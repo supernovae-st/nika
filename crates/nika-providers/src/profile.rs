@@ -267,7 +267,14 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
             ))
             .with_code(PREFIX_REFUSAL_CODE),
         ),
-        Some((provider, _)) if !CANONICAL_IDS.contains(&provider) => {
+        Some((provider, _)) => {
+            // Catalog aliases (`grok` → `xai`) are the same seat as the
+            // canonical id. Without this, `grok/grok-3` did-you-mean'd
+            // `groq` (B18 / issue 1306).
+            let canonical = nika_catalog::find_provider(provider).map_or(provider, |row| row.id);
+            if CANONICAL_IDS.contains(&canonical) {
+                return None;
+            }
             // The shared did-you-mean metric (nika-types::suggest — the
             // same threshold the parser/checker suggest with): `antropic`
             // is ONE edit from the most-used provider id, and the rename
@@ -285,13 +292,12 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
             let mut refusal = ResolveRefusal::new(why);
             // Spec claim: the prefix is not a known vendor at all.
             // Engine-local: the vendor is cataloged but this binary
-            // cannot drive it (azure · moonshot-until-wired · aliases).
+            // cannot drive it (azure · moonshot-until-wired).
             if nika_catalog::find_provider(provider).is_none() {
                 refusal = refusal.with_code(PREFIX_REFUSAL_CODE);
             }
             Some(refusal)
         }
-        Some(_) => None,
     }
 }
 
@@ -316,6 +322,7 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
 #[must_use]
 pub fn catalog_warning(model: &str) -> Option<String> {
     let (provider, name) = model.split_once('/')?;
+    let provider = nika_catalog::find_provider(provider).map_or(provider, |row| row.id);
     if !CANONICAL_IDS.contains(&provider) {
         return None; // resolve_refusal owns the unknown-provider class
     }
@@ -599,6 +606,22 @@ mod tests {
             gemini_ghost.contains("matches none of `gemini`'s")
                 && gemini_ghost.contains("newer than this binary's snapshot"),
             "{gemini_ghost}"
+        );
+    }
+
+    /// B18 / issue 1306: `grok` is xAI's alias. `grok/grok-3` must
+    /// resolve as xAI, never did-you-mean `groq`.
+    #[test]
+    fn grok_alias_resolves_as_xai_not_groq() {
+        assert!(
+            resolve_refusal("grok/grok-3").is_none(),
+            "grok is the xAI alias — runnable: {:?}",
+            resolve_refusal("grok/grok-3")
+        );
+        assert!(
+            catalog_warning("grok/grok-3").is_none(),
+            "grok-3 is an xAI catalog model: {:?}",
+            catalog_warning("grok/grok-3")
         );
     }
 
