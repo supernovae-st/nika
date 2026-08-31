@@ -18,7 +18,7 @@ pub(crate) struct TryArgs {
     /// Example slug (bare `nika try` shows the storefront).
     pub(crate) slug: Option<String>,
     /// The whole shelf — the numbered path plus every job (bare
-    /// `nika try` shows three familiar jobs first).
+    /// `nika try` shows the pack first-run shelf).
     #[arg(long)]
     all: bool,
     /// Run on a REAL seat instead of the default mock rehearsal
