@@ -541,6 +541,28 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
 #[must_use]
 pub fn spec_contract_help(code: &str) -> Option<&'static str> {
     match code {
+        "NIKA-PARSE-019" => Some(
+            "  The field's YAML SHAPE is wrong. `tasks:` is a MAP keyed by \
+             task id. An `invoke:` tool id is `nika:<path>` OR \
+             `mcp:<server>/<tool>` (one colon · a slash inside `mcp:`). \
+             The finding names the field whose shape to fix — `nika explain` \
+             cites the same phrase `nika check` printed.\n",
+        ),
+        "NIKA-INFER-004" => Some(
+            "  A thinking model spent the `max_tokens` budget on its \
+             reasoning trace and the visible answer is blank. `nika check` \
+             refuses a catalog-known reasoning seat under 256 tokens \
+             (Gemini 2.5 Flash thinks by default — no `thinking:` block \
+             required). Raise `max_tokens` to at least 256, declare \
+             `thinking:`, or seat a no-think variant.\n",
+        ),
+        "NIKA-INFER-001" => Some(
+            "  The run could not reach that model. `--model` / envelope \
+             `model:` is envelope-only: a per-task `model:` pin stays live \
+             and metered (it does not inherit a parent `--model mock/echo` \
+             rehearsal). Keep testing offline with `--model mock/echo` on \
+             a workflow that has no per-task pins, or `--access <seat>`.\n",
+        ),
         "NIKA-SEC-004" => Some(
             "  The boundary is default-deny once `permits:` is present: an \
              effect the block does not cover is refused, and the FINDING \
@@ -717,6 +739,37 @@ mod tests {
         // Only the earned codes teach — the rest keep the registry row.
         assert!(spec_contract_help("NIKA-SEC-001").is_none());
         assert!(spec_contract_help("NIKA-DAG-001").is_none());
+    }
+
+    /// B02 / C03: explain of PARSE-019 cites the same phrase as check
+    /// (`mcp:<server>/<tool>`).
+    #[test]
+    fn parse_019_explain_cites_mcp_server_tool() {
+        let help = spec_contract_help("NIKA-PARSE-019").expect("teaches");
+        assert!(
+            help.contains("mcp:<server>/<tool>"),
+            "PARSE-019 must cite the invoke grammar check already prints: {help}"
+        );
+        assert!(help.contains("nika:<path>"), "{help}");
+    }
+
+    /// B21 / B30: INFER-004 explain names the check finding (tiny cap
+    /// on a thinking seat) so the closer is no longer a lie.
+    #[test]
+    fn infer_004_explain_names_the_check_floor() {
+        let help = spec_contract_help("NIKA-INFER-004").expect("teaches");
+        assert!(help.contains("nika check"), "{help}");
+        assert!(help.contains("256"), "{help}");
+        assert!(help.contains("max_tokens"), "{help}");
+    }
+
+    /// B22 / issue 1277: INFER-001 explain says `--model` is envelope-only.
+    #[test]
+    fn infer_001_explain_says_model_is_envelope_only() {
+        let help = spec_contract_help("NIKA-INFER-001").expect("teaches");
+        assert!(help.contains("envelope-only"), "{help}");
+        assert!(help.contains("per-task"), "{help}");
+        assert!(help.contains("mock/echo"), "{help}");
     }
 
     /// B04 / B28 · issue 1294 — explain must not teach granting a host
