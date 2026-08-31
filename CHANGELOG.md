@@ -61,6 +61,9 @@ pull requests collided on 2026-08-24 with no source overlap between them, and
   shows `=true` (boolean, not yes). Input/choice show
   `--answer task="your answer"`, so the loud `answer:` line matches
   the resume line instead of burning the ticket.
+- **Oversized HTTP uploads now return their typed 413 response.** Nika drains
+  authenticated bodies with constant memory and the existing request timeout
+  before closing, so Node clients no longer lose the response to `EPIPE`.
 
 ### Security
 
