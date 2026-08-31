@@ -16,6 +16,16 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.116.1](https://github.com/supernovae-st/nika/compare/v0.116.0..v0.116.1) - 2026-08-31
+
+### Fixed
+
+- **Relative path permits keep one stable identity during concurrent creation.**
+  A sibling creating the first missing ancestor can no longer make an allowed
+  target race into a false permit denial.
+- **Resident scheduler shutdown preserves terminal schedule observations.** The
+  durable store now remains available until scheduled executions finish their
+  terminal receipt observation, avoiding a spurious `BlockingTask` on stop.
 ## [0.116.0](https://github.com/supernovae-st/nika/compare/v0.115.0..v0.116.0) - 2026-08-31
 
 ### Added

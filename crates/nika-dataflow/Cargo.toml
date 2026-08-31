@@ -13,11 +13,11 @@ publish                = false
 
 # L0-DEP-FANOUT-EXEMPT: cohesive dataflow needs record values/timestamps, the CEL engine, the island lexer, capability-owned integrity/permits, and canonical error identity
 [dependencies]
-nika-cap    = { path = "../nika-cap", version = "0.116.0" }     # Integrity — the record's taint face · the withheld-jq-native list
-nika-cel    = { path = "../nika-cel", version = "0.116.0" }     # cel-subset/0.1 · the gate + island evaluator
-nika-error  = { path = "../nika-error", version = "0.116.0" }   # NikaErrorCode + the NIKA-170x registry constants
-nika-tmpl   = { path = "../nika-tmpl", version = "0.116.0" }    # the ONE ${{ }} island lexer (check⇄run parity)
-nika-types  = { path = "../nika-types", version = "0.116.0" }   # Timestamp — the record's clock face
+nika-cap    = { path = "../nika-cap", version = "0.116.1" }     # Integrity — the record's taint face · the withheld-jq-native list
+nika-cel    = { path = "../nika-cel", version = "0.116.1" }     # cel-subset/0.1 · the gate + island evaluator
+nika-error  = { path = "../nika-error", version = "0.116.1" }   # NikaErrorCode + the NIKA-170x registry constants
+nika-tmpl   = { path = "../nika-tmpl", version = "0.116.1" }    # the ONE ${{ }} island lexer (check⇄run parity)
+nika-types  = { path = "../nika-types", version = "0.116.1" }   # Timestamp — the record's clock face
 jaq-core    = { workspace = true }   # output: named bindings — THE data language (the same jaq nika:jq runs · spec 04 §binding)
 jaq-json    = { workspace = true }   # jq Val ↔ serde_json bridge for output: bindings
 jaq-std     = { workspace = true }   # jq stdlib filters (map · select · add …) over a binding's raw output
