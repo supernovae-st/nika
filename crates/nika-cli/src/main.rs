@@ -436,10 +436,12 @@ struct RunArgs {
     /// executed would be a lie).
     #[arg(long, conflicts_with = "output")]
     dry_run: bool,
-    /// Override the workflow's envelope `model:` (`<provider>/<name>`).
-    /// Resolved through the SAME path as an envelope model — a bad id
-    /// fails loud when an infer/agent task resolves it. `--model
-    /// mock/echo` previews any workflow offline (zero key · zero network).
+    /// Override the workflow's envelope `model:` only (`<provider>/<name>`).
+    /// Per-task `model:` pins stay live and metered — `--model` does not
+    /// descend into them (B22). Resolved through the SAME path as an
+    /// envelope model — a bad id fails loud when an infer/agent task
+    /// resolves it. `--model mock/echo` rehearses the envelope seat
+    /// offline (zero key · zero network).
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
@@ -1375,6 +1377,19 @@ mod tests {
         assert!(
             help.contains("claude-agent-acp") && help.contains("Retired ACP wrapper"),
             "the retired wrapper trap must stay named: {help}"
+        );
+        let model = run
+            .get_arguments()
+            .find(|a| a.get_long() == Some("model"))
+            .expect("--model");
+        let model_help = model
+            .get_help()
+            .map(std::string::ToString::to_string)
+            .unwrap_or_default();
+        assert!(
+            model_help.contains("envelope")
+                && !model_help.to_ascii_lowercase().contains("any workflow"),
+            "B22 · `--model` help is envelope-only, not a preview of every task: {model_help}"
         );
         let hidden = cmd
             .get_subcommands()
