@@ -63,8 +63,8 @@ pub(crate) fn gates(
 /// mid-run NIKA-1704 abort is the spend-then-apologise this gate closes.
 ///
 /// B20 R1 / issue 1297: a `--var` that resolves an envelope or task
-/// `model:` CEL is not on the static report. [`gates`] passes those
-/// bindings so the live id is judged here; this 4-arg form (the CLI
+/// `model:` CEL is not on the static report. The internal `gates` path
+/// passes those bindings so the live id is judged here; this 4-arg form (the CLI
 /// preflight) still prices `--model` and the file.
 #[must_use]
 pub fn budget_floor_refusal(
