@@ -299,18 +299,15 @@ fn skeletons_name_only_the_cascade_alias_or_are_stamped() {
             .lines()
             .find(|l| l.starts_with("model: "))
             .map(|l| l.trim_start_matches("model: ").trim().trim_matches('\''));
-        assert_eq!(
-            model,
-            Some(want.as_str()),
-            "{} kept a model the cascade did not stamp",
-            path.display()
+        assert!(
+            model == Some(want.as_str()),
+            "a skeleton kept a model the cascade did not stamp"
         );
         assert!(
             !stamped
                 .lines()
                 .any(|l| l.starts_with("model: ") && l.contains("unsloth/")),
-            "{} stamped a Hub id: {stamped}",
-            path.display()
+            "a stamped skeleton must not use a Hub id as its model"
         );
     }
     assert!(scanned >= 8, "scanned {scanned} skeletons");
@@ -359,17 +356,14 @@ fn tty_and_pipe_project_the_same_product() {
 fn assert_parses(yaml: &str) {
     assert!(
         yaml.contains("\n  greet:\n") || yaml.contains("\n  reply:\n"),
-        "a hello task must be indented under tasks: — a `\\` continuation ate the YAML:\n{yaml}"
+        "a hello task must be indented under tasks: — a `\\` continuation ate the YAML"
     );
     let parsed = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     );
-    assert!(
-        parsed.is_ok(),
-        "first-wow yaml must parse: {parsed:?}\n{yaml}"
-    );
+    assert!(parsed.is_ok(), "first-wow yaml must parse");
 }
 
 fn assert_hello_is_mock_echo(yaml: &str) {
@@ -377,16 +371,50 @@ fn assert_hello_is_mock_echo(yaml: &str) {
         .lines()
         .find(|l| l.starts_with("model: "))
         .expect("hello carries model:");
-    assert!(
-        model.contains("mock/echo"),
-        "hello stays mock/echo, got {model}\n{yaml}"
-    );
+    assert!(model.contains("mock/echo"), "hello stays on the mock model");
     assert!(
         !model.contains("openai") && !model.contains("anthropic") && !model.contains("gpt-"),
-        "a present vendor key must not switch hello onto a billed seat: {model}\n{yaml}"
+        "a present vendor key must not switch hello onto a billed seat"
     );
-    assert!(yaml.contains("infer:"), "{yaml}");
-    assert!(!yaml.contains("agent:"), "{yaml}");
+    assert!(yaml.contains("infer:"), "hello must use infer");
+    assert!(!yaml.contains("agent:"), "hello must not use agent");
+}
+
+#[test]
+fn parse_failure_diagnostic_does_not_expose_workflow_body() {
+    const SENTINEL: &str = "nika-test-secret-do-not-log";
+    let yaml =
+        format!("nika: test\nsecrets:\n  token: {SENTINEL}\ntasks:\n  greet:\n    infer: [\n");
+
+    let result = std::panic::catch_unwind(|| assert_parses(&yaml));
+    assert!(
+        result.is_err(),
+        "invalid workflow must fail the parse assertion"
+    );
+    let payload = match result {
+        Ok(()) => return,
+        Err(payload) => payload,
+    };
+    let message = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied());
+    assert!(
+        message.is_some(),
+        "parse assertion must carry a string diagnostic"
+    );
+    let Some(message) = message else {
+        return;
+    };
+
+    assert!(
+        message == "first-wow yaml must parse",
+        "parse assertion must use its static diagnostic"
+    );
+    assert!(
+        !message.contains(SENTINEL),
+        "parse diagnostics must not expose workflow secrets"
+    );
 }
 
 #[test]
@@ -435,10 +463,16 @@ fn harness_first_wow_is_infer_mock_so_the_printed_next_runs() {
     assert_eq!(choice.arrow, "harness");
     let yaml = first_wow_yaml(&choice);
     assert_hello_is_mock_echo(&yaml);
-    assert!(!yaml.contains("ollama/"), "{yaml}");
-    assert!(!yaml.contains("xai/grok-4"), "{yaml}");
-    assert!(!yaml.contains("harness/claude"), "{yaml}");
-    assert!(yaml.contains("yaml-language-server"), "{yaml}");
+    assert!(!yaml.contains("ollama/"), "hello must not select Ollama");
+    assert!(!yaml.contains("xai/grok-4"), "hello must not select Grok");
+    assert!(
+        !yaml.contains("harness/claude"),
+        "hello must not select a harness seat"
+    );
+    assert!(
+        yaml.contains("yaml-language-server"),
+        "hello must retain the language-server directive"
+    );
     assert_parses(&yaml);
 }
 
@@ -465,7 +499,7 @@ fn local_unready_first_wow_runs_on_mock_echo() {
         !yaml
             .lines()
             .any(|l| l.starts_with("model: ") && l.contains("unsloth/")),
-        "Hub ids are pull targets, not model: values:\n{yaml}"
+        "Hub ids are pull targets, not model values"
     );
     assert_parses(&yaml);
     let dir = tempfile::tempdir().expect("tmp");
@@ -479,12 +513,17 @@ fn local_unready_first_wow_runs_on_mock_echo() {
 fn write_first_wow_refuses_without_force() {
     let dir = tempfile::tempdir().expect("tmp");
     let dest = dir.path().join("hello.nika.yaml");
-    std::fs::write(&dest, "stale\n").expect("seed");
+    let existing = "secrets:\n  token: nika-test-secret-do-not-log\n";
+    std::fs::write(&dest, existing).expect("seed");
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     let out = write_first_wow_from(&dest, false, &choice);
     assert_ne!(out.code, 0);
     assert!(out.text.contains("--force"), "{}", out.text);
-    assert_eq!(std::fs::read_to_string(&dest).expect("kept"), "stale\n");
+    let kept = std::fs::read_to_string(&dest).expect("kept");
+    assert!(
+        kept == existing,
+        "refusal must preserve the existing workflow"
+    );
 }
 
 #[test]
