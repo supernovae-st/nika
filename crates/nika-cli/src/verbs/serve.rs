@@ -1048,6 +1048,7 @@ mod tests {
 
     #[test]
     fn a_short_token_file_teaches_the_mint_and_does_not_echo_the_secret() {
+        let _cwd = crate::cwd::hold();
         let tmp = tempfile::tempdir().expect("tmp");
         let workflows = tmp.path().join("wf");
         std::fs::create_dir(&workflows).expect("wf");
@@ -1074,6 +1075,7 @@ mod tests {
     #[test]
     fn a_world_readable_token_file_teaches_the_mint_and_does_not_echo_the_secret() {
         use std::os::unix::fs::PermissionsExt as _;
+        let _cwd = crate::cwd::hold();
         let tmp = tempfile::tempdir().expect("tmp");
         let workflows = tmp.path().join("wf");
         std::fs::create_dir(&workflows).expect("wf");
@@ -1096,6 +1098,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_symlink_token_file_teaches_regular_file_and_does_not_echo_the_secret() {
+        let _cwd = crate::cwd::hold();
         let tmp = tempfile::tempdir().expect("tmp");
         let workflows = tmp.path().join("wf");
         std::fs::create_dir(&workflows).expect("wf");
@@ -1122,6 +1125,7 @@ mod tests {
 
     #[test]
     fn a_missing_token_file_teaches_unreadable_and_the_mint() {
+        let _cwd = crate::cwd::hold();
         let tmp = tempfile::tempdir().expect("tmp");
         let workflows = tmp.path().join("wf");
         std::fs::create_dir(&workflows).expect("wf");
