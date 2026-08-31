@@ -268,10 +268,25 @@ fn example_tip(
     override_given: bool,
     model: &str,
 ) -> Option<String> {
-    if verdict.code == exit::OK || override_given {
+    if verdict.code == exit::OK {
         return None;
     }
     let failure = verdict.failure.as_ref()?;
+    // B06/C06: the try sandbox is not a cargo tree and not a git repo.
+    // `--model` cannot conjure either, so this arm fires before the
+    // override short-circuit (a mock rehearsal still hits seatbelt).
+    if failure.code == "NIKA-SEC-001"
+        && let Some(hint) = nika_pack::try_recover_hint(slug)
+    {
+        let slug = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+        return Some(format!(
+            "tip: try sandbox has no `{}` ({}) · this job is off the first shelf.\n        to own a real workspace: nika new {slug}",
+            hint.missing, hint.recovered_as
+        ));
+    }
+    if override_given {
+        return None;
+    }
     // Infer/provider failures — the "no local model running" case: the
     // offline preview is one flag away (the funnel's highest-intent P0).
     if failure.code.starts_with("NIKA-INFER-") {
@@ -432,5 +447,26 @@ mod tests {
         // breach) carries nothing to key on — silence, not a guess.
         let bare_fail = RunVerdict::bare(exit::WORKFLOW);
         assert!(example_tip("01-hello", &bare_fail, false, "ollama/llama3.1").is_none());
+    }
+
+    /// B06/C06: seatbelt in the try sandbox names cargo/git, even when
+    /// `--model mock/echo` was passed (a model swap cannot conjure them).
+    #[test]
+    fn example_tip_seatbelt_names_the_missing_host_tool() {
+        let belt = failed(
+            "NIKA-SEC-001",
+            "command blocked: seatbelt refused the confined process (status 128)",
+        );
+        let git = example_tip("standup-digest", &belt, true, "mock/echo")
+            .expect("C06 must teach even under --model");
+        assert!(git.contains("`git`"), "{git}");
+        assert!(git.contains("nika new standup-digest"), "{git}");
+        let cargo = example_tip("03-exec-pipeline", &belt, true, "mock/echo")
+            .expect("B06 must teach even under --model");
+        assert!(cargo.contains("`cargo`"), "{cargo}");
+        assert!(
+            example_tip("01-hello", &belt, true, "mock/echo").is_none(),
+            "first-shelf jobs have no recover hint"
+        );
     }
 }
