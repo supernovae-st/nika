@@ -1061,6 +1061,32 @@ fn a_const_fixture_stamps_compiled_true() {
     assert!(obj.get("next").is_none(), "{obj:?}");
 }
 
+/// B22 / issue 1277: a per-task `model:` pin is envelope-only.
+#[test]
+fn envelope_model_hint_names_the_pin() {
+    let hints = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10 }\n  b:\n    infer: { prompt: hi, max_tokens: 10, model: openai/gpt-4o-mini }\n",
+    );
+    assert!(
+        hints
+            .iter()
+            .any(|h| h.kind == "envelope-model" && h.task == "b"),
+        "task b's pin is named: {hints:?}"
+    );
+    assert!(
+        !hints
+            .iter()
+            .any(|h| h.kind == "envelope-model" && h.task == "a"),
+        "envelope-only task a is silent: {hints:?}"
+    );
+    assert!(
+        hints
+            .iter()
+            .any(|h| h.kind == "envelope-model" && h.advice.contains("envelope-only")),
+        "{hints:?}"
+    );
+}
+
 // ── `default:` is a consent decision, not a formatting detail ──────────
 
 #[cfg(test)]

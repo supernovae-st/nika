@@ -115,7 +115,7 @@ use nika_schema::types::CaptureMode;
 #[non_exhaustive]
 pub struct Hint {
     /// The hint class — the closed set today: `cost` · `zero-cap` ·
-    /// `thinking-budget` · `dead-spend` ·
+    /// `envelope-model` · `thinking-budget` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` ·
     /// `secrets-store` · `native-first` ·
@@ -323,6 +323,17 @@ fn push_infer_hints(
     envelope_ids: &BTreeSet<&str>,
     deep_referenced: &BTreeSet<String>,
 ) {
+    if a.model.is_some() {
+        hints.push(hint(
+            "envelope-model",
+            id,
+            format!(
+                "task-level `model:` on `{id}` is envelope-only at the CLI `--model` override — \
+             the pin stays live and metered; `--model mock/echo` does not descend into this task \
+             (B22 / issue 1277)"
+            ),
+        ));
+    }
     if a.max_tokens.is_none() {
         hints.push(hint("cost", id, format!(
             "declare `max_tokens` on `{id}` — the cost report becomes a hard ceiling instead of UNBOUNDED"
