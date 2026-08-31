@@ -280,15 +280,12 @@ impl ResidentAuthority {
     ) -> Result<Self, ServerError> {
         validate_resident_config(&config)?;
         let prepared = prepare_authority(&config).await?;
+        let control_capacity = store_control_capacity(config.limits());
         let store_actor = StoreActor::start(
             prepared.store,
             prepared.incarnation,
             config.limits().max_connections(),
-            config
-                .limits()
-                .max_concurrent_jobs()
-                .saturating_mul(2)
-                .saturating_add(4),
+            control_capacity,
         )?;
         let (jobs, receiver) = mpsc::channel(config.limits().queue_capacity());
         let recovered = store_actor
@@ -361,6 +358,16 @@ impl ResidentAuthority {
     {
         run_authority_with_http(self, server, shutdown).await
     }
+}
+
+fn store_control_capacity(limits: ServerLimits) -> usize {
+    // Every live HTTP connection may have one lifecycle mutation queued while
+    // each running execution still needs a reserved terminal settlement slot.
+    // One final slot keeps shutdown/control progress independent of that fan-in.
+    limits
+        .max_connections()
+        .saturating_add(limits.max_concurrent_jobs())
+        .saturating_add(1)
 }
 
 /// Bound authenticated HTTP listener attached to a resident authority.
