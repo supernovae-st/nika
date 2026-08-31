@@ -122,6 +122,17 @@ pub(super) fn foreign(key: &str) -> Option<&'static str> {
              another workflow, called with `invoke: { workflow: ./child.nika.yaml }` \
              (spec 14 §composition)",
         ),
+        "run" => Some(
+            "GitHub Actions `run:` is a shell step — here the verb is `exec:` \
+             (`exec: { command: \"echo hi\" }` plus `permits.exec`). Envelope \
+             `run:` (`entropy` · `clock`) belongs at column 0 beside `tasks:`, \
+             never inside a task",
+        ),
+        "params" => Some(
+            "`invoke:` takes `args:` (a map), not `params:` — the live dialect \
+             is `invoke: { tool: nika:fetch, args: { url: \"https://example.com\" } }` \
+             (spec 03 §invoke)",
+        ),
         _ => None,
     }
 }
@@ -163,16 +174,23 @@ mod tests {
                 .to_string()
         };
 
-        // `run:` is a REAL envelope key. Inside a task it read as nonsense
-        // to the author who typed it, and the message said only "unknown".
-        let run = sees("    run:\n      x: 1\n");
+        // GitHub Actions `run:` is the false friend (P02/P08 2026-08-31).
+        // Envelope `run:` {entropy, clock} is real at column 0; inside a
+        // task the author meant a shell step. Name `exec:`, not a hoist.
+        let run = sees("    run: echo hi\n");
         assert!(
-            run.contains("ENVELOPE") && run.contains("column 0"),
-            "an envelope key at task level names the depth · {run}"
+            run.contains("exec:") && run.contains("GitHub Actions"),
+            "task-level `run:` names the GHA false friend and `exec:` · {run}"
         );
         assert!(
-            run.contains("infer") && run.contains("invoke"),
-            "and names what a task body actually is · {run}"
+            run.contains("column 0") && run.contains("entropy"),
+            "and still points envelope `run:` at column 0 · {run}"
+        );
+
+        let params = sees("    params: { url: u }\n    exec: { command: [\"true\"] }\n");
+        assert!(
+            params.contains("`args:`") && params.contains("params:"),
+            "task-level `params:` routes to live `args:` · {params}"
         );
 
         // The GitHub Actions spelling of a concept that already has a

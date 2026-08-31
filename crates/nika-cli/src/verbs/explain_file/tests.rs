@@ -135,6 +135,32 @@ fn a_dirty_file_gets_findings_first_never_a_story() {
     assert!(!out.text.contains("the story"), "{}", out.text);
 }
 
+/// P07 · a PERMITS-red file still has a DAG, so explain narrates — but
+/// it must not print « checks clean » / `"clean": true`.
+#[test]
+fn a_permits_red_file_does_not_claim_clean() {
+    let path = tmp(
+        "sec004",
+        "nika: leak\npermits:\n  fs:\n    read: [\"./**\"]\n  tools: [\"nika:read\"]\ntasks:\n  leak:\n    invoke:\n      tool: nika:read\n      args: { path: /etc/passwd }\n",
+    );
+    let human = run(path.to_str().expect("utf8"), false, false);
+    assert_eq!(human.code, exit::OK, "{}", human.text);
+    assert!(
+        human.text.contains("check red"),
+        "human must not lie: {}",
+        human.text
+    );
+    assert!(
+        !human.text.contains("checks clean"),
+        "the old lie: {}",
+        human.text
+    );
+    let json = run(path.to_str().expect("utf8"), true, false);
+    std::fs::remove_file(&path).ok();
+    let v: serde_json::Value = serde_json::from_str(&json.text).expect("parses");
+    assert_eq!(v["clean"], false, "{}", json.text);
+}
+
 #[test]
 fn traces_glance_finds_the_lexicographically_latest_journal() {
     let dir = std::env::temp_dir().join(format!("nika-explain-traces-{}", std::process::id()));

@@ -133,7 +133,7 @@ fn apply_prepass(source: &mut String, repairs: &mut Vec<Repair>, stop_notes: &mu
         *source = next;
         repairs.push(Repair::applied(
             "bare exec: string",
-            "command: / shell: mapping",
+            "command: argv or shell: mapping",
             "bare-exec",
         ));
     } else if has_bare_exec(source) {
@@ -214,8 +214,27 @@ fn wrap_one_bare_exec(line: &str) -> Option<String> {
         return None;
     }
     let indent = indent_of(line);
+    let unquoted = rest.trim().trim_matches(|c| c == '"' || c == '\'');
+    if unquoted.is_empty() {
+        return None;
+    }
+    // Live dialect: argv for inert tokens, `shell:` for metacharacters.
+    // Writing both `command:` and `shell: true` is the 0.102 form and
+    // PARSE-019s (P08 · C13).
+    if unquoted
+        .chars()
+        .any(|c| matches!(c, '|' | ';' | '&' | '<' | '>' | '`' | '$' | '(' | ')'))
+    {
+        let escaped = unquoted.replace('\\', "\\\\").replace('"', "\\\"");
+        return Some(format!("{indent}exec:\n{indent}  shell: \"{escaped}\""));
+    }
+    let args: Vec<String> = unquoted
+        .split_whitespace()
+        .map(|w| format!("\"{w}\""))
+        .collect();
     Some(format!(
-        "{indent}exec:\n{indent}  command: {rest}\n{indent}  shell: true"
+        "{indent}exec:\n{indent}  command: [{}]",
+        args.join(", ")
     ))
 }
 
@@ -1114,7 +1133,8 @@ mod tests {
     #[test]
     fn bare_exec_string_wraps_into_command_or_names_the_mapping() {
         // C13 · issue 1310: `exec: "echo …"` used to no-op with « must
-        // be a YAML mapping ». Wrap into `command:` so D1 can finish.
+        // be a YAML mapping ». Wrap inert scalars to argv (not the
+        // 0.102 command:+shell:true pair, which PARSE-019s).
         let dir = std::env::temp_dir().join(format!("nika-fix-c13-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let path = dir.join("bare-exec.nika.yaml");
@@ -1131,13 +1151,18 @@ mod tests {
         );
         let healed = std::fs::read_to_string(&path).expect("re-read");
         assert!(
-            healed.contains("command:") && healed.contains("shell:"),
-            "C13 writes command: and shell: together: {healed}"
+            healed.contains("command: [\"echo\", \"hello\"]"),
+            "C13 wraps inert scalar to argv: {healed}"
+        );
+        assert!(
+            !healed.contains("shell:"),
+            "inert tokens are not implicit-shell: {healed}"
         );
         assert!(
             !healed.contains("exec: \"echo hello\""),
             "the scalar exec is gone: {healed}"
         );
+        assert_eq!(out.code, exit::OK, "C13 converges green: {}", out.text);
         assert!(
             !healed.contains("workflow:"),
             "C13 must not invent workflow:: {healed}"

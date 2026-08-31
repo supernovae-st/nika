@@ -413,9 +413,14 @@ fn render_human(
     // The name alone: `description:` died with the envelope nuke
     // (2026-08-12), and the old fallback line taught the dead key.
     let _ = writeln!(s, "{}", doc.workflow);
+    let cleanliness = if report.is_clean() {
+        "checks clean"
+    } else {
+        "check red"
+    };
     let _ = writeln!(
         s,
-        "  {} · {} · checks clean",
+        "  {} · {} · {cleanliness}",
         crate::text::count(doc.nodes.len(), "task"),
         crate::text::count(report.waves.len(), "wave")
     );
@@ -859,7 +864,7 @@ fn render_json(
         "explain_version": 1,
         "file": path,
         "workflow": doc.workflow,
-        "clean": true,
+        "clean": report.is_clean(),
         "tasks": tasks,
         "waves": waves,
         "cost": report.cost,

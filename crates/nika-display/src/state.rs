@@ -142,6 +142,10 @@ pub struct RunView {
     /// run ended AWAITING, neither verdict applies (the paused card's
     /// key · `None` on every other run).
     pub paused_task: Option<String>,
+    /// The paused prompt's `mode:` (`confirm` · `input` · `choice`) —
+    /// the card's `--answer` shape. `None` when the frame omitted it
+    /// (stdlib default is confirm).
+    pub(crate) paused_mode: Option<String>,
     /// A WORKFLOW-level failure reason carried on `workflow_failed` (e.g. a
     /// run-end NIKA-VAR-009 typed-output breach) — not tied to a task row.
     pub workflow_detail: Option<String>,
@@ -333,6 +337,7 @@ impl RunView {
                 self.workflow_detail = Some(format!("paused · awaiting an answer for `{task}`"));
                 self.touch(event, TaskState::Paused);
                 self.paused_task = Some(task);
+                self.paused_mode = str_field(event, "mode").map(str::to_owned);
             }
             // Dispatch + checkpoint + cost/stream/permit kinds carry no
             // row state today. `#[non_exhaustive]` future kinds render

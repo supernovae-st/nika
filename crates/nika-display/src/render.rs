@@ -714,9 +714,20 @@ fn append_paused_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
         crate::vocab::hint(
             *theme,
             "answer",
-            &format!("nika run --answer {task}=true FILE  (boolean true/false, not yes)")
+            &pause_answer_hint(task, view.paused_mode.as_deref())
         )
     ));
+}
+
+/// Confirm (stdlib default) takes a boolean. Input/choice take a string —
+/// teaching `=true` / « not yes » on those modes burns the ticket (P11).
+fn pause_answer_hint(task: &str, mode: Option<&str>) -> String {
+    match mode {
+        Some("input" | "choice") => {
+            format!("nika run --answer {task}=\"your answer\" FILE")
+        }
+        _ => format!("nika run --answer {task}=true FILE  (boolean true/false, not yes)"),
+    }
 }
 
 // `&Theme` (not by-value) to match the `frame`/`verdict_frame` borrow that
