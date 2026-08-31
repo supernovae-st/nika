@@ -284,13 +284,17 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
             };
             Some(ResolveRefusal::new(why).with_code(PREFIX_REFUSAL_CODE))
         }
-        Some((provider, _)) => {
+        Some((provider, name)) => {
             // Catalog aliases (`grok` → `xai`) are the same seat as the
             // canonical id. Without this, `grok/grok-3` did-you-mean'd
             // `groq` (B18 / issue 1306).
             let canonical = canonical_provider(provider);
             if CANONICAL_IDS.contains(&canonical) {
-                return None;
+                // Persona 12 · a unique catalog id on the WRONG seat
+                // (`groq/grok-3`) is not a snapshot miss. The repair is
+                // the pasteable id (`xai/grok-3`). Unknown names stay
+                // catalog_warning (providers ship models weekly).
+                return wrong_seat_refusal(canonical, name);
             }
             // The shared did-you-mean metric (nika-types::suggest — the
             // same threshold the parser/checker suggest with): `antropic`
@@ -343,6 +347,9 @@ pub fn catalog_warning(model: &str) -> Option<String> {
     if !CANONICAL_IDS.contains(&provider) {
         return None; // resolve_refusal owns the unknown-provider class
     }
+    if unique_other_seat(provider, name).is_some() {
+        return None; // resolve_refusal owns the wrong-seat class
+    }
     // Lane 1 — the run lane's own names. The first cut of this law
     // consulted the pricing snapshot ONLY and warned on
     // `anthropic/sonnet` — a nickname the binary itself teaches and
@@ -391,6 +398,34 @@ pub fn catalog_warning(model: &str) -> Option<String> {
          binary's snapshot ({}); a run would fail at the provider{guess}",
         snapshot.as_of,
     ))
+}
+
+/// When `name` is uniquely served by a different canonical provider,
+/// that other seat's pasteable id. `None` when this seat lists the
+/// model, when the name is unknown, or when more than one catalog row
+/// serves it (ambiguous → the snapshot-warning class).
+fn unique_other_seat(canonical: &str, name: &str) -> Option<String> {
+    if let Some(row) = nika_catalog::find_provider(canonical)
+        && row
+            .models
+            .iter()
+            .any(|m| m.id.eq_ignore_ascii_case(name) || m.model.eq_ignore_ascii_case(name))
+    {
+        return None;
+    }
+    let pasteable = nika_catalog::pasteable_for(name)?;
+    let owner = pasteable.split_once('/')?.0;
+    (owner != canonical).then_some(pasteable)
+}
+
+/// Persona 12 · `groq/grok-3` is xAI's model on Groq's prefix.
+fn wrong_seat_refusal(canonical: &str, name: &str) -> Option<ResolveRefusal> {
+    let pasteable = unique_other_seat(canonical, name)?;
+    let owner = pasteable.split_once('/').map_or(canonical, |(o, _)| o);
+    Some(ResolveRefusal::new(format!(
+        "`{canonical}/{name}` is not a `{canonical}` model — `{name}` is served \
+         by `{owner}`; write `{pasteable}`"
+    )))
 }
 
 /// Snapshot row id and query name the same catalog seat (`gemini` ↔ `google`).
@@ -653,10 +688,16 @@ mod tests {
             "repair must not dump groq next to xai: {}",
             bare.why
         );
-        let groq_ghost = catalog_warning("groq/grok-3").expect("grok-3 is not a groq model");
+        let groq_wrong = resolve_refusal("groq/grok-3").expect("wrong seat is a refusal");
         assert!(
-            groq_ghost.contains("matches none of `groq`'s"),
-            "{groq_ghost}"
+            groq_wrong.why.contains("xai/grok-3") && groq_wrong.why.contains("served by `xai`"),
+            "repair names the pasteable seat: {}",
+            groq_wrong.why
+        );
+        assert!(
+            catalog_warning("groq/grok-3").is_none(),
+            "wrong-seat is not a snapshot miss: {:?}",
+            catalog_warning("groq/grok-3")
         );
         assert!(
             nika_catalog::find_pricing_for("groq/grok-3").is_none(),
