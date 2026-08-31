@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: 78ed1732998f12f8144e83712b1209dd0539684b5ba952651ed85f21bbbd350f
+  sha256: 8ea34b1e7322064c39c326933acf7b54cb2418b7fd90e8134e2745fd6f96b7dd
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
