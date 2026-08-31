@@ -231,11 +231,12 @@ fn body_at(workflow: &str, cost: f64, at: &str) -> String {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn live_once_wakes_executes_persists_and_does_not_rearm_after_restart() {
     let world = TestWorld::new();
-    let backend = Arc::new(CountingBackend::default());
+    let backend = Arc::new(CountingBackend::gated());
     let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
     let server = world
         .start_with_clock(backend.clone(), limits(), clock.clone())
         .await;
+    let settlement_probe = server.shutdown_probe();
     let at = "2026-09-01T09:00:00Z";
     let created = server
         .request(&put_request(
@@ -279,6 +280,13 @@ async fn live_once_wakes_executes_persists_and_does_not_rearm_after_restart() {
         )
         .is_some()
     );
+    backend.release();
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        settlement_probe.wait_terminal_settled(),
+    )
+    .await
+    .expect("durable terminal settlement");
     let terminal = server
         .request(&get_request(&format!("/v1/jobs/{run_id}")))
         .await;
