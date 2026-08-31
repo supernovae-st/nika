@@ -148,8 +148,8 @@ fn golden_paused_frame_names_the_awaiting_gate() {
         "the paused card names the gate: {joined}"
     );
     assert!(
-        joined.contains("--answer summarize=true"),
-        "the paused card teaches the --answer boolean: {joined}"
+        joined.contains("nika run --answer summarize=true FILE"),
+        "the paused card teaches the resume door: {joined}"
     );
     assert!(
         !joined.contains("=yes"),

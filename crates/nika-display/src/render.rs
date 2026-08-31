@@ -714,7 +714,7 @@ fn append_paused_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
         crate::vocab::hint(
             *theme,
             "resume",
-            &format!("--answer {task}=true  (boolean true/false, not yes)")
+            &format!("nika run --answer {task}=true FILE  (boolean true/false, not yes)")
         )
     ));
 }
