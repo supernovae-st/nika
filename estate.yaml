@@ -157,7 +157,7 @@ patterns:
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 199
-  aggregate_sha256: 88f1442cf599cf6652ad6329ed9d4f954c62ffbf43588048e066a89b54239ac1
+  aggregate_sha256: 639c59835571b631b468910ae80ea5d1318f75f0ec91554fdf7e96cf3612add2
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
