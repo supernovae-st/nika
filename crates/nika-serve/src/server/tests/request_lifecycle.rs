@@ -276,6 +276,73 @@ async fn traversal_extension_confusion_and_oversize_never_execute() {
     server.stop().await.expect("clean stop");
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn oversized_full_duplex_upload_delivers_typed_413_before_close() {
+    const UPLOAD_BYTES: usize = 8 * 1024 * 1024;
+
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let upload_limits = ServerLimits::new(
+        1024,
+        Duration::from_secs(30),
+        Duration::from_secs(2),
+        Duration::from_millis(200),
+        4,
+        16,
+        64,
+        32,
+    );
+    let server = world.start(backend.clone(), upload_limits).await;
+    let stream = tokio::net::TcpStream::connect(server.address)
+        .await
+        .expect("connect");
+    let (mut reader, mut writer) = stream.into_split();
+    let body = vec![b'x'; UPLOAD_BYTES];
+    let head = format!(
+        "POST /v1/check HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n",
+        body.len(),
+        auth_header()
+    );
+
+    let upload = async move {
+        writer.write_all(head.as_bytes()).await?;
+        writer.write_all(&body).await?;
+        std::io::Result::Ok(writer)
+    };
+    let download = async move {
+        let mut response = Vec::new();
+        reader.read_to_end(&mut response).await?;
+        std::io::Result::Ok(response)
+    };
+    let (upload, response) = tokio::join!(upload, download);
+
+    let _writer = upload.expect("server must consume the declared upload before closing");
+    let response = WireResponse::parse(&response.expect("response"));
+    assert_eq!(response.status, 413, "{}", response.body);
+    assert_eq!(response.json()["error"]["code"], "body_too_large");
+    assert_eq!(backend.calls(), 0);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn chunked_body_still_refuses_at_the_same_bounded_collector() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let first = "x".repeat(1024);
+    let request = format!(
+        "POST /v1/check HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n{}\r\n400\r\n{first}\r\n1\r\nx\r\n0\r\n\r\n",
+        auth_header()
+    );
+
+    let response = server.request(&request).await;
+
+    assert_eq!(response.status, 413, "{}", response.body);
+    assert_eq!(response.json()["error"]["code"], "body_too_large");
+    assert_eq!(backend.calls(), 0);
+    server.stop().await.expect("clean stop");
+}
+
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread")]
 async fn symlinked_workflow_refuses_before_backend_execution() {
@@ -326,6 +393,30 @@ async fn slow_authenticated_body_times_out_without_execution() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn oversized_slow_body_remains_bounded_by_request_timeout() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), short_request_limits()).await;
+    let mut stream = tokio::net::TcpStream::connect(server.address)
+        .await
+        .expect("connect");
+    let headers = format!(
+        "POST /v1/check HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: 2048\r\n{}\r\n{{",
+        auth_header()
+    );
+    stream.write_all(headers.as_bytes()).await.expect("headers");
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    let mut response = Vec::new();
+    stream.read_to_end(&mut response).await.expect("response");
+    let response = WireResponse::parse(&response);
+
+    assert_eq!(response.status, 408, "{}", response.body);
+    assert_eq!(response.json()["error"]["code"], "request_timeout");
+    assert_eq!(backend.calls(), 0);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn connection_ceiling_bounds_slow_header_tasks_and_recovers() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
@@ -355,6 +446,29 @@ async fn connection_ceiling_bounds_slow_header_tasks_and_recovers() {
         .await;
     assert_eq!(recovered.status, 200);
     server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn shutdown_aborts_an_open_header_without_waiting_for_its_timeout() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend, one_connection_limits()).await;
+    let mut open = tokio::net::TcpStream::connect(server.address)
+        .await
+        .expect("connect");
+    open.write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\n")
+        .await
+        .expect("partial headers");
+    tokio::time::sleep(Duration::from_millis(20)).await;
+
+    let join = server.signal_stop();
+    tokio::time::timeout(Duration::from_millis(200), join)
+        .await
+        .expect("shutdown must abort open HTTP connections")
+        .expect("server task")
+        .expect("clean stop");
+    let mut byte = [0_u8; 1];
+    assert_eq!(open.read(&mut byte).await.expect("closed socket"), 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]
