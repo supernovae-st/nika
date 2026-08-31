@@ -941,13 +941,11 @@ fn tcp_ping_reachable_and_unreachable() {
         ping_once(&addr, Duration::from_millis(300)),
         PingState::Reachable(_)
     ));
-    // Bind then drop → the port is free again: nothing listens on it.
-    let closed = {
-        let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
-        l.local_addr().expect("addr").to_string()
-    };
+    // Port zero can request an ephemeral bind but can never name a listening
+    // endpoint. Keeping zero avoids the bind-drop race where another local
+    // process claims the released ephemeral port before this probe runs.
     assert_eq!(
-        ping_once(&closed, Duration::from_millis(300)),
+        ping_once("127.0.0.1:0", Duration::from_millis(300)),
         PingState::Unreachable
     );
     assert_eq!(
