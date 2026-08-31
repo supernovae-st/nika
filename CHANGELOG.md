@@ -36,17 +36,6 @@ pull requests collided on 2026-08-24 with no source overlap between them, and
 - **`nika try` names a missing host tool in the sandbox.**
   `standup-digest` (git) and `03-exec-pipeline` (cargo) print a recover
   tip instead of an opaque seatbelt, even under `--model mock/echo`.
-
-### Security
-
-- **Secret-bearing workflows stay out of test and fallback diagnostics.**
-  Panic and assertion paths no longer format raw workflow, command, report,
-  parser, or runtime content; sentinel regressions close 16 cleartext-log flows.
-
-## [0.116.1](https://github.com/supernovae-st/nika/compare/v0.116.0..v0.116.1) - 2026-08-31
-
-### Fixed
-
 - **Night gauntlet close (PR 1320).** `exec.shell` host reads and
   computed file-plumbing are NIKA-SEC-004 at check and confine; mock
   images name the rehearsal and paint a red band; `groq/grok-3` is a
@@ -72,6 +61,19 @@ pull requests collided on 2026-08-24 with no source overlap between them, and
   shows `=true` (boolean, not yes). Input/choice show
   `--answer task="your answer"`, so the loud `answer:` line matches
   the resume line instead of burning the ticket.
+
+### Security
+
+- **Secret-bearing workflows stay out of test and fallback diagnostics.**
+  Panic and assertion paths no longer format raw workflow, command, report,
+  parser, or runtime content; sentinel regressions close 16 cleartext-log flows.
+
+## [0.116.1](https://github.com/supernovae-st/nika/compare/v0.116.0..v0.116.1) - 2026-08-31
+
+**Lineage note.** Tag `v0.116.1` was created but never published: no GitHub
+Release or release assets exist. Its contents are delivered and documented
+under `0.116.2` above.
+
 ## [0.116.0](https://github.com/supernovae-st/nika/compare/v0.115.0..v0.116.0) - 2026-08-31
 
 ### Added
