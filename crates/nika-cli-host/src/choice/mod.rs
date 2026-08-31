@@ -626,10 +626,26 @@ fn persist(choice: &InferenceChoice) -> std::io::Result<()> {
 /// Replace the top-level `model:` of a scaffold with a model THIS
 /// binary can sit on. Hub ids (`unsloth/…`) and harness seat ids are
 /// pull / `--access` targets — MODELS refuses them as `model:`.
+///
+/// The hello lesson is exempt (B01 / B17 / I01): pack `01-hello` is
+/// `mock/echo` on purpose, and a present `OPENAI_API_KEY` must not
+/// rewrite it onto a billed seat.
 pub(crate) fn stamp_model_file(path: &Path) -> std::io::Result<()> {
     let body = std::fs::read_to_string(path)?;
+    if is_hello_lesson(&body) {
+        return Ok(());
+    }
     let model = runnable_stamp_model(&collect());
     std::fs::write(path, stamp_body(&body, &model))
+}
+
+/// The one hello (`nika: hello` · pack `01-hello` / `nika new hello`).
+#[must_use]
+pub(crate) fn is_hello_lesson(body: &str) -> bool {
+    body.lines().any(|line| {
+        let t = line.trim();
+        t == "nika: hello" || t.starts_with("nika: hello ")
+    })
 }
 
 /// The `model:` a scaffold may carry. `chosen_model` stays the cascade
@@ -714,8 +730,9 @@ pub(crate) fn first_wow_dest(dest: Option<&str>) -> &str {
     }
 }
 
-/// Write the cascade's first workflow. Key → `infer:` with that model.
-/// Anything else → `infer:` on `mock/echo` so the printed Next runs.
+/// Write the first-wow workflow. Always the pack `01-hello` body
+/// (`mock/echo`) — a present vendor key must not switch the file
+/// onto a billed seat (B01 / B17 / I01).
 #[must_use]
 pub(crate) fn write_first_wow(dest: &Path, force: bool) -> crate::output::VerbOutput {
     write_first_wow_from(dest, force, &collect())
@@ -733,7 +750,8 @@ pub(crate) fn write_first_wow_from(
             dest.display()
         ));
     }
-    let body = first_wow_yaml(choice);
+    let dest_s = dest.display().to_string();
+    let body = first_wow_yaml(choice).replace("examples/01-hello.nika.yaml", &dest_s);
     match std::fs::write(dest, body) {
         Ok(()) => crate::output::VerbOutput::ok(format!(
             "wrote {} · {}",
@@ -800,41 +818,19 @@ fn cwd_workflows(cwd: &Path) -> Vec<String> {
     names
 }
 
-fn local_ready(choice: &InferenceChoice) -> bool {
-    choice.rungs.iter().any(|r| r.id == "local" && r.ready)
-}
-
-/// Hub ids (`unsloth/…`) are pull targets, not runnable `model:` values.
-/// The file that must RUN uses a provider this binary actually seats.
-fn first_wow_infer_model(choice: &InferenceChoice) -> (String, String) {
-    if choice.arrow == "key" {
-        return (choice.chosen_model.clone(), String::new());
-    }
-    let note = if local_ready(choice) {
-        String::new()
-    } else {
-        format!(
-            "# Gear One on this machine: nika model pull {}\n",
-            choice.local_pull
-        )
-    };
-    ("mock/echo".to_owned(), note)
-}
-
-/// The first-wow body — a projection of the cascade, never a hardcoded vendor.
+/// The first-wow body is pack `01-hello` — one hello, always `mock/echo`.
+/// The cascade still chooses a billed seat for OTHER scaffolds; hello
+/// is the rehearsal that must run on a keyless (and a keyed) machine.
 #[must_use]
-pub(crate) fn first_wow_yaml(choice: &InferenceChoice) -> String {
-    // Spaces after `\n` must live on the SAME string fragment. A `\`
-    // line-continuation eats the next line's indent and the YAML collapses
-    // (`tasks.reply` and `outputs.reply` then collide at the top level).
-    // Harness-ready used to stamp `agent:` with no `model:` and print
-    // `--access harness` — that Next is NIKA-INFER-001 (gauntlet W2).
-    // The file a new user pastes must run on a keyless machine.
-    let (model, note) = first_wow_infer_model(choice);
-    let model = yaml_scalar(&model);
-    format!(
-        "{FIRST_WOW_MODELINE}{note}nika: hello\nmodel: {model}\npermits: {{}}\ntasks:\n  reply:\n    infer:\n      prompt: \"{FIRST_WOW_PROMPT}\"\n      max_tokens: 64\noutputs:\n  reply: ${{{{ tasks.reply.output }}}}\n"
-    )
+pub(crate) fn first_wow_yaml(_choice: &InferenceChoice) -> String {
+    if let Some(body) = nika_pack::example("01-hello") {
+        body.to_owned()
+    } else {
+        let model = yaml_scalar("mock/echo");
+        format!(
+            "{FIRST_WOW_MODELINE}nika: hello\nmodel: {model}\npermits: {{}}\ntasks:\n  greet:\n    infer:\n      prompt: \"{FIRST_WOW_PROMPT}\"\n      max_tokens: 64\noutputs:\n  greeting: ${{{{ tasks.greet.output }}}}\n"
+        )
+    }
 }
 
 /// Pack skeletons — the cascade stamps them at `nika new`.

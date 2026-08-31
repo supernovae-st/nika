@@ -358,8 +358,8 @@ fn tty_and_pipe_project_the_same_product() {
 
 fn assert_parses(yaml: &str) {
     assert!(
-        yaml.contains("\n  reply:\n"),
-        "task `reply:` must be indented under tasks: — a `\\` continuation ate the YAML:\n{yaml}"
+        yaml.contains("\n  greet:\n") || yaml.contains("\n  reply:\n"),
+        "a hello task must be indented under tasks: — a `\\` continuation ate the YAML:\n{yaml}"
     );
     let parsed = nika_schema::parse(
         yaml,
@@ -370,6 +370,23 @@ fn assert_parses(yaml: &str) {
         parsed.is_ok(),
         "first-wow yaml must parse: {parsed:?}\n{yaml}"
     );
+}
+
+fn assert_hello_is_mock_echo(yaml: &str) {
+    let model = yaml
+        .lines()
+        .find(|l| l.starts_with("model: "))
+        .expect("hello carries model:");
+    assert!(
+        model.contains("mock/echo"),
+        "hello stays mock/echo, got {model}\n{yaml}"
+    );
+    assert!(
+        !model.contains("openai") && !model.contains("anthropic") && !model.contains("gpt-"),
+        "a present vendor key must not switch hello onto a billed seat: {model}\n{yaml}"
+    );
+    assert!(yaml.contains("infer:"), "{yaml}");
+    assert!(!yaml.contains("agent:"), "{yaml}");
 }
 
 #[test]
@@ -417,9 +434,7 @@ fn harness_first_wow_is_infer_mock_so_the_printed_next_runs() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     assert_eq!(choice.arrow, "harness");
     let yaml = first_wow_yaml(&choice);
-    assert!(yaml.contains("infer:"), "{yaml}");
-    assert!(yaml.contains("model: mock/echo"), "{yaml}");
-    assert!(!yaml.contains("agent:"), "{yaml}");
+    assert_hello_is_mock_echo(&yaml);
     assert!(!yaml.contains("ollama/"), "{yaml}");
     assert!(!yaml.contains("xai/grok-4"), "{yaml}");
     assert!(!yaml.contains("harness/claude"), "{yaml}");
@@ -428,40 +443,30 @@ fn harness_first_wow_is_infer_mock_so_the_printed_next_runs() {
 }
 
 #[test]
-fn key_first_wow_is_infer_with_the_cascade_model() {
-    let choice = collect_from(&machine(
-        Some(18),
-        vec![],
-        false,
-        &["ANTHROPIC_API_KEY"],
-        true,
-    ));
-    let yaml = first_wow_yaml(&choice);
-    assert!(yaml.contains("infer:"), "{yaml}");
-    assert!(yaml.contains("anthropic/"), "{yaml}");
-    assert!(!yaml.contains("agent:"), "{yaml}");
-    assert!(!yaml.contains("ollama/"), "{yaml}");
-    assert_parses(&yaml);
+fn key_first_wow_stays_mock_echo_even_with_openai_or_anthropic() {
+    // B01 / B17 / I01: `OPENAI_API_KEY` (or any cascade key) must NOT
+    // switch hello onto a billed seat. The pack lesson is mock/echo.
+    for key in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "XAI_API_KEY"] {
+        let choice = collect_from(&machine(Some(18), vec![], false, &[key], true));
+        assert_eq!(choice.arrow, "key", "{key}");
+        let yaml = first_wow_yaml(&choice);
+        assert_hello_is_mock_echo(&yaml);
+        assert_parses(&yaml);
+    }
 }
 
 #[test]
-fn local_unready_first_wow_runs_on_mock_and_names_the_pull() {
+fn local_unready_first_wow_runs_on_mock_echo() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     assert_eq!(choice.arrow, "local");
     let yaml = first_wow_yaml(&choice);
-    assert!(yaml.contains("infer:"), "{yaml}");
-    assert!(yaml.contains("model: mock/echo"), "{yaml}");
-    assert!(
-        yaml.contains(&format!("nika model pull {}", choice.local_pull)),
-        "{yaml}"
-    );
+    assert_hello_is_mock_echo(&yaml);
     assert!(
         !yaml
             .lines()
             .any(|l| l.starts_with("model: ") && l.contains("unsloth/")),
         "Hub ids are pull targets, not model: values:\n{yaml}"
     );
-    assert!(!yaml.contains("agent:"), "{yaml}");
     assert_parses(&yaml);
     let dir = tempfile::tempdir().expect("tmp");
     let dest = dir.path().join("hello.nika.yaml");
@@ -502,11 +507,24 @@ fn write_first_wow_lands_a_file_and_names_run() {
         out.text
     );
     let body = std::fs::read_to_string(&dest).expect("body");
-    assert!(body.contains("infer:"));
-    assert!(body.contains("model: mock/echo"));
-    assert!(!body.contains("agent:"));
+    assert_hello_is_mock_echo(&body);
     assert!(!body.contains("xai/grok-4"));
     assert!(!body.contains("ollama/"));
+}
+
+#[test]
+fn stamp_does_not_switch_hello_onto_a_cascade_key() {
+    let pack = nika_pack::example("01-hello").expect("pack 01-hello");
+    assert!(is_hello_lesson(pack));
+    assert!(!is_hello_lesson(
+        "nika: chain\nmodel: mock/echo\npermits: {}\ntasks: {}\n"
+    ));
+    let dir = tempfile::tempdir().expect("tmp");
+    let dest = dir.path().join("01-hello.nika.yaml");
+    std::fs::write(&dest, pack).expect("seed");
+    stamp_model_file(&dest).expect("stamp");
+    let body = std::fs::read_to_string(&dest).expect("body");
+    assert_hello_is_mock_echo(&body);
 }
 
 #[test]

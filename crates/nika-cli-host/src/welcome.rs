@@ -186,12 +186,8 @@ fn under_home(path: &str) -> String {
     }
 }
 
-/// The `nika welcome` verb. `json` emits the versioned machine projection
-/// (`welcome_version: 1` · additive-only, like every machine envelope);
-/// the human mirror renders through the ONE colour seam (`Theme` ·
-/// semantic never decorative — the same law every other surface obeys).
-///
 /// Stamp the cascade's `model:` onto a file `nika new` just wrote.
+/// The hello lesson is left on `mock/echo` (B01).
 ///
 /// # Errors
 /// Returns when the file cannot be read or rewritten.
@@ -218,6 +214,10 @@ pub fn first_wow_dest(dest: Option<&str>) -> &str {
     crate::choice::first_wow_dest(dest)
 }
 
+/// The `nika welcome` verb. `json` emits the versioned machine projection
+/// (`welcome_version: 1` · additive-only, like every machine envelope);
+/// the human mirror renders through the ONE colour seam (`Theme` ·
+/// semantic never decorative — the same law every other surface obeys).
 #[must_use]
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
     let candidate = std::env::current_dir().ok();
