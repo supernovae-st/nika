@@ -60,7 +60,11 @@ pub(super) fn print_flow_epilogue(
     for line in crate::display::flow::waterfall(view, &theme) {
         println!("{line}");
     }
-    let mut notes = fruit_notes(view, trace_recorded);
+    let mut notes = fruit_notes(
+        view,
+        trace_recorded,
+        super::example::try_rehearsal_slug(file),
+    );
     notes.extend(outputs_note(outputs));
     for line in crate::display::flow::verdict_card(view, &theme, &notes) {
         println!("{line}");
@@ -84,21 +88,39 @@ pub(super) fn print_flow_epilogue(
 /// and a path that stat fails (deleted since · sandbox) simply drops
 /// its size cell, never the line: the fruit is the run's claim, the
 /// size is today's disk.
-pub(super) fn fruit_notes(view: &crate::RunView, trace_recorded: bool) -> Vec<String> {
+pub(super) fn fruit_notes(
+    view: &crate::RunView,
+    trace_recorded: bool,
+    try_slug: Option<&str>,
+) -> Vec<String> {
     use crate::display::{fruit, shape};
     let mut notes = Vec::new();
     let files = fruit::written_files(view);
-    for f in files.iter().take(3) {
-        let size = std::fs::metadata(&f.path)
-            .ok()
-            .and_then(|m| usize::try_from(m.len()).ok());
-        notes.push(match size {
-            Some(n) => format!("{} {} ({})", f.verb, f.path, shape::fmt_bytes(n)),
-            None => format!("{} {}", f.verb, f.path),
-        });
-    }
-    if files.len() > 3 {
-        notes.push(format!("… +{} more files", files.len() - 3));
+    if let Some(slug) = try_slug {
+        // C12 · UX-3: the try sandbox discards the room. Naming a path
+        // that will not exist after the verb returns is the lie.
+        if !files.is_empty() {
+            notes.push("rehearsal · file not kept".to_owned());
+        }
+        notes.push(super::example::try_own_file_line(slug));
+    } else {
+        for f in files.iter().take(3) {
+            let size = std::fs::metadata(&f.path)
+                .ok()
+                .and_then(|m| usize::try_from(m.len()).ok());
+            notes.push(match size {
+                Some(n) => format!("{} {} ({})", f.verb, f.path, shape::fmt_bytes(n)),
+                None => format!("{} {}", f.verb, f.path),
+            });
+        }
+        if files.len() > 3 {
+            notes.push(format!("… +{} more files", files.len() - 3));
+        }
+        if trace_recorded {
+            notes.push("wrote .nika/traces".to_owned());
+            push_if_written(&mut notes, ".nika/quarantine");
+            push_if_written(&mut notes, ".nika/inference-choice.json");
+        }
     }
     // The model's last word — the answer SEEN, not narrated (bounded by
     // the shape law: head only, never a data dump; ADR-099 §1 already
@@ -124,6 +146,12 @@ pub(super) fn fruit_notes(view: &crate::RunView, trace_recorded: bool) -> Vec<St
         }
     }
     notes
+}
+
+fn push_if_written(notes: &mut Vec<String>, path: &str) {
+    if std::path::Path::new(path).exists() {
+        notes.push(format!("wrote {path}"));
+    }
 }
 
 /// Widest the `said` quote grows (display cells) — fits the verdict
@@ -439,14 +467,14 @@ mod tests {
     #[test]
     fn a_cut_said_teaches_the_trace_outputs_door() {
         let long = format!("\"{}\"", "a long answer ".repeat(12));
-        let notes = super::fruit_notes(&said_view(&long), true);
+        let notes = super::fruit_notes(&said_view(&long), true, None);
         assert!(
             notes
                 .iter()
                 .any(|n| n == "see it whole: nika trace outputs"),
             "{notes:?}"
         );
-        let notes = super::fruit_notes(&said_view("\"short.\""), true);
+        let notes = super::fruit_notes(&said_view("\"short.\""), true, None);
         assert!(
             notes.iter().all(|n| !n.contains("see it whole")),
             "a short answer keeps the card quiet: {notes:?}"
@@ -456,10 +484,39 @@ mod tests {
         // journal deliberately off, and the taught zero-arg door failed
         // exit 3 in the exact context where it was taught.
         let long = format!("\"{}\"", "a long answer ".repeat(12));
-        let notes = super::fruit_notes(&said_view(&long), false);
+        let notes = super::fruit_notes(&said_view(&long), false, None);
         assert!(
             notes.iter().all(|n| !n.contains("see it whole")),
             "no recorded trace = no taught door: {notes:?}"
+        );
+    }
+
+    #[test]
+    fn a_recorded_run_lists_engine_traces_on_the_writes_card() {
+        let notes = super::fruit_notes(&said_view("\"ok.\""), true, None);
+        assert!(
+            notes.iter().any(|n| n == "wrote .nika/traces"),
+            "B12: {notes:?}"
+        );
+        let notes = super::fruit_notes(&said_view("\"ok.\""), false, None);
+        assert!(
+            notes.iter().all(|n| n != "wrote .nika/traces"),
+            "a try/no-journal run does not claim a trace: {notes:?}"
+        );
+    }
+
+    #[test]
+    fn a_try_rehearsal_card_does_not_name_a_discarded_path() {
+        let notes = super::fruit_notes(&said_view("\"ok.\""), false, Some("competitor-radar"));
+        assert!(
+            notes
+                .iter()
+                .any(|n| n == "rehearsal. to own the file: nika new competitor-radar"),
+            "UX-3: {notes:?}"
+        );
+        assert!(
+            notes.iter().all(|n| !n.starts_with("wrote ")),
+            "C12: try must not name a discarded write: {notes:?}"
         );
     }
 

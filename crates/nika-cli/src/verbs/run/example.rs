@@ -43,6 +43,22 @@ fn stage_room(slug: &str, yaml: &str) -> Result<(std::path::PathBuf, crate::cwd:
     Ok((path, lease))
 }
 
+/// The staged try room is `…/nika-try-<stem>/<stem>.nika.yaml`.
+/// Display uses this to name the rehearsal (C12 · UX-3) instead of a
+/// path the sandbox is about to discard.
+pub(super) fn try_rehearsal_slug(path: &str) -> Option<&str> {
+    let path = std::path::Path::new(path);
+    let parent = path.parent()?.file_name()?.to_str()?;
+    let stem = parent.strip_prefix("nika-try-")?;
+    let file = path.file_name()?.to_str()?;
+    (file.strip_suffix(".nika.yaml") == Some(stem)).then_some(stem)
+}
+
+/// UX-3 · every try card: how to own the file.
+pub(super) fn try_own_file_line(slug: &str) -> String {
+    format!("rehearsal. to own the file: nika new {slug}")
+}
+
 /// `nika try <slug>` — execute one EMBEDDED example through the
 /// real runtime (the pack ships offline · zero network for the exec/
 /// mock-model examples). Stages the embedded YAML to a temp file (the
@@ -169,11 +185,11 @@ pub fn example(
     // review: the TTY lane ends on "make it yours", the piped lane ended
     // on "not a real answer" and nothing else). Quiet stays out: it
     // promises the compact verdict card and errors, nothing more.
-    if verdict.code == exit::OK && mode != RenderMode::Quiet {
+    if mode != RenderMode::Quiet {
         let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
         eprintln!(
             "\n  {}",
-            crate::display::vocab::hint(theme, "make it yours", &format!("nika new {clean}"))
+            crate::display::vocab::hint(theme, "rehearsal", &try_own_file_line(clean))
         );
     }
     // Leave the room as we found it — the rehearsal is isolated, not
@@ -289,6 +305,27 @@ fn example_tip(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn try_rehearsal_slug_reads_the_staged_room() {
+        assert_eq!(
+            try_rehearsal_slug("/tmp/nika-try-competitor-radar/competitor-radar.nika.yaml"),
+            Some("competitor-radar")
+        );
+        assert_eq!(
+            try_rehearsal_slug("/tmp/nika-try-01-hello/01-hello.nika.yaml"),
+            Some("01-hello")
+        );
+        assert_eq!(
+            try_rehearsal_slug("hello.nika.yaml"),
+            None,
+            "a workspace run is not a try rehearsal"
+        );
+        assert_eq!(
+            try_own_file_line("competitor-radar"),
+            "rehearsal. to own the file: nika new competitor-radar"
+        );
+    }
 
     #[test]
     fn try_gate_request_is_none_when_neither_flag_is_set() {

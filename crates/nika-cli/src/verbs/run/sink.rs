@@ -46,6 +46,10 @@ pub struct FoldSink<W: Write> {
     outputs: bool,
     /// Gates trace-only teaching when journaling is disabled.
     trace_recorded: bool,
+    /// The workflow path this fold is narrating — try rehearsals stage
+    /// under `nika-try-<slug>/` and the fruit card must not name a
+    /// discarded write (C12).
+    source_path: Option<String>,
     /// Lines painted by the previous frame (to clear before the redraw).
     last_lines: usize,
     /// The spinner phase — advanced by the timer rider, read by every
@@ -139,6 +143,7 @@ impl<W: Write> FoldSink<W> {
             mode,
             outputs: false,
             trace_recorded: true,
+            source_path: None,
             last_lines: 0,
             tick: 0,
             map: None,
@@ -182,6 +187,11 @@ impl<W: Write> FoldSink<W> {
         self.trace_recorded = on;
     }
 
+    /// Pin the workflow path so the fruit card can detect a try room.
+    pub fn set_source_path(&mut self, path: impl Into<String>) {
+        self.source_path = Some(path.into());
+    }
+
     /// The folded view (the caller renders the FINAL frame + the failure
     /// card from it after the run · the verdict lives here).
     pub fn view(&self) -> &RunView {
@@ -213,7 +223,13 @@ impl<W: Write> FoldSink<W> {
             RenderMode::Plain => stream_summary(
                 &self.view,
                 &self.theme,
-                &super::epilogue::fruit_notes(&self.view, self.trace_recorded),
+                &super::epilogue::fruit_notes(
+                    &self.view,
+                    self.trace_recorded,
+                    self.source_path
+                        .as_deref()
+                        .and_then(super::example::try_rehearsal_slug),
+                ),
             ),
             _ if self.outputs => frame_with_outputs(&self.view, &self.theme, 0),
             _ => frame(&self.view, &self.theme, 0),
