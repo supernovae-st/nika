@@ -255,8 +255,23 @@ async fn resolve_effective<F: FsReadDyn>(fs: &F, path: &Path) -> PathBuf {
                 }
                 cur = parent;
             }
-            // No existing ancestor (or hit the root): fold lexically from a
-            // best-effort base (the leading absolute/relative components).
+            // A relative path whose first component does not exist has an
+            // implicit existing ancestor: the current directory. Anchor it
+            // there before folding. Returning the relative spelling here
+            // made identity depend on scheduling: a concurrent writer could
+            // create the first component between target and grant resolution,
+            // turning only the latter absolute and causing a false denial.
+            // If the fs seam cannot resolve `.` (e.g. a deliberately minimal
+            // mock), keep the old lexical fail-closed fallback.
+            _ if path.is_relative() => {
+                if let Ok(cwd) = fs.canonicalize(Path::new(".")).await {
+                    let components: Vec<_> = path.components().collect();
+                    return fold_trailing(cwd, components.iter());
+                }
+                return lexical_only(path);
+            }
+            // No existing ancestor on an absolute path (or an fs seam that
+            // does not model its root): preserve the lexical identity.
             _ => return lexical_only(path),
         }
     }
@@ -622,6 +637,15 @@ mod fs_security_tests {
         root: std::path::PathBuf,
     }
 
+    /// Best-effort cleanup for a test path that must start nonexistent.
+    struct Cleanup(std::path::PathBuf);
+
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
     impl Scratch {
         fn new() -> Self {
             let n = SCRATCH_SEQ.fetch_add(1, Ordering::Relaxed);
@@ -666,6 +690,39 @@ mod fs_security_tests {
         assert!(
             std::path::Path::new(&parent).exists(),
             "the declared write tree's parent is created"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_parent_creation_keeps_relative_write_identity_stable() {
+        // The image-fx batch race measured on Linux CI: one fan-out item
+        // resolved its target while `out/` did not exist, then its sibling
+        // created `out/darkroom/` before the same judgment resolved the grant.
+        // The target stayed relative while the grant became absolute, so two
+        // spellings of the SAME path compared unequal and NIKA-SEC-004 fired.
+        let n = SCRATCH_SEQ.fetch_add(1, Ordering::Relaxed);
+        let root =
+            std::path::PathBuf::from(format!(".nika-permits-race-{}-{n}", std::process::id()));
+        let _cleanup = Cleanup(root.clone());
+        let target = root.join("out/darkroom/sunset.png");
+        let named = target.to_string_lossy().into_owned();
+        let boundary =
+            FsBoundary::declared(vec![], vec![format!("{}/out/darkroom/*", root.display())]);
+        let fs = TokioFs;
+
+        // First half of `enforce_judged`: no ancestor exists yet.
+        let effective = super::resolve_effective(&fs, &target).await;
+        // The sibling task wins the scheduler here and creates the grant root.
+        std::fs::create_dir_all(root.join("out/darkroom")).unwrap();
+        // Second half: resolving the grant after that creation must still
+        // compare equal to the already-resolved target.
+        let verdict = boundary
+            .judge(&fs, &named, FsAccess::Write, &effective)
+            .await;
+        assert!(
+            matches!(verdict, super::FsVerdict::Admitted),
+            "parent creation cannot change path identity: effective={}",
+            effective.display()
         );
     }
 
