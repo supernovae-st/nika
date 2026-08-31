@@ -203,3 +203,39 @@ fn mcp_help_names_the_read_only_oracle_and_the_run_door() {
         "`nika mcp --help` must carry the mcp verb's honesty card verbatim: {help}"
     );
 }
+
+/// C11 · issues 1249/1317 · the postcard names both first-run doors.
+#[test]
+fn default_help_names_try_and_new() {
+    let help = crate::help_card::human_help();
+    assert!(help.contains("try"), "C11 try: {help}");
+    assert!(help.contains("new"), "C11 new: {help}");
+}
+
+/// UX-2 · issue 1317 · `permits` is glossed as the file's blast radius.
+#[test]
+fn default_help_glosses_permits() {
+    let help = crate::help_card::human_help();
+    assert!(
+        help.contains("what this file is allowed to touch"),
+        "UX-2: {help}"
+    );
+}
+
+/// B08 · issue 1315 · isolation is documented on the postcard.
+#[test]
+fn default_help_documents_isolation() {
+    let help = crate::help_card::human_help();
+    assert!(help.contains("env -i"), "B08 env -i: {help}");
+    assert!(help.contains("HOME=$scratch"), "B08 HOME scratch: {help}");
+}
+
+/// B07+I02 · `--help --all --plain` must not drop `--all` to clap.
+#[test]
+fn help_all_plain_is_the_full_surface() {
+    use crate::help_card::{HelpKind, classify_help};
+    assert_eq!(
+        classify_help(&["--help", "--all", "--plain"]),
+        Some(HelpKind::All)
+    );
+}

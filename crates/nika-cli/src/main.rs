@@ -13,6 +13,7 @@
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
+mod help_card;
 mod init_args;
 mod lazy;
 mod model_args;
@@ -642,15 +643,6 @@ fn concierge_json(plain_theme: Theme) -> std::process::ExitCode {
     emit(&verbs::welcome::run(true, plain_theme)).into()
 }
 
-/// Human default help · B67 · ≤ 6 lines. The rest lives on `--help --all`.
-fn human_help() -> &'static str {
-    "nika             a plan from a file\n\
-     nika new hello   one file that runs on this machine\n\
-     nika run         run a file\n\
-     nika check       audit a file before it runs\n\
-     nika doctor      PATH, model, sandbox\n"
-}
-
 /// Bare `nika`, `nika --json`, `nika version`, `nika thread` — decided
 /// before clap so a missing subcommand never clap-fails the front door.
 fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
@@ -734,26 +726,25 @@ fn real_main() -> std::process::ExitCode {
     // `--all` is a REAL flag there, the adversarial pass caught the
     // theft).
     let argv: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
-    let help_words_only = !argv.is_empty()
-        && argv
-            .iter()
-            .all(|a| a == "--all" || a == "--help" || a == "-h" || a == "help");
-    if help_words_only
-        && argv.iter().any(|a| a == "--all")
-        && argv
-            .iter()
-            .any(|a| a == "--help" || a == "-h" || a == "help")
-    {
-        let mut cmd = <Cli as clap::CommandFactory>::command();
-        cmd = cmd.mut_subcommands(|sc| sc.hide(false));
-        // Rendering help to stdout is this binary's whole job here; a
-        // closed pipe is the caller's choice, never a crash.
-        let _ = cmd.print_long_help();
-        return std::process::ExitCode::SUCCESS;
+    match help_card::classify_help(&argv) {
+        Some(help_card::HelpKind::All) => {
+            let mut cmd = <Cli as clap::CommandFactory>::command();
+            cmd = cmd.mut_subcommands(|sc| sc.hide(false));
+            // Rendering help to stdout is this binary's whole job here; a
+            // closed pipe is the caller's choice, never a crash.
+            let _ = cmd.print_long_help();
+            return std::process::ExitCode::SUCCESS;
+        }
+        Some(help_card::HelpKind::Short) => {
+            print!("{}", help_card::human_help());
+            return std::process::ExitCode::SUCCESS;
+        }
+        None => {}
     }
-    if help_words_only {
-        print!("{}", human_help());
-        return std::process::ExitCode::SUCCESS;
+    if std::io::stderr().is_terminal()
+        && let Some(warning) = help_card::isolation_warning()
+    {
+        eprintln!("{warning}");
     }
     if let Some(code) = front_door(&argv) {
         return code;
@@ -1332,20 +1323,23 @@ mod tests {
         );
         assert!(!bash.contains("nika-cli"), "the seed name never leaks");
     }
-    /// Human default help is a 5-line card. The rest is `--help --all`.
+    /// Human default help is a postcard. The rest is `--help --all`.
     /// Visible clap verbs: new · run · check · doctor. Nothing is deleted.
     #[test]
     fn the_default_human_help_is_five_lines_and_hides_nothing_forever() {
-        let lines = human_help().lines().filter(|l| !l.is_empty()).count();
+        let help = help_card::human_help();
+        let lines = help.lines().filter(|l| !l.is_empty()).count();
         assert!(
-            lines <= 6,
-            "human default help is ≤ 6 lines, got {lines}:\n{}",
-            human_help()
+            lines <= 8,
+            "human default help is ≤ 8 lines, got {lines}:\n{help}"
         );
         assert!(
-            human_help().contains("nika new hello"),
-            "day-one help names the first-wow file:\n{}",
-            human_help()
+            help.contains("nika new hello"),
+            "day-one help names the first-wow file:\n{help}"
+        );
+        assert!(
+            help.contains("try") && help.contains("new"),
+            "C11 · issue 1249/1317: the postcard names try and new:\n{help}"
         );
         let cmd = <Cli as clap::CommandFactory>::command();
         let total = cmd
