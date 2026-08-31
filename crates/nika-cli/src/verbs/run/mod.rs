@@ -1040,6 +1040,10 @@ async fn execute_json_lane(
             epilogue::resume_hint_line(file, p, pause, carry)
         );
     }
+    if let Some(e) = sink.take_error() {
+        eprintln!("nika run: stream write failed: {e}");
+        return RunVerdict::renderer_failed(trace_path, e.kind());
+    }
     let trace_proof = surface.path.as_deref().zip(surface.proof.as_ref());
     if let Err(e) = nika_cli_host::run_settlement::write_local_run_settlement(
         &mut sink,

@@ -123,6 +123,11 @@ impl<W: Write> JsonSink<W> {
         self.error
     }
 
+    /// Take the buffered event-delivery error without consuming the sink.
+    pub fn take_error(&mut self) -> Option<std::io::Error> {
+        self.error.take()
+    }
+
     /// Append one arbitrary JSON object to this stream under the same chain
     /// state as runtime events.
     ///
@@ -549,6 +554,18 @@ mod tests {
     use nika_display::demo;
     use nika_types::id::{ExecutionId, RunId};
 
+    struct BrokenWriter;
+
+    impl Write for BrokenWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
     #[test]
     fn json_sink_writes_one_ndjson_line_per_event() {
         let events = demo::success();
@@ -580,6 +597,20 @@ mod tests {
         }
         let text = String::from_utf8(buf).expect("utf8");
         assert!(!text.contains('\x1b'), "--json carries zero ANSI escapes");
+    }
+
+    #[test]
+    fn json_sink_exposes_a_buffered_runtime_error_before_settlement() {
+        let mut sink = JsonSink::new(BrokenWriter);
+        sink.emit(demo::success().remove(0));
+        assert_eq!(
+            sink.take_error().map(|error| error.kind()),
+            Some(std::io::ErrorKind::BrokenPipe)
+        );
+        assert!(
+            sink.take_error().is_none(),
+            "the buffered error is taken once"
+        );
     }
 
     // ───────────────────────── run journal (TraceFileSink · Tee) ─────

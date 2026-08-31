@@ -466,6 +466,17 @@ fn direct_run_with_broken_output_pipe_returns_141_with_finalized_trace() {
         drop(child.stdout.take());
         let out = child.wait_with_output().expect("broken-pipe run settles");
         assert_eq!(out.status.code(), Some(141), "{tag}: BrokenPipe stays 141");
+        if tag == "ndjson" {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            assert!(
+                stderr.contains("nika run: stream write failed:"),
+                "the runtime write owns the diagnostic: {stderr}"
+            );
+            assert!(
+                !stderr.contains("nika run: settlement write failed:"),
+                "a prior runtime write is never blamed on settlement: {stderr}"
+            );
+        }
         let journals = traces(&dir);
         assert_eq!(journals.len(), 1, "{tag}: finalized trace survives");
         let trace = format!(".nika/traces/{}", journals[0]);
