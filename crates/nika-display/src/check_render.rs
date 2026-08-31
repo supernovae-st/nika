@@ -344,7 +344,7 @@ fn writes_rung(out: &mut String, report: &CheckReport, t: Theme) {
         // inputs bind once per run — rendered the old green while the
         // literal twin was refused; the scan now catches that class,
         // and the headline names the computed rest it cannot judge.
-        "no two unordered tasks write the same static path · computed paths at run",
+        "no two unordered tasks write the same static path · computed paths at run · engine writes .nika/traces",
         report
             .write_conflicts
             .iter()

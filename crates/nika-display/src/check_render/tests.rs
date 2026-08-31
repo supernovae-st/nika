@@ -942,3 +942,36 @@ mod builtin_contract_code_on_tools_and_args {
         );
     }
 }
+
+mod writes_card {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::{ModelsAudit, RepairTarget, render};
+    use crate::theme::Theme;
+
+    #[test]
+    fn writes_card_lists_engine_traces() {
+        let yaml =
+            "nika: t\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 1 }\n";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        let out = render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        );
+        assert!(out.contains("WRITES"), "B12 WRITES rung missing:\n{out}");
+        assert!(
+            out.contains(".nika/traces"),
+            "B12 engine writes must be on the WRITES card:\n{out}"
+        );
+    }
+}
