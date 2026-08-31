@@ -350,10 +350,11 @@ fn description_of(name: &str) -> Option<String> {
     })
 }
 
-/// An EXAMPLE source lands verbatim (a lesson, complete — no SLOTs);
-/// the receipt says the check-then-run road. The default destination is
-/// the slug's basename (a nested slug flattens — the tiering belongs to
-/// the pack, your workspace is flat).
+/// An EXAMPLE source lands verbatim (a lesson, complete — no SLOTs)
+/// except `hello` / `01-hello`, which B01 stamps onto `mock/echo` so
+/// the take runs without ollama. The receipt says the check-then-run
+/// road. The default destination is the slug's basename (a nested slug
+/// flattens — the tiering belongs to the pack, your workspace is flat).
 fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Outcome {
     let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
     let base = clean.rsplit('/').next().unwrap_or(clean);

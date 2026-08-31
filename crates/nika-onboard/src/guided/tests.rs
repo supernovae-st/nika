@@ -52,9 +52,9 @@ fn exact_template_name_stays_the_fast_path() {
 }
 
 /// The ladder's second rung: an example slug (or filename) lands
-/// VERBATIM at dest (minus the one self-referential pack path, which
-/// re-points to the owned file) — and the default dest flattens any
-/// tiering to the basename.
+/// at dest (minus the one self-referential pack path, which re-points
+/// to the owned file; `01-hello` is the B01 mock/echo rehearsal take)
+/// — and the default dest flattens any tiering to the basename.
 #[test]
 fn example_sources_land_verbatim_through_new() {
     let dir = std::env::temp_dir().join(format!("nika-new-example-{}", std::process::id()));
@@ -71,12 +71,18 @@ fn example_sources_land_verbatim_through_new() {
     // comment inside the OWNED copy must name the owned file — pasting
     // the pack path exited 3 in the user's workspace (gauntlet 08-01).
     let landed = std::fs::read_to_string(&dest).expect("written");
+    // B01 stamps hello / 01-hello onto mock/echo (the pack lesson still
+    // names ollama). Self-referential pack path still re-points.
     assert_eq!(
         landed,
-        nika_pack::example("01-hello")
-            .expect("embedded")
-            .replace("examples/01-hello.nika.yaml", &dest_s),
-        "verbatim, self-reference re-pointed to the owned dest"
+        stamp(
+            &nika_pack::example("01-hello")
+                .expect("embedded")
+                .replace("examples/01-hello.nika.yaml", &dest_s),
+            "hello",
+            Some("mock/echo"),
+        ),
+        "B01 rehearsal take, self-reference re-pointed to the owned dest"
     );
     assert!(
         !landed.contains("examples/01-hello.nika.yaml"),
