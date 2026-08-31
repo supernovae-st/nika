@@ -231,3 +231,81 @@ async fn var_resolved_unpriced_cloud_under_cap_refuses_before_any_infer() {
     assert_eq!(err.spec_code(), "NIKA-1709");
     assert!(err.to_string().contains("nika-b20-unpriced-canary"));
 }
+
+/// N01 / issue 1319: CEL index `${{ inputs['model'] }}` is the same
+/// binding as the dotted form — a cap must refuse the unpriced canary
+/// before infer HTTP.
+#[test]
+fn cel_index_unpriced_cloud_plus_cap_refuses_to_start() {
+    let wf = parse(
+        "nika: n01-idx\ninputs:\n  model: { type: string, required: true }\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: \"PONG\", max_tokens: 16, model: \"${{ inputs['model'] }}\" }\n",
+    );
+    let report = nika_check::check(&wf);
+    let err = gates(
+        &wf,
+        &report,
+        &canary_override(),
+        Some(0.20),
+        None,
+        None,
+        &[],
+    )
+    .expect_err("inputs['model'] canary + $0.20 must NIKA-1709");
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    assert!(err.to_string().contains("nika-b20-unpriced-canary"));
+}
+
+/// N01: `with.model: ${{ inputs.model }}` then `infer.model: ${{ with.model }}`.
+#[test]
+fn with_alias_unpriced_cloud_plus_cap_refuses_to_start() {
+    let wf = parse(
+        "nika: n01-with\ninputs:\n  model: { type: string, required: true }\npermits: {}\ntasks:\n  ping:\n    with: { model: \"${{ inputs.model }}\" }\n    infer: { prompt: \"PONG\", max_tokens: 16, model: \"${{ with.model }}\" }\n",
+    );
+    let report = nika_check::check(&wf);
+    let err = gates(
+        &wf,
+        &report,
+        &canary_override(),
+        Some(0.20),
+        None,
+        None,
+        &[],
+    )
+    .expect_err("with.model alias + $0.20 must NIKA-1709");
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    assert!(err.to_string().contains("nika-b20-unpriced-canary"));
+}
+
+/// N01: concat `${{ inputs.provider }}/${{ inputs.name }}`.
+#[test]
+fn concat_provider_name_unpriced_cloud_plus_cap_refuses_to_start() {
+    let wf = parse(
+        "nika: n01-cat\ninputs:\n  provider: { type: string, required: true }\n  name: { type: string, required: true }\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: \"PONG\", max_tokens: 16, model: \"${{ inputs.provider }}/${{ inputs.name }}\" }\n",
+    );
+    let report = nika_check::check(&wf);
+    let overrides = BTreeMap::from([
+        ("provider".to_owned(), Value::String("gemini".to_owned())),
+        (
+            "name".to_owned(),
+            Value::String("nika-b20-unpriced-canary".to_owned()),
+        ),
+    ]);
+    let err = gates(&wf, &report, &overrides, Some(0.20), None, None, &[])
+        .expect_err("concat seat + $0.20 must NIKA-1709");
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    assert!(err.to_string().contains("nika-b20-unpriced-canary"));
+}
+
+/// N01 sparing arm: mock through the index form still runs under a cap.
+#[test]
+fn cel_index_mock_plus_cap_still_admits() {
+    let wf = parse(
+        "nika: n01-mock\ninputs:\n  model: { type: string, required: true }\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: \"PONG\", max_tokens: 16, model: \"${{ inputs['model'] }}\" }\n",
+    );
+    let report = nika_check::check(&wf);
+    let overrides = BTreeMap::from([("model".to_owned(), Value::String("mock/echo".to_owned()))]);
+    assert!(
+        gates(&wf, &report, &overrides, Some(0.20), None, None, &[]).is_ok(),
+        "mock through the index form is still a proven zero"
+    );
+}

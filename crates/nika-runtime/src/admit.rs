@@ -158,7 +158,7 @@ fn resolved_infer_models(
     let envelope = wf.model.as_ref().map(|m| m.value.as_str());
     let default = model_override
         .map(str::to_owned)
-        .or_else(|| envelope.and_then(|expr| resolve_model_expr(expr, wf, overrides)));
+        .or_else(|| envelope.and_then(|expr| resolve_model_expr(expr, wf, overrides, None)));
     wf.tasks
         .iter()
         .filter_map(|task| {
@@ -168,7 +168,7 @@ fn resolved_infer_models(
                 _ => return None,
             };
             match declared {
-                Some(expr) => resolve_model_expr(expr, wf, overrides),
+                Some(expr) => resolve_model_expr(expr, wf, overrides, Some(&task.value)),
                 None => default.clone(),
             }
         })
@@ -179,9 +179,13 @@ fn resolve_model_expr(
     expr: &str,
     wf: &RawWorkflow,
     overrides: &BTreeMap<String, Value>,
+    task: Option<&RawTask>,
 ) -> Option<String> {
     if !expr.contains("${{") {
         return Some(expr.to_owned());
+    }
+    if let Some(joined) = concat_model_expr(expr, wf, overrides, task) {
+        return Some(joined);
     }
     if let Some((authority, name)) = nika_check::analyzer::bare_static_ref(expr)
         && authority == "inputs."
@@ -189,9 +193,50 @@ fn resolve_model_expr(
     {
         return Some(value.to_owned());
     }
+    if let Some(from_with) = with_alias(expr, wf, overrides, task) {
+        return Some(from_with);
+    }
     nika_check::static_literal_of(wf, expr)?
         .as_str()
         .map(str::to_owned)
+}
+
+/// `${{ inputs.provider }}/${{ inputs.name }}` — both sides resolve, the
+/// slash is the catalog seat spelling (N01 / issue 1319).
+fn concat_model_expr(
+    expr: &str,
+    wf: &RawWorkflow,
+    overrides: &BTreeMap<String, Value>,
+    task: Option<&RawTask>,
+) -> Option<String> {
+    let (left, right) = expr.split_once('/')?;
+    if !left.contains("${{") || !right.contains("${{") {
+        return None;
+    }
+    let left = resolve_model_expr(left, wf, overrides, task)?;
+    let right = resolve_model_expr(right, wf, overrides, task)?;
+    if left.contains("${{") || right.contains("${{") {
+        return None;
+    }
+    Some(format!("{left}/{right}"))
+}
+
+/// `${{ with.model }}` follows the task's `with:` alias (N01).
+fn with_alias(
+    expr: &str,
+    wf: &RawWorkflow,
+    overrides: &BTreeMap<String, Value>,
+    task: Option<&RawTask>,
+) -> Option<String> {
+    let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
+    let name = inner.strip_prefix("with.")?;
+    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+        return None;
+    }
+    let task = task?;
+    let (_, bound) = task.with.iter().find(|(k, _)| k.value == name)?;
+    let next = bound.value.as_str()?;
+    resolve_model_expr(next, wf, overrides, None)
 }
 
 /// A recognized third-party cloud seat with no snapshot row. Unknown
