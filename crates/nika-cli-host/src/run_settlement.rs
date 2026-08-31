@@ -116,6 +116,8 @@ pub fn local_receipt_binding(
 struct RunSettlement<'a, T> {
     kind: &'static str,
     status: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    execution: Option<nika_types::id::ExecutionId>,
     outputs: &'a T,
     #[serde(skip_serializing_if = "Option::is_none")]
     receipt: Option<LocalRunReceipt<'a>>,
@@ -132,11 +134,22 @@ pub fn write_run_settlement<T: Serialize>(
     outputs: &T,
     receipt: Option<LocalRunReceipt<'_>>,
 ) -> std::io::Result<()> {
+    write_run_settlement_bound(writer, status, outputs, None, receipt)
+}
+
+fn write_run_settlement_bound<T: Serialize>(
+    writer: &mut impl Write,
+    status: &str,
+    outputs: &T,
+    execution: Option<nika_types::id::ExecutionId>,
+    receipt: Option<LocalRunReceipt<'_>>,
+) -> std::io::Result<()> {
     serde_json::to_writer(
         &mut *writer,
         &RunSettlement {
             kind: "run_settled",
             status,
+            execution,
             outputs,
             receipt,
         },
@@ -179,7 +192,7 @@ pub fn write_local_run_settlement<T: Serialize>(
     } else {
         "failed"
     };
-    write_run_settlement(writer, status, outputs, receipt)
+    write_run_settlement_bound(writer, status, outputs, Some(execution), receipt)
 }
 
 #[cfg(test)]
@@ -204,6 +217,7 @@ mod tests {
         let value: serde_json::Value =
             serde_json::from_slice(&out).expect("settlement is one JSON document");
         assert_eq!(value["kind"], "run_settled");
+        assert!(value.get("execution").is_none());
         assert_eq!(value["outputs"], json!({"answer": 42}));
         assert_eq!(value["receipt"]["receipt_format"], 1);
         assert_eq!(value["receipt"]["chain_len"], 7);
@@ -216,7 +230,55 @@ mod tests {
         write_run_settlement(&mut out, "paused", &json!({}), None).expect("settlement writes");
         let value: serde_json::Value = serde_json::from_slice(&out).expect("valid JSON");
         assert_eq!(value["status"], "paused");
+        assert!(value.get("execution").is_none());
         assert!(value.get("receipt").is_none());
+    }
+
+    #[test]
+    fn local_settlement_projects_execution_even_without_a_trace() {
+        let mut out = Vec::new();
+        let execution = nika_types::id::ExecutionId::nil();
+        write_local_run_settlement(
+            &mut out,
+            (false, true),
+            &json!({}),
+            execution,
+            "snapshot",
+            None,
+        )
+        .expect("settlement writes");
+        let value: serde_json::Value = serde_json::from_slice(&out).expect("valid JSON");
+        assert_eq!(
+            value["execution"],
+            serde_json::to_value(execution).expect("execution serializes")
+        );
+        assert!(value.get("receipt").is_none());
+    }
+
+    #[test]
+    fn local_settlement_projects_the_same_execution_with_a_trace() {
+        let mut out = Vec::new();
+        let execution = nika_types::id::ExecutionId::nil();
+        let proof = TraceProof {
+            head: "head".to_owned(),
+            len: 3,
+            sealed: true,
+        };
+        write_local_run_settlement(
+            &mut out,
+            (true, false),
+            &json!({}),
+            execution,
+            "snapshot",
+            Some((Path::new(".nika/traces/exact.ndjson"), &proof)),
+        )
+        .expect("settlement writes");
+        let value: serde_json::Value = serde_json::from_slice(&out).expect("valid JSON");
+        assert_eq!(
+            value["execution"],
+            serde_json::to_value(execution).expect("execution serializes")
+        );
+        assert_eq!(value["receipt"]["execution_id"], execution.to_string());
     }
 
     #[test]
