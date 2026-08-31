@@ -62,8 +62,8 @@ impl ChainState {
     /// `trace verify` total: no canonical-JSON contract to drift. Event
     /// consumers ignore the extra field (tolerant serde — pinned in
     /// verify tests).
-    fn line(&self, event: &Event) -> std::io::Result<(String, String)> {
-        let mut value = serde_json::to_value(event).map_err(std::io::Error::from)?;
+    fn line<T: serde::Serialize>(&self, record: &T) -> std::io::Result<(String, String)> {
+        let mut value = serde_json::to_value(record).map_err(std::io::Error::from)?;
         let Some(obj) = value.as_object_mut() else {
             // A non-object event is a WRITER defect — fail loudly here;
             // a silent chainless line would read as an Unchained/Broken
@@ -122,6 +122,28 @@ impl<W: Write> JsonSink<W> {
     pub fn into_error(self) -> Option<std::io::Error> {
         self.error
     }
+
+    /// Append one arbitrary JSON object to this stream under the same chain
+    /// state as runtime events.
+    ///
+    /// # Errors
+    /// Returns a buffered event-delivery error, a serialization error, or the
+    /// writer error. The chain advances only after the complete line lands.
+    pub fn write_record<T: serde::Serialize>(&mut self, record: &T) -> std::io::Result<()> {
+        if let Some(error) = self.error.take() {
+            return Err(error);
+        }
+        self.write_record_inner(record)
+    }
+
+    fn write_record_inner<T: serde::Serialize>(&mut self, record: &T) -> std::io::Result<()> {
+        let (line, next) = self.chain.line(record)?;
+        self.writer.write_all(line.as_bytes())?;
+        self.writer.write_all(b"\n")?;
+        self.writer.flush()?;
+        self.chain.commit(next);
+        Ok(())
+    }
 }
 
 impl<W: Write> EventSink for JsonSink<W> {
@@ -129,17 +151,8 @@ impl<W: Write> EventSink for JsonSink<W> {
         if self.error.is_some() {
             return; // already broken · stop touching a dead pipe
         }
-        // Chain state commits only AFTER the bytes landed — a failed
-        // write must never advance the head.
-        let result = self.chain.line(&event).and_then(|(line, next)| {
-            self.writer.write_all(line.as_bytes())?;
-            self.writer.write_all(b"\n")?;
-            self.writer.flush()?;
-            Ok(next)
-        });
-        match result {
-            Ok(next) => self.chain.commit(next),
-            Err(e) => self.error = Some(e),
+        if let Err(error) = self.write_record_inner(&event) {
+            self.error = Some(error);
         }
     }
 }
@@ -723,6 +736,26 @@ mod tests {
             n += 1;
         }
         assert!(n > 1, "the demo stream holds several events");
+    }
+
+    #[test]
+    fn json_sink_chains_a_terminal_non_event_record() {
+        let mut buf = Vec::new();
+        {
+            let mut sink = JsonSink::new(&mut buf);
+            sink.emit(demo::success().remove(0));
+            sink.write_record(&serde_json::json!({"kind": "run_settled"}))
+                .expect("terminal record writes");
+            assert!(sink.into_error().is_none(), "the vec writer never fails");
+        }
+        let text = String::from_utf8(buf).expect("utf8");
+        assert!(
+            matches!(
+                crate::chain::walk(&text),
+                crate::chain::Verdict::Intact { events: 2, .. }
+            ),
+            "the generic terminal record closes the same chain: {text}"
+        );
     }
 
     /// The opt-out shape: `disabled()` swallows every event with zero fs

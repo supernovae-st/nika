@@ -163,8 +163,8 @@ fn write_run_settlement_bound<T: Serialize>(
 ///
 /// # Errors
 /// Returns the writer or serialization error.
-pub fn write_local_run_settlement<T: Serialize>(
-    writer: &mut impl Write,
+pub fn write_local_run_settlement<T: Serialize, W: Write>(
+    writer: &mut nika_dap::journal::JsonSink<W>,
     outcome: (bool, bool),
     outputs: &T,
     execution: nika_types::id::ExecutionId,
@@ -192,7 +192,13 @@ pub fn write_local_run_settlement<T: Serialize>(
     } else {
         "failed"
     };
-    write_run_settlement_bound(writer, status, outputs, Some(execution), receipt)
+    writer.write_record(&RunSettlement {
+        kind: "run_settled",
+        status,
+        execution: Some(execution),
+        outputs,
+        receipt,
+    })
 }
 
 #[cfg(test)]
@@ -238,15 +244,18 @@ mod tests {
     fn local_settlement_projects_execution_even_without_a_trace() {
         let mut out = Vec::new();
         let execution = nika_types::id::ExecutionId::nil();
-        write_local_run_settlement(
-            &mut out,
-            (false, true),
-            &json!({}),
-            execution,
-            "snapshot",
-            None,
-        )
-        .expect("settlement writes");
+        {
+            let mut writer = nika_dap::journal::JsonSink::new(&mut out);
+            write_local_run_settlement(
+                &mut writer,
+                (false, true),
+                &json!({}),
+                execution,
+                "snapshot",
+                None,
+            )
+            .expect("settlement writes");
+        }
         let value: serde_json::Value = serde_json::from_slice(&out).expect("valid JSON");
         assert_eq!(
             value["execution"],
@@ -264,15 +273,18 @@ mod tests {
             len: 3,
             sealed: true,
         };
-        write_local_run_settlement(
-            &mut out,
-            (true, false),
-            &json!({}),
-            execution,
-            "snapshot",
-            Some((Path::new(".nika/traces/exact.ndjson"), &proof)),
-        )
-        .expect("settlement writes");
+        {
+            let mut writer = nika_dap::journal::JsonSink::new(&mut out);
+            write_local_run_settlement(
+                &mut writer,
+                (true, false),
+                &json!({}),
+                execution,
+                "snapshot",
+                Some((Path::new(".nika/traces/exact.ndjson"), &proof)),
+            )
+            .expect("settlement writes");
+        }
         let value: serde_json::Value = serde_json::from_slice(&out).expect("valid JSON");
         assert_eq!(
             value["execution"],

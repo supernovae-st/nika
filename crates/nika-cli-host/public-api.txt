@@ -2417,7 +2417,7 @@ pub fn nika_cli_host::run_settlement::first_failure(outcome: &nika_runtime::RunO
 pub fn nika_cli_host::run_settlement::local_receipt_binding(execution: nika_types::id::ExecutionId, snapshot_digest: &str) -> serde_json::value::Value
 pub fn nika_cli_host::run_settlement::plan_waves(workflow: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>
 pub fn nika_cli_host::run_settlement::sensitive_journey(report: &nika_check::CheckReport) -> bool
-pub fn nika_cli_host::run_settlement::write_local_run_settlement<T: serde_core::ser::Serialize>(writer: &mut impl core::io::write::Write, outcome: (bool, bool), outputs: &T, execution: nika_types::id::ExecutionId, snapshot_digest: &str, trace: core::option::Option<(&std::path::Path, &nika_cli_host::run_settlement::TraceProof)>) -> core::io::error::Result<()>
+pub fn nika_cli_host::run_settlement::write_local_run_settlement<T: serde_core::ser::Serialize, W: core::io::write::Write>(writer: &mut nika_dap::journal::JsonSink<W>, outcome: (bool, bool), outputs: &T, execution: nika_types::id::ExecutionId, snapshot_digest: &str, trace: core::option::Option<(&std::path::Path, &nika_cli_host::run_settlement::TraceProof)>) -> core::io::error::Result<()>
 pub fn nika_cli_host::run_settlement::write_run_settlement<T: serde_core::ser::Serialize>(writer: &mut impl core::io::write::Write, status: &str, outputs: &T, receipt: core::option::Option<nika_cli_host::run_settlement::LocalRunReceipt<'_>>) -> core::io::error::Result<()>
 pub mod nika_cli_host::source
 pub struct nika_cli_host::source::RunSource
