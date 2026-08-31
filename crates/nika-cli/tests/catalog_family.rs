@@ -46,6 +46,11 @@ const PLAIN: Theme = Theme::new(false, false, false);
 /// replaced the envelope default ») and leaves the MODELS rung judging the
 /// authored seat. A first cut of this test used it and every row came back
 /// resolvable — a probe that was measuring `mock/mock` 38 times.
+///
+/// `max_tokens: 256` is the thinking-floor (NIKA-INFER-004 · B21): a
+/// catalog-known reasoning seat under 16 used to look unresolvable
+/// even when the wire was live. This probe measures the seat, not the
+/// thinking budget.
 fn fixture(seat: &str) -> String {
     format!(
         "nika: catalog-family-probe
@@ -57,7 +62,7 @@ tasks:
     infer:
       model: {seat}
       prompt: hi
-      max_tokens: 16
+      max_tokens: 256
 
 outputs:
   a: ${{{{ tasks.t.output }}}}
