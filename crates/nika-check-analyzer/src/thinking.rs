@@ -26,6 +26,12 @@
 //!   (`reasoning = false` = « no evidence it reasons », NOT « it
 //!   cannot »), so without that gate every newly shipped model would
 //!   refuse a legal `thinking:`.
+//! - **the cap leaves room for a thinking seat** — a catalog-known
+//!   reasoning model (Gemini 2.5 Flash thinks by default — no
+//!   `thinking:` block required) under a tiny `max_tokens` burns the
+//!   whole cap on the reasoning trace and the run dies NIKA-INFER-004.
+//!   Raising the cap to [`MIN_REASONING_MAX_TOKENS`] is the repair.
+//!   B21 / B30 / issue 1305.
 //!
 //! A templated seat (`${{ }}`) is judged THROUGH its declared default —
 //! the same [`crate::static_literal_of`] law the MODELS rung applies;
@@ -39,6 +45,12 @@
 //! folds the rows into its `ModelsAudit` beside the resolver's findings.
 
 use nika_schema::raw::{RawAction, RawInferAction, RawWorkflow};
+
+/// Smallest `max_tokens` a catalog-known reasoning seat may declare.
+/// Below this the thinking trace eats the cap and the visible answer is
+/// blank (NIKA-INFER-004 at run). 256 is the measured repair for Gemini
+/// 2.5 Flash (issue 1305 · 16 fails, 256 works).
+pub const MIN_REASONING_MAX_TOKENS: u32 = 256;
 
 /// One thinking-law refusal: the task carrying the dead or
 /// self-defeating declaration, the seat it names, and why.
@@ -63,9 +75,9 @@ impl ThinkingFinding {
     }
 }
 
-/// Judge every infer task's `thinking:` block against the two laws the
-/// module doc names. Deterministic and catalog-bound: the same workflow
-/// on the same binary yields the same findings.
+/// Judge every infer task against the thinking laws the module doc
+/// names. Deterministic and catalog-bound: the same workflow on the
+/// same binary yields the same findings.
 #[must_use]
 pub fn thinking_findings(wf: &RawWorkflow) -> Vec<ThinkingFinding> {
     let mut findings = Vec::new();
@@ -73,64 +85,81 @@ pub fn thinking_findings(wf: &RawWorkflow) -> Vec<ThinkingFinding> {
         let RawAction::Infer(action) = &task.value.action else {
             continue;
         };
-        let Some(thinking) = &action.thinking else {
-            continue;
-        };
-        if !thinking.value.enabled {
-            continue;
-        }
         let id = task.value.id.value.as_str();
-        // The budget-vs-cap compare is seat-independent: both fields are
-        // literal u32s by the time the parse admits them.
-        if let (Some(budget), Some(max)) =
-            (thinking.value.budget_tokens, action.max_tokens.as_ref())
-            && budget >= max.value
+        if let Some(thinking) = &action.thinking
+            && thinking.value.enabled
         {
-            findings.push(ThinkingFinding::new(
-                id.to_owned(),
-                seat_label(wf, action),
-                format!(
-                    "`thinking.budget_tokens` ({budget}) on `{id}` must stay UNDER \
-                     `max_tokens` ({}) — the reasoning share lives inside the cap, so a \
-                     budget ≥ the cap leaves no room for the answer and the provider \
-                     refuses the call at run",
-                    max.value
-                ),
-            ));
+            // The budget-vs-cap compare is seat-independent: both fields
+            // are literal u32s by the time the parse admits them.
+            if let (Some(budget), Some(max)) =
+                (thinking.value.budget_tokens, action.max_tokens.as_ref())
+                && budget >= max.value
+            {
+                findings.push(ThinkingFinding::new(
+                    id.to_owned(),
+                    seat_label(wf, action),
+                    format!(
+                        "`thinking.budget_tokens` ({budget}) on `{id}` must stay UNDER \
+                         `max_tokens` ({}) — the reasoning share lives inside the cap, so a \
+                         budget ≥ the cap leaves no room for the answer and the provider \
+                         refuses the call at run",
+                        max.value
+                    ),
+                ));
+            }
+            if let Some(judged) = judged_seat(wf, action)
+                && let Some((provider, name)) = judged.split_once('/')
+                && catalog_knows(provider, name, &judged)
+                && !nika_catalog::model_capabilities(provider, name).reasoning
+            {
+                findings.push(ThinkingFinding::new(
+                    id.to_owned(),
+                    judged.clone(),
+                    format!(
+                        "`thinking: {{ enabled: true }}` on `{id}` seats `{judged}` — the \
+                         catalog knows this model cannot reason, so the declaration is dead \
+                         at the wire (the budget is dropped or the call refused); remove \
+                         `thinking:` or seat a reasoning-capable model"
+                    ),
+                ));
+            }
         }
-        // The reasoning-seat law needs a statically known seat.
-        let Some(seat) = action.model.as_ref().or(wf.model.as_ref()) else {
-            continue;
-        };
-        let judged = if seat.value.contains("${{") {
-            let Some(literal) = crate::static_literal_of(wf, &seat.value)
-                .and_then(|v| v.as_str().map(str::to_owned))
-            else {
-                continue; // no literal default — the run judges
-            };
-            literal
-        } else {
-            seat.value.clone()
-        };
-        let Some((provider, name)) = judged.split_once('/') else {
-            continue; // no provider prefix — the resolver's refusal owns that class
-        };
-        if catalog_knows(provider, name, &judged)
-            && !nika_catalog::model_capabilities(provider, name).reasoning
+        // B21 / issue 1305: a catalog-known reasoning seat (Gemini 2.5
+        // Flash thinks by default) under a tiny cap is NIKA-INFER-004
+        // at run — catch it here, so `nika explain NIKA-INFER-004`'s
+        // « check catches this » closer is true.
+        if let Some(max) = action.max_tokens.as_ref()
+            && max.value < MIN_REASONING_MAX_TOKENS
+            && let Some(judged) = judged_seat(wf, action)
+            && let Some((provider, name)) = judged.split_once('/')
+            && provider != "mock"
+            && catalog_knows(provider, name, &judged)
+            && nika_catalog::model_capabilities(provider, name).reasoning
         {
             findings.push(ThinkingFinding::new(
                 id.to_owned(),
                 judged.clone(),
                 format!(
-                    "`thinking: {{ enabled: true }}` on `{id}` seats `{judged}` — the \
-                     catalog knows this model cannot reason, so the declaration is dead \
-                     at the wire (the budget is dropped or the call refused); remove \
-                     `thinking:` or seat a reasoning-capable model"
+                    "`max_tokens` ({}) on `{id}` is too small for reasoning seat \
+                     `{judged}` — the thinking trace eats the cap and the visible \
+                     answer is blank (NIKA-INFER-004 at run). Raise `max_tokens` \
+                     to at least {MIN_REASONING_MAX_TOKENS} (or seat a no-think variant)",
+                    max.value
                 ),
             ));
         }
     }
     findings
+}
+
+/// The statically known seat a thinking law judges, if any.
+fn judged_seat(wf: &RawWorkflow, action: &RawInferAction) -> Option<String> {
+    let seat = action.model.as_ref().or(wf.model.as_ref())?;
+    if seat.value.contains("${{") {
+        crate::static_literal_of(wf, &seat.value).and_then(|v| v.as_str().map(str::to_owned))
+    } else {
+        Some(seat.value.clone())
+    }
 }
 
 /// The catalog POSITIVELY knows this exact seat: a provider row (the
@@ -291,5 +320,59 @@ mod tests {
     fn non_infer_tasks_make_no_thinking_claim() {
         let f = findings_of("nika: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"ok\"] }\n");
         assert!(f.is_empty(), "{f:?}");
+    }
+
+    /// B21 / B30 / issue 1305: Gemini 2.5 Flash thinks by default. A
+    /// 16-token cap is check-green today on 5c5bd1ab5 and dies
+    /// NIKA-INFER-004 at run. The finding must fire WITHOUT a
+    /// `thinking:` block — Flash does not wait to be asked.
+    #[test]
+    fn gemini_flash_max_tokens_16_is_a_finding() {
+        let f = findings_of(
+            "nika: w\nmodel: gemini/gemini-2.5-flash\ntasks:\n  t:\n    infer:\n      \
+             prompt: hi\n      max_tokens: 16\n",
+        );
+        assert_eq!(f.len(), 1, "tiny cap on a thinking seat: {f:?}");
+        assert_eq!(f[0].task, "t", "{f:?}");
+        assert_eq!(f[0].model, "gemini/gemini-2.5-flash", "{f:?}");
+        assert!(
+            f[0].why.contains("max_tokens")
+                && f[0].why.contains("NIKA-INFER-004")
+                && f[0].why.contains(&MIN_REASONING_MAX_TOKENS.to_string()),
+            "the finding names the cap, the run code, and the floor: {}",
+            f[0].why
+        );
+    }
+
+    /// The measured repair: 256 on the same seat is the legal twin.
+    #[test]
+    fn gemini_flash_max_tokens_256_stays_clean() {
+        let f = findings_of(
+            "nika: w\nmodel: gemini/gemini-2.5-flash\ntasks:\n  t:\n    infer:\n      \
+             prompt: hi\n      max_tokens: 256\n",
+        );
+        assert!(f.is_empty(), "256 is the measured repair: {f:?}");
+    }
+
+    /// Neighbours the floor must not eat: a non-reasoning catalog seat,
+    /// a mock rehearsal, a templated seat with no default.
+    #[test]
+    fn tiny_cap_on_a_non_reasoning_seat_is_not_this_finding() {
+        for yaml in [
+            infer_wf("\"openai/gpt-4o-mini\"", "16", "{ enabled: false }"),
+            infer_wf("mock/echo", "16", "{ enabled: false }"),
+            "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 16 }\n"
+                .to_owned(),
+            "nika: w\ninputs:\n  seat: { type: string, required: true }\ntasks:\n  t:\n    \
+             infer:\n      prompt: hi\n      model: \"${{ inputs.seat }}\"\n      \
+             max_tokens: 16\n"
+                .to_owned(),
+        ] {
+            let f = findings_of(&yaml);
+            assert!(
+                f.iter().all(|x| !x.why.contains("NIKA-INFER-004")),
+                "no tiny-cap refusal here: {f:?}\n{yaml}"
+            );
+        }
     }
 }

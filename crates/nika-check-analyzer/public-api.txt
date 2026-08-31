@@ -473,6 +473,7 @@ impl<T> dyn_clone::DynClone for nika_check_analyzer::ThinkingFinding where T: co
 pub fn nika_check_analyzer::ThinkingFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check_analyzer::ThinkingFinding where T: 'static
 pub fn nika_check_analyzer::ThinkingFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_check_analyzer::MIN_REASONING_MAX_TOKENS: u32
 pub fn nika_check_analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_check_analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
 pub fn nika_check_analyzer::bare_static_ref(expr: &str) -> core::option::Option<(&'static str, &str)>
 pub fn nika_check_analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
