@@ -568,7 +568,7 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
 fn the_card_names_the_grade_on_every_rung() {
     let high = checked_output(
         "risk-high.nika.yaml",
-        "nika: h\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
+        "nika: h\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 256 }\n",
         false,
     );
     assert_eq!(high.code, 0, "advisory: {}", high.text);
@@ -579,7 +579,7 @@ fn the_card_names_the_grade_on_every_rung() {
     );
     let low = checked_output(
         "risk-low.nika.yaml",
-        "nika: l\nmodel: anthropic/claude-sonnet-4-6\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
+        "nika: l\nmodel: anthropic/claude-sonnet-4-6\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 256 }\n",
         false,
     );
     assert_eq!(low.code, 0, "{}", low.text);
@@ -692,7 +692,7 @@ fn models_rung_judges_a_templated_models_declared_default() {
     // canonical form.
     let out = checked_output(
         "models-param.nika.yaml",
-        "nika: p\nconst:\n  model: \"anthropic/claude-sonnet-4-6\"\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
+        "nika: p\nconst:\n  model: \"anthropic/claude-sonnet-4-6\"\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 256, model: \"${{ const.model }}\" }\n",
         false,
     );
     assert_eq!(
