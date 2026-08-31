@@ -91,6 +91,7 @@ fn schemas() -> Value {
                     }
                 }
             },
+            "JobOrigin": job_origin_schema(),
             "JobReceipt": job_receipt_schema(),
             "JobEvent": job_event_schema(),
             "TraceVerification": trace_verification_schema(),
@@ -238,8 +239,51 @@ fn job_receipt_schema() -> Value {
             "execution_id": {"type": "string", "minLength": 1},
             "trace_id": {"type": "string", "minLength": 1},
             "snapshot_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "origin": {"$ref": "#/components/schemas/JobOrigin"},
             "chain_head": {"type": "string", "minLength": 1}
         }
+    })
+}
+
+fn job_origin_schema() -> Value {
+    json!({
+        "oneOf": [
+            {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind"],
+                "properties": {
+                    "kind": {"type": "string", "const": "manual"}
+                }
+            },
+            {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "kind", "schedule_origin", "schedule_id", "schedule_revision",
+                    "slot_id", "decision", "scheduled_for", "fired_at", "arm_generation"
+                ],
+                "properties": {
+                    "kind": {"type": "string", "const": "schedule"},
+                    "schedule_origin": {"type": "string", "enum": ["project", "api"]},
+                    "schedule_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "Origin-local identifier, bounded to 255 UTF-8 bytes by the server"
+                    },
+                    "schedule_revision": {
+                        "type": "string",
+                        "pattern": "^sha256:[0-9a-f]{64}$"
+                    },
+                    "slot_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "decision": {"type": "string", "enum": ["scheduled", "catch_up"]},
+                    "scheduled_for": {"type": "string", "format": "date-time"},
+                    "fired_at": {"type": "string", "format": "date-time"},
+                    "arm_generation": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                }
+            }
+        ]
     })
 }
 
@@ -472,6 +516,12 @@ fn error_named(description: &'static str) -> Value {
 
 #[cfg(test)]
 mod tests {
+    use nika_cadence::firing::{ArmGeneration, SlotId};
+    use nika_cadence::{ScheduleDecision, ScheduleOrigin, ScheduleRevision};
+    use serde_json::Value;
+
+    use crate::{JobId, JobOrigin, JobReceipt};
+
     use super::document;
 
     const LIVE_PATHS: &[&str] = &[
@@ -542,6 +592,10 @@ mod tests {
             receipt["properties"]["snapshot_digest"]["pattern"],
             "^[0-9a-f]{64}$"
         );
+        assert_eq!(
+            receipt["properties"]["origin"]["$ref"],
+            "#/components/schemas/JobOrigin"
+        );
         assert!(
             !spec["components"]["schemas"]["Job"]["required"]
                 .as_array()
@@ -571,5 +625,97 @@ mod tests {
             spec["components"]["schemas"]["JobEvent"]["required"],
             serde_json::json!(["sequence", "kind", "status"])
         );
+    }
+
+    #[test]
+    fn job_origin_schema_tracks_serialized_manual_and_schedule_receipts() {
+        let spec = document();
+        let variants = spec["components"]["schemas"]["JobOrigin"]["oneOf"]
+            .as_array()
+            .expect("origin variants");
+        assert_eq!(variants.len(), 2);
+
+        let job_id = JobId::parse("3d6f0a7d-27d4-4e48-b17a-fc6fdb40255b").expect("job id");
+        let manual = JobReceipt::new(
+            job_id.clone(),
+            "exec-manual",
+            "trace-manual",
+            "a".repeat(64),
+            None,
+        )
+        .expect("manual receipt");
+        assert_variant_matches_receipt(&variants[0], &manual, "manual");
+
+        let revision = ScheduleRevision::from_wire(&format!("sha256:{}", "b".repeat(64)))
+            .expect("schedule revision");
+        let slot = SlotId::from_wire(&"c".repeat(64)).expect("slot id");
+        let generation = ArmGeneration::from_wire(&"d".repeat(64)).expect("arm generation");
+        let origin = JobOrigin::schedule(
+            ScheduleOrigin::Api,
+            "nightly",
+            &revision,
+            &slot,
+            ScheduleDecision::CatchUp,
+            "2026-08-31T01:00:00Z".parse().expect("scheduled timestamp"),
+            "2026-08-31T01:00:01Z".parse().expect("fired timestamp"),
+            &generation,
+        )
+        .expect("scheduled origin");
+        let scheduled = JobReceipt::with_origin(
+            job_id,
+            "exec-scheduled",
+            "trace-scheduled",
+            "e".repeat(64),
+            Some("chain-head".to_owned()),
+            origin,
+        )
+        .expect("scheduled receipt");
+        assert_variant_matches_receipt(&variants[1], &scheduled, "schedule");
+
+        let schedule_schema = &variants[1];
+        assert_eq!(
+            schedule_schema["properties"]["schedule_origin"]["enum"],
+            serde_json::json!(["project", "api"])
+        );
+        assert_eq!(
+            schedule_schema["properties"]["decision"]["enum"],
+            serde_json::json!(["scheduled", "catch_up"])
+        );
+        for field in ["slot_id", "arm_generation"] {
+            assert_eq!(
+                schedule_schema["properties"][field]["pattern"],
+                "^[0-9a-f]{64}$"
+            );
+        }
+        assert_eq!(
+            schedule_schema["properties"]["schedule_revision"]["pattern"],
+            "^sha256:[0-9a-f]{64}$"
+        );
+    }
+
+    fn assert_variant_matches_receipt(schema: &Value, receipt: &JobReceipt, kind: &str) {
+        let receipt = serde_json::to_value(receipt).expect("serialize receipt");
+        let origin = receipt["origin"].as_object().expect("serialized origin");
+        let properties = schema["properties"].as_object().expect("schema properties");
+        let required = schema["required"].as_array().expect("required fields");
+
+        assert_eq!(schema["additionalProperties"], false);
+        assert_eq!(schema["properties"]["kind"]["const"], kind);
+        assert_eq!(origin["kind"], kind);
+        assert_eq!(origin.len(), properties.len());
+        assert_eq!(required.len(), properties.len());
+        for field in origin.keys() {
+            assert!(
+                properties.contains_key(field),
+                "undocumented origin field: {field}"
+            );
+        }
+        for field in required {
+            let field = field.as_str().expect("required field name");
+            assert!(
+                origin.contains_key(field),
+                "serialized origin omitted {field}"
+            );
+        }
     }
 }
