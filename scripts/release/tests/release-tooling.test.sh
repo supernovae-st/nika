@@ -280,6 +280,8 @@ grep -q 'crates/nika-acp/Cargo.lock' "$ROOT/RELEASING.md" \
   || fail 'the canonical carrier list omits crates/nika-acp/Cargo.lock'
 grep -q 'before declaring the release complete' "$ROOT/RELEASING.md" \
   || fail 'the ceremony does not say when the timeline record closes the release'
+# The GitHub expression is the literal workflow contract, not shell syntax.
+# shellcheck disable=SC2016
 grep -q 'group: release-${{ github.event.inputs.tag || github.ref_name }}' \
   "$ROOT/.github/workflows/release.yml" \
   || fail 'the release workflow does not serialize runs for the same tag'
@@ -297,6 +299,14 @@ if grep -q -- '--clobber' "$ROOT/.github/workflows/release.yml"; then
 fi
 grep -q 'upload-assets-immutable.sh' "$ROOT/.github/workflows/release.yml" \
   || fail 'the release workflow bypasses the immutable asset uploader'
+npm_publish_job="$(sed -n '/^  npm-wasm-publish:/,/^  docker:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$npm_publish_job" | grep -q 'actions/checkout@' \
+  || fail 'the isolated npm publish job cannot access the immutable asset helper'
+printf '%s\n' "$npm_publish_job" | grep -q 'sparse-checkout: scripts/release/upload-assets-immutable.sh' \
+  || fail 'the elevated npm publish job checks out more source than its one helper'
+printf '%s\n' "$npm_publish_job" | grep -q 'persist-credentials: false' \
+  || fail 'the elevated npm publish checkout persists its write credential'
 bash "$ROOT/scripts/release/tests/immutable-assets.test.sh" >/dev/null \
   || fail 'the immutable asset replay regression failed'
 grep -q 'TAP_DEPLOY_KEY' "$ROOT/docs/RELEASING.md" \
