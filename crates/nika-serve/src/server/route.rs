@@ -97,13 +97,8 @@ async fn protected(request: Request<Incoming>, state: Arc<AppState>) -> Response
     if !state.token.authorizes(request.headers()) {
         return ApiError::unauthorized().into_response();
     }
-    if coarse_body_too_large(&request, state.limits.max_body_bytes()) {
-        return ApiError::new(
-            StatusCode::PAYLOAD_TOO_LARGE,
-            "body_too_large",
-            "request body exceeds the configured limit",
-        )
-        .into_response();
+    if content_length(&request).is_err() {
+        return body_too_large().into_response();
     }
     if request.method() == Method::GET && sse::is_events_path(request.uri().path()) {
         return sse::handle(request, state).await;
@@ -128,6 +123,14 @@ async fn route_authenticated(
     request: Request<Incoming>,
     state: Arc<AppState>,
 ) -> Response<ResponseBody> {
+    if content_length(&request)
+        .ok()
+        .flatten()
+        .is_some_and(|length| length > state.limits.max_body_bytes())
+    {
+        drain_oversized_body(request).await;
+        return body_too_large().into_response();
+    }
     let path = request.uri().path().to_owned();
     match (request.method(), path.as_str()) {
         (&Method::PUT, path) if path.starts_with("/v1/schedules/") => {
@@ -649,6 +652,11 @@ pub(super) async fn collect_body(
         })
 }
 
+async fn drain_oversized_body(request: Request<Incoming>) {
+    let mut body = request.into_body();
+    while matches!(body.frame().await, Some(Ok(_))) {}
+}
+
 fn idempotency_key(headers: &hyper::HeaderMap) -> Result<IdempotencyKey, ApiError> {
     let mut values = headers.get_all(IDEMPOTENCY_KEY).iter();
     let value = values.next().ok_or_else(invalid_idempotency_key)?;
@@ -667,19 +675,20 @@ fn invalid_idempotency_key() -> ApiError {
     )
 }
 
-fn coarse_body_too_large(request: &Request<Incoming>, limit: usize) -> bool {
+fn content_length(request: &Request<Incoming>) -> Result<Option<usize>, ()> {
     let mut values = request.headers().get_all(CONTENT_LENGTH).iter();
     let Some(value) = values.next() else {
-        return false;
+        return Ok(None);
     };
     if values.next().is_some() {
-        return true;
+        return Err(());
     }
     value
         .to_str()
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
-        .is_none_or(|length| length > limit)
+        .map(Some)
+        .ok_or(())
 }
 
 pub(super) fn is_json(headers: &hyper::HeaderMap) -> bool {
@@ -714,6 +723,14 @@ pub(super) fn json_response<T: serde::Serialize>(
 
 fn job_not_found() -> Response<ResponseBody> {
     ApiError::job_not_found().into_response()
+}
+
+fn body_too_large() -> ApiError {
+    ApiError::new(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "body_too_large",
+        "request body exceeds the configured limit",
+    )
 }
 
 fn internal_error() -> Response<ResponseBody> {
