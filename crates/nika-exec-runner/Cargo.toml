@@ -16,20 +16,20 @@ publish                = false  # Internal L1 effect crate (not a standalone cra
 adr = ["ADR-003", "ADR-016"]
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.115.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.116.0" }
 # The ONE host matcher (host_in_allowlist) the egress proxy decides with —
 # shared with nika-http's wire boundary and the static check, so check ≡
 # run ≡ jail cannot drift on the glob (L0 leaf, no I/O pulled in). The same
 # leaf carries the ONE argv exec-floor predicate (#605 · exec::argv_floor_refusal)
 # the blocklist wrapper and the `nika check` SEC-001 finding both judge with.
-nika-types = { path = "../nika-types", version = "0.115.0" }
+nika-types = { path = "../nika-types", version = "0.116.0" }
 # L0 · home-grant expansion (`~/` · `$HOME/`) the spawn-side SandboxSpec
 # applies at run so a tracked workflow does not bake one machine's home.
-nika-cap = { path = "../nika-cap", version = "0.115.0" }
+nika-cap = { path = "../nika-cap", version = "0.116.0" }
 # L0 · the declared `permits:` vocabulary the spawn-side SandboxSpec derives
 # from (sandbox_spec · descended from nika-runtime::dispatch at the 15k wall ·
 # ADR-110 · #889). L1 → L0, no cycle possible.
-nika-schema = { path = "../nika-schema", version = "0.115.0" }
+nika-schema = { path = "../nika-schema", version = "0.116.0" }
 # tokio::process spawns the child; io-util drains pipes; sync::Notify backs the
 # cancel-by-pid registry; time::timeout enforces the deadline.
 tokio = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
@@ -41,8 +41,8 @@ tokio    = { workspace = true, features = ["process", "io-util", "sync", "time",
 # runtime floor must return the SAME verdict on the same literal argv —
 # L0 leaves, downward-only. (nika-schema rides [dependencies] — the
 # sandbox_spec derivation speaks Permits in prod.)
-nika-check  = { path = "../nika-check", version = "0.115.0" }
-nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.115.0" }
+nika-check  = { path = "../nika-check", version = "0.116.0" }
+nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.116.0" }
 
 [package.metadata.lore]
 daemon        = "timonier"

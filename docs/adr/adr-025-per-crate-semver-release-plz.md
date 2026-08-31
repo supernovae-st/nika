@@ -24,6 +24,12 @@ follow_ups: ["set up release-plz GitHub workflow", "yank legacy crates.io versio
 
 # ADR-025: Per-crate semver + release-plz
 
+> **Implementation note (2026-08-31).** This file records the 2026-04 design,
+> but the active
+> release authority is the lockstep workspace sweep and tag-triggered train in
+> `RELEASING.md`, `scripts/release/wave-sweep.sh`, and
+> `.github/workflows/release.yml`. No `release-plz` workflow is installed.
+
 ## Context
 
 Workspace currently uses single `version = "0.80.0"` shared across all crates.
