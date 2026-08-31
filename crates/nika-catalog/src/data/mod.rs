@@ -16,6 +16,8 @@
 //! - 2-pass matching (exact + contains) for pricing
 
 #[cfg(feature = "builtins-transforms")]
+pub mod builtin_prices;
+#[cfg(feature = "builtins-transforms")]
 pub mod builtins;
 
 pub mod generated;
@@ -42,5 +44,7 @@ pub(crate) use generated::ALL_PRICING;
 pub(crate) use generated::ALL_PROVIDERS;
 #[cfg(feature = "pricing")]
 pub(crate) use generated::PRICING_SNAPSHOT;
+#[cfg(any(feature = "capabilities", feature = "pricing"))]
+pub(crate) use generated::find_provider;
 #[cfg(feature = "capabilities")]
-pub(crate) use generated::{CAPABILITY_DEFAULTS, CAPABILITY_RULES, find_provider};
+pub(crate) use generated::{CAPABILITY_DEFAULTS, CAPABILITY_RULES};

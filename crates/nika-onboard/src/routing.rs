@@ -71,4 +71,38 @@ mod tests {
             "nonsense must clarify, never guess"
         );
     }
+
+    /// B01 · `hello` is the 01-hello lesson, never a second file.
+    #[test]
+    fn hello_is_the_numbered_lesson() {
+        assert_eq!(
+            route_query("hello"),
+            RoutedEntry::Example("01-hello".to_owned())
+        );
+        assert_eq!(
+            route_query("01-hello"),
+            RoutedEntry::Example("01-hello".to_owned())
+        );
+    }
+
+    /// C09 · a weekend URL summary writes 05-fetch-chain or names it.
+    #[test]
+    fn a_weekend_summary_of_three_urls_names_fetch_chain() {
+        let outcome = route_query("a weekend summary of three URLs");
+        assert!(
+            !matches!(outcome, RoutedEntry::Skeleton(_)),
+            "must not land a skeleton: {outcome:?}"
+        );
+        match outcome {
+            RoutedEntry::Example(name) => assert_eq!(
+                name, "05-fetch-chain",
+                "the weekend URL summary is the fetch-chain lesson"
+            ),
+            RoutedEntry::Clarify(candidates) => assert!(
+                candidates.iter().any(|c| c == "05-fetch-chain"),
+                "must name 05-fetch-chain, got {candidates:?}"
+            ),
+            RoutedEntry::Skeleton(_) => {}
+        }
+    }
 }

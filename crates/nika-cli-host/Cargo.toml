@@ -16,6 +16,7 @@ nika-catalog   = { path = "../nika-catalog", version = "0.116.0" }   # env_var l
 nika-check     = { path = "../nika-check", version = "0.116.0" }     # CheckReport surfaces the doctor/welcome glance reads
 nika-dap       = { path = "../nika-dap", version = "0.116.0" }       # workspace inventory (welcome glance · truncation law)
 nika-display   = { path = "../nika-display", version = "0.116.0" }   # theme (Role · Theme) + display::format::file_url
+nika-error     = { path = "../nika-error", version = "0.116.0" }     # the error-code registry (`nika explain`)
 nika-models    = { path = "../nika-models", version = "0.116.0" }    # model ids the probe/doctor ladders name
 nika-pack      = { path = "../nika-pack", version = "0.116.0" }      # embedded pack version (kit probes)
 nika-providers = { path = "../nika-providers", version = "0.116.0" } # ProviderRegistry + ExecutionLocus (the probe ladders)

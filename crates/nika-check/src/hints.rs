@@ -50,7 +50,7 @@
 //!   STATED here, never silent; the closure-free `for_each` same-path
 //!   flavor still judged.
 //! - **exec with a native path** (`native-first`) — emitted by the
-//!   `check/native_first.rs` pass (the `native-first/001..006` ruleset:
+//!   `native_first` pass (the `native-first/001..006` ruleset:
 //!   http/file/data/media/helper/utility commands a builtin or MCP tool
 //!   covers); `nika check --native-strict` promotes them to failures.
 //! - **exec the run will refuse** (`exec-floor`) — RETIRED by #605: the
@@ -115,7 +115,7 @@ use nika_schema::types::CaptureMode;
 #[non_exhaustive]
 pub struct Hint {
     /// The hint class — the closed set today: `cost` · `zero-cap` ·
-    /// `thinking-budget` · `dead-spend` ·
+    /// `envelope-model` · `thinking-budget` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` ·
     /// `secrets-store` · `native-first` ·
@@ -323,6 +323,17 @@ fn push_infer_hints(
     envelope_ids: &BTreeSet<&str>,
     deep_referenced: &BTreeSet<String>,
 ) {
+    if a.model.is_some() {
+        hints.push(hint(
+            "envelope-model",
+            id,
+            format!(
+                "task-level `model:` on `{id}` is envelope-only at the CLI `--model` override — \
+             the pin stays live and metered; `--model mock/echo` does not descend into this task \
+             (B22 / issue 1277)"
+            ),
+        ));
+    }
     if a.max_tokens.is_none() {
         hints.push(hint("cost", id, format!(
             "declare `max_tokens` on `{id}` — the cost report becomes a hard ceiling instead of UNBOUNDED"
@@ -1375,6 +1386,27 @@ pub(super) fn hint(kind: &'static str, task: &str, advice: String) -> Hint {
         code: None,
         task: task.to_owned(),
         advice,
+    }
+}
+
+/// F-O8 legal zero — a missing `permits:` block whose body escapes
+/// nothing is stated, not punished. Lives here so `check` stays under
+/// the file-length ratchet.
+pub(crate) fn legal_zero_hint(
+    wf: &RawWorkflow,
+    escapes_empty: bool,
+    judged: bool,
+    hints: &mut Vec<Hint>,
+) {
+    if judged && wf.permits.is_none() && escapes_empty {
+        hints.push(hint(
+            "permits",
+            "-",
+            "no `permits:` block declared · zero authority (F-O8) — the body is \
+             pure compute so nothing escapes; declare `permits: {}` to state the \
+             zero explicitly"
+                .to_owned(),
+        ));
     }
 }
 

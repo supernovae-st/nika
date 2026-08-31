@@ -160,11 +160,15 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     // (lessons, verbatim). Exact names first — templates, then examples
     // (slug or filename) — then plain-words intent. The showroom side
     // (`nika try <slug>`) runs the same corpus without taking it.
-    if let Some(body) = nika_pack::example(template) {
-        return write_example(template, body, dest, force);
+    // B01 · `hello` is the 01-hello lesson. One file, one dest stem, one
+    // model. The CLI first-wow door still intercepts `nika new hello`
+    // before this crate; this ladder is the pack/onboard contract.
+    let from = canonical_source(template);
+    if let Some(body) = nika_pack::example(from) {
+        return write_example(from, body, dest, force);
     }
-    let (name, body, contract) = match nika_pack::template(template) {
-        Some(body) => (template.to_owned(), body, None),
+    let (name, body, contract) = match nika_pack::template(from) {
+        Some(body) => (from.to_owned(), body, None),
         None => match crate::intent::route(template) {
             RoutingOutcome::Routed {
                 template: name,
@@ -193,6 +197,20 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
             }
         },
     };
+    instantiate_skeleton(&name, body, dest, force, template, contract.as_ref())
+}
+
+/// Write a resolved skeleton: dest is required (the `?` discovery door
+/// already returned), refuse an existing file without `--force`, and
+/// a routed file is a DRAFT by construction (P0-10).
+fn instantiate_skeleton(
+    name: &str,
+    body: &str,
+    dest: Option<&str>,
+    force: bool,
+    uttered: &str,
+    contract: Option<&IntentContract>,
+) -> Outcome {
     // A known template needs a destination to instantiate into. The
     // `--from '?'` (or any unknown) discovery query already returned above
     // WITHOUT touching `dest` — that is the editor-integration wire
@@ -206,7 +224,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
         return Outcome {
             text: format!(
                 "template `{name}` resolved — pass a destination: nika new {} <dest>.nika.yaml",
-                shell_quote(template)
+                shell_quote(uttered)
             ),
             code: codes::ENV,
         };
@@ -223,7 +241,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
             code: codes::ENV,
         };
     }
-    let routing = routing_prefix(contract.as_ref());
+    let routing = routing_prefix(contract);
     // A ROUTED file is a draft by construction (P0-10): the intent was
     // interpreted, not understood — the message says « draft », never
     // « ready », and hands over to `nika check` before any run.
@@ -242,10 +260,9 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
         text,
         code: codes::OK,
     };
-    if let Some(contract) = contract {
-        with_cadence_note(out, &contract)
-    } else {
-        out
+    match contract {
+        Some(contract) => with_cadence_note(out, contract),
+        None => out,
     }
 }
 
@@ -333,10 +350,11 @@ fn description_of(name: &str) -> Option<String> {
     })
 }
 
-/// An EXAMPLE source lands verbatim (a lesson, complete — no SLOTs);
-/// the receipt says the check-then-run road. The default destination is
-/// the slug's basename (a nested slug flattens — the tiering belongs to
-/// the pack, your workspace is flat).
+/// An EXAMPLE source lands verbatim (a lesson, complete — no SLOTs)
+/// except `hello` / `01-hello`, which B01 stamps onto `mock/echo` so
+/// the take runs without ollama. The receipt says the check-then-run
+/// road. The default destination is the slug's basename (a nested slug
+/// flattens — the tiering belongs to the pack, your workspace is flat).
 fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Outcome {
     let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
     let base = clean.rsplit('/').next().unwrap_or(clean);
@@ -354,6 +372,13 @@ fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Out
     // user's own workspace (gauntlet 08-01: pasting the copied
     // comment exited 3 — the example path exists only in the pack).
     let body = body.replace(&format!("examples/{clean}.nika.yaml"), dest);
+    // B01: a take of hello / 01-hello rehearses on mock/echo even when
+    // the vendored pack lesson names a local ollama seat (spec pin).
+    let body = if matches!(clean, "hello" | "01-hello") {
+        stamp(&body, "hello", Some("mock/echo"))
+    } else {
+        body
+    };
     if let Err(e) = std::fs::write(dest, &body) {
         return Outcome {
             text: format!("cannot write {dest}: {e}"),
@@ -714,6 +739,31 @@ pub(crate) fn workflow_id(dest: &str) -> String {
     }
 }
 
+/// `hello` / `hello.nika.yaml` → the 01-hello lesson (B01 · one hello).
+fn canonical_source(template: &str) -> &str {
+    let t = template.strip_suffix(".nika.yaml").unwrap_or(template);
+    match t {
+        "hello" => "01-hello",
+        other => other,
+    }
+}
+
+/// Inline comment that MATCHES the stamped seat (B16). A leftover
+/// « local » next to `openai/…` is the lie this exists to refuse.
+fn model_line_comment(model: &str) -> &'static str {
+    if model == "mock/echo" || model.starts_with("mock/") {
+        "rehearsal · zero key · swap for any catalog seat"
+    } else if model.starts_with("ollama/")
+        || model.starts_with("llamacpp/")
+        || model.starts_with("vllm/")
+        || model.starts_with("native/")
+    {
+        "local · zero key · swap for any catalog seat"
+    } else {
+        "catalog seat · swap for mock/echo to rehearse keyless"
+    }
+}
+
 /// Stamp the answers the wizard KNOWS into the template — id · model
 /// (the second only when the wizard asked, i.e. the skeleton carries a
 /// top-level `model:` at column 0 — the stamp's anchor). Never stamp
@@ -730,7 +780,11 @@ pub(crate) fn stamp(body: &str, id: &str, model: Option<&str>) -> String {
             if line.starts_with("nika: ") {
                 format!("nika: {id}")
             } else if let (true, Some(model)) = (line.starts_with("model: "), model) {
-                format!("model: {}", yaml_scalar(model))
+                format!(
+                    "model: {}   # {}",
+                    yaml_scalar(model),
+                    model_line_comment(model)
+                )
             } else {
                 line.to_owned()
             }

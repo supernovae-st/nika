@@ -161,13 +161,13 @@ fn index() -> Vec<(&'static str, &'static str, Vec<String>)> {
         .collect()
 }
 
-/// The three storefront jobs — contrasted trades (support · meetings ·
-/// dev), each a complete offline rehearsal. The FIRST screen of bare
-/// `nika try`: 39 rows at once was a choice tax the gauntlet measured
-/// (UX107-13 · D-018 one primary door), and the operator picked these
-/// three. `try --all` keeps the whole corpus one flag away, and the
-/// concierge still teaches `01-hello` directly — the path never hides.
-const STOREFRONT: [&str; 3] = ["support-triage", "meeting-actions", "release-notes"];
+/// The first-run storefront — pack `first_shelf()` (UX-1): hello · brief
+/// · image · fetch · notify. The rest of the corpus lives behind
+/// `try --all`. A missing slug falls back to the full shelf rather than
+/// a bare window.
+fn storefront_slugs() -> &'static [&'static str] {
+    nika_pack::first_shelf()
+}
 
 /// The slugless-`try` choice: the storefront is a TTY rendering — a
 /// pipe gets the full parsable corpus unchanged (the vscode extension
@@ -183,19 +183,23 @@ pub fn shelf_or_front(all: bool, theme: Theme) -> VerbOutput {
     }
 }
 
-/// Bare `nika try` — the storefront: three familiar jobs, whole rows
+/// Bare `nika try` — the storefront: the pack first shelf, whole rows
 /// (file · what goes in → what comes out · verbs), then the doors to
 /// the rest. Derived from the pack at call time; `--all` renders the
 /// full corpus (the path + every job).
 #[must_use]
 pub fn storefront(theme: Theme) -> VerbOutput {
+    let slugs = storefront_slugs();
     let mut text = String::new();
     let _ = writeln!(
         text,
         "{}",
-        chrome::rail_head(theme, "three jobs to see — offline · zero keys")
+        chrome::rail_head(
+            theme,
+            &format!("{} first-run jobs — offline · zero keys", slugs.len())
+        )
     );
-    for slug in STOREFRONT {
+    for slug in slugs {
         let Some(body) = nika_pack::example(slug) else {
             // A storefront slug missing from the pack is a build defect
             // — fall back to the full corpus rather than a bare window.
@@ -223,9 +227,10 @@ pub fn storefront(theme: Theme) -> VerbOutput {
             )
         );
     }
+    let first = slugs.first().copied().unwrap_or("01-hello");
     let _ = write!(
         text,
-        "\nnext ·\n  nika try support-triage              # watch one work · nothing written\n  nika new support-triage              # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one\n  nika try --all                       # the whole shelf · the numbered path + every job\n\n{}",
+        "\nnext ·\n  nika try {first}                    # watch one work · nothing written\n  nika new {first}                    # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one\n  nika try --all                       # the whole shelf · the numbered path + every job\n\n{}",
         theme.paint(
             Role::Dim,
             "verbs · \u{25c7} infer (ask a model) · \u{25b7} exec (run a command) · \u{25c6} invoke (use a tool) · \u{2726} agent (bounded loop)"
@@ -349,15 +354,15 @@ mod tests {
     use super::*;
     use crate::verbs::exit;
 
-    /// The storefront (UX107-13 · operator-picked trio): three
-    /// contrasted jobs, every taught line names a living door, the
-    /// verb legend teaches the glyphs, and `--all` stays one row
-    /// away. Every slug in the trio must EXIST in the pack — a
-    /// missing one falls back to the full corpus, never a bare
-    /// window.
+    /// The storefront (UX-1): pack `first_shelf()`, every taught line
+    /// names a living door, the verb legend teaches the glyphs, and
+    /// `--all` stays one row away. Every slug must EXIST in the pack —
+    /// a missing one falls back to the full corpus, never a bare window.
     #[test]
-    fn the_storefront_teaches_three_jobs_and_the_shelf_door() {
-        for slug in STOREFRONT {
+    fn the_storefront_teaches_the_first_shelf_and_the_all_door() {
+        let shelf = nika_pack::first_shelf();
+        assert_eq!(shelf.len(), 5, "UX-1 first shelf is five jobs");
+        for slug in shelf {
             let body = nika_pack::example(slug).unwrap_or_default();
             assert!(
                 !body.is_empty(),
@@ -395,7 +400,7 @@ mod tests {
         }
         let out = storefront(Theme::new(false, false, false));
         assert_eq!(out.code, exit::OK);
-        for slug in STOREFRONT {
+        for slug in nika_pack::first_shelf() {
             assert!(
                 out.text.contains(&format!("nika try {slug}")),
                 "{}",

@@ -437,64 +437,99 @@ fn fold_slots(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
 
 /// The three tool-contract classes (all BUILTIN-coded, TOOLS/ARGS gates).
 fn fold_tools(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
-    let builtin_code = || Some("NIKA-BUILTIN-001".to_owned());
-    let builtin_url = || Some(format!("{}/NIKA-BUILTIN-001", super::ERROR_DOCS_BASE));
-    for t in &report.unknown_tools {
-        let mut f = UnifiedFinding::new(
-            "unknown_tool",
-            "TOOLS",
-            match &t.suggestion {
-                Some(s) => format!(
-                    "`{}` names no canonical builtin (task `{}`) — did you mean `{s}`?",
-                    t.tool, t.task
-                ),
-                None => format!(
-                    "`{}` names no canonical builtin (task `{}`)",
-                    t.tool, t.task
-                ),
-            },
-        );
-        f.code = builtin_code();
-        f.docs_url = builtin_url();
-        f.task = Some(t.task.clone());
-        out.push(f);
-    }
-    for a in &report.unknown_args {
-        let mut f = UnifiedFinding::new(
-            "unknown_arg",
-            "ARGS",
-            match &a.suggestion {
-                Some(s) => format!(
-                    "`{}` is not an arg of `{}` (task `{}`) — did you mean `{s}`?",
-                    a.arg, a.tool, a.task
-                ),
-                // No honest guess (a wrong-name-entirely miss) — the
-                // closed declared set IS the teaching.
-                None => format!(
-                    "`{}` is not an arg of `{}` (task `{}`) — declared: {}",
-                    a.arg,
-                    a.tool,
-                    a.task,
-                    a.declared.join(" · ")
-                ),
-            },
-        );
-        f.code = builtin_code();
-        f.docs_url = builtin_url();
-        f.task = Some(a.task.clone());
-        out.push(f);
-    }
+    out.extend(report.unknown_tools.iter().map(fold_unknown_tool));
+    out.extend(report.unknown_args.iter().map(fold_unknown_arg));
     for m in &report.missing_args {
         let mut f = UnifiedFinding::new(
             "missing_arg",
             "ARGS",
             format!("`{}` requires arg `{}` (task `{}`)", m.tool, m.arg, m.task),
         );
-        f.code = builtin_code();
-        f.docs_url = builtin_url();
+        f.code = Some("NIKA-BUILTIN-001".to_owned());
+        f.docs_url = Some(format!("{}/NIKA-BUILTIN-001", super::ERROR_DOCS_BASE));
         f.task = Some(m.task.clone());
         out.push(f);
     }
+}
+
+fn fold_unknown_tool(t: &crate::UnknownTool) -> UnifiedFinding {
+    if let Some(server) = t.tool.strip_prefix("mcp:") {
+        let server = server.split('/').next().unwrap_or(server);
+        let mut f = UnifiedFinding::new(
+            "unknown_tool",
+            "TOOLS",
+            format!(
+                "`{}` names MCP server `{server}` which is not configured in `.nika/mcp_servers.json` (task `{}`) — check fail-closed; declare the server in the registry",
+                t.tool, t.task
+            ),
+        );
+        f.code = Some("NIKA-INVOKE-001".to_owned());
+        f.docs_url = Some(format!("{}/NIKA-INVOKE-001", super::ERROR_DOCS_BASE));
+        f.task = Some(t.task.clone());
+        return f;
+    }
+    let mut f = UnifiedFinding::new(
+        "unknown_tool",
+        "TOOLS",
+        match &t.suggestion {
+            Some(s) => format!(
+                "`{}` names no canonical builtin (task `{}`) — did you mean `{s}`?",
+                t.tool, t.task
+            ),
+            None => format!(
+                "`{}` names no canonical builtin (task `{}`)",
+                t.tool, t.task
+            ),
+        },
+    );
+    f.code = Some("NIKA-BUILTIN-001".to_owned());
+    f.docs_url = Some(format!("{}/NIKA-BUILTIN-001", super::ERROR_DOCS_BASE));
+    f.task = Some(t.task.clone());
+    f
+}
+
+fn fold_unknown_arg(a: &crate::UnknownArg) -> UnifiedFinding {
+    if a.tool == "nika:notify"
+        && a.arg == "channel"
+        && let Some(value) = &a.invalid_value
+    {
+        let mut f = UnifiedFinding::new(
+            "unknown_arg",
+            "ARGS",
+            format!(
+                "channel `{value}` is not configured (v0.1 engines MUST support `webhook`) (task `{}`)",
+                a.task
+            ),
+        );
+        f.code = Some("NIKA-BUILTIN-NOTIFY-001".to_owned());
+        f.docs_url = Some(format!(
+            "{}/NIKA-BUILTIN-NOTIFY-001",
+            super::ERROR_DOCS_BASE
+        ));
+        f.task = Some(a.task.clone());
+        return f;
+    }
+    let mut f = UnifiedFinding::new(
+        "unknown_arg",
+        "ARGS",
+        match &a.suggestion {
+            Some(s) => format!(
+                "`{}` is not an arg of `{}` (task `{}`) — did you mean `{s}`?",
+                a.arg, a.tool, a.task
+            ),
+            None => format!(
+                "`{}` is not an arg of `{}` (task `{}`) — declared: {}",
+                a.arg,
+                a.tool,
+                a.task,
+                a.declared.join(" · ")
+            ),
+        },
+    );
+    f.code = Some("NIKA-BUILTIN-001".to_owned());
+    f.docs_url = Some(format!("{}/NIKA-BUILTIN-001", super::ERROR_DOCS_BASE));
+    f.task = Some(a.task.clone());
+    f
 }
 
 /// Every TYPED rename this report offers `--fix` — `(offending, target,
@@ -764,6 +799,266 @@ mod tests {
             hit.message.contains("can never take effect"),
             "the dead-grant teaching: {}",
             hit.message
+        );
+    }
+
+    /// B04 / B28 · issue 1294 — check fail-closed on a host passwd read
+    /// (and the `../` climb of the same class). The repair must not
+    /// teach granting the host file. `tools:` is granted so the row is
+    /// the PATH, not a missing-tools conjunct.
+    #[test]
+    fn check_fails_closed_on_host_passwd_read() {
+        let host = "nika: passwd-read\npermits:\n  tools: [\"nika:read\"]\n  fs: { read: [\"./**\"] }\ntasks:\n  p:\n    invoke: { tool: nika:read, args: { path: /etc/passwd } }\n";
+        let r = report(host);
+        assert!(
+            !r.is_clean(),
+            "check must fail-closed on a host passwd read: {:?}",
+            r.capability_escapes
+        );
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.code.as_deref() == Some("NIKA-SEC-004"))
+            .unwrap_or_else(|| panic!("expected NIKA-SEC-004, got {:#?}", r.findings));
+        assert!(
+            hit.message.contains("/etc/passwd"),
+            "the finding names the host path: {}",
+            hit.message
+        );
+        assert!(
+            r.capability_escapes.iter().all(|e| {
+                e.fix
+                    .as_deref()
+                    .is_none_or(|f| !f.contains("passwd") && !f.contains("/etc/"))
+            }),
+            "no shovel toward the host file: {:?}",
+            r.capability_escapes
+        );
+        assert!(
+            r.capability_escapes
+                .iter()
+                .any(|e| e.detail.contains("escapes the workspace") && e.fix.is_none()),
+            "the host path is an escape, never a grant: {:?}",
+            r.capability_escapes
+        );
+
+        let climb = "nika: passwd-climb\npermits:\n  tools: [\"nika:read\"]\n  fs: { read: [\"./**\"] }\ntasks:\n  p:\n    invoke: { tool: nika:read, args: { path: ../secret } }\n";
+        let r = report(climb);
+        assert!(
+            !r.is_clean(),
+            "check must fail-closed on a relative climb: {:?}",
+            r.capability_escapes
+        );
+        assert!(
+            r.findings
+                .iter()
+                .any(|f| f.code.as_deref() == Some("NIKA-SEC-004")),
+            "the climb is NIKA-SEC-004: {:#?}",
+            r.findings
+        );
+
+        let inside = "nika: in-tree\npermits:\n  tools: [\"nika:read\"]\n  fs: { read: [\"./**\"] }\ntasks:\n  p:\n    invoke: { tool: nika:read, args: { path: ./notes.md } }\n";
+        let r = report(inside);
+        assert!(
+            !r.capability_escapes.iter().any(|e| e.category == "fs"),
+            "an in-tree read under ./** stays granted: {:?}",
+            r.capability_escapes
+        );
+    }
+
+    /// B05 / B29 · issue 1295 — `permits.exec: ["cat"]` grants the
+    /// PROGRAM, not a host-file read. native-first/002 names `cat` as
+    /// file plumbing; that table is now the door (a finding, not a
+    /// hint) when the operand leaves the workspace. The in-cwd grant
+    /// stays green — the mutation that must not close over the door.
+    #[test]
+    fn exec_cat_of_a_host_path_is_sec004_when_only_the_program_is_granted() {
+        let host = "nika: dump\npermits:\n  exec: [\"cat\"]\ntasks:\n  p:\n    exec: { command: [\"cat\", \"/etc/passwd\"] }\n";
+        let r = report(host);
+        assert!(
+            !r.is_clean(),
+            "check must fail-closed on exec cat of a host path: {:?}",
+            r.capability_escapes
+        );
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.code.as_deref() == Some("NIKA-SEC-004"))
+            .unwrap_or_else(|| panic!("expected NIKA-SEC-004, got {:#?}", r.findings));
+        assert_eq!(hit.kind, "capability_escape");
+        assert!(
+            r.capability_escapes.iter().all(|e| {
+                e.fix
+                    .as_deref()
+                    .is_none_or(|f| !f.contains("/etc/") && !f.contains("passwd"))
+            }),
+            "no shovel toward the host file: {:?}",
+            r.capability_escapes
+        );
+
+        let granted = "nika: in-cwd\npermits:\n  exec: [\"cat\"]\n  fs: { read: [\"./**\"] }\ntasks:\n  p:\n    exec: { command: [\"cat\", \"README.md\"] }\n";
+        let r = report(granted);
+        assert!(
+            !r.findings
+                .iter()
+                .any(|f| f.code.as_deref() == Some("NIKA-SEC-004")),
+            "cat of a cwd file the jail admits stays green: {:#?}",
+            r.findings
+        );
+    }
+
+    const SPOTIFY_SEARCH: &str = "\
+nika: spotify-search
+permits:
+  tools: [\"mcp:spotify/search\"]
+tasks:
+  s:
+    invoke:
+      tool: mcp:spotify/search
+      args: { q: x }
+";
+
+    const NOTIFY_WEBHOOK: &str = "\
+nika: webhook-ping
+permits:
+  tools: [\"nika:notify\"]
+  net: { http: [\"example.com\"] }
+tasks:
+  n:
+    invoke:
+      tool: nika:notify
+      args:
+        channel: webhook
+        target: https://example.com/hook
+        message: hi
+";
+
+    const NOTIFY_SLACK: &str = "\
+nika: slack-ping
+permits:
+  tools: [\"nika:notify\"]
+  net: { http: [\"example.com\"] }
+tasks:
+  n:
+    invoke:
+      tool: nika:notify
+      args:
+        channel: slack
+        target: https://example.com/hook
+        message: hi
+";
+
+    fn composed(
+        yaml: &str,
+        read: &mut dyn FnMut(&str) -> Result<String, String>,
+    ) -> crate::CheckReport {
+        crate::check_composed(
+            &parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses"),
+            "wf.nika.yaml",
+            read,
+        )
+    }
+
+    /// C04 / issue 1299 — `mcp:spotify/search` with no `.nika/mcp_servers.json`
+    /// must fail check (the public 5c5bd1ab5 binary greened it and died at
+    /// run with INVOKE-001). No `--allow-unchecked-mcp` door.
+    #[test]
+    fn check_fails_closed_on_mcp_spotify_without_registry() {
+        let r = composed(SPOTIFY_SEARCH, &mut |_| {
+            Err("no .nika/mcp_servers.json".to_owned())
+        });
+        assert!(
+            !r.is_clean(),
+            "ghost MCP server must fail check, not skip: {:#?}",
+            r.findings
+        );
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| {
+                f.message.contains("spotify")
+                    && f.message.contains("mcp_servers.json")
+                    && f.code.as_deref() == Some("NIKA-INVOKE-001")
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected INVOKE-001 naming the registry, got {:#?}",
+                    r.findings
+                )
+            });
+        assert_eq!(hit.gate, "TOOLS");
+        assert!(
+            !hit.message.contains("allow-unchecked-mcp"),
+            "do not invent an escape hatch: {}",
+            hit.message
+        );
+    }
+
+    /// C04 mutation: a registry that lists `spotify` must not raise the
+    /// ghost-server finding (the predicate is membership, not "any file").
+    #[test]
+    fn check_accepts_mcp_spotify_when_the_registry_names_it() {
+        let r = composed(SPOTIFY_SEARCH, &mut |p| {
+            assert_eq!(p, ".nika/mcp_servers.json");
+            Ok(r#"{"mcp_servers_format":1,"servers":{"spotify":{"command":"npx"}}}"#.to_owned())
+        });
+        assert!(
+            !r.findings
+                .iter()
+                .any(|f| f.code.as_deref() == Some("NIKA-INVOKE-001")),
+            "configured server is not a ghost: {:#?}",
+            r.findings
+        );
+    }
+
+    /// C04 mutation: a registry that names some *other* server still
+    /// fail-closes on `mcp:spotify/search`.
+    #[test]
+    fn check_fails_closed_when_registry_omits_the_named_server() {
+        let r = composed(SPOTIFY_SEARCH, &mut |_| {
+            Ok(r#"{"mcp_servers_format":1,"servers":{"postgres":{"command":"npx"}}}"#.to_owned())
+        });
+        assert!(
+            r.findings
+                .iter()
+                .any(|f| f.code.as_deref() == Some("NIKA-INVOKE-001")
+                    && f.message.contains("spotify")),
+            "omitted server is still a ghost: {:#?}",
+            r.findings
+        );
+    }
+
+    /// C05 / issue 1300 — `channel: slack` must fail check with the v0.1
+    /// webhook-only teaching (run already throws NOTIFY-001).
+    #[test]
+    fn check_fails_closed_on_notify_slack_channel() {
+        let r = report(NOTIFY_SLACK);
+        assert!(
+            !r.is_clean(),
+            "slack channel must fail check: {:#?}",
+            r.findings
+        );
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.message.contains("v0.1") && f.message.contains("webhook"))
+            .unwrap_or_else(|| panic!("expected v0.1 webhook teaching, got {:#?}", r.findings));
+        assert!(
+            hit.message.contains("slack"),
+            "the refused channel is named: {}",
+            hit.message
+        );
+        assert_eq!(hit.code.as_deref(), Some("NIKA-BUILTIN-NOTIFY-001"));
+    }
+
+    /// C05 / W01 — webhook + a public test URL stays check-green.
+    #[test]
+    fn webhook_notify_to_a_public_test_url_stays_check_green() {
+        let r = report(NOTIFY_WEBHOOK);
+        assert!(
+            r.is_clean(),
+            "webhook channel must stay green: {:#?}",
+            r.findings
         );
     }
 }

@@ -43,6 +43,22 @@ fn stage_room(slug: &str, yaml: &str) -> Result<(std::path::PathBuf, crate::cwd:
     Ok((path, lease))
 }
 
+/// The staged try room is `…/nika-try-<stem>/<stem>.nika.yaml`.
+/// Display uses this to name the rehearsal (C12 · UX-3) instead of a
+/// path the sandbox is about to discard.
+pub(super) fn try_rehearsal_slug(path: &str) -> Option<&str> {
+    let path = std::path::Path::new(path);
+    let parent = path.parent()?.file_name()?.to_str()?;
+    let stem = parent.strip_prefix("nika-try-")?;
+    let file = path.file_name()?.to_str()?;
+    (file.strip_suffix(".nika.yaml") == Some(stem)).then_some(stem)
+}
+
+/// UX-3 · every try card: how to own the file.
+pub(super) fn try_own_file_line(slug: &str) -> String {
+    format!("rehearsal. to own the file: nika new {slug}")
+}
+
 /// `nika try <slug>` — execute one EMBEDDED example through the
 /// real runtime (the pack ships offline · zero network for the exec/
 /// mock-model examples). Stages the embedded YAML to a temp file (the
@@ -54,6 +70,33 @@ fn stage_room(slug: &str, yaml: &str) -> Result<(std::path::PathBuf, crate::cwd:
 /// printed to stderr (#145: the offline-model nudge for infer/provider
 /// failures · the real missing dependency for an exec `program not
 /// found`) · the original exit code is returned unchanged.
+/// Fold `try`'s `--answer` / `--resume` into the same request `run` builds.
+/// Relative resume paths pin to the operator cwd BEFORE the rehearsal
+/// room chdir, or a `--resume traces/t.ndjson` would look inside the temp
+/// staging dir.
+fn try_gate_request(
+    answers: &[String],
+    resume: Option<&std::path::Path>,
+    operator_cwd: Option<&std::path::Path>,
+) -> Option<nika_dap::resume::ResumeRequest> {
+    if resume.is_none() && answers.is_empty() {
+        return None;
+    }
+    Some(nika_dap::resume::ResumeRequest {
+        trace: resume.map(|path| {
+            if path.is_absolute() {
+                path.to_path_buf()
+            } else {
+                operator_cwd.map_or_else(|| path.to_path_buf(), |cwd| cwd.join(path))
+            }
+        }),
+        from: None,
+        answers: answers.to_vec(),
+        compat: None,
+        allow_unverified: false,
+    })
+}
+
 #[must_use]
 #[allow(clippy::fn_params_excessive_bools)] // the run trio, verbatim (two switches)
 pub fn example(
@@ -63,6 +106,7 @@ pub fn example(
     vars: &[String],
     (quiet, no_progress): (bool, bool),
     max_cost_usd: Option<f64>,
+    (answers, resume): (&[String], Option<&std::path::Path>),
     theme: Theme,
 ) -> u8 {
     // V5 seat law (RAMS-4): the raw --model flag resolves here — bare =
@@ -72,27 +116,17 @@ pub fn example(
         eprintln!("unknown example `{slug}` — bare `nika try` names the embedded set");
         return exit::FILE;
     };
+    // Pin `--resume` to the operator cwd before the room chdir.
+    let operator_cwd = std::env::current_dir().ok();
+    let resume_req = try_gate_request(answers, resume, operator_cwd.as_deref());
     let (path, room_lease) = match stage_room(slug, yaml) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    // The example renders live on a TTY, plain when piped, silent on
-    // `--quiet` (the verdict line still lands).
-    let mode = if quiet {
-        RenderMode::Quiet
-    } else if !no_progress && std::io::IsTerminal::is_terminal(&std::io::stdout()) {
-        RenderMode::Live
-    } else {
-        RenderMode::Plain
-    };
+    let (mode, theme) = example_mode(quiet, no_progress, theme);
     if mode == RenderMode::Live {
         example_predisplay(slug, yaml, theme);
     }
-    // The interactive duration accents follow the same TTY gate; heat
-    // additionally needs colour + the truecolor proof.
-    let mut theme = theme;
-    theme.accents = mode == RenderMode::Live;
-    theme.heat = theme.accents && theme.color && crate::verbs::truecolor_env();
     let verdict = run_verdict(
         &path.to_string_lossy(),
         false,
@@ -103,10 +137,11 @@ pub fn example(
         model_override,
         access_pin,
         vars,
-        None,
+        resume_req.as_ref(),
         // No run journal: the example is staged to a TEMP file — `.nika/
         // traces/` belongs to workspace runs (the same drive underneath,
-        // deliberately disabled here).
+        // deliberately disabled here). `--resume` still reads the path
+        // the operator named (pinned to their cwd above).
         true,
         // Examples always run whole (tiny by design · no scoping surface).
         None,
@@ -137,11 +172,11 @@ pub fn example(
     // review: the TTY lane ends on "make it yours", the piped lane ended
     // on "not a real answer" and nothing else). Quiet stays out: it
     // promises the compact verdict card and errors, nothing more.
-    if verdict.code == exit::OK && mode != RenderMode::Quiet {
+    if mode != RenderMode::Quiet {
         let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
         eprintln!(
             "\n  {}",
-            crate::display::vocab::hint(theme, "make it yours", &format!("nika new {clean}"))
+            crate::display::vocab::hint(theme, "rehearsal", &try_own_file_line(clean))
         );
     }
     // Leave the room as we found it — the rehearsal is isolated, not
@@ -151,6 +186,20 @@ pub fn example(
     // end-of-scope accident.
     drop(room_lease);
     verdict.code
+}
+
+/// Live / plain / quiet plus the accent/heat pair the TTY lane needs.
+fn example_mode(quiet: bool, no_progress: bool, mut theme: Theme) -> (RenderMode, Theme) {
+    let mode = if quiet {
+        RenderMode::Quiet
+    } else if !no_progress && std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+        RenderMode::Live
+    } else {
+        RenderMode::Plain
+    };
+    theme.accents = mode == RenderMode::Live;
+    theme.heat = theme.accents && theme.color && crate::verbs::truecolor_env();
+    (mode, theme)
 }
 
 /// The pre-display (TTY only): the SOURCE before the run — an example
@@ -257,6 +306,62 @@ fn example_tip(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn try_rehearsal_slug_reads_the_staged_room() {
+        assert_eq!(
+            try_rehearsal_slug("/tmp/nika-try-competitor-radar/competitor-radar.nika.yaml"),
+            Some("competitor-radar")
+        );
+        assert_eq!(
+            try_rehearsal_slug("/tmp/nika-try-01-hello/01-hello.nika.yaml"),
+            Some("01-hello")
+        );
+        assert_eq!(
+            try_rehearsal_slug("hello.nika.yaml"),
+            None,
+            "a workspace run is not a try rehearsal"
+        );
+        assert_eq!(
+            try_own_file_line("competitor-radar"),
+            "rehearsal. to own the file: nika new competitor-radar"
+        );
+    }
+
+    #[test]
+    fn try_gate_request_is_none_when_neither_flag_is_set() {
+        assert!(try_gate_request(&[], None, None).is_none());
+    }
+
+    #[test]
+    fn try_gate_request_preseeds_answers_without_a_trace() {
+        let req = try_gate_request(&["approve=true".into()], None, None)
+            .expect("answers-only is a request");
+        assert_eq!(req.answers, ["approve=true"]);
+        assert!(req.trace.is_none(), "C01 one-pass gate has no --resume");
+        assert!(req.from.is_none());
+        assert!(req.compat.is_none());
+        assert!(!req.allow_unverified);
+    }
+
+    #[test]
+    fn try_gate_request_pins_a_relative_resume_to_the_operator_cwd() {
+        let cwd = std::path::Path::new("/tmp/op");
+        let req = try_gate_request(&[], Some(std::path::Path::new("t.ndjson")), Some(cwd))
+            .expect("resume is a request");
+        assert_eq!(
+            req.trace.as_deref(),
+            Some(std::path::Path::new("/tmp/op/t.ndjson"))
+        );
+    }
+
+    #[test]
+    fn try_gate_request_keeps_an_absolute_resume() {
+        let abs = std::path::Path::new("/abs/t.ndjson");
+        let req = try_gate_request(&[], Some(abs), Some(std::path::Path::new("/tmp/op")))
+            .expect("resume is a request");
+        assert_eq!(req.trace.as_deref(), Some(abs));
+    }
 
     /// A failed verdict carrying one typed task error (the policy's input).
     fn failed(code: &str, message: &str) -> RunVerdict {

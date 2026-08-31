@@ -134,6 +134,11 @@ fn render_outputs(view: &RunView, trace: &str, theme: Theme) -> String {
     );
     let _ = writeln!(out, "{}", theme.paint(Role::Dim, &head));
     for (row, c) in rows.iter().zip(&cells) {
+        let preview = if row.recovered {
+            format!("{} · recovered", preview_cell(row, theme))
+        } else {
+            preview_cell(row, theme)
+        };
         let _ = writeln!(
             out,
             "  {:<w0$}  {}  {}  {:>w3$}  {}",
@@ -141,7 +146,7 @@ fn render_outputs(view: &RunView, trace: &str, theme: Theme) -> String {
             theme.paint(Role::Dim, &format!("{:<w1$}", c[1])),
             dur_cell(&c[2], c[2].is_empty()),
             c[3],
-            preview_cell(row, theme),
+            preview,
         );
     }
     let _ = writeln!(out, "{}", totals_line(view, trace, theme));
@@ -193,8 +198,8 @@ fn totals_line(view: &RunView, trace: &str, theme: Theme) -> String {
 /// coloured, nothing else on stdout.
 #[must_use]
 pub fn peek(trace: &str, task: &str, raw: bool, theme: Theme) -> VerbOutput {
-    let view = match load_view(trace) {
-        Ok(view) => view,
+    let (view, events) = match load_view_and_events(trace) {
+        Ok(pair) => pair,
         Err(out) => return out,
     };
     let Some(row) = view.rows().iter().find(|r| r.id == task) else {
@@ -214,7 +219,81 @@ pub fn peek(trace: &str, task: &str, raw: bool, theme: Theme) -> VerbOutput {
         // The exact recorded value — the machine arm of peek.
         return VerbOutput::ok(text.to_owned());
     }
-    VerbOutput::ok(render_peek(row, text, theme))
+    VerbOutput::ok(render_peek(
+        row,
+        text,
+        recovered_from(&events, task).as_deref(),
+        theme,
+    ))
+}
+
+/// Load + fold, keeping the events so `recovered_from` is readable.
+fn load_view_and_events(trace: &str) -> Result<(RunView, Vec<nika_event::Event>), VerbOutput> {
+    let events = nika_dap::recover::load_events(trace).map_err(VerbOutput::env)?;
+    let mut view = RunView::new();
+    for event in &events {
+        view.apply(event);
+    }
+    Ok((view, events))
+}
+
+/// Original error code a recovered task was repaired FROM (`task_recovered.code`).
+fn recovered_from(events: &[nika_event::Event], task: &str) -> Option<String> {
+    events.iter().find_map(|event| {
+        if event.kind != nika_event::EventKind::TaskRecovered {
+            return None;
+        }
+        if crate::display::state::str_field(event, "task") != Some(task) {
+            return None;
+        }
+        crate::display::state::str_field(event, "code").map(str::to_owned)
+    })
+}
+
+/// Machine projection of every task (B23 / issue 1275 · the `--json` leg).
+#[must_use]
+pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::Value {
+    let tasks: Vec<serde_json::Value> = view
+        .rows()
+        .iter()
+        .map(|row| {
+            let recovered = recovered_from(events, &row.id);
+            let status = if row.recovered {
+                "recovered"
+            } else {
+                match row.state {
+                    TaskState::Ok => "ok",
+                    TaskState::Failed => "failed",
+                    TaskState::Skipped => "skipped",
+                    TaskState::Cancelled => "cancelled",
+                    TaskState::Paused => "paused",
+                    TaskState::Retrying => "retrying",
+                    TaskState::Running => "running",
+                    TaskState::Pending => "pending",
+                }
+            };
+            serde_json::json!({
+                "id": row.id,
+                "verb": row.started_note,
+                "status": status,
+                "error_code": recovered,
+                "recovered_from": recovered,
+            })
+        })
+        .collect();
+    let run_state = if view.verdict == Some(true) && view.recovered_count() > 0 {
+        "recovered"
+    } else if view.verdict == Some(true) {
+        "completed"
+    } else if view.verdict == Some(false) {
+        "failed"
+    } else {
+        "running"
+    };
+    serde_json::json!({
+        "state": run_state,
+        "tasks": tasks,
+    })
 }
 
 /// The readable unknown-task refusal: name what the trace DOES record.
@@ -296,7 +375,7 @@ fn render_failure_peek(row: &TaskRow, theme: Theme) -> String {
 /// hashes) then the full value, pretty-printed. A value that is not
 /// valid JSON (a hand-edited trace) prints verbatim — honesty over
 /// polish.
-fn render_peek(row: &TaskRow, text: &str, theme: Theme) -> String {
+fn render_peek(row: &TaskRow, text: &str, recovered_from: Option<&str>, theme: Theme) -> String {
     let mut out = String::new();
     let title = match row.started_note.as_deref() {
         Some(note) => format!("{} · {note}", row.id),
@@ -310,6 +389,12 @@ fn render_peek(row: &TaskRow, text: &str, theme: Theme) -> String {
         let _ = write!(meta, " · {tok} tok");
     }
     let _ = write!(meta, " · {}", shape::fmt_bytes(text.len()));
+    if row.recovered {
+        let _ = write!(meta, " · recovered");
+        if let Some(code) = recovered_from {
+            let _ = write!(meta, " from {code}");
+        }
+    }
     let _ = writeln!(out, "  {}", theme.paint(Role::Dim, &meta));
     if let (Some(def), Some(input)) = (row.def_hash.as_deref(), row.input_hash.as_deref()) {
         let line = format!(
@@ -881,5 +966,52 @@ mod tests {
             "{}",
             skipped.text
         );
+    }
+
+    /// B23 / issue 1275: peek + outputs + json never render a recovered
+    /// task as a clean success.
+    #[test]
+    fn recovered_task_is_not_a_clean_success_on_peek_outputs_or_json() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let events = vec![
+            demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(KeyValue::new("task", Value::String("each".into())))
+                .with_field(KeyValue::new("note", Value::String("exec · do".into()))),
+            demo::bare_event(EventKind::TaskRecovered, 20)
+                .with_field(KeyValue::new("task", Value::String("each".into())))
+                .with_field(KeyValue::new("code", Value::String("NIKA-EXEC-001".into()))),
+            demo::bare_event(EventKind::TaskCompleted, 40)
+                .with_field(KeyValue::new("task", Value::String("each".into())))
+                .with_field(KeyValue::new(
+                    "output",
+                    Value::String("\"FALLBACK-DATA\"".into()),
+                )),
+            demo::bare_event(EventKind::WorkflowCompleted, 50),
+        ];
+        let path = stage("recovered-fan.ndjson", &events);
+        let trace = path.to_string_lossy();
+
+        let peek_out = peek(&trace, "each", false, plain());
+        assert_eq!(peek_out.code, exit::OK);
+        assert!(
+            peek_out.text.contains("recovered") && peek_out.text.contains("NIKA-EXEC-001"),
+            "peek names recovered_from: {}",
+            peek_out.text
+        );
+
+        let table = outputs(&trace, plain());
+        assert!(
+            table.text.contains("recovered"),
+            "outputs marks recovered: {}",
+            table.text
+        );
+
+        let (view, evs) = load_view_and_events(&trace).expect("loads");
+        let json = tasks_json(&view, &evs);
+        assert_eq!(json["state"], "recovered");
+        assert_eq!(json["tasks"][0]["status"], "recovered");
+        assert_eq!(json["tasks"][0]["recovered_from"], "NIKA-EXEC-001");
+        assert_eq!(json["tasks"][0]["error_code"], "NIKA-EXEC-001");
     }
 }

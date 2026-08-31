@@ -83,6 +83,47 @@ fn provider_row_separates_recognized_from_configured() {
 }
 
 #[test]
+fn sk_invalid_is_present_not_configured() {
+    // B19 / issue 1273: `sk-invalid` is implausible — never « configured »
+    // or « ready ». 401 and 402 are their own rungs.
+    use nika_providers::KeyAuth;
+    let p = cloud("openai", "OPENAI_API_KEY", true);
+    let implausible = provider_finding_auth(&p, KeyAuth::Implausible);
+    assert_eq!(implausible.level, Level::Warn);
+    assert!(
+        implausible.detail.contains("implausible"),
+        "{}",
+        implausible.detail
+    );
+    assert!(
+        !implausible.detail.contains("configured") && !implausible.detail.contains("ready"),
+        "sk-invalid must not print as configured/ready: {}",
+        implausible.detail
+    );
+    let unauthorized = provider_finding_auth(&p, KeyAuth::Unauthorized);
+    assert_eq!(unauthorized.level, Level::Warn);
+    assert!(
+        unauthorized.detail.contains("401"),
+        "{}",
+        unauthorized.detail
+    );
+    assert!(
+        !unauthorized.detail.contains("configured"),
+        "{}",
+        unauthorized.detail
+    );
+    let billed = provider_finding_auth(&p, KeyAuth::PaymentRequired);
+    assert_eq!(billed.level, Level::Warn);
+    assert!(billed.detail.contains("402"), "{}", billed.detail);
+    assert!(!billed.detail.contains("configured"), "{}", billed.detail);
+    assert_eq!(
+        crate::probe::key_auth_from_value(&["sk-"], Some("sk-invalid")),
+        KeyAuth::Implausible
+    );
+    assert!(!crate::probe::key_auth_from_value(&["sk-"], Some("sk-invalid")).is_ready());
+}
+
+#[test]
 fn a_cloud_proxy_override_is_never_laundered_as_cloud() {
     // P0-20 on the keyed lane: an operator proxy in front of mistral
     // is NAMED with its locus — never read as « the vendor default ».

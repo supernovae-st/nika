@@ -20,6 +20,7 @@
 pub use display::theme::Theme;
 pub use nika_display as display;
 
+pub mod catalog;
 pub(crate) mod choice;
 pub mod clients_registry;
 pub(crate) mod context_envelope;
@@ -27,9 +28,11 @@ pub(crate) mod detect;
 pub mod doctor;
 pub mod door;
 pub mod experience;
+pub mod explain;
 pub mod fix_ladder;
 pub(crate) mod git;
 pub mod harness;
+pub mod help_card;
 pub mod machine_truth;
 pub mod metrics;
 pub mod notify;

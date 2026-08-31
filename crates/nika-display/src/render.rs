@@ -709,6 +709,14 @@ fn append_paused_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
             &format!("paused · awaiting an answer for `{task}`")
         ),
     ));
+    lines.push(format!(
+        "    {}",
+        crate::vocab::hint(
+            *theme,
+            "answer",
+            &format!("nika run --answer {task}=true FILE  (boolean true/false, not yes)")
+        )
+    ));
 }
 
 // `&Theme` (not by-value) to match the `frame`/`verdict_frame` borrow that

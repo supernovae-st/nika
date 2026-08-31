@@ -686,6 +686,11 @@ async fn guarded_lookup(
     port: u16,
     allow_loopback: bool,
 ) -> Result<Vec<std::net::SocketAddr>, HttpError> {
+    if nika_types::net::is_documentation_host(host) {
+        return Err(HttpError::Connection {
+            reason: format!("documentation host `{host}` is not dialed (RFC 2606/6761)"),
+        });
+    }
     let lookup = tokio::time::timeout(DNS_RESOLVE_TIMEOUT, tokio::net::lookup_host((host, port)))
         .await
         .map_err(|_| HttpError::Timeout {

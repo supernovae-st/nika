@@ -44,6 +44,7 @@ mod builtin_shape;
 mod dag;
 pub mod edges;
 mod jq_lint;
+pub mod native_first;
 mod scan;
 mod schema_lint;
 mod schema_paths;
@@ -60,7 +61,7 @@ use nika_schema::types::AfterPredicate;
 
 pub use edges::{Edge, EdgeKind, RecoveryRead, SettledState, role_of_field};
 pub use static_ref::{bare_static_ref, static_literal_of};
-pub use thinking::{ThinkingFinding, thinking_findings};
+pub use thinking::{MIN_REASONING_MAX_TOKENS, ThinkingFinding, thinking_findings};
 pub use types_contract::{lowered_returns, returns_type};
 
 /// The analyzer's output — the Graph IR plus its waves · lowering is

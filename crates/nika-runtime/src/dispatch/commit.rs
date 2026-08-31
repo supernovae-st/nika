@@ -48,6 +48,44 @@ pub(crate) const DIVERGENCE_CODE: &str = "NIKA-SEC-011";
 /// older digests simply mismatch, honest, never a wrong bind.
 const REQUEST_RECIPE_VERSION: u32 = 1;
 
+/// C08 · issue 1302: mock image/tts JSON used to ship `warnings: []`
+/// while the card said `nika OK · $0.00`. When the structured output
+/// names `provider: mock`, push an explicit rehearsal warning onto the
+/// value AND return it so `TaskCompleted` carries the same sentence.
+pub(super) fn stamp_mock_media_rehearsal(note: &str, value: &mut Value) -> Option<String> {
+    let tool = note.strip_prefix("invoke · ").unwrap_or(note);
+    let kind = match tool {
+        "nika:image_generate" => "not a real image",
+        "nika:tts_generate" => "not a real recording",
+        _ => return None,
+    };
+    if value.get("provider").and_then(Value::as_str) != Some("mock") {
+        return None;
+    }
+    let msg = format!("rehearsal · {kind}");
+    match value.get_mut("warnings") {
+        Some(Value::Array(arr)) => {
+            let already = arr.iter().any(|item| {
+                item.as_str().is_some_and(|s| {
+                    s.contains("rehearsal")
+                        || s.contains("not a real image")
+                        || s.contains("not a real recording")
+                })
+            });
+            if !already {
+                arr.push(Value::String(msg.clone()));
+            }
+        }
+        None => {
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert("warnings".to_owned(), json!([msg.clone()]));
+            }
+        }
+        Some(_) => {}
+    }
+    Some(msg)
+}
+
 /// The binding evidence of ONE fired step — the two digests, equal on an
 /// honest fire. Rides the terminal frame as `preview_digest` +
 /// `commit_digest`.
@@ -174,10 +212,15 @@ where
                 // flows to tasks.X.output AS ITSELF (spec 04 §tasks.X.output);
                 // a text-only tool stays a String — never JSON-coerced.
                 Ok(out) => {
-                    let value = match out.structured {
+                    let mut value = match out.structured {
                         Some(value) => value,
                         None => Value::String(out.content),
                     };
+                    // C08 · a mock image/tts settle must not look like a
+                    // real render: stamp the JSON `warnings` array AND
+                    // the TaskCompleted `warning` field so the card and
+                    // the machine output both say rehearsal.
+                    let warning = stamp_mock_media_rehearsal(&note, &mut value);
                     // A tool's self-reported REAL spend (top-level numeric
                     // `cost_usd` in its structured output) is metered into
                     // the run ledger — absent/invalid → unmetered, never a
@@ -193,7 +236,7 @@ where
                         note,
                         value,
                         None,
-                        None,
+                        warning,
                         cost_usd,
                         cost_source,
                         None,
@@ -415,6 +458,51 @@ mod tests {
             request_digest(&exec_request(&fired).expect("wired")),
             "sandbox · env_passthrough · capture · timeout are not the request"
         );
+    }
+
+    /// C08 · mock image/tts JSON must grow a rehearsal warning; a real
+    /// provider and a non-media tool stay untouched. Flipping the
+    /// `provider == mock` predicate reddens the image case.
+    #[test]
+    fn mock_media_output_gains_a_rehearsal_warning() {
+        let mut image = json!({ "provider": "mock", "warnings": [] });
+        let warn = stamp_mock_media_rehearsal("invoke · nika:image_generate", &mut image)
+            .expect("mock image is a rehearsal");
+        assert!(
+            warn.contains("rehearsal") && warn.contains("not a real image"),
+            "{warn}"
+        );
+        let warnings = image["warnings"].as_array().expect("warnings array");
+        assert!(
+            !warnings.is_empty(),
+            "C08: mock image JSON warnings stayed empty: {image}"
+        );
+        assert!(
+            warnings.iter().any(|w| w
+                .as_str()
+                .is_some_and(|s| { s.contains("rehearsal") || s.contains("not a real image") })),
+            "{image}"
+        );
+
+        let mut tts = json!({ "provider": "mock" });
+        let warn = stamp_mock_media_rehearsal("invoke · nika:tts_generate", &mut tts)
+            .expect("mock tts is a rehearsal");
+        assert!(warn.contains("rehearsal"), "{warn}");
+        assert_eq!(tts["warnings"][0], json!(warn));
+
+        let mut xai = json!({ "provider": "xai", "warnings": [] });
+        assert_eq!(
+            stamp_mock_media_rehearsal("invoke · nika:image_generate", &mut xai),
+            None
+        );
+        assert_eq!(xai["warnings"], json!([]));
+
+        let mut read = json!({ "provider": "mock", "warnings": [] });
+        assert_eq!(
+            stamp_mock_media_rehearsal("invoke · nika:read", &mut read),
+            None
+        );
+        assert_eq!(read["warnings"], json!([]));
     }
 
     #[test]

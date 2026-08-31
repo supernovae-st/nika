@@ -920,6 +920,7 @@ async fn execute_output_json_lane(
     let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
     fold.set_plan(plan_waves(wf, report));
     fold.set_trace_recorded(!trace.is_disabled());
+    fold.set_source_path(file);
     let tee = Tee::new(fold, trace);
     let mut events = ExecutionSink::new(tee, execution);
     let (code, outcome) = drive(runtime, stamper, &mut events).await;
@@ -1089,6 +1090,7 @@ async fn execute_fold_lane(
     let (fold, spinner) = shared_fold(theme, mode, outputs, plan.clone(), map);
     if let Ok(mut f) = fold.lock() {
         f.set_trace_recorded(trace_recorded);
+        f.set_source_path(file);
     }
     // Plain's heartbeat keeps a piped local-model run from reading as a hang.
     let pulse = (mode == RenderMode::Plain).then(|| {

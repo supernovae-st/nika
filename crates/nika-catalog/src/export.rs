@@ -107,6 +107,8 @@ pub struct ModelExport {
     pub id: &'static str,
     /// Wire identifier sent to the provider API.
     pub model: &'static str,
+    /// Pasteable workflow id (`xai/grok-3`) — canonical provider + wire id.
+    pub paste_id: String,
     /// Maximum context window in tokens (input + output combined).
     pub context_window_tokens: u32,
     /// Maximum tokens the model can emit in one response.
@@ -132,6 +134,20 @@ pub struct CapabilitiesExport {
     /// Structured-output discipline: `"unavailable"` · `"object"` ·
     /// `"schema"` · `null` when the rule table does not know.
     pub json_mode: Option<&'static str>,
+}
+
+impl ProviderExport {
+    /// The human listing's model cell — pasteable ids, joined, so
+    /// `nika catalog` prints `xai/grok-3` instead of only `2 models`
+    /// (B18 / issue 1306).
+    #[must_use]
+    pub fn human_model_ids(&self) -> String {
+        self.models
+            .iter()
+            .map(|m| m.paste_id.as_str())
+            .collect::<Vec<_>>()
+            .join(" · ")
+    }
 }
 
 impl CatalogExport {
@@ -201,6 +217,7 @@ fn model_export(provider_id: &str, m: &ProviderModel) -> ModelExport {
     ModelExport {
         id: m.id,
         model: m.model,
+        paste_id: format!("{provider_id}/{}", m.model),
         context_window_tokens: m.context_window_tokens,
         max_output_tokens: m.max_output_tokens,
         capabilities: CapabilitiesExport {
@@ -283,6 +300,43 @@ mod tests {
         );
     }
 
+    /// B18 / issue 1306: the human cell prints pasteable ids (`xai/grok-3`),
+    /// not only a count, and gpt-4o-mini has entered the openai row.
+    #[test]
+    fn human_model_ids_print_the_wire_names() {
+        let export = catalog_export();
+        let xai = export
+            .providers
+            .iter()
+            .find(|p| p.id == "xai")
+            .expect("xai");
+        let ids = xai.human_model_ids();
+        assert!(
+            ids.contains("xai/grok-3"),
+            "xai prints the pasteable id, not only a count: {ids}"
+        );
+        assert!(
+            xai.models.iter().any(|m| m.paste_id == "xai/grok-3"),
+            "JSON/API paste_id is xai/grok-3: {:?}",
+            xai.models.iter().map(|m| &m.paste_id).collect::<Vec<_>>()
+        );
+        let openai = export
+            .providers
+            .iter()
+            .find(|p| p.id == "openai")
+            .expect("openai");
+        assert!(
+            openai.models.iter().any(|m| m.model == "gpt-4o-mini"),
+            "gpt-4o-mini entered the openai catalog: {:?}",
+            openai.models.iter().map(|m| m.model).collect::<Vec<_>>()
+        );
+        assert!(
+            openai.human_model_ids().contains("gpt-4o-mini"),
+            "{}",
+            openai.human_model_ids()
+        );
+    }
+
     #[test]
     fn wire_shape_is_the_locked_contract() {
         let export = catalog_export();
@@ -312,6 +366,13 @@ mod tests {
         ] {
             assert!(first.contains_key(key), "provider entry missing `{key}`");
         }
+        let model = first["models"][0]
+            .as_object()
+            .expect("model entries are objects");
+        assert!(
+            model.contains_key("paste_id"),
+            "model entry missing paste_id (B18 pasteable id)"
+        );
     }
 
     #[test]

@@ -126,6 +126,19 @@ impl ImageKeys {
     }
 }
 
+/// Catalog USD floor for one `nika:image_generate` call.
+///
+/// xAI's workhorse (`grok-imagine-image`) bills $0.02 per image; mock and
+/// local are unpriced (`None`). `n` scales the floor when it is a known
+/// integer (≥ 1). The runtime admission gate (NIKA-1709) consults the
+/// same catalog row so check-skip of `invoke:` cannot spend-then-abort
+/// (B24 / issue 1296).
+#[must_use]
+pub fn static_floor_usd(provider: &str, n: u32) -> Option<f64> {
+    let per = nika_catalog::builtin_provider_floor_usd("image_generate", provider)?;
+    Some(per * f64::from(n.max(1)))
+}
+
 /// Run `nika:image_generate` end-to-end. Every failure surfaces one of
 /// the spec codes (001–007 + the `NIKA-SEC-004` boundary), and an
 /// `image_generation.error` event mirrors it on the observability seam.
@@ -443,7 +456,12 @@ fn validate_decoded<Em: Emitter>(
                 "size_bytes": image.bytes.len(),
             }),
         );
-        decoded.push((image, sniffed, Vec::new()));
+        let per_image = if args.provider == types::Provider::Mock {
+            vec!["rehearsal · not a real image".to_owned()]
+        } else {
+            Vec::new()
+        };
+        decoded.push((image, sniffed, per_image));
     }
     Ok(decoded)
 }
@@ -765,5 +783,23 @@ mod tests {
             None,
         );
         assert_eq!(out["mode"], "generate");
+    }
+
+    #[test]
+    fn xai_static_floor_is_two_cents_per_image() {
+        let one = static_floor_usd("xai", 1).expect("priced");
+        assert!(
+            (one - 0.02).abs() < 1e-12,
+            "xAI workhorse is $0.02/image, got {one}"
+        );
+        let two = static_floor_usd("xai", 2).expect("priced");
+        assert!((two - 0.04).abs() < 1e-12, "n scales the floor, got {two}");
+        assert_eq!(static_floor_usd("mock", 1), None);
+        assert_eq!(static_floor_usd("local", 1), None);
+        assert_eq!(
+            static_floor_usd("xai", 1),
+            nika_catalog::builtin_provider_floor_usd("image_generate", "xai"),
+            "builtin floor and catalog row are one number"
+        );
     }
 }

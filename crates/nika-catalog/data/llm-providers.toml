@@ -76,6 +76,15 @@ model = "gpt-5-mini"
 context_window_tokens = 272000
 max_output_tokens = 128000
 
+# B18 / issue 1306: gpt-4o-mini was priced and runnable but absent from
+# the 2-model openai row — the catalog is the resolver allowlist, so
+# the living seat enters the catalog.
+[[providers.models]]
+id = "gpt-4o-mini"
+model = "gpt-4o-mini"
+context_window_tokens = 128000
+max_output_tokens = 16384
+
 [[providers]]
 id = "mistral"
 name = "Mistral AI"

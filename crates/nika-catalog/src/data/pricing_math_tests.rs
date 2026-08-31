@@ -111,6 +111,21 @@ mod cache_aware {
         assert!(estimate_cost_usage_for("ollama/qwen3.5:4b", 100, 50, 10, 0).is_none());
     }
 
+    /// B20 / issue 1297: the W0-D canary is a Gemini cloud id the
+    /// snapshot does not price. A row appearing here would make the
+    /// resolved-seat admission walk a no-op.
+    #[test]
+    fn gemini_b20_unpriced_canary_has_no_snapshot_row() {
+        assert!(
+            find_pricing_for("gemini/nika-b20-unpriced-canary").is_none(),
+            "the canary must stay unpriced so --max-cost-usd can refuse it"
+        );
+        assert!(
+            find_pricing_for("gemini/gemini-2.5-flash").is_some(),
+            "flash stays the priced control"
+        );
+    }
+
     #[test]
     fn live_catalog_cache_read_discount_holds() {
         // Integration over the REAL snapshot: anthropic discloses cache

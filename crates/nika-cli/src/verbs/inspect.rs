@@ -129,7 +129,7 @@ pub(crate) fn render_pair(
     // The spec §6 footer verbatim — NIKA-DAG-001 is the conformance code
     // the ladder proved clean to get here.
     out.push_str("  (no orphans · DAG check NIKA-DAG-001 clean)\n");
-    render_analysis(&mut out, report.analysis.as_ref());
+    render_analysis(&mut out, report);
     VerbOutput::ok(out)
 }
 
@@ -139,46 +139,68 @@ pub(crate) fn render_pair(
 /// failure blast radii. Single-task workflows render nothing extra
 /// (width 1 of 1 is noise) and an absent read (oversized workflow ·
 /// honest skip) renders nothing — never a claim it cannot back.
-fn render_analysis(out: &mut String, analysis: Option<&nika_check::DagAnalysis>) {
-    let Some(a) = analysis else { return };
-    if a.width_witness.len() < 2 {
-        return;
-    }
-    let mut witness: Vec<&str> = a.width_witness.iter().map(String::as_str).collect();
-    witness.truncate(4);
-    let ellipsis = if a.width_witness.len() > 4 {
-        " · …"
-    } else {
-        ""
-    };
-    let _ = writeln!(
-        out,
-        "\nparallelism  width {} · can run together: {}{ellipsis}",
-        a.width,
-        witness.join(" · "),
-    );
-    if !a.pinch_points.is_empty() {
+fn render_analysis(out: &mut String, report: &nika_check::CheckReport) {
+    if let Some(a) = report.analysis.as_ref()
+        && a.width_witness.len() >= 2
+    {
+        let mut witness: Vec<&str> = a.width_witness.iter().map(String::as_str).collect();
+        witness.truncate(4);
+        let ellipsis = if a.width_witness.len() > 4 {
+            " · …"
+        } else {
+            ""
+        };
         let _ = writeln!(
             out,
-            "pinch        {} · nothing else runs while these run",
-            a.pinch_points.join(" · "),
+            "\nparallelism  width {} · can run together: {}{ellipsis}",
+            a.width,
+            witness.join(" · "),
         );
+        if !a.pinch_points.is_empty() {
+            let _ = writeln!(
+                out,
+                "pinch        {} · nothing else runs while these run",
+                a.pinch_points.join(" · "),
+            );
+        }
+        let top: Vec<String> = a
+            .blast_radius
+            .iter()
+            .take(3)
+            .map(|b| format!("{} blocks {}", b.task, b.blocks))
+            .collect();
+        if !top.is_empty() {
+            let more = a.blast_radius.len().saturating_sub(3);
+            let suffix = if more > 0 {
+                format!(" · +{more} more")
+            } else {
+                String::new()
+            };
+            let _ = writeln!(out, "blast        {}{suffix}", top.join(" · "));
+        }
     }
-    // Failure economics at a glance — the report sorts widest-first.
-    let top: Vec<String> = a
-        .blast_radius
+    // 1-task files have empty DAG blast; capability escapes are the
+    // radius a security persona reads (persona 07).
+    let cap: Vec<String> = report
+        .capability_escapes
         .iter()
+        .filter(|e| e.category == "fs" || e.category == "net")
         .take(3)
-        .map(|b| format!("{} blocks {}", b.task, b.blocks))
+        .map(|e| format!("{} {}", e.task, e.category))
         .collect();
-    if !top.is_empty() {
-        let more = a.blast_radius.len().saturating_sub(3);
+    if !cap.is_empty() {
+        let more = report
+            .capability_escapes
+            .iter()
+            .filter(|e| e.category == "fs" || e.category == "net")
+            .count()
+            .saturating_sub(3);
         let suffix = if more > 0 {
             format!(" · +{more} more")
         } else {
             String::new()
         };
-        let _ = writeln!(out, "blast        {}{suffix}", top.join(" · "));
+        let _ = writeln!(out, "blast        {}{suffix}", cap.join(" · "));
     }
 }
 

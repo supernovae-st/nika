@@ -362,6 +362,33 @@ async fn guarded_resolver_blocks_localhost_and_serves_public() {
 }
 
 #[tokio::test]
+async fn guarded_resolver_does_not_dial_documentation_hosts() {
+    use reqwest::dns::Resolve;
+    use std::str::FromStr;
+    use std::time::Instant;
+
+    let name = reqwest::dns::Name::from_str("api.example.com").expect("valid name");
+    let start = Instant::now();
+    let err = GuardedResolver::default()
+        .resolve(name)
+        .await
+        .err()
+        .expect("example.com is not dialed");
+    assert!(
+        start.elapsed() < std::time::Duration::from_millis(50),
+        "documentation hosts fail before DNS: {:?}",
+        start.elapsed()
+    );
+    let http = err
+        .downcast_ref::<HttpError>()
+        .expect("the resolver emits the kernel error type");
+    assert!(
+        matches!(http, HttpError::Connection { reason } if reason.contains("RFC 2606")),
+        "{http}"
+    );
+}
+
+#[tokio::test]
 async fn guarded_resolver_clears_a_permitted_localhost_name() {
     use reqwest::dns::Resolve;
     use std::str::FromStr;

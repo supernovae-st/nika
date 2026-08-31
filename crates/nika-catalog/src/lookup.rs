@@ -7,6 +7,8 @@
 //! "is this known?", the caller decides if "unknown" is an error.
 
 #[cfg(feature = "builtins-transforms")]
+pub use crate::data::builtin_prices::builtin_provider_floor_usd;
+#[cfg(feature = "builtins-transforms")]
 pub use crate::data::builtins::{find_builtin, is_known_builtin};
 #[cfg(feature = "embeddings")]
 pub use crate::data::generated::find_embedding;
@@ -94,6 +96,13 @@ mod tests {
     fn provider_lookup() {
         assert!(find_provider("Anthropic").is_some());
         assert!(find_provider("claude").is_some());
+    }
+
+    /// B18 / issue 1306: `grok` is xAI's alias, never a sibling of groq.
+    #[test]
+    fn grok_alias_resolves_to_xai() {
+        assert_eq!(find_provider("grok").map(|p| p.id), Some("xai"));
+        assert_eq!(find_provider("xai").map(|p| p.id), Some("xai"));
     }
 
     #[test]

@@ -23,9 +23,11 @@ pub use nika_cli::seal::<<nika_dap::seal::*>>
 pub use nika_cli::seal::<<nika_dap::sign::*>>
 pub mod nika_cli::verbs
 pub use nika_cli::verbs::VerbOutput
+pub use nika_cli::verbs::catalog
 pub use nika_cli::verbs::doctor
 pub use nika_cli::verbs::evidence
 pub use nika_cli::verbs::exit
+pub use nika_cli::verbs::explain
 pub use nika_cli::verbs::probe
 pub use nika_cli::verbs::receipt
 pub use nika_cli::verbs::trace
@@ -299,8 +301,6 @@ pub fn nika_cli::verbs::arm::migrate::run() -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::arm::migrate::run_at(project_root: &std::path::Path, now: &jiff::timestamp::Timestamp) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::arm::run(args: nika_cli::verbs::arm::args::ArmArgs) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::arm::run_at(start: &std::path::Path) -> nika_cli_host::output::VerbOutput
-pub mod nika_cli::verbs::catalog
-pub fn nika_cli::verbs::catalog::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::check
 pub enum nika_cli::verbs::check::Profile
 pub nika_cli::verbs::check::Profile::Advisory
@@ -493,8 +493,6 @@ pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nik
 pub fn nika_cli::verbs::examples::rehearsal_seat(model: core::option::Option<&str>) -> core::option::Option<&str>
 pub fn nika_cli::verbs::examples::shelf_or_front(all: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::examples::storefront(theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
-pub mod nika_cli::verbs::explain
-pub fn nika_cli::verbs::explain::run(wire: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::explain_file
 pub fn nika_cli::verbs::explain_file::dispatch(query: &str, json: bool, forecast: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::explain_file::run(path: &str, json: bool, forecast: bool) -> nika_cli_host::output::VerbOutput
@@ -851,6 +849,7 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::mcp_pins::McpTransp
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::mcp_pins::McpTransportArg
 impl<T> typenum::type_operators::Same for nika_cli::verbs::mcp_pins::McpTransportArg
 pub type nika_cli::verbs::mcp_pins::McpTransportArg::Output = T
+pub const nika_cli::verbs::mcp_pins::OPERATOR_HELP: &str
 pub fn nika_cli::verbs::mcp_pins::approve(server: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::mcp_pins::mcp_verb(action: core::option::Option<nika_cli::verbs::mcp_pins::McpAction>, transport: nika_cli::verbs::mcp_pins::McpTransportArg, port: u16, bind: &str) -> u8
 pub mod nika_cli::verbs::model
@@ -933,6 +932,7 @@ pub fn nika_cli::verbs::run::FoldSink<W>::new(writer: W, theme: nika_display::th
 pub fn nika_cli::verbs::run::FoldSink<W>::print_final(&mut self)
 pub fn nika_cli::verbs::run::FoldSink<W>::set_map(&mut self, doc: nika_graph::GraphDoc, waves: alloc::vec::Vec<alloc::vec::Vec<usize>>)
 pub fn nika_cli::verbs::run::FoldSink<W>::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
+pub fn nika_cli::verbs::run::FoldSink<W>::set_source_path(&mut self, path: impl core::convert::Into<alloc::string::String>)
 pub fn nika_cli::verbs::run::FoldSink<W>::set_trace_recorded(&mut self, on: bool)
 pub fn nika_cli::verbs::run::FoldSink<W>::show_outputs(&mut self, on: bool)
 pub fn nika_cli::verbs::run::FoldSink<W>::view(&self) -> &nika_display::state::RunView
@@ -964,7 +964,7 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::run::FoldSink<W>
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::run::FoldSink<W>
 impl<T> typenum::type_operators::Same for nika_cli::verbs::run::FoldSink<W>
 pub type nika_cli::verbs::run::FoldSink<W>::Output = T
-pub fn nika_cli::verbs::run::example(slug: &str, model_flag: core::option::Option<&str>, access_pin: core::option::Option<&str>, vars: &[alloc::string::String], (quiet, no_progress): (bool, bool), max_cost_usd: core::option::Option<f64>, theme: nika_display::theme::Theme) -> u8
+pub fn nika_cli::verbs::run::example(slug: &str, model_flag: core::option::Option<&str>, access_pin: core::option::Option<&str>, vars: &[alloc::string::String], (quiet, no_progress): (bool, bool), max_cost_usd: core::option::Option<f64>, (answers, resume): (&[alloc::string::String], core::option::Option<&std::path::Path>), theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, access_pin: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_dap::resume::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool, max_cost_usd: core::option::Option<f64>, no_gc: bool, require_signature: bool) -> u8
 pub fn nika_cli::verbs::run::run_with_repair_target(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, access_pin: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_dap::resume::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool, max_cost_usd: core::option::Option<f64>, no_gc: bool, require_signature: bool, repair_target: nika_display::check_render::RepairTarget) -> u8
 pub mod nika_cli::verbs::serve

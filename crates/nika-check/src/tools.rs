@@ -13,9 +13,13 @@
 //! is the worst case: the runtime silently ignores it (`nika:jq` with
 //! `data:` instead of `input:` runs jq over `null` and returns `null`,
 //! never an error). This check moves both failures to `nika check`, with
-//! the fix attached. The `mcp:` namespace stays OPEN (server-defined tools
-//! and their args are a runtime discovery concern); glob grant patterns in
-//! an agent whitelist are grants, not calls — both skipped.
+//! the fix attached. The `mcp:` *arg* vocabulary stays OPEN (server-defined);
+//! the *server name* does not — a concrete `mcp:<server>/<tool>` call
+//! fail-closes unless `.nika/mcp_servers.json` lists that server
+//! ([`scan_mcp_against_registry`], the composed lane). Glob grants in an
+//! agent whitelist are grants, not calls — skipped.
+
+use std::collections::BTreeSet;
 
 use nika_catalog::{all_builtins, find_builtin};
 
@@ -116,6 +120,10 @@ pub struct UnknownArg {
     /// answered by the closed set itself, not a guess. Additive
     /// (`#[non_exhaustive]`).
     pub declared: Vec<String>,
+    /// When the defect is a VALUE (not an unknown key) — `channel: slack`
+    /// on `nika:notify`. `None` for the undeclared-key class. Additive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invalid_value: Option<String>,
 }
 
 /// Scan every `invoke` call (main verbs AND `on_finally` cleanups) for
@@ -131,6 +139,7 @@ pub(super) fn scan_unknown_args(wf: &RawWorkflow) -> Vec<UnknownArg> {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect_args(id, &task.value.action, &mut findings);
+        collect_notify_channel(id, &task.value.action, &mut findings);
     }
     findings
 }
@@ -165,6 +174,7 @@ fn collect_args(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
             arg: key.clone(),
             suggestion,
             declared: builtin.args.iter().map(|&s| s.to_owned()).collect(),
+            invalid_value: None,
         });
     }
 }
@@ -247,6 +257,134 @@ fn collect_missing(site: &str, action: &RawAction, out: &mut Vec<MissingArg>) {
             });
         }
     }
+}
+
+/// C05 — a literal `nika:notify` `channel:` that is not `webhook` will
+/// throw `NIKA-BUILTIN-NOTIFY-001` at run (v0.1 webhook only). Check
+/// fail-closes on the same literal so the rung is not theatre.
+fn collect_notify_channel(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
+    let RawAction::Invoke(a) = action else {
+        return;
+    };
+    if a.tool().is_none_or(|t| t.value != "nika:notify") {
+        return;
+    }
+    let args = a.args.as_ref().map(|spanned| &spanned.value);
+    let Some(channel) = literal_notify_channel(args) else {
+        return; // missing = webhook default · templated = run's to judge
+    };
+    if channel == "webhook" {
+        return;
+    }
+    out.push(UnknownArg {
+        task: site.to_owned(),
+        tool: "nika:notify".to_owned(),
+        arg: "channel".to_owned(),
+        suggestion: None,
+        declared: vec![
+            "webhook".to_owned(),
+            "v0.1 engines MUST support webhook only".to_owned(),
+        ],
+        invalid_value: Some(channel.to_owned()),
+    });
+}
+
+/// The literal channel string, when one is statically visible.
+fn literal_notify_channel(args: Option<&serde_json::Value>) -> Option<&str> {
+    match args.and_then(|v| v.get("channel")) {
+        None => Some("webhook"),
+        Some(serde_json::Value::String(s)) => Some(s.as_str()),
+        _ => None,
+    }
+}
+
+/// Project-relative registry path — the same file `nika-mcp` loads at
+/// run (`SERVERS_PATH`). Duplicated here so L0 check never depends up.
+const MCP_SERVERS_PATH: &str = ".nika/mcp_servers.json";
+
+/// C04 — a concrete `mcp:<server>/<tool>` call whose server is not in
+/// `.nika/mcp_servers.json` will throw `NIKA-INVOKE-001` at run. The
+/// composed lane injects the reader (this crate stays zero-I/O); a
+/// missing or malformed registry is the empty set (fail-closed). No
+/// `--allow-unchecked-mcp` door.
+pub(super) fn scan_mcp_against_registry(
+    wf: &RawWorkflow,
+    read: &mut dyn FnMut(&str) -> Result<String, String>,
+) -> Vec<UnknownTool> {
+    let calls = mcp_call_sites(wf);
+    if calls.is_empty() {
+        return Vec::new();
+    }
+    let configured = match read(MCP_SERVERS_PATH) {
+        Ok(text) => parse_configured_servers(&text),
+        Err(_) => BTreeSet::new(),
+    };
+    calls
+        .into_iter()
+        .filter(|(_, tool)| mcp_server_of(tool).is_none_or(|server| !configured.contains(server)))
+        .map(|(task, tool)| UnknownTool {
+            task,
+            tool,
+            suggestion: None,
+        })
+        .collect()
+}
+
+fn mcp_call_sites(wf: &RawWorkflow) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for task in &wf.tasks {
+        collect_mcp(task.value.id.value.as_str(), &task.value.action, &mut out);
+    }
+    out
+}
+
+fn collect_mcp(site: &str, action: &RawAction, out: &mut Vec<(String, String)>) {
+    match action {
+        RawAction::Invoke(a) => {
+            if let Some(tool) = a.tool() {
+                push_mcp_call(site, &tool.value, out);
+            }
+        }
+        RawAction::Agent(a) => {
+            for tool in &a.tools {
+                push_mcp_call(site, &tool.value, out);
+            }
+        }
+        RawAction::Exec(_) | RawAction::Infer(_) => {}
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+        )]
+        other => unreachable!("unknown action: {other:?}"),
+    }
+}
+
+fn push_mcp_call(site: &str, tool: &str, out: &mut Vec<(String, String)>) {
+    if tool.starts_with("mcp:") && !tool.contains('*') {
+        out.push((site.to_owned(), tool.to_owned()));
+    }
+}
+
+fn mcp_server_of(tool: &str) -> Option<&str> {
+    let rest = tool.strip_prefix("mcp:")?;
+    let (server, name) = rest.split_once('/')?;
+    (!server.is_empty() && !name.is_empty()).then_some(server)
+}
+
+fn parse_configured_servers(text: &str) -> BTreeSet<String> {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(text) else {
+        return BTreeSet::new();
+    };
+    if v.get("mcp_servers_format")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+    {
+        return BTreeSet::new();
+    }
+    v.get("servers")
+        .and_then(serde_json::Value::as_object)
+        .map(|m| m.keys().cloned().collect())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

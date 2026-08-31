@@ -30,6 +30,12 @@ const ROWS: &[(&str, &str)] = &[
          (or `max_tokens_total:`) and the cost report becomes a hard ceiling",
     ),
     (
+        "envelope-model",
+        "a per-task `model:` pin is envelope-only: CLI `--model` replaces \
+         the workflow envelope, never the task pin. `--model mock/echo` \
+         does not preview a pinned paid seat",
+    ),
+    (
         "zero-cap",
         "a declared `max_tokens: 0` / `max_tokens_total: 0` is arithmetically \
          a $0 ceiling and a call no provider will honor — raise it or drop the field",

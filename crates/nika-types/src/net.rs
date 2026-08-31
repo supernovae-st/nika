@@ -154,6 +154,31 @@ pub fn host_is_blocked(host: &str) -> bool {
         .is_ok_and(ip_is_blocked)
 }
 
+/// RFC 2606 / 6761 documentation names — public, so the SSRF floor
+/// admits them ([`host_is_blocked`] is false), but they are not a live
+/// API. The live HTTP client must not dial them (persona 17 · `nika try
+/// 05-fetch-chain` was a 21ms miss to `api.example.com` before recover).
+///
+/// Covers `example.com` / `.net` / `.org` / `.edu` and those TLDs as
+/// labels (`.example` · `.invalid` · `.test`). `.localhost` stays the
+/// SSRF floor's.
+#[must_use]
+pub fn is_documentation_host(host: &str) -> bool {
+    let h = host.trim_end_matches('.').to_ascii_lowercase();
+    let last = h.rsplit('.').next().unwrap_or(h.as_str());
+    if matches!(last, "invalid" | "test" | "example") {
+        return true;
+    }
+    h == "example.com"
+        || h == "example.net"
+        || h == "example.org"
+        || h == "example.edu"
+        || h.ends_with(".example.com")
+        || h.ends_with(".example.net")
+        || h.ends_with(".example.org")
+        || h.ends_with(".example.edu")
+}
+
 /// The loopback identity an exact literal can carry — the CLOSED
 /// declassification vocabulary of the SSRF floor (issue #395).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -430,6 +455,27 @@ mod tests {
             "",
         ] {
             assert!(!host_is_blocked(h), "{h} must not be floor-blocked");
+        }
+    }
+
+    #[test]
+    fn documentation_hosts_are_public_but_not_live_apis() {
+        for h in [
+            "example.com",
+            "api.example.com",
+            "EXAMPLE.COM.",
+            "example.net",
+            "foo.example.org",
+            "example.edu",
+            "foo.invalid",
+            "bar.test",
+            "doc.example",
+        ] {
+            assert!(is_documentation_host(h), "{h} is a documentation host");
+            assert!(!host_is_blocked(h), "{h} stays off the SSRF floor");
+        }
+        for h in ["iana.org", "github.com", "harvard.edu", "localhost"] {
+            assert!(!is_documentation_host(h), "{h} is not a documentation host");
         }
     }
 

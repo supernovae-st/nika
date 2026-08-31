@@ -84,13 +84,12 @@ pub(super) fn resume_setup(
             )?),
         },
     };
-    let answers =
-        nika_dap::resume::parse_answers(resume.map_or(&[][..], |r| r.answers.as_slice()), wf)
-            .map_err(|message| {
-                eprintln!("nika run: {message}");
-                epilogue::emit_error_envelope(&message, output_json);
-                exit::ENV
-            })?;
+    let pairs = resume.map_or(&[][..], |r| r.answers.as_slice());
+    let answers = nika_dap::resume::parse_answers(pairs, wf).map_err(|message| {
+        eprintln!("nika run: {message}");
+        epilogue::emit_error_envelope(&message, output_json);
+        exit::ENV
+    })?;
     // #1067 · a journaled success is a decision. `--answer` on resume
     // used to force the prompt to re-run (ADR-099 F4 "operator intent");
     // that turned a recorded NO into a shipment. Paused gates are not in

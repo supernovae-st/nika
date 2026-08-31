@@ -12,6 +12,14 @@
 //! match · fail-closed drift diff) is library-side in `nika-mcp`, awaiting
 //! the runtime MCP dispatch; this verb drives the same seam.
 
+/// Operator-facing honesty card for `nika mcp --help` (C02 · issue 1303).
+/// The server is a read-only authoring oracle; running a workflow is
+/// `nika run`. Tool names here must stay ⊆ the nine the oracle serves.
+pub const OPERATOR_HELP: &str = "\
+This MCP server is a read-only authoring oracle.
+Tools: nika_check · nika_inspect · nika_explain · nika_schema · nika_examples · nika_template · nika_canon · nika_catalog · nika_tools
+It never writes a file and never runs a workflow. To execute: nika run.";
+
 /// The MCP subcommand surface — `approve` (the tool-pinning
 /// remediation) or serve (stdio · streamable HTTP). Descended from the
 /// bin's dispatcher 2026-07-21 (the 1500-line file cap — the bin
@@ -250,6 +258,39 @@ mod tests {
         assert!(text.contains("Run a SQL query — v2"), "{text}");
         assert!(text.contains("2023-11-14T22:13:20Z"), "{text}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// C02 · issue 1303 · the mcp verb's honesty card names the read-only
+    /// oracle, at least three served tools, and `nika run` as the execute
+    /// door — and does not advertise a write/run tool.
+    #[test]
+    fn operator_help_names_the_read_only_oracle_and_the_run_door() {
+        assert!(OPERATOR_HELP.contains("read-only"), "C02: {OPERATOR_HELP}");
+        let named = [
+            "nika_check",
+            "nika_inspect",
+            "nika_explain",
+            "nika_schema",
+            "nika_examples",
+            "nika_template",
+            "nika_canon",
+            "nika_catalog",
+            "nika_tools",
+        ]
+        .iter()
+        .filter(|n| OPERATOR_HELP.contains(*n))
+        .count();
+        assert!(
+            named >= 3,
+            "C02 must name at least 3 of the 9 tools, named {named}: {OPERATOR_HELP}"
+        );
+        assert!(OPERATOR_HELP.contains("nika run"), "C02: {OPERATOR_HELP}");
+        for forbidden in ["nika_run", "nika_write", "nika_exec"] {
+            assert!(
+                !OPERATOR_HELP.contains(forbidden),
+                "C02 WALL: help must not advertise `{forbidden}`: {OPERATOR_HELP}"
+            );
+        }
     }
 
     #[test]

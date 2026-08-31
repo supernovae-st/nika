@@ -28,6 +28,7 @@ use nika_cli::verbs::{self, VerbOutput};
 
 use init_args::{InitArgs, init_verb};
 use lazy::{check_lazy, resolve_lazy_target, run_lazy};
+pub(crate) use nika_cli_host::help_card;
 
 #[derive(Parser)]
 // The PUBLIC binary name is `nika` (the release renames the nika-cli artifact +
@@ -40,7 +41,7 @@ use lazy::{check_lazy, resolve_lazy_target, run_lazy};
     // The L3 identity is shared by every adapter; gitless builds keep the bare version.
     long_version = nika_runtime::engine_identity().version_long(),
     about = "nika · a plan from a file",
-    after_help = "nika --help --all  the rest of the surface"
+    after_help = help_card::AFTER_HELP
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -334,13 +335,14 @@ enum Command {
         #[arg(long = "clientProcessId", hide = true)]
         client_process_id: Option<u32>,
     },
-    /// Run the MCP server (validate: check/explain · learn:
-    /// schema/examples/templates/canon — the in-binary Model Context Protocol
-    /// surface for Cursor · Claude Desktop · agents). Default transport:
-    /// stdio; `--transport http` serves Streamable HTTP for managed hosts.
-    /// `approve` runs the CLIENT side: the MCP tool-pinning re-approval over
-    /// the servers configured in `.nika/mcp_servers.json`.
-    #[command(hide = true, display_order = 60)]
+    /// Run the read-only MCP oracle (validate + learn — never execute). Default
+    /// transport: stdio; `--transport http` serves Streamable HTTP for managed
+    /// hosts. `approve` re-pins tools from `.nika/mcp_servers.json`.
+    #[command(
+        hide = true,
+        display_order = 60,
+        after_help = verbs::mcp_pins::OPERATOR_HELP
+    )]
     Mcp {
         #[command(subcommand)]
         action: Option<verbs::mcp_pins::McpAction>,
@@ -434,10 +436,12 @@ struct RunArgs {
     /// executed would be a lie).
     #[arg(long, conflicts_with = "output")]
     dry_run: bool,
-    /// Override the workflow's envelope `model:` (`<provider>/<name>`).
-    /// Resolved through the SAME path as an envelope model — a bad id
-    /// fails loud when an infer/agent task resolves it. `--model
-    /// mock/echo` previews any workflow offline (zero key · zero network).
+    /// Override the workflow's envelope `model:` only (`<provider>/<name>`).
+    /// Per-task `model:` pins stay live and metered — `--model` does not
+    /// descend into them (B22). Resolved through the SAME path as an
+    /// envelope model — a bad id fails loud when an infer/agent task
+    /// resolves it. `--model mock/echo` rehearses the envelope seat
+    /// offline (zero key · zero network).
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
@@ -655,20 +659,12 @@ fn sdk_identity() -> std::process::ExitCode {
     }
 }
 
-/// Human default help · B67 · ≤ 6 lines. The rest lives on `--help --all`.
-fn human_help() -> &'static str {
-    "nika             a plan from a file\n\
-     nika new hello   one file that runs on this machine\n\
-     nika run         run a file\n\
-     nika check       audit a file before it runs\n\
-     nika doctor      PATH, model, sandbox\n"
-}
-
 /// Bare `nika`, `nika --json`, `nika version`, `nika thread` — decided
 /// before clap so a missing subcommand never clap-fails the front door.
 fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     let mut json = false;
     let mut ascii = false;
+    let mut saw_fix = false;
     let mut positional: Vec<&std::ffi::OsStr> = Vec::new();
     let mut skip_value = false;
     for arg in argv {
@@ -684,6 +680,10 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             ascii = true;
             continue;
         }
+        if arg == "--fix" {
+            saw_fix = true;
+            continue;
+        }
         if arg == "--color" || arg == "--hyperlink" {
             skip_value = true;
             continue;
@@ -695,7 +695,16 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
         }
         positional.push(arg);
     }
-    match positional.first().and_then(|a| a.to_str()) {
+    let first = positional.first().and_then(|a| a.to_str());
+    if first == Some("permits") {
+        print!("{}", help_card::permits_teaching());
+        return Some(std::process::ExitCode::from(verbs::exit::FILE));
+    }
+    if saw_fix && first != Some("check") {
+        print!("{}", help_card::misplaced_fix_teaching());
+        return Some(std::process::ExitCode::from(verbs::exit::FILE));
+    }
+    match first {
         None => {
             let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
             Some(if json {
@@ -748,26 +757,25 @@ fn real_main() -> std::process::ExitCode {
     // `--all` is a REAL flag there, the adversarial pass caught the
     // theft).
     let argv: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
-    let help_words_only = !argv.is_empty()
-        && argv
-            .iter()
-            .all(|a| a == "--all" || a == "--help" || a == "-h" || a == "help");
-    if help_words_only
-        && argv.iter().any(|a| a == "--all")
-        && argv
-            .iter()
-            .any(|a| a == "--help" || a == "-h" || a == "help")
-    {
-        let mut cmd = <Cli as clap::CommandFactory>::command();
-        cmd = cmd.mut_subcommands(|sc| sc.hide(false));
-        // Rendering help to stdout is this binary's whole job here; a
-        // closed pipe is the caller's choice, never a crash.
-        let _ = cmd.print_long_help();
-        return std::process::ExitCode::SUCCESS;
+    match help_card::classify_help(&argv) {
+        Some(help_card::HelpKind::All) => {
+            let mut cmd = <Cli as clap::CommandFactory>::command();
+            cmd = cmd.mut_subcommands(|sc| sc.hide(false));
+            // Rendering help to stdout is this binary's whole job here; a
+            // closed pipe is the caller's choice, never a crash.
+            let _ = cmd.print_long_help();
+            return std::process::ExitCode::SUCCESS;
+        }
+        Some(help_card::HelpKind::Short) => {
+            print!("{}", help_card::human_help());
+            return std::process::ExitCode::SUCCESS;
+        }
+        None => {}
     }
-    if help_words_only {
-        print!("{}", human_help());
-        return std::process::ExitCode::SUCCESS;
+    if std::io::stderr().is_terminal()
+        && let Some(warning) = help_card::isolation_warning()
+    {
+        eprintln!("{warning}");
     }
     if let Some(code) = front_door(&argv) {
         return code;
@@ -1401,20 +1409,23 @@ mod tests {
         );
         assert!(!bash.contains("nika-cli"), "the seed name never leaks");
     }
-    /// Human default help is a 5-line card. The rest is `--help --all`.
+    /// Human default help is a postcard. The rest is `--help --all`.
     /// Visible clap verbs: new · run · check · doctor. Nothing is deleted.
     #[test]
     fn the_default_human_help_is_five_lines_and_hides_nothing_forever() {
-        let lines = human_help().lines().filter(|l| !l.is_empty()).count();
+        let help = help_card::human_help();
+        let lines = help.lines().filter(|l| !l.is_empty()).count();
         assert!(
-            lines <= 6,
-            "human default help is ≤ 6 lines, got {lines}:\n{}",
-            human_help()
+            lines <= 8,
+            "human default help is ≤ 8 lines, got {lines}:\n{help}"
         );
         assert!(
-            human_help().contains("nika new hello"),
-            "day-one help names the first-wow file:\n{}",
-            human_help()
+            help.contains("nika new hello"),
+            "day-one help names the first-wow file:\n{help}"
+        );
+        assert!(
+            help.contains("try") && help.contains("new"),
+            "C11 · issue 1249/1317: the postcard names try and new:\n{help}"
         );
         let cmd = <Cli as clap::CommandFactory>::command();
         let total = cmd
@@ -1450,6 +1461,19 @@ mod tests {
         assert!(
             help.contains("claude-agent-acp") && help.contains("Retired ACP wrapper"),
             "the retired wrapper trap must stay named: {help}"
+        );
+        let model = run
+            .get_arguments()
+            .find(|a| a.get_long() == Some("model"))
+            .expect("--model");
+        let model_help = model
+            .get_help()
+            .map(std::string::ToString::to_string)
+            .unwrap_or_default();
+        assert!(
+            model_help.contains("envelope")
+                && !model_help.to_ascii_lowercase().contains("any workflow"),
+            "B22 · `--model` help is envelope-only, not a preview of every task: {model_help}"
         );
         let hidden = cmd
             .get_subcommands()

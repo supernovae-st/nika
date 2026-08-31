@@ -208,7 +208,7 @@ fn render_ls(traces: &[TraceMeta], dir: &Path, now: SystemTime, theme: Theme) ->
             theme.paint(Role::Dim, &c[1]),
             c[2],
             c[3],
-            state_cell(trace.state, theme),
+            state_cell(trace, theme),
         );
     }
     let _ = writeln!(out, "{}", totals_line(traces, dir, theme));
@@ -218,8 +218,13 @@ fn render_ls(traces: &[TraceMeta], dir: &Path, now: SystemTime, theme: Theme) ->
 /// The state cell, painted semantically (never decoratively): a paused
 /// trace is an OBLIGATION (warn) · a failure is red · the rest stay
 /// calm. Sober registers (no colour) keep the bare word.
-fn state_cell(state: TraceState, theme: Theme) -> String {
-    let role = match state {
+fn state_cell(trace: &store::TraceMeta, theme: Theme) -> String {
+    // B23 / issue 1275: a recovered run must never render as a clean
+    // `completed`. 100% recovered for_each is the measured case.
+    if trace.state == TraceState::Completed && trace_has_recovered(&trace.path) {
+        return theme.paint(Role::Warn, "recovered");
+    }
+    let role = match trace.state {
         TraceState::Completed => Role::Good,
         TraceState::Failed => Role::Bad,
         TraceState::Paused => Role::Warn,
@@ -229,7 +234,20 @@ fn state_cell(state: TraceState, theme: Theme) -> String {
         // (`as_str`), this CLI just keeps the cell quiet.
         _ => Role::Dim,
     };
-    theme.paint(role, state.as_str())
+    theme.paint(role, trace.state.as_str())
+}
+
+/// Whether the journal recorded an `on_error.recover` repair.
+fn trace_has_recovered(path: &std::path::Path) -> bool {
+    let Ok(raw) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    let Ok(events) = recover_events(&raw, &path.display().to_string()) else {
+        return false;
+    };
+    events
+        .iter()
+        .any(|e| e.kind == nika_event::EventKind::TaskRecovered)
 }
 
 /// The honest empty cell for a trace that never recorded its workflow
@@ -417,7 +435,7 @@ fn scan_foreign(path: &Path) -> Option<store::TraceMeta> {
 mod tests {
     use super::*;
     use crate::exit;
-    use crate::trace::store::tests::{ndjson, run_events, stage_trace, temp_store};
+    use crate::trace::store::tests::{event, ndjson, run_events, stage_trace, temp_store};
     use nika_event::EventKind;
     use std::time::Duration;
 
@@ -521,6 +539,36 @@ mod tests {
             "newest first: {text}"
         );
         assert!(ok_line.contains("veille") && gate_line.contains("gatey"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// B23 / issue 1275: 100% recovered is NOT `completed` on `trace ls`.
+    #[test]
+    fn ls_marks_a_recovered_run_as_recovered_not_completed() {
+        let dir = temp_store("ls-recovered");
+        let mut events = run_events("fan", Some(EventKind::WorkflowCompleted));
+        events.insert(1, event(EventKind::TaskRecovered, "task", "each", 5));
+        stage_trace(
+            &dir,
+            "fan.ndjson",
+            &ndjson(&events),
+            Duration::from_secs(60),
+        );
+        let out = ls_in(&dir, plain());
+        assert_eq!(out.code, exit::OK);
+        let text = &out.text;
+        let row = text
+            .lines()
+            .find(|l| l.contains("fan.ndjson"))
+            .expect("row");
+        assert!(
+            row.contains("recovered"),
+            "recovered must be the state word: {row}"
+        );
+        assert!(
+            !row.contains("completed"),
+            "must not collapse into completed: {row}"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 

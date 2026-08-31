@@ -50,6 +50,8 @@ pub mod validate;
 // ── Re-exports for ergonomic usage ──────────────────────────────────────
 
 pub use error::CatalogError;
+#[cfg(feature = "providers")]
+pub use suggest::pasteable_for;
 pub use suggest::{Namespace, Suggestion, suggest, suggest_in};
 // `types::*` already brings `validate_key_format`, `Tag`, and the rest of the
 // type surface into scope — it's a pure-logic function requiring no feature.
@@ -62,13 +64,15 @@ pub use lookup::find_embedding;
 pub use lookup::find_provider;
 #[cfg(feature = "capabilities")]
 pub use lookup::model_capabilities;
+#[cfg(feature = "builtins-transforms")]
+pub use lookup::{
+    builtin_provider_floor_usd, find_builtin, find_transform, is_known_builtin, is_known_transform,
+};
 #[cfg(feature = "pricing")]
 pub use lookup::{
     estimate_cost, estimate_cost_for, estimate_cost_usage_for, find_pricing, find_pricing_for,
     find_pricing_scoped,
 };
-#[cfg(feature = "builtins-transforms")]
-pub use lookup::{find_builtin, find_transform, is_known_builtin, is_known_transform};
 #[cfg(feature = "mcp")]
 pub use lookup::{find_mcp_server, is_known_mcp_server, resolve_mcp_name};
 

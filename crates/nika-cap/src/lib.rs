@@ -26,6 +26,7 @@ mod effect;
 mod effect_vocab;
 pub mod env;
 mod expr;
+mod file_plumbing;
 mod fit;
 mod harness_gate;
 mod integrity;
@@ -60,6 +61,11 @@ pub use expr::{
     JqDisposition, JqSymbolKind, WITHHELD_JQ_NATIVES, WithheldNative, install_jq_definition,
     install_jq_native, is_withheld_jq_native, jq_capability_rule, withheld_jq_native,
     withheld_jq_policy_reason, withheld_jq_reason,
+};
+pub use file_plumbing::{
+    FILE_PLUMBING_PROGRAMS, file_plumbing_computed_operand, file_plumbing_computed_shell,
+    file_plumbing_host_escape, file_plumbing_host_escape_shell, file_plumbing_path_operands,
+    path_leaves_workspace,
 };
 pub use fit::{expand_home_grant, glob_admits, lexically_normalize};
 // P3 B5 · the harness permission-bridge judge (the pure half — the

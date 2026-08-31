@@ -4335,6 +4335,7 @@ dependencies = [
  "nika-check",
  "nika-dap",
  "nika-display",
+ "nika-error",
  "nika-event",
  "nika-harness",
  "nika-http",

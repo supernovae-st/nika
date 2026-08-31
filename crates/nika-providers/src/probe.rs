@@ -595,6 +595,7 @@ where
     H: nika_kernel::http::HttpPostDyn + Send + Sync + 'static,
 {
     let (provider_id, _) = model.split_once('/')?;
+    let provider_id = crate::profile::canonical_provider(provider_id);
     let profile = registry.profiles().iter().find(|p| p.id == provider_id)?;
     // The gate mirrors collect_local_pings' own filter: server-backed
     // keyless engines only.
@@ -614,6 +615,77 @@ where
             .recv_timeout(Duration::from_millis(1500))
             .unwrap_or(LocalLiveness::Silent(addr)),
     )
+}
+
+/// What doctor (and any other surface) must distinguish for a cloud key
+/// (B19 / B26 / B27 / I11 / issue 1273): present is not ready, 401 is
+/// not 402, `sk-invalid` is not configured.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KeyAuth {
+    /// No env var is set.
+    Absent,
+    /// A value is set; format was not judged / HTTP was not dialed.
+    Present,
+    /// Set, but the value fails the catalog prefix or a minimum length
+    /// (`sk-invalid` is this class — never « ready »).
+    Implausible,
+    /// Live probe: HTTP 401.
+    Unauthorized,
+    /// Live probe: HTTP 402 (quota / billing).
+    PaymentRequired,
+    /// Live probe: the endpoint accepted the key (2xx).
+    Ok,
+}
+
+impl KeyAuth {
+    /// The doctor/JSON token (`present` · `401` · `402` · …).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Absent => "absent",
+            Self::Present => "present",
+            Self::Implausible => "implausible",
+            Self::Unauthorized => "401",
+            Self::PaymentRequired => "402",
+            Self::Ok => "ok",
+        }
+    }
+
+    /// Whether doctor may render this as `configured` / `ready`.
+    #[must_use]
+    pub const fn is_ready(self) -> bool {
+        matches!(self, Self::Ok | Self::Present)
+    }
+}
+
+/// Classify a held key value against the catalog prefixes. The value is
+/// the caller's to drop — this function never prints it.
+#[must_use]
+pub fn classify_key_value(prefixes: &[&str], value: &str) -> KeyAuth {
+    if value.is_empty() {
+        return KeyAuth::Absent;
+    }
+    let prefix_ok = prefixes.is_empty() || prefixes.iter().any(|p| value.starts_with(p));
+    // OpenAI `sk-` / Anthropic `sk-ant-` live keys are far longer than
+    // 16; `sk-invalid` (10) is the gauntlet's present-but-fake specimen.
+    if !prefix_ok || value.len() < 16 {
+        return KeyAuth::Implausible;
+    }
+    KeyAuth::Present
+}
+
+/// Classify a live auth probe's HTTP status. 401 and 402 are first-class
+/// rungs; anything else stays `Present` (the value existed, the probe
+/// did not prove Ok).
+#[must_use]
+pub fn classify_http_status(status: u16) -> KeyAuth {
+    match status {
+        200..=299 => KeyAuth::Ok,
+        401 => KeyAuth::Unauthorized,
+        402 => KeyAuth::PaymentRequired,
+        _ => KeyAuth::Present,
+    }
 }
 
 #[cfg(test)]
@@ -921,5 +993,34 @@ mod tests {
         assert!(ready.key_present);
         assert!(ready.readiness.configured);
         assert!(ready.fix_var.is_empty());
+    }
+
+    /// B19 / issue 1273: `sk-invalid` is present, not ready/configured.
+    /// 401 and 402 are distinct rungs.
+    #[test]
+    fn doctor_distinguishes_present_401_and_402() {
+        assert_eq!(classify_key_value(&["sk-"], ""), KeyAuth::Absent);
+        assert_eq!(
+            classify_key_value(&["sk-"], "sk-invalid"),
+            KeyAuth::Implausible
+        );
+        assert!(!classify_key_value(&["sk-"], "sk-invalid").is_ready());
+        assert_eq!(
+            classify_key_value(&["sk-"], "sk-abcdefghijklmnopqrstuvwxyz"),
+            KeyAuth::Present
+        );
+        assert_eq!(
+            classify_key_value(&["sk-ant-"], "sk-abcdefghijklmnopqrstuvwxyz"),
+            KeyAuth::Implausible
+        );
+        assert_eq!(classify_http_status(401), KeyAuth::Unauthorized);
+        assert_eq!(classify_http_status(402), KeyAuth::PaymentRequired);
+        assert_eq!(classify_http_status(200), KeyAuth::Ok);
+        assert_eq!(KeyAuth::Unauthorized.as_str(), "401");
+        assert_eq!(KeyAuth::PaymentRequired.as_str(), "402");
+        assert_eq!(KeyAuth::Implausible.as_str(), "implausible");
+        assert!(!KeyAuth::Unauthorized.is_ready());
+        assert!(!KeyAuth::PaymentRequired.is_ready());
+        assert!(KeyAuth::Ok.is_ready());
     }
 }

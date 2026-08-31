@@ -27,9 +27,10 @@
 //!
 //! - `door: try` (default) goes through `nika try <slug>` — the shipped
 //!   door, offline mock seat by default, fixtures materialized by the door.
+//!   C01 shipped `--answer` on this door; a gated row may stay on `try`.
 //! - `door: run` stages a scratch cwd per the row's `kit:` and goes through
-//!   `nika run --no-progress --max-cost-usd 0.01` — required for the human
-//!   gates (`try` carries no `--answer`).
+//!   `nika run --no-progress --max-cost-usd 0.01` — for rows that need a
+//!   workspace kit the showroom does not stage.
 //! - `HOME`/`TMPDIR` are isolated per entry; inherited `NIKA_*`, provider
 //!   keys and workflow-referenced secret vars are scrubbed, and the only
 //!   model the gate may name is `mock/echo`.
@@ -181,11 +182,6 @@ fn validate(m: &Manifest) {
             e.slug
         );
         if e.door == Door::Try {
-            assert!(
-                e.answers.is_empty(),
-                "`{}`: `try` carries no --answer flag — a gated row takes `door: run`",
-                e.slug
-            );
             assert!(
                 e.kit.is_empty(),
                 "`{}`: `try` stages its own room — kits belong to `door: run`",
@@ -400,6 +396,9 @@ fn entry_command(entry: &Entry, room: &Room, body: &str) -> Command {
             cmd.arg("try")
                 .arg(&entry.slug)
                 .args(["--no-progress", "--max-cost-usd", "0.01"]);
+            for (task, value) in &entry.answers {
+                cmd.args(["--answer", &format!("{task}={value}")]);
+            }
         }
         Door::Run => {
             let path = stage_run_room(room, entry, body);

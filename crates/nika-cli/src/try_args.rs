@@ -6,6 +6,8 @@
 //! precedent). The showroom rendering itself lives in
 //! `verbs::examples`; the rehearsal is `verbs::run::example`.
 
+use std::path::PathBuf;
+
 use clap::Args;
 
 use crate::{Theme, VerbOutput, verbs};
@@ -16,7 +18,7 @@ pub(crate) struct TryArgs {
     /// Example slug (bare `nika try` shows the storefront).
     pub(crate) slug: Option<String>,
     /// The whole shelf — the numbered path plus every job (bare
-    /// `nika try` shows three familiar jobs first).
+    /// `nika try` shows the pack first-run shelf).
     #[arg(long)]
     all: bool,
     /// Run on a REAL seat instead of the default mock rehearsal
@@ -43,6 +45,16 @@ pub(crate) struct TryArgs {
     /// as `nika run`.
     #[arg(long, value_name = "USD", value_parser = crate::parse_budget_usd)]
     max_cost_usd: Option<f64>,
+    /// Resume from a prior run's NDJSON trace — same flag, same parser
+    /// as `nika run --resume`. Relative paths pin to the operator cwd
+    /// (the rehearsal then enters a temp room).
+    #[arg(long, value_name = "TRACE")]
+    pub(crate) resume: Option<PathBuf>,
+    /// Answer a `nika:prompt` gate (repeatable · same parser as
+    /// `nika run --answer`). Without `--resume` the answer is
+    /// PRE-SEEDED on the fresh rehearsal (the CI one-pass gate).
+    #[arg(long = "answer", value_name = "TASK=VALUE")]
+    pub(crate) answer: Vec<String>,
 }
 
 /// The listing half — `Some(output)` when no slug was named (the
@@ -66,6 +78,7 @@ pub(crate) fn rehearse(args: &TryArgs, plain_theme: Theme) -> u8 {
         &args.var,
         (args.quiet, args.no_progress),
         args.max_cost_usd,
+        (&args.answer, args.resume.as_deref()),
         plain_theme,
     )
 }

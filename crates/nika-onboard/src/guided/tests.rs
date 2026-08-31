@@ -52,9 +52,9 @@ fn exact_template_name_stays_the_fast_path() {
 }
 
 /// The ladder's second rung: an example slug (or filename) lands
-/// VERBATIM at dest (minus the one self-referential pack path, which
-/// re-points to the owned file) — and the default dest flattens any
-/// tiering to the basename.
+/// at dest (minus the one self-referential pack path, which re-points
+/// to the owned file; `01-hello` is the B01 mock/echo rehearsal take)
+/// — and the default dest flattens any tiering to the basename.
 #[test]
 fn example_sources_land_verbatim_through_new() {
     let dir = std::env::temp_dir().join(format!("nika-new-example-{}", std::process::id()));
@@ -71,12 +71,18 @@ fn example_sources_land_verbatim_through_new() {
     // comment inside the OWNED copy must name the owned file — pasting
     // the pack path exited 3 in the user's workspace (gauntlet 08-01).
     let landed = std::fs::read_to_string(&dest).expect("written");
+    // B01 stamps hello / 01-hello onto mock/echo (the pack lesson still
+    // names ollama). Self-referential pack path still re-points.
     assert_eq!(
         landed,
-        nika_pack::example("01-hello")
-            .expect("embedded")
-            .replace("examples/01-hello.nika.yaml", &dest_s),
-        "verbatim, self-reference re-pointed to the owned dest"
+        stamp(
+            &nika_pack::example("01-hello")
+                .expect("embedded")
+                .replace("examples/01-hello.nika.yaml", &dest_s),
+            "hello",
+            Some("mock/echo"),
+        ),
+        "B01 rehearsal take, self-reference re-pointed to the owned dest"
     );
     assert!(
         !landed.contains("examples/01-hello.nika.yaml"),
@@ -532,6 +538,120 @@ fn stamp_fills_exactly_the_two_known_slots() {
             );
         }
     }
+}
+
+/// B06+C06 · recovered first-run files still parse and check as lessons.
+#[test]
+fn recovered_try_examples_parse_and_check() {
+    for slug in [
+        "01-hello",
+        "03-exec-pipeline",
+        "standup-digest",
+        "05-fetch-chain",
+    ] {
+        let body = nika_pack::example(slug).expect(slug);
+        let parsed = nika_schema::parse(
+            body,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        );
+        assert!(parsed.is_ok(), "{slug} must parse: {parsed:?}");
+        let wf = parsed.expect("asserted ok");
+        let report = nika_check::check(&wf);
+        assert!(
+            report.is_clean() || report.findings.iter().all(|f| f.kind == "slot"),
+            "{slug}: recovered example fails check: {report:?}"
+        );
+    }
+}
+
+/// B01+B16 · `nika new hello` is `nika new 01-hello`: one body, mock/echo,
+/// comments match the field. `OPENAI_API_KEY` is not this crate's to read.
+#[test]
+fn new_hello_equals_new_01_hello_and_rehearses_on_mock_echo() {
+    let dir = std::env::temp_dir().join(format!("nika-one-hello-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let a = dir.join("a.nika.yaml");
+    let b = dir.join("b.nika.yaml");
+    let a_s = a.to_string_lossy().into_owned();
+    let b_s = b.to_string_lossy().into_owned();
+    let out_a = run("hello", Some(&a_s), true);
+    let out_b = run("01-hello", Some(&b_s), true);
+    assert_eq!(out_a.code, codes::OK, "{}", out_a.text);
+    assert_eq!(out_b.code, codes::OK, "{}", out_b.text);
+    let body_a = std::fs::read_to_string(&a).expect("a");
+    let body_b = std::fs::read_to_string(&b).expect("b");
+    assert_eq!(
+        body_a.replace(&a_s, "<dest>"),
+        body_b.replace(&b_s, "<dest>"),
+        "hello and 01-hello must land the same file"
+    );
+    let model = body_a
+        .lines()
+        .find(|l| l.starts_with("model: "))
+        .expect("model");
+    assert!(
+        model.contains("mock/echo"),
+        "the one hello is mock/echo: {model}"
+    );
+    assert!(!model.to_ascii_lowercase().contains("local"), "{model}");
+    assert!(!body_a.contains("gpt-4o-mini"), "{body_a}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// C09 · `nika new "a weekend summary of three URLs"` writes a file or
+/// names 05-fetch-chain.
+#[test]
+fn weekend_summary_of_three_urls_writes_or_names_fetch_chain() {
+    let dest = dest("weekend-urls");
+    let out = run("a weekend summary of three URLs", Some(&dest), true);
+    if out.code == codes::OK {
+        let body = std::fs::read_to_string(&dest).expect("written");
+        assert!(
+            body.contains("nika: fetch-chain") || out.text.contains("05-fetch-chain"),
+            "wrote something else: {}\n{body}",
+            out.text
+        );
+        std::fs::remove_file(&dest).ok();
+    } else {
+        assert_eq!(out.code, codes::FILE, "{}", out.text);
+        assert!(
+            out.text.contains("05-fetch-chain"),
+            "must name the closest slug: {}",
+            out.text
+        );
+        assert!(
+            !std::path::Path::new(&dest).exists(),
+            "clarify writes nothing"
+        );
+    }
+}
+
+/// B16 · stamping a cloud seat must not leave a « local » comment.
+#[test]
+fn stamp_comments_match_the_model_field() {
+    let body = nika_pack::template("chain").expect("embedded");
+    let openai = stamp(body, "hello", Some("openai/gpt-5.2"));
+    let model = openai
+        .lines()
+        .find(|l| l.starts_with("model: "))
+        .expect("model line");
+    assert!(model.contains("openai/gpt-5.2"), "{model}");
+    assert!(
+        !model.to_ascii_lowercase().contains("local"),
+        "no « local » while openai: {model}"
+    );
+    let mock = stamp(body, "hello", Some("mock/echo"));
+    let mock_line = mock
+        .lines()
+        .find(|l| l.starts_with("model: "))
+        .expect("model line");
+    assert!(mock_line.contains("mock/echo"), "{mock_line}");
+    assert!(
+        !mock_line.to_ascii_lowercase().contains("local"),
+        "no « local » while mock/echo: {mock_line}"
+    );
 }
 
 /// The whole conversation over an injected cursor: three Enters =

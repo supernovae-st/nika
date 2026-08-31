@@ -437,14 +437,11 @@ fn sentinel_dir(tag: &str) -> std::path::PathBuf {
 #[test]
 fn capture_mock_outputs_refuses_write_effects() {
     let dir = sentinel_dir("write");
+    let _lease = crate::cwd::enter(&dir).expect("enter write sentinel");
     let sentinel = dir.join("sentinel.txt");
-    let yaml = format!(
-        "nika: fx-write\nmodel: mock/echo\npermits: {{ tools: [\"nika:write\"], fs: {{ write: [\"{}/**\"] }} }}\ntasks:\n  w:\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"{}\", content: \"must never land\" }} }}\n",
-        dir.display(),
-        sentinel.display()
-    );
+    let yaml = "nika: fx-write\nmodel: mock/echo\npermits: { tools: [\"nika:write\"], fs: { write: [\"./sentinel.txt\"] } }\ntasks:\n  w:\n    invoke: { tool: \"nika:write\", args: { path: \"./sentinel.txt\", content: \"must never land\" } }\n";
     let wf = nika_schema::parse(
-        &yaml,
+        yaml,
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
@@ -471,13 +468,11 @@ fn capture_mock_outputs_refuses_write_effects() {
 #[test]
 fn capture_mock_outputs_refuses_exec_effects() {
     let dir = sentinel_dir("exec");
+    let _lease = crate::cwd::enter(&dir).expect("enter exec sentinel");
     let sentinel = dir.join("sentinel.txt");
-    let yaml = format!(
-        "nika: fx-exec\nmodel: mock/echo\npermits: {{ exec: [\"touch\"] }}\ntasks:\n  t:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
-        sentinel.display()
-    );
+    let yaml = "nika: fx-exec\nmodel: mock/echo\npermits: { exec: [\"touch\"] }\ntasks:\n  t:\n    exec: { command: [\"touch\", \"./sentinel.txt\"] }\n";
     let wf = nika_schema::parse(
-        &yaml,
+        yaml,
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
@@ -505,14 +500,12 @@ fn capture_mock_outputs_refuses_exec_effects() {
 /// plan only, zero effects.
 #[test]
 fn require_signature_refuses_unsigned_before_execution() {
-    let sentinel =
-        std::env::temp_dir().join(format!("nika-sig-gate-sentinel-{}", std::process::id()));
-    let _ = std::fs::remove_file(&sentinel);
-    let yaml = format!(
-        "nika: sig-gate\nmodel: mock/echo\npermits: {{ exec: [\"touch\"] }}\ntasks:\n  touch:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
-        sentinel.display()
-    );
-    let wf = stage("sig-gate.nika.yaml", &yaml);
+    let dir = sentinel_dir("sig");
+    let _lease = crate::cwd::enter(&dir).expect("enter sig sentinel");
+    let sentinel = dir.join("sentinel.txt");
+    let yaml = "nika: sig-gate\nmodel: mock/echo\npermits: { exec: [\"touch\"] }\ntasks:\n  touch:\n    exec: { command: [\"touch\", \"./sentinel.txt\"] }\n";
+    let wf = dir.join("sig-gate.nika.yaml");
+    std::fs::write(&wf, yaml).expect("sig fixture");
     let gated = run(
         &wf.to_string_lossy(),
         false,

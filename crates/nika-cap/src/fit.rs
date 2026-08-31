@@ -198,6 +198,11 @@ fn bound_subtree_admits(glob: &str, path: &str) -> bool {
     if path.starts_with("..") && !prefix.starts_with("..") {
         return false;
     }
+    // Same tree-identity as `glob_admits`: a relative jail prefix is the
+    // workspace, an absolute path is the host (B04 / issue 1294).
+    if path.starts_with('/') != prefix.starts_with('/') {
+        return false;
+    }
     path == prefix
         || path
             .strip_prefix(&prefix)
@@ -276,6 +281,13 @@ fn segments(s: &str) -> Vec<&str> {
 /// Both are one function now, and `*` stops at a separator on both sides.
 #[must_use]
 pub fn glob_admits(glob: &str, path: &str) -> bool {
+    // Absolute vs relative is a different tree. Segment walking drops the
+    // leading `/` and `.`, so without this guard a workspace glob (`./**`)
+    // admits every host path (`/etc/passwd`) — B04 / B28, issue 1294:
+    // check printed PERMITS-clean while run still refused NIKA-SEC-004.
+    if glob.starts_with('/') != path.starts_with('/') {
+        return false;
+    }
     let mut pattern = segments(glob);
     // Collapse runs of `**`. Without this, `**/**/**/…` against a long path
     // backtracks exponentially, and permits come from a file we did not write.
@@ -605,6 +617,45 @@ mod tests {
             ),
             "an absolute grant is not a home grant"
         );
+    }
+
+    /// B04 / B28 · issue 1294 — a workspace glob is the TREE, not the
+    /// host. Segment walking used to drop the leading `/` and `.`, so
+    /// `./**` (and a bare `*` / `**`) admitted `/etc/passwd` at check
+    /// while run still refused `NIKA-SEC-004`. Relative vs absolute is
+    /// a different tree; an in-tree sibling stays granted.
+    #[test]
+    fn a_workspace_glob_never_admits_a_host_passwd_path() {
+        let mut p = Permits::new();
+        p.fs = Some(FsPermits {
+            read: vec!["./**".into()],
+            write: vec![],
+        });
+        assert!(
+            !p.allows_path("/etc/passwd", false),
+            "./** is the workspace, not the host"
+        );
+        assert!(
+            !p.allows_path("../etc/passwd", false),
+            "a relative climb is the same class"
+        );
+        assert!(
+            p.allows_path("./notes.md", false),
+            "an in-tree sibling stays granted"
+        );
+        assert!(
+            !p.jail_admits_read("/etc/passwd"),
+            "the jail reading must not widen the hole"
+        );
+        // The matcher itself, not just the Permits wrapper — `./**` and
+        // a bare `**` both folded to the same walk that admitted the host.
+        assert!(!glob_admits("./**", "/etc/passwd"));
+        assert!(!glob_admits("**", "/etc/passwd"));
+        assert!(!glob_admits("*", "/etc"));
+        assert!(glob_admits("./**", "./notes.md"));
+        // An explicit absolute grant is still the operator's named intent.
+        assert!(home_grant("/etc/passwd").allows_path("/etc/passwd", false));
+        assert!(!home_grant("/etc/passwd").allows_path("./notes.md", false));
     }
 
     #[test]

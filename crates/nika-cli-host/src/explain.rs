@@ -17,7 +17,8 @@
 use nika_error::codes::{code_help, lookup};
 
 use crate::display::theme::Theme;
-use crate::verbs::VerbOutput;
+use crate::output::VerbOutput;
+use crate::probe::{seat_escape_tail, with_seat_tail};
 
 /// The doc-site home for the error-code registry — the ONE https target the
 /// explain surface names. Printed scheme-less (the established prose form);
@@ -49,9 +50,9 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
         // (NIKA-DAG-002 …) live in the embedded canon's error_codes
         // table. Same binary, same single source of truth.
         if let Some(text) = canon_row(&normalized) {
-            return VerbOutput::ok(nika_cli_host::probe::with_seat_tail(
+            return VerbOutput::ok(with_seat_tail(
                 &normalized,
-                nika_cli_host::probe::seat_escape_tail().as_deref(),
+                seat_escape_tail().as_deref(),
                 text,
             ));
         }
@@ -86,9 +87,9 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
         slug = code.slug,
         help = code_help(code),
     );
-    VerbOutput::ok(nika_cli_host::probe::with_seat_tail(
+    VerbOutput::ok(with_seat_tail(
         &normalized,
-        nika_cli_host::probe::seat_escape_tail().as_deref(),
+        seat_escape_tail().as_deref(),
         text,
     ))
 }
@@ -334,7 +335,7 @@ fn run_decl_fix_hint(code: &str) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::verbs::exit;
+    use crate::output::exit;
 
     /// The sober register (links off) — the byte-frozen baseline every
     /// machine surface reads.
@@ -367,7 +368,7 @@ mod tests {
     #[test]
     fn the_seat_tail_is_gated_on_code_class_and_census_truth() {
         let text = "body".to_owned();
-        let with = nika_cli_host::probe::with_seat_tail(
+        let with = crate::probe::with_seat_tail(
             "NIKA-INFER-001",
             Some("or use a signed-in seat: `--access claude-code`"),
             text.clone(),
@@ -376,18 +377,17 @@ mod tests {
         assert!(with.starts_with("body"), "{with}");
         // NIKA-1800 rides the same gate.
         assert!(
-            nika_cli_host::probe::with_seat_tail("NIKA-1800", Some("tail"), text.clone())
-                .contains("tail"),
+            crate::probe::with_seat_tail("NIKA-1800", Some("tail"), text.clone()).contains("tail"),
             "the admission refusal earns the tail too"
         );
         // Another class never does, even with a seat present.
         assert_eq!(
-            nika_cli_host::probe::with_seat_tail("NIKA-DAG-002", Some("tail"), text.clone()),
+            crate::probe::with_seat_tail("NIKA-DAG-002", Some("tail"), text.clone()),
             "body"
         );
         // No seat, no tail — the teaching never promises a phantom path.
         assert_eq!(
-            nika_cli_host::probe::with_seat_tail("NIKA-INFER-001", None, text.clone()),
+            crate::probe::with_seat_tail("NIKA-INFER-001", None, text.clone()),
             "body"
         );
     }

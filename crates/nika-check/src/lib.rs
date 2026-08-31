@@ -133,6 +133,7 @@ mod declass;
 mod effective;
 mod energy;
 mod exec_floor;
+mod failure_plan;
 mod findings;
 mod flow;
 mod hints;
@@ -172,6 +173,7 @@ pub use declass::LeakReason;
 pub use effective::{EffectivePermits, PermitsSource};
 pub use energy::{EnergyCounts, EnergyReading, EnergyTask};
 pub use exec_floor::ExecFloorFinding;
+pub use failure_plan::FailurePlanEntry;
 pub use findings::{UnifiedFinding, typed_renames};
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
 pub use hints::{
@@ -196,7 +198,7 @@ pub use walk::static_read_paths;
 // The analyzer's surface at the crate root — the shape `nika-schema`
 // re-exported pre-split (substrate descent 2026-08-25 · ADR-115's direction).
 pub use analyzer::{AnalyzedWorkflow, analyze, lowered_returns, returns_type, static_literal_of};
-pub use analyzer::{ThinkingFinding, thinking_findings};
+pub use analyzer::{MIN_REASONING_MAX_TOKENS, ThinkingFinding, thinking_findings};
 
 /// The JSON contract version of [`CheckReport`] — bumped on any
 /// breaking field rename/removal so agent loops fail LOUDLY instead of
@@ -498,6 +500,13 @@ pub struct CheckReport {
     /// [`CheckReport::is_clean`] (the completeness ratchet in
     /// `findings::tests`). Additive: `report_version` stays 1.
     pub findings: Vec<UnifiedFinding>,
+    /// The four P0 run-refusal shapes (I05) — host passwd read, exec cat
+    /// of a host path, priced image over cap, unpriced cloud under a cap.
+    /// Additive: `report_version` stays 1. Empty when none of the shapes
+    /// are present. Never a `is_clean` input (the typed lanes already
+    /// fail-closed on (1)(2); (3)(4) are run-gate predictions).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub failure_plan: Vec<FailurePlanEntry>,
     /// The scheduler-independent DAG read — exact width (Dilworth) with
     /// a witness antichain, pinch points, per-task failure blast radius.
     /// `None` when conformance fails (no valid order) OR the workflow
@@ -598,46 +607,6 @@ fn drop_refs_the_coded_walk_refused(
                 .any(|v| v.code == "NIKA-VAR-003" && v.message.contains(&quoted))
         })
         .collect()
-}
-
-/// Run the full static pre-flight over a parsed workflow — INFALLIBLE
-/// (the rustc model: maximal information per run).
-///
-/// Core conformance runs first. Its violations do not abort the check —
-/// they land in [`CheckReport::conformance`] and every DAG-independent
-/// analysis still runs, so an agent repairs conformance AND findings in
-/// ONE round-trip. The plan (`waves`) and the IFC secret analysis need
-/// a valid topological order and are skipped when conformance fails
-/// (empty · documented on the fields).
-/// F-O8 « absent = zero authority »: a MISSING `permits:` block whose
-/// body escapes NOTHING (pure compute) is the LEGAL zero — stated, not
-/// punished: the hint teaches the explicit `permits: {}` form (the
-/// only legal spelling of « I touch nothing »).
-///
-/// `judged` is false when core conformance failed. The hint asserts a property
-/// OF THE BODY (« pure compute so nothing escapes »), and a body that does not
-/// conform was never analysed, so the sentence would be unearned. Measured
-/// 2026-08-15: a jq program reaching for the ambient environment reported its
-/// `NIKA-VAR-005` refusal and this hint in the same output, one line apart.
-/// Same lesson as `section_or_skip` in the renderer — a green that means
-/// nobody looked is worse than no line at all.
-pub(crate) fn legal_zero_hint(
-    wf: &RawWorkflow,
-    escapes_empty: bool,
-    judged: bool,
-    hints: &mut Vec<Hint>,
-) {
-    if judged && wf.permits.is_none() && escapes_empty {
-        hints.push(Hint {
-            kind: "permits",
-            code: None,
-            task: "-".to_owned(),
-            advice: "no `permits:` block declared · zero authority (F-O8) — the body is \
-                     pure compute so nothing escapes; declare `permits: {}` to state the \
-                     zero explicitly"
-                .to_owned(),
-        });
-    }
 }
 
 /// Map one analyzer error to its report-row form (the canonical spec
@@ -807,11 +776,13 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         waves: topo_waves,
         analysis: dag_read.analysis,
         findings: Vec::new(),
+        failure_plan: Vec::new(),
         workflow_semantic: None,
     };
     // The class-erased list folds the FINISHED report (one truth, read
     // back) — every consumer (CLI --json · MCP nika_check) gets it free.
     report.findings = findings::collect(&report);
+    report.failure_plan = failure_plan::collect(wf, &report);
     report
 }
 
@@ -865,6 +836,10 @@ pub fn check_composed(
             call.gated,
         );
     }
+    // C04 — MCP server presence needs the injected reader (L0, zero I/O).
+    report
+        .unknown_tools
+        .extend(tools::scan_mcp_against_registry(wf, read));
     // Re-fold the class-erased list over the finished lane (one truth).
     report.findings = findings::collect(&report);
     report

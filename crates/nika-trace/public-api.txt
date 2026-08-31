@@ -769,6 +769,7 @@ pub type nika_trace::trace::action::TraceArgs::Output = T
 pub fn nika_trace::trace::flow(trace: &str, workflow: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace::outputs(trace: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace::peek(trace: &str, task: &str, raw: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace::tasks_json(view: &nika_display::state::RunView, events: &[nika_event::event::Event]) -> serde_json::value::Value
 pub mod nika_trace::trace_anchor
 pub fn nika_trace::trace_anchor::run(trace: &str, rekor_url: &str, tsa_url: &str) -> nika_cli_host::output::VerbOutput
 pub mod nika_trace::trace_otel

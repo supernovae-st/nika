@@ -216,6 +216,14 @@ pub fn access_class_for(provider: &str) -> nika_types::access::AccessClass {
 /// `NIKA-PROVIDER-NNN` codes stay per-adapter runtime errors (spec 05).
 pub const PREFIX_REFUSAL_CODE: &str = "NIKA-PROVIDER";
 
+/// Catalog aliases (`grok` → `xai`, `claude` → `anthropic`) resolve to
+/// the canonical provider id this binary seeds. Unknown names pass
+/// through so the unknown-provider arm still names the raw prefix.
+#[must_use]
+pub fn canonical_provider(id: &str) -> &str {
+    nika_catalog::find_provider(id).map_or(id, |row| row.id)
+}
+
 /// Why a `model:` cannot resolve in THIS binary (#320 / #761).
 ///
 /// `code` is `Some(PREFIX_REFUSAL_CODE)` when the claim is a spec claim
@@ -258,16 +266,36 @@ impl ResolveRefusal {
 #[must_use]
 pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
     match model.split_once('/') {
-        None => Some(
-            ResolveRefusal::new(format!(
-                "`{model}` is a bare model id — the contract is `<provider>/<model>` \
-                 (pick the provider that serves it; `nika catalog` names the \
-                 {} runnable providers under LOCAL and CLOUD)",
-                CANONICAL_IDS.len()
-            ))
-            .with_code(PREFIX_REFUSAL_CODE),
-        ),
-        Some((provider, _)) if !CANONICAL_IDS.contains(&provider) => {
+        None => {
+            // A known wire id / nickname gets the pasteable repair
+            // (`grok-3` → `xai/grok-3`). The 16-name dump put `groq`
+            // next to `xai` and that was the whole B18 miss.
+            let why = match nika_catalog::pasteable_for(model) {
+                Some(id) => format!(
+                    "`{model}` is a bare model id — the contract is \
+                     `<provider>/<model>` — write `{id}`"
+                ),
+                None => format!(
+                    "`{model}` is a bare model id — the contract is `<provider>/<model>` \
+                     (pick the provider that serves it; `nika catalog` names the \
+                     {} runnable providers under LOCAL and CLOUD)",
+                    CANONICAL_IDS.len()
+                ),
+            };
+            Some(ResolveRefusal::new(why).with_code(PREFIX_REFUSAL_CODE))
+        }
+        Some((provider, name)) => {
+            // Catalog aliases (`grok` → `xai`) are the same seat as the
+            // canonical id. Without this, `grok/grok-3` did-you-mean'd
+            // `groq` (B18 / issue 1306).
+            let canonical = canonical_provider(provider);
+            if CANONICAL_IDS.contains(&canonical) {
+                // Persona 12 · a unique catalog id on the WRONG seat
+                // (`groq/grok-3`) is not a snapshot miss. The repair is
+                // the pasteable id (`xai/grok-3`). Unknown names stay
+                // catalog_warning (providers ship models weekly).
+                return wrong_seat_refusal(canonical, name);
+            }
             // The shared did-you-mean metric (nika-types::suggest — the
             // same threshold the parser/checker suggest with): `antropic`
             // is ONE edit from the most-used provider id, and the rename
@@ -285,13 +313,12 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
             let mut refusal = ResolveRefusal::new(why);
             // Spec claim: the prefix is not a known vendor at all.
             // Engine-local: the vendor is cataloged but this binary
-            // cannot drive it (azure · moonshot-until-wired · aliases).
+            // cannot drive it (azure · moonshot-until-wired).
             if nika_catalog::find_provider(provider).is_none() {
                 refusal = refusal.with_code(PREFIX_REFUSAL_CODE);
             }
             Some(refusal)
         }
-        Some(_) => None,
     }
 }
 
@@ -316,8 +343,12 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
 #[must_use]
 pub fn catalog_warning(model: &str) -> Option<String> {
     let (provider, name) = model.split_once('/')?;
+    let provider = canonical_provider(provider);
     if !CANONICAL_IDS.contains(&provider) {
         return None; // resolve_refusal owns the unknown-provider class
+    }
+    if unique_other_seat(provider, name).is_some() {
+        return None; // resolve_refusal owns the wrong-seat class
     }
     // Lane 1 — the run lane's own names. The first cut of this law
     // consulted the pricing snapshot ONLY and warned on
@@ -334,7 +365,7 @@ pub fn catalog_warning(model: &str) -> Option<String> {
     // at `find_pricing`, deliberately not re-judged here).
     let priced: Vec<&'static str> = nika_catalog::all_pricing()
         .iter()
-        .filter(|p| p.provider.eq_ignore_ascii_case(provider))
+        .filter(|p| pricing_provider_matches(p.provider, provider))
         .map(|p| p.model_pattern)
         .collect();
     if priced.is_empty() {
@@ -367,6 +398,48 @@ pub fn catalog_warning(model: &str) -> Option<String> {
          binary's snapshot ({}); a run would fail at the provider{guess}",
         snapshot.as_of,
     ))
+}
+
+/// When `name` is uniquely served by a different canonical provider,
+/// that other seat's pasteable id. `None` when this seat lists the
+/// model, when the name is unknown, or when more than one catalog row
+/// serves it (ambiguous → the snapshot-warning class).
+fn unique_other_seat(canonical: &str, name: &str) -> Option<String> {
+    if let Some(row) = nika_catalog::find_provider(canonical)
+        && row
+            .models
+            .iter()
+            .any(|m| m.id.eq_ignore_ascii_case(name) || m.model.eq_ignore_ascii_case(name))
+    {
+        return None;
+    }
+    let pasteable = nika_catalog::pasteable_for(name)?;
+    let owner = pasteable.split_once('/')?.0;
+    (owner != canonical).then_some(pasteable)
+}
+
+/// Persona 12 · `groq/grok-3` is xAI's model on Groq's prefix.
+fn wrong_seat_refusal(canonical: &str, name: &str) -> Option<ResolveRefusal> {
+    let pasteable = unique_other_seat(canonical, name)?;
+    let owner = pasteable.split_once('/').map_or(canonical, |(o, _)| o);
+    Some(ResolveRefusal::new(format!(
+        "`{canonical}/{name}` is not a `{canonical}` model — `{name}` is served \
+         by `{owner}`; write `{pasteable}`"
+    )))
+}
+
+/// Snapshot row id and query name the same catalog seat (`gemini` ↔ `google`).
+fn pricing_provider_matches(row_provider: &str, query: &str) -> bool {
+    if row_provider.eq_ignore_ascii_case(query) {
+        return true;
+    }
+    match (
+        nika_catalog::find_provider(row_provider),
+        nika_catalog::find_provider(query),
+    ) {
+        (Some(row), Some(asked)) => row.id.eq_ignore_ascii_case(asked.id),
+        _ => false,
+    }
 }
 
 /// The 10 cloud rows (catalog-backed) + the in-process mock.
@@ -571,6 +644,65 @@ mod tests {
         assert!(catalog_warning("mock/echo").is_none());
         assert!(catalog_warning("gpt-4o-mini").is_none());
         assert!(catalog_warning("azure/gpt-4o").is_none());
+        // B20 / issue 1297: gemini is a priced cloud seat (models.dev
+        // snapshot rows ship as `google`; the engine id is `gemini`).
+        // Flash is a living model; a canary name is a ghost, not the
+        // local/mock "whatever was pulled" class.
+        assert!(
+            catalog_warning("gemini/gemini-2.5-flash").is_none(),
+            "flash is in the snapshot"
+        );
+        let gemini_ghost =
+            catalog_warning("gemini/nika-b20-unpriced-canary").expect("gemini is priced-cloud");
+        assert!(
+            gemini_ghost.contains("matches none of `gemini`'s")
+                && gemini_ghost.contains("newer than this binary's snapshot"),
+            "{gemini_ghost}"
+        );
+    }
+
+    /// B18 / issue 1306: `grok` is xAI's alias. `grok/grok-3` must
+    /// resolve as xAI, never did-you-mean `groq`. Bare `grok-3` repairs
+    /// to the pasteable id. `groq/grok-3` is not a priced-ready groq seat.
+    #[test]
+    fn grok_alias_resolves_as_xai_not_groq() {
+        assert_eq!(canonical_provider("grok"), "xai");
+        assert!(
+            resolve_refusal("grok/grok-3").is_none(),
+            "grok is the xAI alias — runnable: {:?}",
+            resolve_refusal("grok/grok-3")
+        );
+        assert!(
+            catalog_warning("grok/grok-3").is_none(),
+            "grok-3 is an xAI catalog model: {:?}",
+            catalog_warning("grok/grok-3")
+        );
+        let bare = resolve_refusal("grok-3").expect("bare id refused");
+        assert!(
+            bare.why.contains("xai/grok-3"),
+            "bare grok-3 must name the pasteable id: {}",
+            bare.why
+        );
+        assert!(
+            !bare.why.contains("groq"),
+            "repair must not dump groq next to xai: {}",
+            bare.why
+        );
+        let groq_wrong = resolve_refusal("groq/grok-3").expect("wrong seat is a refusal");
+        assert!(
+            groq_wrong.why.contains("xai/grok-3") && groq_wrong.why.contains("served by `xai`"),
+            "repair names the pasteable seat: {}",
+            groq_wrong.why
+        );
+        assert!(
+            catalog_warning("groq/grok-3").is_none(),
+            "wrong-seat is not a snapshot miss: {:?}",
+            catalog_warning("groq/grok-3")
+        );
+        assert!(
+            nika_catalog::find_pricing_for("groq/grok-3").is_none(),
+            "unknown model on groq is not priced-ready"
+        );
     }
 
     use super::*;

@@ -50,7 +50,7 @@ pub(crate) const SERVER_NAME: &str = "nika";
 /// which hands the repaired text back and writes nothing), and the actions
 /// the read-only server never takes. The parity pin below keeps this prose
 /// ⊆ the catalog: the teaching surface may not lie about the binary (#1270).
-const SERVER_INSTRUCTIONS: &str = "Author in this order: nika_template → fill every SLOT → nika_check → repair every finding → check again. nika_check with fix: true applies the machine-applicable repairs in memory — the same ladder as `nika check --fix` — and returns the repaired source: the caller writes it back verbatim, then checks again; nothing on this read-only server writes a file. Use nika_schema for field shape, nika_examples for a precedent (with builtin: for the examples that call one nika:* tool), nika_inspect for the derived DAG, and nika_explain for every diagnostic code. Read names from nika_canon, nika_catalog, and nika_tools instead of memory. Never invent a field, provider, model, tool, or permission; never run a workflow through this server — running is an explicit CLI act after a clean check.";
+const SERVER_INSTRUCTIONS: &str = "Author in this order: nika_template → fill every SLOT → nika_check → repair every finding → check again. nika_check with fix: true applies the machine-applicable repairs in memory — the same ladder as `nika check --fix` — and returns the repaired source: the caller writes it back verbatim, then checks again; nothing on this read-only server writes a file. Use nika_schema for field shape, nika_examples for a precedent (with builtin: for the examples that call one nika:* tool), nika_inspect for the derived DAG, and nika_explain for every diagnostic code. Read names from nika_canon, nika_catalog, and nika_tools instead of memory. Never invent a field, provider, model, tool, or permission; never run a workflow through this server — to execute, use nika run after a clean check.";
 
 /// Dispatch one INCOMING stdio message — a single request/notification (a JSON
 /// object) OR a JSON-RPC 2.0 BATCH (an array · the 2024-11-05 / 2025-03-26
@@ -208,10 +208,7 @@ mod tests {
         assert_eq!(resp["result"]["protocolVersion"], PROTOCOL_VERSION);
         assert_eq!(resp["result"]["serverInfo"]["name"], "nika");
         assert!(resp["result"]["capabilities"]["tools"].is_object());
-        assert_eq!(
-            resp["result"]["instructions"],
-            "Author in this order: nika_template → fill every SLOT → nika_check → repair every finding → check again. nika_check with fix: true applies the machine-applicable repairs in memory — the same ladder as `nika check --fix` — and returns the repaired source: the caller writes it back verbatim, then checks again; nothing on this read-only server writes a file. Use nika_schema for field shape, nika_examples for a precedent (with builtin: for the examples that call one nika:* tool), nika_inspect for the derived DAG, and nika_explain for every diagnostic code. Read names from nika_canon, nika_catalog, and nika_tools instead of memory. Never invent a field, provider, model, tool, or permission; never run a workflow through this server — running is an explicit CLI act after a clean check."
-        );
+        assert_eq!(resp["result"]["instructions"], SERVER_INSTRUCTIONS);
 
         let instructions = resp["result"]["instructions"]
             .as_str()
@@ -286,6 +283,80 @@ mod tests {
             assert!(
                 !names.iter().any(|n| n.ends_with("_run")),
                 "a run verb is served while the instructions promise none: {names:?}"
+            );
+        }
+    }
+
+    /// C02 · issue 1303 · the initialize card must name `nika run` as
+    /// the execute door. The 0.115.0 text said the server never runs a
+    /// workflow and that running is "an explicit CLI act" — it never
+    /// named the verb, so a host that only reads the oracle still does
+    /// not know the door.
+    #[test]
+    fn initialize_instructions_name_nika_run_as_the_execute_door() {
+        let resp =
+            handle(&json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" })).expect("reply");
+        let text = resp["result"]["instructions"]
+            .as_str()
+            .expect("instructions are text");
+        assert!(
+            text.contains("read-only"),
+            "instructions must say the oracle is read-only: {text}"
+        );
+        assert!(
+            text.contains("nika run"),
+            "instructions must name `nika run` as the execute door (C02): {text}"
+        );
+        let named = [
+            "nika_check",
+            "nika_inspect",
+            "nika_explain",
+            "nika_schema",
+            "nika_examples",
+            "nika_template",
+            "nika_canon",
+            "nika_catalog",
+            "nika_tools",
+        ]
+        .iter()
+        .filter(|n| text.contains(*n))
+        .count();
+        assert!(
+            named >= 3,
+            "instructions must name at least 3 of the 9 tools, named {named}: {text}"
+        );
+    }
+
+    /// C02 · WALL: honesty of help, not a new execute door. The catalog
+    /// stays nine read-only tools; a `nika_run` / `nika_write` / `nika_exec`
+    /// name is a product-law break.
+    #[test]
+    fn the_oracle_does_not_serve_a_write_or_run_tool() {
+        let catalog = tools::catalog();
+        let served = catalog.as_array().expect("tool array");
+        assert_eq!(
+            served.len(),
+            9,
+            "adding a tool is a product decision, not a help fix"
+        );
+        let names: Vec<&str> = served.iter().filter_map(|t| t["name"].as_str()).collect();
+        for forbidden in ["nika_run", "nika_write", "nika_exec", "nika_execute"] {
+            assert!(
+                !names.contains(&forbidden),
+                "C02 WALL: the oracle must not serve `{forbidden}`: {names:?}"
+            );
+        }
+        for tool in served {
+            let name = tool["name"].as_str().expect("every tool has a name");
+            assert_eq!(
+                tool["annotations"]["readOnlyHint"],
+                json!(true),
+                "{name} must stay read-only"
+            );
+            assert_eq!(
+                tool["annotations"]["destructiveHint"],
+                json!(false),
+                "{name} must not be destructive"
             );
         }
     }

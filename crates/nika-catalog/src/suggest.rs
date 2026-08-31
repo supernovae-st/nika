@@ -105,16 +105,7 @@ pub fn suggest(query: &str) -> Vec<Suggestion> {
     let mut hits: Vec<Suggestion> = Vec::new();
 
     #[cfg(feature = "providers")]
-    for p in generated::ALL_PROVIDERS {
-        let s = jaro_winkler(&q, &p.id.to_ascii_lowercase());
-        if s >= MIN_SCORE {
-            hits.push(Suggestion {
-                name: p.id,
-                namespace: Namespace::Provider,
-                score: s,
-            });
-        }
-    }
+    push_provider_hits(&q, &mut hits);
     #[cfg(feature = "mcp")]
     for srv in generated::ALL_MCP_SERVERS {
         let s = jaro_winkler(&q, &srv.id.to_ascii_lowercase());
@@ -166,9 +157,87 @@ pub fn suggest(query: &str) -> Vec<Suggestion> {
     // as Equal (non-deterministic) and is weaker under mutation. Ties break on the
     // name (ascending) so `truncate(MAX_SUGGESTIONS)` keeps a STABLE subset rather
     // than an insertion-order-dependent one.
-    hits.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.name.cmp(b.name)));
-    hits.truncate(MAX_SUGGESTIONS);
+    rank_hits(&mut hits);
     hits
+}
+
+#[cfg(feature = "providers")]
+fn push_provider_hits(q: &str, hits: &mut Vec<Suggestion>) {
+    // An exact model wire-id / nickname is the pasteable-id class
+    // (`grok-3` → xAI). Fuzzy-matching provider ids after that is how
+    // `groq` used to outrank `xai` (Jaro-Winkler on the `grok`/`groq`
+    // prefix). When a unique exact model hit exists, stop there.
+    let mut exact = false;
+    for p in generated::ALL_PROVIDERS {
+        for m in p.models {
+            if m.id.eq_ignore_ascii_case(q) || m.model.eq_ignore_ascii_case(q) {
+                consider(hits, p.id, Namespace::Provider, 1.0);
+                exact = true;
+            }
+        }
+    }
+    if exact {
+        return;
+    }
+    for p in generated::ALL_PROVIDERS {
+        consider(
+            hits,
+            p.id,
+            Namespace::Provider,
+            jaro_winkler(q, &p.id.to_ascii_lowercase()),
+        );
+        for alias in p.aliases {
+            consider(
+                hits,
+                p.id,
+                Namespace::Provider,
+                jaro_winkler(q, &alias.to_ascii_lowercase()),
+            );
+        }
+        for m in p.models {
+            for cand in [m.id, m.model] {
+                consider(
+                    hits,
+                    p.id,
+                    Namespace::Provider,
+                    jaro_winkler(q, &cand.to_ascii_lowercase()),
+                );
+            }
+        }
+    }
+}
+
+#[cfg(feature = "providers")]
+fn consider(hits: &mut Vec<Suggestion>, name: &'static str, namespace: Namespace, score: f64) {
+    if score >= MIN_SCORE {
+        hits.push(Suggestion {
+            name,
+            namespace,
+            score,
+        });
+    }
+}
+
+fn rank_hits(hits: &mut Vec<Suggestion>) {
+    // `f64::total_cmp` (the same SOTA form adopted in nika-bm25) gives a TOTAL,
+    // deterministic order over the finite-by-construction jaro-winkler scores —
+    // unlike `partial_cmp().unwrap_or(Equal)`, which would silently order any NaN
+    // as Equal (non-deterministic) and is weaker under mutation. Ties break on the
+    // name (ascending) so `truncate(MAX_SUGGESTIONS)` keeps a STABLE subset rather
+    // than an insertion-order-dependent one.
+    hits.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.name.cmp(b.name)));
+    let mut i = 0;
+    while i < hits.len() {
+        if hits[..i]
+            .iter()
+            .any(|h| h.name == hits[i].name && h.namespace == hits[i].namespace)
+        {
+            hits.remove(i);
+        } else {
+            i += 1;
+        }
+    }
+    hits.truncate(MAX_SUGGESTIONS);
 }
 
 /// Scoped variant of [`suggest`] — only searches within one namespace.
@@ -181,6 +250,27 @@ pub fn suggest_in(query: &str, namespace: Namespace) -> Vec<Suggestion> {
         .into_iter()
         .filter(|s| s.namespace == namespace)
         .collect()
+}
+
+/// The pasteable `provider/model` id for a bare model name, when exactly
+/// one catalog row serves it. `None` when the name is unknown or
+/// ambiguous across providers (B18 / issue 1306: `grok-3` → `xai/grok-3`).
+#[must_use]
+#[cfg(feature = "providers")]
+pub fn pasteable_for(bare: &str) -> Option<String> {
+    let mut hit: Option<String> = None;
+    for p in generated::ALL_PROVIDERS {
+        for m in p.models {
+            if m.id.eq_ignore_ascii_case(bare) || m.model.eq_ignore_ascii_case(bare) {
+                let id = format!("{}/{}", p.id, m.model);
+                if hit.as_ref().is_some_and(|h| h != &id) {
+                    return None;
+                }
+                hit = Some(id);
+            }
+        }
+    }
+    hit
 }
 
 // Suggestion tests reference specific catalog entries (filesystem, anthropic,
@@ -277,5 +367,36 @@ mod tests {
         let upper = suggest("filesystem");
         assert_eq!(lower.len(), upper.len());
         assert_eq!(lower[0].name, upper[0].name);
+    }
+
+    /// B18 / issue 1306: a model wire id suggests the provider that
+    /// serves it. `grok-3` is xAI; Jaro-Winkler against provider ids
+    /// alone preferred `groq`. The repair is the pasteable id, not a
+    /// 16-name dump that puts groq in the same breath.
+    #[test]
+    fn grok_3_suggests_xai_not_groq() {
+        let paste = pasteable_for("grok-3").expect("grok-3 is uniquely xAI");
+        assert_eq!(paste, "xai/grok-3");
+        assert!(
+            !paste.contains("groq"),
+            "pasteable id must not name groq: {paste}"
+        );
+        let hits = suggest("grok-3");
+        assert!(
+            !hits.is_empty(),
+            "grok-3 must suggest its provider: {hits:?}"
+        );
+        assert_eq!(
+            hits[0].name,
+            "xai",
+            "top hit must be xai, not groq: {:?}",
+            hits.iter().map(|h| h.name).collect::<Vec<_>>()
+        );
+        assert_eq!(hits[0].namespace, Namespace::Provider);
+        assert!(
+            hits.iter().all(|h| h.name != "groq"),
+            "groq must not be a suggested provider: {:?}",
+            hits.iter().map(|h| h.name).collect::<Vec<_>>()
+        );
     }
 }

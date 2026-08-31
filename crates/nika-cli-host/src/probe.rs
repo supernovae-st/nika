@@ -18,7 +18,7 @@ pub use crate::harness::access_probes_with_harness;
 use nika_providers::ProviderRegistry;
 use nika_providers::census::AccessCensus;
 use nika_providers::probe::ExecutionLocus;
-pub use nika_providers::probe::{PingState, ProviderProbe, env_present};
+pub use nika_providers::probe::{KeyAuth, PingState, ProviderProbe, env_present};
 
 use crate::clients_registry::{self, RegistryCoverage};
 use crate::retention::RetentionConfig;
@@ -992,7 +992,7 @@ pub fn adoption_state(probe: &Probe) -> AdoptionState {
     let cloud_configured = probe
         .providers
         .iter()
-        .any(|p| p.requires_key && p.key_present);
+        .any(|p| p.requires_key && p.key_present && key_auth_of(p).is_ready());
     let local_reachable = probe
         .local_pings
         .iter()
@@ -1026,6 +1026,57 @@ pub fn adoption_state(probe: &Probe) -> AdoptionState {
         return AdoptionState::LocalDetected;
     }
     AdoptionState::Installed
+}
+
+/// Classify a cloud key for doctor (B19 / issue 1273): `sk-invalid` is
+/// present-but-implausible, never `configured` / `ready`. The value is
+/// classified then dropped — it never reaches a finding string.
+#[must_use]
+pub(crate) fn key_auth_of(p: &ProviderProbe) -> KeyAuth {
+    if !p.requires_key {
+        return KeyAuth::Present;
+    }
+    if !p.key_present {
+        return KeyAuth::Absent;
+    }
+    key_auth_from_value(catalog_prefixes(&p.id), held_key_value(p).as_deref())
+}
+
+/// Pure classification: a held value is judged; missing value with
+/// `key_present` (a test fixture · a race) stays `Present`.
+#[must_use]
+pub(crate) fn key_auth_from_value(prefixes: &[&str], value: Option<&str>) -> KeyAuth {
+    match value {
+        Some(v) => nika_providers::classify_key_value(prefixes, v),
+        None => KeyAuth::Present,
+    }
+}
+
+fn catalog_prefixes(id: &str) -> &'static [&'static str] {
+    nika_catalog::find_provider(id).map_or(&[], |p| p.key_prefixes)
+}
+
+fn held_key_value(p: &ProviderProbe) -> Option<String> {
+    let mut names = vec![format!("NIKA_{}_API_KEY", p.id.to_uppercase())];
+    if !p.fix_var.is_empty() && !names.iter().any(|n| n == &p.fix_var) {
+        names.push(p.fix_var.clone());
+    }
+    if let Some(row) = nika_catalog::find_provider(&p.id)
+        && !row.env_var.is_empty()
+        && !names.iter().any(|n| n == row.env_var)
+    {
+        names.push(row.env_var.to_owned());
+    }
+    first_nonempty_env(&names)
+}
+
+/// Read the first non-empty env value among `names`, then the caller
+/// classifies and drops it. Never printed.
+#[allow(clippy::disallowed_methods)] // classify-then-drop · B19 · the value never leaves this fn
+fn first_nonempty_env(names: &[String]) -> Option<String> {
+    names
+        .iter()
+        .find_map(|name| std::env::var(name).ok().filter(|v| !v.is_empty()))
 }
 
 /// The R4 seat-escape line an auth-class witness earns when THIS

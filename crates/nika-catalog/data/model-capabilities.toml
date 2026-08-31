@@ -240,7 +240,7 @@ routing_complete = true
 name  = "gemini-2-5-pro"
 scope = { providers = ["gemini", "vertex"] }
 match = { kind = "prefix_any", prefixes = ["gemini-2.5-pro"] }
-caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["web-search"], json_mode = "schema" }
+caps  = { reasoning = true, tokenizer = "gemini", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["web-search"], json_mode = "schema" }
 
 # [17] Gemini 2.5 Flash — multimodal (audio + image + text + video).
 #      Video confirmed max 10/prompt via LiteLLM verification.
@@ -249,7 +249,7 @@ caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "pdf", "te
 name  = "gemini-2-5-flash"
 scope = { providers = ["gemini", "vertex"] }
 match = { kind = "prefix_any", prefixes = ["gemini-2.5-flash"] }
-caps  = { tokenizer = "gemini", input_modalities = ["audio", "image", "text", "video"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "reasoning-effort", "web-search"], json_mode = "schema" }
+caps  = { reasoning = true, tokenizer = "gemini", input_modalities = ["audio", "image", "text", "video"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "reasoning-effort", "web-search"], json_mode = "schema" }
 
 # [18] Any other Gemini model. routing_complete=true.
 [[rules]]

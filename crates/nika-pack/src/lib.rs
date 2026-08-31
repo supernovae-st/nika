@@ -23,6 +23,9 @@
 //! ```rust
 //! assert_eq!(nika_pack::pack_version(), "0.1.0-draft");
 //! assert!(nika_pack::example("01-hello").is_some());
+//! assert_eq!(nika_pack::example("hello"), nika_pack::example("01-hello"));
+//! assert_eq!(nika_pack::first_shelf().len(), 5);
+//! assert!(nika_pack::try_recover_hint("03-exec-pipeline").is_some());
 //! assert!(nika_pack::template("chain").is_some());
 //! assert!(nika_pack::schema_json().contains("\"nika\""));
 //! ```
@@ -264,13 +267,77 @@ pub fn quickstart() -> &'static str {
     file_str("QUICKSTART.md").unwrap_or("")
 }
 
+/// Bare `hello` is the 01-hello lesson — one file, one model, three doors
+/// (`nika new hello` · `nika new 01-hello` · `nika try hello` / `01-hello`).
+fn canonical_example_slug(slug: &str) -> &str {
+    let slug = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+    match slug {
+        "hello" => "01-hello",
+        other => other,
+    }
+}
+
 /// One example by slug (`01-hello` or `showcase/t1-standup-digest` —
-/// the `.nika.yaml` suffix is optional).
+/// the `.nika.yaml` suffix is optional). `hello` is an alias of `01-hello`.
 #[must_use]
 pub fn example(slug: &str) -> Option<&'static str> {
-    let slug = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+    let slug = canonical_example_slug(slug);
     file_str(&format!("examples/{slug}.nika.yaml"))
         .or_else(|| file_str(&format!("examples/showcase/{slug}.nika.yaml")))
+}
+
+/// The five first-run jobs (UX-1). Bare `nika try` should show these;
+/// the rest of the corpus lives behind `try --all`.
+///
+/// hello · brief · image · fetch · notify — in that order. Numbered
+/// lessons that need a host toolchain (`03-exec-pipeline`) and git-repo
+/// jobs (`standup-digest`) stay off this shelf so a weekend first-run
+/// is five green rehearsals, not an opaque sandbox red.
+#[must_use]
+pub fn first_shelf() -> &'static [&'static str] {
+    &[
+        "01-hello",
+        "ceo-monday-brief",
+        "og-images",
+        "05-fetch-chain",
+        "release-notes",
+    ]
+}
+
+/// What `nika try` should recover when a job's host toolchain is missing.
+/// Encoded in Rust so the vendored YAML stays byte-identical to `spec@SPEC_PIN`
+/// (overnight `on_error: recover` forks in the pack are a vendor-law fail).
+/// The CLI consumes this later; this crate does not rewrite YAML.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecoverHint {
+    /// Program whose absence this recovery is for (`cargo` · `git`).
+    pub missing: &'static str,
+    /// Named substitute so the rehearsal is a red suite / empty log, not an
+    /// opaque sandbox failure (`exit 127` · `empty log`).
+    pub recovered_as: &'static str,
+}
+
+/// Recover hint for `nika try <slug>` when the spec YAML does not itself
+/// recover a missing host tool. `hello` aliases `01-hello`. First-shelf
+/// jobs have none — they must rehearse green without a host toolchain.
+///
+/// B06 · `03-exec-pipeline` needs `cargo`; without it the try sandbox is
+/// an opaque NIKA-SEC-001. Recover as exit 127 (a red suite).
+/// C06 · `standup-digest` needs `git`; outside a repo the sandbox is
+/// seatbelt 128. Recover as an empty log (a dull note).
+#[must_use]
+pub fn try_recover_hint(slug: &str) -> Option<RecoverHint> {
+    match canonical_example_slug(slug) {
+        "03-exec-pipeline" => Some(RecoverHint {
+            missing: "cargo",
+            recovered_as: "exit 127",
+        }),
+        "standup-digest" => Some(RecoverHint {
+            missing: "git",
+            recovered_as: "empty log",
+        }),
+        _ => None,
+    }
 }
 
 /// Every file under `examples/fixtures/` — (path relative to
@@ -467,5 +534,36 @@ mod tests {
     #[test]
     fn outcome_table_binds_trace_format_2() {
         assert_eq!(table().trace_format, 2, "spec 13 · trace_format: 2");
+    }
+
+    #[test]
+    fn first_shelf_is_five_and_hello_aliases_01_hello() {
+        assert_eq!(first_shelf().len(), 5);
+        assert_eq!(example("hello"), example("01-hello"));
+        assert!(example("hello").is_some());
+    }
+
+    #[test]
+    fn recover_hint_names_cargo_and_git_only() {
+        let cargo = try_recover_hint("03-exec-pipeline").expect("B06");
+        assert_eq!(cargo.missing, "cargo");
+        assert_eq!(cargo.recovered_as, "exit 127");
+        assert_eq!(
+            try_recover_hint("03-exec-pipeline.nika.yaml"),
+            Some(cargo),
+            "suffix-stripped slug shares the hint"
+        );
+        let git = try_recover_hint("standup-digest").expect("C06");
+        assert_eq!(git.missing, "git");
+        assert_eq!(git.recovered_as, "empty log");
+        assert_eq!(try_recover_hint("hello"), try_recover_hint("01-hello"));
+        assert!(try_recover_hint("01-hello").is_none());
+        assert!(try_recover_hint("05-fetch-chain").is_none());
+        for slug in first_shelf() {
+            assert!(
+                try_recover_hint(slug).is_none(),
+                "first-shelf `{slug}` must not need a host-toolchain recover hint"
+            );
+        }
     }
 }

@@ -49,3 +49,80 @@ pub mod wires;
 pub use display::render::{frame, frame_with_outputs, verdict_frame};
 pub use display::state::{RunView, TaskRow, TaskState};
 pub use display::theme::{Role, Theme};
+
+#[cfg(test)]
+mod help_postcard_tests {
+    use nika_cli_host::help_card::{human_help, permits_teaching};
+
+    #[test]
+    fn default_help_names_try_and_new() {
+        let help = human_help();
+        assert!(help.contains("try"), "C11 try: {help}");
+        assert!(help.contains("new"), "C11 new: {help}");
+    }
+
+    #[test]
+    fn default_help_glosses_permits() {
+        let help = human_help();
+        assert!(
+            help.contains("what this file is allowed to touch"),
+            "UX-2: {help}"
+        );
+    }
+
+    #[test]
+    fn default_help_documents_isolation() {
+        let help = human_help();
+        assert!(help.contains("env -i"), "B08 env -i: {help}");
+        assert!(help.contains("HOME=$scratch"), "B08 HOME scratch: {help}");
+    }
+
+    #[test]
+    fn default_help_does_not_invite_nika_permits_as_a_command() {
+        let help = human_help();
+        assert!(
+            !help.lines().any(|l| l.starts_with("     permits")),
+            "permits must not sit in the verb column: {help}"
+        );
+        assert!(
+            !help
+                .lines()
+                .any(|l| l.trim_start().starts_with("nika permits")),
+            "must not teach `nika permits` as a command: {help}"
+        );
+    }
+
+    #[test]
+    fn permits_teaching_names_the_file_doors() {
+        let text = permits_teaching();
+        assert!(text.contains("not a command"), "{text}");
+        assert!(text.contains("lives in the file"), "{text}");
+        assert!(text.contains("nika explain FILE"), "{text}");
+        assert!(text.contains("nika check --infer-permits FILE"), "{text}");
+    }
+}
+
+#[cfg(test)]
+mod pause_card_tests {
+    use crate::display::demo;
+    use crate::display::render::frame;
+    use crate::display::state::RunView;
+    use crate::display::theme::Theme;
+
+    #[test]
+    fn pause_card_teaches_answer_boolean() {
+        let mut view = RunView::new();
+        for ev in demo::paused() {
+            view.apply(&ev);
+        }
+        let joined = frame(&view, &Theme::new(false, false, false), 0).join("\n");
+        assert!(
+            joined.contains("--answer summarize=true"),
+            "paused card must name --answer key=true: {joined}"
+        );
+        assert!(
+            !joined.contains("=yes"),
+            "boolean true/false, not yes: {joined}"
+        );
+    }
+}

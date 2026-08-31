@@ -592,8 +592,14 @@ fn infer_permits_output_cannot_depend_on_the_disk() {
     let absent = run_infer_permits(wf, false);
     let absent_json = run_infer_permits(wf, true);
 
-    assert_eq!(present.code, 0, "{}", present.text);
+    // The pin is filesystem-independence of the YAML, not the exit:
+    // a file with no `permits:` is still red (F-O8) and B15 keeps rc≠0.
     // The fixture really names the read path — the pin is not vacuous.
+    assert_eq!(
+        present.code, absent.code,
+        "the exit is filesystem-independent: present={} absent={}",
+        present.text, absent.text
+    );
     assert!(present.text.contains("news.json"), "{}", present.text);
     assert_eq!(
         present.text, absent.text,

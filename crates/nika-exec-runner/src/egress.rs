@@ -581,6 +581,36 @@ type AppliedSandbox = (
     Option<std::sync::Arc<dyn nika_kernel::command_sandbox::CommandSandbox>>,
 );
 
+/// File-plumbing of a host path the jail does not admit — argv AND
+/// `exec.shell`. Called before confine so the seatbelt preamble cannot
+/// become `cat /etc/passwd`.
+fn refuse_host_plumbing(
+    command: &nika_kernel::ShellCommand,
+    spec: &nika_kernel::process::SandboxSpec,
+) -> Result<(), nika_kernel::ShellError> {
+    let cwd = command.cwd.as_ref().and_then(|p| p.to_str());
+    let admits = |p: &str| {
+        spec.fs_read
+            .iter()
+            .chain(spec.fs_write.iter())
+            .any(|g| nika_cap::glob_admits(g, p))
+    };
+    let blocked = |path: &str| nika_kernel::ShellError::Blocked {
+        reason: format!("file-plumbing `{path}` is outside the declared fs jail (NIKA-SEC-004)"),
+    };
+    if command.shell {
+        return match nika_cap::file_plumbing_host_escape_shell(&command.program, cwd, admits) {
+            Some(path) => Err(blocked(path)),
+            None => Ok(()),
+        };
+    }
+    let args: Vec<&str> = command.args.iter().map(String::as_str).collect();
+    match nika_cap::file_plumbing_host_escape(&command.program, &args, cwd, admits) {
+        Some(path) => Err(blocked(path)),
+        None => Ok(()),
+    }
+}
+
 impl crate::TokioShell {
     /// Apply the injected OS sandbox to a command that requests one. No spec =
     /// unchanged (today's behavior); spec + backend = confined; spec but NO
@@ -616,6 +646,14 @@ impl crate::TokioShell {
                     .to_string(),
             });
         };
+        // B05 / B29 · issue 1295 — seatbelt's preamble must keep
+        // `/private/etc` so dyld/getpwuid can start; that system grant
+        // must not become `cat /etc/passwd` under `permits.exec: ["cat"]`.
+        // File-plumbing of a host path the jail does not admit is refused
+        // here, before confine, without weakening the preamble. The
+        // shell form is the same door (persona 07 · `exec: true` +
+        // `exec.shell: "cat /etc/passwd"`).
+        refuse_host_plumbing(&command, &spec)?;
         if let NetPolicy::Allowlist(allowlist) = &mut spec.net {
             let port = self.ensure_egress_proxy(allowlist)?;
             for (name, value) in proxy_env(port) {
@@ -1312,6 +1350,73 @@ mod tests {
             shell.egress_proxy.lock().unwrap().is_none(),
             "a refused command starts no proxy"
         );
+    }
+
+    #[test]
+    fn confined_cat_of_a_host_path_is_blocked_before_spawn() {
+        // B05 / B29 · issue 1295 — `cat` of a host absolute path is
+        // refused before confine. The backend records nothing.
+        let backend = Arc::new(CaptureSandbox::default());
+        let shell = crate::TokioShell::with_sandbox(backend.clone());
+        let mut cmd = ShellCommand::new("cat");
+        cmd.args = vec!["/etc/passwd".to_owned()];
+        cmd.sandbox = Some(SandboxSpec::new());
+        let Err(err) = shell.apply_sandbox(cmd) else {
+            panic!("host-path cat must refuse before confine");
+        };
+        match err {
+            ShellError::Blocked { reason } => {
+                assert!(
+                    reason.contains("NIKA-SEC-004"),
+                    "the refusal speaks the code, not a host-file dump: {reason}"
+                );
+            }
+            other => panic!("expected Blocked, got {other:?}"),
+        }
+        assert!(
+            backend.lock().unwrap().is_empty(),
+            "confine was not reached"
+        );
+    }
+
+    #[test]
+    fn confined_shell_cat_of_a_host_path_is_blocked_before_spawn() {
+        // Persona 07 leftover · the argv door closed; `exec.shell`
+        // `cat /etc/passwd` under `exec: true` still reached confine.
+        let backend = Arc::new(CaptureSandbox::default());
+        let shell = crate::TokioShell::with_sandbox(backend.clone());
+        let mut cmd = ShellCommand::new("cat /etc/passwd");
+        cmd.shell = true;
+        cmd.sandbox = Some(SandboxSpec::new());
+        let Err(err) = shell.apply_sandbox(cmd) else {
+            panic!("host-path shell cat must refuse before confine");
+        };
+        match err {
+            ShellError::Blocked { reason } => {
+                assert!(
+                    reason.contains("NIKA-SEC-004"),
+                    "the refusal speaks the code, not a host-file dump: {reason}"
+                );
+            }
+            other => panic!("expected Blocked, got {other:?}"),
+        }
+        assert!(
+            backend.lock().unwrap().is_empty(),
+            "confine was not reached"
+        );
+    }
+
+    #[test]
+    fn confined_cat_of_a_cwd_file_still_reaches_the_backend() {
+        let backend = Arc::new(CaptureSandbox::default());
+        let shell = crate::TokioShell::with_sandbox(backend.clone());
+        let mut spec = SandboxSpec::new();
+        spec.fs_read = vec!["./README.md".into()];
+        let mut cmd = ShellCommand::new("cat");
+        cmd.args = vec!["README.md".to_owned()];
+        cmd.sandbox = Some(spec);
+        shell.apply_sandbox(cmd).expect("cwd cat reaches confine");
+        assert_eq!(backend.lock().unwrap().len(), 1, "confine ran");
     }
 
     /// A pass-through recorder that CLAIMS the seatbelt name — the scratch

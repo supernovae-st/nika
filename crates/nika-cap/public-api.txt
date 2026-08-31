@@ -911,6 +911,7 @@ pub unsafe fn nika_cap::WithheldNative::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::WithheldNative
 pub fn nika_cap::WithheldNative::from(t: T) -> T
 pub const nika_cap::DANGEROUS_ENV_VARS: &[&str]
+pub const nika_cap::FILE_PLUMBING_PROGRAMS: &[&str]
 pub const nika_cap::HUMAN_GATE_TOOL: &str
 pub const nika_cap::JQ_CAPABILITY_POLICY: &[nika_cap::JqCapabilityRule]
 pub const nika_cap::JQ_CLOCK_DEFS: &str
@@ -925,6 +926,11 @@ pub fn nika_cap::chart_vl_sibling(tool: &str, args: core::option::Option<&serde_
 pub fn nika_cap::code_bearing_path_class(path: &str) -> core::option::Option<(&'static str, &'static str)>
 pub fn nika_cap::compose_child_env(lookup: impl core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>, passthrough: &[alloc::string::String], authored: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_cap::expand_home_grant(glob: &str, home: &str) -> alloc::string::String
+pub fn nika_cap::file_plumbing_computed_operand(program: &str, args: &[&str]) -> bool
+pub fn nika_cap::file_plumbing_computed_shell(line: &str) -> bool
+pub fn nika_cap::file_plumbing_host_escape<'a>(program: &str, args: &'a [&str], cwd: core::option::Option<&str>, admits: impl core::ops::function::Fn(&str) -> bool) -> core::option::Option<&'a str>
+pub fn nika_cap::file_plumbing_host_escape_shell<'a>(line: &'a str, cwd: core::option::Option<&str>, admits: impl core::ops::function::Fn(&str) -> bool) -> core::option::Option<&'a str>
+pub fn nika_cap::file_plumbing_path_operands<'a>(program: &str, args: &'a [&str]) -> alloc::vec::Vec<&'a str>
 pub fn nika_cap::glob_admits(glob: &str, path: &str) -> bool
 pub fn nika_cap::glob_matches(glob: &str, value: &str) -> bool
 pub fn nika_cap::glob_walk_root(pattern: &str) -> alloc::string::String
@@ -938,6 +944,7 @@ pub fn nika_cap::is_withheld_jq_native(name: &str) -> bool
 pub fn nika_cap::jq_capability_rule(name: &str, kind: nika_cap::JqSymbolKind) -> core::option::Option<&'static nika_cap::JqCapabilityRule>
 pub fn nika_cap::judge_harness_ask(facts: &nika_cap::HarnessAskFacts, permits: core::option::Option<&nika_cap::Permits>) -> nika_cap::HarnessGate
 pub fn nika_cap::lexically_normalize(path: &str) -> alloc::string::String
+pub fn nika_cap::path_leaves_workspace(path: &str) -> bool
 pub fn nika_cap::tool_grant_admits_ingress(grant: &str) -> bool
 pub fn nika_cap::trifecta_verdict(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> nika_cap::TrifectaVerdict
 pub fn nika_cap::withheld_jq_native(name: &str) -> core::option::Option<&'static nika_cap::WithheldNative>

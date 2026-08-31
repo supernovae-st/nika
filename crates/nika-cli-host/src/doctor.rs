@@ -31,7 +31,7 @@ pub(crate) use crate::probe::{
     AdoptionState, CapabilityLevel, ClientProbe, HostCapabilityReceipt, ImageProbe, KitProbe,
     ModelsProbe, PingState, PricingProbe, Probe, ProviderProbe, TtsProbe,
 };
-use nika_providers::probe::ExecutionLocus;
+use nika_providers::probe::{ExecutionLocus, KeyAuth};
 
 /// Severity of one diagnosis line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -945,7 +945,14 @@ fn link_targets(theme: Theme, text: &str) -> String {
 /// separates RECOGNIZED (the name resolves) from CONFIGURED (the key is
 /// present) and never claims reachability — only the opt-in `--ping`
 /// lane may say that, and cloud endpoints are never pinged.
+///
+/// B19: `sk-invalid` is `implausible`, 401/402 are their own rungs —
+/// none of those print as `configured` / `ready`.
 fn provider_finding(p: &ProviderProbe) -> Finding {
+    provider_finding_auth(p, crate::probe::key_auth_of(p))
+}
+
+fn provider_finding_auth(p: &ProviderProbe, auth: KeyAuth) -> Finding {
     // An override endpoint off the vendor default is the exception that
     // gets the ink (P0-20): a proxy/LAN front is NAMED with its locus,
     // never read as « the vendor's cloud ».
@@ -957,42 +964,81 @@ fn provider_finding(p: &ProviderProbe) -> Finding {
         ),
         ExecutionLocus::Loopback | ExecutionLocus::Cloud | ExecutionLocus::Unknown => String::new(),
     };
-    if p.readiness.configured {
-        // The exception gets the ink, not the norm: every provider is
-        // schema-native except the instruction-fallback clouds (deepseek —
-        // no json_schema in its API), and an operator picking a model for
-        // a structured workflow wants that fact on the health surface.
-        // The access token leads the ladder (D-2026-08-04-N1) — one row
-        // format from day one, so the P3 harness/oauth rows slot into
-        // the same grammar instead of debuting a second shape.
-        let detail = if p.structured_native {
-            format!(
-                "{} — {} · recognized · configured (key present){locus_note}",
-                p.id, p.readiness.access
-            )
-        } else {
-            format!(
-                "{} — {} · recognized · configured (key present) · structured output via instruction + local validation \
-                 (no native json_schema){locus_note}",
-                p.id, p.readiness.access
-            )
-        };
-        Finding {
-            level: Level::Ok,
-            label: "provider".to_owned(),
-            detail,
-            fix: None,
+    let access = p.readiness.access;
+    match auth {
+        KeyAuth::Ok | KeyAuth::Present => {
+            // The exception gets the ink, not the norm: every provider is
+            // schema-native except the instruction-fallback clouds (deepseek —
+            // no json_schema in its API), and an operator picking a model for
+            // a structured workflow wants that fact on the health surface.
+            let detail = if p.structured_native {
+                format!(
+                    "{} — {access} · recognized · configured (key present){locus_note}",
+                    p.id
+                )
+            } else {
+                format!(
+                    "{} — {access} · recognized · configured (key present) · structured output via instruction + local validation \
+                     (no native json_schema){locus_note}",
+                    p.id
+                )
+            };
+            Finding {
+                level: Level::Ok,
+                label: "provider".to_owned(),
+                detail,
+                fix: None,
+            }
         }
-    } else {
-        Finding {
+        KeyAuth::Implausible => Finding {
             level: Level::Warn,
             label: "provider".to_owned(),
             detail: format!(
-                "{} — {} · recognized · not configured ({} unset){locus_note}",
-                p.id, p.readiness.access, p.fix_var
+                "{} — {access} · recognized · present · implausible (not a live key){locus_note}",
+                p.id
+            ),
+            fix: Some(format!(
+                "export {}=…  # a real key, not a placeholder",
+                p.fix_var
+            )),
+        },
+        KeyAuth::Unauthorized => Finding {
+            level: Level::Warn,
+            label: "provider".to_owned(),
+            detail: format!(
+                "{} — {access} · recognized · 401 · key rejected{locus_note}",
+                p.id
+            ),
+            fix: Some(format!("export {}=…  # a live key", p.fix_var)),
+        },
+        KeyAuth::PaymentRequired => Finding {
+            level: Level::Warn,
+            label: "provider".to_owned(),
+            detail: format!(
+                "{} — {access} · recognized · 402 · quota / billing{locus_note}",
+                p.id
+            ),
+            fix: Some(format!("settle billing for {}", p.id)),
+        },
+        KeyAuth::Absent => Finding {
+            level: Level::Warn,
+            label: "provider".to_owned(),
+            detail: format!(
+                "{} — {access} · recognized · not configured ({} unset){locus_note}",
+                p.id, p.fix_var
             ),
             fix: Some(format!("export {}=…", p.fix_var)),
-        }
+        },
+        other => Finding {
+            level: Level::Warn,
+            label: "provider".to_owned(),
+            detail: format!(
+                "{} — {access} · recognized · {}{locus_note}",
+                p.id,
+                other.as_str()
+            ),
+            fix: None,
+        },
     }
 }
 

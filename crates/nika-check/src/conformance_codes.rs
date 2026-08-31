@@ -53,7 +53,13 @@ pub(crate) fn of(report: &CheckReport) -> Vec<SpecCode> {
     let sink_code = SpecCode::new("SEC", 8, SpecCategory::SecurityError);
     codes.extend(report.sink_findings.iter().map(|_| sink_code));
     extend_law_codes(report, &mut codes);
-    codes.extend(report.unknown_tools.iter().map(|_| builtin));
+    codes.extend(report.unknown_tools.iter().map(|t| {
+        if t.tool.starts_with("mcp:") {
+            SpecCode::new("INVOKE", 1, SpecCategory::ValidationError)
+        } else {
+            builtin
+        }
+    }));
     codes.extend(report.unknown_args.iter().map(|_| builtin));
     codes.extend(report.missing_args.iter().map(|_| builtin));
     // Gate liveness (03 §static liveness · check-only, reach.rs):

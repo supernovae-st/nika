@@ -80,6 +80,12 @@ pub fn recover_events(raw: &str, label: &str) -> Result<RecoveredTrace, RecoverE
         match serde_json::from_str::<Event>(line) {
             Ok(event) => events.push(event),
             Err(e) => {
+                // 0.116.0 writes a stdout settlement envelope (`run_settled`)
+                // through the journal sink. It is not an `Event` (no `id`).
+                // Skip it; a torn Event tail still truncates.
+                if is_run_settlement(line) {
+                    continue;
+                }
                 if events.is_empty() {
                     return Err(RecoverError::BadFirstLine {
                         label: label.to_owned(),
@@ -116,6 +122,13 @@ pub fn load_events(trace: &str) -> Result<Vec<Event>, String> {
         .map_err(|e| format!("cannot read {trace}: {e}"))?;
     let recovered = recover_events(&raw, trace).map_err(|e| e.to_string())?;
     Ok(recovered.events)
+}
+
+fn is_run_settlement(line: &str) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+        return false;
+    };
+    value.get("kind").and_then(|k| k.as_str()) == Some("run_settled")
 }
 
 /// The first wire-code-shaped token in a failure detail (`NIKA-INFER-001`
@@ -168,5 +181,26 @@ mod tests {
             "the error names the 1-based FILE line: {err}"
         );
         assert!(recover_events("", "t").is_err(), "empty trace");
+    }
+
+    #[test]
+    fn recover_events_skips_the_run_settled_envelope() {
+        let event = serde_json::json!({
+            "id": {"uuid": "01912345-0000-7000-8000-000000000001"},
+            "timestamp": 1000, "kind": "workflow_paused",
+            "run": null, "correlation": null, "fields": []
+        })
+        .to_string();
+        let settlement = serde_json::json!({
+            "kind": "run_settled",
+            "status": "paused",
+            "outputs": {},
+            "chain": "abc"
+        })
+        .to_string();
+        let raw = format!("{event}\n{settlement}\n{event}\n");
+        let recovered = recover_events(&raw, "t").expect("settlement is not a tear");
+        assert_eq!(recovered.events.len(), 2);
+        assert!(recovered.truncated_note.is_none(), "{recovered:?}");
     }
 }

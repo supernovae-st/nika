@@ -466,6 +466,11 @@ pub fn namespace_help(code: &str, docs: &str) -> Option<String> {
              {docs}.\n"
         ));
     }
+    if code == "NIKA-PROVIDER" {
+        return spec_contract_help(code).map(|lesson| {
+            format!("{code} · provider · the `model:` form\n\n{lesson}  see {docs}.\n")
+        });
+    }
     is_provider_code(code).then(|| {
         format!(
             "{code} · provider · a provider-adapter runtime error\n\n  \
@@ -534,6 +539,15 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              · the path exists + `overwrite: false` is its own code — \
              `nika explain NIKA-BUILTIN-WRITE-002`.\n",
         ),
+        ("notify", "001") => Some(
+            "  `nika:notify` v0.1 MUST support the `webhook` channel (POST \
+             `{ message, severity, data? }` to `target:`). Other channels \
+             (`slack` · `email` · `discord` · `sms`) are not configured — they \
+             throw this code at run, and `nika check` refuses them too.\n\n  \
+             exits (pick one):\n    \
+             · use the wired channel:      args: { channel: webhook, target: https://..., message: ... }\n    \
+             · drop the notify task until a later engine wires `slack`.\n",
+        ),
         _ => None,
     }
 }
@@ -548,11 +562,44 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
 #[must_use]
 pub fn spec_contract_help(code: &str) -> Option<&'static str> {
     match code {
+        "NIKA-PARSE-019" => Some(
+            "  The field's YAML SHAPE is wrong. `tasks:` is a MAP keyed by \
+             task id. An `invoke:` tool id is `nika:<path>` OR \
+             `mcp:<server>/<tool>` (one colon · a slash inside `mcp:`). \
+             The finding names the field whose shape to fix — `nika explain` \
+             cites the same phrase `nika check` printed.\n",
+        ),
+        "NIKA-INFER-004" => Some(
+            "  A thinking model spent the `max_tokens` budget on its \
+             reasoning trace and the visible answer is blank. `nika check` \
+             refuses a catalog-known reasoning seat under 256 tokens \
+             (Gemini 2.5 Flash thinks by default — no `thinking:` block \
+             required). Raise `max_tokens` to at least 256, declare \
+             `thinking:`, or seat a no-think variant.\n",
+        ),
+        "NIKA-INFER-001" => Some(
+            "  The run could not reach that model. `--model` / envelope \
+             `model:` is envelope-only: a per-task `model:` pin stays live \
+             and metered (it does not inherit a parent `--model mock/echo` \
+             rehearsal). Keep testing offline with `--model mock/echo` on \
+             a workflow that has no per-task pins, or `--access <seat>`. \
+             A catalog alias (`grok`) is the same seat as its canonical \
+             id (`xai`) and uses that seat's key (`XAI_API_KEY`).\n",
+        ),
+        "NIKA-PROVIDER" => Some(
+            "  `model:` is `<provider>/<model>` — a pasteable id \
+             (`xai/grok-3`), never a bare wire name (`grok-3`). Catalog \
+             aliases (`grok`) resolve to the canonical provider (`xai`) \
+             and that seat's key (`XAI_API_KEY`). `nika catalog` prints \
+             pasteable ids.\n",
+        ),
         "NIKA-SEC-004" => Some(
             "  The boundary is default-deny once `permits:` is present: an \
              effect the block does not cover is refused, and the FINDING \
              names the exact path, host, program or tool that fell outside \
-             — grant that named thing, in its category, never more.\n\n  \
+             — grant that named thing when it is inside the workspace, in \
+             its category, never more. An absolute host path is never the \
+             grant.\n\n  \
              the grant grammar (measured · CONVENTIONS §2):\n    \
              · a directory grant does NOT cover its children — `data` \
              covers `data` itself, not `data/a.csv`\n    \
@@ -562,13 +609,16 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              `exec:` lists program names\n\n  \
              exits (pick one):\n    \
              · grant the named path:       fs: { read: [\"./dir/*\"] } — \
-             the file the finding printed, or its one-level glob\n    \
+             an in-workspace file the finding printed, or its one-level \
+             glob, never an absolute host path\n    \
              · grant the named host:       net: { http: [\"api.example.com\"] }\n    \
              · grant the named tool:       add it to `permits.tools`\n    \
              · the effect was NOT intended — then the boundary just did \
              its job; the refusal is the feature, not the failure.\n\n  \
              Never widen to a root `**` to silence the message — the \
-             tightest grant that covers the body is the whole point.\n\n  \
+             tightest grant that covers the body is the whole point. \
+             Never grant an absolute host path or a `..` climb to silence \
+             a host-file read; keep the task inside the tree.\n\n  \
              And a green `check` was never this refusal's promise: check \
              judges the LITERAL shape — a computed path (a glob result · \
              an interpolated binding) is judged HERE, at run. Two tools \
@@ -652,6 +702,21 @@ mod tests {
         }
     }
 
+    /// C05 / issue 1300 — `nika explain NOTIFY-001` must cite the v0.1
+    /// webhook-only contract (the public 5c5bd1ab5 binary answered a
+    /// generic builtin stub).
+    #[test]
+    fn notify_001_explain_cites_the_v0_1_webhook() {
+        let help = namespace_help("NIKA-BUILTIN-NOTIFY-001", "docs").expect("teaches");
+        for lesson in ["webhook", "v0.1", "channel"] {
+            assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
+        }
+        assert!(
+            !help.contains("per-builtin runtime diagnostic"),
+            "must not stay the generic stub: {help}"
+        );
+    }
+
     /// The 452 lesson (issue 814 · 2026-08-03): the way a user meets
     /// this code today is the golden lane — under `nika test` the mock
     /// plane refuses effects BY DESIGN, and the old text named only the
@@ -704,6 +769,72 @@ mod tests {
         // Only the earned codes teach — the rest keep the registry row.
         assert!(spec_contract_help("NIKA-SEC-001").is_none());
         assert!(spec_contract_help("NIKA-DAG-001").is_none());
+    }
+
+    /// B02 / C03: explain of PARSE-019 cites the same phrase as check
+    /// (`mcp:<server>/<tool>`).
+    #[test]
+    fn parse_019_explain_cites_mcp_server_tool() {
+        let help = spec_contract_help("NIKA-PARSE-019").expect("teaches");
+        assert!(
+            help.contains("mcp:<server>/<tool>"),
+            "PARSE-019 must cite the invoke grammar check already prints: {help}"
+        );
+        assert!(help.contains("nika:<path>"), "{help}");
+    }
+
+    /// B21 / B30: INFER-004 explain names the check finding (tiny cap
+    /// on a thinking seat) so the closer is no longer a lie.
+    #[test]
+    fn infer_004_explain_names_the_check_floor() {
+        let help = spec_contract_help("NIKA-INFER-004").expect("teaches");
+        assert!(help.contains("nika check"), "{help}");
+        assert!(help.contains("256"), "{help}");
+        assert!(help.contains("max_tokens"), "{help}");
+    }
+
+    /// B22 / issue 1277: INFER-001 explain says `--model` is envelope-only.
+    #[test]
+    fn infer_001_explain_says_model_is_envelope_only() {
+        let help = spec_contract_help("NIKA-INFER-001").expect("teaches");
+        assert!(help.contains("envelope-only"), "{help}");
+        assert!(help.contains("per-task"), "{help}");
+        assert!(help.contains("mock/echo"), "{help}");
+        assert!(help.contains("xai"), "{help}");
+        assert!(help.contains("XAI_API_KEY"), "{help}");
+    }
+
+    /// B18 / issue 1306: NIKA-PROVIDER names the pasteable id, not a
+    /// 16-name dump that puts groq next to xai as if they were siblings.
+    #[test]
+    fn provider_explain_names_the_pasteable_id() {
+        let help = spec_contract_help("NIKA-PROVIDER").expect("teaches");
+        assert!(help.contains("xai/grok-3"), "{help}");
+        assert!(help.contains("XAI_API_KEY"), "{help}");
+        assert!(!help.contains("groq"), "{help}");
+        let ns = namespace_help("NIKA-PROVIDER", "docs").expect("bare NIKA-PROVIDER teaches");
+        assert!(ns.contains("xai/grok-3"), "{ns}");
+    }
+
+    /// B04 / B28 · issue 1294 — explain must not teach granting a host
+    /// file. The finding may name `/etc/passwd`; the lesson names the
+    /// in-tree grant grammar and says an absolute host path is never
+    /// the repair.
+    #[test]
+    fn sec_004_explain_never_teaches_granting_a_host_passwd_path() {
+        let help = spec_contract_help("NIKA-SEC-004").expect("teaches");
+        assert!(
+            !help.contains("/etc/passwd"),
+            "explain must not name the host file as a grant: {help}"
+        );
+        assert!(
+            help.contains("never an absolute host path"),
+            "the lesson must refuse the host-file grant: {help}"
+        );
+        assert!(
+            help.contains("the effect was NOT intended") || help.contains("refusal is the feature"),
+            "the honest not-intended arm survives: {help}"
+        );
     }
 
     #[test]

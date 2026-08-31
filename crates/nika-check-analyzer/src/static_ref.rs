@@ -30,6 +30,10 @@ use nika_schema::types::VarDecl;
 /// operators, concatenations, task refs, a name outside the expression
 /// identifier grammar (`[A-Za-z0-9_]`), or a typed declaration with no
 /// `default:` — which stays statically unknown: analysis never guesses.
+///
+/// The CEL index form `${{ inputs['name'] }}` / `${{ inputs["name"] }}`
+/// is the same binding as the dotted form (N01 / issue 1319) — one
+/// resolver, both spellings.
 #[must_use]
 pub fn static_literal_of<'w>(wf: &'w RawWorkflow, expr: &str) -> Option<&'w serde_json::Value> {
     let (authority, name) = bare_static_ref(expr)?;
@@ -52,11 +56,21 @@ pub fn static_literal_of<'w>(wf: &'w RawWorkflow, expr: &str) -> Option<&'w serd
 /// authorities → `(authority-with-dot, name)`. Two identical such refs
 /// denote the same runtime value even when no literal is declared —
 /// inputs bind once per run, const never changes — which is what
-/// the write-conflict scan keys on. Further navigation (`.field` ·
-/// `[0]`), operators, or a name outside the identifier grammar → `None`.
+/// the write-conflict scan keys on.
+///
+/// Also admits the CEL index spelling `${{ inputs['ident'] }}` /
+/// `${{ inputs["ident"] }}` (and the `const` twin) — same name, same
+/// value. Further navigation (`.field` · `[0]`), operators, or a name
+/// outside the identifier grammar → `None`.
 #[must_use]
 pub fn bare_static_ref(expr: &str) -> Option<(&'static str, &str)> {
     let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
+    if let Some(name) = cel_index(inner, "inputs") {
+        return Some(("inputs.", name));
+    }
+    if let Some(name) = cel_index(inner, "const") {
+        return Some(("const.", name));
+    }
     let (authority, name) = ["const.", "inputs."]
         .into_iter()
         .find_map(|ns| inner.strip_prefix(ns).map(|n| (ns, n)))?;
@@ -64,4 +78,66 @@ pub fn bare_static_ref(expr: &str) -> Option<(&'static str, &str)> {
         return None;
     }
     Some((authority, name))
+}
+
+/// `${{ inputs['name'] }}` / `${{ inputs["name"] }}` → the ident.
+fn cel_index<'a>(inner: &'a str, ns: &str) -> Option<&'a str> {
+    let rest = inner.strip_prefix(ns)?.trim_start();
+    let rest = rest.strip_prefix('[')?.strip_suffix(']')?;
+    let rest = rest.trim();
+    let name = rest
+        .strip_prefix('\'')
+        .and_then(|s| s.strip_suffix('\''))
+        .or_else(|| rest.strip_prefix('"').and_then(|s| s.strip_suffix('"')))?;
+    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+        return None;
+    }
+    Some(name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    #[test]
+    fn dotted_and_index_forms_name_the_same_input() {
+        assert_eq!(
+            bare_static_ref("${{ inputs.model }}"),
+            Some(("inputs.", "model"))
+        );
+        assert_eq!(
+            bare_static_ref("${{ inputs['model'] }}"),
+            Some(("inputs.", "model"))
+        );
+        assert_eq!(
+            bare_static_ref("${{ inputs[\"model\"] }}"),
+            Some(("inputs.", "model"))
+        );
+        assert_eq!(
+            bare_static_ref("${{ const['seat'] }}"),
+            Some(("const.", "seat"))
+        );
+        assert!(bare_static_ref("${{ inputs.provider }}/${{ inputs.name }}").is_none());
+        assert!(bare_static_ref("${{ with.model }}").is_none());
+        assert!(bare_static_ref("${{ inputs[''] }}").is_none());
+        assert!(bare_static_ref("${{ inputs[model] }}").is_none());
+    }
+
+    #[test]
+    fn index_form_resolves_the_declared_default() {
+        let wf = parse(
+            "nika: w\ninputs:\n  model: { type: string, default: \"mock/echo\" }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"ok\"] }\n",
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect("parses");
+        let v = static_literal_of(&wf, "${{ inputs['model'] }}").expect("resolves");
+        assert_eq!(v.as_str(), Some("mock/echo"));
+        assert_eq!(
+            static_literal_of(&wf, "${{ inputs.model }}").and_then(|x| x.as_str()),
+            Some("mock/echo")
+        );
+    }
 }

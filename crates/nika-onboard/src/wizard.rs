@@ -840,9 +840,11 @@ mod tests {
     fn an_unknown_example_slug_is_said_and_reasked() {
         let dir = fresh_dir("reask3");
         let d = dir.to_str().expect("utf8");
-        // recipe lane « example » · slug « hello » (unknown → re-asked) ·
+        // recipe lane « example » · slug « helo » (unknown → re-asked) ·
         // « 01-hello » · canvas Enter · agents Enter · project file Enter
-        let mut input = std::io::Cursor::new(b"example\nhello\n01-hello\n\n\n\n".to_vec());
+        // (`hello` is now the 01-hello alias · B01 · so it is no longer
+        // the unknown probe.)
+        let mut input = std::io::Cursor::new(b"example\nhelo\n01-hello\n\n\n\n".to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
             d,

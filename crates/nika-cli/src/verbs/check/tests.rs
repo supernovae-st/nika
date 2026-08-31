@@ -125,7 +125,7 @@ fn pricing_section_rates_known_null_unknown() {
     assert!(unknown["output_per_million"].is_null());
 }
 
-fn parse_wf(yaml: &str) -> RawWorkflow {
+pub(crate) fn parse_wf(yaml: &str) -> RawWorkflow {
     nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -271,7 +271,7 @@ fn defaulted_or_optional_inputs_are_not_listed() {
 /// the verb boundary (`vocab::sober`), so ascii-mode assertions pin
 /// `-`/`--`/`X`, never `·`/`—`/`✖` — the unicode pins live in the
 /// `checked_text(..., false)` calls, unchanged.
-fn checked_text(name: &str, yaml: &str, ascii: bool) -> String {
+pub(crate) fn checked_text(name: &str, yaml: &str, ascii: bool) -> String {
     // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
     // matrix · a dev double-run) share the OS tmpdir, and a fixed
     // name let them stomp each other's fixtures mid-read (flaked
@@ -291,7 +291,7 @@ fn checked_text(name: &str, yaml: &str, ascii: bool) -> String {
 /// mute-diagnostic class (`✖ findings above` pointing at nothing) — the
 /// operator who cannot query JSON is the one who gets no reason.
 /// Returns the human text so the caller can assert its rows too.
-fn assert_every_wire_code_renders(name: &str, yaml: &str) -> String {
+pub(crate) fn assert_every_wire_code_renders(name: &str, yaml: &str) -> String {
     let dir = std::env::temp_dir().join(format!("nika-cli-onevoice-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let path = dir.join(name);
@@ -389,13 +389,13 @@ fn idle_door_renders_its_row_in_the_human_lane_and_a_doorless_file_has_no_row() 
 
 /// Same fixture plumbing, full `VerbOutput` (exit-code assertions) —
 /// the `--native-strict` posture tests read `.code`.
-fn checked_output(name: &str, yaml: &str, native_strict: bool) -> VerbOutput {
+pub(crate) fn checked_output(name: &str, yaml: &str, native_strict: bool) -> VerbOutput {
     checked_output_profile(name, yaml, native_strict, Profile::Advisory)
 }
 
 /// The posture-parameterized twin of [`checked_output`] — the
 /// `--profile operational` readiness-gate tests read `.code`.
-fn checked_output_profile(
+pub(crate) fn checked_output_profile(
     name: &str,
     yaml: &str,
     native_strict: bool,
@@ -422,7 +422,7 @@ fn checked_output_profile(
 }
 
 /// `--json` twin of a fixture already written by [`checked_output`].
-fn checked_json(name: &str) -> (VerbOutput, serde_json::Value) {
+pub(crate) fn checked_json(name: &str) -> (VerbOutput, serde_json::Value) {
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
     let path = dir.join(name);
     let theme = Theme::new(false, true, false);
@@ -568,7 +568,7 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
 fn the_card_names_the_grade_on_every_rung() {
     let high = checked_output(
         "risk-high.nika.yaml",
-        "nika: h\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
+        "nika: h\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 256 }\n",
         false,
     );
     assert_eq!(high.code, 0, "advisory: {}", high.text);
@@ -579,7 +579,7 @@ fn the_card_names_the_grade_on_every_rung() {
     );
     let low = checked_output(
         "risk-low.nika.yaml",
-        "nika: l\nmodel: anthropic/claude-sonnet-4-6\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
+        "nika: l\nmodel: anthropic/claude-sonnet-4-6\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 256 }\n",
         false,
     );
     assert_eq!(low.code, 0, "{}", low.text);
@@ -692,7 +692,7 @@ fn models_rung_judges_a_templated_models_declared_default() {
     // canonical form.
     let out = checked_output(
         "models-param.nika.yaml",
-        "nika: p\nconst:\n  model: \"anthropic/claude-sonnet-4-6\"\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
+        "nika: p\nconst:\n  model: \"anthropic/claude-sonnet-4-6\"\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 256, model: \"${{ const.model }}\" }\n",
         false,
     );
     assert_eq!(

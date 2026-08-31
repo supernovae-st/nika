@@ -311,11 +311,50 @@ pub fn parse_answers(
                 "--answer {task_id}: not a `nika:prompt` or `agent` task — an answer would do nothing"
             ));
         }
-        let value =
-            serde_json::from_str(raw).unwrap_or_else(|_| serde_json::Value::String(raw.to_owned()));
+        // Persona 17: confirm prints `[yes/no]`. Bind the same boolean
+        // the TTY writes — and only then. `mode: input` (and `choice` /
+        // `agent`) keeps `yes` as the string `"yes"`; a boolean does
+        // not fill an input gate (the GATED resume e2e).
+        let value = match confirm_yes_no(&task.value, raw) {
+            Some(flag) => serde_json::Value::Bool(flag),
+            None => serde_json::from_str(raw)
+                .unwrap_or_else(|_| serde_json::Value::String(raw.to_owned())),
+        };
         answers.insert(task_id.to_owned(), value);
     }
     Ok(answers)
+}
+
+/// Confirm-mode `nika:prompt` (stdlib default) accepts the TTY's
+/// `yes`/`y`/`no`/`n`. Every other answerable task leaves the raw
+/// token for JSON-or-string parse.
+fn confirm_yes_no(task: &nika_schema::raw::RawTask, raw: &str) -> Option<bool> {
+    if !is_confirm_prompt(task) {
+        return None;
+    }
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "yes" | "y" => Some(true),
+        "no" | "n" => Some(false),
+        _ => None,
+    }
+}
+
+fn is_confirm_prompt(task: &nika_schema::raw::RawTask) -> bool {
+    let nika_schema::raw::RawAction::Invoke(invoke) = &task.action else {
+        return false;
+    };
+    if invoke.tool().map(|t| t.value.as_str()) != Some("nika:prompt") {
+        return false;
+    }
+    match invoke
+        .args
+        .as_ref()
+        .and_then(|a| a.value.get("mode"))
+        .and_then(serde_json::Value::as_str)
+    {
+        None | Some("confirm") => true,
+        Some(_) => false,
+    }
 }
 
 /// A `--answer` that names a task already journaled as success in the
@@ -763,6 +802,7 @@ mod tests {
         const WF: &str = "nika: t\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"go?\" }\n  build:\n    exec: { command: [\"true\"] }\n";
         // An agent-task fixture (B5 · items live at scope top, the lint law).
         const AGENT_WF: &str = "nika: t\ntasks:\n  fix:\n    agent: { prompt: \"x\" }\n";
+        const INPUT_WF: &str = "nika: t\ntasks:\n  approve:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"ship it?\" }\n";
         let wf = nika_schema::parse(
             WF,
             nika_schema::FileId::new(0),
@@ -790,6 +830,20 @@ mod tests {
         assert_eq!(answers["fix"], serde_json::json!(false));
         // Shape errors are loud.
         assert!(parse_answers(&["noequals".to_owned()], &wf).is_err());
+        // Confirm (and the stdlib default) coerce yes/no; input keeps the
+        // string so `--answer approve=yes` fills "shipping yes".
+        let yes = parse_answers(&["ask=yes".to_owned()], &wf).expect("confirm yes");
+        assert_eq!(yes["ask"], serde_json::json!(true));
+        let no = parse_answers(&["ask=n".to_owned()], &wf).expect("confirm n");
+        assert_eq!(no["ask"], serde_json::json!(false));
+        let input_wf = nika_schema::parse(
+            INPUT_WF,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("parses");
+        let typed = parse_answers(&["approve=yes".to_owned()], &input_wf).expect("input yes");
+        assert_eq!(typed["approve"], serde_json::json!("yes"));
     }
 
     // ── F-P21 · the cross-version judgment (NEP-0014 law 4) ───────────

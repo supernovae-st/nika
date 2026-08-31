@@ -1,6 +1,7 @@
 pub mod nika_check
 pub use nika_check::AnalyzedWorkflow
 pub use nika_check::ERROR_DOCS_BASE
+pub use nika_check::MIN_REASONING_MAX_TOKENS
 pub use nika_check::ThinkingFinding
 pub use nika_check::analyze
 pub use nika_check::analyzer
@@ -767,6 +768,7 @@ pub nika_check::CheckReport::cost: nika_check::CostCeiling
 pub nika_check::CheckReport::data_journey: nika_check::DataJourney
 pub nika_check::CheckReport::energy: nika_check::EnergyReading
 pub nika_check::CheckReport::exec_floor_findings: alloc::vec::Vec<nika_check::ExecFloorFinding>
+pub nika_check::CheckReport::failure_plan: alloc::vec::Vec<nika_check::FailurePlanEntry>
 pub nika_check::CheckReport::findings: alloc::vec::Vec<nika_check::UnifiedFinding>
 pub nika_check::CheckReport::gate_findings: alloc::vec::Vec<nika_check::GateFinding>
 pub nika_check::CheckReport::hints: alloc::vec::Vec<nika_check::Hint>
@@ -1373,6 +1375,54 @@ impl<T> dyn_clone::DynClone for nika_check::ExecFloorFinding where T: core::clon
 pub fn nika_check::ExecFloorFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::ExecFloorFinding where T: 'static
 pub fn nika_check::ExecFloorFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::FailurePlanEntry
+pub nika_check::FailurePlanEntry::code: alloc::string::String
+pub nika_check::FailurePlanEntry::message: alloc::string::String
+pub nika_check::FailurePlanEntry::shape: &'static str
+pub nika_check::FailurePlanEntry::task: alloc::string::String
+impl nika_check::FailurePlanEntry
+pub fn nika_check::FailurePlanEntry::new(shape: &'static str, code: impl core::convert::Into<alloc::string::String>, task: impl core::convert::Into<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_check::FailurePlanEntry
+pub fn nika_check::FailurePlanEntry::clone(&self) -> nika_check::FailurePlanEntry
+impl core::cmp::Eq for nika_check::FailurePlanEntry
+impl core::cmp::PartialEq for nika_check::FailurePlanEntry
+pub fn nika_check::FailurePlanEntry::eq(&self, other: &nika_check::FailurePlanEntry) -> bool
+impl core::fmt::Debug for nika_check::FailurePlanEntry
+pub fn nika_check::FailurePlanEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::FailurePlanEntry
+impl serde_core::ser::Serialize for nika_check::FailurePlanEntry
+pub fn nika_check::FailurePlanEntry::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::FailurePlanEntry
+impl<Q, K> equivalent::Equivalent<K> for nika_check::FailurePlanEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::FailurePlanEntry::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::FailurePlanEntry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::FailurePlanEntry::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::FailurePlanEntry where U: core::convert::From<T>
+pub fn nika_check::FailurePlanEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::FailurePlanEntry where U: core::convert::Into<T>
+pub type nika_check::FailurePlanEntry::Error = core::convert::Infallible
+pub fn nika_check::FailurePlanEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::FailurePlanEntry where U: core::convert::TryFrom<T>
+pub type nika_check::FailurePlanEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::FailurePlanEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::FailurePlanEntry where T: core::clone::Clone
+pub type nika_check::FailurePlanEntry::Owned = T
+pub fn nika_check::FailurePlanEntry::clone_into(&self, target: &mut T)
+pub fn nika_check::FailurePlanEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::FailurePlanEntry where T: 'static + ?core::marker::Sized
+pub fn nika_check::FailurePlanEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::FailurePlanEntry where T: ?core::marker::Sized
+pub fn nika_check::FailurePlanEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::FailurePlanEntry where T: ?core::marker::Sized
+pub fn nika_check::FailurePlanEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::FailurePlanEntry where T: core::clone::Clone
+pub unsafe fn nika_check::FailurePlanEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::FailurePlanEntry
+pub fn nika_check::FailurePlanEntry::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::FailurePlanEntry where T: core::clone::Clone
+pub fn nika_check::FailurePlanEntry::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::FailurePlanEntry where T: 'static
+pub fn nika_check::FailurePlanEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::FlowFacts
 impl nika_check::FlowFacts
 pub fn nika_check::FlowFacts::effect_leak(&self, task: usize) -> core::option::Option<&nika_check::TaintTrace>
@@ -2655,6 +2705,7 @@ pub fn nika_check::UnifiedFinding::as_any(&self) -> &(dyn core::any::Any + 'stat
 #[non_exhaustive] pub struct nika_check::UnknownArg
 pub nika_check::UnknownArg::arg: alloc::string::String
 pub nika_check::UnknownArg::declared: alloc::vec::Vec<alloc::string::String>
+pub nika_check::UnknownArg::invalid_value: core::option::Option<alloc::string::String>
 pub nika_check::UnknownArg::suggestion: core::option::Option<alloc::string::String>
 pub nika_check::UnknownArg::task: alloc::string::String
 pub nika_check::UnknownArg::tool: alloc::string::String

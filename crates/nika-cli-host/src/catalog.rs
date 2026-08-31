@@ -21,13 +21,14 @@
 //! exempt by design.
 
 use nika_catalog::export::{CatalogExport, ProviderExport, catalog_export};
-use nika_cli_host::machine_truth::MachineTruth;
 use nika_providers::ProviderRegistry;
 use nika_providers::probe::ExecutionLocus;
 
 use crate::display::chrome;
 use crate::display::theme::{Role, Theme};
-use crate::verbs::VerbOutput;
+use crate::doctor::redact_userinfo;
+use crate::machine_truth::MachineTruth;
+use crate::output::VerbOutput;
 
 /// One local engine's EFFECTIVE execution facts (P0-20) — the endpoint a
 /// run would hit and where that endpoint executes. « local » is a
@@ -172,7 +173,7 @@ fn human_listing(
             // locus — the ink the honest header saved goes here.
             Some(l) if l.locus != ExecutionLocus::Loopback => format!(
                 "{id} → {} ({})",
-                crate::verbs::doctor::redact_userinfo(&l.endpoint),
+                redact_userinfo(&l.endpoint),
                 l.locus.label()
             ),
             _ => (*id).to_owned(),
@@ -250,12 +251,15 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
         "no key"
     };
     let locus_note = match locus {
-        Some(l) if l.locus != ExecutionLocus::Loopback => format!(
-            " → {} ({})",
-            crate::verbs::doctor::redact_userinfo(&l.endpoint),
-            l.locus.label()
-        ),
+        Some(l) if l.locus != ExecutionLocus::Loopback => {
+            format!(" → {} ({})", redact_userinfo(&l.endpoint), l.locus.label())
+        }
         _ => String::new(),
+    };
+    let models = if p.models.is_empty() {
+        "0 models".to_owned()
+    } else {
+        p.human_model_ids()
     };
     format!(
         "{}\n",
@@ -264,7 +268,7 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
             &format!(
                 " {}{}{}",
                 theme.paint(Role::Strong, &format!("{:<14}", p.id)),
-                theme.paint(Role::Dim, &format!(" {:>2} models · {key}", p.models.len()),),
+                theme.paint(Role::Dim, &format!(" {models} · {key}")),
                 theme.paint(Role::Dim, &locus_note),
             ),
         )
@@ -275,7 +279,7 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
 #[allow(clippy::panic)] // formatted assertion messages (the nika-mcp tests precedent)
 mod tests {
     use super::*;
-    use crate::verbs::exit;
+    use crate::output::exit;
 
     const PLAIN: Theme = Theme::new(false, false, false);
 
@@ -470,5 +474,30 @@ mod tests {
         assert!(text.contains("(lan)"), "the locus is named:\n{text}");
         // …while the un-overridden engines keep their bare ids.
         assert!(text.contains("lmstudio"), "{text}");
+    }
+
+    /// B18 / issue 1306: the human listing prints wire ids (`grok-3`),
+    /// not only `N models`.
+    #[test]
+    fn human_listing_prints_model_ids() {
+        let export = resolvable_export();
+        let text = human_listing(&export, PLAIN, &loopback_loci(), distinct_truth(&export));
+        assert!(
+            text.contains("grok-3"),
+            "xai must name grok-3, not only a count:\n{text}"
+        );
+        assert!(
+            text.contains("gpt-4o-mini"),
+            "openai must name gpt-4o-mini:\n{text}"
+        );
+        let xai = export
+            .providers
+            .iter()
+            .find(|p| p.id == "xai")
+            .expect("xai");
+        assert!(
+            text.contains(&xai.human_model_ids()),
+            "the xai row carries the ids:\n{text}"
+        );
     }
 }

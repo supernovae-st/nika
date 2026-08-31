@@ -119,6 +119,7 @@ impl<H> ProviderRegistry<H> {
     /// operator's GPU box is an anti-doctor.
     #[must_use]
     pub fn effective_base_url(&self, provider: &str) -> Option<&str> {
+        let provider = crate::profile::canonical_provider(provider);
         if let Some(url) = self.config.base_urls.get(provider) {
             return Some(url.as_str());
         }
@@ -142,7 +143,10 @@ impl<H> ProviderRegistry<H> {
     pub fn supports_response_format(&self, model: &str) -> bool {
         model
             .split_once('/')
-            .and_then(|(provider_id, _)| self.profiles.iter().find(|p| p.id == provider_id))
+            .and_then(|(provider_id, _)| {
+                let provider_id = crate::profile::canonical_provider(provider_id);
+                self.profiles.iter().find(|p| p.id == provider_id)
+            })
             .is_some_and(Profile::supports_response_format)
     }
 }
@@ -180,13 +184,15 @@ where
     /// voice); embedders inject via [`ProvidersConfig::with_key`].
     pub fn resolve(&self, model: &str) -> Result<ResolvedProvider<H>, ProviderError> {
         let Some((provider_id, model_rest)) = model.split_once('/') else {
-            return Err(ProviderError::Other {
-                reason: format!(
+            let reason = match nika_catalog::pasteable_for(model) {
+                Some(id) => format!("model '{model}' must be 'provider/name' — write '{id}'"),
+                None => format!(
                     "model '{model}' must be 'provider/name' (e.g. 'anthropic/sonnet') · \
                      known providers: {}",
                     crate::profile::CANONICAL_IDS.join(", ")
                 ),
-            });
+            };
+            return Err(ProviderError::Other { reason });
         };
         if model_rest.is_empty() {
             return Err(ProviderError::Other {
@@ -196,6 +202,10 @@ where
                 ),
             });
         }
+        // Catalog aliases (`grok` → `xai`) are the same seat as the
+        // canonical id — check already cleared `grok/grok-3`; run used
+        // to fail NIKA-INFER-001 unknown provider `grok` (B18).
+        let provider_id = crate::profile::canonical_provider(provider_id);
         let Some(profile) = self.profiles.iter().find(|p| p.id == provider_id) else {
             return Err(ProviderError::Other {
                 reason: format!(
@@ -471,6 +481,44 @@ mod tests {
         let p = reg.resolve("mock/echo").expect("resolves");
         let dbg = format!("{p:?}");
         assert!(!dbg.contains("super-secret-value"), "redacted: {dbg}");
+    }
+
+    /// B18 / issue 1306: `grok/grok-3` resolves as xAI and takes `XAI_API_KEY`.
+    #[tokio::test]
+    async fn grok_alias_resolves_as_xai_using_xai_key() {
+        let reg = ProviderRegistry::new(
+            Arc::new(NoHttp),
+            hermetic().with_key("xai", Secret::new("xai-test")),
+        );
+        let p = reg
+            .resolve("grok/grok-3")
+            .expect("grok is the xAI alias — runnable");
+        assert_eq!(p.name(), "xai");
+        assert_eq!(p.wire_model(), "grok-3");
+        assert!(reg.supports_response_format("grok/grok-3"));
+    }
+
+    #[test]
+    fn grok_alias_without_xai_key_teaches_xai_env() {
+        let reg = ProviderRegistry::without_http(hermetic());
+        let err = reg.resolve("grok/grok-3").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            matches!(err, ProviderError::AuthFailed { .. }),
+            "alias must reach the xAI key gate, not unknown-provider: {msg}"
+        );
+        assert!(msg.contains("XAI_API_KEY"), "{msg}");
+        assert!(!msg.contains("unknown provider"), "{msg}");
+        assert!(!msg.contains("groq"), "{msg}");
+    }
+
+    #[test]
+    fn bare_grok_3_repair_names_the_pasteable_id() {
+        let reg = ProviderRegistry::without_http(hermetic());
+        let err = reg.resolve("grok-3").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("xai/grok-3"), "{msg}");
+        assert!(!msg.contains("groq"), "{msg}");
     }
 
     #[test]
