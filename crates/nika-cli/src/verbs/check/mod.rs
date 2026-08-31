@@ -914,6 +914,8 @@ fn tighten_exec_yaml(wf: &RawWorkflow, yaml: &str) -> String {
 }
 
 #[cfg(test)]
+mod json_and_permits;
+#[cfg(test)]
 mod lints_surface;
 #[cfg(test)]
 mod repair_tests;

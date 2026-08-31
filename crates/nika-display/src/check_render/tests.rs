@@ -923,6 +923,35 @@ mod builtin_contract_code_on_tools_and_args {
     }
 
     #[test]
+    fn ghost_mcp_tool_uses_the_json_invoke_code() {
+        let yaml = "nika: w\npermits:\n  tools: [\"mcp:spotify/search\"]\ntasks:\n  s:\n    invoke:\n      tool: mcp:spotify/search\n      args: { q: x }\n";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check_composed(&wf, "w.nika.yaml", &mut |_| {
+            Err("no .nika/mcp_servers.json".to_owned())
+        });
+        let out = render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        );
+        assert!(
+            out.contains("[NIKA-INVOKE-001]") && out.contains("mcp:spotify/search"),
+            "TTY TOOLS must print the JSON invoke code:\n{out}"
+        );
+        assert!(
+            !out.contains("[NIKA-BUILTIN-001]"),
+            "a ghost MCP server is not a builtin miss:\n{out}"
+        );
+    }
+
+    #[test]
     fn tools_and_args_rows_carry_the_json_finding_code() {
         let unknown_tool =
             console("nika: w\ntasks:\n  extract:\n    invoke:\n      tool: nika:ocr\n");

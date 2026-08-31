@@ -24,6 +24,16 @@ pub use crate::check_models::{ModelFinding, ModelsAudit};
 
 /// TOOLS/ARGS share this code with the JSON finding fold (`fold_tools`).
 const BUILTIN_CONTRACT: &str = "NIKA-BUILTIN-001";
+/// Ghost `mcp:<server>/<tool>` calls share JSON's invoke code, not the builtin one.
+const INVOKE_CONTRACT: &str = "NIKA-INVOKE-001";
+
+fn unknown_tool_code(tool: &str) -> &'static str {
+    if tool.starts_with("mcp:") {
+        INVOKE_CONTRACT
+    } else {
+        BUILTIN_CONTRACT
+    }
+}
 
 /// Whether the checked bytes have a writable source. The CLI resolves a
 /// `registry:` coordinate to a cache path before parsing, so the original
@@ -436,7 +446,8 @@ fn unknown_tool_rows(report: &CheckReport) -> Vec<String> {
         .iter()
         .map(|u| {
             format!(
-                "[{BUILTIN_CONTRACT}] `{}` (task `{}`) is not a canonical builtin{}",
+                "[{}] `{}` (task `{}`) is not a canonical builtin{}",
+                unknown_tool_code(&u.tool),
                 u.tool,
                 u.task,
                 fix_clause(u.suggestion.as_deref())

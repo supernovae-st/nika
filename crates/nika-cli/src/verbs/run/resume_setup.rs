@@ -84,13 +84,12 @@ pub(super) fn resume_setup(
             )?),
         },
     };
-    let answers =
-        nika_dap::resume::parse_answers(resume.map_or(&[][..], |r| r.answers.as_slice()), wf)
-            .map_err(|message| {
-                eprintln!("nika run: {message}");
-                epilogue::emit_error_envelope(&message, output_json);
-                exit::ENV
-            })?;
+    let coerced = coerce_answer_pairs(resume.map_or(&[][..], |r| r.answers.as_slice()));
+    let answers = nika_dap::resume::parse_answers(&coerced, wf).map_err(|message| {
+        eprintln!("nika run: {message}");
+        epilogue::emit_error_envelope(&message, output_json);
+        exit::ENV
+    })?;
     // #1067 · a journaled success is a decision. `--answer` on resume
     // used to force the prompt to re-run (ADR-099 F4 "operator intent");
     // that turned a recorded NO into a shipment. Paused gates are not in
@@ -118,6 +117,27 @@ pub(super) fn resume_setup(
             unverified: None,
         },
     })
+}
+
+/// Persona 17: a confirm prompt prints `[yes/no]` but `--answer` used to
+/// accept only JSON `true`/`false`. `yes`/`y` and `no`/`n` coerce to the
+/// same boolean the TTY ask already writes.
+#[must_use]
+pub(crate) fn coerce_answer_pairs(pairs: &[String]) -> Vec<String> {
+    pairs.iter().map(|pair| coerce_answer_pair(pair)).collect()
+}
+
+#[must_use]
+pub(crate) fn coerce_answer_pair(pair: &str) -> String {
+    let Some((task, raw)) = pair.split_once('=') else {
+        return pair.to_owned();
+    };
+    let coerced = match raw.trim().to_ascii_lowercase().as_str() {
+        "yes" | "y" => "true",
+        "no" | "n" => "false",
+        _ => return pair.to_owned(),
+    };
+    format!("{task}={coerced}")
 }
 
 /// Read + fold the `--resume` trace into the runtime skip plan (ADR-099)
@@ -379,4 +399,39 @@ fn judge_seat(
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nika_schema::{FileId, ParseMode};
+
+    fn prompt_wf() -> RawWorkflow {
+        nika_schema::parse(
+            "nika: gate\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  approve:\n    invoke:\n      tool: nika:prompt\n      args: { message: \"ship?\" }\n",
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect("fixture parses")
+    }
+
+    #[test]
+    fn approve_yes_parses_the_same_as_true() {
+        let wf = prompt_wf();
+        let yes =
+            nika_dap::resume::parse_answers(&coerce_answer_pairs(&["approve=yes".to_owned()]), &wf)
+                .expect("yes is a boolean");
+        let y =
+            nika_dap::resume::parse_answers(&coerce_answer_pairs(&["approve=y".to_owned()]), &wf)
+                .expect("y is a boolean");
+        let tru = nika_dap::resume::parse_answers(&["approve=true".to_owned()], &wf)
+            .expect("true is a boolean");
+        assert_eq!(yes, tru, "approve=yes matches approve=true");
+        assert_eq!(y, tru, "approve=y matches approve=true");
+        assert_eq!(yes.get("approve"), Some(&serde_json::Value::Bool(true)));
+        let no =
+            nika_dap::resume::parse_answers(&coerce_answer_pairs(&["approve=no".to_owned()]), &wf)
+                .expect("no is a boolean");
+        assert_eq!(no.get("approve"), Some(&serde_json::Value::Bool(false)));
+    }
 }

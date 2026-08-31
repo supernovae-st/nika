@@ -21,13 +21,14 @@
 //! exempt by design.
 
 use nika_catalog::export::{CatalogExport, ProviderExport, catalog_export};
-use nika_cli_host::machine_truth::MachineTruth;
 use nika_providers::ProviderRegistry;
 use nika_providers::probe::ExecutionLocus;
 
 use crate::display::chrome;
 use crate::display::theme::{Role, Theme};
-use crate::verbs::VerbOutput;
+use crate::doctor::redact_userinfo;
+use crate::machine_truth::MachineTruth;
+use crate::output::VerbOutput;
 
 /// One local engine's EFFECTIVE execution facts (P0-20) — the endpoint a
 /// run would hit and where that endpoint executes. « local » is a
@@ -172,7 +173,7 @@ fn human_listing(
             // locus — the ink the honest header saved goes here.
             Some(l) if l.locus != ExecutionLocus::Loopback => format!(
                 "{id} → {} ({})",
-                crate::verbs::doctor::redact_userinfo(&l.endpoint),
+                redact_userinfo(&l.endpoint),
                 l.locus.label()
             ),
             _ => (*id).to_owned(),
@@ -250,11 +251,9 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
         "no key"
     };
     let locus_note = match locus {
-        Some(l) if l.locus != ExecutionLocus::Loopback => format!(
-            " → {} ({})",
-            crate::verbs::doctor::redact_userinfo(&l.endpoint),
-            l.locus.label()
-        ),
+        Some(l) if l.locus != ExecutionLocus::Loopback => {
+            format!(" → {} ({})", redact_userinfo(&l.endpoint), l.locus.label())
+        }
         _ => String::new(),
     };
     let models = if p.models.is_empty() {
@@ -280,7 +279,7 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
 #[allow(clippy::panic)] // formatted assertion messages (the nika-mcp tests precedent)
 mod tests {
     use super::*;
-    use crate::verbs::exit;
+    use crate::output::exit;
 
     const PLAIN: Theme = Theme::new(false, false, false);
 

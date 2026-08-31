@@ -147,6 +147,14 @@ fn golden_paused_frame_names_the_awaiting_gate() {
         joined.contains("paused · awaiting an answer for `summarize`"),
         "the paused card names the gate: {joined}"
     );
+    assert!(
+        joined.contains("--answer summarize=true"),
+        "the paused card teaches the --answer boolean: {joined}"
+    );
+    assert!(
+        !joined.contains("=yes"),
+        "boolean true/false, not yes: {joined}"
+    );
     assert!(!joined.contains('✖'), "never red: {joined}");
     assert!(
         !joined.contains("nika explain"),

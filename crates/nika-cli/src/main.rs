@@ -13,7 +13,6 @@
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
-mod help_card;
 mod init_args;
 mod lazy;
 mod model_args;
@@ -29,6 +28,7 @@ use nika_cli::verbs::{self, VerbOutput};
 
 use init_args::{InitArgs, init_verb};
 use lazy::{check_lazy, resolve_lazy_target, run_lazy};
+pub(crate) use nika_cli_host::help_card;
 
 #[derive(Parser)]
 // The PUBLIC binary name is `nika` (the release renames the nika-cli artifact +
@@ -650,6 +650,7 @@ fn concierge_json(plain_theme: Theme) -> std::process::ExitCode {
 fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     let mut json = false;
     let mut ascii = false;
+    let mut saw_fix = false;
     let mut positional: Vec<&std::ffi::OsStr> = Vec::new();
     let mut skip_value = false;
     for arg in argv {
@@ -665,6 +666,10 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             ascii = true;
             continue;
         }
+        if arg == "--fix" {
+            saw_fix = true;
+            continue;
+        }
         if arg == "--color" || arg == "--hyperlink" {
             skip_value = true;
             continue;
@@ -676,7 +681,16 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
         }
         positional.push(arg);
     }
-    match positional.first().and_then(|a| a.to_str()) {
+    let first = positional.first().and_then(|a| a.to_str());
+    if first == Some("permits") {
+        print!("{}", help_card::permits_teaching());
+        return Some(std::process::ExitCode::from(verbs::exit::FILE));
+    }
+    if saw_fix && first != Some("check") {
+        print!("{}", help_card::misplaced_fix_teaching());
+        return Some(std::process::ExitCode::from(verbs::exit::FILE));
+    }
+    match first {
         None => {
             let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
             Some(if json {

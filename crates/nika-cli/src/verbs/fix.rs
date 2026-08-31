@@ -214,7 +214,9 @@ fn wrap_one_bare_exec(line: &str) -> Option<String> {
         return None;
     }
     let indent = indent_of(line);
-    Some(format!("{indent}exec:\n{indent}  command: {rest}"))
+    Some(format!(
+        "{indent}exec:\n{indent}  command: {rest}\n{indent}  shell: true"
+    ))
 }
 
 fn has_bare_exec(source: &str) -> bool {
@@ -1129,12 +1131,16 @@ mod tests {
         );
         let healed = std::fs::read_to_string(&path).expect("re-read");
         assert!(
-            healed.contains("command:") || healed.contains("shell:"),
-            "C13 wrapped or proposed command:/shell:: {healed}"
+            healed.contains("command:") && healed.contains("shell:"),
+            "C13 writes command: and shell: together: {healed}"
         );
         assert!(
             !healed.contains("exec: \"echo hello\""),
             "the scalar exec is gone: {healed}"
+        );
+        assert!(
+            !healed.contains("workflow:"),
+            "C13 must not invent workflow:: {healed}"
         );
         assert!(
             out.text.contains("command:") || out.text.contains("shell:"),

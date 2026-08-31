@@ -1,6 +1,8 @@
 pub mod nika_cli_host
 pub use nika_cli_host::Theme
 pub use nika_cli_host::display
+pub mod nika_cli_host::catalog
+pub fn nika_cli_host::catalog::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::clients_registry
 pub struct nika_cli_host::clients_registry::ClientsRegistry
 pub nika_cli_host::clients_registry::ClientsRegistry::clients: alloc::vec::Vec<nika_cli_host::clients_registry::RegistryClient>
@@ -165,9 +167,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::clients_registry::Reg
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::clients_registry::RegistryCoverage
 impl<T> typenum::type_operators::Same for nika_cli_host::clients_registry::RegistryCoverage
 pub type nika_cli_host::clients_registry::RegistryCoverage::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::clients_registry::RegistryCoverage where T: core::default::Default
-pub type nika_cli_host::clients_registry::RegistryCoverage::NoneType = T
-pub fn nika_cli_host::clients_registry::RegistryCoverage::null_value() -> T
 pub const nika_cli_host::clients_registry::PROBE_MECHANISMS: &[&str]
 pub fn nika_cli_host::clients_registry::coverage(registry: &nika_cli_host::clients_registry::ClientsRegistry) -> nika_cli_host::clients_registry::RegistryCoverage
 pub fn nika_cli_host::clients_registry::registry_ships_kit(target: &str) -> bool
@@ -1133,6 +1132,8 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli_host::experience::Workf
 impl<T> typenum::type_operators::Same for nika_cli_host::experience::WorkflowPreviewV1
 pub type nika_cli_host::experience::WorkflowPreviewV1::Output = T
 pub fn nika_cli_host::experience::route(state: &nika_cli_host::experience::ExperienceStateV1) -> nika_cli_host::experience::NextActionV1
+pub mod nika_cli_host::explain
+pub fn nika_cli_host::explain::run(wire: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::fix_ladder
 pub struct nika_cli_host::fix_ladder::Refusal
 pub nika_cli_host::fix_ladder::Refusal::attempted: alloc::vec::Vec<alloc::string::String>
@@ -1267,6 +1268,66 @@ pub fn nika_cli_host::fix_ladder::try_w2_hoist(report: &nika_check::CheckReport,
 pub mod nika_cli_host::harness
 pub fn nika_cli_host::harness::access_probes_with_harness() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_cli_host::harness::harness_provider_rows() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
+pub mod nika_cli_host::help_card
+pub enum nika_cli_host::help_card::HelpKind
+pub nika_cli_host::help_card::HelpKind::All
+pub nika_cli_host::help_card::HelpKind::Short
+impl core::clone::Clone for nika_cli_host::help_card::HelpKind
+pub fn nika_cli_host::help_card::HelpKind::clone(&self) -> nika_cli_host::help_card::HelpKind
+impl core::cmp::Eq for nika_cli_host::help_card::HelpKind
+impl core::cmp::PartialEq for nika_cli_host::help_card::HelpKind
+pub fn nika_cli_host::help_card::HelpKind::eq(&self, other: &nika_cli_host::help_card::HelpKind) -> bool
+impl core::fmt::Debug for nika_cli_host::help_card::HelpKind
+pub fn nika_cli_host::help_card::HelpKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::help_card::HelpKind
+impl core::marker::StructuralPartialEq for nika_cli_host::help_card::HelpKind
+impl<D> owo_colors::OwoColorize for nika_cli_host::help_card::HelpKind
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::help_card::HelpKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::help_card::HelpKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::help_card::HelpKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::help_card::HelpKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::help_card::HelpKind where U: core::convert::From<T>
+pub fn nika_cli_host::help_card::HelpKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::help_card::HelpKind where U: core::convert::Into<T>
+pub type nika_cli_host::help_card::HelpKind::Error = core::convert::Infallible
+pub fn nika_cli_host::help_card::HelpKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::help_card::HelpKind where U: core::convert::TryFrom<T>
+pub type nika_cli_host::help_card::HelpKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::help_card::HelpKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::help_card::HelpKind where T: core::clone::Clone
+pub type nika_cli_host::help_card::HelpKind::Owned = T
+pub fn nika_cli_host::help_card::HelpKind::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::help_card::HelpKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::help_card::HelpKind where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::help_card::HelpKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::help_card::HelpKind where T: ?core::marker::Sized
+pub fn nika_cli_host::help_card::HelpKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::help_card::HelpKind where T: ?core::marker::Sized
+pub fn nika_cli_host::help_card::HelpKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::help_card::HelpKind where T: core::clone::Clone
+pub unsafe fn nika_cli_host::help_card::HelpKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::help_card::HelpKind
+pub fn nika_cli_host::help_card::HelpKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::help_card::HelpKind where T: core::clone::Clone
+pub fn nika_cli_host::help_card::HelpKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::help_card::HelpKind where T: 'static
+pub fn nika_cli_host::help_card::HelpKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::help_card::HelpKind where T: core::marker::Copy
+pub fn nika_cli_host::help_card::HelpKind::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::help_card::HelpKind where T: ?core::marker::Sized
+pub fn nika_cli_host::help_card::HelpKind::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::help_card::HelpKind::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::help_card::HelpKind
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::help_card::HelpKind
+impl<T> typenum::type_operators::Same for nika_cli_host::help_card::HelpKind
+pub type nika_cli_host::help_card::HelpKind::Output = T
+pub fn nika_cli_host::help_card::classify_help(argv: &[impl core::convert::AsRef<std::ffi::os_str::OsStr>]) -> core::option::Option<nika_cli_host::help_card::HelpKind>
+pub fn nika_cli_host::help_card::home_looks_like_scratch(home: &str) -> bool
+pub fn nika_cli_host::help_card::human_help() -> &'static str
+pub fn nika_cli_host::help_card::isolation_warning() -> core::option::Option<alloc::string::String>
+pub fn nika_cli_host::help_card::isolation_warning_text(home: &str) -> alloc::string::String
+pub fn nika_cli_host::help_card::misplaced_fix_teaching() -> &'static str
+pub fn nika_cli_host::help_card::permits_teaching() -> &'static str
 pub mod nika_cli_host::machine_truth
 pub struct nika_cli_host::machine_truth::MachineTruth
 pub nika_cli_host::machine_truth::MachineTruth::catalog_entries: usize
@@ -1671,9 +1732,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::metrics::Facts
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::metrics::Facts
 impl<T> typenum::type_operators::Same for nika_cli_host::metrics::Facts
 pub type nika_cli_host::metrics::Facts::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::metrics::Facts where T: core::default::Default
-pub type nika_cli_host::metrics::Facts::NoneType = T
-pub fn nika_cli_host::metrics::Facts::null_value() -> T
 pub fn nika_cli_host::metrics::record(path: &std::path::Path, event: nika_cli_host::metrics::EventKind, facts: nika_cli_host::metrics::Facts) -> core::io::error::Result<()>
 pub fn nika_cli_host::metrics::record_if_enabled(event: nika_cli_host::metrics::EventKind, facts: nika_cli_host::metrics::Facts)
 pub mod nika_cli_host::notify
@@ -1755,6 +1813,7 @@ pub fn nika_cli_host::output::link_host() -> alloc::string::String
 pub fn nika_cli_host::output::linked_path(theme: nika_display::theme::Theme, path: &str) -> alloc::string::String
 pub fn nika_cli_host::output::truecolor_env() -> bool
 pub mod nika_cli_host::probe
+pub use nika_cli_host::probe::KeyAuth
 pub use nika_cli_host::probe::ModelsProbe
 pub use nika_cli_host::probe::PingState
 pub use nika_cli_host::probe::ProviderProbe
@@ -2045,9 +2104,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::ImageProbe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::ImageProbe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::ImageProbe
 pub type nika_cli_host::probe::ImageProbe::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::ImageProbe where T: core::default::Default
-pub type nika_cli_host::probe::ImageProbe::NoneType = T
-pub fn nika_cli_host::probe::ImageProbe::null_value() -> T
 pub struct nika_cli_host::probe::KitProbe
 pub nika_cli_host::probe::KitProbe::client: alloc::string::String
 pub nika_cli_host::probe::KitProbe::version: alloc::string::String
@@ -2151,9 +2207,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::PricingProbe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::PricingProbe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::PricingProbe
 pub type nika_cli_host::probe::PricingProbe::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::PricingProbe where T: core::default::Default
-pub type nika_cli_host::probe::PricingProbe::NoneType = T
-pub fn nika_cli_host::probe::PricingProbe::null_value() -> T
 pub struct nika_cli_host::probe::Probe
 pub nika_cli_host::probe::Probe::census: nika_providers::census::AccessCensus
 pub nika_cli_host::probe::Probe::clients: alloc::vec::Vec<nika_cli_host::probe::ClientProbe>
@@ -2321,9 +2374,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::TtsProbe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::TtsProbe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::TtsProbe
 pub type nika_cli_host::probe::TtsProbe::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::TtsProbe where T: core::default::Default
-pub type nika_cli_host::probe::TtsProbe::NoneType = T
-pub fn nika_cli_host::probe::TtsProbe::null_value() -> T
 pub fn nika_cli_host::probe::access_probes_with_harness() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_cli_host::probe::adoption_state(probe: &nika_cli_host::probe::Probe) -> nika_cli_host::probe::AdoptionState
 pub fn nika_cli_host::probe::auth_class_witness(detail: &str) -> bool
@@ -2527,8 +2577,5 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::wire::WireOptions
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::wire::WireOptions
 impl<T> typenum::type_operators::Same for nika_cli_host::wire::WireOptions
 pub type nika_cli_host::wire::WireOptions::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::wire::WireOptions where T: core::default::Default
-pub type nika_cli_host::wire::WireOptions::NoneType = T
-pub fn nika_cli_host::wire::WireOptions::null_value() -> T
 pub fn nika_cli_host::wire::run(target: nika_cli_host::wire::WireTarget, dir: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli_host::wire::run_with(target: nika_cli_host::wire::WireTarget, dir: &str, options: nika_cli_host::wire::WireOptions) -> nika_cli_host::output::VerbOutput

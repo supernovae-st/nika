@@ -10,20 +10,35 @@ use std::path::Path;
 
 /// Human default help · B67 postcard, now naming the two first-run doors
 /// (`try` · `new`), glossing `permits`, and documenting isolation.
-pub(crate) fn human_help() -> &'static str {
+#[must_use]
+pub fn human_help() -> &'static str {
     "nika             a plan from a file\n\
      nika try         rehearsal · to own the file: nika new <slug>\n\
      nika new hello   one file that runs on this machine\n\
      nika run         run a file\n\
      nika check       audit a file before it runs\n\
      nika doctor      PATH, model, sandbox\n\
-     permits          what this file is allowed to touch\n\
-     isolation        HOME alone is not enough · env -i HOME=$scratch PATH=\"$PATH\" nika …\n"
+     in the file · permits    what this file is allowed to touch\n\
+     to isolate · env -i HOME=$scratch PATH=\"$PATH\" nika …\n"
+}
+
+/// Teaching line when someone types `nika permits` as if it were a verb.
+#[must_use]
+pub fn permits_teaching() -> &'static str {
+    "nika: `permits` is not a command — it lives in the file. \
+     Try `nika explain FILE` or `nika check --infer-permits FILE`.\n"
+}
+
+/// Teaching line when `--fix` is typed on the root (`nika --fix`) instead of
+/// the check door.
+#[must_use]
+pub fn misplaced_fix_teaching() -> &'static str {
+    "nika: `--fix` is not a root flag — rewrite a file with `nika check --fix FILE`.\n"
 }
 
 /// How a help-only argv should render.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HelpKind {
+pub enum HelpKind {
     /// The postcard (`nika --help` · `nika --help --plain`).
     Short,
     /// The whole clap tree (`nika --help --all` · plus globals).
@@ -36,7 +51,8 @@ pub(crate) enum HelpKind {
 /// (`--plain`) used to drop the `--all` branch and clap-fail. Globals
 /// that never name a verb stay compatible so `--help --all --plain`
 /// keeps `--all` (B07 · I02).
-pub(crate) fn classify_help(argv: &[impl AsRef<OsStr>]) -> Option<HelpKind> {
+#[must_use]
+pub fn classify_help(argv: &[impl AsRef<OsStr>]) -> Option<HelpKind> {
     if argv.is_empty() {
         return None;
     }
@@ -83,12 +99,15 @@ pub(crate) fn classify_help(argv: &[impl AsRef<OsStr>]) -> Option<HelpKind> {
 /// `HOME=$scratch` without `env -i` still walks the operator's real
 /// home on macOS (`dirs` / Directory Services ignore `$HOME`). Warn
 /// when HOME looks like a scratch isolation attempt.
-pub(crate) fn isolation_warning() -> Option<String> {
+#[must_use]
+pub fn isolation_warning() -> Option<String> {
     let home = env_home()?;
     home_looks_like_scratch(&home).then(|| isolation_warning_text(&home))
 }
 
-pub(crate) fn home_looks_like_scratch(home: &str) -> bool {
+/// Whether `$HOME` looks like a scratch isolation directory.
+#[must_use]
+pub fn home_looks_like_scratch(home: &str) -> bool {
     let path = Path::new(home);
     path.starts_with(std::env::temp_dir())
         || home.contains("/tmp/")
@@ -97,7 +116,9 @@ pub(crate) fn home_looks_like_scratch(home: &str) -> bool {
         || home.contains("scratch-")
 }
 
-pub(crate) fn isolation_warning_text(home: &str) -> String {
+/// The isolation warning for a scratch `$HOME` that still inherited the env.
+#[must_use]
+pub fn isolation_warning_text(home: &str) -> String {
     format!(
         "nika: HOME={home} looks like a scratch, but this process still inherited \
          the rest of the environment. Isolation needs `env -i HOME={home} \
@@ -131,6 +152,46 @@ mod tests {
             help.lines().filter(|l| !l.is_empty()).count() <= 8,
             "postcard stays a card, got:\n{help}"
         );
+    }
+
+    #[test]
+    fn default_help_does_not_invite_nika_permits_as_a_command() {
+        let help = human_help();
+        assert!(
+            !help.lines().any(|l| l.starts_with("     permits")),
+            "permits must not sit in the verb column: {help}"
+        );
+        assert!(
+            !help
+                .lines()
+                .any(|l| l.trim_start().starts_with("nika permits")),
+            "must not teach `nika permits` as a command: {help}"
+        );
+        assert!(
+            help.contains("in the file") && help.contains("permits"),
+            "permits is a field in the file: {help}"
+        );
+        assert!(
+            help.contains("to isolate"),
+            "isolation is a note, not a verb: {help}"
+        );
+    }
+
+    #[test]
+    fn permits_teaching_names_the_file_and_the_doors() {
+        let text = permits_teaching();
+        assert!(text.contains("not a command"), "{text}");
+        assert!(text.contains("lives in the file"), "{text}");
+        assert!(text.contains("nika explain FILE"), "{text}");
+        assert!(text.contains("nika check --infer-permits FILE"), "{text}");
+        assert!(!text.contains("nika permits"), "{text}");
+    }
+
+    #[test]
+    fn misplaced_fix_teaching_names_check_fix() {
+        let text = misplaced_fix_teaching();
+        assert!(text.contains("nika check --fix"), "{text}");
+        assert!(!text.contains("nika --fix FILE"), "{text}");
     }
 
     #[test]

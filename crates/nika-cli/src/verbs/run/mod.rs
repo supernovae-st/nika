@@ -63,6 +63,7 @@ mod teardown;
 // (ADR-110 precedent — compute descends, render stays).
 use nika_cli_host::notify;
 pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
+pub(crate) use resume_setup::coerce_answer_pairs;
 use resume_setup::{ResumeSetup, resume_setup};
 use teardown::attended_facts;
 

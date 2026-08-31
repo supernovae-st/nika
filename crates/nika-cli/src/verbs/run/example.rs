@@ -123,23 +123,10 @@ pub fn example(
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    // The example renders live on a TTY, plain when piped, silent on
-    // `--quiet` (the verdict line still lands).
-    let mode = if quiet {
-        RenderMode::Quiet
-    } else if !no_progress && std::io::IsTerminal::is_terminal(&std::io::stdout()) {
-        RenderMode::Live
-    } else {
-        RenderMode::Plain
-    };
+    let (mode, theme) = example_mode(quiet, no_progress, theme);
     if mode == RenderMode::Live {
         example_predisplay(slug, yaml, theme);
     }
-    // The interactive duration accents follow the same TTY gate; heat
-    // additionally needs colour + the truecolor proof.
-    let mut theme = theme;
-    theme.accents = mode == RenderMode::Live;
-    theme.heat = theme.accents && theme.color && crate::verbs::truecolor_env();
     let verdict = run_verdict(
         &path.to_string_lossy(),
         false,
@@ -199,6 +186,20 @@ pub fn example(
     // end-of-scope accident.
     drop(room_lease);
     verdict.code
+}
+
+/// Live / plain / quiet plus the accent/heat pair the TTY lane needs.
+fn example_mode(quiet: bool, no_progress: bool, mut theme: Theme) -> (RenderMode, Theme) {
+    let mode = if quiet {
+        RenderMode::Quiet
+    } else if !no_progress && std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+        RenderMode::Live
+    } else {
+        RenderMode::Plain
+    };
+    theme.accents = mode == RenderMode::Live;
+    theme.heat = theme.accents && theme.color && crate::verbs::truecolor_env();
+    (mode, theme)
 }
 
 /// The pre-display (TTY only): the SOURCE before the run — an example
