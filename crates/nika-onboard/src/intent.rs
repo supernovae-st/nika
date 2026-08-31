@@ -59,6 +59,9 @@ pub(crate) const ALIASES: &[(&str, &[&str])] = &[
     ("download", &["fetch"]),
     ("http", &["fetch"]),
     ("url", &["fetch"]),
+    ("urls", &["fetch"]),
+    ("summary", &["infer", "think", "summarize", "fetch"]),
+    ("digest", &["infer", "summarize"]),
     ("website", &["fetch"]),
     ("page", &["fetch"]),
     ("api", &["fetch", "invoke"]),
@@ -295,6 +298,8 @@ const SOURCE_LEXICON: &[(&str, &str)] = &[
     ("competitors", "competitors"),
     ("seo", "seo"),
     ("pages", "pages"),
+    ("urls", "urls"),
+    ("url", "url"),
 ];
 
 /// Transforms: what the workflow does to what it reads.
@@ -658,8 +663,37 @@ fn best_same_facet_runner(qualified: &[(String, f64)]) -> f64 {
         .map_or(0.0, |(_, s)| *s)
 }
 
+/// Exact catalog hit: a typed slug (`hello` · `01-hello` · `chain`) is
+/// not an intent to rank. `hello` is the 01-hello lesson (B01).
+fn exact_catalog_hit(intent: &str) -> Option<String> {
+    let t = intent.trim();
+    let t = t.strip_suffix(".nika.yaml").unwrap_or(t);
+    if t.is_empty() || t.contains(char::is_whitespace) {
+        return None;
+    }
+    let canonical = if t.eq_ignore_ascii_case("hello") {
+        "01-hello"
+    } else {
+        t
+    };
+    if nika_pack::example(canonical).is_some() || nika_pack::template(canonical).is_some() {
+        Some(canonical.to_owned())
+    } else {
+        None
+    }
+}
+
 fn route_impl(intent: &str, names: &[String], tau: f64) -> RoutingOutcome {
     let contract = extract(intent);
+    if let Some(name) = exact_catalog_hit(intent)
+        && names.iter().any(|n| n == &name)
+    {
+        return RoutingOutcome::Routed {
+            template: name,
+            score: f64::MAX,
+            contract,
+        };
+    }
     let index = build_template_index(names);
 
     // Keep only signal-bearing tokens (drop stopwords + Nika boilerplate);

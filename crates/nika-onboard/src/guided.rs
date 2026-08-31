@@ -160,11 +160,15 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     // (lessons, verbatim). Exact names first — templates, then examples
     // (slug or filename) — then plain-words intent. The showroom side
     // (`nika try <slug>`) runs the same corpus without taking it.
-    if let Some(body) = nika_pack::example(template) {
-        return write_example(template, body, dest, force);
+    // B01 · `hello` is the 01-hello lesson. One file, one dest stem, one
+    // model. The CLI first-wow door still intercepts `nika new hello`
+    // before this crate; this ladder is the pack/onboard contract.
+    let from = canonical_source(template);
+    if let Some(body) = nika_pack::example(from) {
+        return write_example(from, body, dest, force);
     }
-    let (name, body, contract) = match nika_pack::template(template) {
-        Some(body) => (template.to_owned(), body, None),
+    let (name, body, contract) = match nika_pack::template(from) {
+        Some(body) => (from.to_owned(), body, None),
         None => match crate::intent::route(template) {
             RoutingOutcome::Routed {
                 template: name,
@@ -714,6 +718,31 @@ pub(crate) fn workflow_id(dest: &str) -> String {
     }
 }
 
+/// `hello` / `hello.nika.yaml` → the 01-hello lesson (B01 · one hello).
+fn canonical_source(template: &str) -> &str {
+    let t = template.strip_suffix(".nika.yaml").unwrap_or(template);
+    match t {
+        "hello" => "01-hello",
+        other => other,
+    }
+}
+
+/// Inline comment that MATCHES the stamped seat (B16). A leftover
+/// « local » next to `openai/…` is the lie this exists to refuse.
+fn model_line_comment(model: &str) -> &'static str {
+    if model == "mock/echo" || model.starts_with("mock/") {
+        "rehearsal · zero key · swap for any catalog seat"
+    } else if model.starts_with("ollama/")
+        || model.starts_with("llamacpp/")
+        || model.starts_with("vllm/")
+        || model.starts_with("native/")
+    {
+        "local · zero key · swap for any catalog seat"
+    } else {
+        "catalog seat · swap for mock/echo to rehearse keyless"
+    }
+}
+
 /// Stamp the answers the wizard KNOWS into the template — id · model
 /// (the second only when the wizard asked, i.e. the skeleton carries a
 /// top-level `model:` at column 0 — the stamp's anchor). Never stamp
@@ -730,7 +759,11 @@ pub(crate) fn stamp(body: &str, id: &str, model: Option<&str>) -> String {
             if line.starts_with("nika: ") {
                 format!("nika: {id}")
             } else if let (true, Some(model)) = (line.starts_with("model: "), model) {
-                format!("model: {}", yaml_scalar(model))
+                format!(
+                    "model: {}   # {}",
+                    yaml_scalar(model),
+                    model_line_comment(model)
+                )
             } else {
                 line.to_owned()
             }
