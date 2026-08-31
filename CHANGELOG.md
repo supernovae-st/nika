@@ -33,6 +33,9 @@ pull requests collided on 2026-08-24 with no source overlap between them, and
 - **Resident schedules settle before their durable store shuts down.**
   `nika serve` joins scheduler authority after prepared runs and terminal
   receipts drain, preventing live-once settlement from racing store shutdown.
+- **`nika try` names a missing host tool in the sandbox.**
+  `standup-digest` (git) and `03-exec-pipeline` (cargo) print a recover
+  tip instead of an opaque seatbelt, even under `--model mock/echo`.
 
 ### Security
 
