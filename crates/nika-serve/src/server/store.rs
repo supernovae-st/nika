@@ -5,6 +5,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+
 use serde_json::Value;
 use tokio::sync::{Notify, oneshot};
 
@@ -21,6 +24,124 @@ pub(super) struct EventPage {
     pub events: Vec<JobEvent>,
     pub record: JobRecord,
     pub terminal_sequence: Option<u64>,
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ShutdownPhase {
+    SchedulerJoin = 1,
+    StoreShutdown = 2,
+}
+
+#[cfg(test)]
+#[derive(Debug, Default)]
+pub(super) struct ShutdownTestProbe {
+    gate_observation: AtomicBool,
+    observation_blocked: AtomicBool,
+    observation_release: std::sync::Mutex<bool>,
+    observation_gate: std::sync::Condvar,
+    observation_notify: Notify,
+    shutdown_loop_observed: AtomicBool,
+    shutdown_loop_notify: Notify,
+    terminal_settled: AtomicBool,
+    terminal_settled_notify: Notify,
+    first_phase: AtomicU8,
+    phase_notify: Notify,
+}
+
+#[cfg(test)]
+impl ShutdownTestProbe {
+    pub(super) fn gate_observation(&self) {
+        self.gate_observation.store(true, Ordering::SeqCst);
+    }
+
+    fn hold_observation(&self) {
+        if !self.gate_observation.load(Ordering::SeqCst) {
+            return;
+        }
+        self.observation_blocked.store(true, Ordering::SeqCst);
+        self.observation_notify.notify_waiters();
+        let mut released = self
+            .observation_release
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        while !*released {
+            released = self
+                .observation_gate
+                .wait(released)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+        }
+    }
+
+    pub(super) async fn wait_observation_blocked(&self) {
+        loop {
+            let notified = self.observation_notify.notified();
+            if self.observation_blocked.load(Ordering::SeqCst) {
+                return;
+            }
+            notified.await;
+        }
+    }
+
+    pub(super) fn release_observation(&self) {
+        let mut released = self
+            .observation_release
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *released = true;
+        self.observation_gate.notify_all();
+    }
+
+    pub(super) fn mark_shutdown_loop_observed(&self) {
+        self.shutdown_loop_observed.store(true, Ordering::SeqCst);
+        self.shutdown_loop_notify.notify_waiters();
+    }
+
+    pub(super) async fn wait_shutdown_loop_observed(&self) {
+        loop {
+            let notified = self.shutdown_loop_notify.notified();
+            if self.shutdown_loop_observed.load(Ordering::SeqCst) {
+                return;
+            }
+            notified.await;
+        }
+    }
+
+    fn mark_terminal_settled(&self) {
+        self.terminal_settled.store(true, Ordering::SeqCst);
+        self.terminal_settled_notify.notify_waiters();
+    }
+
+    pub(super) async fn wait_terminal_settled(&self) {
+        loop {
+            let notified = self.terminal_settled_notify.notified();
+            if self.terminal_settled.load(Ordering::SeqCst) {
+                return;
+            }
+            notified.await;
+        }
+    }
+
+    pub(super) fn mark_phase(&self, phase: ShutdownPhase) {
+        if self
+            .first_phase
+            .compare_exchange(0, phase as u8, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
+            self.phase_notify.notify_waiters();
+        }
+    }
+
+    pub(super) async fn wait_first_phase(&self) -> ShutdownPhase {
+        loop {
+            let notified = self.phase_notify.notified();
+            match self.first_phase.load(Ordering::SeqCst) {
+                1 => return ShutdownPhase::SchedulerJoin,
+                2 => return ShutdownPhase::StoreShutdown,
+                _ => notified.await,
+            }
+        }
+    }
 }
 
 enum RequestCommand {
@@ -99,6 +220,8 @@ pub(super) struct StoreHandle {
     requests: std::sync::mpsc::SyncSender<RequestCommand>,
     controls: std::sync::mpsc::SyncSender<ControlCommand>,
     events: Arc<Notify>,
+    #[cfg(test)]
+    shutdown_probe: Arc<ShutdownTestProbe>,
 }
 
 impl StoreHandle {
@@ -192,6 +315,8 @@ impl StoreHandle {
     }
 
     pub(super) fn get_blocking(&self, id: JobId) -> Result<Option<JobRecord>, ServerError> {
+        #[cfg(test)]
+        self.shutdown_probe.hold_observation();
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::Get { id, reply })?;
         receive_blocking(answer)
@@ -215,6 +340,11 @@ impl StoreHandle {
 
     pub(super) fn event_notify(&self) -> Arc<Notify> {
         Arc::clone(&self.events)
+    }
+
+    #[cfg(test)]
+    pub(super) fn shutdown_test_probe(&self) -> Arc<ShutdownTestProbe> {
+        Arc::clone(&self.shutdown_probe)
     }
 
     pub(super) async fn transition_with_events(
@@ -252,7 +382,12 @@ impl StoreHandle {
             receipt: receipt.map(Box::new),
             reply,
         })?;
-        receive(answer).await
+        let result = receive(answer).await;
+        #[cfg(test)]
+        if result.is_ok() {
+            self.shutdown_probe.mark_terminal_settled();
+        }
+        result
     }
 
     pub(super) fn settle_with_result_blocking(
@@ -345,6 +480,8 @@ impl StoreActor {
         let (requests, request_receiver) = std::sync::mpsc::sync_channel(request_capacity);
         let (controls, control_receiver) = std::sync::mpsc::sync_channel(control_capacity);
         let events = Arc::new(Notify::new());
+        #[cfg(test)]
+        let shutdown_probe = Arc::new(ShutdownTestProbe::default());
         let thread_events = Arc::clone(&events);
         let thread = std::thread::Builder::new()
             .name("nika-serve-store".to_owned())
@@ -363,6 +500,8 @@ impl StoreActor {
                 requests,
                 controls,
                 events,
+                #[cfg(test)]
+                shutdown_probe,
             },
             thread: Some(thread),
         })
@@ -380,10 +519,15 @@ impl StoreActor {
             .map_err(|_| ServerError::BlockingTask)?;
         answer.await.map_err(|_| ServerError::BlockingTask)?;
         let thread = self.thread.take().ok_or(ServerError::BlockingTask)?;
-        tokio::task::spawn_blocking(move || thread.join())
+        let result = tokio::task::spawn_blocking(move || thread.join())
             .await
             .map_err(|_| ServerError::BlockingTask)?
-            .map_err(|_| ServerError::BlockingTask)
+            .map_err(|_| ServerError::BlockingTask);
+        #[cfg(test)]
+        self.handle
+            .shutdown_probe
+            .mark_phase(ShutdownPhase::StoreShutdown);
+        result
     }
 }
 

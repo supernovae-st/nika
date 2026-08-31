@@ -741,7 +741,15 @@ async fn finish_authority(
         }
     };
     let schedule_result = match schedule_task {
-        Some(task) => Some(task.await),
+        Some(task) => {
+            #[cfg(test)]
+            authority
+                .state
+                .store
+                .shutdown_test_probe()
+                .mark_phase(store::ShutdownPhase::SchedulerJoin);
+            Some(task.await)
+        }
         None => None,
     };
     let actor_shutdown = match authority.store_actor.take() {

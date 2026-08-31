@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use serde_json::json;
 
+use super::store::ShutdownPhase;
 use super::tests::{TestWorld, auth_header, get_request, limits};
 use super::{ExecutionBackend, ExecutionDisposition, ExecutionOutcome};
 
@@ -171,6 +172,8 @@ async fn shutdown_keeps_store_alive_until_scheduled_observation_finishes() {
     let server = world
         .start_with_clock(backend.clone(), limits(), clock.clone())
         .await;
+    let shutdown_probe = server.shutdown_probe();
+    shutdown_probe.gate_observation();
     let created = server
         .request(&put_request(
             "shutdown-once",
@@ -183,14 +186,29 @@ async fn shutdown_keeps_store_alive_until_scheduled_observation_finishes() {
     clock.wait_for_sleeps(2).await;
     clock.advance_to("2026-09-01T09:00:00Z[UTC]");
     backend.wait_for_call().await;
+    shutdown_probe.wait_observation_blocked().await;
 
     let stopped = server.signal_stop();
+    shutdown_probe.wait_shutdown_loop_observed().await;
     backend.release();
 
-    stopped
+    shutdown_probe.wait_terminal_settled().await;
+    let first_phase = shutdown_probe.wait_first_phase().await;
+    shutdown_probe.release_observation();
+
+    let stop_result = tokio::time::timeout(Duration::from_secs(5), stopped)
         .await
-        .expect("server join")
-        .expect("scheduled observation finishes before store shutdown");
+        .expect("bounded server join")
+        .expect("server join");
+    if first_phase == ShutdownPhase::StoreShutdown {
+        assert!(matches!(stop_result, Err(super::ServerError::BlockingTask)));
+    }
+    assert_eq!(
+        first_phase,
+        ShutdownPhase::SchedulerJoin,
+        "store shutdown started before the scheduler join"
+    );
+    stop_result.expect("scheduled observation finishes before store shutdown");
 }
 
 fn body(workflow: &str, cost: f64) -> String {
