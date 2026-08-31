@@ -197,6 +197,20 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
             }
         },
     };
+    instantiate_skeleton(&name, body, dest, force, template, contract.as_ref())
+}
+
+/// Write a resolved skeleton: dest is required (the `?` discovery door
+/// already returned), refuse an existing file without `--force`, and
+/// a routed file is a DRAFT by construction (P0-10).
+fn instantiate_skeleton(
+    name: &str,
+    body: &str,
+    dest: Option<&str>,
+    force: bool,
+    uttered: &str,
+    contract: Option<&IntentContract>,
+) -> Outcome {
     // A known template needs a destination to instantiate into. The
     // `--from '?'` (or any unknown) discovery query already returned above
     // WITHOUT touching `dest` — that is the editor-integration wire
@@ -210,7 +224,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
         return Outcome {
             text: format!(
                 "template `{name}` resolved — pass a destination: nika new {} <dest>.nika.yaml",
-                shell_quote(template)
+                shell_quote(uttered)
             ),
             code: codes::ENV,
         };
@@ -227,7 +241,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
             code: codes::ENV,
         };
     }
-    let routing = routing_prefix(contract.as_ref());
+    let routing = routing_prefix(contract);
     // A ROUTED file is a draft by construction (P0-10): the intent was
     // interpreted, not understood — the message says « draft », never
     // « ready », and hands over to `nika check` before any run.
@@ -246,10 +260,9 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
         text,
         code: codes::OK,
     };
-    if let Some(contract) = contract {
-        with_cadence_note(out, &contract)
-    } else {
-        out
+    match contract {
+        Some(contract) => with_cadence_note(out, contract),
+        None => out,
     }
 }
 

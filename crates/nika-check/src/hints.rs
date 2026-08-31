@@ -50,7 +50,7 @@
 //!   STATED here, never silent; the closure-free `for_each` same-path
 //!   flavor still judged.
 //! - **exec with a native path** (`native-first`) — emitted by the
-//!   `check/native_first.rs` pass (the `native-first/001..006` ruleset:
+//!   `native_first` pass (the `native-first/001..006` ruleset:
 //!   http/file/data/media/helper/utility commands a builtin or MCP tool
 //!   covers); `nika check --native-strict` promotes them to failures.
 //! - **exec the run will refuse** (`exec-floor`) — RETIRED by #605: the

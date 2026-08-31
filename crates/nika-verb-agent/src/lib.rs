@@ -100,6 +100,7 @@ mod io;
 mod router;
 mod shape;
 mod spill;
+mod turn;
 
 use std::sync::Arc;
 
@@ -117,7 +118,6 @@ use nika_verb_invoke::{InvokeInput, InvokeVerb, VerbInvokeError};
 
 use crate::guard::{Guard, GuardVerdict};
 use crate::router::ToolRouter;
-use crate::shape::shape_output;
 
 pub use config::{AgentConfig, GuardConfig, RouterConfig};
 pub use errors::VerbAgentError;
@@ -1314,41 +1314,17 @@ fn classify_turn(
     // signalled completion · a side effect on a terminating turn would be
     // spent and never fed back. `done` wins, deterministically.
     if let Some(done) = tool_uses.iter().find(|u| u.name == DONE_TOOL) {
-        // A `result:` is a DELIBERATE structured value — validate it
-        // directly (the model committed to that exact shape · a miss is a
-        // verdict, never a re-ask · BUG#11). A result-LESS done finishes on
-        // the last free text, which DOES get the schema re-ask.
-        return match done.args.get("result") {
-            Some(result) => {
-                let coerced = shape::coerce_done_result(result);
-                match shape_output(AgentValue::Structured(coerced), ctx.input.schema.as_ref()) {
-                    Ok(value) => Ok(TurnVerdict::Done(Box::new(AgentOutput::new(
-                        value,
-                        AgentStopReason::ExplicitCompletion,
-                        ctx.turns,
-                        ctx.total_tokens,
-                    )))),
-                    // C07: a string/null result vs an object schema used
-                    // to be a verdict after the paid turns. Re-ask with
-                    // the schema wired (mock synthesizes; a live model
-                    // gets one more chance) instead of spend-then-die.
-                    Err(_)
-                        if shape::string_or_null_may_reask(result, ctx.input.schema.as_ref()) =>
-                    {
-                        Ok(final_text_verdict(
-                            result.as_str().unwrap_or("").to_owned(),
-                            AgentStopReason::ExplicitCompletion,
-                            ctx,
-                        ))
-                    }
-                    Err(err) => Err(err),
-                }
+        return match turn::classify_explicit_done(
+            done.args.get("result"),
+            ctx.last_text,
+            ctx.input.schema.as_ref(),
+            ctx.turns,
+            ctx.total_tokens,
+        )? {
+            turn::ExplicitDone::Output(output) => Ok(TurnVerdict::Done(output)),
+            turn::ExplicitDone::FinalText { text, stop_reason } => {
+                Ok(final_text_verdict(text, stop_reason, ctx))
             }
-            None => Ok(final_text_verdict(
-                ctx.last_text.to_owned(),
-                AgentStopReason::ExplicitCompletion,
-                ctx,
-            )),
         };
     }
 

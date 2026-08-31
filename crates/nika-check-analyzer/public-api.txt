@@ -194,6 +194,9 @@ pub fn nika_check_analyzer::edges::incoming_of(task: &nika_schema::raw::task::Ra
 pub fn nika_check_analyzer::edges::producer_ids(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_check_analyzer::edges::role_of_field(field: core::option::Option<&str>) -> nika_check_analyzer::edges::EdgeKind
 pub fn nika_check_analyzer::edges::task_refs_in_value(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<(alloc::string::String, core::option::Option<alloc::string::String>)>)
+pub mod nika_check_analyzer::native_first
+pub fn nika_check_analyzer::native_first::classify(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<(&'static str, alloc::string::String)>
+pub fn nika_check_analyzer::native_first::classify_all(command: &nika_schema::raw::action::RawCommand) -> alloc::vec::Vec<(&'static str, alloc::string::String)>
 pub mod nika_check_analyzer::types_contract
 pub fn nika_check_analyzer::types_contract::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub fn nika_check_analyzer::types_contract::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>

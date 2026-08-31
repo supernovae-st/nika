@@ -44,6 +44,7 @@ mod builtin_shape;
 mod dag;
 pub mod edges;
 mod jq_lint;
+pub mod native_first;
 mod scan;
 mod schema_lint;
 mod schema_paths;

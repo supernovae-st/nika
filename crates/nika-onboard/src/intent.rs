@@ -683,31 +683,16 @@ fn exact_catalog_hit(intent: &str) -> Option<String> {
     }
 }
 
-fn route_impl(intent: &str, names: &[String], tau: f64) -> RoutingOutcome {
-    let contract = extract(intent);
-    if let Some(name) = exact_catalog_hit(intent)
-        && names.iter().any(|n| n == &name)
-    {
-        return RoutingOutcome::Routed {
-            template: name,
-            score: f64::MAX,
-            contract,
-        };
-    }
-    let index = build_template_index(names);
-
-    // Keep only signal-bearing tokens (drop stopwords + Nika boilerplate);
-    // an all-boilerplate query routes NOWHERE → the honest unknown · list.
+/// Signal-bearing query: drop stopwords + Nika boilerplate, then expand
+/// aliases and simple singulars. `None` on an all-boilerplate utterance.
+fn expand_query(intent: &str) -> Option<String> {
     let tokens: Vec<String> = intent
         .split(|c: char| !c.is_ascii_alphanumeric())
         .map(str::to_ascii_lowercase)
         .filter(|t| !t.is_empty() && !STOPWORDS.contains(&t.as_str()))
         .collect();
     if tokens.is_empty() {
-        return RoutingOutcome::NeedsClarification {
-            candidates: Vec::new(),
-            contract,
-        };
+        return None;
     }
     let mut query = tokens.join(" ");
     for token in &tokens {
@@ -724,6 +709,30 @@ fn route_impl(intent: &str, names: &[String], tau: f64) -> RoutingOutcome {
             query.push_str(singular);
         }
     }
+    Some(query)
+}
+
+fn route_impl(intent: &str, names: &[String], tau: f64) -> RoutingOutcome {
+    let contract = extract(intent);
+    if let Some(name) = exact_catalog_hit(intent)
+        && names.iter().any(|n| n == &name)
+    {
+        return RoutingOutcome::Routed {
+            template: name,
+            score: f64::MAX,
+            contract,
+        };
+    }
+    let index = build_template_index(names);
+
+    let Some(query) = expand_query(intent) else {
+        // Keep only signal-bearing tokens (drop stopwords + Nika boilerplate);
+        // an all-boilerplate query routes NOWHERE → the honest unknown · list.
+        return RoutingOutcome::NeedsClarification {
+            candidates: Vec::new(),
+            contract,
+        };
+    };
 
     let ranked = index.top_k(&query, names.len());
     // The contract gate: every required capability present, every
