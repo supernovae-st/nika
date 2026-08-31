@@ -1166,6 +1166,71 @@ async fn schema_extracts_json_from_a_fenced_final_message() {
 }
 
 #[tokio::test]
+async fn schema_object_plus_done_string_reasks_instead_of_spend_then_die() {
+    // C07 / issue 1301: agent schema wants an object, `nika:done` result
+    // is a string (the mock / a model that serialized JSON as a string).
+    // Repair = re-ask with the schema; do not emit INFER-002 after the
+    // paid turns with no second chance.
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(tool_use_response(
+                "c",
+                DONE_TOOL,
+                serde_json::json!({"result": "a prose final"}),
+            ))
+            .enqueue_response(text_response(r#"{"findings":["one"],"sources":["two"]}"#)),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("research it");
+    input.tools = vec![DONE_TOOL.to_owned()];
+    input.schema = Some(serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["findings", "sources"],
+        "properties": {
+            "findings": {"type": "array", "items": {"type": "string"}},
+            "sources": {"type": "array", "items": {"type": "string"}}
+        }
+    }));
+    let out = r
+        .verb
+        .run(input)
+        .await
+        .expect("string result vs object schema re-asks");
+    assert_eq!(
+        out.output,
+        AgentValue::Structured(serde_json::json!({"findings":["one"],"sources":["two"]}))
+    );
+    assert_eq!(
+        r.provider.captured_requests().len(),
+        2,
+        "one tool turn + one schema re-ask, never spend-then-die"
+    );
+}
+
+#[tokio::test]
+async fn uncompilable_schema_fails_before_any_infer() {
+    let r = rig(
+        MockProvider::new("mock"),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("research it");
+    input.schema = Some(serde_json::json!({"type": "string", "pattern": "["}));
+    let err = r.verb.run(input).await.expect_err("bad schema");
+    assert!(
+        matches!(err, VerbAgentError::SchemaValidation { .. }),
+        "{err}"
+    );
+    assert_eq!(
+        r.provider.captured_requests().len(),
+        0,
+        "C07: fail before paid infer"
+    );
+}
+
+#[tokio::test]
 async fn schema_validates_the_done_result_value() {
     let r = rig(
         MockProvider::new("mock").enqueue_response(tool_use_response(

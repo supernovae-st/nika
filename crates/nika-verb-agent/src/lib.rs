@@ -539,6 +539,11 @@ where
         input: &AgentInput,
     ) -> Result<(Whitelist, Vec<ToolDef>, String, TurnBudget), VerbAgentError> {
         validate_params(input)?;
+        // C07: a schema that does not compile is an authoring error —
+        // fail BEFORE the first billed infer, not after a paid loop.
+        if let Some(schema) = &input.schema {
+            let _ = shape::compile(schema)?;
+        }
         let whitelist = Whitelist::new(&input.tools);
         let defs = self.whitelisted_defs(&whitelist).await?;
         let model = input
@@ -1315,16 +1320,29 @@ fn classify_turn(
         // the last free text, which DOES get the schema re-ask.
         return match done.args.get("result") {
             Some(result) => {
-                let value = shape_output(
-                    AgentValue::Structured(result.clone()),
-                    ctx.input.schema.as_ref(),
-                )?;
-                Ok(TurnVerdict::Done(Box::new(AgentOutput::new(
-                    value,
-                    AgentStopReason::ExplicitCompletion,
-                    ctx.turns,
-                    ctx.total_tokens,
-                ))))
+                let coerced = shape::coerce_done_result(result);
+                match shape_output(AgentValue::Structured(coerced), ctx.input.schema.as_ref()) {
+                    Ok(value) => Ok(TurnVerdict::Done(Box::new(AgentOutput::new(
+                        value,
+                        AgentStopReason::ExplicitCompletion,
+                        ctx.turns,
+                        ctx.total_tokens,
+                    )))),
+                    // C07: a string/null result vs an object schema used
+                    // to be a verdict after the paid turns. Re-ask with
+                    // the schema wired (mock synthesizes; a live model
+                    // gets one more chance) instead of spend-then-die.
+                    Err(_)
+                        if shape::string_or_null_may_reask(result, ctx.input.schema.as_ref()) =>
+                    {
+                        Ok(final_text_verdict(
+                            result.as_str().unwrap_or("").to_owned(),
+                            AgentStopReason::ExplicitCompletion,
+                            ctx,
+                        ))
+                    }
+                    Err(err) => Err(err),
+                }
             }
             None => Ok(final_text_verdict(
                 ctx.last_text.to_owned(),

@@ -53,6 +53,30 @@ pub(crate) fn validate_text(
     }
 }
 
+/// A `nika:done` `result:` that is a JSON string (or null) cannot
+/// satisfy an object schema. Treat it as free text so the loop can
+/// re-ask (C07 / issue 1301) instead of spend-then-INFER-002.
+#[must_use]
+pub(crate) fn string_or_null_may_reask(
+    result: &serde_json::Value,
+    schema: Option<&serde_json::Value>,
+) -> bool {
+    schema.is_some() && (result.is_string() || result.is_null())
+}
+
+/// If the model stuffed a JSON value inside a string (`"{\"k\":1}"`),
+/// unwrap it so `schema:` can judge the inner value with zero extra
+/// spend. A plain prose string is left as-is for the re-ask path.
+#[must_use]
+pub(crate) fn coerce_done_result(result: &serde_json::Value) -> serde_json::Value {
+    if let Some(s) = result.as_str()
+        && let Ok(inner) = serde_json::from_str::<serde_json::Value>(s)
+    {
+        return inner;
+    }
+    result.clone()
+}
+
 /// Validate the final value against the task `schema:` when present
 /// (spec §2: the schema validates the FINAL output · NIKA-464).
 ///
@@ -231,6 +255,27 @@ mod tests {
         );
         // No JSON at all → None (→ SchemaValidation upstream).
         assert_eq!(extract_json("just prose, no braces"), None);
+    }
+
+    #[test]
+    fn string_or_null_against_object_schema_may_reask() {
+        let object = serde_json::json!({"type": "object", "required": ["findings"]});
+        assert!(string_or_null_may_reask(
+            &serde_json::json!("a prose final"),
+            Some(&object)
+        ));
+        assert!(string_or_null_may_reask(
+            &serde_json::Value::Null,
+            Some(&object)
+        ));
+        assert!(!string_or_null_may_reask(
+            &serde_json::json!({"findings": []}),
+            Some(&object)
+        ));
+        assert_eq!(
+            coerce_done_result(&serde_json::json!("{\"findings\":[\"a\"]}")),
+            serde_json::json!({"findings": ["a"]})
+        );
     }
 
     // ── parity vectors · ported VERBATIM from nika-verb-infer's
