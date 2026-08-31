@@ -1272,7 +1272,6 @@ pub mod nika_cli_host::harness
 pub fn nika_cli_host::harness::access_probes_with_harness() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_cli_host::harness::harness_provider_rows() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub mod nika_cli_host::help_card
-pub const nika_cli_host::help_card::AFTER_HELP: &str
 pub enum nika_cli_host::help_card::HelpKind
 pub nika_cli_host::help_card::HelpKind::All
 pub nika_cli_host::help_card::HelpKind::Short
@@ -1325,6 +1324,7 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::help_card::HelpKind
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::help_card::HelpKind
 impl<T> typenum::type_operators::Same for nika_cli_host::help_card::HelpKind
 pub type nika_cli_host::help_card::HelpKind::Output = T
+pub const nika_cli_host::help_card::AFTER_HELP: &str
 pub fn nika_cli_host::help_card::classify_help(argv: &[impl core::convert::AsRef<std::ffi::os_str::OsStr>]) -> core::option::Option<nika_cli_host::help_card::HelpKind>
 pub fn nika_cli_host::help_card::home_looks_like_scratch(home: &str) -> bool
 pub fn nika_cli_host::help_card::human_help() -> &'static str

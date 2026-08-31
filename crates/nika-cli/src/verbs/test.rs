@@ -62,8 +62,7 @@ fn capture_answered_outputs(
     answer: &[String],
     theme: Theme,
 ) -> Result<(u8, std::collections::BTreeMap<String, Value>), u8> {
-    let coerced = crate::verbs::run::coerce_answer_pairs(answer);
-    let answers = nika_dap::resume::parse_answers(&coerced, wf).map_err(|message| {
+    let answers = nika_dap::resume::parse_answers(answer, wf).map_err(|message| {
         eprintln!("nika test: environment: {message}");
         exit::ENV
     })?;
