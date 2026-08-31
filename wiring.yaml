@@ -337,6 +337,76 @@ capabilities:
     shipped_when: "never — catalog data only, no WireFormat seats it"
     reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
     proven_by: rust
+  - id: gauntlet.b04-host-read
+    kind: operator-teaching
+    declared_at: crates/nika-cap/src/file_plumbing.rs:151
+    shipped_when: "default"
+    reachable_by: "nika check a file that nika:read /etc/passwd under fs.read ./**"
+    proven_by: rust
+    issue: 1294
+  - id: gauntlet.b05-host-exec
+    kind: operator-teaching
+    declared_at: crates/nika-cap/src/file_plumbing.rs:151
+    shipped_when: "default"
+    reachable_by: "nika check a file that exec cat /etc/passwd with permits.exec [cat]"
+    proven_by: rust
+    issue: 1295
+  - id: gauntlet.b18-grok-not-groq
+    kind: operator-teaching
+    declared_at: crates/nika-providers/src/profile.rs:664
+    shipped_when: "default"
+    reachable_by: "nika check a file with model: grok/grok-3"
+    proven_by: rust
+    issue: 1306
+  - id: gauntlet.n01-cel-model-cap
+    kind: operator-teaching
+    declared_at: crates/nika-runtime/src/admit_resolved_tests.rs:233
+    shipped_when: "default"
+    reachable_by: "nika run --max-cost-usd with ${{ inputs['model'] }} an unpriced cloud id"
+    proven_by: rust
+    issue: 1319
+  - id: gauntlet.c01-try-answer
+    kind: cli-flag
+    declared_at: crates/nika-cli/src/try_args.rs:52
+    shipped_when: "default"
+    reachable_by: "nika try --help"
+    proven_by: rust
+    issue: 1298
+  - id: gauntlet.c13-fix-bare-exec
+    kind: operator-teaching
+    declared_at: crates/nika-cli-host/src/fix_ladder.rs:196
+    shipped_when: "default"
+    reachable_by: "nika check --fix a file whose exec: is a YAML string"
+    proven_by: rust
+    issue: 1310
+  - id: gauntlet.ux1-first-shelf
+    kind: operator-teaching
+    declared_at: crates/nika-pack/src/lib.rs:297
+    shipped_when: "default"
+    reachable_by: "nika try  (TTY)"
+    proven_by: rust
+    issue: 1316
+  - id: gauntlet.b24-image-floor
+    kind: operator-teaching
+    declared_at: crates/nika-runtime/src/admit.rs:884
+    shipped_when: "default"
+    reachable_by: "nika run --max-cost-usd 0.001 a nika:image_generate xAI task"
+    proven_by: rust
+    issue: 1296
+  - id: gauntlet.b20-unpriced-cloud
+    kind: operator-teaching
+    declared_at: crates/nika-runtime/src/admit.rs:916
+    shipped_when: "default"
+    reachable_by: "nika run --max-cost-usd 0.01 model: gemini/nika-b20-unpriced-canary"
+    proven_by: rust
+    issue: 1297
+  - id: gauntlet.c06-try-recover-hint
+    kind: operator-teaching
+    declared_at: crates/nika-cli/src/verbs/run/example.rs:271
+    shipped_when: "default"
+    reachable_by: "nika try standup-digest --model mock/echo"
+    proven_by: rust
+    issue: 1307
 
 # A field the parser accepts and the runtime never reads. G6 fires while
 # the runtime needle is absent. Tombstone with a reason and a date to
