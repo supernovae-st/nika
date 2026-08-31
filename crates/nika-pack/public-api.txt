@@ -114,6 +114,40 @@ impl<T> core::clone::CloneToUninit for nika_pack::OutcomeTransitions where T: co
 pub unsafe fn nika_pack::OutcomeTransitions::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_pack::OutcomeTransitions
 pub fn nika_pack::OutcomeTransitions::from(t: T) -> T
+pub struct nika_pack::RecoverHint
+pub nika_pack::RecoverHint::missing: &'static str
+pub nika_pack::RecoverHint::recovered_as: &'static str
+impl core::clone::Clone for nika_pack::RecoverHint
+pub fn nika_pack::RecoverHint::clone(&self) -> nika_pack::RecoverHint
+impl core::cmp::Eq for nika_pack::RecoverHint
+impl core::cmp::PartialEq for nika_pack::RecoverHint
+pub fn nika_pack::RecoverHint::eq(&self, other: &nika_pack::RecoverHint) -> bool
+impl core::fmt::Debug for nika_pack::RecoverHint
+pub fn nika_pack::RecoverHint::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_pack::RecoverHint
+impl core::marker::StructuralPartialEq for nika_pack::RecoverHint
+impl<T, U> core::convert::Into<U> for nika_pack::RecoverHint where U: core::convert::From<T>
+pub fn nika_pack::RecoverHint::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pack::RecoverHint where U: core::convert::Into<T>
+pub type nika_pack::RecoverHint::Error = core::convert::Infallible
+pub fn nika_pack::RecoverHint::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pack::RecoverHint where U: core::convert::TryFrom<T>
+pub type nika_pack::RecoverHint::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pack::RecoverHint::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pack::RecoverHint where T: core::clone::Clone
+pub type nika_pack::RecoverHint::Owned = T
+pub fn nika_pack::RecoverHint::clone_into(&self, target: &mut T)
+pub fn nika_pack::RecoverHint::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pack::RecoverHint where T: 'static + ?core::marker::Sized
+pub fn nika_pack::RecoverHint::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pack::RecoverHint where T: ?core::marker::Sized
+pub fn nika_pack::RecoverHint::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pack::RecoverHint where T: ?core::marker::Sized
+pub fn nika_pack::RecoverHint::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pack::RecoverHint where T: core::clone::Clone
+pub unsafe fn nika_pack::RecoverHint::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pack::RecoverHint
+pub fn nika_pack::RecoverHint::from(t: T) -> T
 pub fn nika_pack::canon() -> &'static str
 pub fn nika_pack::design_motion() -> core::option::Option<&'static str>
 pub fn nika_pack::design_tokens() -> &'static str
@@ -133,3 +167,4 @@ pub fn nika_pack::quickstart() -> &'static str
 pub fn nika_pack::schema_json() -> &'static str
 pub fn nika_pack::template(name: &str) -> core::option::Option<&'static str>
 pub fn nika_pack::template_names() -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_pack::try_recover_hint(slug: &str) -> core::option::Option<nika_pack::RecoverHint>

@@ -9,20 +9,20 @@
 #
 # Demonstrates ·
 #   - the envelope · `nika: <id>` · the mark AND the file's name (no version typed)
-#   - `model:` · mock/echo · the rehearsal seat · zero key, nothing leaves the machine
+#   - `model:` · one local model · no API key, nothing leaves the machine
 #   - `permits: {}` · the DECLARED zero · this workflow may touch nothing
 #   - one task · the `infer:` verb, bounded by `max_tokens:`
 #   - `outputs:` · the value a caller gets back
 #
-# Needs · nothing. The rehearsal seat runs anywhere, zero setup.
-#   Swap the envelope `model:` (or pass `--model`) for any catalog seat when you
-#   want a real answer.
+# Needs · ollama with the model pulled · `ollama pull qwen3.5:4b`.
+#   No ollama? The dry twin runs anywhere, zero setup ·
+#   `nika run examples/01-hello.nika.yaml --model mock/echo`
 #
 # Run · nika run examples/01-hello.nika.yaml
 
 nika: hello
 
-model: mock/echo   # rehearsal · zero key · swap for any catalog seat
+model: ollama/qwen3.5:4b   # local · zero key · swap for any provider in the catalog
 
 # The declared zero. `permits:` is default-deny once present, so an empty
 # block is a statement, not a formality: this workflow opens no file, reaches
@@ -39,13 +39,15 @@ tasks:
     infer:
       prompt: "Say hello in French, in one short sentence."
       # The ceiling. On a priced model this is what turns the cost report from
-      # UNBOUNDED into a hard worst-case number. mock/echo ignores the budget;
-      # keep it so the file stays honest when you swap the seat.
+      # UNBOUNDED into a hard worst-case number.
       #
-      # On a thinking model the cap covers think + answer. Too small and the
-      # run is GREEN with an EMPTY output — the budget ran out mid-thought.
-      # Size the cap for the thinking, or pick a non-thinking seat when you
-      # want a tight one.
+      # 2048 for two words looks absurd until you measure it. `max_tokens` caps
+      # think + answer, and qwen3.5 is a reasoning model that deliberates before
+      # it speaks — on this exact prompt: 64 → "", 256 → "", 512 → "", 1024 →
+      # "Bonjour.", 2048 → "Bonjour !". Under the threshold the run is GREEN and
+      # the output is EMPTY, because the budget ran out mid-thought. Size the
+      # cap for the thinking, or pick a non-thinking model (llama3.2:3b) when
+      # you want a tight one.
       max_tokens: 2048
 
 # The return value. It does NOT appear on the live run — that surface shows
@@ -54,6 +56,6 @@ tasks:
 # (`exec: nika run sub.nika.yaml --output json` + `capture: stdout`).
 #
 #   nika run examples/01-hello.nika.yaml --output json
-#   → {"greeting": <the model's one sentence>}
+#   → {"greeting":"Bonjour !"}
 outputs:
   greeting: ${{ tasks.greet.output }}

@@ -18,9 +18,8 @@
 #     an empty file)
 #
 # Needs · a git repo with commits since yesterday — the digest reads YOUR
-#   history. Run it from a repo you have been working in. Outside a git repo
-#   (or when the try sandbox refuses `git`) `on_error: recover` stands in an
-#   empty log: green, honest, a dull note — never an opaque seatbelt 128.
+#   history. Run it from a repo you have been working in; an empty range is
+#   green and produces an empty note, which is honest but dull.
 #
 # Run · nika run examples/standup-digest.nika.yaml
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
@@ -44,11 +43,6 @@ tasks:
   history:
     exec:
       command: ["git", "log", "--since=yesterday", "--oneline", "--no-merges"]
-    on_error:
-      # Not a git repo, or git is not on PATH / in the try sandbox → an empty
-      # log takes over. The digest still runs and says so in one line.
-      recover: |
-        (no commits — this rehearsal is not a git repo, or the range is empty)
 
   digest:
     with:
