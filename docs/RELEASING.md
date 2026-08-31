@@ -74,7 +74,8 @@ timestamped or otherwise non-reproducible rebuild therefore stops; missing
 assets are filled only when the occupied set still compares byte-for-byte.
 The workflow reads replay tooling from its own exact commit, not from the
 historical tag. Existing SLSA provenance is preserved rather than regenerated;
-a missing statement follows the same guarded replay boundary.
+a missing statement makes manual replay fail, because the workflow branch is
+not an honest provenance identity for the historical tag.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.

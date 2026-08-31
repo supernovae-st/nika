@@ -365,6 +365,11 @@ jobs:
     # SHA-pin law; scorecard's Pinned-Dependencies knows this exception.
     name: slsa provenance (intoto asset)
     needs: release
+    # On workflow_dispatch, github.ref/github.sha identify the workflow source
+    # (normally main), not the input tag whose bytes were built. The generic
+    # generator binds those context values into the statement, so only a tag
+    # push can create tag-true provenance. Manual replay must preserve it.
+    if: github.event_name == 'push'
     permissions:
       actions: read # read the workflow run for provenance
       id-token: write # sign the provenance (Sigstore OIDC)
@@ -380,6 +385,7 @@ jobs:
   provenance-publish:
     name: publish immutable slsa asset
     needs: [release, provenance]
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -405,6 +411,29 @@ jobs:
           test "$PROVENANCE_NAME" = "multiple.intoto.jsonl"
           bash .release-tooling/scripts/release/upload-assets-immutable.sh \
             "$TAG" "$REPO" "$PROVENANCE_NAME"
+
+  provenance-replay-check:
+    name: preserve tag-true slsa on replay
+    needs: release
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Refuse provenance regeneration from the workflow branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          matches="$(gh api "repos/${REPO}/releases/tags/${TAG}" \
+            --jq '[.assets[] | select(.name == "multiple.intoto.jsonl")] | length')"
+          if [ "$matches" != "1" ]; then
+            echo "::error::manual replay requires exactly one existing multiple.intoto.jsonl; refusing branch-context provenance regeneration"
+            exit 73
+          fi
+          echo "tag-true SLSA provenance is already present and remains untouched"
 
   bump-formula:
     name: bump homebrew tap

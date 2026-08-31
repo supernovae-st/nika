@@ -325,6 +325,8 @@ provenance_job="$(sed -n '/^  provenance:/,/^  provenance-publish:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$provenance_job" | grep -q 'upload-assets: false' \
   || fail 'the upstream SLSA uploader can delete and replace occupied provenance'
+printf '%s\n' "$provenance_job" | grep -q "if: github.event_name == 'push'" \
+  || fail 'manual replay can generate branch-context provenance for an old tag'
 provenance_publish_job="$(sed -n '/^  provenance-publish:/,/^  bump-formula:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$provenance_publish_job" \
@@ -333,6 +335,14 @@ printf '%s\n' "$provenance_publish_job" \
 printf '%s\n' "$provenance_publish_job" \
   | grep -q 'needs.provenance.outputs.provenance-name' \
   || fail 'the provenance publisher does not fetch the signed run artifact'
+provenance_replay_job="$(sed -n '/^  provenance-replay-check:/,/^  bump-formula:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$provenance_replay_job" \
+  | grep -q "if: github.event_name == 'workflow_dispatch'" \
+  || fail 'manual replay has no tag-true provenance guard'
+printf '%s\n' "$provenance_replay_job" \
+  | grep -q 'requires exactly one existing multiple.intoto.jsonl' \
+  || fail 'manual replay silently heals provenance from the wrong context'
 bash "$ROOT/scripts/release/tests/immutable-assets.test.sh" >/dev/null \
   || fail 'the immutable asset replay regression failed'
 grep -q 'TAP_DEPLOY_KEY' "$ROOT/docs/RELEASING.md" \

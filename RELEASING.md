@@ -129,7 +129,9 @@ without an explicit operator decision.
    helper comes from the exact workflow commit, so a historical tag does not
    need to contain future release tooling. Existing SLSA provenance is
    preserved byte-for-byte and a missing statement follows the same guarded
-   replay boundary.
+   replay boundary. SLSA provenance is created only by the original tag-push
+   context. Manual replay requires the tag-true statement to exist exactly
+   once and refuses branch-context regeneration.
 
    The portable Agent Plugins mirror is downstream of this immutable tag.
    After the release assets are green, its release-heal lane runs
