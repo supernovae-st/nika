@@ -104,10 +104,15 @@ pub fn file_plumbing_host_escape<'a>(
     None
 }
 
-/// Split an `exec.shell` line on whitespace and pipe/list metacharacters.
-fn shell_tokens(line: &str) -> Vec<&str> {
-    line.split(|c: char| c.is_whitespace() || matches!(c, '|' | ';' | '&' | '`'))
-        .filter(|t| !t.is_empty())
+/// One simple-command of an `exec.shell` line (`|` `;` `&` `` ` `` split).
+fn shell_segments(line: &str) -> impl Iterator<Item = &str> {
+    line.split(['|', ';', '&', '`'])
+}
+
+/// Whitespace tokens of one simple-command, quotes stripped.
+fn command_tokens(segment: &str) -> Vec<&str> {
+    segment
+        .split_whitespace()
         .map(|t| t.trim_matches(|c| c == '"' || c == '\''))
         .filter(|t| !t.is_empty())
         .collect()
@@ -124,16 +129,16 @@ pub fn file_plumbing_computed_operand(program: &str, args: &[&str]) -> bool {
 /// File-plumbing on an `exec.shell` line whose operand is computed.
 #[must_use]
 pub fn file_plumbing_computed_shell(line: &str) -> bool {
-    let tokens = shell_tokens(line);
-    for i in 0..tokens.len() {
-        if tokens[i].contains("${{") {
+    for segment in shell_segments(line) {
+        let tokens = command_tokens(segment);
+        if tokens.is_empty() || tokens[0].contains("${{") {
             continue;
         }
-        let base = tokens[i].rsplit(['/', '\\']).next().unwrap_or(tokens[i]);
+        let base = tokens[0].rsplit(['/', '\\']).next().unwrap_or(tokens[0]);
         if !FILE_PLUMBING_PROGRAMS.contains(&base) {
             continue;
         }
-        if tokens[i + 1..].iter().any(|t| t.contains("${{")) {
+        if tokens[1..].iter().any(|t| t.contains("${{")) {
             return true;
         }
     }
@@ -153,16 +158,16 @@ pub fn file_plumbing_host_escape_shell<'a>(
     cwd: Option<&str>,
     admits: impl Fn(&str) -> bool,
 ) -> Option<&'a str> {
-    let tokens = shell_tokens(line);
-    for i in 0..tokens.len() {
-        if tokens[i].contains("${{") {
+    for segment in shell_segments(line) {
+        let tokens = command_tokens(segment);
+        if tokens.is_empty() || tokens[0].contains("${{") {
             continue;
         }
-        let base = tokens[i].rsplit(['/', '\\']).next().unwrap_or(tokens[i]);
+        let base = tokens[0].rsplit(['/', '\\']).next().unwrap_or(tokens[0]);
         if !FILE_PLUMBING_PROGRAMS.contains(&base) {
             continue;
         }
-        for operand in tokens.iter().skip(i + 1) {
+        for operand in &tokens[1..] {
             if operand.contains("${{") {
                 continue;
             }
@@ -267,6 +272,15 @@ mod tests {
             &["${{ inputs.pth }}"]
         ));
         assert!(!file_plumbing_computed_shell("cat README.md"));
+        assert!(
+            !file_plumbing_computed_shell("cat README.md; echo ${{ inputs.x }}"),
+            "a template on a later simple-command is not cat's operand"
+        );
+        assert_eq!(
+            file_plumbing_host_escape_shell("cat README.md; echo /etc/passwd", None, |_| false),
+            None,
+            "echo is not file-plumbing; cat's operand stays in-tree"
+        );
         assert_eq!(
             file_plumbing_host_escape_shell("cat /etc/passwd; echo ${{ inputs.x }}", None, |_| {
                 false
