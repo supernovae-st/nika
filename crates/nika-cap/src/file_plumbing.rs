@@ -104,6 +104,55 @@ pub fn file_plumbing_host_escape<'a>(
     None
 }
 
+/// Scan a literal `exec.shell` line for file-plumbing + a host path.
+///
+/// `exec: true` grants any program, not a host-file read. A shell string
+/// `cat /etc/passwd` was the remaining confused-deputy after B05 closed
+/// the argv form (persona 07 · 2026-08-31). A templated *operand* stays
+/// the runtime's; a literal host path next to `${{ }}` elsewhere on the
+/// line is still this door (`cat /etc/passwd; echo ${{ x }}`).
+#[must_use]
+pub fn file_plumbing_host_escape_shell<'a>(
+    line: &'a str,
+    cwd: Option<&str>,
+    admits: impl Fn(&str) -> bool,
+) -> Option<&'a str> {
+    let tokens: Vec<&str> = line
+        .split(|c: char| c.is_whitespace() || matches!(c, '|' | ';' | '&' | '`'))
+        .filter(|t| !t.is_empty())
+        .map(|t| t.trim_matches(|c| c == '"' || c == '\''))
+        .filter(|t| !t.is_empty())
+        .collect();
+    for i in 0..tokens.len() {
+        if tokens[i].contains("${{") {
+            continue;
+        }
+        let base = tokens[i].rsplit(['/', '\\']).next().unwrap_or(tokens[i]);
+        if !FILE_PLUMBING_PROGRAMS.contains(&base) {
+            continue;
+        }
+        for operand in tokens.iter().skip(i + 1) {
+            if operand.contains("${{") {
+                continue;
+            }
+            if operand.starts_with('-') && *operand != "-" {
+                continue;
+            }
+            let Some(resolved) = resolve_file_operand(operand, cwd) else {
+                continue;
+            };
+            if !path_leaves_workspace(&resolved) {
+                continue;
+            }
+            if admits(&resolved) {
+                continue;
+            }
+            return Some(*operand);
+        }
+    }
+    None
+}
+
 /// Resolve a file-plumbing operand against a literal cwd. `None` = the
 /// identity is not statically knowable (a templated cwd).
 fn resolve_file_operand(path: &str, cwd: Option<&str>) -> Option<String> {
@@ -154,6 +203,35 @@ mod tests {
         assert_eq!(
             file_plumbing_host_escape("/usr/bin/cat", &args, None, |_| false),
             Some("/etc/passwd")
+        );
+    }
+
+    #[test]
+    fn shell_cat_passwd_is_an_escape() {
+        assert_eq!(
+            file_plumbing_host_escape_shell("cat /etc/passwd", None, |_| false),
+            Some("/etc/passwd")
+        );
+        assert_eq!(
+            file_plumbing_host_escape_shell("cat /etc/passwd", None, |p| p == "/etc/passwd"),
+            None,
+            "an explicit host grant is the operator's act"
+        );
+        assert_eq!(
+            file_plumbing_host_escape_shell("cat README.md", None, |_| false),
+            None
+        );
+        assert_eq!(
+            file_plumbing_host_escape_shell("cat ${{ inputs.pth }}", None, |_| false),
+            None,
+            "templated operand stays the run's"
+        );
+        assert_eq!(
+            file_plumbing_host_escape_shell("cat /etc/passwd; echo ${{ inputs.x }}", None, |_| {
+                false
+            }),
+            Some("/etc/passwd"),
+            "a literal host path is this door even when the line also templates"
         );
     }
 

@@ -63,8 +63,8 @@ pub use expr::{
     withheld_jq_policy_reason, withheld_jq_reason,
 };
 pub use file_plumbing::{
-    FILE_PLUMBING_PROGRAMS, file_plumbing_host_escape, file_plumbing_path_operands,
-    path_leaves_workspace,
+    FILE_PLUMBING_PROGRAMS, file_plumbing_host_escape, file_plumbing_host_escape_shell,
+    file_plumbing_path_operands, path_leaves_workspace,
 };
 pub use fit::{expand_home_grant, glob_admits, lexically_normalize};
 // P3 B5 · the harness permission-bridge judge (the pure half — the

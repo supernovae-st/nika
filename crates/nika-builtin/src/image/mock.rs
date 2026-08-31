@@ -37,6 +37,7 @@ pub(crate) fn generate(
         })
     });
     let render_seed = edit_seed.or(args.seed);
+    warnings.push("rehearsal · not a real image".to_owned());
     if args.format != ImageFormat::Png {
         warnings.push(format!(
             "mock_format: the mock provider always renders png — requested `{}` \
@@ -140,6 +141,9 @@ fn render_png(width: u32, height: u32, prompt: &str, seed: Option<i64>, index: u
     let w_max = width.saturating_sub(1).max(1);
     let h_max = height.saturating_sub(1).max(1);
 
+    // A visible red band on the last rows so a mock OG card cannot
+    // be pasted as a real image (persona 16 · C08 leftover).
+    let banner = height.saturating_mul(8).div_ceil(100).clamp(8, 24);
     // Raw scanline stream: per row, a filter byte (0 = None) + RGB triples.
     let mut raw = Vec::with_capacity((height as usize) * (1 + 3 * width as usize));
     for y in 0..height {
@@ -151,6 +155,12 @@ fn render_png(width: u32, height: u32, prompt: &str, seed: Option<i64>, index: u
                 (y * 255 / h_max) as u8,
                 (((x + y) * 255) / (w_max + h_max)) as u8,
             );
+            if y + banner >= height {
+                raw.push(220);
+                raw.push(32);
+                raw.push(32);
+                continue;
+            }
             raw.push(gx ^ hx);
             raw.push(gy ^ hy);
             raw.push(gd ^ hz);
@@ -312,6 +322,26 @@ mod tests {
         assert!(
             matches!(over, Err(ref f) if f.code == C_ARGS && f.message.contains("2048")),
             "{over:?}"
+        );
+    }
+
+    #[test]
+    fn mock_batch_names_rehearsal() {
+        let batch = generate(&parsed(serde_json::json!({})), &[]).expect("mock");
+        assert!(
+            batch
+                .warnings
+                .iter()
+                .any(|w| w.contains("rehearsal · not a real image")),
+            "{:?}",
+            batch.warnings
+        );
+        // Stored zlib keeps the scanline RGB; a pasteable mock cannot
+        // hide the red band (persona 16 · C08).
+        let rgb = [220u8, 32, 32];
+        assert!(
+            batch.images[0].bytes.windows(3).any(|w| w == rgb),
+            "mock PNG must carry a visible red banner"
         );
     }
 

@@ -544,8 +544,9 @@ fn check_exec(
 ///   knowable, so no claim holds. An earlier draft of this arm ignored
 ///   `cwd:` and reddened all seven tasks of a real workflow whose every
 ///   `exec:` runs a script relative to a computed working directory.
-/// - **LEFT** · the shell form, per this lane's standing scope law: the
-///   runtime judges an interpolated string, so no positional claim holds.
+/// - **DECIDED** · a literal shell line whose tokens are file-plumbing +
+///   a host path (`cat /etc/passwd` under `exec: true`). Templated
+///   shell stays the run's.
 /// - **LEFT** · a `${{ }}` program or operand — the run re-judges the
 ///   resolved argv.
 fn check_exec_fs(
@@ -554,8 +555,17 @@ fn check_exec_fs(
     permits: &Permits,
     out: &mut Vec<CapabilityEscape>,
 ) {
+    let cwd = action.cwd.as_ref().map(|c| c.value.as_str());
+    if let RawCommand::Shell(line) = &action.command {
+        if let Some(path) = nika_cap::file_plumbing_host_escape_shell(&line.value, cwd, |p| {
+            permits.jail_admits_read(p)
+        }) {
+            out.push(fs_escape(id, "shell", path, "fs.read", permits, false));
+        }
+        return;
+    }
     let RawCommand::Argv(parts) = &action.command else {
-        return; // the shell form makes no positional claim
+        return;
     };
     let mut elements = parts.iter().map(|p| p.value.as_str());
     let Some(program) = elements.next() else {
@@ -565,7 +575,6 @@ fn check_exec_fs(
     if program.contains("${{") || args.iter().any(|a| a.contains("${{")) {
         return; // the resolved argv is the RUN's verdict
     }
-    let cwd = action.cwd.as_ref().map(|c| c.value.as_str());
     if let Some(script) = nika_types::exec::interpreter_script_operand(program, &args) {
         let Some(resolved) = resolve_against_cwd(script, cwd) else {
             return; // a computed cwd makes the script's identity unknowable

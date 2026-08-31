@@ -456,7 +456,12 @@ fn validate_decoded<Em: Emitter>(
                 "size_bytes": image.bytes.len(),
             }),
         );
-        decoded.push((image, sniffed, Vec::new()));
+        let per_image = if args.provider == types::Provider::Mock {
+            vec!["rehearsal · not a real image".to_owned()]
+        } else {
+            Vec::new()
+        };
+        decoded.push((image, sniffed, per_image));
     }
     Ok(decoded)
 }

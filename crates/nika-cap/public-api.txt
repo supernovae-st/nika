@@ -927,6 +927,7 @@ pub fn nika_cap::code_bearing_path_class(path: &str) -> core::option::Option<(&'
 pub fn nika_cap::compose_child_env(lookup: impl core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>, passthrough: &[alloc::string::String], authored: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_cap::expand_home_grant(glob: &str, home: &str) -> alloc::string::String
 pub fn nika_cap::file_plumbing_host_escape<'a>(program: &str, args: &'a [&str], cwd: core::option::Option<&str>, admits: impl core::ops::function::Fn(&str) -> bool) -> core::option::Option<&'a str>
+pub fn nika_cap::file_plumbing_host_escape_shell<'a>(line: &'a str, cwd: core::option::Option<&str>, admits: impl core::ops::function::Fn(&str) -> bool) -> core::option::Option<&'a str>
 pub fn nika_cap::file_plumbing_path_operands<'a>(program: &str, args: &'a [&str]) -> alloc::vec::Vec<&'a str>
 pub fn nika_cap::glob_admits(glob: &str, path: &str) -> bool
 pub fn nika_cap::glob_matches(glob: &str, value: &str) -> bool

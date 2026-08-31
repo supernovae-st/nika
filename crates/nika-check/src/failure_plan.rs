@@ -184,6 +184,18 @@ mod tests {
     }
 
     #[test]
+    fn exec_true_shell_cat_host_is_on_the_plan() {
+        let p = plan(
+            "nika: dump\npermits:\n  exec: true\ntasks:\n  p:\n    exec: { shell: \"cat /etc/passwd\" }\n",
+        );
+        assert!(
+            p.iter()
+                .any(|e| e.shape == "exec_cat_host" && e.code == "NIKA-SEC-004"),
+            "{p:?}"
+        );
+    }
+
+    #[test]
     fn priced_image_is_on_the_plan() {
         let p = plan(
             "nika: b24\npermits: { tools: [\"nika:image_generate\"], fs: { write: [\"./out/**\"] } }\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { provider: xai, prompt: \"a monarch butterfly\", output_dir: \"./out\" } }\n",
