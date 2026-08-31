@@ -129,7 +129,9 @@ pub use compose::{
 };
 pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
-pub use identity::{EngineIdentity, engine_identity};
+pub use identity::{
+    EngineIdentity, MACHINE_PROTOCOL_VERSION, MACHINE_SNAPSHOT_FORMAT_VERSION, engine_identity,
+};
 pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
 // Descended to `nika-dataflow` at the 15k wall — paths preserved. The three

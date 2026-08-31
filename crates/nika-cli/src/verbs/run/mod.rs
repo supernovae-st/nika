@@ -33,16 +33,6 @@ pub use nika_dap::recover::{RecoveredTrace, recover_events};
 pub use sink::{FoldSink, RenderMode};
 pub(crate) use thread::run_in_thread;
 
-/// The voyage carries sensitive or regulated data — the trace line
-/// then carries its plaintext disclosure (PROV-08: the journal keeps
-/// full task outputs, and only doctor said so).
-fn sensitive_journey(report: &nika_check::CheckReport) -> bool {
-    !matches!(
-        report.data_journey.classification,
-        nika_check::DataClassification::Internal
-    )
-}
-
 mod example;
 pub use example::example;
 use sink::{ExecutionSink, TraceNote, TraceSurface, surface_trace};
@@ -62,6 +52,7 @@ mod teardown;
 // ADR-111 · the outbound pause delivery lives in the host member
 // (ADR-110 precedent — compute descends, render stays).
 use nika_cli_host::notify;
+use nika_cli_host::run_settlement::{first_failure, plan_waves, sensitive_journey};
 pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
 use resume_setup::{ResumeSetup, resume_setup};
 use teardown::attended_facts;
@@ -157,25 +148,20 @@ impl RunVerdict {
     }
 }
 
-fn surfaced_trace(surface: TraceSurface) -> Result<Option<std::path::PathBuf>, Box<RunVerdict>> {
-    if let Some(error) = surface.note_error {
+fn surfaced_trace(surface: TraceSurface) -> Result<TraceSurface, Box<RunVerdict>> {
+    if let Some(error) = &surface.note_error {
         let kind = error.kind();
         let _ = writeln!(
             std::io::stderr().lock(),
             "nika run: trace note failed: {error}"
         );
-        Err(Box::new(RunVerdict::renderer_failed(surface.path, kind)))
+        Err(Box::new(RunVerdict::renderer_failed(
+            surface.path.clone(),
+            kind,
+        )))
     } else {
-        Ok(surface.path)
+        Ok(surface)
     }
-}
-
-fn first_failure(outcome: &RunOutcome) -> Option<nika_runtime::TaskErrorRecord> {
-    outcome
-        .records
-        .values()
-        .find(|r| r.status == nika_runtime::TaskStatus::Failure)
-        .and_then(|r| r.error.clone())
 }
 
 /// Execute one checked workflow through the production runtime and stream its
@@ -393,7 +379,7 @@ fn execute_and_ask(
         mode,
         resumed,
         trace_sink(no_trace_file, world.execution_id, world.trace_id),
-        world.execution_id,
+        (world.execution_id, &world.snapshot_digest),
         !no_outputs,
         model_override,
         &carry,
@@ -490,7 +476,7 @@ fn answered_leg(
         mode,
         true,
         trace_sink(no_trace_file, world.execution_id, world.trace_id),
-        world.execution_id,
+        (world.execution_id, &world.snapshot_digest),
         outputs,
         model_override,
         &carry,
@@ -839,21 +825,6 @@ fn apply_task_scope(
     }
 }
 
-/// The static wave plan as task ids (the check report's schedule) —
-/// injected into the display fold so the ∥ lane markers and the DAG-shape
-/// glyph speak the scheduler's truth, not a reconstruction.
-fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
-    report
-        .waves
-        .iter()
-        .map(|wave| {
-            wave.iter()
-                .filter_map(|&i| wf.tasks.get(i).map(|t| t.value.id.value.clone()))
-                .collect()
-        })
-        .collect()
-}
-
 /// Drive the runtime through the chosen sink · return the exit code.
 ///
 /// Every lane tees the run journal (`trace` · a [`TraceFileSink`] ·
@@ -875,7 +846,7 @@ async fn execute(
     mode: RenderMode,
     resumed: bool,
     trace: TraceFileSink,
-    execution: nika_types::id::ExecutionId,
+    identity: (nika_types::id::ExecutionId, &str),
     outputs: bool,
     model_override: Option<&str>,
     carry: &str,
@@ -893,7 +864,7 @@ async fn execute(
             theme,
             resumed,
             trace,
-            execution,
+            identity.0,
             carry,
         )
         .await
@@ -905,7 +876,7 @@ async fn execute(
             stamper.as_mut(),
             resumed,
             trace,
-            execution,
+            identity,
             carry,
         )
         .await
@@ -919,7 +890,7 @@ async fn execute(
             theme,
             (mode, resumed, outputs),
             trace,
-            execution,
+            identity.0,
             model_override,
             carry,
         )
@@ -983,7 +954,7 @@ async fn execute_output_json_lane(
         Some(&teardown),
         sensitive_journey(report),
     )) {
-        Ok(path) => path,
+        Ok(surface) => surface.path,
         Err(verdict) => return *verdict,
     };
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
@@ -1032,11 +1003,11 @@ async fn execute_json_lane(
     stamper: &mut dyn Stamper,
     resumed: bool,
     trace: TraceFileSink,
-    execution: nika_types::id::ExecutionId,
+    identity: (nika_types::id::ExecutionId, &str),
     carry: &str,
 ) -> RunVerdict {
     let tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
-    let mut events = ExecutionSink::new(tee, execution);
+    let mut events = ExecutionSink::new(tee, identity.0);
     let (code, outcome) = drive(runtime, stamper, &mut events).await;
     let (sink, mut trace) = events.into_inner().into_parts();
     if let (Some(p), Some(pause)) = (
@@ -1047,8 +1018,11 @@ async fn execute_json_lane(
         let label = notify::workflow_label(wf);
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
-    let teardown = attended_facts(wf, report, &outcome, trace.path());
-    let trace_path = match surfaced_trace(surface_trace(
+    let mut teardown = attended_facts(wf, report, &outcome, trace.path());
+    teardown.sdk_receipt = Some(nika_cli_host::run_settlement::local_receipt_binding(
+        identity.0, identity.1,
+    ));
+    let surface = match surfaced_trace(surface_trace(
         trace,
         TraceNote::Stderr,
         None,
@@ -1056,9 +1030,10 @@ async fn execute_json_lane(
         Some(&teardown),
         sensitive_journey(report),
     )) {
-        Ok(path) => path,
+        Ok(surface) => surface,
         Err(verdict) => return *verdict,
     };
+    let trace_path = surface.path.clone();
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
         eprintln!(
             "nika run: {}",
@@ -1067,6 +1042,18 @@ async fn execute_json_lane(
     }
     if let Some(e) = sink.into_error() {
         eprintln!("nika run: stream write failed: {e}");
+        return RunVerdict::renderer_failed(trace_path, e.kind());
+    }
+    let trace_proof = surface.path.as_deref().zip(surface.proof.as_ref());
+    if let Err(e) = nika_cli_host::run_settlement::write_local_run_settlement(
+        &mut std::io::stdout().lock(),
+        (outcome.ok, outcome.paused.is_some()),
+        &outcome.outputs,
+        identity.0,
+        identity.1,
+        trace_proof,
+    ) {
+        eprintln!("nika run: settlement write failed: {e}");
         return RunVerdict::renderer_failed(trace_path, e.kind());
     }
     epilogue::print_resume_summary(&outcome, resumed, true);
@@ -1203,7 +1190,7 @@ fn fold_lane_verdict(
         Some(&teardown),
         sensitive_journey(report),
     )) {
-        Ok(path) => path,
+        Ok(surface) => surface.path,
         Err(verdict) => return *verdict,
     };
     // A paused HUMAN run teaches its exact resume command too (the same

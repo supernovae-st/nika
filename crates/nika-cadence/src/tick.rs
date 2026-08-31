@@ -17,6 +17,20 @@ use jiff::Zoned;
 use crate::due::{DueKind, due};
 use crate::registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};
 
+/// Durable provenance of a cadence fire decision.
+///
+/// The wire spelling is deliberately closed: an on-time slot is
+/// `scheduled`, while one fire answering for missed slots is `catch_up`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum ScheduleDecision {
+    /// The selected slot was on time.
+    Scheduled,
+    /// The fire answers for one or more missed slots.
+    CatchUp,
+}
+
 /// The named-beat verdict. Distinct from [`crate::firing::Decision`]
 /// (the lifecycle machine: `Become` / `JournalClaim` / `Fire` / `Ignore`).
 #[derive(Debug, Clone, PartialEq)]

@@ -647,8 +647,14 @@ pub mod nika_runtime::identity
 impl nika_runtime::identity::EngineIdentity
 pub const fn nika_runtime::identity::EngineIdentity::api_version(&self) -> &'static str
 pub const fn nika_runtime::identity::EngineIdentity::build_sha(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::check_report_version(&self) -> u32
 pub const fn nika_runtime::identity::EngineIdentity::engine_version(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::event_format_version(&self) -> u32
+pub const fn nika_runtime::identity::EngineIdentity::machine_protocol_version(&self) -> u32
+pub const fn nika_runtime::identity::EngineIdentity::snapshot_format_version(&self) -> u32
 pub const fn nika_runtime::identity::EngineIdentity::spec_sha(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::supported_capabilities(&self) -> &'static [&'static str]
+pub const fn nika_runtime::identity::EngineIdentity::trace_format_version(&self) -> u32
 pub const fn nika_runtime::identity::EngineIdentity::version_long(&self) -> &'static str
 impl core::clone::Clone for nika_runtime::identity::EngineIdentity
 pub fn nika_runtime::identity::EngineIdentity::clone(&self) -> nika_runtime::identity::EngineIdentity
@@ -662,7 +668,7 @@ pub fn nika_runtime::identity::EngineIdentity::hash<__H: core::hash::Hasher>(&se
 impl core::marker::Copy for nika_runtime::identity::EngineIdentity
 impl core::marker::StructuralPartialEq for nika_runtime::identity::EngineIdentity
 impl serde_core::ser::Serialize for nika_runtime::identity::EngineIdentity
-pub fn nika_runtime::identity::EngineIdentity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+pub fn nika_runtime::identity::EngineIdentity::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
 impl<D> owo_colors::OwoColorize for nika_runtime::identity::EngineIdentity
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::identity::EngineIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::identity::EngineIdentity::equivalent(&self, key: &K) -> bool
@@ -703,6 +709,8 @@ impl<T> tracing::instrument::Instrument for nika_runtime::identity::EngineIdenti
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::identity::EngineIdentity
 impl<T> typenum::type_operators::Same for nika_runtime::identity::EngineIdentity
 pub type nika_runtime::identity::EngineIdentity::Output = T
+pub const nika_runtime::identity::MACHINE_PROTOCOL_VERSION: u32
+pub const nika_runtime::identity::MACHINE_SNAPSHOT_FORMAT_VERSION: u32
 pub const fn nika_runtime::identity::engine_identity() -> &'static nika_runtime::identity::EngineIdentity
 pub mod nika_runtime::proof
 pub use nika_runtime::proof::FORMAT_VERSION
@@ -1362,8 +1370,14 @@ pub type nika_runtime::TerminalCause::Output = T
 impl nika_runtime::identity::EngineIdentity
 pub const fn nika_runtime::identity::EngineIdentity::api_version(&self) -> &'static str
 pub const fn nika_runtime::identity::EngineIdentity::build_sha(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::check_report_version(&self) -> u32
 pub const fn nika_runtime::identity::EngineIdentity::engine_version(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::event_format_version(&self) -> u32
+pub const fn nika_runtime::identity::EngineIdentity::machine_protocol_version(&self) -> u32
+pub const fn nika_runtime::identity::EngineIdentity::snapshot_format_version(&self) -> u32
 pub const fn nika_runtime::identity::EngineIdentity::spec_sha(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::supported_capabilities(&self) -> &'static [&'static str]
+pub const fn nika_runtime::identity::EngineIdentity::trace_format_version(&self) -> u32
 pub const fn nika_runtime::identity::EngineIdentity::version_long(&self) -> &'static str
 impl core::clone::Clone for nika_runtime::identity::EngineIdentity
 pub fn nika_runtime::identity::EngineIdentity::clone(&self) -> nika_runtime::identity::EngineIdentity
@@ -1377,7 +1391,7 @@ pub fn nika_runtime::identity::EngineIdentity::hash<__H: core::hash::Hasher>(&se
 impl core::marker::Copy for nika_runtime::identity::EngineIdentity
 impl core::marker::StructuralPartialEq for nika_runtime::identity::EngineIdentity
 impl serde_core::ser::Serialize for nika_runtime::identity::EngineIdentity
-pub fn nika_runtime::identity::EngineIdentity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+pub fn nika_runtime::identity::EngineIdentity::serialize<S>(&self, serializer: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error> where S: serde_core::ser::Serializer
 impl<D> owo_colors::OwoColorize for nika_runtime::identity::EngineIdentity
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::identity::EngineIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::identity::EngineIdentity::equivalent(&self, key: &K) -> bool
@@ -1790,6 +1804,8 @@ impl<T> tracing::instrument::Instrument for nika_runtime::WorkflowPause
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::WorkflowPause
 impl<T> typenum::type_operators::Same for nika_runtime::WorkflowPause
 pub type nika_runtime::WorkflowPause::Output = T
+pub const nika_runtime::MACHINE_PROTOCOL_VERSION: u32
+pub const nika_runtime::MACHINE_SNAPSHOT_FORMAT_VERSION: u32
 pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, probes: &[nika_providers::probe::ProviderProbe], access_pin: core::option::Option<&str>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities

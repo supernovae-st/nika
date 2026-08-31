@@ -25,6 +25,20 @@ pub enum ExecutionError {
     SnapshotDigestMismatch,
     /// The captured unit map no longer describes the closure rooted at `root`.
     SnapshotStructureMismatch,
+    /// The encoded snapshot exceeded its deterministic transport ceiling.
+    #[non_exhaustive]
+    EncodedSnapshotSizeLimit {
+        /// Maximum accepted UTF-8 JSON bytes for the configured snapshot limits.
+        limit: usize,
+    },
+    /// One snapshot metadata field exceeded its fixed byte ceiling.
+    #[non_exhaustive]
+    SnapshotMetadataLimit {
+        /// Stable name of the bounded wire field.
+        field: &'static str,
+        /// Maximum accepted UTF-8 bytes for that field.
+        limit: usize,
+    },
     /// A logical path was absolute, escaped its root, was empty, or was not UTF-8.
     #[non_exhaustive]
     InvalidLogicalPath {
@@ -151,6 +165,13 @@ impl fmt::Display for ExecutionError {
                 f,
                 "captured world does not match its rooted dependency closure"
             ),
+            Self::EncodedSnapshotSizeLimit { limit } => write!(
+                f,
+                "encoded execution snapshot exceeds {limit} transport bytes"
+            ),
+            Self::SnapshotMetadataLimit { field, limit } => {
+                write!(f, "execution snapshot {field} exceeds {limit} bytes")
+            }
             Self::InvalidLogicalPath { path } => write!(f, "invalid logical path `{path}`"),
             Self::Io {
                 logical_path,

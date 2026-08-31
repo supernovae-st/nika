@@ -1,17 +1,17 @@
 name: clients-resync
 
-# The vendored client matrix AND the vendored plugin tree follow the
-# agents SSOT without blocking unrelated pushes. Two snapshots ride this
-# lane: crates/nika-cli-host/data/clients.registry.yaml is a byte-copy of
-# nika-plugins/clients.yaml, and .agents/ mirrors the sibling's own tree
-# (32 files, added to this lane 2026-08-15 — it had been kept in step BY
-# HAND, which is a coincidence to re-earn on every edit, not a lane).
+# The vendored client matrix follows the agents registry without blocking
+# unrelated pushes. crates/nika-cli-host/data/clients.registry.yaml is a
+# byte-copy of nika-plugins/clients.yaml. The engine's `.agents/` release kit
+# is NOT part of this reverse lane: nika-plugins mirrors it from immutable
+# engine release tags through its own resync-mirror.py/release-heal contract.
 # Drift used to be judged by a unit test
 # reading the LIVE sibling checkout on the developer's machine — the
 # wrong-judge class (one test binary, two verdicts, whichever repos
 # happen to sit beside the checkout; it blocked two unrelated engine
 # pushes 2026-07-31). The assertion is gone from cargo test; the drift
-# surfaces here instead. Daily: clone nika-plugins@main, re-vendor, open
+# surfaces here instead. Daily: clone nika-plugins@main, re-vendor the client
+# matrix, open
 # ONE idempotent PR on drift — never a direct push. The job RUNS
 # `nika-cli-host`'s own tests before it opens anything (see the guard
 # below): a bot PR carries no Rust job, so delegating that judgement to
@@ -49,7 +49,7 @@ jobs:
       - uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2
         with:
           tool: cargo-nextest
-      - name: The vendored matrix AND plugin tree follow the agents SSOT
+      - name: The vendored client matrix follows the agents registry
         id: heal
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,15 +57,7 @@ jobs:
           set -euo pipefail
           git clone --depth 1 https://github.com/supernovae-st/nika-plugins ../agents
           cp ../agents/clients.yaml crates/nika-cli-host/data/clients.registry.yaml
-          # The plugin tree is vendored from the SAME sibling and had NO
-          # lane. Measured 2026-08-15: 32 files here, 32 there, zero diff —
-          # but a match held by hand is a coincidence to be re-earned on
-          # every edit, not a guarantee. `--delete` is the point: the
-          # sibling is the SSOT, so a file that exists only here is drift,
-          # never content. Static paths only — no event data reaches this
-          # shell (the header's rule).
-          rsync -a --delete ../agents/.agents/ .agents/
-          git add crates/nika-cli-host/data/clients.registry.yaml .agents
+          git add crates/nika-cli-host/data/clients.registry.yaml
           if git diff --cached --quiet; then
             echo "matrix current — nothing to resync"
             echo "mutated=false" >> "$GITHUB_OUTPUT"
@@ -101,7 +93,7 @@ jobs:
           git push -f origin bot/clients-resync
           gh pr create --head bot/clients-resync \
             --title "chore(matrix): the vendored snapshot follows the agents SSOT" \
-            --body "Automated re-vendoring (clients-resync lane · the dedicated-heal precedent). The drift used to block unrelated pushes via a unit test reading the live sibling checkout — it now surfaces HERE, within 24h, judged by Diamond CI. Two snapshots ride this lane: the client matrix and the .agents/ plugin tree. Manual heal when it cannot wait: cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml && rsync -a --delete <agents>/repo/.agents/ .agents/ && python3 scripts/estate.py --write. Merge on green." \
+            --body "Automated re-vendoring (clients-resync lane · the dedicated-heal precedent). The drift used to block unrelated pushes via a unit test reading the live sibling checkout — it now surfaces HERE, within 24h, judged by Diamond CI. This lane owns only the client registry. The engine release kit under .agents/ is mirrored in the opposite direction by nika-plugins from immutable engine tags. Manual heal when it cannot wait: cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml && python3 scripts/estate.py --write. Merge on green." \
             2>/dev/null || echo "PR already open — refreshed"
           echo "mutated=true" >> "$GITHUB_OUTPUT"
           echo "MUTATED: yes · force-pushed bot/clients-resync and opened/refreshed the PR" >> "$GITHUB_STEP_SUMMARY"

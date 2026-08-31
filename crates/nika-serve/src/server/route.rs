@@ -11,25 +11,80 @@ use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
 use hyper::{Method, Request, Response, StatusCode};
 use sha2::{Digest as _, Sha256};
 
-use crate::{Admission, IdempotencyKey, JobId, RequestDigest};
+use crate::{
+    Admission, IdempotencyKey, JobId, MAX_EXECUTION_SNAPSHOT_METADATA_BYTES,
+    MAX_EXECUTION_SNAPSHOT_PATH_BYTES, RequestDigest,
+};
 
+use super::AppState;
 use super::error::{ApiError, ResponseBody, capture_refused, once_body};
 use super::model::{
-    CreateJobRequest, HealthResponse, JobResponse, JobStatusResponse, WorkflowListResponse,
-    WorkflowMetadataResponse,
+    HealthResponse, JobResponse, JobStatusResponse, SnapshotValidationAck,
+    TraceVerificationResponse, WorkflowListResponse, WorkflowMetadataResponse,
 };
 use super::registry::{list_workflows, valid_workflow_name, workflow_exists};
 use super::sse;
-use super::{AppState, ExecutionTask};
 
 const IDEMPOTENCY_KEY: &str = "idempotency-key";
+pub(super) const SNAPSHOT_WIRE_UNIT_CEILING: usize = 256;
+const UNIT_COUNT_PROBE_MARKER: &str = "nika snapshot wire unit count exceeded";
+
+#[derive(serde::Deserialize)]
+struct SnapshotWireProbe<'a> {
+    root: &'a str,
+    digest: &'a str,
+    #[serde(borrow)]
+    units: BoundedWireUnits<'a>,
+}
+
+struct BoundedWireUnits<'a>(Vec<SnapshotWireUnit<'a>>);
+
+#[derive(serde::Deserialize)]
+struct SnapshotWireUnit<'a> {
+    path: &'a str,
+    digest: &'a str,
+    bytes_hex: &'a str,
+}
+
+impl<'de: 'a, 'a> serde::Deserialize<'de> for BoundedWireUnits<'a> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct UnitsVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for UnitsVisitor {
+            type Value = BoundedWireUnits<'de>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a bounded execution snapshot unit array")
+            }
+
+            fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut units = Vec::new();
+                while let Some(unit) = sequence.next_element()? {
+                    if units.len() == SNAPSHOT_WIRE_UNIT_CEILING {
+                        return Err(serde::de::Error::custom(UNIT_COUNT_PROBE_MARKER));
+                    }
+                    units.push(unit);
+                }
+                Ok(BoundedWireUnits(units))
+            }
+        }
+
+        deserializer.deserialize_seq(UnitsVisitor)
+    }
+}
 
 pub(crate) async fn handle(
     request: Request<Incoming>,
     state: Arc<AppState>,
 ) -> Result<Response<ResponseBody>, Infallible> {
     let response = if request.uri().path() == "/health" && request.method() == Method::GET {
-        json_response(StatusCode::OK, &HealthResponse::current())
+        json_response(StatusCode::OK, &HealthResponse::current(true))
     } else if request.uri().path().starts_with("/v1/") {
         protected(request, state).await
     } else {
@@ -75,7 +130,16 @@ async fn route_authenticated(
 ) -> Response<ResponseBody> {
     let path = request.uri().path().to_owned();
     match (request.method(), path.as_str()) {
+        (&Method::PUT, path) if path.starts_with("/v1/schedules/") => {
+            let Some(id) = schedule_route(path) else {
+                return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
+                    .into_response();
+            };
+            super::schedule_http::put(request, id.to_owned(), state).await
+        }
         (&Method::POST, "/v1/jobs") => create_job(request, state).await,
+        (&Method::POST, "/v1/check") => check_snapshot(request, state).await,
+        (&Method::POST, path) if path.ends_with("/cancel") => cancel_job(path, &state).await,
         (&Method::GET, "/v1/openapi.json") => {
             json_response(StatusCode::OK, &super::openapi::document())
         }
@@ -83,13 +147,26 @@ async fn route_authenticated(
         (&Method::GET, path) if path.starts_with("/v1/workflows/") => {
             workflow_metadata(path, &state).await
         }
+        (&Method::GET, path) if path.starts_with("/v1/schedules/") => {
+            let Some(id) = schedule_route(path) else {
+                return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
+                    .into_response();
+            };
+            super::schedule_http::get(id.to_owned(), &state).await
+        }
+        (&Method::GET, path) if path.ends_with("/trace/verify") => verify_trace(path, &state).await,
         (&Method::GET, _) => get_job(&path, &state).await,
         _ => ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found").into_response(),
     }
 }
 
+fn schedule_route(path: &str) -> Option<&str> {
+    let id = path.strip_prefix("/v1/schedules/")?;
+    (!id.is_empty() && !id.contains('/')).then_some(id)
+}
+
 async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Response<ResponseBody> {
-    if let Some(error) = refuse_job_envelope(&request) {
+    if let Some(error) = refuse_snapshot_envelope(&request) {
         return error.into_response();
     }
     let key = match idempotency_key(request.headers()) {
@@ -100,28 +177,55 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
         Ok(body) => body,
         Err(error) => return error.into_response(),
     };
-    let payload = match parse_job_request(&body) {
-        Ok(payload) => payload,
-        Err(error) => return error.into_response(),
+    let admitted = match readmit_body(&body, &state).await {
+        Ok(admitted) => admitted,
+        Err(response) => return response,
     };
     let digest = RequestDigest::from_bytes(Sha256::digest(&body).into());
-    admit_job(state, key, digest, payload.workflow).await
+    let workflow = admitted.snapshot().root().to_owned();
+    let Ok(world) = String::from_utf8(body.to_vec()) else {
+        return malformed_snapshot_encoding().into_response();
+    };
+    admit_job(state, key, digest, workflow, world).await
 }
 
-async fn capture_world(state: &AppState, workflow: &str) -> Result<String, Response<ResponseBody>> {
+async fn check_snapshot(
+    request: Request<Incoming>,
+    state: Arc<AppState>,
+) -> Response<ResponseBody> {
+    if let Some(error) = refuse_snapshot_envelope(&request) {
+        return error.into_response();
+    }
+    let body = match collect_body(request, state.limits.max_body_bytes()).await {
+        Ok(body) => body,
+        Err(error) => return error.into_response(),
+    };
+    match readmit_body(&body, &state).await {
+        Ok(admitted) => json_response(
+            StatusCode::OK,
+            &SnapshotValidationAck::accepted(admitted.snapshot()),
+        ),
+        Err(response) => response,
+    }
+}
+
+async fn readmit_body(
+    body: &[u8],
+    state: &AppState,
+) -> Result<nika_execution::AdmittedExecution, Response<ResponseBody>> {
+    let encoded = std::str::from_utf8(body)
+        .map_err(|_| malformed_snapshot_encoding().into_response())?
+        .to_owned();
+    validate_wire_envelope(&encoded).map_err(ApiError::into_response)?;
     let service = state.service;
     let limits = state.snapshot_limits;
-    let project = Arc::clone(&state.project);
-    let workflow = std::path::PathBuf::from(workflow);
-    let captured = tokio::task::spawn_blocking(move || {
-        let snapshot = nika_execution::ExecutionSnapshot::capture(&project, &workflow, limits)?;
-        let encoded = snapshot.encode()?;
-        service.readmit_snapshot(snapshot)?;
-        Ok::<String, nika_execution::ExecutionError>(encoded)
+    let admitted = tokio::task::spawn_blocking(move || {
+        let snapshot = nika_execution::ExecutionSnapshot::decode_with_limits(&encoded, limits)?;
+        service.readmit_snapshot(snapshot)
     })
     .await
     .map_err(|_| admission_refused().into_response())?;
-    captured.map_err(|error| capture_refused(&error))
+    admitted.map_err(|error| capture_refused(&error))
 }
 
 fn admission_refused() -> ApiError {
@@ -132,7 +236,7 @@ fn admission_refused() -> ApiError {
     )
 }
 
-fn refuse_job_envelope(request: &Request<Incoming>) -> Option<ApiError> {
+fn refuse_snapshot_envelope(request: &Request<Incoming>) -> Option<ApiError> {
     if !is_json(request.headers()) {
         return Some(ApiError::new(
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
@@ -150,23 +254,104 @@ fn refuse_job_envelope(request: &Request<Incoming>) -> Option<ApiError> {
     None
 }
 
-fn parse_job_request(body: &[u8]) -> Result<CreateJobRequest, ApiError> {
-    let payload: CreateJobRequest = serde_json::from_slice(body).map_err(|_| {
-        ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "invalid_json",
-            "request body is not valid job JSON",
-        )
-    })?;
-    if valid_workflow_name(&payload.workflow) {
-        Ok(payload)
-    } else {
-        Err(ApiError::new(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "invalid_workflow",
-            "workflow must be a contained .nika.yaml path",
-        ))
+fn malformed_snapshot_encoding() -> ApiError {
+    ApiError::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "malformed_snapshot",
+        "request body is not a UTF-8 execution snapshot",
+    )
+}
+
+fn validate_wire_envelope(encoded: &str) -> Result<(), ApiError> {
+    let probe = match serde_json::from_str::<SnapshotWireProbe<'_>>(encoded) {
+        Ok(probe) => probe,
+        Err(error) if error.to_string().contains(UNIT_COUNT_PROBE_MARKER) => {
+            return Err(ApiError::new(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "snapshot_unit_count_limit",
+                "snapshot exceeds the wire unit-count limit",
+            ));
+        }
+        Err(_) => {
+            return Err(ApiError::new(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "malformed_snapshot",
+                "request body is not a valid execution snapshot",
+            ));
+        }
+    };
+    if probe.root.len() > MAX_EXECUTION_SNAPSHOT_PATH_BYTES
+        || probe
+            .units
+            .0
+            .iter()
+            .any(|unit| unit.path.len() > MAX_EXECUTION_SNAPSHOT_PATH_BYTES)
+    {
+        return Err(ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "snapshot_path_limit",
+            "snapshot logical path exceeds the encoded metadata limit",
+        ));
     }
+    if !canonical_digest(probe.digest)
+        || probe
+            .units
+            .0
+            .iter()
+            .any(|unit| !canonical_digest(unit.digest))
+    {
+        return Err(ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "malformed_snapshot_digest",
+            "snapshot digests must be canonical lowercase SHA-256",
+        ));
+    }
+    if probe
+        .units
+        .0
+        .iter()
+        .any(|unit| malformed_hex(unit.bytes_hex))
+    {
+        return Err(ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "malformed_snapshot_hex",
+            "snapshot unit bytes must be even-length lowercase hexadecimal",
+        ));
+    }
+    let hex_bytes = probe
+        .units
+        .0
+        .iter()
+        .try_fold(0usize, |total, unit| {
+            total.checked_add(unit.bytes_hex.len())
+        })
+        .ok_or_else(snapshot_metadata_limit)?;
+    if encoded.len().saturating_sub(hex_bytes) > MAX_EXECUTION_SNAPSHOT_METADATA_BYTES {
+        return Err(snapshot_metadata_limit());
+    }
+    Ok(())
+}
+
+fn canonical_digest(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+fn malformed_hex(value: &str) -> bool {
+    !value.len().is_multiple_of(2)
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+fn snapshot_metadata_limit() -> ApiError {
+    ApiError::new(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "snapshot_metadata_limit",
+        "snapshot exceeds the encoded JSON metadata limit",
+    )
 }
 
 async fn admit_job(
@@ -174,23 +359,11 @@ async fn admit_job(
     key: IdempotencyKey,
     digest: RequestDigest,
     workflow: String,
+    world: String,
 ) -> Response<ResponseBody> {
-    let world = match capture_world(&state, &workflow).await {
-        Ok(world) => world,
-        Err(response) => return response,
-    };
-    let Ok(permit) = state.jobs.try_reserve() else {
-        return queue_full();
-    };
     let admission = match state
-        .store
-        .create_or_replay(
-            key,
-            digest,
-            state.limits.max_jobs(),
-            workflow.clone(),
-            world,
-        )
+        .coordinator
+        .admit_manual(key, digest, workflow, world)
         .await
     {
         Ok(admission) => admission,
@@ -201,15 +374,9 @@ async fn admit_job(
             super::ServerError::JobStore(crate::JobStoreError::Busy)
             | super::ServerError::StoreQueueFull,
         ) => return store_busy(),
+        Err(super::ServerError::ExecutionQueueFull) => return queue_full(),
         Err(_) => return internal_error(),
     };
-    enqueue_admission(permit, admission)
-}
-
-fn enqueue_admission(
-    permit: tokio::sync::mpsc::Permit<'_, ExecutionTask>,
-    admission: Admission,
-) -> Response<ResponseBody> {
     match admission {
         Admission::Conflict(_) => ApiError::new(
             StatusCode::CONFLICT,
@@ -218,21 +385,10 @@ fn enqueue_admission(
         )
         .into_response(),
         Admission::Created(record) => {
-            permit.send(ExecutionTask::new(record.id().clone()));
             json_response(StatusCode::ACCEPTED, &JobResponse::from(&record))
         }
-        Admission::Existing(record) => replay_existing(permit, &record),
+        Admission::Existing(record) => json_response(StatusCode::OK, &JobResponse::from(&record)),
     }
-}
-
-fn replay_existing(
-    permit: tokio::sync::mpsc::Permit<'_, ExecutionTask>,
-    record: &crate::JobRecord,
-) -> Response<ResponseBody> {
-    if record.status() == crate::JobStatus::Queued {
-        permit.send(ExecutionTask::new(record.id().clone()));
-    }
-    json_response(StatusCode::OK, &JobResponse::from(record))
 }
 
 async fn list_registry(state: &AppState) -> Response<ResponseBody> {
@@ -294,6 +450,176 @@ async fn get_job(path: &str, state: &AppState) -> Response<ResponseBody> {
     }
 }
 
+async fn cancel_job(path: &str, state: &AppState) -> Response<ResponseBody> {
+    let Some(raw_id) = job_action_id(path, "/cancel") else {
+        return job_not_found();
+    };
+    let Ok(id) = JobId::parse(raw_id) else {
+        return job_not_found();
+    };
+    state.cancellations.cancel(&id);
+    let record = match state.store.get(id.clone()).await {
+        Ok(Some(record)) => record,
+        Ok(None) => {
+            state.cancellations.retire(&id);
+            return job_not_found();
+        }
+        Err(
+            super::ServerError::JobStore(crate::JobStoreError::Busy)
+            | super::ServerError::StoreQueueFull,
+        ) => return store_busy(),
+        Err(_) => return internal_error(),
+    };
+    if record.status().is_settled() {
+        state.cancellations.retire(&id);
+        return json_response(StatusCode::OK, &JobResponse::from(&record));
+    }
+    let record = match ensure_cancel_identity(state, id.clone(), record).await {
+        Ok(record) => record,
+        Err(response) => return response,
+    };
+    if record.status().is_settled() {
+        state.cancellations.retire(&id);
+        return json_response(StatusCode::OK, &JobResponse::from(&record));
+    }
+    let receipt = cancellation_receipt(&record);
+    let event = serde_json::json!({
+        "kind": "execution.cancelled",
+        "status": "cancelled"
+    });
+    match state
+        .store
+        .settle_with_result(
+            id.clone(),
+            crate::JobStatus::Cancelled,
+            event,
+            None,
+            receipt,
+        )
+        .await
+    {
+        Ok(cancelled) => {
+            state.cancellations.retire(&id);
+            json_response(StatusCode::OK, &JobResponse::from(&cancelled))
+        }
+        Err(super::ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) => {
+            current_job(state, id).await
+        }
+        Err(
+            super::ServerError::JobStore(crate::JobStoreError::Busy)
+            | super::ServerError::StoreQueueFull,
+        ) => store_busy(),
+        Err(_) => internal_error(),
+    }
+}
+
+async fn ensure_cancel_identity(
+    state: &AppState,
+    id: JobId,
+    record: crate::JobRecord,
+) -> Result<crate::JobRecord, Response<ResponseBody>> {
+    if record.execution_id().is_some() {
+        return Ok(record);
+    }
+    let encoded = state.store.load_world(id.clone()).await.map_err(|error| {
+        if matches!(
+            error,
+            super::ServerError::JobStore(crate::JobStoreError::Busy)
+                | super::ServerError::StoreQueueFull
+        ) {
+            store_busy()
+        } else {
+            internal_error()
+        }
+    })?;
+    let service = state.service;
+    let limits = state.snapshot_limits;
+    let admitted = tokio::task::spawn_blocking(move || {
+        let snapshot = nika_execution::ExecutionSnapshot::decode_with_limits(&encoded, limits)?;
+        service.readmit_snapshot(snapshot)
+    })
+    .await
+    .map_err(|_| internal_error())?
+    .map_err(|_| internal_error())?;
+    match state
+        .store
+        .start_execution(
+            id.clone(),
+            admitted.execution_id().to_string(),
+            admitted.trace_id().to_string(),
+            admitted.snapshot().digest().to_owned(),
+            serde_json::json!({"kind": "execution.started", "status": "running"}),
+        )
+        .await
+    {
+        Ok(started) => Ok(started),
+        Err(super::ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) => {
+            match state.store.get(id).await {
+                Ok(Some(current)) => Ok(current),
+                Ok(None) => Err(job_not_found()),
+                Err(_) => Err(store_busy()),
+            }
+        }
+        Err(
+            super::ServerError::JobStore(crate::JobStoreError::Busy)
+            | super::ServerError::StoreQueueFull,
+        ) => Err(store_busy()),
+        Err(_) => Err(internal_error()),
+    }
+}
+
+fn cancellation_receipt(record: &crate::JobRecord) -> Option<crate::JobReceipt> {
+    crate::JobReceipt::with_origin(
+        record.id().clone(),
+        record.execution_id()?,
+        record.trace_id()?,
+        record.snapshot_digest()?,
+        None,
+        record.origin().clone(),
+    )
+    .ok()
+}
+
+async fn current_job(state: &AppState, id: JobId) -> Response<ResponseBody> {
+    match state.store.get(id.clone()).await {
+        Ok(Some(record)) => {
+            if record.status().is_settled() {
+                state.cancellations.retire(&id);
+            }
+            json_response(StatusCode::OK, &JobResponse::from(&record))
+        }
+        Ok(None) => job_not_found(),
+        Err(_) => store_busy(),
+    }
+}
+
+async fn verify_trace(path: &str, state: &AppState) -> Response<ResponseBody> {
+    let Some(raw_id) = job_action_id(path, "/trace/verify") else {
+        return job_not_found();
+    };
+    let Ok(id) = JobId::parse(raw_id) else {
+        return job_not_found();
+    };
+    match state.store.get(id).await {
+        Ok(Some(record)) => json_response(
+            StatusCode::OK,
+            &TraceVerificationResponse::unavailable(&record),
+        ),
+        Ok(None) => job_not_found(),
+        Err(
+            super::ServerError::JobStore(crate::JobStoreError::Busy)
+            | super::ServerError::StoreQueueFull,
+        ) => store_busy(),
+        Err(_) => internal_error(),
+    }
+}
+
+fn job_action_id<'a>(path: &'a str, suffix: &str) -> Option<&'a str> {
+    let tail = path.strip_prefix("/v1/jobs/")?;
+    let id = tail.strip_suffix(suffix)?;
+    (!id.is_empty() && !id.contains('/')).then_some(id)
+}
+
 fn job_route(path: &str) -> Option<(&str, bool)> {
     let tail = path.strip_prefix("/v1/jobs/")?;
     if tail.is_empty() || tail.contains('/') && !tail.ends_with("/status") {
@@ -306,7 +632,10 @@ fn job_route(path: &str) -> Option<(&str, bool)> {
     }
 }
 
-async fn collect_body(request: Request<Incoming>, limit: usize) -> Result<Bytes, ApiError> {
+pub(super) async fn collect_body(
+    request: Request<Incoming>,
+    limit: usize,
+) -> Result<Bytes, ApiError> {
     Limited::new(request.into_body(), limit)
         .collect()
         .await
@@ -353,7 +682,7 @@ fn coarse_body_too_large(request: &Request<Incoming>, limit: usize) -> bool {
         .is_none_or(|length| length > limit)
 }
 
-fn is_json(headers: &hyper::HeaderMap) -> bool {
+pub(super) fn is_json(headers: &hyper::HeaderMap) -> bool {
     let mut values = headers.get_all(CONTENT_TYPE).iter();
     let Some(value) = values.next() else {
         return false;
@@ -369,7 +698,10 @@ fn is_json(headers: &hyper::HeaderMap) -> bool {
     })
 }
 
-fn json_response<T: serde::Serialize>(status: StatusCode, value: &T) -> Response<ResponseBody> {
+pub(super) fn json_response<T: serde::Serialize>(
+    status: StatusCode,
+    value: &T,
+) -> Response<ResponseBody> {
     let bytes = serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec());
     let mut response = Response::new(once_body(bytes));
     *response.status_mut() = status;

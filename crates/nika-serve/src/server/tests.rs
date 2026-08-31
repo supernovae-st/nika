@@ -10,12 +10,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use serde_json::{Value, json};
+use sha2::{Digest as _, Sha256};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 
+use super::route::SNAPSHOT_WIRE_UNIT_CEILING;
 use super::test_support::assert_allowlisted;
 use super::*;
+use crate::{MAX_EXECUTION_SNAPSHOT_METADATA_BYTES, MAX_EXECUTION_SNAPSHOT_PATH_BYTES};
 
 pub(super) const TOKEN: &str = "remote-test-token-012345678901234567890123456789";
 const WORKFLOW: &str = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
@@ -48,17 +51,60 @@ impl TestWorld {
 
     #[rustfmt::skip]
     pub(super) async fn start(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits) -> TestServer {
+        self.start_with_snapshot_limits(backend, limits, SnapshotLimits::default()).await
+    }
+
+    #[rustfmt::skip]
+    async fn start_with_snapshot_limits(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits, snapshot_limits: SnapshotLimits) -> TestServer {
+        let resident = ResidentConfig::new(&self.state)
+            .with_limits(limits)
+            .with_snapshot_limits(snapshot_limits);
+        self.start_with_config(backend, resident).await
+    }
+
+    #[rustfmt::skip]
+    pub(super) async fn start_with_clock(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits, clock: Arc<dyn super::ResidentClock>) -> TestServer {
+        let resident = ResidentConfig::new(&self.state)
+            .with_limits(limits)
+            .with_clock(clock);
+        self.start_with_config(backend, resident).await
+    }
+
+    #[rustfmt::skip]
+    pub(super) async fn start_with_workflow_roots(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits, resident_root: &std::path::Path, http_root: &std::path::Path) -> TestServer {
+        let resident = ResidentConfig::new(&self.state)
+            .with_limits(limits)
+            .with_workflow_root(resident_root);
+        self.start_with_config_and_http_root(backend, resident, http_root).await
+    }
+
+    async fn start_with_config(
+        &self,
+        backend: Arc<dyn ExecutionBackend>,
+        resident: ResidentConfig,
+    ) -> TestServer {
+        self.start_with_config_and_http_root(backend, resident, &self.workflows)
+            .await
+    }
+
+    async fn start_with_config_and_http_root(
+        &self,
+        backend: Arc<dyn ExecutionBackend>,
+        resident: ResidentConfig,
+        http_root: &std::path::Path,
+    ) -> TestServer {
+        let authority = ResidentAuthority::open(resident, backend)
+            .await
+            .expect("authority");
         let config = ServerConfig::new(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
-            &self.workflows,
-            &self.state,
+            http_root,
             &self.token,
-        )
-        .with_limits(limits);
-        let bound = BoundServer::bind(config, backend).await.expect("bind");
+        );
+        let bound = BoundServer::attach(config, &authority).await.expect("bind");
         let address = bound.local_addr().expect("local address");
         let (shutdown, receiver) = oneshot::channel();
-        let join = tokio::spawn(bound.serve_until(async move {
+        let join = tokio::spawn(authority.serve_with_http(bound, async move {
             let _result = receiver.await;
         }));
         TestServer {
@@ -264,6 +310,19 @@ fn bounded_queue_limits() -> ServerLimits {
     )
 }
 
+fn one_active_queue_limits() -> ServerLimits {
+    ServerLimits::new(
+        1024,
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+        Duration::from_millis(200),
+        1,
+        4,
+        16,
+        32,
+    )
+}
+
 fn one_job_limits() -> ServerLimits {
     ServerLimits::new(
         1024,
@@ -291,615 +350,8 @@ fn four_header_limits() -> ServerLimits {
     )
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn health_is_public_and_contains_only_compile_bound_identity() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend, limits()).await;
-
-    let response = server
-        .request("GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
-        .await;
-
-    assert_eq!(response.status, 200);
-    let body = response.json();
-    let object = body.as_object().expect("health object");
-    assert_eq!(object.len(), 6, "health field allowlist: {body}");
-    for field in [
-        "status",
-        "service",
-        "engine_version",
-        "build_sha",
-        "spec_sha",
-        "api_version",
-    ] {
-        assert!(object.contains_key(field), "missing {field}: {body}");
-    }
-    assert!(
-        !response
-            .headers
-            .to_ascii_lowercase()
-            .contains("access-control")
-    );
-    assert!(
-        !response
-            .body
-            .contains(world.workflows.to_string_lossy().as_ref())
-    );
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn every_invalid_credential_has_one_uniform_bounded_401_shape() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend, limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
-    let variants = [
-        String::new(),
-        "Authorization: Basic nope\r\n".to_owned(),
-        "Authorization: Bearer wrong-wrong-wrong-wrong-wrong-wrong\r\n".to_owned(),
-        format!("Authorization: Bearer {}\r\n", "x".repeat(513)),
-        format!("Authorization: Bearer {TOKEN}\r\nAuthorization: Bearer {TOKEN}\r\n"),
-    ];
-    let mut signatures = Vec::new();
-    for headers in variants {
-        let request = post_request(body, "uniform-auth", &headers);
-        let response = server.request(&request).await;
-        let challenge = response.challenge();
-        signatures.push((response.status, response.body, challenge));
-    }
-
-    assert!(
-        signatures
-            .iter()
-            .all(|signature| signature == &signatures[0])
-    );
-    assert_eq!(signatures[0].0, 401);
-    assert!(signatures[0].1.len() < 160);
-    assert!(signatures[0].2);
-    assert!(!signatures[0].1.contains(TOKEN));
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn unauthenticated_invalid_json_is_refused_before_admission() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend.clone(), limits()).await;
-    let request = post_request("{ definitely not json", "auth-before-parse", "");
-
-    let response = server.request(&request).await;
-
-    assert_eq!(response.status, 401);
-    assert_eq!(backend.calls(), 0);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn authenticated_invalid_json_and_content_type_are_stable_refusals() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend.clone(), limits()).await;
-    let malformed = server
-        .request(&post_request(
-            "{ definitely not json",
-            "invalid-json",
-            &auth_header(),
-        ))
-        .await;
-    let wrong_type = format!(
-        "POST /v1/jobs HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: 2\r\nIdempotency-Key: wrong-type\r\n{}\r\n{{}}",
-        auth_header()
-    );
-    let wrong_type = server.request(&wrong_type).await;
-    let compressed = format!(
-        "POST /v1/jobs HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Encoding: gzip\r\nContent-Length: 2\r\nIdempotency-Key: compressed\r\n{}\r\n{{}}",
-        auth_header()
-    );
-    let compressed = server.request(&compressed).await;
-
-    assert_eq!(malformed.status, 400);
-    assert_eq!(malformed.json()["error"]["code"], "invalid_json");
-    assert_eq!(wrong_type.status, 415);
-    assert_eq!(wrong_type.json()["error"]["code"], "unsupported_media_type");
-    assert_eq!(compressed.status, 415);
-    assert_eq!(
-        compressed.json()["error"]["code"],
-        "unsupported_content_encoding"
-    );
-    assert_eq!(backend.calls(), 0);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn create_read_and_status_use_real_loopback_and_execution_service() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend.clone(), limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
-
-    let created = server
-        .request(&post_request(body, "create-read", &auth_header()))
-        .await;
-    assert_eq!(created.status, 202, "{}", created.body);
-    let id = created.json()["id"].as_str().expect("job id").to_owned();
-    wait_for_status(&server, &id, "succeeded")
-        .await
-        .expect("succeeded status");
-
-    let job = server
-        .request(&get_request(&format!("/v1/jobs/{id}")))
-        .await;
-    let status = server
-        .request(&get_request(&format!("/v1/jobs/{id}/status")))
-        .await;
-    assert_eq!(job.status, 200);
-    let job_body = job.json();
-    assert_eq!(job_body["id"], id);
-    let execution_id = job_body["execution_id"].as_str().expect("execution_id");
-    let trace_id = job_body["trace_id"].as_str().expect("trace_id");
-    assert!(execution_id.starts_with("exe-"), "{execution_id}");
-    assert_eq!(trace_id.len(), 32, "{trace_id}");
-    assert_eq!(status.json(), json!({"status": "succeeded"}));
-    assert_eq!(backend.calls(), 1);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn paused_is_preserved_by_both_job_response_types() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Paused));
-    let server = world.start(backend, limits()).await;
-    let created = server
-        .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
-            "paused-job",
-            &auth_header(),
-        ))
-        .await;
-    let id = created.json()["id"].as_str().expect("id").to_owned();
-    wait_for_status(&server, &id, "paused")
-        .await
-        .expect("paused status");
-
-    let job = server
-        .request(&get_request(&format!("/v1/jobs/{id}")))
-        .await;
-    let status = server
-        .request(&get_request(&format!("/v1/jobs/{id}/status")))
-        .await;
-    assert_eq!(job.json()["status"], "paused");
-    assert_eq!(status.json()["status"], "paused");
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn unknown_jobs_and_absent_authorities_disclose_one_bounded_shape() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend, limits()).await;
-    let random = JobId::random();
-    let unknown = server
-        .request(&get_request(&format!("/v1/jobs/{random}")))
-        .await;
-    let malformed = server.request(&get_request("/v1/jobs/not-a-job-id")).await;
-    let cancel = server
-        .request(&get_request(&format!("/v1/jobs/{random}/cancel")))
-        .await;
-    let artifacts = server
-        .request(&get_request(&format!("/v1/jobs/{random}/artifacts")))
-        .await;
-
-    assert_eq!(unknown.status, 404);
-    assert_eq!(malformed.status, 404);
-    assert_eq!(unknown.body, malformed.body);
-    assert_eq!(cancel.status, 404);
-    assert_eq!(artifacts.status, 404);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn traversal_extension_confusion_and_oversize_never_execute() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend.clone(), limits()).await;
-    for (index, workflow) in [
-        "../root.nika.yaml",
-        "/tmp/root.nika.yaml",
-        "root.nika.yml",
-        "nested\\root.nika.yaml",
-        "root.nika.yaml%2fchild.nika.yaml",
-        "ghost.nika.yaml",
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let body = json!({"workflow": workflow}).to_string();
-        let response = server
-            .request(&post_request(
-                &body,
-                &format!("invalid-path-{index}"),
-                &auth_header(),
-            ))
-            .await;
-        assert_eq!(response.status, 422, "{workflow}: {}", response.body);
-    }
-    let oversized = "x".repeat(1100);
-    let response = server
-        .request(&post_request(&oversized, "oversized", &auth_header()))
-        .await;
-    assert_eq!(response.status, 413);
-    assert_eq!(backend.calls(), 0);
-    server.stop().await.expect("clean stop");
-}
-
-#[cfg(unix)]
-#[tokio::test(flavor = "multi_thread")]
-async fn symlinked_workflow_refuses_before_backend_execution() {
-    use std::os::unix::fs::symlink;
-
-    let world = TestWorld::new();
-    let outside = tempfile::NamedTempFile::new().expect("outside workflow");
-    std::fs::write(outside.path(), WORKFLOW).expect("outside bytes");
-    symlink(outside.path(), world.workflows.join("linked.nika.yaml")).expect("workflow symlink");
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend.clone(), limits()).await;
-    let response = server
-        .request(&post_request(
-            r#"{"workflow":"linked.nika.yaml"}"#,
-            "symlinked-workflow",
-            &auth_header(),
-        ))
-        .await;
-    assert_eq!(response.status, 422, "{}", response.body);
-    assert_eq!(response.json()["error"]["code"], "admission_refused");
-    assert!(response.json().get("id").is_none());
-    assert_eq!(backend.calls(), 0);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn slow_authenticated_body_times_out_without_execution() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend.clone(), short_request_limits()).await;
-    let mut stream = tokio::net::TcpStream::connect(server.address)
-        .await
-        .expect("connect");
-    let headers = format!(
-        "POST /v1/jobs HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: 64\r\nIdempotency-Key: slow-body\r\n{}\r\n{{",
-        auth_header()
-    );
-    stream.write_all(headers.as_bytes()).await.expect("headers");
-    tokio::time::sleep(Duration::from_millis(60)).await;
-    let mut response = Vec::new();
-    stream.read_to_end(&mut response).await.expect("response");
-    let response = WireResponse::parse(&response);
-
-    assert_eq!(response.status, 408, "{}", response.body);
-    assert_eq!(response.json()["error"]["code"], "request_timeout");
-    assert_eq!(backend.calls(), 0);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn connection_ceiling_bounds_slow_header_tasks_and_recovers() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend, one_connection_limits()).await;
-    let mut slow = tokio::net::TcpStream::connect(server.address)
-        .await
-        .expect("slow connect");
-    slow.write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\n")
-        .await
-        .expect("partial headers");
-    tokio::time::sleep(Duration::from_millis(20)).await;
-
-    let blocked = tokio::time::timeout(
-        Duration::from_millis(50),
-        wire_request(
-            server.address,
-            "GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
-        ),
-    )
-    .await;
-    assert!(blocked.is_err(), "a second connection task must not start");
-
-    drop(slow);
-    tokio::time::sleep(Duration::from_millis(30)).await;
-    let recovered = server
-        .request("GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
-        .await;
-    assert_eq!(recovered.status, 200);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn active_and_queue_boundaries_refuse_the_first_excess_job() {
-    let world = TestWorld::new();
-    let backend = Arc::new(GatedBackend::new());
-    let server = world.start(backend.clone(), bounded_queue_limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
-    let mut accepted = Vec::new();
-
-    for index in 0..4 {
-        let response = server
-            .request(&post_request(
-                body,
-                &format!("bounded-queue-{index}"),
-                &auth_header(),
-            ))
-            .await;
-        assert_eq!(response.status, 202, "{}", response.body);
-        accepted.push(response.json()["id"].as_str().expect("id").to_owned());
-    }
-    for _ in 0..200 {
-        if backend.calls() == 2 {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(5)).await;
-    }
-    assert_eq!(backend.calls(), 2, "two active slots");
-    let excess = server
-        .request(&post_request(body, "bounded-queue-excess", &auth_header()))
-        .await;
-    assert_eq!(excess.status, 503, "{}", excess.body);
-    assert_eq!(excess.json()["error"]["code"], "queue_full");
-    assert_eq!(backend.peak(), 2);
-
-    backend.release(4);
-    for id in accepted {
-        wait_for_status(&server, &id, "succeeded")
-            .await
-            .expect("queued job drains");
-    }
-    assert_eq!(backend.calls(), 4);
-    assert_eq!(backend.peak(), 2);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn durable_job_capacity_is_stable_and_replay_remains_available() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend, one_job_limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
-    let first = server
-        .request(&post_request(body, "capacity-first", &auth_header()))
-        .await;
-    assert_eq!(first.status, 202);
-    let id = first.json()["id"].as_str().expect("id").to_owned();
-    wait_for_status(&server, &id, "succeeded")
-        .await
-        .expect("first job settles so the queue slot is free");
-    let replay = server
-        .request(&post_request(body, "capacity-first", &auth_header()))
-        .await;
-    assert_eq!(replay.status, 200);
-    let refused = server
-        .request(&post_request(body, "capacity-second", &auth_header()))
-        .await;
-    assert_eq!(refused.status, 507);
-    assert_eq!(refused.json()["error"]["code"], "job_capacity");
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn header_ceiling_accepts_exactly_the_limit_and_refuses_the_next() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend, four_header_limits()).await;
-    let exact = format!(
-        "GET /v1/jobs/00000000-0000-4000-8000-000000000000 HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{}X-Boundary: exact\r\n\r\n",
-        auth_header()
-    );
-    let accepted = server.request(&exact).await;
-    assert_eq!(accepted.status, 404);
-    let excess = format!(
-        "GET /v1/jobs/00000000-0000-4000-8000-000000000000 HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{}X-Boundary: exact\r\nX-Excess: refused\r\n\r\n",
-        auth_header()
-    );
-    let refused = server.request(&excess).await;
-    assert_eq!(refused.status, 431);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn execution_deadline_interrupts_without_outliving_the_server() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::hangs());
-    let server = world.start(backend.clone(), short_execution_limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
-    let created = server
-        .request(&post_request(body, "execution-timeout", &auth_header()))
-        .await;
-    let id = created.json()["id"].as_str().expect("id").to_owned();
-
-    wait_for_status(&server, &id, "interrupted")
-        .await
-        .expect("interrupted status");
-    assert_eq!(backend.calls(), 1);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn concurrent_identical_posts_start_exactly_one_execution() {
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend.clone(), limits()).await;
-    let address = server.address;
-    let request = post_request(
-        r#"{"workflow":"root.nika.yaml"}"#,
-        "concurrent-replay",
-        &auth_header(),
-    );
-
-    let mut requests = JoinSet::new();
-    for _ in 0..12 {
-        let request = request.clone();
-        requests.spawn(async move { wire_request(address, &request).await });
-    }
-    let mut responses = Vec::new();
-    while let Some(result) = requests.join_next().await {
-        responses.push(result.expect("request task"));
-    }
-    let ids = responses
-        .iter()
-        .filter(|response| matches!(response.status, 200 | 202))
-        .map(|response| response.json()["id"].as_str().expect("id").to_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(ids.len(), 12, "responses: {responses:#?}");
-    assert!(ids.windows(2).all(|pair| pair[0] == pair[1]));
-    wait_for_status(&server, &ids[0], "succeeded")
-        .await
-        .expect("concurrent success status");
-    assert_eq!(backend.calls(), 1);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn restart_settles_running_job_and_replay_never_reexecutes() {
-    let world = TestWorld::new();
-    let hanging = Arc::new(TestBackend::hangs());
-    let first = world.start(hanging.clone(), short_shutdown_limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
-    let created = first
-        .request(&post_request(body, "restart-interrupted", &auth_header()))
-        .await;
-    let id = created.json()["id"].as_str().expect("id").to_owned();
-    wait_for_status(&first, &id, "running")
-        .await
-        .expect("running status");
-    wait_for_calls(hanging.as_ref(), 1)
-        .await
-        .expect("hanging backend entered execute");
-    assert!(matches!(
-        first.stop().await,
-        Err(ServerError::ShutdownTimeout)
-    ));
-    assert_eq!(hanging.calls(), 1);
-
-    let replacement = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let second = world.start(replacement.clone(), limits()).await;
-    wait_for_status(&second, &id, "interrupted")
-        .await
-        .expect("restart interrupted status");
-    let replay = second
-        .request(&post_request(body, "restart-interrupted", &auth_header()))
-        .await;
-    assert_eq!(replay.status, 200);
-    assert_eq!(replay.json()["id"], id);
-    assert_eq!(replay.json()["status"], "interrupted");
-    assert_eq!(replacement.calls(), 0);
-    second.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn non_loopback_bind_requires_explicit_acknowledgement_before_io() {
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let config = ServerConfig::new(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0),
-        "/does/not/exist",
-        "/does/not/exist",
-        "/does/not/exist",
-    );
-
-    assert!(matches!(
-        BoundServer::bind(config, backend).await,
-        Err(ServerError::InvalidConfig(_))
-    ));
-}
-
-#[cfg(unix)]
-#[tokio::test(flavor = "multi_thread")]
-async fn contended_store_fails_fast_and_shutdown_releases_the_incarnation() {
-    use std::fs::File;
-
-    use nix::fcntl::{Flock, FlockArg};
-
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend, short_request_limits()).await;
-    let lock_file = File::options()
-        .read(true)
-        .write(true)
-        .open(world.state.join("jobs/store.lock"))
-        .expect("store lock file");
-    let lease = Flock::lock(lock_file, FlockArg::LockExclusive).expect("external lease");
-    let id = JobId::random();
-
-    let response = tokio::time::timeout(
-        Duration::from_millis(100),
-        server.request(&get_request(&format!("/v1/jobs/{id}"))),
-    )
-    .await
-    .expect("contended request remains bounded");
-    assert_eq!(response.status, 503);
-    assert_eq!(response.json()["error"]["code"], "store_busy");
-    tokio::time::timeout(Duration::from_millis(100), server.stop())
-        .await
-        .expect("shutdown is not queued behind a store wait")
-        .expect("clean stop");
-
-    drop(lease);
-    let replacement = world
-        .start(
-            Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded)),
-            limits(),
-        )
-        .await;
-    replacement.stop().await.expect("incarnation released");
-}
-
-#[cfg(unix)]
-#[tokio::test(flavor = "multi_thread")]
-async fn shutdown_contention_joins_owner_and_next_startup_settles_running() {
-    use std::fs::File;
-
-    use nix::fcntl::{Flock, FlockArg};
-
-    let world = TestWorld::new();
-    let backend = Arc::new(TestBackend::hangs());
-    let server = world.start(backend, short_shutdown_limits()).await;
-    let created = server
-        .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
-            "shutdown-contention",
-            &auth_header(),
-        ))
-        .await;
-    let id = created.json()["id"].as_str().expect("id").to_owned();
-    wait_for_status(&server, &id, "running")
-        .await
-        .expect("running before contention");
-    let lock_file = File::options()
-        .read(true)
-        .write(true)
-        .open(world.state.join("jobs/store.lock"))
-        .expect("store lock file");
-    let lease = Flock::lock(lock_file, FlockArg::LockExclusive).expect("external lease");
-
-    let stopped = tokio::time::timeout(Duration::from_millis(100), server.stop())
-        .await
-        .expect("shutdown remains bounded under contention");
-    assert!(matches!(
-        stopped,
-        Err(ServerError::JobStore(crate::JobStoreError::Busy))
-    ));
-
-    drop(lease);
-    let replacement = world
-        .start(
-            Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded)),
-            limits(),
-        )
-        .await;
-    wait_for_status(&replacement, &id, "interrupted")
-        .await
-        .expect("new incarnation settles the ownerless run");
-    replacement.stop().await.expect("replacement stop");
-}
+#[cfg(test)]
+mod request_lifecycle;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn workflows_list_and_metadata_are_authenticated_and_contained() {
@@ -967,8 +419,8 @@ async fn missing_idempotency_key_and_deep_json_refuse_without_execution() {
     let deep = server
         .request(&post_request(&deep, "deep-json", &auth_header()))
         .await;
-    assert_eq!(deep.status, 400);
-    assert_eq!(deep.json()["error"]["code"], "invalid_json");
+    assert_eq!(deep.status, 422);
+    assert_eq!(deep.json()["error"]["code"], "malformed_snapshot");
     assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");
 }
@@ -998,6 +450,7 @@ fn live_sse_limits() -> ServerLimits {
         64,
         32,
     )
+    .with_sse_timing(Duration::from_millis(20), Duration::from_secs(1))
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1093,6 +546,39 @@ async fn sse_outlives_request_timeout_and_disconnect_does_not_block_execution() 
     wait_for_status(&server, &id, "running")
         .await
         .expect("running");
+    let running = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    assert!(running["execution_id"].as_str().is_some(), "{running}");
+    assert!(running["trace_id"].as_str().is_some(), "{running}");
+    assert!(running.get("outputs").is_none(), "{running}");
+    assert!(running.get("receipt").is_none(), "{running}");
+    let durable: Value = serde_json::from_slice(
+        &std::fs::read(world.state.join("jobs/state.json")).expect("read running state"),
+    )
+    .expect("decode running state");
+    let durable_job = durable["jobs"]
+        .as_array()
+        .expect("durable jobs")
+        .iter()
+        .find(|job| job["record"]["id"].as_str() == Some(id.as_str()))
+        .expect("durable running job");
+    assert_eq!(durable_job["record"]["status"], "running");
+    assert_eq!(
+        durable_job["record"]["snapshot_digest"]
+            .as_str()
+            .expect("durable snapshot digest")
+            .len(),
+        64
+    );
+    assert_eq!(
+        durable_job["identity_digest"]
+            .as_str()
+            .expect("durable identity binding")
+            .len(),
+        64
+    );
 
     let (mut stream, headers) = open_sse(server.address, &events_request(&id, None)).await;
     assert_eq!(headers.status, 200, "{}", headers.body);
@@ -1188,7 +674,285 @@ async fn interrupted_event_stream_redacts_payload_fields() {
         assert!(!streamed.body.contains(TOKEN));
         assert!(!streamed.body.contains("/jobs"));
     }
+    let job = second
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    assert_eq!(job["status"], "interrupted");
+    assert_eq!(job["receipt"]["job_id"], id);
+    assert_eq!(job["receipt"]["execution_id"], job["execution_id"]);
+    assert_eq!(job["receipt"]["trace_id"], job["trace_id"]);
+    assert_eq!(
+        job["receipt"]["snapshot_digest"]
+            .as_str()
+            .expect("snapshot digest")
+            .len(),
+        64
+    );
+    assert!(job.get("outputs").is_none());
+    let terminal = events
+        .iter()
+        .find(|event| event["status"] == "interrupted")
+        .expect("interrupted event");
+    assert_eq!(terminal["receipt"], job["receipt"]);
+    assert!(terminal.get("outputs").is_none());
     second.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn concurrent_cancel_is_idempotent_and_wins_the_running_settlement_race() {
+    let world = TestWorld::new();
+    let backend = Arc::new(GatedBackend::new());
+    let server = world.start(backend.clone(), limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "cancel-race",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "running")
+        .await
+        .expect("running");
+
+    let request = cancel_request(&id);
+    let mut racers = JoinSet::new();
+    for _ in 0..12 {
+        let request = request.clone();
+        let address = server.address;
+        racers.spawn(async move { wire_request(address, &request).await });
+    }
+    while let Some(response) = racers.join_next().await {
+        let response = response.expect("cancel request");
+        assert!(matches!(response.status, 200 | 202), "{response:#?}");
+        assert_eq!(response.json()["id"], id);
+    }
+    backend.release(1);
+    wait_for_status(&server, &id, "cancelled")
+        .await
+        .expect("cancelled");
+
+    let job = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    assert_eq!(job["status"], "cancelled");
+    assert_eq!(job["receipt"]["job_id"], id);
+    assert_eq!(job["receipt"]["execution_id"], job["execution_id"]);
+    assert_eq!(job["receipt"]["trace_id"], job["trace_id"]);
+    let replay = server.request(&cancel_request(&id)).await;
+    assert_eq!(replay.status, 200, "{}", replay.body);
+    assert_eq!(replay.json(), job);
+
+    let streamed = server.request(&events_request(&id, None)).await;
+    let events = parse_sse_data(&streamed.body);
+    let terminal = events
+        .iter()
+        .find(|event| event["status"] == "cancelled")
+        .expect("cancelled terminal event");
+    assert_eq!(terminal["receipt"], job["receipt"]);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn queued_cancel_mints_identity_and_receipt_without_entering_the_backend() {
+    let world = TestWorld::new();
+    let backend = Arc::new(GatedBackend::new());
+    let server = world
+        .start(backend.clone(), one_active_queue_limits())
+        .await;
+    let first = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "cancel-queue-blocker",
+            &auth_header(),
+        ))
+        .await;
+    let first_id = first.json()["id"].as_str().expect("first id").to_owned();
+    wait_for_status(&server, &first_id, "running")
+        .await
+        .expect("first running");
+
+    let queued = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "cancel-queued",
+            &auth_header(),
+        ))
+        .await;
+    let queued_id = queued.json()["id"].as_str().expect("queued id").to_owned();
+    assert_eq!(queued.json()["status"], "queued");
+    let cancelled = server.request(&cancel_request(&queued_id)).await;
+    assert_eq!(cancelled.status, 200, "{}", cancelled.body);
+    let body = cancelled.json();
+    assert_eq!(body["status"], "cancelled");
+    assert_eq!(body["receipt"]["job_id"], queued_id);
+    assert_eq!(body["receipt"]["execution_id"], body["execution_id"]);
+    assert_eq!(
+        backend.calls(),
+        1,
+        "queued cancellation never enters backend"
+    );
+
+    backend.release(1);
+    wait_for_status(&server, &first_id, "succeeded")
+        .await
+        .expect("first settled");
+    tokio::time::sleep(Duration::from_millis(30)).await;
+    assert_eq!(backend.calls(), 1, "cancelled queue row stays inert");
+    server.stop().await.expect("clean stop");
+    let replacement = world
+        .start(
+            Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded)),
+            limits(),
+        )
+        .await;
+    let durable = replacement
+        .request(&get_request(&format!("/v1/jobs/{queued_id}")))
+        .await
+        .json();
+    assert_eq!(durable["status"], "cancelled");
+    assert_eq!(durable["receipt"], body["receipt"]);
+    replacement.stop().await.expect("replacement stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cancel_authenticates_before_job_lookup() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend, limits()).await;
+    let response = server
+        .request(
+            "POST /v1/jobs/not-an-id/cancel HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+        )
+        .await;
+    assert_eq!(response.status, 401);
+    assert_eq!(response.json()["error"]["code"], "unauthorized");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cancel_after_terminal_settlement_is_a_read_only_replay() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend, limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "cancel-after-terminal",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("succeeded");
+    let before = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    let replay = server.request(&cancel_request(&id)).await;
+    assert_eq!(replay.status, 200, "{}", replay.body);
+    assert_eq!(replay.json(), before);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sse_timing_bounds_refuse_before_state_io() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    for reconnect in [Duration::from_millis(99), Duration::from_millis(30_001)] {
+        let config = ResidentConfig::new(&world.state)
+            .with_limits(limits().with_sse_timing(Duration::from_secs(1), reconnect));
+        assert!(matches!(
+            ResidentAuthority::open(config, backend.clone()).await,
+            Err(ServerError::InvalidConfig(_))
+        ));
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn live_sse_advertises_bounded_reconnect_and_heartbeats_without_advancing_cursor() {
+    let world = TestWorld::new();
+    let backend = Arc::new(GatedBackend::new());
+    let server = world.start(backend.clone(), live_sse_limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "sse-heartbeat",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "running")
+        .await
+        .expect("running");
+
+    let (mut stream, headers) = open_sse(server.address, &events_request(&id, Some("1"))).await;
+    assert_eq!(headers.status, 200, "{}", headers.body);
+    let mut body = headers.body;
+    for _ in 0..100 {
+        if body.contains("retry: ") && body.contains(": heartbeat\n\n") {
+            break;
+        }
+        let mut chunk = [0; 512];
+        if let Ok(Ok(n)) =
+            tokio::time::timeout(Duration::from_millis(20), stream.read(&mut chunk)).await
+        {
+            if n == 0 {
+                break;
+            }
+            body.push_str(std::str::from_utf8(&chunk[..n]).expect("utf8"));
+        }
+    }
+    assert!(body.contains("retry: 1000\n\n"), "{body:?}");
+    assert!(body.contains(": heartbeat\n\n"), "{body:?}");
+    assert!(
+        !body.contains("id: 1\n"),
+        "heartbeat cannot advance replay cursor: {body:?}"
+    );
+
+    drop(stream);
+    backend.release(1);
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("settled");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn trace_verification_refuses_honestly_without_a_remote_trace_authority() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend, limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "trace-verdict",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("settled");
+
+    let verdict = server
+        .request(&get_request(&format!("/v1/jobs/{id}/trace/verify")))
+        .await;
+    assert_eq!(verdict.status, 200, "{}", verdict.body);
+    let body = verdict.json();
+    assert_eq!(body["verdict"], "unavailable");
+    assert_eq!(body["reason"], "trace_journal_unavailable");
+    assert_eq!(body["trace_id"].as_str().map(str::len), Some(32));
+    assert!(
+        !verdict
+            .body
+            .contains(world.root.path().to_string_lossy().as_ref())
+    );
+    assert!(!verdict.body.contains(".nika/traces"));
+    server.stop().await.expect("clean stop");
 }
 
 pub(super) async fn wait_for_status(
@@ -1219,15 +983,78 @@ async fn wire_request(address: SocketAddr, request: &str) -> WireResponse {
 }
 
 pub(super) fn post_request(body: &str, key: &str, authorization: &str) -> String {
+    let body = if body == r#"{"workflow":"root.nika.yaml"}"# {
+        snapshot_body(WORKFLOW)
+    } else {
+        body.to_owned()
+    };
     format!(
         "POST /v1/jobs HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\nIdempotency-Key: {key}\r\n{authorization}\r\n{body}",
         body.len()
     )
 }
 
+pub(super) fn snapshot_body(source: &str) -> String {
+    let path = "root.nika.yaml";
+    let unit_digest = hex_digest(source.as_bytes());
+    let mut world = Sha256::new();
+    world.update(b"nika-execution-snapshot\0");
+    world.update(1_u32.to_be_bytes());
+    hash_snapshot_field(&mut world, path.as_bytes());
+    world.update([0]);
+    hash_snapshot_field(&mut world, path.as_bytes());
+    hash_snapshot_field(&mut world, source.as_bytes());
+    json!({
+        "format_version": 1,
+        "root": path,
+        "digest": format!("{:x}", world.finalize()),
+        "units": [{
+            "path": path,
+            "kind": 0,
+            "digest": unit_digest,
+            "bytes_hex": encode_hex(source.as_bytes())
+        }]
+    })
+    .to_string()
+}
+
+fn hash_snapshot_field(hasher: &mut Sha256, bytes: &[u8]) {
+    hasher.update(u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_be_bytes());
+    hasher.update(bytes);
+}
+
+fn hex_digest(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+
+    let mut encoded = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        write!(encoded, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    encoded
+}
+
 pub(super) fn get_request(path: &str) -> String {
     format!(
         "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{}\r\n",
+        auth_header()
+    )
+}
+
+fn cancel_request(id: &str) -> String {
+    format!(
+        "POST /v1/jobs/{id}/cancel HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: 0\r\n{}\r\n",
+        auth_header()
+    )
+}
+
+fn check_request(body: &str) -> String {
+    format!(
+        "POST /v1/check HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{body}",
+        body.len(),
         auth_header()
     )
 }
@@ -1323,6 +1150,13 @@ impl WireResponse {
         serde_json::from_str(&self.body).expect("JSON response")
     }
 
+    pub(super) fn header(&self, name: &str) -> Option<&str> {
+        self.headers.lines().find_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            key.eq_ignore_ascii_case(name).then_some(value.trim())
+        })
+    }
+
     fn challenge(&self) -> bool {
         self.headers
             .to_ascii_lowercase()
@@ -1331,7 +1165,7 @@ impl WireResponse {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn openapi_is_authenticated_and_omits_absent_authorities() {
+async fn openapi_is_authenticated_and_lists_only_real_authorities() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend, limits()).await;
@@ -1347,13 +1181,205 @@ async fn openapi_is_authenticated_and_omits_absent_authorities() {
     assert_eq!(body["openapi"], "3.1.0");
     assert!(body["paths"].get("/v1/jobs").is_some());
     assert!(body["paths"].get("/v1/jobs/{id}/events").is_some());
-    assert!(body["paths"].get("/v1/jobs/{id}/cancel").is_none());
+    assert!(body["paths"].get("/v1/jobs/{id}/cancel").is_some());
+    assert!(body["paths"].get("/v1/jobs/{id}/trace/verify").is_some());
     assert!(body["paths"].get("/v1/jobs/{id}/artifacts").is_none());
     server.stop().await.expect("clean stop");
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn restart_reschedules_durable_queued_jobs() {
+async fn machine_check_and_job_admission_judge_identical_caller_bytes_not_server_paths() {
+    let world = TestWorld::new();
+    std::fs::write(
+        world.workflows.join("root.nika.yaml"),
+        "nika: divergent-server-copy\ntasks: {}\n",
+    )
+    .expect("divergent server-local path");
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let snapshot = snapshot_body(WORKFLOW);
+
+    let checked = server.request(&check_request(&snapshot)).await;
+    assert_eq!(checked.status, 200, "{}", checked.body);
+    assert_eq!(checked.json()["status"], "accepted");
+
+    let created = server
+        .request(&post_request(&snapshot, "bytes-first", &auth_header()))
+        .await;
+    assert_eq!(created.status, 202, "{}", created.body);
+    let id = created.json()["id"].as_str().expect("job id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("caller snapshot executes");
+    let job = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    assert_eq!(
+        job["receipt"]["snapshot_digest"],
+        checked.json()["snapshot_digest"]
+    );
+    assert_eq!(backend.calls(), 1);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn idempotency_is_bound_to_exact_snapshot_body_bytes() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let compact = snapshot_body(WORKFLOW);
+    let pretty = serde_json::to_string_pretty(
+        &serde_json::from_str::<Value>(&compact).expect("snapshot JSON"),
+    )
+    .expect("pretty snapshot");
+
+    let first = server
+        .request(&post_request(&compact, "same-world", &auth_header()))
+        .await;
+    let second = server
+        .request(&post_request(&pretty, "same-world", &auth_header()))
+        .await;
+    let replay = server
+        .request(&post_request(&compact, "same-world", &auth_header()))
+        .await;
+    assert_eq!(first.status, 202, "{}", first.body);
+    assert_eq!(second.status, 409, "{}", second.body);
+    assert_eq!(second.json()["error"]["code"], "idempotency_conflict");
+    assert_eq!(replay.status, 200, "{}", replay.body);
+    assert_eq!(first.json()["id"], replay.json()["id"]);
+    let id = first.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("one execution");
+    assert_eq!(backend.calls(), 1);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn snapshot_wire_refusals_have_stable_typed_codes_and_never_execute() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let valid = serde_json::from_str::<Value>(&snapshot_body(WORKFLOW)).expect("snapshot");
+    let mut cases = Vec::new();
+
+    let mut hex = valid.clone();
+    hex["units"][0]["bytes_hex"] = json!("0g");
+    cases.push(("bad-hex", hex, "malformed_snapshot_hex"));
+    let mut version = valid.clone();
+    version["format_version"] = json!(2);
+    cases.push(("bad-version", version, "unsupported_snapshot_version"));
+    let mut tampered = valid;
+    tampered["units"][0]["digest"] = json!("0".repeat(64));
+    cases.push(("bad-digest", tampered, "snapshot_tampered"));
+
+    for (key, payload, code) in cases {
+        let response = server
+            .request(&post_request(&payload.to_string(), key, &auth_header()))
+            .await;
+        assert_eq!(response.status, 422, "{key}: {}", response.body);
+        assert_eq!(response.json()["error"]["code"], code, "{key}");
+        assert!(response.json().get("id").is_none(), "{key}");
+    }
+    assert_eq!(backend.calls(), 0);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn snapshot_resource_bounds_have_stable_typed_codes_and_never_execute() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), ServerLimits::default()).await;
+    let mut long_path = serde_json::from_str::<Value>(&snapshot_body(WORKFLOW)).expect("snapshot");
+    long_path["root"] = json!("p".repeat(MAX_EXECUTION_SNAPSHOT_PATH_BYTES + 1));
+    let path_response = server
+        .request(&post_request(
+            &long_path.to_string(),
+            "path-limit",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(path_response.status, 413, "{}", path_response.body);
+    assert_eq!(path_response.json()["error"]["code"], "snapshot_path_limit");
+
+    let mut too_many = serde_json::from_str::<Value>(&snapshot_body(WORKFLOW)).expect("snapshot");
+    let unit = too_many["units"][0].clone();
+    too_many["units"] = Value::Array(vec![unit; SNAPSHOT_WIRE_UNIT_CEILING + 1]);
+    let count_response = server
+        .request(&post_request(
+            &too_many.to_string(),
+            "wire-count-limit",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(count_response.status, 413, "{}", count_response.body);
+    assert_eq!(
+        count_response.json()["error"]["code"],
+        "snapshot_unit_count_limit"
+    );
+
+    let compact = snapshot_body(WORKFLOW);
+    let split = compact.len() - 1;
+    let metadata_heavy = format!(
+        "{}{}{}",
+        &compact[..split],
+        " ".repeat(MAX_EXECUTION_SNAPSHOT_METADATA_BYTES + 1),
+        &compact[split..]
+    );
+    let metadata_response = server
+        .request(&post_request(
+            &metadata_heavy,
+            "metadata-limit",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(metadata_response.status, 413, "{}", metadata_response.body);
+    assert_eq!(
+        metadata_response.json()["error"]["code"],
+        "snapshot_metadata_limit"
+    );
+    assert_eq!(backend.calls(), 0);
+    server.stop().await.expect("clean stop");
+
+    for (name, snapshot_limits, expected) in [
+        (
+            "count",
+            SnapshotLimits::new(64, 0, 1024 * 1024, 16 * 1024 * 1024),
+            "snapshot_unit_count_limit",
+        ),
+        (
+            "unit",
+            SnapshotLimits::new(64, 256, 8, 16 * 1024 * 1024),
+            "snapshot_unit_size_limit",
+        ),
+        (
+            "aggregate",
+            SnapshotLimits::new(64, 256, 1024 * 1024, 8),
+            "snapshot_total_size_limit",
+        ),
+    ] {
+        let world = TestWorld::new();
+        let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+        let server = world
+            .start_with_snapshot_limits(backend.clone(), limits(), snapshot_limits)
+            .await;
+        let response = server
+            .request(&post_request(
+                &snapshot_body(WORKFLOW),
+                name,
+                &auth_header(),
+            ))
+            .await;
+        assert_eq!(response.status, 413, "{name}: {}", response.body);
+        assert_eq!(response.json()["error"]["code"], expected, "{name}");
+        assert_eq!(backend.calls(), 0);
+        server.stop().await.expect("clean stop");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn post_admission_path_mutation_cannot_change_queued_world_across_restart() {
     let world = TestWorld::new();
     let hanging = Arc::new(GatedBackend::new());
     let first = world.start(hanging.clone(), bounded_queue_limits()).await;
@@ -1378,7 +1404,7 @@ async fn restart_reschedules_durable_queued_jobs() {
         Err(ServerError::ShutdownTimeout)
     ));
     std::fs::write(world.workflows.join("root.nika.yaml"), "not-a-workflow")
-        .expect("mutate live bytes after POST capture");
+        .expect("mutate server-local bytes after snapshot admission");
     let replacement = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let second = world.start(replacement.clone(), limits()).await;
     wait_for_calls(replacement.as_ref(), 2)

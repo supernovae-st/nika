@@ -1,14 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
-use crate::{JobRecord, JobStatus};
+use serde::Serialize;
+use serde_json::Value;
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct CreateJobRequest {
-    pub(crate) workflow: String,
+use crate::{JobReceipt, JobRecord, JobStatus};
+
+#[derive(Debug, Serialize)]
+pub(crate) struct SnapshotValidationAck<'a> {
+    status: &'static str,
+    snapshot_digest: &'a str,
+    root: &'a str,
+    units: usize,
+}
+
+impl<'a> SnapshotValidationAck<'a> {
+    pub(crate) fn accepted(snapshot: &'a nika_execution::ExecutionSnapshot) -> Self {
+        Self {
+            status: "accepted",
+            snapshot_digest: snapshot.digest(),
+            root: snapshot.root(),
+            units: snapshot.len(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -21,6 +37,10 @@ pub(crate) struct JobResponse<'a> {
     trace_id: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<JobErrorBody<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    outputs: Option<&'a BTreeMap<String, Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    receipt: Option<&'a JobReceipt>,
 }
 
 #[derive(Debug, Serialize)]
@@ -41,6 +61,8 @@ impl<'a> From<&'a JobRecord> for JobResponse<'a> {
             execution_id: record.execution_id(),
             trace_id: record.trace_id(),
             error,
+            outputs: record.outputs(),
+            receipt: record.receipt(),
         }
     }
 }
@@ -54,6 +76,28 @@ impl From<&JobRecord> for JobStatusResponse {
     fn from(record: &JobRecord) -> Self {
         Self {
             status: record.status(),
+        }
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct TraceVerificationResponse<'a> {
+    verdict: &'static str,
+    reason: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trace_id: Option<&'a str>,
+}
+
+impl<'a> TraceVerificationResponse<'a> {
+    pub(crate) fn unavailable(record: &'a JobRecord) -> Self {
+        Self {
+            verdict: "unavailable",
+            reason: if record.status().is_settled() {
+                "trace_journal_unavailable"
+            } else {
+                "run_not_terminal"
+            },
+            trace_id: record.trace_id(),
         }
     }
 }
@@ -85,15 +129,75 @@ pub(crate) struct HealthResponse {
     status: &'static str,
     service: &'static str,
     #[serde(flatten)]
-    identity: nika_runtime::EngineIdentity,
+    identity: HttpAdapterIdentity,
+}
+
+const HTTP_ADAPTER_CAPABILITIES: &[&str] = &["check", "executionSnapshot", "eventStream", "cancel"];
+const HTTP_ADAPTER_SCHEDULE_CAPABILITIES: &[&str] = &[
+    "check",
+    "executionSnapshot",
+    "eventStream",
+    "cancel",
+    "schedule",
+];
+
+#[derive(Debug, Serialize)]
+struct HttpAdapterIdentity {
+    engine_version: &'static str,
+    build_sha: &'static str,
+    spec_sha: &'static str,
+    api_version: &'static str,
+    #[serde(rename = "engineVersion")]
+    engine_version_sdk: &'static str,
+    #[serde(rename = "buildSha")]
+    build_sha_sdk: &'static str,
+    #[serde(rename = "specSha")]
+    spec_sha_sdk: &'static str,
+    #[serde(rename = "machineProtocolVersion")]
+    machine_protocol_version: u32,
+    #[serde(rename = "snapshotFormatVersion")]
+    snapshot_format_version: u32,
+    #[serde(rename = "checkReportVersion")]
+    check_report_version: u32,
+    #[serde(rename = "eventFormatVersion")]
+    event_format_version: u32,
+    #[serde(rename = "traceFormatVersion")]
+    trace_format_version: u32,
+    #[serde(rename = "supportedCapabilities")]
+    supported_capabilities: &'static [&'static str],
+}
+
+impl HttpAdapterIdentity {
+    fn current(schedule_live: bool) -> Self {
+        let identity = nika_runtime::engine_identity();
+        Self {
+            engine_version: identity.engine_version(),
+            build_sha: identity.build_sha(),
+            spec_sha: identity.spec_sha(),
+            api_version: identity.api_version(),
+            engine_version_sdk: identity.engine_version(),
+            build_sha_sdk: identity.build_sha(),
+            spec_sha_sdk: identity.spec_sha(),
+            machine_protocol_version: identity.machine_protocol_version(),
+            snapshot_format_version: identity.snapshot_format_version(),
+            check_report_version: identity.check_report_version(),
+            event_format_version: identity.event_format_version(),
+            trace_format_version: identity.trace_format_version(),
+            supported_capabilities: if schedule_live {
+                HTTP_ADAPTER_SCHEDULE_CAPABILITIES
+            } else {
+                HTTP_ADAPTER_CAPABILITIES
+            },
+        }
+    }
 }
 
 impl HealthResponse {
-    pub(crate) fn current() -> Self {
+    pub(crate) fn current(schedule_live: bool) -> Self {
         Self {
             status: "ok",
             service: "nika-serve",
-            identity: *nika_runtime::engine_identity(),
+            identity: HttpAdapterIdentity::current(schedule_live),
         }
     }
 }

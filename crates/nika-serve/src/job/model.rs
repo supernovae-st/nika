@@ -1,7 +1,10 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::File;
 use std::io;
 
+use nika_cadence::firing::{ArmGeneration, SlotId};
+use nika_cadence::{ScheduleDecision, ScheduleOrigin, ScheduleRevision};
 use nix::fcntl::Flock;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -16,7 +19,22 @@ pub const MAX_EVENT_PAYLOAD_BYTES: usize = 64 * 1024;
 /// Maximum number of event payloads admitted by one append operation.
 pub const MAX_EVENT_BATCH_LEN: usize = 64;
 /// Maximum encoded size of the complete durable job snapshot.
-pub const MAX_JOB_SNAPSHOT_BYTES: usize = 4 * 1024 * 1024;
+///
+/// Larger terminal outputs are refused with [`JobStoreError::SnapshotTooLarge`]
+/// before the existing durable snapshot is replaced; they are never truncated.
+pub const MAX_JOB_SNAPSHOT_BYTES: usize = 16 * 1024 * 1024;
+/// Maximum encoded JSON metadata beside hexadecimal unit bodies.
+pub const MAX_EXECUTION_SNAPSHOT_METADATA_BYTES: usize = 1024 * 1024;
+/// Maximum UTF-8 bytes in the root or one unit's contained logical path.
+pub const MAX_EXECUTION_SNAPSHOT_PATH_BYTES: usize = 4096;
+/// Maximum encoded size of one transported immutable execution snapshot.
+///
+/// An execution world contains at most 16 MiB of decoded unit bytes. Its wire
+/// format hex-encodes those bytes (a strict 2x expansion), then adds bounded
+/// JSON metadata. The extra 1 MiB is the independent encoded-metadata budget;
+/// exceeding it is a body/store refusal even when decoded unit bytes fit.
+pub const MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES: usize =
+    (2 * 16 * 1024 * 1024) + MAX_EXECUTION_SNAPSHOT_METADATA_BYTES;
 /// Maximum number of events returned by one resume page.
 pub const MAX_EVENT_PAGE_LEN: usize = 256;
 
@@ -249,6 +267,141 @@ pub enum JobStatus {
     Succeeded,
     /// Execution settled unsuccessfully.
     Failed,
+    /// Execution was cancelled by an authenticated operator request.
+    Cancelled,
+}
+
+/// Durable origin of one normal run and its terminal receipt.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[non_exhaustive]
+pub enum JobOrigin {
+    /// A caller submitted the run directly through the job API.
+    #[default]
+    Manual,
+    /// A resident schedule prepared the run before its fenced ARM claim.
+    Schedule {
+        /// Namespace of the schedule declaration.
+        schedule_origin: String,
+        /// Origin-local schedule identifier.
+        schedule_id: String,
+        /// Canonical revision of the normalized schedule.
+        schedule_revision: String,
+        /// Stable identity of the calendar slot.
+        slot_id: String,
+        /// Typed cadence verdict for this firing.
+        decision: ScheduleDecision,
+        /// Slot instant selected by cadence.
+        scheduled_for: String,
+        /// Resident decision instant.
+        fired_at: String,
+        /// Workflow and schedule generation pinned for this attempt.
+        arm_generation: String,
+    },
+}
+
+impl JobOrigin {
+    /// Construct a validated scheduled origin binding.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::InvalidReceipt`] if any wire identity is not
+    /// canonical.
+    #[allow(clippy::too_many_arguments)]
+    pub fn schedule(
+        origin: ScheduleOrigin,
+        schedule_id: impl Into<String>,
+        revision: &ScheduleRevision,
+        slot_id: &SlotId,
+        decision: ScheduleDecision,
+        scheduled_for: jiff::Timestamp,
+        fired_at: jiff::Timestamp,
+        generation: &ArmGeneration,
+    ) -> Result<Self, JobStoreError> {
+        let schedule_origin = match origin {
+            ScheduleOrigin::Project => "project",
+            ScheduleOrigin::Api => "api",
+            _ => return Err(JobStoreError::InvalidReceipt),
+        };
+        let value = Self::Schedule {
+            schedule_origin: schedule_origin.to_owned(),
+            schedule_id: schedule_id.into(),
+            schedule_revision: revision.as_str().to_owned(),
+            slot_id: slot_id.as_str().to_owned(),
+            decision,
+            scheduled_for: scheduled_for.to_string(),
+            fired_at: fired_at.to_string(),
+            arm_generation: generation.as_str().to_owned(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), JobStoreError> {
+        let Self::Schedule {
+            schedule_origin,
+            schedule_id,
+            schedule_revision,
+            slot_id,
+            decision,
+            scheduled_for,
+            fired_at,
+            arm_generation,
+        } = self
+        else {
+            return Ok(());
+        };
+        let known_decision = matches!(
+            decision,
+            ScheduleDecision::Scheduled | ScheduleDecision::CatchUp
+        );
+        if !known_decision
+            || !matches!(schedule_origin.as_str(), "project" | "api")
+            || schedule_id.is_empty()
+            || schedule_id.len() > nika_cadence::schedule::MAX_SCHEDULE_ID_BYTES
+            || ScheduleRevision::from_wire(schedule_revision).is_none()
+            || SlotId::from_wire(slot_id).is_none()
+            || scheduled_for.parse::<jiff::Timestamp>().is_err()
+            || fired_at.parse::<jiff::Timestamp>().is_err()
+            || ArmGeneration::from_wire(arm_generation).is_none()
+        {
+            return Err(JobStoreError::InvalidReceipt);
+        }
+        Ok(())
+    }
+
+    /// Typed cadence verdict when this is a resident scheduled run.
+    #[must_use]
+    pub const fn schedule_decision(&self) -> Option<ScheduleDecision> {
+        match self {
+            Self::Manual => None,
+            Self::Schedule { decision, .. } => Some(*decision),
+        }
+    }
+
+    /// Schedule namespace and id when this is a resident run.
+    #[must_use]
+    pub fn schedule_identity(&self) -> Option<(&str, &str)> {
+        match self {
+            Self::Manual => None,
+            Self::Schedule {
+                schedule_origin,
+                schedule_id,
+                ..
+            } => Some((schedule_origin, schedule_id)),
+        }
+    }
+
+    pub(crate) fn schedule_key_parts(&self) -> Option<(&str, &str, &str)> {
+        match self {
+            Self::Manual => None,
+            Self::Schedule {
+                schedule_origin,
+                schedule_id,
+                slot_id,
+                ..
+            } => Some((schedule_origin, schedule_id, slot_id)),
+        }
+    }
 }
 
 impl JobStatus {
@@ -256,7 +409,17 @@ impl JobStatus {
         matches!(
             (self, next),
             (Self::Queued | Self::Paused, Self::Running | Self::Failed)
+                | (Self::Queued | Self::Running | Self::Paused, Self::Cancelled)
                 | (Self::Running, Self::Paused | Self::Succeeded | Self::Failed)
+        )
+    }
+
+    /// Whether this status is a durable terminal settlement.
+    #[must_use]
+    pub const fn is_settled(self) -> bool {
+        matches!(
+            self,
+            Self::Succeeded | Self::Failed | Self::Interrupted | Self::Cancelled
         )
     }
 }
@@ -270,6 +433,7 @@ impl fmt::Display for JobStatus {
             Self::Paused => "paused",
             Self::Succeeded => "succeeded",
             Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
         })
     }
 }
@@ -283,6 +447,9 @@ pub struct JobRecord {
     pub(crate) idempotency_key: IdempotencyKey,
     pub(crate) request_digest: RequestDigest,
     pub(crate) status: JobStatus,
+    /// Manual or schedule provenance, defaulting to manual for v3 stores.
+    #[serde(default)]
+    pub(crate) origin: JobOrigin,
     /// Contained `.nika.yaml` name captured at admission. Empty on stores
     /// written before this field existed; those queued rows cannot be
     /// rescheduled after a crash.
@@ -295,12 +462,24 @@ pub struct JobRecord {
     /// Trace identity derived from [`Self::execution_id`]. Empty until readmit.
     #[serde(default)]
     pub(crate) trace_id: String,
+    /// Digest of the immutable world bound at snapshot readmission. Empty on
+    /// legacy records and before readmission.
+    #[serde(default)]
+    pub(crate) snapshot_digest: String,
     /// Redacted NIKA / admission code. Empty until a failed settlement.
     #[serde(default)]
     pub(crate) error_code: String,
     /// Redacted operator message. Empty until a failed settlement.
     #[serde(default)]
     pub(crate) error_message: String,
+    /// Declared workflow outputs returned by the execution adapter. `None`
+    /// distinguishes an unavailable legacy/upstream result from a declared
+    /// empty output map.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) outputs: Option<BTreeMap<String, Value>>,
+    /// Receipt bound atomically to a terminal settlement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) receipt: Option<JobReceipt>,
 }
 
 impl JobRecord {
@@ -328,6 +507,12 @@ impl JobRecord {
         self.status
     }
 
+    /// Durable admission origin.
+    #[must_use]
+    pub const fn origin(&self) -> &JobOrigin {
+        &self.origin
+    }
+
     /// Return the contained workflow name captured at admission.
     #[must_use]
     pub fn workflow(&self) -> &str {
@@ -346,11 +531,158 @@ impl JobRecord {
         (!self.trace_id.is_empty()).then_some(self.trace_id.as_str())
     }
 
+    /// Immutable snapshot digest after execution identity preparation.
+    #[must_use]
+    pub fn snapshot_digest(&self) -> Option<&str> {
+        (!self.snapshot_digest.is_empty()).then_some(self.snapshot_digest.as_str())
+    }
+
     /// Return the redacted failure diagnosis after a failed settlement.
     #[must_use]
     pub fn error(&self) -> Option<(&str, &str)> {
         (!self.error_code.is_empty())
             .then_some((self.error_code.as_str(), self.error_message.as_str()))
+    }
+
+    /// Return declared workflow outputs after a terminal settlement.
+    #[must_use]
+    pub fn outputs(&self) -> Option<&BTreeMap<String, Value>> {
+        if self.status.is_settled() {
+            self.outputs.as_ref()
+        } else {
+            None
+        }
+    }
+
+    /// Return the execution receipt after a terminal settlement.
+    #[must_use]
+    pub fn receipt(&self) -> Option<&JobReceipt> {
+        if self.status.is_settled() {
+            self.receipt.as_ref()
+        } else {
+            None
+        }
+    }
+}
+
+/// Durable receipt binding a terminal job to the exact admitted execution.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[non_exhaustive]
+pub struct JobReceipt {
+    job_id: JobId,
+    execution_id: String,
+    trace_id: String,
+    snapshot_digest: String,
+    /// `None` is reserved for receipts loaded from stores written before
+    /// provenance was introduced. Newly-created receipts always bind an
+    /// explicit manual or schedule origin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    origin: Option<JobOrigin>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chain_head: Option<String>,
+}
+
+impl JobReceipt {
+    /// Bind terminal proof material to one durable job.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::InvalidReceipt`] when an identity is empty,
+    /// the snapshot digest is not canonical lowercase SHA-256, or an exposed
+    /// chain head is empty.
+    pub fn new(
+        job_id: JobId,
+        execution_id: impl Into<String>,
+        trace_id: impl Into<String>,
+        snapshot_digest: impl Into<String>,
+        chain_head: Option<String>,
+    ) -> Result<Self, JobStoreError> {
+        let receipt = Self {
+            job_id,
+            execution_id: execution_id.into(),
+            trace_id: trace_id.into(),
+            snapshot_digest: snapshot_digest.into(),
+            origin: Some(JobOrigin::Manual),
+            chain_head,
+        };
+        receipt.validate()?;
+        Ok(receipt)
+    }
+
+    /// Bind terminal proof material with explicit durable provenance.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::InvalidReceipt`] for malformed identity or
+    /// schedule provenance.
+    pub fn with_origin(
+        job_id: JobId,
+        execution_id: impl Into<String>,
+        trace_id: impl Into<String>,
+        snapshot_digest: impl Into<String>,
+        chain_head: Option<String>,
+        origin: JobOrigin,
+    ) -> Result<Self, JobStoreError> {
+        let receipt = Self {
+            job_id,
+            execution_id: execution_id.into(),
+            trace_id: trace_id.into(),
+            snapshot_digest: snapshot_digest.into(),
+            origin: Some(origin),
+            chain_head,
+        };
+        receipt.validate()?;
+        Ok(receipt)
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), JobStoreError> {
+        self.job_id.validate()?;
+        if let Some(origin) = &self.origin {
+            origin.validate()?;
+        }
+        if self.execution_id.is_empty()
+            || self.trace_id.is_empty()
+            || validate_digest(&self.snapshot_digest).is_err()
+            || self.chain_head.as_ref().is_some_and(String::is_empty)
+        {
+            return Err(JobStoreError::InvalidReceipt);
+        }
+        Ok(())
+    }
+
+    /// Durable job identity.
+    #[must_use]
+    pub const fn job_id(&self) -> &JobId {
+        &self.job_id
+    }
+
+    /// Engine execution identity.
+    #[must_use]
+    pub fn execution_id(&self) -> &str {
+        &self.execution_id
+    }
+
+    /// Root trace identity.
+    #[must_use]
+    pub fn trace_id(&self) -> &str {
+        &self.trace_id
+    }
+
+    /// Digest of the immutable execution snapshot.
+    #[must_use]
+    pub fn snapshot_digest(&self) -> &str {
+        &self.snapshot_digest
+    }
+
+    /// Manual or schedule provenance bound into the terminal event hash.
+    #[must_use]
+    pub const fn origin(&self) -> Option<&JobOrigin> {
+        self.origin.as_ref()
+    }
+
+    /// Trace chain head when the execution adapter exposes one.
+    #[must_use]
+    pub fn chain_head(&self) -> Option<&str> {
+        self.chain_head.as_deref()
     }
 }
 
@@ -500,6 +832,12 @@ pub enum JobStoreError {
     /// A request digest was not canonical lowercase hexadecimal.
     #[error("request digest must contain exactly 64 lowercase hexadecimal characters")]
     InvalidRequestDigest,
+    /// A terminal receipt omitted or malformed an identity binding.
+    #[error("terminal job receipt is invalid")]
+    InvalidReceipt,
+    /// A terminal receipt did not match the job's stamped identity.
+    #[error("terminal job receipt does not match the durable execution identity")]
+    ReceiptIdentityMismatch,
     /// Durable state was unreadable or violated an invariant.
     #[error("job store state is corrupt: {0}")]
     Corrupt(String),

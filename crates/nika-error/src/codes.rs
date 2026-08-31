@@ -245,21 +245,7 @@ fn verb_help(num: u16) -> &'static str {
 #[must_use]
 pub fn code_help(code: NikaCode) -> &'static str {
     match code.num {
-        1 => "Check your workflow YAML syntax and field values.",
-        2 => "Referenced item not found in catalogs or task outputs.",
-        3 => "Feature not supported in current configuration.",
-        10 => "Catalog TOML is malformed. Check syntax near the reported line and column.",
-        11 => {
-            "Catalog schema version does not match the expected version. Update the `schema` field."
-        }
-        12 => {
-            "Two capability rules conflict for the same scope. Check rule ordering in model-capabilities.toml."
-        }
-        13 => {
-            "A pricing axis value is out of valid range. Ensure rates are non-negative and finite."
-        }
-        14 => "max_output_tokens exceeds context_window_tokens. Fix the model capability rule.",
-        15 => "Unrecognised json_mode value. Valid values: none, object, schema.",
+        1..=18 => core_code_help(code.num),
         50..=99 => {
             "Shell/process execution failed. Check command path, permissions, and timeout settings."
         }
@@ -332,6 +318,36 @@ pub fn code_help(code: NikaCode) -> &'static str {
         750..=799 => "Sandbox denied or failed. Verify capability allowlist and platform support.",
         800..=819 => "Observability sink rejected the event. Check exporter configuration.",
         999 => "Internal error. Please report at github.com/supernovae-st/nika/issues",
+        _ => "Unknown error code. Check documentation for details.",
+    }
+}
+
+fn core_code_help(num: u16) -> &'static str {
+    match num {
+        1 => "Check your workflow YAML syntax and field values.",
+        2 => "Referenced item not found in catalogs or task outputs.",
+        3 => "Feature not supported in current configuration.",
+        10 => "Catalog TOML is malformed. Check syntax near the reported line and column.",
+        11 => {
+            "Catalog schema version does not match the expected version. Update the `schema` field."
+        }
+        12 => {
+            "Two capability rules conflict for the same scope. Check rule ordering in model-capabilities.toml."
+        }
+        13 => {
+            "A pricing axis value is out of valid range. Ensure rates are non-negative and finite."
+        }
+        14 => "max_output_tokens exceeds context_window_tokens. Fix the model capability rule.",
+        15 => "Unrecognised json_mode value. Valid values: none, object, schema.",
+        16 => {
+            "The schedule declaration is invalid. Repair the named schedule field and apply it again."
+        }
+        17 => {
+            "The schedule planner refused to guess. Remove unsupported hash jitter or repair the canonical cadence."
+        }
+        18 => {
+            "Durable schedule state could not be read or changed safely. Check storage integrity, permissions, and configured bounds."
+        }
         _ => "Unknown error code. Check documentation for details.",
     }
 }

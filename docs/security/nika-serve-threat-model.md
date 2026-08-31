@@ -32,6 +32,8 @@ or disclosure beyond the minimal public health identity.
 | source capture | mutable filesystem | owned bytes + logical base | one capture; check and run consume the same bytes |
 | execution | admitted request | shared L3 service | idempotency bound before effects; runtime owns the verdict |
 | event stream | job journal | SSE client | same auth as job; monotonic resume cursor; redacted payloads |
+| cancellation | authenticated job id | run-scoped execution token | signal token before terminal mutation; idempotent replay cannot revive a job |
+| trace verification | job trace identity | future remote journal authority | typed unavailable verdict today; never scan paths or claim verification from a chain head alone |
 | artifact path | execution output | future download route | route absent until a typed held artifact manifest exists |
 
 Loopback is not a trust boundary. A browser, local process, container, SSH
@@ -74,10 +76,11 @@ alone.
 | `/v1/workflows` | no | no | Bearer auth before listing; `.nika.yaml` names only |
 | `/v1/workflows/{name}` | no | no | Bearer auth; contained relative name metadata; no source bytes |
 | `/v1/jobs/{opaque-id}` | no | no | Bearer auth before lookup; uniform unknown-id response |
-| `/v1/jobs/{opaque-id}/events` | no | no | Bearer auth; bounded SSE buffer; monotonic `Last-Event-ID`; redaction |
-| `GET /v1/openapi.json` | no | no | Bearer auth; live-route document; no credential examples; no cancel/artifact paths |
+| `/v1/jobs/{opaque-id}/events` | no | no | Bearer auth; bounded SSE buffer and reconnect delay; monotonic `Last-Event-ID`; cursor-neutral heartbeats; redaction |
+| `POST /v1/jobs/{opaque-id}/cancel` | no | yes | Bearer auth before lookup; run-scoped engine token; one durable terminal receipt; idempotent replay |
+| `GET /v1/jobs/{opaque-id}/trace/verify` | no | no | Bearer auth; typed unavailable verdict until a real journal authority exists; no paths |
+| `GET /v1/openapi.json` | no | no | Bearer auth; live-route document; no credential examples or artifact paths |
 | effecting `/v1/*` POST | no | yes | auth before parse; body limit; content type; idempotency before execution |
-| cancel routes | absent | — | remain absent until typed runtime cancellation settles terminal state |
 | artifact routes | absent | — | remain absent until a held typed artifact manifest exists |
 
 Adding a route cannot weaken this table. The OpenAPI document is a projection
@@ -217,14 +220,16 @@ transcript is claimed where no such test existed on that SHA.
   redaction are deterministic;
 - [ ] protected responses/logs contain no credential, private path, provider raw
   payload, workflow bytes, or secret-shaped fixture;
-- [x] cancellation and artifact routes are absent until their typed authorities
-  are admitted;
+- [x] cancellation signals the engine token before a durable `cancelled`
+  receipt, queued cancellation never enters the backend, and concurrent/lost-
+  response retries converge on the same terminal record;
+- [x] artifact routes remain absent until their typed authority is admitted;
 - [x] SIGINT/SIGTERM stop admission, settle in-flight authority, and leave no
   duplicate-runnable idempotency record.
 
 ## Review triggers
 
 Reopen ADR-117 before adding multi-tenancy, browser credential storage,
-in-process TLS, arbitrary workflow uploads, webhook triggers, cancellation,
+in-process TLS, arbitrary workflow uploads, webhook triggers,
 artifact download, or a second authentication mechanism. Each changes a trust
 boundary rather than merely adding a route.

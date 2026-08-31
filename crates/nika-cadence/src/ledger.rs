@@ -17,8 +17,8 @@ mod projection;
 
 pub use execution::ExecutionLink;
 use execution::{
-    parse as execution_link, parse_optional as optional_link,
-    render_fields as render_execution_fields,
+    claimed_keys_valid, parse as execution_link, parse_optional as optional_link,
+    render_fields as render_execution_fields, terminal_keys_valid,
 };
 pub use projection::{last_projection, parse_last, render_last};
 
@@ -929,57 +929,21 @@ fn verify_payload(
                     .is_some_and(hash_is_canonical))
             .then_some(())
         }
-        "claimed" => {
-            const KEYS: [&str; 4] = ["attempt", "deadline", "fencing", "gen"];
-            const EXECUTION_KEYS: [&str; 6] = [
-                "attempt",
-                "deadline",
-                "fencing",
-                "gen",
-                "execution_id",
-                "trace_id",
-            ];
-            let keys_valid = exact_keys(object, &KEYS)
-                || (exact_keys(object, &EXECUTION_KEYS) && execution_link(payload).is_some());
-            (slot_id.is_some()
-                && keys_valid
-                && payload.get("attempt")?.as_u64() == Some(1)
-                && payload
-                    .get("deadline")?
-                    .as_str()?
-                    .parse::<Timestamp>()
-                    .is_ok()
-                && payload.get("fencing")?.as_u64() == Some(seq)
-                && generation_valid(payload.get("gen")))
-            .then_some(())
-        }
+        "claimed" => (slot_id.is_some()
+            && claimed_keys_valid(object, payload)
+            && payload.get("attempt")?.as_u64() == Some(1)
+            && payload
+                .get("deadline")?
+                .as_str()?
+                .parse::<Timestamp>()
+                .is_ok()
+            && payload.get("fencing")?.as_u64() == Some(seq)
+            && generation_valid(payload.get("gen")))
+        .then_some(()),
         "fired" | "skipped" | "paused" | "failed" | "disarmed" => {
-            const KEYS: [&str; 7] = ["slot", "reason", "trace", "exit", "slots", "fencing", "gen"];
-            const EXECUTION_KEYS: [&str; 9] = [
-                "slot",
-                "reason",
-                "trace",
-                "exit",
-                "slots",
-                "fencing",
-                "gen",
-                "execution_id",
-                "trace_id",
-            ];
-            const LEGACY_KEYS: [&str; 8] = [
-                "slot", "reason", "trace", "exit", "slots", "fencing", "gen", "legacy",
-            ];
             let slot = payload.get("slot")?;
             let semantic_slot = slot.is_string() || slot_id.is_some();
-            let explicit_legacy = payload.get("legacy") == Some(&serde_json::Value::Bool(true));
-            let keys_valid = exact_keys(object, &KEYS)
-                || (matches!(kind, "fired" | "paused" | "failed")
-                    && exact_keys(object, &EXECUTION_KEYS)
-                    && execution_link(payload).is_some())
-                || (matches!(kind, "fired" | "paused" | "failed")
-                    && explicit_legacy
-                    && exact_keys(object, &LEGACY_KEYS));
-            let shape_valid = keys_valid
+            let shape_valid = terminal_keys_valid(kind, object, payload)
                 && timestamp_or_null(slot)
                 && nullable_string(payload.get("reason"))
                 && nullable_string(payload.get("trace"))

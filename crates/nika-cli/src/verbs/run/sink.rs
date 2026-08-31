@@ -724,9 +724,10 @@ pub(super) enum TraceNote {
     /// Quiet keeps the compact-card promise.
     Silent,
 }
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub(super) struct TraceSurface {
     pub(super) path: Option<std::path::PathBuf>,
+    pub(super) proof: Option<nika_cli_host::run_settlement::TraceProof>,
     pub(super) note_error: Option<std::io::Error>,
 }
 
@@ -734,6 +735,7 @@ impl TraceSurface {
     fn noted(path: Option<std::path::PathBuf>, note: std::io::Result<()>) -> Self {
         Self {
             path,
+            proof: None,
             note_error: note.err(),
         }
     }
@@ -786,7 +788,15 @@ pub(super) fn surface_trace(
         sensitive,
         autopsy,
     );
-    TraceSurface::noted(Some(path), written)
+    TraceSurface {
+        path: Some(path),
+        proof: Some(nika_cli_host::run_settlement::TraceProof {
+            head,
+            len: count,
+            sealed,
+        }),
+        note_error: written.err(),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
