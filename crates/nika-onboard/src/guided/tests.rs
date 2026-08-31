@@ -46,8 +46,8 @@ fn dest(tag: &str) -> String {
 fn exact_template_name_stays_the_fast_path() {
     let d = dest("exact");
     let out = run("chain", Some(&d), true);
-    assert_eq!(out.code, codes::OK, "{}", out.text);
-    assert!(!out.text.contains("routed"), "{}", out.text);
+    assert_eq!(out.code, codes::OK);
+    assert!(!out.text.contains("routed"));
     std::fs::remove_file(&d).ok();
 }
 
@@ -64,29 +64,29 @@ fn example_sources_land_verbatim_through_new() {
     let dest_s = dest.to_string_lossy().into_owned();
 
     let out = run("01-hello", Some(&dest_s), false);
-    assert_eq!(out.code, codes::OK, "{}", out.text);
-    assert!(out.text.contains("example `01-hello`"), "{}", out.text);
-    assert!(out.text.contains("nika check"), "{}", out.text);
+    assert_eq!(out.code, codes::OK);
+    assert!(out.text.contains("example `01-hello`"));
+    assert!(out.text.contains("nika check"));
     // Verbatim MINUS the pack's self-referential path: the `# Run ·`
     // comment inside the OWNED copy must name the owned file — pasting
     // the pack path exited 3 in the user's workspace (gauntlet 08-01).
     let landed = std::fs::read_to_string(&dest).expect("written");
     // B01 stamps hello / 01-hello onto mock/echo (the pack lesson still
     // names ollama). Self-referential pack path still re-points.
-    assert_eq!(
-        landed,
-        stamp(
-            &nika_pack::example("01-hello")
-                .expect("embedded")
-                .replace("examples/01-hello.nika.yaml", &dest_s),
-            "hello",
-            Some("mock/echo"),
-        ),
+    assert!(
+        landed
+            == stamp(
+                &nika_pack::example("01-hello")
+                    .expect("embedded")
+                    .replace("examples/01-hello.nika.yaml", &dest_s),
+                "hello",
+                Some("mock/echo"),
+            ),
         "B01 rehearsal take, self-reference re-pointed to the owned dest"
     );
     assert!(
         !landed.contains("examples/01-hello.nika.yaml"),
-        "no taught command may name the pack-only path: {landed}"
+        "no taught command may name the pack-only path"
     );
     // Filename form resolves too; overwrite refuses. FLIP
     // (2026-07-31): this used to probe `showcase/t1-price-watch` —
@@ -101,12 +101,12 @@ fn example_sources_land_verbatim_through_new() {
     );
     assert_eq!(run("01-hello", Some(&dest_s), false).code, codes::ENV);
     let show = run("price-watch", Some(&dest_s), true);
-    assert_eq!(show.code, codes::OK, "{}", show.text);
-    assert_eq!(
-        std::fs::read_to_string(&dest).expect("written"),
-        nika_pack::example("price-watch")
-            .expect("embedded")
-            .replace("examples/price-watch.nika.yaml", &dest_s),
+    assert_eq!(show.code, codes::OK);
+    assert!(
+        std::fs::read_to_string(&dest).expect("written")
+            == nika_pack::example("price-watch")
+                .expect("embedded")
+                .replace("examples/price-watch.nika.yaml", &dest_s),
         "verbatim, self-reference re-pointed — a flat-corpus example"
     );
 
@@ -131,16 +131,14 @@ fn a_routed_cadence_intent_carries_the_schedule_note() {
         Some(&dest_s),
         false,
     );
-    assert_eq!(out.code, codes::OK, "{}", out.text);
+    assert_eq!(out.code, codes::OK);
     assert!(
         out.text.contains("is a schedule") && out.text.contains("chaque lundi"),
-        "the dropped cadence half is named: {}",
-        out.text
+        "the dropped cadence half must be named"
     );
     assert!(
         out.text.contains("cron"),
-        "the note points at the trigger owner: {}",
-        out.text
+        "the note must point at the trigger owner"
     );
 
     // No cadence — no note (the note never becomes noise).
@@ -150,8 +148,8 @@ fn a_routed_cadence_intent_carries_the_schedule_note() {
         Some(&dest2.to_string_lossy()),
         false,
     );
-    assert_eq!(out.code, codes::OK, "{}", out.text);
-    assert!(!out.text.contains("is a schedule"), "{}", out.text);
+    assert_eq!(out.code, codes::OK);
+    assert!(!out.text.contains("is a schedule"));
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -164,21 +162,19 @@ fn a_routed_cadence_intent_carries_the_schedule_note() {
 #[test]
 fn discovery_query_lists_the_set_without_a_dest() {
     let out = run("?", None, false);
-    assert_eq!(out.code, codes::OK, "{}", out.text);
-    assert!(out.text.contains("embedded set:"), "{}", out.text);
+    assert_eq!(out.code, codes::OK);
+    assert!(out.text.contains("embedded set:"));
     assert!(
         out.text
             .contains("routes across jobs · lessons · skeletons"),
-        "the discovery surface must name the whole intent-routing corpus: {}",
-        out.text
+        "the discovery surface must name the whole intent-routing corpus"
     );
     assert!(
         !out.text.contains("closest skeleton"),
-        "the router is broader than the skeleton set: {}",
-        out.text
+        "the router must be broader than the skeleton set"
     );
     for name in nika_pack::template_names() {
-        assert!(out.text.contains(&name), "lists `{name}`: {}", out.text);
+        assert!(out.text.contains(&name), "must list `{name}`");
     }
 }
 
@@ -200,29 +196,30 @@ fn discovery_taglines_come_from_the_bodies() {
 #[test]
 fn known_template_without_dest_asks_for_a_path() {
     let out = run("chain", None, false);
-    assert_eq!(out.code, codes::ENV, "{}", out.text);
-    assert!(out.text.contains("pass a destination"), "{}", out.text);
+    assert_eq!(out.code, codes::ENV);
+    assert!(out.text.contains("pass a destination"));
 }
 
 #[test]
 fn parallel_intent_routes_to_fanout() {
     let d = dest("par");
     let out = run("summarize every item in parallel", Some(&d), true);
-    assert_eq!(out.code, codes::OK, "{}", out.text);
+    assert_eq!(out.code, codes::OK);
     assert!(
         out.text.contains("routed intent → template `fanout`"),
-        "{}",
-        out.text
+        "must name the routed fanout template"
     );
     assert!(
         !out.text.contains("is a schedule"),
-        "per-item fan-out must not be described as cadence: {}",
-        out.text
+        "per-item fan-out must not be described as cadence"
     );
     // Own-corpus by construction: the instantiated file IS the
     // embedded template verbatim.
     let written = std::fs::read_to_string(&d).expect("file written");
-    assert_eq!(Some(written.as_str()), nika_pack::template("fanout"));
+    assert!(
+        Some(written.as_str()) == nika_pack::template("fanout"),
+        "written workflow must match the fanout template"
+    );
     std::fs::remove_file(&d).ok();
 }
 
@@ -240,8 +237,8 @@ fn an_agentic_research_intent_routes_to_the_job_then_the_skeleton() {
         Some(&d),
         true,
     );
-    assert_eq!(out.code, codes::OK, "{}", out.text);
-    assert!(out.text.contains("deep-research-brief"), "{}", out.text);
+    assert_eq!(out.code, codes::OK);
+    assert!(out.text.contains("deep-research-brief"));
     assert!(
         matches!(
             crate::intent::route_skeletons("an autonomous budgeted agent that researches a topic"),
@@ -260,11 +257,10 @@ fn approval_intent_routes_to_a_gated_template() {
         Some(&d),
         true,
     );
-    assert_eq!(out.code, codes::OK, "{}", out.text);
+    assert_eq!(out.code, codes::OK);
     assert!(
         out.text.contains("`human-gated-ship`") || out.text.contains("`gate-and-act`"),
-        "a gated template must win: {}",
-        out.text
+        "a gated template must win"
     );
     std::fs::remove_file(&d).ok();
 }
@@ -274,8 +270,8 @@ fn zero_evidence_intent_keeps_the_wire_contract_error() {
     // Gibberish shares no term with any template — the honest unknown
     // (exit 2) still names the set on the `embedded set:` wire line.
     let out = run("zzzz qqqq xxxx", Some(&dest("zero")), true);
-    assert_eq!(out.code, codes::FILE, "{}", out.text);
-    assert!(out.text.contains("embedded set:"), "{}", out.text);
+    assert_eq!(out.code, codes::FILE);
+    assert!(out.text.contains("embedded set:"));
 }
 
 // NOTE · the bare-`nika new`-in-a-pipe contract (fail fast naming
@@ -287,7 +283,7 @@ fn zero_evidence_intent_keeps_the_wire_contract_error() {
 fn dispatch_with_a_template_is_the_flag_path_unchanged() {
     let d = dest("dispatch");
     let out = dispatch(Some("chain"), Some(&d), true, PLAIN, &stub_audit);
-    assert_eq!(out.code, codes::OK, "{}", out.text);
+    assert_eq!(out.code, codes::OK);
     std::fs::remove_file(&d).ok();
 }
 
@@ -311,7 +307,7 @@ fn resolve_template_covers_the_four_rungs() {
         _ => None,
     }
     .expect("zero evidence is the said fallback, not a silent chain");
-    assert!(candidates.is_empty(), "{candidates:?}");
+    assert!(candidates.is_empty());
     // Below the margin → the fallback NAMES the coin-flip pair.
     let candidates =
         match resolve_template("Chaque lundi compare three competitors and write a French brief") {
@@ -321,7 +317,7 @@ fn resolve_template_covers_the_four_rungs() {
         .expect("a coin-flip falls back, said");
     assert!(
         candidates.contains(&"media-asset-pack".to_owned()),
-        "{candidates:?}"
+        "fallback candidates must include media-asset-pack"
     );
 }
 
@@ -332,11 +328,11 @@ fn the_ollama_note_drops_local_under_an_endpoint_override() {
     // point the engine at a LAN box.
     assert!(ollama_note_for(false).contains("local"));
     let overridden = ollama_note_for(true);
-    assert!(!overridden.contains("local"), "{overridden}");
-    assert!(overridden.contains("custom endpoint"), "{overridden}");
+    assert!(!overridden.contains("local"));
+    assert!(overridden.contains("custom endpoint"));
     assert!(
         overridden.contains("zero key"),
-        "the protocol truth stays: {overridden}"
+        "the protocol truth must stay"
     );
 }
 
@@ -346,11 +342,11 @@ fn the_model_menu_derives_from_the_catalog_local_first() {
     assert!(menu.len() >= 2, "catalog carries the menu providers");
     assert!(
         menu[0].0.starts_with("ollama/"),
-        "local first (presentation order): {menu:?}"
+        "local must be first in presentation order"
     );
-    assert!(menu[1].0.starts_with("mock/"), "offline second: {menu:?}");
+    assert!(menu[1].0.starts_with("mock/"), "offline must be second");
     // Every entry is a full provider/model wire id from the catalog.
-    assert!(menu.iter().all(|(m, _)| m.contains('/')), "{menu:?}");
+    assert!(menu.iter().all(|(m, _)| m.contains('/')));
 }
 
 /// P0-8 · a non-empty pick that is neither a menu number nor a
@@ -365,10 +361,14 @@ fn ask_model_reasks_an_unrecognized_pick() {
         .expect("not cancelled");
     assert!(
         model.starts_with("mock/"),
-        "Enter after the re-ask: {model}"
+        "Enter after the re-ask must select mock"
     );
-    let shown = String::from_utf8(out).expect("utf8");
-    assert!(shown.contains("unrecognized"), "the typo is said: {shown}");
+    let shown = String::from_utf8(out);
+    assert!(shown.is_ok(), "wizard output must be UTF-8");
+    let Some(shown) = shown.ok() else {
+        return;
+    };
+    assert!(shown.contains("unrecognized"), "the typo must be said");
 }
 
 #[test]
@@ -438,10 +438,12 @@ fn stamped_file_survives_a_hostile_model_string() {
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         );
-        assert!(parsed.is_ok(), "model={model:?} must parse: {parsed:?}");
+        assert!(parsed.is_ok(), "catalog model must parse");
         // The check ladder must not choke either (a dirty audit is
         // fine; a PARSE error at this point is the bug).
-        let wf = parsed.expect("asserted ok above");
+        let Some(wf) = parsed.ok() else {
+            return;
+        };
         let _ = nika_check::check(&wf);
     }
 }
@@ -478,8 +480,10 @@ fn every_embedded_template_audits_clean_or_is_a_documented_gap() {
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         );
-        assert!(parsed.is_ok(), "{name}: template must parse: {parsed:?}");
-        let wf = parsed.expect("asserted ok above");
+        assert!(parsed.is_ok(), "{name}: template must parse");
+        let Some(wf) = parsed.ok() else {
+            return;
+        };
         let is_gap = KNOWN_GAP.contains(&name.as_str());
         let report = nika_check::check(&wf);
         // #1066 amended the own-corpus law rather than retiring it. A
@@ -555,12 +559,14 @@ fn recovered_try_examples_parse_and_check() {
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         );
-        assert!(parsed.is_ok(), "{slug} must parse: {parsed:?}");
-        let wf = parsed.expect("asserted ok");
+        assert!(parsed.is_ok(), "{slug} must parse");
+        let Some(wf) = parsed.ok() else {
+            return;
+        };
         let report = nika_check::check(&wf);
         assert!(
             report.is_clean() || report.findings.iter().all(|f| f.kind == "slot"),
-            "{slug}: recovered example fails check: {report:?}"
+            "{slug}: recovered example fails check"
         );
     }
 }
@@ -578,13 +584,12 @@ fn new_hello_equals_new_01_hello_and_rehearses_on_mock_echo() {
     let b_s = b.to_string_lossy().into_owned();
     let out_a = run("hello", Some(&a_s), true);
     let out_b = run("01-hello", Some(&b_s), true);
-    assert_eq!(out_a.code, codes::OK, "{}", out_a.text);
-    assert_eq!(out_b.code, codes::OK, "{}", out_b.text);
+    assert_eq!(out_a.code, codes::OK);
+    assert_eq!(out_b.code, codes::OK);
     let body_a = std::fs::read_to_string(&a).expect("a");
     let body_b = std::fs::read_to_string(&b).expect("b");
-    assert_eq!(
-        body_a.replace(&a_s, "<dest>"),
-        body_b.replace(&b_s, "<dest>"),
+    assert!(
+        body_a.replace(&a_s, "<dest>") == body_b.replace(&b_s, "<dest>"),
         "hello and 01-hello must land the same file"
     );
     let model = body_a
@@ -593,10 +598,10 @@ fn new_hello_equals_new_01_hello_and_rehearses_on_mock_echo() {
         .expect("model");
     assert!(
         model.contains("mock/echo"),
-        "the one hello is mock/echo: {model}"
+        "the one hello must use mock/echo"
     );
-    assert!(!model.to_ascii_lowercase().contains("local"), "{model}");
-    assert!(!body_a.contains("gpt-4o-mini"), "{body_a}");
+    assert!(!model.to_ascii_lowercase().contains("local"));
+    assert!(!body_a.contains("gpt-4o-mini"));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -610,16 +615,14 @@ fn weekend_summary_of_three_urls_writes_or_names_fetch_chain() {
         let body = std::fs::read_to_string(&dest).expect("written");
         assert!(
             body.contains("nika: fetch-chain") || out.text.contains("05-fetch-chain"),
-            "wrote something else: {}\n{body}",
-            out.text
+            "must write or name fetch-chain"
         );
         std::fs::remove_file(&dest).ok();
     } else {
-        assert_eq!(out.code, codes::FILE, "{}", out.text);
+        assert_eq!(out.code, codes::FILE);
         assert!(
             out.text.contains("05-fetch-chain"),
-            "must name the closest slug: {}",
-            out.text
+            "must name the closest slug"
         );
         assert!(
             !std::path::Path::new(&dest).exists(),
@@ -637,20 +640,20 @@ fn stamp_comments_match_the_model_field() {
         .lines()
         .find(|l| l.starts_with("model: "))
         .expect("model line");
-    assert!(model.contains("openai/gpt-5.2"), "{model}");
+    assert!(model.contains("openai/gpt-5.2"));
     assert!(
         !model.to_ascii_lowercase().contains("local"),
-        "no « local » while openai: {model}"
+        "openai must not be described as local"
     );
     let mock = stamp(body, "hello", Some("mock/echo"));
     let mock_line = mock
         .lines()
         .find(|l| l.starts_with("model: "))
         .expect("model line");
-    assert!(mock_line.contains("mock/echo"), "{mock_line}");
+    assert!(mock_line.contains("mock/echo"));
     assert!(
         !mock_line.to_ascii_lowercase().contains("local"),
-        "no « local » while mock/echo: {mock_line}"
+        "mock must not be described as local"
     );
 }
 
@@ -673,9 +676,13 @@ fn read_wizard_three_enters_is_the_golden_path() {
     assert_eq!(w.template, "chain");
     assert_eq!(w.dest, "my-first.nika.yaml");
     assert!(w.model.as_deref().is_some_and(|m| m.starts_with("mock/")));
-    let shown = String::from_utf8(out).expect("utf8");
-    assert!(shown.contains("template `chain`"), "{shown}");
-    assert!(shown.contains("ollama/"), "menu shows local first: {shown}");
+    let shown = String::from_utf8(out);
+    assert!(shown.is_ok(), "wizard output must be UTF-8");
+    let Some(shown) = shown.ok() else {
+        return;
+    };
+    assert!(shown.contains("template `chain`"));
+    assert!(shown.contains("ollama/"), "menu must show local first");
     std::fs::remove_dir_all(&base).ok();
 }
 
@@ -699,14 +706,15 @@ fn read_wizard_skips_the_model_question_when_the_template_takes_none() {
     .expect("not cancelled");
     assert_eq!(w.template, "gate-and-act");
     assert_eq!(w.model, None, "no model harvested");
-    let shown = String::from_utf8(out).expect("utf8");
-    assert!(
-        shown.contains("models are per-task in this skeleton"),
-        "{shown}"
-    );
+    let shown = String::from_utf8(out);
+    assert!(shown.is_ok(), "wizard output must be UTF-8");
+    let Some(shown) = shown.ok() else {
+        return;
+    };
+    assert!(shown.contains("models are per-task in this skeleton"));
     assert!(
         !shown.contains("a number, or any provider/model"),
-        "the question must not fire: {shown}"
+        "the question must not fire"
     );
     std::fs::remove_dir_all(&base).ok();
 }
@@ -796,16 +804,11 @@ fn wizard_io_refuses_a_typed_existing_dest_and_force_overrides() {
         &mut out,
         &stub_audit,
     );
-    assert_eq!(v.code, codes::ENV, "{}", v.text);
+    assert_eq!(v.code, codes::ENV);
+    assert!(v.text.contains("--force"), "must teach the override");
     assert!(
-        v.text.contains("--force"),
-        "teaches the override: {}",
-        v.text
-    );
-    assert_eq!(
-        std::fs::read_to_string(base.join("my-first.nika.yaml")).expect("read"),
-        "taken",
-        "refused = untouched"
+        std::fs::read_to_string(base.join("my-first.nika.yaml")).expect("read") == "taken",
+        "refused destination must stay untouched"
     );
 
     let mut input2 = std::io::Cursor::new(b"\nmy-first\n\n".to_vec());
@@ -819,7 +822,7 @@ fn wizard_io_refuses_a_typed_existing_dest_and_force_overrides() {
         &mut out2,
         &stub_audit,
     );
-    assert_eq!(v2.code, codes::OK, "{}", v2.text);
+    assert_eq!(v2.code, codes::OK);
     assert!(
         std::fs::read_to_string(base.join("my-first.nika.yaml"))
             .expect("read")
@@ -845,11 +848,11 @@ fn wizard_io_materializes_a_stamped_file() {
         &mut out,
         &stub_audit,
     );
-    assert_eq!(v.code, codes::OK, "{}", v.text);
-    assert!(v.text.contains("scriptable form"), "{}", v.text);
+    assert_eq!(v.code, codes::OK);
+    assert!(v.text.contains("scriptable form"));
     // The wow contract: the wizard SHOWS the audit ladder — the file
     // arrives already checked, not with a suggestion to check.
-    assert!(v.text.contains("audited"), "the ladder ran: {}", v.text);
+    assert!(v.text.contains("audited"), "the ladder must run");
     let written = std::fs::read_to_string(dir.join("first.nika.yaml")).expect("file written");
     assert!(written.contains("nika: first"));
     std::fs::remove_dir_all(&dir).ok();
@@ -870,8 +873,7 @@ fn boilerplate_and_stopwords_do_not_route() {
     ] {
         assert!(
             !matches!(crate::intent::route(garbage), RoutingOutcome::Routed { .. }),
-            "`{garbage}` must not route · got {:?}",
-            crate::intent::route(garbage)
+            "`{garbage}` must not route"
         );
     }
     // …but a real intent still routes on its signal terms.
@@ -895,10 +897,10 @@ fn a_below_the_bar_intent_writes_nothing_and_names_the_candidates() {
         Some(&d),
         true,
     );
-    assert_eq!(out.code, codes::FILE, "{}", out.text);
+    assert_eq!(out.code, codes::FILE);
     assert!(!Path::new(&d).exists(), "below the bar = no write");
-    assert!(out.text.contains("competitor-radar"), "{}", out.text);
-    assert!(out.text.contains("website-brief"), "{}", out.text);
+    assert!(out.text.contains("competitor-radar"));
+    assert!(out.text.contains("website-brief"));
 }
 
 /// P0-10 · the routed file is a DRAFT: the message says so, never
@@ -907,11 +909,11 @@ fn a_below_the_bar_intent_writes_nothing_and_names_the_candidates() {
 fn a_confident_route_lands_a_draft_that_hands_over_to_check() {
     let d = dest("draft");
     let out = run("summarize every item in parallel", Some(&d), true);
-    assert_eq!(out.code, codes::OK, "{}", out.text);
+    assert_eq!(out.code, codes::OK);
     let lower = out.text.to_ascii_lowercase();
-    assert!(lower.contains("draft"), "{}", out.text);
-    assert!(!lower.contains("ready"), "{}", out.text);
-    assert!(out.text.contains("nika check"), "{}", out.text);
+    assert!(lower.contains("draft"));
+    assert!(!lower.contains("ready"));
+    assert!(out.text.contains("nika check"));
     std::fs::remove_file(&d).ok();
 }
 
@@ -927,7 +929,7 @@ fn taught_lines_survive_the_paste_back() {
         None,
         false,
     );
-    assert_eq!(out.code, codes::FILE, "{}", out.text);
+    assert_eq!(out.code, codes::FILE);
     let rest = out
         .text
         .split("take one by name (`")
@@ -942,12 +944,12 @@ fn taught_lines_survive_the_paste_back() {
     if nika_pack::template(name).is_some() {
         assert!(
             taught.ends_with("<dest>.nika.yaml"),
-            "a skeleton hint must teach its destination: {taught}"
+            "a skeleton hint must teach its destination"
         );
     } else {
         assert!(
             nika_pack::example(name).is_some(),
-            "the taught name must exist: {taught}"
+            "the taught name must exist"
         );
     }
 
@@ -959,12 +961,11 @@ fn taught_lines_survive_the_paste_back() {
     // probe leans on `docker`, which only the docker-report skeleton
     // carries.
     let out = run("report on my running docker containers", None, false);
-    assert_eq!(out.code, codes::ENV, "{}", out.text);
+    assert_eq!(out.code, codes::ENV);
     assert!(
         out.text
             .contains("nika new 'report on my running docker containers' <dest>.nika.yaml"),
-        "the taught paste-back is ONE shell argument: {}",
-        out.text
+        "the taught paste-back must be one shell argument"
     );
 }
 

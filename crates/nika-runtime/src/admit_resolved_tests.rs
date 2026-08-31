@@ -37,7 +37,7 @@ fn parse(yaml: &str) -> RawWorkflow {
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
-    .expect("fixture parses")
+    .unwrap_or_else(|_| panic!("fixture must parse"))
 }
 
 fn runtime_with(shell: MockShell) -> MockRuntime {
@@ -72,11 +72,11 @@ async fn run_refused(runtime: &MockRuntime, wf: &RawWorkflow) -> RuntimeError {
     let err = runtime
         .run(wf, &report, &mut stamper, &mut sink)
         .await
-        .expect_err("an unpriced cloud seat under a cap never reaches dispatch");
+        .err()
+        .unwrap_or_else(|| panic!("a refused run must never reach dispatch"));
     assert!(
         sink.events().is_empty(),
-        "refused BEFORE any event — not even the prologue: {:?}",
-        sink.events()
+        "refusal must happen before any event, including the prologue"
     );
     err
 }
@@ -103,12 +103,11 @@ fn static_report_misses_a_var_resolved_unpriced_cloud_seat() {
     let report = nika_check::check(&wf);
     assert!(
         report.is_clean(),
-        "unjudged run-time model is not dirty: {report:?}"
+        "unjudged run-time model must not be dirty"
     );
     assert!(
         report.data_journey.model_endpoints.is_empty(),
-        "no default → check cannot name the seat: {:?}",
-        report.data_journey.model_endpoints
+        "without a default, check must not name the seat"
     );
     assert!(
         budget_floor_refusal(&wf, &report, Some(0.20), None).is_none(),
@@ -133,9 +132,9 @@ fn var_resolved_unpriced_cloud_plus_cap_refuses_to_start() {
     .expect_err("resolved gemini canary + $0.20 must NIKA-1709");
     assert_eq!(err.spec_code(), "NIKA-1709");
     let msg = err.to_string();
-    assert!(msg.contains("unpriced"), "{msg}");
-    assert!(msg.contains("nika-b20-unpriced-canary"), "{msg}");
-    assert!(msg.contains("0.200000"), "cap rides: {msg}");
+    assert!(msg.contains("unpriced"));
+    assert!(msg.contains("nika-b20-unpriced-canary"));
+    assert!(msg.contains("0.200000"), "cap must ride");
     assert!(
         gates(&wf, &report, &canary_override(), None, None, None, &[]).is_ok(),
         "no cap → unpriced cloud may still start"
@@ -154,7 +153,7 @@ fn priced_envelope_cel_overridden_to_unpriced_cloud_refuses() {
         .iter()
         .find(|e| e.task == "ping")
         .expect("check sees the priced default");
-    assert!(ep.priced, "static door looks priced: {ep:?}");
+    assert!(ep.priced, "static door must look priced");
     assert!(
         budget_floor_refusal(&wf, &report, Some(0.20), None).is_none(),
         "check JSON looks priced — the static walk admits"
@@ -181,8 +180,7 @@ fn cli_model_override_to_unpriced_cloud_refuses() {
             .model_endpoints
             .iter()
             .any(|e| e.priced && e.model.contains("gemini-2.5-flash")),
-        "file is priced flash: {:?}",
-        report.data_journey.model_endpoints
+        "file must be priced flash"
     );
     let err = budget_floor_refusal(
         &wf,
