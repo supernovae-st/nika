@@ -149,7 +149,7 @@ fn golden_paused_frame_names_the_awaiting_gate() {
     );
     assert!(
         joined.contains("nika run --answer summarize=true FILE"),
-        "the paused card teaches the resume door: {joined}"
+        "confirm teaches --answer key=true: {joined}"
     );
     assert!(
         !joined.contains("=yes"),
@@ -165,6 +165,20 @@ fn golden_paused_frame_names_the_awaiting_gate() {
     assert!(
         close.contains("paused · awaiting an answer for `summarize`"),
         "{close}"
+    );
+}
+
+/// P11 · an input gate's card must not teach `=true` / « not yes ».
+#[test]
+fn pause_card_input_mode_teaches_a_string() {
+    let joined = frame(&fold(&demo::paused_input()), &UNICODE, 0).join("\n");
+    assert!(
+        joined.contains("nika run --answer approve=\"your answer\" FILE"),
+        "input teaches a string: {joined}"
+    );
+    assert!(
+        !joined.contains("=true") && !joined.contains("not yes"),
+        "confirm copy must not ride an input gate: {joined}"
     );
 }
 
