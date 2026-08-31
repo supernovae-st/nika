@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4748
+  classified_files: 4750
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 1771
+    authored: 1773
     authored-pin: 2
     generated: 125
     pinned-copy: 145
@@ -183,17 +183,17 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 120
-  aggregate_sha256: 05a800d6bb0b5a3208560892700d6df58a8fb80a7478d4d08b3f8a241e436fb4
+  aggregate_sha256: bde5aeeba491d21d8f24ca46aa5c649c9163b14cde448eb71177b36c8b0e230e
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 174
-  aggregate_sha256: 54eb10f6c4f45e5e7ea2e8db2698613801bc6a702a289416bd568b96aafdd038
+  match_count: 176
+  aggregate_sha256: 17b1aca5f808e5fbadcd181e7e94e0a00864adeec5e2353bdfd5cb5cd49204b1
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: b190fd9eb1dd50a4819dd65ec72559032ff191d9476f6945de9543293f60b298
+  aggregate_sha256: 9afacd23e94fd48ca7b81f56ac1753240de7d850c65ed008e0fe7412e891f256
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -249,7 +249,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: 10cf5de19e0f828134a3b7a58ec7b22ebed98fbd5f308e9513da9aab1e4d926b
+  aggregate_sha256: e6078c867412a975ea84ffdbfe27021383a31bf140e14ad4cf52d49769343df1
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

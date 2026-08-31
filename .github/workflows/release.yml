@@ -22,6 +22,13 @@ on:
 permissions:
   contents: read # least privilege at the top — release job elevates (Scorecard Token-Permissions)
 
+# One tag is one publication lane. A manual replay must queue behind the live
+# train instead of racing it for release assets, the floating image tag, or the
+# Homebrew formula. Never cancel a train after an irreversible registry write.
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: '0'
@@ -313,13 +320,13 @@ jobs:
           # rendered from CHANGELOG.md; --generate-notes keeps the full PR
           # list appended below it (gh prepends provided notes to generated).
           bash scripts/release/render-notes.sh "$REF_NAME" > "$RUNNER_TEMP/release-notes.md"
-          # idempotent on a workflow_dispatch rebuild (a documented path in
-          # this file): an existing release keeps its body + discussion —
-          # the LINEAGE LAW (never rewrite a live release retroactively) —
-          # and only the assets refresh (--clobber)
+          # Idempotent on a workflow_dispatch rebuild: an existing release
+          # keeps its body + discussion, and every already-published asset
+          # must be byte-identical. A replay may fill a missing asset, never
+          # rewrite one whose public name is already occupied.
           if gh release view "$REF_NAME" --repo "$REPO" > /dev/null 2>&1; then
-            echo "::notice::release ${REF_NAME} already exists — refreshing assets only"
-            gh release upload "$REF_NAME" --repo "$REPO" --clobber \
+            echo "::notice::release ${REF_NAME} already exists — verifying immutable assets"
+            bash scripts/release/upload-assets-immutable.sh "$REF_NAME" "$REPO" \
               artifacts/nika-*.tar.gz artifacts/SHA256SUMS
           else
             gh release create "$REF_NAME" \
@@ -539,9 +546,10 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # --clobber: a workflow_dispatch rebuild of a tag is a supported
-          # path in this file — a re-run must not go red on its own assets
-          gh release upload "$TAG" --repo "$REPO" --clobber ./*.tgz ./*.tgz.sha256
+          # A replay may heal an absent asset, but a public name is immutable
+          # once occupied. Different bytes fail closed.
+          bash scripts/release/upload-assets-immutable.sh \
+            "$TAG" "$REPO" ./*.tgz ./*.tgz.sha256
       - name: Attest build provenance (the npm tarball · verifiable via `gh attestation verify`)
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -647,3 +655,11 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ needs.release.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Nika
+            org.opencontainers.image.description=Sovereign AI workflow runtime
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.url=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release.outputs.sha }}
+            org.opencontainers.image.version=${{ needs.release.outputs.version }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later

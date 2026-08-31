@@ -119,8 +119,10 @@ without an explicit operator decision.
    git tag v<NEXT> && git push origin v<NEXT>
    ```
 
-   Nothing else. `workflow_dispatch` can rebuild an existing tag; know that
-   re-dispatching an old tag re-points `latest` (docker + release ordering).
+   Nothing else. `workflow_dispatch` can rebuild an existing tag. Runs for the
+   same tag serialize, and replay refuses to replace an occupied release asset
+   with different bytes. Know that re-dispatching an old tag still re-points
+   `latest` (docker + release ordering).
 
    The portable Agent Plugins mirror is downstream of this immutable tag.
    After the release assets are green, its release-heal lane runs

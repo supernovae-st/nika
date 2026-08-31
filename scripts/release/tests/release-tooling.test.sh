@@ -280,6 +280,25 @@ grep -q 'crates/nika-acp/Cargo.lock' "$ROOT/RELEASING.md" \
   || fail 'the canonical carrier list omits crates/nika-acp/Cargo.lock'
 grep -q 'before declaring the release complete' "$ROOT/RELEASING.md" \
   || fail 'the ceremony does not say when the timeline record closes the release'
+grep -q 'group: release-${{ github.event.inputs.tag || github.ref_name }}' \
+  "$ROOT/.github/workflows/release.yml" \
+  || fail 'the release workflow does not serialize runs for the same tag'
+grep -q 'cancel-in-progress: false' "$ROOT/.github/workflows/release.yml" \
+  || fail 'the release workflow may cancel a train after an irreversible write'
+for label in \
+  org.opencontainers.image.revision \
+  org.opencontainers.image.version \
+  org.opencontainers.image.source; do
+  grep -q "$label" "$ROOT/.github/workflows/release.yml" \
+    || fail "the release image omits OCI label $label"
+done
+if grep -q -- '--clobber' "$ROOT/.github/workflows/release.yml"; then
+  fail 'the release workflow can overwrite bytes under an occupied asset name'
+fi
+grep -q 'upload-assets-immutable.sh' "$ROOT/.github/workflows/release.yml" \
+  || fail 'the release workflow bypasses the immutable asset uploader'
+bash "$ROOT/scripts/release/tests/immutable-assets.test.sh" >/dev/null \
+  || fail 'the immutable asset replay regression failed'
 grep -q 'TAP_DEPLOY_KEY' "$ROOT/docs/RELEASING.md" \
   || fail 'the operator guide does not name the release workflow deploy key'
 if grep -q 'HOMEBREW_TAP_TOKEN' "$ROOT/docs/RELEASING.md"; then
