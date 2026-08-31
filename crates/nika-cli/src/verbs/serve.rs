@@ -80,6 +80,7 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
         text,
         code: exit::WORKFLOW,
     };
+    let bounded_rehearsal = args.once || args.dry || args.now.is_some() || args.until.is_some();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let http = nika_serve::optional_server_config(
         args.bind.as_deref(),
@@ -99,18 +100,12 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
                 .to_owned(),
         ));
     }
-    if !args.once && !args.dry && (now.is_some() || until.is_some()) {
-        return Err(fail(
-            "serve · --now/--until are bounded rehearsal clocks; persistent schedules use fresh wall time"
-                .to_owned(),
-        ));
-    }
     let (path, registry) = arm::load(&cwd).map_err(|out| fail(out.text))?;
     let root = path
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
     recover_resident(&root, &registry, args.dry).map_err(&fail)?;
-    if args.once || args.dry {
+    if bounded_rehearsal {
         let run = ResidentRun::Direct(std::rc::Rc::new(arm::fire::prod_run));
         let lifecycle = ResidentLifecycle::process().map_err(&fail)?;
         serve(
@@ -935,8 +930,8 @@ mod tests {
             "persistent schedules run on the one resident authority even without HTTP"
         );
         assert!(
-            src.contains("if args.once || args.dry") && src.contains("ResidentRun::Direct"),
-            "only bounded rehearsal selects direct execution"
+            src.contains("if bounded_rehearsal") && src.contains("ResidentRun::Direct"),
+            "every bounded rehearsal selects direct execution"
         );
     }
 
