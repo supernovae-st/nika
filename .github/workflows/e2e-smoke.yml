@@ -123,6 +123,15 @@ jobs:
             exit 1
           fi
 
+      - name: Install bubblewrap (Ubuntu exec path stays confined)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          set -euo pipefail
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends bubblewrap
+          sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict 2>/dev/null || true
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       # ──────────────────────────────────────────────────────────────────
       # 4. exec path (offline) — check + run a single exec task
       # ──────────────────────────────────────────────────────────────────
