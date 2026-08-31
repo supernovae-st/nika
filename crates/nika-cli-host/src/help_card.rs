@@ -16,10 +16,8 @@ pub fn human_help() -> &'static str {
      nika try         rehearsal · to own the file: nika new <slug>\n\
      nika new hello   one file that runs on this machine\n\
      nika run         run a file\n\
-     nika check       audit a file before it runs\n\
-     nika doctor      PATH, model, sandbox\n\
-     in the file · permits    what this file is allowed to touch\n\
-     to isolate · env -i HOME=$scratch PATH=\"$PATH\" nika …\n"
+     nika check       audit · in the file, permits = what this file is allowed to touch\n\
+     nika doctor      PATH, model, sandbox · isolate with env -i HOME=$scratch PATH=\"$PATH\" nika …\n"
 }
 
 /// Teaching line when someone types `nika permits` as if it were a verb.
@@ -149,8 +147,8 @@ mod tests {
             "B08: {help}"
         );
         assert!(
-            help.lines().filter(|l| !l.is_empty()).count() <= 8,
-            "postcard stays a card, got:\n{help}"
+            help.lines().filter(|l| !l.is_empty()).count() <= 6,
+            "postcard stays a six-line card, got:\n{help}"
         );
     }
 
@@ -172,8 +170,8 @@ mod tests {
             "permits is a field in the file: {help}"
         );
         assert!(
-            help.contains("to isolate"),
-            "isolation is a note, not a verb: {help}"
+            help.contains("isolate") && help.contains("env -i"),
+            "isolation is a note on doctor, not a verb: {help}"
         );
     }
 

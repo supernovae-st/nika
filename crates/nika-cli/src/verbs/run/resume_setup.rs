@@ -424,10 +424,10 @@ mod tests {
         let y =
             nika_dap::resume::parse_answers(&coerce_answer_pairs(&["approve=y".to_owned()]), &wf)
                 .expect("y is a boolean");
-        let tru = nika_dap::resume::parse_answers(&["approve=true".to_owned()], &wf)
+        let as_true = nika_dap::resume::parse_answers(&["approve=true".to_owned()], &wf)
             .expect("true is a boolean");
-        assert_eq!(yes, tru, "approve=yes matches approve=true");
-        assert_eq!(y, tru, "approve=y matches approve=true");
+        assert_eq!(yes, as_true, "approve=yes matches approve=true");
+        assert_eq!(y, as_true, "approve=y matches approve=true");
         assert_eq!(yes.get("approve"), Some(&serde_json::Value::Bool(true)));
         let no =
             nika_dap::resume::parse_answers(&coerce_answer_pairs(&["approve=no".to_owned()]), &wf)

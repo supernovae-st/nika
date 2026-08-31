@@ -167,6 +167,9 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::clients_registry::Reg
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::clients_registry::RegistryCoverage
 impl<T> typenum::type_operators::Same for nika_cli_host::clients_registry::RegistryCoverage
 pub type nika_cli_host::clients_registry::RegistryCoverage::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::clients_registry::RegistryCoverage where T: core::default::Default
+pub type nika_cli_host::clients_registry::RegistryCoverage::NoneType = T
+pub fn nika_cli_host::clients_registry::RegistryCoverage::null_value() -> T
 pub const nika_cli_host::clients_registry::PROBE_MECHANISMS: &[&str]
 pub fn nika_cli_host::clients_registry::coverage(registry: &nika_cli_host::clients_registry::ClientsRegistry) -> nika_cli_host::clients_registry::RegistryCoverage
 pub fn nika_cli_host::clients_registry::registry_ships_kit(target: &str) -> bool
@@ -1732,6 +1735,9 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::metrics::Facts
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::metrics::Facts
 impl<T> typenum::type_operators::Same for nika_cli_host::metrics::Facts
 pub type nika_cli_host::metrics::Facts::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::metrics::Facts where T: core::default::Default
+pub type nika_cli_host::metrics::Facts::NoneType = T
+pub fn nika_cli_host::metrics::Facts::null_value() -> T
 pub fn nika_cli_host::metrics::record(path: &std::path::Path, event: nika_cli_host::metrics::EventKind, facts: nika_cli_host::metrics::Facts) -> core::io::error::Result<()>
 pub fn nika_cli_host::metrics::record_if_enabled(event: nika_cli_host::metrics::EventKind, facts: nika_cli_host::metrics::Facts)
 pub mod nika_cli_host::notify
@@ -2104,6 +2110,9 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::ImageProbe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::ImageProbe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::ImageProbe
 pub type nika_cli_host::probe::ImageProbe::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::ImageProbe where T: core::default::Default
+pub type nika_cli_host::probe::ImageProbe::NoneType = T
+pub fn nika_cli_host::probe::ImageProbe::null_value() -> T
 pub struct nika_cli_host::probe::KitProbe
 pub nika_cli_host::probe::KitProbe::client: alloc::string::String
 pub nika_cli_host::probe::KitProbe::version: alloc::string::String
@@ -2207,6 +2216,9 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::PricingProbe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::PricingProbe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::PricingProbe
 pub type nika_cli_host::probe::PricingProbe::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::PricingProbe where T: core::default::Default
+pub type nika_cli_host::probe::PricingProbe::NoneType = T
+pub fn nika_cli_host::probe::PricingProbe::null_value() -> T
 pub struct nika_cli_host::probe::Probe
 pub nika_cli_host::probe::Probe::census: nika_providers::census::AccessCensus
 pub nika_cli_host::probe::Probe::clients: alloc::vec::Vec<nika_cli_host::probe::ClientProbe>
@@ -2374,6 +2386,9 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::TtsProbe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::TtsProbe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::TtsProbe
 pub type nika_cli_host::probe::TtsProbe::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::TtsProbe where T: core::default::Default
+pub type nika_cli_host::probe::TtsProbe::NoneType = T
+pub fn nika_cli_host::probe::TtsProbe::null_value() -> T
 pub fn nika_cli_host::probe::access_probes_with_harness() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_cli_host::probe::adoption_state(probe: &nika_cli_host::probe::Probe) -> nika_cli_host::probe::AdoptionState
 pub fn nika_cli_host::probe::auth_class_witness(detail: &str) -> bool
@@ -2577,5 +2592,8 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::wire::WireOptions
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::wire::WireOptions
 impl<T> typenum::type_operators::Same for nika_cli_host::wire::WireOptions
 pub type nika_cli_host::wire::WireOptions::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::wire::WireOptions where T: core::default::Default
+pub type nika_cli_host::wire::WireOptions::NoneType = T
+pub fn nika_cli_host::wire::WireOptions::null_value() -> T
 pub fn nika_cli_host::wire::run(target: nika_cli_host::wire::WireTarget, dir: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli_host::wire::run_with(target: nika_cli_host::wire::WireTarget, dir: &str, options: nika_cli_host::wire::WireOptions) -> nika_cli_host::output::VerbOutput
