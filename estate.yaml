@@ -193,7 +193,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: e6c5a9b61491df55887679c0aa4e4e8b7645138a2574d6a286ad436108dcf817
+  aggregate_sha256: b190fd9eb1dd50a4819dd65ec72559032ff191d9476f6945de9543293f60b298
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
