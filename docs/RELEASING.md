@@ -75,7 +75,9 @@ assets are filled only when the occupied set still compares byte-for-byte.
 The workflow reads replay tooling from its own exact commit, not from the
 historical tag. Existing SLSA provenance is preserved rather than regenerated;
 a missing statement makes manual replay fail, because the workflow branch is
-not an honest provenance identity for the historical tag.
+not an honest provenance identity for the historical tag. The replay guard
+checks the unique asset name; the verification commands below still judge its
+signature and source identity.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.

@@ -130,8 +130,9 @@ without an explicit operator decision.
    need to contain future release tooling. Existing SLSA provenance is
    preserved byte-for-byte and a missing statement follows the same guarded
    replay boundary. SLSA provenance is created only by the original tag-push
-   context. Manual replay requires the tag-true statement to exist exactly
-   once and refuses branch-context regeneration.
+   context. Manual replay requires exactly one existing statement asset and
+   refuses branch-context regeneration; `slsa-verifier` remains the separate
+   cryptographic and source-identity judge.
 
    The portable Agent Plugins mirror is downstream of this immutable tag.
    After the release assets are green, its release-heal lane runs

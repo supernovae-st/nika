@@ -413,7 +413,7 @@ jobs:
             "$TAG" "$REPO" "$PROVENANCE_NAME"
 
   provenance-replay-check:
-    name: preserve tag-true slsa on replay
+    name: preserve existing slsa asset on replay
     needs: release
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
@@ -433,7 +433,7 @@ jobs:
             echo "::error::manual replay requires exactly one existing multiple.intoto.jsonl; refusing branch-context provenance regeneration"
             exit 73
           fi
-          echo "tag-true SLSA provenance is already present and remains untouched"
+          echo "one SLSA provenance asset is present and remains untouched; cryptographic verification stays a separate release check"
 
   bump-formula:
     name: bump homebrew tap

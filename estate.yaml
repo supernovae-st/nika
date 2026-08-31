@@ -183,7 +183,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 120
-  aggregate_sha256: 7dbe3d045e8bb11d9da9d3b87db5128ed84fa420b173ebb6776eb7c15ad27a5e
+  aggregate_sha256: 09ef777997a29d36bf15de95788d70e2c4ab7a3946c871a16172a5431587d9ef
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
@@ -193,7 +193,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: 2315d4562f4daf36fb3084332bb1144cc8529f5f0337f00e8ac457d8e53c8a15
+  aggregate_sha256: 41c951554d62d775d7db6a6f7819d599fcf78ca2c4ca731b6a72a88b697b7304
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -249,7 +249,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: 6257d5282076c509fc9bf97bf12adce0b20eedbbe900b66a0292e4687c5fe6a3
+  aggregate_sha256: 191435c68e904bb462a7c060707bf31bb8638ef21cde864fe2671ef665e2f1e8
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
