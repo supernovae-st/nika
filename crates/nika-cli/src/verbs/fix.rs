@@ -35,6 +35,7 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     let mut repairs: Vec<Repair> = Vec::new();
     let mut stop_notes = StopNotes(Vec::new());
     let mut refusals: Vec<Refusal> = Vec::new();
+    apply_prepass(&mut source, &mut repairs, &mut stop_notes);
 
     for _ in 0..MAX_ROUNDS {
         // The savepoint: what this round may be rolled back to.
@@ -111,6 +112,7 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     let verdict = super::check::run(path, false, native_strict, model, theme);
     let stops = render_stops(&stop_notes, theme);
     let refused = render_refusals(&refusals, theme);
+    sanitize_success_copy(&mut repairs);
     VerbOutput {
         text: format!(
             "{}{}{}{}",
@@ -121,6 +123,197 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
         ),
         code: verdict.code,
     }
+}
+
+/// C13 · B14: wrap a bare `exec:` scalar and rewrite a simple `needs:`
+/// list, or STOP with why. Runs once before the host ladder so parse
+/// can see a mapping / an `after:` edge.
+fn apply_prepass(source: &mut String, repairs: &mut Vec<Repair>, stop_notes: &mut StopNotes) {
+    if let Some(next) = wrap_bare_exec(source) {
+        *source = next;
+        repairs.push(Repair::applied(
+            "bare exec: string",
+            "command: / shell: mapping",
+            "bare-exec",
+        ));
+    } else if has_bare_exec(source) {
+        stop_notes.0.push(
+            "bare `exec:` string must be a YAML mapping — write `command: [\"prog\", …]` \
+             or `shell: \"…\"`"
+                .to_owned(),
+        );
+    }
+    if let Some(next) = rewrite_needs(source) {
+        *source = next;
+        repairs.push(Repair::applied(
+            "needs:",
+            "after: { id: success }",
+            "needs-after",
+        ));
+    }
+    if has_needs_key(source) {
+        stop_notes.0.push(
+            "`needs:` is a foreign dialect key — --fix will not guess `with:` data \
+             vs `after:` order; rewrite to `after: { task: success }` for order, \
+             or a `with:` binding for data"
+                .to_owned(),
+        );
+    }
+}
+
+/// C14 · the live envelope has no `workflow:` object. The host ladder's
+/// W1/R1 success copy still names the dead form; strip it here so the
+/// operator-facing line cannot invent one.
+fn sanitize_success_copy(repairs: &mut [Repair]) {
+    for r in repairs {
+        r.old = r
+            .old
+            .replace("workflow: {id, description}", "id + description");
+        r.old = r.old.replace("workflow scalar · ", "");
+        r.new = r
+            .new
+            .replace("workflow object + task map", "nine-key envelope + task map");
+        r.new = r.new.replace("workflow:", "nika:");
+        r.old = r.old.replace("workflow:", "nika:");
+    }
+}
+
+fn indent_of(line: &str) -> &str {
+    line.split_at(line.len() - line.trim_start().len()).0
+}
+
+fn wrap_bare_exec(source: &str) -> Option<String> {
+    let mut changed = false;
+    let mut out = String::new();
+    for line in source.lines() {
+        if let Some(wrapped) = wrap_one_bare_exec(line) {
+            out.push_str(&wrapped);
+            changed = true;
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    if !source.ends_with('\n') && out.ends_with('\n') {
+        out.pop();
+    }
+    changed.then_some(out)
+}
+
+fn wrap_one_bare_exec(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    let rest = trimmed.strip_prefix("exec:")?.trim();
+    if rest.is_empty()
+        || rest.starts_with('{')
+        || rest.starts_with('[')
+        || rest.starts_with('|')
+        || rest.starts_with('>')
+        || rest == "true"
+        || rest == "false"
+    {
+        return None;
+    }
+    let indent = indent_of(line);
+    Some(format!("{indent}exec:\n{indent}  command: {rest}"))
+}
+
+fn has_bare_exec(source: &str) -> bool {
+    source.lines().any(|line| {
+        let t = line.trim_start();
+        t.strip_prefix("exec:").is_some_and(|rest| {
+            let rest = rest.trim();
+            !rest.is_empty()
+                && !rest.starts_with('{')
+                && !rest.starts_with('[')
+                && rest != "true"
+                && rest != "false"
+        })
+    })
+}
+
+fn rewrite_needs(source: &str) -> Option<String> {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut changed = false;
+    let mut out = String::new();
+    for (i, line) in lines.iter().enumerate() {
+        if let Some(rewritten) = rewrite_one_needs(line) {
+            if sibling_has_after(&lines, i) {
+                out.push_str(line);
+            } else {
+                out.push_str(&rewritten);
+                changed = true;
+            }
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    if !source.ends_with('\n') && out.ends_with('\n') {
+        out.pop();
+    }
+    changed.then_some(out)
+}
+
+fn rewrite_one_needs(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    let rest = trimmed.strip_prefix("needs:")?.trim();
+    let rest = rest.split('#').next().unwrap_or(rest).trim();
+    let inner = rest.strip_prefix('[')?.strip_suffix(']')?.trim();
+    if inner.is_empty() {
+        return None;
+    }
+    let mut ids = Vec::new();
+    for raw in inner.split(',') {
+        let id = raw.trim().trim_matches('"').trim_matches('\'').trim();
+        if id.is_empty()
+            || !id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return None;
+        }
+        ids.push(id);
+    }
+    if ids.is_empty() {
+        return None;
+    }
+    let map = ids
+        .iter()
+        .map(|id| format!("{id}: success"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let indent = indent_of(line);
+    Some(format!("{indent}after: {{ {map} }}"))
+}
+
+fn sibling_has_after(lines: &[&str], idx: usize) -> bool {
+    let indent = indent_of(lines[idx]);
+    let same_key = |line: &str| {
+        let t = line.trim_start();
+        indent_of(line) == indent && t.starts_with("after:")
+    };
+    lines[..idx]
+        .iter()
+        .rev()
+        .take_while(|l| {
+            let t = l.trim();
+            t.is_empty() || t.starts_with('#') || indent_of(l).len() >= indent.len()
+        })
+        .any(|l| same_key(l))
+        || lines[idx + 1..]
+            .iter()
+            .take_while(|l| {
+                let t = l.trim();
+                t.is_empty() || t.starts_with('#') || indent_of(l).len() >= indent.len()
+            })
+            .any(|l| same_key(l))
+}
+
+fn has_needs_key(source: &str) -> bool {
+    source.lines().any(|line| {
+        let t = line.trim_start();
+        t.starts_with("needs:") && !t.starts_with("needs: #")
+    })
 }
 
 /// One round's savepoint — the text and the bookkeeping the round may
@@ -911,6 +1104,95 @@ mod tests {
         assert!(
             !out.text.contains("argv-only"),
             "the D1 refusal is repaired: {}",
+            out.text
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn bare_exec_string_wraps_into_command_or_names_the_mapping() {
+        // C13 · issue 1310: `exec: "echo …"` used to no-op with « must
+        // be a YAML mapping ». Wrap into `command:` so D1 can finish.
+        let dir = std::env::temp_dir().join(format!("nika-fix-c13-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("bare-exec.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: c13\npermits:\n  exec: [\"echo\"]\ntasks:\n  a:\n    exec: \"echo hello\"\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        assert!(
+            healed.contains("command:") || healed.contains("shell:"),
+            "C13 wrapped or proposed command:/shell:: {healed}"
+        );
+        assert!(
+            !healed.contains("exec: \"echo hello\""),
+            "the scalar exec is gone: {healed}"
+        );
+        assert!(
+            out.text.contains("command:") || out.text.contains("shell:"),
+            "C13 names command:/shell:: {}",
+            out.text
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn needs_rewrites_to_after_or_says_why() {
+        // B14 · issue 1312: --fix migrated depends_on and ignored needs.
+        let dir = std::env::temp_dir().join(format!("nika-fix-b14-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("needs.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: b14\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    needs: [a]\n    exec: { command: [\"true\"] }\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        let rewrote = healed.contains("after:") && !healed.contains("needs:");
+        let explained = out.text.contains("needs:")
+            && (out.text.contains("after:") || out.text.contains("with:"));
+        assert!(
+            rewrote || explained,
+            "B14 rewrites needs: or says why\nfile:\n{healed}\ntext:\n{}",
+            out.text
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn fix_success_does_not_mention_a_workflow_object() {
+        // C14 · issue 1311: the W1 success line invented a `workflow:` object.
+        let dir = std::env::temp_dir().join(format!("nika-fix-c14-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("list.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: c14\npermits: { exec: [\"true\"] }\ntasks:\n  - id: a\n    exec: { command: [\"true\"] }\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        assert!(
+            !out.text.contains("workflow:"),
+            "C14 success must not mention workflow:: {}",
             out.text
         );
         let _ = std::fs::remove_file(&path);

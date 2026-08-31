@@ -1397,7 +1397,8 @@ fn infer_permits_output_cannot_depend_on_the_disk() {
     let absent = run_infer_permits(wf, false);
     let absent_json = run_infer_permits(wf, true);
 
-    assert_eq!(present.code, 0, "{}", present.text);
+    // The pin is filesystem-independence of the YAML, not the exit:
+    // a file with no `permits:` is still red (F-O8) and B15 keeps rc≠0.
     // The fixture really names the read path — the pin is not vacuous.
     assert!(present.text.contains("news.json"), "{}", present.text);
     assert_eq!(
@@ -1407,6 +1408,54 @@ fn infer_permits_output_cannot_depend_on_the_disk() {
     assert_eq!(
         present_json.text, absent_json.text,
         "the json bytes are filesystem-independent"
+    );
+}
+
+#[test]
+fn infer_permits_on_a_red_file_is_not_exit_0() {
+    // B15: a file with findings must not look paste-ready-and-green.
+    let dir = std::env::temp_dir().join(format!("nika-b15-red-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join("red.nika.yaml");
+    std::fs::write(
+        &path,
+        "nika: red\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    after: { ghost: success }\n    exec: { command: [\"echo\", \"hi\"] }\n",
+    )
+    .expect("fixture");
+    let out = run_infer_permits(path.to_str().expect("utf8"), false);
+    assert_ne!(out.code, 0, "B15 red file rc≠0: {}", out.text);
+    assert!(
+        out.text.contains("exec:") && !out.text.contains("exec: true"),
+        "B15 exec infers the binary, not true: {}",
+        out.text
+    );
+    assert!(
+        out.text.contains("echo"),
+        "B15 names the argv program: {}",
+        out.text
+    );
+}
+
+#[test]
+fn infer_permits_shell_form_names_sh_not_true() {
+    let dir = std::env::temp_dir().join(format!("nika-b15-sh-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join("shell.nika.yaml");
+    std::fs::write(
+        &path,
+        "nika: sh\npermits: { exec: true }\ntasks:\n  t:\n    exec: { shell: \"echo hi\" }\n",
+    )
+    .expect("fixture");
+    let out = run_infer_permits(path.to_str().expect("utf8"), false);
+    assert!(
+        !out.text.contains("exec: true"),
+        "B15/#1279 never paste exec: true: {}",
+        out.text
+    );
+    assert!(
+        out.text.contains("exec: [\"sh\"]") || out.text.contains("exec: [\"echo\"]"),
+        "B15 infers the binary: {}",
+        out.text
     );
 }
 
