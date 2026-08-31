@@ -28,6 +28,10 @@ and has no keyword. The engine-side kit gate
 (`the_kit_never_teaches_a_form_the_engine_refuses`) now holds those
 spellings, proven by mutation.
 
+## 0.116.2 — 2026-08-31
+
+Lockstep on the engine wave.
+
 ## 0.116.1 — 2026-08-31
 
 Lockstep on the engine wave.

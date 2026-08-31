@@ -16,6 +16,30 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.116.2](https://github.com/supernovae-st/nika/compare/v0.116.0..v0.116.2) - 2026-08-31
+
+### Changed
+
+- **0.116.2 supersedes the unpublished 0.116.1 tag.** No GitHub Release
+  or assets were produced because estate freshness stopped all four
+  builders; the immutable tag remains a historical record. This train
+  carries the full gauntlet close with a final-tree estate projection.
+
+### Fixed
+
+- **Relative permit paths keep stable identity during concurrent ancestry
+  changes.** A sibling creating the first relative ancestor between grant
+  and target resolution can no longer change the permit decision.
+- **Resident schedules settle before their durable store shuts down.**
+  `nika serve` joins scheduler authority after prepared runs and terminal
+  receipts drain, preventing live-once settlement from racing store shutdown.
+
+### Security
+
+- **Secret-bearing workflows stay out of test and fallback diagnostics.**
+  Panic and assertion paths no longer format raw workflow, command, report,
+  parser, or runtime content; sentinel regressions close 16 cleartext-log flows.
+
 ## [0.116.1](https://github.com/supernovae-st/nika/compare/v0.116.0..v0.116.1) - 2026-08-31
 
 ### Fixed
