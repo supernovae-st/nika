@@ -16,6 +16,35 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.116.1](https://github.com/supernovae-st/nika/compare/v0.116.0..v0.116.1) - 2026-08-31
+
+### Fixed
+
+- **Night gauntlet close (PR 1320).** `exec.shell` host reads and
+  computed file-plumbing are NIKA-SEC-004 at check and confine; mock
+  images name the rehearsal and paint a red band; `groq/grok-3` is a
+  wrong-seat MODELS refusal; live HTTP does not dial RFC 2606
+  documentation hosts; the postcard stays six lines; pause teaches
+  `nika run --answer`; `--help --all` names the one free path (a real
+  answer needs a key, a signed-in seat, or Gear One — else a mock);
+  journal recover skips the 0.116.0 `run_settled` envelope (not an Event).
+- **`--answer task=yes` stays a string on `mode: input`.** Confirm
+  (the stdlib default) still takes `yes`/`y`/`no`/`n` as the TTY
+  boolean; an input gate binds `"yes"` so resume completes instead of
+  re-pausing on a boolean the prompt cannot fill.
+- **`nika explain FILE` no longer says checks clean on a red check.**
+  The human line and the JSON `clean` flag follow `CheckReport::is_clean`
+  (PERMITS-red files say `check red` / `"clean": false`).
+- **`nika check --fix` wraps a bare `exec:` scalar into live dialect.**
+  Inert tokens become `command: ["prog", …]`; shell metacharacters
+  become `shell: "…"`. The 0.102 `command:` + `shell: true` pair is
+  gone (it PARSE-019'd).
+- **A task-level GitHub Actions `run:` names `exec:`.** Envelope `run:`
+  stays `{entropy, clock}` at column 0. `params:` names live `args:`.
+- **Pause card teaches a string on `mode: input`.** Confirm still
+  shows `=true` (boolean, not yes). Input/choice show
+  `--answer task="your answer"`, so the loud `answer:` line matches
+  the resume line instead of burning the ticket.
 ## [0.116.0](https://github.com/supernovae-st/nika/compare/v0.115.0..v0.116.0) - 2026-08-31
 
 ### Added

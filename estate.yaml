@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4740
+  classified_files: 4748
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 1763
+    authored: 1771
     authored-pin: 2
     generated: 125
     pinned-copy: 145
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: 8ea34b1e7322064c39c326933acf7b54cb2418b7fd90e8134e2745fd6f96b7dd
+  sha256: 3ea264d6f791ca7bdc66bfb198a0b47d3ce13f57372c0a82712786d5b42f417b
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 144
-  aggregate_sha256: b92fa2618a03c395f4e60ffd2aa1953dccc73d36c5570ffe5d439f227f16ba40
+  aggregate_sha256: 27d0568562d90cf76122c9e1f2f8dfec053c583d262c62ff65c8d18f86111235
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout at SPEC_PIN> — spec-pin-heal.yml advances the pin and pack together, and Diamond CI refuses any pack differing from spec@SPEC_PIN"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 69
-  aggregate_sha256: 601e25c3dc8d650695f34d52f421b6998beb1ff3f2cb3dba465cd3e164b3bc91
+  aggregate_sha256: a55a2b8ae5db990847bfb147a41ef1ac7cd0446effc129aa6129d781ffbe83a1
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,18 +151,18 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 906
-  aggregate_sha256: b0edae423d62a2114869b8bb2a0b845982972c1b999dad6df09aaee21b0e7a81
+  match_count: 914
+  aggregate_sha256: 92e43f782a0fbb9ae88fcde6ae6ee9e59e160a3e45e4e003ff70317211a3b8a6
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 199
-  aggregate_sha256: 639c59835571b631b468910ae80ea5d1318f75f0ec91554fdf7e96cf3612add2
+  aggregate_sha256: 7ed68e506960303d0cf8185e2f1a03bc94e0d424fef4bd877d55fcc295824a6d
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 144
-  aggregate_sha256: 8a2d2e73937d7a975fb51fef97c406e0bbd08d705b541270cc8ed8d35583903c
+  aggregate_sha256: 3bbc2557f2b203acad536e51a98a64bc995319e69a00fdbfb5e177b19c77ba09
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
@@ -183,7 +183,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 120
-  aggregate_sha256: b4e747684c05c65f90ea4c8be66b03f93674b61cdf9eebf496016ff490b90e8d
+  aggregate_sha256: 05a800d6bb0b5a3208560892700d6df58a8fb80a7478d4d08b3f8a241e436fb4
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
