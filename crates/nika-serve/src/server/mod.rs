@@ -607,12 +607,8 @@ where
     if !schedule_done {
         let _ = schedule_stop.send(true);
     }
-    let authority_result = finish_authority(authority, executions, fatal).await;
-    if schedule_done {
-        authority_result
-    } else {
-        combine_schedule_result(authority_result, schedule_task.await)
-    }
+    let schedule_task = (!schedule_done).then_some(schedule_task);
+    finish_authority(authority, executions, fatal, schedule_task).await
 }
 
 async fn run_authority_with_http<F>(
@@ -685,12 +681,8 @@ where
     if !schedule_done {
         let _ = schedule_stop.send(true);
     }
-    let authority_result = finish_authority(authority, executions, fatal).await;
-    if schedule_done {
-        authority_result
-    } else {
-        combine_schedule_result(authority_result, schedule_task.await)
-    }
+    let schedule_task = (!schedule_done).then_some(schedule_task);
+    finish_authority(authority, executions, fatal, schedule_task).await
 }
 
 fn schedule_failure(
@@ -716,6 +708,7 @@ async fn finish_authority(
     mut authority: ResidentAuthority,
     mut executions: JoinSet<Result<(), ServerError>>,
     fatal: Option<ServerError>,
+    schedule_task: Option<tokio::task::JoinHandle<Result<(), ServerError>>>,
 ) -> Result<(), ServerError> {
     authority.jobs.close();
     if fatal.is_some() {
@@ -747,13 +740,21 @@ async fn finish_authority(
             Err(settlement) => Err(settlement),
         }
     };
+    let schedule_result = match schedule_task {
+        Some(task) => Some(task.await),
+        None => None,
+    };
     let actor_shutdown = match authority.store_actor.take() {
         Some(actor) => actor.shutdown().await,
         None => Err(ServerError::BlockingTask),
     };
-    match result {
+    let authority_result = match result {
         Err(error) => Err(error),
         Ok(()) => actor_shutdown,
+    };
+    match schedule_result {
+        Some(schedule) => combine_schedule_result(authority_result, schedule),
+        None => authority_result,
     }
 }
 

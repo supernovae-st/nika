@@ -130,6 +130,11 @@ impl TestServer {
         self.shutdown.take().expect("shutdown sender").send(()).ok();
         self.join.await.expect("server join")
     }
+
+    pub(super) fn signal_stop(mut self) -> tokio::task::JoinHandle<Result<(), ServerError>> {
+        self.shutdown.take().expect("shutdown sender").send(()).ok();
+        self.join
+    }
 }
 
 #[derive(Debug)]
