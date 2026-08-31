@@ -41,7 +41,7 @@ pub(crate) use nika_cli_host::help_card;
     // The L3 identity is shared by every adapter; gitless builds keep the bare version.
     long_version = nika_runtime::engine_identity().version_long(),
     about = "nika · a plan from a file",
-    after_help = "a REAL answer needs exactly one of { an API key · a signed-in harness seat (`--access`) · the Gear One pull (`nika model pull`) } — everything else is a mock rehearsal (the run says so out loud) · nika --help --all  the rest of the surface"
+    after_help = help_card::AFTER_HELP
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -1426,14 +1426,6 @@ mod tests {
         assert!(
             help.contains("try") && help.contains("new"),
             "C11 · issue 1249/1317: the postcard names try and new:\n{help}"
-        );
-        let after = <Cli as clap::CommandFactory>::command()
-            .get_after_help()
-            .map(std::string::ToString::to_string)
-            .unwrap_or_default();
-        assert!(
-            after.contains("REAL answer") && after.contains("mock rehearsal"),
-            "issue 1274: --help --all after_help names the one free path:\n{after}"
         );
         let cmd = <Cli as clap::CommandFactory>::command();
         let total = cmd

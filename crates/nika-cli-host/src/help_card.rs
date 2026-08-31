@@ -8,6 +8,9 @@
 use std::ffi::OsStr;
 use std::path::Path;
 
+/// Clap `--help --all` footer · issue 1274: the only non-mock path.
+pub const AFTER_HELP: &str = "a REAL answer needs exactly one of { an API key · a signed-in harness seat (`--access`) · the Gear One pull (`nika model pull`) } — everything else is a mock rehearsal (the run says so out loud) · nika --help --all  the rest of the surface";
+
 /// Human default help · B67 postcard, now naming the two first-run doors
 /// (`try` · `new`), glossing `permits`, and documenting isolation.
 #[must_use]
@@ -132,6 +135,14 @@ fn env_home() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn after_help_names_the_one_free_path() {
+        assert!(
+            AFTER_HELP.contains("REAL answer") && AFTER_HELP.contains("mock rehearsal"),
+            "{AFTER_HELP}"
+        );
+    }
 
     #[test]
     fn the_postcard_names_try_new_permits_and_isolation() {
