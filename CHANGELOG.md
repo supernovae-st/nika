@@ -8,6 +8,22 @@ Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
 Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ---
+## [0.116.1](https://github.com/supernovae-st/nika/compare/v0.116.0..v0.116.1) - 2026-08-31
+
+### ✨ Features
+- **release** — Prepare nika 0.116.1 ([5c6f48d64](https://github.com/supernovae-st/nika/commit/5c6f48d649aa29c61cdf6b6fa1ffc822029eed8b))
+
+### 🐛 Bug Fixes
+- **engine** — Restore full-tree pre-push gates ([#1329](https://github.com/supernovae-st/nika/issues/1329)) ([fc9ac5552](https://github.com/supernovae-st/nika/commit/fc9ac55521a629483d13f1296b1ced63c3ca9a8f)) ([#1329](https://github.com/supernovae-st/nika/pull/1329))
+- **permits** — Stabilize relative path identity ([#1326](https://github.com/supernovae-st/nika/issues/1326)) ([4389f998e](https://github.com/supernovae-st/nika/commit/4389f998e11c2c6e897040055e5f4d5d530975df)) ([#1326](https://github.com/supernovae-st/nika/pull/1326))
+- **serve** — Join scheduler before store shutdown ([#1327](https://github.com/supernovae-st/nika/issues/1327)) ([4f43b2e14](https://github.com/supernovae-st/nika/commit/4f43b2e140b61d63baa3fc48ec456997ee88982a)) ([#1327](https://github.com/supernovae-st/nika/pull/1327))
+- Close 2026-08-30 gauntlet P0 and first-minute honesty ([#1320](https://github.com/supernovae-st/nika/issues/1320)) ([ee5d1deb1](https://github.com/supernovae-st/nika/commit/ee5d1deb1a51248a7ad97ed744875def05e46d18)) ([#1320](https://github.com/supernovae-st/nika/pull/1320))
+- Gauntlet debt after 1320 (pause card, explain clean, --fix exec, gha run) ([dce7ec081](https://github.com/supernovae-st/nika/commit/dce7ec08124bf6e0ab969c732ea3082774bddcd9)) ([#1330](https://github.com/supernovae-st/nika/pull/1330))
+
+### 📦 Build
+- **e2e** — Prove release smoke in bubblewrap ([#1325](https://github.com/supernovae-st/nika/issues/1325)) ([d3feb3994](https://github.com/supernovae-st/nika/commit/d3feb3994d86f943f0a5dfcf3ec73b5dfe1dbbf8)) ([#1325](https://github.com/supernovae-st/nika/pull/1325))
+
+
 ## [Unreleased]
 
 One file per change under [`changelog.d/`](changelog.d/), assembled into the
