@@ -1247,6 +1247,10 @@ mod provenance_tests {
 
         let gemini_flash = model_capabilities("gemini", "gemini-2.5-flash");
         assert!(
+            gemini_flash.reasoning,
+            "gemini-2.5-flash thinks by default (B21 / issue 1305)"
+        );
+        assert!(
             gemini_flash.input_modalities.contains(&Modality::Video),
             "gemini-2.5-flash: video confirmed"
         );

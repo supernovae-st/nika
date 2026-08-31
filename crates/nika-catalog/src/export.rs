@@ -134,6 +134,19 @@ pub struct CapabilitiesExport {
     pub json_mode: Option<&'static str>,
 }
 
+impl ProviderExport {
+    /// The human listing's model cell — wire ids, joined, so `nika catalog`
+    /// prints `grok-3` instead of only `2 models` (B18 / issue 1306).
+    #[must_use]
+    pub fn human_model_ids(&self) -> String {
+        self.models
+            .iter()
+            .map(|m| m.model)
+            .collect::<Vec<_>>()
+            .join(" · ")
+    }
+}
+
 impl CatalogExport {
     /// State which provider ids resolve in THIS build.
     ///
@@ -280,6 +293,38 @@ mod tests {
         assert!(
             all_models().any(|m| m.capabilities.reasoning),
             "at least one reasoning model exists in the embedded catalog",
+        );
+    }
+
+    /// B18 / issue 1306: the human cell prints wire ids (`grok-3`), not
+    /// only a count, and gpt-4o-mini has entered the openai row.
+    #[test]
+    fn human_model_ids_print_the_wire_names() {
+        let export = catalog_export();
+        let xai = export
+            .providers
+            .iter()
+            .find(|p| p.id == "xai")
+            .expect("xai");
+        let ids = xai.human_model_ids();
+        assert!(
+            ids.contains("grok-3"),
+            "xai prints grok-3, not only a count: {ids}"
+        );
+        let openai = export
+            .providers
+            .iter()
+            .find(|p| p.id == "openai")
+            .expect("openai");
+        assert!(
+            openai.models.iter().any(|m| m.model == "gpt-4o-mini"),
+            "gpt-4o-mini entered the openai catalog: {:?}",
+            openai.models.iter().map(|m| m.model).collect::<Vec<_>>()
+        );
+        assert!(
+            openai.human_model_ids().contains("gpt-4o-mini"),
+            "{}",
+            openai.human_model_ids()
         );
     }
 

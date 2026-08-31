@@ -1077,6 +1077,8 @@ pub nika_catalog::export::ProviderExport::name: &'static str
 pub nika_catalog::export::ProviderExport::requires_key: bool
 pub nika_catalog::export::ProviderExport::resolves: bool
 pub nika_catalog::export::ProviderExport::tags: alloc::vec::Vec<&'static str>
+impl nika_catalog::export::ProviderExport
+pub fn nika_catalog::export::ProviderExport::human_model_ids(&self) -> alloc::string::String
 impl core::clone::Clone for nika_catalog::export::ProviderExport
 pub fn nika_catalog::export::ProviderExport::clone(&self) -> nika_catalog::export::ProviderExport
 impl core::fmt::Debug for nika_catalog::export::ProviderExport

@@ -105,16 +105,7 @@ pub fn suggest(query: &str) -> Vec<Suggestion> {
     let mut hits: Vec<Suggestion> = Vec::new();
 
     #[cfg(feature = "providers")]
-    for p in generated::ALL_PROVIDERS {
-        let s = jaro_winkler(&q, &p.id.to_ascii_lowercase());
-        if s >= MIN_SCORE {
-            hits.push(Suggestion {
-                name: p.id,
-                namespace: Namespace::Provider,
-                score: s,
-            });
-        }
-    }
+    push_provider_hits(&q, &mut hits);
     #[cfg(feature = "mcp")]
     for srv in generated::ALL_MCP_SERVERS {
         let s = jaro_winkler(&q, &srv.id.to_ascii_lowercase());
@@ -166,9 +157,74 @@ pub fn suggest(query: &str) -> Vec<Suggestion> {
     // as Equal (non-deterministic) and is weaker under mutation. Ties break on the
     // name (ascending) so `truncate(MAX_SUGGESTIONS)` keeps a STABLE subset rather
     // than an insertion-order-dependent one.
-    hits.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.name.cmp(b.name)));
-    hits.truncate(MAX_SUGGESTIONS);
+    rank_hits(&mut hits);
     hits
+}
+
+#[cfg(feature = "providers")]
+fn push_provider_hits(q: &str, hits: &mut Vec<Suggestion>) {
+    for p in generated::ALL_PROVIDERS {
+        consider(
+            hits,
+            p.id,
+            Namespace::Provider,
+            jaro_winkler(q, &p.id.to_ascii_lowercase()),
+        );
+        for alias in p.aliases {
+            consider(
+                hits,
+                p.id,
+                Namespace::Provider,
+                jaro_winkler(q, &alias.to_ascii_lowercase()),
+            );
+        }
+        // Model wire ids and nicknames suggest the PROVIDER that
+        // serves them (B18 / issue 1306: `grok-3` is xAI, not groq).
+        for m in p.models {
+            for cand in [m.id, m.model] {
+                let lower = cand.to_ascii_lowercase();
+                let score = if lower == q {
+                    1.0
+                } else {
+                    jaro_winkler(q, &lower)
+                };
+                consider(hits, p.id, Namespace::Provider, score);
+            }
+        }
+    }
+}
+
+#[cfg(feature = "providers")]
+fn consider(hits: &mut Vec<Suggestion>, name: &'static str, namespace: Namespace, score: f64) {
+    if score >= MIN_SCORE {
+        hits.push(Suggestion {
+            name,
+            namespace,
+            score,
+        });
+    }
+}
+
+fn rank_hits(hits: &mut Vec<Suggestion>) {
+    // `f64::total_cmp` (the same SOTA form adopted in nika-bm25) gives a TOTAL,
+    // deterministic order over the finite-by-construction jaro-winkler scores —
+    // unlike `partial_cmp().unwrap_or(Equal)`, which would silently order any NaN
+    // as Equal (non-deterministic) and is weaker under mutation. Ties break on the
+    // name (ascending) so `truncate(MAX_SUGGESTIONS)` keeps a STABLE subset rather
+    // than an insertion-order-dependent one.
+    hits.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.name.cmp(b.name)));
+    let mut i = 0;
+    while i < hits.len() {
+        if hits[..i]
+            .iter()
+            .any(|h| h.name == hits[i].name && h.namespace == hits[i].namespace)
+        {
+            hits.remove(i);
+        } else {
+            i += 1;
+        }
+    }
+    hits.truncate(MAX_SUGGESTIONS);
 }
 
 /// Scoped variant of [`suggest`] — only searches within one namespace.
@@ -277,5 +333,24 @@ mod tests {
         let upper = suggest("filesystem");
         assert_eq!(lower.len(), upper.len());
         assert_eq!(lower[0].name, upper[0].name);
+    }
+
+    /// B18 / issue 1306: a model wire id suggests the provider that
+    /// serves it. `grok-3` is xAI; Jaro-Winkler against provider ids
+    /// alone preferred `groq`.
+    #[test]
+    fn grok_3_suggests_xai_not_groq() {
+        let hits = suggest("grok-3");
+        assert!(
+            !hits.is_empty(),
+            "grok-3 must suggest its provider: {hits:?}"
+        );
+        assert_eq!(
+            hits[0].name,
+            "xai",
+            "top hit must be xai, not groq: {:?}",
+            hits.iter().map(|h| h.name).collect::<Vec<_>>()
+        );
+        assert_eq!(hits[0].namespace, Namespace::Provider);
     }
 }
