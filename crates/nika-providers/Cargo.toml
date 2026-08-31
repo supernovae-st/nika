@@ -11,10 +11,10 @@ homepage.workspace     = true
 publish                = false  # Internal L1.5 service crate.
 
 [dependencies]
-nika-kernel  = { path = "../nika-kernel", version = "0.115.0" }
-nika-catalog = { path = "../nika-catalog", version = "0.115.0", features = ["providers", "pricing"] }
-nika-types   = { path = "../nika-types", version = "0.115.0" }   # the shared did-you-mean metric (MODELS rung)
-nika-harness = { path = "../nika-harness", version = "0.115.0", optional = true } # PATH-only ACP rows (access-harness)
+nika-kernel  = { path = "../nika-kernel", version = "0.116.0" }
+nika-catalog = { path = "../nika-catalog", version = "0.116.0", features = ["providers", "pricing"] }
+nika-types   = { path = "../nika-types", version = "0.116.0" }   # the shared did-you-mean metric (MODELS rung)
+nika-harness = { path = "../nika-harness", version = "0.116.0", optional = true } # PATH-only ACP rows (access-harness)
 serde_json   = { workspace = true }
 bytes        = { workspace = true }
 futures-core = { workspace = true }

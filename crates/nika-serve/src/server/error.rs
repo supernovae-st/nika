@@ -12,7 +12,7 @@ use hyper::header::{CONTENT_TYPE, WWW_AUTHENTICATE};
 use hyper::{Response, StatusCode};
 use thiserror::Error;
 
-use crate::JobStoreError;
+use crate::{JobStoreError, ScheduleStoreError};
 
 /// Why a credential source was refused. Never carries a path or secret bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,7 +45,7 @@ pub(crate) fn once_body(bytes: impl Into<Bytes>) -> ResponseBody {
     Full::new(bytes.into()).boxed_unsync()
 }
 
-/// Typed startup and lifecycle failures from the HTTP server.
+/// Typed startup and lifecycle failures from resident execution and HTTP.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum ServerError {
@@ -61,21 +61,36 @@ pub enum ServerError {
     /// Durable job state refused startup or mutation.
     #[error("durable job state refused: {0}")]
     JobStore(#[from] JobStoreError),
+    /// Durable schedule state refused startup or mutation.
+    #[error("durable schedule state refused: {0}")]
+    ScheduleStore(#[from] ScheduleStoreError),
     /// The listener could not bind or accept.
     #[error("HTTP listener failed: {0}")]
     Listener(io::ErrorKind),
     /// In-flight executions exceeded the configured graceful-stop budget.
-    #[error("HTTP server shutdown exceeded its grace period")]
+    #[error("resident execution shutdown exceeded its grace period")]
     ShutdownTimeout,
     /// An internal execution task panicked or was cancelled unexpectedly.
-    #[error("HTTP server execution task failed")]
+    #[error("resident execution task failed")]
     ExecutionTask,
     /// A blocking filesystem task panicked or was cancelled unexpectedly.
-    #[error("HTTP server filesystem task failed")]
+    #[error("resident execution filesystem task failed")]
     BlockingTask,
     /// The bounded durable-state command queue is full.
-    #[error("HTTP server durable-state queue is full")]
+    #[error("resident durable-state queue is full")]
     StoreQueueFull,
+    /// The shared HTTP/ARM execution queue has no admission slot.
+    #[error("resident execution queue is full")]
+    ExecutionQueueFull,
+    /// A scheduled snapshot or provenance binding was not canonical.
+    #[error("scheduled execution admission was refused")]
+    ScheduledAdmission,
+    /// A slot replay resolved to different immutable snapshot bytes.
+    #[error("scheduled execution idempotency key conflicts with another snapshot")]
+    ScheduledIdempotencyConflict,
+    /// A scheduled run did not reach durable terminal observation in bounds.
+    #[error("scheduled execution observation timed out")]
+    ScheduledObservationTimeout,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -176,8 +191,52 @@ pub(crate) fn json_error(status: StatusCode, code: &str, message: &str) -> Respo
 }
 
 pub(crate) fn capture_refused(error: &nika_execution::ExecutionError) -> Response<ResponseBody> {
+    if let Some(api) = snapshot_api_error(error) {
+        return api.into_response();
+    }
     let (code, message) = diagnose_capture(error);
     json_error(StatusCode::UNPROCESSABLE_ENTITY, &code, &message)
+}
+
+fn snapshot_api_error(error: &nika_execution::ExecutionError) -> Option<ApiError> {
+    use nika_execution::ExecutionError;
+
+    let error = match error {
+        ExecutionError::UnsupportedSnapshotFormat { .. } => ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "unsupported_snapshot_version",
+            "snapshot format version is not supported",
+        ),
+        ExecutionError::UnitDigestMismatch { .. } | ExecutionError::SnapshotDigestMismatch => {
+            ApiError::new(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "snapshot_tampered",
+                "snapshot bytes do not match their immutable digest",
+            )
+        }
+        ExecutionError::SnapshotStructureMismatch => ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "malformed_snapshot",
+            "request body is not a valid execution snapshot",
+        ),
+        ExecutionError::UnitCountLimit { .. } => ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "snapshot_unit_count_limit",
+            "snapshot exceeds the configured unit-count limit",
+        ),
+        ExecutionError::UnitSizeLimit { .. } => ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "snapshot_unit_size_limit",
+            "snapshot unit exceeds the configured byte limit",
+        ),
+        ExecutionError::TotalSizeLimit { .. } => ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "snapshot_total_size_limit",
+            "snapshot exceeds the configured decoded-byte limit",
+        ),
+        _ => return None,
+    };
+    Some(error)
 }
 
 pub(crate) fn diagnose_capture(error: &nika_execution::ExecutionError) -> (String, String) {

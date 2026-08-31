@@ -87,15 +87,7 @@ fn validate_beat(beat: &Beat, faults: &mut Vec<CadenceError>) {
     // The path's SHAPE is judged here — the law says « relatif au
     // registre »: no absolute prefix, no `..` segment, a real basename
     // before the `.nika.yaml` suffix. Existence is the L4 edge's.
-    let shape_bad = w.is_empty()
-        || !w.ends_with(".nika.yaml")
-        || w.starts_with('/')
-        || w.split(':').nth(1).is_some()
-        || w.split('/').any(|seg| seg == "..")
-        || w.rsplit('/')
-            .next()
-            .is_some_and(|base| base == ".nika.yaml");
-    if shape_bad {
+    if !valid_workflow_path(w) {
         faults.push(CadenceError::beat(
             w,
             CadenceErrorKind::WorkflowPath,
@@ -211,7 +203,7 @@ fn validate_beat_guards(beat: &Beat, faults: &mut Vec<CadenceError>) {
     }
 }
 
-fn valid_tolerance(text: &str) -> bool {
+pub(crate) fn valid_tolerance(text: &str) -> bool {
     match text.split_once('/') {
         Some((m, k)) => match (m.parse::<u8>(), k.parse::<u8>()) {
             (Ok(m), Ok(k)) => m >= 1 && m <= k,
@@ -219,6 +211,18 @@ fn valid_tolerance(text: &str) -> bool {
         },
         None => false,
     }
+}
+
+pub(crate) fn valid_workflow_path(path: &str) -> bool {
+    !path.is_empty()
+        && path.ends_with(".nika.yaml")
+        && !path.starts_with('/')
+        && !path.contains(':')
+        && !path.split('/').any(|segment| segment == "..")
+        && path
+            .rsplit('/')
+            .next()
+            .is_some_and(|base| base != ".nika.yaml")
 }
 
 impl Cadence {

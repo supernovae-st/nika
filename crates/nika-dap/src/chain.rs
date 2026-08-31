@@ -88,9 +88,10 @@ pub enum Verdict {
     },
 }
 
-/// The kinds that CLOSE a run's lifecycle: the four terminal frames
-/// (spec 13 · `EventKind::is_terminal`) plus the seal that rides after
-/// one. A journal whose last complete line carries any of these reached
+/// The kinds that CLOSE a run's lifecycle: the four terminal events
+/// (spec 13 · `EventKind::is_terminal`), the seal that rides after one,
+/// and the machine stream's terminal settlement envelope. A journal whose
+/// last complete line carries any of these reached
 /// an attested end; anything else means the run died mid-flight (kill ·
 /// crash · power) — the walk names that [`Verdict::Incomplete`], never
 /// `Intact` (F-P2 · LOT-1).
@@ -100,6 +101,7 @@ const LIFECYCLE_TERMINAL: &[&str] = &[
     "workflow_cancelled",
     "workflow_paused",
     "run_sealed",
+    "run_settled",
 ];
 
 /// Maximum bytes per journal LINE the walk parses (F-P1 · NEP-0012) —

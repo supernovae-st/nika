@@ -805,3 +805,8 @@ fn models_rung_makes_no_claim_over_a_defaultless_run_time_model() {
         out.text
     );
 }
+
+/// `--json --native-strict`: the payload's `native_strict_clean` and
+/// the exit code must agree (the review-swarm untested-branch gap).
+#[cfg(test)]
+mod verdict_profiles;

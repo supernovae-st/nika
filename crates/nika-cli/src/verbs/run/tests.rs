@@ -110,6 +110,7 @@ fn arbitrary_trace_note_error_is_env_with_the_exact_path() {
     let path = std::path::PathBuf::from(".nika/traces/exact.ndjson");
     let surface = TraceSurface {
         path: Some(path.clone()),
+        proof: None,
         note_error: Some(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
             "injected note refusal",

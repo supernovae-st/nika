@@ -2412,6 +2412,78 @@ pub use nika_cli_host::retention::newest_per_workflow
 pub fn nika_cli_host::retention::fmt_bytes(bytes: u64) -> alloc::string::String
 pub fn nika_cli_host::retention::gc_at_run_start(dir: &std::path::Path, no_gc: bool, dry_run: bool) -> core::option::Option<alloc::string::String>
 pub fn nika_cli_host::retention::gc_line(report: &nika_dap::retention::GcReport) -> alloc::string::String
+pub mod nika_cli_host::run_settlement
+pub struct nika_cli_host::run_settlement::LocalRunReceipt<'a>
+impl<'a> nika_cli_host::run_settlement::LocalRunReceipt<'a>
+pub const fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::new(execution_id: &'a str, trace_id: &'a str, snapshot_digest: &'a str, trace_path: &'a str, chain_head: &'a str, chain_len: usize, sealed: bool) -> Self
+impl<'a> core::fmt::Debug for nika_cli_host::run_settlement::LocalRunReceipt<'a>
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> serde_core::ser::Serialize for nika_cli_host::run_settlement::LocalRunReceipt<'a>
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::run_settlement::LocalRunReceipt<'a>
+impl<T, U> core::convert::Into<U> for nika_cli_host::run_settlement::LocalRunReceipt<'a> where U: core::convert::From<T>
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::run_settlement::LocalRunReceipt<'a> where U: core::convert::Into<T>
+pub type nika_cli_host::run_settlement::LocalRunReceipt<'a>::Error = core::convert::Infallible
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::run_settlement::LocalRunReceipt<'a> where U: core::convert::TryFrom<T>
+pub type nika_cli_host::run_settlement::LocalRunReceipt<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::run_settlement::LocalRunReceipt<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::run_settlement::LocalRunReceipt<'a> where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::run_settlement::LocalRunReceipt<'a> where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::run_settlement::LocalRunReceipt<'a>
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::run_settlement::LocalRunReceipt<'a> where T: 'static
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::run_settlement::LocalRunReceipt<'a> where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::run_settlement::LocalRunReceipt<'a>
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::run_settlement::LocalRunReceipt<'a>
+impl<T> typenum::type_operators::Same for nika_cli_host::run_settlement::LocalRunReceipt<'a>
+pub type nika_cli_host::run_settlement::LocalRunReceipt<'a>::Output = T
+pub struct nika_cli_host::run_settlement::TraceProof
+pub nika_cli_host::run_settlement::TraceProof::head: alloc::string::String
+pub nika_cli_host::run_settlement::TraceProof::len: usize
+pub nika_cli_host::run_settlement::TraceProof::sealed: bool
+impl core::fmt::Debug for nika_cli_host::run_settlement::TraceProof
+pub fn nika_cli_host::run_settlement::TraceProof::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli_host::run_settlement::TraceProof
+impl<T, U> core::convert::Into<U> for nika_cli_host::run_settlement::TraceProof where U: core::convert::From<T>
+pub fn nika_cli_host::run_settlement::TraceProof::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::run_settlement::TraceProof where U: core::convert::Into<T>
+pub type nika_cli_host::run_settlement::TraceProof::Error = core::convert::Infallible
+pub fn nika_cli_host::run_settlement::TraceProof::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::run_settlement::TraceProof where U: core::convert::TryFrom<T>
+pub type nika_cli_host::run_settlement::TraceProof::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::run_settlement::TraceProof::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::run_settlement::TraceProof where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::TraceProof::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::run_settlement::TraceProof where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::TraceProof::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::run_settlement::TraceProof where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::TraceProof::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::run_settlement::TraceProof
+pub fn nika_cli_host::run_settlement::TraceProof::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::run_settlement::TraceProof where T: 'static
+pub fn nika_cli_host::run_settlement::TraceProof::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::run_settlement::TraceProof where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::TraceProof::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::run_settlement::TraceProof::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::run_settlement::TraceProof
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::run_settlement::TraceProof
+impl<T> typenum::type_operators::Same for nika_cli_host::run_settlement::TraceProof
+pub type nika_cli_host::run_settlement::TraceProof::Output = T
+pub fn nika_cli_host::run_settlement::first_failure(outcome: &nika_runtime::RunOutcome) -> core::option::Option<nika_runtime::compat_record::TaskErrorRecord>
+pub fn nika_cli_host::run_settlement::local_receipt_binding(execution: nika_types::id::ExecutionId, snapshot_digest: &str) -> serde_json::value::Value
+pub fn nika_cli_host::run_settlement::plan_waves(workflow: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>
+pub fn nika_cli_host::run_settlement::sensitive_journey(report: &nika_check::CheckReport) -> bool
+pub fn nika_cli_host::run_settlement::write_local_run_settlement<T: serde_core::ser::Serialize, W: core::io::write::Write>(writer: &mut nika_dap::journal::JsonSink<W>, outcome: (bool, bool), outputs: &T, execution: nika_types::id::ExecutionId, snapshot_digest: &str, trace: core::option::Option<(&std::path::Path, &nika_cli_host::run_settlement::TraceProof)>) -> core::io::error::Result<()>
+pub fn nika_cli_host::run_settlement::write_run_settlement<T: serde_core::ser::Serialize>(writer: &mut impl core::io::write::Write, status: &str, outputs: &T, receipt: core::option::Option<nika_cli_host::run_settlement::LocalRunReceipt<'_>>) -> core::io::error::Result<()>
 pub mod nika_cli_host::source
 pub struct nika_cli_host::source::RunSource
 impl nika_cli_host::source::RunSource

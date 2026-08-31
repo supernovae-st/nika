@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -18,7 +19,7 @@ use tokio::sync::TryAcquireError;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use crate::{JobEvent, JobId, JobStatus, JobStoreError};
+use crate::{JobEvent, JobId, JobReceipt, JobRecord, JobStatus, JobStoreError};
 
 use super::error::{ApiError, ResponseBody};
 use super::store::EventPage;
@@ -137,7 +138,7 @@ fn parse_cursor(value: &str) -> Result<u64, ApiError> {
 fn is_terminal(status: JobStatus) -> bool {
     matches!(
         status,
-        JobStatus::Succeeded | JobStatus::Failed | JobStatus::Interrupted
+        JobStatus::Succeeded | JobStatus::Failed | JobStatus::Interrupted | JobStatus::Cancelled
     )
 }
 
@@ -150,15 +151,26 @@ struct ProjectedEvent<'a> {
     code: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    outputs: Option<&'a BTreeMap<String, Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    receipt: Option<&'a JobReceipt>,
 }
 
-fn projected(event: &JobEvent) -> ProjectedEvent<'_> {
+fn projected<'a>(
+    event: &'a JobEvent,
+    record: &'a JobRecord,
+    terminal_sequence: Option<u64>,
+) -> ProjectedEvent<'a> {
+    let terminal = terminal_sequence == Some(event.sequence());
     ProjectedEvent {
         sequence: event.sequence(),
         kind: string_field(event.payload(), "kind"),
         status: string_field(event.payload(), "status"),
         code: string_field(event.payload(), "code"),
         message: string_field(event.payload(), "message"),
+        outputs: if terminal { record.outputs() } else { None },
+        receipt: if terminal { record.receipt() } else { None },
     }
 }
 
@@ -166,8 +178,12 @@ fn string_field<'a>(payload: &'a Value, key: &'a str) -> Option<&'a str> {
     payload.get(key).and_then(Value::as_str)
 }
 
-fn encode_frame(event: &JobEvent) -> Option<Bytes> {
-    let json = serde_json::to_string(&projected(event)).ok()?;
+fn encode_frame(
+    event: &JobEvent,
+    record: &JobRecord,
+    terminal_sequence: Option<u64>,
+) -> Option<Bytes> {
+    let json = serde_json::to_string(&projected(event, record, terminal_sequence)).ok()?;
     Some(Bytes::from(format!(
         "id: {}\ndata: {json}\n\n",
         event.sequence()
@@ -182,6 +198,10 @@ async fn pump_events(
     lag: Duration,
 ) {
     let notify = state.store.event_notify();
+    let reconnect_ms = state.limits.sse_reconnect().as_millis();
+    if !send_frame(&tx, Bytes::from(format!("retry: {reconnect_ms}\n\n")), lag).await {
+        return;
+    }
     loop {
         let notified = notify.clone().notified_owned();
         tokio::pin!(notified);
@@ -194,13 +214,29 @@ async fn pump_events(
             return;
         };
         if page.events.is_empty() {
-            if is_terminal(page.status) {
+            if is_terminal(page.record.status()) {
                 return;
             }
-            notified.await;
+            tokio::select! {
+                () = &mut notified => {}
+                () = tokio::time::sleep(state.limits.sse_heartbeat()) => {
+                    if !send_frame(&tx, Bytes::from_static(b": heartbeat\n\n"), lag).await {
+                        return;
+                    }
+                }
+            }
             continue;
         }
-        if !emit_page(&tx, &page.events, &mut after, lag).await {
+        if !emit_page(
+            &tx,
+            &page.events,
+            &page.record,
+            page.terminal_sequence,
+            &mut after,
+            lag,
+        )
+        .await
+        {
             return;
         }
     }
@@ -209,11 +245,13 @@ async fn pump_events(
 async fn emit_page(
     tx: &mpsc::Sender<Bytes>,
     events: &[JobEvent],
+    record: &JobRecord,
+    terminal_sequence: Option<u64>,
     after: &mut u64,
     lag: Duration,
 ) -> bool {
     for event in events {
-        let Some(frame) = encode_frame(event) else {
+        let Some(frame) = encode_frame(event, record, terminal_sequence) else {
             continue;
         };
         if !send_frame(tx, frame, lag).await {
@@ -332,6 +370,81 @@ mod tests {
         assert!(json.get("path").is_none());
     }
 
+    #[test]
+    fn terminal_projection_uses_persisted_sequence_not_caller_shaped_fields() {
+        let root = tempfile::tempdir().expect("root");
+        let store = crate::JobStore::open(root.path()).expect("store");
+        let admission = store
+            .create_or_replay(
+                crate::IdempotencyKey::new("sse-terminal-sequence").expect("key"),
+                crate::RequestDigest::from_bytes([58; 32]),
+            )
+            .expect("create");
+        let record = admission.record().clone();
+        let snapshot_digest = crate::RequestDigest::from_bytes([59; 32])
+            .as_str()
+            .to_owned();
+        store
+            .stamp_execution_identity(
+                record.id(),
+                "execution-58".to_owned(),
+                "trace-58".to_owned(),
+                snapshot_digest.clone(),
+            )
+            .expect("stamp identity");
+        store
+            .transition_with_events(
+                record.id(),
+                JobStatus::Running,
+                &[json!({"kind": "execution.settled", "status": "succeeded"})],
+            )
+            .expect("caller-shaped running event");
+        let receipt = JobReceipt::new(
+            record.id().clone(),
+            "execution-58",
+            "trace-58",
+            snapshot_digest,
+            None,
+        )
+        .expect("receipt");
+        store
+            .settle_with_events(
+                record.id(),
+                JobStatus::Succeeded,
+                &[json!({"kind": "execution.finished", "status": "done"})],
+                Some(BTreeMap::from([("answer".to_owned(), json!(58))])),
+                Some(receipt),
+            )
+            .expect("terminal settlement");
+
+        let (events, record, terminal_sequence) = store
+            .event_page(
+                record.id(),
+                0,
+                crate::EventPageLimit::new(crate::MAX_EVENT_PAGE_LEN).expect("page limit"),
+            )
+            .expect("event page");
+        assert_eq!(terminal_sequence, Some(2));
+        let projected = events
+            .iter()
+            .map(|event| {
+                serde_json::to_value(super::projected(event, &record, terminal_sequence))
+                    .expect("project event")
+            })
+            .collect::<Vec<_>>();
+        assert!(projected[0].get("outputs").is_none());
+        assert!(projected[0].get("receipt").is_none());
+        assert_eq!(projected[1]["outputs"]["answer"], 58);
+        assert_eq!(projected[1]["receipt"]["execution_id"], "execution-58");
+        assert_eq!(
+            projected
+                .iter()
+                .filter(|event| event.get("receipt").is_some())
+                .count(),
+            1
+        );
+    }
+
     fn projected_from(payload: &serde_json::Value, sequence: u64) -> ProjectedEvent<'_> {
         ProjectedEvent {
             sequence,
@@ -339,6 +452,8 @@ mod tests {
             status: string_field(payload, "status"),
             code: string_field(payload, "code"),
             message: string_field(payload, "message"),
+            outputs: None,
+            receipt: None,
         }
     }
 

@@ -902,6 +902,34 @@ fn execution_link_is_direct_strict_and_survives_claim_replay() {
 }
 
 #[test]
+fn execution_link_binds_canonical_normal_run_id() {
+    let run_id = "d9428888-122b-4aa7-8f71-342450b49c5f";
+    let execution_id = "exe-018f1f6e-7b8c-7d9e-8fab-0123456789ab";
+    let trace_id = "018f1f6e7b8c7d9e8fab0123456789ab";
+    let link = ExecutionLink::for_run(run_id, execution_id, trace_id).expect("run link");
+    assert_eq!(link.run_id(), Some(run_id));
+    assert!(ExecutionLink::for_run("not-a-run", execution_id, trace_id).is_none());
+    assert!(ExecutionLink::for_run(run_id, execution_id, "0".repeat(32)).is_none());
+
+    let mut claim = Claim::new(
+        SlotId::from_wire(&"c".repeat(64)).expect("slot id"),
+        ts("2026-08-20T03:00:00Z"),
+        ts("2026-08-19T03:01:00Z"),
+    );
+    claim.execution = Some(link);
+    let payload = claim_payload(&claim, 4).expect("claim payload");
+    let payload: serde_json::Value = serde_json::from_str(&payload).expect("payload json");
+    assert_eq!(
+        payload.get("run_id").and_then(serde_json::Value::as_str),
+        Some(run_id)
+    );
+    assert_eq!(
+        execution_link(&payload).and_then(|link| link.run_id().map(str::to_owned)),
+        Some(run_id.to_owned())
+    );
+}
+
+#[test]
 fn receipts_refuse_contradictions_mismatches_duplicates_and_future_claims() {
     let slot = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     let other = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";

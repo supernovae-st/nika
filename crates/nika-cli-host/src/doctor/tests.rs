@@ -1,14 +1,11 @@
 use std::path::PathBuf;
-use std::time::Duration;
 
 use nika_providers::ProviderRegistry;
 use nika_providers::census::AccessCensus;
 
 use super::*;
 use crate::probe::client_probe_any;
-use nika_providers::probe::{
-    ExecutionLocus, ProviderReadiness, env_present, ping_addr, spawn_ping,
-};
+use nika_providers::probe::{ExecutionLocus, ProviderReadiness, env_present, ping_addr};
 
 /// The sober register — the byte-frozen baseline every pipe reads.
 const PLAIN: Theme = Theme::new(false, false, false);
@@ -926,15 +923,6 @@ fn ping_addr_extracts_authority_and_defaults_ports() {
     assert_eq!(ping_addr("http://"), None);
 }
 
-/// The single-probe composition the parallel collector applies per
-/// surface — kept here so the probe contract stays directly tested.
-fn ping_once(addr: &str, timeout: Duration) -> PingState {
-    match spawn_ping(addr, timeout).recv_timeout(timeout) {
-        Ok(Some(ms)) => PingState::Reachable(ms),
-        _ => PingState::Unreachable,
-    }
-}
-
 #[test]
 fn userinfo_never_prints_and_never_dials() {
     // F5: an operator embedding basic-auth in a local URL must not
@@ -972,29 +960,6 @@ fn effective_base_url_reaches_the_ping() {
             .is_some_and(|u| u.contains("127.0.0.1:11434"))
     );
     assert_eq!(reg2.effective_base_url("nope"), None);
-}
-
-#[test]
-fn tcp_ping_reachable_and_unreachable() {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
-    let addr = listener.local_addr().expect("addr").to_string();
-    assert!(matches!(
-        ping_once(&addr, Duration::from_millis(300)),
-        PingState::Reachable(_)
-    ));
-    // Bind then drop → the port is free again: nothing listens on it.
-    let closed = {
-        let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
-        l.local_addr().expect("addr").to_string()
-    };
-    assert_eq!(
-        ping_once(&closed, Duration::from_millis(300)),
-        PingState::Unreachable
-    );
-    assert_eq!(
-        ping_once("not-an-addr", Duration::from_millis(300)),
-        PingState::Unreachable
-    );
 }
 
 #[test]

@@ -132,7 +132,8 @@ async fn independently_parsed_workflow_and_report_cannot_replace_the_admitted_pa
 }
 
 #[tokio::test]
-async fn service_result_never_exposes_secret_shaped_output_material() -> TestResult<()> {
+async fn service_result_exposes_declared_outputs_without_debug_or_event_leakage() -> TestResult<()>
+{
     const SECRET: &str = "sk-live-service-output-must-stay-redacted";
     let root = format!(
         "nika: output-redaction\npermits: {{ tools: [\"nika:jq\"] }}\ntasks:\n  value:\n    invoke: {{ tool: \"nika:jq\", args: {{ input: \"{SECRET}\", expression: \".\" }} }}\noutputs:\n  value: ${{{{ tasks.value.output }}}}\n"
@@ -141,6 +142,7 @@ async fn service_result_never_exposes_secret_shaped_output_material() -> TestRes
     let result = driver.execute(ServiceExecutionOptions::new()).await?;
     let debug = format!("{result:?}");
     let accessors = format!("{:?} {:?}", result.status(), result.events());
+    assert_eq!(result.outputs()["value"], serde_json::json!(SECRET));
     let (status, events) = result.into_parts();
     let parts = format!("{status:?} {events:?}");
 
