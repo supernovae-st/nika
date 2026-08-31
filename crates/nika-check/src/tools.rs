@@ -75,7 +75,7 @@ fn collect(site: &str, action: &RawAction, out: &mut Vec<UnknownTool>) {
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown action: {other:?}"),
+        _ => unreachable!("unsupported action"),
     }
 }
 
@@ -355,7 +355,7 @@ fn collect_mcp(site: &str, action: &RawAction, out: &mut Vec<(String, String)>) 
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown action: {other:?}"),
+        _ => unreachable!("unsupported action"),
     }
 }
 
@@ -394,7 +394,12 @@ mod tests {
     use nika_schema::source::FileId;
 
     fn findings_of(yaml: &str) -> Vec<UnknownTool> {
-        scan_unknown_tools(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+        let parsed = parse(yaml, FileId::new(0), ParseMode::Strict);
+        assert!(parsed.is_ok(), "fixture must parse");
+        let Some(wf) = parsed.ok() else {
+            return Vec::new();
+        };
+        scan_unknown_tools(&wf)
     }
 
     #[test]
@@ -412,7 +417,7 @@ mod tests {
         let f = findings_of(
             "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n  b:\n    invoke: { tool: \"nika:json_merge_patch\", args: { target: {}, patch: {} } }\n",
         );
-        assert!(f.is_empty(), "{f:?}");
+        assert!(f.is_empty());
     }
 
     #[test]
@@ -428,7 +433,7 @@ mod tests {
         let f = findings_of(
             "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"nika:fetc\", \"mcp:browser/*\"]\n",
         );
-        assert_eq!(f.len(), 1, "only the concrete typo flags: {f:?}");
+        assert_eq!(f.len(), 1, "only the concrete typo must flag");
         assert_eq!(f[0].suggestion.as_deref(), Some("nika:fetch"));
     }
 
@@ -441,7 +446,7 @@ mod tests {
         let f = findings_of(
             "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:done\", \"nika:compose\"]\n",
         );
-        assert!(f.is_empty(), "loop-only builtins are catalogued: {f:?}");
+        assert!(f.is_empty(), "loop-only builtins must be catalogued");
     }
 
     #[test]
@@ -456,7 +461,12 @@ mod tests {
     // ── Finding #6 · unknown builtin arg keys ───────────────────────────
 
     fn arg_findings_of(yaml: &str) -> Vec<UnknownArg> {
-        scan_unknown_args(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+        let parsed = parse(yaml, FileId::new(0), ParseMode::Strict);
+        assert!(parsed.is_ok(), "fixture must parse");
+        let Some(wf) = parsed.ok() else {
+            return Vec::new();
+        };
+        scan_unknown_args(&wf)
     }
 
     #[test]
@@ -467,7 +477,7 @@ mod tests {
         let f = arg_findings_of(
             "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", data: { a: 1 } } }\n",
         );
-        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f.len(), 1);
         assert_eq!(f[0].tool, "nika:jq");
         assert_eq!(f[0].arg, "data");
         assert_eq!(f[0].task, "t");
@@ -479,7 +489,7 @@ mod tests {
         let f = arg_findings_of(
             "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", inpit: 1 } }\n",
         );
-        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f.len(), 1);
         assert_eq!(f[0].arg, "inpit");
         assert_eq!(f[0].suggestion.as_deref(), Some("input"));
     }
@@ -492,7 +502,7 @@ mod tests {
         let f = arg_findings_of(
             "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expr: \".\", input: 1 } }\n",
         );
-        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f.len(), 1);
         assert_eq!(f[0].arg, "expr");
         assert_eq!(f[0].suggestion.as_deref(), Some("expression"));
     }
@@ -505,13 +515,12 @@ mod tests {
         let f = arg_findings_of(
             "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:json_diff\", args: { left: { a: 1 }, right: { a: 2 } } }\n",
         );
-        assert_eq!(f.len(), 2, "{f:?}");
+        assert_eq!(f.len(), 2);
         for u in &f {
             assert_eq!(u.suggestion, None, "no honest guess for {}", u.arg);
             assert!(
                 u.declared.iter().any(|d| d == "before") && u.declared.iter().any(|d| d == "after"),
-                "declared vocabulary teaches the real keys: {:?}",
-                u.declared
+                "declared vocabulary must teach the real keys"
             );
         }
     }
@@ -535,7 +544,7 @@ mod tests {
         let f = arg_findings_of(
             "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: { a: 1 } } }\n",
         );
-        assert!(f.is_empty(), "every key is declared: {f:?}");
+        assert!(f.is_empty(), "every key must be declared");
     }
 
     #[test]
@@ -567,13 +576,18 @@ mod tests {
         let f = arg_findings_of(
             "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { wat: 1 } }\n",
         );
-        assert!(f.is_empty(), "unknown builtin owns its finding: {f:?}");
+        assert!(f.is_empty(), "unknown builtin must own its finding");
     }
 
     // ── F5 · missing required args (extends the 5/22 static check) ───────
 
     fn missing_of(yaml: &str) -> Vec<MissingArg> {
-        scan_missing_args(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+        let parsed = parse(yaml, FileId::new(0), ParseMode::Strict);
+        assert!(parsed.is_ok(), "fixture must parse");
+        let Some(wf) = parsed.ok() else {
+            return Vec::new();
+        };
+        scan_missing_args(&wf)
     }
 
     #[test]
@@ -612,7 +626,7 @@ mod tests {
         let f = missing_of(
             "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:write\", args: { path: \"./o\" } }\n",
         );
-        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f.len(), 1);
         assert_eq!(f[0].arg, "content");
         assert_eq!(f[0].tool, "nika:write");
     }
@@ -622,7 +636,7 @@ mod tests {
         let f = missing_of(
             "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:convert\", args: { input: \"x\", from: \"csv\", to: \"json\" } }\n",
         );
-        assert!(f.is_empty(), "every required arg present: {f:?}");
+        assert!(f.is_empty(), "every required arg must be present");
     }
 
     #[test]
@@ -652,6 +666,6 @@ mod tests {
         // A typo'd builtin is scan_unknown_tools' finding — the
         // missing-required scan can't know its vocabulary, stays silent.
         let f = missing_of("nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:hsah\" }\n");
-        assert!(f.is_empty(), "unknown builtin owns its finding: {f:?}");
+        assert!(f.is_empty(), "unknown builtin must own its finding");
     }
 }

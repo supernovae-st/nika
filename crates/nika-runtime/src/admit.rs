@@ -328,7 +328,7 @@ fn static_iterations(task: &RawTask) -> f64 {
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and runtime ship together"
         )]
-        other => unreachable!("unknown for_each form: {other:?}"),
+        _ => unreachable!("unsupported for_each form"),
     }
 }
 
@@ -522,8 +522,8 @@ fn map_pin_refusal(refusal: PinRefusal) -> RuntimeError {
         PinRefusal::NoPath { message } => RuntimeError::AccessNoPath { message },
         PinRefusal::Unavailable { message } => RuntimeError::AccessUnavailable { message },
         // Future classes fail closed until mapped explicitly.
-        other => RuntimeError::AccessNoPath {
-            message: format!("{other:?}"),
+        _ => RuntimeError::AccessNoPath {
+            message: "access pin refusal could not be classified".to_owned(),
         },
     }
 }
@@ -606,7 +606,7 @@ mod tests {
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         )
-        .expect("fixture parses")
+        .unwrap_or_else(|_| panic!("fixture must parse"))
     }
 
     /// One `exec` task inside its declared boundary (clean report) · the
@@ -626,7 +626,7 @@ mod tests {
         runtime
             .run(wf, &report, &mut stamper, &mut sink)
             .await
-            .expect("run settles")
+            .unwrap_or_else(|_| panic!("run must settle"))
     }
 
     /// A refused run ABORTS at the preflight — the error, for inspection.
@@ -640,11 +640,11 @@ mod tests {
         let err = runtime
             .run(wf, &report, &mut stamper, &mut sink)
             .await
-            .expect_err("an unsatisfied required input never reaches dispatch");
+            .err()
+            .unwrap_or_else(|| panic!("a refused run must never reach dispatch"));
         assert!(
             sink.events().is_empty(),
-            "refused BEFORE any event — not even the prologue: {:?}",
-            sink.events()
+            "refusal must happen before any event, including the prologue"
         );
         err
     }
@@ -656,7 +656,7 @@ mod tests {
         ));
         let err = required_inputs_refusal(&wf, &BTreeMap::new()).expect("two unsatisfied");
         let RuntimeError::MissingRequiredInputs { missing, declared } = &err else {
-            panic!("expected MissingRequiredInputs, got {err:?}");
+            panic!("expected MissingRequiredInputs");
         };
         // Declaration order — the author's own reading order.
         assert_eq!(missing, &["needle", "region"]);
@@ -700,12 +700,14 @@ mod tests {
         let err = run_refused(&runtime, &wf).await;
         assert_eq!(err.spec_code(), "NIKA-1708");
         let msg = err.to_string();
-        assert!(msg.contains("`needle`"), "the input is named: {msg}");
-        assert!(msg.contains("--var needle=<value>"), "the fix rides: {msg}");
+        assert!(msg.contains("`needle`"), "the input must be named");
+        assert!(
+            msg.contains("--var needle=<value>"),
+            "the remediation must ride"
+        );
         assert!(
             probe.executed_commands().is_empty(),
-            "not one task spent: {:?}",
-            probe.executed_commands()
+            "not one task may execute"
         );
     }
 
@@ -767,7 +769,9 @@ mod tests {
         let full = scope_to_task(wf.clone(), "report").expect("report scopes");
         assert_eq!(full.tasks.len(), 4, "the sink's cone is the whole diamond");
 
-        let err = scope_to_task(wf, "nope").expect_err("unknown id refused");
+        let err = scope_to_task(wf, "nope")
+            .err()
+            .unwrap_or_else(|| panic!("unknown task id must be refused"));
         assert!(
             err.contains("nope") && err.contains("discover"),
             "names the id + the available set"
@@ -794,10 +798,10 @@ mod tests {
     #[test]
     fn floor_above_budget_refuses_with_both_numbers() {
         let msg = floor_refusal(0.000_019, 0.000_001).expect("refuses");
-        assert!(msg.contains("$0.000019"), "floor rides: {msg}");
-        assert!(msg.contains("$0.000001"), "budget rides: {msg}");
-        assert!(msg.contains("refusing to start"), "{msg}");
-        assert!(msg.contains("nika check"), "points at the envelope: {msg}");
+        assert!(msg.contains("$0.000019"), "floor must ride");
+        assert!(msg.contains("$0.000001"), "budget must ride");
+        assert!(msg.contains("refusing to start"));
+        assert!(msg.contains("nika check"), "must point at the envelope");
     }
 
     #[test]
@@ -829,10 +833,10 @@ mod tests {
             .expect("a floor above the budget refuses at admission");
         assert!(
             matches!(err, RuntimeError::BudgetFloor { .. }),
-            "the launch-abort variant: {err:?}"
+            "must use the launch-abort variant"
         );
-        assert!(err.to_string().starts_with("NIKA-1709"), "{err}");
-        assert!(err.to_string().contains("refusing to start"), "{err}");
+        assert!(err.to_string().starts_with("NIKA-1709"));
+        assert!(err.to_string().contains("refusing to start"));
         // The sparing arms: no budget · a floor that fits.
         assert!(budget_floor_refusal(&wf, &report, None, None).is_none());
         assert!(budget_floor_refusal(&wf, &report, Some(999.0), None).is_none());
@@ -859,7 +863,7 @@ mod tests {
         );
         assert!(
             matches!(err, Some(RuntimeError::BudgetFloor { .. })),
-            "the overridden (effective) model's floor trips the gate: {err:?}"
+            "the overridden effective model's floor must trip the gate"
         );
 
         let yaml = "nika: m\nmodel: \"anthropic/claude-sonnet-5\"\ntasks:\n  \
@@ -880,10 +884,7 @@ mod tests {
     fn priced_image_builtin_floor_exceeds_a_tiny_cap() {
         let wf = parse(&image_generate_wf("xai"));
         let report = nika_check::check(&wf);
-        assert!(
-            report.is_clean(),
-            "the fixture must check clean: {report:?}"
-        );
+        assert!(report.is_clean(), "the fixture must check clean");
         assert_eq!(
             report.cost.min_path_total_usd, 0.0,
             "check still skips invoke — the hole this gate closes"
@@ -892,12 +893,12 @@ mod tests {
             .expect("a $0.02 builtin floor refuses a $0.001 cap");
         assert_eq!(err.spec_code(), "NIKA-1709");
         let msg = err.to_string();
-        assert!(msg.contains("refusing to start"), "{msg}");
-        assert!(msg.contains("$0.020000"), "catalog floor rides: {msg}");
-        assert!(msg.contains("$0.001000"), "cap rides: {msg}");
+        assert!(msg.contains("refusing to start"));
+        assert!(msg.contains("$0.020000"), "catalog floor must ride");
+        assert!(msg.contains("$0.001000"), "cap must ride");
         assert!(
             !msg.contains("spent $"),
-            "preflight, not the NIKA-1704 spend-then-apologise: {msg}"
+            "preflight must not report post-spend state"
         );
         assert!(budget_floor_refusal(&wf, &report, Some(1.00), None).is_none());
         assert!(budget_floor_refusal(&wf, &report, None, None).is_none());
@@ -917,7 +918,7 @@ mod tests {
         let report = nika_check::check(&wf);
         assert!(
             report.is_clean(),
-            "the canary must check clean so admission owns the refuse: {report:?}"
+            "the canary must check clean so admission owns the refusal"
         );
         let ep = report
             .data_journey
@@ -925,16 +926,16 @@ mod tests {
             .iter()
             .find(|e| e.task == "ping")
             .expect("canary endpoint");
-        assert!(!ep.priced, "canary stays unpriced: {ep:?}");
+        assert!(!ep.priced, "canary must stay unpriced");
         assert_eq!(ep.locus, nika_check::EndpointLocus::Cloud);
         let err = budget_floor_refusal(&wf, &report, Some(0.01), None)
             .expect("unpriced cloud + cap 0.01 must refuse");
         assert_eq!(err.spec_code(), "NIKA-1709");
         let msg = err.to_string();
-        assert!(msg.contains("refusing to start"), "{msg}");
-        assert!(msg.contains("unpriced"), "{msg}");
-        assert!(msg.contains("nika-b20-unpriced-canary"), "{msg}");
-        assert!(msg.contains("0.010000"), "cap rides: {msg}");
+        assert!(msg.contains("refusing to start"));
+        assert!(msg.contains("unpriced"));
+        assert!(msg.contains("nika-b20-unpriced-canary"));
+        assert!(msg.contains("0.010000"), "cap must ride");
         assert!(
             budget_floor_refusal(&wf, &report, None, None).is_none(),
             "no cap → unpriced cloud may still start"
@@ -947,7 +948,7 @@ mod tests {
             "nika: b20-mock\nmodel: mock/echo\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: \"PONG\", max_tokens: 16 }\n",
         );
         let report = nika_check::check(&wf);
-        assert!(report.is_clean(), "mock rehearsal checks clean: {report:?}");
+        assert!(report.is_clean(), "mock rehearsal must check clean");
         assert!(
             budget_floor_refusal(&wf, &report, Some(0.01), None).is_none(),
             "mock is a proven zero — a cap must not refuse the rehearsal"
@@ -967,7 +968,7 @@ mod tests {
             .iter()
             .find(|e| e.task == "ping")
             .expect("local endpoint");
-        assert!(!ep.priced, "local stays unpriced-not-free: {ep:?}");
+        assert!(!ep.priced, "local must stay unpriced-not-free");
         assert_eq!(ep.locus, nika_check::EndpointLocus::Local);
         assert!(
             budget_floor_refusal(&wf, &report, None, None).is_none(),
@@ -991,11 +992,10 @@ mod tests {
             .iter()
             .find(|e| e.task == "ping")
             .expect("flash endpoint");
-        assert!(ep.priced, "flash is the snapshot row: {ep:?}");
+        assert!(ep.priced, "flash must be the snapshot row");
         assert!(
             budget_floor_refusal(&wf, &report, Some(0.20), None).is_none(),
-            "priced flash under $0.20 must start: floor {}",
-            report.cost.min_path_total_usd
+            "priced flash under $0.20 must start"
         );
     }
 
@@ -1006,18 +1006,15 @@ mod tests {
         let err = run_refused(&runtime, &wf).await;
         assert_eq!(err.spec_code(), "NIKA-1709");
         let msg = err.to_string();
-        assert!(msg.contains("refusing to start"), "{msg}");
-        assert!(msg.contains("unpriced"), "{msg}");
+        assert!(msg.contains("refusing to start"));
+        assert!(msg.contains("unpriced"));
     }
 
     #[test]
     fn mock_image_builtin_has_no_static_floor() {
         let wf = parse(&image_generate_wf("mock"));
         let report = nika_check::check(&wf);
-        assert!(
-            report.is_clean(),
-            "mock image fixture checks clean: {report:?}"
-        );
+        assert!(report.is_clean(), "mock image fixture must check clean");
         assert!(
             budget_floor_refusal(&wf, &report, Some(0.001), None).is_none(),
             "mock/local image is unpriced — a tight cap must not refuse the rehearsal"
@@ -1036,12 +1033,11 @@ mod tests {
         assert_eq!(err.spec_code(), "NIKA-1709");
         assert!(
             probe.captured_calls().is_empty(),
-            "no executor call recorded: {:?}",
-            probe.captured_calls()
+            "no executor call may be recorded"
         );
         let msg = err.to_string();
-        assert!(!msg.contains("cost_usd"), "{msg}");
-        assert!(!msg.contains("spent $0.02"), "{msg}");
+        assert!(!msg.contains("cost_usd"));
+        assert!(!msg.contains("spent $0.02"));
     }
 
     #[tokio::test]
@@ -1053,12 +1049,7 @@ mod tests {
         let runtime = runtime.with_max_cost_usd(Some(1.00));
         let outcome = run(&runtime, &wf).await;
         assert!(outcome.ok, "cap 1.00 admits a $0.02 floor");
-        assert_eq!(
-            probe.captured_calls().len(),
-            1,
-            "the stub ran: {:?}",
-            probe.captured_calls()
-        );
+        assert_eq!(probe.captured_calls().len(), 1, "the stub must run once");
         assert_eq!(probe.captured_calls()[0].name, "nika:image_generate");
     }
 
@@ -1083,7 +1074,7 @@ mod tests {
         .expect_err("both gates could fire — the input gate speaks first");
         assert!(
             matches!(err, RuntimeError::MissingRequiredInputs { .. }),
-            "the input gate precedes: {err:?}"
+            "the input gate must precede"
         );
         // With the input satisfied, the budget floor is the word.
         let mut overrides = BTreeMap::new();
@@ -1092,7 +1083,7 @@ mod tests {
             .expect_err("the budget gate fires once inputs are satisfied");
         assert!(
             matches!(err, RuntimeError::BudgetFloor { .. }),
-            "the budget gate then owns the refusal: {err:?}"
+            "the budget gate must then own the refusal"
         );
     }
 
@@ -1154,12 +1145,9 @@ mod tests {
         let (wf, report) = mistral_wf();
         let (pin, probes) = (Some("locale"), &[]);
         let err = access_pin_refusal(&wf, &report, probes, pin, None).expect("typo refused");
-        assert!(
-            matches!(err, RuntimeError::AccessUnknownToken { .. }),
-            "{err:?}"
-        );
-        assert!(err.to_string().contains("locale"), "{err}");
-        assert!(err.to_string().contains("NIKA-1802"), "{err}");
+        assert!(matches!(err, RuntimeError::AccessUnknownToken { .. }));
+        assert!(err.to_string().contains("locale"));
+        assert!(err.to_string().contains("NIKA-1802"));
     }
 
     #[test]
@@ -1175,11 +1163,8 @@ mod tests {
             )],
         );
         let err = access_pin_refusal(&wf, &report, probes, pin, None).expect("pin unsatisfied");
-        assert!(
-            matches!(err, RuntimeError::AccessPinUnsatisfied { .. }),
-            "{err:?}"
-        );
-        assert!(err.to_string().contains("never a substitute"), "{err}");
+        assert!(matches!(err, RuntimeError::AccessPinUnsatisfied { .. }));
+        assert!(err.to_string().contains("never a substitute"));
     }
 
     #[test]
@@ -1187,12 +1172,9 @@ mod tests {
         let (wf, report) = mistral_wf();
         let err = access_pin_refusal(&wf, &report, &[], Some("claude-code"), None)
             .expect("known token refused");
-        assert!(
-            matches!(err, RuntimeError::AccessUnavailable { .. }),
-            "{err:?}"
-        );
-        assert!(err.to_string().contains("NIKA-1803"), "{err}");
-        assert!(!err.to_string().contains("NIKA-1802"), "{err}");
+        assert!(matches!(err, RuntimeError::AccessUnavailable { .. }));
+        assert!(err.to_string().contains("NIKA-1803"));
+        assert!(!err.to_string().contains("NIKA-1802"));
     }
 
     #[cfg(feature = "access-harness")]
@@ -1211,7 +1193,7 @@ mod tests {
         .with_serves(vec!["anthropic".to_owned()]);
         let err = access_pin_refusal(&wf, &report, &[probe], Some("claude-code"), None)
             .expect("ACP alone is not an infer-grade proof");
-        assert!(matches!(err, RuntimeError::AccessNoPath { .. }), "{err:?}");
+        assert!(matches!(err, RuntimeError::AccessNoPath { .. }));
         let witness = err.to_string();
         for term in [
             "claude-code",
@@ -1220,7 +1202,7 @@ mod tests {
             "structured_output",
             "model_identity",
         ] {
-            assert!(witness.contains(term), "missing {term}: {witness}");
+            assert!(witness.contains(term), "missing witness term: {term}");
         }
     }
 
@@ -1251,12 +1233,9 @@ mod tests {
             )],
         );
         let err = access_pin_refusal(&wf, &report, probes, pin, None).expect("no runtime");
-        assert!(
-            matches!(err, RuntimeError::AccessUnavailable { .. }),
-            "{err:?}"
-        );
-        assert!(err.to_string().contains("NIKA-1803"), "{err}");
-        assert!(!err.to_string().contains("API_KEY"), "{err}");
+        assert!(matches!(err, RuntimeError::AccessUnavailable { .. }));
+        assert!(err.to_string().contains("NIKA-1803"));
+        assert!(!err.to_string().contains("API_KEY"));
     }
 
     #[test]
@@ -1272,8 +1251,8 @@ mod tests {
             )],
         );
         let err = access_pin_refusal(&wf, &report, probes, pin, None).expect("path inadmissible");
-        assert!(matches!(err, RuntimeError::AccessNoPath { .. }), "{err:?}");
-        assert!(err.to_string().contains("MISTRAL_API_KEY unset"), "{err}");
+        assert!(matches!(err, RuntimeError::AccessNoPath { .. }));
+        assert!(err.to_string().contains("MISTRAL_API_KEY unset"));
     }
 
     #[test]
@@ -1319,14 +1298,11 @@ mod tests {
         );
         let err = access_pin_refusal(&wf, &report, &[probe], Some("harness"), None)
             .expect("mock must never substitute a live harness");
-        assert!(
-            matches!(err, RuntimeError::AccessPinUnsatisfied { .. }),
-            "{err:?}"
-        );
+        assert!(matches!(err, RuntimeError::AccessPinUnsatisfied { .. }));
         let witness = err.to_string();
-        assert!(witness.contains("mock/echo"), "{witness}");
-        assert!(witness.contains("--access mock"), "{witness}");
-        assert!(witness.contains("never a live substitute"), "{witness}");
+        assert!(witness.contains("mock/echo"));
+        assert!(witness.contains("--access mock"));
+        assert!(witness.contains("never a live substitute"));
     }
 
     #[test]
@@ -1375,14 +1351,14 @@ mod tests {
              a:\n    infer: { prompt: hi, model: \"anthropic/claude-sonnet-5\" }\n  \
              b:\n    infer: { prompt: hi, max_tokens: 100, model: \"ollama/llama3\" }\n",
         );
-        assert!(msg.contains("2 task(s)"), "{msg}");
+        assert!(msg.contains("2 task(s)"));
         assert!(
             msg.contains("1 with no `max_tokens`"),
-            "the priced-unbounded task: {msg}"
+            "the priced-unbounded task must be classified"
         );
         assert!(
             msg.contains("1 on an unpriced model"),
-            "the local task: {msg}"
+            "the local task must be classified"
         );
     }
 
@@ -1402,8 +1378,8 @@ mod tests {
         );
         assert!(
             msg.contains("1 task(s)"),
-            "only the unpriced local task: {msg}"
+            "only the unpriced local task must count"
         );
-        assert!(msg.contains("unpriced model"), "{msg}");
+        assert!(msg.contains("unpriced model"));
     }
 }

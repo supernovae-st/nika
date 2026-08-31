@@ -380,7 +380,7 @@ fn command_segments(command: &RawCommand) -> Vec<CommandSegment> {
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown exec command form: {other:?}"),
+        _ => unreachable!("unsupported exec command form"),
     }
 }
 
@@ -671,7 +671,12 @@ mod tests {
     use nika_schema::source::FileId;
 
     fn hints_of(yaml: &str) -> Vec<Hint> {
-        scan(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+        let parsed = parse(yaml, FileId::new(0), ParseMode::Strict);
+        assert!(parsed.is_ok(), "fixture must parse");
+        let Some(wf) = parsed.ok() else {
+            return Vec::new();
+        };
+        scan(&wf)
     }
 
     /// Every utility with a 1:1 builtin NAMES it, and names the argument
@@ -700,11 +705,11 @@ mod tests {
             let advice = &hints.first().expect("a utility fires 006").advice;
             assert!(
                 advice.starts_with("native-first/006"),
-                "{argv} is rule 006 · {advice}"
+                "utility must be classified as rule 006"
             );
             assert!(
                 advice.contains(builtin),
-                "{argv} names {builtin} · {advice}"
+                "utility advice must name its builtin"
             );
         }
 
@@ -730,7 +735,10 @@ mod tests {
         ] {
             let hints = hints_of(&exec_wf(argv));
             let advice = &hints.first().expect("a known family fires").advice;
-            assert!(advice.starts_with(rule), "{argv} stays {rule} · {advice}");
+            assert!(
+                advice.starts_with(rule),
+                "specific native-first rule must outrank utility rule"
+            );
         }
 
         // A PATHED head is the author's own tool that merely shares a
@@ -762,7 +770,7 @@ mod tests {
     fn sole_native_hint(yaml: &str) -> Hint {
         let hints = hints_of(yaml);
         let native: Vec<&Hint> = hints.iter().filter(|h| h.kind == "native-first").collect();
-        assert_eq!(native.len(), 1, "exactly one per task: {hints:?}");
+        assert_eq!(native.len(), 1, "exactly one native hint per task");
         native[0].clone()
     }
 
@@ -772,8 +780,8 @@ mod tests {
             "\"curl -s https://api.test/items -H 'x-api-key: k'\"",
         ));
         assert_eq!(h.task, "t");
-        assert!(h.advice.contains("native-first/001"), "{h:?}");
-        assert!(h.advice.contains("nika:fetch"), "{h:?}");
+        assert!(h.advice.contains("native-first/001"));
+        assert!(h.advice.contains("nika:fetch"));
     }
 
     #[test]
@@ -788,12 +796,12 @@ mod tests {
             let hints = hints_of(&exec_wf(command));
             assert!(
                 !hints.iter().any(|h| h.kind == "native-first"),
-                "{command} must stay silent: {hints:?}"
+                "pathed program must stay silent"
             );
         }
         // …but a pathed INTERPRETER + script is still the helper class.
         let h = sole_native_hint(&exec_wf("[\"/usr/bin/python3\", \"scripts/upload.py\"]"));
-        assert!(h.advice.contains("native-first/005"), "{h:?}");
+        assert!(h.advice.contains("native-first/005"));
     }
 
     #[test]
@@ -801,7 +809,7 @@ mod tests {
         let h = sole_native_hint(&exec_wf(
             "\"python3 -c 'import requests; requests.get(\\\"https://x.test\\\")'\"",
         ));
-        assert!(h.advice.contains("native-first/001"), "{h:?}");
+        assert!(h.advice.contains("native-first/001"));
     }
 
     #[test]
@@ -811,12 +819,12 @@ mod tests {
         let h = sole_native_hint(&exec_wf(
             "[\"node\", \"workflows/site/bin/crawl-and-upload.mjs\", \"--url\", \"${{ inputs.site }}\"]",
         ));
-        assert!(h.advice.contains("native-first/005"), "{h:?}");
-        assert!(h.advice.contains("exec ledger"), "{h:?}");
+        assert!(h.advice.contains("native-first/005"));
+        assert!(h.advice.contains("exec ledger"));
         // #475 · the parse lane is IN the inventory: the single most
         // common reason a helper survives it is "my input is YAML/CSV/
         // TOML" — a hole here becomes an exec in a user's boundary.
-        assert!(h.advice.contains("nika:convert"), "{h:?}");
+        assert!(h.advice.contains("nika:convert"));
     }
 
     #[test]
@@ -824,7 +832,7 @@ mod tests {
         let h = sole_native_hint(&exec_wf(
             "\"python3 -c 'import urllib; fetch(\\\"https://x.test\\\")'\"",
         ));
-        assert!(h.advice.contains("native-first/001"), "{h:?}");
+        assert!(h.advice.contains("native-first/001"));
     }
 
     #[test]
@@ -841,7 +849,7 @@ mod tests {
             let hints = hints_of(&exec_wf(command));
             assert!(
                 !hints.iter().any(|h| h.advice.contains("native-first/004")),
-                "pathed head must not fire media 004: {hints:?}"
+                "pathed head must not fire media 004"
             );
         }
     }
@@ -851,22 +859,22 @@ mod tests {
         let h = sole_native_hint(&exec_wf(
             "\"curl -X POST https://api.openai.com/v1/images/generations -d @body.json\"",
         ));
-        assert!(h.advice.contains("native-first/004"), "{h:?}");
-        assert!(h.advice.contains("nika:image_generate"), "{h:?}");
+        assert!(h.advice.contains("native-first/004"));
+        assert!(h.advice.contains("nika:image_generate"));
     }
 
     #[test]
     fn fires_on_file_and_data_programs() {
         let file = sole_native_hint(&exec_wf("\"cat out/manifest.json\""));
-        assert!(file.advice.contains("native-first/002"), "{file:?}");
+        assert!(file.advice.contains("native-first/002"));
         let data = sole_native_hint(&exec_wf(
             "\"jq '.items | map(.name)' out/crawl.json > out/names.json\"",
         ));
-        assert!(data.advice.contains("native-first/003"), "{data:?}");
+        assert!(data.advice.contains("native-first/003"));
         let env_prefixed = sole_native_hint(&exec_wf("\"LC_ALL=C sed s/a/b/ in.txt\""));
         assert!(
             env_prefixed.advice.contains("native-first/003"),
-            "assignments are skipped to the real head: {env_prefixed:?}"
+            "assignments must be skipped to the real head"
         );
     }
 
@@ -883,7 +891,7 @@ mod tests {
             let hints = hints_of(&exec_wf(command));
             assert!(
                 !hints.iter().any(|h| h.kind == "native-first"),
-                "{command} must stay silent: {hints:?}"
+                "genuine subprocess must stay silent"
             );
         }
     }
@@ -892,7 +900,7 @@ mod tests {
     fn silent_on_interpreter_without_script_or_http() {
         // A bare interpreter computation is a legitimate subprocess.
         let hints = hints_of(&exec_wf("\"python3 -c 'print(6*7)'\""));
-        assert!(!hints.iter().any(|h| h.kind == "native-first"), "{hints:?}");
+        assert!(!hints.iter().any(|h| h.kind == "native-first"));
     }
 
     #[test]
@@ -937,7 +945,7 @@ tasks:
                 ("render_background", "native-first/004"),
                 ("write_manifest", "native-first/003"),
             ],
-            "{hints:?}"
+            "the regression fixture must yield the expected hints"
         );
     }
 
@@ -956,7 +964,7 @@ tasks:
                 Some("native-first/003"),
                 Some("native-first/002"),
             ],
-            "the head must not hide later pipeline segments: {hints:?}"
+            "the head must not hide later pipeline segments"
         );
     }
 
@@ -973,7 +981,7 @@ tasks:
         assert_eq!(
             codes,
             vec![Some("native-first/003")],
-            "quoted/escaped separators and pathed utility heads stay literal: {hints:?}"
+            "quoted/escaped separators and pathed utility heads must stay literal"
         );
     }
 
@@ -988,7 +996,7 @@ tasks:
                 .filter(|h| h.code == Some("native-first/006"))
                 .count(),
             5,
-            "each deterministic native path gets its own site: {hints:?}"
+            "each deterministic native path must get its own site"
         );
         for builtin in ["date", "hash"] {
             assert!(
@@ -996,10 +1004,10 @@ tasks:
                 "a hint target must resolve in the real builtin catalog: nika:{builtin}"
             );
         }
-        assert!(hints[0].advice.contains("nika:date"), "{:?}", hints[0]);
+        assert!(hints[0].advice.contains("nika:date"));
         assert!(
             hints[1..].iter().all(|h| h.advice.contains("nika:hash")),
-            "{hints:?}"
+            "every digest hint must name nika:hash"
         );
     }
 
@@ -1008,7 +1016,7 @@ tasks:
         let hints = hints_of(&exec_wf("\"echo ok # ignored ; jq '.'; date\""));
         assert!(
             hints.iter().all(|h| h.kind != "native-first"),
-            "comment text is never executable syntax: {hints:?}"
+            "comment text must never become executable syntax"
         );
     }
 
@@ -1027,7 +1035,7 @@ tasks:
             assert_eq!(
                 hints.iter().filter(|h| h.kind == "native-first").count(),
                 expected,
-                "{command}: {hints:?}"
+                "compound prefix case has unexpected native hint count"
             );
         }
     }
@@ -1048,7 +1056,7 @@ tasks:
             assert_eq!(
                 hints.iter().filter(|h| h.kind == "native-first").count(),
                 expected,
-                "{command}: {hints:?}"
+                "conditional case has unexpected native hint count"
             );
         }
     }
@@ -1059,20 +1067,20 @@ tasks:
         assert_eq!(
             comment.iter().filter(|h| h.kind == "native-first").count(),
             1,
-            "comment payload stays inert while the next line is judged: {comment:?}"
+            "comment payload must stay inert while the next line is judged"
         );
 
         let heredoc = hints_of(&exec_wf("\"if cat <<EOF\\njq '.'\\nEOF\\nthen date\\nfi\""));
         assert!(
             heredoc.iter().all(|h| h.kind != "native-first"),
-            "the conservative heredoc backoff still owns the whole shell: {heredoc:?}"
+            "the conservative heredoc backoff must own the whole shell"
         );
 
         let crlf = hints_of(&exec_wf("\"if jq '.' input.json; then\\r\\ndate\\r\\nfi\""));
         assert_eq!(
             crlf.iter().filter(|h| h.kind == "native-first").count(),
             2,
-            "CRLF keeps the same command boundaries: {crlf:?}"
+            "CRLF must keep the same command boundaries"
         );
     }
 
@@ -1089,7 +1097,10 @@ tasks:
         for (command, expected) in cases {
             let hints = hints_of(&exec_wf(command));
             let count = hints.iter().filter(|h| h.kind == "native-first").count();
-            assert_eq!(count, expected, "{command}: {hints:?}");
+            assert_eq!(
+                count, expected,
+                "prefix case has unexpected native hint count"
+            );
             total += count;
         }
         assert_eq!(total, 8, "the hostile prefix matrix keeps all eight sites");
@@ -1108,7 +1119,7 @@ tasks:
         let pathed = hints_of(&exec_wf("\"/usr/bin/jq /tmp/input\""));
         assert!(
             pathed.iter().all(|h| h.kind != "native-first"),
-            "a pathed head remains author-owned: {pathed:?}"
+            "a pathed head must remain author-owned"
         );
     }
 
@@ -1117,7 +1128,7 @@ tasks:
         let hints = hints_of(&exec_wf("\"cat <<EOF\\njq '.'\\nEOF\""));
         assert!(
             hints.iter().all(|h| h.code != Some("native-first/003")),
-            "the deliberately small segmenter backs off on heredocs: {hints:?}"
+            "the deliberately small segmenter must back off on heredocs"
         );
     }
 }
