@@ -1691,7 +1691,7 @@ pub struct nika_dap::journal::JsonSink<W: core::io::write::Write>
 impl<W: core::io::write::Write> nika_dap::journal::JsonSink<W>
 pub fn nika_dap::journal::JsonSink<W>::into_error(self) -> core::option::Option<core::io::error::Error>
 pub fn nika_dap::journal::JsonSink<W>::new(writer: W) -> Self
-pub fn nika_dap::journal::JsonSink<W>::take_error(&mut self) -> core::option::Option<core::io::error::Error>
+pub fn nika_dap::journal::JsonSink<W>::error(&self) -> core::option::Option<&core::io::error::Error>
 pub fn nika_dap::journal::JsonSink<W>::write_record<T: serde_core::ser::Serialize>(&mut self, record: &T) -> core::io::error::Result<()>
 impl<W: core::io::write::Write> nika_event::stamp::EventSink for nika_dap::journal::JsonSink<W>
 pub fn nika_dap::journal::JsonSink<W>::emit(&mut self, event: nika_event::event::Event)

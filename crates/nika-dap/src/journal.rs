@@ -123,9 +123,9 @@ impl<W: Write> JsonSink<W> {
         self.error
     }
 
-    /// Take the buffered event-delivery error without consuming the sink.
-    pub fn take_error(&mut self) -> Option<std::io::Error> {
-        self.error.take()
+    /// Borrow the buffered delivery error without reviving the failed sink.
+    pub fn error(&self) -> Option<&std::io::Error> {
+        self.error.as_ref()
     }
 
     /// Append one arbitrary JSON object to this stream under the same chain
@@ -135,10 +135,14 @@ impl<W: Write> JsonSink<W> {
     /// Returns a buffered event-delivery error, a serialization error, or the
     /// writer error. The chain advances only after the complete line lands.
     pub fn write_record<T: serde::Serialize>(&mut self, record: &T) -> std::io::Result<()> {
-        if let Some(error) = self.error.take() {
+        if let Some(error) = self.error.as_ref() {
+            return Err(std::io::Error::new(error.kind(), error.to_string()));
+        }
+        if let Err(error) = self.write_record_inner(record) {
+            self.error = Some(std::io::Error::new(error.kind(), error.to_string()));
             return Err(error);
         }
-        self.write_record_inner(record)
+        Ok(())
     }
 
     fn write_record_inner<T: serde::Serialize>(&mut self, record: &T) -> std::io::Result<()> {
@@ -553,6 +557,8 @@ mod tests {
     use super::*;
     use nika_display::demo;
     use nika_types::id::{ExecutionId, RunId};
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
     struct BrokenWriter;
 
@@ -563,6 +569,27 @@ mod tests {
 
         fn flush(&mut self) -> std::io::Result<()> {
             Ok(())
+        }
+    }
+
+    struct FailFirstFlush {
+        bytes: Rc<RefCell<Vec<u8>>>,
+        failed: bool,
+    }
+
+    impl Write for FailFirstFlush {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.bytes.borrow_mut().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            if self.failed {
+                Ok(())
+            } else {
+                self.failed = true;
+                Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+            }
         }
     }
 
@@ -604,13 +631,35 @@ mod tests {
         let mut sink = JsonSink::new(BrokenWriter);
         sink.emit(demo::success().remove(0));
         assert_eq!(
-            sink.take_error().map(|error| error.kind()),
+            sink.error().map(std::io::Error::kind),
             Some(std::io::ErrorKind::BrokenPipe)
         );
         assert!(
-            sink.take_error().is_none(),
-            "the buffered error is taken once"
+            sink.into_error().is_some(),
+            "the buffered error stays owned"
         );
+    }
+
+    #[test]
+    fn json_sink_stays_dead_after_a_terminal_record_flush_fails() {
+        let bytes = Rc::new(RefCell::new(Vec::new()));
+        let writer = FailFirstFlush {
+            bytes: Rc::clone(&bytes),
+            failed: false,
+        };
+        let mut sink = JsonSink::new(writer);
+        assert!(
+            sink.write_record(&serde_json::json!({"kind": "workflow_completed"}))
+                .is_err(),
+            "the first flush fails"
+        );
+        assert!(
+            sink.write_record(&serde_json::json!({"kind": "run_settled"}))
+                .is_err(),
+            "a failed sink refuses every later record"
+        );
+        let raw = String::from_utf8(bytes.borrow().clone()).expect("utf8");
+        assert_eq!(raw.lines().count(), 1, "no stale-head line is appended");
     }
 
     // ───────────────────────── run journal (TraceFileSink · Tee) ─────

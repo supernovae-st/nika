@@ -1040,7 +1040,7 @@ async fn execute_json_lane(
             epilogue::resume_hint_line(file, p, pause, carry)
         );
     }
-    if let Some(e) = sink.take_error() {
+    if let Some(e) = sink.error() {
         eprintln!("nika run: stream write failed: {e}");
         return RunVerdict::renderer_failed(trace_path, e.kind());
     }
