@@ -1056,10 +1056,6 @@ async fn execute_json_lane(
         eprintln!("nika run: settlement write failed: {e}");
         return RunVerdict::renderer_failed(trace_path, e.kind());
     }
-    if let Some(e) = sink.into_error() {
-        eprintln!("nika run: stream write failed: {e}");
-        return RunVerdict::renderer_failed(trace_path, e.kind());
-    }
     epilogue::print_resume_summary(&outcome, resumed, true);
     RunVerdict {
         code,
