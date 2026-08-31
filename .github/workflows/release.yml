@@ -35,42 +35,6 @@ env:
   CARGO_INCREMENTAL: '0'
 
 jobs:
-  release_state:
-    name: inspect existing release assets
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    outputs:
-      intoto_exists: ${{ steps.probe.outputs.intoto_exists }}
-    steps:
-      - name: Probe the occupied SLSA asset name
-        id: probe
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ github.event.inputs.tag || github.ref_name }}
-        run: |
-          set -euo pipefail
-          response="$RUNNER_TEMP/release.json"
-          error="$RUNNER_TEMP/release.err"
-          if gh api "repos/${REPO}/releases/tags/${TAG}" > "$response" 2> "$error"; then
-            matches="$(jq '[.assets[] | select(.name == "multiple.intoto.jsonl")] | length' "$response")"
-            case "$matches" in
-              0) echo "intoto_exists=false" >> "$GITHUB_OUTPUT" ;;
-              1) echo "intoto_exists=true" >> "$GITHUB_OUTPUT" ;;
-              *)
-                echo "::error::release has duplicate multiple.intoto.jsonl assets"
-                exit 73
-                ;;
-            esac
-          elif grep -q 'HTTP 404' "$error"; then
-            echo "intoto_exists=false" >> "$GITHUB_OUTPUT"
-          else
-            cat "$error" >&2
-            echo "::error::could not determine existing release state"
-            exit 69
-          fi
-
   build:
     name: build ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -100,16 +64,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
-      # workflow_dispatch may rebuild a tag older than this helper. Pull the
-      # one first-party script from the exact commit whose workflow is running,
-      # never from the historical release tree and never from a floating ref.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.workflow_sha }}
-          path: .release-tooling
-          persist-credentials: false
-          sparse-checkout: scripts/release/upload-assets-immutable.sh
-          sparse-checkout-cone-mode: false
       - name: Verify tag matches Cargo workspace version
         env:
           REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
@@ -327,6 +281,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
+      # workflow_dispatch may rebuild a tag older than this helper. Pull the
+      # one first-party script from the exact commit whose workflow is running,
+      # never from the historical release tree and never from a floating ref.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release/upload-assets-immutable.sh
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
@@ -400,11 +364,7 @@ jobs:
     # verifier refuses SHA refs) — the one documented exception to the
     # SHA-pin law; scorecard's Pinned-Dependencies knows this exception.
     name: slsa provenance (intoto asset)
-    needs: [release, release_state]
-    # The upstream generator's release uploader deletes and replaces an
-    # occupied same-name asset. SLSA signatures are run-specific, so a replay
-    # would necessarily rewrite public bytes. Run it only to fill absence.
-    if: needs.release_state.outputs.intoto_exists != 'true'
+    needs: release
     permissions:
       actions: read # read the workflow run for provenance
       id-token: write # sign the provenance (Sigstore OIDC)
@@ -412,8 +372,39 @@ jobs:
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: ${{ needs.release.outputs.hashes }}
-      upload-assets: true
-      upload-tag-name: ${{ needs.release.outputs.tag }}
+      # The upstream release uploader deletes and replaces an occupied
+      # same-name asset. Generate a run artifact only; the first-party
+      # provenance-publish job below performs the fail-closed release upload.
+      upload-assets: false
+
+  provenance-publish:
+    name: publish immutable slsa asset
+    needs: [release, provenance]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release/upload-assets-immutable.sh
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.provenance.outputs.provenance-name }}
+      - name: Attach SLSA provenance without replacing public bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release.outputs.tag }}
+          PROVENANCE_NAME: ${{ needs.provenance.outputs.provenance-name }}
+        run: |
+          set -euo pipefail
+          test "$PROVENANCE_NAME" = "multiple.intoto.jsonl"
+          bash .release-tooling/scripts/release/upload-assets-immutable.sh \
+            "$TAG" "$REPO" "$PROVENANCE_NAME"
 
   bump-formula:
     name: bump homebrew tap

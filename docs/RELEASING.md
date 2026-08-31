@@ -66,12 +66,15 @@ That tag fires **`.github/workflows/release.yml`**, which:
    `TAP_DEPLOY_KEY` secret is set (see §3); otherwise it logs a notice and you
    bump the formula by hand (§2).
 
-Re-run a tag's build without re-tagging via the **workflow_dispatch** input.
+Replay a tag without re-tagging via the **workflow_dispatch** input.
 Runs for the same tag never overlap. GitHub retains one pending replay and may
 replace it with a newer one; an already-published asset is downloaded and
-compared, and a replay refuses to replace it when the bytes differ.
+compared, and a replay refuses to replace it when the bytes differ. A
+timestamped or otherwise non-reproducible rebuild therefore stops; missing
+assets are filled only when the occupied set still compares byte-for-byte.
 The workflow reads replay tooling from its own exact commit, not from the
-historical tag. Existing SLSA provenance is preserved rather than regenerated.
+historical tag. Existing SLSA provenance is preserved rather than regenerated;
+a missing statement follows the same guarded replay boundary.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.

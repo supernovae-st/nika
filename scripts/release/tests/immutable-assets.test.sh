@@ -77,6 +77,19 @@ grep -q 'REFUSED different bytes' "$TEST_ROOT/refusal.out" \
 printf 'alpha\n' | cmp -s - "$REMOTE/new.tgz" \
   || fail 'a refused replay mutated the remote asset'
 
+printf 'occupied\n' >"$REMOTE/z-existing.tgz"
+printf 'different\n' >"$LOCAL/z-existing.tgz"
+printf 'missing\n' >"$LOCAL/a-missing.tgz"
+if PATH="$FAKE_BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
+  bash "$ROOT/scripts/release/upload-assets-immutable.sh" \
+  v9.9.9 supernovae-st/nika \
+  "$LOCAL/a-missing.tgz" "$LOCAL/z-existing.tgz" \
+  >"$TEST_ROOT/two-pass.out" 2>&1; then
+  fail 'a divergent occupied set unexpectedly succeeded'
+fi
+[ ! -e "$REMOTE/a-missing.tgz" ] \
+  || fail 'a missing asset was uploaded before the occupied set was validated'
+
 if PATH="$FAKE_BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
   bash "$ROOT/scripts/release/upload-assets-immutable.sh" \
   latest supernovae-st/nika "$LOCAL/new.tgz" >/dev/null 2>&1; then
