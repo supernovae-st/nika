@@ -203,8 +203,10 @@ pub fn paused() -> Vec<Event> {
 }
 
 /// Same pause, `mode: input` — the card must teach a string, not a boolean.
+/// Test-only: the render goldens consume it; it is not a demo-replay door.
+#[cfg(test)]
 #[must_use]
-pub fn paused_input() -> Vec<Event> {
+pub(crate) fn paused_input() -> Vec<Event> {
     let mut events = opening();
     events.extend([at(30, 4400, EventKind::WorkflowPaused)
         .with_field(s("task", "approve"))
