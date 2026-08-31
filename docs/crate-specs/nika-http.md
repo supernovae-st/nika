@@ -120,7 +120,7 @@ defeats layer 2. Narrowed, not eliminated; per-request IP pinning is a
 |---|---|---|
 | 1 SPEC | ✅ | this file |
 | 2 TDD | ✅ | `tests/http_contract.rs` + ssrf unit/property authored first · RED (todo! skeleton) → GREEN · 36 contract + 27 lib/unit (incl 4 proptest) |
-| 3 IMPL | ✅ | ~1903 LOC src (post permits.net.http runtime boundary + resolver-enforced SSRF + cred-strip + loopback e2e · live · `scripts/crate-metrics.sh nika-http`) · zero unwrap/expect in src |
+| 3 IMPL | ✅ | ~2278 LOC src (post permits.net.http runtime boundary + resolver-enforced SSRF + cred-strip + loopback e2e · live · `scripts/crate-metrics.sh nika-http`) · zero unwrap/expect in src |
 | 4 CLIPPY 0 | ✅ | `cargo clippy --workspace --all-targets -- -D warnings` GREEN |
 | 5 MUTATION ≥90% | ✅ | `cargo mutants -p nika-http` · **92 mutants · 72 caught / 72 viable = 100%** (20 unviable). Every pre-review survivor (303/301/307/308 demotion branches · masked v6 embedded-v4 arm · cap boundary · resolve-layer) killed by the post-review tests: `classify_resolved` unit set · demotion method-recording fixtures · exact-cap boundary · trailing-dot + v6 proptest |
 | 6 PROPERTY | ✅ | MANDATORY (security): private-v4-range→SsrfBlocked (256 cases) · public-v4→allowed · v4↔mapped-v6 verdict equivalence · foreign-scheme→blocked |
