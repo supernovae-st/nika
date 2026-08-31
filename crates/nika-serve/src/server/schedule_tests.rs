@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use serde_json::json;
 
+use super::store::ShutdownPhase;
 use super::tests::{TestWorld, auth_header, get_request, limits};
 use super::{ExecutionBackend, ExecutionDisposition, ExecutionOutcome};
 
@@ -27,6 +28,7 @@ impl ExecutionBackend for NoopBackend {
 struct CountingBackend {
     calls: AtomicUsize,
     called: tokio::sync::Notify,
+    gate: Option<tokio::sync::Semaphore>,
     max_cost_usd: Mutex<Option<f64>>,
     root_bytes: Mutex<Option<Vec<u8>>>,
 }
@@ -94,6 +96,13 @@ impl super::ResidentClock for ManualClock {
 }
 
 impl CountingBackend {
+    fn gated() -> Self {
+        Self {
+            gate: Some(tokio::sync::Semaphore::new(0)),
+            ..Self::default()
+        }
+    }
+
     fn calls(&self) -> usize {
         self.calls.load(Ordering::SeqCst)
     }
@@ -119,6 +128,10 @@ impl CountingBackend {
         .await
         .expect("scheduled backend call");
     }
+
+    fn release(&self) {
+        self.gate.as_ref().expect("gated backend").add_permits(1);
+    }
 }
 
 impl ExecutionBackend for CountingBackend {
@@ -133,6 +146,10 @@ impl ExecutionBackend for CountingBackend {
         Box::pin(async move {
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.called.notify_waiters();
+            if let Some(gate) = &self.gate {
+                let permit = gate.acquire().await.expect("backend gate");
+                permit.forget();
+            }
             ExecutionDisposition::Succeeded.into()
         })
     }
@@ -145,6 +162,53 @@ impl ExecutionBackend for CountingBackend {
         *self.max_cost_usd.lock().expect("record max cost") = max_cost_usd;
         self.execute(context)
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shutdown_keeps_store_alive_until_scheduled_observation_finishes() {
+    let world = TestWorld::new();
+    let backend = Arc::new(CountingBackend::gated());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    let shutdown_probe = server.shutdown_probe();
+    shutdown_probe.gate_observation();
+    let created = server
+        .request(&put_request(
+            "shutdown-once",
+            &body_at("root.nika.yaml", 0.25, "2026-09-01T09:00:00Z"),
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(created.status, 200, "{}", created.body);
+    clock.wait_for_sleeps(2).await;
+    clock.advance_to("2026-09-01T09:00:00Z[UTC]");
+    backend.wait_for_call().await;
+    shutdown_probe.wait_observation_blocked().await;
+
+    let stopped = server.signal_stop();
+    shutdown_probe.wait_shutdown_loop_observed().await;
+    backend.release();
+
+    shutdown_probe.wait_terminal_settled().await;
+    let first_phase = shutdown_probe.wait_first_phase().await;
+    shutdown_probe.release_observation();
+
+    let stop_result = tokio::time::timeout(Duration::from_secs(5), stopped)
+        .await
+        .expect("bounded server join")
+        .expect("server join");
+    if first_phase == ShutdownPhase::StoreShutdown {
+        assert!(matches!(stop_result, Err(super::ServerError::BlockingTask)));
+    }
+    assert_eq!(
+        first_phase,
+        ShutdownPhase::SchedulerJoin,
+        "store shutdown started before the scheduler join"
+    );
+    stop_result.expect("scheduled observation finishes before store shutdown");
 }
 
 fn body(workflow: &str, cost: f64) -> String {
@@ -167,11 +231,12 @@ fn body_at(workflow: &str, cost: f64, at: &str) -> String {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn live_once_wakes_executes_persists_and_does_not_rearm_after_restart() {
     let world = TestWorld::new();
-    let backend = Arc::new(CountingBackend::default());
+    let backend = Arc::new(CountingBackend::gated());
     let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
     let server = world
         .start_with_clock(backend.clone(), limits(), clock.clone())
         .await;
+    let settlement_probe = server.shutdown_probe();
     let at = "2026-09-01T09:00:00Z";
     let created = server
         .request(&put_request(
@@ -215,6 +280,13 @@ async fn live_once_wakes_executes_persists_and_does_not_rearm_after_restart() {
         )
         .is_some()
     );
+    backend.release();
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        settlement_probe.wait_terminal_settled(),
+    )
+    .await
+    .expect("durable terminal settlement");
     let terminal = server
         .request(&get_request(&format!("/v1/jobs/{run_id}")))
         .await;

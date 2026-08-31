@@ -103,14 +103,18 @@ impl TestWorld {
         );
         let bound = BoundServer::attach(config, &authority).await.expect("bind");
         let address = bound.local_addr().expect("local address");
+        let shutdown_probe = authority.state.store.shutdown_test_probe();
+        let shutdown_observer = Arc::clone(&shutdown_probe);
         let (shutdown, receiver) = oneshot::channel();
         let join = tokio::spawn(authority.serve_with_http(bound, async move {
             let _result = receiver.await;
+            shutdown_observer.mark_shutdown_loop_observed();
         }));
         TestServer {
             address,
             shutdown: Some(shutdown),
             join,
+            shutdown_probe,
         }
     }
 }
@@ -119,6 +123,7 @@ pub(super) struct TestServer {
     address: SocketAddr,
     shutdown: Option<oneshot::Sender<()>>,
     join: tokio::task::JoinHandle<Result<(), ServerError>>,
+    shutdown_probe: Arc<super::store::ShutdownTestProbe>,
 }
 
 impl TestServer {
@@ -129,6 +134,15 @@ impl TestServer {
     pub(super) async fn stop(mut self) -> Result<(), ServerError> {
         self.shutdown.take().expect("shutdown sender").send(()).ok();
         self.join.await.expect("server join")
+    }
+
+    pub(super) fn shutdown_probe(&self) -> Arc<super::store::ShutdownTestProbe> {
+        Arc::clone(&self.shutdown_probe)
+    }
+
+    pub(super) fn signal_stop(mut self) -> tokio::task::JoinHandle<Result<(), ServerError>> {
+        self.shutdown.take().expect("shutdown sender").send(()).ok();
+        self.join
     }
 }
 
