@@ -257,6 +257,11 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
         ),
         _ => String::new(),
     };
+    let models = if p.models.is_empty() {
+        "0 models".to_owned()
+    } else {
+        p.human_model_ids()
+    };
     format!(
         "{}\n",
         chrome::rail_line(
@@ -264,7 +269,7 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
             &format!(
                 " {}{}{}",
                 theme.paint(Role::Strong, &format!("{:<14}", p.id)),
-                theme.paint(Role::Dim, &format!(" {:>2} models · {key}", p.models.len()),),
+                theme.paint(Role::Dim, &format!(" {models} · {key}")),
                 theme.paint(Role::Dim, &locus_note),
             ),
         )
@@ -470,5 +475,30 @@ mod tests {
         assert!(text.contains("(lan)"), "the locus is named:\n{text}");
         // …while the un-overridden engines keep their bare ids.
         assert!(text.contains("lmstudio"), "{text}");
+    }
+
+    /// B18 / issue 1306: the human listing prints wire ids (`grok-3`),
+    /// not only `N models`.
+    #[test]
+    fn human_listing_prints_model_ids() {
+        let export = resolvable_export();
+        let text = human_listing(&export, PLAIN, &loopback_loci(), distinct_truth(&export));
+        assert!(
+            text.contains("grok-3"),
+            "xai must name grok-3, not only a count:\n{text}"
+        );
+        assert!(
+            text.contains("gpt-4o-mini"),
+            "openai must name gpt-4o-mini:\n{text}"
+        );
+        let xai = export
+            .providers
+            .iter()
+            .find(|p| p.id == "xai")
+            .expect("xai");
+        assert!(
+            text.contains(&xai.human_model_ids()),
+            "the xai row carries the ids:\n{text}"
+        );
     }
 }
