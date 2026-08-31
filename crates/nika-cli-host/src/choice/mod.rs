@@ -627,15 +627,17 @@ fn persist(choice: &InferenceChoice) -> std::io::Result<()> {
 /// binary can sit on. Hub ids (`unsloth/…`) and harness seat ids are
 /// pull / `--access` targets — MODELS refuses them as `model:`.
 ///
-/// The hello lesson is exempt (B01 / B17 / I01): pack `01-hello` is
-/// `mock/echo` on purpose, and a present `OPENAI_API_KEY` must not
-/// rewrite it onto a billed seat.
+/// The hello lesson is forced onto `mock/echo` (B01 / B17 / I01). Pack
+/// `01-hello` may name a local ollama seat; a take must still rehearse
+/// keyless. A present `OPENAI_API_KEY` must not rewrite it onto a billed
+/// seat.
 pub(crate) fn stamp_model_file(path: &Path) -> std::io::Result<()> {
     let body = std::fs::read_to_string(path)?;
-    if is_hello_lesson(&body) {
-        return Ok(());
-    }
-    let model = runnable_stamp_model(&collect());
+    let model = if is_hello_lesson(&body) {
+        "mock/echo".to_owned()
+    } else {
+        runnable_stamp_model(&collect())
+    };
     std::fs::write(path, stamp_body(&body, &model))
 }
 
@@ -824,7 +826,10 @@ fn cwd_workflows(cwd: &Path) -> Vec<String> {
 #[must_use]
 pub(crate) fn first_wow_yaml(_choice: &InferenceChoice) -> String {
     if let Some(body) = nika_pack::example("01-hello") {
-        body.to_owned()
+        // Pack 01-hello may name ollama; the first-wow take is always
+        // the rehearsal seat (B01). Comments on the model: line go with
+        // the stamp.
+        stamp_body(body, "mock/echo")
     } else {
         let model = yaml_scalar("mock/echo");
         format!(

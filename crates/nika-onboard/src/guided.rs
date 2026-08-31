@@ -371,6 +371,13 @@ fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Out
     // user's own workspace (gauntlet 08-01: pasting the copied
     // comment exited 3 — the example path exists only in the pack).
     let body = body.replace(&format!("examples/{clean}.nika.yaml"), dest);
+    // B01: a take of hello / 01-hello rehearses on mock/echo even when
+    // the vendored pack lesson names a local ollama seat (spec pin).
+    let body = if matches!(clean, "hello" | "01-hello") {
+        stamp(&body, "hello", Some("mock/echo"))
+    } else {
+        body
+    };
     if let Err(e) = std::fs::write(dest, &body) {
         return Outcome {
             text: format!("cannot write {dest}: {e}"),
