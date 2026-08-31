@@ -58,6 +58,9 @@ fn components() -> Value {
 
 fn schemas() -> Value {
     json!({
+            "Health": health_schema(),
+            "WorkflowList": workflow_list_schema(),
+            "WorkflowMetadata": workflow_metadata_schema(),
             "JobStatus": {
                 "type": "string",
                 "enum": ["queued", "running", "interrupted", "paused", "succeeded", "failed", "cancelled"]
@@ -89,6 +92,7 @@ fn schemas() -> Value {
                 }
             },
             "JobReceipt": job_receipt_schema(),
+            "JobEvent": job_event_schema(),
             "TraceVerification": trace_verification_schema(),
             "JobStatusOnly": {
                 "type": "object",
@@ -145,6 +149,62 @@ fn schemas() -> Value {
                 "additionalProperties": true
             },
             "Error": error_schema()
+    })
+}
+
+fn health_schema() -> Value {
+    json!({
+        "type": "object", "additionalProperties": false,
+        "required": ["status", "service", "engine_version", "build_sha", "spec_sha", "api_version", "engineVersion", "buildSha", "specSha", "machineProtocolVersion", "snapshotFormatVersion", "checkReportVersion", "eventFormatVersion", "traceFormatVersion", "supportedCapabilities"],
+        "properties": {
+            "status": {"type": "string", "const": "ok"},
+            "service": {"type": "string", "const": "nika-serve"},
+            "engine_version": {"type": "string", "minLength": 1},
+            "build_sha": {"type": "string", "minLength": 1},
+            "spec_sha": {"type": "string", "minLength": 1},
+            "api_version": {"type": "string", "minLength": 1},
+            "engineVersion": {"type": "string", "minLength": 1},
+            "buildSha": {"type": "string", "minLength": 1},
+            "specSha": {"type": "string", "minLength": 1},
+            "machineProtocolVersion": {"type": "integer", "minimum": 1},
+            "snapshotFormatVersion": {"type": "integer", "minimum": 1},
+            "checkReportVersion": {"type": "integer", "minimum": 1},
+            "eventFormatVersion": {"type": "integer", "minimum": 1},
+            "traceFormatVersion": {"type": "integer", "minimum": 1},
+            "supportedCapabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        }
+    })
+}
+
+fn workflow_list_schema() -> Value {
+    json!({
+        "type": "object", "additionalProperties": false,
+        "required": ["workflows"],
+        "properties": {"workflows": {"type": "array", "items": {"type": "string", "minLength": 1}}}
+    })
+}
+
+fn workflow_metadata_schema() -> Value {
+    json!({
+        "type": "object", "additionalProperties": false,
+        "required": ["workflow"],
+        "properties": {"workflow": {"type": "string", "minLength": 1}}
+    })
+}
+
+fn job_event_schema() -> Value {
+    json!({
+        "type": "object", "additionalProperties": false,
+        "required": ["sequence", "kind", "status"],
+        "properties": {
+            "sequence": {"type": "integer", "minimum": 1},
+            "kind": {"type": ["string", "null"]},
+            "status": {"anyOf": [{"$ref": "#/components/schemas/JobStatus"}, {"type": "null"}]},
+            "code": {"type": "string"},
+            "message": {"type": "string"},
+            "outputs": {"type": "object", "additionalProperties": true},
+            "receipt": {"$ref": "#/components/schemas/JobReceipt"}
+        }
     })
 }
 
@@ -274,7 +334,7 @@ fn health_path() -> Value {
     json!({"get": {
         "security": [],
         "summary": "Public process liveness",
-        "responses": {"200": {"description": "Engine identity only"}}
+        "responses": {"200": {"description": "Engine identity only", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Health"}}}}}
     }})
 }
 
@@ -288,7 +348,7 @@ fn openapi_path() -> Value {
 fn workflow_list_path() -> Value {
     json!({"get": {
         "summary": "Contained workflow names",
-        "responses": {"200": {"description": "Relative .nika.yaml names"}, "401": error_ref()}
+        "responses": {"200": {"description": "Relative .nika.yaml names", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowList"}}}}, "401": error_ref()}
     }})
 }
 
@@ -296,7 +356,7 @@ fn workflow_metadata_path() -> Value {
     json!({"get": {
         "summary": "Workflow metadata without source bytes",
         "parameters": [{"name": "name", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {"200": {"description": "Contained name"}, "401": error_ref(), "404": error_ref()}
+        "responses": {"200": {"description": "Contained name", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowMetadata"}}}}, "401": error_ref(), "404": error_ref()}
     }})
 }
 
@@ -356,7 +416,10 @@ fn job_events_path() -> Value {
         "summary": "Job event SSE",
         "parameters": [job_id_param(), {"$ref": "#/components/parameters/LastEventId"}],
         "responses": {
-            "200": {"description": "text/event-stream; sends bounded retry guidance and cursor-neutral heartbeat comments; Last-Event-ID replays only persisted events after that sequence; terminal data adds declared outputs and receipt when available; failures add redacted {code,message}"},
+            "200": {
+                "description": "text/event-stream; sends bounded retry guidance and cursor-neutral heartbeat comments; Last-Event-ID replays only persisted events after that sequence; terminal data adds declared outputs and receipt when available; failures add redacted {code,message}",
+                "content": {"text/event-stream": {"schema": {"type": "string"}, "x-nika-event-schema": {"$ref": "#/components/schemas/JobEvent"}}}
+            },
             "400": error_ref(), "401": error_ref(), "404": error_ref()
         }
     }})
@@ -486,6 +549,27 @@ mod tests {
                 .iter()
                 .any(|field| field == "outputs" || field == "receipt"),
             "terminal result fields remain optional for legacy and unavailable adapters"
+        );
+        for (path, schema) in [
+            ("/health", "Health"),
+            ("/v1/workflows", "WorkflowList"),
+            ("/v1/workflows/{name}", "WorkflowMetadata"),
+        ] {
+            assert_eq!(
+                spec["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+                    ["$ref"],
+                format!("#/components/schemas/{schema}"),
+                "{path} must expose its machine response schema"
+            );
+        }
+        assert_eq!(
+            spec["paths"]["/v1/jobs/{id}/events"]["get"]["responses"]["200"]["content"]["text/event-stream"]
+                ["x-nika-event-schema"]["$ref"],
+            "#/components/schemas/JobEvent"
+        );
+        assert_eq!(
+            spec["components"]["schemas"]["JobEvent"]["required"],
+            serde_json::json!(["sequence", "kind", "status"])
         );
     }
 }

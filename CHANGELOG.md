@@ -31,6 +31,12 @@ pull requests collided on 2026-08-24 with no source overlap between them, and
 
 ### Changed
 
+- **The One SDK contract is machine-complete at its live boundaries.** Health,
+  workflow discovery/metadata, and the SSE event projection now carry owning
+  OpenAPI schemas instead of description-only 200 responses. The engine
+  release kit under `.agents/` is explicitly engine-owned and mirrored
+  downstream from immutable tags; the client-registry resync can no longer
+  overwrite it from a moving plugin branch.
 - **The MCP oracle closes the repair loop.** `nika_check` gains
   `fix: true`: the same transactional repair ladder as `nika check --fix`
   (typed renames · dead-form migrations · the VAR-021 hoist) runs IN
