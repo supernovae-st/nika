@@ -16,7 +16,7 @@
 #
 # CI stages binaries at dist/linux/<TARGETARCH>/nika. Local build = the same
 # staging (docker arch: amd64|arm64 · release tarball arch: x64|arm64):
-#   v=0.116.1; a=arm64                    # apple-silicon/arm hosts (amd64: a=x64)
+#   v=0.116.2; a=arm64                    # apple-silicon/arm hosts (amd64: a=x64)
 #   curl -fsSLO "https://github.com/supernovae-st/nika/releases/download/v${v}/nika-linux-${a}-${v}.tar.gz"
 #   mkdir -p dist/linux/arm64 && tar -xzf "nika-linux-${a}-${v}.tar.gz" -C dist/linux/arm64 nika
 #   docker build -t nika .
