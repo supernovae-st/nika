@@ -81,8 +81,8 @@ Cloud providers appear only as swap hints, never as a default.
 ## Run them
 
 ```bash
-nika run examples/01-hello.nika.yaml                     # as written
-nika run examples/01-hello.nika.yaml --model mock/echo   # zero-setup dry twin
+nika run examples/01-hello.nika.yaml                     # as written (mock/echo · zero setup)
+nika run examples/01-hello.nika.yaml --model ollama/llama3.2:3b   # same file, a real local seat
 nika run examples/01-hello.nika.yaml --output json       # the typed outputs, as one JSON object
 ```
 

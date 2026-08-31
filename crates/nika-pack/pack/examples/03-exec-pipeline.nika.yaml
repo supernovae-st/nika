@@ -21,8 +21,10 @@
 #
 # Runs green anywhere the suite is not passing — no Cargo.toml, or no cargo at
 # all, is a non-zero exit: the gate closes, the deploy is skipped, the notice
-# fires. Exactly the story a red suite tells. Run it inside a repo whose tests
-# DO pass and the gate opens onto `./deploy.sh`, which is yours to supply.
+# fires. Exactly the story a red suite tells. A missing `cargo` (PATH or the
+# try sandbox) is recovered as exit 127 — a red suite, not an opaque
+# NIKA-SEC-001. Run it inside a repo whose tests DO pass and the gate opens
+# onto `./deploy.sh`, which is yours to supply.
 #
 # Run · nika run examples/03-exec-pipeline.nika.yaml
 
@@ -53,6 +55,14 @@ tasks:
       shell: "cargo test --workspace --lib"
       cwd: "."             # the directory you ran `nika` from, not the file's
       capture: structured  # → { stdout, stderr, exit_code }
+    on_error:
+      # Missing cargo (PATH or the try sandbox) is a red suite, not a broken
+      # workflow. 127 is the shell's "command not found"; the gate below reads
+      # the number and skips deploy — the same story a red suite tells.
+      recover:
+        stdout: ""
+        stderr: "cargo not found in this rehearsal (PATH or sandbox) · treated as a red suite (exit 127)"
+        exit_code: 127
 
   release_lock:
     # ALWAYS runs · best-effort · an error here is logged, never propagated.

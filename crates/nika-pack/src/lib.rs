@@ -23,6 +23,8 @@
 //! ```rust
 //! assert_eq!(nika_pack::pack_version(), "0.1.0-draft");
 //! assert!(nika_pack::example("01-hello").is_some());
+//! assert_eq!(nika_pack::example("hello"), nika_pack::example("01-hello"));
+//! assert_eq!(nika_pack::first_shelf().len(), 5);
 //! assert!(nika_pack::template("chain").is_some());
 //! assert!(nika_pack::schema_json().contains("\"nika\""));
 //! ```
@@ -264,13 +266,41 @@ pub fn quickstart() -> &'static str {
     file_str("QUICKSTART.md").unwrap_or("")
 }
 
+/// Bare `hello` is the 01-hello lesson — one file, one model, three doors
+/// (`nika new hello` · `nika new 01-hello` · `nika try hello` / `01-hello`).
+fn canonical_example_slug(slug: &str) -> &str {
+    let slug = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+    match slug {
+        "hello" => "01-hello",
+        other => other,
+    }
+}
+
 /// One example by slug (`01-hello` or `showcase/t1-standup-digest` —
-/// the `.nika.yaml` suffix is optional).
+/// the `.nika.yaml` suffix is optional). `hello` is an alias of `01-hello`.
 #[must_use]
 pub fn example(slug: &str) -> Option<&'static str> {
-    let slug = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+    let slug = canonical_example_slug(slug);
     file_str(&format!("examples/{slug}.nika.yaml"))
         .or_else(|| file_str(&format!("examples/showcase/{slug}.nika.yaml")))
+}
+
+/// The five first-run jobs (UX-1). Bare `nika try` should show these;
+/// the rest of the corpus lives behind `try --all`.
+///
+/// hello · brief · image · fetch · notify — in that order. Numbered
+/// lessons that need a host toolchain (`03-exec-pipeline`) and git-repo
+/// jobs (`standup-digest`) stay off this shelf so a weekend first-run
+/// is five green rehearsals, not an opaque sandbox red.
+#[must_use]
+pub fn first_shelf() -> &'static [&'static str] {
+    &[
+        "01-hello",
+        "ceo-monday-brief",
+        "og-images",
+        "05-fetch-chain",
+        "release-notes",
+    ]
 }
 
 /// Every file under `examples/fixtures/` — (path relative to

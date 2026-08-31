@@ -7,11 +7,11 @@ pack_version: 0.1.0-draft
 workflow_count: 53
 foundation:
   - file: examples/01-hello.nika.yaml
-    sha256_16: ca6fd74b9c22772a
+    sha256_16: 5522b9ca7e154487
   - file: examples/02-parallel-fanout.nika.yaml
     sha256_16: ac5a690f683bacec
   - file: examples/03-exec-pipeline.nika.yaml
-    sha256_16: addc93ad6aac5c38
+    sha256_16: be9bf2829b37ac35
   - file: examples/04-schema-retry.nika.yaml
     sha256_16: dfb28dabdf785a50
   - file: examples/05-fetch-chain.nika.yaml
@@ -171,7 +171,7 @@ showcase:
   - file: examples/standup-digest.nika.yaml
     name: standup-digest
     constructs: [local_model, outputs, with]
-    sha256_16: e0dc0e311ab7a40d
+    sha256_16: 6dcbf22ee084984c
   - file: examples/support-triage.nika.yaml
     name: support-triage
     constructs: [local_model, outputs, schema, secrets, when, with]

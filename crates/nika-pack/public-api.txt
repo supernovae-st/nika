@@ -123,6 +123,7 @@ pub fn nika_pack::error_codes() -> alloc::vec::Vec<nika_pack::ErrorCodeRow>
 pub fn nika_pack::example(slug: &str) -> core::option::Option<&'static str>
 pub fn nika_pack::example_fixture_files() -> alloc::vec::Vec<(&'static str, &'static [u8])>
 pub fn nika_pack::example_slugs() -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_pack::first_shelf() -> &'static [&'static str]
 pub fn nika_pack::lean(yaml_text: &str) -> &str
 pub fn nika_pack::manifest() -> &'static str
 pub fn nika_pack::meta(slug: &str, body: &str) -> nika_pack::meta::ExampleMeta

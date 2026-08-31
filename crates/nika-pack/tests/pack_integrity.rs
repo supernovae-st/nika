@@ -222,3 +222,152 @@ fn error_codes_count_says_the_floor_is_not_the_family() {
         "the error_codes count must say per-builtin codes resolve through explain:\n{section}"
     );
 }
+
+/// B01 · `hello` and `01-hello` are ONE file, and that file rehearses
+/// on `mock/echo`. `OPENAI_API_KEY` must not live in the bytes.
+#[test]
+fn hello_and_01_hello_are_the_same_mock_echo_file() {
+    let hello = nika_pack::example("hello").expect("hello resolves");
+    let numbered = nika_pack::example("01-hello").expect("01-hello resolves");
+    assert_eq!(
+        hello, numbered,
+        "nika new hello · nika new 01-hello · nika try 01-hello share one body"
+    );
+    let model = numbered
+        .lines()
+        .find(|l| l.starts_with("model: "))
+        .expect("hello carries a model");
+    assert!(
+        model.contains("mock/echo"),
+        "the one hello rehearses on mock/echo, got {model}"
+    );
+    assert!(
+        !model.contains("openai") && !model.contains("gpt-4o") && !model.contains("ollama/"),
+        "the one hello must not switch seats: {model}"
+    );
+}
+
+/// B16 · a comment that says « local » next to a non-local seat is a lie.
+#[test]
+fn hello_comments_match_the_model_field() {
+    let body = nika_pack::example("01-hello").expect("embedded");
+    let model = body
+        .lines()
+        .find(|l| l.starts_with("model: "))
+        .expect("model line");
+    let seat = model
+        .trim_start_matches("model: ")
+        .split('#')
+        .next()
+        .expect("seat")
+        .trim();
+    let comment = model.split_once('#').map(|(_, c)| c.to_ascii_lowercase());
+    if seat.starts_with("mock/") {
+        if let Some(c) = comment {
+            assert!(
+                !c.contains("local") && !c.contains("openai"),
+                "mock/echo comment must not claim local/openai: {model}"
+            );
+        }
+        for line in body
+            .lines()
+            .take_while(|l| l.starts_with('#') || l.is_empty())
+        {
+            let lower = line.to_ascii_lowercase();
+            assert!(
+                !lower.contains("one local model"),
+                "header must match the mock/echo field: {line}"
+            );
+        }
+    } else if (seat.starts_with("openai/") || seat.starts_with("anthropic/"))
+        && let Some(c) = comment
+    {
+        assert!(
+            !c.contains("local"),
+            "cloud seat comment must not say local: {model}"
+        );
+    }
+}
+
+/// I08 · `gpt-4o-mini` is not an openai catalog seat (`gpt-5.2` / `gpt-5-mini`).
+/// A scaffold that names it is teaching a model the resolver should refuse.
+#[test]
+fn scaffolds_never_name_gpt_4o_mini_unless_catalog_lists_it() {
+    let catalogued = nika_catalog::all_providers().iter().any(|p| {
+        p.models
+            .iter()
+            .any(|m| m.model == "gpt-4o-mini" || m.id == "gpt-4o-mini")
+    });
+    let mut hits = Vec::new();
+    for slug in nika_pack::example_slugs() {
+        if nika_pack::example(&slug).is_some_and(|b| b.contains("gpt-4o-mini")) {
+            hits.push(format!("example:{slug}"));
+        }
+    }
+    for name in nika_pack::template_names() {
+        if nika_pack::template(&name).is_some_and(|b| b.contains("gpt-4o-mini")) {
+            hits.push(format!("template:{name}"));
+        }
+    }
+    if catalogued {
+        return;
+    }
+    assert!(
+        hits.is_empty(),
+        "gpt-4o-mini is absent from the openai catalog; scaffolds must not name it: {hits:?}"
+    );
+}
+
+/// UX-1 · first shelf is five jobs; the rest live behind `try --all`.
+#[test]
+fn first_shelf_is_hello_brief_image_fetch_notify() {
+    let shelf = nika_pack::first_shelf();
+    assert_eq!(
+        shelf,
+        [
+            "01-hello",
+            "ceo-monday-brief",
+            "og-images",
+            "05-fetch-chain",
+            "release-notes"
+        ]
+    );
+    for slug in shelf {
+        assert!(
+            nika_pack::example(slug).is_some(),
+            "first-shelf slug `{slug}` must exist in the pack"
+        );
+    }
+    assert!(
+        !shelf.contains(&"03-exec-pipeline"),
+        "03-exec-pipeline is not a first-shelf job (B06 · --all only)"
+    );
+    assert!(
+        !shelf.contains(&"standup-digest"),
+        "standup-digest is not a first-shelf job (C06 · --all only)"
+    );
+}
+
+/// B06 · missing cargo is a recovered red suite, not an opaque NIKA-SEC-001.
+#[test]
+fn exec_pipeline_recovers_when_cargo_is_missing() {
+    let body = nika_pack::example("03-exec-pipeline").expect("embedded");
+    assert!(
+        body.contains("on_error:") && body.contains("recover:"),
+        "03-exec-pipeline must recover a missing cargo so try is not opaque"
+    );
+    assert!(
+        body.contains("127") || body.to_ascii_lowercase().contains("cargo"),
+        "the recovery must name cargo / exit 127: the failure is a red suite, not a broken file"
+    );
+}
+
+/// C06 · not-a-git-repo is a recovered empty history, not seatbelt 128.
+#[test]
+fn standup_digest_recovers_when_git_is_missing() {
+    let body = nika_pack::example("standup-digest").expect("embedded");
+    assert!(
+        body.contains("on_error:") && body.contains("recover:"),
+        "standup-digest must recover outside a git repo so try is not opaque"
+    );
+}

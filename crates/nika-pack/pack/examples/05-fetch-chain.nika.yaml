@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 05 · Fetch → bind → summarize, with a fallback that keeps the shape.
+# 05 · Fetch → bind → summarize — a weekend summary of a few URLs, with a fallback that keeps the shape.
 #
 # The first file that reaches outside the process. Two things follow from
 # that: the workflow has to say which host it may reach, and it has to have
