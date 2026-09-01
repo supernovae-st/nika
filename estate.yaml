@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4750
+  classified_files: 4752
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 1773
+    authored: 1775
     authored-pin: 2
     generated: 125
     pinned-copy: 145
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 914
-  aggregate_sha256: fee71ffc2899bfee1546c20f4f2a28d081ebff96c19a9973252e5273480ccfc9
+  match_count: 915
+  aggregate_sha256: 47e27ac22ceffc89abe11ff401326559e90e903ed78e5012055b0a9707644180
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -183,17 +183,17 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 120
-  aggregate_sha256: 09ef777997a29d36bf15de95788d70e2c4ab7a3946c871a16172a5431587d9ef
+  aggregate_sha256: 5946d858a57de7076ef219748ed6ee0c8cbc4d7cf45effb4cc85ffa128736e9c
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
   match_count: 176
-  aggregate_sha256: 797d9a10d38834b6a6fb747307d04448698b98af6658a9a5fdf289d152130b61
+  aggregate_sha256: d1909027214c85702a00e75781114c206318684ef1779dfe74bc4731dac37956
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: 41c951554d62d775d7db6a6f7819d599fcf78ca2c4ca731b6a72a88b697b7304
+  aggregate_sha256: cca88eb1b9f0f5a7e52c1335435d3cb5fa03a715ba1ed620aec5d8a1b82072b4
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -242,14 +242,14 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 1
-  aggregate_sha256: 6b53a86aaa149c6719b91ac3e4afb6b688f06035aacf5a34608e8ea089deff36
+  match_count: 2
+  aggregate_sha256: a131e14cdaa1fd0565cdd472bf664df62b933ad71f1bf54fe5fd2c07944f7505
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: 191435c68e904bb462a7c060707bf31bb8638ef21cde864fe2671ef665e2f1e8
+  aggregate_sha256: 06d889ad5870ec51d66bfcfd960fbe71fce7508e4208956942253a1d674407ea
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
