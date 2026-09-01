@@ -42,7 +42,13 @@ pub(crate) fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
 
 /// `nika:fetch` — HTTP request + content extraction (stdlib §fetch).
 /// Non-2xx is failure (`transient: true` for 5xx/408/429, `false` for
-/// other 4xx — normative). The body is decoded then run through the
+/// other 4xx — normative) — with the #1371 effect-safe carve-out: a
+/// keyless effect-capable method (POST · PUT · DELETE · PATCH without an
+/// `idempotency-key` header) is `transient: false` on EVERY failure
+/// (the failure may be ambiguous — the server may have committed — and
+/// a blind retry replays the effect; spec 05 §the effect-safe retry
+/// law). GET/HEAD and keyed calls keep the status table. The body is
+/// decoded then run through the
 /// `mode:` extraction (default `markdown` · extract-modes-v0.1.md).
 ///
 /// CANCEL SAFETY: dropping this future detaches — it does NOT stop an
@@ -91,6 +97,16 @@ pub(crate) async fn fetch_with_clock<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn +
     // the enum (no string re-match to desync).
     let http_method = parse_method(&method).map_err(|m| BuiltinFailure::new(C, m))?;
     let request = crate::net_payload::prepare_request(http_method, url, fs, boundary, args).await?;
+    // #1371 · the effect-safe retry law (spec 05 §the effect-safe retry
+    // law): a keyless effect-capable call (POST · PUT · DELETE · PATCH
+    // without an `idempotency-key` header) types EVERY failure
+    // non-transient — the failure may be ambiguous (the server may have
+    // committed the effect before the socket dropped or the 500 was
+    // emitted) and a blind replay doubles it. ONE predicate, shared with
+    // the static NIKA-SEC-016 refusal (`nika_types::net`), judged over
+    // the headers that ACTUALLY ride the wire — check ≡ run.
+    let retry_safe =
+        nika_types::net::retry_is_effect_safe(&method, request.headers.keys().map(String::as_str));
     // MUTATION (equivalent under the mock): GET/HEAD route to .get(), all
     // else to .post() — but a test double serves both identically and the
     // recorded request carries its own method, so deleting this arm is
@@ -105,7 +121,10 @@ pub(crate) async fn fetch_with_clock<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn +
         // → SEC-005) takes its spec-plane code; otherwise it's a transport
         // failure whose retryability follows the spec status table.
         net_security_failure(&e).unwrap_or_else(|| {
-            let transient = matches!(e, HttpError::Timeout { .. } | HttpError::Connection { .. });
+            // #1371: a keyless effect-capable call never earns the
+            // transport-transient classification (the ambiguous commit).
+            let transient =
+                retry_safe && matches!(e, HttpError::Timeout { .. } | HttpError::Connection { .. });
             BuiltinFailure::new(C, format!("request failed: {e}")).with_transient(transient)
         })
     })?;
@@ -122,7 +141,7 @@ pub(crate) async fn fetch_with_clock<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn +
                 crate::wire::redact_url(url)
             ),
         )
-        .with_transient(is_transient_status(response.status))
+        .with_transient(retry_safe && is_transient_status(response.status))
         .with_details(serde_json::json!({ "status_code": response.status })));
     }
 
@@ -476,6 +495,9 @@ pub(super) fn build_request(
 
 /// The spec's status→retryability table (stdlib §fetch · normative):
 /// 5xx, 408 (request timeout) and 429 (rate limit) are transient.
+/// Callers GATE this with the #1371 effect-safe law
+/// (`nika_types::net::retry_is_effect_safe`): a keyless effect-capable
+/// method is never transient, whatever the table says.
 pub(crate) fn is_transient_status(status: u16) -> bool {
     matches!(status, 500..=599 | 408 | 429)
 }
@@ -1000,6 +1022,120 @@ mod tests {
         .expect_err("ssrf blocked");
         assert!(!fail.transient, "an SSRF block is a deterministic refusal");
         assert_eq!(fail.code, "NIKA-SEC-005", "SSRF is the security-plane code");
+    }
+
+    #[tokio::test]
+    async fn keyless_mutating_fetch_is_never_transient() {
+        // #1371 · the effect-safe retry law: a POST/PUT/DELETE/PATCH WITHOUT an
+        // `idempotency-key` header types EVERY failure non-transient — the
+        // failure may be ambiguous (the server may have committed before the
+        // socket dropped or the 500 was emitted) and a blind replay doubles
+        // the effect. One attempt; the static NIKA-SEC-016 refusal owns the
+        // declared-`retry:` teaching.
+        use nika_kernel::io::http::HttpError;
+        for method in ["POST", "PUT", "DELETE", "PATCH", "post"] {
+            // The issue's core evidence: a post-commit HTTP 500 used to be
+            // transient → declared retry triple-charged. Now one attempt.
+            let http = MockHttp::new().enqueue_ok(500, Vec::new());
+            let fail = fetch(
+                &http,
+                &args(serde_json::json!({
+                    "url": "https://api.test/charge", "method": method, "body": { "a": 1 }
+                })),
+            )
+            .await
+            .expect_err("non-2xx fails");
+            assert!(
+                !fail.transient,
+                "{method} keyless + 500 is never retry-eligible (the ambiguous commit)"
+            );
+            // The canonical ambiguous case: a transport failure AFTER the
+            // request may have landed — same law, one attempt.
+            let http = MockHttp::new().enqueue_err(HttpError::Connection {
+                reason: "socket dropped mid-response".to_owned(),
+            });
+            let fail = fetch(
+                &http,
+                &args(serde_json::json!({
+                    "url": "https://api.test/charge", "method": method, "body": { "a": 1 }
+                })),
+            )
+            .await
+            .expect_err("transport failure");
+            assert!(
+                !fail.transient,
+                "{method} keyless + transport drop is never retry-eligible"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn keyed_mutating_fetch_keeps_the_spec_status_table() {
+        // #1371 · with an `idempotency-key` header the receiver dedups the
+        // replay — retry works: 5xx/408/429 stay transient, other 4xx do not.
+        use nika_kernel::io::http::HttpError;
+        for (status, expect) in [(500, true), (503, true), (429, true), (404, false)] {
+            let http = MockHttp::new().enqueue_ok(status, Vec::new());
+            let fail = fetch(
+                &http,
+                &args(serde_json::json!({
+                    "url": "https://api.test/charge",
+                    "method": "POST",
+                    // Any-case header name discharges the hazard (RFC 9110 §5.1).
+                    "headers": { "Idempotency-Key": "order-7" },
+                    "body": { "a": 1 }
+                })),
+            )
+            .await
+            .expect_err("non-2xx fails");
+            assert_eq!(fail.transient, expect, "keyed POST · HTTP {status}");
+        }
+        // Keyed + transport: the receiver's dedup makes the replay safe.
+        let http = MockHttp::new().enqueue_err(HttpError::Connection {
+            reason: "socket dropped mid-response".to_owned(),
+        });
+        let fail = fetch(
+            &http,
+            &args(serde_json::json!({
+                "url": "https://api.test/charge",
+                "method": "POST",
+                "headers": { "idempotency-key": "order-7" },
+                "body": { "a": 1 }
+            })),
+        )
+        .await
+        .expect_err("transport failure");
+        assert!(
+            fail.transient,
+            "keyed POST + transport drop stays retryable"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_only_methods_keep_the_spec_status_table() {
+        // #1371 · GET/HEAD replay nothing — retry free, key or no key:
+        // the status table is UNCHANGED for read-only methods.
+        use nika_kernel::io::http::HttpError;
+        for method in ["GET", "HEAD"] {
+            let http = MockHttp::new().enqueue_ok(500, Vec::new());
+            let fail = fetch(
+                &http,
+                &args(serde_json::json!({ "url": "https://api.test/x", "method": method })),
+            )
+            .await
+            .expect_err("non-2xx fails");
+            assert!(fail.transient, "{method} + 500 stays transient");
+            let http = MockHttp::new().enqueue_err(HttpError::Connection {
+                reason: "dns resolution failed".to_owned(),
+            });
+            let fail = fetch(
+                &http,
+                &args(serde_json::json!({ "url": "https://api.test/x", "method": method })),
+            )
+            .await
+            .expect_err("transport failure");
+            assert!(fail.transient, "{method} + transport stays transient");
+        }
     }
 
     #[tokio::test]

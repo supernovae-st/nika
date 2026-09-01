@@ -82,7 +82,8 @@ const ROWS: &[(&str, &str)] = &[
         "retry-effects",
         "`retry:` on a task whose effects are not contracted as idempotent — \
          a second attempt can double a write or a send. Drop retry, or make \
-         the effect safe to repeat",
+         the effect safe to repeat (a keyless mutating `nika:fetch` is past \
+         hinting: it is the `NIKA-SEC-016` refusal)",
     ),
     (
         "secrets-store",

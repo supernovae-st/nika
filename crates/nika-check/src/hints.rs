@@ -40,7 +40,8 @@
 //!   compose by intersection · spec 03 §one obvious way /008): tighten
 //!   to `success` or drop the entry.
 //! - **retry on uncontracted effects** (`retry-effects`) — see
-//!   [`push_retry_effects_hint`].
+//!   [`push_retry_effects_hint`]. The `nika:fetch` arm is RETIRED (#1371 ·
+//!   promoted to the `NIKA-SEC-016` finding — an error owns its repair).
 //! - **concurrent same-path writers** — RETIRED by F-P15 (NEP-0014 law
 //!   1): the write-write race is the `NIKA-SEC-012` FINDING now (the
 //!   DAG analysis pass owns it · a hint is not a boundary).
@@ -866,12 +867,15 @@ fn collect_json_strings_into<'a>(value: &'a serde_json::Value, out: &mut Vec<&'a
 /// - `invoke: mcp:*` — external tool, no idempotency contract;
 /// - `invoke: nika:notify` — the v0.1 channel is a raw webhook send
 ///   (nika-builtin `defs.rs` §net): no dedup key rides the payload, so a
-///   replay delivers the notification twice;
-/// - `invoke: nika:fetch` with a NON-idempotent method — `defs.rs`
-///   declares `POST | PUT | DELETE | PATCH` beside the GET default and
-///   the http effect doc (nika-kernel-core `io/http.rs`) states « GET
-///   idempotent · POST must pair an idempotency key ». A declared
-///   `idempotency-key` header discharges the hazard.
+///   replay delivers the notification twice.
+///
+/// The `invoke: nika:fetch` arm is RETIRED (#1371 · promoted to the
+/// `NIKA-SEC-016` finding — the write-conflict/exec-floor precedent: an
+/// error owns its repair, never a hint. A retried keyless mutating fetch
+/// is PROVABLY hazardous — the kernel http doc states « POST must pair an
+/// idempotency key » — where these three classes are only uncontracted;
+/// the `retry_safety` lane owns the refusal, judged by the SAME predicate
+/// the runtime's transient classification reads, `nika_types::net`).
 ///
 /// The OTHER `nika:` builtins carry documented idempotent-or-pure
 /// semantics (atomic-overwrite `write` · data transforms · reads) and an
@@ -906,56 +910,14 @@ fn push_retry_effects_hint(hints: &mut Vec<Hint>, t: &nika_schema::raw::RawTask)
             let Some(tool) = a.tool().map(|t| t.value.as_str()) else {
                 return; // a `workflow:` child call — the child's own check owns its effects
             };
-            let args = a.args.as_ref().map(|s| &s.value);
-            match tool.strip_prefix("nika:") {
-                Some("notify") => {
-                    hints.push(hint("retry-effects", id, format!(
-                        "`{id}` retries `nika:notify` — a webhook send carries no idempotency contract; a transient failure after the send replays it (duplicate notification · at-least-once) — make the receiver dedup on a key in `data:` or drop the `retry:`"
-                    )));
-                }
-                Some("fetch") if fetch_method_replays_effects(args) => {
-                    if declares_idempotency_key(args) {
-                        return; // the declared key lets the receiver dedup the replay
-                    }
-                    let method =
-                        fetch_method(args).map_or_else(|| "?".to_owned(), str::to_ascii_uppercase);
-                    hints.push(hint("retry-effects", id, format!(
-                        "`{id}` retries `nika:fetch` with method {method} — non-idempotent HTTP replays the request's side effects (at-least-once); pair an `idempotency-key` header (the receiver dedups) or drop the `retry:` — GET/HEAD retry free"
-                    )));
-                }
-                _ => {}
+            if tool.strip_prefix("nika:") == Some("notify") {
+                hints.push(hint("retry-effects", id, format!(
+                    "`{id}` retries `nika:notify` — a webhook send carries no idempotency contract; a transient failure after the send replays it (duplicate notification · at-least-once) — make the receiver dedup on a key in `data:` or drop the `retry:`"
+                )));
             }
         }
         _ => {}
     }
-}
-
-/// The `args.method` string of a `nika:fetch` call (absent = the GET
-/// default · nika-builtin `defs.rs` §fetch).
-fn fetch_method(args: Option<&serde_json::Value>) -> Option<&str> {
-    args?.get("method")?.as_str()
-}
-
-/// Whether a `nika:fetch` call's method replays side effects on retry:
-/// POST/PUT/DELETE/PATCH do (nika-kernel-core `io/http.rs`: « POST must
-/// pair an idempotency key ») · GET/HEAD and the GET default replay
-/// nothing · an UNRECOGNIZED method makes no claim here (the builtin
-/// shape ladder owns the invalid-method finding).
-fn fetch_method_replays_effects(args: Option<&serde_json::Value>) -> bool {
-    fetch_method(args).is_some_and(|m| {
-        matches!(
-            m.to_ascii_uppercase().as_str(),
-            "POST" | "PUT" | "DELETE" | "PATCH"
-        )
-    })
-}
-
-/// Whether the call declares an `idempotency-key` header (any case) —
-/// the dedup contract that discharges the retry-replay hazard.
-fn declares_idempotency_key(args: Option<&serde_json::Value>) -> bool {
-    args.and_then(|v| v.get("headers"))
-        .and_then(serde_json::Value::as_object)
-        .is_some_and(|h| h.keys().any(|k| k.eq_ignore_ascii_case("idempotency-key")))
 }
 
 /// The structured-output determinism hint (class `strictness`): an

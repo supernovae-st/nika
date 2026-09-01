@@ -146,6 +146,7 @@ mod permits_infer;
 pub mod plan;
 mod reach;
 mod requirements;
+mod retry_safety;
 mod risk;
 mod run_decl;
 mod schema_lint;
@@ -186,6 +187,7 @@ pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
+pub use retry_safety::RetrySafetyFinding;
 pub use risk::{RiskGrade, risk_grade};
 pub use run_decl::RunDeclFinding;
 pub use schema_lint::SchemaLintFinding;
@@ -445,6 +447,15 @@ pub struct CheckReport {
     /// entropy source is used (a `retry:` jitter · the non-hermetic
     /// `nika:uuid` builtin). Additive: `report_version` stays 1.
     pub run_decl_findings: Vec<RunDeclFinding>,
+    /// Every effect-safe-retry refusal (#1371 · `NIKA-SEC-016`): a
+    /// declared `retry:` on a `nika:fetch` whose method replays side
+    /// effects (POST · PUT · DELETE · PATCH) with no `idempotency-key`
+    /// header — a retry replays an ambiguous effect at-least-once, so
+    /// the engine types the call's failures non-transient at run and
+    /// the declared retry is refused here, judged by the SAME predicate
+    /// ([`nika_types::net::retry_is_effect_safe`] — check ≡ run. Additive:
+    /// `report_version` stays 1.
+    pub retry_safety_findings: Vec<RetrySafetyFinding>,
     /// Every write-write conflict (F-P15 · NEP-0014 law 1 ·
     /// `NIKA-SEC-012`): two tasks incomparable in the DAG closure whose
     /// literal `nika:write` paths collide, or a `for_each` fan writing
@@ -554,6 +565,7 @@ impl CheckReport {
             && self.slot_findings.is_empty()
             && self.gate_findings.is_empty()
             && self.run_decl_findings.is_empty()
+            && self.retry_safety_findings.is_empty()
             && self.write_conflicts.is_empty()
             && self.composition.is_empty()
     }
@@ -766,6 +778,10 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         // F-P3 · the run: declaration's body-level law (entropy: none ×
         // a structural entropy source used)
         run_decl_findings: run_decl::scan_run_decl(wf),
+        // #1371 · the effect-safe retry law (NIKA-SEC-016): a declared
+        // `retry:` on a provably keyless, effect-replaying `nika:fetch` —
+        // the same predicate the run classifies with (nika-types::net)
+        retry_safety_findings: retry_safety::scan(wf),
         // F-P15 · the write-write law (NEP-0014 law 1 · NIKA-SEC-012):
         // the DAG read's conflicts, gated on a valid order like it
         write_conflicts: dag_read.conflicts,

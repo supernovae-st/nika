@@ -83,6 +83,8 @@ mod recover;
 pub mod resume;
 mod retry;
 #[cfg(test)]
+mod retry_safety_tests;
+#[cfg(test)]
 mod run_clock_tests;
 /// The ONE OS-sandbox selection (ADR-095 Layer 6 · #888) — `pub` because
 /// `nika-mcp`'s spawn confinement rides the same decision (L4→L3).

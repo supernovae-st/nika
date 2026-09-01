@@ -65,7 +65,7 @@ counts:
   templates: 14
   error_namespaces: 24
   error_categories: 12
-  error_codes: 103
+  error_codes: 104
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -300,7 +300,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 103
+  count: 104
   scope: spec-normative floor only · per-builtin and per-provider codes resolve through nika explain and are not enumerated here
   reference: spec/05-errors.md
   items:
@@ -402,6 +402,7 @@ error_codes:
     - { code: NIKA-SEC-012, category: security_error, transient: "false", failure: "unordered shared writes — two tasks incomparable in the DAG closure whose literal nika:write/nika:edit paths collide with no ordering edge (after: · with:) to serialize them, or a for_each fan writing one constant path · parallelism is safe exactly where the writes are provably disjoint (NEP-0014 law 1 · F-P15)" }
     - { code: NIKA-SEC-014, category: security_error, transient: "false", failure: "the affirmative-consent law — a confirm-mode human gate (invoke: nika:prompt · mode absent or confirm) reaches an egress-capable task over a route no affirmative gate closes: a REFUSED confirm settles success with value false, so a bare after: { gate: success } edge, a when: that never reads the answer, and a when: provably true on the refusal all let the effect through · the gate is credited only when every route consumes the answer and proves false on it (the Kleene-falsifiable when: · when: false · a closer confirm gate owns its closure) · an undecidable gate (a nested binding · a non-fragment expression) defers to the advisory hint, never a refusal (NEP-0020 · P0-2 of the 2026-07-30 audit)" }
     - { code: NIKA-SEC-015, category: security_error, transient: "false", failure: "the order law — an exec: task sits transitively downstream of a net-effecting task (nika:fetch · nika:notify) over the derived graph (with: data edges ∪ after: control edges) · content the workflow did not author must not reach a shell · UNCONDITIONAL: no block declares it and none can disable it" }
+    - { code: NIKA-SEC-016, category: security_error, transient: "false", failure: "the effect-safe retry law — a declared retry: (max_attempts > 1) on a nika:fetch whose method replays side effects (POST · PUT · DELETE · PATCH) with no idempotency-key header: the failure may be ambiguous (the server may have committed before the socket dropped or the error was emitted), so the engine types the keyless call's failures non-transient and the declared retry is refused statically (an on_codes: retry would blind-replay regardless of transient) · pair an idempotency-key header (the receiver dedups the replay) or drop the retry: — GET/HEAD retry free (issue #1371)" }
     - { code: NIKA-TIMEOUT-001, category: timeout_error, transient: "false", failure: "task (or for_each iteration) exceeded timeout:" }
     - { code: NIKA-CANCEL-001, category: cancelled, transient: "false", failure: "task cancelled (workflow failure gate · user cancellation)" }
     - { code: NIKA-ASSERT-001, category: validation_error, transient: "false", failure: "an assert: claims a level the evidence does not support (a StaticProof the IR cannot decide · a mis-leveled obligation · spec 15)" }

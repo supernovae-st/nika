@@ -2179,7 +2179,10 @@ pub fn nika_types::net::host_is_blocked(host: &str) -> bool
 pub fn nika_types::net::ip_is_blocked(ip: core::net::ip_addr::IpAddr) -> bool
 pub fn nika_types::net::is_documentation_host(host: &str) -> bool
 pub fn nika_types::net::is_exact_loopback_literal(entry: &str) -> bool
+pub fn nika_types::net::is_idempotency_key_header(name: &str) -> bool
 pub fn nika_types::net::loopback_declassified(allowlist: &[alloc::string::String], host: &str) -> bool
+pub fn nika_types::net::method_replays_effects(method: &str) -> bool
+pub fn nika_types::net::retry_is_effect_safe<'a>(method: &str, header_names: impl core::iter::traits::collect::IntoIterator<Item = &'a str>) -> bool
 pub mod nika_types::origins
 #[non_exhaustive] pub enum nika_types::origins::InputOrigin
 pub nika_types::origins::InputOrigin::CiContext

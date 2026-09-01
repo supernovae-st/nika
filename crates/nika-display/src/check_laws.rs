@@ -42,6 +42,37 @@ pub(crate) fn order_rung(out: &mut String, report: &CheckReport, t: Theme) {
     );
 }
 
+/// RETRY rung (#1371 · the effect-safe retry law · NIKA-SEC-016) · always
+/// present, like WRITES/EXEC — a universal static law reads as one. The
+/// scan is DAG-independent (a per-task syntactic judgment), so the ✔ is
+/// never a gated skip: a declared `retry:` on a provably keyless,
+/// effect-replaying `nika:fetch` is refused, judged by the SAME predicate
+/// the runtime's transient classification reads (`nika_types::net` — one
+/// definition, check ≡ run). A templated method or an undecidable
+/// `headers:` shape makes no claim — the runtime belt re-judges the
+/// resolved call, and the green line says so.
+pub(crate) fn retry_rung(out: &mut String, report: &CheckReport, t: Theme) {
+    section_list(
+        out,
+        t,
+        "RETRY",
+        "no `retry:` on a keyless mutating `nika:fetch` · a templated method/headers is the RUN's verdict",
+        report
+            .retry_safety_findings
+            .iter()
+            .map(|f| {
+                format!(
+                    "[{}] task `{}` · {} · fix: {}",
+                    f.wire_code(),
+                    f.task,
+                    f.detail,
+                    f.fix
+                )
+            })
+            .collect(),
+    );
+}
+
 /// LIFT rung (spec 10 rule 6 · the authored doors · NIKA-AUTH-011) ·
 /// only when a task declares `lift:` — a file with no door renders
 /// unchanged. Not DAG-gated at the source (`scan_idle_doors` reads the
