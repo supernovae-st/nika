@@ -40,12 +40,16 @@ fail() {
 
 VERSION=9.9.9
 TAG="v$VERSION"
+RELEASE_ID=123
+RELEASE_SHA=2222222222222222222222222222222222222222
 LOCAL="$TEST_ROOT/assets"
 REMOTE="$TEST_ROOT/remote"
 BIN="$TEST_ROOT/bin"
 LOG="$TEST_ROOT/log"
+TAG_MOVED_FILE="$TEST_ROOT/tag-moved"
 mkdir -p "$LOCAL" "$REMOTE" "$BIN"
 : >"$LOG"
+export RELEASE_SHA TAG TAG_MOVED_FILE
 
 names=(
   "nika-macos-arm64-${VERSION}.tar.gz"
@@ -63,90 +67,130 @@ for name in "${names[@]}"; do
   assets+=("$LOCAL/$name")
 done
 
+cat >"$BIN/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = ls-remote ]; then
+  tag="${4#refs/tags/}"
+  sha="$RELEASE_SHA"
+  [ ! -e "$TAG_MOVED_FILE" ] || sha=3333333333333333333333333333333333333333
+  printf '%s\trefs/tags/%s\n' 1111111111111111111111111111111111111111 "$tag"
+  printf '%s\trefs/tags/%s^{}\n' "$sha" "$tag"
+  exit 0
+fi
+exit 90
+EOF
+
 cat >"$BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "$1" = api ]; then
-  if [ "${GH_LOOKUP:-ok}" = unknown ]; then
-    echo 'gh: timeout' >&2
-    exit 1
-  fi
-  if printf '%s\n' "$*" | grep -Fq '.assets | length'; then
-    find "$REMOTE" -maxdepth 1 -type f | wc -l | tr -d ' '
+asset_id() {
+  printf '%s' "$1" | cksum | awk '{ print $1 }'
+}
+[ "$1" = api ] || { echo "unexpected gh: $*" >&2; exit 90; }
+endpoint="$2"
+if [ "${GH_LOOKUP:-ok}" = unknown ]; then
+  echo 'gh: timeout' >&2
+  exit 1
+fi
+if [ "$endpoint" = 'repos/supernovae-st/nika/releases/123' ]; then
+  if printf '%s\n' "$*" | grep -Fq 'upload_url'; then
+    printf 'https://uploads.github.com/repos/supernovae-st/nika/releases/123/assets{?name,label}\n'
   else
-    find "$REMOTE" -maxdepth 1 -type f -exec basename {} \; | sort
-    [ "${GH_DUPLICATE:-0}" = 1 ] && printf '%s\n' "${GH_DUPLICATE_NAME}"
+    printf '123\t%s\ttrue\tfalse\n' "$TAG"
   fi
   exit 0
 fi
-if [ "$1 $2" = 'release download' ]; then
-  pattern=""
-  destination=""
-  shift 2
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --pattern) pattern="$2"; shift 2 ;;
-      --dir) destination="$2"; shift 2 ;;
-      *) shift ;;
-    esac
-  done
-  cp "$REMOTE/$pattern" "$destination/$pattern"
+if [ "$endpoint" = 'repos/supernovae-st/nika/releases/123/assets' ]; then
+  while IFS= read -r name; do
+    [ -n "$name" ] && printf '%s\t%s\n' "$(asset_id "$name")" "$name"
+  done < <(find "$REMOTE" -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort)
+  if [ "${GH_DUPLICATE:-0}" = 1 ]; then
+    printf '%s\t%s\n' "$(asset_id "$GH_DUPLICATE_NAME")" "$GH_DUPLICATE_NAME"
+  fi
+  [ "${MOVE_AFTER_CENSUS:-0}" != 1 ] || touch "$TAG_MOVED_FILE"
   exit 0
 fi
-if [ "$1 $2" = 'release upload' ]; then
-  asset="${*: -1}"
-  cp "$asset" "$REMOTE/$(basename "$asset")"
-  printf 'upload %s\n' "$(basename "$asset")" >>"$LOG"
-  if [ "${GH_COMMIT_THEN_FAIL:-}" = "$(basename "$asset")" ]; then
+case "$endpoint" in
+  repos/supernovae-st/nika/releases/assets/*)
+    wanted="${endpoint##*/}"
+    while IFS= read -r name; do
+      if [ "$(asset_id "$name")" = "$wanted" ]; then
+        cat "$REMOTE/$name"
+        exit 0
+      fi
+    done < <(find "$REMOTE" -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort)
     exit 1
-  fi
-  exit 0
-fi
-echo "unexpected gh: $*" >&2
+    ;;
+esac
+echo "unexpected gh api: $*" >&2
 exit 90
 EOF
-chmod +x "$BIN/gh"
+
+cat >"$BIN/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+asset=""
+url="${*: -1}"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --data-binary) asset="${2#@}"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+name="${url##*name=}"
+cp "$asset" "$REMOTE/$name"
+printf 'upload %s\n' "$name" >>"$LOG"
+[ "${GH_COMMIT_THEN_FAIL:-}" != "$name" ] || exit 22
+EOF
+chmod +x "$BIN/gh" "$BIN/git" "$BIN/curl"
 
 # First publication writes each exact name once; identical replay writes none.
-PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
+GH_TOKEN=test PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
   bash "$ROOT/scripts/release/release-assets-barrier.sh" \
-  stage "$TAG" supernovae-st/nika "${assets[@]}" >/dev/null
+  stage supernovae-st/nika "$RELEASE_ID" "$TAG" "$RELEASE_SHA" \
+  "${assets[@]}" >/dev/null
 [ "$(wc -l <"$LOG" | tr -d ' ')" = 8 ] || fail 'first publish did not upload eight assets'
-PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
+GH_TOKEN=test PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
   bash "$ROOT/scripts/release/release-assets-barrier.sh" \
-  stage "$TAG" supernovae-st/nika "${assets[@]}" >/dev/null
+  stage supernovae-st/nika "$RELEASE_ID" "$TAG" "$RELEASE_SHA" \
+  "${assets[@]}" >/dev/null
 [ "$(wc -l <"$LOG" | tr -d ' ')" = 8 ] || fail 'identical replay uploaded again'
 
 # Every individual missing asset is healable after all occupied identities pass.
 for name in "${names[@]}"; do
   rm "$REMOTE/$name"
-  PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
+  GH_TOKEN=test PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
     bash "$ROOT/scripts/release/release-assets-barrier.sh" \
-    stage "$TAG" supernovae-st/nika "${assets[@]}" >/dev/null
+    stage supernovae-st/nika "$RELEASE_ID" "$TAG" "$RELEASE_SHA" \
+    "${assets[@]}" >/dev/null
   cmp -s "$LOCAL/$name" "$REMOTE/$name" || fail "missing heal failed for $name"
 done
 
 # Divergence and extras fail before a missing identity is healed.
 rm "$REMOTE/${names[0]}"
 printf 'divergent\n' >"$REMOTE/${names[1]}"
-if PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
+if GH_TOKEN=test PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
   bash "$ROOT/scripts/release/release-assets-barrier.sh" \
-  stage "$TAG" supernovae-st/nika "${assets[@]}" >/dev/null 2>&1; then
+  stage supernovae-st/nika "$RELEASE_ID" "$TAG" "$RELEASE_SHA" \
+  "${assets[@]}" >/dev/null 2>&1; then
   fail 'divergent occupied asset passed'
 fi
 [ ! -e "$REMOTE/${names[0]}" ] || fail 'missing asset healed before divergence refusal'
 cp "$LOCAL/${names[1]}" "$REMOTE/${names[1]}"
 printf 'extra\n' >"$REMOTE/extra.bin"
-if PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
+if GH_TOKEN=test PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
   bash "$ROOT/scripts/release/release-assets-barrier.sh" \
-  stage "$TAG" supernovae-st/nika "${assets[@]}" >/dev/null 2>&1; then
+  stage supernovae-st/nika "$RELEASE_ID" "$TAG" "$RELEASE_SHA" \
+  "${assets[@]}" >/dev/null 2>&1; then
   fail 'extra public asset passed'
 fi
 rm "$REMOTE/extra.bin"
 cp "$LOCAL/${names[0]}" "$REMOTE/${names[0]}"
 if GH_DUPLICATE=1 GH_DUPLICATE_NAME="${names[0]}" PATH="$BIN:$PATH" \
   REMOTE="$REMOTE" LOG="$LOG" bash "$ROOT/scripts/release/release-assets-barrier.sh" \
-  verify "$TAG" supernovae-st/nika "${assets[@]}" >/dev/null 2>&1; then
+  verify supernovae-st/nika "$RELEASE_ID" "$TAG" "$RELEASE_SHA" \
+  "${assets[@]}" >/dev/null 2>&1; then
   fail 'duplicate public identity passed'
 fi
 
@@ -154,11 +198,31 @@ fi
 # re-queried and the public identity is still written only once.
 rm "$REMOTE/${names[0]}"
 before="$(grep -Fc "upload ${names[0]}" "$LOG" || true)"
-GH_COMMIT_THEN_FAIL="${names[0]}" PATH="$BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
+GH_COMMIT_THEN_FAIL="${names[0]}" GH_TOKEN=test PATH="$BIN:$PATH" \
+  REMOTE="$REMOTE" LOG="$LOG" \
   bash "$ROOT/scripts/release/release-assets-barrier.sh" \
-  stage "$TAG" supernovae-st/nika "${assets[@]}" >/dev/null
+  stage supernovae-st/nika "$RELEASE_ID" "$TAG" "$RELEASE_SHA" \
+  "${assets[@]}" >/dev/null
 after="$(grep -Fc "upload ${names[0]}" "$LOG" || true)"
 [ "$((after - before))" = 1 ] || fail 'concurrent publish was attempted more than once'
+
+# A tag move after the release-ID census but before the first upload refuses
+# with zero writes. The missing asset remains missing on the original release.
+rm "$REMOTE/${names[0]}"
+rm -f "$TAG_MOVED_FILE"
+before="$(wc -l <"$LOG" | tr -d ' ')"
+if MOVE_AFTER_CENSUS=1 GH_TOKEN=test PATH="$BIN:$PATH" REMOTE="$REMOTE" \
+  LOG="$LOG" bash "$ROOT/scripts/release/release-assets-barrier.sh" \
+  stage supernovae-st/nika "$RELEASE_ID" "$TAG" "$RELEASE_SHA" \
+  "${assets[@]}" >"$TEST_ROOT/moved-before-upload.out" 2>&1; then
+  fail 'tag move before upload passed'
+fi
+after="$(wc -l <"$LOG" | tr -d ' ')"
+[ "$after" = "$before" ] || fail 'tag move before upload performed a write'
+[ ! -e "$REMOTE/${names[0]}" ] \
+  || fail 'tag move before upload filled the original release asset'
+rm -f "$TAG_MOVED_FILE"
+cp "$LOCAL/${names[0]}" "$REMOTE/${names[0]}"
 
 # Tag peeling and movement are judged before writes.
 cat >"$BIN/git" <<'EOF'

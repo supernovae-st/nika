@@ -1062,6 +1062,8 @@ jobs:
       - name: Stage and verify exactly eight immutable assets
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
         run: |
@@ -1078,9 +1080,9 @@ jobs:
             "artifacts/supernovae-st-nika-check-wasm-${version}.tgz.sha256"
           )
           bash .release-tooling/scripts/release/release-assets-barrier.sh \
-            stage "$TAG" "$REPO" "${assets[@]}"
+            stage "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "${assets[@]}"
           bash .release-tooling/scripts/release/release-assets-barrier.sh \
-            verify "$TAG" "$REPO" "${assets[@]}"
+            verify "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "${assets[@]}"
 
   release-final-proof:
     # Every untrusted or registry-facing verifier runs with read authority

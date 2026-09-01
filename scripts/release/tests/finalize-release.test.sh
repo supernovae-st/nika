@@ -54,20 +54,9 @@ EOF
 cat >"$BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "$1 $2" = 'release download' ]; then
-  pattern=""
-  destination=""
-  shift 2
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --pattern) pattern="$2"; shift 2 ;;
-      --dir) destination="$2"; shift 2 ;;
-      *) shift ;;
-    esac
-  done
-  cp "$REMOTE/$pattern" "$destination/$pattern"
-  exit 0
-fi
+asset_id() {
+  printf '%s' "$1" | cksum | awk '{ print $1 }'
+}
 [ "$1" = api ] || { echo "unexpected gh: $*" >&2; exit 90; }
 shift
 method=GET
@@ -90,21 +79,29 @@ if [[ "$endpoint" == */releases/123 ]]; then
   fi
   exit 0
 fi
-if [[ "$endpoint" == */releases/tags/* ]]; then
-  if printf '%s\n' "$*" | grep -Fq '.assets | length'; then
-    if [ "${ASSET_MODE:-full}" = zero ]; then
-      printf '0\n'
-    else
-      find "$REMOTE" -maxdepth 1 -type f | wc -l | tr -d ' '
-    fi
-  elif [ "${ASSET_MODE:-full}" != zero ]; then
-    find "$REMOTE" -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort
+if [[ "$endpoint" == */releases/123/assets ]]; then
+  if [ "${ASSET_MODE:-full}" != zero ]; then
+    while IFS= read -r name; do
+      [ -n "$name" ] && printf '%s\t%s\n' "$(asset_id "$name")" "$name"
+    done < <(find "$REMOTE" -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort)
     if [ "${ASSET_MODE:-full}" = delete-after-list ]; then
       rm -f "$REMOTE/nika-linux-arm64-${RELEASE_TAG#v}.tar.gz"
     fi
   fi
   exit 0
 fi
+case "$endpoint" in
+  */releases/assets/*)
+    wanted="${endpoint##*/}"
+    while IFS= read -r name; do
+      if [ "$(asset_id "$name")" = "$wanted" ]; then
+        cat "$REMOTE/$name"
+        exit 0
+      fi
+    done < <(find "$REMOTE" -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort)
+    exit 1
+    ;;
+esac
 echo "unexpected gh api: $endpoint $*" >&2
 exit 90
 EOF

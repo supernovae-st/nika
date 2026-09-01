@@ -183,17 +183,17 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 120
-  aggregate_sha256: 439a425a5617f39f16c8de7c25a2d6d79509dd8b453457d71024f59d7195a75f
+  aggregate_sha256: a8a3fc41f0b3ae73341ca1ae4f2cebe9edc49ee2a998c660784b599bb456c046
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
   match_count: 192
-  aggregate_sha256: 0b2e5afcc7c49951d9bea4dfb6f0c66095b576e1f9e9bd96b0a61db9874f881b
+  aggregate_sha256: 6f6ee73e821fbdc3d6b94e9824706d2bcbf74f431a519c0a8b9572d01e74e81d
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: c2bd52ca1ef116f279b7747294b6912bccbd94e11383850b26474639eda00f60
+  aggregate_sha256: a3d9295b2cfa971c86ace42c4e16b3719b45a7c8590eb19394069636739070d0
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -243,13 +243,13 @@ patterns:
 - glob: "changelog.d/**"
   class: authored
   match_count: 4
-  aggregate_sha256: f9b7351441a1a0b8d6fc5c06817479ef01b5fd638f28e84453ca0d067a74da98
+  aggregate_sha256: e616e1d9eecc91c05e54b51ca34afa12947b576ba2e3e16406f52673e0cd6e28
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: c2ad31a69e4a733c33bd18a962da454236fd4d1801afef3046e59649414365b1
+  aggregate_sha256: 65a14e1847504d6b6db20b3fd3f3c0cb2ad6833d051e612c2b3b9405d8471f06
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
