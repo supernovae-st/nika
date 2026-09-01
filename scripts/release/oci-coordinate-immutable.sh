@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [ "$#" -ne 6 ]; then
-  echo "usage: $0 <publish|verify> <image> <version> <candidate-digest|-> <sha> <source-url>" >&2
+  echo "usage: $0 <discover|publish|verify> <image> <version> <candidate-digest|-> <sha> <source-url>" >&2
   exit 64
 fi
 mode="$1"
@@ -12,7 +12,7 @@ version="$3"
 candidate="$4"
 sha="$5"
 source_url="$6"
-case "$mode" in publish | verify) ;; *)
+case "$mode" in discover | publish | verify) ;; *)
   echo "oci barrier: invalid mode: $mode" >&2
   exit 64
   ;;
@@ -27,6 +27,13 @@ inspect_raw() {
 
 digest_of() {
   docker buildx imagetools inspect "$1" --format '{{json .Manifest.Digest}}' | tr -d '"\r\n'
+}
+
+is_explicit_absence() {
+  grep -Eqi \
+    'manifest unknown|MANIFEST_UNKNOWN|NAME_UNKNOWN|unexpected status from HEAD request.*404 Not Found' "$1" \
+    || grep -Fqx "ERROR: ${version_ref}: not found" "$1" \
+    || grep -Fqx "ERROR: no such manifest: ${version_ref}" "$1"
 }
 
 verify_identity() {
@@ -65,14 +72,16 @@ if occupied="$(digest_of "$version_ref" 2>"$lookup_error")"; then
     exit 73
   fi
   verify_identity "$version_ref" "$scratch/version.json"
+  verify_identity "${image}@${occupied}" "$scratch/digest.json"
   printf '%s\n' "$occupied"
   exit 0
 fi
-if ! grep -Eqi 'not found|manifest unknown|404' "$lookup_error"; then
+if ! is_explicit_absence "$lookup_error"; then
   echo "oci barrier: version lookup failed without explicit absence" >&2
   cat "$lookup_error" >&2
   exit 69
 fi
+[ "$mode" != discover ] || exit 44
 [ "$mode" = publish ] || {
   echo "oci barrier: version is absent" >&2
   exit 73
@@ -83,6 +92,26 @@ fi
 }
 
 verify_identity "${image}@${candidate}" "$scratch/candidate.json"
+# Close the lookup/write race. If another train committed the coordinate,
+# accept only the same digest with the same source identity.
+: >"$lookup_error"
+state=0
+occupied="$(digest_of "$version_ref" 2>"$lookup_error")" || state=$?
+if [ "$state" -eq 0 ]; then
+  [ "$occupied" = "$candidate" ] || {
+    echo "oci barrier: REFUSED concurrently occupied version digest" >&2
+    exit 73
+  }
+  verify_identity "$version_ref" "$scratch/concurrent-version.json"
+  verify_identity "${image}@${occupied}" "$scratch/concurrent-digest.json"
+  printf '%s\n' "$occupied"
+  exit 0
+fi
+is_explicit_absence "$lookup_error" || {
+  echo "oci barrier: version recheck failed without explicit absence" >&2
+  cat "$lookup_error" >&2
+  exit 69
+}
 docker buildx imagetools create --tag "$version_ref" "${image}@${candidate}"
 occupied="$(digest_of "$version_ref")"
 [ "$occupied" = "$candidate" ] || {

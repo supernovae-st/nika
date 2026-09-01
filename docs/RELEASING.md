@@ -70,8 +70,9 @@ That tag fires **`.github/workflows/release.yml`**, which:
 4. holds the GitHub release as a draft while npm and the immutable GHCR version
    coordinate converge,
 5. verifies the exact eight-asset allowlist, checksums, five source-bound
-   attestations, npm SRI, and the two-platform OCI digest + labels, then one
-   finalizer makes the release public,
+   GitHub attestations, the generic SLSA signature/source/four subjects, npm
+   SRI, and the two-platform OCI digest + labels, then one finalizer makes the
+   release public,
 6. moves stable-only Homebrew and GHCR `latest` pointers after finalization.
 
 Replay a tag without re-tagging via the **workflow_dispatch** input.
@@ -100,16 +101,26 @@ asset is downloaded and compared, and a replay refuses to replace it when the
 bytes differ. A timestamped or otherwise non-reproducible rebuild therefore
 stops; missing assets are filled only when the occupied set still compares
 byte-for-byte. The workflow reads replay tooling from its own exact commit, not
-from the historical tag. Existing SLSA provenance is preserved rather than
-regenerated; a missing statement makes manual replay fail, because the workflow
-branch is not an honest provenance identity for the historical tag. The replay
-guard checks the unique asset name; the verification commands below still judge
-its signature and source identity. A complete public replay is validation-only:
-historical replay and prereleases cannot move Homebrew or GHCR `latest`. Missing
-mandatory credentials keep the draft closed. Homebrew necessarily has a short
+from the historical tag. The tag-push lane cryptographically verifies generic
+SLSA provenance and stages it on the draft immediately. A manual replay
+preserves and re-verifies that statement rather than regenerating it, because
+the workflow branch is not an honest provenance identity for the historical
+tag. Every stable replay converges Homebrew and GHCR `latest`, so a failure in
+either post-public job can be repaired after the release is already public.
+Already-correct pointers no-op, and both possible writes first prove this is the
+newest public stable SemVer; an old-tag replay refuses instead of downgrading.
+Prereleases never move them. Missing mandatory credentials keep the draft
+closed. Homebrew necessarily has a short
 post-public update window because its formula cannot safely point at draft
 assets. This protection is future-only; **v0.116.2 is not retroactively
 atomic**, and no workflow can rewrite its already-public history into one.
+
+The exact GHCR digest is stored as a hidden marker in the GitHub release body,
+not as a ninth asset. Replays require the immutable version tag to equal that
+marker and inspect the manifest by digest. Release bodies and release fields can
+still be changed manually by a repository administrator; the workflow re-reads
+and refuses drift, but GitHub provides no transaction or lock spanning those
+external mutations, npm, GHCR, and the tap.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.
@@ -157,6 +168,9 @@ gh secret set NPM_TOKEN --repo supernovae-st/nika
 
 An identical occupied npm version needs no credential. An absent version with
 no token, an unknown registry lookup, or a divergent SRI keeps the draft closed.
+The first publish invokes npm's `--provenance`; recovery proves the registry SRI
+and does not claim an independent cryptographic re-verification of npm's
+provenance envelope.
 
 ---
 

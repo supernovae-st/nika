@@ -151,19 +151,27 @@ without an explicit operator decision.
    occupied release asset with different bytes, so timestamped or otherwise
    non-reproducible rebuilds stop rather than silently refresh public bytes. A
    missing asset is filled only after the occupied set compares byte-for-byte.
-   A complete public replay is validation-only. Historical replay and
-   prereleases never move Homebrew or `latest`; those floating pointers move
-   only after the sole finalizer makes a new stable tag-push release public.
+   A stable replay always converges Homebrew and `latest`, including recovery
+   after either post-public job failed. Already-correct pointers no-op;
+   prereleases never run these jobs. Before either possible write, the workflow
+   proves this release is the newest public stable SemVer, so an old-tag replay
+   fails rather than downgrading a floating pointer.
    There is an unavoidable short post-public window before the downstream
    Homebrew commit lands, because the formula cannot safely point at a draft.
    The replay
    helper comes from the exact workflow commit, so a historical tag does not
-   need to contain future release tooling. Existing SLSA provenance is
-   preserved byte-for-byte and a missing statement follows the same guarded
-   replay boundary. SLSA provenance is created only by the original tag-push
-   context. Manual replay requires exactly one existing statement asset and
-   refuses branch-context regeneration; `slsa-verifier` remains the separate
-   cryptographic and source-identity judge. This barrier is future-only:
+   need to contain future release tooling. SLSA provenance is created only by
+   the original tag-push context and is immutably attached to the draft as soon
+   as the generator returns, so a later run can recover it. Manual replay
+   requires exactly one existing statement asset and refuses branch-context
+   regeneration. Every push, replay, and finalization runs the pinned
+   `slsa-verifier` against the four native subjects, repository, and exact
+   source tag before proceeding. The exact GHCR digest is durably recorded in
+   a single release-body marker; replay requires `image:<version>` to equal it
+   and inspects the image by digest. The marker and other GitHub release
+   metadata remain manually mutable by repository administrators: the workflow
+   detects observed drift and stops, but cannot make external GitHub mutations
+   impossible or atomic. This barrier is future-only:
    **v0.116.2 is not retroactively atomic**, and its already-public registry
    history is not rewritten to pretend otherwise.
 
@@ -196,11 +204,12 @@ without an explicit operator decision.
 | `ghcr.io/supernovae-st/nika:latest` | stable-only floating pointer, moved after finalization |
 | Homebrew formula bump | `supernovae-st/homebrew-tap` (deploy-key scoped) |
 | `supernovae-st-nika-check-wasm-<ver>.tgz` (+ `.sha256`) | the npm tarball, byte-identical to what `npm publish` ships — attested like the binaries |
-| `@supernovae-st/nika-check-wasm` on npm | immutable browser checker with npm provenance; absence requires `NPM_TOKEN` or finalization stops |
+| `@supernovae-st/nika-check-wasm` on npm | immutable browser checker; first publication requests npm provenance, while replay independently proves exact SRI (absence requires `NPM_TOKEN`) |
 
-The release body is rendered by `scripts/release/render-notes.sh`: the
-curated **What / Install / Verify / Provenance** front page from the
-changelog section: with GitHub's generated PR list appended below it.
+The release body starts with the curated **What / Install / Verify /
+Provenance** front page rendered by `scripts/release/render-notes.sh`, with
+GitHub's generated PR list appended. The workflow then appends one hidden GHCR
+digest marker and refuses a missing, duplicate, or changed marker on replay.
 
 ## What a user can prove
 
@@ -214,9 +223,11 @@ gh attestation verify supernovae-st-nika-check-wasm-<ver>.tgz --repo supernovae-
 npm audit signatures                                # in a project depending on the package
 ```
 
-Three independent chains: the checksum manifest, GitHub's signed
-attestation, and the SLSA generator's intoto statement. Any one of them
-failing is a stop-the-line event.
+Three independent chains cover the native artifacts: the checksum manifest,
+GitHub's signed attestation, and the SLSA generator's intoto statement. npm's
+registry provenance is requested during the original publish, but this release
+barrier's replay proof for npm is the registry's exact sha512 SRI. Any claimed
+chain failing is a stop-the-line event.
 
 ## The record
 

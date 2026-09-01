@@ -191,12 +191,13 @@ if [ "$1" = api ]; then
     echo 'gh: upstream unavailable (HTTP 500)' >&2
     exit 1
   fi
+  endpoint="$2"
   if [ ! -e "$RELEASE_STATE" ]; then
     echo 'gh: Not Found (HTTP 404)' >&2
     exit 1
   fi
-  if printf '%s\n' "$*" | grep -Fq '@tsv'; then
-    printf '123\ttrue\tfalse\t2222222222222222222222222222222222222222\n'
+  if [[ "$endpoint" == */releases/123 ]]; then
+    printf '123\tv9.9.9\ttrue\tfalse\n'
   else
     printf '123\n'
   fi
@@ -220,6 +221,17 @@ PATH="$BIN:$PATH" RELEASE_STATE="$RELEASE_STATE" RELEASE_LOG="$RELEASE_LOG" \
   supernovae-st/nika "$NOTES" \
   2222222222222222222222222222222222222222 >/dev/null
 [ "$(wc -l <"$RELEASE_LOG" | tr -d ' ')" = 1 ] || fail 'explicit 404 did not create one draft'
+# target_commitish is creation routing metadata, not an existing release's
+# identity. A release whose API target is the branch name must still bind by
+# immutable release ID, exact tag/prerelease, and repeatedly resolved tag SHA.
+[ -z "$(rg -n 'target_commitish' "$ROOT/scripts/release/prepare-draft-release.sh" || true)" ] \
+  || fail 'existing release identity still trusts target_commitish'
+PATH="$BIN:$PATH" RELEASE_STATE="$RELEASE_STATE" RELEASE_LOG="$RELEASE_LOG" \
+  bash "$ROOT/scripts/release/prepare-draft-release.sh" "$TAG" \
+  supernovae-st/nika "$NOTES" \
+  2222222222222222222222222222222222222222 >"$TEST_ROOT/reused-release"
+grep -Fqx 'id=123' "$TEST_ROOT/reused-release" \
+  || fail 'target_commitish=main release was not reused by bound identity'
 rm "$RELEASE_STATE"
 if RELEASE_LOOKUP=unknown PATH="$BIN:$PATH" RELEASE_STATE="$RELEASE_STATE" \
   RELEASE_LOG="$RELEASE_LOG" bash "$ROOT/scripts/release/prepare-draft-release.sh" \
@@ -313,6 +325,10 @@ if [[ "$ref" == *:9.9.9 ]] && [ "$state" = absent ]; then
   echo 'manifest unknown' >&2
   exit 1
 fi
+if [[ "$ref" == *:9.9.9 ]] && [ "$state" = credential-helper ]; then
+  echo 'error getting credentials - exec: "docker-credential-pass": executable file not found' >&2
+  exit 1
+fi
 if [ "${5:-}" = --raw ]; then
   printf '%s\n' '{"manifests":[{"platform":{"os":"linux","architecture":"amd64"}},{"platform":{"os":"linux","architecture":"arm64"}}]}'
   exit 0
@@ -358,5 +374,244 @@ if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" \
   https://github.com/supernovae-st/nika >/dev/null 2>&1; then
   fail 'OCI label drift passed'
 fi
+
+printf 'credential-helper\n' >"$OCI_STATE"
+if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika >/dev/null 2>&1; then
+  fail 'credential-helper not-found error was classified as registry absence'
+fi
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 1 ] \
+  || fail 'unknown OCI lookup error reached a write'
+
+# Generic SLSA provenance must be cryptographically checked by the official
+# verifier against the exact repository, tag, and four native subjects. This
+# is the same helper used after recovering a prior run's staged statement.
+SLSA_LOG="$TEST_ROOT/slsa-log"
+: >"$SLSA_LOG"
+cat >"$BIN/slsa-verifier" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$SLSA_LOG"
+[ "$1" = verify-artifact ]
+printf '%s\n' "$*" | grep -Fq -- '--source-uri github.com/supernovae-st/nika'
+printf '%s\n' "$*" | grep -Fq -- '--source-tag v9.9.9'
+[ "${SLSA_REFUSE:-0}" != 1 ]
+EOF
+chmod +x "$BIN/slsa-verifier"
+native=()
+for platform in linux-arm64 linux-x64 macos-arm64 macos-x64; do
+  native+=("$LOCAL/nika-${platform}-${VERSION}.tar.gz")
+done
+SLSA_REMOTE="$TEST_ROOT/prior-run-provenance"
+SLSA_RECOVERED="$TEST_ROOT/recovered-provenance"
+cp "$LOCAL/multiple.intoto.jsonl" "$SLSA_REMOTE"
+mkdir -p "$SLSA_RECOVERED"
+cat >"$BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = api ]; then
+  printf '1\n'
+  exit 0
+fi
+if [ "$1 $2" = 'release download' ]; then
+  destination=""
+  shift 2
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --dir) destination="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  cp "$SLSA_REMOTE" "$destination/multiple.intoto.jsonl"
+  exit 0
+fi
+exit 90
+EOF
+chmod +x "$BIN/gh"
+matches="$(PATH="$BIN:$PATH" SLSA_REMOTE="$SLSA_REMOTE" \
+  gh api repos/supernovae-st/nika/releases/123)"
+[ "$matches" = 1 ] || fail 'prior-run SLSA asset identity was not unique'
+PATH="$BIN:$PATH" SLSA_REMOTE="$SLSA_REMOTE" \
+  gh release download "$TAG" --repo supernovae-st/nika \
+  --pattern multiple.intoto.jsonl --dir "$SLSA_RECOVERED"
+PATH="$BIN:$PATH" SLSA_LOG="$SLSA_LOG" \
+  bash "$ROOT/scripts/release/verify-slsa-provenance.sh" \
+  "$TAG" supernovae-st/nika "$SLSA_RECOVERED/multiple.intoto.jsonl" \
+  "${native[@]}"
+[ "$(wc -w <"$SLSA_LOG" | tr -d ' ')" -gt 10 ] \
+  || fail 'prior-run SLSA recovery did not invoke source/subject verification'
+if SLSA_REFUSE=1 PATH="$BIN:$PATH" SLSA_LOG="$SLSA_LOG" \
+  bash "$ROOT/scripts/release/verify-slsa-provenance.sh" \
+  "$TAG" supernovae-st/nika "$LOCAL/multiple.intoto.jsonl" \
+  "${native[@]}" >/dev/null 2>&1; then
+  fail 'cryptographically rejected prior-run SLSA provenance passed'
+fi
+
+# Release body digest persistence and finalization share one fake GitHub API.
+# It models manual drift, stale release metadata, and commit-then-error writes.
+cat >"$BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$1" = api ] || { echo "unexpected gh: $*" >&2; exit 90; }
+shift
+method=GET
+if [ "${1:-}" = --method ]; then method="$2"; shift 2; fi
+endpoint="$1"
+shift
+if [ "$method" = PATCH ]; then
+  if printf '%s\n' "$*" | grep -Fq 'draft=false'; then
+    printf 'false\n' >"$RELEASE_DRAFT"
+    [ "${FINALIZE_COMMIT_THEN_ERROR:-0}" = 1 ] && exit 1
+    exit 0
+  fi
+  body_arg=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -f) body_arg="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  printf '%s' "${body_arg#body=}" >"$RELEASE_BODY"
+  [ "${MARKER_COMMIT_THEN_ERROR:-0}" = 1 ] && exit 1
+  exit 0
+fi
+if [[ "$endpoint" == */releases/123 ]]; then
+  if printf '%s\n' "$*" | grep -Fq '.body'; then
+    cat "$RELEASE_BODY"
+  else
+    printf '123\t%s\t%s\t%s\n' "$RELEASE_TAG" "$(cat "$RELEASE_DRAFT")" "$RELEASE_PRERELEASE"
+  fi
+  exit 0
+fi
+if [[ "$endpoint" == */releases ]]; then
+  cat "$RELEASE_LIST"
+  exit 0
+fi
+echo "unexpected gh api endpoint: $endpoint $*" >&2
+exit 90
+EOF
+chmod +x "$BIN/gh"
+RELEASE_BODY="$TEST_ROOT/release-body"
+RELEASE_DRAFT="$TEST_ROOT/release-draft"
+RELEASE_LIST="$TEST_ROOT/release-list"
+: >"$RELEASE_BODY"
+printf 'true\n' >"$RELEASE_DRAFT"
+printf '123\tv9.9.9\n' >"$RELEASE_LIST"
+DIGEST="sha256:$(printf '%064d' 7)"
+OTHER_DIGEST="sha256:$(printf '%064d' 8)"
+release_env=(
+  PATH="$BIN:$PATH"
+  RELEASE_BODY="$RELEASE_BODY"
+  RELEASE_DRAFT="$RELEASE_DRAFT"
+  RELEASE_LIST="$RELEASE_LIST"
+  RELEASE_TAG="$TAG"
+  RELEASE_PRERELEASE=false
+)
+env "${release_env[@]}" MARKER_COMMIT_THEN_ERROR=1 \
+  bash "$ROOT/scripts/release/release-digest-marker.sh" stage \
+  supernovae-st/nika 123 "$TAG" \
+  2222222222222222222222222222222222222222 "$DIGEST" >/dev/null
+if env "${release_env[@]}" \
+  bash "$ROOT/scripts/release/release-digest-marker.sh" stage \
+  supernovae-st/nika 123 "$TAG" \
+  2222222222222222222222222222222222222222 "$OTHER_DIGEST" >/dev/null 2>&1; then
+  fail 'digest marker drift passed'
+fi
+if env "${release_env[@]}" RELEASE_TAG=v9.9.8 \
+  bash "$ROOT/scripts/release/read-release-state.sh" supernovae-st/nika 123 \
+  "$TAG" 2222222222222222222222222222222222222222 >/dev/null 2>&1; then
+  fail 'stale release tag state passed'
+fi
+
+# Every stable draft transition requires the tap key, and a server-side commit
+# followed by a client error is idempotently recognized as this run's change.
+if env "${release_env[@]}" \
+  bash "$ROOT/scripts/release/finalize-release.sh" supernovae-st/nika 123 \
+  "$TAG" 2222222222222222222222222222222222222222 "$DIGEST" \
+  >/dev/null 2>&1; then
+  fail 'stable draft finalized without TAP_DEPLOY_KEY'
+fi
+transition="$(env "${release_env[@]}" TAP_DEPLOY_KEY=test \
+  FINALIZE_COMMIT_THEN_ERROR=1 \
+  bash "$ROOT/scripts/release/finalize-release.sh" supernovae-st/nika 123 \
+  "$TAG" 2222222222222222222222222222222222222222 "$DIGEST")"
+[ "$transition" = 'transitioned=true' ] \
+  || fail 'commit-then-error finalization did not report its transition'
+transition="$(env "${release_env[@]}" \
+  bash "$ROOT/scripts/release/finalize-release.sh" supernovae-st/nika 123 \
+  "$TAG" 2222222222222222222222222222222222222222 "$DIGEST")"
+[ "$transition" = 'transitioned=false' ] \
+  || fail 'public validation replay claimed a transition'
+
+# Both floating pointers must refuse an old tag even after it is public.
+printf '123\tv9.9.9\n124\tv10.0.0\n' >"$RELEASE_LIST"
+if env "${release_env[@]}" \
+  bash "$ROOT/scripts/release/assert-newest-public-stable.sh" \
+  supernovae-st/nika 123 "$TAG" \
+  2222222222222222222222222222222222222222 >/dev/null 2>&1; then
+  fail 'old stable tag passed the floating-pointer downgrade guard'
+fi
+printf '123\tv9.9.9\n' >"$RELEASE_LIST"
+env "${release_env[@]}" \
+  bash "$ROOT/scripts/release/assert-newest-public-stable.sh" \
+  supernovae-st/nika 123 "$TAG" \
+  2222222222222222222222222222222222222222 >/dev/null
+
+# A stable replay after publication heals a failed latest job by digest and
+# becomes a no-op once converged. Unknown credential-helper failures still
+# refuse before the write.
+cat >"$BIN/docker" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1 $2 $3" = 'buildx imagetools inspect' ]; then
+  state="$(cat "$POINTER_STATE")"
+  case "$state" in
+    absent) echo 'manifest unknown' >&2; exit 1 ;;
+    credential-helper)
+      echo 'error getting credentials - exec: "docker-credential-pass": executable file not found' >&2
+      exit 1
+      ;;
+    equal) printf '"%s"\n' "$POINTER_TARGET" ;;
+    old) printf '"sha256:%064d"\n' 6 ;;
+  esac
+  exit 0
+fi
+if [ "$1 $2 $3" = 'buildx imagetools create' ]; then
+  printf 'equal\n' >"$POINTER_STATE"
+  printf 'create\n' >>"$POINTER_LOG"
+  [ "${POINTER_COMMIT_THEN_ERROR:-0}" = 1 ] && exit 1
+  exit 0
+fi
+exit 90
+EOF
+chmod +x "$BIN/docker"
+POINTER_STATE="$TEST_ROOT/pointer-state"
+POINTER_LOG="$TEST_ROOT/pointer-log"
+: >"$POINTER_LOG"
+printf 'old\n' >"$POINTER_STATE"
+PATH="$BIN:$PATH" POINTER_STATE="$POINTER_STATE" POINTER_LOG="$POINTER_LOG" \
+  POINTER_TARGET="$DIGEST" POINTER_COMMIT_THEN_ERROR=1 \
+  bash "$ROOT/scripts/release/converge-oci-pointer.sh" \
+  ghcr.io/supernovae-st/nika latest "$DIGEST" >/dev/null
+[ "$(wc -l <"$POINTER_LOG" | tr -d ' ')" = 1 ] \
+  || fail 'public stable replay did not heal latest exactly once'
+PATH="$BIN:$PATH" POINTER_STATE="$POINTER_STATE" POINTER_LOG="$POINTER_LOG" \
+  POINTER_TARGET="$DIGEST" \
+  bash "$ROOT/scripts/release/converge-oci-pointer.sh" \
+  ghcr.io/supernovae-st/nika latest "$DIGEST" >/dev/null
+[ "$(wc -l <"$POINTER_LOG" | tr -d ' ')" = 1 ] \
+  || fail 'equal latest replay wrote again'
+printf 'credential-helper\n' >"$POINTER_STATE"
+if PATH="$BIN:$PATH" POINTER_STATE="$POINTER_STATE" POINTER_LOG="$POINTER_LOG" \
+  POINTER_TARGET="$DIGEST" \
+  bash "$ROOT/scripts/release/converge-oci-pointer.sh" \
+  ghcr.io/supernovae-st/nika latest "$DIGEST" >/dev/null 2>&1; then
+  fail 'unknown latest lookup error granted pointer write authority'
+fi
+[ "$(wc -l <"$POINTER_LOG" | tr -d ' ')" = 1 ] \
+  || fail 'unknown latest lookup error mutated the pointer'
 
 echo 'publication-barrier.test: PASS'

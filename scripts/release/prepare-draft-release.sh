@@ -19,14 +19,13 @@ bash "$here/resolve-release-tag.sh" "$tag" "$repo" "$expected_sha" >/dev/null
 
 scratch="$(mktemp -d)"
 trap 'rm -r "$scratch"' EXIT
-if gh api "repos/${repo}/releases/tags/${tag}" \
-  --jq '[.id, .draft, .prerelease, .target_commitish] | @tsv' \
+if gh api "repos/${repo}/releases/tags/${tag}" --jq '.id' \
   >"$scratch/release" 2>"$scratch/error"; then
-  IFS=$'\t' read -r release_id draft prerelease target <"$scratch/release"
-  [ "$target" = "$expected_sha" ] || {
-    echo "release barrier: REFUSED draft target ${target}; expected ${expected_sha}" >&2
-    exit 73
-  }
+  release_id="$(tr -d '\r\n' <"$scratch/release")"
+  state="$(bash "$here/read-release-state.sh" \
+    "$repo" "$release_id" "$tag" "$expected_sha")"
+  draft="$(printf '%s\n' "$state" | sed -n 's/^draft=//p')"
+  prerelease="$(printf '%s\n' "$state" | sed -n 's/^prerelease=//p')"
   printf 'id=%s\ncreated=false\ndraft=%s\nprerelease=%s\n' \
     "$release_id" "$draft" "$prerelease"
   exit 0
@@ -53,4 +52,10 @@ if [ "$prerelease" = true ]; then
 fi
 gh "${create_args[@]}" >/dev/null
 release_id="$(gh api "repos/${repo}/releases/tags/${tag}" --jq '.id')"
+state="$(bash "$here/read-release-state.sh" \
+  "$repo" "$release_id" "$tag" "$expected_sha")"
+[ "$(printf '%s\n' "$state" | sed -n 's/^draft=//p')" = true ] || {
+  echo "release barrier: newly created release is not a draft" >&2
+  exit 73
+}
 printf 'id=%s\ncreated=true\ndraft=true\nprerelease=%s\n' "$release_id" "$prerelease"

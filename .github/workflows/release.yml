@@ -327,6 +327,7 @@ jobs:
       sha: ${{ needs.coordinate.outputs.sha }}
       release-id: ${{ steps.release.outputs.id }}
       draft: ${{ steps.release.outputs.draft }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
     steps:
       # The checkout this job never had. The front-page step below runs
       # scripts/release/render-notes.sh FROM THE REPO, and this job started
@@ -351,6 +352,7 @@ jobs:
           sparse-checkout: |
             scripts/release/check-release-tag.sh
             scripts/release/prepare-draft-release.sh
+            scripts/release/read-release-state.sh
             scripts/release/resolve-release-tag.sh
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -435,22 +437,54 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       actions: read
-      contents: read
+      contents: write # immutably stage provenance on the draft for later runs
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ needs.provenance.outputs.provenance-name }}
+          path: artifacts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: nika-*
+          path: artifacts
+          merge-multiple: true
+      - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
       - name: Normalize the generated statement name
         env:
           PROVENANCE_NAME: ${{ needs.provenance.outputs.provenance-name }}
         run: |
           set -euo pipefail
           test "$PROVENANCE_NAME" = "multiple.intoto.jsonl"
-          test -s multiple.intoto.jsonl
+          test -s artifacts/multiple.intoto.jsonl
+      - name: Verify and immutably stage push provenance on the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+        run: |
+          set -euo pipefail
+          native=(artifacts/nika-*.tar.gz)
+          bash .release-tooling/scripts/release/verify-slsa-provenance.sh \
+            "$TAG" "$REPO" artifacts/multiple.intoto.jsonl "${native[@]}"
+          bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
+          bash .release-tooling/scripts/release/upload-assets-immutable.sh \
+            "$TAG" "$REPO" artifacts/multiple.intoto.jsonl
+          bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-provenance
-          path: multiple.intoto.jsonl
+          path: artifacts/multiple.intoto.jsonl
           if-no-files-found: error
 
   provenance-replay-check:
@@ -461,26 +495,47 @@ jobs:
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: nika-*
+          path: artifacts
+          merge-multiple: true
+      - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
       - name: Download exactly one existing statement
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
         run: |
           set -euo pipefail
-          matches="$(gh api "repos/${REPO}/releases/tags/${TAG}" \
+          bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
+          matches="$(gh api "repos/${REPO}/releases/${RELEASE_ID}" \
             --jq '[.assets[] | select(.name == "multiple.intoto.jsonl")] | length')"
           if [ "$matches" != "1" ]; then
             echo "::error::manual replay requires exactly one existing multiple.intoto.jsonl; refusing branch-context provenance regeneration"
             exit 73
           fi
           gh release download "$TAG" --repo "$REPO" \
-            --pattern multiple.intoto.jsonl --dir .
-          test -s multiple.intoto.jsonl
+            --pattern multiple.intoto.jsonl --dir artifacts
+          native=(artifacts/nika-*.tar.gz)
+          bash .release-tooling/scripts/release/verify-slsa-provenance.sh \
+            "$TAG" "$REPO" artifacts/multiple.intoto.jsonl "${native[@]}"
+          bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-provenance
-          path: multiple.intoto.jsonl
+          path: artifacts/multiple.intoto.jsonl
           if-no-files-found: error
 
   provenance-result:
@@ -505,7 +560,7 @@ jobs:
   bump-formula:
     name: bump homebrew tap
     needs: finalize
-    if: github.event_name == 'push' && !contains(needs.finalize.outputs.version, '-')
+    if: ${{ !contains(needs.finalize.outputs.version, '-') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -518,6 +573,24 @@ jobs:
           merge-multiple: true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - name: Refuse an old stable release before touching the tap
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.finalize.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.finalize.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.finalize.outputs.tag }}
+        run: |
+          set -euo pipefail
+          bash .release-tooling/scripts/release/assert-newest-public-stable.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
           # The tap repo is homebrew-tap — the canonical brew mapping for
           # `brew install supernovae-st/tap/nika` (renamed back 2026-07-06;
           # the homebrew-nika interlude survives as a GitHub redirect).
@@ -526,10 +599,15 @@ jobs:
           path: tap
       - name: Update + push the formula
         env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.finalize.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.finalize.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.finalize.outputs.tag }}
           VERSION: ${{ needs.finalize.outputs.version }}
         run: |
           set -euo pipefail
-          bash scripts/release/update-formula.sh tap/Formula/nika.rb "$VERSION" artifacts
+          bash .release-tooling/scripts/release/update-formula.sh tap/Formula/nika.rb "$VERSION" artifacts
           cd tap
           git config user.name "nika-release[bot]"
           git config user.email "nika@supernovae.studio"
@@ -540,6 +618,8 @@ jobs:
           if git diff --cached --quiet; then
             echo "::notice::formula already at ${VERSION} — nothing to bump"
           else
+            bash ../.release-tooling/scripts/release/assert-newest-public-stable.sh \
+              "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA"
             git commit -m "nika ${VERSION}"
             git push
           fi
@@ -680,7 +760,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.release-draft.outputs.version }}
-          DRAFT: ${{ needs.release-draft.outputs.draft }}
         run: |
           set -euo pipefail
           tarballs=(./*.tgz)
@@ -690,10 +769,8 @@ jobs:
               echo "::error::expected exactly one npm tarball and sidecar"
               exit 73
             }
-          mode=publish
-          [ "$DRAFT" = true ] || mode=verify
           bash .release-tooling/scripts/release/npm-publish-immutable.sh \
-            "$mode" "@supernovae-st/nika-check-wasm@${VERSION}" \
+            publish "@supernovae-st/nika-check-wasm@${VERSION}" \
             "${tarballs[0]}" "${sidecars[0]}"
 
   docker:
@@ -712,26 +789,77 @@ jobs:
     permissions:
       contents: read # checkout the Dockerfile
       packages: write # push to ghcr.io — scoped to THIS job only
+    outputs:
+      digest: ${{ steps.converge.outputs.digest }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: needs.release-draft.outputs.draft == 'true'
-        with:
-          ref: ${{ needs.release-draft.outputs.sha }}
-          persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.workflow_sha }}
           path: .release-tooling
           persist-credentials: false
-          sparse-checkout: scripts/release/oci-coordinate-immutable.sh
+          sparse-checkout: scripts/release
           sparse-checkout-cone-mode: false
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Read the durable marker or discover the immutable coordinate
+        id: coordinate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+          VERSION: ${{ needs.release-draft.outputs.version }}
+        run: |
+          set -euo pipefail
+          state=0
+          digest="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")" || state=$?
+          if [ "$state" -eq 0 ]; then
+            bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+              verify "$IMAGE" "$VERSION" "$digest" "$RELEASE_SHA" \
+              "https://github.com/${REPO}" >/dev/null
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$state" -eq 44 ] || exit "$state"
+          state=0
+          digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            discover "$IMAGE" "$VERSION" - "$RELEASE_SHA" \
+            "https://github.com/${REPO}")" || state=$?
+          if [ "$state" -eq 0 ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$state" -eq 44 ] || exit "$state"
+          release_state="$(bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")"
+          [ "$(printf '%s\n' "$release_state" | sed -n 's/^draft=//p')" = true ] || {
+            echo "::error::a public release has neither a GHCR marker nor an immutable version coordinate"
+            exit 73
+          }
+          echo "build=true" >> "$GITHUB_OUTPUT"
+          echo "digest=" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.coordinate.outputs.build == 'true'
+        with:
+          ref: ${{ needs.release-draft.outputs.sha }}
+          path: .release-source
+          persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: needs.release-draft.outputs.draft == 'true'
+        if: steps.coordinate.outputs.build == 'true'
         with:
           path: artifacts
           merge-multiple: true
       - name: Stage per-arch binaries into the build context
-        if: needs.release-draft.outputs.draft == 'true'
+        if: steps.coordinate.outputs.build == 'true'
         # Docker arch names (amd64 · arm64) ≠ release tarball arch names
         # (x64 · arm64) — the mapping happens HERE, once; the Dockerfile
         # just COPYs dist/linux/${TARGETARCH}/nika.
@@ -739,23 +867,17 @@ jobs:
           VERSION: ${{ needs.release-draft.outputs.version }}
         run: |
           set -euo pipefail
-          mkdir -p dist/linux/amd64 dist/linux/arm64
-          tar -xzf "artifacts/nika-linux-x64-${VERSION}.tar.gz" -C dist/linux/amd64 nika
-          tar -xzf "artifacts/nika-linux-arm64-${VERSION}.tar.gz" -C dist/linux/arm64 nika
+          mkdir -p .release-source/dist/linux/amd64 .release-source/dist/linux/arm64
+          tar -xzf "artifacts/nika-linux-x64-${VERSION}.tar.gz" -C .release-source/dist/linux/amd64 nika
+          tar -xzf "artifacts/nika-linux-arm64-${VERSION}.tar.gz" -C .release-source/dist/linux/arm64 nika
       - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
-        if: needs.release-draft.outputs.draft == 'true'
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
+        if: steps.coordinate.outputs.build == 'true'
       - name: Build + push by digest (linux/amd64 · linux/arm64)
         id: image
-        if: needs.release-draft.outputs.draft == 'true'
+        if: steps.coordinate.outputs.build == 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
-          context: .
+          context: .release-source
           platforms: linux/amd64,linux/arm64
           push: true
           outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
@@ -767,24 +889,28 @@ jobs:
             org.opencontainers.image.revision=${{ needs.release-draft.outputs.sha }}
             org.opencontainers.image.version=${{ needs.release-draft.outputs.version }}
             org.opencontainers.image.licenses=AGPL-3.0-or-later
-      - name: Converge the immutable version coordinate
+      - name: Converge the immutable version coordinate and persist its digest
+        id: converge
         env:
           CANDIDATE: ${{ steps.image.outputs.digest }}
-          DRAFT: ${{ needs.release-draft.outputs.draft }}
+          DISCOVERED: ${{ steps.coordinate.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
           IMAGE: ghcr.io/${{ github.repository }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
           VERSION: ${{ needs.release-draft.outputs.version }}
         run: |
           set -euo pipefail
-          mode=publish
-          candidate="$CANDIDATE"
-          if [ "$DRAFT" != true ]; then
-            mode=verify
-            candidate=-
-          fi
-          bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
-            "$mode" "$IMAGE" "$VERSION" "$candidate" "$RELEASE_SHA" \
-            "https://github.com/${{ github.repository }}"
+          candidate="${CANDIDATE:-$DISCOVERED}"
+          digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            publish "$IMAGE" "$VERSION" "$candidate" "$RELEASE_SHA" \
+            "https://github.com/${REPO}")"
+          persisted="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            stage "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "$digest")"
+          [ "$persisted" = "$digest" ]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
   finalize:
     name: publish complete release
@@ -805,7 +931,9 @@ jobs:
       tag: ${{ needs.release-draft.outputs.tag }}
       version: ${{ needs.release-draft.outputs.version }}
       sha: ${{ needs.release-draft.outputs.sha }}
-      digest: ${{ steps.oci.outputs.digest }}
+      release-id: ${{ needs.release-draft.outputs.release-id }}
+      digest: ${{ steps.marker.outputs.digest }}
+      transitioned: ${{ steps.publish.outputs.transitioned }}
     steps:
       - name: Refuse incomplete or skipped prerequisites
         env:
@@ -836,31 +964,36 @@ jobs:
           path: artifacts
           merge-multiple: true
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Re-resolve tag immediately before finalization
+      - name: Re-read release identity and mutable state
+        id: state
         env:
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
         run: |
           set -euo pipefail
-          bash .release-tooling/scripts/release/resolve-release-tag.sh \
-            "$TAG" "$REPO" "$RELEASE_SHA" >/dev/null
-      - name: Require credentials needed after visibility
-        if: github.event_name == 'push' && !contains(needs.release-draft.outputs.version, '-')
+          bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+      - name: Re-read the persisted GHCR digest
+        id: marker
         env:
-          TAP_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
         run: |
           set -euo pipefail
-          [ -n "${TAP_KEY:-}" ] || {
-            echo "::error::TAP_DEPLOY_KEY is mandatory before a stable release can become public"
-            exit 77
-          }
-      - name: Verify exact checksums and five strong attestations
+          digest="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Verify exact checksums and all source-bound provenance
         env:
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
@@ -883,9 +1016,11 @@ jobs:
           (cd artifacts && sha256sum -c SHA256SUMS)
           bash .release-tooling/scripts/release/verify-release-attestations.sh \
             "$TAG" "$RELEASE_SHA" "$REPO" artifacts
+          native=(artifacts/nika-*.tar.gz)
+          bash .release-tooling/scripts/release/verify-slsa-provenance.sh \
+            "$TAG" "$REPO" artifacts/multiple.intoto.jsonl "${native[@]}"
       - name: Converge and then recheck the exact eight release assets
         env:
-          DRAFT: ${{ needs.release-draft.outputs.draft }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
         run: |
@@ -901,10 +1036,8 @@ jobs:
             "artifacts/supernovae-st-nika-check-wasm-${version}.tgz"
             "artifacts/supernovae-st-nika-check-wasm-${version}.tgz.sha256"
           )
-          mode=stage
-          [ "$DRAFT" = true ] || mode=verify
           bash .release-tooling/scripts/release/release-assets-barrier.sh \
-            "$mode" "$TAG" "$REPO" "${assets[@]}"
+            stage "$TAG" "$REPO" "${assets[@]}"
           bash .release-tooling/scripts/release/release-assets-barrier.sh \
             verify "$TAG" "$REPO" "${assets[@]}"
       - name: Recheck npm SRI
@@ -920,39 +1053,51 @@ jobs:
         id: oci
         env:
           IMAGE: ghcr.io/${{ github.repository }}
+          EXPECTED_DIGEST: ${{ steps.marker.outputs.digest }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           VERSION: ${{ needs.release-draft.outputs.version }}
         run: |
           set -euo pipefail
           digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
-            verify "$IMAGE" "$VERSION" - "$RELEASE_SHA" \
+            verify "$IMAGE" "$VERSION" "$EXPECTED_DIGEST" "$RELEASE_SHA" \
             "https://github.com/${{ github.repository }}")"
+          [ "$digest" = "$EXPECTED_DIGEST" ]
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-      - name: Make the complete draft public
-        if: needs.release-draft.outputs.draft == 'true'
+      - name: Publish once or validate an already committed transition
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
+          GHCR_DIGEST: ${{ steps.marker.outputs.digest }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
         run: |
           set -euo pipefail
-          bash .release-tooling/scripts/release/resolve-release-tag.sh \
-            "$TAG" "$REPO" "$RELEASE_SHA" >/dev/null
-          gh release edit "$TAG" --repo "$REPO" --draft=false \
-            --discussion-category Announcements
-      - name: Record validation-only replay
-        if: needs.release-draft.outputs.draft != 'true'
-        run: echo "complete public release replay validated without mutation" >> "$GITHUB_STEP_SUMMARY"
+          bash .release-tooling/scripts/release/finalize-release.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "$GHCR_DIGEST" \
+            >> "$GITHUB_OUTPUT"
+      - name: Record already-public replay
+        if: steps.publish.outputs.transitioned != 'true'
+        run: echo "release visibility was already public; stable pointers will converge behind the newest-release guard" >> "$GITHUB_STEP_SUMMARY"
 
   move-latest:
     name: move ghcr latest after publication
     needs: finalize
-    if: github.event_name == 'push' && !contains(needs.finalize.outputs.version, '-')
+    if: ${{ !contains(needs.finalize.outputs.version, '-') }}
     runs-on: ubuntu-24.04
     permissions:
+      contents: read
       packages: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -963,6 +1108,22 @@ jobs:
         env:
           DIGEST: ${{ needs.finalize.outputs.digest }}
           IMAGE: ghcr.io/${{ github.repository }}
+          RELEASE_ID: ${{ needs.finalize.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.finalize.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.finalize.outputs.tag }}
+          VERSION: ${{ needs.finalize.outputs.version }}
         run: |
           set -euo pipefail
-          docker buildx imagetools create --tag "${IMAGE}:latest" "${IMAGE}@${DIGEST}"
+          bash .release-tooling/scripts/release/assert-newest-public-stable.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA"
+          persisted="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")"
+          [ "$persisted" = "$DIGEST" ]
+          bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            verify "$IMAGE" "$VERSION" "$DIGEST" "$RELEASE_SHA" \
+            "https://github.com/${REPO}" >/dev/null
+          bash .release-tooling/scripts/release/assert-newest-public-stable.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA"
+          bash .release-tooling/scripts/release/converge-oci-pointer.sh \
+            "$IMAGE" latest "$DIGEST"
