@@ -222,7 +222,7 @@ done
 # Every late proof failure refuses before either success path or PATCH.
 TAP_DEPLOY_KEY="test"
 export TAP_DEPLOY_KEY
-for failure in provenance npm oci payload; do
+for failure in attestation provenance npm oci payload; do
   printf 'true\n' >"$RELEASE_DRAFT"
   : >"$PATCH_LOG"
   if run_finalizer "$failure" full \
