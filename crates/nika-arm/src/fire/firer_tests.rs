@@ -488,7 +488,14 @@ fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
     let source = dir.path().join("workflows/doctor.nika.yaml");
     let original = std::fs::read(&source).expect("source A");
     let registry = registry_with(SAUTER);
-    let expected = ArmGeneration::compute(registry.1.beats().next().expect("beat"), &original);
+    let project = OwnedDir::open(dir.path()).expect("project capability");
+    let admitted = ExecutionService::default()
+        .admit(&project, Path::new("workflows/doctor.nika.yaml"))
+        .expect("admitted world");
+    let expected = ArmGeneration::compute(
+        registry.1.beats().next().expect("beat"),
+        admitted.snapshot().digest(),
+    );
     let logical_path = Rc::new(RefCell::new(None::<String>));
     let seen_path = Rc::clone(&logical_path);
     let seam: ExecutionRunSeam = Rc::new(move |execution, shot| {
@@ -570,6 +577,60 @@ fn child_and_skill_edits_after_claim_cannot_change_the_admitted_world() {
     assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
 }
 
+/// The generation a firing pins covers the WHOLE admitted world (#1343):
+/// editing ONLY a child workflow or ONLY a skill between two admissions
+/// — two fires — mints a new generation; an unchanged world keeps its
+/// own (the seam suites above prove the fire pins exactly this value).
+#[test]
+fn a_child_or_skill_edit_between_admissions_mints_a_new_generation() {
+    let dir = project("generation-world-edit");
+    let root = "nika: doctor\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  child:\n    invoke:\n      workflow: \"child.nika.yaml\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+    let child = "nika: child\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }\noutputs:\n  report: { value: \"${{ tasks.fetch.output }}\", type: string }\n";
+    let skill = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
+    std::fs::write(dir.path().join("workflows/doctor.nika.yaml"), root).expect("root");
+    std::fs::write(dir.path().join("workflows/child.nika.yaml"), child).expect("child");
+    std::fs::create_dir_all(dir.path().join("workflows/skills/review")).expect("skill dir");
+    std::fs::write(dir.path().join("workflows/skills/review/SKILL.md"), skill).expect("skill");
+    let registry = registry_with(SAUTER);
+    let beat = registry.1.beats().next().expect("beat");
+    let service = ExecutionService::default();
+    let admit = || {
+        let project = OwnedDir::open(dir.path()).expect("project capability");
+        service
+            .admit(&project, Path::new("workflows/doctor.nika.yaml"))
+            .expect("admitted world")
+    };
+    let base = ArmGeneration::compute(beat, admit().snapshot().digest());
+    assert_eq!(
+        base,
+        ArmGeneration::compute(beat, admit().snapshot().digest()),
+        "an unchanged world keeps its generation"
+    );
+    // Edit ONLY the child — the root bytes never move.
+    std::fs::write(
+        dir.path().join("workflows/child.nika.yaml"),
+        "nika: child-v2\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }\noutputs:\n  report: { value: \"${{ tasks.fetch.output }}\", type: string }\n",
+    )
+    .expect("edit child");
+    assert_ne!(
+        base,
+        ArmGeneration::compute(beat, admit().snapshot().digest()),
+        "a child-only edit mints a new generation"
+    );
+    // Restore the child, edit ONLY the skill.
+    std::fs::write(dir.path().join("workflows/child.nika.yaml"), child).expect("restore child");
+    std::fs::write(
+        dir.path().join("workflows/skills/review/SKILL.md"),
+        "---\nname: review\ndescription: Review code.\n---\nRevised.\n",
+    )
+    .expect("edit skill");
+    assert_ne!(
+        base,
+        ArmGeneration::compute(beat, admit().snapshot().digest()),
+        "a skill-only edit mints a new generation"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn source_symlink_swap_after_claim_cannot_change_the_pinned_run_bytes() {
@@ -585,7 +646,14 @@ fn source_symlink_swap_after_claim_cannot_change_the_pinned_run_bytes() {
     )
     .expect("source B");
     let registry = registry_with(SAUTER);
-    let expected = ArmGeneration::compute(registry.1.beats().next().expect("beat"), &original);
+    let project = OwnedDir::open(dir.path()).expect("project capability");
+    let admitted = ExecutionService::default()
+        .admit(&project, Path::new("workflows/doctor.nika.yaml"))
+        .expect("admitted world");
+    let expected = ArmGeneration::compute(
+        registry.1.beats().next().expect("beat"),
+        admitted.snapshot().digest(),
+    );
     let seam: ExecutionRunSeam = Rc::new(move |execution, shot| {
         std::fs::remove_file(&source).expect("remove A");
         symlink(&replacement, &source).expect("swap to symlink B");

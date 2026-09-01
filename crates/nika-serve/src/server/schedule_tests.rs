@@ -316,6 +316,48 @@ async fn live_once_wakes_executes_persists_and_does_not_rearm_after_restart() {
     restarted.stop().await.expect("restart stop");
 }
 
+/// #1349 (b): the schedule's required `maxCostUsd` RESTRICTS the server
+/// default, never widens it — a 5.00 declaration under the 1.00 server
+/// default reaches the runtime clamped to 1.00, while the declaration
+/// itself is stored untouched (the clamp lives at the execution edge).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_schedule_ceiling_above_the_server_default_is_clamped_never_widened() {
+    let world = TestWorld::new();
+    let backend = Arc::new(CountingBackend::gated());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    let created = server
+        .request(&put_request(
+            "clamped-once",
+            &body_at("root.nika.yaml", 5.0, "2026-09-01T09:00:00Z"),
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(created.status, 200, "{}", created.body);
+    clock.wait_for_sleeps(2).await;
+    clock.advance_to("2026-09-01T09:00:00Z[UTC]");
+    backend.wait_for_call().await;
+    assert_eq!(backend.calls(), 1);
+    assert_eq!(
+        backend.max_cost_usd(),
+        Some(super::DEFAULT_MAX_COST_USD),
+        "the lower ceiling wins: the server default clamps the declaration"
+    );
+    let status = server
+        .request(&get_request("/v1/schedules/clamped-once"))
+        .await;
+    assert_eq!(
+        status.json()["definition"]["maxCostUsd"],
+        5.0,
+        "the declaration is stored untouched"
+    );
+    backend.release();
+    server.stop().await.expect("clean stop");
+}
+
 fn put_request(id: &str, body: &str, precondition: &str, authenticated: bool) -> String {
     let auth = authenticated.then(auth_header).unwrap_or_default();
     format!(

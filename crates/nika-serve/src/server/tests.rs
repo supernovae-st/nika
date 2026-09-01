@@ -370,6 +370,8 @@ fn four_header_limits() -> ServerLimits {
 }
 
 #[cfg(test)]
+mod budget;
+#[cfg(test)]
 mod cancel_race;
 #[cfg(test)]
 mod request_lifecycle;

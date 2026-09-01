@@ -40,8 +40,16 @@ impl ResidentClock for SystemResidentClock {
     }
 }
 
+/// The out-of-the-box per-run spend ceiling: every admitted run whose own
+/// declaration carries no ceiling runs under this one (#1349 — a manual
+/// `POST /v1/jobs` run never again executes with no ceiling). A schedule's
+/// required `maxCostUsd` restricts it further; an embedder retunes or
+/// explicitly disarms it through
+/// [`ServerLimits::with_default_max_cost_usd`].
+pub const DEFAULT_MAX_COST_USD: f64 = 1.0;
+
 /// Explicit ceilings for the remote HTTP and execution boundary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub struct ServerLimits {
     max_body_bytes: usize,
@@ -56,6 +64,7 @@ pub struct ServerLimits {
     max_sse_clients: usize,
     sse_heartbeat: Duration,
     sse_reconnect: Duration,
+    default_max_cost_usd: Option<f64>,
 }
 
 impl ServerLimits {
@@ -85,6 +94,7 @@ impl ServerLimits {
             max_sse_clients: max_connections,
             sse_heartbeat: Duration::from_secs(15),
             sse_reconnect: Duration::from_secs(1),
+            default_max_cost_usd: Some(DEFAULT_MAX_COST_USD),
         }
     }
 
@@ -92,6 +102,17 @@ impl ServerLimits {
     #[must_use]
     pub const fn with_max_jobs(mut self, max_jobs: usize) -> Self {
         self.max_jobs = max_jobs;
+        self
+    }
+
+    /// Replace the per-run spend ceiling applied to every admitted run
+    /// whose own declaration carries none (manual `POST /v1/jobs` runs).
+    /// `None` explicitly disarms the server default — a schedule's own
+    /// required `maxCostUsd` still binds its fires, and a declaration
+    /// always RESTRICTS this default, never widens it.
+    #[must_use]
+    pub const fn with_default_max_cost_usd(mut self, ceiling: Option<f64>) -> Self {
+        self.default_max_cost_usd = ceiling;
         self
     }
 
@@ -124,6 +145,10 @@ impl ServerLimits {
             && !self.sse_heartbeat.is_zero()
             && self.sse_reconnect.as_millis() >= 100
             && self.sse_reconnect.as_millis() <= 30_000
+            && match self.default_max_cost_usd {
+                Some(cost) => cost.is_finite() && cost > 0.0,
+                None => true,
+            }
     }
 
     pub(crate) const fn max_body_bytes(self) -> usize {
@@ -172,6 +197,22 @@ impl ServerLimits {
 
     pub(crate) const fn sse_reconnect(self) -> Duration {
         self.sse_reconnect
+    }
+
+    pub(crate) const fn default_max_cost_usd(self) -> Option<f64> {
+        self.default_max_cost_usd
+    }
+
+    /// The run's effective per-run spend ceiling (#1349): a declaration
+    /// RESTRICTS the server default, never widens it — when both exist
+    /// the LOWER wins. Both operands are validated finite and positive
+    /// upstream (the coordinator at admission, `valid()` at startup).
+    pub(crate) fn effective_max_cost_usd(self, declared: Option<f64>) -> Option<f64> {
+        match (declared, self.default_max_cost_usd) {
+            (Some(declared), Some(default)) => Some(declared.min(default)),
+            (declared, None) => declared,
+            (None, default) => default,
+        }
     }
 }
 

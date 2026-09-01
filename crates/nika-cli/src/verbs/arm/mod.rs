@@ -470,7 +470,7 @@ mod tests {
         let registry = parse_registry(body).expect("cadence registry");
         let generation = nika_cadence::ArmGeneration::compute(
             registry.beats().next().expect("first beat"),
-            b"nika: prouve\n",
+            &"b".repeat(64),
         );
         let generation_short = generation.short().to_owned();
         // prouve: the machine fired twice, skipped once — the sidecar

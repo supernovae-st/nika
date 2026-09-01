@@ -41,7 +41,10 @@ use crate::{
 
 use auth::BearerToken;
 use cancel::{ActiveCancellations, CancellationRegistration};
-pub use config::{ResidentClock, ResidentConfig, ServerConfig, ServerLimits, SystemResidentClock};
+pub use config::{
+    DEFAULT_MAX_COST_USD, ResidentClock, ResidentConfig, ServerConfig, ServerLimits,
+    SystemResidentClock,
+};
 pub use coordinator::{PreparedScheduledRun, ResidentExecutionCoordinator};
 use error::diagnose_capture;
 pub use error::{CredentialRefuse, ServerError};
@@ -168,7 +171,9 @@ pub trait ExecutionBackend: Send + Sync + 'static {
         context: ExecutionContext<'a>,
     ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>>;
 
-    /// Execute with an optional schedule-owned per-fire spend ceiling.
+    /// Execute with the run's effective per-fire spend ceiling — a
+    /// schedule's declared `maxCostUsd`, the server's default for
+    /// ceiling-less admissions, the lower of the two, or none.
     fn execute_with_max_cost<'a>(
         &'a self,
         context: ExecutionContext<'a>,
@@ -234,13 +239,13 @@ struct ExecutionTask {
 }
 
 impl ExecutionTask {
-    fn new(id: JobId) -> Self {
+    fn new(id: JobId, max_cost_usd: Option<f64>) -> Self {
         Self {
             id,
             admitted: None,
             prestarted: false,
             origin: JobOrigin::Manual,
-            max_cost_usd: None,
+            max_cost_usd,
         }
     }
 
@@ -290,12 +295,13 @@ impl ResidentAuthority {
             control_capacity,
         )?;
         let (jobs, receiver) = mpsc::channel(config.limits().queue_capacity());
+        let default_max_cost_usd = config.limits().default_max_cost_usd();
         let recovered = store_actor
             .handle()
             .queued_jobs()
             .await?
             .into_iter()
-            .map(|(id, _workflow)| ExecutionTask::new(id))
+            .map(|(id, _workflow)| ExecutionTask::new(id, default_max_cost_usd))
             .collect();
         let coordinator =
             ResidentExecutionCoordinator::new(store_actor.handle(), jobs, config.limits());
@@ -527,7 +533,7 @@ async fn prepare_http(config: &ServerConfig) -> Result<PreparedHttp, ServerError
 fn validate_resident_config(config: &ResidentConfig) -> Result<(), ServerError> {
     if !config.limits().valid() {
         return Err(ServerError::InvalidConfig(
-            "all size, timeout, concurrency, queue, connection, sse, and header ceilings must be non-zero",
+            "all size, timeout, concurrency, queue, connection, sse, and header ceilings must be non-zero, and the default budget ceiling must be finite and positive",
         ));
     }
     if config.limits().max_body_bytes() > crate::MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES {

@@ -1048,11 +1048,7 @@ fn admit_workflow(ctx: &FireCtx, beat: &Beat) -> std::io::Result<PinnedExecution
                 format!("arm workflow admission refused: {error}"),
             )
         })?;
-    let source = admitted
-        .snapshot()
-        .unit(admitted.snapshot().root())
-        .ok_or_else(|| std::io::Error::other("arm workflow admission lost its root unit"))?;
-    let generation = ArmGeneration::compute(beat, source.bytes());
+    let generation = ArmGeneration::compute(beat, admitted.snapshot().digest());
     Ok(PinnedExecution {
         project,
         generation,
@@ -1179,10 +1175,8 @@ mod tests {
     fn public_run_and_verdict_projections_preserve_every_value() {
         let project = tempfile::tempdir().expect("project");
         let registry = registry_with(BASE);
-        let generation = ArmGeneration::compute(
-            registry.beats().next().expect("beat"),
-            b"schema: nika/workflow@0.12\ntasks: {}\n",
-        );
+        let generation =
+            ArmGeneration::compute(registry.beats().next().expect("beat"), &"d".repeat(64));
         let schedule =
             ScheduleDraft::from_project("doctor", registry.beats().next().expect("beat"))
                 .and_then(ScheduleDraft::validate)

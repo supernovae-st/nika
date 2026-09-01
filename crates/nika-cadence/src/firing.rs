@@ -15,19 +15,24 @@
 //!   known-vector test hashes the bytes itself.
 //! - [`FencingToken`] — the claim's seq (Kleppmann): a receipt settles
 //!   the claim by naming it.
-//! - [`ArmGeneration`] — `sha256("nika/arm-gen@1\n" + beat-canonical +
-//!   "\n" + workflow_sha256)` (F17): every firing PINS its generation —
-//!   an update never changes a run in progress. beat-canonical is the
-//!   beat's DECLARED fields in the struct's fixed order (workflow ·
-//!   cadence · où · plafond · manqué · chevauchement · `après_saut` ·
-//!   actif · raison · `jusqu_au` · tolérance · décalage · par), one
-//!   `key=value` line each — strings quoted, the absent `null`, floats
-//!   in shortest roundtrip (`{f64:?}` — deterministic for a given
-//!   toolchain; an engine upgrade that moved the formatting would read
-//!   as a new generation, the cautious direction). The positional label
-//!   NEVER enters the hash; the two refused keys (`signature:` ·
-//!   `budget:`) carry no content. `workflow_sha256` is the
-//!   source-identity convention: sha256 over the exact bytes read.
+//! - [`ArmGeneration`] — `sha256("nika/arm-gen@2\n" + declaration +
+//!   "\0" + snapshot_digest)` (F17): every firing PINS its generation —
+//!   an update never changes a run in progress. ONE law, ONE domain,
+//!   both firing edges. The declaration is the edge's own identity: the
+//!   CLI arm-fire hashes the beat's DECLARED fields in the struct's
+//!   fixed order (workflow · cadence · où · plafond · manqué ·
+//!   chevauchement · `après_saut` · actif · raison · `jusqu_au` ·
+//!   tolérance · décalage · par), one `key=value` line each — strings
+//!   quoted, the absent `null`, floats in shortest roundtrip (`{f64:?}`
+//!   — deterministic for a given toolchain; an engine upgrade that
+//!   moved the formatting would read as a new generation, the cautious
+//!   direction) — the resident serve hashes its `ScheduleRevision`. The
+//!   positional label NEVER enters the hash; the two refused keys
+//!   (`signature:` · `budget:`) carry no content. The source half is
+//!   the admitted world's FULL snapshot digest (root + children +
+//!   skills + imports): editing ANY world byte between two fires mints
+//!   a new generation. `@1` hashed the root workflow's bytes alone;
+//!   those values remain interpretable as historical ledger evidence.
 //!
 //! ## The transition table (this module's law)
 //!
@@ -96,6 +101,7 @@ use std::borrow::Cow;
 use jiff::{Timestamp, Zoned};
 
 use crate::registry::{AfterSkip, Beat, Locus, MissPolicy, Overlap};
+use crate::schedule::ScheduleRevision;
 
 /// The slot's canonical identity (64 lowercase hex) — the dedup unit.
 /// NEVER the positional label: a `-2`/`-3` permutes at insertion.
@@ -158,23 +164,50 @@ impl FencingToken {
     }
 }
 
-/// The generation a firing PINS (F17 — 64 lowercase hex): the beat's
-/// declared fields + the workflow's source identity. An update to
-/// either mints a new generation; an in-flight run keeps its own.
+/// The generation a firing PINS (F17 — 64 lowercase hex): the edge's
+/// declaration identity + the admitted world's full snapshot digest.
+/// An update to either mints a new generation; an in-flight run keeps
+/// its own.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArmGeneration(String);
 
+/// The ONE generation preimage domain, both firing edges. Bumped `@1` →
+/// `@2` when the source half stopped being the root workflow's bytes
+/// alone and became the admitted world's full snapshot digest — `@1`
+/// values stay interpretable as historical ledger evidence.
+const GENERATION_DOMAIN: &[u8] = b"nika/arm-gen@2\n";
+
 impl ArmGeneration {
-    /// Pin the generation: `sha256("nika/arm-gen@1\n" + beat-canonical +
-    /// "\n" + workflow_sha256)`. The beat canonical is the DECLARED
-    /// fields in the struct's fixed order (see the module doc).
+    /// The ONE law (see the module doc): the domain, the edge's
+    /// declaration identity, a NUL, the full snapshot digest. Exact
+    /// cross-edge equality is impossible BY DESIGN — the CLI declares a
+    /// beat, the resident serve declares a schedule revision — so both
+    /// named constructors judge through this one helper.
     #[must_use]
-    pub fn compute(beat: &Beat, workflow_bytes: &[u8]) -> Self {
-        let canonical = canonical_beat(beat);
-        let workflow_sha = sha256_hex(workflow_bytes);
-        Self(sha256_hex(
-            format!("nika/arm-gen@1\n{canonical}\n{workflow_sha}").as_bytes(),
-        ))
+    fn pin(declaration: &str, snapshot_digest: &str) -> Self {
+        let mut preimage = Vec::with_capacity(
+            GENERATION_DOMAIN.len() + declaration.len() + 1 + snapshot_digest.len(),
+        );
+        preimage.extend_from_slice(GENERATION_DOMAIN);
+        preimage.extend_from_slice(declaration.as_bytes());
+        preimage.push(0);
+        preimage.extend_from_slice(snapshot_digest.as_bytes());
+        Self(sha256_hex(&preimage))
+    }
+
+    /// The CLI arm-fire edge: the declaration is the beat's canonical
+    /// form — the DECLARED fields in the struct's fixed order (see the
+    /// module doc). The source half is the admitted world's digest.
+    #[must_use]
+    pub fn compute(beat: &Beat, snapshot_digest: &str) -> Self {
+        Self::pin(&canonical_beat(beat), snapshot_digest)
+    }
+
+    /// The resident-serve edge: the declaration is the schedule's
+    /// revision. Same domain, same preimage — the one law.
+    #[must_use]
+    pub fn compute_resident(revision: &ScheduleRevision, snapshot_digest: &str) -> Self {
+        Self::pin(revision.as_str(), snapshot_digest)
     }
 
     /// Read one off the wire — 64 lowercase hex, nothing else.
@@ -831,18 +864,20 @@ mod tests {
 
     // ── (f) the ArmGeneration (F17 — a firing pins its generation) ───
 
-    /// Identical bytes hash identically across two computations; one
-    /// changed workflow byte mints a NEW generation; a beat renamed by
+    /// Identical digests hash identically across two computations; one
+    /// changed digest mints a NEW generation; a beat renamed by
     /// position (the label never enters) keeps its gen.
     #[test]
-    fn the_generation_is_stable_on_bytes_and_deaf_to_the_label() {
+    fn the_generation_is_stable_on_the_digest_and_deaf_to_the_label() {
         let registry = registry_with("    manqué: sauter\n");
         let beat = registry.beats().next().expect("one beat");
-        let one = ArmGeneration::compute(beat, b"nika: a\ntasks: {}\n");
-        let two = ArmGeneration::compute(beat, b"nika: a\ntasks: {}\n");
-        assert_eq!(one, two, "identical bytes, identical gen");
-        let changed = ArmGeneration::compute(beat, b"nika: b\ntasks: {}\n");
-        assert_ne!(one, changed, "one workflow byte changed → a new gen");
+        let world_a = "a".repeat(64);
+        let world_b = "b".repeat(64);
+        let one = ArmGeneration::compute(beat, &world_a);
+        let two = ArmGeneration::compute(beat, &world_a);
+        assert_eq!(one, two, "identical digest, identical gen");
+        let changed = ArmGeneration::compute(beat, &world_b);
+        assert_ne!(one, changed, "one world byte changed → a new gen");
         // The renamed-but-identical beat: two registry entries with the
         // SAME fields take the labels `doctor` and `doctor-2` — the gen
         // never sees them.
@@ -852,38 +887,41 @@ mod tests {
         .expect("parse");
         let gens: Vec<ArmGeneration> = pair
             .beats()
-            .map(|b| ArmGeneration::compute(b, b"nika: a\n"))
+            .map(|b| ArmGeneration::compute(b, &world_a))
             .collect();
         assert_eq!(gens[0], gens[1], "the label never enters the hash");
         // … but any FIELD of the beat does.
         let other = registry_with("    manqué: rattraper-une-fois\n");
         let other = other.beats().next().expect("one beat");
         assert_ne!(
-            ArmGeneration::compute(beat, b"nika: a\n"),
-            ArmGeneration::compute(other, b"nika: a\n"),
+            ArmGeneration::compute(beat, &world_a),
+            ArmGeneration::compute(other, &world_a),
             "a changed beat field mints a new gen"
         );
     }
 
     /// The canonical byte shape, pinned from WITHOUT: the test builds
-    /// the hash input by hand (declared field order · quoted strings ·
-    /// `null` for the absent · the workflow's sha256 last).
+    /// the hash input by hand (the `@2` domain · declared field order ·
+    /// quoted strings · `null` for the absent · a NUL · the admitted
+    /// world's snapshot digest last).
     #[test]
     fn the_generation_hash_covers_the_declared_canonical_form() {
         use sha2::Digest as _;
         let registry = registry_with("    manqué: sauter\n");
         let beat = registry.beats().next().expect("one beat");
-        let bytes = b"nika: pinned\n";
-        let wf = format!("{:x}", sha2::Sha256::digest(bytes));
-        let canonical = format!(
-            "nika/arm-gen@1\nworkflow=\"{WORKFLOW}\"\ncadence=\"{CADENCE}\"\noù=null\nplafond=0.25\nmanqué=\"sauter\"\nchevauchement=null\naprès_saut=null\nactif=null\nraison=null\njusqu_au=null\ntolérance=null\ndécalage=null\npar=null\n{wf}"
-        );
-        let expected = format!("{:x}", sha2::Sha256::digest(canonical.as_bytes()));
-        assert_eq!(ArmGeneration::compute(beat, bytes).as_str(), expected);
+        let digest = "f".repeat(64);
+        let mut preimage = format!(
+            "nika/arm-gen@2\nworkflow=\"{WORKFLOW}\"\ncadence=\"{CADENCE}\"\noù=null\nplafond=0.25\nmanqué=\"sauter\"\nchevauchement=null\naprès_saut=null\nactif=null\nraison=null\njusqu_au=null\ntolérance=null\ndécalage=null\npar=null"
+        )
+        .into_bytes();
+        preimage.push(0);
+        preimage.extend_from_slice(digest.as_bytes());
+        let expected = format!("{:x}", sha2::Sha256::digest(&preimage));
+        assert_eq!(ArmGeneration::compute(beat, &digest).as_str(), expected);
         // The short form the report prints.
-        assert_eq!(ArmGeneration::compute(beat, bytes).short().len(), 8);
+        assert_eq!(ArmGeneration::compute(beat, &digest).short().len(), 8);
         // The wire door.
-        let generation = ArmGeneration::compute(beat, bytes);
+        let generation = ArmGeneration::compute(beat, &digest);
         assert_eq!(
             ArmGeneration::from_wire(generation.as_str()).expect("round-trip"),
             generation
@@ -912,13 +950,38 @@ mod tests {
             "    par: \"nika\"\n",
         ));
         let beat = registry.beats().next().expect("one beat");
-        let bytes = b"nika: full\n";
-        let workflow_sha = format!("{:x}", sha2::Sha256::digest(bytes));
-        let canonical = format!(
-            "nika/arm-gen@1\nworkflow=\"{WORKFLOW}\"\ncadence=\"{CADENCE}\"\noù=\"cloud\"\nplafond=0.25\nmanqué=\"rattraper-une-fois\"\nchevauchement=\"remplacer\"\naprès_saut=\"à-complétion\"\nactif=false\nraison=\"pause\\u0009contrôlée\"\njusqu_au=\"2099-12-31\"\ntolérance=\"3/4\"\ndécalage=\"hash\"\npar=\"nika\"\n{workflow_sha}"
+        let digest = "f".repeat(64);
+        let mut preimage = format!(
+            "nika/arm-gen@2\nworkflow=\"{WORKFLOW}\"\ncadence=\"{CADENCE}\"\noù=\"cloud\"\nplafond=0.25\nmanqué=\"rattraper-une-fois\"\nchevauchement=\"remplacer\"\naprès_saut=\"à-complétion\"\nactif=false\nraison=\"pause\\u0009contrôlée\"\njusqu_au=\"2099-12-31\"\ntolérance=\"3/4\"\ndécalage=\"hash\"\npar=\"nika\""
+        )
+        .into_bytes();
+        preimage.push(0);
+        preimage.extend_from_slice(digest.as_bytes());
+        let expected = format!("{:x}", sha2::Sha256::digest(&preimage));
+        assert_eq!(ArmGeneration::compute(beat, &digest).as_str(), expected);
+    }
+
+    /// The resident serve hashes the SAME preimage under the SAME `@2`
+    /// domain with its own declaration identity — the `ScheduleRevision`
+    /// string. Exact cross-edge equality is impossible by design (a beat
+    /// is not a revision); the shared `pin` is the one judge both edges
+    /// answer to.
+    #[test]
+    fn the_resident_edge_hashes_the_one_law_with_its_revision() {
+        use sha2::Digest as _;
+        let revision =
+            crate::schedule::ScheduleRevision::from_wire(&format!("sha256:{}", "e".repeat(64)))
+                .expect("revision");
+        let digest = "f".repeat(64);
+        let mut preimage = GENERATION_DOMAIN.to_vec();
+        preimage.extend_from_slice(revision.as_str().as_bytes());
+        preimage.push(0);
+        preimage.extend_from_slice(digest.as_bytes());
+        let expected = format!("{:x}", sha2::Sha256::digest(&preimage));
+        assert_eq!(
+            ArmGeneration::compute_resident(&revision, &digest).as_str(),
+            expected
         );
-        let expected = format!("{:x}", sha2::Sha256::digest(canonical.as_bytes()));
-        assert_eq!(ArmGeneration::compute(beat, bytes).as_str(), expected);
     }
 
     // ── the machine · scripted walks ─────────────────────────────────

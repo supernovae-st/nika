@@ -66,10 +66,16 @@ impl ResidentExecutionCoordinator {
             .await?;
         match &admission {
             Admission::Created(record) => {
-                permit.send(ExecutionTask::new(record.id().clone()));
+                permit.send(ExecutionTask::new(
+                    record.id().clone(),
+                    self.limits.default_max_cost_usd(),
+                ));
             }
             Admission::Existing(record) if record.status() == JobStatus::Queued => {
-                permit.send(ExecutionTask::new(record.id().clone()));
+                permit.send(ExecutionTask::new(
+                    record.id().clone(),
+                    self.limits.default_max_cost_usd(),
+                ));
             }
             Admission::Existing(_) | Admission::Conflict(_) => drop(permit),
         }
@@ -94,6 +100,10 @@ impl ResidentExecutionCoordinator {
 
     /// Prepare a scheduled run carrying its required per-fire spend ceiling.
     ///
+    /// The declared ceiling is validated, then folded with the server-level
+    /// default: when both exist the LOWER wins — a schedule restricts the
+    /// server's ceiling, never widens it (#1349).
+    ///
     /// # Errors
     /// Returns the same typed refusals as [`Self::prepare_scheduled`].
     pub fn prepare_scheduled_with_max_cost(
@@ -105,6 +115,7 @@ impl ResidentExecutionCoordinator {
         if max_cost_usd.is_some_and(|cost| !cost.is_finite() || cost <= 0.0) {
             return Err(ServerError::ScheduledAdmission);
         }
+        let max_cost_usd = self.limits.effective_max_cost_usd(max_cost_usd);
         let key = scheduled_key(&origin)?;
         let world = admitted
             .snapshot()

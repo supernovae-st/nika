@@ -760,7 +760,8 @@ pub type nika_cadence::firing::SkipReason::Output = T
 pub struct nika_cadence::firing::ArmGeneration(_)
 impl nika_cadence::firing::ArmGeneration
 pub fn nika_cadence::firing::ArmGeneration::as_str(&self) -> &str
-pub fn nika_cadence::firing::ArmGeneration::compute(beat: &nika_cadence::registry::Beat, workflow_bytes: &[u8]) -> Self
+pub fn nika_cadence::firing::ArmGeneration::compute(beat: &nika_cadence::registry::Beat, snapshot_digest: &str) -> Self
+pub fn nika_cadence::firing::ArmGeneration::compute_resident(revision: &nika_cadence::schedule::ScheduleRevision, snapshot_digest: &str) -> Self
 pub fn nika_cadence::firing::ArmGeneration::from_wire(raw: &str) -> core::option::Option<Self>
 pub fn nika_cadence::firing::ArmGeneration::short(&self) -> &str
 impl core::clone::Clone for nika_cadence::firing::ArmGeneration
@@ -3767,7 +3768,8 @@ pub type nika_cadence::tick::TickDecision::Output = T
 pub struct nika_cadence::ArmGeneration(_)
 impl nika_cadence::firing::ArmGeneration
 pub fn nika_cadence::firing::ArmGeneration::as_str(&self) -> &str
-pub fn nika_cadence::firing::ArmGeneration::compute(beat: &nika_cadence::registry::Beat, workflow_bytes: &[u8]) -> Self
+pub fn nika_cadence::firing::ArmGeneration::compute(beat: &nika_cadence::registry::Beat, snapshot_digest: &str) -> Self
+pub fn nika_cadence::firing::ArmGeneration::compute_resident(revision: &nika_cadence::schedule::ScheduleRevision, snapshot_digest: &str) -> Self
 pub fn nika_cadence::firing::ArmGeneration::from_wire(raw: &str) -> core::option::Option<Self>
 pub fn nika_cadence::firing::ArmGeneration::short(&self) -> &str
 impl core::clone::Clone for nika_cadence::firing::ArmGeneration

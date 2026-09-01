@@ -24,8 +24,8 @@ pub use schedule::{
     ScheduleApplyPrecondition, ScheduleStore, ScheduleStoreError,
 };
 pub use server::{
-    BoundServer, CredentialRefuse, ExecutionBackend, ExecutionDisposition, ExecutionOutcome,
-    PreparedScheduledRun, ResidentAuthority, ResidentClock, ResidentConfig,
+    BoundServer, CredentialRefuse, DEFAULT_MAX_COST_USD, ExecutionBackend, ExecutionDisposition,
+    ExecutionOutcome, PreparedScheduledRun, ResidentAuthority, ResidentClock, ResidentConfig,
     ResidentExecutionBackend, ResidentExecutionCoordinator, ServerConfig, ServerError,
     ServerLaunchRefuse, ServerLimits, SystemResidentClock, launch_operator_message,
     optional_server_config, process_shutdown, serve_http, serve_resident, serve_resident_process,
