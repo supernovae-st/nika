@@ -525,8 +525,9 @@ struct RunArgs {
     /// stop (per-task values live in the trace). Spending EXACTLY the
     /// budget does not trip it. Costs use LIST RATES from the vendored
     /// public catalog — private/proxy/negotiated pricing is not
-    /// reflected; local · mock · unpriced work is never blocked (the
-    /// budget bounds what the catalog can meter).
+    /// reflected; local · mock work is never blocked (the budget bounds
+    /// what the catalog can meter — an unmeterable cloud seat under a cap
+    /// refuses, the UNCATALOGED bullet below).
     ///
     /// KNOW THREE LIMITS (the budget is a floor-refusal + between-admission
     /// meter, not a per-token cap):
@@ -538,9 +539,12 @@ struct RunArgs {
     ///     input/prompt tokens are not priced statically, so a huge
     ///     `max_tokens` safety ceiling can over-refuse, and an input-heavy
     ///     workflow under-floors (the ledger catches it at run time).
-    ///   · UNCATALOGED ≠ FREE — a model absent from the catalog meters as
-    ///     $0 (same as local/mock), so a genuinely PAID uncataloged model
-    ///     (custom endpoint · brand-new id) runs with no budget protection.
+    ///   · UNCATALOGED REFUSES — a statically known model the catalog cannot price (a
+    ///     typo · a brand-new id · a bare or unknown `<provider>/<model>` spelling · a
+    ///     cataloged vendor this binary cannot drive) refuses NIKA-1709 before any spend:
+    ///     the cap cannot bound a seat it cannot meter — an uncataloged id never meters
+    ///     $0 by silence under an armed cap. Local (ollama & friends) and mock seats stay
+    ///     admitted — free by construction, never by silence.
     #[arg(long = "max-cost-usd", value_name = "USD", value_parser = parse_budget_usd)]
     max_cost_usd: Option<f64>,
     /// Skip the opportunistic trace collection for this invocation

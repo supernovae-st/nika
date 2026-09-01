@@ -307,3 +307,198 @@ fn cel_index_mock_plus_cap_still_admits() {
         "mock through the index form is still a proven zero"
     );
 }
+
+// ---------------------------------------------------------------------
+// Issue 1368 · the uncataloged-id budget hole. An id the ONE resolver
+// (`nika_providers::resolve_refusal` — the MODELS rung's own predicate)
+// refuses used to skip BOTH budget arms: `unpriced_cloud_seat` spares an
+// unknown provider by construction, so a bare/unknown id floored at $0
+// and ANY `--max-cost-usd` passed. The run then died at dispatch — after
+// earlier tasks may have spent — or, under `on_error: { skip: true }`,
+// « succeeded » with the cap silently disarmed.
+// ---------------------------------------------------------------------
+
+/// The gauntlet's exact shape (#1368): the DOT form `claude-opus-4.1` is
+/// not a catalog id (the catalog's row is the DASH `claude-opus-4-1`).
+fn gauntlet_wf(model: &str) -> String {
+    format!(
+        "nika: g1368\nmodel: \"{model}\"\npermits: {{}}\ntasks:\n  ping:\n    infer: {{ prompt: \"PONG\", max_tokens: 768 }}\n"
+    )
+}
+
+/// The issue's repro: `claude-opus-4.1` metered a $0.000000 floor, so a
+/// $0.02 cap passed and the run proceeded with zero budget protection.
+#[test]
+fn uncataloged_dot_variant_plus_cap_refuses_to_start() {
+    let wf = parse(&gauntlet_wf("claude-opus-4.1"));
+    let report = nika_check::check(&wf);
+    assert!(
+        report.is_clean(),
+        "the MODELS rung is a CLI ladder — the nika-check report stays clean"
+    );
+    let err = gates(&wf, &report, &BTreeMap::new(), Some(0.02), None, None, &[])
+        .expect_err("an uncataloged id must not pass an armed cap by metering $0");
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    let msg = err.to_string();
+    assert!(msg.contains("claude-opus-4.1"), "names the seat");
+    assert!(
+        msg.contains("<provider>/<model>"),
+        "teaches the pin contract"
+    );
+    assert!(msg.contains("nika catalog"), "names the catalog");
+    assert!(msg.contains("0.020000"), "the armed cap rides");
+}
+
+/// The issue's « excellent behavior — keep it »: the cataloged seat
+/// spelling `anthropic/claude-opus-4-1` prices a $0.057600 floor (768
+/// output tokens × $75/M) that refuses the $0.02 cap — the floor arm,
+/// with its exact teaching text, unchanged.
+#[test]
+fn cataloged_prefixed_twin_keeps_the_1709_floor_refusal() {
+    let wf = parse(&gauntlet_wf("anthropic/claude-opus-4-1"));
+    let report = nika_check::check(&wf);
+    assert!(report.is_clean());
+    let err = gates(&wf, &report, &BTreeMap::new(), Some(0.02), None, None, &[])
+        .expect_err("the priced floor refuses the tiny cap");
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("unavoidable cost floor $0.057600"),
+        "the floor arm's own text, kept verbatim"
+    );
+}
+
+/// The bare DASH form is priced (the floor sees it) but never RESOLVES — a bare id is not
+/// `<provider>/<model>`. Under a generous cap the run used to start and die at dispatch;
+/// admission now refuses with the resolver's contract teaching (no unique pasteable
+/// seat exists for this id, so the generic form speaks).
+#[test]
+fn bare_cataloged_dash_under_a_generous_cap_refuses_at_admission() {
+    let wf = parse(&gauntlet_wf("claude-opus-4-1"));
+    let report = nika_check::check(&wf);
+    assert!(report.is_clean());
+    let err = gates(&wf, &report, &BTreeMap::new(), Some(1.00), None, None, &[])
+        .expect_err("a bare id — priced or not — cannot be bounded by a cap");
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    let msg = err.to_string();
+    assert!(msg.contains("claude-opus-4-1"), "names the seat");
+    assert!(
+        msg.contains("bare model id"),
+        "the resolver's why rides verbatim"
+    );
+    assert!(msg.contains("<provider>/<model>"), "the contract is taught");
+}
+
+/// The spare arm that hid the hole: an UNKNOWN provider prefix stayed
+/// « unknown, never promoted to cloud » — floor $0, any cap passed.
+#[test]
+fn unknown_provider_prefix_plus_cap_refuses_to_start() {
+    let wf = parse(&gauntlet_wf("not-a-provider/gpt-4"));
+    let report = nika_check::check(&wf);
+    let err = gates(&wf, &report, &BTreeMap::new(), Some(0.02), None, None, &[])
+        .expect_err("an unresolvable prefix must not pass an armed cap");
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    let msg = err.to_string();
+    assert!(msg.contains("not-a-provider"), "names the prefix");
+    assert!(msg.contains("does not resolve"), "the resolver names why");
+}
+
+/// The task-level pin is judged the same as the envelope pin.
+#[test]
+fn task_level_dot_variant_plus_cap_refuses_to_start() {
+    let wf = parse(
+        "nika: g1368-task\nmodel: mock/echo\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: \"PONG\", max_tokens: 768, model: \"claude-opus-4.1\" }\n",
+    );
+    let report = nika_check::check(&wf);
+    assert!(report.is_clean());
+    let err = gates(&wf, &report, &BTreeMap::new(), Some(0.02), None, None, &[])
+        .expect_err("the task-pinned dot variant refuses too");
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    assert!(err.to_string().contains("claude-opus-4.1"));
+}
+
+/// The `--var`-resolved form (W0-D-R1's walk): the live id is judged.
+#[test]
+fn var_resolved_dot_variant_plus_cap_refuses_to_start() {
+    let wf = parse(&runtime_model_input_wf());
+    let report = nika_check::check(&wf);
+    let overrides = BTreeMap::from([(
+        "model".to_owned(),
+        Value::String("claude-opus-4.1".to_owned()),
+    )]);
+    let err = gates(&wf, &report, &overrides, Some(0.02), None, None, &[])
+        .expect_err("a var-resolved dot variant refuses under a cap");
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    assert!(err.to_string().contains("claude-opus-4.1"));
+}
+
+/// The CLI `--model` override is the live id the gate prices (#342) —
+/// overriding INTO an uncataloged id refuses the same way.
+#[test]
+fn cli_model_override_to_a_dot_variant_refuses() {
+    let wf = parse(&gauntlet_wf("mock/echo"));
+    let report = nika_check::check(&wf);
+    let err = gates(
+        &wf,
+        &report,
+        &BTreeMap::new(),
+        Some(0.02),
+        Some("claude-opus-4.1"),
+        None,
+        &[],
+    )
+    .expect_err("the override is the run's real seat");
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    assert!(err.to_string().contains("claude-opus-4.1"));
+}
+
+/// The sparing arms that MUST keep working (#1368's explicit constraint):
+/// local/self-hosted seats (the catalog's five loopback providers) and
+/// the mock are free by CONSTRUCTION, never by silence — a cap admits
+/// them, as today.
+#[test]
+fn local_and_mock_seats_still_admit_under_a_cap() {
+    for model in [
+        "mock/echo",
+        "ollama/qwen3.5:4b",
+        "lmstudio/anything-pulled",
+        "llamacpp/anything-pulled",
+        "localai/anything-pulled",
+        "vllm/anything-pulled",
+    ] {
+        let wf = parse(&gauntlet_wf(model));
+        let report = nika_check::check(&wf);
+        assert!(
+            gates(&wf, &report, &BTreeMap::new(), Some(0.02), None, None, &[]).is_ok(),
+            "{model} is free by construction — a cap must keep admitting it"
+        );
+    }
+}
+
+/// The honest boundary of the fix: with NO cap armed the admission gate
+/// makes no budget claim — the FORM law (NIKA-PROVIDER) still speaks
+/// loud at dispatch, per task, and the run fails there as today. What
+/// changed is that an ARMED cap can no longer be disarmed by an
+/// uncataloged id.
+#[test]
+fn without_a_cap_the_gate_makes_no_budget_claim() {
+    let wf = parse(&gauntlet_wf("claude-opus-4.1"));
+    let report = nika_check::check(&wf);
+    assert!(
+        gates(&wf, &report, &BTreeMap::new(), None, None, None, &[]).is_ok(),
+        "no budget armed → no budget-floor claim (dispatch owns the FORM refusal)"
+    );
+}
+
+/// The run-level pin: the refusal precedes the prologue — zero events,
+/// zero spend (the `run_refused` helper asserts the empty sink).
+#[tokio::test]
+async fn dot_variant_under_cap_refuses_before_the_prologue() {
+    let wf = parse(&gauntlet_wf("claude-opus-4.1"));
+    let runtime = runtime_with(MockShell::new()).with_max_cost_usd(Some(0.02));
+    let err = run_refused(&runtime, &wf).await;
+    assert_eq!(err.spec_code(), "NIKA-1709");
+    let msg = err.to_string();
+    assert!(msg.contains("claude-opus-4.1"), "names the seat");
+    assert!(msg.contains("nika catalog"), "names the catalog");
+}

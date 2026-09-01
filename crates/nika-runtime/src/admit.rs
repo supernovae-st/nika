@@ -66,6 +66,13 @@ pub(crate) fn gates(
 /// `model:` CEL is not on the static report. The internal `gates` path
 /// passes those bindings so the live id is judged here; this 4-arg form (the CLI
 /// preflight) still prices `--model` and the file.
+///
+/// #1368 · the unresolvable arm: a resolved id the ONE resolver
+/// (`nika_providers::resolve_refusal`) refuses — a bare id · an unknown
+/// prefix · a cataloged vendor this binary cannot drive — joins the
+/// unpriced cloud class here. Such an id floored at $0 and passed ANY
+/// budget (the gauntlet's `claude-opus-4.1`): an armed cap cannot
+/// bound a seat it cannot name.
 #[must_use]
 pub fn budget_floor_refusal(
     wf: &RawWorkflow,
@@ -84,7 +91,7 @@ fn budget_floor_at(
     overrides: &BTreeMap<String, Value>,
 ) -> Option<RuntimeError> {
     let budget = budget?;
-    if let Some(err) = unpriced_cloud_on_resolved_ids(wf, budget, model_override, overrides) {
+    if let Some(err) = unmeterable_seat_on_resolved_ids(wf, budget, model_override, overrides) {
         return Some(err);
     }
     let owned;
@@ -122,17 +129,64 @@ fn unpriced_cloud_cap_refusal(report: &CheckReport, budget: f64) -> Option<Runti
 /// CLI `--model`, envelope/task CEL that a `--var` or a declared
 /// default fills, the envelope literal — an unpriced cloud seat
 /// under a cap refuses even when `nika check` named a priced default.
-fn unpriced_cloud_on_resolved_ids(
+///
+/// #1368 · the stronger arm: an id the ONE resolver
+/// ([`nika_providers::resolve_refusal`] — the MODELS rung's own
+/// predicate, so check ≡ run by construction) REFUSES is not merely
+/// unpriced — an armed cap cannot bound a seat the binary cannot even
+/// name. That id used to skip BOTH arms below (`unpriced_cloud_seat`
+/// spares an unknown provider by construction), floor at $0, and pass
+/// ANY budget — the gauntlet's `claude-opus-4.1` dot variant ran with
+/// zero budget protection, dying at dispatch (or « succeeding » under
+/// `on_error: skip`) after the cap had silently disarmed.
+fn unmeterable_seat_on_resolved_ids(
     wf: &RawWorkflow,
     budget: f64,
     model_override: Option<&str>,
     overrides: &BTreeMap<String, Value>,
 ) -> Option<RuntimeError> {
-    let unpriced: Vec<String> = resolved_infer_models(wf, model_override, overrides)
-        .into_iter()
-        .filter(|model| unpriced_cloud_seat(model))
-        .collect();
-    unpriced_cloud_message(&unpriced, budget)
+    let mut unresolvable: Vec<(String, String)> = Vec::new();
+    let mut unpriced: Vec<String> = Vec::new();
+    for model in resolved_infer_models(wf, model_override, overrides) {
+        // The resolver's refusal is the stronger claim, judged first: a
+        // cataloged vendor this binary cannot drive (the azure class) is
+        // unresolvable HERE, not merely unpriced.
+        if let Some(refusal) = nika_providers::resolve_refusal(&model) {
+            unresolvable.push((model, refusal.why));
+        } else if unpriced_cloud_seat(&model) {
+            unpriced.push(model);
+        }
+    }
+    unresolvable_seat_message(&unresolvable, budget)
+        .or_else(|| unpriced_cloud_message(&unpriced, budget))
+}
+
+/// #1368 · the unresolvable arm's refusal: every seat with the resolver's
+/// own why verbatim (the `<provider>/<model>` contract · the pasteable
+/// repair · the did-you-mean — the MODELS rung's teaching, never a second
+/// phrasing), then the budget law and the two honest ways out (pin a
+/// catalog seat · drop the cap for a local/mock rehearsal).
+fn unresolvable_seat_message(
+    unresolvable: &[(String, String)],
+    budget: f64,
+) -> Option<RuntimeError> {
+    if unresolvable.is_empty() {
+        return None;
+    }
+    let models = unresolvable
+        .iter()
+        .map(|(model, why)| format!("`{model}` — {why}"))
+        .collect::<Vec<_>>()
+        .join(" · ");
+    Some(RuntimeError::BudgetFloor {
+        message: format!(
+            "refusing to start: model {models}. --max-cost-usd ${budget:.6} cannot bound \
+             a model this binary cannot resolve — an uncataloged id is not free, it is \
+             unmetered, and a budget it disarms is no budget. Pin a `<provider>/<model>` \
+             catalog seat (`nika catalog` lists the runnable providers under LOCAL and \
+             CLOUD), or drop the cap for a local/mock rehearsal.\n"
+        ),
+    })
 }
 
 fn unpriced_cloud_message(unpriced: &[String], budget: f64) -> Option<RuntimeError> {
@@ -240,7 +294,9 @@ fn with_alias(
 }
 
 /// A recognized third-party cloud seat with no snapshot row. Unknown
-/// providers stay unknown (never promoted to cloud). Mock and local
+/// providers stay unknown (never promoted to cloud — but NOT spared:
+/// the resolved-id walk's unresolvable arm refuses them under a cap
+/// through [`nika_providers::resolve_refusal`], #1368). Mock and local
 /// are the sparing arms — unpriced, never this class.
 pub(crate) fn unpriced_cloud_seat(model: &str) -> bool {
     if model == "mock" || model.starts_with("mock/") {
