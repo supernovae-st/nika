@@ -6,7 +6,7 @@
 # A pile of documents becomes one sourced brief — and no model window ever
 # holds two documents. A fast pass assigns each file a focus FROM ITS PATH
 # alone, every document is then read and carded in its own fresh window,
-# jq assembles and ranks the deck deterministically, and a synthesis pass
+# jq assembles and ranks the deck deterministically, and a thinking pass
 # answers the question from the cards. Context folding: the corpus lives
 # in the dataflow, each model call sees one slice, the synthesis sees only
 # projections. Window size stops scaling with corpus size.
@@ -25,7 +25,7 @@
 #
 # Needs · nothing to rehearse — the fixture tree is committed
 #         (./examples/fixtures/docs). The real run wants ollama serving
-#         llama3.2:3b (one small resident seat · see `model:`). To
+#         qwen3.5:4b (one small resident seat · see `model:`). To
 #         digest YOUR folder, edit
 #         `const.corpus_root` AND the matching `permits.fs.read` entry
 #         TOGETHER: a permit is a literal, it cannot interpolate a const
@@ -40,17 +40,14 @@ nika: corpus-digest
 run:
   clock: system   # the `timeout:` deadlines below ride the wall clock · said out loud (see 03)
 
-# A small NON-thinking seat, on purpose: two of the four model stages are
-# forms to fill, and a thinking seat DELIBERATES on forms (measured: the
-# corpus default qwen3.5:4b burned caps of 600, 2000 and 3000 tokens
-# reasoning before the JSON and never closed it · NIKA-INFER-002). One
-# resident seat also spares the model-swap thrash of per-task overrides
-# on a single GPU (measured: alternating two seats sent every stage cold
-# and timed the synthesis out). Upgrade path: point `brief` at a
-# thinking seat via its own `model:` when your machine holds both — the
-# seat is what licenses a `thinking:` declaration (check REFUSES it on a
-# model the catalog knows cannot reason · a dead declaration).
-model: ollama/llama3.2:3b   # local · zero key · `--model mock/echo` rehearses the whole file
+# The house seat — a THINKING model. Measured: at caps of 600, 2000 and
+# 3000 tokens qwen3.5:4b spent the whole budget reasoning before the JSON
+# and never closed it (NIKA-INFER-002 · engine#428). So every stage's
+# ceiling below is sized for the think block AND the answer — both count
+# against `max_tokens`. One resident seat also spares the model-swap
+# thrash of per-task overrides on a single GPU (measured: alternating two
+# seats sent every stage cold and timed the synthesis out).
+model: ollama/qwen3.5:4b   # local · zero key · `--model mock/echo` rehearses the whole file
 
 inputs:
   question:
@@ -93,7 +90,7 @@ tasks:
       files: ${{ tasks.files.output }}
     timeout: "8m"                # a local seat may be slow · bounded, not instant
     infer:
-      max_tokens: 3000           # the form is short · the cap is margin, not hope
+      max_tokens: 6000           # think block + the form · the cap is margin, not hope
       prompt: |
         Assign one focus of 3 to 8 words to each file path. The focuses
         serve this question: ${{ with.question }}
@@ -164,7 +161,7 @@ tasks:
     on_error:
       recover: null              # null holds the index open so the zip below stays aligned
     infer:
-      max_tokens: 3000           # a card, not an essay
+      max_tokens: 6000           # think block + a card, not an essay
       prompt: |
         Fill the card for ONE document. Claims are one sentence each,
         quotes are verbatim and short, relevance is 0 to 5 for the focus.
@@ -220,19 +217,19 @@ tasks:
     when: ${{ size(with.deck) > 0 }}
     timeout: "12m"               # judgment gets patience · still bounded
     infer:
-      max_tokens: 2000
+      max_tokens: 8000           # the declared think budget (4000 below) + the brief · both count
       prompt: |
         Question · ${{ with.question }}
         Deck of source cards · ${{ with.deck }}
         Answer the question from the cards alone. Cite the `path` of every
         card you lean on. Where cards disagree, say so — do not resolve a
         conflict the sources did not resolve.
-      # No `thinking:` block on purpose: the seat law REFUSES a thinking
-      # declaration on a model the catalog knows cannot reason (a dead
-      # declaration — the wire drops the budget), and the local seat this
-      # file runs on is exactly that. Seat `brief` on a reasoning-capable
-      # model via its own `model:` — THAT is what licenses
-      # `thinking: { enabled: true, budget_tokens: … }`.
+      thinking:
+        # A reasoning budget, honoured by seats that support extended
+        # thinking and ignored by the ones that do not — declaring it
+        # never fails a run.
+        enabled: true
+        budget_tokens: 4000
 
 # Both the brief and the deck, so the fold is inspectable: the deck is
 # everything the synthesis was allowed to see. Read with `--output json`.

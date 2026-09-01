@@ -28,10 +28,11 @@ model: ollama/qwen3.5:4b   # local · zero key · swap for any provider in the c
 # block is a statement, not a formality: this workflow opens no file, reaches
 # no host, runs no program. Leaving the block out says something different —
 # that no boundary was declared — and both forms refuse an effecting tool at
-# run, with different verdicts: an absent block reports NIKA-AUTH-006 (no
-# boundary to judge against), `permits: {}` reports NIKA-SEC-004 (outside the
-# boundary you drew). Declaring the zero is what puts the checker's PERMITS
-# and TRIFECTA judges on duty — under-declaring quietly stands them down.
+# CHECK, with the exact fix printed and different verdicts: an absent block
+# reports NIKA-AUTH-006 (no boundary to judge against), `permits: {}` reports
+# NIKA-SEC-004 (outside the boundary you drew). They used to surface at run;
+# 0.115 judges both statically, before a single token is spent. Absent means
+# the zero wall too (NEP-0003) — declaring the zero says it on purpose.
 permits: {}
 
 tasks:
@@ -46,8 +47,7 @@ tasks:
       # it speaks — on this exact prompt: 64 → "", 256 → "", 512 → "", 1024 →
       # "Bonjour.", 2048 → "Bonjour !". Under the threshold the run is GREEN and
       # the output is EMPTY, because the budget ran out mid-thought. Size the
-      # cap for the thinking, or pick a non-thinking model (llama3.2:3b) when
-      # you want a tight one.
+      # cap for the thinking, not just the answer.
       max_tokens: 2048
 
 # The return value. It does NOT appear on the live run — that surface shows

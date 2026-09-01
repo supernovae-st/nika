@@ -17,7 +17,7 @@
 #   - `const:` + typed `inputs:` with defaults · two of the three value authorities in use
 #   - `permits:` · fs read/write, one host, one program, four tools
 #
-# Needs · ollama with the model pulled · `ollama pull llama3.2:3b`.
+# Needs · ollama with the model pulled · `ollama pull qwen3.5:4b`.
 #   No ollama? `--model mock/echo` rehearses the whole file keyless.
 #
 # Run · nika run examples/snippets/weekly-radar.nika.yaml
@@ -34,7 +34,7 @@ inputs:
 const:
   output_dir: "./radar"
 
-model: ollama/llama3.2:3b
+model: ollama/qwen3.5:4b
 
 permits:
   exec: ["git"]
@@ -94,7 +94,7 @@ tasks:
       backoff_ms: 1000
     infer:
       prompt: "One weekly radar on ${{ inputs.topic }}, five bullets: ${{ with.news }} ${{ with.log }} ${{ with.notes }}"
-      max_tokens: 1024
+      max_tokens: 3000   # the house seat THINKS first — think block + five bullets both count
 
   save:
     with:

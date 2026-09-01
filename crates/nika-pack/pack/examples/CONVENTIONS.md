@@ -123,12 +123,12 @@ permits:
 - `net.http` entries are **exact host names, never globs**.
 - A file that touches nothing declares `permits: {}` — the explicit zero
   (F-O8). Leaving `permits:` out entirely is a different thing: it means
-  *no boundary was declared*. Both forms refuse an effecting tool at run,
-  with different verdicts — measured on `nika-cli 0.107`: an absent block
+  *no boundary was declared*. Both forms refuse an effecting tool at CHECK,
+  with different verdicts — measured on `nika-cli 0.115.0`: an absent block
   reports `NIKA-AUTH-006` (no boundary to judge against) · `permits: {}`
-  reports `NIKA-SEC-004` (outside the boundary you drew). Declaring the
-  zero is also what puts the PERMITS and TRIFECTA judges on duty —
-  under-declaring quietly stands them down (01-hello teaches this split).
+  reports `NIKA-SEC-004` (outside the boundary you drew) · each prints the
+  exact fix, zero tokens spent. On 0.107 these surfaced at run; the clock
+  moved to check, the verdict split stayed (01-hello teaches it).
 
 ### The wildcard table · measured, 2026-07-28
 
