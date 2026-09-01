@@ -262,12 +262,7 @@ pub(super) fn limits() -> ServerLimits {
 #[test]
 fn store_control_queue_reserves_settlement_beyond_http_fan_in() {
     let limits = limits();
-    assert_eq!(
-        store_control_capacity(limits),
-        limits
-            .max_connections()
-            .saturating_add(limits.max_concurrent_jobs().saturating_add(1))
-    );
+    assert_eq!(store_control_capacity(limits), 64 + 16 + 4 + 1);
 }
 
 fn short_shutdown_limits() -> ServerLimits {

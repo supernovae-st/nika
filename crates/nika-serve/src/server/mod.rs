@@ -361,11 +361,13 @@ impl ResidentAuthority {
 }
 
 fn store_control_capacity(limits: ServerLimits) -> usize {
-    // Every live HTTP connection may have one lifecycle mutation queued while
-    // each running execution still needs a reserved terminal settlement slot.
-    // One final slot keeps shutdown/control progress independent of that fan-in.
+    // Every live HTTP connection may have one lifecycle mutation queued, every
+    // reserved job slot may abort a prepared ARM run, and every running
+    // execution still needs a terminal settlement slot. One final slot keeps
+    // shutdown/control progress independent of that combined fan-in.
     limits
         .max_connections()
+        .saturating_add(limits.queue_capacity())
         .saturating_add(limits.max_concurrent_jobs())
         .saturating_add(1)
 }
