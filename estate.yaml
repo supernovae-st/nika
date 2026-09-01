@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4752
+  classified_files: 4753
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 1775
+    authored: 1776
     authored-pin: 2
     generated: 125
     pinned-copy: 145
@@ -242,8 +242,8 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 2
-  aggregate_sha256: a131e14cdaa1fd0565cdd472bf664df62b933ad71f1bf54fe5fd2c07944f7505
+  match_count: 3
+  aggregate_sha256: 23050ca7936c4e2e463c7076ed877d6a8bcc42017d7e13a79437d4a00d919d6c
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
