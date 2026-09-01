@@ -13,7 +13,6 @@ use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::sync::oneshot;
-use tokio::task::JoinSet;
 
 use super::route::SNAPSHOT_WIRE_UNIT_CEILING;
 use super::test_support::assert_allowlisted;
@@ -259,6 +258,12 @@ pub(super) fn limits() -> ServerLimits {
     )
 }
 
+#[test]
+fn store_control_queue_tracks_bounded_http_fan_in() {
+    let limits = limits();
+    assert_eq!(store_control_capacity(limits), limits.max_connections());
+}
+
 fn short_shutdown_limits() -> ServerLimits {
     ServerLimits::new(
         1024,
@@ -364,6 +369,8 @@ fn four_header_limits() -> ServerLimits {
     )
 }
 
+#[cfg(test)]
+mod cancel_race;
 #[cfg(test)]
 mod request_lifecycle;
 
@@ -713,60 +720,22 @@ async fn interrupted_event_stream_redacts_payload_fields() {
     second.stop().await.expect("clean stop");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn concurrent_cancel_is_idempotent_and_wins_the_running_settlement_race() {
-    let world = TestWorld::new();
-    let backend = Arc::new(GatedBackend::new());
-    let server = world.start(backend.clone(), limits()).await;
-    let created = server
-        .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
-            "cancel-race",
-            &auth_header(),
-        ))
-        .await;
-    let id = created.json()["id"].as_str().expect("id").to_owned();
-    wait_for_status(&server, &id, "running")
-        .await
-        .expect("running");
+#[test]
+fn missing_wire_boundary_diagnostic_omits_request_headers() {
+    let request = format!("POST /v1/jobs/cancel HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\n\r\n");
+    let address = "127.0.0.1:1".parse().expect("test address");
+    let panic = std::panic::catch_unwind(|| assert_http_response_boundary(address, &request, &[]))
+        .expect_err("missing boundary must panic");
+    let message = panic
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| panic.downcast_ref::<&str>().copied())
+        .expect("string panic");
 
-    let request = cancel_request(&id);
-    let mut racers = JoinSet::new();
-    for _ in 0..12 {
-        let request = request.clone();
-        let address = server.address;
-        racers.spawn(async move { wire_request(address, &request).await });
-    }
-    while let Some(response) = racers.join_next().await {
-        let response = response.expect("cancel request");
-        assert!(matches!(response.status, 200 | 202), "{response:#?}");
-        assert_eq!(response.json()["id"], id);
-    }
-    backend.release(1);
-    wait_for_status(&server, &id, "cancelled")
-        .await
-        .expect("cancelled");
-
-    let job = server
-        .request(&get_request(&format!("/v1/jobs/{id}")))
-        .await
-        .json();
-    assert_eq!(job["status"], "cancelled");
-    assert_eq!(job["receipt"]["job_id"], id);
-    assert_eq!(job["receipt"]["execution_id"], job["execution_id"]);
-    assert_eq!(job["receipt"]["trace_id"], job["trace_id"]);
-    let replay = server.request(&cancel_request(&id)).await;
-    assert_eq!(replay.status, 200, "{}", replay.body);
-    assert_eq!(replay.json(), job);
-
-    let streamed = server.request(&events_request(&id, None)).await;
-    let events = parse_sse_data(&streamed.body);
-    let terminal = events
-        .iter()
-        .find(|event| event["status"] == "cancelled")
-        .expect("cancelled terminal event");
-    assert_eq!(terminal["receipt"], job["receipt"]);
-    server.stop().await.expect("clean stop");
+    assert!(message.contains("request=\"POST /v1/jobs/cancel HTTP/1.1\""));
+    assert!(message.contains("bytes=0"));
+    assert!(!message.contains(TOKEN));
+    assert!(!message.contains("Authorization"));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -987,13 +956,42 @@ pub(super) async fn wait_for_status(
 }
 
 async fn wire_request(address: SocketAddr, request: &str) -> WireResponse {
-    let mut stream = tokio::net::TcpStream::connect(address)
-        .await
-        .expect("connect");
-    stream.write_all(request.as_bytes()).await.expect("write");
+    let request_line = request.lines().next().unwrap_or("<empty>");
+    let stream = tokio::net::TcpStream::connect(address).await;
+    assert!(
+        stream.is_ok(),
+        "HTTP connect failed: peer={address} request={request_line:?}: {:?}",
+        stream.as_ref().err()
+    );
+    let mut stream = stream.expect("connect result checked");
+    let written = stream.write_all(request.as_bytes()).await;
+    assert!(
+        written.is_ok(),
+        "HTTP write failed: peer={address} request={request_line:?}: {:?}",
+        written.as_ref().err()
+    );
     let mut response = Vec::new();
-    stream.read_to_end(&mut response).await.expect("read");
+    let read = stream.read_to_end(&mut response).await;
+    assert!(
+        read.is_ok(),
+        "HTTP read failed: peer={address} request={request_line:?}: {:?}",
+        read.as_ref().err()
+    );
+    assert_http_response_boundary(address, request, &response);
     WireResponse::parse(&response)
+}
+
+fn assert_http_response_boundary(address: SocketAddr, request: &str, response: &[u8]) {
+    let request_line = request.lines().next().unwrap_or("<empty>");
+    let prefix_len = response.len().min(256);
+    let prefix = String::from_utf8_lossy(&response[..prefix_len])
+        .escape_default()
+        .to_string();
+    assert!(
+        response.windows(4).any(|window| window == b"\r\n\r\n"),
+        "HTTP response boundary missing: peer={address} request={request_line:?} bytes={} prefix={prefix:?}",
+        response.len()
+    );
 }
 
 pub(super) fn post_request(body: &str, key: &str, authorization: &str) -> String {

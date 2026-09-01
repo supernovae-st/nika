@@ -504,6 +504,61 @@ async fn losing_claim_aborts_prepared_runs_and_origin_namespaces_do_not_collide(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn concurrent_prepared_drop_settles_every_reserved_queue_slot() {
+    const QUEUE_CAPACITY: usize = 64;
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let bounded_limits = ServerLimits::new(
+        1024,
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+        Duration::from_millis(200),
+        1,
+        QUEUE_CAPACITY,
+        1,
+        32,
+    );
+    let server = world.start(backend.clone(), bounded_limits).await;
+    let mut run_ids = Vec::with_capacity(QUEUE_CAPACITY);
+    let mut prepared_runs = Vec::with_capacity(QUEUE_CAPACITY);
+
+    for index in 0..QUEUE_CAPACITY {
+        let schedule_id = format!("drop-{index}");
+        let prepared = prepare(
+            server.coordinator(),
+            admitted(&world),
+            scheduled_origin(ScheduleOrigin::Project, &schedule_id, 'a'),
+        )
+        .await;
+        run_ids.push(prepared.run_id().clone());
+        prepared_runs.push(prepared);
+    }
+
+    let barrier = Arc::new(std::sync::Barrier::new(QUEUE_CAPACITY));
+    let drops = prepared_runs
+        .into_iter()
+        .map(|prepared| {
+            let barrier = barrier.clone();
+            tokio::task::spawn_blocking(move || {
+                barrier.wait();
+                drop(prepared);
+            })
+        })
+        .collect::<Vec<_>>();
+    for dropped in drops {
+        dropped.await.expect("prepared drop task");
+    }
+
+    for run_id in run_ids {
+        wait_for_status(&server, run_id.as_str(), "failed")
+            .await
+            .expect("every abandoned preparation settles");
+    }
+    assert_eq!(backend.calls(), 0, "a lost ARM claim cannot reach effects");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn restart_surfaces_running_schedule_as_interrupted_ambiguity() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));

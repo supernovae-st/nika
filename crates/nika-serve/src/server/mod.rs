@@ -280,15 +280,12 @@ impl ResidentAuthority {
     ) -> Result<Self, ServerError> {
         validate_resident_config(&config)?;
         let prepared = prepare_authority(&config).await?;
+        let control_capacity = store_control_capacity(config.limits());
         let store_actor = StoreActor::start(
             prepared.store,
             prepared.incarnation,
             config.limits().max_connections(),
-            config
-                .limits()
-                .max_concurrent_jobs()
-                .saturating_mul(2)
-                .saturating_add(4),
+            control_capacity,
         )?;
         let (jobs, receiver) = mpsc::channel(config.limits().queue_capacity());
         let recovered = store_actor
@@ -361,6 +358,12 @@ impl ResidentAuthority {
     {
         run_authority_with_http(self, server, shutdown).await
     }
+}
+
+fn store_control_capacity(limits: ServerLimits) -> usize {
+    // HTTP mutations remain bounded and may fail fast when this ingress queue
+    // is full. Internal lifecycle controls use reliable backpressure instead.
+    limits.max_connections()
 }
 
 /// Bound authenticated HTTP listener attached to a resident authority.
@@ -876,7 +879,7 @@ async fn start_running(
 ) -> Result<bool, ServerError> {
     match guard
         .store
-        .start_execution(
+        .start_execution_reliable(
             guard.id.clone(),
             admitted.execution_id().to_string(),
             admitted.trace_id().to_string(),
@@ -1017,7 +1020,7 @@ impl RunningGuard {
     ) -> Result<(), ServerError> {
         let result = self
             .store
-            .settle_with_result(self.id.clone(), status, event, outputs, receipt)
+            .settle_with_result_reliable(self.id.clone(), status, event, outputs, receipt)
             .await;
         if let Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) = &result
         {
