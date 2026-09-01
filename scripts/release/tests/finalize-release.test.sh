@@ -196,7 +196,7 @@ printf 'false\n' >"$RELEASE_DRAFT"
 result="$(run_finalizer full false)"
 [ "$result" = 'transitioned=false' ] \
   || fail 'fully proven public replay did not validate'
-[ ! -s "$PATCH_LOG" ] || fail 'public validation replay PATCHed the release'
+[ ! -s "$PATCH_LOG" ] || fail 'public validation replay patched the release'
 
 # Stable draft publication refuses a false tap-readiness boolean.
 printf 'true\n' >"$RELEASE_DRAFT"
