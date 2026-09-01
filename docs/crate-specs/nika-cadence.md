@@ -124,9 +124,14 @@ schedule and label inputs while `nika-cli` renders launchd/systemd units.
 
 **W7 — the pure firing machine (`firing` module)**:
 `SlotId::derive(workflow, cadence, slot)` freezes the existing
-`nika/arm-slot@1` identity; `ArmGeneration::compute(beat,
-workflow_bytes)` freezes `nika/arm-gen@1` over the beat's declared
-canonical fields and the exact workflow-byte hash; `FencingToken`
+`nika/arm-slot@1` identity; `ArmGeneration::{compute,
+compute_resident}` freezes `nika/arm-gen@2` — ONE law, ONE domain, both
+firing edges: the CLI arm-fire hashes the beat's declared canonical
+fields, the resident serve hashes its `ScheduleRevision`, and the
+source half is the admitted world's FULL snapshot digest (root +
+children + skills + imports — `@1` hashed the root bytes alone; those
+values remain interpretable as historical ledger evidence);
+`FencingToken`
 prevents naked sequence integers crossing the boundary.
 `FiringEvent` and `FiringState` carry the closed lifecycle vocabulary;
 `transition` is the table, `fold` applies fencing pairing, and `decide`

@@ -11,7 +11,6 @@ use nika_cadence::{
     ScheduleDueVerdict, ScheduleOrigin, SchedulePlanError, ScheduleRevision, ScheduleSlot,
     plan_schedule,
 };
-use sha2::{Digest as _, Sha256};
 use tokio::sync::watch;
 use tokio::task::JoinSet;
 
@@ -22,7 +21,6 @@ use super::{AuthorityState, PreparedScheduledRun, ServerError};
 
 const FALLBACK_RESCAN: Duration = Duration::from_secs(5);
 const PLANNER_PROJECTION: usize = 1;
-const GENERATION_DOMAIN: &[u8] = b"nika/resident-schedule-generation@1\0";
 
 struct ResidentSchedule {
     origin: ScheduleOrigin,
@@ -231,7 +229,7 @@ async fn prepare_claim(
                 Path::new(candidate.schedule.definition.workflow()),
             )
             .map_err(|_| ServerError::ScheduledAdmission)?;
-        let generation = generation(&candidate.schedule.definition, &admitted)?;
+        let generation = generation(&candidate.schedule.definition, &admitted);
         let fired_at = clock.now();
         let origin = JobOrigin::schedule(
             candidate.schedule.origin,
@@ -376,21 +374,15 @@ fn handle_overlap(state: &AuthorityState, candidate: FireCandidate) -> Result<()
     }
 }
 
+/// The resident edge of the ONE generation law (`nika/arm-gen@2` — see
+/// `nika_cadence::firing`): the schedule's revision is the declaration,
+/// the admitted world's FULL snapshot digest is the source — a child,
+/// skill, or import edit between two fires mints a new generation.
 fn generation(
     definition: &ScheduleDefinition,
     admitted: &nika_execution::AdmittedExecution,
-) -> Result<ArmGeneration, ServerError> {
-    let unit = admitted
-        .snapshot()
-        .unit(admitted.snapshot().root())
-        .ok_or(ServerError::ScheduledAdmission)?;
-    let mut hasher = Sha256::new();
-    hasher.update(GENERATION_DOMAIN);
-    hasher.update(definition.revision().as_str().as_bytes());
-    hasher.update([0]);
-    hasher.update(unit.bytes());
-    ArmGeneration::from_wire(&format!("{:x}", hasher.finalize()))
-        .ok_or(ServerError::ScheduledAdmission)
+) -> ArmGeneration {
+    ArmGeneration::compute_resident(&definition.revision(), admitted.snapshot().digest())
 }
 
 fn publish_refusals(state: &AuthorityState, refused: Vec<RefusedProjectSchedule>) {
@@ -547,5 +539,67 @@ mod tests {
         assert!(fire_is_still_due(&store, &candidate, &due_now).expect("still due"));
         let rolled_back: Zoned = "2026-09-01T08:59:59Z[UTC]".parse().expect("rolled back");
         assert!(!fire_is_still_due(&store, &candidate, &rolled_back).expect("recomputed refusal"));
+    }
+
+    /// #1343 — the resident edge hashes the admitted world's FULL
+    /// snapshot digest: editing ONLY a child workflow or ONLY a skill
+    /// between two fires mints a new generation; the same world under
+    /// the same revision keeps its own (one law with the CLI edge —
+    /// `nika/arm-gen@2`).
+    #[test]
+    fn a_child_or_skill_edit_mints_a_new_resident_generation() {
+        let dir = tempfile::tempdir().expect("project");
+        let workflows = dir.path().join("workflows");
+        std::fs::create_dir_all(workflows.join("skills/review")).expect("skill dir");
+        let root = "nika: doctor\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  child:\n    invoke:\n      workflow: \"child.nika.yaml\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+        let child = "nika: child\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }\noutputs:\n  report: { value: \"${{ tasks.fetch.output }}\", type: string }\n";
+        let skill = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
+        std::fs::write(workflows.join("doctor.nika.yaml"), root).expect("root");
+        std::fs::write(workflows.join("child.nika.yaml"), child).expect("child");
+        std::fs::write(workflows.join("skills/review/SKILL.md"), skill).expect("skill");
+        let registry = nika_cadence::parse_registry(
+            "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n    manqué: sauter\n",
+        )
+        .expect("parse");
+        let definition =
+            ScheduleDraft::from_project("doctor", registry.beats().next().expect("beat"))
+                .and_then(ScheduleDraft::validate)
+                .expect("schedule");
+        let service = nika_execution::ExecutionService::default();
+        let admit = || {
+            let project = nika_fs::OwnedDir::open(dir.path()).expect("project capability");
+            service
+                .admit(&project, Path::new("workflows/doctor.nika.yaml"))
+                .expect("admitted world")
+        };
+        let base = generation(&definition, &admit());
+        assert_eq!(
+            base,
+            generation(&definition, &admit()),
+            "same world + same revision → same generation"
+        );
+        // Edit ONLY the child — the root bytes never move.
+        std::fs::write(
+            workflows.join("child.nika.yaml"),
+            "nika: child-v2\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }\noutputs:\n  report: { value: \"${{ tasks.fetch.output }}\", type: string }\n",
+        )
+        .expect("edit child");
+        assert_ne!(
+            base,
+            generation(&definition, &admit()),
+            "a child-only edit mints a new generation"
+        );
+        // Restore the child, edit ONLY the skill.
+        std::fs::write(workflows.join("child.nika.yaml"), child).expect("restore child");
+        std::fs::write(
+            workflows.join("skills/review/SKILL.md"),
+            "---\nname: review\ndescription: Review code.\n---\nRevised.\n",
+        )
+        .expect("edit skill");
+        assert_ne!(
+            base,
+            generation(&definition, &admit()),
+            "a skill-only edit mints a new generation"
+        );
     }
 }
