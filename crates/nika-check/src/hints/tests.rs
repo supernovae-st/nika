@@ -439,16 +439,18 @@ fn retried_notify_webhook_warns_duplicate_side_effect() {
 }
 
 #[test]
-fn retried_fetch_post_warns_without_idempotency_key() {
-    // P0-17 — `nika:fetch` accepts POST (defs.rs · http.rs: « POST must
-    // pair an idempotency key »): a bare retried POST replays the
-    // request's side effects.
+fn retried_fetch_post_is_a_finding_not_a_hint() {
+    // #1371 — the fetch arm of this hint class is RETIRED, promoted to the
+    // `NIKA-SEC-016` finding (the write-conflict/exec-floor precedent: an
+    // error owns its repair, never a hint). The hint surface stays silent;
+    // the `retry_safety` lane owns the refusal.
     let h = hints_of(
         "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  post:\n    retry: { max_attempts: 2 }\n    invoke:\n      tool: nika:fetch\n      args: { url: \"https://api.example.com/items\", method: POST, body: { a: 1 } }\n",
     );
-    let hit = h.iter().find(|x| x.kind == "retry-effects").expect("hint");
-    assert_eq!(hit.task, "post");
-    assert!(hit.advice.contains("POST"), "{hit:?}");
+    assert!(
+        !h.iter().any(|x| x.kind == "retry-effects"),
+        "the retired fetch arm emits no hint: {h:?}"
+    );
 }
 
 #[test]
@@ -496,9 +498,10 @@ fn retry_on_contracted_effects_makes_no_claim() {
     // infer retries re-spend tokens (covered by cost) · `nika:write`
     // is a documented atomic overwrite (idempotent — P0-17 narrowed
     // this test's blanket « nika: builtins are idempotent » claim:
-    // `nika:notify` and non-GET `nika:fetch` are NOT, the two tests
-    // above pin their hint) · max_attempts 1 is no retry at all —
-    // none of these hint.
+    // `nika:notify` and non-GET `nika:fetch` are NOT — notify's hint is
+    // pinned above, and since #1371 the keyless mutating fetch is the
+    // `NIKA-SEC-016` finding, not a hint) · max_attempts 1 is no retry
+    // at all — none of these hint.
     let h = hints_of(
         "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  ask:\n    retry: { max_attempts: 3 }\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n  save:\n    retry: { max_attempts: 3 }\n    with: { content: \"${{ tasks.ask.output }}\" }\n    invoke:\n      tool: nika:write\n      args: { path: out.md, content: \"${{ with.content }}\" }\n  once:\n    retry: { max_attempts: 1 }\n    after: { save: success }\n    exec: { shell: \"true\" }\n",
     );

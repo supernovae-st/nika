@@ -182,6 +182,7 @@ pub fn render(
     );
     writes_rung(&mut out, report, t);
     exec_rung(&mut out, report, t);
+    crate::check_laws::retry_rung(&mut out, report, t);
     crate::check_laws::order_rung(&mut out, report, t);
     permits(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);

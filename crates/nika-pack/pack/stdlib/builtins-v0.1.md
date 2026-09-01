@@ -388,7 +388,16 @@ tools — they all route HERE (no `nika:crawl`).
 **Non-2xx is failure (normative)** · a non-2xx response throws
 `NIKA-BUILTIN-FETCH-001` (`category: network_error` · `transient: true` for
 5xx/408/429 · `false` for other 4xx · `details.status_code` carries the
-status). To poll a pending resource · the jq-error pattern
+status) — **with the effect-safe carve-out (normative · issue #1371)**: a
+keyless effect-capable method (`POST` · `PUT` · `DELETE` · `PATCH` without
+an `idempotency-key` header) is `transient: false` on EVERY failure,
+status-table and transport alike — the failure may be ambiguous (the
+server may have committed before the socket dropped or the error was
+emitted) and a blind retry replays the effect; a declared `retry:` on such
+a call is the static `NIKA-SEC-016` refusal ([05 §the effect-safe retry
+law](../spec/05-errors.md#the-effect-safe-retry-law-normative--issue-1371)).
+`GET`/`HEAD` and keyed calls keep the status table.
+To poll a pending resource · the jq-error pattern
 ([08 H19](../spec/08-out-of-scope.md)), not status-code inspection.
 Redirects follow up to an engine cap · the FINAL status decides.
 

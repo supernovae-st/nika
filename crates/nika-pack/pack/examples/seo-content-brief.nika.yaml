@@ -30,10 +30,10 @@
 
 nika: seo-content-brief
 
-# A NON-thinking local model, deliberately: a thinking model can spend the
-# whole `max_tokens` budget in its think block and return before the JSON
-# (engine#428). Schema showcases pick a model that answers directly.
-model: ollama/llama3.2:3b
+# The house seat — a THINKING model: the think block and the JSON both count
+# against `max_tokens` (engine#428), so the brief ceiling below covers the
+# reasoning AND the brief, not the brief alone.
+model: ollama/qwen3.5:4b
 
 inputs:
   topic:
@@ -102,7 +102,7 @@ tasks:
       map_top: ${{ tasks.map.top }}
       top_page: ${{ tasks.top_page.output }}
     infer:
-      max_tokens: 1200
+      max_tokens: 3000                 # think block + the brief JSON
       prompt: |
         Topic to rank for · ${{ inputs.topic }}
         Competitor's top URLs · ${{ with.map_top }}

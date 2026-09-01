@@ -291,6 +291,46 @@ fn v4_is_blocked(v4: core::net::Ipv4Addr) -> bool {
         || (o[0] == 192 && o[1] == 88 && o[2] == 99)
 }
 
+/// Whether an HTTP method's RETRY replays side effects (issue #1371 · the
+/// effect-safe retry law): POST · PUT · DELETE · PATCH do — the kernel http effect
+/// doc (`nika-kernel-core` `io/http.rs`: « POST must pair an idempotency key » ·
+/// « GET is (by HTTP spec) idempotent and retryable ». GET · HEAD replay nothing; an
+/// UNRECOGNIZED method makes no claim here (the builtin shape ladder owns the
+/// invalid-method finding). Case-insensitive — the builtin uppercases before the
+/// wire, an author writes any case in the `method:` arg.
+#[must_use]
+pub fn method_replays_effects(method: &str) -> bool {
+    ["POST", "PUT", "DELETE", "PATCH"]
+        .iter()
+        .any(|m| method.eq_ignore_ascii_case(m))
+}
+
+/// Whether a header NAME is the `idempotency-key` header — the dedup contract that
+/// discharges the retry-replay hazard (the receiver collapses the replay onto the
+/// first attempt's outcome). Header names are case-insensitive (RFC 9110 §5.1).
+#[must_use]
+pub fn is_idempotency_key_header(name: &str) -> bool {
+    name.eq_ignore_ascii_case("idempotency-key")
+}
+
+/// The ONE effect-safe retry law (issue #1371): a retry may fire only when the call
+/// replays nothing (GET · HEAD · the fetch builtin's GET default) or pairs an
+/// `idempotency-key` header the receiver dedups on — a keyless effect-capable call
+/// (POST · PUT · DELETE · PATCH) is NEVER retried by default: the failure may be
+/// ambiguous (the server may have committed the effect before the failure was
+/// observed), and a blind replay doubles the effect. The fetch builtin's
+/// transient classification AND the static `retry:` refusal (`NIKA-SEC-016`)
+/// both judge THIS predicate — one definition, so the check-time refusal and
+/// the run-time classification can never drift (the same one-definition rule
+/// as the host matcher above). Spec `05-errors.md` §the effect-safe retry law.
+#[must_use]
+pub fn retry_is_effect_safe<'a>(
+    method: &str,
+    header_names: impl IntoIterator<Item = &'a str>,
+) -> bool {
+    !method_replays_effects(method) || header_names.into_iter().any(is_idempotency_key_header)
+}
+
 /// `nika:fetch` `traverse:` page ceiling — the bound shared by the
 /// static checker (`nika-schema` · the arg range rule + the effect
 /// certificate's worst-case) and the runtime crawl loop
@@ -526,6 +566,57 @@ mod tests {
             "",
         ] {
             assert!(!is_exact_loopback_literal(e), "{e} must NOT qualify");
+        }
+    }
+
+    #[test]
+    fn method_replay_classification_is_the_house_table() {
+        // #1371 · POST · PUT · DELETE · PATCH replay side effects on retry; GET · HEAD
+        // (and the fetch builtin's GET default) replay nothing. Case-insensitive —
+        // the builtin uppercases before the wire, an author writes any case.
+        for m in ["POST", "PUT", "DELETE", "PATCH"] {
+            assert!(method_replays_effects(m), "{m} replays effects");
+            let lower = m.to_lowercase();
+            assert!(method_replays_effects(&lower), "{lower} replays effects");
+        }
+        for m in ["GET", "HEAD", "get", "head", "OPTIONS", "TRACE", ""] {
+            assert!(
+                !method_replays_effects(m),
+                "{m:?} replays nothing or makes no claim"
+            );
+        }
+    }
+
+    #[test]
+    fn idempotency_key_header_is_case_insensitive() {
+        for k in [
+            "idempotency-key",
+            "Idempotency-Key",
+            "IDEMPOTENCY-KEY",
+            "Idempotency-Key",
+        ] {
+            assert!(is_idempotency_key_header(k), "{k} is the dedup contract");
+        }
+        for k in ["authorization", "x-idempotency-key", "idempotency-key2", ""] {
+            assert!(!is_idempotency_key_header(k), "{k:?} is not the contract");
+        }
+    }
+
+    #[test]
+    fn retry_is_effect_safe_is_the_one_law() {
+        let keyless: [&str; 0] = [];
+        let keyed = ["Idempotency-Key"]; // a declared key in ANY case discharges the hazard
+        // Keyless mutating methods are never effect-safe to retry.
+        for m in ["POST", "PUT", "DELETE", "PATCH", "post"] {
+            assert!(!retry_is_effect_safe(m, keyless), "{m} keyless replays");
+            assert!(
+                retry_is_effect_safe(m, keyed),
+                "{m} with the key is deduped by the receiver"
+            );
+        }
+        // GET/HEAD replay nothing — no key required, retry free.
+        for m in ["GET", "HEAD", "get"] {
+            assert!(retry_is_effect_safe(m, keyless), "{m} retries free");
         }
     }
 

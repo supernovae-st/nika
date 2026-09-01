@@ -32,7 +32,8 @@ pub struct UnifiedFinding {
     /// The class slug (`conformance` · `secret_leak` · `secret_egress` ·
     /// `capability_escape` · `exec_floor` · `permit_taint` · `data_sink` ·
     /// `consent` · `trifecta` · `schema_type` · `gate` ·
-    /// `run_decl` · `write_conflict` · `composition` · `unknown_tool` ·
+    /// `run_decl` · `retry_safety` · `write_conflict` · `composition` ·
+    /// `unknown_tool` ·
     /// `unknown_arg` · `missing_arg` · `schema_lint`).
     pub kind: &'static str,
     /// The ladder section the human render files this under.
@@ -270,6 +271,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         out.push(f);
     }
     fold_run_decl(report, &mut out);
+    fold_retry_safety(report, &mut out);
     fold_write_conflicts(report, &mut out);
     fold_composition(report, &mut out);
     fold_tools(report, &mut out);
@@ -413,6 +415,24 @@ fn fold_run_decl(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
         let code = r.wire_code();
         f.code = Some(code.to_owned());
         f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
+        f.task = Some(r.task.clone());
+        out.push(f);
+    }
+}
+
+/// The effect-safe-retry class (#1371 · NIKA-SEC-016) — the detail names
+/// the keyless mutating method, the fix carries the two repairs (pair the
+/// `idempotency-key` header · drop the `retry:`). The fold follows the
+/// exec-floor precedent (one arm, its own fn · the 100-line ratchet).
+fn fold_retry_safety(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for r in &report.retry_safety_findings {
+        let mut f = UnifiedFinding::new(
+            "retry_safety",
+            "RETRY",
+            format!("{} (task `{}`) — fix: {}", r.detail, r.task, r.fix),
+        );
+        f.code = Some(r.wire_code().to_owned());
+        f.docs_url = Some(format!("{}/{}", super::ERROR_DOCS_BASE, r.wire_code()));
         f.task = Some(r.task.clone());
         out.push(f);
     }

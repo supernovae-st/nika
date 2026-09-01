@@ -110,10 +110,18 @@ Error codes follow the format `NIKA-<NAMESPACE>-<NNN>` where namespace is 2-9 up
 | `NIKA-ASSERT` | assertion obligations ([15-proof](./15-proof.md)) · ⚰️ the `assert:` ENVELOPE KEY was removed 2026-08-11 · the range stays RESERVED, unemitted, for the day a property returns as an addition | 001-099 |
 | `NIKA-LOCK` | `nika.lock` pin violations ([15-proof](./15-proof.md)) | 001-099 |
 | `NIKA-REG` | Registry client refusals (resolve · digest · advisory · [registry-v0.1](../registry/registry-v0.1.md) · allocated for the reference engine's `registry:` resolver — engine ADR-106) | 001-099 |
+| `NIKA-AUTH` | Authority · the `permits:` boundary contract (absent-block refusal · literal bounds · taint into a permitted argument · dead grants · lift discipline · [10-authority](./10-authority.md)) | 001-099 |
+| `NIKA-DEFAULT` | Declared defaults · a `default:` (or typed `const:`) value that violates its own declared type ([09-types](./09-types.md) · R3b) | 001-099 |
+| `NIKA-DRIFT` | Declared-but-unused drift · advisory check hints, never audit failures (the reverse of the hard used-but-undeclared surface) | 001-099 |
+| `NIKA-VALUES` | Value namespaces · the dead pre-flip `vars:`/`env:` forms + reads outside the three-authority family (`inputs` · `const` · `secrets` · [04 §values](./04-variables.md)) | 001-099 |
 
 This table allocates every namespace in use; the machine registry
 ([`canon/diagnostics/registry.yaml`](../canon/diagnostics/registry.yaml))
-carries the per-code rows. A v0.1-compliant engine MUST use these namespaces for the canonical categories. New error codes MAY be added in minor bumps (additive · never repurposed).
+carries the per-code rows. Two rows run **ahead of `canon.yaml`
+`error_namespaces`** — `NIKA-YAML` (kernel-ahead · CF-05) and `NIKA-REG`
+(engine ADR-106) — declared, never silent: `scripts/canon-projectors.py`
+cross-checks this table against the canon list in both directions on every
+gate run, with exactly those two as the declared skips. A v0.1-compliant engine MUST use these namespaces for the canonical categories. New error codes MAY be added in minor bumps (additive · never repurposed).
 
 ### Concrete v0.1 codes · the normative floor
 
@@ -211,6 +219,7 @@ these from this file alone.
 | `NIKA-SEC-012` | unordered shared writes — two tasks incomparable in the DAG closure whose literal `nika:write`/`nika:edit` paths collide with no ordering edge (`after:` · `with:`) to serialize them, or a `for_each` fan writing one constant path · parallelism is safe exactly where the writes are provably disjoint (NEP-0014 law 1 · F-P15) | `security_error` | false |
 | `NIKA-SEC-014` | the affirmative-consent law — a confirm-mode human gate (`invoke: nika:prompt` · mode absent or `confirm`) reaches an egress-capable task over a route no affirmative gate closes: a REFUSED confirm settles success with value `false`, so a bare `after: { gate: success }` edge, a `when:` that never reads the answer, and a `when:` provably true on the refusal all let the effect through · the gate is credited only when every route consumes the answer and proves false on it (the Kleene-falsifiable `when:` · `when: false` · a closer confirm gate owns its closure) · an undecidable gate defers to the advisory hint, never a refusal ([10 §the affirmative-consent law](./10-authority.md#the-affirmative-consent-law--normative--nep-0020) · NEP-0020 · P0-2) | `security_error` | false |
 | `NIKA-SEC-015` | the order law — an `exec:` task sits transitively downstream of a net-effecting task (`nika:fetch` · `nika:notify`) over the derived graph (`with:` data edges ∪ `after:` control edges): content the workflow did not author must not reach a shell · the diagnostic names the PATH, which is the witness · **UNCONDITIONAL** — no block declares it and none can disable it ([10 §the unconditional laws](./10-authority.md)) | `security_error` | false |
+| `NIKA-SEC-016` | the effect-safe retry law — a declared `retry:` (`max_attempts > 1`) on a `nika:fetch` whose method replays side effects (`POST` · `PUT` · `DELETE` · `PATCH`) with no `idempotency-key` header: the failure may be ambiguous (the server may have committed before the socket dropped or the error was emitted), so the engine types the keyless call's failures non-transient and the declared retry is refused statically (an `on_codes:` retry would blind-replay regardless of `transient`) · pair an `idempotency-key` header (the receiver dedups the replay) or drop the `retry:` — GET/HEAD retry free ([§the effect-safe retry law](#the-effect-safe-retry-law-normative--issue-1371) · issue #1371) | `security_error` | false |
 | `NIKA-AUTH-006` | an absent `permits:` block — DeclaredPermits is empty, so every effect the body requires is refused before any token; the diagnostic carries the inferred block, ready to paste ([10 §authority](./10-authority.md)) | `security_error` | false |
 | `NIKA-AUTH-007` | an interpolation reaches a permit BOUND (a host · glob · program · env name inside `permits:`) — a bound must be a literal, or the boundary is self-serve ([10 §authority](./10-authority.md)) | `security_error` | false |
 | `NIKA-AUTH-008` | an untrusted value reaches a permitted verb's ARGUMENT and its canonical resolved form escapes the step's permit — the diagnostic carries the taint path ([10 §authority](./10-authority.md)) | `security_error` | false |
@@ -319,7 +328,7 @@ The `category` field is a closed enum at v1 ·
 
 ## Retry policy
 
-A task MAY declare a `retry:` block. Retries apply to **transient** errors only (`error.transient == true`).
+A task MAY declare a `retry:` block. Retries apply to **transient** errors only (`error.transient == true`). Retrying an effect is never the default: a keyless effect-capable `nika:fetch` call is non-transient on every failure and a declared `retry:` on it is refused (`NIKA-SEC-016`) — [§the effect-safe retry law](#the-effect-safe-retry-law-normative--issue-1371).
 
 > **`retry:` and `on_error:` are two STAGES, not two answers (normative ·
 > the reason they stay two fields).** They look like one decision — « what
@@ -397,6 +406,33 @@ A v0.1-compliant engine MUST ·
 - Use the configured backoff between attempts
 - Only retry transient errors (`error.transient == true`) unless `on_codes` is configured
 - Surface the LAST error if all retries fail
+- Type every failure of a keyless effect-capable `nika:fetch` call `transient: false` ([§the effect-safe retry law](#the-effect-safe-retry-law-normative--issue-1371))
+
+### The effect-safe retry law (normative · issue #1371)
+
+`retry:` replays the WHOLE attempt — at-least-once semantics. For a
+`nika:fetch` whose method replays side effects (`POST` · `PUT` · `DELETE` ·
+`PATCH`) with **no `idempotency-key` header**, a failure is ambiguous: the
+server may have committed the effect before the failure was observed (a
+dropped socket · a post-commit 500). A blind replay then doubles the
+effect — the triple-charge class a wire ledger sees and the run card never
+admits. The law ·
+
+1. An engine MUST type **every** failure of such a call `transient: false`
+   (status-table and transport failures alike) — one attempt, never a
+   blind replay of an ambiguous effect.
+2. A declared `retry:` (`max_attempts > 1`) on such a call is REFUSED at
+   check with `NIKA-SEC-016` — a plain `retry:` is dead config under law 1,
+   and an `on_codes:` retry would blind-replay regardless of `transient`.
+   The repair the refusal teaches: pair an `idempotency-key` header (the
+   receiver dedups the replay) or drop the `retry:`.
+3. Pairing the key discharges the law — the receiver's dedup makes the
+   replay safe and the status table applies unchanged, exactly as it
+   always does for `GET`/`HEAD` (read-only methods replay nothing; no key
+   required).
+
+A templated `method:` or an undecidable `headers:` shape is no static
+claim: the runtime classification of law 1 re-judges the resolved call.
 
 ---
 

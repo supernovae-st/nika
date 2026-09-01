@@ -39,12 +39,13 @@
 
 nika: config-drift-sentinel
 
-# A NON-thinking seat, deliberately. Measured with qwen3.5:4b: `explain`'s
-# 600-token ceiling was spent entirely inside the think block, the run stayed
+# The house seat — a THINKING model. Measured: at the old 600-token ceiling
+# qwen3.5:4b spent the whole budget inside the think block, the run stayed
 # green, and the journal's `explanation` field recorded EMPTY — the engine
 # flags it (« a thinking model may have spent the budget inside its think
-# block »). llama3.2:3b answers the three bullets inside the same ceiling.
-model: ollama/llama3.2:3b   # local · zero key · swap for any catalog provider (explain is cheap)
+# block » · engine#428). The ceiling below now covers the think block AND
+# the three bullets: both count against `max_tokens`.
+model: ollama/qwen3.5:4b   # local · zero key · swap for any catalog provider (explain is cheap)
 
 inputs:
   config_url:
@@ -205,7 +206,7 @@ tasks:
     on_error:
       recover: "(explanation unavailable · the model call failed · the raw patch is attached)"
     infer:
-      max_tokens: 600                   # three bullets · a ceiling, not a hope
+      max_tokens: 3000                  # think block + three bullets · a ceiling, not a hope
       prompt: |
         This RFC 6902 patch is UNSANCTIONED config drift in production ·
         ${{ with.patch }}

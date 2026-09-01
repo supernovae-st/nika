@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 1d0907bc33afa7da8098495d67d80bd6d516487b720ac3d54e26dca49a8ed083
+# body-sha256: 7aefea0c02d0344e0cc831380e6e08ecbb272d795811b2a44d51ae0c8559463f
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -61,11 +61,11 @@ counts:
   namespaces: 5
   builtins: 28
   providers: 17
-  extract_modes: 9
+  extract_modes: 10
   templates: 14
   error_namespaces: 24
   error_categories: 12
-  error_codes: 103
+  error_codes: 104
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -200,10 +200,12 @@ providers:
       - mock
 
 # ---------------------------------------------------------------- extract modes
-# 9 modes for the nika:fetch builtin's mode: parameter (builtins-v0.1.md).
-# stdlib/extract-modes-v0.1.md is the prose home.
+# The nika:fetch builtin's mode: parameter (builtins-v0.1.md) · the count
+# lives on count: below, never in prose (the 9-vs-10 fossil · #291).
+# stdlib/extract-modes-v0.1.md is the prose home + the mode table the
+# canon↔reference gate reads (canon-projectors).
 extract_modes:
-  count: 9
+  count: 10
   reference: stdlib/extract-modes-v0.1.md
   items:
     - article
@@ -212,6 +214,7 @@ extract_modes:
     - links
     - markdown
     - metadata
+    - raw
     - selector
     - sitemap
     - text
@@ -244,7 +247,7 @@ templates:
 # ---------------------------------------------------------------- error namespaces
 # Post NIKA-FETCH fold into NIKA-BUILTIN (commit b14bf091c · 2026-05-27 ·
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
-# spec/05-errors.md is the prose home (matches at 15 · NIKA-TYPE joined at W3 · cascade complete 2026-07-14).
+# spec/05-errors.md is the prose home (NIKA-TYPE joined at W3 · cascade complete 2026-07-14 · the count lives on count: below).
 error_namespaces:
   count: 24
   reference: spec/05-errors.md
@@ -300,7 +303,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 103
+  count: 104
   scope: spec-normative floor only · per-builtin and per-provider codes resolve through nika explain and are not enumerated here
   reference: spec/05-errors.md
   items:
@@ -402,6 +405,7 @@ error_codes:
     - { code: NIKA-SEC-012, category: security_error, transient: "false", failure: "unordered shared writes — two tasks incomparable in the DAG closure whose literal nika:write/nika:edit paths collide with no ordering edge (after: · with:) to serialize them, or a for_each fan writing one constant path · parallelism is safe exactly where the writes are provably disjoint (NEP-0014 law 1 · F-P15)" }
     - { code: NIKA-SEC-014, category: security_error, transient: "false", failure: "the affirmative-consent law — a confirm-mode human gate (invoke: nika:prompt · mode absent or confirm) reaches an egress-capable task over a route no affirmative gate closes: a REFUSED confirm settles success with value false, so a bare after: { gate: success } edge, a when: that never reads the answer, and a when: provably true on the refusal all let the effect through · the gate is credited only when every route consumes the answer and proves false on it (the Kleene-falsifiable when: · when: false · a closer confirm gate owns its closure) · an undecidable gate (a nested binding · a non-fragment expression) defers to the advisory hint, never a refusal (NEP-0020 · P0-2 of the 2026-07-30 audit)" }
     - { code: NIKA-SEC-015, category: security_error, transient: "false", failure: "the order law — an exec: task sits transitively downstream of a net-effecting task (nika:fetch · nika:notify) over the derived graph (with: data edges ∪ after: control edges) · content the workflow did not author must not reach a shell · UNCONDITIONAL: no block declares it and none can disable it" }
+    - { code: NIKA-SEC-016, category: security_error, transient: "false", failure: "the effect-safe retry law — a declared retry: (max_attempts > 1) on a nika:fetch whose method replays side effects (POST · PUT · DELETE · PATCH) with no idempotency-key header: the failure may be ambiguous (the server may have committed before the socket dropped or the error was emitted), so the engine types the keyless call's failures non-transient and the declared retry is refused statically (an on_codes: retry would blind-replay regardless of transient) · pair an idempotency-key header (the receiver dedups the replay) or drop the retry: — GET/HEAD retry free (issue #1371)" }
     - { code: NIKA-TIMEOUT-001, category: timeout_error, transient: "false", failure: "task (or for_each iteration) exceeded timeout:" }
     - { code: NIKA-CANCEL-001, category: cancelled, transient: "false", failure: "task cancelled (workflow failure gate · user cancellation)" }
     - { code: NIKA-ASSERT-001, category: validation_error, transient: "false", failure: "an assert: claims a level the evidence does not support (a StaticProof the IR cannot decide · a mis-leveled obligation · spec 15)" }
@@ -433,7 +437,7 @@ pillars:
     - { order: 2, name: verbs,     semantic: "the 4 native execution models" }
     - { order: 3, name: dag,       semantic: "task composition + control flow (for_each · when)" }
     - { order: 4, name: variables, semantic: "scope-bound state threading + binding (CEL + jq)" }
-    - { order: 5, name: errors,    semantic: "the 15 error namespaces + handling contract" }
+    - { order: 5, name: errors,    semantic: "the 24 error namespaces + handling contract" }
 
 # ---------------------------------------------------------------- lifecycle enums
 # 4-state lifecycle taxonomies · studio-extended dimensions · public

@@ -18,7 +18,7 @@
 #   - typed JSON → markdown · the shape is the contract, the render is
 #     mechanical (`nika:write`, no second model call)
 #
-# Needs · ollama with the model pulled · `ollama pull llama3.2:3b` — or no
+# Needs · ollama with the model pulled · `ollama pull qwen3.5:4b` — or no
 #   seat at all: the mock rehearsal on the Run line below runs with zero setup.
 #
 # Run · nika run examples/transcript-shownotes.nika.yaml
@@ -28,7 +28,7 @@
 
 nika: transcript-shownotes
 
-model: ollama/llama3.2:3b # local · zero key · deliberately NOT the qwen3.5 convention: a thinking model can burn max_tokens in its think block before the JSON (engine#428) — schema showcases pick a non-thinking model
+model: ollama/qwen3.5:4b # local · zero key · the house seat — a THINKING model: the think block and the JSON both count against `max_tokens` (engine#428), so the ceiling below is sized for think + show-notes, not the notes alone
 
 const:
   transcript: "examples/fixtures/episode-transcript.txt"
@@ -59,7 +59,7 @@ tasks:
 
         Transcript ·
         ${{ with.raw }}
-      max_tokens: 800
+      max_tokens: 3000   # think block + the show-notes JSON
       schema:
         type: object
         additionalProperties: false # a deterministic shape across providers (the checker's strictness hint)

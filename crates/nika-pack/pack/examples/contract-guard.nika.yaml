@@ -25,10 +25,10 @@
 
 nika: contract-guard
 
-# Local · the whole review runs offline, zero cloud. Also a NON-thinking
-# model on purpose: a thinking model can spend the whole `max_tokens` budget
-# in its think block and return before the JSON (engine#428).
-model: ollama/llama3.2:3b
+# Local · the whole review runs offline, zero cloud. The house seat is a
+# THINKING model: the think block and the JSON both count against
+# `max_tokens` (engine#428), so the extraction ceiling below covers both.
+model: ollama/qwen3.5:4b
 
 inputs:
   contract_path:
@@ -55,7 +55,7 @@ tasks:
     with:
       contract: ${{ tasks.contract.output }}
     infer:
-      max_tokens: 1600
+      max_tokens: 4000   # think block + the clause JSON
       prompt: |
         Extract every risk-bearing clause from this contract ·
         ${{ with.contract }}
@@ -107,7 +107,7 @@ tasks:
     after:
       gate: success              # state, no data · the assert passed or the memo is cancelled
     infer:
-      max_tokens: 1200
+      max_tokens: 3000   # think block + the one-page memo
       prompt: |
         Write a one-page risk memo from these clauses ·
         ${{ with.clauses }}

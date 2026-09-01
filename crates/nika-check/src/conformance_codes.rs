@@ -97,9 +97,10 @@ pub(crate) fn of(report: &CheckReport) -> Vec<SpecCode> {
     codes
 }
 
-/// The three named laws that judge one body in their own right — the
-/// lethal trifecta, the affirmative-consent law, and the unconditional
-/// order law. They are one family: a security refusal no permit buys off.
+/// The named laws that judge one body in their own right — the
+/// lethal trifecta, the affirmative-consent law, the unconditional
+/// order law, and the effect-safe retry law. They are one family: a
+/// security refusal no permit buys off.
 fn extend_law_codes(report: &CheckReport, codes: &mut Vec<SpecCode>) {
     // Lethal trifecta (NEP-0002) → NIKA-SEC-009.
     let trifecta_code = SpecCode::new("SEC", 9, SpecCategory::SecurityError);
@@ -117,6 +118,13 @@ fn extend_law_codes(report: &CheckReport, codes: &mut Vec<SpecCode>) {
             .order_findings
             .iter()
             .map(|_| SpecCode::new("SEC", 15, SpecCategory::SecurityError)),
+    );
+    // The effect-safe retry law (#1371) → NIKA-SEC-016.
+    codes.extend(
+        report
+            .retry_safety_findings
+            .iter()
+            .map(|_| SpecCode::new("SEC", 16, SpecCategory::SecurityError)),
     );
     // The authored doors rule 6 (spec 10) → NIKA-AUTH-011. A validation
     // error, not a security one: the file is not dangerous, it is
