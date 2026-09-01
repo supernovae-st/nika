@@ -459,10 +459,8 @@ fn dst_gap_and_fold_keep_the_existing_oracles_shift_evidence() {
 }
 
 #[test]
-fn projection_is_bounded_and_policy_inputs_are_exposed_not_executed() {
-    let mut candidate = daily(MissPolicy::Rattraper);
-    candidate.overlap = Some(Overlap::Remplacer);
-    candidate.after_skip = None;
+fn projection_is_bounded_and_after_skip_is_exposed_not_executed() {
+    let candidate = daily(MissPolicy::Rattraper);
     let definition = candidate.validate().expect("definition");
     let plan = plan_schedule(
         &definition,
@@ -472,8 +470,6 @@ fn projection_is_bounded_and_policy_inputs_are_exposed_not_executed() {
     )
     .expect("plan");
     assert_eq!(plan.next_slots().count(), MAX_SCHEDULE_PROJECTION_SLOTS);
-    assert_eq!(plan.overlap(), Overlap::Remplacer);
-    assert_eq!(plan.after_skip(), AfterSkip::ProchainCreneau);
 
     let mut completion = daily(MissPolicy::RattraperUneFois);
     completion.overlap = Some(Overlap::Sauter);
@@ -521,6 +517,56 @@ fn project_and_api_equivalents_share_revision_and_slots() {
         .cloned()
         .collect();
     assert_eq!(project_slots, api_slots);
+}
+
+#[test]
+fn active_timed_overlap_replace_refuses_until_a_preemption_law_exists() {
+    let mut candidate = daily(MissPolicy::Rattraper);
+    candidate.overlap = Some(Overlap::Remplacer);
+    candidate.after_skip = None;
+    let definition = candidate.validate().expect("definition");
+    assert!(matches!(
+        plan_schedule(
+            &definition,
+            &zoned("2026-09-01T08:00:00Z"),
+            &ScheduleDecisionState::empty(),
+            4,
+        ),
+        Err(SchedulePlanError::UnsupportedOverlapReplace)
+    ));
+
+    let mut paused = daily(MissPolicy::Rattraper);
+    paused.overlap = Some(Overlap::Remplacer);
+    paused.after_skip = None;
+    paused.active = Some(false);
+    paused.pause_reason = Some("maintenance".to_owned());
+    paused.pause_until = Some("2026-09-10".to_owned());
+    assert!(matches!(
+        plan_schedule(
+            &paused.validate().expect("paused definition"),
+            &zoned("2026-09-01T08:00:00Z"),
+            &ScheduleDecisionState::empty(),
+            4,
+        )
+        .expect("inactive plans without effective times")
+        .due(),
+        ScheduleDueVerdict::PausedInactive { .. }
+    ));
+
+    let mut webhook = draft(ScheduleWhenDraft::Webhook, MissPolicy::Rattraper);
+    webhook.overlap = Some(Overlap::Remplacer);
+    webhook.after_skip = None;
+    assert!(matches!(
+        plan_schedule(
+            &webhook.validate().expect("webhook definition"),
+            &zoned("2026-09-01T08:00:00Z"),
+            &ScheduleDecisionState::empty(),
+            4,
+        )
+        .expect("webhooks have no effective timed slot")
+        .due(),
+        ScheduleDueVerdict::NotDue
+    ));
 }
 
 #[test]
@@ -574,6 +620,10 @@ fn active_timed_hash_jitter_refuses_until_a_law_exists() {
 fn planner_refusals_speak_the_schedule_registry_code() {
     assert_eq!(
         SchedulePlanError::UnsupportedHashJitter.nika_code(),
+        nika_error::codes::NIKA_017
+    );
+    assert_eq!(
+        SchedulePlanError::UnsupportedOverlapReplace.nika_code(),
         nika_error::codes::NIKA_017
     );
     assert_eq!(
