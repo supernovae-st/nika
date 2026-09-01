@@ -410,6 +410,55 @@ fn inactive_pause_is_a_machine_verdict_and_never_a_wake_hint() {
 }
 
 #[test]
+fn a_pause_whose_until_passed_wakes_at_the_decision_date() {
+    let mut woke = daily(MissPolicy::Rattraper);
+    woke.active = Some(false);
+    woke.pause_reason = Some("operator maintenance".to_owned());
+    woke.pause_until = Some("2026-08-31".to_owned());
+    let plan = planned(
+        woke,
+        "2026-09-01T09:00:00Z",
+        &ScheduleDecisionState::empty(),
+    );
+    assert!(matches!(
+        plan.due(),
+        ScheduleDueVerdict::ScheduledOnTime { .. }
+    ));
+
+    let mut boundary = daily(MissPolicy::Rattraper);
+    boundary.active = Some(false);
+    boundary.pause_reason = Some("operator maintenance".to_owned());
+    boundary.pause_until = Some("2026-09-01".to_owned());
+    let plan = planned(
+        boundary,
+        "2026-09-01T09:00:00Z",
+        &ScheduleDecisionState::empty(),
+    );
+    assert!(
+        matches!(plan.due(), ScheduleDueVerdict::PausedInactive { .. }),
+        "the bound is a strict date: on its own date the pause still holds"
+    );
+}
+
+#[test]
+fn a_woke_pause_faces_the_same_refusals_as_an_active_declaration() {
+    let mut woke = daily(MissPolicy::Rattraper);
+    woke.active = Some(false);
+    woke.pause_reason = Some("operator maintenance".to_owned());
+    woke.pause_until = Some("2026-08-31".to_owned());
+    woke.jitter = Some(ScheduleJitter::Hash);
+    assert!(matches!(
+        plan_schedule(
+            &woke.validate().expect("definition"),
+            &zoned("2026-09-01T08:00:00Z"),
+            &ScheduleDecisionState::empty(),
+            4,
+        ),
+        Err(SchedulePlanError::UnsupportedHashJitter)
+    ));
+}
+
+#[test]
 fn webhook_has_no_timed_slot_or_wake() {
     let plan = planned(
         draft(ScheduleWhenDraft::Webhook, MissPolicy::Rattraper),

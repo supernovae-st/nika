@@ -928,3 +928,49 @@ async fn project_beat_with_tolerance_surfaces_a_load_finding_and_never_fires() {
     assert_eq!(backend.calls(), 0, "a refused beat never fires");
     server.stop().await.expect("stop");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_project_beat_whose_pause_until_passed_fires_and_a_bound_one_stays_paused() {
+    let world = TestWorld::new();
+    std::fs::write(
+        world.workflows.join("report.nika.yaml"),
+        "nika: report\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 2, expression: \".\" }\n",
+    )
+    .expect("report workflow");
+    std::fs::write(
+        world.workflows.join("nika.yaml"),
+        concat!(
+            "nika: proj\narm:\n",
+            "  - workflow: root.nika.yaml\n",
+            "    cadence: \"TZ=UTC * * * * *\"\n",
+            "    plafond: 0.25\n",
+            "    manqué: sauter\n",
+            "    actif: false\n",
+            "    raison: \"maintenance\"\n",
+            "    jusqu_au: \"2026-08-31\"\n",
+            "  - workflow: report.nika.yaml\n",
+            "    cadence: \"TZ=UTC * * * * *\"\n",
+            "    plafond: 0.25\n",
+            "    manqué: sauter\n",
+            "    actif: false\n",
+            "    raison: \"maintenance\"\n",
+            "    jusqu_au: \"2026-09-10\"\n",
+        ),
+    )
+    .expect("project nika.yaml");
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    backend.wait_for_call().await;
+    clock.wait_for_sleeps(2).await;
+    assert_eq!(backend.calls(), 1, "only the woke beat fires");
+    assert!(
+        backend.root_bytes().is_some_and(|bytes| bytes
+            .windows(b"input: 1".len())
+            .any(|part| part == b"input: 1")),
+        "the fired run captured the root workflow"
+    );
+    server.stop().await.expect("stop");
+}
