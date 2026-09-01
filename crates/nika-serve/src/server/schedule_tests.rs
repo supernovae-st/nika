@@ -9,7 +9,7 @@ use std::time::Duration;
 use serde_json::json;
 
 use super::store::ShutdownPhase;
-use super::tests::{TestWorld, auth_header, get_request, limits};
+use super::tests::{TestServer, TestWorld, auth_header, get_request, limits};
 use super::{ExecutionBackend, ExecutionDisposition, ExecutionOutcome};
 
 #[derive(Debug)]
@@ -647,5 +647,43 @@ async fn no_schedule_list_delete_trigger_backfill_or_arm_routes_exist() {
         auth_header()
     );
     assert_eq!(server.request(&delete).await.status, 404);
+    server.stop().await.expect("stop");
+}
+
+fn write_project_beat(world: &TestWorld, extra: &str) {
+    std::fs::write(
+        world.workflows.join("nika.yaml"),
+        format!(
+            "nika: proj\narm:\n  - workflow: root.nika.yaml\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n    manqué: sauter\n{extra}"
+        ),
+    )
+    .expect("project nika.yaml");
+}
+
+async fn project_finding(server: &TestServer, id: &str) -> serde_json::Value {
+    let response = server
+        .request(&get_request(&format!("/v1/schedules/{id}")))
+        .await;
+    assert_eq!(response.status, 200, "{}", response.body);
+    let body = response.json();
+    assert_eq!(body["origin"], "project", "{body}");
+    body["finding"].clone()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_beat_with_hash_jitter_surfaces_a_load_finding_and_never_fires() {
+    let world = TestWorld::new();
+    write_project_beat(&world, "    décalage: hash\n");
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    let finding = project_finding(&server, "root").await;
+    assert_eq!(finding["code"], "schedule.jitter", "{finding}");
+    clock.advance_to("2026-09-01T08:03:00Z[UTC]");
+    clock.wait_for_sleeps(2).await;
+    assert_eq!(backend.calls(), 0, "a refused beat never fires");
     server.stop().await.expect("stop");
 }
