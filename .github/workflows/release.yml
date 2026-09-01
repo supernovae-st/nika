@@ -1276,18 +1276,20 @@ jobs:
       - name: Recheck GitHub state and publish once
         id: publish
         env:
+          ARTIFACTS: artifacts
           GH_TOKEN: ${{ github.token }}
+          PROVEN_DIGEST: ${{ needs.release-final-proof.outputs.digest }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
           TAP_READY: ${{ steps.tap.outputs.ready }}
         run: |
           set -euo pipefail
           command -v gh sha256sum >/dev/null
           bash .release-tooling/scripts/release/finalize-release.sh \
-            "${{ github.repository }}" \
-            "${{ needs.release-draft.outputs.release-id }}" \
-            "${{ needs.release-draft.outputs.tag }}" \
-            "${{ needs.release-draft.outputs.sha }}" \
-            "${{ needs.release-final-proof.outputs.digest }}" \
-            artifacts "$TAP_READY" \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "$PROVEN_DIGEST" \
+            "$ARTIFACTS" "$TAP_READY" \
             >> "$GITHUB_OUTPUT"
       - name: Record already-public replay
         if: steps.publish.outputs.transitioned != 'true'
