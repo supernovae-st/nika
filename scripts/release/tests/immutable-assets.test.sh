@@ -21,7 +21,7 @@ cat >"$FAKE_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 case "$1 $2" in
-  "api repos/supernovae-st/nika/releases/tags/v9.9.9")
+  api\ repos/supernovae-st/nika/releases/tags/v*)
     find "$REMOTE" -type f -maxdepth 1 -exec basename {} \; | sort
     ;;
   "release download")
@@ -90,10 +90,20 @@ fi
 [ ! -e "$REMOTE/a-missing.tgz" ] \
   || fail 'a missing asset was uploaded before the occupied set was validated'
 
-if PATH="$FAKE_BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
-  bash "$ROOT/scripts/release/upload-assets-immutable.sh" \
-  latest supernovae-st/nika "$LOCAL/new.tgz" >/dev/null 2>&1; then
-  fail 'a non-semver tag reached the release API'
-fi
+printf 'prerelease\n' >"$LOCAL/prerelease.tgz"
+for tag in v1.0.0-rc.1 v0.80.0-alpha.1; do
+  PATH="$FAKE_BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
+    bash "$ROOT/scripts/release/upload-assets-immutable.sh" \
+    "$tag" supernovae-st/nika "$LOCAL/prerelease.tgz" >/dev/null \
+    || fail "canonical prerelease tag $tag was refused"
+done
+
+for tag in latest v1.0.0-rc.01 v1.0.0+build v01.0.0; do
+  if PATH="$FAKE_BIN:$PATH" REMOTE="$REMOTE" LOG="$LOG" \
+    bash "$ROOT/scripts/release/upload-assets-immutable.sh" \
+    "$tag" supernovae-st/nika "$LOCAL/new.tgz" >/dev/null 2>&1; then
+    fail "non-canonical release tag $tag reached the release API"
+  fi
+done
 
 echo 'immutable-assets.test: PASS'
