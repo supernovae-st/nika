@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [ "$#" -ne 6 ]; then
-  echo "usage: $0 <discover|publish|verify> <image> <version> <candidate-digest|-> <sha> <source-url>" >&2
+  echo "usage: $0 <discover|inspect|publish|verify> <image> <version> <candidate-digest|-> <sha> <source-url>" >&2
   exit 64
 fi
 mode="$1"
@@ -12,7 +12,7 @@ version="$3"
 candidate="$4"
 sha="$5"
 source_url="$6"
-case "$mode" in discover | publish | verify) ;; *)
+case "$mode" in discover | inspect | publish | verify) ;; *)
   echo "oci barrier: invalid mode: $mode" >&2
   exit 64
   ;;
@@ -30,10 +30,19 @@ digest_of() {
 }
 
 is_explicit_absence() {
+  local error_file="$1"
+  local statuses
+  statuses="$(grep -Eo 'HTTP[/ ][^ ]*[[:space:]]+[0-9]{3}|HTTP [0-9]{3}|[0-9]{3} (Not Found|Unauthorized|Forbidden|Internal Server Error)' \
+    "$error_file" || true)"
+  if printf '%s\n' "$statuses" | grep -Ev '(^|[[:space:]])404([[:space:]]|$)' | grep -q . \
+    || grep -Eqi 'unauthori[sz]ed|forbidden|authentication required|access denied' \
+      "$error_file"; then
+    return 1
+  fi
   grep -Eqi \
-    'manifest unknown|MANIFEST_UNKNOWN|NAME_UNKNOWN|unexpected status from HEAD request.*404 Not Found' "$1" \
-    || grep -Fqx "ERROR: ${version_ref}: not found" "$1" \
-    || grep -Fqx "ERROR: no such manifest: ${version_ref}" "$1"
+    'manifest unknown|MANIFEST_UNKNOWN|NAME_UNKNOWN|unexpected status from HEAD request.*404 Not Found' "$error_file" \
+    || grep -Fqx "ERROR: ${version_ref}: not found" "$error_file" \
+    || grep -Fqx "ERROR: no such manifest: ${version_ref}" "$error_file"
 }
 
 verify_identity() {
@@ -61,6 +70,15 @@ verify_identity() {
 }
 
 version_ref="${image}:${version}"
+if [ "$mode" = inspect ]; then
+  [[ "$candidate" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+    echo "oci barrier: invalid candidate digest" >&2
+    exit 64
+  }
+  verify_identity "${image}@${candidate}" "$scratch/candidate.json"
+  printf '%s\n' "$candidate"
+  exit 0
+fi
 lookup_error="$scratch/lookup-error"
 if occupied="$(digest_of "$version_ref" 2>"$lookup_error")"; then
   [ -n "$occupied" ] || {

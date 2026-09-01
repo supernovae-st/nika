@@ -31,7 +31,17 @@ if gh api "repos/${repo}/releases/tags/${tag}" --jq '.id' \
   exit 0
 fi
 
-if ! grep -Fq '(HTTP 404)' "$scratch/error"; then
+explicit_release_absence() {
+  local error_file="$1"
+  local statuses
+  statuses="$(grep -Eo '\(HTTP [0-9]{3}\)' "$error_file" || true)"
+  printf '%s\n' "$statuses" | grep -Fqx '(HTTP 404)' \
+    && ! printf '%s\n' "$statuses" | grep -Fvx '(HTTP 404)' | grep -q . \
+    && ! grep -Eqi 'unauthori[sz]ed|forbidden|authentication required|access denied' \
+      "$error_file"
+}
+
+if ! explicit_release_absence "$scratch/error"; then
   echo "release barrier: release lookup failed (not an explicit HTTP 404)" >&2
   cat "$scratch/error" >&2
   exit 69

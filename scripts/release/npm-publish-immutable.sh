@@ -37,7 +37,15 @@ lookup() {
     }
     return 0
   fi
-  if grep -Eq '(^|[[:space:]])E404([[:space:]]|$)|code E404' "$err"; then
+  local npm_codes http_codes
+  npm_codes="$(grep -Eo 'E[0-9]{3}' "$err" || true)"
+  http_codes="$(grep -Eo 'HTTP([ /][^ ]+)?[[:space:]]+[0-9]{3}|\(HTTP [0-9]{3}\)' \
+    "$err" || true)"
+  if printf '%s\n' "$npm_codes" | grep -Fqx E404 \
+    && ! printf '%s\n' "$npm_codes" | grep -Fvx E404 | grep -q . \
+    && ! printf '%s\n' "$http_codes" | grep -Ev '(^|[[:space:]])404\)?$' | grep -q . \
+    && ! grep -Eqi 'unauthori[sz]ed|forbidden|authentication required|access denied' \
+      "$err"; then
     return 44
   fi
   echo "npm barrier: lookup failed without explicit E404" >&2

@@ -33,10 +33,19 @@ digest_of() {
 }
 
 is_explicit_absence() {
+  local error_file="$1"
+  local statuses
+  statuses="$(grep -Eo 'HTTP[/ ][^ ]*[[:space:]]+[0-9]{3}|HTTP [0-9]{3}|[0-9]{3} (Not Found|Unauthorized|Forbidden|Internal Server Error)' \
+    "$error_file" || true)"
+  if printf '%s\n' "$statuses" | grep -Ev '(^|[[:space:]])404([[:space:]]|$)' | grep -q . \
+    || grep -Eqi 'unauthori[sz]ed|forbidden|authentication required|access denied' \
+      "$error_file"; then
+    return 1
+  fi
   grep -Eqi \
-    'manifest unknown|MANIFEST_UNKNOWN|NAME_UNKNOWN|unexpected status from HEAD request.*404 Not Found' "$1" \
-    || grep -Fqx "ERROR: ${ref}: not found" "$1" \
-    || grep -Fqx "ERROR: no such manifest: ${ref}" "$1"
+    'manifest unknown|MANIFEST_UNKNOWN|NAME_UNKNOWN|unexpected status from HEAD request.*404 Not Found' "$error_file" \
+    || grep -Fqx "ERROR: ${ref}: not found" "$error_file" \
+    || grep -Fqx "ERROR: no such manifest: ${ref}" "$error_file"
 }
 
 lookup() {

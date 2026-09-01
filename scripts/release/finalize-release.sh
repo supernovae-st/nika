@@ -36,10 +36,17 @@ if [ "$prerelease" = false ] && [ -z "${TAP_DEPLOY_KEY:-}" ]; then
   echo "release finalizer: TAP_DEPLOY_KEY is mandatory before a stable draft transition" >&2
   exit 77
 fi
+make_latest=false
+if [ "$prerelease" = false ]; then
+  # GitHub's documented legacy policy chooses Latest by SemVer/creation date;
+  # an explicit true would let delayed recovery of an older stable regress it.
+  make_latest=legacy
+fi
 
 publish_failed=false
 if ! gh api --method PATCH "repos/${repo}/releases/${release_id}" \
-  -F draft=false -f discussion_category_name=Announcements >/dev/null; then
+  -F draft=false -f discussion_category_name=Announcements \
+  -f "make_latest=${make_latest}" >/dev/null; then
   publish_failed=true
 fi
 
