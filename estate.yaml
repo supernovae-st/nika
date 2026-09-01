@@ -188,12 +188,12 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 192
-  aggregate_sha256: b1849871cc69f01899c178ba73ac93b74a2ad2df2b05e4d0cbcb0fcd08ac9641
+  aggregate_sha256: 0b2e5afcc7c49951d9bea4dfb6f0c66095b576e1f9e9bd96b0a61db9874f881b
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: c5fb2907a221fbf4e15dc8f5d91c4147af5d1007dca92d7ce4d4459095c4bd09
+  aggregate_sha256: c2bd52ca1ef116f279b7747294b6912bccbd94e11383850b26474639eda00f60
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored

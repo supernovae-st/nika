@@ -507,6 +507,20 @@ printf '%s\n' "$publish_step" | grep -q 'GH_TOKEN:.*github.token' \
   || fail 'finalizer helper lacks a step-local GitHub token'
 printf '%s\n' "$publish_step" | grep -q 'TAP_READY:.*steps.tap.outputs.ready' \
   || fail 'finalizer helper does not receive boolean tap readiness'
+for binding in ARTIFACTS PROVEN_DIGEST RELEASE_ID RELEASE_SHA REPO TAG; do
+  printf '%s\n' "$publish_step" | grep -q "^          ${binding}:" \
+    || fail "finalizer does not pass ${binding} through env"
+done
+publish_run="$(printf '%s\n' "$publish_step" | sed -n '/^        run: |/,/^      - name: Record/p')"
+# The GitHub expression syntax is matched literally.
+# shellcheck disable=SC2016
+if printf '%s\n' "$publish_run" | grep -Fq '${{'; then
+  fail 'finalizer interpolates a GitHub context directly into run'
+fi
+# Shell variables are matched literally in the workflow source.
+# shellcheck disable=SC2016
+printf '%s\n' "$publish_run" | grep -q '"\$REPO" "\$RELEASE_ID" "\$TAG" "\$RELEASE_SHA" "\$PROVEN_DIGEST"' \
+  || fail 'finalizer does not pass quoted env bindings into the helper'
 if printf '%s\n' "$publish_step" | grep -q 'TAP_DEPLOY_KEY\|GHCR_TOKEN\|IMAGE:\|npm\|docker\|slsa-verifier'; then
   fail 'finalizer helper receives a raw secret or external verifier surface'
 fi
