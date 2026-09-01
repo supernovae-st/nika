@@ -46,7 +46,8 @@ read_state() {
 # verification and supplies digest. This write-authority helper deliberately
 # invokes no external verifier: immediately before either success path, it is
 # independently authoritative for the mutable GitHub assets and release state.
-bash "$here/release-assets-barrier.sh" verify "$tag" "$repo" "${assets[@]}"
+bash "$here/release-assets-barrier.sh" \
+  verify "$repo" "$release_id" "$tag" "$sha" "${assets[@]}"
 
 scratch="$(mktemp -d)"
 trap 'rm -r "$scratch"' EXIT

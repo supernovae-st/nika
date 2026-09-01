@@ -129,7 +129,12 @@ compares its sha256 with the matching extracted native tarball; label checks
 alone do not prove payload bytes. Publication uses three disjoint authorities.
 A contents-write-only asset job downloads the exact run artifacts and stages
 then verifies all eight GitHub assets with workflow-SHA first-party tooling; it
-has no SLSA, npm, Docker, packages, or tap secret. A
+has no SLSA, npm, Docker, packages, or tap secret. It lists assets by immutable
+release ID, downloads occupied bytes by asset ID, uploads through that release
+ID's API URL, and revalidates the release ID, tag, and resolved SHA before every
+write and after convergence. A move visible to the pre-write check produces
+zero uploads. A move in the unavoidable read/POST gap still cannot redirect the
+ID-scoped upload and is refused by the post-write read. A
 contents/attestations/packages read-only final proof checks the checksum
 manifest, native attestations, tag-bound SLSA, npm SRI, persisted digest, OCI
 identity, and stopped-container payload bytes, and outputs the proven digest.
@@ -141,12 +146,13 @@ receives only a step-local GitHub token plus boolean tap readiness; the raw
 deploy key is checked and unset in a separate first-party step. A durable marker
 authorizes healing a missing immutable version tag from the exact
 `image@digest`. Without a marker, the workflow never adopts an occupied version
-coordinate. Release bodies, assets, and release fields can still be changed
-manually by a repository administrator. GitHub Releases do not support a
-conditional unsafe PATCH, so a minimal admin-writer TOCTOU remains after the
-last asset, marker, and state reads; drift visible to a read is refused, but the
-workflow cannot lock writers out. That is separate from cross-registry
-atomicity, which this visibility barrier does not claim.
+coordinate. A repository administrator can still mutate release metadata
+between separate GitHub API calls: neither asset upload nor release PATCH offers
+the conditional precondition needed to combine the identity read and write.
+This minimal admin API TOCTOU is unavoidable; ID-scoped writes cannot resolve a
+different tag and visible drift is refused by later reads, but the workflow
+cannot lock administrators out. That is separate from cross-registry atomicity,
+which this visibility barrier does not claim.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.

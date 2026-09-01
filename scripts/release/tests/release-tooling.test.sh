@@ -422,13 +422,17 @@ printf '%s\n' "$assets_job" | grep -q 'ref: \${{ github.workflow_sha }}' \
   || fail 'asset convergence does not use workflow-SHA first-party tooling'
 printf '%s\n' "$assets_job" | grep -q 'release-assets-barrier.sh' \
   || fail 'asset convergence bypasses the exact eight-asset helper'
+printf '%s\n' "$assets_job" | grep -q 'RELEASE_ID:.*needs.release-draft.outputs.release-id' \
+  || fail 'asset convergence does not receive the immutable release ID'
+printf '%s\n' "$assets_job" | grep -q 'RELEASE_SHA:.*needs.release-draft.outputs.sha' \
+  || fail 'asset convergence does not receive the resolved release SHA'
 # Shell variables are matched literally in the workflow source.
 # shellcheck disable=SC2016
-printf '%s\n' "$assets_job" | grep -q 'stage "\$TAG"' \
-  || fail 'asset convergence does not stage missing exact assets'
+printf '%s\n' "$assets_job" | grep -q 'stage "\$REPO" "\$RELEASE_ID" "\$TAG" "\$RELEASE_SHA"' \
+  || fail 'asset convergence does not stage against the immutable release identity'
 # shellcheck disable=SC2016
-printf '%s\n' "$assets_job" | grep -q 'verify "\$TAG"' \
-  || fail 'asset convergence does not reverify all eight assets'
+printf '%s\n' "$assets_job" | grep -q 'verify "\$REPO" "\$RELEASE_ID" "\$TAG" "\$RELEASE_SHA"' \
+  || fail 'asset convergence does not reverify the immutable release identity'
 for artifact in nika-\* release-native-manifest release-provenance npm-tarball; do
   printf '%s\n' "$assets_job" | grep -q "$artifact" \
     || fail "asset convergence does not download ${artifact}"
@@ -529,11 +533,28 @@ for proof in release-assets-barrier.sh read-release-state.sh release-digest-mark
   printf '%s\n' "$finalizer_helper" | grep -q "$proof" \
     || fail "finalizer helper does not independently recheck ${proof}"
 done
+# Shell variables are matched literally in the helper source.
+# shellcheck disable=SC2016
+printf '%s\n' "$finalizer_helper" | grep -q 'verify "\$repo" "\$release_id" "\$tag" "\$sha"' \
+  || fail 'finalizer does not bind asset verification to release ID and SHA'
 printf '%s\n' "$finalizer_helper" | grep -q 'sha256sum -c SHA256SUMS' \
   || fail 'finalizer helper does not independently recheck the checksum manifest'
 if printf '%s\n' "$finalizer_helper" | grep -q \
   'verify-release-attestations.sh\|verify-slsa-provenance.sh\|npm-publish-immutable.sh\|oci-coordinate-immutable.sh\|verify-oci-payload.sh\|TAP_DEPLOY_KEY'; then
   fail 'write-authority finalizer helper still executes an external verifier or receives the deploy key'
+fi
+asset_helper="$(cat "$ROOT/scripts/release/release-assets-barrier.sh")"
+printf '%s\n' "$asset_helper" | grep -q 'read-release-state.sh' \
+  || fail 'asset barrier does not revalidate immutable release identity'
+# Shell variables are matched literally in the helper source.
+# shellcheck disable=SC2016
+printf '%s\n' "$asset_helper" | grep -q 'releases/${release_id}/assets' \
+  || fail 'asset barrier census/upload is not release-ID scoped'
+# shellcheck disable=SC2016
+printf '%s\n' "$asset_helper" | grep -q 'releases/assets/${asset_id}' \
+  || fail 'asset barrier download is not asset-ID scoped'
+if printf '%s\n' "$asset_helper" | grep -q 'gh release upload\|gh release download\|releases/tags/'; then
+  fail 'asset barrier still resolves a mutable tag for asset I/O'
 fi
 bump_job="$(sed -n '/^  bump-formula:/,/^  npm-wasm-pack:/p' \
   "$ROOT/.github/workflows/release.yml")"

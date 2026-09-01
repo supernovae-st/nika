@@ -186,7 +186,13 @@ without an explicit operator decision.
    authorities. The asset-convergence job has contents-write only, downloads the
    exact run artifacts, and stages/verifies the eight GitHub assets with
    workflow-SHA first-party tooling; it receives no SLSA, npm, Docker, package,
-   or deploy-key authority. The final proof has contents/attestations/packages
+   or deploy-key authority. Asset census and upload use the immutable release
+   ID, occupied bytes download by asset ID, and every write is preceded by a
+   fresh release-ID/tag/SHA check and followed by convergence revalidation. A
+   move visible to the pre-write check refuses with zero uploads; a move inside
+   the unavoidable read/POST gap still cannot redirect the ID-scoped upload and
+   is refused by the post-write read. The final proof has
+   contents/attestations/packages
    read only and verifies the checksum manifest, native attestations, tag-bound
    SLSA, npm SRI, persisted digest, OCI identity, and stopped-container payload
    bytes. Finally, the contents/discussions writer downloads the exact artifacts
@@ -198,14 +204,14 @@ without an explicit operator decision.
    reduced to a boolean readiness result and unset before the step that receives
    the step-local GitHub token.
    OCI labels are identity metadata, not proof of binary bytes.
-   The marker and other GitHub release metadata remain manually mutable by
-   repository administrators. That admin-writer TOCTOU after the final asset,
-   marker, and state reads is residual authority: GitHub Releases do not support
-   a conditional unsafe PATCH, so an administrator can still race the final read
-   and publication.
-   The workflow detects drift visible to its reads but cannot lock writers out.
-   This minimal GitHub TOCTOU is distinct from cross-registry atomicity, which
-   this visibility barrier does not claim.
+   Repository administrators can still mutate release metadata between separate
+   GitHub API calls. Neither asset upload nor the release PATCH supports the
+   conditional precondition this workflow would need to combine its identity
+   read with the write. That minimal admin API TOCTOU is residual authority: the
+   ID-scoped upload cannot resolve a different tag, and post-operation reads
+   refuse visible drift, but the workflow cannot lock administrators out. This
+   is distinct from cross-registry atomicity, which this visibility barrier does
+   not claim.
    This barrier is future-only:
    **v0.116.2 is not retroactively atomic**, and its already-public registry
    history is not rewritten to pretend otherwise.
