@@ -1,9 +1,9 @@
 name: release
 
 # Cross-platform binary release. On a `vX.Y.Z` tag this builds the four
-# `nika` binaries the Homebrew formula points at, cuts the GitHub release with
-# those tarballs, then (optionally) bumps the tap formula. Nothing runs until a
-# tag is pushed — shipping this file triggers nothing.
+# `nika` binaries the Homebrew formula points at and holds the GitHub release
+# draft until every immutable registry coordinate is proven complete. Nothing
+# runs until a tag is pushed or an operator explicitly replays one.
 #
 # SECURITY (cf diamond-ci.yml): every `run:` step references only `matrix.*`
 # (static literals in this file), `github.ref_name` / the `tag` input (the
@@ -37,9 +37,13 @@ env:
   CARGO_INCREMENTAL: '0'
 
 jobs:
-  dispatch-ref:
-    name: release coordinate uses current guards
+  coordinate:
+    name: freeze release coordinate
     runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.coordinate.outputs.tag }}
+      version: ${{ steps.coordinate.outputs.version }}
+      sha: ${{ steps.coordinate.outputs.sha }}
     steps:
       - name: Refuse a replay selected from a non-main workflow ref
         env:
@@ -62,14 +66,38 @@ jobs:
           persist-credentials: false
           sparse-checkout: scripts/release/check-release-tag.sh
           sparse-checkout-cone-mode: false
-      - name: Validate the publication coordinate before every write
+      - name: Resolve and peel the selected tag exactly once
+        id: coordinate
         env:
-          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
-        run: bash .release-tooling/scripts/release/check-release-tag.sh "$REF_NAME"
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          bash .release-tooling/scripts/release/check-release-tag.sh "$TAG"
+          refs="$(git ls-remote --exit-code "https://github.com/${REPO}.git" \
+            "refs/tags/${TAG}" "refs/tags/${TAG}^{}")"
+          direct="$(printf '%s\n' "$refs" | awk -v ref="refs/tags/${TAG}" '$2 == ref { print $1 }')"
+          peeled="$(printf '%s\n' "$refs" | awk -v ref="refs/tags/${TAG}^{}" '$2 == ref { print $1 }')"
+          sha="${peeled:-$direct}"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::${TAG} did not resolve to one peeled commit"
+            exit 73
+          }
+          if [ "$EVENT_NAME" = push ] && [ "$sha" != "$PUSH_SHA" ]; then
+            echo "::error::pushed tag resolves to ${sha}, but github.sha is ${PUSH_SHA}"
+            exit 73
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=${TAG#v}"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     name: build ${{ matrix.name }}
-    needs: dispatch-ref
+    needs: coordinate
     runs-on: ${{ matrix.os }}
     env:
       # Evaluated once at job start so steps can reference it in `if:` conditions.
@@ -96,10 +124,11 @@ jobs:
       # binaries and their provenance now come from the tag they claim.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          ref: ${{ needs.coordinate.outputs.sha }}
+          persist-credentials: false
       - name: Verify tag matches Cargo workspace version
         env:
-          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          REF_NAME: ${{ needs.coordinate.outputs.tag }}
         run: |
           set -euo pipefail
           tag_version="${REF_NAME#v}"
@@ -211,7 +240,7 @@ jobs:
         env:
           ASSET_NAME: ${{ matrix.name }}
           TARGET: ${{ matrix.target }}
-          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          REF_NAME: ${{ needs.coordinate.outputs.tag }}
         run: |
           set -euo pipefail
           version="${REF_NAME#v}"
@@ -283,25 +312,20 @@ jobs:
             nika-*.tar.gz.sha256
           if-no-files-found: error
 
-  release:
-    name: github release
-    needs: build
+  release-draft:
+    name: prepare draft release
+    needs: [coordinate, build]
     runs-on: ubuntu-24.04
     permissions:
-      contents: write # create the release + upload assets
-      id-token: write # SLSA provenance · OIDC identity for Sigstore
-      attestations: write # publish the build-provenance attestation
-      # --discussion-category rides the createRelease call, and creating
-      # that discussion needs its own scope: without it GitHub answers
-      # HTTP 404 (not 403) and the release is NOT created. Third distinct
-      # first-exercise failure of the front-page step on v0.106.0 —
-      # Discussions were on and « Announcements » existed the whole time.
-      discussions: write
+      contents: write # create or inspect the draft release
     outputs:
-      version: ${{ steps.meta.outputs.version }}
-      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ needs.coordinate.outputs.version }}
+      tag: ${{ needs.coordinate.outputs.tag }}
       hashes: ${{ steps.meta.outputs.hashes }}
-      sha: ${{ steps.meta.outputs.sha }}
+      sha: ${{ needs.coordinate.outputs.sha }}
+      release-id: ${{ steps.release.outputs.id }}
+      draft: ${{ steps.release.outputs.draft }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
     steps:
       # The checkout this job never had. The front-page step below runs
       # scripts/release/render-notes.sh FROM THE REPO, and this job started
@@ -313,7 +337,8 @@ jobs:
       # never of whatever main has become.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          ref: ${{ needs.coordinate.outputs.sha }}
+          persist-credentials: false
       # workflow_dispatch may rebuild a tag older than this helper. Pull the
       # one first-party script from the exact commit whose workflow is running,
       # never from the historical release tree and never from a floating ref.
@@ -324,7 +349,9 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             scripts/release/check-release-tag.sh
-            scripts/release/upload-assets-immutable.sh
+            scripts/release/prepare-draft-release.sh
+            scripts/release/read-release-state.sh
+            scripts/release/resolve-release-tag.sh
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -333,18 +360,9 @@ jobs:
       - name: Aggregate checksums + version
         id: meta
         env:
-          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          REF_NAME: ${{ needs.coordinate.outputs.tag }}
         run: |
           set -euo pipefail
-          {
-            echo "version=${REF_NAME#v}"
-            echo "tag=${REF_NAME}"
-            # the tag resolved ONCE to an immutable sha — downstream jobs
-            # check out this, never re-resolve the (mutable) tag ref, so a
-            # tag moved mid-train cannot make an attestation name a commit
-            # that did not produce the bytes
-            echo "sha=$(git rev-parse "${REF_NAME}^{commit}")"
-          } >> "$GITHUB_OUTPUT"
           (cd artifacts && cat ./*.tar.gz.sha256 | sort > SHA256SUMS)
           # Subjects for the SLSA generator job below — sha256 of every
           # shipped tarball, base64 one-line, per the generator contract.
@@ -355,36 +373,46 @@ jobs:
             cat artifacts/SHA256SUMS
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Create the GitHub release
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-native-manifest
+          path: artifacts/SHA256SUMS
+          if-no-files-found: error
+      - name: Create or reuse the GitHub draft
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          REF_NAME: ${{ needs.coordinate.outputs.tag }}
+          RELEASE_SHA: ${{ needs.coordinate.outputs.sha }}
         run: |
           set -euo pipefail
           # The curated front page (What · Install · Verify · Provenance) is
           # rendered from CHANGELOG.md; --generate-notes keeps the full PR
           # list appended below it (gh prepends provided notes to generated).
           bash scripts/release/render-notes.sh "$REF_NAME" > "$RUNNER_TEMP/release-notes.md"
-          # Idempotent on a workflow_dispatch rebuild: an existing release
-          # keeps its body + discussion, and every already-published asset
-          # must be byte-identical. A replay may fill a missing asset, never
-          # rewrite one whose public name is already occupied.
-          if gh release view "$REF_NAME" --repo "$REPO" > /dev/null 2>&1; then
-            echo "::notice::release ${REF_NAME} already exists — verifying immutable assets"
-            bash .release-tooling/scripts/release/upload-assets-immutable.sh "$REF_NAME" "$REPO" \
-              artifacts/nika-*.tar.gz artifacts/SHA256SUMS
-          else
-            gh release create "$REF_NAME" \
-              --repo "$REPO" \
-              --title "$REF_NAME" \
-              --notes-file "$RUNNER_TEMP/release-notes.md" \
-              --generate-notes \
-              --verify-tag \
-              --discussion-category "Announcements" \
-              artifacts/nika-*.tar.gz artifacts/SHA256SUMS
-          fi
-      - name: Attest build provenance (SLSA · verifiable via `gh attestation verify`)
+          bash .release-tooling/scripts/release/prepare-draft-release.sh \
+            "$REF_NAME" "$REPO" "$RUNNER_TEMP/release-notes.md" "$RELEASE_SHA" \
+            >> "$GITHUB_OUTPUT"
+  native-attest:
+    # Native attestation generation is tag-context-only and deliberately has no
+    # release-write token. A manual replay verifies existing attestations in the
+    # read-only final proof instead of minting branch-context replacements.
+    name: attest native release archives
+    needs: release-draft
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: nika-*
+          path: artifacts
+          merge-multiple: true
+      - name: Attest build provenance (verifiable via `gh attestation verify`)
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: 'artifacts/nika-*.tar.gz'
@@ -399,11 +427,13 @@ jobs:
     # verifier refuses SHA refs) — the one documented exception to the
     # SHA-pin law; scorecard's Pinned-Dependencies knows this exception.
     name: slsa provenance (intoto asset)
-    needs: release
+    needs: release-draft
     # On workflow_dispatch, github.ref/github.sha identify the workflow source
     # (normally main), not the input tag whose bytes were built. The generic
     # generator binds those context values into the statement, so only a tag
-    # push can create tag-true provenance. Manual replay must preserve it.
+    # push can create tag-true provenance. Manual replay can only verify an
+    # existing statement; missing provenance requires rerunning the retained
+    # original tag-push run.
     if: github.event_name == 'push'
     permissions:
       actions: read # read the workflow run for provenance
@@ -411,97 +441,168 @@ jobs:
       contents: read # bind the generated statement to this repository
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
-      base64-subjects: ${{ needs.release.outputs.hashes }}
+      base64-subjects: ${{ needs.release-draft.outputs.hashes }}
       # The upstream release uploader deletes and replaces an occupied
-      # same-name asset. Generate a run artifact only; the first-party
-      # provenance-publish job below performs the fail-closed release upload.
+      # same-name asset. Generate a run artifact only; the isolated
+      # release-assets-converge job below owns the fail-closed release upload.
       upload-assets: false
 
   provenance-publish:
-    name: publish immutable slsa asset
-    needs: [release, provenance]
+    name: verify push slsa provenance
+    needs: [release-draft, provenance]
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      actions: read
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.workflow_sha }}
           path: .release-tooling
           persist-credentials: false
-          sparse-checkout: |
-            scripts/release/check-release-tag.sh
-            scripts/release/upload-assets-immutable.sh
+          sparse-checkout: scripts/release
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ needs.provenance.outputs.provenance-name }}
-      - name: Attach SLSA provenance without replacing public bytes
+          path: artifacts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: nika-*
+          path: artifacts
+          merge-multiple: true
+      - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
+      - name: Normalize the generated statement name
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.release.outputs.tag }}
           PROVENANCE_NAME: ${{ needs.provenance.outputs.provenance-name }}
         run: |
           set -euo pipefail
           test "$PROVENANCE_NAME" = "multiple.intoto.jsonl"
-          bash .release-tooling/scripts/release/upload-assets-immutable.sh \
-            "$TAG" "$REPO" "$PROVENANCE_NAME"
+          test -s artifacts/multiple.intoto.jsonl
+      - name: Verify push provenance before exposing its run artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+        run: |
+          set -euo pipefail
+          native=(artifacts/nika-*.tar.gz)
+          bash .release-tooling/scripts/release/verify-slsa-provenance.sh \
+            "$TAG" "$REPO" artifacts/multiple.intoto.jsonl "${native[@]}"
+          bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-provenance
+          path: artifacts/multiple.intoto.jsonl
+          if-no-files-found: error
 
   provenance-replay-check:
-    name: preserve existing slsa asset on replay
-    needs: release
+    name: verify existing slsa provenance on replay
+    needs: release-draft
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - name: Refuse provenance regeneration from the workflow branch
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: nika-*
+          path: artifacts
+          merge-multiple: true
+      - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
+      - name: Download exactly one existing statement
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
-          TAG: ${{ needs.release.outputs.tag }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
         run: |
           set -euo pipefail
-          matches="$(gh api "repos/${REPO}/releases/tags/${TAG}" \
+          bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
+          matches="$(gh api "repos/${REPO}/releases/${RELEASE_ID}" \
             --jq '[.assets[] | select(.name == "multiple.intoto.jsonl")] | length')"
           if [ "$matches" != "1" ]; then
-            echo "::error::manual replay requires exactly one existing multiple.intoto.jsonl; refusing branch-context provenance regeneration"
+            echo "::error::workflow_dispatch cannot regenerate tag-context SLSA provenance; rerun the original tag-push run while it is retained"
             exit 73
           fi
-          echo "one SLSA provenance asset is present and remains untouched; cryptographic verification stays a separate release check"
+          gh release download "$TAG" --repo "$REPO" \
+            --pattern multiple.intoto.jsonl --dir artifacts
+          native=(artifacts/nika-*.tar.gz)
+          bash .release-tooling/scripts/release/verify-slsa-provenance.sh \
+            "$TAG" "$REPO" artifacts/multiple.intoto.jsonl "${native[@]}"
+          bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-provenance
+          path: artifacts/multiple.intoto.jsonl
+          if-no-files-found: error
+
+  provenance-result:
+    name: select event-specific provenance result
+    needs: [provenance-publish, provenance-replay-check]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require the selected lane and reject skipped masquerades
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_RESULT: ${{ needs.provenance-publish.result }}
+          REPLAY_RESULT: ${{ needs.provenance-replay-check.result }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = push ]; then
+            [ "$PUSH_RESULT" = success ] && [ "$REPLAY_RESULT" = skipped ]
+          else
+            [ "$PUSH_RESULT" = skipped ] && [ "$REPLAY_RESULT" = success ]
+          fi
 
   bump-formula:
     name: bump homebrew tap
-    needs: release
+    needs: finalize
+    if: ${{ !contains(needs.finalize.outputs.version, '-') }}
     runs-on: ubuntu-24.04
     steps:
-      - name: Guard on the tap deploy key
-        id: guard
-        env:
-          # A DEPLOY KEY, not a PAT: scoped to the one tap repo, write-only
-          # there, and it never expires under the 90-day fine-grained-token
-          # clock (the v0.100.0 train fell on exactly that — Bad credentials
-          # from an expired HOMEBREW_TAP_TOKEN).
-          TAP_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
-        run: |
-          set -euo pipefail
-          if [ -n "${TAP_KEY:-}" ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::TAP_DEPLOY_KEY unset — skipping the formula bump. The release + checksums are published; run scripts/release/update-formula.sh against the tap manually."
-          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.guard.outputs.ok == 'true'
+        with:
+          ref: ${{ needs.finalize.outputs.sha }}
+          persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: steps.guard.outputs.ok == 'true'
         with:
           path: artifacts
           merge-multiple: true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.guard.outputs.ok == 'true'
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - name: Refuse an old stable release before touching the tap
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.finalize.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.finalize.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.finalize.outputs.tag }}
+        run: |
+          set -euo pipefail
+          bash .release-tooling/scripts/release/assert-newest-public-stable.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The tap repo is homebrew-tap — the canonical brew mapping for
           # `brew install supernovae-st/tap/nika` (renamed back 2026-07-06;
@@ -510,12 +611,16 @@ jobs:
           ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
           path: tap
       - name: Update + push the formula
-        if: steps.guard.outputs.ok == 'true'
         env:
-          VERSION: ${{ needs.release.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.finalize.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.finalize.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.finalize.outputs.tag }}
+          VERSION: ${{ needs.finalize.outputs.version }}
         run: |
           set -euo pipefail
-          bash scripts/release/update-formula.sh tap/Formula/nika.rb "$VERSION" artifacts
+          bash .release-tooling/scripts/release/update-formula.sh tap/Formula/nika.rb "$VERSION" artifacts
           cd tap
           git config user.name "nika-release[bot]"
           git config user.email "nika@supernovae.studio"
@@ -526,6 +631,8 @@ jobs:
           if git diff --cached --quiet; then
             echo "::notice::formula already at ${VERSION} — nothing to bump"
           else
+            bash ../.release-tooling/scripts/release/assert-newest-public-stable.sh \
+              "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA"
             git commit -m "nika ${VERSION}"
             git push
           fi
@@ -542,14 +649,14 @@ jobs:
     # produce a -dev prerelease (npm-pack.sh · the lineage-lie guard).
     # Plan: docs/plans/2026-07-28-check-wasm-npm-distribution.md
     name: npm pack (nika-check-wasm)
-    needs: release
+    needs: release-draft
     runs-on: ubuntu-24.04
     permissions:
       contents: read # this job compiles third-party code — lowest privilege
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.sha }}
+          ref: ${{ needs.release-draft.outputs.sha }}
           # no token persisted into .git/config while build.rs code runs
           persist-credentials: false
       - name: Checkout nika-spec (Leg A differential corpus · judged at SPEC_PIN)
@@ -594,7 +701,7 @@ jobs:
         # assert below refuses it (proven on v0.106.1's first run: packed
         # 0.106.1-dev.g… ≠ released 0.106.1). One tag, fetched explicitly.
         env:
-          TAG: ${{ needs.release.outputs.tag }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
         run: git fetch origin tag "$TAG" --no-tags
       - name: Pack (tests · wasm-release build · bindgen · wasm-opt · projected manifest)
         env:
@@ -606,7 +713,7 @@ jobs:
         # die here, not after an upload. Equality subsumes the -dev case
         # (a suffixed version can never equal the tag's).
         env:
-          VERSION: ${{ needs.release.outputs.version }}
+          VERSION: ${{ needs.release-draft.outputs.version }}
         run: |
           set -euo pipefail
           packed="$(python3 -c 'import json;print(json.load(open("crates/nika-check-wasm/dist-npm/package.json"))["version"])')"
@@ -625,14 +732,14 @@ jobs:
   npm-wasm-publish:
     # The ELEVATED half — runs zero third-party code: download, gh, npm on
     # a pinned toolchain, plus the one first-party immutable-upload helper
-    # checked out sparsely at the exact release SHA. The tarball is attached +
-    # attested BEFORE the publish attempt so a credential-less run still ships
-    # the exact publish-ready bytes.
+    # checked out sparsely at the exact workflow SHA. The tarball is attested
+    # on tag push and its exact SRI is proven before the finalizer can expose
+    # the draft.
     name: npm publish (nika-check-wasm)
-    needs: [release, npm-wasm-pack]
+    needs: [release-draft, npm-wasm-pack]
     runs-on: ubuntu-24.04
     permissions:
-      contents: write # attach the npm tarball + sha256 to the release
+      contents: read # sparse checkout only; release assets belong to finalizer
       id-token: write # npm --provenance (Sigstore OIDC) + build attestation
       attestations: write # publish the tarball's build-provenance attestation
     steps:
@@ -643,7 +750,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             scripts/release/check-release-tag.sh
-            scripts/release/upload-assets-immutable.sh
+            scripts/release/npm-publish-immutable.sh
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -657,127 +764,582 @@ jobs:
           # token never touches the filesystem in cleartext.
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-      - name: Attach the tarball + sha256 to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release.outputs.tag }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          # A replay may heal an absent asset, but a public name is immutable
-          # once occupied. Different bytes fail closed.
-          bash .release-tooling/scripts/release/upload-assets-immutable.sh \
-            "$TAG" "$REPO" ./*.tgz ./*.tgz.sha256
       - name: Attest build provenance (the npm tarball · verifiable via `gh attestation verify`)
+        if: github.event_name == 'push'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: '*.tgz'
-      - name: Publish to npm — loud-skip without a credential
+      - name: Converge npm by exact sha512 SRI
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          VERSION: ${{ needs.release.outputs.version }}
+          VERSION: ${{ needs.release-draft.outputs.version }}
         run: |
           set -euo pipefail
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::warning::NPM_TOKEN unset — npm publish skipped. The tarball on the release is publish-ready (npm publish <tgz> --access public — provenance only exists on this train), or add the credential and re-dispatch this tag."
-            echo "npm publish **skipped** (no credential) — the attached tarball is publish-ready" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          # idempotent on re-dispatch: an already-published version is a
-          # notice, not a failure (npm versions are immutable anyway)
-          if npm view "@supernovae-st/nika-check-wasm@${VERSION}" version > /dev/null 2>&1; then
-            echo "::notice::@supernovae-st/nika-check-wasm@${VERSION} already on npm — nothing to publish"
-            exit 0
-          fi
-          # publish the TARBALL, not a directory — the bytes on npm are
-          # byte-identical to the attached + attested release asset (and a
-          # tarball publish runs zero lifecycle scripts, by npm's own code)
-          npm publish ./*.tgz --provenance --access public
-          # the byte-equality claim, gated instead of asserted: registry
-          # integrity must equal the tarball we attested.
-          #
-          # The registry needs a moment. Asked one second after publish it
-          # answers E404 for a version it has just accepted — CDN
-          # propagation, not a mismatch — and under `set -e` that killed
-          # the step on a train whose package HAD published (v0.107.1,
-          # 2026-08-02: npm carried 0.107.1 with its integrity while this
-          # job was red). A verification that cannot yet see the thing it
-          # verifies must say « not yet », never « wrong ».
-          have="sha512-$(openssl dgst -sha512 -binary ./*.tgz | base64 -w 0)"
-          want=""
-          for attempt in 1 2 3 4 5 6; do
-            want="$(npm view "@supernovae-st/nika-check-wasm@${VERSION}" dist.integrity 2>/dev/null || true)"
-            [ -n "$want" ] && break
-            echo "registry has not propagated yet (attempt ${attempt}/6) — waiting 10s"
-            sleep 10
-          done
-          if [ -z "$want" ]; then
-            echo "::error::the registry never answered for ${VERSION} after 60s — publish state UNKNOWN, check npm before re-dispatching"
-            exit 1
-          fi
-          [ "$want" = "$have" ] || {
-            echo "::error::registry bytes ≠ published tarball"
-            exit 1
-          }
-          echo "published \`@supernovae-st/nika-check-wasm@${VERSION}\` (npm provenance attached · registry bytes verified)" >> "$GITHUB_STEP_SUMMARY"
+          tarballs=(./*.tgz)
+          sidecars=(./*.tgz.sha256)
+          [ "${#tarballs[@]}" -eq 1 ] && [ "${#sidecars[@]}" -eq 1 ] \
+            && [ -f "${tarballs[0]}" ] && [ -f "${sidecars[0]}" ] || {
+              echo "::error::expected exactly one npm tarball and sidecar"
+              exit 73
+            }
+          bash .release-tooling/scripts/release/npm-publish-immutable.sh \
+            publish "@supernovae-st/nika-check-wasm@${VERSION}" \
+            "${tarballs[0]}" "${sidecars[0]}"
 
   docker:
     # The official multi-arch image (#442) — one image unblocks Dokploy /
     # Coolify / Railway templates + the Docker MCP Registry. Fed from the
     # SAME linux tarball artifacts the release ships (never a rebuild), so
     # the image binary is bit-identical to the published tarballs the funnel
-    # e2e + trust battery already gated. `needs: release` keeps the image
-    # behind the published release: an image never precedes its tarballs.
+    # e2e + trust battery already gated. The digest may become public while the
+    # GitHub release remains draft; only the version coordinate is immutable,
+    # and `latest` remains behind the finalizer.
     # SECURITY: the only run: step reads VERSION through env: (tag-derived,
     # cf the header contract) — no event text reaches a shell.
-    # NB: a workflow_dispatch re-run of an OLD tag re-points `latest` at it
-    # (same semantics as the formula bump) — dispatch old tags knowingly.
-    name: docker image (ghcr)
-    needs: release
+    name: build ghcr digest
+    needs: release-draft
     runs-on: ubuntu-24.04
     permissions:
       contents: read # checkout the Dockerfile
       packages: write # push to ghcr.io — scoped to THIS job only
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.sha }}
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: artifacts
-          merge-multiple: true
-      - name: Stage per-arch binaries into the build context
-        # Docker arch names (amd64 · arm64) ≠ release tarball arch names
-        # (x64 · arm64) — the mapping happens HERE, once; the Dockerfile
-        # just COPYs dist/linux/${TARGETARCH}/nika.
-        env:
-          VERSION: ${{ needs.release.outputs.version }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist/linux/amd64 dist/linux/arm64
-          tar -xzf "artifacts/nika-linux-x64-${VERSION}.tar.gz" -C dist/linux/amd64 nika
-          tar -xzf "artifacts/nika-linux-arm64-${VERSION}.tar.gz" -C dist/linux/arm64 nika
-      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Build + push (linux/amd64 · linux/arm64)
+      - name: Reuse only a durable marker, otherwise require a digest build
+        id: coordinate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+        run: |
+          set -euo pipefail
+          state=0
+          digest="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")" || state=$?
+          if [ "$state" -eq 0 ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$state" -eq 44 ] || exit "$state"
+          # An occupied image:version without this marker is not authority.
+          # Build from the release tarballs and bind the resulting digest.
+          echo "build=true" >> "$GITHUB_OUTPUT"
+          echo "digest=" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.coordinate.outputs.build == 'true'
+        with:
+          ref: ${{ needs.release-draft.outputs.sha }}
+          path: .release-source
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Stage per-arch binaries into the build context
+        if: steps.coordinate.outputs.build == 'true'
+        # Docker arch names (amd64 · arm64) ≠ release tarball arch names
+        # (x64 · arm64) — the mapping happens HERE, once; the Dockerfile
+        # just COPYs dist/linux/${TARGETARCH}/nika.
+        env:
+          VERSION: ${{ needs.release-draft.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p .release-source/dist/linux/amd64 .release-source/dist/linux/arm64
+          tar -xzf "artifacts/nika-linux-x64-${VERSION}.tar.gz" -C .release-source/dist/linux/amd64 nika
+          tar -xzf "artifacts/nika-linux-arm64-${VERSION}.tar.gz" -C .release-source/dist/linux/arm64 nika
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - name: Build + push by digest (linux/amd64 · linux/arm64)
+        id: image
+        if: steps.coordinate.outputs.build == 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
-          context: .
+          context: .release-source
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ needs.release.outputs.version }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
           labels: |
             org.opencontainers.image.title=Nika
             org.opencontainers.image.description=Sovereign AI workflow runtime
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.url=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ needs.release.outputs.sha }}
-            org.opencontainers.image.version=${{ needs.release.outputs.version }}
+            org.opencontainers.image.revision=${{ needs.release-draft.outputs.sha }}
+            org.opencontainers.image.version=${{ needs.release-draft.outputs.version }}
             org.opencontainers.image.licenses=AGPL-3.0-or-later
+      - name: Select and prove the exact digest payload
+        id: digest
+        env:
+          CANDIDATE: ${{ steps.image.outputs.digest }}
+          MARKER_DIGEST: ${{ steps.coordinate.outputs.digest }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.release-draft.outputs.version }}
+        run: |
+          set -euo pipefail
+          candidate="${CANDIDATE:-$MARKER_DIGEST}"
+          digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            inspect "$IMAGE" "$VERSION" "$candidate" "$RELEASE_SHA" \
+            "https://github.com/${REPO}")"
+          bash .release-tooling/scripts/release/verify-oci-payload.sh \
+            "$IMAGE" "$digest" "$VERSION" artifacts
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  oci-proof:
+    # All pre-marker Docker actions run with read-only contents/packages.
+    # No third-party Docker action receives release-body write authority.
+    name: prove ghcr digest payload
+    needs: [release-draft, docker]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      digest: ${{ steps.proof.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Prove the digest identity and payload bytes
+        id: proof
+        env:
+          DIGEST: ${{ needs.docker.outputs.digest }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.release-draft.outputs.version }}
+        run: |
+          set -euo pipefail
+          bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            inspect "$IMAGE" "$VERSION" "$DIGEST" "$RELEASE_SHA" \
+            "https://github.com/${REPO}" >/dev/null
+          bash .release-tooling/scripts/release/verify-oci-payload.sh \
+            "$IMAGE" "$DIGEST" "$VERSION" artifacts
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+  oci-marker:
+    # This job stages only the already-proven digest. It has no package
+    # permission, Docker action, registry login, or image execution surface.
+    name: persist ghcr digest marker
+    needs: [release-draft, oci-proof]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      digest: ${{ steps.persist.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - name: Re-read release identity and persist only the proven digest
+        id: persist
+        env:
+          DIGEST: ${{ needs.oci-proof.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+        run: |
+          set -euo pipefail
+          bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
+          persisted="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            stage "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "$DIGEST")"
+          [ "$persisted" = "$DIGEST" ]
+          echo "digest=$persisted" >> "$GITHUB_OUTPUT"
+
+  oci-version:
+    # The immutable version coordinate is allowed to converge only after the
+    # release-body marker is durable. A missing image:version is healed from
+    # that exact image@digest; a divergent occupied version is refused.
+    name: converge ghcr immutable version
+    needs: [release-draft, oci-marker]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.converge.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Converge from the durable marker
+        id: converge
+        env:
+          DIGEST: ${{ needs.oci-marker.outputs.digest }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.release-draft.outputs.version }}
+        run: |
+          set -euo pipefail
+          digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            publish "$IMAGE" "$VERSION" "$DIGEST" "$RELEASE_SHA" \
+            "https://github.com/${REPO}")"
+          [ "$digest" = "$DIGEST" ]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  release-assets-converge:
+    # This job is the only full-asset release writer. It runs first-party
+    # workflow-SHA tooling only: no provenance, npm, Docker, package token, or
+    # deploy key shares its contents-write authority.
+    name: converge exact github release assets
+    needs: [release-draft, provenance-result, npm-wasm-pack]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: nika-*
+          path: artifacts
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-native-manifest
+          path: artifacts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-provenance
+          path: artifacts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-tarball
+          path: artifacts
+      - name: Stage and verify exactly eight immutable assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          assets=(
+            "artifacts/nika-macos-arm64-${version}.tar.gz"
+            "artifacts/nika-macos-x64-${version}.tar.gz"
+            "artifacts/nika-linux-arm64-${version}.tar.gz"
+            "artifacts/nika-linux-x64-${version}.tar.gz"
+            artifacts/SHA256SUMS
+            artifacts/multiple.intoto.jsonl
+            "artifacts/supernovae-st-nika-check-wasm-${version}.tgz"
+            "artifacts/supernovae-st-nika-check-wasm-${version}.tgz.sha256"
+          )
+          bash .release-tooling/scripts/release/release-assets-barrier.sh \
+            stage "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "${assets[@]}"
+          bash .release-tooling/scripts/release/release-assets-barrier.sh \
+            verify "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "${assets[@]}"
+
+  release-final-proof:
+    # Every untrusted or registry-facing verifier runs with read authority
+    # only. Its digest output is the immutable-registry fact trusted by the
+    # final contents writer.
+    name: prove complete release without write authority
+    needs:
+      - release-draft
+      - release-assets-converge
+      - native-attest
+      - provenance-result
+      - npm-wasm-pack
+      - npm-wasm-publish
+      - oci-version
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      attestations: read
+      contents: read
+      packages: read
+    outputs:
+      digest: ${{ steps.proof.outputs.digest }}
+    steps:
+      - name: Refuse incomplete or skipped prerequisites
+        env:
+          ASSETS_RESULT: ${{ needs.release-assets-converge.result }}
+          DRAFT_RESULT: ${{ needs.release-draft.result }}
+          EVENT_NAME: ${{ github.event_name }}
+          NATIVE_ATTEST_RESULT: ${{ needs.native-attest.result }}
+          NPM_RESULT: ${{ needs.npm-wasm-publish.result }}
+          OCI_RESULT: ${{ needs.oci-version.result }}
+          PROVENANCE_RESULT: ${{ needs.provenance-result.result }}
+          WASM_PACK_RESULT: ${{ needs.npm-wasm-pack.result }}
+        run: |
+          set -euo pipefail
+          for result in \
+            "$ASSETS_RESULT" "$DRAFT_RESULT" "$NPM_RESULT" "$OCI_RESULT" \
+            "$PROVENANCE_RESULT" "$WASM_PACK_RESULT"; do
+            [ "$result" = success ] || {
+              echo "::error::release prerequisite result is ${result}, not success"
+              exit 73
+            }
+          done
+          if [ "$EVENT_NAME" = push ]; then
+            [ "$NATIVE_ATTEST_RESULT" = success ]
+          else
+            [ "$NATIVE_ATTEST_RESULT" = skipped ]
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: nika-*
+          path: artifacts
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-native-manifest
+          path: artifacts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-provenance
+          path: artifacts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-tarball
+          path: artifacts
+      - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Prove checksums, provenance, npm, marker, and ghcr payload
+        id: proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          PROVEN_DIGEST: ${{ needs.oci-version.outputs.digest }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+          VERSION: ${{ needs.release-draft.outputs.version }}
+        run: |
+          set -euo pipefail
+          expected="$RUNNER_TEMP/checksum-names"
+          printf '%s\n' \
+            "nika-linux-arm64-${VERSION}.tar.gz" \
+            "nika-linux-x64-${VERSION}.tar.gz" \
+            "nika-macos-arm64-${VERSION}.tar.gz" \
+            "nika-macos-x64-${VERSION}.tar.gz" | LC_ALL=C sort > "$expected"
+          awk '{ print $2 }' artifacts/SHA256SUMS | LC_ALL=C sort \
+            | sed 's/^\*//' > "$RUNNER_TEMP/actual-checksum-names"
+          cmp -s "$expected" "$RUNNER_TEMP/actual-checksum-names" || {
+            echo "::error::SHA256SUMS does not name exactly the four native archives"
+            exit 73
+          }
+          (cd artifacts && sha256sum -c SHA256SUMS)
+          bash .release-tooling/scripts/release/verify-release-attestations.sh \
+            "$TAG" "$RELEASE_SHA" "$REPO" artifacts
+          native=(artifacts/nika-*.tar.gz)
+          bash .release-tooling/scripts/release/verify-slsa-provenance.sh \
+            "$TAG" "$REPO" artifacts/multiple.intoto.jsonl "${native[@]}"
+          bash .release-tooling/scripts/release/npm-publish-immutable.sh verify \
+            "@supernovae-st/nika-check-wasm@${VERSION}" \
+            "artifacts/supernovae-st-nika-check-wasm-${VERSION}.tgz" \
+            "artifacts/supernovae-st-nika-check-wasm-${VERSION}.tgz.sha256"
+          persisted="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")"
+          [ "$persisted" = "$PROVEN_DIGEST" ]
+          digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            verify "$IMAGE" "$VERSION" "$persisted" "$RELEASE_SHA" \
+            "https://github.com/${REPO}")"
+          [ "$digest" = "$persisted" ]
+          bash .release-tooling/scripts/release/verify-oci-payload.sh \
+            "$IMAGE" "$digest" "$VERSION" artifacts
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  finalize:
+    # The final writer invokes only first-party GitHub-state tooling. Immutable
+    # registry/provenance facts arrive as the read-only proof job's digest.
+    name: publish complete release
+    needs: [release-draft, release-final-proof]
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      discussions: write
+    outputs:
+      tag: ${{ needs.release-draft.outputs.tag }}
+      version: ${{ needs.release-draft.outputs.version }}
+      sha: ${{ needs.release-draft.outputs.sha }}
+      release-id: ${{ needs.release-draft.outputs.release-id }}
+      digest: ${{ needs.release-final-proof.outputs.digest }}
+      transitioned: ${{ steps.publish.outputs.transitioned }}
+    steps:
+      - name: Refuse incomplete or skipped prerequisites
+        env:
+          DRAFT_RESULT: ${{ needs.release-draft.result }}
+          PROOF_RESULT: ${{ needs.release-final-proof.result }}
+        run: |
+          set -euo pipefail
+          for result in "$DRAFT_RESULT" "$PROOF_RESULT"; do
+            [ "$result" = success ] || {
+              echo "::error::release prerequisite result is ${result}, not success"
+              exit 73
+            }
+          done
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: nika-*
+          path: artifacts
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-native-manifest
+          path: artifacts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-provenance
+          path: artifacts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-tarball
+          path: artifacts
+      - name: Resolve tap readiness without sharing the deploy key
+        id: tap
+        env:
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          ready=false
+          if [ -n "${TAP_DEPLOY_KEY:-}" ]; then
+            ready=true
+          fi
+          unset TAP_DEPLOY_KEY
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+      - name: Recheck GitHub state and publish once
+        id: publish
+        env:
+          ARTIFACTS: artifacts
+          GH_TOKEN: ${{ github.token }}
+          PROVEN_DIGEST: ${{ needs.release-final-proof.outputs.digest }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+          TAP_READY: ${{ steps.tap.outputs.ready }}
+        run: |
+          set -euo pipefail
+          command -v gh sha256sum >/dev/null
+          bash .release-tooling/scripts/release/finalize-release.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "$PROVEN_DIGEST" \
+            "$ARTIFACTS" "$TAP_READY" \
+            >> "$GITHUB_OUTPUT"
+      - name: Record already-public replay
+        if: steps.publish.outputs.transitioned != 'true'
+        run: echo "release visibility was already public; stable pointers will converge behind the newest-release guard" >> "$GITHUB_STEP_SUMMARY"
+
+  move-latest:
+    name: move ghcr latest after publication
+    needs: finalize
+    if: ${{ !contains(needs.finalize.outputs.version, '-') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Move latest to the finalized immutable digest
+        env:
+          DIGEST: ${{ needs.finalize.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          RELEASE_ID: ${{ needs.finalize.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.finalize.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.finalize.outputs.tag }}
+          VERSION: ${{ needs.finalize.outputs.version }}
+        run: |
+          set -euo pipefail
+          bash .release-tooling/scripts/release/assert-newest-public-stable.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA"
+          persisted="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")"
+          [ "$persisted" = "$DIGEST" ]
+          bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            verify "$IMAGE" "$VERSION" "$DIGEST" "$RELEASE_SHA" \
+            "https://github.com/${REPO}" >/dev/null
+          bash .release-tooling/scripts/release/assert-newest-public-stable.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA"
+          bash .release-tooling/scripts/release/converge-oci-pointer.sh \
+            "$IMAGE" latest "$DIGEST"

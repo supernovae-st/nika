@@ -67,10 +67,14 @@ That tag fires **`.github/workflows/release.yml`**, which:
    the hidden `guard` verb is asked of the verb itself, not the `--help`
    listing),
 3. packages each as `nika-<platform>-<version>.tar.gz` (+ a `.sha256` sidecar),
-4. creates the GitHub release with those tarballs + a `SHA256SUMS` file,
-5. **bumps the Homebrew tap** formula (version + the 4 sha256s) — *if* the
-   `TAP_DEPLOY_KEY` secret is set (see §3); otherwise it logs a notice and you
-   bump the formula by hand (§2).
+4. holds the GitHub release as a draft while npm converges and GHCR builds a
+   digest, proves both Linux payloads against the native tarballs, durably
+   records that digest, then converges the immutable version coordinate,
+5. verifies the exact eight-asset allowlist, checksums, five source-bound
+   GitHub attestations, the generic SLSA signature/source/four subjects, npm
+   SRI, and the two-platform OCI digest + labels, then one finalizer makes the
+   release public,
+6. moves stable-only Homebrew and GHCR `latest` pointers after finalization.
 
 Replay a tag without re-tagging via the **workflow_dispatch** input.
 Always dispatch the current workflow from `main`; the input, not the workflow
@@ -89,26 +93,76 @@ replay boundary.
 
 All live and replay release trains share one global publication lane because
 Homebrew and the container `latest` tag are cross-version mutable pointers.
+This is a **visibility barrier, not a cross-registry transaction**. npm and
+GHCR writes are irreversible and may be public while GitHub remains a draft;
+recovery is forward convergence under the same immutable tag, never rollback.
 GitHub retains only one pending train and may replace it with a newer one, so
 never queue more than one train behind the active run. An already-published
 asset is downloaded and compared, and a replay refuses to replace it when the
 bytes differ. A timestamped or otherwise non-reproducible rebuild therefore
 stops; missing assets are filled only when the occupied set still compares
 byte-for-byte. The workflow reads replay tooling from its own exact commit, not
-from the historical tag. Existing SLSA provenance is preserved rather than
-regenerated; a missing statement makes manual replay fail, because the workflow
-branch is not an honest provenance identity for the historical tag. The replay
-guard checks the unique asset name; the verification commands below still judge
-its signature and source identity.
+from the historical tag. The tag-push lane cryptographically verifies generic
+SLSA provenance and exposes it as a run artifact for the isolated exact-asset
+writer to stage with the other seven assets. A manual replay can
+only preserve and re-verify an existing statement: `workflow_dispatch` cannot
+regenerate missing tag-context SLSA because the workflow branch is not an
+honest provenance identity for the historical tag. If the statement is
+missing, rerun the original tag-push run while that run and its artifacts are
+retained. Every stable replay converges Homebrew and GHCR `latest`, so a failure
+in either post-public job can be repaired after the release is already public.
+Already-correct pointers no-op, and both possible writes first prove this is the
+newest public stable SemVer; an old-tag replay refuses instead of downgrading.
+Prereleases never move them. GitHub publication passes `make_latest=legacy`
+for stable releases and `make_latest=false` for prereleases, preventing delayed
+older-stable recovery from forcing Latest. Missing mandatory credentials keep
+the draft closed. Homebrew necessarily has a short
+post-public update window because its formula cannot safely point at draft
+assets. This protection is future-only; **v0.116.2 is not retroactively
+atomic**, and no workflow can rewrite its already-public history into one.
+
+The exact GHCR digest is stored as a hidden marker in the GitHub release body,
+not as a ninth asset. Before persistence and again inside the read-only final
+proof, the workflow pulls each Linux platform by exact digest, creates a stopped
+container, copies out `/usr/local/bin/nika` without executing image content, and
+compares its sha256 with the matching extracted native tarball; label checks
+alone do not prove payload bytes. Publication uses three disjoint authorities.
+A contents-write-only asset job downloads the exact run artifacts and stages
+then verifies all eight GitHub assets with workflow-SHA first-party tooling; it
+has no SLSA, npm, Docker, packages, or tap secret. It lists assets by immutable
+release ID, downloads occupied bytes by asset ID, uploads through that release
+ID's API URL, and revalidates the release ID, tag, and resolved SHA before every
+write and after convergence. A move visible to the pre-write check produces
+zero uploads. A move in the unavoidable read/POST gap still cannot redirect the
+ID-scoped upload and is refused by the post-write read. A
+contents/attestations/packages read-only final proof checks the checksum
+manifest, native attestations, tag-bound SLSA, npm SRI, persisted digest, OCI
+identity, and stopped-container payload bytes, and outputs the proven digest.
+The final contents/discussions writer downloads the exact artifacts again,
+compares the eight current GitHub assets byte-for-byte, checks the checksum
+manifest, and re-reads marker and release state immediately before either
+already-public success or PATCH. It invokes no external registry verifier and
+receives only a step-local GitHub token plus boolean tap readiness; the raw
+deploy key is checked and unset in a separate first-party step. A durable marker
+authorizes healing a missing immutable version tag from the exact
+`image@digest`. Without a marker, the workflow never adopts an occupied version
+coordinate. A repository administrator can still mutate release metadata
+between separate GitHub API calls: neither asset upload nor release PATCH offers
+the conditional precondition needed to combine the identity read and write.
+This minimal admin API TOCTOU is unavoidable; ID-scoped writes cannot resolve a
+different tag and visible drift is refused by later reads, but the workflow
+cannot lock administrators out. That is separate from cross-registry atomicity,
+which this visibility barrier does not claim.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.
 
 ---
 
-## 2. Homebrew formula — by hand (when the tap token isn't set)
+## 2. Homebrew formula — repair after a post-public automation failure
 
-The release already published the tarballs + checksums. From the tap clone:
+The finalizer published the tarballs + checksums, but the downstream formula
+write can still fail in the unavoidable post-public window. From the tap clone:
 
 ```bash
 gh release download v0.90.0 --repo supernovae-st/nika --dir /tmp/rel
@@ -133,7 +187,22 @@ the engine repo:
 gh secret set TAP_DEPLOY_KEY --repo supernovae-st/nika < /path/to/private-key
 ```
 
-With it set, step §1 closes the loop end-to-end (no manual formula edit).
+It is mandatory for a new stable train: without it the visibility finalizer
+keeps the GitHub release in draft. Once public, the formula update follows the
+finalizer; if that downstream write fails, repair it forward with §2.
+
+The npm package also needs a granular automation token when the selected
+version is absent:
+
+```bash
+gh secret set NPM_TOKEN --repo supernovae-st/nika
+```
+
+An identical occupied npm version needs no credential. An absent version with
+no token, an unknown registry lookup, or a divergent SRI keeps the draft closed.
+The first publish invokes npm's `--provenance`; recovery proves the registry SRI
+and does not claim an independent cryptographic re-verification of npm's
+provenance envelope.
 
 ---
 

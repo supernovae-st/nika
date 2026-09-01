@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4754
+  classified_files: 4770
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 1777
+    authored: 1793
     authored-pin: 2
     generated: 125
     pinned-copy: 145
@@ -183,17 +183,17 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 120
-  aggregate_sha256: d980f358b8eb728204c50399487c321898c61d71af12acf75329e00d2b86f899
+  aggregate_sha256: a8a3fc41f0b3ae73341ca1ae4f2cebe9edc49ee2a998c660784b599bb456c046
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 177
-  aggregate_sha256: d81b6304fa3c640462fc831018ec0a4063be8804e4d700c24e84e08a52046cfd
+  match_count: 192
+  aggregate_sha256: d00947b120637c6d9eb2f4852a8781e1711c33d760978737b126dc34db43617f
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: 087b1452561dffd0b5f94f64daab0d84ad0fea4ea1ac4031f43537d08e07a829
+  aggregate_sha256: a3d9295b2cfa971c86ace42c4e16b3719b45a7c8590eb19394069636739070d0
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -242,14 +242,14 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 3
-  aggregate_sha256: 23050ca7936c4e2e463c7076ed877d6a8bcc42017d7e13a79437d4a00d919d6c
+  match_count: 4
+  aggregate_sha256: e616e1d9eecc91c05e54b51ca34afa12947b576ba2e3e16406f52673e0cd6e28
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: f953c00d94e385a9a6eff50267a096b3dc2ab9419462c8159022af033a98668f
+  aggregate_sha256: 65a14e1847504d6b6db20b3fd3f3c0cb2ad6833d051e612c2b3b9405d8471f06
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
