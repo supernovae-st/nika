@@ -311,15 +311,14 @@ impl StoreHandle {
         event: Value,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control_reliable(ControlCommand::StartExecution {
+        self.send_control_blocking(ControlCommand::StartExecution {
             id,
             execution_id,
             trace_id,
             snapshot_digest,
             event,
             reply,
-        })
-        .await?;
+        })?;
         receive(answer).await
     }
 
@@ -375,15 +374,14 @@ impl StoreHandle {
         event: Value,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control_reliable(ControlCommand::Transition {
+        self.send_control_blocking(ControlCommand::Transition {
             id,
             status,
             event,
             outputs: None,
             receipt: None,
             reply,
-        })
-        .await?;
+        })?;
         receive(answer).await
     }
 
@@ -421,15 +419,14 @@ impl StoreHandle {
         receipt: Option<JobReceipt>,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control_reliable(ControlCommand::Transition {
+        self.send_control_blocking(ControlCommand::Transition {
             id,
             status,
             event,
             outputs,
             receipt: receipt.map(Box::new),
             reply,
-        })
-        .await?;
+        })?;
         let result = receive(answer).await;
         #[cfg(test)]
         if result.is_ok() {
@@ -460,11 +457,10 @@ impl StoreHandle {
 
     pub(super) async fn interrupt(&self, id: JobId) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control_reliable(ControlCommand::Interrupt {
+        self.send_control_blocking(ControlCommand::Interrupt {
             id,
             reply: Some(reply),
-        })
-        .await?;
+        })?;
         receive(answer).await
     }
 
@@ -474,8 +470,7 @@ impl StoreHandle {
 
     pub(super) async fn settle_interrupted(&self) -> Result<usize, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control_reliable(ControlCommand::SettleInterrupted { reply })
-            .await?;
+        self.send_control_blocking(ControlCommand::SettleInterrupted { reply })?;
         receive(answer).await
     }
 
@@ -495,17 +490,6 @@ impl StoreHandle {
                 std::sync::mpsc::TrySendError::Full(_) => ServerError::StoreQueueFull,
                 std::sync::mpsc::TrySendError::Disconnected(_) => ServerError::BlockingTask,
             })
-    }
-
-    async fn send_control_reliable(&self, command: ControlCommand) -> Result<(), ServerError> {
-        let controls = self.controls.clone();
-        tokio::task::spawn_blocking(move || {
-            controls
-                .send(command)
-                .map_err(|_| ServerError::BlockingTask)
-        })
-        .await
-        .map_err(|_| ServerError::BlockingTask)?
     }
 
     fn send_control_blocking(&self, command: ControlCommand) -> Result<(), ServerError> {
