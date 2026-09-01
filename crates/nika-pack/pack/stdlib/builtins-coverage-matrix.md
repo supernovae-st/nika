@@ -13,7 +13,7 @@
 | Capability class | Covered by | Status |
 |---|---|---|
 | data-shaping | `jq` · `json_diff` · `json_merge_patch` · `convert` · `validate` | ✅ full (jq is the one data language) |
-| web I/O | `fetch` (<!-- canon:extract_modes -->9<!-- /canon --> extract modes · all 6 methods · headers/body/form/multipart · SSRF-guarded) · `notify` (outbound) | ✅ content AND APIs · the two residual shapes are named in §overlap boundaries |
+| web I/O | `fetch` (<!-- canon:extract_modes -->10<!-- /canon --> extract modes · all 6 methods · headers/body/form/multipart · SSRF-guarded) · `notify` (outbound) | ✅ content AND APIs · the two residual shapes are named in §overlap boundaries |
 | files | `read` · `write` · `edit` · `glob` · `grep` | ✅ full |
 | databases | — | ✅ **deliberate** · `mcp:<server>/<tool>` (e.g. `mcp:postgres/query`) |
 | memory / recall | — | ✅ **deliberate** · `mcp:memory-server/*` today · `nika:connectome/*` reserved ([08 §Connectome](../spec/08-out-of-scope.md)) |

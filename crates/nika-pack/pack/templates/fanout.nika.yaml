@@ -30,7 +30,9 @@
 # Run · nika run <file> --model mock/echo    # offline rehearsal
 nika: fanout-template       # SLOT: kebab-case workflow id
 
-# SLOT: provider/model · local · zero key. Measured seat — `ollama/llama3.2:3b`.
+# SLOT: provider/model · local · zero key. House seat — `ollama/qwen3.5:4b`,
+# a THINKING model: the ceilings below leave room for the think block, which
+# counts against `max_tokens` too.
 # `--model mock/echo` needs no seat and is the path this file guarantees.
 model: mock/echo   # `nika new` replaces this with the machine's ready model seat
 
@@ -102,7 +104,7 @@ tasks:
     on_error:
       recover: null                 # a failed item yields null at its index · the batch lives
     infer:                          # SLOT: the per-item job (any verb)
-      max_tokens: 500               # SLOT: the per-ITEM ceiling · multiply by the fan width
+      max_tokens: 2000              # SLOT: the per-ITEM ceiling · think + answer · multiply by the fan width
       # The marker below is a VALUE, not a comment. The parser drops
       # comments, so a `# SLOT:` line could never make `check` refuse —
       # which is how an unfilled scaffold ran green and left a file that
@@ -127,7 +129,7 @@ tasks:
     with:
       survivors: ${{ tasks.survivors.output }}
     infer:
-      max_tokens: 800               # SLOT: the fan-in ceiling
+      max_tokens: 3000              # SLOT: the fan-in ceiling · think + answer
       # SLOT: the fan-in · the survivors array (failed items filtered). Keep
       # slot markers out of the block below — it is prompt TEXT, not YAML.
       prompt: |

@@ -110,10 +110,18 @@ Error codes follow the format `NIKA-<NAMESPACE>-<NNN>` where namespace is 2-9 up
 | `NIKA-ASSERT` | assertion obligations ([15-proof](./15-proof.md)) · ⚰️ the `assert:` ENVELOPE KEY was removed 2026-08-11 · the range stays RESERVED, unemitted, for the day a property returns as an addition | 001-099 |
 | `NIKA-LOCK` | `nika.lock` pin violations ([15-proof](./15-proof.md)) | 001-099 |
 | `NIKA-REG` | Registry client refusals (resolve · digest · advisory · [registry-v0.1](../registry/registry-v0.1.md) · allocated for the reference engine's `registry:` resolver — engine ADR-106) | 001-099 |
+| `NIKA-AUTH` | Authority · the `permits:` boundary contract (absent-block refusal · literal bounds · taint into a permitted argument · dead grants · lift discipline · [10-authority](./10-authority.md)) | 001-099 |
+| `NIKA-DEFAULT` | Declared defaults · a `default:` (or typed `const:`) value that violates its own declared type ([09-types](./09-types.md) · R3b) | 001-099 |
+| `NIKA-DRIFT` | Declared-but-unused drift · advisory check hints, never audit failures (the reverse of the hard used-but-undeclared surface) | 001-099 |
+| `NIKA-VALUES` | Value namespaces · the dead pre-flip `vars:`/`env:` forms + reads outside the three-authority family (`inputs` · `const` · `secrets` · [04 §values](./04-variables.md)) | 001-099 |
 
 This table allocates every namespace in use; the machine registry
 ([`canon/diagnostics/registry.yaml`](../canon/diagnostics/registry.yaml))
-carries the per-code rows. A v0.1-compliant engine MUST use these namespaces for the canonical categories. New error codes MAY be added in minor bumps (additive · never repurposed).
+carries the per-code rows. Two rows run **ahead of `canon.yaml`
+`error_namespaces`** — `NIKA-YAML` (kernel-ahead · CF-05) and `NIKA-REG`
+(engine ADR-106) — declared, never silent: `scripts/canon-projectors.py`
+cross-checks this table against the canon list in both directions on every
+gate run, with exactly those two as the declared skips. A v0.1-compliant engine MUST use these namespaces for the canonical categories. New error codes MAY be added in minor bumps (additive · never repurposed).
 
 ### Concrete v0.1 codes · the normative floor
 

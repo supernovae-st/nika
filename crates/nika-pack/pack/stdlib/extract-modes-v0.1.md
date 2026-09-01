@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Extract modes
 
-> The canonical 9 extraction modes used with the `nika:fetch` builtin
+> The canonical <!-- canon:extract_modes -->10<!-- /canon --> extraction modes used with the `nika:fetch` builtin
 > (invoked via `invoke:` per D-2026-05-22-N18 · 4 verbs canonical · fetch
 > is an invoke-able tool, not a verb). Each mode transforms an HTTP
 > response into a useful representation for downstream processing (LLM
@@ -8,7 +8,13 @@
 
 ---
 
-## The 9 canonical modes
+## The canonical modes
+
+This table IS the `mode:` enum — one list, one count (`canon.yaml`
+`extract_modes:` · cross-checked by `scripts/canon-projectors.py`). `raw`
+was long documented here as « an implicit » tenth mode while the canon
+counted 9; the tool's enum carried it all along (#291), so it is counted
+like the rest.
 
 | Mode | Output type | Use case |
 |---|---|---|
@@ -21,12 +27,7 @@
 | `links` | array of strings | All `<a href>` outbound links |
 | `feed` | object (parsed feed) | RSS · Atom · JSON Feed |
 | `sitemap` | array of URLs | sitemap.xml · sitemap index |
-
-Plus an implicit ·
-
-| Mode | Output | Use case |
-|---|---|---|
-| `raw` | string (text · UTF-8) | Raw response body · no extraction · **text only** (a non-UTF-8 body is `NIKA-BUILTIN-FETCH-001` · binary is file-mediated per [04 §value rendering](../spec/04-variables.md)) |
+| `raw` | string (text · UTF-8) | Response body verbatim · no extraction · **text only** (a non-UTF-8 body is `NIKA-BUILTIN-FETCH-001` · binary is file-mediated per [04 §value rendering](../spec/04-variables.md)) |
 
 ---
 
@@ -261,11 +262,30 @@ invoke:
 
 ---
 
+### `raw` · the response body verbatim
+
+```yaml
+invoke:
+  tool: "nika:fetch"
+  args:
+    url: "https://example.com/robots.txt"
+    mode: raw
+```
+
+**Behavior** · no extraction — the body exactly as received, decoded as
+UTF-8 text. A non-UTF-8 body is `NIKA-BUILTIN-FETCH-001`; binary stays
+file-mediated per [04 §value rendering](../spec/04-variables.md).
+
+**Use case** · robots.txt · llms.txt · plain-text payloads · seeing what the
+extracting modes would have worked from.
+
+---
+
 ### `llm-txt` · RESERVED (not a v0.1 mode)
 
 A future mode parsing the `llms.txt` convention (LLM-friendly site
 descriptions). **NOT in the v0.1 canonical set**: `mode: llm-txt` is
-rejected today (the canon list of 9 is closed · the conformance oracle
+rejected today (the canon list is closed · the conformance oracle
 enforces it). Until it stabilizes (stdlib v0.2 candidate) · fetch with
 `mode: text` and parse with `nika:jq` / an `infer:` step.
 
@@ -294,8 +314,8 @@ Want raw bytes · no processing      raw
 
 New modes MAY enter stdlib v0.x. Mode-specific options (like `selector`, `jq`) are namespaced on the verb · forward-compat additive.
 
-The 9 canonical modes cover ~99% of real-world web fetch use cases. Niche extractions (PDF · Word · Excel · audio · video) belong in the **media builtins** (deferred to stdlib v0.x · invoked via `invoke:` not `fetch:`).
+The canonical modes cover ~99% of real-world web fetch use cases. Niche extractions (PDF · Word · Excel · audio · video) belong in the **media builtins** (deferred to stdlib v0.x · invoked via `invoke:` not `fetch:`).
 
 ---
 
-🦋 *<!-- canon:extract_modes -->9<!-- /canon --> modes · 1 verb · zero invention surface.*
+🦋 *<!-- canon:extract_modes -->10<!-- /canon --> modes · 1 verb · zero invention surface.*

@@ -26,8 +26,9 @@
 # Run · nika run <file> --model mock/echo    # offline rehearsal · no daemon
 nika: docker-report-template       # SLOT: kebab-case workflow id
 
-# SLOT: local-first · `--model mock/echo` for the offline rehearsal. Measured
-# seat — `ollama/llama3.2:3b` answers this prose prompt in well under a minute.
+# SLOT: local-first · `--model mock/echo` for the offline rehearsal. House
+# seat — `ollama/qwen3.5:4b`, a THINKING model: the think block counts against
+# `max_tokens` too, so the ceiling below leaves room for it.
 model: mock/echo   # `nika new` replaces this with the machine's ready model seat
 
 permits:                            # the blast radius · default-deny once present
@@ -65,7 +66,7 @@ tasks:
       ps: ${{ tasks.ps.output }}
       df: ${{ tasks.df.output }}
     infer:
-      max_tokens: 600               # SLOT: the spend ceiling for this call
+      max_tokens: 2000              # SLOT: the spend ceiling for this call · think block + report
       # SLOT: what should the model DO with the readings? Keep slot markers out
       # of the block below — everything indented under `prompt: |` is prompt
       # TEXT, and a stray comment line is sent to the model verbatim.

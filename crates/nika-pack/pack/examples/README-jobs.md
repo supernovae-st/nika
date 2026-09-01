@@ -87,11 +87,11 @@ rm -rf out                                                                    # 
 
 - `# SPDX-License-Identifier: Apache-2.0` header + schema hint line
 - `ollama/qwen3.5:4b` is the showcase model: every file leads local,
-  with one deliberate exception class — strict-schema showcases pick a
-  NON-thinking model (`ollama/llama3.2:3b`): a thinking model can burn
-  the whole `max_tokens` in its think block before the JSON (engine#428).
-  zero key, recorded-as-run. Cloud providers appear only as per-task
-  overrides or swap hints, never as the envelope default. Where the
+  zero key, recorded-as-run. It is a THINKING model — the think block
+  and the JSON both count against `max_tokens` (engine#428), so schema
+  showcases carry ceilings sized for think + answer, never the answer
+  alone. Cloud providers appear only as per-task overrides or swap
+  hints, never as the envelope default. Where the
   data is sensitive the local model is the point: sovereignty is a
   feature, show it
 - the offline story, honestly: `nika check` needs zero network on every

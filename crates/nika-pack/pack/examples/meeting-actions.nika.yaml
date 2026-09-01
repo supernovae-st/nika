@@ -21,10 +21,10 @@
 
 nika: meeting-actions
 
-# A NON-thinking local model, deliberately: a thinking model can spend the
-# whole `max_tokens` budget in its think block and return before the JSON
-# (engine#428). Schema showcases pick a model that answers directly.
-model: ollama/llama3.2:3b
+# The house seat — a THINKING model: the think block and the JSON both count
+# against `max_tokens` (engine#428), so a schema call sizes its ceiling for
+# think + answer, never for the answer alone.
+model: ollama/qwen3.5:4b
 
 inputs:
   transcript_path:
@@ -52,7 +52,7 @@ tasks:
     with:
       transcript: ${{ tasks.transcript.output }}
     infer:
-      max_tokens: 900                  # a ceiling makes the cost report a number, not UNBOUNDED
+      max_tokens: 3000                 # think block + the actions JSON · a ceiling makes the cost report a number, not UNBOUNDED
       prompt: |
         Extract every action item from this meeting transcript ·
         ${{ with.transcript }}

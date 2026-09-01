@@ -18,7 +18,7 @@
 #
 # Run · nika run examples/snippets/delegate.nika.yaml
 nika: delegate
-model: ollama/llama3.2:3b
+model: ollama/qwen3.5:4b
 permits:
   tools: ["nika:read", "nika:fetch"]
   net: { http: ["nika.sh"] }
