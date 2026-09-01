@@ -2276,7 +2276,11 @@ impl<T> typenum::type_operators::Same for nika_cadence::schedule_plan::ScheduleD
 pub type nika_cadence::schedule_plan::ScheduleDueVerdict::Output = T
 #[non_exhaustive] pub enum nika_cadence::schedule_plan::SchedulePlanError
 pub nika_cadence::schedule_plan::SchedulePlanError::InvalidCanonicalCadence(alloc::string::String)
+pub nika_cadence::schedule_plan::SchedulePlanError::UnsupportedAfterSkipOnCompletion
 pub nika_cadence::schedule_plan::SchedulePlanError::UnsupportedHashJitter
+pub nika_cadence::schedule_plan::SchedulePlanError::UnsupportedOverlapQueue
+pub nika_cadence::schedule_plan::SchedulePlanError::UnsupportedOverlapReplace
+pub nika_cadence::schedule_plan::SchedulePlanError::UnsupportedTolerance
 impl core::clone::Clone for nika_cadence::schedule_plan::SchedulePlanError
 pub fn nika_cadence::schedule_plan::SchedulePlanError::clone(&self) -> nika_cadence::schedule_plan::SchedulePlanError
 impl core::cmp::Eq for nika_cadence::schedule_plan::SchedulePlanError
@@ -3473,7 +3477,11 @@ impl<T> typenum::type_operators::Same for nika_cadence::schedule::ScheduleOrigin
 pub type nika_cadence::schedule::ScheduleOrigin::Output = T
 #[non_exhaustive] pub enum nika_cadence::SchedulePlanError
 pub nika_cadence::SchedulePlanError::InvalidCanonicalCadence(alloc::string::String)
+pub nika_cadence::SchedulePlanError::UnsupportedAfterSkipOnCompletion
 pub nika_cadence::SchedulePlanError::UnsupportedHashJitter
+pub nika_cadence::SchedulePlanError::UnsupportedOverlapQueue
+pub nika_cadence::SchedulePlanError::UnsupportedOverlapReplace
+pub nika_cadence::SchedulePlanError::UnsupportedTolerance
 impl core::clone::Clone for nika_cadence::schedule_plan::SchedulePlanError
 pub fn nika_cadence::schedule_plan::SchedulePlanError::clone(&self) -> nika_cadence::schedule_plan::SchedulePlanError
 impl core::cmp::Eq for nika_cadence::schedule_plan::SchedulePlanError

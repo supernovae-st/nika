@@ -204,6 +204,7 @@ struct AppState {
     event_page_limit: EventPageLimit,
     schedules: Arc<ScheduleStore>,
     schedule_wake: Arc<Notify>,
+    project_refusals: scheduler::ProjectRefusals,
     clock: Arc<dyn ResidentClock>,
     cancellations: Arc<ActiveCancellations>,
 }
@@ -217,6 +218,7 @@ struct AuthorityState {
     project: Arc<OnceLock<Arc<OwnedDir>>>,
     schedules: Arc<ScheduleStore>,
     schedule_wake: Arc<Notify>,
+    project_refusals: scheduler::ProjectRefusals,
     coordinator: ResidentExecutionCoordinator,
     clock: Arc<dyn ResidentClock>,
     cancellations: Arc<ActiveCancellations>,
@@ -303,6 +305,7 @@ impl ResidentAuthority {
         }
         let schedules = Arc::new(prepared.schedules);
         let schedule_wake = Arc::new(Notify::new());
+        let project_refusals = scheduler::ProjectRefusals::default();
         let cancellations = Arc::new(ActiveCancellations::default());
         let state = Arc::new(AuthorityState {
             store: store_actor.handle(),
@@ -313,6 +316,7 @@ impl ResidentAuthority {
             project,
             schedules,
             schedule_wake,
+            project_refusals,
             coordinator: coordinator.clone(),
             clock: Arc::clone(config.clock()),
             cancellations,
@@ -410,6 +414,7 @@ impl BoundServer {
             event_page_limit,
             schedules: Arc::clone(&authority.state.schedules),
             schedule_wake: Arc::clone(&authority.state.schedule_wake),
+            project_refusals: Arc::clone(&authority.state.project_refusals),
             clock: Arc::clone(&authority.state.clock),
             cancellations: Arc::clone(&authority.state.cancellations),
         });

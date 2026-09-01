@@ -9,7 +9,7 @@ use std::time::Duration;
 use serde_json::json;
 
 use super::store::ShutdownPhase;
-use super::tests::{TestWorld, auth_header, get_request, limits};
+use super::tests::{TestServer, TestWorld, auth_header, get_request, limits};
 use super::{ExecutionBackend, ExecutionDisposition, ExecutionOutcome};
 
 #[derive(Debug)]
@@ -647,5 +647,330 @@ async fn no_schedule_list_delete_trigger_backfill_or_arm_routes_exist() {
         auth_header()
     );
     assert_eq!(server.request(&delete).await.status, 404);
+    server.stop().await.expect("stop");
+}
+
+fn write_project_beat(world: &TestWorld, extra: &str) {
+    std::fs::write(
+        world.workflows.join("nika.yaml"),
+        format!(
+            "nika: proj\narm:\n  - workflow: root.nika.yaml\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n    manqué: sauter\n{extra}"
+        ),
+    )
+    .expect("project nika.yaml");
+}
+
+async fn project_finding(server: &TestServer, id: &str) -> serde_json::Value {
+    let response = server
+        .request(&get_request(&format!("/v1/schedules/{id}")))
+        .await;
+    assert_eq!(response.status, 200, "{}", response.body);
+    let body = response.json();
+    assert_eq!(body["origin"], "project", "{body}");
+    body["finding"].clone()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_beat_with_hash_jitter_surfaces_a_load_finding_and_never_fires() {
+    let world = TestWorld::new();
+    write_project_beat(&world, "    décalage: hash\n");
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    let finding = project_finding(&server, "root").await;
+    assert_eq!(finding["code"], "schedule.jitter", "{finding}");
+    clock.advance_to("2026-09-01T08:03:00Z[UTC]");
+    clock.wait_for_sleeps(2).await;
+    assert_eq!(backend.calls(), 0, "a refused beat never fires");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn active_overlap_replace_is_refused_before_persistence() {
+    let world = TestWorld::new();
+    let server = world.start(Arc::new(NoopBackend), limits()).await;
+    let candidate = json!({
+        "workflow": "root.nika.yaml",
+        "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
+        "maxCostUsd": 0.25,
+        "missed": "skip",
+        "overlap": "replace"
+    })
+    .to_string();
+    let refused = server
+        .request(&put_request(
+            "overlap-replace",
+            &candidate,
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    assert_eq!(refused.json()["findings"][0]["code"], "schedule.overlap");
+    assert!(
+        refused.json()["findings"][0]["detail"]
+            .as_str()
+            .expect("finding detail")
+            .contains("overlap=replace"),
+        "{}",
+        refused.body
+    );
+    let absent = server
+        .request(&get_request("/v1/schedules/overlap-replace"))
+        .await;
+    assert_eq!(absent.status, 404, "schedule must not be persisted");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn active_overlap_queue_is_refused_before_persistence() {
+    let world = TestWorld::new();
+    let server = world.start(Arc::new(NoopBackend), limits()).await;
+    let candidate = json!({
+        "workflow": "root.nika.yaml",
+        "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
+        "maxCostUsd": 0.25,
+        "missed": "skip",
+        "overlap": "queue"
+    })
+    .to_string();
+    let refused = server
+        .request(&put_request(
+            "overlap-queue",
+            &candidate,
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    assert_eq!(refused.json()["findings"][0]["code"], "schedule.overlap");
+    assert!(
+        refused.json()["findings"][0]["detail"]
+            .as_str()
+            .expect("finding detail")
+            .contains("overlap=queue"),
+        "{}",
+        refused.body
+    );
+    let absent = server
+        .request(&get_request("/v1/schedules/overlap-queue"))
+        .await;
+    assert_eq!(absent.status, 404, "schedule must not be persisted");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn active_after_skip_on_completion_is_refused_before_persistence() {
+    let world = TestWorld::new();
+    let server = world.start(Arc::new(NoopBackend), limits()).await;
+    let candidate = json!({
+        "workflow": "root.nika.yaml",
+        "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
+        "maxCostUsd": 0.25,
+        "missed": "skip",
+        "overlap": "skip",
+        "afterSkip": "on_completion"
+    })
+    .to_string();
+    let refused = server
+        .request(&put_request(
+            "after-skip-completion",
+            &candidate,
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    assert_eq!(refused.json()["findings"][0]["code"], "schedule.after-skip");
+    assert!(
+        refused.json()["findings"][0]["detail"]
+            .as_str()
+            .expect("finding detail")
+            .contains("afterSkip=on_completion"),
+        "{}",
+        refused.body
+    );
+    let absent = server
+        .request(&get_request("/v1/schedules/after-skip-completion"))
+        .await;
+    assert_eq!(absent.status, 404, "schedule must not be persisted");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_beat_with_after_skip_on_completion_surfaces_a_load_finding() {
+    let world = TestWorld::new();
+    write_project_beat(&world, "    après_saut: à-complétion\n");
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    let finding = project_finding(&server, "root").await;
+    assert_eq!(finding["code"], "schedule.after-skip", "{finding}");
+    assert!(
+        finding["detail"]
+            .as_str()
+            .expect("finding detail")
+            .contains("afterSkip=on_completion"),
+        "{finding}"
+    );
+    assert_eq!(backend.calls(), 0, "a refused beat never fires");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_beat_with_overlap_queue_surfaces_a_load_finding_and_never_fires() {
+    let world = TestWorld::new();
+    write_project_beat(&world, "    chevauchement: file\n");
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    let finding = project_finding(&server, "root").await;
+    assert_eq!(finding["code"], "schedule.overlap", "{finding}");
+    assert!(
+        finding["detail"]
+            .as_str()
+            .expect("finding detail")
+            .contains("overlap=queue"),
+        "{finding}"
+    );
+    assert_eq!(backend.calls(), 0, "a refused beat never fires");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_beat_with_overlap_replace_surfaces_a_load_finding_and_never_fires() {
+    let world = TestWorld::new();
+    write_project_beat(&world, "    chevauchement: remplacer\n");
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    let finding = project_finding(&server, "root").await;
+    assert_eq!(finding["code"], "schedule.overlap", "{finding}");
+    assert!(
+        finding["detail"]
+            .as_str()
+            .expect("finding detail")
+            .contains("overlap=replace"),
+        "{finding}"
+    );
+    assert_eq!(backend.calls(), 0, "a refused beat never fires");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn active_tolerance_is_refused_before_persistence() {
+    let world = TestWorld::new();
+    let server = world.start(Arc::new(NoopBackend), limits()).await;
+    let candidate = json!({
+        "workflow": "root.nika.yaml",
+        "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
+        "maxCostUsd": 0.25,
+        "missed": "skip",
+        "tolerance": "3/4"
+    })
+    .to_string();
+    let refused = server
+        .request(&put_request(
+            "tolerance",
+            &candidate,
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    assert_eq!(refused.json()["findings"][0]["code"], "schedule.tolerance");
+    assert!(
+        refused.json()["findings"][0]["detail"]
+            .as_str()
+            .expect("finding detail")
+            .contains("tolerance"),
+        "{}",
+        refused.body
+    );
+    let absent = server
+        .request(&get_request("/v1/schedules/tolerance"))
+        .await;
+    assert_eq!(absent.status, 404, "schedule must not be persisted");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_beat_with_tolerance_surfaces_a_load_finding_and_never_fires() {
+    let world = TestWorld::new();
+    write_project_beat(&world, "    tolérance: \"3/4\"\n");
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    let finding = project_finding(&server, "root").await;
+    assert_eq!(finding["code"], "schedule.tolerance", "{finding}");
+    assert!(
+        finding["detail"]
+            .as_str()
+            .expect("finding detail")
+            .contains("tolerance"),
+        "{finding}"
+    );
+    assert_eq!(backend.calls(), 0, "a refused beat never fires");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_project_beat_whose_pause_until_passed_fires_and_a_bound_one_stays_paused() {
+    let world = TestWorld::new();
+    std::fs::write(
+        world.workflows.join("report.nika.yaml"),
+        "nika: report\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 2, expression: \".\" }\n",
+    )
+    .expect("report workflow");
+    std::fs::write(
+        world.workflows.join("nika.yaml"),
+        concat!(
+            "nika: proj\narm:\n",
+            "  - workflow: root.nika.yaml\n",
+            "    cadence: \"TZ=UTC * * * * *\"\n",
+            "    plafond: 0.25\n",
+            "    manqué: sauter\n",
+            "    actif: false\n",
+            "    raison: \"maintenance\"\n",
+            "    jusqu_au: \"2026-08-31\"\n",
+            "  - workflow: report.nika.yaml\n",
+            "    cadence: \"TZ=UTC * * * * *\"\n",
+            "    plafond: 0.25\n",
+            "    manqué: sauter\n",
+            "    actif: false\n",
+            "    raison: \"maintenance\"\n",
+            "    jusqu_au: \"2026-09-10\"\n",
+        ),
+    )
+    .expect("project nika.yaml");
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    backend.wait_for_call().await;
+    clock.wait_for_sleeps(2).await;
+    assert_eq!(backend.calls(), 1, "only the woke beat fires");
+    assert!(
+        backend.root_bytes().is_some_and(|bytes| bytes
+            .windows(b"input: 1".len())
+            .any(|part| part == b"input: 1")),
+        "the fired run captured the root workflow"
+    );
     server.stop().await.expect("stop");
 }

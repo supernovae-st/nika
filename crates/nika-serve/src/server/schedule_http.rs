@@ -187,13 +187,52 @@ pub(super) async fn get(id: String, state: &AppState) -> Response<ResponseBody> 
     let schedules = Arc::clone(&state.schedules);
     let lookup = id.clone();
     let definition = tokio::task::spawn_blocking(move || schedules.get(&lookup)).await;
-    let definition = match definition {
-        Ok(Ok(Some(definition))) => definition,
-        Ok(Ok(None)) => return schedule_not_found(),
+    match definition {
+        Ok(Ok(Some(definition))) => status_response(state, definition, None).await,
+        Ok(Ok(None)) => project_refusal_response(&id, state).await,
+        Ok(Err(error)) => store_error_response(&error),
+        Err(_) => ApiError::internal().into_response(),
+    }
+}
+
+/// A project beat the planner refused at load reads as a finding on the
+/// same status projection, never as a live schedule that fires nothing.
+async fn project_refusal_response(id: &str, state: &AppState) -> Response<ResponseBody> {
+    let refused = {
+        let projection = state
+            .project_refusals
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        projection.get(id).cloned()
+    };
+    let Some(refused) = refused else {
+        return schedule_not_found();
+    };
+    let definition = refused.definition().clone();
+    let revision = definition.revision();
+    let schedules = Arc::clone(&state.schedules);
+    let lookup = id.to_owned();
+    let last = tokio::task::spawn_blocking(move || {
+        schedules.last_decision(ScheduleOrigin::Project, &lookup)
+    })
+    .await;
+    let last = match last {
+        Ok(Ok(last)) => last,
         Ok(Err(error)) => return store_error_response(&error),
         Err(_) => return ApiError::internal().into_response(),
     };
-    status_response(state, definition, None).await
+    let body = json!({
+        "definition": definition_json(&definition),
+        "origin": "project",
+        "revision": revision.as_str(),
+        "active": definition.is_active(),
+        "pause": pause_json(&definition),
+        "finding": planner_finding(refused.error()),
+        "next": [],
+        "earliestWakeHint": Value::Null,
+        "lastDecision": last.as_ref().map(last_decision_json),
+    });
+    with_etag(json_response(StatusCode::OK, &body), &revision)
 }
 
 async fn applied_response(
@@ -446,6 +485,10 @@ fn pause_json(definition: &ScheduleDefinition) -> Value {
 fn planner_finding(error: &SchedulePlanError) -> Value {
     let code = match error {
         SchedulePlanError::UnsupportedHashJitter => "schedule.jitter",
+        SchedulePlanError::UnsupportedOverlapReplace
+        | SchedulePlanError::UnsupportedOverlapQueue => "schedule.overlap",
+        SchedulePlanError::UnsupportedAfterSkipOnCompletion => "schedule.after-skip",
+        SchedulePlanError::UnsupportedTolerance => "schedule.tolerance",
         SchedulePlanError::InvalidCanonicalCadence(_) => "schedule.cadence",
         _ => "schedule.plan",
     };

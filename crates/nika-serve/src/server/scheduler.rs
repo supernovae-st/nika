@@ -1,14 +1,15 @@
 //! Resident schedule planner/firer integration.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use jiff::{Timestamp, Zoned};
 use nika_cadence::{
-    ArmGeneration, ScheduleDecision, ScheduleDefinition, ScheduleDraft, ScheduleDueVerdict,
-    ScheduleOrigin, ScheduleRevision, ScheduleSlot, plan_schedule,
+    ArmGeneration, ScheduleDecision, ScheduleDecisionState, ScheduleDefinition, ScheduleDraft,
+    ScheduleDueVerdict, ScheduleOrigin, SchedulePlanError, ScheduleRevision, ScheduleSlot,
+    plan_schedule,
 };
 use sha2::{Digest as _, Sha256};
 use tokio::sync::watch;
@@ -26,6 +27,33 @@ const GENERATION_DOMAIN: &[u8] = b"nika/resident-schedule-generation@1\0";
 struct ResidentSchedule {
     origin: ScheduleOrigin,
     definition: ScheduleDefinition,
+}
+
+/// A project beat whose declaration the planner refused at load. The
+/// refusal is projected onto schedule status; the beat never rides the
+/// scan loop as a live declaration that silently never fires.
+#[derive(Debug, Clone)]
+pub(super) struct RefusedProjectSchedule {
+    definition: ScheduleDefinition,
+    error: SchedulePlanError,
+}
+
+impl RefusedProjectSchedule {
+    pub(super) fn definition(&self) -> &ScheduleDefinition {
+        &self.definition
+    }
+
+    pub(super) fn error(&self) -> &SchedulePlanError {
+        &self.error
+    }
+}
+
+/// The load-time refusal projection, replaced wholesale by every scan.
+pub(super) type ProjectRefusals = Arc<Mutex<BTreeMap<String, RefusedProjectSchedule>>>;
+
+struct ProjectLoad {
+    live: Vec<ResidentSchedule>,
+    refused: Vec<RefusedProjectSchedule>,
 }
 
 struct FireCandidate {
@@ -120,9 +148,12 @@ fn scan(state: &AuthorityState) -> Result<Scan, ServerError> {
         });
     }
     if let Some(project) = state.project.get() {
-        match load_project(project) {
-            Ok(project_schedules) => schedules.extend(project_schedules),
-            Err(ServerError::ScheduledAdmission) => {}
+        match load_project(project, &now) {
+            Ok(load) => {
+                publish_refusals(state, load.refused);
+                schedules.extend(load.live);
+            }
+            Err(ServerError::ScheduledAdmission) => publish_refusals(state, Vec::new()),
             Err(error) => return Err(error),
         }
     }
@@ -362,7 +393,40 @@ fn generation(
         .ok_or(ServerError::ScheduledAdmission)
 }
 
-fn load_project(project: &nika_fs::OwnedDir) -> Result<Vec<ResidentSchedule>, ServerError> {
+fn publish_refusals(state: &AuthorityState, refused: Vec<RefusedProjectSchedule>) {
+    let mut projection = state
+        .project_refusals
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    projection.clear();
+    for refusal in refused {
+        projection.insert(refusal.definition.id().to_owned(), refusal);
+    }
+}
+
+fn load_project(project: &nika_fs::OwnedDir, now: &Zoned) -> Result<ProjectLoad, ServerError> {
+    let mut live = Vec::new();
+    let mut refused = Vec::new();
+    for definition in load_project_definitions(project)? {
+        match plan_schedule(
+            &definition,
+            now,
+            &ScheduleDecisionState::empty(),
+            PLANNER_PROJECTION,
+        ) {
+            Ok(_) => live.push(ResidentSchedule {
+                origin: ScheduleOrigin::Project,
+                definition,
+            }),
+            Err(error) => refused.push(RefusedProjectSchedule { definition, error }),
+        }
+    }
+    Ok(ProjectLoad { live, refused })
+}
+
+fn load_project_definitions(
+    project: &nika_fs::OwnedDir,
+) -> Result<Vec<ScheduleDefinition>, ServerError> {
     let Some(text) = project
         .read_optional(nika_vocab::project::FILE_NAME)
         .map_err(|error| ServerError::WorkflowRoot(error.kind()))?
@@ -384,10 +448,6 @@ fn load_project(project: &nika_fs::OwnedDir) -> Result<Vec<ResidentSchedule>, Se
         .map(|(beat, id)| {
             ScheduleDraft::from_project(id, beat)
                 .and_then(ScheduleDraft::validate)
-                .map(|definition| ResidentSchedule {
-                    origin: ScheduleOrigin::Project,
-                    definition,
-                })
                 .map_err(|_| ServerError::ScheduledAdmission)
         })
         .collect()
@@ -398,9 +458,9 @@ fn project_revision_current(
     id: &str,
     revision: &ScheduleRevision,
 ) -> Result<bool, ServerError> {
-    Ok(load_project(project)?.into_iter().any(|schedule| {
-        schedule.definition.id() == id && schedule.definition.revision() == *revision
-    }))
+    Ok(load_project_definitions(project)?
+        .into_iter()
+        .any(|definition| definition.id() == id && definition.revision() == *revision))
 }
 
 fn schedule_key(origin: ScheduleOrigin, id: &str) -> String {

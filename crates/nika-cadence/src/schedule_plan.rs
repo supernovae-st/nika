@@ -190,7 +190,8 @@ pub enum ScheduleDueVerdict {
         /// Inclusive declaration bound that the lateness exceeded.
         maximum_seconds: u64,
     },
-    /// The definition is inactive; pause evidence remains visible to status.
+    /// The definition is inactive and its declared pause bound has not
+    /// passed; pause evidence remains visible to status.
     PausedInactive {
         /// Operator-provided pause reason.
         reason: String,
@@ -316,6 +317,26 @@ pub enum SchedulePlanError {
     /// No deterministic slot-offset law exists for `jitter: hash` yet.
     #[error("active timed schedules with hash jitter are unsupported until an offset law exists")]
     UnsupportedHashJitter,
+    /// No preemption law exists for `overlap: replace` yet.
+    #[error(
+        "active timed schedules with overlap=replace are unsupported until a preemption law exists"
+    )]
+    UnsupportedOverlapReplace,
+    /// No queueing law exists for `overlap: queue` yet.
+    #[error(
+        "active timed schedules with overlap=queue are unsupported until a queueing law exists"
+    )]
+    UnsupportedOverlapQueue,
+    /// No completion-trigger law exists for `afterSkip: on_completion` yet.
+    #[error(
+        "active timed schedules with afterSkip=on_completion are unsupported until a completion-trigger law exists"
+    )]
+    UnsupportedAfterSkipOnCompletion,
+    /// No enforcement law reads the documented (m,k) `tolerance` yet.
+    #[error(
+        "active timed schedules with tolerance are unsupported until the (m,k)-firm law exists"
+    )]
+    UnsupportedTolerance,
     /// A validated canonical cadence failed to re-enter the shared parser.
     #[error("canonical cadence failed to re-parse: {0}")]
     InvalidCanonicalCadence(String),
@@ -335,18 +356,36 @@ impl NikaErrorCode for SchedulePlanError {
 ///
 /// # Errors
 /// Active timed hash jitter refuses until a deterministic offset law is
-/// ratified. A canonical cadence that no longer parses also fails closed.
+/// ratified, `overlap: replace` / `overlap: queue` refuse until preemption
+/// and queueing laws exist, `afterSkip: on_completion` refuses until a
+/// completion-trigger law exists, and `tolerance` refuses until the
+/// (m,k)-firm law reads it. A canonical cadence that no longer parses
+/// also fails closed.
 pub fn plan_schedule(
     definition: &ScheduleDefinition,
     now: &Zoned,
     state: &ScheduleDecisionState,
     projection_limit: usize,
 ) -> Result<SchedulePlan, SchedulePlanError> {
-    if !definition.is_active() {
+    if !definition.is_active() && !pause_expired(definition, now) {
         return Ok(paused_plan(definition, now));
     }
-    if !matches!(definition.when(), ScheduleWhen::Webhook) && definition.jitter().is_some() {
-        return Err(SchedulePlanError::UnsupportedHashJitter);
+    if !matches!(definition.when(), ScheduleWhen::Webhook) {
+        if definition.jitter().is_some() {
+            return Err(SchedulePlanError::UnsupportedHashJitter);
+        }
+        if definition.overlap() == Overlap::Remplacer {
+            return Err(SchedulePlanError::UnsupportedOverlapReplace);
+        }
+        if definition.overlap() == Overlap::File {
+            return Err(SchedulePlanError::UnsupportedOverlapQueue);
+        }
+        if definition.after_skip() == AfterSkip::ACompletion {
+            return Err(SchedulePlanError::UnsupportedAfterSkipOnCompletion);
+        }
+        if definition.tolerance().is_some() {
+            return Err(SchedulePlanError::UnsupportedTolerance);
+        }
     }
     let limit = projection_limit.min(MAX_SCHEDULE_PROJECTION_SLOTS);
     match definition.when() {
@@ -365,6 +404,15 @@ pub fn plan_schedule(
             now,
         )),
     }
+}
+
+/// The declared pause bound, judged the arm-fire way: a `pauseUntil`
+/// strictly before the decision instant's own civil date means the
+/// suspension is over and the definition plans as active again.
+fn pause_expired(definition: &ScheduleDefinition, now: &Zoned) -> bool {
+    definition
+        .pause_until()
+        .is_some_and(|until| crate::tick::date_expired(until, now))
 }
 
 fn paused_plan(definition: &ScheduleDefinition, now: &Zoned) -> SchedulePlan {

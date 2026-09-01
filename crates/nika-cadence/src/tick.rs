@@ -120,14 +120,26 @@ pub fn v0_unsupported(beat: &Beat) -> Option<(&'static str, &'static str)> {
     Some((policy.what(), V0Policy::ARRIVES))
 }
 
+/// The shared pause-bound law: an ISO civil date strictly before the
+/// decision instant's own date ⇒ the bounded suspension is over. The
+/// arm-fire edge and the serve planner judge on the same instant's civil
+/// date (a bare `--now` rides UTC); a zone-exact reading in the cadence's
+/// own zone remains future work.
+#[must_use]
+pub(crate) fn date_expired(raw: &str, now: &Zoned) -> bool {
+    let Ok(date) = raw.parse::<jiff::civil::Date>() else {
+        return false;
+    };
+    date < now.date()
+}
+
 /// `jusqu_au` strictly before the decision instant's own date ⇒ the
-/// suspension is over. v0 judges on the instant's civil date (a bare
-/// `--now` rides UTC) — the zone-exact expiry lands with serve.
+/// suspension is over. v0 judges on the instant's civil date through the
+/// crate-private `date_expired` helper.
 #[must_use]
 pub fn expiry_passed(beat: &Beat, now: &Zoned) -> Option<String> {
     let raw = beat.jusqu_au.as_deref()?;
-    let date = raw.parse::<jiff::civil::Date>().ok()?;
-    (date < now.date()).then(|| raw.to_owned())
+    date_expired(raw, now).then(|| raw.to_owned())
 }
 
 /// The named-beat decision, pure. Order: the file's own truth
