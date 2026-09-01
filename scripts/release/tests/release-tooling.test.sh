@@ -390,7 +390,7 @@ printf '%s\n' "$provenance_publish_job" | grep -q 'upload-assets-immutable.sh' \
 provenance_replay_job="$(sed -n '/^  provenance-replay-check:/,/^  provenance-result:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$provenance_replay_job" | grep -q 'verify-slsa-provenance.sh' \
-  || fail 'prior-run provenance recovery trusts non-empty bytes only'
+  || fail 'prior-run provenance verification trusts non-empty bytes only'
 [ "$(grep -c 'slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6' \
   "$ROOT/.github/workflows/release.yml")" -eq 3 ] \
   || fail 'the official SLSA verifier installer SHA is not pinned in all three judges'
@@ -418,6 +418,9 @@ printf '%s\n' "$finalizer" | grep -q 'finalize-release.sh' \
   || fail 'finalizer bypasses the idempotent release-ID transition helper'
 printf '%s\n' "$finalizer" | grep -q 'transitioned:' \
   || fail 'finalizer does not expose whether this run published the draft'
+if printf '%s\n' "$finalizer" | grep -q 'uses: docker/'; then
+  fail 'a third-party Docker action receives finalizer release-write authority'
+fi
 bump_job="$(sed -n '/^  bump-formula:/,/^  npm-wasm-pack:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$bump_job" | grep -q '^    needs: finalize' \
@@ -444,12 +447,90 @@ printf '%s\n' "$latest_job" | grep -q 'assert-newest-public-stable.sh' \
   || fail 'GHCR latest can downgrade to an old public stable'
 printf '%s\n' "$latest_job" | grep -q 'converge-oci-pointer.sh' \
   || fail 'GHCR latest replay is not idempotent by digest'
-docker_job="$(sed -n '/^  docker:/,/^  finalize:/p' \
+docker_job="$(sed -n '/^  docker:/,/^  oci-proof:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$docker_job" | grep -q 'release-digest-marker.sh' \
-  || fail 'the exact GHCR digest is not persisted outside the eight assets'
-printf '%s\n' "$docker_job" | grep -q 'discover ' \
-  || fail 'OCI convergence still relies only on the stale draft snapshot'
+  || fail 'the digest builder cannot read an already-durable marker'
+printf '%s\n' "$docker_job" | grep -q '^      contents: read' \
+  || fail 'the digest builder lacks contents read authority'
+printf '%s\n' "$docker_job" | grep -q '^      packages: write' \
+  || fail 'the digest builder lacks package write authority'
+if printf '%s\n' "$docker_job" | grep -q '^      contents: write'; then
+  fail 'the digest builder retains release-body write authority'
+fi
+if printf '%s\n' "$docker_job" | grep -q 'discover '; then
+  fail 'marker absence still adopts a pre-existing version coordinate'
+fi
+printf '%s\n' "$docker_job" | grep -q 'verify-oci-payload.sh' \
+  || fail 'the candidate digest is not payload-bound before persistence'
+proof_job="$(sed -n '/^  oci-proof:/,/^  oci-marker:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$proof_job" | grep -q '^    needs: \[release-draft, docker\]' \
+  || fail 'pre-marker OCI proof does not depend on digest construction'
+printf '%s\n' "$proof_job" | grep -q '^      contents: read' \
+  || fail 'pre-marker OCI proof lacks read-only contents authority'
+printf '%s\n' "$proof_job" | grep -q '^      packages: read' \
+  || fail 'pre-marker OCI proof lacks read-only package authority'
+if printf '%s\n' "$proof_job" | grep -q '^      contents: write\|^      packages: write'; then
+  fail 'pre-marker OCI proof retains write authority'
+fi
+printf '%s\n' "$proof_job" | grep -q 'verify-oci-payload.sh' \
+  || fail 'pre-marker OCI proof does not compare stopped-container bytes'
+marker_job="$(sed -n '/^  oci-marker:/,/^  oci-version:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$marker_job" | grep -q '^    needs: \[release-draft, oci-proof\]' \
+  || fail 'digest marker persistence does not depend on read-only payload proof'
+printf '%s\n' "$marker_job" | grep -q '^      contents: write' \
+  || fail 'digest marker job lacks release-body write authority'
+if printf '%s\n' "$marker_job" | grep -q '^      packages:'; then
+  fail 'digest marker job retains package authority'
+fi
+if printf '%s\n' "$marker_job" | grep -q 'uses: docker/'; then
+  fail 'digest marker job exposes release-write authority to a Docker action'
+fi
+if printf '%s\n' "$marker_job" | grep -q 'verify-oci-payload.sh\|oci-coordinate-immutable.sh'; then
+  fail 'digest marker job performs registry or payload operations'
+fi
+printf '%s\n' "$marker_job" | grep -q 'read-release-state.sh' \
+  || fail 'digest marker job does not re-read release identity before staging'
+version_job="$(sed -n '/^  oci-version:/,/^  oci-final-proof:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$version_job" | grep -q '^    needs: \[release-draft, oci-marker\]' \
+  || fail 'immutable OCI version convergence can run before marker durability'
+printf '%s\n' "$version_job" | grep -q 'oci-coordinate-immutable.sh' \
+  || fail 'post-marker OCI version does not converge by exact digest'
+final_proof_job="$(sed -n '/^  oci-final-proof:/,/^  finalize:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$final_proof_job" | grep -q '^    needs: \[release-draft, oci-version\]' \
+  || fail 'pre-finalization OCI proof does not depend on post-marker convergence'
+printf '%s\n' "$final_proof_job" | grep -q 'verify-oci-payload.sh' \
+  || fail 'pre-finalization OCI proof does not compare payload bytes'
+printf '%s\n' "$final_proof_job" | grep -q '^      contents: read' \
+  || fail 'pre-finalization OCI proof lacks read-only contents authority'
+printf '%s\n' "$final_proof_job" | grep -q '^      packages: read' \
+  || fail 'pre-finalization OCI proof lacks read-only package authority'
+if printf '%s\n' "$final_proof_job" | grep -q '^      contents: write\|^      packages: write'; then
+  fail 'pre-finalization OCI proof retains write authority'
+fi
+printf '%s\n' "$finalizer" | grep -q '^      - oci-final-proof' \
+  || fail 'finalizer does not depend on the post-marker payload result'
+grep -q 'docker pull' "$ROOT/scripts/release/verify-oci-payload.sh" \
+  || fail 'payload proof does not pull the exact digest'
+grep -q 'docker create' "$ROOT/scripts/release/verify-oci-payload.sh" \
+  || fail 'payload proof does not create stopped containers'
+grep -q 'docker cp' "$ROOT/scripts/release/verify-oci-payload.sh" \
+  || fail 'payload proof does not copy bytes from stopped containers'
+if grep -q 'docker run' "$ROOT/scripts/release/verify-oci-payload.sh"; then
+  fail 'payload proof executes image content'
+fi
+grep -q 'make_latest=legacy' "$ROOT/scripts/release/finalize-release.sh" \
+  || fail 'stable publication does not select GitHub legacy Latest policy'
+grep -q 'make_latest=false' "$ROOT/scripts/release/finalize-release.sh" \
+  || fail 'prerelease publication does not explicitly refuse Latest'
+grep -q 'original tag-push run' "$ROOT/RELEASING.md" \
+  || fail 'canonical replay docs do not explain missing-provenance recovery'
+grep -q 'original tag-push run' "$ROOT/docs/RELEASING.md" \
+  || fail 'public replay docs do not explain missing-provenance recovery'
 bash "$ROOT/scripts/release/tests/immutable-assets.test.sh" >/dev/null \
   || fail 'the immutable asset replay regression failed'
 bash "$ROOT/scripts/release/tests/publication-barrier.test.sh" >/dev/null \

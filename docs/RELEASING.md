@@ -67,8 +67,9 @@ That tag fires **`.github/workflows/release.yml`**, which:
    the hidden `guard` verb is asked of the verb itself, not the `--help`
    listing),
 3. packages each as `nika-<platform>-<version>.tar.gz` (+ a `.sha256` sidecar),
-4. holds the GitHub release as a draft while npm and the immutable GHCR version
-   coordinate converge,
+4. holds the GitHub release as a draft while npm converges and GHCR builds a
+   digest, proves both Linux payloads against the native tarballs, durably
+   records that digest, then converges the immutable version coordinate,
 5. verifies the exact eight-asset allowlist, checksums, five source-bound
    GitHub attestations, the generic SLSA signature/source/four subjects, npm
    SRI, and the two-platform OCI digest + labels, then one finalizer makes the
@@ -102,25 +103,36 @@ bytes differ. A timestamped or otherwise non-reproducible rebuild therefore
 stops; missing assets are filled only when the occupied set still compares
 byte-for-byte. The workflow reads replay tooling from its own exact commit, not
 from the historical tag. The tag-push lane cryptographically verifies generic
-SLSA provenance and stages it on the draft immediately. A manual replay
-preserves and re-verifies that statement rather than regenerating it, because
-the workflow branch is not an honest provenance identity for the historical
-tag. Every stable replay converges Homebrew and GHCR `latest`, so a failure in
+SLSA provenance and stages it on the draft immediately. A manual replay can
+only preserve and re-verify an existing statement: `workflow_dispatch` cannot
+regenerate missing tag-context SLSA because the workflow branch is not an
+honest provenance identity for the historical tag. If the statement is
+missing, rerun the original tag-push run while that run and its artifacts are
+retained. Every stable replay converges Homebrew and GHCR `latest`, so a failure in
 either post-public job can be repaired after the release is already public.
 Already-correct pointers no-op, and both possible writes first prove this is the
 newest public stable SemVer; an old-tag replay refuses instead of downgrading.
-Prereleases never move them. Missing mandatory credentials keep the draft
+Prereleases never move them. GitHub publication passes `make_latest=legacy`
+for stable releases and `make_latest=false` for prereleases, preventing delayed
+older-stable recovery from forcing Latest. Missing mandatory credentials keep the draft
 closed. Homebrew necessarily has a short
 post-public update window because its formula cannot safely point at draft
 assets. This protection is future-only; **v0.116.2 is not retroactively
 atomic**, and no workflow can rewrite its already-public history into one.
 
 The exact GHCR digest is stored as a hidden marker in the GitHub release body,
-not as a ninth asset. Replays require the immutable version tag to equal that
-marker and inspect the manifest by digest. Release bodies and release fields can
-still be changed manually by a repository administrator; the workflow re-reads
-and refuses drift, but GitHub provides no transaction or lock spanning those
-external mutations, npm, GHCR, and the tap.
+not as a ninth asset. Before persistence and again before finalization, the
+workflow pulls each Linux platform by exact digest, creates a stopped container,
+copies out `/usr/local/bin/nika` without executing image content, and compares
+its sha256 with the matching extracted native tarball; label checks alone do
+not prove payload bytes. A durable marker authorizes healing a
+missing immutable version tag from the exact `image@digest`. Without a marker,
+the workflow never adopts an occupied version coordinate. Release bodies and
+release fields can still be changed manually by a repository administrator.
+The residual authority is an admin-writer TOCTOU between the workflow's
+repeated reads: drift observed by a read is refused, but the workflow cannot
+lock out an administrator between checks. That is separate from cross-registry
+atomicity, which this visibility barrier does not claim.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.

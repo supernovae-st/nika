@@ -140,7 +140,10 @@ without an explicit operator decision.
    the operator command and the current workflow's ref guard are both part of
    the replay boundary. All live and
    replay release trains share one global publication lane because Homebrew and
-   the container `latest` tag are cross-version mutable pointers. The workflow
+   the container `latest` tag are cross-version mutable pointers. GitHub
+   publication explicitly uses `make_latest=legacy` for stable releases and
+   `make_latest=false` for prereleases, so delayed recovery of an older stable
+   cannot force it to Latest. The workflow
    is a **visibility barrier, not a cross-registry transaction**: npm and GHCR
    writes are irreversible and may already be public while the GitHub Release
    remains a draft. A failure therefore converges forward under the same
@@ -166,12 +169,25 @@ without an explicit operator decision.
    requires exactly one existing statement asset and refuses branch-context
    regeneration. Every push, replay, and finalization runs the pinned
    `slsa-verifier` against the four native subjects, repository, and exact
-   source tag before proceeding. The exact GHCR digest is durably recorded in
-   a single release-body marker; replay requires `image:<version>` to equal it
-   and inspects the image by digest. The marker and other GitHub release
-   metadata remain manually mutable by repository administrators: the workflow
-   detects observed drift and stops, but cannot make external GitHub mutations
-   impossible or atomic. This barrier is future-only:
+   source tag before proceeding. `workflow_dispatch` cannot generate missing
+   tag-context provenance: if the statement was never staged, rerun the
+   original tag-push run while that run and its artifacts are retained. The
+   exact GHCR digest is durably recorded in a single release-body marker only
+   after both digest-addressed Linux container binaries, copied from stopped
+   containers without executing image content, hash identically to their
+   matching native tarballs. The proof job has read-only contents/packages;
+   the marker job has contents-write only and performs no Docker operation.
+   Only then may `image:<version>` be created.
+   If the marker survives but that tag is absent, replay heals it from the
+   exact `image@digest`; if the marker is absent, an occupied version tag is
+   never adopted as authority. Finalization repeats the two-platform payload
+   comparison; OCI labels are identity metadata, not proof of binary bytes.
+   The marker and other GitHub release metadata remain manually mutable by
+   repository administrators. That admin-writer TOCTOU between repeated reads
+   is residual authority: the workflow detects observed drift and stops, but
+   cannot lock administrators out between checks. It is distinct from
+   cross-registry atomicity, which this visibility barrier does not claim.
+   This barrier is future-only:
    **v0.116.2 is not retroactively atomic**, and its already-public registry
    history is not rewritten to pretend otherwise.
 
@@ -209,7 +225,8 @@ without an explicit operator decision.
 The release body starts with the curated **What / Install / Verify /
 Provenance** front page rendered by `scripts/release/render-notes.sh`, with
 GitHub's generated PR list appended. The workflow then appends one hidden GHCR
-digest marker and refuses a missing, duplicate, or changed marker on replay.
+digest marker while preserving that body and refuses a malformed, duplicate,
+or changed marker on replay.
 
 ## What a user can prove
 

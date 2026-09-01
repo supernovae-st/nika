@@ -416,7 +416,9 @@ jobs:
     # On workflow_dispatch, github.ref/github.sha identify the workflow source
     # (normally main), not the input tag whose bytes were built. The generic
     # generator binds those context values into the statement, so only a tag
-    # push can create tag-true provenance. Manual replay must preserve it.
+    # push can create tag-true provenance. Manual replay can only verify an
+    # existing statement; missing provenance requires rerunning the retained
+    # original tag-push run.
     if: github.event_name == 'push'
     permissions:
       actions: read # read the workflow run for provenance
@@ -488,7 +490,7 @@ jobs:
           if-no-files-found: error
 
   provenance-replay-check:
-    name: stage existing slsa provenance on replay
+    name: verify existing slsa provenance on replay
     needs: release-draft
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
@@ -522,7 +524,7 @@ jobs:
           matches="$(gh api "repos/${REPO}/releases/${RELEASE_ID}" \
             --jq '[.assets[] | select(.name == "multiple.intoto.jsonl")] | length')"
           if [ "$matches" != "1" ]; then
-            echo "::error::manual replay requires exactly one existing multiple.intoto.jsonl; refusing branch-context provenance regeneration"
+            echo "::error::workflow_dispatch cannot regenerate tag-context SLSA provenance; rerun the original tag-push run while it is retained"
             exit 73
           fi
           gh release download "$TAG" --repo "$REPO" \
@@ -783,14 +785,14 @@ jobs:
     # and `latest` remains behind the finalizer.
     # SECURITY: the only run: step reads VERSION through env: (tag-derived,
     # cf the header contract) — no event text reaches a shell.
-    name: immutable ghcr version
+    name: build ghcr digest
     needs: release-draft
     runs-on: ubuntu-24.04
     permissions:
       contents: read # checkout the Dockerfile
       packages: write # push to ghcr.io — scoped to THIS job only
     outputs:
-      digest: ${{ steps.converge.outputs.digest }}
+      digest: ${{ steps.digest.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -805,46 +807,27 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Read the durable marker or discover the immutable coordinate
+      - name: Reuse only a durable marker, otherwise require a digest build
         id: coordinate
         env:
           GH_TOKEN: ${{ github.token }}
-          IMAGE: ghcr.io/${{ github.repository }}
           RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
-          VERSION: ${{ needs.release-draft.outputs.version }}
         run: |
           set -euo pipefail
           state=0
           digest="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
             read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")" || state=$?
           if [ "$state" -eq 0 ]; then
-            bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
-              verify "$IMAGE" "$VERSION" "$digest" "$RELEASE_SHA" \
-              "https://github.com/${REPO}" >/dev/null
             echo "build=false" >> "$GITHUB_OUTPUT"
             echo "digest=$digest" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           [ "$state" -eq 44 ] || exit "$state"
-          state=0
-          digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
-            discover "$IMAGE" "$VERSION" - "$RELEASE_SHA" \
-            "https://github.com/${REPO}")" || state=$?
-          if [ "$state" -eq 0 ]; then
-            echo "build=false" >> "$GITHUB_OUTPUT"
-            echo "digest=$digest" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          [ "$state" -eq 44 ] || exit "$state"
-          release_state="$(bash .release-tooling/scripts/release/read-release-state.sh \
-            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")"
-          [ "$(printf '%s\n' "$release_state" | sed -n 's/^draft=//p')" = true ] || {
-            echo "::error::a public release has neither a GHCR marker nor an immutable version coordinate"
-            exit 73
-          }
+          # An occupied image:version without this marker is not authority.
+          # Build from the release tarballs and bind the resulting digest.
           echo "build=true" >> "$GITHUB_OUTPUT"
           echo "digest=" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -854,7 +837,6 @@ jobs:
           path: .release-source
           persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: steps.coordinate.outputs.build == 'true'
         with:
           path: artifacts
           merge-multiple: true
@@ -871,7 +853,6 @@ jobs:
           tar -xzf "artifacts/nika-linux-x64-${VERSION}.tar.gz" -C .release-source/dist/linux/amd64 nika
           tar -xzf "artifacts/nika-linux-arm64-${VERSION}.tar.gz" -C .release-source/dist/linux/arm64 nika
       - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
-        if: steps.coordinate.outputs.build == 'true'
       - name: Build + push by digest (linux/amd64 · linux/arm64)
         id: image
         if: steps.coordinate.outputs.build == 'true'
@@ -889,11 +870,183 @@ jobs:
             org.opencontainers.image.revision=${{ needs.release-draft.outputs.sha }}
             org.opencontainers.image.version=${{ needs.release-draft.outputs.version }}
             org.opencontainers.image.licenses=AGPL-3.0-or-later
-      - name: Converge the immutable version coordinate and persist its digest
-        id: converge
+      - name: Select and prove the exact digest payload
+        id: digest
         env:
           CANDIDATE: ${{ steps.image.outputs.digest }}
-          DISCOVERED: ${{ steps.coordinate.outputs.digest }}
+          MARKER_DIGEST: ${{ steps.coordinate.outputs.digest }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.release-draft.outputs.version }}
+        run: |
+          set -euo pipefail
+          candidate="${CANDIDATE:-$MARKER_DIGEST}"
+          digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            inspect "$IMAGE" "$VERSION" "$candidate" "$RELEASE_SHA" \
+            "https://github.com/${REPO}")"
+          bash .release-tooling/scripts/release/verify-oci-payload.sh \
+            "$IMAGE" "$digest" "$VERSION" artifacts
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  oci-proof:
+    # All pre-marker Docker actions run with read-only contents/packages.
+    # No third-party Docker action receives release-body write authority.
+    name: prove ghcr digest payload
+    needs: [release-draft, docker]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      digest: ${{ steps.proof.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Prove the digest identity and payload bytes
+        id: proof
+        env:
+          DIGEST: ${{ needs.docker.outputs.digest }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.release-draft.outputs.version }}
+        run: |
+          set -euo pipefail
+          bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            inspect "$IMAGE" "$VERSION" "$DIGEST" "$RELEASE_SHA" \
+            "https://github.com/${REPO}" >/dev/null
+          bash .release-tooling/scripts/release/verify-oci-payload.sh \
+            "$IMAGE" "$DIGEST" "$VERSION" artifacts
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+  oci-marker:
+    # This job stages only the already-proven digest. It has no package
+    # permission, Docker action, registry login, or image execution surface.
+    name: persist ghcr digest marker
+    needs: [release-draft, oci-proof]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      digest: ${{ steps.persist.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - name: Re-read release identity and persist only the proven digest
+        id: persist
+        env:
+          DIGEST: ${{ needs.oci-proof.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+        run: |
+          set -euo pipefail
+          bash .release-tooling/scripts/release/read-release-state.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
+          persisted="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            stage "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "$DIGEST")"
+          [ "$persisted" = "$DIGEST" ]
+          echo "digest=$persisted" >> "$GITHUB_OUTPUT"
+
+  oci-version:
+    # The immutable version coordinate is allowed to converge only after the
+    # release-body marker is durable. A missing image:version is healed from
+    # that exact image@digest; a divergent occupied version is refused.
+    name: converge ghcr immutable version
+    needs: [release-draft, oci-marker]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.converge.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Converge from the durable marker
+        id: converge
+        env:
+          DIGEST: ${{ needs.oci-marker.outputs.digest }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.release-draft.outputs.version }}
+        run: |
+          set -euo pipefail
+          digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
+            publish "$IMAGE" "$VERSION" "$DIGEST" "$RELEASE_SHA" \
+            "https://github.com/${REPO}")"
+          [ "$digest" = "$DIGEST" ]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  oci-final-proof:
+    # Re-prove the post-marker version and payload before release visibility.
+    # This isolates every Docker action from release-write authority.
+    name: reprove ghcr before finalization
+    needs: [release-draft, oci-version]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      digest: ${{ steps.oci.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Re-read marker and prove the post-marker coordinate and payload
+        id: oci
+        env:
           GH_TOKEN: ${{ github.token }}
           IMAGE: ghcr.io/${{ github.repository }}
           RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
@@ -903,13 +1056,14 @@ jobs:
           VERSION: ${{ needs.release-draft.outputs.version }}
         run: |
           set -euo pipefail
-          candidate="${CANDIDATE:-$DISCOVERED}"
+          expected="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")"
           digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
-            publish "$IMAGE" "$VERSION" "$candidate" "$RELEASE_SHA" \
+            verify "$IMAGE" "$VERSION" "$expected" "$RELEASE_SHA" \
             "https://github.com/${REPO}")"
-          persisted="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
-            stage "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "$digest")"
-          [ "$persisted" = "$digest" ]
+          [ "$digest" = "$expected" ]
+          bash .release-tooling/scripts/release/verify-oci-payload.sh \
+            "$IMAGE" "$digest" "$VERSION" artifacts
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
   finalize:
@@ -919,14 +1073,13 @@ jobs:
       - provenance-result
       - npm-wasm-pack
       - npm-wasm-publish
-      - docker
+      - oci-final-proof
     if: always()
     runs-on: ubuntu-24.04
     permissions:
       attestations: read
       contents: write
       discussions: write
-      packages: read
     outputs:
       tag: ${{ needs.release-draft.outputs.tag }}
       version: ${{ needs.release-draft.outputs.version }}
@@ -941,7 +1094,7 @@ jobs:
           PROVENANCE_RESULT: ${{ needs.provenance-result.result }}
           WASM_PACK_RESULT: ${{ needs.npm-wasm-pack.result }}
           NPM_RESULT: ${{ needs.npm-wasm-publish.result }}
-          OCI_RESULT: ${{ needs.docker.result }}
+          OCI_RESULT: ${{ needs.oci-final-proof.result }}
         run: |
           set -euo pipefail
           for result in \
@@ -963,16 +1116,11 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
       - name: Re-read release identity and mutable state
         id: state
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
@@ -984,6 +1132,8 @@ jobs:
       - name: Re-read the persisted GHCR digest
         id: marker
         env:
+          GH_TOKEN: ${{ github.token }}
+          PROVEN_DIGEST: ${{ needs.oci-final-proof.outputs.digest }}
           RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
@@ -992,9 +1142,11 @@ jobs:
           set -euo pipefail
           digest="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
             read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")"
+          [ "$digest" = "$PROVEN_DIGEST" ]
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
       - name: Verify exact checksums and all source-bound provenance
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
@@ -1021,6 +1173,7 @@ jobs:
             "$TAG" "$REPO" artifacts/multiple.intoto.jsonl "${native[@]}"
       - name: Converge and then recheck the exact eight release assets
         env:
+          GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
         run: |
@@ -1049,20 +1202,6 @@ jobs:
             "@supernovae-st/nika-check-wasm@${VERSION}" \
             "artifacts/supernovae-st-nika-check-wasm-${VERSION}.tgz" \
             "artifacts/supernovae-st-nika-check-wasm-${VERSION}.tgz.sha256"
-      - name: Recheck GHCR digest, platforms, and labels
-        id: oci
-        env:
-          IMAGE: ghcr.io/${{ github.repository }}
-          EXPECTED_DIGEST: ${{ steps.marker.outputs.digest }}
-          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
-          VERSION: ${{ needs.release-draft.outputs.version }}
-        run: |
-          set -euo pipefail
-          digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
-            verify "$IMAGE" "$VERSION" "$EXPECTED_DIGEST" "$RELEASE_SHA" \
-            "https://github.com/${{ github.repository }}")"
-          [ "$digest" = "$EXPECTED_DIGEST" ]
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
       - name: Publish once or validate an already committed transition
         id: publish
         env:

@@ -33,9 +33,20 @@ marker_prefix='<!-- nika-ghcr-digest: '
 
 read_marker() {
   local body_file="$1"
-  bash "$here/read-release-state.sh" "$repo" "$release_id" "$tag" "$sha" >/dev/null
-  gh api "repos/${repo}/releases/${release_id}" --jq '.body // ""' >"$body_file"
-  grep -E '^<!-- nika-ghcr-digest: sha256:[0-9a-f]{64} -->$' "$body_file" \
+  local count
+  if ! bash "$here/read-release-state.sh" \
+    "$repo" "$release_id" "$tag" "$sha" >/dev/null; then
+    echo "release digest: release-state read failed" >&2
+    return 69
+  fi
+  if ! gh api "repos/${repo}/releases/${release_id}" \
+    --jq '.body // ""' >"$body_file"; then
+    echo "release digest: release-body read failed" >&2
+    return 69
+  fi
+  # The token is reserved everywhere in the body. Indentation, prose wrapping,
+  # and malformed spellings must not turn an occupied namespace into absence.
+  grep -F 'nika-ghcr-digest:' "$body_file" \
     >"${body_file}.markers" || true
   count="$(wc -l <"${body_file}.markers" | tr -d ' ')"
   [ "$count" -le 1 ] || {
@@ -45,6 +56,11 @@ read_marker() {
   if [ "$count" -eq 0 ]; then
     return 44
   fi
+  grep -Eq '^<!-- nika-ghcr-digest: sha256:[0-9a-f]{64} -->$' \
+    "${body_file}.markers" || {
+    echo "release digest: REFUSED malformed digest marker" >&2
+    return 73
+  }
   sed -n 's/^<!-- nika-ghcr-digest: \(sha256:[0-9a-f]\{64\}\) -->$/\1/p' \
     "${body_file}.markers"
 }
