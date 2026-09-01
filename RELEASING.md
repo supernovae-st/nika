@@ -140,21 +140,37 @@ without an explicit operator decision.
    the operator command and the current workflow's ref guard are both part of
    the replay boundary. All live and
    replay release trains share one global publication lane because Homebrew and
-   the container `latest` tag are cross-version mutable pointers. GitHub retains
+   the container `latest` tag are cross-version mutable pointers. The workflow
+   is a **visibility barrier, not a cross-registry transaction**: npm and GHCR
+   writes are irreversible and may already be public while the GitHub Release
+   remains a draft. A failure therefore converges forward under the same
+   immutable coordinate; it never rolls a registry back or overwrites a
+   divergent identity. GitHub retains
    only one pending train and may replace it with a newer one, so never queue
    more than one train behind the active run. Replay refuses to replace an
    occupied release asset with different bytes, so timestamped or otherwise
    non-reproducible rebuilds stop rather than silently refresh public bytes. A
    missing asset is filled only after the occupied set compares byte-for-byte.
-   Know that re-dispatching an old tag still re-points `latest` (docker + release
-   ordering). The replay
+   A complete public replay is validation-only. Historical replay and
+   prereleases never move Homebrew or `latest`; those floating pointers move
+   only after the sole finalizer makes a new stable tag-push release public.
+   There is an unavoidable short post-public window before the downstream
+   Homebrew commit lands, because the formula cannot safely point at a draft.
+   The replay
    helper comes from the exact workflow commit, so a historical tag does not
    need to contain future release tooling. Existing SLSA provenance is
    preserved byte-for-byte and a missing statement follows the same guarded
    replay boundary. SLSA provenance is created only by the original tag-push
    context. Manual replay requires exactly one existing statement asset and
    refuses branch-context regeneration; `slsa-verifier` remains the separate
-   cryptographic and source-identity judge.
+   cryptographic and source-identity judge. This barrier is future-only:
+   **v0.116.2 is not retroactively atomic**, and its already-public registry
+   history is not rewritten to pretend otherwise.
+
+   Before the first future stable train, configure both `NPM_TOKEN` (granular
+   automation token) and the repository-scoped `TAP_DEPLOY_KEY`. Missing npm
+   authority blocks an absent package version; missing tap authority blocks a
+   stable draft before visibility. Identical occupied npm bytes need no token.
 
    The portable Agent Plugins mirror is downstream of this immutable tag.
    After the release assets are green, its release-heal lane runs
@@ -176,10 +192,11 @@ without an explicit operator decision.
 | `SHA256SUMS` | checksum manifest (proof 1) |
 | GitHub native attestation | `gh attestation verify` (proof 2) |
 | `multiple.intoto.jsonl` | SLSA provenance asset, offline-verifiable (proof 3) |
-| `ghcr.io/supernovae-st/nika:{<ver>,latest}` | multi-arch image, bit-identical to the tarballs |
+| `ghcr.io/supernovae-st/nika:<ver>` | immutable multi-arch image, bit-identical to the tarballs |
+| `ghcr.io/supernovae-st/nika:latest` | stable-only floating pointer, moved after finalization |
 | Homebrew formula bump | `supernovae-st/homebrew-tap` (deploy-key scoped) |
 | `supernovae-st-nika-check-wasm-<ver>.tgz` (+ `.sha256`) | the npm tarball, byte-identical to what `npm publish` ships — attested like the binaries |
-| `@supernovae-st/nika-check-wasm` on npm | the browser checker, published with npm provenance (token present; loud-skipped otherwise, the tarball stays publish-ready) |
+| `@supernovae-st/nika-check-wasm` on npm | immutable browser checker with npm provenance; absence requires `NPM_TOKEN` or finalization stops |
 
 The release body is rendered by `scripts/release/render-notes.sh`: the
 curated **What / Install / Verify / Provenance** front page from the
