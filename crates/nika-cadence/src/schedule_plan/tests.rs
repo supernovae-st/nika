@@ -659,6 +659,53 @@ fn active_timed_after_skip_on_completion_refuses_until_a_trigger_law_exists() {
 }
 
 #[test]
+fn active_timed_tolerance_refuses_until_the_firm_law_exists() {
+    let mut candidate = daily(MissPolicy::Rattraper);
+    candidate.tolerance = Some("3/4".to_owned());
+    let definition = candidate.validate().expect("definition");
+    assert!(matches!(
+        plan_schedule(
+            &definition,
+            &zoned("2026-09-01T08:00:00Z"),
+            &ScheduleDecisionState::empty(),
+            4,
+        ),
+        Err(SchedulePlanError::UnsupportedTolerance)
+    ));
+
+    let mut paused = daily(MissPolicy::Rattraper);
+    paused.tolerance = Some("3/4".to_owned());
+    paused.active = Some(false);
+    paused.pause_reason = Some("maintenance".to_owned());
+    paused.pause_until = Some("2026-09-10".to_owned());
+    assert!(matches!(
+        plan_schedule(
+            &paused.validate().expect("paused definition"),
+            &zoned("2026-09-01T08:00:00Z"),
+            &ScheduleDecisionState::empty(),
+            4,
+        )
+        .expect("inactive plans without effective times")
+        .due(),
+        ScheduleDueVerdict::PausedInactive { .. }
+    ));
+
+    let mut webhook = draft(ScheduleWhenDraft::Webhook, MissPolicy::Rattraper);
+    webhook.tolerance = Some("3/4".to_owned());
+    assert!(matches!(
+        plan_schedule(
+            &webhook.validate().expect("webhook definition"),
+            &zoned("2026-09-01T08:00:00Z"),
+            &ScheduleDecisionState::empty(),
+            4,
+        )
+        .expect("webhooks have no effective timed slot")
+        .due(),
+        ScheduleDueVerdict::NotDue
+    ));
+}
+
+#[test]
 fn active_timed_hash_jitter_refuses_until_a_law_exists() {
     let mut jittered = daily(MissPolicy::Rattraper);
     jittered.jitter = Some(ScheduleJitter::Hash);
@@ -721,6 +768,10 @@ fn planner_refusals_speak_the_schedule_registry_code() {
     );
     assert_eq!(
         SchedulePlanError::UnsupportedAfterSkipOnCompletion.nika_code(),
+        nika_error::codes::NIKA_017
+    );
+    assert_eq!(
+        SchedulePlanError::UnsupportedTolerance.nika_code(),
         nika_error::codes::NIKA_017
     );
     assert_eq!(

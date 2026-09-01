@@ -331,6 +331,11 @@ pub enum SchedulePlanError {
         "active timed schedules with afterSkip=on_completion are unsupported until a completion-trigger law exists"
     )]
     UnsupportedAfterSkipOnCompletion,
+    /// No enforcement law reads the documented (m,k) `tolerance` yet.
+    #[error(
+        "active timed schedules with tolerance are unsupported until the (m,k)-firm law exists"
+    )]
+    UnsupportedTolerance,
     /// A validated canonical cadence failed to re-enter the shared parser.
     #[error("canonical cadence failed to re-parse: {0}")]
     InvalidCanonicalCadence(String),
@@ -351,9 +356,10 @@ impl NikaErrorCode for SchedulePlanError {
 /// # Errors
 /// Active timed hash jitter refuses until a deterministic offset law is
 /// ratified, `overlap: replace` / `overlap: queue` refuse until preemption
-/// and queueing laws exist, and `afterSkip: on_completion` refuses until a
-/// completion-trigger law exists. A canonical cadence that no longer
-/// parses also fails closed.
+/// and queueing laws exist, `afterSkip: on_completion` refuses until a
+/// completion-trigger law exists, and `tolerance` refuses until the
+/// (m,k)-firm law reads it. A canonical cadence that no longer parses
+/// also fails closed.
 pub fn plan_schedule(
     definition: &ScheduleDefinition,
     now: &Zoned,
@@ -375,6 +381,9 @@ pub fn plan_schedule(
         }
         if definition.after_skip() == AfterSkip::ACompletion {
             return Err(SchedulePlanError::UnsupportedAfterSkipOnCompletion);
+        }
+        if definition.tolerance().is_some() {
+            return Err(SchedulePlanError::UnsupportedTolerance);
         }
     }
     let limit = projection_limit.min(MAX_SCHEDULE_PROJECTION_SLOTS);
