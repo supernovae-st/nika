@@ -725,6 +725,66 @@ async fn active_overlap_replace_is_refused_before_persistence() {
     server.stop().await.expect("stop");
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn active_overlap_queue_is_refused_before_persistence() {
+    let world = TestWorld::new();
+    let server = world.start(Arc::new(NoopBackend), limits()).await;
+    let candidate = json!({
+        "workflow": "root.nika.yaml",
+        "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
+        "maxCostUsd": 0.25,
+        "missed": "skip",
+        "overlap": "queue"
+    })
+    .to_string();
+    let refused = server
+        .request(&put_request(
+            "overlap-queue",
+            &candidate,
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    assert_eq!(refused.json()["findings"][0]["code"], "schedule.overlap");
+    assert!(
+        refused.json()["findings"][0]["detail"]
+            .as_str()
+            .expect("finding detail")
+            .contains("overlap=queue"),
+        "{}",
+        refused.body
+    );
+    let absent = server
+        .request(&get_request("/v1/schedules/overlap-queue"))
+        .await;
+    assert_eq!(absent.status, 404, "schedule must not be persisted");
+    server.stop().await.expect("stop");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn project_beat_with_overlap_queue_surfaces_a_load_finding_and_never_fires() {
+    let world = TestWorld::new();
+    write_project_beat(&world, "    chevauchement: file\n");
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:00Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    let finding = project_finding(&server, "root").await;
+    assert_eq!(finding["code"], "schedule.overlap", "{finding}");
+    assert!(
+        finding["detail"]
+            .as_str()
+            .expect("finding detail")
+            .contains("overlap=queue"),
+        "{finding}"
+    );
+    assert_eq!(backend.calls(), 0, "a refused beat never fires");
+    server.stop().await.expect("stop");
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn project_beat_with_overlap_replace_surfaces_a_load_finding_and_never_fires() {
     let world = TestWorld::new();

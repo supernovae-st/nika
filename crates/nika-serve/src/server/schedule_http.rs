@@ -485,7 +485,8 @@ fn pause_json(definition: &ScheduleDefinition) -> Value {
 fn planner_finding(error: &SchedulePlanError) -> Value {
     let code = match error {
         SchedulePlanError::UnsupportedHashJitter => "schedule.jitter",
-        SchedulePlanError::UnsupportedOverlapReplace => "schedule.overlap",
+        SchedulePlanError::UnsupportedOverlapReplace
+        | SchedulePlanError::UnsupportedOverlapQueue => "schedule.overlap",
         SchedulePlanError::InvalidCanonicalCadence(_) => "schedule.cadence",
         _ => "schedule.plan",
     };

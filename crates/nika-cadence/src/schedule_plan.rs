@@ -321,6 +321,11 @@ pub enum SchedulePlanError {
         "active timed schedules with overlap=replace are unsupported until a preemption law exists"
     )]
     UnsupportedOverlapReplace,
+    /// No queueing law exists for `overlap: queue` yet.
+    #[error(
+        "active timed schedules with overlap=queue are unsupported until a queueing law exists"
+    )]
+    UnsupportedOverlapQueue,
     /// A validated canonical cadence failed to re-enter the shared parser.
     #[error("canonical cadence failed to re-parse: {0}")]
     InvalidCanonicalCadence(String),
@@ -340,8 +345,9 @@ impl NikaErrorCode for SchedulePlanError {
 ///
 /// # Errors
 /// Active timed hash jitter refuses until a deterministic offset law is
-/// ratified, and `overlap: replace` refuses until a preemption law exists.
-/// A canonical cadence that no longer parses also fails closed.
+/// ratified, and `overlap: replace` / `overlap: queue` refuse until
+/// preemption and queueing laws exist. A canonical cadence that no longer
+/// parses also fails closed.
 pub fn plan_schedule(
     definition: &ScheduleDefinition,
     now: &Zoned,
@@ -357,6 +363,9 @@ pub fn plan_schedule(
         }
         if definition.overlap() == Overlap::Remplacer {
             return Err(SchedulePlanError::UnsupportedOverlapReplace);
+        }
+        if definition.overlap() == Overlap::File {
+            return Err(SchedulePlanError::UnsupportedOverlapQueue);
         }
     }
     let limit = projection_limit.min(MAX_SCHEDULE_PROJECTION_SLOTS);
