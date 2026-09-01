@@ -67,17 +67,19 @@ That tag fires **`.github/workflows/release.yml`**, which:
    bump the formula by hand (§2).
 
 Replay a tag without re-tagging via the **workflow_dispatch** input.
-Runs for the same tag never overlap. GitHub retains one pending replay and may
-replace it with a newer one; an already-published asset is downloaded and
-compared, and a replay refuses to replace it when the bytes differ. A
-timestamped or otherwise non-reproducible rebuild therefore stops; missing
-assets are filled only when the occupied set still compares byte-for-byte.
-The workflow reads replay tooling from its own exact commit, not from the
-historical tag. Existing SLSA provenance is preserved rather than regenerated;
-a missing statement makes manual replay fail, because the workflow branch is
-not an honest provenance identity for the historical tag. The replay guard
-checks the unique asset name; the verification commands below still judge its
-signature and source identity.
+All live and replay release trains share one global publication lane because
+Homebrew and the container `latest` tag are cross-version mutable pointers.
+GitHub retains only one pending train and may replace it with a newer one, so
+never queue more than one train behind the active run. An already-published
+asset is downloaded and compared, and a replay refuses to replace it when the
+bytes differ. A timestamped or otherwise non-reproducible rebuild therefore
+stops; missing assets are filled only when the occupied set still compares
+byte-for-byte. The workflow reads replay tooling from its own exact commit, not
+from the historical tag. Existing SLSA provenance is preserved rather than
+regenerated; a missing statement makes manual replay fail, because the workflow
+branch is not an honest provenance identity for the historical tag. The replay
+guard checks the unique asset name; the verification commands below still judge
+its signature and source identity.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.

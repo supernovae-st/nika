@@ -22,12 +22,14 @@ on:
 permissions:
   contents: read # least privilege at the top — release job elevates (Scorecard Token-Permissions)
 
-# One tag is one publication lane. A manual replay cannot overlap the live
-# train for release assets, the floating image tag, or the Homebrew formula.
-# Never cancel a running train after an irreversible registry write. GitHub's
-# default retains one pending replay and may replace it with a newer one.
+# All version trains share one publication lane. A manual replay cannot overlap
+# another replay or a live train for release assets, the floating image tag, or
+# the Homebrew formula. Never cancel a running train after an irreversible
+# registry write. GitHub retains one pending train and may replace it with a
+# newer one, so the ceremony never queues more than one train behind the active
+# run.
 concurrency:
-  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  group: nika-release-train
   cancel-in-progress: false
 
 env:
@@ -356,7 +358,7 @@ jobs:
 
   provenance:
     # The scorecard-visible provenance: this reusable workflow builds and
-    # UPLOADS `multiple.intoto.jsonl` as a release asset. The native
+    # GENERATES `multiple.intoto.jsonl` as a run artifact. The native
     # attest-build-provenance step above stays (gh attestation verify) but
     # scorecard's Signed-Releases probe only reads release ASSET NAMES
     # (ossf/scorecard#4080) — the .intoto.jsonl asset is what scores.
@@ -373,7 +375,7 @@ jobs:
     permissions:
       actions: read # read the workflow run for provenance
       id-token: write # sign the provenance (Sigstore OIDC)
-      contents: write # upload the .intoto.jsonl asset to the release
+      contents: read # bind the generated statement to this repository
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: ${{ needs.release.outputs.hashes }}

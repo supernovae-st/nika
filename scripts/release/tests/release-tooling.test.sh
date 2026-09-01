@@ -280,12 +280,15 @@ grep -q 'crates/nika-acp/Cargo.lock' "$ROOT/RELEASING.md" \
   || fail 'the canonical carrier list omits crates/nika-acp/Cargo.lock'
 grep -q 'before declaring the release complete' "$ROOT/RELEASING.md" \
   || fail 'the ceremony does not say when the timeline record closes the release'
-# The GitHub expression is the literal workflow contract, not shell syntax.
-# shellcheck disable=SC2016
-grep -q 'group: release-${{ github.event.inputs.tag || github.ref_name }}' \
-  "$ROOT/.github/workflows/release.yml" \
-  || fail 'the release workflow does not serialize runs for the same tag'
-grep -q 'cancel-in-progress: false' "$ROOT/.github/workflows/release.yml" \
+concurrency_block="$(sed -n '/^concurrency:/,/^env:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$concurrency_block" | grep -Fqx '  group: nika-release-train' \
+  || fail 'live and replay release trains do not share one publication lane'
+if printf '%s\n' "$concurrency_block" \
+  | grep -Eq 'github\.event\.inputs\.tag|github\.ref_name'; then
+  fail 'release concurrency is still partitioned by tag'
+fi
+printf '%s\n' "$concurrency_block" | grep -Fqx '  cancel-in-progress: false' \
   || fail 'the release workflow may cancel a train after an irreversible write'
 for label in \
   org.opencontainers.image.revision \
@@ -325,6 +328,11 @@ provenance_job="$(sed -n '/^  provenance:/,/^  provenance-publish:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$provenance_job" | grep -q 'upload-assets: false' \
   || fail 'the upstream SLSA uploader can delete and replace occupied provenance'
+printf '%s\n' "$provenance_job" | grep -q '^      contents: read' \
+  || fail 'the SLSA generator lacks read-only repository identity access'
+if printf '%s\n' "$provenance_job" | grep -q '^      contents: write'; then
+  fail 'the SLSA generator retains unnecessary release write authority'
+fi
 printf '%s\n' "$provenance_job" | grep -q "if: github.event_name == 'push'" \
   || fail 'manual replay can generate branch-context provenance for an old tag'
 provenance_publish_job="$(sed -n '/^  provenance-publish:/,/^  bump-formula:/p' \

@@ -119,13 +119,16 @@ without an explicit operator decision.
    git tag v<NEXT> && git push origin v<NEXT>
    ```
 
-   Nothing else. `workflow_dispatch` can replay an existing tag. Runs for the
-   same tag never overlap; GitHub retains one pending replay and may replace it
-   with a newer one. Replay refuses to replace an occupied release asset with
-   different bytes, so timestamped or otherwise non-reproducible rebuilds stop
-   rather than silently refresh public bytes. A missing asset is filled only
-   after the occupied set compares byte-for-byte. Know that re-dispatching an
-   old tag still re-points `latest` (docker + release ordering). The replay
+   Nothing else. `workflow_dispatch` can replay an existing tag. All live and
+   replay release trains share one global publication lane because Homebrew and
+   the container `latest` tag are cross-version mutable pointers. GitHub retains
+   only one pending train and may replace it with a newer one, so never queue
+   more than one train behind the active run. Replay refuses to replace an
+   occupied release asset with different bytes, so timestamped or otherwise
+   non-reproducible rebuilds stop rather than silently refresh public bytes. A
+   missing asset is filled only after the occupied set compares byte-for-byte.
+   Know that re-dispatching an old tag still re-points `latest` (docker + release
+   ordering). The replay
    helper comes from the exact workflow commit, so a historical tag does not
    need to contain future release tooling. Existing SLSA provenance is
    preserved byte-for-byte and a missing statement follows the same guarded
