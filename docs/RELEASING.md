@@ -49,6 +49,12 @@ git tag v0.90.0            # vMAJOR.MINOR.PATCH — must match the workspace ver
 git push origin v0.90.0
 ```
 
+The tag is the one publication coordinate shared by GitHub, npm, Homebrew and
+OCI. Strict SemVer prereleases such as `v1.0.0-rc.1` are accepted; build
+metadata such as `v1.0.0+build` is refused because SemVer ignores it for
+precedence. The workflow's first job checks this before any build or registry
+write, preventing a partially published train.
+
 That tag fires **`.github/workflows/release.yml`**, which:
 
 1. builds `nika` for **macOS arm64/x64** and **Linux arm64/x64** (release · `--locked`),

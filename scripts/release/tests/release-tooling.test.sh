@@ -296,10 +296,32 @@ printf '%s\n' "$dispatch_job" | grep -q 'WORKFLOW_REF:.*github.ref' \
   || fail 'manual replay does not inspect the selected workflow ref'
 printf '%s\n' "$dispatch_job" | grep -q 'refs/heads/main' \
   || fail 'manual replay does not require the current main workflow guards'
+printf '%s\n' "$dispatch_job" | grep -q 'REF_NAME:.*github.event.inputs.tag.*github.ref_name' \
+  || fail 'the first release gate does not validate the selected publication tag'
+printf '%s\n' "$dispatch_job" | grep -q 'scripts/release/check-release-tag.sh' \
+  || fail 'the first release gate bypasses the canonical coordinate validator'
+# The GitHub context is matched literally.
+# shellcheck disable=SC2016
+printf '%s\n' "$dispatch_job" | grep -q 'ref: \${{ github.workflow_sha }}' \
+  || fail 'the first release gate does not use the workflow commit validator'
+printf '%s\n' "$dispatch_job" | grep -q 'persist-credentials: false' \
+  || fail 'the read-only release-coordinate checkout persists credentials'
 build_job="$(sed -n '/^  build:/,/^  npm-check:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$build_job" | grep -q '^    needs: dispatch-ref' \
   || fail 'release builds can bypass the replay workflow-ref guard'
+for tag in v1.0.0 v1.0.0-rc.1 v0.80.0-alpha.1; do
+  bash "$ROOT/scripts/release/check-release-tag.sh" "$tag" \
+    || fail "canonical publication coordinate $tag was refused"
+done
+for tag in latest v1.0.0-rc.01 v1.0.0+build v01.0.0; do
+  if bash "$ROOT/scripts/release/check-release-tag.sh" "$tag" \
+    >"$TEST_ROOT/tag-check.out" 2>&1; then
+    fail "non-canonical publication coordinate $tag passed the first gate"
+  fi
+  grep -Fq "invalid canonical semver tag: $tag" "$TEST_ROOT/tag-check.out" \
+    || fail "the first gate did not explain the rejected coordinate $tag"
+done
 grep -q -- '--ref main' "$ROOT/RELEASING.md" \
   || fail 'the canonical replay ceremony does not select current guards'
 grep -q -- '--ref main' "$ROOT/docs/RELEASING.md" \
@@ -326,6 +348,8 @@ printf '%s\n' "$release_job" | grep -q 'ref: \${{ github.workflow_sha }}' \
 printf '%s\n' "$release_job" \
   | grep -q '.release-tooling/scripts/release/upload-assets-immutable.sh' \
   || fail 'the native release job invokes a helper from another job filesystem'
+printf '%s\n' "$release_job" | grep -q 'scripts/release/check-release-tag.sh' \
+  || fail 'the native release checkout omits the uploader coordinate validator'
 npm_publish_job="$(sed -n '/^  npm-wasm-publish:/,/^  docker:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$npm_publish_job" | grep -q 'actions/checkout@' \
@@ -334,8 +358,10 @@ printf '%s\n' "$npm_publish_job" | grep -q 'actions/checkout@' \
 # shellcheck disable=SC2016
 printf '%s\n' "$npm_publish_job" | grep -q 'ref: \${{ github.workflow_sha }}' \
   || fail 'a historical replay reads its helper from the old release tree'
-printf '%s\n' "$npm_publish_job" | grep -q 'sparse-checkout: scripts/release/upload-assets-immutable.sh' \
-  || fail 'the elevated npm publish job checks out more source than its one helper'
+printf '%s\n' "$npm_publish_job" | grep -q 'scripts/release/upload-assets-immutable.sh' \
+  || fail 'the elevated npm publish job omits its immutable-upload helper'
+printf '%s\n' "$npm_publish_job" | grep -q 'scripts/release/check-release-tag.sh' \
+  || fail 'the elevated npm publish job omits the uploader coordinate validator'
 printf '%s\n' "$npm_publish_job" | grep -q 'persist-credentials: false' \
   || fail 'the elevated npm publish checkout persists its write credential'
 provenance_job="$(sed -n '/^  provenance:/,/^  provenance-publish:/p' \
@@ -354,6 +380,8 @@ provenance_publish_job="$(sed -n '/^  provenance-publish:/,/^  bump-formula:/p' 
 printf '%s\n' "$provenance_publish_job" \
   | grep -q '.release-tooling/scripts/release/upload-assets-immutable.sh' \
   || fail 'SLSA provenance bypasses the immutable release uploader'
+printf '%s\n' "$provenance_publish_job" | grep -q 'scripts/release/check-release-tag.sh' \
+  || fail 'the provenance publisher omits the uploader coordinate validator'
 printf '%s\n' "$provenance_publish_job" \
   | grep -q 'needs.provenance.outputs.provenance-name' \
   || fail 'the provenance publisher does not fetch the signed run artifact'

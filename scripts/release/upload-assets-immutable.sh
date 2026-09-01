@@ -11,16 +11,8 @@ tag="$1"
 repo="$2"
 shift 2
 
-# SemVer 2.0 core + prerelease. Build metadata is deliberately excluded: npm,
-# Homebrew, OCI, and GitHub must share one unambiguous publication coordinate,
-# while SemVer precedence intentionally ignores `+build` identifiers.
-core='(0|[1-9][0-9]*)'
-prerelease_id='(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)'
-semver_tag="^v${core}\.${core}\.${core}(-${prerelease_id}(\.${prerelease_id})*)?$"
-if [[ ! "$tag" =~ $semver_tag ]]; then
-  echo "release asset upload: invalid semver tag: $tag" >&2
-  exit 64
-fi
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "$here/check-release-tag.sh" "$tag"
 if [[ ! "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
   echo "release asset upload: invalid repository: $repo" >&2
   exit 64

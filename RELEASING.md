@@ -115,6 +115,12 @@ without an explicit operator decision.
 
 5. **Tag and push.**
 
+   The tag is the shared GitHub/npm/Homebrew/OCI coordinate. It accepts strict
+   SemVer core plus prerelease identifiers (`v1.0.0-rc.1`), but not build
+   metadata (`+build`): SemVer ignores metadata for precedence while the four
+   registries must agree on one spelling. The workflow validates that
+   coordinate in its first job, before builds and before any publication write.
+
    ```sh
    git tag v<NEXT> && git push origin v<NEXT>
    ```

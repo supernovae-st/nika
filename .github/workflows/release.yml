@@ -38,7 +38,7 @@ env:
 
 jobs:
   dispatch-ref:
-    name: replay uses current release guards
+    name: release coordinate uses current guards
     runs-on: ubuntu-24.04
     steps:
       - name: Refuse a replay selected from a non-main workflow ref
@@ -52,6 +52,20 @@ jobs:
             printf 'release replay must select --ref main; got %s\n' "$WORKFLOW_REF" >&2
             exit 1
           fi
+      # Validate with the workflow's own first-party guard before any build or
+      # publication job can start. In particular, `+build` must never reach
+      # `gh release create` and leave a half-published multi-registry train.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release/check-release-tag.sh
+          sparse-checkout-cone-mode: false
+      - name: Validate the publication coordinate before every write
+        env:
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: bash .release-tooling/scripts/release/check-release-tag.sh "$REF_NAME"
 
   build:
     name: build ${{ matrix.name }}
@@ -308,7 +322,9 @@ jobs:
           ref: ${{ github.workflow_sha }}
           path: .release-tooling
           persist-credentials: false
-          sparse-checkout: scripts/release/upload-assets-immutable.sh
+          sparse-checkout: |
+            scripts/release/check-release-tag.sh
+            scripts/release/upload-assets-immutable.sh
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -414,7 +430,9 @@ jobs:
           ref: ${{ github.workflow_sha }}
           path: .release-tooling
           persist-credentials: false
-          sparse-checkout: scripts/release/upload-assets-immutable.sh
+          sparse-checkout: |
+            scripts/release/check-release-tag.sh
+            scripts/release/upload-assets-immutable.sh
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -623,7 +641,9 @@ jobs:
           ref: ${{ github.workflow_sha }}
           path: .release-tooling
           persist-credentials: false
-          sparse-checkout: scripts/release/upload-assets-immutable.sh
+          sparse-checkout: |
+            scripts/release/check-release-tag.sh
+            scripts/release/upload-assets-immutable.sh
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
