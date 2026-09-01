@@ -778,9 +778,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         // F-P3 · the run: declaration's body-level law (entropy: none ×
         // a structural entropy source used)
         run_decl_findings: run_decl::scan_run_decl(wf),
-        // #1371 · the effect-safe retry law (NIKA-SEC-016): a declared
-        // `retry:` on a provably keyless, effect-replaying `nika:fetch` —
-        // the same predicate the run classifies with (nika-types::net)
+        // #1371 · the effect-safe retry law (NIKA-SEC-016 · one predicate ≡ run)
         retry_safety_findings: retry_safety::scan(wf),
         // F-P15 · the write-write law (NEP-0014 law 1 · NIKA-SEC-012):
         // the DAG read's conflicts, gated on a valid order like it

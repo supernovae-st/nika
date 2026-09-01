@@ -40,6 +40,18 @@ pub(crate) fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
     }
 }
 
+/// The #1371 effect-safe retry verdict for one prepared request (spec 05
+/// §the effect-safe retry law): a keyless effect-capable call (POST ·
+/// PUT · DELETE · PATCH without an `idempotency-key` header) types EVERY
+/// failure non-transient — the failure may be ambiguous (the server may
+/// have committed the effect before the socket dropped or the 500 was
+/// emitted) and a blind replay doubles it. ONE predicate, shared with
+/// the static `NIKA-SEC-016` refusal (`nika_types::net`), judged over
+/// the headers that ACTUALLY ride the wire — check ≡ run.
+fn effect_safe_retry(method: &str, request: &HttpRequest) -> bool {
+    nika_types::net::retry_is_effect_safe(method, request.headers.keys().map(String::as_str))
+}
+
 /// `nika:fetch` — HTTP request + content extraction (stdlib §fetch).
 /// Non-2xx is failure (`transient: true` for 5xx/408/429, `false` for
 /// other 4xx — normative) — with the #1371 effect-safe carve-out: a
@@ -97,16 +109,7 @@ pub(crate) async fn fetch_with_clock<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn +
     // the enum (no string re-match to desync).
     let http_method = parse_method(&method).map_err(|m| BuiltinFailure::new(C, m))?;
     let request = crate::net_payload::prepare_request(http_method, url, fs, boundary, args).await?;
-    // #1371 · the effect-safe retry law (spec 05 §the effect-safe retry
-    // law): a keyless effect-capable call (POST · PUT · DELETE · PATCH
-    // without an `idempotency-key` header) types EVERY failure
-    // non-transient — the failure may be ambiguous (the server may have
-    // committed the effect before the socket dropped or the 500 was
-    // emitted) and a blind replay doubles it. ONE predicate, shared with
-    // the static NIKA-SEC-016 refusal (`nika_types::net`), judged over
-    // the headers that ACTUALLY ride the wire — check ≡ run.
-    let retry_safe =
-        nika_types::net::retry_is_effect_safe(&method, request.headers.keys().map(String::as_str));
+    let retry_safe = effect_safe_retry(&method, &request);
     // MUTATION (equivalent under the mock): GET/HEAD route to .get(), all
     // else to .post() — but a test double serves both identically and the
     // recorded request carries its own method, so deleting this arm is
