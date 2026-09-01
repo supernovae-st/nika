@@ -134,3 +134,60 @@ fn canon_templates_equal_the_embedded_surface() {
          embedded-not-declared {extra:?} (run scripts/sync-pack.sh <spec>)"
     );
 }
+
+/// Parse `extract_modes.{count,items}` out of the vendored canon.yaml.
+fn canon_extract_modes() -> (u64, Vec<String>) {
+    let canon: serde_yaml_bw::Value =
+        serde_yaml_bw::from_str(nika_pack::canon()).expect("vendored canon.yaml parses");
+    let modes = canon
+        .get("extract_modes")
+        .expect("canon.yaml carries an extract_modes section");
+    let count = modes
+        .get("count")
+        .and_then(serde_yaml_bw::Value::as_u64)
+        .expect("extract_modes.count is an integer");
+    let items = modes
+        .get("items")
+        .and_then(serde_yaml_bw::Value::as_sequence)
+        .expect("extract_modes.items is a list");
+    let names = items
+        .iter()
+        .map(|v| {
+            v.as_str()
+                .expect("every extract mode is a string")
+                .to_owned()
+        })
+        .collect();
+    (count, names)
+}
+
+/// The projection (`nika spec --canon` prints the vendored canon) and the
+/// judge (`nika check` refuses a `mode:` outside `ExtractMode::ALL`) MUST
+/// hold the same closed set. The released 0.116.2 printed 9 while its
+/// checker accepted 10 (`raw`) — supernovae-st/nika#1386. Equality, in
+/// both directions: a mode the checker knows and the canon does not is a
+/// projection lag; a mode the canon names and the checker refuses is a
+/// spec the binary does not speak.
+#[test]
+fn canon_extract_modes_are_the_checkers_closed_set() {
+    let (count, names) = canon_extract_modes();
+    let canon: BTreeSet<&str> = names.iter().map(String::as_str).collect();
+    assert_eq!(
+        canon.len(),
+        names.len(),
+        "an extract mode appears twice in canon.yaml"
+    );
+    assert_eq!(
+        count,
+        names.len() as u64,
+        "extract_modes.count disagrees with its own list"
+    );
+    let checker: BTreeSet<&str> = nika_types::ExtractMode::ALL
+        .iter()
+        .map(|m| m.as_str())
+        .collect();
+    assert_eq!(
+        canon, checker,
+        "canon.yaml extract_modes and ExtractMode::ALL diverge — the projection and the judge must hold one list"
+    );
+}
