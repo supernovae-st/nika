@@ -326,6 +326,11 @@ pub enum SchedulePlanError {
         "active timed schedules with overlap=queue are unsupported until a queueing law exists"
     )]
     UnsupportedOverlapQueue,
+    /// No completion-trigger law exists for `afterSkip: on_completion` yet.
+    #[error(
+        "active timed schedules with afterSkip=on_completion are unsupported until a completion-trigger law exists"
+    )]
+    UnsupportedAfterSkipOnCompletion,
     /// A validated canonical cadence failed to re-enter the shared parser.
     #[error("canonical cadence failed to re-parse: {0}")]
     InvalidCanonicalCadence(String),
@@ -345,8 +350,9 @@ impl NikaErrorCode for SchedulePlanError {
 ///
 /// # Errors
 /// Active timed hash jitter refuses until a deterministic offset law is
-/// ratified, and `overlap: replace` / `overlap: queue` refuse until
-/// preemption and queueing laws exist. A canonical cadence that no longer
+/// ratified, `overlap: replace` / `overlap: queue` refuse until preemption
+/// and queueing laws exist, and `afterSkip: on_completion` refuses until a
+/// completion-trigger law exists. A canonical cadence that no longer
 /// parses also fails closed.
 pub fn plan_schedule(
     definition: &ScheduleDefinition,
@@ -366,6 +372,9 @@ pub fn plan_schedule(
         }
         if definition.overlap() == Overlap::File {
             return Err(SchedulePlanError::UnsupportedOverlapQueue);
+        }
+        if definition.after_skip() == AfterSkip::ACompletion {
+            return Err(SchedulePlanError::UnsupportedAfterSkipOnCompletion);
         }
     }
     let limit = projection_limit.min(MAX_SCHEDULE_PROJECTION_SLOTS);

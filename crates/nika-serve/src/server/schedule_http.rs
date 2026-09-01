@@ -487,6 +487,7 @@ fn planner_finding(error: &SchedulePlanError) -> Value {
         SchedulePlanError::UnsupportedHashJitter => "schedule.jitter",
         SchedulePlanError::UnsupportedOverlapReplace
         | SchedulePlanError::UnsupportedOverlapQueue => "schedule.overlap",
+        SchedulePlanError::UnsupportedAfterSkipOnCompletion => "schedule.after-skip",
         SchedulePlanError::InvalidCanonicalCadence(_) => "schedule.cadence",
         _ => "schedule.plan",
     };
