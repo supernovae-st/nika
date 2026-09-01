@@ -558,6 +558,7 @@ fi
 cat >"$BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+[ -n "${GH_TOKEN:-}" ] || { echo 'GH_TOKEN is required' >&2; exit 77; }
 [ "$1" = api ] || { echo "unexpected gh: $*" >&2; exit 90; }
 shift
 method=GET
@@ -618,6 +619,7 @@ DIGEST="sha256:$(printf '%064d' 7)"
 OTHER_DIGEST="sha256:$(printf '%064d' 8)"
 release_env=(
   PATH="$BIN:$PATH"
+  GH_TOKEN=test
   RELEASE_BODY="$RELEASE_BODY"
   RELEASE_DRAFT="$RELEASE_DRAFT"
   RELEASE_LIST="$RELEASE_LIST"
@@ -687,39 +689,9 @@ if env "${release_env[@]}" RELEASE_TAG=v9.9.8 \
   fail 'stale release tag state passed'
 fi
 
-# Every stable draft transition requires the tap key, and a server-side commit
-# followed by a client error is idempotently recognized as this run's change.
-if env "${release_env[@]}" \
-  bash "$ROOT/scripts/release/finalize-release.sh" supernovae-st/nika 123 \
-  "$TAG" 2222222222222222222222222222222222222222 "$DIGEST" \
-  >/dev/null 2>&1; then
-  fail 'stable draft finalized without TAP_DEPLOY_KEY'
-fi
-transition="$(env "${release_env[@]}" TAP_DEPLOY_KEY=test \
-  FINALIZE_COMMIT_THEN_ERROR=1 \
-  bash "$ROOT/scripts/release/finalize-release.sh" supernovae-st/nika 123 \
-  "$TAG" 2222222222222222222222222222222222222222 "$DIGEST")"
-[ "$transition" = 'transitioned=true' ] \
-  || fail 'commit-then-error finalization did not report its transition'
-grep -Fqx -- '-F draft=false -f discussion_category_name=Announcements -f make_latest=legacy' \
-  "$FINALIZE_LOG" || fail 'stable finalization did not PATCH make_latest=legacy exactly'
-transition="$(env "${release_env[@]}" \
-  bash "$ROOT/scripts/release/finalize-release.sh" supernovae-st/nika 123 \
-  "$TAG" 2222222222222222222222222222222222222222 "$DIGEST")"
-[ "$transition" = 'transitioned=false' ] \
-  || fail 'public validation replay claimed a transition'
-
-# Prereleases explicitly refuse Latest selection.
-PRERELEASE_TAG=v9.9.9-rc.1
-printf 'true\n' >"$RELEASE_DRAFT"
-transition="$(env "${release_env[@]}" RELEASE_TAG="$PRERELEASE_TAG" \
-  RELEASE_PRERELEASE=true bash "$ROOT/scripts/release/finalize-release.sh" \
-  supernovae-st/nika 123 "$PRERELEASE_TAG" \
-  2222222222222222222222222222222222222222 "$DIGEST")"
-[ "$transition" = 'transitioned=true' ] \
-  || fail 'prerelease finalization did not transition the draft'
-grep -Fqx -- '-F draft=false -f discussion_category_name=Announcements -f make_latest=false' \
-  "$FINALIZE_LOG" || fail 'prerelease finalization did not PATCH make_latest=false exactly'
+# The finalizer's complete proof and exact PATCH decision table have their own
+# executable regression; the pointer checks below model an already-public tag.
+printf 'false\n' >"$RELEASE_DRAFT"
 
 # Both floating pointers must refuse an old tag even after it is public.
 printf '123\tv9.9.9\n124\tv10.0.0\n' >"$RELEASE_LIST"

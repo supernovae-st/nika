@@ -421,6 +421,26 @@ printf '%s\n' "$finalizer" | grep -q 'transitioned:' \
 if printf '%s\n' "$finalizer" | grep -q 'uses: docker/'; then
   fail 'a third-party Docker action receives finalizer release-write authority'
 fi
+printf '%s\n' "$finalizer" | grep -q '^      packages: read' \
+  || fail 'self-contained finalizer lacks read-only GHCR authority'
+printf '%s\n' "$finalizer" | grep -q 'docker login ghcr.io' \
+  || fail 'self-contained finalizer does not authenticate the first-party Docker CLI'
+# Shell variables are matched literally in the workflow source.
+# shellcheck disable=SC2016
+printf '%s\n' "$finalizer" | grep -q '"\$ARTIFACTS" "\$IMAGE"' \
+  || fail 'workflow does not pass artifacts and image into the finalizer contract'
+finalizer_helper="$(cat "$ROOT/scripts/release/finalize-release.sh")"
+for proof in \
+  release-assets-barrier.sh \
+  verify-release-attestations.sh \
+  verify-slsa-provenance.sh \
+  npm-publish-immutable.sh \
+  release-digest-marker.sh \
+  oci-coordinate-immutable.sh \
+  verify-oci-payload.sh; do
+  printf '%s\n' "$finalizer_helper" | grep -q "$proof" \
+    || fail "finalizer helper does not independently rerun ${proof}"
+done
 bump_job="$(sed -n '/^  bump-formula:/,/^  npm-wasm-pack:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$bump_job" | grep -q '^    needs: finalize' \
@@ -447,6 +467,8 @@ printf '%s\n' "$latest_job" | grep -q 'assert-newest-public-stable.sh' \
   || fail 'GHCR latest can downgrade to an old public stable'
 printf '%s\n' "$latest_job" | grep -q 'converge-oci-pointer.sh' \
   || fail 'GHCR latest replay is not idempotent by digest'
+printf '%s\n' "$latest_job" | grep -q 'GH_TOKEN:.*github.token' \
+  || fail 'GHCR latest first-party gh calls lack GH_TOKEN'
 docker_job="$(sed -n '/^  docker:/,/^  oci-proof:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$docker_job" | grep -q 'release-digest-marker.sh' \
@@ -535,6 +557,8 @@ bash "$ROOT/scripts/release/tests/immutable-assets.test.sh" >/dev/null \
   || fail 'the immutable asset replay regression failed'
 bash "$ROOT/scripts/release/tests/publication-barrier.test.sh" >/dev/null \
   || fail 'the cross-registry publication barrier regression failed'
+bash "$ROOT/scripts/release/tests/finalize-release.test.sh" >/dev/null \
+  || fail 'the self-contained finalizer barrier regression failed'
 grep -q 'TAP_DEPLOY_KEY' "$ROOT/docs/RELEASING.md" \
   || fail 'the operator guide does not name the release workflow deploy key'
 if grep -q 'HOMEBREW_TAP_TOKEN' "$ROOT/docs/RELEASING.md"; then

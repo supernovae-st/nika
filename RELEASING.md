@@ -180,13 +180,19 @@ without an explicit operator decision.
    Only then may `image:<version>` be created.
    If the marker survives but that tag is absent, replay heals it from the
    exact `image@digest`; if the marker is absent, an occupied version tag is
-   never adopted as authority. Finalization repeats the two-platform payload
-   comparison; OCI labels are identity metadata, not proof of binary bytes.
+   never adopted as authority. The finalizer itself repeats the exact-eight
+   current-asset comparison, checksum validation, native attestations,
+   tag-bound SLSA, npm SRI, persisted digest, OCI identity, and stopped-container
+   payload proof before either accepting an already-public replay or publishing
+   a draft; earlier workflow jobs are defense in depth, not borrowed authority.
+   OCI labels are identity metadata, not proof of binary bytes.
    The marker and other GitHub release metadata remain manually mutable by
    repository administrators. That admin-writer TOCTOU between repeated reads
-   is residual authority: the workflow detects observed drift and stops, but
-   cannot lock administrators out between checks. It is distinct from
-   cross-registry atomicity, which this visibility barrier does not claim.
+   is residual authority: GitHub Releases do not support a conditional unsafe
+   PATCH, so an administrator can still race the final read and publication.
+   The workflow detects drift visible to its reads but cannot lock writers out.
+   This minimal GitHub TOCTOU is distinct from cross-registry atomicity, which
+   this visibility barrier does not claim.
    This barrier is future-only:
    **v0.116.2 is not retroactively atomic**, and its already-public registry
    history is not rewritten to pretend otherwise.
