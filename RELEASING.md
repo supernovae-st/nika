@@ -119,7 +119,20 @@ without an explicit operator decision.
    git tag v<NEXT> && git push origin v<NEXT>
    ```
 
-   Nothing else. `workflow_dispatch` can replay an existing tag. All live and
+   Nothing else. `workflow_dispatch` can replay an existing tag. Dispatch it
+   from the current workflow on `main`, while the `tag` input identifies the
+   immutable source tag:
+
+   ```sh
+   gh workflow run release.yml --repo supernovae-st/nika --ref main \
+     -f tag=v<NEXT>
+   ```
+
+   Never select the historical tag as the workflow ref: that executes the
+   workflow YAML stored in the tag and can predate the immutable uploader and
+   concurrency guards. This cannot be retrofitted into already-published tags;
+   the operator command and the current workflow's ref guard are both part of
+   the replay boundary. All live and
    replay release trains share one global publication lane because Homebrew and
    the container `latest` tag are cross-version mutable pointers. GitHub retains
    only one pending train and may replace it with a newer one, so never queue

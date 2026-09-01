@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to (re)build, e.g. v0.90.0'
+        description: 'Existing tag to rebuild; dispatch this workflow from main, never from the tag'
         required: true
 
 permissions:
@@ -37,8 +37,25 @@ env:
   CARGO_INCREMENTAL: '0'
 
 jobs:
+  dispatch-ref:
+    name: replay uses current release guards
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Refuse a replay selected from a non-main workflow ref
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] \
+            && [ "$WORKFLOW_REF" != "refs/heads/main" ]; then
+            printf 'release replay must select --ref main; got %s\n' "$WORKFLOW_REF" >&2
+            exit 1
+          fi
+
   build:
     name: build ${{ matrix.name }}
+    needs: dispatch-ref
     runs-on: ${{ matrix.os }}
     env:
       # Evaluated once at job start so steps can reference it in `if:` conditions.

@@ -67,6 +67,20 @@ That tag fires **`.github/workflows/release.yml`**, which:
    bump the formula by hand (§2).
 
 Replay a tag without re-tagging via the **workflow_dispatch** input.
+Always dispatch the current workflow from `main`; the input, not the workflow
+ref, names the immutable tag to rebuild:
+
+```sh
+gh workflow run release.yml --repo supernovae-st/nika --ref main \
+  -f tag=v0.116.2
+```
+
+Never select the historical tag as the workflow ref. GitHub would execute the
+workflow YAML stored in that tag, which can predate the immutable uploader and
+concurrency guards. Already-published tags cannot be retrofitted, so the
+operator command and the current workflow's ref guard are both part of the
+replay boundary.
+
 All live and replay release trains share one global publication lane because
 Homebrew and the container `latest` tag are cross-version mutable pointers.
 GitHub retains only one pending train and may replace it with a newer one, so

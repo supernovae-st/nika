@@ -290,6 +290,20 @@ if printf '%s\n' "$concurrency_block" \
 fi
 printf '%s\n' "$concurrency_block" | grep -Fqx '  cancel-in-progress: false' \
   || fail 'the release workflow may cancel a train after an irreversible write'
+dispatch_job="$(sed -n '/^  dispatch-ref:/,/^  build:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$dispatch_job" | grep -q 'WORKFLOW_REF:.*github.ref' \
+  || fail 'manual replay does not inspect the selected workflow ref'
+printf '%s\n' "$dispatch_job" | grep -q 'refs/heads/main' \
+  || fail 'manual replay does not require the current main workflow guards'
+build_job="$(sed -n '/^  build:/,/^  npm-check:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$build_job" | grep -q '^    needs: dispatch-ref' \
+  || fail 'release builds can bypass the replay workflow-ref guard'
+grep -q -- '--ref main' "$ROOT/RELEASING.md" \
+  || fail 'the canonical replay ceremony does not select current guards'
+grep -q -- '--ref main' "$ROOT/docs/RELEASING.md" \
+  || fail 'the public replay guide does not select current guards'
 for label in \
   org.opencontainers.image.revision \
   org.opencontainers.image.version \
