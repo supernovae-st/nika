@@ -108,30 +108,33 @@ only preserve and re-verify an existing statement: `workflow_dispatch` cannot
 regenerate missing tag-context SLSA because the workflow branch is not an
 honest provenance identity for the historical tag. If the statement is
 missing, rerun the original tag-push run while that run and its artifacts are
-retained. Every stable replay converges Homebrew and GHCR `latest`, so a failure in
-either post-public job can be repaired after the release is already public.
+retained. Every stable replay converges Homebrew and GHCR `latest`, so a failure
+in either post-public job can be repaired after the release is already public.
 Already-correct pointers no-op, and both possible writes first prove this is the
 newest public stable SemVer; an old-tag replay refuses instead of downgrading.
 Prereleases never move them. GitHub publication passes `make_latest=legacy`
 for stable releases and `make_latest=false` for prereleases, preventing delayed
-older-stable recovery from forcing Latest. Missing mandatory credentials keep the draft
-closed. Homebrew necessarily has a short
+older-stable recovery from forcing Latest. Missing mandatory credentials keep
+the draft closed. Homebrew necessarily has a short
 post-public update window because its formula cannot safely point at draft
 assets. This protection is future-only; **v0.116.2 is not retroactively
 atomic**, and no workflow can rewrite its already-public history into one.
 
 The exact GHCR digest is stored as a hidden marker in the GitHub release body,
-not as a ninth asset. Before persistence and again before finalization, the
+not as a ninth asset. Before persistence and again inside the finalizer, the
 workflow pulls each Linux platform by exact digest, creates a stopped container,
 copies out `/usr/local/bin/nika` without executing image content, and compares
 its sha256 with the matching extracted native tarball; label checks alone do
-not prove payload bytes. A durable marker authorizes healing a
-missing immutable version tag from the exact `image@digest`. Without a marker,
-the workflow never adopts an occupied version coordinate. Release bodies and
-release fields can still be changed manually by a repository administrator.
-The residual authority is an admin-writer TOCTOU between the workflow's
-repeated reads: drift observed by a read is refused, but the workflow cannot
-lock out an administrator between checks. That is separate from cross-registry
+not prove payload bytes. The finalizer also rechecks the exact eight current
+GitHub assets, checksum contents, native attestations, tag-bound SLSA, npm SRI,
+persisted digest, and OCI identity before both already-public success and draft
+publication. A durable marker authorizes healing a missing immutable version
+tag from the exact `image@digest`. Without a marker, the workflow never adopts
+an occupied version coordinate. Release bodies and release fields can still be
+changed manually by a repository administrator. GitHub Releases do not support
+a conditional unsafe PATCH, so a minimal admin-writer TOCTOU remains between
+the final read and publication; drift visible to a read is refused, but the
+workflow cannot lock writers out. That is separate from cross-registry
 atomicity, which this visibility barrier does not claim.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`

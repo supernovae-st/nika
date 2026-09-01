@@ -1080,6 +1080,7 @@ jobs:
       attestations: read
       contents: write
       discussions: write
+      packages: read
     outputs:
       tag: ${{ needs.release-draft.outputs.tag }}
       version: ${{ needs.release-draft.outputs.version }}
@@ -1205,8 +1206,12 @@ jobs:
       - name: Publish once or validate an already committed transition
         id: publish
         env:
+          ARTIFACTS: artifacts
           GH_TOKEN: ${{ github.token }}
+          GHCR_TOKEN: ${{ github.token }}
           GHCR_DIGEST: ${{ steps.marker.outputs.digest }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          REGISTRY_ACTOR: ${{ github.actor }}
           RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
@@ -1214,8 +1219,14 @@ jobs:
           TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
         run: |
           set -euo pipefail
+          command -v docker gh jq npm sha256sum slsa-verifier >/dev/null
+          docker buildx version >/dev/null
+          printf '%s' "$GHCR_TOKEN" \
+            | docker login ghcr.io --username "$REGISTRY_ACTOR" --password-stdin >/dev/null
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
           bash .release-tooling/scripts/release/finalize-release.sh \
             "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" "$GHCR_DIGEST" \
+            "$ARTIFACTS" "$IMAGE" \
             >> "$GITHUB_OUTPUT"
       - name: Record already-public replay
         if: steps.publish.outputs.transitioned != 'true'
@@ -1246,6 +1257,7 @@ jobs:
       - name: Move latest to the finalized immutable digest
         env:
           DIGEST: ${{ needs.finalize.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
           IMAGE: ghcr.io/${{ github.repository }}
           RELEASE_ID: ${{ needs.finalize.outputs.release-id }}
           RELEASE_SHA: ${{ needs.finalize.outputs.sha }}
