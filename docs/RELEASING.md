@@ -67,10 +67,12 @@ That tag fires **`.github/workflows/release.yml`**, which:
    the hidden `guard` verb is asked of the verb itself, not the `--help`
    listing),
 3. packages each as `nika-<platform>-<version>.tar.gz` (+ a `.sha256` sidecar),
-4. creates the GitHub release with those tarballs + a `SHA256SUMS` file,
-5. **bumps the Homebrew tap** formula (version + the 4 sha256s) — *if* the
-   `TAP_DEPLOY_KEY` secret is set (see §3); otherwise it logs a notice and you
-   bump the formula by hand (§2).
+4. holds the GitHub release as a draft while npm and the immutable GHCR version
+   coordinate converge,
+5. verifies the exact eight-asset allowlist, checksums, five source-bound
+   attestations, npm SRI, and the two-platform OCI digest + labels, then one
+   finalizer makes the release public,
+6. moves stable-only Homebrew and GHCR `latest` pointers after finalization.
 
 Replay a tag without re-tagging via the **workflow_dispatch** input.
 Always dispatch the current workflow from `main`; the input, not the workflow
@@ -89,6 +91,9 @@ replay boundary.
 
 All live and replay release trains share one global publication lane because
 Homebrew and the container `latest` tag are cross-version mutable pointers.
+This is a **visibility barrier, not a cross-registry transaction**. npm and
+GHCR writes are irreversible and may be public while GitHub remains a draft;
+recovery is forward convergence under the same immutable tag, never rollback.
 GitHub retains only one pending train and may replace it with a newer one, so
 never queue more than one train behind the active run. An already-published
 asset is downloaded and compared, and a replay refuses to replace it when the
@@ -99,16 +104,22 @@ from the historical tag. Existing SLSA provenance is preserved rather than
 regenerated; a missing statement makes manual replay fail, because the workflow
 branch is not an honest provenance identity for the historical tag. The replay
 guard checks the unique asset name; the verification commands below still judge
-its signature and source identity.
+its signature and source identity. A complete public replay is validation-only:
+historical replay and prereleases cannot move Homebrew or GHCR `latest`. Missing
+mandatory credentials keep the draft closed. Homebrew necessarily has a short
+post-public update window because its formula cannot safely point at draft
+assets. This protection is future-only; **v0.116.2 is not retroactively
+atomic**, and no workflow can rewrite its already-public history into one.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.
 
 ---
 
-## 2. Homebrew formula — by hand (when the tap token isn't set)
+## 2. Homebrew formula — repair after a post-public automation failure
 
-The release already published the tarballs + checksums. From the tap clone:
+The finalizer published the tarballs + checksums, but the downstream formula
+write can still fail in the unavoidable post-public window. From the tap clone:
 
 ```bash
 gh release download v0.90.0 --repo supernovae-st/nika --dir /tmp/rel
@@ -133,7 +144,19 @@ the engine repo:
 gh secret set TAP_DEPLOY_KEY --repo supernovae-st/nika < /path/to/private-key
 ```
 
-With it set, step §1 closes the loop end-to-end (no manual formula edit).
+It is mandatory for a new stable train: without it the visibility finalizer
+keeps the GitHub release in draft. Once public, the formula update follows the
+finalizer; if that downstream write fails, repair it forward with §2.
+
+The npm package also needs a granular automation token when the selected
+version is absent:
+
+```bash
+gh secret set NPM_TOKEN --repo supernovae-st/nika
+```
+
+An identical occupied npm version needs no credential. An absent version with
+no token, an unknown registry lookup, or a divergent SRI keeps the draft closed.
 
 ---
 
