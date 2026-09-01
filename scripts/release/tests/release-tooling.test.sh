@@ -280,6 +280,121 @@ grep -q 'crates/nika-acp/Cargo.lock' "$ROOT/RELEASING.md" \
   || fail 'the canonical carrier list omits crates/nika-acp/Cargo.lock'
 grep -q 'before declaring the release complete' "$ROOT/RELEASING.md" \
   || fail 'the ceremony does not say when the timeline record closes the release'
+concurrency_block="$(sed -n '/^concurrency:/,/^env:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$concurrency_block" | grep -Fqx '  group: nika-release-train' \
+  || fail 'live and replay release trains do not share one publication lane'
+if printf '%s\n' "$concurrency_block" \
+  | grep -Eq 'github\.event\.inputs\.tag|github\.ref_name'; then
+  fail 'release concurrency is still partitioned by tag'
+fi
+printf '%s\n' "$concurrency_block" | grep -Fqx '  cancel-in-progress: false' \
+  || fail 'the release workflow may cancel a train after an irreversible write'
+dispatch_job="$(sed -n '/^  dispatch-ref:/,/^  build:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$dispatch_job" | grep -q 'WORKFLOW_REF:.*github.ref' \
+  || fail 'manual replay does not inspect the selected workflow ref'
+printf '%s\n' "$dispatch_job" | grep -q 'refs/heads/main' \
+  || fail 'manual replay does not require the current main workflow guards'
+printf '%s\n' "$dispatch_job" | grep -q 'REF_NAME:.*github.event.inputs.tag.*github.ref_name' \
+  || fail 'the first release gate does not validate the selected publication tag'
+printf '%s\n' "$dispatch_job" | grep -q 'scripts/release/check-release-tag.sh' \
+  || fail 'the first release gate bypasses the canonical coordinate validator'
+# The GitHub context is matched literally.
+# shellcheck disable=SC2016
+printf '%s\n' "$dispatch_job" | grep -q 'ref: \${{ github.workflow_sha }}' \
+  || fail 'the first release gate does not use the workflow commit validator'
+printf '%s\n' "$dispatch_job" | grep -q 'persist-credentials: false' \
+  || fail 'the read-only release-coordinate checkout persists credentials'
+build_job="$(sed -n '/^  build:/,/^  npm-check:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$build_job" | grep -q '^    needs: dispatch-ref' \
+  || fail 'release builds can bypass the replay workflow-ref guard'
+for tag in v1.0.0 v1.0.0-rc.1 v0.80.0-alpha.1; do
+  bash "$ROOT/scripts/release/check-release-tag.sh" "$tag" \
+    || fail "canonical publication coordinate $tag was refused"
+done
+for tag in latest v1.0.0-rc.01 v1.0.0+build v01.0.0; do
+  if bash "$ROOT/scripts/release/check-release-tag.sh" "$tag" \
+    >"$TEST_ROOT/tag-check.out" 2>&1; then
+    fail "non-canonical publication coordinate $tag passed the first gate"
+  fi
+  grep -Fq "invalid canonical semver tag: $tag" "$TEST_ROOT/tag-check.out" \
+    || fail "the first gate did not explain the rejected coordinate $tag"
+done
+grep -q -- '--ref main' "$ROOT/RELEASING.md" \
+  || fail 'the canonical replay ceremony does not select current guards'
+grep -q -- '--ref main' "$ROOT/docs/RELEASING.md" \
+  || fail 'the public replay guide does not select current guards'
+for label in \
+  org.opencontainers.image.revision \
+  org.opencontainers.image.version \
+  org.opencontainers.image.source; do
+  grep -q "$label" "$ROOT/.github/workflows/release.yml" \
+    || fail "the release image omits OCI label $label"
+done
+if grep -q -- '--clobber' "$ROOT/.github/workflows/release.yml"; then
+  fail 'the release workflow can overwrite bytes under an occupied asset name'
+fi
+grep -q '.release-tooling/scripts/release/upload-assets-immutable.sh' \
+  "$ROOT/.github/workflows/release.yml" \
+  || fail 'the release workflow bypasses the immutable asset uploader'
+release_job="$(sed -n '/^  release:/,/^  provenance:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+# The GitHub context is matched literally.
+# shellcheck disable=SC2016
+printf '%s\n' "$release_job" | grep -q 'ref: \${{ github.workflow_sha }}' \
+  || fail 'the native release job cannot access tooling during historical replay'
+printf '%s\n' "$release_job" \
+  | grep -q '.release-tooling/scripts/release/upload-assets-immutable.sh' \
+  || fail 'the native release job invokes a helper from another job filesystem'
+printf '%s\n' "$release_job" | grep -q 'scripts/release/check-release-tag.sh' \
+  || fail 'the native release checkout omits the uploader coordinate validator'
+npm_publish_job="$(sed -n '/^  npm-wasm-publish:/,/^  docker:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$npm_publish_job" | grep -q 'actions/checkout@' \
+  || fail 'the isolated npm publish job cannot access the immutable asset helper'
+# The GitHub context is matched literally.
+# shellcheck disable=SC2016
+printf '%s\n' "$npm_publish_job" | grep -q 'ref: \${{ github.workflow_sha }}' \
+  || fail 'a historical replay reads its helper from the old release tree'
+printf '%s\n' "$npm_publish_job" | grep -q 'scripts/release/upload-assets-immutable.sh' \
+  || fail 'the elevated npm publish job omits its immutable-upload helper'
+printf '%s\n' "$npm_publish_job" | grep -q 'scripts/release/check-release-tag.sh' \
+  || fail 'the elevated npm publish job omits the uploader coordinate validator'
+printf '%s\n' "$npm_publish_job" | grep -q 'persist-credentials: false' \
+  || fail 'the elevated npm publish checkout persists its write credential'
+provenance_job="$(sed -n '/^  provenance:/,/^  provenance-publish:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$provenance_job" | grep -q 'upload-assets: false' \
+  || fail 'the upstream SLSA uploader can delete and replace occupied provenance'
+printf '%s\n' "$provenance_job" | grep -q '^      contents: read' \
+  || fail 'the SLSA generator lacks read-only repository identity access'
+if printf '%s\n' "$provenance_job" | grep -q '^      contents: write'; then
+  fail 'the SLSA generator retains unnecessary release write authority'
+fi
+printf '%s\n' "$provenance_job" | grep -q "if: github.event_name == 'push'" \
+  || fail 'manual replay can generate branch-context provenance for an old tag'
+provenance_publish_job="$(sed -n '/^  provenance-publish:/,/^  bump-formula:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$provenance_publish_job" \
+  | grep -q '.release-tooling/scripts/release/upload-assets-immutable.sh' \
+  || fail 'SLSA provenance bypasses the immutable release uploader'
+printf '%s\n' "$provenance_publish_job" | grep -q 'scripts/release/check-release-tag.sh' \
+  || fail 'the provenance publisher omits the uploader coordinate validator'
+printf '%s\n' "$provenance_publish_job" \
+  | grep -q 'needs.provenance.outputs.provenance-name' \
+  || fail 'the provenance publisher does not fetch the signed run artifact'
+provenance_replay_job="$(sed -n '/^  provenance-replay-check:/,/^  bump-formula:/p' \
+  "$ROOT/.github/workflows/release.yml")"
+printf '%s\n' "$provenance_replay_job" \
+  | grep -q "if: github.event_name == 'workflow_dispatch'" \
+  || fail 'manual replay has no tag-true provenance guard'
+printf '%s\n' "$provenance_replay_job" \
+  | grep -q 'requires exactly one existing multiple.intoto.jsonl' \
+  || fail 'manual replay silently heals provenance from the wrong context'
+bash "$ROOT/scripts/release/tests/immutable-assets.test.sh" >/dev/null \
+  || fail 'the immutable asset replay regression failed'
 grep -q 'TAP_DEPLOY_KEY' "$ROOT/docs/RELEASING.md" \
   || fail 'the operator guide does not name the release workflow deploy key'
 if grep -q 'HOMEBREW_TAP_TOKEN' "$ROOT/docs/RELEASING.md"; then

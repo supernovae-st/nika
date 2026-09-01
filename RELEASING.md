@@ -115,12 +115,46 @@ without an explicit operator decision.
 
 5. **Tag and push.**
 
+   The tag is the shared GitHub/npm/Homebrew/OCI coordinate. It accepts strict
+   SemVer core plus prerelease identifiers (`v1.0.0-rc.1`), but not build
+   metadata (`+build`): SemVer ignores metadata for precedence while the four
+   registries must agree on one spelling. The workflow validates that
+   coordinate in its first job, before builds and before any publication write.
+
    ```sh
    git tag v<NEXT> && git push origin v<NEXT>
    ```
 
-   Nothing else. `workflow_dispatch` can rebuild an existing tag; know that
-   re-dispatching an old tag re-points `latest` (docker + release ordering).
+   Nothing else. `workflow_dispatch` can replay an existing tag. Dispatch it
+   from the current workflow on `main`, while the `tag` input identifies the
+   immutable source tag:
+
+   ```sh
+   gh workflow run release.yml --repo supernovae-st/nika --ref main \
+     -f tag=v<NEXT>
+   ```
+
+   Never select the historical tag as the workflow ref: that executes the
+   workflow YAML stored in the tag and can predate the immutable uploader and
+   concurrency guards. This cannot be retrofitted into already-published tags;
+   the operator command and the current workflow's ref guard are both part of
+   the replay boundary. All live and
+   replay release trains share one global publication lane because Homebrew and
+   the container `latest` tag are cross-version mutable pointers. GitHub retains
+   only one pending train and may replace it with a newer one, so never queue
+   more than one train behind the active run. Replay refuses to replace an
+   occupied release asset with different bytes, so timestamped or otherwise
+   non-reproducible rebuilds stop rather than silently refresh public bytes. A
+   missing asset is filled only after the occupied set compares byte-for-byte.
+   Know that re-dispatching an old tag still re-points `latest` (docker + release
+   ordering). The replay
+   helper comes from the exact workflow commit, so a historical tag does not
+   need to contain future release tooling. Existing SLSA provenance is
+   preserved byte-for-byte and a missing statement follows the same guarded
+   replay boundary. SLSA provenance is created only by the original tag-push
+   context. Manual replay requires exactly one existing statement asset and
+   refuses branch-context regeneration; `slsa-verifier` remains the separate
+   cryptographic and source-identity judge.
 
    The portable Agent Plugins mirror is downstream of this immutable tag.
    After the release assets are green, its release-heal lane runs

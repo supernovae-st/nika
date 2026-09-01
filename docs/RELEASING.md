@@ -49,6 +49,12 @@ git tag v0.90.0            # vMAJOR.MINOR.PATCH — must match the workspace ver
 git push origin v0.90.0
 ```
 
+The tag is the one publication coordinate shared by GitHub, npm, Homebrew and
+OCI. Strict SemVer prereleases such as `v1.0.0-rc.1` are accepted; build
+metadata such as `v1.0.0+build` is refused because SemVer ignores it for
+precedence. The workflow's first job checks this before any build or registry
+write, preventing a partially published train.
+
 That tag fires **`.github/workflows/release.yml`**, which:
 
 1. builds `nika` for **macOS arm64/x64** and **Linux arm64/x64** (release · `--locked`),
@@ -66,7 +72,34 @@ That tag fires **`.github/workflows/release.yml`**, which:
    `TAP_DEPLOY_KEY` secret is set (see §3); otherwise it logs a notice and you
    bump the formula by hand (§2).
 
-Re-run a tag's build without re-tagging via the **workflow_dispatch** input.
+Replay a tag without re-tagging via the **workflow_dispatch** input.
+Always dispatch the current workflow from `main`; the input, not the workflow
+ref, names the immutable tag to rebuild:
+
+```sh
+gh workflow run release.yml --repo supernovae-st/nika --ref main \
+  -f tag=v0.116.2
+```
+
+Never select the historical tag as the workflow ref. GitHub would execute the
+workflow YAML stored in that tag, which can predate the immutable uploader and
+concurrency guards. Already-published tags cannot be retrofitted, so the
+operator command and the current workflow's ref guard are both part of the
+replay boundary.
+
+All live and replay release trains share one global publication lane because
+Homebrew and the container `latest` tag are cross-version mutable pointers.
+GitHub retains only one pending train and may replace it with a newer one, so
+never queue more than one train behind the active run. An already-published
+asset is downloaded and compared, and a replay refuses to replace it when the
+bytes differ. A timestamped or otherwise non-reproducible rebuild therefore
+stops; missing assets are filled only when the occupied set still compares
+byte-for-byte. The workflow reads replay tooling from its own exact commit, not
+from the historical tag. Existing SLSA provenance is preserved rather than
+regenerated; a missing statement makes manual replay fail, because the workflow
+branch is not an honest provenance identity for the historical tag. The replay
+guard checks the unique asset name; the verification commands below still judge
+its signature and source identity.
 
 No CI release pipeline existed before this — a tag did nothing. `scripts/release.sh`
 (monorepo) still only tags + pushes; the binaries come from the workflow.

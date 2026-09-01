@@ -16,19 +16,60 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to (re)build, e.g. v0.90.0'
+        description: 'Existing tag to rebuild; dispatch this workflow from main, never from the tag'
         required: true
 
 permissions:
   contents: read # least privilege at the top — release job elevates (Scorecard Token-Permissions)
+
+# All version trains share one publication lane. A manual replay cannot overlap
+# another replay or a live train for release assets, the floating image tag, or
+# the Homebrew formula. Never cancel a running train after an irreversible
+# registry write. GitHub retains one pending train and may replace it with a
+# newer one, so the ceremony never queues more than one train behind the active
+# run.
+concurrency:
+  group: nika-release-train
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: '0'
 
 jobs:
+  dispatch-ref:
+    name: release coordinate uses current guards
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Refuse a replay selected from a non-main workflow ref
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] \
+            && [ "$WORKFLOW_REF" != "refs/heads/main" ]; then
+            printf 'release replay must select --ref main; got %s\n' "$WORKFLOW_REF" >&2
+            exit 1
+          fi
+      # Validate with the workflow's own first-party guard before any build or
+      # publication job can start. In particular, `+build` must never reach
+      # `gh release create` and leave a half-published multi-registry train.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release/check-release-tag.sh
+          sparse-checkout-cone-mode: false
+      - name: Validate the publication coordinate before every write
+        env:
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: bash .release-tooling/scripts/release/check-release-tag.sh "$REF_NAME"
+
   build:
     name: build ${{ matrix.name }}
+    needs: dispatch-ref
     runs-on: ${{ matrix.os }}
     env:
       # Evaluated once at job start so steps can reference it in `if:` conditions.
@@ -273,6 +314,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
+      # workflow_dispatch may rebuild a tag older than this helper. Pull the
+      # one first-party script from the exact commit whose workflow is running,
+      # never from the historical release tree and never from a floating ref.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/release/check-release-tag.sh
+            scripts/release/upload-assets-immutable.sh
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
@@ -313,13 +366,13 @@ jobs:
           # rendered from CHANGELOG.md; --generate-notes keeps the full PR
           # list appended below it (gh prepends provided notes to generated).
           bash scripts/release/render-notes.sh "$REF_NAME" > "$RUNNER_TEMP/release-notes.md"
-          # idempotent on a workflow_dispatch rebuild (a documented path in
-          # this file): an existing release keeps its body + discussion —
-          # the LINEAGE LAW (never rewrite a live release retroactively) —
-          # and only the assets refresh (--clobber)
+          # Idempotent on a workflow_dispatch rebuild: an existing release
+          # keeps its body + discussion, and every already-published asset
+          # must be byte-identical. A replay may fill a missing asset, never
+          # rewrite one whose public name is already occupied.
           if gh release view "$REF_NAME" --repo "$REPO" > /dev/null 2>&1; then
-            echo "::notice::release ${REF_NAME} already exists — refreshing assets only"
-            gh release upload "$REF_NAME" --repo "$REPO" --clobber \
+            echo "::notice::release ${REF_NAME} already exists — verifying immutable assets"
+            bash .release-tooling/scripts/release/upload-assets-immutable.sh "$REF_NAME" "$REPO" \
               artifacts/nika-*.tar.gz artifacts/SHA256SUMS
           else
             gh release create "$REF_NAME" \
@@ -338,7 +391,7 @@ jobs:
 
   provenance:
     # The scorecard-visible provenance: this reusable workflow builds and
-    # UPLOADS `multiple.intoto.jsonl` as a release asset. The native
+    # GENERATES `multiple.intoto.jsonl` as a run artifact. The native
     # attest-build-provenance step above stays (gh attestation verify) but
     # scorecard's Signed-Releases probe only reads release ASSET NAMES
     # (ossf/scorecard#4080) — the .intoto.jsonl asset is what scores.
@@ -347,15 +400,77 @@ jobs:
     # SHA-pin law; scorecard's Pinned-Dependencies knows this exception.
     name: slsa provenance (intoto asset)
     needs: release
+    # On workflow_dispatch, github.ref/github.sha identify the workflow source
+    # (normally main), not the input tag whose bytes were built. The generic
+    # generator binds those context values into the statement, so only a tag
+    # push can create tag-true provenance. Manual replay must preserve it.
+    if: github.event_name == 'push'
     permissions:
       actions: read # read the workflow run for provenance
       id-token: write # sign the provenance (Sigstore OIDC)
-      contents: write # upload the .intoto.jsonl asset to the release
+      contents: read # bind the generated statement to this repository
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: ${{ needs.release.outputs.hashes }}
-      upload-assets: true
-      upload-tag-name: ${{ needs.release.outputs.tag }}
+      # The upstream release uploader deletes and replaces an occupied
+      # same-name asset. Generate a run artifact only; the first-party
+      # provenance-publish job below performs the fail-closed release upload.
+      upload-assets: false
+
+  provenance-publish:
+    name: publish immutable slsa asset
+    needs: [release, provenance]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/release/check-release-tag.sh
+            scripts/release/upload-assets-immutable.sh
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.provenance.outputs.provenance-name }}
+      - name: Attach SLSA provenance without replacing public bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release.outputs.tag }}
+          PROVENANCE_NAME: ${{ needs.provenance.outputs.provenance-name }}
+        run: |
+          set -euo pipefail
+          test "$PROVENANCE_NAME" = "multiple.intoto.jsonl"
+          bash .release-tooling/scripts/release/upload-assets-immutable.sh \
+            "$TAG" "$REPO" "$PROVENANCE_NAME"
+
+  provenance-replay-check:
+    name: preserve existing slsa asset on replay
+    needs: release
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Refuse provenance regeneration from the workflow branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          matches="$(gh api "repos/${REPO}/releases/tags/${TAG}" \
+            --jq '[.assets[] | select(.name == "multiple.intoto.jsonl")] | length')"
+          if [ "$matches" != "1" ]; then
+            echo "::error::manual replay requires exactly one existing multiple.intoto.jsonl; refusing branch-context provenance regeneration"
+            exit 73
+          fi
+          echo "one SLSA provenance asset is present and remains untouched; cryptographic verification stays a separate release check"
 
   bump-formula:
     name: bump homebrew tap
@@ -509,9 +624,10 @@ jobs:
 
   npm-wasm-publish:
     # The ELEVATED half — runs zero third-party code: download, gh, npm on
-    # a pinned toolchain. The tarball is attached + attested BEFORE the
-    # publish attempt so a credential-less run still ships the exact
-    # publish-ready bytes.
+    # a pinned toolchain, plus the one first-party immutable-upload helper
+    # checked out sparsely at the exact release SHA. The tarball is attached +
+    # attested BEFORE the publish attempt so a credential-less run still ships
+    # the exact publish-ready bytes.
     name: npm publish (nika-check-wasm)
     needs: [release, npm-wasm-pack]
     runs-on: ubuntu-24.04
@@ -520,6 +636,15 @@ jobs:
       id-token: write # npm --provenance (Sigstore OIDC) + build attestation
       attestations: write # publish the tarball's build-provenance attestation
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/release/check-release-tag.sh
+            scripts/release/upload-assets-immutable.sh
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: npm-tarball
@@ -539,9 +664,10 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # --clobber: a workflow_dispatch rebuild of a tag is a supported
-          # path in this file — a re-run must not go red on its own assets
-          gh release upload "$TAG" --repo "$REPO" --clobber ./*.tgz ./*.tgz.sha256
+          # A replay may heal an absent asset, but a public name is immutable
+          # once occupied. Different bytes fail closed.
+          bash .release-tooling/scripts/release/upload-assets-immutable.sh \
+            "$TAG" "$REPO" ./*.tgz ./*.tgz.sha256
       - name: Attest build provenance (the npm tarball · verifiable via `gh attestation verify`)
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -647,3 +773,11 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ needs.release.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Nika
+            org.opencontainers.image.description=Sovereign AI workflow runtime
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.url=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release.outputs.sha }}
+            org.opencontainers.image.version=${{ needs.release.outputs.version }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
