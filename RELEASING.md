@@ -164,12 +164,14 @@ without an explicit operator decision.
    The replay
    helper comes from the exact workflow commit, so a historical tag does not
    need to contain future release tooling. SLSA provenance is created only by
-   the original tag-push context and is immutably attached to the draft as soon
-   as the generator returns, so a later run can recover it. Manual replay
+   the original tag-push context and exposed as a verified run artifact; the
+   isolated asset-convergence writer then attaches it with the other seven
+   exact assets, so a later run can recover it. Manual replay
    requires exactly one existing statement asset and refuses branch-context
-   regeneration. Every push, replay, and finalization runs the pinned
-   `slsa-verifier` against the four native subjects, repository, and exact
-   source tag before proceeding. `workflow_dispatch` cannot generate missing
+   regeneration. Every push and replay provenance lane, plus the read-only
+   final proof, runs the pinned `slsa-verifier` against the four native subjects,
+   repository, and exact source tag before proceeding. `workflow_dispatch`
+   cannot generate missing
    tag-context provenance: if the statement was never staged, rerun the
    original tag-push run while that run and its artifacts are retained. The
    exact GHCR digest is durably recorded in a single release-body marker only
@@ -180,16 +182,27 @@ without an explicit operator decision.
    Only then may `image:<version>` be created.
    If the marker survives but that tag is absent, replay heals it from the
    exact `image@digest`; if the marker is absent, an occupied version tag is
-   never adopted as authority. The finalizer itself repeats the exact-eight
-   current-asset comparison, checksum validation, native attestations,
-   tag-bound SLSA, npm SRI, persisted digest, OCI identity, and stopped-container
-   payload proof before either accepting an already-public replay or publishing
-   a draft; earlier workflow jobs are defense in depth, not borrowed authority.
+   never adopted as authority. Release publication then crosses three disjoint
+   authorities. The asset-convergence job has contents-write only, downloads the
+   exact run artifacts, and stages/verifies the eight GitHub assets with
+   workflow-SHA first-party tooling; it receives no SLSA, npm, Docker, package,
+   or deploy-key authority. The final proof has contents/attestations/packages
+   read only and verifies the checksum manifest, native attestations, tag-bound
+   SLSA, npm SRI, persisted digest, OCI identity, and stopped-container payload
+   bytes. Finally, the contents/discussions writer downloads the exact artifacts
+   again and independently compares all eight current GitHub assets byte-for-byte,
+   checks the checksum manifest, and re-reads release identity, state, and marker
+   immediately before either accepting an already-public replay or PATCHing the
+   draft. It trusts only the read-only proof's digest for immutable external
+   registries and invokes no SLSA, npm, or Docker verifier. The tap deploy key is
+   reduced to a boolean readiness result and unset before the step that receives
+   the step-local GitHub token.
    OCI labels are identity metadata, not proof of binary bytes.
    The marker and other GitHub release metadata remain manually mutable by
-   repository administrators. That admin-writer TOCTOU between repeated reads
-   is residual authority: GitHub Releases do not support a conditional unsafe
-   PATCH, so an administrator can still race the final read and publication.
+   repository administrators. That admin-writer TOCTOU after the final asset,
+   marker, and state reads is residual authority: GitHub Releases do not support
+   a conditional unsafe PATCH, so an administrator can still race the final read
+   and publication.
    The workflow detects drift visible to its reads but cannot lock writers out.
    This minimal GitHub TOCTOU is distinct from cross-registry atomicity, which
    this visibility barrier does not claim.

@@ -103,7 +103,8 @@ bytes differ. A timestamped or otherwise non-reproducible rebuild therefore
 stops; missing assets are filled only when the occupied set still compares
 byte-for-byte. The workflow reads replay tooling from its own exact commit, not
 from the historical tag. The tag-push lane cryptographically verifies generic
-SLSA provenance and stages it on the draft immediately. A manual replay can
+SLSA provenance and exposes it as a run artifact for the isolated exact-asset
+writer to stage with the other seven assets. A manual replay can
 only preserve and re-verify an existing statement: `workflow_dispatch` cannot
 regenerate missing tag-context SLSA because the workflow branch is not an
 honest provenance identity for the historical tag. If the statement is
@@ -121,19 +122,29 @@ assets. This protection is future-only; **v0.116.2 is not retroactively
 atomic**, and no workflow can rewrite its already-public history into one.
 
 The exact GHCR digest is stored as a hidden marker in the GitHub release body,
-not as a ninth asset. Before persistence and again inside the finalizer, the
-workflow pulls each Linux platform by exact digest, creates a stopped container,
-copies out `/usr/local/bin/nika` without executing image content, and compares
-its sha256 with the matching extracted native tarball; label checks alone do
-not prove payload bytes. The finalizer also rechecks the exact eight current
-GitHub assets, checksum contents, native attestations, tag-bound SLSA, npm SRI,
-persisted digest, and OCI identity before both already-public success and draft
-publication. A durable marker authorizes healing a missing immutable version
-tag from the exact `image@digest`. Without a marker, the workflow never adopts
-an occupied version coordinate. Release bodies and release fields can still be
-changed manually by a repository administrator. GitHub Releases do not support
-a conditional unsafe PATCH, so a minimal admin-writer TOCTOU remains between
-the final read and publication; drift visible to a read is refused, but the
+not as a ninth asset. Before persistence and again inside the read-only final
+proof, the workflow pulls each Linux platform by exact digest, creates a stopped
+container, copies out `/usr/local/bin/nika` without executing image content, and
+compares its sha256 with the matching extracted native tarball; label checks
+alone do not prove payload bytes. Publication uses three disjoint authorities.
+A contents-write-only asset job downloads the exact run artifacts and stages
+then verifies all eight GitHub assets with workflow-SHA first-party tooling; it
+has no SLSA, npm, Docker, packages, or tap secret. A
+contents/attestations/packages read-only final proof checks the checksum
+manifest, native attestations, tag-bound SLSA, npm SRI, persisted digest, OCI
+identity, and stopped-container payload bytes, and outputs the proven digest.
+The final contents/discussions writer downloads the exact artifacts again,
+compares the eight current GitHub assets byte-for-byte, checks the checksum
+manifest, and re-reads marker and release state immediately before either
+already-public success or PATCH. It invokes no external registry verifier and
+receives only a step-local GitHub token plus boolean tap readiness; the raw
+deploy key is checked and unset in a separate first-party step. A durable marker
+authorizes healing a missing immutable version tag from the exact
+`image@digest`. Without a marker, the workflow never adopts an occupied version
+coordinate. Release bodies, assets, and release fields can still be changed
+manually by a repository administrator. GitHub Releases do not support a
+conditional unsafe PATCH, so a minimal admin-writer TOCTOU remains after the
+last asset, marker, and state reads; drift visible to a read is refused, but the
 workflow cannot lock writers out. That is separate from cross-registry
 atomicity, which this visibility barrier does not claim.
 
