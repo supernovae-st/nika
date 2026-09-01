@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Re-prove the complete barrier, then commit the draft-to-public transition.
+# Re-prove the mutable GitHub barrier, then commit the draft-to-public transition.
 set -euo pipefail
 
 if [ "$#" -ne 7 ]; then
-  echo "usage: $0 <owner/repo> <release-id> <tag> <sha> <proven-digest> <artifacts-dir> <image>" >&2
+  echo "usage: $0 <owner/repo> <release-id> <tag> <sha> <proven-digest> <artifacts-dir> <tap-ready>" >&2
   exit 64
 fi
 
@@ -13,9 +13,15 @@ tag="$3"
 sha="$4"
 digest="$5"
 artifacts="$6"
-image="$7"
+tap_ready="$7"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 version="${tag#v}"
+
+case "$tap_ready" in true | false) ;; *)
+  echo "release finalizer: tap readiness must be true or false" >&2
+  exit 64
+  ;;
+esac
 
 [ -d "$artifacts" ] || {
   echo "release finalizer: artifacts directory is missing" >&2
@@ -32,20 +38,14 @@ assets=(
   "$artifacts/supernovae-st-nika-check-wasm-${version}.tgz"
   "$artifacts/supernovae-st-nika-check-wasm-${version}.tgz.sha256"
 )
-native=(
-  "$artifacts/nika-linux-arm64-${version}.tar.gz"
-  "$artifacts/nika-linux-x64-${version}.tar.gz"
-  "$artifacts/nika-macos-arm64-${version}.tar.gz"
-  "$artifacts/nika-macos-x64-${version}.tar.gz"
-)
-
 read_state() {
   bash "$here/read-release-state.sh" "$repo" "$release_id" "$tag" "$sha"
 }
 
-# The helper is independently authoritative: every invocation re-proves the
-# exact current release assets and all external identities before either an
-# already-public success or a draft PATCH.
+# The read-only release-final-proof job owns immutable registry/provenance
+# verification and supplies digest. This write-authority helper deliberately
+# invokes no external verifier: immediately before either success path, it is
+# independently authoritative for the mutable GitHub assets and release state.
 bash "$here/release-assets-barrier.sh" verify "$tag" "$repo" "${assets[@]}"
 
 scratch="$(mktemp -d)"
@@ -62,29 +62,6 @@ cmp -s "$scratch/expected-checksums" "$scratch/actual-checksums" || {
   exit 73
 }
 (cd "$artifacts" && sha256sum -c SHA256SUMS) >/dev/null
-
-bash "$here/verify-release-attestations.sh" "$tag" "$sha" "$repo" "$artifacts"
-bash "$here/verify-slsa-provenance.sh" \
-  "$tag" "$repo" "$artifacts/multiple.intoto.jsonl" "${native[@]}"
-bash "$here/npm-publish-immutable.sh" verify \
-  "@supernovae-st/nika-check-wasm@${version}" \
-  "$artifacts/supernovae-st-nika-check-wasm-${version}.tgz" \
-  "$artifacts/supernovae-st-nika-check-wasm-${version}.tgz.sha256" >/dev/null
-
-persisted="$(bash "$here/release-digest-marker.sh" read \
-  "$repo" "$release_id" "$tag" "$sha")"
-[ "$persisted" = "$digest" ] || {
-  echo "release finalizer: REFUSED persisted digest drift" >&2
-  exit 73
-}
-verified_digest="$(bash "$here/oci-coordinate-immutable.sh" verify \
-  "$image" "$version" "$digest" "$sha" "https://github.com/${repo}")"
-[ "$verified_digest" = "$digest" ] || {
-  echo "release finalizer: REFUSED OCI digest drift" >&2
-  exit 73
-}
-bash "$here/verify-oci-payload.sh" "$image" "$digest" "$version" "$artifacts" \
-  >/dev/null
 
 # GitHub has no conditional release PATCH. Re-read identity, state, and marker
 # immediately before the decision; an administrator can still race after this
@@ -103,8 +80,8 @@ if [ "$draft" = false ]; then
   printf 'transitioned=false\n'
   exit 0
 fi
-if [ "$prerelease" = false ] && [ -z "${TAP_DEPLOY_KEY:-}" ]; then
-  echo "release finalizer: TAP_DEPLOY_KEY is mandatory before a stable draft transition" >&2
+if [ "$prerelease" = false ] && [ "$tap_ready" != true ]; then
+  echo "release finalizer: tap readiness is mandatory before a stable draft transition" >&2
   exit 77
 fi
 make_latest=false

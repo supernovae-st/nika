@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end fake-CLI proof that the finalizer itself owns the full barrier.
+# End-to-end fake-CLI proof of the write-only GitHub finalization barrier.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,27 +18,17 @@ REMOTE="$TEST_ROOT/remote"
 PATCH_LOG="$TEST_ROOT/patch-log"
 RELEASE_BODY="$TEST_ROOT/release-body"
 RELEASE_DRAFT="$TEST_ROOT/release-draft"
-PAYLOAD_AMD64="$TEST_ROOT/payload-amd64/nika"
-PAYLOAD_ARM64="$TEST_ROOT/payload-arm64/nika"
 SHA=2222222222222222222222222222222222222222
 DIGEST="sha256:$(printf '%064d' 7)"
-IMAGE=ghcr.io/supernovae-st/nika
-mkdir -p "$BIN" "$ARTIFACTS" "$REMOTE" \
-  "$(dirname "$PAYLOAD_AMD64")" "$(dirname "$PAYLOAD_ARM64")"
-printf 'linux amd64 binary\n' >"$PAYLOAD_AMD64"
-printf 'linux arm64 binary\n' >"$PAYLOAD_ARM64"
+mkdir -p "$BIN" "$ARTIFACTS" "$REMOTE"
 
 make_assets() {
   local version="$1"
   rm -f "$ARTIFACTS"/* "$REMOTE"/*
-  tar -czf "$ARTIFACTS/nika-linux-x64-${version}.tar.gz" \
-    -C "$(dirname "$PAYLOAD_AMD64")" nika
-  tar -czf "$ARTIFACTS/nika-linux-arm64-${version}.tar.gz" \
-    -C "$(dirname "$PAYLOAD_ARM64")" nika
-  tar -czf "$ARTIFACTS/nika-macos-x64-${version}.tar.gz" \
-    -C "$(dirname "$PAYLOAD_AMD64")" nika
-  tar -czf "$ARTIFACTS/nika-macos-arm64-${version}.tar.gz" \
-    -C "$(dirname "$PAYLOAD_ARM64")" nika
+  for platform in linux-x64 linux-arm64 macos-x64 macos-arm64; do
+    printf 'native bytes for %s\n' "$platform" \
+      >"$ARTIFACTS/nika-${platform}-${version}.tar.gz"
+  done
   (cd "$ARTIFACTS" && sha256sum nika-*.tar.gz | LC_ALL=C sort >SHA256SUMS)
   printf 'tag-bound provenance\n' >"$ARTIFACTS/multiple.intoto.jsonl"
   printf 'npm package bytes for %s\n' "$version" \
@@ -47,9 +37,6 @@ make_assets() {
     "supernovae-st-nika-check-wasm-${version}.tgz" \
     >"supernovae-st-nika-check-wasm-${version}.tgz.sha256")
   cp "$ARTIFACTS"/* "$REMOTE/"
-  NPM_SRI="sha512-$(openssl dgst -sha512 -binary \
-    "$ARTIFACTS/supernovae-st-nika-check-wasm-${version}.tgz" \
-    | base64 | tr -d '\n')"
 }
 
 cat >"$BIN/git" <<'EOF'
@@ -67,10 +54,6 @@ EOF
 cat >"$BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "$1 $2" = 'attestation verify' ]; then
-  [ "${FAILURE_MODE:-none}" != attestation ]
-  exit 0
-fi
 if [ "$1 $2" = 'release download' ]; then
   pattern=""
   destination=""
@@ -98,6 +81,7 @@ if [ "$method" = PATCH ]; then
   exit 0
 fi
 if [[ "$endpoint" == */releases/123 ]]; then
+  [ "${STATE_MODE:-ok}" != fail ] || exit 1
   if printf '%s\n' "$*" | grep -Fq '.body'; then
     cat "$RELEASE_BODY"
   else
@@ -115,6 +99,9 @@ if [[ "$endpoint" == */releases/tags/* ]]; then
     fi
   elif [ "${ASSET_MODE:-full}" != zero ]; then
     find "$REMOTE" -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort
+    if [ "${ASSET_MODE:-full}" = delete-after-list ]; then
+      rm -f "$REMOTE/nika-linux-arm64-${RELEASE_TAG#v}.tar.gz"
+    fi
   fi
   exit 0
 fi
@@ -122,83 +109,20 @@ echo "unexpected gh api: $endpoint $*" >&2
 exit 90
 EOF
 
-cat >"$BIN/npm" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-[ "$1" = view ] || exit 90
-if [ "${FAILURE_MODE:-none}" = npm ]; then
-  printf 'sha512-wrong\n'
-else
-  printf '%s\n' "$NPM_SRI"
-fi
-EOF
-
-cat >"$BIN/slsa-verifier" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-[ "$1" = verify-artifact ]
-[ "${FAILURE_MODE:-none}" != provenance ]
-printf '%s\n' "$*" | grep -Fq -- "--source-tag $RELEASE_TAG"
-EOF
-
-cat >"$BIN/docker" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-if [ "$1 $2 $3" = 'buildx imagetools inspect' ]; then
-  if [ "${5:-}" = --raw ]; then
-    printf '%s\n' '{"manifests":[{"platform":{"os":"linux","architecture":"amd64"}},{"platform":{"os":"linux","architecture":"arm64"}}]}'
-    exit 0
-  fi
-  if printf '%s\n' "$*" | grep -Fq '.Manifest.Digest'; then
-    if [ "${FAILURE_MODE:-none}" = oci ]; then
-      printf '"sha256:%064d"\n' 8
-    else
-      printf '"%s"\n' "$GHCR_DIGEST"
-    fi
-    exit 0
-  fi
-  printf '{"org.opencontainers.image.revision":"%s","org.opencontainers.image.version":"%s","org.opencontainers.image.source":"https://github.com/supernovae-st/nika","org.opencontainers.image.licenses":"AGPL-3.0-or-later"}\n' \
-    "$RELEASE_SHA" "${RELEASE_TAG#v}"
-  exit 0
-fi
-if [ "$1" = pull ]; then exit 0; fi
-if [ "$1" = create ]; then
-  case "$*" in
-    *linux/amd64*) printf 'aaaaaaaaaaaa\n' ;;
-    *linux/arm64*) printf 'bbbbbbbbbbbb\n' ;;
-    *) exit 90 ;;
-  esac
-  exit 0
-fi
-if [ "$1" = cp ]; then
-  case "$2" in
-    aaaaaaaaaaaa:*) source="$PAYLOAD_AMD64" ;;
-    bbbbbbbbbbbb:*) source="$PAYLOAD_ARM64" ;;
-    *) exit 90 ;;
-  esac
-  [ "${FAILURE_MODE:-none}" != payload ] || source="$PAYLOAD_AMD64"
-  cp "$source" "$3"
-  exit 0
-fi
-if [ "$1" = rm ]; then exit 0; fi
-exit 90
-EOF
 chmod +x "$BIN"/*
 
 run_finalizer() {
-  local failure="$1"
-  local asset_mode="$2"
+  local asset_mode="$1"
+  local tap_ready="$2"
   env PATH="$BIN:$PATH" REMOTE="$REMOTE" PATCH_LOG="$PATCH_LOG" \
     RELEASE_BODY="$RELEASE_BODY" RELEASE_DRAFT="$RELEASE_DRAFT" \
     RELEASE_TAG="$RELEASE_TAG" RELEASE_PRERELEASE="$RELEASE_PRERELEASE" \
-    RELEASE_SHA="$SHA" FAILURE_MODE="$failure" ASSET_MODE="$asset_mode" \
-    NPM_SRI="$NPM_SRI" GHCR_DIGEST="$DIGEST" \
-    PAYLOAD_AMD64="$PAYLOAD_AMD64" PAYLOAD_ARM64="$PAYLOAD_ARM64" \
-    TAP_DEPLOY_KEY="${TAP_DEPLOY_KEY:-}" \
+    RELEASE_SHA="$SHA" ASSET_MODE="$asset_mode" \
+    STATE_MODE="${STATE_MODE:-ok}" \
     FINALIZE_COMMIT_THEN_ERROR="${FINALIZE_COMMIT_THEN_ERROR:-0}" \
     bash "$ROOT/scripts/release/finalize-release.sh" \
     supernovae-st/nika 123 "$RELEASE_TAG" "$SHA" "$DIGEST" \
-    "$ARTIFACTS" "$IMAGE"
+    "$ARTIFACTS" "$tap_ready"
 }
 
 make_assets 9.9.9
@@ -211,7 +135,7 @@ printf '<!-- nika-ghcr-digest: %s -->\n' "$DIGEST" >"$RELEASE_BODY"
 for draft in true false; do
   printf '%s\n' "$draft" >"$RELEASE_DRAFT"
   : >"$PATCH_LOG"
-  if run_finalizer none zero >"$TEST_ROOT/zero-${draft}.out" 2>&1; then
+  if run_finalizer zero true >"$TEST_ROOT/zero-${draft}.out" 2>&1; then
     fail ".assets=0 passed for draft=${draft}"
   fi
   [ ! -s "$PATCH_LOG" ] || fail ".assets=0 reached PATCH for draft=${draft}"
@@ -219,35 +143,78 @@ for draft in true false; do
     || fail ".assets=0 reported success for draft=${draft}"
 done
 
-# Every late proof failure refuses before either success path or PATCH.
-TAP_DEPLOY_KEY="test"
-export TAP_DEPLOY_KEY
-for failure in attestation provenance npm oci payload; do
-  printf 'true\n' >"$RELEASE_DRAFT"
+# Deletion after the initial remote-name read refuses both paths.
+for draft in true false; do
+  make_assets 9.9.9
+  printf '%s\n' "$draft" >"$RELEASE_DRAFT"
   : >"$PATCH_LOG"
-  if run_finalizer "$failure" full \
-    >"$TEST_ROOT/${failure}.out" 2>&1; then
-    fail "wrong ${failure} proof passed"
+  if run_finalizer delete-after-list true \
+    >"$TEST_ROOT/deleted-${draft}.out" 2>&1; then
+    fail "asset deletion passed for draft=${draft}"
   fi
-  [ ! -s "$PATCH_LOG" ] || fail "wrong ${failure} proof reached PATCH"
-  ! grep -q '^transitioned=' "$TEST_ROOT/${failure}.out" \
-    || fail "wrong ${failure} proof reported success"
+  [ ! -s "$PATCH_LOG" ] || fail "asset deletion reached PATCH for draft=${draft}"
+  ! grep -q '^transitioned=' "$TEST_ROOT/deleted-${draft}.out" \
+    || fail "asset deletion reported success for draft=${draft}"
 done
 
-# Already-public success is available only after the complete proof reruns.
+# A bad checksum manifest, marker drift, and release read failure each refuse
+# both success paths even when all eight asset names and bytes otherwise match.
+for failure in checksum marker state; do
+  for draft in true false; do
+    make_assets 9.9.9
+    printf '<!-- nika-ghcr-digest: %s -->\n' "$DIGEST" >"$RELEASE_BODY"
+    STATE_MODE=ok
+    case "$failure" in
+      checksum)
+        printf '%064d  nika-linux-arm64-9.9.9.tar.gz\n' 0 \
+          >"$ARTIFACTS/SHA256SUMS"
+        cp "$ARTIFACTS/SHA256SUMS" "$REMOTE/SHA256SUMS"
+        ;;
+      marker)
+        printf '<!-- nika-ghcr-digest: sha256:%064d -->\n' 8 \
+          >"$RELEASE_BODY"
+        ;;
+      state) STATE_MODE=fail ;;
+    esac
+    export STATE_MODE
+    printf '%s\n' "$draft" >"$RELEASE_DRAFT"
+    : >"$PATCH_LOG"
+    if run_finalizer full true \
+      >"$TEST_ROOT/${failure}-${draft}.out" 2>&1; then
+      fail "${failure} failure passed for draft=${draft}"
+    fi
+    [ ! -s "$PATCH_LOG" ] \
+      || fail "${failure} failure reached PATCH for draft=${draft}"
+    ! grep -q '^transitioned=' "$TEST_ROOT/${failure}-${draft}.out" \
+      || fail "${failure} failure reported success for draft=${draft}"
+  done
+done
+unset STATE_MODE
+
+# Already-public success is available only after the mutable proof reruns.
+make_assets 9.9.9
+printf '<!-- nika-ghcr-digest: %s -->\n' "$DIGEST" >"$RELEASE_BODY"
 printf 'false\n' >"$RELEASE_DRAFT"
 : >"$PATCH_LOG"
-result="$(run_finalizer none full)"
+result="$(run_finalizer full false)"
 [ "$result" = 'transitioned=false' ] \
   || fail 'fully proven public replay did not validate'
 [ ! -s "$PATCH_LOG" ] || fail 'public validation replay PATCHed the release'
+
+# Stable draft publication refuses a false tap-readiness boolean.
+printf 'true\n' >"$RELEASE_DRAFT"
+: >"$PATCH_LOG"
+if run_finalizer full false >"$TEST_ROOT/tap-not-ready.out" 2>&1; then
+  fail 'stable draft passed without tap readiness'
+fi
+[ ! -s "$PATCH_LOG" ] || fail 'missing tap readiness reached PATCH'
 
 # Stable draft publication uses the exact non-regressing Latest policy.
 printf 'true\n' >"$RELEASE_DRAFT"
 : >"$PATCH_LOG"
 FINALIZE_COMMIT_THEN_ERROR="1"
 export FINALIZE_COMMIT_THEN_ERROR
-result="$(run_finalizer none full)"
+result="$(run_finalizer full true)"
 unset FINALIZE_COMMIT_THEN_ERROR
 [ "$result" = 'transitioned=true' ] || fail 'fully proven stable draft did not publish'
 grep -Fqx -- '-F draft=false -f discussion_category_name=Announcements -f make_latest=legacy' \
@@ -260,7 +227,7 @@ RELEASE_PRERELEASE=true
 printf '<!-- nika-ghcr-digest: %s -->\n' "$DIGEST" >"$RELEASE_BODY"
 printf 'true\n' >"$RELEASE_DRAFT"
 : >"$PATCH_LOG"
-result="$(run_finalizer none full)"
+result="$(run_finalizer full false)"
 [ "$result" = 'transitioned=true' ] || fail 'fully proven prerelease draft did not publish'
 grep -Fqx -- '-F draft=false -f discussion_category_name=Announcements -f make_latest=false' \
   "$PATCH_LOG" || fail 'prerelease finalizer PATCH arguments drifted'
