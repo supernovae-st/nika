@@ -361,15 +361,9 @@ impl ResidentAuthority {
 }
 
 fn store_control_capacity(limits: ServerLimits) -> usize {
-    // Every live HTTP connection may have one lifecycle mutation queued, every
-    // reserved job slot may abort a prepared ARM run, and every running
-    // execution still needs a terminal settlement slot. One final slot keeps
-    // shutdown/control progress independent of that combined fan-in.
-    limits
-        .max_connections()
-        .saturating_add(limits.queue_capacity())
-        .saturating_add(limits.max_concurrent_jobs())
-        .saturating_add(1)
+    // HTTP mutations remain bounded and may fail fast when this ingress queue
+    // is full. Internal lifecycle controls use reliable backpressure instead.
+    limits.max_connections()
 }
 
 /// Bound authenticated HTTP listener attached to a resident authority.
@@ -885,7 +879,7 @@ async fn start_running(
 ) -> Result<bool, ServerError> {
     match guard
         .store
-        .start_execution(
+        .start_execution_reliable(
             guard.id.clone(),
             admitted.execution_id().to_string(),
             admitted.trace_id().to_string(),
@@ -1026,7 +1020,7 @@ impl RunningGuard {
     ) -> Result<(), ServerError> {
         let result = self
             .store
-            .settle_with_result(self.id.clone(), status, event, outputs, receipt)
+            .settle_with_result_reliable(self.id.clone(), status, event, outputs, receipt)
             .await;
         if let Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) = &result
         {

@@ -302,6 +302,27 @@ impl StoreHandle {
         receive(answer).await
     }
 
+    pub(super) async fn start_execution_reliable(
+        &self,
+        id: JobId,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        event: Value,
+    ) -> Result<JobRecord, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_control_reliable(ControlCommand::StartExecution {
+            id,
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            event,
+            reply,
+        })
+        .await?;
+        receive(answer).await
+    }
+
     pub(super) async fn queued_jobs(&self) -> Result<Vec<(JobId, String)>, ServerError> {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::Queued { reply })?;
@@ -354,14 +375,15 @@ impl StoreHandle {
         event: Value,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control(ControlCommand::Transition {
+        self.send_control_reliable(ControlCommand::Transition {
             id,
             status,
             event,
             outputs: None,
             receipt: None,
             reply,
-        })?;
+        })
+        .await?;
         receive(answer).await
     }
 
@@ -390,6 +412,32 @@ impl StoreHandle {
         result
     }
 
+    pub(super) async fn settle_with_result_reliable(
+        &self,
+        id: JobId,
+        status: JobStatus,
+        event: Value,
+        outputs: Option<BTreeMap<String, Value>>,
+        receipt: Option<JobReceipt>,
+    ) -> Result<JobRecord, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_control_reliable(ControlCommand::Transition {
+            id,
+            status,
+            event,
+            outputs,
+            receipt: receipt.map(Box::new),
+            reply,
+        })
+        .await?;
+        let result = receive(answer).await;
+        #[cfg(test)]
+        if result.is_ok() {
+            self.shutdown_probe.mark_terminal_settled();
+        }
+        result
+    }
+
     pub(super) fn settle_with_result_blocking(
         &self,
         id: JobId,
@@ -399,7 +447,7 @@ impl StoreHandle {
         receipt: Option<JobReceipt>,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control(ControlCommand::Transition {
+        self.send_control_blocking(ControlCommand::Transition {
             id,
             status,
             event,
@@ -412,20 +460,22 @@ impl StoreHandle {
 
     pub(super) async fn interrupt(&self, id: JobId) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control(ControlCommand::Interrupt {
+        self.send_control_reliable(ControlCommand::Interrupt {
             id,
             reply: Some(reply),
-        })?;
+        })
+        .await?;
         receive(answer).await
     }
 
     pub(super) fn interrupt_detached(&self, id: JobId) {
-        let _result = self.send_control(ControlCommand::Interrupt { id, reply: None });
+        let _result = self.send_control_blocking(ControlCommand::Interrupt { id, reply: None });
     }
 
     pub(super) async fn settle_interrupted(&self) -> Result<usize, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control(ControlCommand::SettleInterrupted { reply })?;
+        self.send_control_reliable(ControlCommand::SettleInterrupted { reply })
+            .await?;
         receive(answer).await
     }
 
@@ -445,6 +495,23 @@ impl StoreHandle {
                 std::sync::mpsc::TrySendError::Full(_) => ServerError::StoreQueueFull,
                 std::sync::mpsc::TrySendError::Disconnected(_) => ServerError::BlockingTask,
             })
+    }
+
+    async fn send_control_reliable(&self, command: ControlCommand) -> Result<(), ServerError> {
+        let controls = self.controls.clone();
+        tokio::task::spawn_blocking(move || {
+            controls
+                .send(command)
+                .map_err(|_| ServerError::BlockingTask)
+        })
+        .await
+        .map_err(|_| ServerError::BlockingTask)?
+    }
+
+    fn send_control_blocking(&self, command: ControlCommand) -> Result<(), ServerError> {
+        self.controls
+            .send(command)
+            .map_err(|_| ServerError::BlockingTask)
     }
 }
 
