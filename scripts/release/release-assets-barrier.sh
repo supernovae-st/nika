@@ -87,7 +87,7 @@ validate_inventory() {
     return 73
   fi
   local extras
-  extras="$(comm -13 "$scratch/expected" "$remote_manifest")"
+  extras="$(LC_ALL=C comm -13 "$scratch/expected" "$remote_manifest")"
   if [ -n "$extras" ]; then
     echo "release assets: REFUSED extra public assets:" >&2
     printf '%s\n' "$extras" >&2
