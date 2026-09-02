@@ -10,6 +10,7 @@
 #   wiring.yaml          declared capabilities + proven_by job keys
 #   CHANGELOG.md         the [Unreleased] section
 #   .github/workflows    CI job keys (the judge that would prove a claim)
+#   estate.yaml          the manifest the tag gate will compare the tree to
 #
 # Prints four columns · IN THE BINARY · CLAIMED · PROVEN · UNPROVEN.
 # Exit 0 always for the human projection. --check exits 1 when UNPROVEN
@@ -167,6 +168,22 @@ if printf '%s\n' "$UNRELEASED" | grep -qiE 'access-harness|harness access|access
   fi
 fi
 
+# The estate manifest. release.yml refuses a tag whose tree its manifest
+# does not describe ("The estate manifest is true of the tagged tree"), and
+# that refusal fires on every build leg, AFTER the tag exists. v0.117.1 died
+# there: the manifest was regenerated in the prep commit, one more commit
+# moved a tracked file, and nothing on the operator's path asked again. The
+# projection asks the tag gate's question BEFORE the tag, as one more claim
+# without proof.
+ESTATE_STALE=0
+if [ -f "$ENGINE/estate.yaml" ] && [ -f "$ENGINE/scripts/estate.py" ]; then
+  if ! (cd "$ENGINE" && python3 scripts/estate.py --check >/dev/null 2>&1); then
+    ESTATE_STALE=1
+    UNPROVEN=$((UNPROVEN + 1))
+    UNPROVEN_ROWS="${UNPROVEN_ROWS}estate.yaml does not describe the tree · python3 scripts/estate.py --write && git add estate.yaml · in the LAST commit before the tag"$'\n'
+  fi
+fi
+
 FEAT_CSV="$(printf '%s' "$RELEASE_FEATURES" | paste -sd, - || true)"
 JOB_N="$(printf '%s\n' "$JOBS" | grep -c . || true)"
 CAP_N="$(printf '%s\n' "$CAP_IDS" | grep -c . || true)"
@@ -180,11 +197,11 @@ if [ "$JSON" -eq 1 ]; then
     printf '%s"%s"' "$sep" "$f"
     sep=","
   done <<<"$RELEASE_FEATURES"
-  printf '],"changelog_unreleased":%s,"ledger_rows":%s,"ci_jobs":%s,"unproven":%s}\n' \
-    "$CLAIM_N" "$CAP_N" "$JOB_N" "$UNPROVEN"
+  printf '],"changelog_unreleased":%s,"ledger_rows":%s,"ci_jobs":%s,"estate_stale":%s,"unproven":%s}\n' \
+    "$CLAIM_N" "$CAP_N" "$JOB_N" "$ESTATE_STALE" "$UNPROVEN"
 else
   printf 'next-tag-project · %s\n' "$ENGINE"
-  printf 'scope · release.yml build line · wiring.yaml · CHANGELOG [Unreleased] · CI job keys\n'
+  printf 'scope · release.yml build line · wiring.yaml · CHANGELOG [Unreleased] · CI job keys · estate.yaml\n'
   printf 'NOT covered · G5/G6 source drops · website · docs\n\n'
   printf 'IN THE BINARY     %s\n' "${FEAT_CSV:-NONE}"
   printf 'CHANGELOG claims  %s Unreleased bullet(s)\n' "$CLAIM_N"
@@ -192,7 +209,7 @@ else
   printf 'CI job keys       %s\n' "$JOB_N"
   printf '\n'
   if [ "$UNPROVEN" -eq 0 ]; then
-    printf 'UNPROVEN          none · every ledger row names a live job · changelog does not promise a dark feature\n'
+    printf 'UNPROVEN          none · every ledger row names a live job · changelog does not promise a dark feature · the estate manifest describes the tree\n'
   else
     printf 'UNPROVEN          %s claim(s) without proof\n' "$UNPROVEN"
     printf '%s' "$UNPROVEN_ROWS" | sed 's/^/  · /'

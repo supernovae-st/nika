@@ -98,6 +98,13 @@ without an explicit operator decision.
    the same shape as the version-match guard above, and for the same
    reason.
 
+   The manifest goes into the **last** commit before the tag. `v0.117.1`
+   regenerated it in the prep commit, then one more commit moved a tracked
+   file, and all four build legs refused the tag. Step 4 now asks this
+   question too (`next-tag-project.sh --check` counts a stale manifest as
+   a claim without proof), so a tag cut after a red step 4 is the only way
+   to meet the guard again.
+
 4. **Project the next tag (the anti-08-08 question).** Before the tag
    exists, ask what it would actually contain and what it would claim
    without proof. The command reads `release.yml`, `wiring.yaml`, the
