@@ -7,78 +7,52 @@
 //! (`nika_display::check_render` · the 15k descent).
 
 pub(crate) use nika_display::check_render::{ModelFinding, ModelsAudit};
-use nika_providers::resolve_access::{AccessRefusal, resolve_access};
+use nika_providers::ExecutionAccessPlan;
+use nika_providers::resolve_access::AccessRefusal;
+use nika_schema::raw::RawWorkflow;
 use nika_types::access::{AccessPlan, AccessRejection};
 
 /// The admission-time access decision per statically-known model
-/// (D-2026-08-04-N1 · P2.5) — the SAME derivation the run's admission
-/// gate judges. Advisory: `clean` and the exit codes never read it.
+/// (D-2026-08-04-N1 · P2.5) — the SAME frozen plan the run executes
+/// (One Door · wave 1: [`nika_cli_host::access::resolve_plan`] over this
+/// machine's probe rows, verb-eligibility included — an ACP-only seat
+/// never serves an `infer:` lane here either). Advisory: `clean` and
+/// the exit codes never read it.
 pub(crate) fn access_decisions(
+    wf: &RawWorkflow,
     report: &nika_check::CheckReport,
 ) -> Vec<(String, Result<AccessPlan, AccessRefusal>)> {
-    let judged: Vec<&str> = report
-        .requirements
-        .models
-        .iter()
-        .map(|m| m.model.as_str())
-        .filter(|m| !m.contains("${{"))
-        .collect();
-    if judged.is_empty() {
-        return Vec::new();
-    }
-    // P3 B6 · one channel: provider rows + harness rows (feature-on).
-    let probes = nika_cli_host::probe::access_probes_with_harness();
-    judged
-        .into_iter()
-        .map(|model| {
-            let candidates =
-                nika_providers::candidates_for(&probes, nika_providers::provider_of(model));
-            (
-                model.to_owned(),
-                resolve_access(model, &candidates, None, None),
-            )
-        })
-        .collect()
+    nika_cli_host::access::resolve_plan(wf, report, None, None).into_decisions()
 }
 
 /// The R-2 boot-manifest access stamps (P3 B5): `access_pin` verbatim
 /// plus `access_plan`, the per-model admission decision as ONE compact
-/// JSON text derived by the ONE resolver ([`nika_providers::access_plan_map`])
-/// over THIS machine's probe rows (presence only, no socket).
+/// JSON text — PROJECTED from the frozen [`ExecutionAccessPlan`] the run
+/// executes (One Door · wave 1), never re-derived beside it.
 pub(crate) fn boot_access_fields(
-    report: &nika_check::CheckReport,
-    access_pin: Option<&str>,
+    plan: &ExecutionAccessPlan,
 ) -> Vec<(&'static str, nika_types::resource::Value)> {
     use nika_types::resource::Value as FieldValue;
     let mut fields = Vec::new();
-    if let Some(pin) = access_pin {
-        fields.push(("access_pin", FieldValue::String(pin.to_owned())));
+    if let Some(pin) = &plan.pin {
+        fields.push(("access_pin", FieldValue::String(pin.clone())));
     }
-    let models: Vec<String> = report
-        .requirements
-        .models
-        .iter()
-        .map(|m| m.model.clone())
+    let rows: serde_json::Map<String, serde_json::Value> = plan
+        .admitted()
+        .map(|(model, lane)| {
+            (
+                model.to_owned(),
+                serde_json::json!({
+                    "access": lane.plan.access,
+                    "billing": lane.plan.billing.as_str(),
+                }),
+            )
+        })
         .collect();
-    // P3 B6 · one channel (provider + harness rows, feature-on).
-    let probes = nika_cli_host::probe::access_probes_with_harness();
-    let plan: serde_json::Map<String, serde_json::Value> =
-        nika_providers::access_plan_map(&models, &probes, access_pin)
-            .into_iter()
-            .map(|(model, plan)| {
-                (
-                    model,
-                    serde_json::json!({
-                        "access": plan.access,
-                        "billing": plan.billing.as_str(),
-                    }),
-                )
-            })
-            .collect();
-    if !plan.is_empty() {
+    if !rows.is_empty() {
         fields.push((
             "access_plan",
-            FieldValue::String(serde_json::Value::Object(plan).to_string()),
+            FieldValue::String(serde_json::Value::Object(rows).to_string()),
         ));
     }
     fields
@@ -87,8 +61,11 @@ pub(crate) fn boot_access_fields(
 /// The `check --json` rows over [`access_decisions`] — wire keys match
 /// the `AccessPlan` serde shape (`chosen`/`billing` `snake_case`), plus
 /// the `resolved` discriminant a machine consumer branches on.
-pub(super) fn access_plan_rows(report: &nika_check::CheckReport) -> Vec<serde_json::Value> {
-    access_decisions(report)
+pub(super) fn access_plan_rows(
+    wf: &RawWorkflow,
+    report: &nika_check::CheckReport,
+) -> Vec<serde_json::Value> {
+    access_decisions(wf, report)
         .into_iter()
         .map(|(model, decision)| match decision {
             Ok(plan) => serde_json::json!({

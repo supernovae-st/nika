@@ -1,6 +1,10 @@
 pub mod nika_cli_host
 pub use nika_cli_host::Theme
 pub use nika_cli_host::display
+pub mod nika_cli_host::access
+pub fn nika_cli_host::access::model_needs(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<nika_providers::plan::ModelNeed>
+pub fn nika_cli_host::access::resolve_plan(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
+pub fn nika_cli_host::access::resolve_plan_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
 pub mod nika_cli_host::catalog
 pub fn nika_cli_host::catalog::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::clients_registry

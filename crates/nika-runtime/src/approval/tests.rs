@@ -59,6 +59,7 @@ fn resolved(value: Value) -> crate::task::SettleAs {
             cost_usd: None,
             cost_unpriced: None,
             model: None,
+            access: None,
         },
     }))
 }

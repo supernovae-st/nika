@@ -7,6 +7,7 @@
 use std::collections::BTreeMap;
 
 use nika_check::CheckReport;
+use nika_providers::ExecutionAccessPlan;
 use nika_providers::probe::ProviderProbe;
 use nika_providers::resolve_access::PinRefusal;
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
@@ -25,8 +26,7 @@ pub(crate) fn gates(
     overrides: &BTreeMap<String, Value>,
     budget: Option<f64>,
     model_override: Option<&str>,
-    access_pin: Option<&str>,
-    probes: &[ProviderProbe],
+    (access_pin, probes, plan): (Option<&str>, &[ProviderProbe], Option<&ExecutionAccessPlan>),
 ) -> Result<(), RuntimeError> {
     crate::trust::check_report(wf, report)?;
     if let Some(err) = required_inputs_refusal(wf, overrides) {
@@ -35,10 +35,52 @@ pub(crate) fn gates(
     if let Some(err) = budget_floor_at(wf, report, budget, model_override, overrides) {
         return Err(err);
     }
-    if let Some(err) = access_pin_refusal(wf, report, probes, access_pin, model_override) {
-        return Err(err);
+    // One Door · wave 1: a frozen plan IS the access admission — the
+    // gate fires on EVERY run that carries one (pinned or not), never
+    // only when `--access` was typed. A bare embedder keeps the pin gate.
+    match plan {
+        Some(plan) => {
+            if let Some(err) = plan_refusal(plan) {
+                return Err(err);
+            }
+        }
+        None => {
+            if let Some(err) = access_pin_refusal(wf, report, probes, access_pin, model_override) {
+                return Err(err);
+            }
+        }
     }
     Ok(())
+}
+
+/// The launch refusal a frozen plan carries: the pin judge's own
+/// teaching (NIKA-1800..1803) when a pin failed, else the first lane
+/// no path survived for — every candidate with its witness (A-8). The
+/// ONE constructor the composer's preflight and the runtime gate speak.
+#[must_use]
+pub fn plan_refusal(plan: &ExecutionAccessPlan) -> Option<RuntimeError> {
+    if let Some(refusal) = plan.pin_refusal.clone() {
+        return Some(map_pin_refusal(refusal));
+    }
+    let (model, refusal) = plan.first_refused()?;
+    let witnesses: Vec<String> = refusal
+        .rejected
+        .iter()
+        .map(nika_types::access::AccessRejection::witness_line)
+        .collect();
+    let rendered = if witnesses.is_empty() {
+        format!(
+            "model `{model}` names provider `{}` — no access candidate exists for it here \
+             (`nika doctor` lists the providers this binary drives)",
+            refusal.provider
+        )
+    } else {
+        format!(
+            "no access path is ready for `{model}` on this machine · {} · nothing ran",
+            witnesses.join(" · ")
+        )
+    };
+    Some(RuntimeError::AccessNoPath { message: rendered })
 }
 
 /// The budget-floor admission gate — `Some` run-abort error (NIKA-1709)
@@ -1124,8 +1166,7 @@ mod tests {
             &BTreeMap::new(),
             Some(0.000_001),
             None,
-            None,
-            &[],
+            (None, &[], None),
         )
         .expect_err("both gates could fire — the input gate speaks first");
         assert!(
@@ -1135,8 +1176,15 @@ mod tests {
         // With the input satisfied, the budget floor is the word.
         let mut overrides = BTreeMap::new();
         overrides.insert("needed".to_owned(), Value::String("x".to_owned()));
-        let err = gates(&wf, &report, &overrides, Some(0.000_001), None, None, &[])
-            .expect_err("the budget gate fires once inputs are satisfied");
+        let err = gates(
+            &wf,
+            &report,
+            &overrides,
+            Some(0.000_001),
+            None,
+            (None, &[], None),
+        )
+        .expect_err("the budget gate fires once inputs are satisfied");
         assert!(
             matches!(err, RuntimeError::BudgetFloor { .. }),
             "the budget gate must then own the refusal"

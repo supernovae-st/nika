@@ -127,6 +127,169 @@ pub fn nika_providers::census::SeatFact::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::census::SeatFact where T: 'static
 pub fn nika_providers::census::SeatFact::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_providers::census::collect_seats() -> alloc::vec::Vec<nika_providers::census::SeatFact>
+pub mod nika_providers::plan
+#[non_exhaustive] pub enum nika_providers::plan::LaneVerdict
+pub nika_providers::plan::LaneVerdict::Admitted(nika_providers::plan::ResolvedLane)
+pub nika_providers::plan::LaneVerdict::Refused(nika_providers::resolve_access::AccessRefusal)
+impl core::clone::Clone for nika_providers::plan::LaneVerdict
+pub fn nika_providers::plan::LaneVerdict::clone(&self) -> nika_providers::plan::LaneVerdict
+impl core::cmp::Eq for nika_providers::plan::LaneVerdict
+impl core::cmp::PartialEq for nika_providers::plan::LaneVerdict
+pub fn nika_providers::plan::LaneVerdict::eq(&self, other: &nika_providers::plan::LaneVerdict) -> bool
+impl core::fmt::Debug for nika_providers::plan::LaneVerdict
+pub fn nika_providers::plan::LaneVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::plan::LaneVerdict
+impl<D> owo_colors::OwoColorize for nika_providers::plan::LaneVerdict
+impl<T, U> core::convert::Into<U> for nika_providers::plan::LaneVerdict where U: core::convert::From<T>
+pub fn nika_providers::plan::LaneVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::plan::LaneVerdict where U: core::convert::Into<T>
+pub type nika_providers::plan::LaneVerdict::Error = core::convert::Infallible
+pub fn nika_providers::plan::LaneVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::plan::LaneVerdict where U: core::convert::TryFrom<T>
+pub type nika_providers::plan::LaneVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::plan::LaneVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::plan::LaneVerdict where T: core::clone::Clone
+pub type nika_providers::plan::LaneVerdict::Owned = T
+pub fn nika_providers::plan::LaneVerdict::clone_into(&self, target: &mut T)
+pub fn nika_providers::plan::LaneVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::plan::LaneVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_providers::plan::LaneVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::plan::LaneVerdict where T: ?core::marker::Sized
+pub fn nika_providers::plan::LaneVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::plan::LaneVerdict where T: ?core::marker::Sized
+pub fn nika_providers::plan::LaneVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::plan::LaneVerdict where T: core::clone::Clone
+pub unsafe fn nika_providers::plan::LaneVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::plan::LaneVerdict
+pub fn nika_providers::plan::LaneVerdict::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::plan::LaneVerdict where T: 'static
+pub fn nika_providers::plan::LaneVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::plan::ExecutionAccessPlan
+pub nika_providers::plan::ExecutionAccessPlan::lanes: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_providers::plan::LaneVerdict>
+pub nika_providers::plan::ExecutionAccessPlan::pin: core::option::Option<alloc::string::String>
+pub nika_providers::plan::ExecutionAccessPlan::pin_refusal: core::option::Option<nika_providers::resolve_access::PinRefusal>
+pub nika_providers::plan::ExecutionAccessPlan::seat: core::option::Option<alloc::string::String>
+impl nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::admitted(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &nika_providers::plan::ResolvedLane)>
+pub fn nika_providers::plan::ExecutionAccessPlan::first_refused(&self) -> core::option::Option<(&str, &nika_providers::resolve_access::AccessRefusal)>
+pub fn nika_providers::plan::ExecutionAccessPlan::into_decisions(self) -> alloc::vec::Vec<(alloc::string::String, core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>)>
+pub fn nika_providers::plan::ExecutionAccessPlan::is_admitted(&self) -> bool
+pub fn nika_providers::plan::ExecutionAccessPlan::lane(&self, model: &str) -> core::option::Option<&nika_providers::plan::ResolvedLane>
+pub fn nika_providers::plan::ExecutionAccessPlan::new(lanes: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_providers::plan::LaneVerdict>, pin: core::option::Option<alloc::string::String>, seat: core::option::Option<alloc::string::String>, pin_refusal: core::option::Option<nika_providers::resolve_access::PinRefusal>) -> Self
+pub fn nika_providers::plan::ExecutionAccessPlan::seat_for(&self, model: &str) -> core::option::Option<&str>
+impl core::clone::Clone for nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::clone(&self) -> nika_providers::plan::ExecutionAccessPlan
+impl core::cmp::Eq for nika_providers::plan::ExecutionAccessPlan
+impl core::cmp::PartialEq for nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::eq(&self, other: &nika_providers::plan::ExecutionAccessPlan) -> bool
+impl core::default::Default for nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::default() -> nika_providers::plan::ExecutionAccessPlan
+impl core::fmt::Debug for nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::plan::ExecutionAccessPlan
+impl<D> owo_colors::OwoColorize for nika_providers::plan::ExecutionAccessPlan
+impl<T, U> core::convert::Into<U> for nika_providers::plan::ExecutionAccessPlan where U: core::convert::From<T>
+pub fn nika_providers::plan::ExecutionAccessPlan::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::plan::ExecutionAccessPlan where U: core::convert::Into<T>
+pub type nika_providers::plan::ExecutionAccessPlan::Error = core::convert::Infallible
+pub fn nika_providers::plan::ExecutionAccessPlan::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::plan::ExecutionAccessPlan where U: core::convert::TryFrom<T>
+pub type nika_providers::plan::ExecutionAccessPlan::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::plan::ExecutionAccessPlan::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::plan::ExecutionAccessPlan where T: core::clone::Clone
+pub type nika_providers::plan::ExecutionAccessPlan::Owned = T
+pub fn nika_providers::plan::ExecutionAccessPlan::clone_into(&self, target: &mut T)
+pub fn nika_providers::plan::ExecutionAccessPlan::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::plan::ExecutionAccessPlan where T: 'static + ?core::marker::Sized
+pub fn nika_providers::plan::ExecutionAccessPlan::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::plan::ExecutionAccessPlan where T: ?core::marker::Sized
+pub fn nika_providers::plan::ExecutionAccessPlan::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::plan::ExecutionAccessPlan where T: ?core::marker::Sized
+pub fn nika_providers::plan::ExecutionAccessPlan::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::plan::ExecutionAccessPlan where T: core::clone::Clone
+pub unsafe fn nika_providers::plan::ExecutionAccessPlan::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::plan::ExecutionAccessPlan where T: 'static
+pub fn nika_providers::plan::ExecutionAccessPlan::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::plan::ModelNeed
+pub nika_providers::plan::ModelNeed::agent: bool
+pub nika_providers::plan::ModelNeed::infer: bool
+pub nika_providers::plan::ModelNeed::model: alloc::string::String
+impl nika_providers::plan::ModelNeed
+pub fn nika_providers::plan::ModelNeed::new(model: impl core::convert::Into<alloc::string::String>, infer: bool, agent: bool) -> Self
+impl core::clone::Clone for nika_providers::plan::ModelNeed
+pub fn nika_providers::plan::ModelNeed::clone(&self) -> nika_providers::plan::ModelNeed
+impl core::cmp::Eq for nika_providers::plan::ModelNeed
+impl core::cmp::PartialEq for nika_providers::plan::ModelNeed
+pub fn nika_providers::plan::ModelNeed::eq(&self, other: &nika_providers::plan::ModelNeed) -> bool
+impl core::fmt::Debug for nika_providers::plan::ModelNeed
+pub fn nika_providers::plan::ModelNeed::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::plan::ModelNeed
+impl<D> owo_colors::OwoColorize for nika_providers::plan::ModelNeed
+impl<T, U> core::convert::Into<U> for nika_providers::plan::ModelNeed where U: core::convert::From<T>
+pub fn nika_providers::plan::ModelNeed::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::plan::ModelNeed where U: core::convert::Into<T>
+pub type nika_providers::plan::ModelNeed::Error = core::convert::Infallible
+pub fn nika_providers::plan::ModelNeed::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::plan::ModelNeed where U: core::convert::TryFrom<T>
+pub type nika_providers::plan::ModelNeed::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::plan::ModelNeed::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::plan::ModelNeed where T: core::clone::Clone
+pub type nika_providers::plan::ModelNeed::Owned = T
+pub fn nika_providers::plan::ModelNeed::clone_into(&self, target: &mut T)
+pub fn nika_providers::plan::ModelNeed::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::plan::ModelNeed where T: 'static + ?core::marker::Sized
+pub fn nika_providers::plan::ModelNeed::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::plan::ModelNeed where T: ?core::marker::Sized
+pub fn nika_providers::plan::ModelNeed::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::plan::ModelNeed where T: ?core::marker::Sized
+pub fn nika_providers::plan::ModelNeed::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::plan::ModelNeed where T: core::clone::Clone
+pub unsafe fn nika_providers::plan::ModelNeed::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::plan::ModelNeed
+pub fn nika_providers::plan::ModelNeed::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::plan::ModelNeed where T: 'static
+pub fn nika_providers::plan::ModelNeed::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::plan::ResolvedLane
+pub nika_providers::plan::ResolvedLane::candidates: usize
+pub nika_providers::plan::ResolvedLane::plan: nika_types::access::AccessPlan
+impl nika_providers::plan::ResolvedLane
+pub fn nika_providers::plan::ResolvedLane::new(plan: nika_types::access::AccessPlan, candidates: usize) -> Self
+impl core::clone::Clone for nika_providers::plan::ResolvedLane
+pub fn nika_providers::plan::ResolvedLane::clone(&self) -> nika_providers::plan::ResolvedLane
+impl core::cmp::Eq for nika_providers::plan::ResolvedLane
+impl core::cmp::PartialEq for nika_providers::plan::ResolvedLane
+pub fn nika_providers::plan::ResolvedLane::eq(&self, other: &nika_providers::plan::ResolvedLane) -> bool
+impl core::fmt::Debug for nika_providers::plan::ResolvedLane
+pub fn nika_providers::plan::ResolvedLane::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::plan::ResolvedLane
+impl<D> owo_colors::OwoColorize for nika_providers::plan::ResolvedLane
+impl<T, U> core::convert::Into<U> for nika_providers::plan::ResolvedLane where U: core::convert::From<T>
+pub fn nika_providers::plan::ResolvedLane::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::plan::ResolvedLane where U: core::convert::Into<T>
+pub type nika_providers::plan::ResolvedLane::Error = core::convert::Infallible
+pub fn nika_providers::plan::ResolvedLane::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::plan::ResolvedLane where U: core::convert::TryFrom<T>
+pub type nika_providers::plan::ResolvedLane::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::plan::ResolvedLane::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::plan::ResolvedLane where T: core::clone::Clone
+pub type nika_providers::plan::ResolvedLane::Owned = T
+pub fn nika_providers::plan::ResolvedLane::clone_into(&self, target: &mut T)
+pub fn nika_providers::plan::ResolvedLane::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::plan::ResolvedLane where T: 'static + ?core::marker::Sized
+pub fn nika_providers::plan::ResolvedLane::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::plan::ResolvedLane where T: ?core::marker::Sized
+pub fn nika_providers::plan::ResolvedLane::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::plan::ResolvedLane where T: ?core::marker::Sized
+pub fn nika_providers::plan::ResolvedLane::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::plan::ResolvedLane where T: core::clone::Clone
+pub unsafe fn nika_providers::plan::ResolvedLane::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::plan::ResolvedLane
+pub fn nika_providers::plan::ResolvedLane::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::plan::ResolvedLane where T: 'static
+pub fn nika_providers::plan::ResolvedLane::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_providers::plan::resolve_execution_plan(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
 pub mod nika_providers::probe
 pub use nika_providers::probe::AccessClass
 pub enum nika_providers::probe::ExecutionLocus
@@ -844,6 +1007,42 @@ impl<T> core::convert::From<T> for nika_providers::probe::KeyAuth
 pub fn nika_providers::probe::KeyAuth::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::KeyAuth where T: 'static
 pub fn nika_providers::probe::KeyAuth::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_providers::LaneVerdict
+pub nika_providers::LaneVerdict::Admitted(nika_providers::plan::ResolvedLane)
+pub nika_providers::LaneVerdict::Refused(nika_providers::resolve_access::AccessRefusal)
+impl core::clone::Clone for nika_providers::plan::LaneVerdict
+pub fn nika_providers::plan::LaneVerdict::clone(&self) -> nika_providers::plan::LaneVerdict
+impl core::cmp::Eq for nika_providers::plan::LaneVerdict
+impl core::cmp::PartialEq for nika_providers::plan::LaneVerdict
+pub fn nika_providers::plan::LaneVerdict::eq(&self, other: &nika_providers::plan::LaneVerdict) -> bool
+impl core::fmt::Debug for nika_providers::plan::LaneVerdict
+pub fn nika_providers::plan::LaneVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::plan::LaneVerdict
+impl<D> owo_colors::OwoColorize for nika_providers::plan::LaneVerdict
+impl<T, U> core::convert::Into<U> for nika_providers::plan::LaneVerdict where U: core::convert::From<T>
+pub fn nika_providers::plan::LaneVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::plan::LaneVerdict where U: core::convert::Into<T>
+pub type nika_providers::plan::LaneVerdict::Error = core::convert::Infallible
+pub fn nika_providers::plan::LaneVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::plan::LaneVerdict where U: core::convert::TryFrom<T>
+pub type nika_providers::plan::LaneVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::plan::LaneVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::plan::LaneVerdict where T: core::clone::Clone
+pub type nika_providers::plan::LaneVerdict::Owned = T
+pub fn nika_providers::plan::LaneVerdict::clone_into(&self, target: &mut T)
+pub fn nika_providers::plan::LaneVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::plan::LaneVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_providers::plan::LaneVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::plan::LaneVerdict where T: ?core::marker::Sized
+pub fn nika_providers::plan::LaneVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::plan::LaneVerdict where T: ?core::marker::Sized
+pub fn nika_providers::plan::LaneVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::plan::LaneVerdict where T: core::clone::Clone
+pub unsafe fn nika_providers::plan::LaneVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::plan::LaneVerdict
+pub fn nika_providers::plan::LaneVerdict::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::plan::LaneVerdict where T: 'static
+pub fn nika_providers::plan::LaneVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_providers::PinRefusal
 pub nika_providers::PinRefusal::NoPath
 pub nika_providers::PinRefusal::NoPath::message: alloc::string::String
@@ -1093,6 +1292,93 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::AccessRefusal
 pub fn nika_providers::resolve_access::AccessRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessRefusal where T: 'static
 pub fn nika_providers::resolve_access::AccessRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::ExecutionAccessPlan
+pub nika_providers::ExecutionAccessPlan::lanes: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_providers::plan::LaneVerdict>
+pub nika_providers::ExecutionAccessPlan::pin: core::option::Option<alloc::string::String>
+pub nika_providers::ExecutionAccessPlan::pin_refusal: core::option::Option<nika_providers::resolve_access::PinRefusal>
+pub nika_providers::ExecutionAccessPlan::seat: core::option::Option<alloc::string::String>
+impl nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::admitted(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &nika_providers::plan::ResolvedLane)>
+pub fn nika_providers::plan::ExecutionAccessPlan::first_refused(&self) -> core::option::Option<(&str, &nika_providers::resolve_access::AccessRefusal)>
+pub fn nika_providers::plan::ExecutionAccessPlan::into_decisions(self) -> alloc::vec::Vec<(alloc::string::String, core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>)>
+pub fn nika_providers::plan::ExecutionAccessPlan::is_admitted(&self) -> bool
+pub fn nika_providers::plan::ExecutionAccessPlan::lane(&self, model: &str) -> core::option::Option<&nika_providers::plan::ResolvedLane>
+pub fn nika_providers::plan::ExecutionAccessPlan::new(lanes: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_providers::plan::LaneVerdict>, pin: core::option::Option<alloc::string::String>, seat: core::option::Option<alloc::string::String>, pin_refusal: core::option::Option<nika_providers::resolve_access::PinRefusal>) -> Self
+pub fn nika_providers::plan::ExecutionAccessPlan::seat_for(&self, model: &str) -> core::option::Option<&str>
+impl core::clone::Clone for nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::clone(&self) -> nika_providers::plan::ExecutionAccessPlan
+impl core::cmp::Eq for nika_providers::plan::ExecutionAccessPlan
+impl core::cmp::PartialEq for nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::eq(&self, other: &nika_providers::plan::ExecutionAccessPlan) -> bool
+impl core::default::Default for nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::default() -> nika_providers::plan::ExecutionAccessPlan
+impl core::fmt::Debug for nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::plan::ExecutionAccessPlan
+impl<D> owo_colors::OwoColorize for nika_providers::plan::ExecutionAccessPlan
+impl<T, U> core::convert::Into<U> for nika_providers::plan::ExecutionAccessPlan where U: core::convert::From<T>
+pub fn nika_providers::plan::ExecutionAccessPlan::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::plan::ExecutionAccessPlan where U: core::convert::Into<T>
+pub type nika_providers::plan::ExecutionAccessPlan::Error = core::convert::Infallible
+pub fn nika_providers::plan::ExecutionAccessPlan::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::plan::ExecutionAccessPlan where U: core::convert::TryFrom<T>
+pub type nika_providers::plan::ExecutionAccessPlan::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::plan::ExecutionAccessPlan::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::plan::ExecutionAccessPlan where T: core::clone::Clone
+pub type nika_providers::plan::ExecutionAccessPlan::Owned = T
+pub fn nika_providers::plan::ExecutionAccessPlan::clone_into(&self, target: &mut T)
+pub fn nika_providers::plan::ExecutionAccessPlan::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::plan::ExecutionAccessPlan where T: 'static + ?core::marker::Sized
+pub fn nika_providers::plan::ExecutionAccessPlan::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::plan::ExecutionAccessPlan where T: ?core::marker::Sized
+pub fn nika_providers::plan::ExecutionAccessPlan::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::plan::ExecutionAccessPlan where T: ?core::marker::Sized
+pub fn nika_providers::plan::ExecutionAccessPlan::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::plan::ExecutionAccessPlan where T: core::clone::Clone
+pub unsafe fn nika_providers::plan::ExecutionAccessPlan::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::plan::ExecutionAccessPlan where T: 'static
+pub fn nika_providers::plan::ExecutionAccessPlan::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::ModelNeed
+pub nika_providers::ModelNeed::agent: bool
+pub nika_providers::ModelNeed::infer: bool
+pub nika_providers::ModelNeed::model: alloc::string::String
+impl nika_providers::plan::ModelNeed
+pub fn nika_providers::plan::ModelNeed::new(model: impl core::convert::Into<alloc::string::String>, infer: bool, agent: bool) -> Self
+impl core::clone::Clone for nika_providers::plan::ModelNeed
+pub fn nika_providers::plan::ModelNeed::clone(&self) -> nika_providers::plan::ModelNeed
+impl core::cmp::Eq for nika_providers::plan::ModelNeed
+impl core::cmp::PartialEq for nika_providers::plan::ModelNeed
+pub fn nika_providers::plan::ModelNeed::eq(&self, other: &nika_providers::plan::ModelNeed) -> bool
+impl core::fmt::Debug for nika_providers::plan::ModelNeed
+pub fn nika_providers::plan::ModelNeed::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::plan::ModelNeed
+impl<D> owo_colors::OwoColorize for nika_providers::plan::ModelNeed
+impl<T, U> core::convert::Into<U> for nika_providers::plan::ModelNeed where U: core::convert::From<T>
+pub fn nika_providers::plan::ModelNeed::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::plan::ModelNeed where U: core::convert::Into<T>
+pub type nika_providers::plan::ModelNeed::Error = core::convert::Infallible
+pub fn nika_providers::plan::ModelNeed::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::plan::ModelNeed where U: core::convert::TryFrom<T>
+pub type nika_providers::plan::ModelNeed::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::plan::ModelNeed::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::plan::ModelNeed where T: core::clone::Clone
+pub type nika_providers::plan::ModelNeed::Owned = T
+pub fn nika_providers::plan::ModelNeed::clone_into(&self, target: &mut T)
+pub fn nika_providers::plan::ModelNeed::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::plan::ModelNeed where T: 'static + ?core::marker::Sized
+pub fn nika_providers::plan::ModelNeed::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::plan::ModelNeed where T: ?core::marker::Sized
+pub fn nika_providers::plan::ModelNeed::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::plan::ModelNeed where T: ?core::marker::Sized
+pub fn nika_providers::plan::ModelNeed::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::plan::ModelNeed where T: core::clone::Clone
+pub unsafe fn nika_providers::plan::ModelNeed::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::plan::ModelNeed
+pub fn nika_providers::plan::ModelNeed::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::plan::ModelNeed where T: 'static
+pub fn nika_providers::plan::ModelNeed::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_providers::NoHttp
 impl core::clone::Clone for nika_providers::registry::NoHttp
 pub fn nika_providers::registry::NoHttp::clone(&self) -> nika_providers::registry::NoHttp
@@ -1278,6 +1564,44 @@ impl<T> core::convert::From<T> for nika_providers::profile::ResolveRefusal
 pub fn nika_providers::profile::ResolveRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::profile::ResolveRefusal where T: 'static
 pub fn nika_providers::profile::ResolveRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::ResolvedLane
+pub nika_providers::ResolvedLane::candidates: usize
+pub nika_providers::ResolvedLane::plan: nika_types::access::AccessPlan
+impl nika_providers::plan::ResolvedLane
+pub fn nika_providers::plan::ResolvedLane::new(plan: nika_types::access::AccessPlan, candidates: usize) -> Self
+impl core::clone::Clone for nika_providers::plan::ResolvedLane
+pub fn nika_providers::plan::ResolvedLane::clone(&self) -> nika_providers::plan::ResolvedLane
+impl core::cmp::Eq for nika_providers::plan::ResolvedLane
+impl core::cmp::PartialEq for nika_providers::plan::ResolvedLane
+pub fn nika_providers::plan::ResolvedLane::eq(&self, other: &nika_providers::plan::ResolvedLane) -> bool
+impl core::fmt::Debug for nika_providers::plan::ResolvedLane
+pub fn nika_providers::plan::ResolvedLane::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::plan::ResolvedLane
+impl<D> owo_colors::OwoColorize for nika_providers::plan::ResolvedLane
+impl<T, U> core::convert::Into<U> for nika_providers::plan::ResolvedLane where U: core::convert::From<T>
+pub fn nika_providers::plan::ResolvedLane::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::plan::ResolvedLane where U: core::convert::Into<T>
+pub type nika_providers::plan::ResolvedLane::Error = core::convert::Infallible
+pub fn nika_providers::plan::ResolvedLane::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::plan::ResolvedLane where U: core::convert::TryFrom<T>
+pub type nika_providers::plan::ResolvedLane::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::plan::ResolvedLane::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::plan::ResolvedLane where T: core::clone::Clone
+pub type nika_providers::plan::ResolvedLane::Owned = T
+pub fn nika_providers::plan::ResolvedLane::clone_into(&self, target: &mut T)
+pub fn nika_providers::plan::ResolvedLane::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::plan::ResolvedLane where T: 'static + ?core::marker::Sized
+pub fn nika_providers::plan::ResolvedLane::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::plan::ResolvedLane where T: ?core::marker::Sized
+pub fn nika_providers::plan::ResolvedLane::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::plan::ResolvedLane where T: ?core::marker::Sized
+pub fn nika_providers::plan::ResolvedLane::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::plan::ResolvedLane where T: core::clone::Clone
+pub unsafe fn nika_providers::plan::ResolvedLane::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::plan::ResolvedLane
+pub fn nika_providers::plan::ResolvedLane::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::plan::ResolvedLane where T: 'static
+pub fn nika_providers::plan::ResolvedLane::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_providers::ResolvedProvider<H>
 impl<H> nika_providers::registry::ResolvedProvider<H>
 pub fn nika_providers::registry::ResolvedProvider<H>::strict_schema_rejects_underspecified(&self) -> bool
@@ -1372,6 +1696,7 @@ pub fn nika_providers::provider_of(model: &str) -> &str
 pub fn nika_providers::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub fn nika_providers::refuse_pin_for_verbs<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str, _has_infer: bool, _has_agent: bool) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub fn nika_providers::resolve_access(model: &str, candidates: &[nika_providers::resolve_access::AccessCandidate], allow_providers: core::option::Option<&[alloc::string::String]>, pin: core::option::Option<&str>) -> core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>
+pub fn nika_providers::resolve_execution_plan(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::resolve_refusal(model: &str) -> core::option::Option<nika_providers::profile::ResolveRefusal>
 pub fn nika_providers::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
 pub fn nika_providers::server_backed_local(provider: &str) -> bool

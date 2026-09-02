@@ -20,6 +20,7 @@ impl crate::task::RunResult {
         cost_unpriced: Option<nika_types::cost::UnpricedReason>,
     ) -> Self {
         Self::Success {
+            access: None,
             value,
             tokens: None,
             recovered_from: Some(original),

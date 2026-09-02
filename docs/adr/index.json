@@ -1306,10 +1306,26 @@
       "filename": "adr-121-nika-dataflow-member-split.md",
       "tags": ["architecture","crates","split","size-cap","dataflow","expressions"],
       "affects_crates": ["nika-runtime","nika-dataflow"],
-      "affects_layers": ["L1","L3"],
+      "affects_layers": ["L0","L3"],
       "supersedes": [],
       "superseded_by": [],
       "related": ["ADR-115","ADR-110","ADR-108","ADR-003","ADR-027"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-122",
+      "title": "One access plan is the execution authority: resolved once, executed as resolved",
+      "status": "accepted",
+      "date": "2026-09-03",
+      "filename": "adr-122-execution-access-plan-authority.md",
+      "tags": ["architecture","access","harness","providers","runtime","cli","one-door"],
+      "affects_crates": ["nika-providers","nika-runtime","nika-cli-host","nika-cli","nika-service-execution","nika-harness","nika-verb-infer","nika-verb-agent"],
+      "affects_layers": ["L1.5","L2","L3","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-120","ADR-099","ADR-003"],
       "requires": [],
       "enables": []
     }

@@ -276,6 +276,10 @@ pub(crate) enum RunResult {
         /// the note-string parse. `None` on verbs that name no model
         /// (exec · invoke) and on recovered author-supplied values.
         model: Option<String>,
+        /// The admitted lane the dispatch rode (One Door · wave 1) —
+        /// rides the terminal frame as `access` · `billing` ·
+        /// `access_id`, the truth at the point of use. Boxed: cold.
+        access: Option<Box<nika_types::access::AccessPlan>>,
     },
     /// `on_error: skip` — skipped with the original error readable
     /// (spec 05 · the one coexist state). The billed-then-skipped spend
@@ -1304,6 +1308,7 @@ fn dispatch_result(
             cost_source,
             cost_unpriced,
             commit: _,
+            access,
         }) => RunResult::Success {
             value,
             tokens,
@@ -1315,6 +1320,7 @@ fn dispatch_result(
             // The by-source key IS the resolved model (`provider/name`)
             // — the same fact, now a structured frame field too.
             model: cost_source,
+            access,
         },
         Err(failed) => apply_on_error(task, scope, failed),
     };

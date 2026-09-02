@@ -9,7 +9,6 @@ pub fn nika_harness::declaration::declared_adapter_id() -> core::option::Option<
 pub fn nika_harness::declaration::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::declaration::seat_from_id(id: &str) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::declaration::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
-pub fn nika_harness::declaration::seat_from_pin(pin: core::option::Option<&str>, first_ready: core::option::Option<&str>) -> core::result::Result<core::option::Option<(nika_harness::spawn::SpawnedHarness, alloc::string::String)>, alloc::string::String>
 pub fn nika_harness::declaration::seat_http_err(why: impl core::fmt::Display) -> nika_kernel_core::io::http::HttpError
 pub mod nika_harness::infer
 #[non_exhaustive] pub enum nika_harness::infer::InferGradeError
@@ -1485,5 +1484,4 @@ pub fn nika_harness::registry_with(env: &dyn core::ops::function::Fn(&str) -> co
 pub fn nika_harness::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::seat_from_id(id: &str) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
-pub fn nika_harness::seat_from_pin(pin: core::option::Option<&str>, first_ready: core::option::Option<&str>) -> core::result::Result<core::option::Option<(nika_harness::spawn::SpawnedHarness, alloc::string::String)>, alloc::string::String>
 pub fn nika_harness::seat_http_err(why: impl core::fmt::Display) -> nika_kernel_core::io::http::HttpError

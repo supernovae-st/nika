@@ -208,6 +208,7 @@ pub struct nika_verb_infer::InferVerb<H>
 impl<H> nika_verb_infer::InferVerb<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub async fn nika_verb_infer::InferVerb<H>::run(&self, input: nika_verb_infer::InferInput) -> core::result::Result<nika_verb_infer::InferOutput, nika_verb_infer::VerbInferError>
 impl<H> nika_verb_infer::InferVerb<H>
+pub fn nika_verb_infer::InferVerb<H>::default_model(&self) -> &str
 pub fn nika_verb_infer::InferVerb<H>::new(registry: alloc::sync::Arc<nika_providers::registry::ProviderRegistry<H>>, default_model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_verb_infer::InferVerb<H>::with_schema_retry_budget(self, budget: u8) -> Self
 impl<H: core::fmt::Debug> core::fmt::Debug for nika_verb_infer::InferVerb<H>
