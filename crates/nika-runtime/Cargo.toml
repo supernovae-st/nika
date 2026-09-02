@@ -11,39 +11,39 @@ homepage.workspace     = true
 publish                = false  # Internal L3 orchestration crate.
 
 [dependencies]
-nika-types       = { path = "../nika-types", version = "0.116.2" }        # EventId · Timestamp · KeyValue · Value
-nika-error       = { path = "../nika-error", version = "0.116.2" }        # NIKA_1700..1703 registry constants
-nika-event       = { path = "../nika-event", version = "0.116.2" }        # Event · EventKind (the stream this crate emits)
-nika-schema      = { path = "../nika-schema", version = "0.116.2" }       # RawWorkflow · RawAction (the run input)
-nika-secret      = { path = "../nika-secret", version = "0.116.2" }       # the secret resolution half (descended at the 15k wall)
-nika-dataflow    = { path = "../nika-dataflow", version = "0.116.2" }     # TaskRecord + the ${{ }}/CEL/jq evaluation half (descended at the 15k wall)
-nika-check       = { path = "../nika-check", version = "0.116.2" }        # CheckReport · the audit-before-run gate (the admit/trust planes)
-nika-proof       = { path = "../nika-proof", version = "0.116.2" }        # the proof layer's hash primitives + the one receipt (spec 15 · the crate-size split)
-nika-tmpl        = { path = "../nika-tmpl", version = "0.116.2" }         # the ONE ${{ }} island lexer · shared with the checker (check⇄run parity)
-nika-cap         = { path = "../nika-cap", version = "0.116.2" }        # is_pure_internal — the NEP-0003 pure class the absent-block run admits (leaf dep · zero cycle)
-nika-catalog     = { path = "../nika-catalog", version = "0.116.2", features = ["pricing"] } # estimate_cost_for — the ONE pricing seam (floor + actual agree by construction)
-nika-cel         = { path = "../nika-cel", version = "0.116.2" }          # the cel-subset/0.1 engine behind the expr seam (parse · compute · Resolver · L0)
-nika-kernel      = { path = "../nika-kernel", version = "0.116.2" }       # ShellRunDyn · ToolExecuteDyn · ClockDyn · ai seams (hub only)
-nika-verb-infer  = { path = "../nika-verb-infer", version = "0.116.2" }
-nika-verb-exec   = { path = "../nika-verb-exec", version = "0.116.2" }
-nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.116.2" }
-nika-verb-agent  = { path = "../nika-verb-agent", version = "0.116.2" }
+nika-types       = { path = "../nika-types", version = "0.117.0" }        # EventId · Timestamp · KeyValue · Value
+nika-error       = { path = "../nika-error", version = "0.117.0" }        # NIKA_1700..1703 registry constants
+nika-event       = { path = "../nika-event", version = "0.117.0" }        # Event · EventKind (the stream this crate emits)
+nika-schema      = { path = "../nika-schema", version = "0.117.0" }       # RawWorkflow · RawAction (the run input)
+nika-secret      = { path = "../nika-secret", version = "0.117.0" }       # the secret resolution half (descended at the 15k wall)
+nika-dataflow    = { path = "../nika-dataflow", version = "0.117.0" }     # TaskRecord + the ${{ }}/CEL/jq evaluation half (descended at the 15k wall)
+nika-check       = { path = "../nika-check", version = "0.117.0" }        # CheckReport · the audit-before-run gate (the admit/trust planes)
+nika-proof       = { path = "../nika-proof", version = "0.117.0" }        # the proof layer's hash primitives + the one receipt (spec 15 · the crate-size split)
+nika-tmpl        = { path = "../nika-tmpl", version = "0.117.0" }         # the ONE ${{ }} island lexer · shared with the checker (check⇄run parity)
+nika-cap         = { path = "../nika-cap", version = "0.117.0" }        # is_pure_internal — the NEP-0003 pure class the absent-block run admits (leaf dep · zero cycle)
+nika-catalog     = { path = "../nika-catalog", version = "0.117.0", features = ["pricing"] } # estimate_cost_for — the ONE pricing seam (floor + actual agree by construction)
+nika-cel         = { path = "../nika-cel", version = "0.117.0" }          # the cel-subset/0.1 engine behind the expr seam (parse · compute · Resolver · L0)
+nika-kernel      = { path = "../nika-kernel", version = "0.117.0" }       # ShellRunDyn · ToolExecuteDyn · ClockDyn · ai seams (hub only)
+nika-verb-infer  = { path = "../nika-verb-infer", version = "0.117.0" }
+nika-verb-exec   = { path = "../nika-verb-exec", version = "0.117.0" }
+nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.117.0" }
+nika-verb-agent  = { path = "../nika-verb-agent", version = "0.117.0" }
 # The harness access class (P3 · feature-gated · default OFF): the L1
 # client the composer seats when an adapter is configured.
-nika-harness     = { path = "../nika-harness", version = "0.116.2", optional = true }
+nika-harness     = { path = "../nika-harness", version = "0.117.0", optional = true }
 # The production composer (descended from nika-cli's run verb 2026-07-22 ·
 # compute descends, render stays): compose.rs wires the REAL effects into
 # the generic Runtime for every embedder. The runtime CORE stays
 # seam-generic — these edges serve the composer module only; the crate's
 # own code keeps ZERO tokio edge (the effect crates wrap their own).
-nika-builtin     = { path = "../nika-builtin", version = "0.116.2" }      # BuiltinDispatcher — the tool plane (moved up from dev-deps)
-nika-providers   = { path = "../nika-providers", version = "0.116.2" }    # ProviderRegistry — resolve provider/model + keys (moved up from dev-deps)
-nika-fs          = { path = "../nika-fs", version = "0.116.2" }           # TokioFs — the builtin tool plane's fs effect
-nika-clock       = { path = "../nika-clock", version = "0.116.2" }        # SystemClock — backoff + timeout + the date builtin
-nika-http        = { path = "../nika-http", version = "0.116.2" }         # ReqwestHttp — the fetch + provider clients
-nika-exec-runner = { path = "../nika-exec-runner", version = "0.116.2" }  # TokioShell — the exec verb's subprocess runner
-nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.116.2" }  # the macOS exec jail (ADR-095 · L1)
-nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.116.2" }  # the Linux exec jail (ADR-095 · L1 · bwrap)
+nika-builtin     = { path = "../nika-builtin", version = "0.117.0" }      # BuiltinDispatcher — the tool plane (moved up from dev-deps)
+nika-providers   = { path = "../nika-providers", version = "0.117.0" }    # ProviderRegistry — resolve provider/model + keys (moved up from dev-deps)
+nika-fs          = { path = "../nika-fs", version = "0.117.0" }           # TokioFs — the builtin tool plane's fs effect
+nika-clock       = { path = "../nika-clock", version = "0.117.0" }        # SystemClock — backoff + timeout + the date builtin
+nika-http        = { path = "../nika-http", version = "0.117.0" }         # ReqwestHttp — the fetch + provider clients
+nika-exec-runner = { path = "../nika-exec-runner", version = "0.117.0" }  # TokioShell — the exec verb's subprocess runner
+nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.117.0" }  # the macOS exec jail (ADR-095 · L1)
+nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.117.0" }  # the Linux exec jail (ADR-095 · L1 · bwrap)
 futures-util     = { workspace = true }   # buffered(k) intra-wave concurrency + select (no executor · async rides the injected seams)
 serde            = { workspace = true }   # TerminalCause wire form (snake_case · spec 13) — FCI-003-pinned against as_str()
 serde_json       = { workspace = true }
@@ -58,10 +58,10 @@ uuid             = { workspace = true }
 # `testing` unlocks the two empty-namespace Scope constructors the dispatch
 # tests build fixtures with — they descended with the module and stay out of
 # every production build (see nika-dataflow's [features]).
-nika-dataflow = { path = "../nika-dataflow", version = "0.116.2", features = ["testing"] }
-nika-harness = { path = "../nika-harness", version = "0.116.2" }
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.116.2" }  # MockClock · MockShell · MockToolExecutor · MockToolDefinitionProvider
-nika-pack        = { path = "../nika-pack", version = "0.116.2" }          # error_codes() — the spec-plane codes the runtime emits pin to the embedded canon
+nika-dataflow = { path = "../nika-dataflow", version = "0.117.0", features = ["testing"] }
+nika-harness = { path = "../nika-harness", version = "0.117.0" }
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.117.0" }  # MockClock · MockShell · MockToolExecutor · MockToolDefinitionProvider
+nika-pack        = { path = "../nika-pack", version = "0.117.0" }          # error_codes() — the spec-plane codes the runtime emits pin to the embedded canon
 bytes            = { workspace = true }   # canned HttpResponse bodies (the F1 capturing http seam)
 insta            = { workspace = true }
 proptest         = { workspace = true }
