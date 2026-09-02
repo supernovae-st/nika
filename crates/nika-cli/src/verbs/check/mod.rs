@@ -23,6 +23,7 @@ pub enum Profile {
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(clap::Args)]
+#[command(after_help = nika_cli_host::help_card::CHECK_EXITS)]
 pub struct CheckArgs {
     /// Workflow file(s), `-`, or `registry:owner/name[@version]`.
     #[arg(num_args = 0..)]

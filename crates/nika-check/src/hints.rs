@@ -125,7 +125,7 @@ pub struct Hint {
     /// · `analysis` · `consent` · `digit-string-enum`
     /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
     /// · `fail-open-consent`
-    /// · `unproven-law`
+    /// · `unproven-law` · `silent-literal`
     /// (additive · agents route on it; the module doc describes each).
     /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
     /// reads — never `is_clean`.
@@ -297,6 +297,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
         }
         push_retry_effects_hint(&mut hints, t);
     }
+    push_silent_literal_hints(&mut hints, wf);
 
     // F-O8 · the old « no `permits:` boundary declared » advisory is
     // RETIRED: absent + effects is the NIKA-AUTH-006 ERROR now (the
@@ -1340,6 +1341,16 @@ fn value_mentions_tasks(v: &serde_json::Value, ids: &BTreeSet<&str>) -> bool {
     task_ids_in_value(v)
         .iter()
         .any(|id| ids.contains(id.as_str()))
+}
+
+/// #1395 — a value that LOOKS like a reference and is not one: the
+/// mustache island and the shell sigil, each named with its one reference
+/// form. The scan lives in the analysis substrate (its own budget); this
+/// is the wrap into the ladder's hint.
+fn push_silent_literal_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    for (task, advice) in nika_check_analyzer::silent_literal::scan(wf) {
+        hints.push(hint("silent-literal", &task, advice));
+    }
 }
 
 pub(super) fn hint(kind: &'static str, task: &str, advice: String) -> Hint {

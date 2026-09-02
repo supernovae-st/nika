@@ -1046,6 +1046,9 @@ async fn execute_json_lane(
         return RunVerdict::renderer_failed(trace_path, e.kind());
     }
     let trace_proof = surface.path.as_deref().zip(surface.proof.as_ref());
+    // #1403 — the terminal frame carries the first failure's code,
+    // message and task: the last line a CI reader parses is the verdict.
+    let cause = nika_cli_host::run_settlement::settlement_error(&outcome);
     if let Err(e) = nika_cli_host::run_settlement::write_local_run_settlement(
         &mut sink,
         (outcome.ok, outcome.paused.is_some()),
@@ -1053,6 +1056,7 @@ async fn execute_json_lane(
         identity.0,
         identity.1,
         trace_proof,
+        cause.as_ref(),
     ) {
         eprintln!("nika run: settlement write failed: {e}");
         return RunVerdict::renderer_failed(trace_path, e.kind());

