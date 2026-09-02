@@ -413,9 +413,13 @@ pub fn required_inputs(wf: &RawWorkflow) -> Vec<&str> {
 
 /// The `· fix: did you mean ___?` clause, or empty when no suggestion.
 fn fix_clause(suggestion: Option<&str>) -> String {
-    suggestion
-        .map(|s| format!(" · fix: did you mean `{s}`?"))
-        .unwrap_or_default()
+    // No near name to offer: name the door to the closed set instead of
+    // refusing in silence (a gauntlet persona tried --help, doctor, spec
+    // and explain before giving up · 2026-09-02).
+    suggestion.map_or_else(
+        || " · fix: the closed set is `nika catalog --tools`".to_owned(),
+        |s| format!(" · fix: did you mean `{s}`?"),
+    )
 }
 
 /// One row per gate-liveness refusal (DAG-006 statically dead · DAG-007
