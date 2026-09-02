@@ -134,7 +134,11 @@ the exact source span:
 | An output used where its shape cannot fit | every deep reference checked against the declared schema |
 
 Then the run streams live, and the receipt is a hash-chained journal
-`nika trace verify` re-proves. Tamper-evident, local, zero services.
+`nika trace verify` re-proves. Tamper-evident, local, zero services. The
+journal keeps task outputs verbatim so a run can be replayed, so
+`.nika/traces/` inherits the sensitivity of whatever the workflow read: on a
+shared or CI machine it is a second data-at-rest surface, to be treated like
+the files the run opened.
 
 <p align="center">
   <img src="media/gifs/full-loop.optimized.gif" alt="nika check catches a typo'd task reference and a typo'd tool, each with a did-you-mean fix; the run then streams and seals its trace" width="820">
