@@ -81,6 +81,7 @@ impl<T> tracing::instrument::Instrument for nika_trace::forecast::gather::Gather
 impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::gather::Gathered
 impl<T> typenum::type_operators::Same for nika_trace::forecast::gather::Gathered
 pub type nika_trace::forecast::gather::Gathered::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::forecast::gather::Gathered where T: core::default::Default
 pub type nika_trace::forecast::gather::Gathered::NoneType = T
 pub fn nika_trace::forecast::gather::Gathered::null_value() -> T
 pub struct nika_trace::forecast::gather::RunSample
@@ -281,6 +282,7 @@ impl<T> tracing::instrument::Instrument for nika_trace::forecast::RunCensus
 impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::RunCensus
 impl<T> typenum::type_operators::Same for nika_trace::forecast::RunCensus
 pub type nika_trace::forecast::RunCensus::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::forecast::RunCensus where T: core::default::Default
 pub type nika_trace::forecast::RunCensus::NoneType = T
 pub fn nika_trace::forecast::RunCensus::null_value() -> T
 pub struct nika_trace::forecast::TaskPrior
@@ -386,6 +388,7 @@ impl<T> tracing::instrument::Instrument for nika_trace::forecast::Window
 impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::Window
 impl<T> typenum::type_operators::Same for nika_trace::forecast::Window
 pub type nika_trace::forecast::Window::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::forecast::Window where T: core::default::Default
 pub type nika_trace::forecast::Window::NoneType = T
 pub fn nika_trace::forecast::Window::null_value() -> T
 pub struct nika_trace::forecast::WorkflowIdentity
@@ -824,6 +827,7 @@ impl<T> tracing::instrument::Instrument for nika_trace::trace_verify::VerifyOpti
 impl<T> tracing::instrument::WithSubscriber for nika_trace::trace_verify::VerifyOptions
 impl<T> typenum::type_operators::Same for nika_trace::trace_verify::VerifyOptions
 pub type nika_trace::trace_verify::VerifyOptions::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::trace_verify::VerifyOptions where T: core::default::Default
 pub type nika_trace::trace_verify::VerifyOptions::NoneType = T
 pub fn nika_trace::trace_verify::VerifyOptions::null_value() -> T
 pub const nika_trace::trace_verify::VERIFY_VERSION: u32
