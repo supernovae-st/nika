@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4770
+  classified_files: 4785
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 1793
+    authored: 1808
     authored-pin: 2
     generated: 125
     pinned-copy: 145
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: fb05c348256f00f7fa6d8cad4496ded9081086b00f8fa1abda3402013892ff5d
+  sha256: 221e20fc85d0c7fd863ec43986b0a9e40cbc95f9dbfb7203669fc27475f5000f
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: 5930cbf10fe4d19e18bdd81a3f8e4c4ea2714a69009b221dc7c8ce6a267ca76f
+  sha256: 3a36e45205095c4c707fa841dbf32db44568d05572ac70d0575847f0f7676ddc
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 144
-  aggregate_sha256: 27d0568562d90cf76122c9e1f2f8dfec053c583d262c62ff65c8d18f86111235
+  aggregate_sha256: 2ff894d280511ff326323bbed236323adfbf0e544c36d43107465a1d8c075381
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout at SPEC_PIN> — spec-pin-heal.yml advances the pin and pack together, and Diamond CI refuses any pack differing from spec@SPEC_PIN"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 69
-  aggregate_sha256: a55a2b8ae5db990847bfb147a41ef1ac7cd0446effc129aa6129d781ffbe83a1
+  aggregate_sha256: acf6392b8755c41e6220238f61fef5261e7982f954421e16a983deb306b69f74
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,18 +151,18 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 915
-  aggregate_sha256: 47e27ac22ceffc89abe11ff401326559e90e903ed78e5012055b0a9707644180
+  match_count: 918
+  aggregate_sha256: 2f1d6d824c36f8af213d1e27c5a113a5d79c6d123acb38f9d30f15b5a3bfbb33
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 199
-  aggregate_sha256: 7ed68e506960303d0cf8185e2f1a03bc94e0d424fef4bd877d55fcc295824a6d
+  aggregate_sha256: af20ed52cd0e55f95711173e68b92e7bb5c662e50a4fc37b540a75070c6837b7
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 144
-  aggregate_sha256: 3224d480a36132834be36be4c23079269c922a0926855d8b773f52915018050e
+  aggregate_sha256: fd27a8814d9f98cd2d7def1e5c72533885ee9e67a2dbce75e24ff65f043b7641
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
@@ -183,12 +183,12 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 120
-  aggregate_sha256: a8a3fc41f0b3ae73341ca1ae4f2cebe9edc49ee2a998c660784b599bb456c046
+  aggregate_sha256: 7cef1b1bdfac32ac882ee7133ac0447efe1278fa7c94fa23dac1fb8e0f5f83dc
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
   match_count: 192
-  aggregate_sha256: d00947b120637c6d9eb2f4852a8781e1711c33d760978737b126dc34db43617f
+  aggregate_sha256: 6bc28b07bc174b0e925ae724e231fac8a557111c2aa2601b1f5107b24062ed01
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -242,8 +242,8 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 4
-  aggregate_sha256: e616e1d9eecc91c05e54b51ca34afa12947b576ba2e3e16406f52673e0cd6e28
+  match_count: 16
+  aggregate_sha256: cb3cc185cb6f23fd6da8d2bced1cada41b34afe01351a54a11a174ebc982f6eb
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
