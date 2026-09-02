@@ -9,7 +9,9 @@
 use nika_types::access::AccessPlan;
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::{AgentOutput, AgentValue};
-use nika_verb_infer::{HarnessInferOutput, InferOutput, InferValue};
+#[cfg(feature = "access-harness")]
+use nika_verb_infer::HarnessInferOutput;
+use nika_verb_infer::{InferOutput, InferValue};
 use serde_json::Value;
 
 use super::{Dispatched, spend_for_model};
@@ -60,6 +62,7 @@ pub(super) fn infer_success(out: InferOutput, access: Option<AccessPlan>) -> Dis
 /// A one-shot `infer:` served by the operator's subscription seat: the
 /// subscription absorbs the spend — named (`SubscriptionQuota`), never
 /// a fabricated $0.
+#[cfg(feature = "access-harness")]
 pub(super) fn harness_infer_success(
     seat_id: &str,
     out: HarnessInferOutput,
