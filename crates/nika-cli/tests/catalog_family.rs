@@ -265,10 +265,12 @@ fn the_refusal_names_the_runnable_count_and_where_to_get_the_list() {
         "the refusal names the provider the user typed: {}",
         out.text
     );
-    let runnable = nika_providers::CANONICAL_IDS.len();
+    // #1398 — the refusal speaks the ONE wired facet every surface prints
+    // (the card · the catalog header · here), split the same way.
+    let facet = nika_providers::wired_facet_of_this_build();
     assert!(
-        out.text.contains(&format!("{runnable} runnable")),
-        "the refusal counts the seats this binary actually carries ({runnable}): {}",
+        out.text.contains(&facet),
+        "the refusal counts the seats this binary actually carries ({facet}): {}",
         out.text
     );
     assert!(
