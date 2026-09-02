@@ -670,3 +670,39 @@ fn mock_model_with_harness_pin_refuses_before_a_live_seat() {
         "mock/echo must refuse before any harness backend can be seated"
     );
 }
+
+/// nika#1385 · a `/run <path>` inside the thread is a real run: it leaves
+/// its hash-chained journal under `.nika/traces/` exactly like `nika run`;
+/// a staged conversational turn (journal = false) leaves none. The cwd is
+/// leased (process-global) so the journal lands in a scratch dir.
+#[test]
+fn a_thread_run_journals_when_asked_and_a_turn_does_not() {
+    let scratch = std::env::temp_dir().join(format!("nika-thread-journal-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    std::fs::create_dir_all(&scratch).expect("scratch dir");
+    std::fs::write(
+        scratch.join("hello.nika.yaml"),
+        "nika: hello\nmodel: mock/echo\ntasks:\n  say:\n    infer:\n      prompt: \"hi\"\n",
+    )
+    .expect("fixture written");
+    let lease = crate::cwd::enter(&scratch).expect("cwd lease");
+
+    let turn = super::thread::run_in_thread("hello.nika.yaml", plain_theme(), false);
+    assert!(!turn.interrupted);
+    assert!(
+        !scratch.join(".nika/traces").exists(),
+        "a staged turn leaves no journal"
+    );
+
+    let asked = super::thread::run_in_thread("hello.nika.yaml", plain_theme(), true);
+    assert!(!asked.interrupted);
+    let traces: Vec<_> = std::fs::read_dir(scratch.join(".nika/traces"))
+        .expect("the journal dir exists after a /run")
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "ndjson"))
+        .collect();
+    assert_eq!(traces.len(), 1, "one journal for the one /run: {traces:?}");
+
+    drop(lease);
+    let _ = std::fs::remove_dir_all(&scratch);
+}
