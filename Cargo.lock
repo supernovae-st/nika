@@ -2553,7 +2553,7 @@ dependencies = [
  "raw-cpuid",
  "rayon",
  "seq-macro",
- "sysctl",
+ "sysctl 0.6.0",
 ]
 
 [[package]]
@@ -2574,7 +2574,7 @@ dependencies = [
  "raw-cpuid",
  "rayon",
  "seq-macro",
- "sysctl",
+ "sysctl 0.6.0",
 ]
 
 [[package]]
@@ -4353,7 +4353,7 @@ dependencies = [
  "serde_json",
  "serde_yaml_bw",
  "sha2 0.10.9",
- "sysctl",
+ "sysctl 0.7.1",
  "tempfile",
  "toml_edit",
  "url",
@@ -7421,6 +7421,20 @@ dependencies = [
  "enum-as-inner",
  "libc",
  "thiserror 1.0.69",
+ "walkdir",
+]
+
+[[package]]
+name = "sysctl"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cca424247104946a59dacd27eaad296223b7feec3d168a6dd04585183091eb0b"
+dependencies = [
+ "bitflags 2.11.0",
+ "byteorder",
+ "enum-as-inner",
+ "libc",
+ "thiserror 2.0.20",
  "walkdir",
 ]
 
