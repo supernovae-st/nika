@@ -306,6 +306,7 @@ mod tests {
             2,
             &"0".repeat(64),
             true, // --anchored
+            false,
             None,
             &[],
         );
@@ -325,11 +326,18 @@ mod tests {
             2,
             &"0".repeat(64),
             false,
+            false,
             None,
             &[],
         );
         assert_eq!(report.exit, TierExit::Ok);
-        assert!(report.lines.is_empty());
+        // nika#1384 · quiet no more: the absent seal names itself.
+        assert_eq!(report.lines.len(), 1, "{:?}", report.lines);
+        assert!(
+            report.lines[0].starts_with("UNSEALED"),
+            "{:?}",
+            report.lines
+        );
     }
 
     /// A chained journal sealed with the given key — the seal line is
@@ -425,6 +433,7 @@ mod tests {
             3,
             &"0".repeat(64),
             false,
+            false,
             None,
             &candidates,
         );
@@ -452,6 +461,7 @@ mod tests {
             &forged,
             4,
             &"0".repeat(64),
+            false,
             false,
             None,
             &candidates,
@@ -495,6 +505,7 @@ mod tests {
             &torn,
             3,
             &"0".repeat(64),
+            false,
             false,
             None,
             &candidates,
@@ -690,6 +701,7 @@ pub fn evaluate(
     events: usize,
     head: &str,
     require_anchor: bool,
+    require_seal: bool,
     replay: Option<&ReplayCompare>,
     candidates: &[(String, String)],
 ) -> TierReport {
@@ -718,7 +730,7 @@ pub fn evaluate(
         );
     }
     let seal = seal_tier(last_complete_line(raw, events).as_ref(), events, candidates);
-    let verdict = match seal_leg(&seal, require_anchor, &mut lines) {
+    let verdict = match seal_leg(&seal, require_anchor, require_seal, &mut lines) {
         Ok(verdict) => verdict,
         Err((anchor, exit)) => return terminal_seal_report(seal, anchor, exit, lines),
     };
@@ -799,6 +811,7 @@ fn terminal_seal_report(
 fn seal_leg(
     seal: &SealTier,
     require_anchor: bool,
+    require_seal: bool,
     lines: &mut Vec<String>,
 ) -> Result<SealVerdict, (AnchorTier, TierExit)> {
     match seal {
@@ -810,6 +823,30 @@ fn seal_leg(
             Ok(v.clone())
         }
         SealTier::Unsealed => {
+            // nika#1384 · the seal tier's absence is STATED, never silent.
+            // Measured on 0.116.2: a journal with its run_sealed line cut
+            // verified « OK · chain intact » with the SEALED line simply
+            // gone and the same exit as a clean run — the cheapest edit a
+            // trace can suffer left no mark. The line names the three
+            // honest causes; the exit stays Ok (the journal is what it is)
+            // unless the operator REQUIRED the tier, which is the ENV
+            // class `--anchored` already answers for a missing sidecar.
+            if require_seal {
+                lines.push(
+                    "SEALED — REQUIRED but the journal is unsealed (no run_sealed \
+                     line): a keyless run, a run killed before its seal, or a \
+                     journal cut after it — a missing seal is a missing input"
+                        .to_owned(),
+                );
+            } else {
+                lines.push(
+                    "UNSEALED — no run_sealed frame: the run was not signed (no \
+                     signing key at run time · a run killed before its seal · or a \
+                     journal cut after it) — `nika sign` seals future runs · \
+                     `--sealed` requires the tier"
+                        .to_owned(),
+                );
+            }
             // The 2026-07-29 audit (run 2 · the anchor contract's silent
             // arm): this return used to swallow `require_anchor` —
             // `--anchored` on an UNSEALED journal exited Ok without a word
@@ -827,6 +864,9 @@ fn seal_leg(
                         .to_owned(),
                 );
                 return Err((AnchorTier::Required, TierExit::Env));
+            }
+            if require_seal {
+                return Err((AnchorTier::NotPresent, TierExit::Env));
             }
             Err((AnchorTier::NotPresent, TierExit::Ok))
         }

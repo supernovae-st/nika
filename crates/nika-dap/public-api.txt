@@ -697,7 +697,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_dap::anchor::tier::TierRepo
 impl<T> typenum::type_operators::Same for nika_dap::anchor::tier::TierReport
 pub type nika_dap::anchor::tier::TierReport::Output = T
 pub fn nika_dap::anchor::tier::anchor_tier(trace: &str, head32: core::option::Option<[u8; 32]>, seal: &nika_dap::anchor::tier::SealVerdict, required: bool) -> nika_dap::anchor::tier::AnchorTier
-pub fn nika_dap::anchor::tier::evaluate(trace: &str, raw: &str, events: usize, head: &str, require_anchor: bool, replay: core::option::Option<&nika_dap::anchor::tier::ReplayCompare>, candidates: &[(alloc::string::String, alloc::string::String)]) -> nika_dap::anchor::tier::TierReport
+pub fn nika_dap::anchor::tier::evaluate(trace: &str, raw: &str, events: usize, head: &str, require_anchor: bool, require_seal: bool, replay: core::option::Option<&nika_dap::anchor::tier::ReplayCompare>, candidates: &[(alloc::string::String, alloc::string::String)]) -> nika_dap::anchor::tier::TierReport
 pub fn nika_dap::anchor::tier::last_complete_line(raw: &str, events: usize) -> core::option::Option<serde_json::value::Value>
 pub fn nika_dap::anchor::tier::seal_tier(line: core::option::Option<&serde_json::value::Value>, events: usize, candidates: &[(alloc::string::String, alloc::string::String)]) -> nika_dap::anchor::tier::SealTier
 #[non_exhaustive] pub enum nika_dap::anchor::HeadRefusal
