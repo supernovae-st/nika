@@ -230,15 +230,7 @@ fn narrowed_rungs(out: &mut String, report: &CheckReport, t: Theme) {
     // `✔ SECRETS no information-flow escapes · 0 hints`. The carve-out is
     // a deliberate soundness trade; the UNIVERSAL sentence over it was
     // not.
-    let secrets_claim = crate::check_journey::secret_flow_summary(report);
-    section_or_skip(
-        out,
-        report,
-        t,
-        "SECRETS",
-        &secrets_claim,
-        secret_rows(report),
-    );
+    crate::check_journey::secrets_rung(out, report, t);
     section_list(
         out,
         t,
@@ -594,71 +586,21 @@ fn audited_line(
 ) -> String {
     let tasks: usize = report.waves.iter().map(Vec::len).sum();
     let permits = permits_glance::permits_glance(report);
+    // #1393 — a declared secret leaving for an external destination by
+    // sanction is stated on THIS line too (the one an operator reads
+    // before running), and the line is never green over it.
+    let sanctioned = crate::check_journey::sanctioned_flow_count(report);
     // The green mark is EARNED, never defaulted: grade ≥ High (glob
     // grants · true wildcards · uncapped spend) renders the warn mark
     // and Role::Warn — the audit completed, the readiness did not.
-    let ready = grade < nika_check::RiskGrade::High;
+    let ready = grade < nika_check::RiskGrade::High && sanctioned == 0;
     let (mark, role) = if ready {
         (if t.ascii { "ok" } else { "✔" }, Role::Good)
     } else {
         (if t.ascii { "!" } else { "⚠" }, Role::Warn)
     };
-    // The COST section speaks CEILING throughout — `≤N tk` per task, and
-    // the range labelled "worst-case ceiling". This line used to speak
-    // FLOOR (`est ≥$X`) over `min_path_total_usd`, and the two
-    // contradicted each other in the same output.
-    //
-    // The floor was never true. `min_path_total_usd` is the cheapest PATH
-    // with every task priced at its own token ceiling, so it bounds
-    // nothing from below: measured, a run billed $0.000242 under an
-    // announced `est ≥$0.0305` — 126× the other way. Users provision
-    // against this number before they launch.
-    //
-    // Bounded: quote the ceiling the section already computed, with `≤`.
-    // Unbounded: no ceiling exists, and no floor is computable either
-    // (every bounded task is itself priced at its cap), so claim neither
-    // — name WHAT is unbounded, split by why (unbounded_census).
-    let est = if report.cost.has_unbounded {
-        format!("est unbounded · {}", unbounded_census(report))
-    } else {
-        // `out` is the narrowing, and it is the same one the COST section
-        // carries three lines up. That section already says "worst-case
-        // OUTPUT ceiling · prompts, exec + mcp unpriced"; this line said
-        // `est ≤$X` flat, which reads as the bill. It is not: F7 measured
-        // 328x on the commonest shape a person writes first (fetch a 3.2
-        // MB document, summarise it — $2.4563 of input against a printed
-        // $0.0075). The card is the line people quote, so it is the line
-        // that must not overreach.
-        let at_most = crate::vocab::at_most(t.ascii);
-        format!(
-            "est out {at_most}${}",
-            crate::vocab::usd(report.cost.bounded_total_usd)
-        )
-    };
-    // « risk unbounded » used to close the output with no handle
-    // (gauntlet 08-01, Camille — an alarm without a remedy, and
-    // « 0 hints » confessed it): the footer now carries the one next
-    // move. An unpriced-only census is the local-model shape (no
-    // dollar meter exists — the cap matters IF a cloud seat is
-    // chosen); anything else has a declarable ceiling today.
-    let handle = if grade == nika_check::RiskGrade::Unbounded {
-        let unpriced_only = report
-            .cost
-            .tasks
-            .iter()
-            .all(|c| matches!(c.unbounded_reason, None | Some(UnboundedReason::NoPrice)));
-        if unpriced_only {
-            // The handle names its VERB. Pasted onto `check` the bare
-            // flag exits 2 — `--max-cost-usd` lives on `run`, and a
-            // handle that breaks where it is printed is the class this
-            // whole wave hunts (gauntlet 08-01, Sofia).
-            " — no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`"
-        } else {
-            " — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`"
-        }
-    } else {
-        ""
-    };
+    let est = est_clause(report, t);
+    let handle = unbounded_handle(report, grade);
     let hint_summary = if distinct_hints == hint_sites {
         crate::vocab::count(hint_sites, "hint")
     } else {
@@ -666,6 +608,14 @@ fn audited_line(
             "{} across {}",
             crate::vocab::count(distinct_hints, "distinct hint"),
             crate::vocab::count(hint_sites, "site")
+        )
+    };
+    let hint_summary = if sanctioned == 0 {
+        hint_summary
+    } else {
+        format!(
+            "{hint_summary} · {}",
+            crate::vocab::count(sanctioned, "sanctioned secret flow")
         )
     };
     t.paint(
@@ -678,6 +628,67 @@ fn audited_line(
             grade.as_str(),
         ),
     )
+}
+
+/// The `est` clause of the audited line. The COST section speaks CEILING
+/// throughout — `≤N tk` per task, and the range labelled "worst-case
+/// ceiling". This line used to speak FLOOR (`est ≥$X`) over
+/// `min_path_total_usd`, and the two contradicted each other in the same
+/// output.
+///
+/// The floor was never true. `min_path_total_usd` is the cheapest PATH
+/// with every task priced at its own token ceiling, so it bounds nothing
+/// from below: measured, a run billed $0.000242 under an announced
+/// `est ≥$0.0305` — 126× the other way. Users provision against this
+/// number before they launch.
+///
+/// Bounded: quote the ceiling the section already computed, with `≤`.
+/// Unbounded: no ceiling exists, and no floor is computable either (every
+/// bounded task is itself priced at its cap), so claim neither — name
+/// WHAT is unbounded, split by why (`unbounded_census`).
+fn est_clause(report: &CheckReport, t: Theme) -> String {
+    if report.cost.has_unbounded {
+        return format!("est unbounded · {}", unbounded_census(report));
+    }
+    // `out` is the narrowing, and it is the same one the COST section
+    // carries three lines up. That section already says "worst-case
+    // OUTPUT ceiling · prompts, exec + mcp unpriced"; this line said
+    // `est ≤$X` flat, which reads as the bill. It is not: F7 measured
+    // 328x on the commonest shape a person writes first (fetch a 3.2
+    // MB document, summarise it — $2.4563 of input against a printed
+    // $0.0075). The card is the line people quote, so it is the line
+    // that must not overreach.
+    let at_most = crate::vocab::at_most(t.ascii);
+    format!(
+        "est out {at_most}${}",
+        crate::vocab::usd(report.cost.bounded_total_usd)
+    )
+}
+
+/// The one next move behind `risk unbounded`. « risk unbounded » used to
+/// close the output with no handle (gauntlet 08-01, Camille — an alarm
+/// without a remedy, and « 0 hints » confessed it): the footer now
+/// carries it. An unpriced-only census is the local-model shape (no
+/// dollar meter exists — the cap matters IF a cloud seat is chosen);
+/// anything else has a declarable ceiling today.
+fn unbounded_handle(report: &CheckReport, grade: nika_check::RiskGrade) -> &'static str {
+    if grade != nika_check::RiskGrade::Unbounded {
+        return "";
+    }
+    let unpriced_only = report
+        .cost
+        .tasks
+        .iter()
+        .all(|c| matches!(c.unbounded_reason, None | Some(UnboundedReason::NoPrice)));
+    if unpriced_only {
+        // The handle names its VERB. Pasted onto `check` the bare flag
+        // exits 2 — `--max-cost-usd` lives on `run`, and a handle that
+        // breaks where it is printed is the class this whole wave hunts
+        // (gauntlet 08-01, Sofia).
+        " — no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`"
+    } else {
+        " — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`"
+    }
 }
 
 /// A finding section: one OK line when empty, one row per finding else.
@@ -719,19 +730,6 @@ fn wf_calls_workflows(wf: &RawWorkflow) -> bool {
         };
         is_call(&task.value.action)
     })
-}
-
-/// The SECRETS rows — one per leak into an effect, then one per egress
-/// through the workflow `outputs:` — read from the ONE findings fold
-/// (`nika-check::findings` owns the fix text: the human voice IS the
-/// `--json` voice, one contract, never a second renderer).
-fn secret_rows(report: &CheckReport) -> Vec<String> {
-    report
-        .findings
-        .iter()
-        .filter(|f| f.kind == "secret_leak" || f.kind == "secret_egress")
-        .map(|f| f.message.clone())
-        .collect()
 }
 
 /// A finding section for a lane that needs a valid DAG. When conformance
