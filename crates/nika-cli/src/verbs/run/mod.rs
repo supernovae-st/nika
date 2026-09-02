@@ -25,7 +25,7 @@
 
 mod ask;
 mod child_runner;
-mod inputs;
+pub(crate) mod inputs;
 mod sink;
 mod thread;
 
@@ -680,7 +680,17 @@ pub(crate) fn capture_mock_outputs(
     skills: BTreeMap<String, String>,
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
-    capture_mock_outputs_with_answers(wf, report, skills, BTreeMap::new(), theme)
+    capture_mock_outputs_with_answers(
+        wf,
+        report,
+        skills,
+        BTreeMap::new(),
+        inputs::ValidatedInputs {
+            values: BTreeMap::new(),
+            origins: BTreeMap::new(),
+        },
+        theme,
+    )
 }
 
 /// `capture_mock_outputs` with operator-bound prompt decisions for
@@ -690,6 +700,7 @@ pub(crate) fn capture_mock_outputs_with_answers(
     _report: &CheckReport,
     skills: BTreeMap<String, String>,
     answers: BTreeMap<String, Value>,
+    inputs: inputs::ValidatedInputs,
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
     let mock_wf = force_mock_models(wf);
@@ -698,7 +709,13 @@ pub(crate) fn capture_mock_outputs_with_answers(
     let caps = capabilities_of(&mock_wf);
     let runtime = simulated_runtime("mock/echo", caps, mock_wf.run.as_ref().map(|s| &s.value))
         .map_err(|e| e.to_string())?;
-    let runtime = runtime.with_skills(skills).with_prompt_answers(answers);
+    // #1400 — a case binds its inputs through the same door `run --var`
+    // uses, so a golden test and a run read one value the same way.
+    let runtime = runtime
+        .with_skills(skills)
+        .with_prompt_answers(answers)
+        .with_var_overrides(inputs.values)
+        .with_input_origins(inputs.origins);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

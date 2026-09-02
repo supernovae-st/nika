@@ -151,6 +151,14 @@ enum Command {
         /// headless default (repeatable `TASK=VALUE`).
         #[arg(long, value_name = "TASK=VALUE", action = clap::ArgAction::Append)]
         answer: Vec<String>,
+        /// Bind an input for THIS case (repeatable `KEY=VALUE` · the same
+        /// door as `run --var`); needs `--case` so the golden has a name.
+        #[arg(long, value_name = "KEY=VALUE", action = clap::ArgAction::Append)]
+        var: Vec<String>,
+        /// Name the case: the golden pins as `<file>.<NAME>.golden.json`,
+        /// so one workflow carries a whole rule table (#1400).
+        #[arg(long, value_name = "NAME")]
+        case: Option<String>,
     },
     /// Static anatomy: tasks · verbs · wave groups · cost · permits —
     /// and the ONE graph projector (`--format json|mermaid|dot` for the
@@ -816,9 +824,15 @@ fn real_main() -> std::process::ExitCode {
     clippy::needless_pass_by_value
 )]
 /// The `test` arm — resolve the lazy target, then run the goldens.
-fn test_arm(file: Option<String>, update: bool, answer: &[String], plain_theme: Theme) -> u8 {
+fn test_arm(
+    file: Option<String>,
+    update: bool,
+    answer: &[String],
+    (vars, case): (&[String], Option<&str>),
+    plain_theme: Theme,
+) -> u8 {
     match resolve_lazy_target(file, "test") {
-        Ok(file) => verbs::test::run_with_answers(&file, update, answer, plain_theme),
+        Ok(file) => verbs::test::run_case(&file, update, answer, (vars, case), plain_theme),
         Err(code) => code,
     }
 }
@@ -884,7 +898,9 @@ fn dispatch_verb(
             file,
             update,
             answer,
-        } => test_arm(file, update, &answer, plain_theme),
+            var,
+            case,
+        } => test_arm(file, update, &answer, (&var, case.as_deref()), plain_theme),
         Command::Inspect { file, format } => inspect_arm(&file, format, plain_theme),
         Command::Welcome { json, deep } => mirror_verb(json, deep, plain_theme),
         Command::Explain {

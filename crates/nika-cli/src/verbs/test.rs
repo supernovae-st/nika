@@ -19,6 +19,12 @@
 //! mismatch     → a readable per-path diff · exit 1
 //! match        → exit 0
 //! ```
+//!
+//! A CASE (#1400 · the rule author's table): `--case <name>` pins the
+//! golden as `<file>.<name>.golden.json` and `--var KEY=VALUE` binds the
+//! case's inputs through the same door `run --var` uses — one workflow,
+//! N cases, N goldens. `--var` without `--case` is refused: a case is a
+//! file, and a golden needs its name.
 
 // Like `run`, the verb owns its streams (verdict/diff on stdout ·
 // diagnostics on stderr) — the same sanctioned exemption.
@@ -60,6 +66,7 @@ fn capture_answered_outputs(
     report: &nika_check::CheckReport,
     skills: std::collections::BTreeMap<String, String>,
     answer: &[String],
+    inputs: super::run::inputs::ValidatedInputs,
     theme: Theme,
 ) -> Result<(u8, std::collections::BTreeMap<String, Value>), u8> {
     let answers = nika_dap::resume::parse_answers(answer, wf).map_err(|message| {
@@ -82,12 +89,11 @@ fn capture_answered_outputs(
             return Err(exit::ENV);
         }
     }
-    super::run::capture_mock_outputs_with_answers(wf, report, skills, answers, theme).map_err(
-        |message| {
+    super::run::capture_mock_outputs_with_answers(wf, report, skills, answers, inputs, theme)
+        .map_err(|message| {
             eprintln!("nika test: environment: {message}");
             exit::ENV
-        },
-    )
+        })
 }
 
 /// The golden test with explicit answers for blocking `nika:prompt` tasks.
@@ -96,8 +102,79 @@ fn capture_answered_outputs(
 /// workflow and therefore never turns a security gate into a headless default.
 #[must_use]
 pub fn run_with_answers(file: &str, update: bool, answer: &[String], theme: Theme) -> u8 {
+    run_case(file, update, answer, (&[], None), theme)
+}
+
+/// A case name is a file-name fragment: letters, digits, `_` and `-`.
+fn valid_case_name(case: &str) -> bool {
+    !case.is_empty()
+        && case
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+}
+
+/// The golden beside the file — `<file>.golden.json`, or the case's own
+/// `<file>.<case>.golden.json` (#1400).
+fn case_golden_path_of(file: &str, case: Option<&str>) -> String {
+    case.map_or_else(
+        || golden_path_of(file),
+        |c| format!("{file}.{c}.golden.json"),
+    )
+}
+
+/// The flags a re-run must repeat, echoed into the teaching lines.
+fn case_suffix(vars: &[String], case: Option<&str>) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    if let Some(case) = case {
+        let _ = write!(out, " --case {case}");
+    }
+    for var in vars {
+        let _ = write!(out, " --var {var}");
+    }
+    out
+}
+
+/// The two refusals a case can earn before anything runs: `--var` with
+/// no `--case` to pin under, and a case name that is not a file-name
+/// fragment. `None` when the case is well-formed.
+fn refuse_malformed_case(file: &str, vars: &[String], case: Option<&str>) -> Option<u8> {
+    if !vars.is_empty() && case.is_none() {
+        eprintln!(
+            "nika test: a case is a FILE — `--var` needs `--case <name>`: the golden then \
+             pins beside the workflow as `{file}.<name>.golden.json` (one workflow · N \
+             cases · N goldens); without a case the single golden is `{file}.golden.json` \
+             and a bound value has nowhere to live"
+        );
+        return Some(exit::ENV);
+    }
+    if let Some(case) = case
+        && !valid_case_name(case)
+    {
+        eprintln!(
+            "nika test: --case `{case}` is not a file-name fragment — letters, digits, `_` \
+             and `-` only (it names `{file}.<case>.golden.json`)"
+        );
+        return Some(exit::ENV);
+    }
+    None
+}
+
+/// The golden test of one CASE: `vars` bind the inputs (the `run --var`
+/// door), `case` names the golden. See the module doc.
+#[must_use]
+pub fn run_case(
+    file: &str,
+    update: bool,
+    answer: &[String],
+    (vars, case): (&[String], Option<&str>),
+    theme: Theme,
+) -> u8 {
     if file == "-" {
         return refuse_stdin();
+    }
+    if let Some(code) = refuse_malformed_case(file, vars, case) {
+        return code;
     }
     // ── Audit BEFORE run — the same gate `nika run` holds ───────────
     let (wf, report) = match crate::verbs::load_checked(file) {
@@ -118,8 +195,19 @@ pub fn run_with_answers(file: &str, update: bool, answer: &[String], theme: Them
     }
 
     // ── The mock run (simulated plane · offline · deterministic) ──────
+    let inputs = match super::run::inputs::parse_var_overrides(vars, &wf) {
+        Ok(inputs) => inputs,
+        Err(message) => {
+            eprintln!("nika test: environment: {message}");
+            return exit::ENV;
+        }
+    };
+    if let Some(err) = nika_runtime::required_inputs_refusal(&wf, &inputs.values) {
+        eprintln!("nika test: environment: {err}");
+        return exit::ENV;
+    }
     let (code, outputs) =
-        match capture_answered_outputs(&wf, &report, resolved.texts, answer, theme) {
+        match capture_answered_outputs(&wf, &report, resolved.texts, answer, inputs, theme) {
             Ok(pair) => pair,
             Err(code) => return code,
         };
@@ -140,7 +228,7 @@ pub fn run_with_answers(file: &str, update: bool, answer: &[String], theme: Them
             return exit::ENV;
         }
     };
-    let golden_path = golden_path_of(file);
+    let golden_path = case_golden_path_of(file, case);
 
     // ── `--update` — (re)write the golden and stop ───────────────────
     if update {
@@ -151,7 +239,10 @@ pub fn run_with_answers(file: &str, update: bool, answer: &[String], theme: Them
     let raw = match std::fs::read_to_string(&golden_path) {
         Ok(raw) => raw,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            print!("{}", missing_golden_hint(file, &golden_path));
+            print!(
+                "{}",
+                missing_golden_hint(file, &golden_path, &case_suffix(vars, case))
+            );
             return exit::ENV;
         }
         Err(e) => {
@@ -164,7 +255,8 @@ pub fn run_with_answers(file: &str, update: bool, answer: &[String], theme: Them
         Err(e) => {
             eprintln!(
                 "nika test: environment: {golden_path} is not valid JSON ({e}) \
-                 — re-pin it with `nika test {file} --update`"
+                 — re-pin it with `nika test {file} --update{}`",
+                case_suffix(vars, case)
             );
             return exit::ENV;
         }
@@ -228,14 +320,16 @@ fn write_golden(golden_path: &str, actual: &Value, theme: Theme) -> u8 {
 
 /// The no-golden-yet teaching text (exit 3 · the operator asked to compare
 /// against a pin that does not exist — say exactly how to create it).
-fn missing_golden_hint(file: &str, golden_path: &str) -> String {
+fn missing_golden_hint(file: &str, golden_path: &str, suffix: &str) -> String {
     format!(
         "nika test · no golden yet for {file}\n\
          \n  the golden pins this workflow's typed `outputs:` under the simulated\n\
          \x20 plane (mock model · effects refused · offline · deterministic) —\n\
          \x20 future runs must match it.\n\
-         \n  create it:   nika test {file} --update\n\
-         \x20 then commit: {golden_path}\n"
+         \n  create it:   nika test {file} --update{suffix}\n\
+         \x20 then commit: {golden_path}\n\
+         \x20 a rule table: one case per `--case <name>` (its own golden) · bind\n\
+         \x20 its inputs with `--var KEY=VALUE`\n"
     )
 }
 
@@ -399,9 +493,77 @@ mod tests {
         let file = wf.to_string_lossy();
         assert_eq!(run(&file, false, plain_theme()), exit::ENV);
         // The hint itself is pure — assert the teaching content directly.
-        let hint = missing_golden_hint(&file, &golden_path_of(&file));
+        let hint = missing_golden_hint(&file, &golden_path_of(&file), "");
         assert!(hint.contains("--update"), "says HOW: {hint}");
         assert!(hint.contains(".golden.json"), "names the pin: {hint}");
+    }
+
+    /// #1400 — `--var` without `--case` has nowhere to pin: the refusal
+    /// says a case is a file and names the flag.
+    #[test]
+    fn a_var_without_a_case_teaches_that_a_case_is_a_file() {
+        let wf = stage("var-no-case.nika.yaml");
+        let file = wf.to_string_lossy();
+        assert_eq!(
+            run_case(
+                &file,
+                true,
+                &[],
+                (&["n=two".to_owned()], None),
+                plain_theme()
+            ),
+            exit::ENV
+        );
+        assert_eq!(
+            run_case(&file, true, &[], (&[], Some("bad/name")), plain_theme()),
+            exit::ENV,
+            "a case is a file-name fragment"
+        );
+    }
+
+    /// #1400 — one workflow, two cases, two goldens: each `--case` pins
+    /// its own file under its own inputs, and a case re-run under other
+    /// inputs is a mismatch, never a silent pass.
+    #[test]
+    fn a_case_pins_its_own_golden_under_its_own_inputs() {
+        let dir = std::env::temp_dir().join("nika-cli-test-verb");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join("rule-table.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: rule-table\nmodel: mock/echo\ninputs:\n  n: { type: string, default: \"one\" }\ntasks:\n  gen:\n    infer: { prompt: \"say ${{ inputs.n }}\" }\noutputs:\n  reply: ${{ tasks.gen.output }}\n",
+        )
+        .expect("fixture written");
+        let file = path.to_string_lossy().to_string();
+        for case in ["two", "three"] {
+            std::fs::remove_file(case_golden_path_of(&file, Some(case))).ok();
+        }
+        let two = ["n=two".to_owned()];
+        let three = ["n=three".to_owned()];
+        assert_eq!(
+            run_case(&file, true, &[], (&two, Some("two")), plain_theme()),
+            exit::OK,
+            "the case pins"
+        );
+        assert!(
+            std::path::Path::new(&case_golden_path_of(&file, Some("two"))).exists(),
+            "the golden carries the case name"
+        );
+        assert_eq!(
+            run_case(&file, false, &[], (&two, Some("two")), plain_theme()),
+            exit::OK,
+            "the same inputs match"
+        );
+        assert_eq!(
+            run_case(&file, false, &[], (&three, Some("two")), plain_theme()),
+            exit::WORKFLOW,
+            "other inputs drift from the case's golden"
+        );
+        assert_eq!(
+            run_case(&file, false, &[], (&three, Some("three")), plain_theme()),
+            exit::ENV,
+            "an unpinned case teaches the pin, never guesses"
+        );
     }
 
     #[test]

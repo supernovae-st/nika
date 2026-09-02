@@ -29,7 +29,7 @@ use super::epilogue;
 /// the one place the caller context (CI · the declared `@env:` reads)
 /// is known.
 #[derive(Debug)]
-pub(super) struct ValidatedInputs {
+pub(crate) struct ValidatedInputs {
     /// The bound values (composer's `with_var_overrides`).
     pub values: BTreeMap<String, Value>,
     /// The origin of every input the run binds (overrides + declared
@@ -68,7 +68,7 @@ const ENV_PREFIX: &str = "@env:";
 /// naming the declaration that would admit it: the file names every env
 /// the run consumes, so a pipeline variable can never silently become
 /// the operator.
-pub(super) fn parse_var_overrides(
+pub(crate) fn parse_var_overrides(
     pairs: &[String],
     wf: &RawWorkflow,
 ) -> Result<ValidatedInputs, String> {
