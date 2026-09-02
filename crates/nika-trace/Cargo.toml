@@ -11,17 +11,17 @@ homepage.workspace     = true
 publish                = false  # Internal member of the nika-cli unit (the binary ships, the lib doesn't).
 
 [dependencies]
-nika-dap      = { path = "../nika-dap", version = "0.117.0" }      # the trace-forensics plane (chain · anchor · recover · reproduce · store · stats · seal) — the compute this member renders
-nika-cli-host = { path = "../nika-cli-host", version = "0.117.0" } # VerbOutput/exit + the retention config (the unit's host member · ADR-110)
-nika-display  = { path = "../nika-display", version = "0.117.0" }  # Theme · RunView · frame — render = pure function of the event stream
-nika-event    = { path = "../nika-event", version = "0.117.0" }    # the Event taxonomy the journals record
-nika-types    = { path = "../nika-types", version = "0.117.0" }    # Value · KeyValue · Timestamp (forecast samples · journal fixtures)
-nika-schema   = { path = "../nika-schema", version = "0.117.0" }   # strict parse — the `trace flow` loader twin
-nika-check    = { path = "../nika-check", version = "0.117.0" }    # check_composed — the same loader's ladder (the report rides discarded)
-nika-runtime  = { path = "../nika-runtime", version = "0.117.0" }  # proof::receipt (the receipt verb) + the loader's judged-semantic stamp
-nika-http     = { path = "../nika-http", version = "0.117.0" }     # ReqwestHttp — the anchor's Rekor/RFC 3161 clients
-nika-catalog  = { path = "../nika-catalog", version = "0.117.0", features = ["providers", "pricing"] }  # the F-P18 cost-replay pin (verify's stated leg)
-nika-tui-core = { path = "../nika-tui-core", version = "0.117.0" }  # the session LAW (waves · idle · bottleneck · spend by verb) — L4→L4, same layer; `trace session` is its first engine-side caller
+nika-dap      = { path = "../nika-dap", version = "0.117.1" }      # the trace-forensics plane (chain · anchor · recover · reproduce · store · stats · seal) — the compute this member renders
+nika-cli-host = { path = "../nika-cli-host", version = "0.117.1" } # VerbOutput/exit + the retention config (the unit's host member · ADR-110)
+nika-display  = { path = "../nika-display", version = "0.117.1" }  # Theme · RunView · frame — render = pure function of the event stream
+nika-event    = { path = "../nika-event", version = "0.117.1" }    # the Event taxonomy the journals record
+nika-types    = { path = "../nika-types", version = "0.117.1" }    # Value · KeyValue · Timestamp (forecast samples · journal fixtures)
+nika-schema   = { path = "../nika-schema", version = "0.117.1" }   # strict parse — the `trace flow` loader twin
+nika-check    = { path = "../nika-check", version = "0.117.1" }    # check_composed — the same loader's ladder (the report rides discarded)
+nika-runtime  = { path = "../nika-runtime", version = "0.117.1" }  # proof::receipt (the receipt verb) + the loader's judged-semantic stamp
+nika-http     = { path = "../nika-http", version = "0.117.1" }     # ReqwestHttp — the anchor's Rekor/RFC 3161 clients
+nika-catalog  = { path = "../nika-catalog", version = "0.117.1", features = ["providers", "pricing"] }  # the F-P18 cost-replay pin (verify's stated leg)
+nika-tui-core = { path = "../nika-tui-core", version = "0.117.1" }  # the session LAW (waves · idle · bottleneck · spend by verb) — L4→L4, same layer; `trace session` is its first engine-side caller
 clap          = { workspace = true }                               # the trace verb's clap seam (TraceAction · EvidenceArgs · ReceiptAction)
 serde         = { workspace = true }                               # the forecast report's Serialize (the explain --json surface)
 serde_json    = { workspace = true }                               # NDJSON journal parse · the evidence pack envelope
