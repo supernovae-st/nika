@@ -133,7 +133,7 @@ fn check_refusal_speaks_the_wired_facet() {
     let facet = line
         .split("wired in this build")
         .next()
-        .and_then(|head| head.rsplit(|c: char| !c.is_ascii_digit()).next())
+        .and_then(|head| head.trim_end().rsplit(|c: char| !c.is_ascii_digit()).next())
         .and_then(|digits| digits.parse::<usize>().ok());
     assert_eq!(
         facet,
