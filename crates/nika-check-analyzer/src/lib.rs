@@ -48,6 +48,7 @@ pub mod native_first;
 mod scan;
 mod schema_lint;
 mod schema_paths;
+pub mod silent_literal;
 mod static_ref;
 mod thinking;
 pub mod types_contract;
