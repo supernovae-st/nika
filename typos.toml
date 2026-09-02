@@ -18,7 +18,11 @@ extend-ignore-identifiers-re = [
 # of public code — the exact reasoning the two file exclusions below give.
 # Deliberately NOT a file exclusion either: an ADR is normative public
 # prose, and a real typo in its ENGLISH half must still be caught.
-extend-ignore-re = ["« [^»]* »"]
+# The did-you-mean fixture in nika-types (`suggest.rs`): a deliberate
+# misspelling the suggester must correct, quoted as a string literal. Newer
+# typos dictionaries flag it (the crate-ci/typos bump of 2026-08-31); ignoring
+# the QUOTED token keeps the fixture and keeps the gate armed everywhere else.
+extend-ignore-re = ["« [^»]* »", "\"highlihgts\""]
 
 [default.extend-words]
 # Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".
