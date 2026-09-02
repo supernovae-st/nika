@@ -36,6 +36,8 @@ pub struct MachineTruth {
     /// The wired providers that take an API key — the doctor's cloud
     /// rows, the welcome's « of N clouds » denominator.
     pub cloud_key_slots: usize,
+    /// The keyless local servers among the wired (#1398 · the facet's split).
+    pub local: usize,
 }
 
 impl MachineTruth {
@@ -47,7 +49,15 @@ impl MachineTruth {
             catalog_entries: nika_catalog::all_providers().len(),
             wired: probes.len(),
             cloud_key_slots: probes.iter().filter(|p| p.requires_key).count(),
+            local: probes.iter().filter(|p| !p.requires_key).count(),
         }
+    }
+
+    /// The one wired-facet sentence (#1398): the same words, the same
+    /// numbers, on the card, the catalog header and the check refusal.
+    #[must_use]
+    pub fn wired_facet(&self) -> String {
+        nika_providers::wired_facet(self.wired, self.local)
     }
 
     /// Derive from a registry — the catalog verb's path (it composes

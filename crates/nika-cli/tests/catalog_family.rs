@@ -97,7 +97,6 @@ const UNWIRED: &[&str] = &[
     "fireworks",
     "hyperbolic",
     "minimax",
-    "moonshot",
     "native",
     "perplexity",
     "qwen",
