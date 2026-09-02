@@ -81,7 +81,6 @@ impl<T> tracing::instrument::Instrument for nika_trace::forecast::gather::Gather
 impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::gather::Gathered
 impl<T> typenum::type_operators::Same for nika_trace::forecast::gather::Gathered
 pub type nika_trace::forecast::gather::Gathered::Output = T
-impl<T> zvariant::optional::NoneValue for nika_trace::forecast::gather::Gathered where T: core::default::Default
 pub type nika_trace::forecast::gather::Gathered::NoneType = T
 pub fn nika_trace::forecast::gather::Gathered::null_value() -> T
 pub struct nika_trace::forecast::gather::RunSample
@@ -282,7 +281,6 @@ impl<T> tracing::instrument::Instrument for nika_trace::forecast::RunCensus
 impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::RunCensus
 impl<T> typenum::type_operators::Same for nika_trace::forecast::RunCensus
 pub type nika_trace::forecast::RunCensus::Output = T
-impl<T> zvariant::optional::NoneValue for nika_trace::forecast::RunCensus where T: core::default::Default
 pub type nika_trace::forecast::RunCensus::NoneType = T
 pub fn nika_trace::forecast::RunCensus::null_value() -> T
 pub struct nika_trace::forecast::TaskPrior
@@ -388,7 +386,6 @@ impl<T> tracing::instrument::Instrument for nika_trace::forecast::Window
 impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::Window
 impl<T> typenum::type_operators::Same for nika_trace::forecast::Window
 pub type nika_trace::forecast::Window::Output = T
-impl<T> zvariant::optional::NoneValue for nika_trace::forecast::Window where T: core::default::Default
 pub type nika_trace::forecast::Window::NoneType = T
 pub fn nika_trace::forecast::Window::null_value() -> T
 pub struct nika_trace::forecast::WorkflowIdentity
@@ -516,6 +513,7 @@ pub nika_trace::trace::action::TraceAction::Session::workflow: alloc::string::St
 pub nika_trace::trace::action::TraceAction::Show(nika_trace::trace::action::TraceArgs)
 pub nika_trace::trace::action::TraceAction::Verify
 pub nika_trace::trace::action::TraceAction::Verify::anchored: bool
+pub nika_trace::trace::action::TraceAction::Verify::json: bool
 pub nika_trace::trace::action::TraceAction::Verify::key: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::action::TraceAction::Verify::replay: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::action::TraceAction::Verify::sealed: bool
@@ -688,6 +686,7 @@ pub nika_trace::trace::TraceAction::Session::workflow: alloc::string::String
 pub nika_trace::trace::TraceAction::Show(nika_trace::trace::action::TraceArgs)
 pub nika_trace::trace::TraceAction::Verify
 pub nika_trace::trace::TraceAction::Verify::anchored: bool
+pub nika_trace::trace::TraceAction::Verify::json: bool
 pub nika_trace::trace::TraceAction::Verify::key: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::TraceAction::Verify::replay: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::TraceAction::Verify::sealed: bool
@@ -781,6 +780,7 @@ pub fn nika_trace::trace_reproduce::reproduce(recorded: &str, fresh: &str) -> ni
 pub mod nika_trace::trace_verify
 pub struct nika_trace::trace_verify::VerifyOptions
 pub nika_trace::trace_verify::VerifyOptions::anchored: bool
+pub nika_trace::trace_verify::VerifyOptions::json: bool
 pub nika_trace::trace_verify::VerifyOptions::key: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace_verify::VerifyOptions::replay: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace_verify::VerifyOptions::sealed: bool
@@ -824,9 +824,9 @@ impl<T> tracing::instrument::Instrument for nika_trace::trace_verify::VerifyOpti
 impl<T> tracing::instrument::WithSubscriber for nika_trace::trace_verify::VerifyOptions
 impl<T> typenum::type_operators::Same for nika_trace::trace_verify::VerifyOptions
 pub type nika_trace::trace_verify::VerifyOptions::Output = T
-impl<T> zvariant::optional::NoneValue for nika_trace::trace_verify::VerifyOptions where T: core::default::Default
 pub type nika_trace::trace_verify::VerifyOptions::NoneType = T
 pub fn nika_trace::trace_verify::VerifyOptions::null_value() -> T
+pub const nika_trace::trace_verify::VERIFY_VERSION: u32
 pub fn nika_trace::trace_verify::verify(trace: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_many_with(traces: &[std::path::PathBuf], opts: &nika_trace::trace_verify::VerifyOptions) -> nika_cli_host::output::VerbOutput

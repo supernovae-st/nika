@@ -167,7 +167,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::clients_registry::Reg
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::clients_registry::RegistryCoverage
 impl<T> typenum::type_operators::Same for nika_cli_host::clients_registry::RegistryCoverage
 pub type nika_cli_host::clients_registry::RegistryCoverage::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::clients_registry::RegistryCoverage where T: core::default::Default
 pub type nika_cli_host::clients_registry::RegistryCoverage::NoneType = T
 pub fn nika_cli_host::clients_registry::RegistryCoverage::null_value() -> T
 pub const nika_cli_host::clients_registry::PROBE_MECHANISMS: &[&str]
@@ -1325,6 +1324,8 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli_host::help_card::HelpKi
 impl<T> typenum::type_operators::Same for nika_cli_host::help_card::HelpKind
 pub type nika_cli_host::help_card::HelpKind::Output = T
 pub const nika_cli_host::help_card::AFTER_HELP: &str
+pub const nika_cli_host::help_card::CHECK_EXITS: &str
+pub const nika_cli_host::help_card::TEST_EXITS: &str
 pub fn nika_cli_host::help_card::classify_help(argv: &[impl core::convert::AsRef<std::ffi::os_str::OsStr>]) -> core::option::Option<nika_cli_host::help_card::HelpKind>
 pub fn nika_cli_host::help_card::home_looks_like_scratch(home: &str) -> bool
 pub fn nika_cli_host::help_card::human_help() -> &'static str
@@ -1736,7 +1737,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::metrics::Facts
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::metrics::Facts
 impl<T> typenum::type_operators::Same for nika_cli_host::metrics::Facts
 pub type nika_cli_host::metrics::Facts::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::metrics::Facts where T: core::default::Default
 pub type nika_cli_host::metrics::Facts::NoneType = T
 pub fn nika_cli_host::metrics::Facts::null_value() -> T
 pub fn nika_cli_host::metrics::record(path: &std::path::Path, event: nika_cli_host::metrics::EventKind, facts: nika_cli_host::metrics::Facts) -> core::io::error::Result<()>
@@ -2111,7 +2111,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::ImageProbe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::ImageProbe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::ImageProbe
 pub type nika_cli_host::probe::ImageProbe::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::ImageProbe where T: core::default::Default
 pub type nika_cli_host::probe::ImageProbe::NoneType = T
 pub fn nika_cli_host::probe::ImageProbe::null_value() -> T
 pub struct nika_cli_host::probe::KitProbe
@@ -2217,7 +2216,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::PricingProbe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::PricingProbe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::PricingProbe
 pub type nika_cli_host::probe::PricingProbe::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::PricingProbe where T: core::default::Default
 pub type nika_cli_host::probe::PricingProbe::NoneType = T
 pub fn nika_cli_host::probe::PricingProbe::null_value() -> T
 pub struct nika_cli_host::probe::Probe
@@ -2387,7 +2385,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::TtsProbe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::TtsProbe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::TtsProbe
 pub type nika_cli_host::probe::TtsProbe::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::TtsProbe where T: core::default::Default
 pub type nika_cli_host::probe::TtsProbe::NoneType = T
 pub fn nika_cli_host::probe::TtsProbe::null_value() -> T
 pub fn nika_cli_host::probe::access_probes_with_harness() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
@@ -2447,6 +2444,58 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::run_settlement::Local
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::run_settlement::LocalRunReceipt<'a>
 impl<T> typenum::type_operators::Same for nika_cli_host::run_settlement::LocalRunReceipt<'a>
 pub type nika_cli_host::run_settlement::LocalRunReceipt<'a>::Output = T
+#[non_exhaustive] pub struct nika_cli_host::run_settlement::SettlementError
+pub nika_cli_host::run_settlement::SettlementError::code: alloc::string::String
+pub nika_cli_host::run_settlement::SettlementError::message: alloc::string::String
+pub nika_cli_host::run_settlement::SettlementError::task: alloc::string::String
+impl core::clone::Clone for nika_cli_host::run_settlement::SettlementError
+pub fn nika_cli_host::run_settlement::SettlementError::clone(&self) -> nika_cli_host::run_settlement::SettlementError
+impl core::cmp::Eq for nika_cli_host::run_settlement::SettlementError
+impl core::cmp::PartialEq for nika_cli_host::run_settlement::SettlementError
+pub fn nika_cli_host::run_settlement::SettlementError::eq(&self, other: &nika_cli_host::run_settlement::SettlementError) -> bool
+impl core::fmt::Debug for nika_cli_host::run_settlement::SettlementError
+pub fn nika_cli_host::run_settlement::SettlementError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::run_settlement::SettlementError
+impl serde_core::ser::Serialize for nika_cli_host::run_settlement::SettlementError
+pub fn nika_cli_host::run_settlement::SettlementError::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_cli_host::run_settlement::SettlementError
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::run_settlement::SettlementError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::SettlementError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::run_settlement::SettlementError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::SettlementError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::run_settlement::SettlementError where U: core::convert::From<T>
+pub fn nika_cli_host::run_settlement::SettlementError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::run_settlement::SettlementError where U: core::convert::Into<T>
+pub type nika_cli_host::run_settlement::SettlementError::Error = core::convert::Infallible
+pub fn nika_cli_host::run_settlement::SettlementError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::run_settlement::SettlementError where U: core::convert::TryFrom<T>
+pub type nika_cli_host::run_settlement::SettlementError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::run_settlement::SettlementError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::run_settlement::SettlementError where T: core::clone::Clone
+pub type nika_cli_host::run_settlement::SettlementError::Owned = T
+pub fn nika_cli_host::run_settlement::SettlementError::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::run_settlement::SettlementError::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::run_settlement::SettlementError where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::SettlementError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::run_settlement::SettlementError where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::SettlementError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::run_settlement::SettlementError where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::SettlementError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::run_settlement::SettlementError where T: core::clone::Clone
+pub unsafe fn nika_cli_host::run_settlement::SettlementError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::run_settlement::SettlementError
+pub fn nika_cli_host::run_settlement::SettlementError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::run_settlement::SettlementError where T: core::clone::Clone
+pub fn nika_cli_host::run_settlement::SettlementError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::run_settlement::SettlementError where T: 'static
+pub fn nika_cli_host::run_settlement::SettlementError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::run_settlement::SettlementError where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::SettlementError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::run_settlement::SettlementError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::run_settlement::SettlementError
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::run_settlement::SettlementError
+impl<T> typenum::type_operators::Same for nika_cli_host::run_settlement::SettlementError
+pub type nika_cli_host::run_settlement::SettlementError::Output = T
 pub struct nika_cli_host::run_settlement::TraceProof
 pub nika_cli_host::run_settlement::TraceProof::head: alloc::string::String
 pub nika_cli_host::run_settlement::TraceProof::len: usize
@@ -2483,7 +2532,9 @@ pub fn nika_cli_host::run_settlement::first_failure(outcome: &nika_runtime::RunO
 pub fn nika_cli_host::run_settlement::local_receipt_binding(execution: nika_types::id::ExecutionId, snapshot_digest: &str) -> serde_json::value::Value
 pub fn nika_cli_host::run_settlement::plan_waves(workflow: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>
 pub fn nika_cli_host::run_settlement::sensitive_journey(report: &nika_check::CheckReport) -> bool
-pub fn nika_cli_host::run_settlement::write_local_run_settlement<T: serde_core::ser::Serialize, W: core::io::write::Write>(writer: &mut nika_dap::journal::JsonSink<W>, outcome: (bool, bool), outputs: &T, execution: nika_types::id::ExecutionId, snapshot_digest: &str, trace: core::option::Option<(&std::path::Path, &nika_cli_host::run_settlement::TraceProof)>) -> core::io::error::Result<()>
+pub fn nika_cli_host::run_settlement::settlement_error(outcome: &nika_runtime::RunOutcome) -> core::option::Option<nika_cli_host::run_settlement::SettlementError>
+pub fn nika_cli_host::run_settlement::write_failed_run_settlement<T: serde_core::ser::Serialize>(writer: &mut impl core::io::write::Write, outputs: &T, receipt: core::option::Option<nika_cli_host::run_settlement::LocalRunReceipt<'_>>, error: core::option::Option<&nika_cli_host::run_settlement::SettlementError>) -> core::io::error::Result<()>
+pub fn nika_cli_host::run_settlement::write_local_run_settlement<T: serde_core::ser::Serialize, W: core::io::write::Write>(writer: &mut nika_dap::journal::JsonSink<W>, outcome: (bool, bool), outputs: &T, execution: nika_types::id::ExecutionId, snapshot_digest: &str, trace: core::option::Option<(&std::path::Path, &nika_cli_host::run_settlement::TraceProof)>, error: core::option::Option<&nika_cli_host::run_settlement::SettlementError>) -> core::io::error::Result<()>
 pub fn nika_cli_host::run_settlement::write_run_settlement<T: serde_core::ser::Serialize>(writer: &mut impl core::io::write::Write, status: &str, outputs: &T, receipt: core::option::Option<nika_cli_host::run_settlement::LocalRunReceipt<'_>>) -> core::io::error::Result<()>
 pub mod nika_cli_host::source
 pub struct nika_cli_host::source::RunSource
@@ -2665,7 +2716,6 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::wire::WireOptions
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::wire::WireOptions
 impl<T> typenum::type_operators::Same for nika_cli_host::wire::WireOptions
 pub type nika_cli_host::wire::WireOptions::Output = T
-impl<T> zvariant::optional::NoneValue for nika_cli_host::wire::WireOptions where T: core::default::Default
 pub type nika_cli_host::wire::WireOptions::NoneType = T
 pub fn nika_cli_host::wire::WireOptions::null_value() -> T
 pub fn nika_cli_host::wire::run(target: nika_cli_host::wire::WireTarget, dir: &str) -> nika_cli_host::output::VerbOutput
