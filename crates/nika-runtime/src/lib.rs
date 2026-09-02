@@ -819,6 +819,20 @@ where
     D: ToolDefinitionProviderDyn,
     C: ClockDyn + Sync,
 {
+    /// The admitted lane per model of the frozen plan (`model → access
+    /// id`) — the resume identity's chosen-access half (wave 1b). Empty
+    /// for a planless embedder.
+    fn lane_access(&self) -> BTreeMap<String, String> {
+        self.access_plan
+            .as_ref()
+            .map(|plan| {
+                plan.admitted()
+                    .map(|(model, lane)| (model.to_owned(), lane.plan.access.clone()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// This run's resume identity context (ADR-099 · spec 14 law 10 at the
     /// `def_hash` tier) — the secret markers + leak-guard set + the
     /// composer-injected skill texts and child-closure digests, folded once
@@ -835,6 +849,7 @@ where
             &self.skills,
             &self.child_closures,
             self.access_pin.as_deref(),
+            &self.lane_access(),
         )
     }
 

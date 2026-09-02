@@ -442,14 +442,22 @@ fn answered_leg(
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
-    let setup = match resume_setup(Some(request), wf, source, model_override, output_json) {
+    // The answered leg is the SAME execution attempt continued in-process:
+    // the plan is re-resolved over the same machine, same pin, same
+    // override — and judged against the trace's recorded lanes like any
+    // resume (wave 1b · an access change is never silent).
+    let plan = nika_cli_host::access::resolve_plan(wf, report, model_override, access_pin);
+    let setup = match resume_setup(
+        Some(request),
+        wf,
+        source,
+        model_override,
+        (&plan, access_pin),
+        output_json,
+    ) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
-    // The answered leg is the SAME execution attempt continued in-process:
-    // the plan is re-resolved over the same machine, same pin, same
-    // override (wave 1b carries it through the trace instead).
-    let plan = nika_cli_host::access::resolve_plan(wf, report, model_override, access_pin);
     let runtime = match composed_runtime(
         model_override,
         &plan,

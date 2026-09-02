@@ -103,11 +103,22 @@ fn text(bytes: &[u8]) -> String {
 
 /// The `fields` of the first frame of `kind`, as (key, value) pairs.
 fn frame_fields(stdout: &str, kind: &str) -> Vec<(String, serde_json::Value)> {
+    frame_fields_of(stdout, kind, None)
+}
+
+/// The `fields` of the first frame of `kind` that names `task` (any
+/// task when `None`), as (key, value) pairs.
+fn frame_fields_of(
+    stdout: &str,
+    kind: &str,
+    task: Option<&str>,
+) -> Vec<(String, serde_json::Value)> {
     let needle = format!("\"kind\":\"{kind}\"");
+    let task_needle = task.map(|t| format!("\"value\":\"{t}\""));
     let line = stdout
         .lines()
-        .find(|l| l.contains(&needle))
-        .unwrap_or_else(|| panic!("no {kind} frame in:\n{stdout}"));
+        .find(|l| l.contains(&needle) && task_needle.as_ref().is_none_or(|t| l.contains(t)))
+        .unwrap_or_else(|| panic!("no {kind} frame for {task:?} in:\n{stdout}"));
     let frame: serde_json::Value = serde_json::from_str(line).expect("one JSON frame");
     frame["fields"]
         .as_array()
@@ -293,5 +304,193 @@ fn no_path_refuses_before_the_first_task() {
     assert!(
         !all.contains("task_started") && !all.contains("answer ·"),
         "nothing ran: {all}"
+    );
+}
+
+/// A seated infer, then a human gate, then a second infer that reads
+/// the gate — the shape a `--resume` needs (the pause is the fold point).
+const GATED: &str = "nika: one-door-gate
+model: openai/gpt-5.2
+permits: { tools: [\"nika:prompt\"] }
+tasks:
+  answer:
+    infer:
+      prompt: classify this
+      max_tokens: 256
+  gate:
+    after: { answer: success }
+    invoke: { tool: \"nika:prompt\", args: { message: \"ship it?\" } }
+  after_gate:
+    with: { ok: \"${{ tasks.gate.output }}\" }
+    infer:
+      prompt: \"the gate said ${{ with.ok }}\"
+      max_tokens: 256
+";
+
+impl Rig {
+    fn write(&self, name: &str, body: &str) {
+        std::fs::write(self.root.join("work").join(name), body).expect("workflow");
+    }
+
+    /// The machine loses its seat between the pause and the resume.
+    fn drop_codex(&self) {
+        for bin in ["codex", "codex-acp"] {
+            std::fs::remove_file(self.root.join("bin").join(bin)).expect("fake removed");
+        }
+    }
+
+    /// The newest trace the project wrote (`.nika/traces/<ts>-<id>.ndjson`).
+    fn newest_trace(&self) -> String {
+        let dir = self.root.join("work").join(".nika").join("traces");
+        let mut names: Vec<String> = std::fs::read_dir(&dir)
+            .expect("traces dir")
+            .filter_map(Result::ok)
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(".ndjson"))
+            .collect();
+        names.sort();
+        let last = names.pop().expect("one trace");
+        dir.join(last).to_string_lossy().into_owned()
+    }
+
+    /// Run the gated workflow up to its pause on the seat; the trace path.
+    fn pause_on_the_seat(&self) -> String {
+        self.write("gate.nika.yaml", GATED);
+        let out = self.nika(&["run", "gate.nika.yaml", "--max-cost-usd", "1"], true);
+        assert_eq!(
+            out.status.code(),
+            Some(4),
+            "the gate pauses the seated run\nstdout: {}\nstderr: {}",
+            text(&out.stdout),
+            text(&out.stderr)
+        );
+        self.newest_trace()
+    }
+}
+
+/// « Resume cannot switch access silently » (the one-door pack): the
+/// trace rode `codex`; the machine lost its seat and now resolves the
+/// API path for the same model — a flag-less resume refuses, naming
+/// both paths and the two explicit flags. Nothing is dialed.
+#[test]
+fn resume_cannot_switch_access_silently() {
+    let rig = Rig::new("resume-switch", true);
+    let trace = rig.pause_on_the_seat();
+    rig.drop_codex();
+    let out = rig.nika(
+        &[
+            "run",
+            "gate.nika.yaml",
+            "--resume",
+            &trace,
+            "--answer",
+            "gate=yes",
+            "--max-cost-usd",
+            "1",
+        ],
+        true,
+    );
+    let stdout = text(&out.stdout);
+    let stderr = text(&out.stderr);
+    assert_eq!(
+        out.status.code(),
+        Some(3),
+        "an environment refusal\nstdout: {stdout}\nstderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("ran `openai/gpt-5.2` on `codex`")
+            && stderr.contains("now resolves `openai`")
+            && stderr.contains("--access codex")
+            && stderr.contains("--access api"),
+        "the refusal names both paths and both flags: {stderr}"
+    );
+    assert!(
+        !stdout.contains("127.0.0.1:9") && !stderr.contains("127.0.0.1:9"),
+        "nothing was dialed\nstdout: {stdout}\nstderr: {stderr}"
+    );
+}
+
+/// The explicit `--access api` NAMES the change: the resume proceeds
+/// with a notice, the seated task's cached output is not served on the
+/// other path (its lane joined the identity), and the API path is what
+/// runs — and fails honestly on the dead key.
+#[test]
+fn an_explicit_pin_declares_the_access_change_on_resume() {
+    let rig = Rig::new("resume-declare", true);
+    let trace = rig.pause_on_the_seat();
+    rig.drop_codex();
+    let out = rig.nika(
+        &[
+            "run",
+            "gate.nika.yaml",
+            "--resume",
+            &trace,
+            "--answer",
+            "gate=yes",
+            "--access",
+            "api",
+            "--max-cost-usd",
+            "1",
+        ],
+        true,
+    );
+    let stdout = text(&out.stdout);
+    let stderr = text(&out.stderr);
+    assert!(
+        stderr.contains("access change declared")
+            && stderr.contains("on `codex`")
+            && stderr.contains("on `openai`"),
+        "the change is noticed, never silent: {stderr}"
+    );
+    assert!(
+        out.status.code() != Some(3) && out.status.code() != Some(0),
+        "the API path is dialed and fails on the dead key\nstdout: {stdout}\nstderr: {stderr}"
+    );
+    assert!(
+        !stdout.contains("seated-answer") && !stderr.contains("seated-answer"),
+        "the seat's cached answer is not served on the API lane\nstdout: {stdout}\nstderr: {stderr}"
+    );
+}
+
+/// The lane unchanged: the resume serves the seated task from the trace
+/// (no churn in the identity) and runs the rest on the same seat.
+#[test]
+fn a_seated_resume_keeps_its_lane_and_its_cache() {
+    let rig = Rig::new("resume-keep", true);
+    let trace = rig.pause_on_the_seat();
+    let out = rig.nika(
+        &[
+            "run",
+            "gate.nika.yaml",
+            "--resume",
+            &trace,
+            "--answer",
+            "gate=yes",
+            "--json",
+            "--max-cost-usd",
+            "1",
+        ],
+        true,
+    );
+    let stdout = text(&out.stdout);
+    let stderr = text(&out.stderr);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the resumed run completes on the seat\nstdout: {stdout}\nstderr: {stderr}"
+    );
+    assert!(
+        !stderr.contains("access change"),
+        "no change, no notice: {stderr}"
+    );
+    assert!(
+        stdout.contains("\"kind\":\"task_cache_hit\""),
+        "the seated task is served from the trace: {stdout}"
+    );
+    let fields = frame_fields_of(&stdout, "task_completed", Some("after_gate"));
+    assert_eq!(
+        field(&fields, "access_id").and_then(serde_json::Value::as_str),
+        Some("codex"),
+        "the leg after the gate rides the same seat: {fields:?}"
     );
 }
