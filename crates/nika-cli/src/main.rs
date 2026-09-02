@@ -13,6 +13,7 @@
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
+mod arms;
 mod init_args;
 mod lazy;
 mod model_args;
@@ -26,8 +27,9 @@ use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled
 use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
 use nika_cli::verbs::{self, VerbOutput};
 
+use arms::{check_arm, inspect_arm, test_arm};
 use init_args::{InitArgs, init_verb};
-use lazy::{check_lazy, resolve_lazy_target, run_lazy};
+use lazy::run_lazy;
 pub(crate) use nika_cli_host::help_card;
 
 #[derive(Parser)]
@@ -151,6 +153,14 @@ enum Command {
         /// headless default (repeatable `TASK=VALUE`).
         #[arg(long, value_name = "TASK=VALUE", action = clap::ArgAction::Append)]
         answer: Vec<String>,
+        /// Bind an input for THIS case (repeatable `KEY=VALUE` · the same
+        /// door as `run --var`); needs `--case` so the golden has a name.
+        #[arg(long, value_name = "KEY=VALUE", action = clap::ArgAction::Append)]
+        var: Vec<String>,
+        /// Name the case: the golden pins as `<file>.<NAME>.golden.json`,
+        /// so one workflow carries a whole rule table (#1400).
+        #[arg(long, value_name = "NAME")]
+        case: Option<String>,
     },
     /// Static anatomy: tasks · verbs · wave groups · cost · permits —
     /// and the ONE graph projector (`--format json|mermaid|dot` for the
@@ -808,65 +818,6 @@ fn real_main() -> std::process::ExitCode {
     std::process::ExitCode::from(code)
 }
 
-/// The check arm's plumbing — folded out of the dispatch so the seam
-/// stays one line per verb.
-#[allow(
-    clippy::fn_params_excessive_bools,
-    clippy::too_many_arguments,
-    clippy::needless_pass_by_value
-)]
-/// The `test` arm — resolve the lazy target, then run the goldens.
-fn test_arm(file: Option<String>, update: bool, answer: &[String], plain_theme: Theme) -> u8 {
-    match resolve_lazy_target(file, "test") {
-        Ok(file) => verbs::test::run_with_answers(&file, update, answer, plain_theme),
-        Err(code) => code,
-    }
-}
-
-/// The `inspect` arm — the one graph projector behind `--format`.
-fn inspect_arm(file: &str, format: Option<verbs::graph::GraphFormatArg>, plain_theme: Theme) -> u8 {
-    match format {
-        Some(f) => emit(&verbs::graph::run(file, f.into(), plain_theme)),
-        None => emit(&verbs::inspect::run(file, plain_theme)),
-    }
-}
-
-fn check_arm(args: verbs::check::CheckArgs, plain_theme: Theme) -> u8 {
-    if args.sdk_snapshot {
-        let output = match args.files.as_slice() {
-            [file]
-                if args.json
-                    && !args.fix
-                    && !args.infer_permits
-                    && !args.native_strict
-                    && args.profile == verbs::check::Profile::Advisory
-                    && args.model.is_none() =>
-            {
-                verbs::check::run_snapshot_export(file, interactive_theme(plain_theme))
-            }
-            _ => verbs::VerbOutput {
-                text: "check: --sdk-snapshot requires exactly one file and --json, with no other check overrides\n"
-                    .to_owned(),
-                code: verbs::exit::ENV,
-            },
-        };
-        return emit(&output);
-    }
-    let flags = verbs::check::CheckFlags {
-        json: args.json,
-        infer_permits: args.infer_permits,
-        native_strict: args.native_strict,
-        profile: args.profile,
-    };
-    check_lazy(
-        args.files,
-        &flags,
-        args.fix,
-        args.model.as_deref(),
-        interactive_theme(plain_theme),
-    )
-}
-
 /// One arm per subcommand — the dispatch seam `main` hands to.
 fn dispatch_verb(
     command: Command,
@@ -884,7 +835,9 @@ fn dispatch_verb(
             file,
             update,
             answer,
-        } => test_arm(file, update, &answer, plain_theme),
+            var,
+            case,
+        } => test_arm(file, update, &answer, (&var, case.as_deref()), plain_theme),
         Command::Inspect { file, format } => inspect_arm(&file, format, plain_theme),
         Command::Welcome { json, deep } => mirror_verb(json, deep, plain_theme),
         Command::Explain {

@@ -2591,6 +2591,39 @@ pub type nika_cli_host::source::RunSource::Output = T
 pub mod nika_cli_host::text
 pub fn nika_cli_host::text::count(n: usize, noun: &str) -> alloc::string::String
 pub fn nika_cli_host::text::usd(amount: f64) -> alloc::string::String
+pub mod nika_cli_host::var_inputs
+pub struct nika_cli_host::var_inputs::ValidatedInputs
+pub nika_cli_host::var_inputs::ValidatedInputs::origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>
+pub nika_cli_host::var_inputs::ValidatedInputs::values: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+impl core::fmt::Debug for nika_cli_host::var_inputs::ValidatedInputs
+pub fn nika_cli_host::var_inputs::ValidatedInputs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli_host::var_inputs::ValidatedInputs
+impl<T, U> core::convert::Into<U> for nika_cli_host::var_inputs::ValidatedInputs where U: core::convert::From<T>
+pub fn nika_cli_host::var_inputs::ValidatedInputs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::var_inputs::ValidatedInputs where U: core::convert::Into<T>
+pub type nika_cli_host::var_inputs::ValidatedInputs::Error = core::convert::Infallible
+pub fn nika_cli_host::var_inputs::ValidatedInputs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::var_inputs::ValidatedInputs where U: core::convert::TryFrom<T>
+pub type nika_cli_host::var_inputs::ValidatedInputs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::var_inputs::ValidatedInputs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::var_inputs::ValidatedInputs where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::var_inputs::ValidatedInputs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::var_inputs::ValidatedInputs where T: ?core::marker::Sized
+pub fn nika_cli_host::var_inputs::ValidatedInputs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::var_inputs::ValidatedInputs where T: ?core::marker::Sized
+pub fn nika_cli_host::var_inputs::ValidatedInputs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::var_inputs::ValidatedInputs
+pub fn nika_cli_host::var_inputs::ValidatedInputs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::var_inputs::ValidatedInputs where T: 'static
+pub fn nika_cli_host::var_inputs::ValidatedInputs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::var_inputs::ValidatedInputs where T: ?core::marker::Sized
+pub fn nika_cli_host::var_inputs::ValidatedInputs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::var_inputs::ValidatedInputs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::var_inputs::ValidatedInputs
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::var_inputs::ValidatedInputs
+impl<T> typenum::type_operators::Same for nika_cli_host::var_inputs::ValidatedInputs
+pub type nika_cli_host::var_inputs::ValidatedInputs::Output = T
+pub fn nika_cli_host::var_inputs::parse_var_overrides(pairs: &[alloc::string::String], wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_cli_host::var_inputs::ValidatedInputs, alloc::string::String>
 pub mod nika_cli_host::welcome
 pub const nika_cli_host::welcome::SAMPLE: &str
 pub fn nika_cli_host::welcome::first_wow_dest(dest: core::option::Option<&str>) -> &str

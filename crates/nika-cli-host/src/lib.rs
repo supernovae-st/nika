@@ -43,5 +43,6 @@ pub mod retention;
 pub mod run_settlement;
 pub mod source;
 pub mod text;
+pub mod var_inputs;
 pub mod welcome;
 pub mod wire;
