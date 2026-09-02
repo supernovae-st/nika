@@ -108,6 +108,7 @@ pub fn trace_verb(
             anchored,
             sealed,
             replay,
+            json,
         } => verify_verb(
             traces,
             &trace_verify::VerifyOptions {
@@ -115,6 +116,7 @@ pub fn trace_verb(
                 anchored,
                 sealed,
                 replay,
+                json,
             },
         ),
         trace::TraceAction::Anchor {

@@ -61,6 +61,10 @@ use nika_dap::anchor::tier;
 
 use super::VerbOutput;
 
+mod json;
+pub use json::VERIFY_VERSION;
+use json::{finish, ladder_doc};
+
 /// The verify surface's knobs — the tier ladder's explicit asks.
 #[derive(Clone, Debug, Default)]
 pub struct VerifyOptions {
@@ -76,6 +80,11 @@ pub struct VerifyOptions {
     pub sealed: bool,
     /// A fresh journal of the same workflow for the REPLAYED tier.
     pub replay: Option<PathBuf>,
+    /// One JSON document instead of the prose ladder (#1405 · `--json`):
+    /// the attained tier, the exit class, the chain facts, one object
+    /// per leg, and the ladder lines — so a CI gate on « at least
+    /// SEALED » is a field read, never a grep on prose.
+    pub json: bool,
 }
 
 /// `nika trace verify <trace>` — today's byte-stable surface: the
@@ -91,23 +100,11 @@ pub fn verify(trace: &str) -> VerbOutput {
 pub fn verify_with(trace: &str, opts: &VerifyOptions) -> VerbOutput {
     let candidates = match crate::seal::candidate_pubkeys(opts.key.as_deref()) {
         Ok(candidates) => candidates,
-        Err(e) => return VerbOutput::env(e),
+        Err(e) => return finish(opts, trace, "refused", VerbOutput::env(e)),
     };
-    // NEP-0012 law 1 · the journal is untrusted input: bound the total
-    // read BEFORE it happens (the per-line cap rides `chain.rs` · this
-    // is the whole-file half).
-    if let Ok(meta) = std::fs::metadata(trace)
-        && meta.len() > nika_dap::bounded::MAX_JOURNAL_BYTES as u64
-    {
-        return VerbOutput::env(format!(
-            "{trace}: {} bytes — over the journal bound ({} bytes · NEP-0012 law 1 · a file beyond it is not a run this engine produced)",
-            meta.len(),
-            nika_dap::bounded::MAX_JOURNAL_BYTES
-        ));
-    }
-    let raw = match std::fs::read_to_string(trace) {
+    let raw = match read_journal(trace, opts) {
         Ok(raw) => raw,
-        Err(e) => return VerbOutput::env(format!("cannot read {trace}: {e}")),
+        Err(refusal) => return refusal,
     };
     match walk(&raw) {
         Verdict::Intact { events, head, .. } => tiered(
@@ -142,32 +139,91 @@ pub fn verify_with(trace: &str, opts: &VerifyOptions) -> VerbOutput {
             recorded,
             computed,
             ..
-        } => VerbOutput::file(format!(
-            "BROKEN at line {line} — recorded chain {} · computed {}\n  every line from here on is unverified (edited, inserted, dropped or reordered)",
-            short(&recorded),
-            short(&computed),
-        )),
+        } => finish(
+            opts,
+            trace,
+            "broken",
+            VerbOutput::file(format!(
+                "BROKEN at line {line} — recorded chain {} · computed {}\n  every line from here on is unverified (edited, inserted, dropped or reordered)",
+                short(&recorded),
+                short(&computed),
+            )),
+        ),
         // F-P1 · the fortress line bound: beyond the verifier's bounds
         // is a FILE refusal (a 100 MB line is a DoS vector, never a
         // journal line — recognized, never partially read).
-        Verdict::LineOverLong { line, got, .. } => VerbOutput::file(format!(
-            "line {line} is {got} bytes — beyond the verifier's line bound ({} bytes)\n  a journal line is small (the seal's covers included); an oversized line is\n  the DoS class, refused before any parse (F-P1)",
-            nika_dap::chain::MAX_LINE_BYTES,
-        )),
-        Verdict::Unchained => VerbOutput::env(format!(
-            "unchained — {trace} predates the chain (pre-0.96 journal): nothing to verify, nothing to distrust"
-        )),
-        Verdict::Empty => VerbOutput::env(format!("{trace}: no events")),
-        Verdict::Unreadable { line, .. } => VerbOutput::env(format!(
-            "{trace}:{line}: not a journal — the line is not valid JSON"
-        )),
+        Verdict::LineOverLong { line, got, .. } => finish(
+            opts,
+            trace,
+            "line-over-long",
+            VerbOutput::file(format!(
+                "line {line} is {got} bytes — beyond the verifier's line bound ({} bytes)\n  a journal line is small (the seal's covers included); an oversized line is\n  the DoS class, refused before any parse (F-P1)",
+                nika_dap::chain::MAX_LINE_BYTES,
+            )),
+        ),
+        Verdict::Unchained => finish(
+            opts,
+            trace,
+            "unchained",
+            VerbOutput::env(format!(
+                "unchained — {trace} predates the chain (pre-0.96 journal): nothing to verify, nothing to distrust"
+            )),
+        ),
+        Verdict::Empty => finish(
+            opts,
+            trace,
+            "empty",
+            VerbOutput::env(format!("{trace}: no events")),
+        ),
+        Verdict::Unreadable { line, .. } => finish(
+            opts,
+            trace,
+            "unreadable",
+            VerbOutput::env(format!(
+                "{trace}:{line}: not a journal — the line is not valid JSON"
+            )),
+        ),
         // The verdict is #[non_exhaustive]: a NEWER forensics crate may
         // learn classes this CLI cannot render — refuse honestly,
         // never mis-render one.
-        _ => VerbOutput::env(format!(
-            "{trace}: unknown verdict class — the forensics library is newer than this CLI"
-        )),
+        _ => finish(
+            opts,
+            trace,
+            "unknown",
+            VerbOutput::env(format!(
+                "{trace}: unknown verdict class — the forensics library is newer than this CLI"
+            )),
+        ),
     }
+}
+
+/// The bounded read of one journal. NEP-0012 law 1 · the journal is
+/// untrusted input: bound the total read BEFORE it happens (the per-line
+/// cap rides `chain.rs` · this is the whole-file half). A refusal is
+/// already the verb's output (the `--json` envelope included).
+fn read_journal(trace: &str, opts: &VerifyOptions) -> Result<String, VerbOutput> {
+    if let Ok(meta) = std::fs::metadata(trace)
+        && meta.len() > nika_dap::bounded::MAX_JOURNAL_BYTES as u64
+    {
+        return Err(finish(
+            opts,
+            trace,
+            "refused",
+            VerbOutput::env(format!(
+                "{trace}: {} bytes — over the journal bound ({} bytes · NEP-0012 law 1 · a file beyond it is not a run this engine produced)",
+                meta.len(),
+                nika_dap::bounded::MAX_JOURNAL_BYTES
+            )),
+        ));
+    }
+    std::fs::read_to_string(trace).map_err(|e| {
+        finish(
+            opts,
+            trace,
+            "unreadable",
+            VerbOutput::env(format!("cannot read {trace}: {e}")),
+        )
+    })
 }
 
 /// The variadic form (`nika trace verify .nika/traces/*.ndjson` — the
@@ -189,6 +245,13 @@ pub fn verify_many_with(traces: &[std::path::PathBuf], opts: &VerifyOptions) -> 
     for path in traces {
         let resolved = super::trace::manage::resolve_store_handle(path);
         let out = verify_with(&resolved.to_string_lossy(), opts);
+        worst = worst.max(out.code);
+        // `--json`: one document per trace, one per line (NDJSON) — each
+        // already names its `trace`, so no prose header rides above it.
+        if opts.json {
+            blocks.push(format!("{}\n", out.text.trim_end()));
+            continue;
+        }
         let mut block = format!("{}\n", resolved.display());
         for line in out.text.lines() {
             block.push_str("  ");
@@ -196,10 +259,13 @@ pub fn verify_many_with(traces: &[std::path::PathBuf], opts: &VerifyOptions) -> 
             block.push('\n');
         }
         blocks.push(block);
-        worst = worst.max(out.code);
     }
     VerbOutput {
-        text: blocks.join("\n"),
+        text: if opts.json {
+            blocks.concat()
+        } else {
+            blocks.join("\n")
+        },
         code: worst,
     }
 }
@@ -291,7 +357,12 @@ fn tiered(
     // a plain « OK · chain intact ». Both readings pointed away from the
     // tampering; the class states itself here (the ladder lines carry why).
     if let tier::SealTier::Buried { .. } = report.seal {
-        return tampered_verdict(events, head, &report.lines);
+        return finish(
+            opts,
+            trace,
+            "buried-seal",
+            tampered_verdict(events, head, &report.lines),
+        );
     }
     let mut out = match headline {
         ChainHeadline::Torn => format!(
@@ -309,13 +380,11 @@ fn tiered(
             "INCOMPLETE — {events} events · chain intact · head {head}\n  the journal never reached a terminal frame (no workflow_completed · workflow_failed ·\n  workflow_paused · workflow_cancelled · run_sealed) — the run was killed or crashed:\n  the chain attests every complete line; the lifecycle end is unattested, a finding\n  the verifier carries (the dying run can attest nothing)"
         ),
     };
-    for line in &report.lines {
-        use std::fmt::Write as _;
-        let _ = write!(out, "\n{line}");
-    }
+    // Every ladder line is collected once: the prose appends them, the
+    // JSON projection carries them under `lines`.
+    let mut lines: Vec<String> = report.lines.clone();
     if let Some(finding) = witness_finding(raw) {
-        use std::fmt::Write as _;
-        let _ = write!(out, "\n{finding}");
+        lines.push(finding.to_owned());
     }
     // F-P18 · the cost-replay leg (NEP-0017 · la table de prix DANS le
     // pin): a SCOPED STATED VERDICT — it rides after the ladder and the
@@ -332,10 +401,7 @@ fn tiered(
             snapshot.source_sha256_16,
         ),
     );
-    for line in &leg.lines {
-        use std::fmt::Write as _;
-        let _ = write!(out, "\n{line}");
-    }
+    lines.extend(leg.lines.iter().cloned());
     let code = match report.exit {
         tier::TierExit::Ok => super::exit::OK,
         tier::TierExit::File => super::exit::FILE,
@@ -343,6 +409,19 @@ fn tiered(
         // an era answer (ENV), never a guessed forgery.
         _ => super::exit::ENV,
     };
+    if opts.json {
+        return VerbOutput {
+            text: format!(
+                "{}\n",
+                ladder_doc(trace, events, head, headline, &report, code, &lines)
+            ),
+            code,
+        };
+    }
+    for line in &lines {
+        use std::fmt::Write as _;
+        let _ = write!(out, "\n{line}");
+    }
     VerbOutput { text: out, code }
 }
 
@@ -531,6 +610,7 @@ mod tests {
 
     fn opts_with_key(key: std::path::PathBuf) -> VerifyOptions {
         VerifyOptions {
+            json: false,
             key: Some(key),
             ..VerifyOptions::default()
         }
@@ -823,6 +903,86 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// #1405 — `--json` projects the ladder the prose prints: the
+    /// attained tier as a field, the exit class, one object per leg, and
+    /// the lines. A CI gate on « at least SEALED » reads `tier`.
+    #[test]
+    fn verify_json_projects_the_ladder_of_the_frozen_fixture() {
+        let dir = std::env::temp_dir().join(format!("nika-a4-json-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let trace = dir.join("fixture.ndjson");
+        std::fs::write(&trace, FIXTURE_JOURNAL).expect("journal");
+        std::fs::write(
+            crate::anchor::sidecar_path(&trace.to_string_lossy()),
+            FIXTURE_SIDECAR,
+        )
+        .expect("sidecar");
+        let key = dir.join("run.pub");
+        std::fs::write(&key, FIXTURE_PUBLIC_BOX).expect("key");
+        let mut opts = opts_with_key(key);
+        opts.json = true;
+
+        let out = verify_with(&trace.to_string_lossy(), &opts);
+        assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
+        let doc: serde_json::Value = serde_json::from_str(out.text.trim()).expect("one document");
+        assert_eq!(doc["verify_version"], 1);
+        assert_eq!(doc["tier"], "anchored", "{doc}");
+        assert_eq!(doc["exit"], 0);
+        assert_eq!(doc["chain"]["headline"], "intact");
+        assert_eq!(doc["seal"]["tier"], "sealed");
+        assert_eq!(doc["seal"]["key_id"], "1e772a7b922d7be3");
+        assert_eq!(doc["anchor"]["tier"], "anchored");
+        assert_eq!(doc["anchor"]["log_index"], "34612959");
+        assert_eq!(doc["replay"]["tier"], "not-asked");
+        assert!(
+            doc["lines"].as_array().is_some_and(|l| l
+                .iter()
+                .any(|x| { x.as_str().is_some_and(|s| s.starts_with("SEALED")) })),
+            "the prose ladder rides `lines`: {doc}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1405 — the non-ladder verdicts project too: a broken chain is
+    /// `tier: broken` at the FILE exit, and several traces are NDJSON.
+    #[test]
+    fn verify_json_names_a_broken_chain_and_streams_many() {
+        let intact = stage(
+            "json-intact.ndjson",
+            &chained(&["workflow_started", "workflow_completed"]),
+        );
+        let mut tampered_raw =
+            chained(&["workflow_started", "task_completed", "workflow_completed"]);
+        tampered_raw = tampered_raw.replacen("task_completed", "task_failedxx", 1);
+        let tampered = stage("json-tampered.ndjson", &tampered_raw);
+        let opts = VerifyOptions {
+            json: true,
+            ..VerifyOptions::default()
+        };
+        let one = verify_with(&tampered.to_string_lossy(), &opts);
+        assert_eq!(one.code, super::super::exit::FILE);
+        let doc: serde_json::Value = serde_json::from_str(one.text.trim()).expect("document");
+        assert_eq!(doc["tier"], "broken", "{doc}");
+        assert_eq!(doc["exit"], 2);
+        assert!(
+            doc["lines"][0]
+                .as_str()
+                .is_some_and(|s| s.starts_with("BROKEN at line")),
+            "{doc}"
+        );
+
+        let many = verify_many_with(&[intact, tampered], &opts);
+        assert_eq!(many.code, super::super::exit::FILE);
+        let docs: Vec<serde_json::Value> = many
+            .text
+            .lines()
+            .map(|l| serde_json::from_str(l).expect("each line is a document"))
+            .collect();
+        assert_eq!(docs.len(), 2, "one document per trace: {}", many.text);
+        assert_eq!(docs[0]["tier"], "ok");
+        assert_eq!(docs[1]["tier"], "broken");
+    }
+
     /// Tier demotion honesty: a forged anchor over a GOOD seal reports
     /// SEALED, never ANCHORED — and is the FILE (forgery) class.
     #[test]
@@ -857,6 +1017,7 @@ mod tests {
         let trace = stage("required.ndjson", &journal);
         let key = stage_key("required.pub", &pk_box);
         let opts = VerifyOptions {
+            json: false,
             key: Some(key.clone()),
             anchored: true,
             sealed: false,
@@ -879,6 +1040,7 @@ mod tests {
         let journal = chained_with(&[("workflow_completed", &[])]);
         let trace = stage("unsealed-required.ndjson", &journal);
         let opts = VerifyOptions {
+            json: false,
             key: None,
             anchored: true,
             sealed: false,
@@ -902,6 +1064,7 @@ mod tests {
         let key = dir.join("run.pub");
         std::fs::write(&key, FIXTURE_PUBLIC_BOX).expect("key");
         let opts = VerifyOptions {
+            json: false,
             key: Some(key),
             anchored: false,
             sealed: false,
@@ -1229,6 +1392,7 @@ mod tests {
         let journal = chained_with(&[("workflow_completed", &[])]);
         let trace = stage("unsealed-seal-required.ndjson", &journal);
         let opts = VerifyOptions {
+            json: false,
             key: None,
             anchored: false,
             sealed: true,
@@ -1250,6 +1414,7 @@ mod tests {
         let trace = stage("sealed-required.ndjson", &journal);
         let key = stage_key("sealed-required.pub", &pk_box);
         let opts = VerifyOptions {
+            json: false,
             key: Some(key.clone()),
             anchored: false,
             sealed: true,

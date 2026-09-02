@@ -810,3 +810,25 @@ fn models_rung_makes_no_claim_over_a_defaultless_run_time_model() {
 /// the exit code must agree (the review-swarm untested-branch gap).
 #[cfg(test)]
 mod verdict_profiles;
+
+/// #1404 — `check --help` carries its exit contract: CI branches on the
+/// code alone, and the FILE/ENVIRONMENT split is spoken (a missing file
+/// is 3, a grammar refusal or findings are 2).
+#[test]
+fn the_check_help_carries_the_exit_contract() {
+    use clap::Args as _;
+    let help = CheckArgs::augment_args(clap::Command::new("check"))
+        .render_long_help()
+        .to_string();
+    assert!(help.contains("exit codes"), "{help}");
+    assert!(
+        help.contains("0 the report holds")
+            && help.contains("2 the FILE")
+            && help.contains("3 the ENVIRONMENT"),
+        "the three classes check can exit with: {help}"
+    );
+    assert!(
+        help.contains("never 1 or 4"),
+        "the run-only classes are named as such: {help}"
+    );
+}

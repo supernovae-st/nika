@@ -140,7 +140,7 @@ enum Command {
     Run(RunArgs),
     /// Golden test: run under the MOCK provider (offline · deterministic)
     /// and compare the typed `outputs:` against `<file>.golden.json`.
-    #[command(hide = true, display_order = 21)]
+    #[command(hide = true, display_order = 21, after_help = help_card::TEST_EXITS)]
     Test {
         /// Workflow file (`*.nika.yaml`).
         file: Option<String>,

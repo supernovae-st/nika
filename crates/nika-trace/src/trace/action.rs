@@ -105,6 +105,11 @@ pub enum TraceAction {
         /// line) is exit 3 (a forged seal is exit 2 either way).
         #[arg(long)]
         sealed: bool,
+        /// One JSON document instead of the prose ladder (`verify_version`
+        /// 1 · `tier` · `exit` · `chain` · `seal` · `anchor` · `replay` ·
+        /// `lines`) — one document per line when several traces are named.
+        #[arg(long)]
+        json: bool,
         /// The REPLAYED tier: a FRESH journal of the same workflow to
         /// compare against (verify never re-executes).
         #[arg(long)]

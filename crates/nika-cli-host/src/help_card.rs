@@ -11,6 +11,15 @@ use std::path::Path;
 /// Clap `--help --all` footer · issue 1274: the only non-mock path.
 pub const AFTER_HELP: &str = "a REAL answer needs exactly one of { an API key · a signed-in harness seat (`--access`) · the Gear One pull (`nika model pull`) } — everything else is a mock rehearsal (the run says so out loud) · nika --help --all  the rest of the surface";
 
+/// `nika check --help` footer (#1404): the base exit contract, so CI
+/// can branch on the code alone. The house taxonomy (spec §4 · LOCKED):
+/// 0 the report holds · 1 a workflow ran and failed (`run` only) · 2 the
+/// FILE · 3 the ENVIRONMENT · 4 paused on a human gate (`run` only).
+pub const CHECK_EXITS: &str = "exit codes · 0 the report holds (clean) · 2 the FILE: a grammar refusal or findings (`--json` carries `kind` to tell them apart) · 3 the ENVIRONMENT: the file is missing or unreadable, a registry is unreachable, a flag is misused · never 1 or 4 (those are `run`'s: a failed workflow · a paused gate) · `--profile operational` folds risk ≥ High into 2";
+
+/// `nika test --help` footer (#1404): the golden test's exit ladder.
+pub const TEST_EXITS: &str = "exit codes · 0 the golden matches · 1 the mock run failed or the outputs drifted from the golden · 2 the FILE has findings (`check` dirty) · 3 no golden yet (`--update` writes one) or the file is missing";
+
 /// Human default help · B67 postcard, now naming the two first-run doors
 /// (`try` · `new`), glossing `permits`, and documenting isolation.
 #[must_use]
