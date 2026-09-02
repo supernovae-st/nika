@@ -1182,7 +1182,11 @@ fn fold_lane_verdict(
     let teardown = attended_facts(wf, report, outcome, trace.path());
     let trace_path = match surfaced_trace(surface_trace(
         trace,
-        if matches!(mode, RenderMode::Quiet | RenderMode::Thread) {
+        // The thread prints the trace note too (nika#1385): a `/run`
+        // inside the conversation is a real run, and its journal line is
+        // the accountability the human can act on. A journal-less turn
+        // surfaces no path, so nothing is claimed.
+        if matches!(mode, RenderMode::Quiet) {
             TraceNote::Silent
         } else {
             TraceNote::Stdout

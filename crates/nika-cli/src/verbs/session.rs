@@ -20,7 +20,7 @@ const HELP: &str = "text                 talk in this thread\n\
 /model provider/model choose the thread model\n\
 /list                list workflows below here\n\
 /workflow <path>     post a workflow card\n\
-/run <path>          run a workflow in this thread\n\
+/run <path>          run a workflow here · journaled like nika run\n\
 /quit                close the thread\n";
 const HISTORY_LIMIT: usize = 12;
 static TURN_ID: AtomicU64 = AtomicU64::new(0);
@@ -64,7 +64,7 @@ impl ThreadRuntime for LiveRuntime {
             eprintln!("nika: cannot stage thread turn: {error}");
             return Turn::answered(String::new());
         }
-        let result = super::run::run_in_thread(&path.to_string_lossy(), theme);
+        let result = super::run::run_in_thread(&path.to_string_lossy(), theme, false);
         let _ = std::fs::remove_file(path);
         if result.interrupted {
             Turn::interrupted()
@@ -78,7 +78,7 @@ impl ThreadRuntime for LiveRuntime {
     }
 
     fn run_workflow(&mut self, path: &str, theme: Theme) -> Turn {
-        let result = super::run::run_in_thread(path, theme);
+        let result = super::run::run_in_thread(path, theme, true);
         if result.interrupted {
             Turn::interrupted()
         } else {

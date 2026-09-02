@@ -13,7 +13,13 @@ pub(crate) struct ThreadRun {
     pub(crate) interrupted: bool,
 }
 
-pub(crate) fn run_in_thread(file: &str, theme: Theme) -> ThreadRun {
+/// Run a workflow from the thread. `journal` decides whether the run
+/// leaves its hash-chained trace under `.nika/traces/` the way `nika run`
+/// does: a `/run <path>` the human asked for is a real run and MUST
+/// (nika#1385 · the thread used to strip the accountability layer: no
+/// trace, no cost line, no seal); a staged conversational turn is the
+/// thread's own scratch and leaves none.
+pub(crate) fn run_in_thread(file: &str, theme: Theme, journal: bool) -> ThreadRun {
     let verdict = run_verdict(
         file,
         false,
@@ -25,7 +31,7 @@ pub(crate) fn run_in_thread(file: &str, theme: Theme) -> ThreadRun {
         None,
         &[],
         None,
-        true,
+        !journal, // no_trace_file
         None,
         false,
         None,
