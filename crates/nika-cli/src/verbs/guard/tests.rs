@@ -166,6 +166,17 @@ fn indirection_cases(sb: &str) -> Vec<Row> {
             Want::Unavailable("no workflow"),
         ),
         ("nika run".to_owned(), "multi", Want::Unavailable("several")),
+        // `--help` prints and exits — allowed everywhere, file or no file,
+        // one workflow or many (the guard never stands between a user and
+        // the flag reference · measured by three personas 2026-09-02).
+        ("nika run --help".to_owned(), "multi", Want::Allow),
+        ("nika run -h".to_owned(), "empty", Want::Allow),
+        ("nika run --version".to_owned(), "multi", Want::Allow),
+        (
+            "nika run bad.nika.yaml --help".to_owned(),
+            "sole_bad",
+            Want::Allow,
+        ),
         (
             "cd $SOMEWHERE && nika run bad.nika.yaml".to_owned(),
             "empty",
