@@ -1338,10 +1338,12 @@ pub mod nika_cli_host::machine_truth
 pub struct nika_cli_host::machine_truth::MachineTruth
 pub nika_cli_host::machine_truth::MachineTruth::catalog_entries: usize
 pub nika_cli_host::machine_truth::MachineTruth::cloud_key_slots: usize
+pub nika_cli_host::machine_truth::MachineTruth::local: usize
 pub nika_cli_host::machine_truth::MachineTruth::wired: usize
 impl nika_cli_host::machine_truth::MachineTruth
 pub fn nika_cli_host::machine_truth::MachineTruth::from_probes(probes: &[nika_providers::probe::ProviderProbe]) -> Self
 pub fn nika_cli_host::machine_truth::MachineTruth::from_registry(registry: &nika_providers::registry::ProviderRegistry) -> Self
+pub fn nika_cli_host::machine_truth::MachineTruth::wired_facet(&self) -> alloc::string::String
 impl core::clone::Clone for nika_cli_host::machine_truth::MachineTruth
 pub fn nika_cli_host::machine_truth::MachineTruth::clone(&self) -> nika_cli_host::machine_truth::MachineTruth
 impl core::cmp::Eq for nika_cli_host::machine_truth::MachineTruth

@@ -55,7 +55,8 @@ pub use census::{AccessCensus, AccessPath, SeatFact};
 pub use probe::{KeyAuth, classify_http_status, classify_key_value};
 pub use profile::{
     CANONICAL_IDS, PREFIX_REFUSAL_CODE, Profile, ResolveRefusal, WireFormat, canonical_provider,
-    catalog_warning, resolve_refusal, seed, server_backed_local,
+    catalog_warning, resolve_refusal, seed, server_backed_local, wired_facet,
+    wired_facet_of_this_build,
 };
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};
 #[cfg(feature = "access-harness")]

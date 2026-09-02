@@ -162,8 +162,8 @@ impl Profile {
     }
 }
 
-/// The canonical provider ids, in canon order (10 cloud · 5 local · 1 test).
-pub const CANONICAL_IDS: [&str; 16] = [
+/// The canonical provider ids, in canon order (11 cloud · 5 local · 1 test).
+pub const CANONICAL_IDS: [&str; 17] = [
     "anthropic",
     "openai",
     "gemini",
@@ -174,6 +174,7 @@ pub const CANONICAL_IDS: [&str; 16] = [
     "openrouter",
     "huggingface",
     "nvidia",
+    "moonshot",
     "ollama",
     "lmstudio",
     "llamacpp",
@@ -277,9 +278,9 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
                 ),
                 None => format!(
                     "`{model}` is a bare model id — the contract is `<provider>/<model>` \
-                     (pick the provider that serves it; `nika catalog` names the \
-                     {} runnable providers under LOCAL and CLOUD)",
-                    CANONICAL_IDS.len()
+                     (pick the provider that serves it; `nika catalog` names them under \
+                     LOCAL and CLOUD — {})",
+                    wired_facet_of_this_build()
                 ),
             };
             Some(ResolveRefusal::new(why).with_code(PREFIX_REFUSAL_CODE))
@@ -305,15 +306,15 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
                 .unwrap_or_default();
             let why = format!(
                 "provider `{provider}` does not resolve in THIS binary \
-                 ({} runnable — `nika catalog` names them under LOCAL and \
+                 ({} — `nika catalog` names them under LOCAL and \
                  CLOUD, this one under CATALOG ONLY); a cataloged vendor \
                  is not a runnable one{guess}",
-                CANONICAL_IDS.len()
+                wired_facet_of_this_build()
             );
             let mut refusal = ResolveRefusal::new(why);
             // Spec claim: the prefix is not a known vendor at all.
             // Engine-local: the vendor is cataloged but this binary
-            // cannot drive it (azure · moonshot-until-wired).
+            // cannot drive it (azure).
             if nika_catalog::find_provider(provider).is_none() {
                 refusal = refusal.with_code(PREFIX_REFUSAL_CODE);
             }
@@ -447,7 +448,7 @@ fn pricing_provider_matches(row_provider: &str, query: &str) -> bool {
 /// gemini's `base_url` is a STEM (`…/v1beta`) — the s8.6 adapter appends
 /// `/models/{model}:generateContent` per request (unlike the other wires,
 /// whose `base_url` is the complete endpoint).
-const CATALOG_WIRED: [(&str, WireFormat, &str); 11] = [
+const CATALOG_WIRED: [(&str, WireFormat, &str); 12] = [
     (
         "anthropic",
         WireFormat::Anthropic,
@@ -506,8 +507,38 @@ const CATALOG_WIRED: [(&str, WireFormat, &str); 11] = [
         WireFormat::OpenAiCompat,
         "https://integrate.api.nvidia.com/v1/chat/completions",
     ),
+    // moonshot · Kimi K2 / K2.5 over the international endpoint
+    // (api.moonshot.ai · openai-chat dialect · `MOONSHOT_API_KEY` per the
+    // catalog row). Canonical since the 17-provider canon (#1398: the
+    // canon listed it, the binary refused it as CATALOG ONLY, and three
+    // surfaces printed three provider counts).
+    (
+        "moonshot",
+        WireFormat::OpenAiCompat,
+        "https://api.moonshot.ai/v1/chat/completions",
+    ),
     ("mock", WireFormat::Mock, ""),
 ];
+
+/// ONE sentence for the wired facet, every surface (#1398 — the card said
+/// 15, check said 16, the catalog header 15, the canon 17): `wired` is
+/// what this build can drive without the test lane, `local` the keyless
+/// servers, the cloud count derived, and `mock` named as the plus-one.
+#[must_use]
+pub fn wired_facet(wired: usize, local: usize) -> String {
+    format!(
+        "{wired} wired in this build ({local} local · {} cloud · plus mock)",
+        wired.saturating_sub(local)
+    )
+}
+
+/// The wired facet of THIS build from the canonical table alone (no
+/// probes): the same numbers the registry-derived probes carry, by
+/// construction — both read the tables above.
+#[must_use]
+pub fn wired_facet_of_this_build() -> String {
+    wired_facet(CANONICAL_IDS.len().saturating_sub(1), LOCAL.len())
+}
 
 /// The 5 local OpenAI-compatible servers — endpoints and keyless-ness are
 /// const RUNTIME facts (loopback defaults · operator-overridable); their
@@ -524,10 +555,10 @@ const LOCAL: [(&str, &str); 5] = [
     ("vllm", "http://127.0.0.1:8000/v1/chat/completions"),
 ];
 
-/// Build the canonical 16 profiles (catalog-joined where rows exist).
+/// Build the canonical 17 profiles (catalog-joined where rows exist).
 #[must_use]
 pub fn seed() -> Vec<Profile> {
-    let mut out = Vec::with_capacity(16);
+    let mut out = Vec::with_capacity(CANONICAL_IDS.len());
     for (id, wire, base_url) in CATALOG_WIRED {
         let catalog = nika_catalog::find_provider(id);
         out.push(Profile {
@@ -559,7 +590,14 @@ mod tests {
     fn resolve_refusal_names_the_two_classes_and_clears_the_runnable() {
         // bare id — teaches the contract
         let bare = resolve_refusal("gpt-5-turbo").expect("bare id refused");
-        assert!(bare.why.contains("bare model id") && bare.why.contains("16 runnable"));
+        assert!(
+            bare.why.contains("bare model id")
+                && bare
+                    .why
+                    .contains("16 wired in this build (5 local · 11 cloud · plus mock)"),
+            "{}",
+            bare.why
+        );
         // cataloged-but-unresolvable provider — the azure class
         let azure = resolve_refusal("azure/gpt-4o").expect("azure refused");
         assert!(azure.why.contains("`azure`") && azure.why.contains("not a runnable one"));
@@ -708,9 +746,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn seed_yields_the_canonical_fourteen() {
+    fn seed_yields_the_canonical_seventeen() {
         let profiles = seed();
-        assert_eq!(profiles.len(), 16);
+        assert_eq!(
+            profiles.len(),
+            17,
+            "11 cloud · 5 local · mock (#1398 wired moonshot)"
+        );
+        assert!(
+            profiles
+                .iter()
+                .any(|p| p.id == "moonshot" && p.requires_key),
+            "moonshot is a keyed cloud seat"
+        );
         let mut ids: Vec<&str> = profiles.iter().map(|p| p.id).collect();
         ids.sort_unstable();
         let mut canon = CANONICAL_IDS.to_vec();

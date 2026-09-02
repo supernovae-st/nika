@@ -844,6 +844,14 @@ fn binary_section(
         counts.examples,
         counts.templates
     );
+    // #1398 — the facet's split on its own line (the card keeps its
+    // eighty columns): the same sentence the catalog header and the
+    // check refusal print, so the three surfaces cannot disagree.
+    let _ = writeln!(
+        s,
+        "  {}",
+        nika_providers::wired_facet(counts.locals + counts.clouds, counts.locals)
+    );
     let _ = writeln!(s);
     // The stranger's moment is gated on a COMPLETE zero (P0-4) — a
     // partial scan cannot know the workspace is empty. Chat-only holds
