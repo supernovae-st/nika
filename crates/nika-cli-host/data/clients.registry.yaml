@@ -113,9 +113,9 @@ clients:
     name: Claude Desktop
     class: B
     status: wired
-    install: "one-click .mcpb bundle (release assets) · or nika wire claude-desktop"
+    install: "install the current engine via Homebrew or a verified release archive · then nika wire claude-desktop"
     components: {mcp: wire}
-    class_gap: "no plugin loader · the oracle carries the teaching · .mcpb bundles are the one-click path"
+    class_gap: "no plugin loader · the oracle carries the teaching · historical .mcpb bundles ended at v0.99.0 and are not a current distribution path"
     wire: claude-desktop
     docs: integrations/clients/claude-desktop.mdx
 
