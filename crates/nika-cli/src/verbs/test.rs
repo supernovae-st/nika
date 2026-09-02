@@ -195,17 +195,10 @@ pub fn run_case(
     }
 
     // ── The mock run (simulated plane · offline · deterministic) ──────
-    let inputs = match super::run::inputs::parse_var_overrides(vars, &wf) {
+    let inputs = match bind_inputs(&wf, vars) {
         Ok(inputs) => inputs,
-        Err(message) => {
-            eprintln!("nika test: environment: {message}");
-            return exit::ENV;
-        }
+        Err(code) => return code,
     };
-    if let Some(err) = nika_runtime::required_inputs_refusal(&wf, &inputs.values) {
-        eprintln!("nika test: environment: {err}");
-        return exit::ENV;
-    }
     let (code, outputs) =
         match capture_answered_outputs(&wf, &report, resolved.texts, answer, inputs, theme) {
             Ok(pair) => pair,
@@ -236,12 +229,46 @@ pub fn run_case(
     }
 
     // ── Compare against the golden ───────────────────────────────────
-    let raw = match std::fs::read_to_string(&golden_path) {
+    judge_against_golden(file, &golden_path, &actual, (vars, case), theme)
+}
+
+/// The sibling golden path: the workflow file + `.golden.json` (no
+/// extension surgery — the mapping stays unambiguous for any input name).
+/// Bind the case's inputs through the `run --var` door: the parse, then
+/// the required-inputs refusal — both spoken in this verb's voice.
+fn bind_inputs(
+    wf: &nika_schema::raw::RawWorkflow,
+    vars: &[String],
+) -> Result<super::run::inputs::ValidatedInputs, u8> {
+    let inputs = match super::run::inputs::parse_var_overrides(vars, wf) {
+        Ok(inputs) => inputs,
+        Err(message) => {
+            eprintln!("nika test: environment: {message}");
+            return Err(exit::ENV);
+        }
+    };
+    if let Some(err) = nika_runtime::required_inputs_refusal(wf, &inputs.values) {
+        eprintln!("nika test: environment: {err}");
+        return Err(exit::ENV);
+    }
+    Ok(inputs)
+}
+
+/// Read the golden, compare, and speak the verdict (match · mismatch ·
+/// the no-golden teaching · an unreadable pin).
+fn judge_against_golden(
+    file: &str,
+    golden_path: &str,
+    actual: &Value,
+    (vars, case): (&[String], Option<&str>),
+    theme: Theme,
+) -> u8 {
+    let raw = match std::fs::read_to_string(golden_path) {
         Ok(raw) => raw,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             print!(
                 "{}",
-                missing_golden_hint(file, &golden_path, &case_suffix(vars, case))
+                missing_golden_hint(file, golden_path, &case_suffix(vars, case))
             );
             return exit::ENV;
         }
@@ -262,31 +289,29 @@ pub fn run_case(
         }
     };
 
-    if expected == actual {
+    if &expected == actual {
         // The match verdict says WHAT was pinned, not just that it holds:
         // top-level output keys + the canonical document's byte size.
         let keys = actual.as_object().map_or(0, serde_json::Map::len);
-        let bytes = crate::display::shape::fmt_bytes(canonical_json(&actual).len());
+        let bytes = crate::display::shape::fmt_bytes(canonical_json(actual).len());
         let key_word = if keys == 1 { "key" } else { "keys" };
         println!(
             "{} golden match · {keys} {key_word} · {bytes} {}",
             theme.paint(Role::Good, if theme.ascii { "ok" } else { "✔" }),
             theme.paint(
                 Role::Dim,
-                &format!("· {}", crate::verbs::linked_path(theme, &golden_path)),
+                &format!("· {}", crate::verbs::linked_path(theme, golden_path)),
             )
         );
         return exit::OK;
     }
     print!(
         "{}",
-        render_mismatch(file, &golden_path, &expected, &actual, theme)
+        render_mismatch(file, golden_path, &expected, actual, theme)
     );
     exit::WORKFLOW
 }
 
-/// The sibling golden path: the workflow file + `.golden.json` (no
-/// extension surgery — the mapping stays unambiguous for any input name).
 fn golden_path_of(file: &str) -> String {
     format!("{file}.golden.json")
 }
