@@ -101,6 +101,10 @@ pub enum TraceAction {
         /// forged one is exit 2 either way).
         #[arg(long)]
         anchored: bool,
+        /// Require the seal tier: an UNSEALED journal (no `run_sealed`
+        /// line) is exit 3 (a forged seal is exit 2 either way).
+        #[arg(long)]
+        sealed: bool,
         /// The REPLAYED tier: a FRESH journal of the same workflow to
         /// compare against (verify never re-executes).
         #[arg(long)]

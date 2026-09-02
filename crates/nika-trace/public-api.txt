@@ -781,6 +781,7 @@ pub struct nika_trace::trace_verify::VerifyOptions
 pub nika_trace::trace_verify::VerifyOptions::anchored: bool
 pub nika_trace::trace_verify::VerifyOptions::key: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace_verify::VerifyOptions::replay: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace_verify::VerifyOptions::sealed: bool
 impl core::clone::Clone for nika_trace::trace_verify::VerifyOptions
 pub fn nika_trace::trace_verify::VerifyOptions::clone(&self) -> nika_trace::trace_verify::VerifyOptions
 impl core::default::Default for nika_trace::trace_verify::VerifyOptions

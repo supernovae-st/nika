@@ -20,6 +20,13 @@
 //!   `~/.nika/keys/run-signing.pub` · the `retired.pub` ledger),
 //!   matched by the seal's `key_id` fingerprint. A re-written journal
 //!   now needs the key, not just write access.
+//! - **UNSEALED** — the chain is intact but the journal carries no
+//!   `run_sealed` frame (a keyless run · a run killed before its seal
+//!   · a journal cut after it): stated on its own line, never silent
+//!   (nika#1384 · a cut seal used to leave no mark). The exit stays OK
+//!   (the journal is honestly what it is) unless `--sealed` requires
+//!   the tier — then the missing seal is the ENV failure the operator
+//!   asked for, exactly like `--anchored` with no sidecar.
 //! - **ANCHORED** — SEALED, plus the detached `<trace>.anchor.json`
 //!   sidecar verifies fully OFFLINE: the recomputed head is the one
 //!   the Rekor v2 entry binds (digest + Ed25519ph signature with the
@@ -45,7 +52,8 @@
 //! Exit codes (the house taxonomy): 0 = the reported tier holds ·
 //! 2 (FILE) = broken chain · forged seal · forged anchor · replay
 //! divergence · 3 (ENV) = unchained (a pre-chain journal — stated,
-//! never guessed) · missing input · `--anchored` with no sidecar.
+//! never guessed) · missing input · `--anchored` with no sidecar ·
+//! `--sealed` with no seal.
 
 use std::path::PathBuf;
 
@@ -62,6 +70,10 @@ pub struct VerifyOptions {
     /// Require the anchor tier: a MISSING sidecar becomes the ENV
     /// failure the operator asked for (a broken one is FILE anyway).
     pub anchored: bool,
+    /// Require the seal tier: an UNSEALED journal (no `run_sealed`
+    /// line) becomes the ENV failure the operator asked for — a
+    /// missing seal is a missing input (a forged one is FILE anyway).
+    pub sealed: bool,
     /// A fresh journal of the same workflow for the REPLAYED tier.
     pub replay: Option<PathBuf>,
 }
@@ -268,6 +280,7 @@ fn tiered(
         events,
         head,
         opts.anchored,
+        opts.sealed,
         compared.as_ref(),
         candidates,
     );
@@ -846,6 +859,7 @@ mod tests {
         let opts = VerifyOptions {
             key: Some(key.clone()),
             anchored: true,
+            sealed: false,
             replay: None,
         };
         let out = verify_with(&trace.to_string_lossy(), &opts);
@@ -867,6 +881,7 @@ mod tests {
         let opts = VerifyOptions {
             key: None,
             anchored: true,
+            sealed: false,
             replay: None,
         };
         let out = verify_with(&trace.to_string_lossy(), &opts);
@@ -889,6 +904,7 @@ mod tests {
         let opts = VerifyOptions {
             key: Some(key),
             anchored: false,
+            sealed: false,
             replay: Some(trace.clone()),
         };
         let out = verify_with(&trace.to_string_lossy(), &opts);
@@ -1187,5 +1203,63 @@ mod tests {
             out.text
         );
         assert!(out.text.contains("DIVERGES"), "{}", out.text);
+    }
+
+    /// nika#1384 · an UNSEALED journal names itself. Measured on
+    /// 0.116.2: a journal with its `run_sealed` line cut verified
+    /// « OK · chain intact » with the SEALED line simply gone and the
+    /// same exit as a clean run — the cheapest edit a trace can suffer
+    /// left no mark. The line states the tier; the exit stays OK.
+    #[test]
+    fn an_unsealed_journal_names_itself_and_stays_ok() {
+        let journal = chained_with(&[("workflow_completed", &[])]);
+        let trace = stage("unsealed-named.ndjson", &journal);
+        let out = verify_with(&trace.to_string_lossy(), &VerifyOptions::default());
+        assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
+        assert!(out.text.contains("UNSEALED"), "{}", out.text);
+        assert!(out.text.contains("--sealed"), "{}", out.text);
+        let _ = std::fs::remove_file(trace);
+    }
+
+    /// `--sealed` on an unsealed journal is the ENV refusal `--anchored`
+    /// already gives for a missing sidecar: a required tier that cannot
+    /// be attained, named out loud.
+    #[test]
+    fn a_required_seal_on_an_unsealed_journal_is_env() {
+        let journal = chained_with(&[("workflow_completed", &[])]);
+        let trace = stage("unsealed-seal-required.ndjson", &journal);
+        let opts = VerifyOptions {
+            key: None,
+            anchored: false,
+            sealed: true,
+            replay: None,
+        };
+        let out = verify_with(&trace.to_string_lossy(), &opts);
+        assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
+        assert!(out.text.contains("REQUIRED"), "{}", out.text);
+        assert!(out.text.contains("unsealed"), "{}", out.text);
+        let _ = std::fs::remove_file(trace);
+    }
+
+    /// `--sealed` on a sealed journal changes nothing: the tier holds,
+    /// and the UNSEALED statement never appears beside a SEALED one.
+    #[test]
+    fn a_required_seal_on_a_sealed_journal_holds() {
+        let (pk_box, sk) = keypair();
+        let journal = sealed_journal(&["workflow_started"], &sk, &pk_box);
+        let trace = stage("sealed-required.ndjson", &journal);
+        let key = stage_key("sealed-required.pub", &pk_box);
+        let opts = VerifyOptions {
+            key: Some(key.clone()),
+            anchored: false,
+            sealed: true,
+            replay: None,
+        };
+        let out = verify_with(&trace.to_string_lossy(), &opts);
+        assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
+        assert!(out.text.contains("SEALED —"), "{}", out.text);
+        assert!(!out.text.contains("UNSEALED"), "{}", out.text);
+        let _ = std::fs::remove_file(trace);
+        let _ = std::fs::remove_file(key);
     }
 }
