@@ -389,7 +389,10 @@ pub(super) fn parse_timeout(
     // ambiguous · forbidden ».
     if scalar.may_coerce() && (text.parse::<i64>().is_ok() || text.parse::<f64>().is_ok()) {
         return Err(SchemaError::BadTimeout {
-            reason: format!("bare number `{text}` is ambiguous — use a quoted Go-duration string"),
+            reason: format!(
+                "bare number `{text}` is ambiguous — use a quoted Go-duration string \
+                 (e.g. \"30s\" · \"5m\" · \"1h30m\")"
+            ),
             span: cx.span(scalar.span()),
         });
     }
@@ -411,7 +414,9 @@ fn parse_retry(
     };
     let Some(retry_map) = node.as_mapping() else {
         return Err(SchemaError::BadRetry {
-            reason: "`retry` must be a mapping".to_owned(),
+            reason: "`retry` must be a mapping · `{ max_attempts, backoff_ms, \
+                     backoff_strategy, backoff_max_ms, jitter, on_codes }`"
+                .to_owned(),
             span: cx.span(node.span()),
         });
     };
