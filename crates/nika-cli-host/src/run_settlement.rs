@@ -28,6 +28,40 @@ pub fn sensitive_journey(report: &nika_check::CheckReport) -> bool {
     )
 }
 
+/// The failure a terminal `run_settled` frame carries (#1403): the
+/// first failed task's code, message and id, so the LAST line a machine
+/// reads is the whole verdict — a CI reader that does the natural thing
+/// (`json.loads(last_line)`) learned « failed » and nothing else, the
+/// cause living only on an earlier `task_failed` frame.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct SettlementError {
+    /// The refusal's code (`NIKA-BUILTIN-READ-001` · …).
+    pub code: String,
+    /// The refusal's message, as the task recorded it.
+    pub message: String,
+    /// The task that failed.
+    pub task: String,
+}
+
+/// The first failed task's error with its task id, in the runtime's
+/// stable record order — `None` when no task failed (a succeeded or
+/// paused run · a run that never started a task).
+#[must_use]
+pub fn settlement_error(outcome: &nika_runtime::RunOutcome) -> Option<SettlementError> {
+    outcome
+        .records
+        .iter()
+        .find(|(_, record)| record.status == nika_runtime::TaskStatus::Failure)
+        .and_then(|(task, record)| {
+            record.error.as_ref().map(|e| SettlementError {
+                code: e.code.clone(),
+                message: e.message.clone(),
+                task: task.clone(),
+            })
+        })
+}
+
 /// First failed task record, in the runtime's stable record order.
 #[must_use]
 pub fn first_failure(outcome: &nika_runtime::RunOutcome) -> Option<nika_runtime::TaskErrorRecord> {
@@ -121,6 +155,9 @@ struct RunSettlement<'a, T> {
     outputs: &'a T,
     #[serde(skip_serializing_if = "Option::is_none")]
     receipt: Option<LocalRunReceipt<'a>>,
+    /// The cause, when `status` is `failed` and a task failed (#1403).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<&'a SettlementError>,
 }
 
 /// Append exactly one terminal NDJSON document to a machine stream.
@@ -134,7 +171,21 @@ pub fn write_run_settlement<T: Serialize>(
     outputs: &T,
     receipt: Option<LocalRunReceipt<'_>>,
 ) -> std::io::Result<()> {
-    write_run_settlement_bound(writer, status, outputs, None, receipt)
+    write_run_settlement_bound(writer, status, outputs, None, receipt, None)
+}
+
+/// Append the terminal document of a FAILED run with its cause (#1403).
+///
+/// # Errors
+/// Returns the writer or JSON serialization error without changing the run's
+/// execution verdict.
+pub fn write_failed_run_settlement<T: Serialize>(
+    writer: &mut impl Write,
+    outputs: &T,
+    receipt: Option<LocalRunReceipt<'_>>,
+    error: Option<&SettlementError>,
+) -> std::io::Result<()> {
+    write_run_settlement_bound(writer, "failed", outputs, None, receipt, error)
 }
 
 fn write_run_settlement_bound<T: Serialize>(
@@ -143,6 +194,7 @@ fn write_run_settlement_bound<T: Serialize>(
     outputs: &T,
     execution: Option<nika_types::id::ExecutionId>,
     receipt: Option<LocalRunReceipt<'_>>,
+    error: Option<&SettlementError>,
 ) -> std::io::Result<()> {
     serde_json::to_writer(
         &mut *writer,
@@ -152,6 +204,7 @@ fn write_run_settlement_bound<T: Serialize>(
             execution,
             outputs,
             receipt,
+            error,
         },
     )
     .map_err(std::io::Error::from)?;
@@ -170,6 +223,7 @@ pub fn write_local_run_settlement<T: Serialize, W: Write>(
     execution: nika_types::id::ExecutionId,
     snapshot_digest: &str,
     trace: Option<(&Path, &TraceProof)>,
+    error: Option<&SettlementError>,
 ) -> std::io::Result<()> {
     let execution_id = execution.to_string();
     let trace_id = nika_types::id::TraceId::from(execution).to_string();
@@ -198,6 +252,9 @@ pub fn write_local_run_settlement<T: Serialize, W: Write>(
         execution: Some(execution),
         outputs,
         receipt,
+        // A cause rides only a FAILED frame: a paused or succeeded run
+        // has none to claim.
+        error: error.filter(|_| status == "failed"),
     })
 }
 
@@ -205,6 +262,35 @@ pub fn write_local_run_settlement<T: Serialize, W: Write>(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// #1403 — the last line a machine reads is the whole verdict: a
+    /// failed settlement names the code, the message and the task; a
+    /// succeeded one carries no `error` key at all.
+    #[test]
+    fn a_failed_settlement_carries_its_cause_and_a_clean_one_does_not() {
+        let cause = SettlementError {
+            code: "NIKA-BUILTIN-READ-001".to_owned(),
+            message: "no such file: ./missing.md".to_owned(),
+            task: "brief".to_owned(),
+        };
+        let mut out = Vec::new();
+        write_failed_run_settlement(&mut out, &json!({"result": null}), None, Some(&cause))
+            .expect("writes");
+        let value: serde_json::Value = serde_json::from_slice(&out).expect("one document");
+        assert_eq!(value["kind"], "run_settled");
+        assert_eq!(value["status"], "failed");
+        assert_eq!(value["error"]["code"], "NIKA-BUILTIN-READ-001");
+        assert_eq!(value["error"]["message"], "no such file: ./missing.md");
+        assert_eq!(value["error"]["task"], "brief");
+
+        let mut clean = Vec::new();
+        write_run_settlement(&mut clean, "succeeded", &json!({"result": 1}), None).expect("writes");
+        let value: serde_json::Value = serde_json::from_slice(&clean).expect("one document");
+        assert!(
+            value.get("error").is_none(),
+            "no cause on a clean run: {value}"
+        );
+    }
 
     #[test]
     fn settlement_keeps_result_and_proof_planes_distinct() {
@@ -253,6 +339,7 @@ mod tests {
                 execution,
                 "snapshot",
                 None,
+                None,
             )
             .expect("settlement writes");
         }
@@ -282,6 +369,7 @@ mod tests {
                 execution,
                 "snapshot",
                 Some((Path::new(".nika/traces/exact.ndjson"), &proof)),
+                None,
             )
             .expect("settlement writes");
         }
