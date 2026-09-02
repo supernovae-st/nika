@@ -106,6 +106,7 @@
 
 use std::collections::BTreeSet;
 
+use crate::flow::{action_effect_fields, collect_json_strings};
 use crate::walk::{consumed_outputs, deeply_referenced, envelope_bound_outputs};
 use nika_schema::expression::scan_templates;
 use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
@@ -125,7 +126,7 @@ pub struct Hint {
     /// · `analysis` · `consent` · `digit-string-enum`
     /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
     /// · `fail-open-consent`
-    /// · `unproven-law`
+    /// · `unproven-law` · `silent-literal`
     /// (additive · agents route on it; the module doc describes each).
     /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
     /// reads — never `is_clean`.
@@ -296,6 +297,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
             other => unreachable!("unknown action: {other:?}"),
         }
         push_retry_effects_hint(&mut hints, t);
+        push_silent_literal_hints(&mut hints, t);
     }
 
     // F-O8 · the old « no `permits:` boundary declared » advisory is
@@ -1340,6 +1342,87 @@ fn value_mentions_tasks(v: &serde_json::Value, ids: &BTreeSet<&str>) -> bool {
     task_ids_in_value(v)
         .iter()
         .any(|id| ids.contains(id.as_str()))
+}
+
+/// #1395 — a value that LOOKS like a reference and is not one. The
+/// mustache island `{{ inputs.topic }}` (Jinja · Airflow · GitHub
+/// Actions) and the shell sigil `$name` as a whole `with:` value are
+/// neither refused nor resolved: the engine sends the literal text, so
+/// `topic=boundaries` reached a model as « {{ inputs.topic }} » under a
+/// green check. The hint names the literal and the one reference form.
+fn push_silent_literal_hints(hints: &mut Vec<Hint>, t: &RawTask) {
+    let id = t.id.value.as_str();
+    for text in action_effect_fields(&t.action) {
+        for island in mustache_refs(text) {
+            hints.push(hint("silent-literal", id, format!(
+                "`{{{{ {island} }}}}` in `{id}` is literal text here (a mustache island, not a reference) — the reference form is `${{{{ {island} }}}}`"
+            )));
+        }
+    }
+    for (name, v) in &t.with {
+        let bound = name.value.as_str();
+        for text in collect_json_strings(&v.value) {
+            for island in mustache_refs(text) {
+                hints.push(hint("silent-literal", id, format!(
+                    "`{{{{ {island} }}}}` bound to `with.{bound}` of `{id}` is literal text (a mustache island, not a reference) — the reference form is `${{{{ {island} }}}}`"
+                )));
+            }
+            if let Some(ident) = shell_sigil(text) {
+                hints.push(hint("silent-literal", id, format!(
+                    "`${ident}` bound to `with.{bound}` of `{id}` is literal text (a shell sigil, not a reference) — a binding reads `${{{{ tasks.{ident}.output }}}}` (an upstream output) or `${{{{ inputs.{ident} }}}}`"
+                )));
+            }
+        }
+    }
+}
+
+/// The reference-shaped mustache islands of one string: `{{ inputs.x }}`
+/// whose head is one of the five namespaces or a loop local, and which
+/// is NOT the `${{` island (the `$` in front is the whole difference).
+fn mustache_refs(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = text;
+    while let Some(at) = rest.find("{{") {
+        let sigil = at > 0 && rest.as_bytes()[at - 1] == b'$';
+        let after = &rest[at + 2..];
+        let Some(end) = after.find("}}") else {
+            break;
+        };
+        let inner = after[..end].trim();
+        if !sigil && reference_shaped(inner) {
+            out.push(inner.to_owned());
+        }
+        rest = &after[end + 2..];
+    }
+    out
+}
+
+/// `inputs.x` · `tasks.a.output` · `item` · `index` — a head from the
+/// reference vocabulary, then dotted identifiers (or nothing).
+fn reference_shaped(inner: &str) -> bool {
+    let (head, tail) = inner.split_once('.').unwrap_or((inner, ""));
+    let head_ok = matches!(
+        head,
+        "inputs" | "const" | "secrets" | "with" | "tasks" | "item" | "index" | "group"
+    );
+    head_ok
+        && tail
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '[' | ']' | '-'))
+}
+
+/// A whole value that is a shell sigil — `$a` · `$tasks.a.output` — and
+/// nothing else (a `${{` island starts with `{`, a `$100` with a digit:
+/// neither is a sigil). Returns the bare identifier.
+fn shell_sigil(text: &str) -> Option<&str> {
+    let ident = text.strip_prefix('$')?;
+    let first = ident.chars().next()?;
+    (first.is_ascii_alphabetic() || first == '_')
+        .then_some(ident)
+        .filter(|i| {
+            i.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.'))
+        })
 }
 
 pub(super) fn hint(kind: &'static str, task: &str, advice: String) -> Hint {

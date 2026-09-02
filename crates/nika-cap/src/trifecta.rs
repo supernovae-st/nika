@@ -237,6 +237,90 @@ fn legs(permits: &Permits, subjects: &[TrifectaSubject]) -> (bool, bool, bool) {
     (private_read, untrusted_ingress, external_egress)
 }
 
+/// WHY the three legs are legs HERE — one clause per leg, naming the
+/// grant that arms it (#1399: a twenty-line local shell pipeline read as
+/// an exfiltration scenario with nothing anywhere saying that an exec
+/// output is untrusted ingress and an exec grant is external egress).
+fn leg_reasons(permits: &Permits, subjects: &[TrifectaSubject]) -> String {
+    let sources: Vec<String> = subjects
+        .iter()
+        .filter(|s| s.ingress_source)
+        .map(|s| format!("`{}`", s.id))
+        .collect();
+    let mut ingress_by = Vec::new();
+    if permits.allows_exec() {
+        ingress_by.push("`permits.exec` (an exec output is untrusted content)");
+    }
+    if permits
+        .tools
+        .as_ref()
+        .is_some_and(|t| grants_untrusted_ingress(t))
+    {
+        ingress_by.push("`permits.tools` admitting a fetch / MCP / browsing tool (its result is untrusted content)");
+    }
+    let mut egress_by = Vec::new();
+    if permits.net.as_ref().is_some_and(|n| !n.http.is_empty()) {
+        egress_by.push("`permits.net.http`");
+    }
+    if permits
+        .fs
+        .as_ref()
+        .is_some_and(|fs| fs.write.iter().any(|g| write_glob_escapes(g)))
+    {
+        egress_by.push("an `fs.write` grant outside `./`");
+    }
+    if permits.allows_exec() {
+        egress_by.push("`permits.exec` (a program reaches anywhere)");
+    }
+    format!(
+        "legs here: private read = `permits.fs.read` · untrusted ingress = {} via {} · external egress via {}",
+        if sources.is_empty() {
+            "an ingress task".to_owned()
+        } else {
+            sources.join(", ")
+        },
+        ingress_by.join(" and "),
+        egress_by.join(" and "),
+    )
+}
+
+/// The ENTRY tasks feeding `sink` — its ancestors with no parents (or
+/// `sink` itself when it has none). A blocking gate dominates every path
+/// to the sink exactly when every one of these runs after it (#1394: the
+/// first refusal said « upstream of the fetch task » while a `with:` data
+/// edge from a private read reached the sink around that placement; the
+/// judge had already computed the set, so it names it).
+fn entry_ancestors(subjects: &[TrifectaSubject], sink: usize) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut stack = vec![sink];
+    let mut roots = BTreeSet::new();
+    while let Some(i) = stack.pop() {
+        if !seen.insert(i) {
+            continue;
+        }
+        let Some(s) = subjects.get(i) else {
+            continue;
+        };
+        if s.parents.is_empty() {
+            roots.insert(i);
+        }
+        stack.extend(s.parents.iter().copied());
+    }
+    roots
+        .into_iter()
+        .filter_map(|i| subjects.get(i).map(|s| format!("`{}`", s.id)))
+        .collect()
+}
+
+/// `a` · `a and b` · `a, b and c`.
+fn join_names(names: &[String]) -> String {
+    match names {
+        [] => "the ingress".to_owned(),
+        [one] => one.clone(),
+        [head @ .., last] => format!("{} and {last}", head.join(", ")),
+    }
+}
+
 /// The virtual-root marker in dominator sets (never a subject index).
 const ROOT: usize = usize::MAX;
 
@@ -296,22 +380,28 @@ pub fn trifecta_verdict(
             // cannot dominate it — the data edges feeding the sink from
             // pre-gate tasks are paths too. Upstream of the ingress,
             // EVERY path (order and data alike) crosses the gate.
-            let ingress = source.as_deref().unwrap_or("the untrusted ingress");
             let why = bypass_note(&dom, subjects, i).unwrap_or_else(|| {
                 format!(
                     "no blocking `invoke: {}` dominates every path to it",
                     crate::HUMAN_GATE_TOOL
                 )
             });
+            let legs = leg_reasons(permits, subjects);
+            let entries = join_names(&entry_ancestors(subjects, i));
             out.push(TrifectaViolation {
                 task: s.id.clone(),
                 detail: format!(
                     "lethal trifecta complete · human gate required — untrusted content from \
                      `{}` reaches egress task `{}` while private read + untrusted ingress + \
-                     external egress are all permitted, and {why} · fix: place the blocking \
-                     `invoke: {}` upstream of `{ingress}` — every path to `{}`, order and \
-                     data edges alike, then crosses it (NEP-0002 · the Rule of Two as a check)",
+                     external egress are all permitted ({legs}), and {why} · fix: a blocking \
+                     `invoke: {}` must dominate EVERY path to `{}`, data edges (`with:`) \
+                     included — place it upstream of {entries} (grant `{}` in `permits.tools` · \
+                     bind its answer into the effect with `with:` · gate the effect with \
+                     `when:`), then every path to `{}`, order and data edges alike, crosses \
+                     it (NEP-0002 · the Rule of Two as a check)",
                     source.as_deref().unwrap_or("<ingress>"),
+                    s.id,
+                    crate::HUMAN_GATE_TOOL,
                     s.id,
                     crate::HUMAN_GATE_TOOL,
                     s.id,
@@ -371,10 +461,14 @@ fn bypass_note(
         .parents
         .iter()
         .find(|&&p| !dom.get(p).is_some_and(|d| d.contains(&gate)))?;
+    // « its parent », not « the edge from »: the source of the untrusted
+    // content and the parent that bypasses the gate are two different
+    // roles, and a sentence that named both as bare task ids read as a
+    // finding contradicting itself (#1399).
     Some(format!(
-        "the blocking gate `{}` does not dominate it — the edge from `{}` reaches `{}` \
+        "the blocking gate `{}` does not dominate `{}` — its parent `{}` reaches it \
          without crossing the gate (a `with:` data edge is a path too)",
-        subjects[gate].id, subjects[*bypass].id, subjects[sink].id,
+        subjects[gate].id, subjects[sink].id, subjects[*bypass].id,
     ))
 }
 

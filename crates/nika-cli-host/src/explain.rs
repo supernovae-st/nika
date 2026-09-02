@@ -154,6 +154,14 @@ fn closer_line(code: &str) -> &'static str {
              floor predicate the run judges with); a templated command — \
              a `${{ }}` island — is judged at RUN."
         }
+        // #1396: check's own EXEC row says « a templated argv is the
+        // RUN's verdict », and an exit status can never be a check-time
+        // finding — the blanket closer contradicted the card it explained.
+        "NIKA-EXEC-001" => {
+            "`nika check` refuses a LITERAL argv the exec floor would refuse; a \
+             templated program name and a non-zero exit status are the RUN's \
+             verdict — an exit status can never be a check-time finding."
+        }
         _ => "`nika check` catches this before a run ever starts.",
     }
 }
@@ -397,6 +405,25 @@ mod tests {
         let out = run("NIKA-440");
         assert_eq!(out.code, exit::OK);
         assert!(out.text.contains("NIKA-440"));
+    }
+
+    /// #1396 — `explain NIKA-EXEC-001` promised what check's own EXEC
+    /// row disowns. The closer now draws the literal/run line and says
+    /// an exit status is never check's.
+    #[test]
+    fn the_exec_closer_hands_the_exit_status_to_the_run() {
+        let exec = run("NIKA-EXEC-001");
+        assert_eq!(exec.code, exit::OK);
+        assert!(
+            !exec.text.contains("catches this before a run ever starts"),
+            "no blanket promise over a run-judged class:\n{}",
+            exec.text
+        );
+        assert!(
+            exec.text.contains("exit status") && exec.text.contains("RUN's verdict"),
+            "the honest split is taught:\n{}",
+            exec.text
+        );
     }
 
     /// V7-2 (wave-3 · 4 personas · Priya BLOCKER): the closing claim is
