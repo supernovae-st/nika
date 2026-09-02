@@ -539,14 +539,14 @@ outputs:
   result: "${{ tasks.search.output }}"
 "#,
         );
-        let secrets = out
+        let rung = out
             .lines()
             .find(|line| line.contains("SECRETS"))
             .expect("the SECRETS rung renders");
         assert!(
-            secrets.contains("1 sanctioned secret flow by declaration")
-                && !secrets.contains("no declared secret reaches"),
-            "the sanction is stated on SECRETS: {secrets}"
+            rung.contains("1 sanctioned secret flow by declaration")
+                && !rung.contains("no declared secret reaches"),
+            "the sanction is stated on SECRETS: {rung}"
         );
         let journey = out
             .lines()
