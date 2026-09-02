@@ -719,3 +719,49 @@ mod tests {
         }
     }
 }
+
+/// The document is COMMITTED beside the crate (`crates/nika-serve/openapi.json`)
+/// so the docs site can publish the real contract instead of a starter
+/// template (#1364): `docs.nika.sh/api-reference/openapi.json` served the
+/// Mintlify « plants » sample. The version field follows the workspace at
+/// every bump, so the comparison ignores it; everything else must match,
+/// and a drift names the one command that re-pins the file.
+#[cfg(test)]
+mod snapshot {
+    use serde_json::Value;
+
+    const PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/openapi.json");
+
+    fn without_version(mut doc: Value) -> Value {
+        if let Some(info) = doc.get_mut("info").and_then(Value::as_object_mut) {
+            info.remove("version");
+        }
+        doc
+    }
+
+    #[test]
+    fn the_committed_document_is_the_live_one() {
+        let live = super::document();
+        let rendered = format!(
+            "{}\n",
+            serde_json::to_string_pretty(&live).expect("serializes")
+        );
+        // The sanctioned env edge: the re-pin switch is the test's own
+        // operator gesture, never a secret and never a runtime read.
+        #[allow(clippy::disallowed_methods)]
+        let update = std::env::var_os("NIKA_UPDATE_OPENAPI").is_some();
+        if update {
+            std::fs::write(PATH, rendered).expect("the snapshot writes");
+            return;
+        }
+        let committed = std::fs::read_to_string(PATH)
+            .expect("crates/nika-serve/openapi.json is committed beside the crate");
+        let committed: Value = serde_json::from_str(&committed).expect("the snapshot is JSON");
+        assert_eq!(
+            without_version(committed),
+            without_version(live),
+            "the committed OpenAPI document drifted from the live one — re-pin it: \
+             NIKA_UPDATE_OPENAPI=1 cargo test -p nika-serve snapshot"
+        );
+    }
+}
