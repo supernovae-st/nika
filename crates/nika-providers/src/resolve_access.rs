@@ -527,7 +527,7 @@ pub fn first_ready_infer_harness(probes: &[ProviderProbe]) -> Option<&str> {
 }
 
 #[cfg(feature = "access-harness")]
-fn named_infer_grade_ready(rt: HarnessRuntime, probes: &[ProviderProbe]) -> bool {
+pub(crate) fn named_infer_grade_ready(rt: HarnessRuntime, probes: &[ProviderProbe]) -> bool {
     probes.iter().any(|probe| {
         probe.id == rt.id
             && probe.readiness.configured
@@ -537,7 +537,10 @@ fn named_infer_grade_ready(rt: HarnessRuntime, probes: &[ProviderProbe]) -> bool
 }
 
 #[cfg(not(feature = "access-harness"))]
-const fn named_infer_grade_ready(_rt: HarnessRuntime, _probes: &[ProviderProbe]) -> bool {
+pub(crate) const fn named_infer_grade_ready(
+    _rt: HarnessRuntime,
+    _probes: &[ProviderProbe],
+) -> bool {
     false
 }
 
@@ -715,7 +718,11 @@ fn stamp_harness_plans(
                     provider_of(model),
                     access,
                     AccessClass::Harness,
-                    BillingClass::IncludedQuota,
+                    // The lane is never priced from here: a subscription
+                    // is not free and its quota is not observable, so the
+                    // plan says `unknown` — the same word the task
+                    // terminal stamps (never a guessed `included_quota`).
+                    BillingClass::Unknown,
                     true,
                     Vec::new(),
                 ),
@@ -1149,7 +1156,7 @@ mod tests {
         for plan in map.values() {
             assert_eq!(plan.access, "claude-code");
             assert_eq!(plan.chosen, AccessClass::Harness);
-            assert_eq!(plan.billing, BillingClass::IncludedQuota);
+            assert_eq!(plan.billing, BillingClass::Unknown, "never guessed");
             assert!(plan.pinned);
         }
         assert_eq!(first_ready_harness(&probes), Some("claude-code"));
@@ -1168,7 +1175,11 @@ mod tests {
             .expect("the requested model is receipt evidence");
         assert_eq!(plan.model, "anthropic/claude-sonnet-4-6");
         assert_eq!(plan.access, "codex");
-        assert_eq!(plan.billing, BillingClass::IncludedQuota);
+        assert_eq!(
+            plan.billing,
+            BillingClass::Unknown,
+            "a seat's quota is never observable"
+        );
         assert!(!plan.billing.is_usd_metered());
     }
 

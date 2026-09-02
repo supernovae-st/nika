@@ -198,6 +198,7 @@ pub(super) fn fan_out_result(
             cost_usd,
             cost_unpriced,
             model: None,
+            access: None,
         },
         Some(error) => RunResult::Failed {
             error,
@@ -459,6 +460,7 @@ mod tests {
                 cost_usd: None,
                 cost_unpriced: None,
                 model: None,
+                access: None,
             },
         );
         let mut stream = futures_util::stream::iter([ok, skip]);

@@ -869,7 +869,7 @@ fn json_verdict(
         // machine would reach each judged model — MACHINE truth (env
         // key presence), presence-gated and advisory like its
         // siblings; `clean` and the exit codes never read it.
-        let access_rows = models_rung::access_plan_rows(report);
+        let access_rows = models_rung::access_plan_rows(wf, report);
         if !access_rows.is_empty() {
             obj.insert(
                 "access_plan".to_owned(),

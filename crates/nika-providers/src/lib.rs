@@ -42,6 +42,7 @@
 pub mod census;
 #[cfg(test)]
 mod parity_tests;
+pub mod plan;
 pub mod probe;
 pub mod profile;
 pub mod registry;
@@ -52,6 +53,7 @@ mod test_support;
 pub mod wire;
 
 pub use census::{AccessCensus, AccessPath, SeatFact};
+pub use plan::{ExecutionAccessPlan, LaneVerdict, ModelNeed, ResolvedLane, resolve_execution_plan};
 pub use probe::{KeyAuth, classify_http_status, classify_key_value};
 pub use profile::{
     CANONICAL_IDS, PREFIX_REFUSAL_CODE, Profile, ResolveRefusal, WireFormat, canonical_provider,

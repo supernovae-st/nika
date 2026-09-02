@@ -19,9 +19,9 @@ use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::{RawAction, RawCommand, VisionInput};
 use nika_types::cost::UnpricedReason;
-use nika_verb_agent::{AgentInput, AgentValue};
+use nika_verb_agent::AgentInput;
 use nika_verb_exec::{CaptureMode, ExecCommand, ExecValue};
-use nika_verb_infer::{InferInput, InferValue, VisionPart};
+use nika_verb_infer::{InferInput, VisionPart};
 use nika_verb_invoke::InvokeInput;
 use serde_json::Value;
 
@@ -32,6 +32,7 @@ pub(crate) mod commit;
 mod exec_io;
 mod permits;
 mod regate;
+mod verb_outcome;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 use exec_io::{build_exec_input, capture_mode, render_exec_io};
@@ -132,6 +133,12 @@ pub(crate) struct DispatchOk {
     /// carries its steps' attestations). Boxed: cold evidence, never
     /// widens the channel (the `child` precedent).
     pub commit: Option<Box<commit::CommitAttestation>>,
+    /// One Door · wave 1: the admitted lane this dispatch actually
+    /// rode (the frozen plan's `AccessPlan` for the task's model) —
+    /// the task terminal stamps `access` · `billing` from it, never
+    /// from a provider-prefix guess. `None` = no plan attached (a bare
+    /// embedder · a templated model judged at dispatch). Boxed: cold.
+    pub access: Option<Box<nika_types::access::AccessPlan>>,
 }
 
 impl DispatchOk {
@@ -163,6 +170,7 @@ impl Dispatched {
                 cost_source: None,
                 cost_unpriced: None,
                 commit: None,
+                access: None,
             }),
         }
     }
@@ -189,8 +197,18 @@ impl Dispatched {
                 cost_source,
                 cost_unpriced,
                 commit: None,
+                access: None,
             }),
         }
+    }
+
+    /// Stamp the admitted lane on a success (the plan's `AccessPlan`
+    /// for the model that served) — a failure keeps its record.
+    fn with_access(mut self, access: Option<nika_types::access::AccessPlan>) -> Self {
+        if let Ok(ok) = &mut self.result {
+            ok.access = access.map(Box::new);
+        }
+        self
     }
 
     fn verb_err(note: String, err: &dyn NikaErrorCode) -> Self {
@@ -718,10 +736,18 @@ where
             Err(VisionErr::Template(err)) => return Dispatched::template_err("infer · ?", &err),
             Err(VisionErr::Unwired(detail)) => return Dispatched::unwired("infer · ?", detail),
         }
+        // One Door · wave 1: the lane decides the adapter — the frozen
+        // plan's seat for THIS task's model (a pinned seat serves every
+        // model), never a run-wide « a seat exists » flag.
+        let lane_model = input
+            .model
+            .clone()
+            .unwrap_or_else(|| self.infer.default_model().to_owned());
+        let access = self.lane_plan(&lane_model);
         #[cfg(feature = "access-harness")]
-        if let Some(seat_id) = self.harness_seat_id.as_deref() {
+        if let Some(seat_id) = self.seat_for(&lane_model) {
             return match self.infer.run_on_harness(seat_id, input).await {
-                Ok(out) => dispatched_harness_infer(seat_id, out),
+                Ok(out) => verb_outcome::harness_infer_success(seat_id, out, access),
                 Err(err) => Dispatched::verb_err_spent(
                     format!("infer · seat {seat_id}"),
                     &err,
@@ -730,46 +756,7 @@ where
             };
         }
         match self.infer.run(input).await {
-            Ok(out) => {
-                let note = format!("infer · {}", out.model_resolved);
-                let value = match out.output {
-                    InferValue::Text(text) => Value::String(text),
-                    // Structured output IS a JSON value (spec 04 typed
-                    // dataflow — downstream templates render it
-                    // canonically · for_each can fan over arrays).
-                    InferValue::Structured(value) => value,
-                    // #[non_exhaustive] · a future value form fails loudly.
-                    other => {
-                        return Dispatched::unwired(
-                            &note,
-                            format!("infer value form not wired yet: {other:?}"),
-                        );
-                    }
-                };
-                let tokens = Some(i64::try_from(out.usage.output_tokens).unwrap_or(i64::MAX));
-                // #651 · the empty-answer footgun (OBS-E) now settles
-                // FAILED at the verb (NIKA-INFER-004) — a blank answer
-                // with token spend never reaches this success arm, so the
-                // non-fatal warning lane is retired here.
-                let warning = None;
-                // Real spend: catalog pricing × the provider's FULL usage
-                // split (cache subsets at their own rates) · the SAME
-                // resolver as the check-time floor (they can never disagree
-                // on which row prices a model) · unpriced models emit
-                // nothing PLUS the honest WHY (local · mock · uncataloged ·
-                // provider silent).
-                let (cost_usd, cost_unpriced) = spend_for_model(&out.model_resolved, &out.usage);
-                let cost_source = Some(out.model_resolved.clone());
-                Dispatched::ok_metered(
-                    note,
-                    value,
-                    tokens,
-                    warning,
-                    cost_usd,
-                    cost_source,
-                    cost_unpriced,
-                )
-            }
+            Ok(out) => verb_outcome::infer_success(out, access),
             Err(err) => {
                 let spend = price_failed_spend(err.spend());
                 Dispatched::verb_err_spent("infer · ?".to_owned(), &err, spend)
@@ -816,6 +803,16 @@ where
             Err(err) => return Dispatched::template_err("agent · ?", &err),
         };
         input.tools = action.tools.iter().map(|t| t.value.clone()).collect();
+        // One Door · wave 1: the lane decides — an agent whose model's
+        // lane is a provider path runs the native loop even when a seat
+        // is attached for another lane (the plan, never the seat's mere
+        // presence, routes the task).
+        let lane_model = input
+            .model
+            .clone()
+            .unwrap_or_else(|| self.agent.default_model().to_owned());
+        let access = self.lane_plan(&lane_model);
+        input.native_only = self.access_plan.is_some() && self.seat_for(&lane_model).is_none();
         Self::bridge_inputs(&mut input, scope, ctx);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
@@ -830,47 +827,7 @@ where
             .run_observed_at(input, agent_buffer, ctx.run_start)
             .await;
         match ran {
-            Ok(out) => {
-                let note = format!("agent · {} turns", out.turns);
-                let value = match out.output {
-                    AgentValue::Text(text) => Value::String(text),
-                    AgentValue::Structured(value) => value,
-                    // #[non_exhaustive] · a future value form fails loudly.
-                    other => {
-                        return Dispatched::unwired(
-                            &note,
-                            format!("agent value form not wired yet: {other:?}"),
-                        );
-                    }
-                };
-                let tokens = Some(i64::try_from(out.total_tokens).unwrap_or(i64::MAX));
-                // BOTH spend channels: the loop's TOOL spend (exact ·
-                // tool-reported — an agent-driven $0.02 render must never
-                // show as $0.00) PLUS the LLM turns priced from the loop's
-                // absorbed usage split via the same resolver `infer` uses
-                // (the seam closed 2026-07-08). Either alone still rides;
-                // an unpriced LLM leg names its reason next to whatever
-                // tool spend DID meter.
-                let (llm_cost, llm_unpriced) = match out.model_resolved.as_deref() {
-                    Some(model) => spend_for_model(model, &out.usage),
-                    // Harness-built (B7): the subscription absorbs it —
-                    // named, NEVER a fabricated $0 (the ledger law).
-                    None => (None, Some(UnpricedReason::SubscriptionQuota)),
-                };
-                let cost_usd = match (llm_cost, out.tools_cost_usd) {
-                    (None, None) => None,
-                    (llm, tools) => Some(llm.unwrap_or(0.0) + tools.unwrap_or(0.0)),
-                };
-                Dispatched::ok_metered(
-                    note,
-                    value,
-                    tokens,
-                    None,
-                    cost_usd,
-                    out.model_resolved.clone(),
-                    llm_unpriced,
-                )
-            }
+            Ok(out) => verb_outcome::agent_success(out, access),
             Err(err) => {
                 let spend = price_failed_spend(err.spend());
                 Dispatched::verb_err_spent("agent · ?".to_owned(), &err, spend)
@@ -1264,18 +1221,6 @@ mod infer_deadline_tests {
 }
 
 #[cfg(feature = "access-harness")]
-fn dispatched_harness_infer(seat_id: &str, out: nika_verb_infer::HarnessInferOutput) -> Dispatched {
-    Dispatched::ok_metered(
-        format!("infer · seat {seat_id} · requested {}", out.requested_model),
-        out.output,
-        None,
-        None,
-        None,
-        None,
-        Some(UnpricedReason::SubscriptionQuota),
-    )
-}
-
 // The #824 model-template parity proofs (the house `tests.rs`
 // convention — `run_and_capture` is `pub(super)` for that sibling).
 #[cfg(test)]

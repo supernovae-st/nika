@@ -30,8 +30,7 @@ pub mod wire;
 
 pub use client::{IDLE_TIMEOUT_SECS, MAX_LINE_BYTES, drive, drive_with_idle};
 pub use declaration::{
-    declared_adapter_id, seat_from_env, seat_from_id, seat_from_lookup, seat_from_pin,
-    seat_http_err,
+    declared_adapter_id, seat_from_env, seat_from_id, seat_from_lookup, seat_http_err,
 };
 pub use infer::{
     HarnessInferOutcome, HarnessInferRequest, InferGradeAttestation, InferGradeError,

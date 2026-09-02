@@ -152,6 +152,7 @@ pub(crate) fn run_with_traces(
     VerbOutput::ok(render_human(
         path,
         &doc,
+        &wf,
         &report,
         permits_declared,
         traces.as_ref(),
@@ -397,6 +398,7 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 fn render_human(
     path: &str,
     doc: &GraphDoc,
+    wf: &nika_schema::raw::RawWorkflow,
     report: &CheckReport,
     permits_declared: bool,
     traces: Option<&(usize, String)>,
@@ -427,7 +429,7 @@ fn render_human(
     story_section(&mut s, doc, report);
     cost_section(&mut s, report);
     touches_section(&mut s, doc, report, permits_declared);
-    access_section(&mut s, report);
+    access_section(&mut s, wf, report);
     risks_section(&mut s, path, report);
     if let Some(fc) = forecast {
         super::forecast::render::forecast_section(&mut s, fc);
@@ -627,8 +629,8 @@ fn cost_section(s: &mut String, report: &CheckReport) {
 /// [`crate::verbs::check::models_rung::access_decisions`] rows
 /// `check --json` carries as `access_plan`. Machine truth (key
 /// presence), so the narration names THIS install's paths.
-fn access_section(s: &mut String, report: &CheckReport) {
-    let decisions = crate::verbs::check::models_rung::access_decisions(report);
+fn access_section(s: &mut String, wf: &nika_schema::raw::RawWorkflow, report: &CheckReport) {
+    let decisions = crate::verbs::check::models_rung::access_decisions(wf, report);
     if decisions.is_empty() {
         return;
     }
