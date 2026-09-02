@@ -357,10 +357,18 @@ fn fetch_default_mode_is_markdown_and_pairs_with_nothing() {
 
 #[test]
 fn fetch_mode_is_a_closed_string_set() {
-    for mode in [
-        "markdown", "article", "text", "metadata", "links", "feed", "sitemap", "raw",
-    ] {
-        silent("nika:fetch", &json!({"url": "u", "mode": mode}));
+    // The closed set itself, never a hand-typed mirror of it (nika#1386 ·
+    // a mirror is green on the day it is typed and blind the day after).
+    for mode in nika_types::ExtractMode::ALL {
+        // `selector` and `jq` pair with their expression argument; the
+        // other modes pair with nothing.
+        let mut args = json!({"url": "u", "mode": mode.as_str()});
+        match mode {
+            nika_types::ExtractMode::Selector => args["selector"] = json!("h1"),
+            nika_types::ExtractMode::Jq => args["jq"] = json!("."),
+            _ => {}
+        }
+        silent("nika:fetch", &args);
     }
     let out = only("nika:fetch", &json!({"url": "u", "mode": "markdwon"}));
     assert!(out.contains("is not a stdlib v0.1 extract mode"), "{out}");

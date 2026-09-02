@@ -16,6 +16,7 @@ include_dir = { workspace = true }
 [dev-dependencies]
 sha2          = { workspace = true }
 nika-catalog  = { path = "../nika-catalog", version = "0.116.2" }  # spec_parity — the vendored canon's 17 must resolve in the shipped catalog
+nika-types    = { path = "../nika-types", version = "0.116.2" }    # spec_parity — the vendored canon's extract modes ARE the checker's closed set
 serde_yaml_bw = { workspace = true }
 
 [lints]

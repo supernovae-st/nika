@@ -4800,6 +4800,7 @@ version = "0.116.2"
 dependencies = [
  "include_dir",
  "nika-catalog",
+ "nika-types",
  "serde_yaml_bw",
  "sha2 0.10.9",
 ]
