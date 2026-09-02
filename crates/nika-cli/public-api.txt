@@ -1070,6 +1070,7 @@ pub type nika_cli::verbs::sign::SignArgs::Output = T
 pub fn nika_cli::verbs::sign::run(args: &nika_cli::verbs::sign::SignArgs) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::test
 pub fn nika_cli::verbs::test::run(file: &str, update: bool, theme: nika_display::theme::Theme) -> u8
+pub fn nika_cli::verbs::test::run_case(file: &str, update: bool, answer: &[alloc::string::String], (vars, case): (&[alloc::string::String], core::option::Option<&str>), theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::test::run_with_answers(file: &str, update: bool, answer: &[alloc::string::String], theme: nika_display::theme::Theme) -> u8
 pub mod nika_cli::verbs::tools
 pub fn nika_cli::verbs::tools::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
