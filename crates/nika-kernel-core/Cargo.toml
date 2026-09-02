@@ -17,8 +17,8 @@ ignored = ["insta"]  # dev-dep used in #[cfg(test)] blocks
 workspace = true
 
 [dependencies]
-nika-error    = { path = "../nika-error", version = "0.117.0" }
-nika-cap      = { path = "../nika-cap", version = "0.117.0" }     # the env plane of the capability boundary (NEP-0005 · DANGEROUS/RUNNER floors + compose_child_env · re-exported at the historical process path)
+nika-error    = { path = "../nika-error", version = "0.117.1" }
+nika-cap      = { path = "../nika-cap", version = "0.117.1" }     # the env plane of the capability boundary (NEP-0005 · DANGEROUS/RUNNER floors + compose_child_env · re-exported at the historical process path)
 trait-variant = { workspace = true }
 thiserror     = { workspace = true }
 miette        = { workspace = true }

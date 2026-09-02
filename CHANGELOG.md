@@ -16,6 +16,17 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.117.1](https://github.com/supernovae-st/nika/compare/v0.117.0..v0.117.1) - 2026-09-02
+
+### Fixed
+
+- **The release train starts again.** `v0.117.0` failed at startup: the
+  `provenance` job granted `contents: read` while the SLSA generator's nested
+  `upload-assets` job declares `contents: write`, a declaration GitHub
+  validates when the reusable workflow is called, before `upload-assets:
+  false` skips it. The caller now grants what the callee declares; the
+  authority never runs. `v0.117.0` stays a tag with no release; `v0.117.1`
+  ships the same tree plus this fix.
 ## [0.117.0](https://github.com/supernovae-st/nika/compare/v0.116.2..v0.117.0) - 2026-09-02
 
 ### Added

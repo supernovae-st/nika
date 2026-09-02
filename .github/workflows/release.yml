@@ -438,7 +438,14 @@ jobs:
     permissions:
       actions: read # read the workflow run for provenance
       id-token: write # sign the provenance (Sigstore OIDC)
-      contents: read # bind the generated statement to this repository
+      # `contents: write`, not `read` (#1419 · v0.117.0 died at startup):
+      # the generator's nested `upload-assets` job declares `contents:
+      # write` unconditionally and GitHub validates that declaration when
+      # the reusable workflow is CALLED, before `upload-assets: false`
+      # skips the job. The caller must grant what the callee declares; the
+      # authority never runs — the isolated release-assets-converge job
+      # below owns every release upload.
+      contents: write
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: ${{ needs.release-draft.outputs.hashes }}

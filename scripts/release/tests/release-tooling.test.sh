@@ -381,10 +381,16 @@ provenance_job="$(sed -n '/^  provenance:/,/^  provenance-publish:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$provenance_job" | grep -q 'upload-assets: false' \
   || fail 'the upstream SLSA uploader can delete and replace occupied provenance'
-printf '%s\n' "$provenance_job" | grep -q '^      contents: read' \
-  || fail 'the SLSA generator lacks read-only repository identity access'
-if printf '%s\n' "$provenance_job" | grep -q '^      contents: write'; then
-  fail 'the SLSA generator retains unnecessary release write authority'
+# GitHub validates a reusable workflow's nested job permissions when the
+# workflow is CALLED, before `upload-assets: false` skips the uploader: the
+# generator declares `contents: write` on that job, so the caller must grant
+# it — v0.117.0 died at startup on `contents: read` (#1419). The authority
+# stays idle by construction (the uploader never runs) and the isolated
+# converge job owns every release upload.
+printf '%s\n' "$provenance_job" | grep -q '^      contents: write' \
+  || fail 'the SLSA generator call grants less than its nested upload-assets job declares (startup_failure · #1419)'
+if printf '%s\n' "$provenance_job" | grep -q '^      contents: read'; then
+  fail 'a read-only grant on the SLSA generator call fails at startup (#1419)'
 fi
 printf '%s\n' "$provenance_job" | grep -q "if: github.event_name == 'push'" \
   || fail 'manual replay can generate branch-context provenance for an old tag'
@@ -637,7 +643,10 @@ contents_write_jobs="$(awk '
   }
   /^      contents: write/ { print job }
 ' "$ROOT/.github/workflows/release.yml")"
-[ "$contents_write_jobs" = $'release-draft\noci-marker\nrelease-assets-converge\nfinalize' ] \
+# `provenance` holds the write the SLSA generator's nested uploader
+# declares (#1419 · validated by GitHub when the reusable workflow is
+# called); `upload-assets: false` keeps that authority idle by construction.
+[ "$contents_write_jobs" = $'release-draft\nprovenance\noci-marker\nrelease-assets-converge\nfinalize' ] \
   || fail 'the contents-write job allowlist changed without authority review'
 for write_job in "$release_job" "$marker_job" "$assets_job" "$finalizer"; do
   if printf '%s\n' "$write_job" | grep -q \
