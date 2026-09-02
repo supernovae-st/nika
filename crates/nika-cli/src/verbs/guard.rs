@@ -780,6 +780,16 @@ fn scan_run<'a>(args: &[&'a Tok]) -> Result<RunSeen<'a>, Verdict> {
     let mut k = 0;
     while k < args.len() {
         let text = args[k].text.as_str();
+        // `nika run --help` (and `-h` · `--version`) prints and exits: no
+        // workflow runs, so there is nothing to judge and everything to
+        // allow. Three gauntlet personas (2026-09-02) hit the bare-run
+        // refusal here while trying to READ the verb's flags — the guard
+        // was standing between a user and the help text.
+        if matches!(text, "--help" | "-h" | "--version") {
+            return Err(Verdict::Allow(format!(
+                "`nika run {text}` prints and exits — no workflow runs"
+            )));
+        }
         if let Some(long) = text.strip_prefix("--") {
             let (name, inline) = long
                 .split_once('=')
