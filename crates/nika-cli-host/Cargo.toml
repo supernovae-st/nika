@@ -61,7 +61,7 @@ access-harness = [
 # `hw.memsize` — nix's `SysconfVar::_PHYS_PAGES` is Linux-only; Apple
 # still answers the same number through sysctl (measured 18 GiB M3 Pro).
 [target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))'.dependencies]
-sysctl = "0.6"
+sysctl = "0.7"
 
 [dev-dependencies]
 tempfile = { workspace = true }  # scratch dirs for the metrics + welcome test fixtures
