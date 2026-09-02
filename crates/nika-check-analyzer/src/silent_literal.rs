@@ -72,11 +72,13 @@ fn effect_fields(action: &RawAction) -> Vec<&str> {
             .unwrap_or_default(),
         RawAction::Infer(a) => prompt_system(a.prompt.value.as_str(), a.system.as_ref()),
         RawAction::Agent(a) => prompt_system(a.prompt.value.as_str(), a.system.as_ref()),
+        // The variant is not printed: an action carries prompts and args
+        // that may hold resolved secrets, and a panic line is a log.
         #[allow(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and analyzer ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown action: {other:?}"),
+        _ => unreachable!("unknown action variant"),
     }
 }
 
