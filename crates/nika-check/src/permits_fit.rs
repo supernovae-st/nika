@@ -1041,6 +1041,31 @@ pub(super) fn url_host(raw: &str) -> Option<String> {
     }
 }
 
+/// The host of a TEMPLATED URL whose scheme + authority prefix is literal
+/// (`https://api.x.com/collect?k=${{ with.k }}` → `api.x.com`). The value
+/// rides in the path or the query, where it cannot rewrite the authority —
+/// but ONLY once a `/` · `?` · `#` closes the authority inside the literal
+/// prefix: `https://api.${{ x }}.com` and `https://host${{ p }}` stay
+/// derived (`None`): a `${{ }}` value there can inject `@evil.example/` and
+/// move the host. Same WHATWG parser as [`url_host`], so check and runtime
+/// agree on what the host is (#1393: a sanctioned secret in `?k=…` reached
+/// `attacker.example.com` and the journey said « 0 destinations »).
+pub(super) fn templated_url_host(raw: &str) -> Option<String> {
+    let (prefix, _) = raw.split_once("${{")?;
+    let parsed = url::Url::parse(prefix).ok()?;
+    let after_scheme = prefix.strip_prefix(parsed.scheme())?.strip_prefix("://")?;
+    if !after_scheme.contains(['/', '?', '#']) {
+        return None;
+    }
+    url_host(prefix)
+}
+
+/// The raw (un-resolved) string value of `args.<key>` — a `${{ }}` value is
+/// KEPT (the journey needs to see the island, not reject it as dynamic).
+pub(super) fn raw_arg<'a>(a: &'a RawInvokeAction, key: &str) -> Option<&'a str> {
+    a.args.as_ref()?.value.get(key)?.as_str()
+}
+
 /// The statically-known program of an ARRAY-form command: `argv[0]` when it
 /// is a literal (argv is execve-direct — no shell expansion — so only a
 /// `${{ }}` island makes it dynamic). `None` for the shell-string form,

@@ -66,7 +66,9 @@
 use nika_schema::raw::{RawAction, RawInvokeAction};
 use nika_schema::types::{EgressRule, Permits};
 
-use super::permits_fit::{BuiltinEffect, builtin_effect, literal_arg, url_host};
+use super::permits_fit::{
+    BuiltinEffect, builtin_effect, literal_arg, raw_arg, templated_url_host, url_host,
+};
 
 /// The set of `${{ secrets.X }}` islands referenced inside a string —
 /// reused to enforce the `host_from_self` non-occlusion guard (no OTHER
@@ -365,7 +367,13 @@ fn literal_dest_host(action: &RawAction) -> Option<String> {
     let BuiltinEffect::Net { url_arg } = builtin_effect(a)? else {
         return None;
     };
-    literal_arg(a, url_arg).as_deref().and_then(url_host)
+    // A literal URL names its host; so does a literal authority closed by
+    // a delimiter before the template starts (`…/collect?k=${{ with.k }}`
+    // · #1393): the value rides in the query, the host is the author's.
+    literal_arg(a, url_arg)
+        .as_deref()
+        .and_then(url_host)
+        .or_else(|| raw_arg(a, url_arg).and_then(templated_url_host))
 }
 
 /// L3 · whether `host` is within the declared `permits.net.http` (or there
