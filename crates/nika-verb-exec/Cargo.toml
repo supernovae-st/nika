@@ -13,15 +13,15 @@ homepage.workspace     = true
 publish                = false  # Internal L2 verb crate.
 
 [dependencies]
-nika-error  = { path = "../nika-error", version = "0.116.2" }
-nika-kernel = { path = "../nika-kernel", version = "0.116.2" }
+nika-error  = { path = "../nika-error", version = "0.117.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.117.0" }
 miette      = { workspace = true }
 thiserror   = { workspace = true }
 
 [dev-dependencies]
-nika-exec-runner = { path = "../nika-exec-runner", version = "0.116.2" }
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.116.2" }
-nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.116.2" }
+nika-exec-runner = { path = "../nika-exec-runner", version = "0.117.0" }
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.117.0" }
+nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.117.0" }
 proptest = { workspace = true }
 tempfile = { workspace = true }
 tokio    = { workspace = true }

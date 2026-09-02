@@ -16,6 +16,176 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.117.0](https://github.com/supernovae-st/nika/compare/v0.116.2..v0.117.0) - 2026-09-02
+
+### Added
+
+- **The serve OpenAPI document ships as a committed file.**
+  `crates/nika-serve/openapi.json` is the live `GET /v1/openapi.json`
+  document, pinned by a test, so the docs site publishes the real contract
+  instead of a starter template.
+- **`nika test --case <name> --var KEY=VALUE`.** One workflow carries a
+  whole rule table: each case binds its inputs through the same door
+  `run --var` uses and pins its own golden as `<file>.<name>.golden.json`.
+  `--var` without `--case` is refused with the reason (a case is a file), and
+  the no-golden hint echoes the flags a re-run must repeat.
+- **`trace verify --json`.** One JSON document per trace (`verify_version`
+  1): the attained `tier` (`ok` · `sealed` · `anchored` · `replayed`, or
+  `broken` · `unchained` · `empty` · `unreadable` for the non-ladder
+  verdicts), the `exit` class, the chain facts, one object per leg (`seal` ·
+  `anchor` · `replay`) and the ladder `lines`; several traces stream as
+  NDJSON. A CI gate on « at least SEALED » reads a field, never a prose line.
+
+### Fixed
+
+- **Release replays now preserve published bytes.** A global publication lane
+  serializes every version; occupied GitHub Release assets must compare
+  byte-for-byte, SLSA upload authority is isolated, and GHCR images carry exact
+  source, version, and revision labels.
+- **Close future release visibility and token-bleed gaps.** Hold GitHub Releases behind
+  release-ID, SLSA, npm, and payload-bound GHCR checks; persist the proven
+  digest before immutable tag convergence,
+  heal only from that marker, fail closed on mixed registry errors, and keep
+  delayed stable recovery from regressing GitHub Latest. Split exact-asset
+  writes, immutable external proof, and final publication into disjoint jobs so
+  registry verifiers never receive release-write or tap authority, and bind
+  every asset census, download, and upload to the immutable release/asset IDs
+  with tag/SHA revalidation around writes. This is a forward-only visibility
+  barrier across independent registries, with the unavoidable administrator API
+  TOCTOU documented as residual authority rather than an atomicity claim.
+- **Concurrent cancellation no longer starves terminal settlement.** The
+  resident store keeps HTTP mutation ingress bounded while terminal execution,
+  shutdown, and abandoned ARM-preparation controls use reliable backpressure,
+  so overload cannot terminate the server or strand a run as running.
+- **`overlap: replace` is a typed refusal, not a silent no-op.**
+  `PUT /v1/schedules/{id}` with `"overlap": "replace"` now answers 422
+  with a `schedule.overlap` finding naming the policy, and a project beat
+  with `chevauchement: remplacer` surfaces the same finding instead of
+  firing with the overlap ignored.
+- **`overlap: queue` is a typed refusal, not a silent no-op.**
+  `PUT /v1/schedules/{id}` with `"overlap": "queue"` now answers 422
+  with a `schedule.overlap` finding naming the policy, and a project beat
+  with `chevauchement: file` surfaces the same finding instead of firing
+  with the queue ignored.
+- **`afterSkip: on_completion` is a typed refusal, not a silent no-op.**
+  `PUT /v1/schedules/{id}` with `"afterSkip": "on_completion"` now answers
+  422 with a `schedule.after-skip` finding naming the policy, and a
+  project beat with `après_saut: à-complétion` surfaces the same finding
+  instead of consuming the skip durably and never re-firing.
+- **`tolerance` is a typed refusal until the (m,k)-firm law exists.**
+  `PUT /v1/schedules/{id}` with a well-formed `"tolerance"` now answers
+  422 with a `schedule.tolerance` finding, and a project beat with
+  `tolérance:` surfaces the same finding, instead of persisting a
+  documented (m,k) semantics nothing enforces.
+- **`nika serve` projects a refused project beat instead of burying it.**
+  A `nika.yaml` beat whose declaration the planner refuses (hash jitter
+  today) is planned at load, surfaces as a finding on
+  `GET /v1/schedules/{id}` with `origin: "project"`, and is never carried
+  as a live beat that silently never fires.
+- **An uncataloged model id no longer meters $0 past an armed budget.**
+  The `--max-cost-usd` admission walk judged only *priced-ness*, and its
+  unpriced-cloud arm spared any provider the catalog does not know — so a
+  workflow pinned to a bare or misspelled id (the gauntlet's
+  `claude-opus-4.1`, never a catalog row) floored at $0, passed any cap,
+  and ran with zero budget protection. The walk now judges every resolved
+  infer/agent id through the MODELS rung's own predicate
+  (`nika_providers::resolve_refusal`): an id this binary cannot resolve
+  refuses NIKA-1709 before the prologue, quoting the resolver's repair
+  (the `<provider>/<model>` contract · the pasteable catalog seat ·
+  `nika catalog`). Local seats (ollama & friends) and mock stay admitted
+  — free by construction, never by silence — and the priced-floor refusal
+  (`anthropic/claude-opus-4-1` at $0.057600 over a $0.02 cap) is
+  unchanged.
+- **The effect-safe retry law: a keyless mutating `nika:fetch` is never
+  retried by default.** A `POST`/`PUT`/`DELETE`/`PATCH` fetch without an
+  `idempotency-key` header now types EVERY failure `transient: false`
+  (status-table and transport alike) — the failure may be ambiguous (the
+  server may have committed before the socket dropped or the 500 was
+  emitted) and a blind replay doubles the effect: measured on 0.116.2, a
+  post-commit 500 under a declared `retry×3` fired 3 calls and 3 charges
+  the run never admitted. A declared `retry:` on such a call is now the
+  static `NIKA-SEC-016` refusal at `nika check` (one finding per task,
+  teaching the key), and the admission trust gate refuses the run before
+  any socket. The check and the run judge ONE predicate
+  (`nika_types::net::retry_is_effect_safe`) — check ≡ run. With an
+  `idempotency-key` header the declared retry keeps working (the receiver
+  dedups the replay), and `GET`/`HEAD` retry behavior is unchanged.
+- **`nika trace verify` states an UNSEALED journal and can require the seal.**
+  A journal whose `run_sealed` line was cut used to verify « OK · chain intact »
+  with the SEALED line simply gone and the same exit as a clean run. The ladder
+  now prints `UNSEALED — no run_sealed frame …` naming the three honest causes
+  (a keyless run, a run killed before its seal, a journal cut after it), and
+  `--sealed` makes a missing seal the same exit-3 refusal `--anchored` gives a
+  missing sidecar, so CI can demand the signed tier.
+- **`nika thread` `/run` leaves its journal.** A workflow run from inside the
+  conversation now writes its hash-chained trace under `.nika/traces/` and
+  prints the trace line, exactly like `nika run`; the thread used to strip the
+  accountability layer (no trace, no cost line, no seal). Staged conversational
+  turns stay journal-less.
+- **A sanctioned secret egress is stated, never erased.** A declared secret
+  reaching an external destination by `egress:` sanction now takes the warn
+  posture on SECRETS with one named row per flow, counts on JOURNEY, and rides
+  the audited line; a `nika:fetch` whose literal host carries a templated
+  query names that host (the journey said « 0 destinations »). A sanction that
+  pins no `host:` over a net destination grades High (refused under
+  `--profile operational`); the pinned form `egress: [{ to, host }]` now also
+  clears a literal host followed by a templated query.
+- **The first TRIFECTA refusal states the whole dominance rule.** A blocking
+  `nika:prompt` must dominate every path to the egress task, data edges
+  (`with:`) included; the refusal now names every entry task the gate must
+  precede (the judge had already computed them) and the whole repair shape in
+  one sentence: the gate in `permits.tools`, its answer bound with `with:`,
+  the effect gated with `when:`.
+- **A value that looks like a reference and is not one is named.** The
+  mustache island `{{ inputs.topic }}` and a whole `with:` value shaped like a
+  shell sigil (`$a`) used to pass check silently and reach the model as
+  literal text; a `silent-literal` hint now names the literal and the one
+  reference form (`${{ inputs.topic }}` · `${{ tasks.a.output }}`). Real
+  islands, dollar amounts and the shell's own `$HOME` in argv stay silent.
+- **`nika explain NIKA-EXEC-001` no longer claims check catches it.** The
+  closer draws the same line check's EXEC row draws: a literal argv the floor
+  refuses is check's; a templated program name and a non-zero exit status are
+  the run's verdict.
+- **One provider count, every surface.** The card, the catalog header and
+  the check refusal now speak the same wired facet, split the same way
+  (« 16 wired in this build (5 local · 11 cloud · plus mock) ») instead of
+  15, 15 and 16 for one binary. `moonshot` (Kimi K2 · K2.5, the international
+  endpoint, `MOONSHOT_API_KEY`) is wired, so the canon's seventeen and the
+  binary's seventeen are the same list.
+- **A TRIFECTA finding says why the legs are legs here.** One clause names
+  the grant arming each leg (an exec output is untrusted content · an exec
+  grant reaches anywhere · a net grant · a write outside `./`), so a purely
+  local shell pipeline no longer reads as an unexplained exfiltration. The
+  bypass sentence names the sink's PARENT that skirts the gate, never a
+  second « source » that contradicted the first.
+- **Foreign terms name their mechanism.** Airflow and GitHub Actions keys
+  that reached the generic field list now teach the replacement inline:
+  `schedule_interval` → the project file's `arm:` · `default_args` → per-task
+  fields and `inputs:` knobs · `dag_id` → `nika:` · `on_failure_callback` →
+  `after: { x: failure }` · `trigger_rule` → the `after:` outcomes · `retries`
+  → the `retry:` mapping's fields · `if` → `when:` · `continue-on-error` →
+  `on_error:`.
+- **`run --json` ends on the whole verdict.** The terminal `run_settled`
+  frame of a failed run now carries `error: { code, message, task }` (the
+  first failed task), so the last line a machine reads says why; a
+  succeeded or paused run carries no `error` key.
+- **`check --help` and `test --help` carry their exit-code table.** The
+  house taxonomy is spoken on the verb: 0 the report holds · 2 the FILE (a
+  grammar refusal or findings · `--json` `kind` tells them apart) · 3 the
+  ENVIRONMENT (a missing or unreadable file, an unreachable registry, a
+  misused flag) · never 1 or 4 on `check`; the golden test names its 3 (no
+  golden yet).
+- **`nika guard` lets `nika run --help` through.** The hook-side guard treated
+  `--help`, `-h` and `--version` as a bare run and refused them as « names no file »
+  or « several workflows live here »; they print and exit, so nothing runs and
+  nothing is judged. Three gauntlet personas hit it while trying to read the
+  verb's flags.
+- **A `pauseUntil` in the past wakes the schedule under `nika serve`.**
+  The serve planner judged `active: false` as paused forever and never
+  read the declared bound. It now evaluates the expiry the arm-fire way —
+  the date strictly before the decision instant's own civil date — so an
+  expired pause plans as active and fires, while a future one stays
+  visibly paused.
 ## [0.116.2](https://github.com/supernovae-st/nika/compare/v0.116.0..v0.116.2) - 2026-08-31
 
 ### Changed
