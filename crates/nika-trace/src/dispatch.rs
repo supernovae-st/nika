@@ -106,12 +106,14 @@ pub fn trace_verb(
             traces,
             key,
             anchored,
+            sealed,
             replay,
         } => verify_verb(
             traces,
             &trace_verify::VerifyOptions {
                 key,
                 anchored,
+                sealed,
                 replay,
             },
         ),

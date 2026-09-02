@@ -518,6 +518,7 @@ pub nika_trace::trace::action::TraceAction::Verify
 pub nika_trace::trace::action::TraceAction::Verify::anchored: bool
 pub nika_trace::trace::action::TraceAction::Verify::key: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::action::TraceAction::Verify::replay: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::action::TraceAction::Verify::sealed: bool
 pub nika_trace::trace::action::TraceAction::Verify::traces: alloc::vec::Vec<std::path::PathBuf>
 impl clap_builder::derive::FromArgMatches for nika_trace::trace::action::TraceAction
 pub fn nika_trace::trace::action::TraceAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
@@ -689,6 +690,7 @@ pub nika_trace::trace::TraceAction::Verify
 pub nika_trace::trace::TraceAction::Verify::anchored: bool
 pub nika_trace::trace::TraceAction::Verify::key: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::TraceAction::Verify::replay: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::TraceAction::Verify::sealed: bool
 pub nika_trace::trace::TraceAction::Verify::traces: alloc::vec::Vec<std::path::PathBuf>
 impl clap_builder::derive::FromArgMatches for nika_trace::trace::action::TraceAction
 pub fn nika_trace::trace::action::TraceAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
@@ -781,6 +783,7 @@ pub struct nika_trace::trace_verify::VerifyOptions
 pub nika_trace::trace_verify::VerifyOptions::anchored: bool
 pub nika_trace::trace_verify::VerifyOptions::key: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace_verify::VerifyOptions::replay: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace_verify::VerifyOptions::sealed: bool
 impl core::clone::Clone for nika_trace::trace_verify::VerifyOptions
 pub fn nika_trace::trace_verify::VerifyOptions::clone(&self) -> nika_trace::trace_verify::VerifyOptions
 impl core::default::Default for nika_trace::trace_verify::VerifyOptions
