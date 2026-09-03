@@ -58,7 +58,7 @@ pub struct RuntimeConfig {
 /// fingerprint (an older trace's case: no claim, no refusal).
 #[must_use]
 pub fn project_root_fingerprint(root: &std::path::Path) -> Option<String> {
-    let canonical = std::fs::canonicalize(root).ok()?;
+    let canonical = std::fs::canonicalize(root).ok()?; // seam-bypass-ok: the root's identity, read once at composition — the same path the CLI canonicalizes to judge a resume (#1367); no effect, no clock, no entropy
     Some(
         blake3::hash(canonical.to_string_lossy().as_bytes())
             .to_hex()
