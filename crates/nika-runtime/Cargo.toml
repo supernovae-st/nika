@@ -11,6 +11,7 @@ homepage.workspace     = true
 publish                = false  # Internal L3 orchestration crate.
 
 [dependencies]
+nika-runtime-laws = { path = "../nika-runtime-laws", version = "0.117.1" }  # ADR-127 · the run's laws (the unit's second member)
 nika-types       = { path = "../nika-types", version = "0.117.1" }        # EventId · Timestamp · KeyValue · Value
 nika-error       = { path = "../nika-error", version = "0.117.1" }        # NIKA_1700..1703 registry constants
 nika-event       = { path = "../nika-event", version = "0.117.1" }        # Event · EventKind (the stream this crate emits)

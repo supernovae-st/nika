@@ -60,16 +60,7 @@ use crate::record::TaskRecord;
 /// honest) instead of matching wrongly.
 pub const KEY_VERSION: u32 = 1;
 
-/// The additive `task_completed` / `task_cache_hit` trace field names
-/// (ADR-099 · the compatibility surface: these evolve additively).
-pub mod fields {
-    /// The task-definition hash (blake3 hex over the JCS definition payload).
-    pub const DEF_HASH: &str = "def_hash";
-    /// The resolved-input hash (blake3 hex over the JCS input payload).
-    pub const INPUT_HASH: &str = "input_hash";
-    /// The task's output as ONE compact JSON text (rehydration source).
-    pub const OUTPUT: &str = "output";
-}
+pub use nika_runtime_laws::resume_fields::fields;
 
 /// The resume's chain-trust posture when the run proceeded WITHOUT a
 /// verified chain (ADR-099 trust amendment · 2026-08-08) — attested on

@@ -1,0 +1,49 @@
+[package]
+name          = "nika-runtime-laws"
+description   = "The run's laws — the second member of the nika-runtime unit (ADR-127): the one-voice error, the typed contracts, the record mirror, the input origins, the engine identity, the record integrity, the boot trust, the semantic proof, the secret custody, the sandbox verdict."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # A member of the nika-runtime unit, never a crate of its own.
+
+[dependencies]
+nika-types       = { path = "../nika-types", version = "0.117.1" }
+nika-error       = { path = "../nika-error", version = "0.117.1" }
+nika-event       = { path = "../nika-event", version = "0.117.1" }
+nika-schema      = { path = "../nika-schema", version = "0.117.1" }
+nika-secret      = { path = "../nika-secret", version = "0.117.1" }
+nika-dataflow    = { path = "../nika-dataflow", version = "0.117.1" }
+nika-check       = { path = "../nika-check", version = "0.117.1" }
+nika-proof       = { path = "../nika-proof", version = "0.117.1" }
+nika-tmpl        = { path = "../nika-tmpl", version = "0.117.1" }
+nika-cap         = { path = "../nika-cap", version = "0.117.1" }
+nika-cel         = { path = "../nika-cel", version = "0.117.1" }
+nika-kernel      = { path = "../nika-kernel", version = "0.117.1" }
+nika-providers   = { path = "../nika-providers", version = "0.117.1" }
+nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.117.1" }
+nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.117.1" }
+serde            = { workspace = true }
+serde_json       = { workspace = true }
+blake3           = { workspace = true }
+thiserror        = { workspace = true }
+miette           = { workspace = true }
+url              = { workspace = true }
+
+[dev-dependencies]
+uuid          = { workspace = true }
+nika-dataflow = { path = "../nika-dataflow", version = "0.117.1", features = ["testing"] }
+nika-pack     = { path = "../nika-pack", version = "0.117.1" }
+insta         = { workspace = true }
+proptest      = { workspace = true }
+
+[lints]
+workspace = true
+
+[package.metadata.lore]
+daemon        = "timonier"
+archetype     = "kodama-timonier"
+spirit_role   = "la loi du bord · ce que la vague obéit avant de partir et après être rentrée"

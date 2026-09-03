@@ -1,154 +1,155 @@
-# public-api coverage baseline (the ratchet floor).
-# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Each admitted crate with a lib target SHOULD have a crates/<crate>/public-api.txt
-# baseline (the locked public-API surface, diffed by .github/workflows/public-api.yml
-# + classified breaking-vs-additive by semver-checks.yml). Today only a subset is
-# covered. This file is the MONOTONIC floor: every crate listed here MUST keep its
-# public-api.txt (a regression → RED). Uncovered lib crates are a YELLOW ratchet
-# target (generate the baseline, add the crate here, the floor rises). Never remove
-# a line by hand.
 #
-# Generate a baseline:  cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt
 #
-# DEFAULT features, never --all-features. This line taught --all-features while
-# public-api.yml has always diffed with default features (its own comment says
-# why: platform-exclusive features). A baseline generated the way this line
-# taught can NEVER match the gate that reads it — the instruction was the one
-# thing here nothing checked.
 #
-# Enforced by scripts/hygiene/check-public-api-coverage.sh (vector 38) AND projected
-# into .github/workflows/public-api.yml (surface diff) + semver-checks.yml (breaking-
-# vs-additive). ONE source of truth → three consumers (ADR-090). Add a crate here +
-# commit its public-api.txt, and all three pick it up.
 #
-# Two classes of admitted lib crate are deliberately NOT floored:
-#   - WIP crates — their public surface churns by design, so locking it only
-#     generates CI noise (regen chore per edit) with nothing stable to protect.
-#     Floored at admission. Hold-out: nika-schema.
-#   - Platform-divergent surfaces — the baseline is generated on the developer host
 #     (macOS) but CI diffs it on ubuntu. A crate whose PUBLIC surface differs by OS
+#     Floored at admission. Hold-out: nika-schema.
 #     can't be locked with one cross-platform snapshot. nika-screen's surface carries
-#     macOS-only `objc2::…::AutoreleaseSafe` blanket impls (via xcap's objc2 dep) that
+#     consumers + regen every baseline. Until then: hold-out.
 #     don't exist on linux; `--omit auto-trait-impls` doesn't strip them. To cover it,
 #     generate the baseline on linux (CI-side) OR add `--omit blanket-impls` to ALL
-#     consumers + regen every baseline. Until then: hold-out.
-# (a11y/ocr also use OS-specific deps but keep them PRIVATE — their public surface is
+#     generates CI noise (regen chore per edit) with nothing stable to protect.
+#     macOS-only `objc2::…::AutoreleaseSafe` blanket impls (via xcap's objc2 dep) that
+#   - Platform-divergent surfaces — the baseline is generated on the developer host
+#   - WIP crates — their public surface churns by design, so locking it only
 #  neutral, verified by a platform-symbol sweep, so they ARE floored.)
-nika-fx
-nika-chart
-nika-types
-nika-error
-nika-catalog
-nika-kernel
-nika-kernel-mock
+# #[wasm_bindgen] surface is NOT cfg-gated, so its 26 wasm symbols appear
+# (a11y/ocr also use OS-specific deps but keep them PRIVATE — their public surface is
+# (founding wizard + guided first workflow · injected Audit/Wire seams) ---
+# (pub → pub(crate)); the lock stops it GROWING further unaudited.
+# (the enigo backend lands at B.3 as an INTERNAL impl · surface stays stable) ---
+# + classified breaking-vs-additive by semver-checks.yml). Today only a subset is
+# --- 2026-06-10: M2.4 write-side computer-use · public contract frozen at B.2
+# --- 2026-06-10: the L1 effect crates admitted on main (fs reworked to FsError) ---
 # --- 2026-06-10: the platform-neutral admitted lib crates (L0 / L0.5 / L1) ---
+# --- 2026-06-11: L2 verb crates (session-B admissions s9-s11 · floored on consolidation · platform-neutral) ---
+# --- 2026-06-11: M2.5 web arm · Guard-5 pure core public, CDP internal at B.3 ---
+# --- 2026-06-11: s-ladder pack crate (session-B admission · floored here · platform-neutral) ---
+# --- 2026-06-11: s8.5 announce-ladder · the L1.5 provider layer (14 profiles ·
+# --- 2026-07-02: the uncovered ratchet cohort closed (8 crates · 27/38 → 35/38) ---
+# --- 2026-07-12: the local-models descent (issue #146 · the 15k wall — nika-onboard/display/dap precedents) ---
+# --- 2026-07-12: the onboarding surface descends from nika-cli at the 15k wall
+# --- 2026-07-13: the graph-projection descent (semantic-oracle T2 · the 15k wall — nika-models precedent) ---
+# --- 2026-07-15: the refonte splits join the floor (W3 nika-source · W-COMP nika-vocab/nika-migrate · 53/53 ratchet closed) ---
+# --- 2026-07-21: the static-judgment descent (analyzer + the check ladder out of nika-schema · the 15k wall — nika-graph precedent) ---
+# --- 2026-07-28: the browser half of the checker (ADR-107 · L4 transport · two pub fns, locked like the rest) ---
+# --- 2026-07-29: the signed-memory substrate (F-P8 · L1 · the recall path's TCB foundation) ---
+# --- 2026-07-29: the spec-15 proof layer out of nika-runtime (the 15k wall — nika-dap/nika-cap precedent · WIP crate) ---
+# --- 2026-07-31: the host-integration member out of nika-cli at the 15k wall (ADR-110 · one unit, two members) ---
+# --- 2026-08-06: the secret resolution half out of nika-runtime (the 15k wall — nika-proof/nika-dap/nika-cap precedent) ---
+# --- 2026-08-11: the flight-recorder reader descends from nika-cli at the 15k wall (D-2026-07-09-N1 · the ADR-110 precedent) ---
+# --- 2026-08-14: the two session crates, floored AT admission as the WIP rule
+# --- 2026-08-15 AMENDMENT: the line above used to end "and nika-tui-core's
+# --- 2026-08-18: the analysis substrate descends out of nika-check (the 15k wall again · 14995/15000 · ADR-115 · one unit, two members) ---
+# --- 2026-08-21: descriptor-rooted ARM custody extracted from nika-cli so
+# --- 2026-08-25: the run's dataflow (TaskRecord + the ${{ }}/CEL/jq evaluation
+# 3 wire formats · kernel http seam · consumed by verb-infer s9 + verb-agent) ---
+# CLI and Serve share one firer and one replay authority. ---
+# DEFAULT features, never --all-features. This line taught --all-features while
+# Each admitted crate with a lib target SHOULD have a crates/<crate>/public-api.txt
+# Enforced by scripts/hygiene/check-public-api-coverage.sh (vector 38) AND projected
+# FFI ATTRIBUTE is gated (`cfg_attr`), so the five doors stay ordinary public
+# Generate a baseline:  cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt
+# Rust and their native tests still run. The count moves 26 -> 6: the 20 blanket
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# The remaining L2-L4 + effect crates locked in one pass; the public-api.yml
+# Two classes of admitted lib crate are deliberately NOT floored:
+# `Upcast` lines are gone, the `pub fn`/`pub mod` doors remain. Platform
+# a line by hand.
+# above requires (both cleared their 12 gates; neither had a snapshot, which is
+# baseline (the locked public-API surface, diffed by .github/workflows/public-api.yml
+# both interface crates (lsp · mcp), the extract + local-inference + screen
+# commit its public-api.txt, and all three pick it up.
+# covered. This file is the MONOTONIC floor: every crate listed here MUST keep its
+# diff now covers the parser/analyzer/check surface (nika-schema), the runtime,
+# effect crates, and the seatbelt sandbox. NOTE: nika-schema exposes ~4.4k pub
+# identically on macOS and on linux". That is no longer true, and the reason
+# in nika-trace's and nika-cli's baselines, neither of which had gained an item
+# into .github/workflows/public-api.yml (surface diff) + semver-checks.yml (breaking-
+# items — a future audit should review whether that L0 surface is over-broad
+# matters. wasm-bindgen publishes a BLANKET `Upcast` impl, so once it entered
+# merely HOSTS rather than owns. ---
+# neutrality is unchanged — a FEATURE gate is not a platform gate, and dropping
+# nika-secret/nika-proof/nika-dap/nika-cap precedent: the module the wall-crate
+# of its own. The binding is now optional behind a `wasm` feature and only the
+# over it) descends out of nika-runtime at the 15k wall — 14994/15000, with a
+# public-api coverage baseline (the ratchet floor).
+# public-api.txt (a regression → RED). Uncovered lib crates are a YELLOW ratchet
+# public-api.yml has always diffed with default features (its own comment says
+# symbols in either snapshot.
+# target (generate the baseline, add the crate here, the floor rises). Never remove
+# taught can NEVER match the gate that reads it — the instruction was the one
+# the binder's glue removes the one part that could have differed. ---
+# the graph it landed on every public type of every crate DOWNSTREAM — 30 lines
+# thing here nothing checked.
+# vs-additive). ONE source of truth → three consumers (ADR-090). Add a crate here +
+# why vector 38 sat at 62/64). Platform-neutral, verified: zero objc/apple/darwin
+# why: platform-exclusive features). A baseline generated the way this line
+# written PR unable to land because the MERGE crossed at 15020 (#1203). The
 nika-a11y
+nika-arm
+nika-blob
 nika-bm25
+nika-browser
+nika-builtin
+nika-cadence
+nika-cap
+nika-catalog
 nika-catalog-codegen
+nika-cel
+nika-chart
+nika-check
+nika-check-analyzer
+nika-check-wasm
+nika-cli
+nika-cli-host
 nika-clock
+nika-dap
+nika-dataflow
+nika-display
+nika-error
 nika-event
+nika-exec-runner
+nika-extract
+nika-fs
+nika-fx
+nika-graph
+nika-http
+nika-infer-local
+nika-input
+nika-kernel
 nika-kernel-ai
 nika-kernel-core
+nika-kernel-mock
 nika-kernel-plugin
 nika-kernel-runtime
-nika-ocr
-# --- 2026-06-10: the L1 effect crates admitted on main (fs reworked to FsError) ---
-nika-fs
-nika-http
-nika-blob
-nika-exec-runner
-# --- 2026-06-10: M2.4 write-side computer-use · public contract frozen at B.2
-# (the enigo backend lands at B.3 as an INTERNAL impl · surface stays stable) ---
-nika-input
-# --- 2026-06-11: M2.5 web arm · Guard-5 pure core public, CDP internal at B.3 ---
-nika-browser
-# --- 2026-06-11: s-ladder pack crate (session-B admission · floored here · platform-neutral) ---
-nika-pack
-# --- 2026-06-11: s8.5 announce-ladder · the L1.5 provider layer (14 profiles ·
-# 3 wire formats · kernel http seam · consumed by verb-infer s9 + verb-agent) ---
-nika-providers
-# --- 2026-06-11: L2 verb crates (session-B admissions s9-s11 · floored on consolidation · platform-neutral) ---
-nika-verb-exec
-nika-verb-infer
-nika-verb-invoke
-nika-verb-agent
-# --- 2026-07-02: the uncovered ratchet cohort closed (8 crates · 27/38 → 35/38) ---
-# The remaining L2-L4 + effect crates locked in one pass; the public-api.yml
-# diff now covers the parser/analyzer/check surface (nika-schema), the runtime,
-# both interface crates (lsp · mcp), the extract + local-inference + screen
-# effect crates, and the seatbelt sandbox. NOTE: nika-schema exposes ~4.4k pub
-# items — a future audit should review whether that L0 surface is over-broad
-# (pub → pub(crate)); the lock stops it GROWING further unaudited.
-nika-extract
-nika-infer-local
 nika-lints
 nika-lsp
 nika-mcp
+nika-migrate
+nika-models
+nika-ocr
+nika-onboard
+nika-pack
+nika-pck-manifest
+nika-proof
+nika-providers
 nika-runtime
+nika-runtime-laws
 nika-sandbox-seatbelt
 nika-schema
 nika-screen
-nika-cap
-nika-builtin
-nika-cel
-nika-cli
-# --- 2026-07-31: the host-integration member out of nika-cli at the 15k wall (ADR-110 · one unit, two members) ---
-nika-cli-host
-# --- 2026-08-11: the flight-recorder reader descends from nika-cli at the 15k wall (D-2026-07-09-N1 · the ADR-110 precedent) ---
-nika-trace
-nika-dap
-nika-display
-nika-pck-manifest
-nika-tmpl
-# --- 2026-07-12: the onboarding surface descends from nika-cli at the 15k wall
-# (founding wizard + guided first workflow · injected Audit/Wire seams) ---
-nika-onboard
-# --- 2026-07-12: the local-models descent (issue #146 · the 15k wall — nika-onboard/display/dap precedents) ---
-nika-models
-# --- 2026-07-13: the graph-projection descent (semantic-oracle T2 · the 15k wall — nika-models precedent) ---
-nika-graph
-# --- 2026-07-15: the refonte splits join the floor (W3 nika-source · W-COMP nika-vocab/nika-migrate · 53/53 ratchet closed) ---
-nika-migrate
-nika-source
-nika-vocab
-# --- 2026-07-21: the static-judgment descent (analyzer + the check ladder out of nika-schema · the 15k wall — nika-graph precedent) ---
-nika-check
-# --- 2026-08-18: the analysis substrate descends out of nika-check (the 15k wall again · 14995/15000 · ADR-115 · one unit, two members) ---
-nika-check-analyzer
-# --- 2026-07-28: the browser half of the checker (ADR-107 · L4 transport · two pub fns, locked like the rest) ---
-nika-check-wasm
-# --- 2026-07-29: the spec-15 proof layer out of nika-runtime (the 15k wall — nika-dap/nika-cap precedent · WIP crate) ---
-nika-proof
-# --- 2026-07-29: the signed-memory substrate (F-P8 · L1 · the recall path's TCB foundation) ---
-nika-store
-# --- 2026-08-06: the secret resolution half out of nika-runtime (the 15k wall — nika-proof/nika-dap/nika-cap precedent) ---
 nika-secret
-# --- 2026-08-14: the two session crates, floored AT admission as the WIP rule
-# above requires (both cleared their 12 gates; neither had a snapshot, which is
-# why vector 38 sat at 62/64). Platform-neutral, verified: zero objc/apple/darwin
-# symbols in either snapshot.
-# --- 2026-08-15 AMENDMENT: the line above used to end "and nika-tui-core's
-# #[wasm_bindgen] surface is NOT cfg-gated, so its 26 wasm symbols appear
-# identically on macOS and on linux". That is no longer true, and the reason
-# matters. wasm-bindgen publishes a BLANKET `Upcast` impl, so once it entered
-# the graph it landed on every public type of every crate DOWNSTREAM — 30 lines
-# in nika-trace's and nika-cli's baselines, neither of which had gained an item
-# of its own. The binding is now optional behind a `wasm` feature and only the
-# FFI ATTRIBUTE is gated (`cfg_attr`), so the five doors stay ordinary public
-# Rust and their native tests still run. The count moves 26 -> 6: the 20 blanket
-# `Upcast` lines are gone, the `pub fn`/`pub mod` doors remain. Platform
-# neutrality is unchanged — a FEATURE gate is not a platform gate, and dropping
-# the binder's glue removes the one part that could have differed. ---
-nika-cadence
-# --- 2026-08-21: descriptor-rooted ARM custody extracted from nika-cli so
-# CLI and Serve share one firer and one replay authority. ---
-nika-arm
-nika-tui-core
-# --- 2026-08-25: the run's dataflow (TaskRecord + the ${{ }}/CEL/jq evaluation
-# over it) descends out of nika-runtime at the 15k wall — 14994/15000, with a
-# written PR unable to land because the MERGE crossed at 15020 (#1203). The
-# nika-secret/nika-proof/nika-dap/nika-cap precedent: the module the wall-crate
-# merely HOSTS rather than owns. ---
-nika-dataflow
 nika-session
+nika-source
+nika-store
+nika-tmpl
+nika-trace
+nika-tui-core
+nika-types
+nika-verb-agent
+nika-verb-exec
+nika-verb-infer
+nika-verb-invoke
+nika-vocab

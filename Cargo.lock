@@ -4885,6 +4885,7 @@ dependencies = [
  "nika-pack",
  "nika-proof",
  "nika-providers",
+ "nika-runtime-laws",
  "nika-sandbox-landlock",
  "nika-sandbox-seatbelt",
  "nika-schema",
@@ -4901,6 +4902,37 @@ dependencies = [
  "serde_json_canonicalizer",
  "thiserror 2.0.20",
  "tokio",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "nika-runtime-laws"
+version = "0.117.1"
+dependencies = [
+ "blake3",
+ "insta",
+ "miette",
+ "nika-cap",
+ "nika-cel",
+ "nika-check",
+ "nika-dataflow",
+ "nika-error",
+ "nika-event",
+ "nika-kernel",
+ "nika-pack",
+ "nika-proof",
+ "nika-providers",
+ "nika-sandbox-landlock",
+ "nika-sandbox-seatbelt",
+ "nika-schema",
+ "nika-secret",
+ "nika-tmpl",
+ "nika-types",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
  "url",
  "uuid",
 ]

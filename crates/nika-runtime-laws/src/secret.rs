@@ -12,9 +12,9 @@ use nika_event::Event;
 use nika_types::resource::Value as FieldValue;
 use serde_json::Value;
 
-pub(crate) use nika_secret::{REDACTED, resolve_secrets};
+pub use nika_secret::{REDACTED, resolve_secrets};
 
-use crate::EventSink;
+use crate::stamp::EventSink;
 
 /// Below this length a needle scrubs ONLY the payload fields: a
 /// handful of characters rides inside hashes · ids · ordinary words
@@ -25,7 +25,12 @@ const WIDE_SCRUB_MIN: usize = 8;
 /// terminal frame's outcome/output and the failure detail). `why` rides
 /// the unwind lane's outcome frames — a failed cleanup's error message
 /// can embed a stderr tail, the same class `detail` carries.
-const PAYLOAD_FIELDS: [&str; 4] = ["outcome", crate::resume::fields::OUTPUT, "detail", "why"];
+const PAYLOAD_FIELDS: [&str; 4] = [
+    "outcome",
+    crate::resume_fields::fields::OUTPUT,
+    "detail",
+    "why",
+];
 
 /// The dynamic-flow backstop (S1). The static IFC sanctions every
 /// DECLARED secret flow; it cannot see a value that reaches a task's
@@ -36,7 +41,7 @@ const PAYLOAD_FIELDS: [&str; 4] = ["outcome", crate::resume::fields::OUTPUT, "de
 /// sink seam is wrapped and every event's string fields are scrubbed
 /// (needles under [`WIDE_SCRUB_MIN`] · the [`PAYLOAD_FIELDS`] only)
 /// before any lane (journal · `--json` · the live fold) sees them.
-pub(crate) struct RedactingSink<'a> {
+pub struct RedactingSink<'a> {
     /// The lane this scrub rides (the run verb's whole tee in production).
     inner: &'a mut dyn EventSink,
     /// (raw · json-escaped) needle pairs, deduped — empty on the common
@@ -51,7 +56,7 @@ impl<'a> RedactingSink<'a> {
     /// Wrap the run's sink with the scrub set derived from the RESOLVED
     /// secrets map (the same map the run's [`Scope`](crate::expr::Scope)
     /// binds).
-    pub(crate) fn new(inner: &'a mut dyn EventSink, resolved: &BTreeMap<String, Value>) -> Self {
+    pub fn new(inner: &'a mut dyn EventSink, resolved: &BTreeMap<String, Value>) -> Self {
         let needles = resolved
             .values()
             .filter_map(|v| match v {
@@ -113,10 +118,7 @@ impl<'a> RedactingSink<'a> {
 /// Every output is a value payload by nature, so the short-needle bound
 /// does not apply here: a six-byte token in a returned value is exactly
 /// the leak, not a false positive.
-pub(crate) fn scrub_outputs(
-    outputs: &mut BTreeMap<String, Value>,
-    resolved: &BTreeMap<String, Value>,
-) {
+pub fn scrub_outputs(outputs: &mut BTreeMap<String, Value>, resolved: &BTreeMap<String, Value>) {
     let needles: Vec<(String, String)> = resolved
         .values()
         .filter_map(|v| match v {
@@ -452,7 +454,7 @@ mod tests {
             EventKind::TaskCompleted,
         )
         .with_field(KeyValue::new(
-            crate::resume::fields::OUTPUT,
+            crate::resume_fields::fields::OUTPUT,
             FieldValue::String(payload.to_owned()),
         ))
     }
@@ -470,7 +472,7 @@ mod tests {
     fn short_secret_scrubs_the_output_field() {
         let secret = "827351"; // under WIDE_SCRUB_MIN, like the OTP leak
         let events = scrubbed(secret, output_event(&format!("token: {secret}")));
-        let out = field_text(&events[0], crate::resume::fields::OUTPUT);
+        let out = field_text(&events[0], crate::resume_fields::fields::OUTPUT);
         assert!(
             !out.contains(secret),
             "a secret reaching a task output must not ride the journal: {out}"
