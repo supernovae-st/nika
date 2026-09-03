@@ -301,7 +301,9 @@ pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::V
             })
         })
         .collect();
-    let run_state = if view.verdict == Some(true) && view.recovered_count() > 0 {
+    let run_state = if view.cancelled {
+        "cancelled"
+    } else if view.verdict == Some(true) && view.recovered_count() > 0 {
         "recovered"
     } else if view.verdict == Some(true) {
         "completed"

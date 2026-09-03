@@ -45,7 +45,6 @@ pub fn run_with_repair_target(
         max_cost_usd,
         no_gc,
         require_signature,
-        false,
         Some(repair_target),
     )
     .code

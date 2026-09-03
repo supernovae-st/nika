@@ -138,6 +138,10 @@ pub struct RunView {
     pub token_samples: Vec<u64>,
     /// Terminal verdict: `Some(true)` completed · `Some(false)` failed.
     pub verdict: Option<bool>,
+    /// The run ended on `workflow_cancelled` (#1438): the operator's
+    /// cancellation at a wave boundary · a verdict of its own (the card
+    /// says so, never the failure card).
+    pub cancelled: bool,
     /// The task a `workflow_paused` frame named (ADR-099 rider) — the
     /// run ended AWAITING, neither verdict applies (the paused card's
     /// key · `None` on every other run).
@@ -320,6 +324,7 @@ impl RunView {
                 self.verdict = Some(true);
                 self.absorb_terminal_cost(event);
             }
+            EventKind::WorkflowCancelled => self.apply_workflow_cancelled(event),
             EventKind::WorkflowFailed => {
                 self.verdict = Some(false);
                 // A workflow-level reason (run-end NIKA-VAR-009) rides the
@@ -344,6 +349,16 @@ impl RunView {
             // nothing rather than lying.
             _ => {}
         }
+    }
+
+    /// The operator's cancellation at a wave boundary (#1438): a decision,
+    /// never a defect · the detail says what completed and what never
+    /// started, the cost summary rides like every terminal.
+    fn apply_workflow_cancelled(&mut self, event: &Event) {
+        self.verdict = Some(false);
+        self.cancelled = true;
+        self.workflow_detail = str_field(event, "detail").map(str::to_owned);
+        self.absorb_terminal_cost(event);
     }
 
     /// One `task_completed` frame — row terminal stamp · output · tokens
@@ -877,5 +892,29 @@ mod tests {
         assert_eq!(view.retries, 1);
         let fresh = RunView::new();
         assert_eq!(fresh.retries, 0);
+    }
+
+    /// #1438 · `workflow_cancelled` is a verdict of its own: the view says
+    /// cancelled (never a bare failure), keeps the terminal's detail and
+    /// absorbs its cost summary like the other terminals.
+    #[test]
+    fn workflow_cancelled_folds_to_a_cancelled_verdict() {
+        use nika_types::resource::{KeyValue, Value};
+        let mut view = RunView::new();
+        view.apply(
+            &demo::bare_event(EventKind::WorkflowCancelled, 10)
+                .with_field(KeyValue::new(
+                    "detail",
+                    Value::String("cancelled by the operator".to_owned()),
+                ))
+                .with_field(KeyValue::new("unpriced_calls", Value::Int(2))),
+        );
+        assert!(view.cancelled, "the fold names the cancellation");
+        assert_eq!(view.verdict, Some(false), "not a success");
+        assert_eq!(
+            view.workflow_detail.as_deref(),
+            Some("cancelled by the operator")
+        );
+        assert_eq!(view.unpriced_calls, 2, "the terminal's summary rides");
     }
 }

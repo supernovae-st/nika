@@ -613,6 +613,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_display::state::TaskState
 impl<T> typenum::type_operators::Same for nika_display::state::TaskState
 pub type nika_display::state::TaskState::Output = T
 pub struct nika_display::state::RunView
+pub nika_display::state::RunView::cancelled: bool
 pub nika_display::state::RunView::ceiling_usd: core::option::Option<f64>
 pub nika_display::state::RunView::cost_usd: f64
 pub nika_display::state::RunView::elapsed_ms: u64

@@ -1183,3 +1183,50 @@ fn mock_image_storyboard_names_the_rehearsal() {
         "the card must still name the workflow: {card}"
     );
 }
+
+/// #1438 · the operator's cancellation is a decision, never a defect: both
+/// surfaces render the cancelled card (the terminal's detail, dim) and never
+/// the failure card's explain hint.
+#[test]
+fn a_cancelled_run_renders_the_cancelled_card_not_the_failure_card() {
+    use nika_event::EventKind;
+    use nika_types::resource::{KeyValue, Value};
+    let task = |name: &str| KeyValue::new("task", Value::String(name.to_owned()));
+    let mut view = RunView::new();
+    view.apply(
+        &demo::bare_event(EventKind::WorkflowStarted, 0)
+            .with_field(KeyValue::new("workflow", Value::String("w".to_owned()))),
+    );
+    view.apply(&demo::bare_event(EventKind::TaskStarted, 1).with_field(task("a")));
+    view.apply(&demo::bare_event(EventKind::TaskCompleted, 2).with_field(task("a")));
+    view.apply(
+        &demo::bare_event(EventKind::TaskCancelled, 3)
+            .with_field(task("b"))
+            .with_field(KeyValue::new(
+                "note",
+                Value::String("cancelled by the operator".to_owned()),
+            )),
+    );
+    view.apply(
+        &demo::bare_event(EventKind::WorkflowCancelled, 4).with_field(KeyValue::new(
+            "detail",
+            Value::String(
+                "cancelled by the operator · in-flight work completed and was counted · \
+                 unstarted tasks were cancelled"
+                    .to_owned(),
+            ),
+        )),
+    );
+    assert!(view.cancelled, "the fold names the cancellation");
+    for lines in [frame(&view, &ASCII, 0), verdict_frame(&view, &ASCII)] {
+        let text = lines.join("\n");
+        assert!(
+            text.contains("cancelled by the operator"),
+            "the card names the decision:\n{text}"
+        );
+        assert!(
+            !text.contains("nika explain"),
+            "a decision has no explain hint:\n{text}"
+        );
+    }
+}
