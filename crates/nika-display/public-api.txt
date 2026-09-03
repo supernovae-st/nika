@@ -221,6 +221,9 @@ impl<T> tracing::instrument::Instrument for nika_display::check_render::VerdictL
 impl<T> tracing::instrument::WithSubscriber for nika_display::check_render::VerdictLayers
 impl<T> typenum::type_operators::Same for nika_display::check_render::VerdictLayers
 pub type nika_display::check_render::VerdictLayers::Output = T
+impl<T> zvariant::optional::NoneValue for nika_display::check_render::VerdictLayers where T: core::default::Default
+pub type nika_display::check_render::VerdictLayers::NoneType = T
+pub fn nika_display::check_render::VerdictLayers::null_value() -> T
 pub fn nika_display::check_render::mark(theme: nika_display::theme::Theme, ok: bool) -> alloc::string::String
 pub fn nika_display::check_render::permits(out: &mut alloc::string::String, report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, t: nika_display::theme::Theme)
 pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, repair_target: nika_display::check_render::RepairTarget, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String], verdict: bool, layers: &nika_display::check_render::VerdictLayers) -> alloc::string::String
