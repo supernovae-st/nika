@@ -313,6 +313,7 @@ impl ExecutionSnapshot {
             let logical = normalize_logical(import.as_ref())?;
             builder.capture_import(&logical, &authored)?;
         }
+        builder.capture_mcp_registry_if_named()?;
         builder.validate_workflows()?;
         builder.capture_pending_skills()?;
         Ok(builder.finish(root))
@@ -734,6 +735,34 @@ impl<'a, S: ByteSource> SnapshotBuilder<'a, S> {
         self.insert(logical, SnapshotUnitKind::Import, bytes)
     }
 
+    /// The MCP registry and its pins ride the captured world whenever a
+    /// captured workflow names an `mcp:` tool: the admission check inside
+    /// the snapshot reads the servers the project configured through the
+    /// same reader, so a configured lane is reachable at run time and an
+    /// unconfigured one is refused by name (#1374). Decided from the texts
+    /// already captured (the root is read once, never twice); an absent
+    /// file is not packed — the check then says so, honestly.
+    fn capture_mcp_registry_if_named(&mut self) -> Result<(), ExecutionError> {
+        let names_mcp = self
+            .workflow_texts()?
+            .iter()
+            .any(|(_, text)| text.contains("mcp:"));
+        if !names_mcp {
+            return Ok(());
+        }
+        for logical in MCP_REGISTRY_UNITS {
+            if self.units.contains_key(*logical) {
+                continue;
+            }
+            let Ok(bytes) = self.read_bounded(logical) else {
+                continue;
+            };
+            self.record_authored("<mcp>", logical, logical)?;
+            self.insert(logical, SnapshotUnitKind::Import, bytes)?;
+        }
+        Ok(())
+    }
+
     fn validate_workflows(&self) -> Result<(), ExecutionError> {
         let workflows = self.workflow_texts()?;
         for (logical_path, text) in workflows {
@@ -895,6 +924,10 @@ fn resolve_relative(owner: &str, authored: &str) -> Result<String, ExecutionErro
     joined.push(target);
     normalize_logical(&joined)
 }
+
+/// The project's MCP registry and the pins the operator approved: packed
+/// as imports when a captured workflow names an `mcp:` tool.
+const MCP_REGISTRY_UNITS: &[&str] = &[".nika/mcp_servers.json", ".nika/mcp_pins.json"];
 
 fn normalize_logical(path: &Path) -> Result<String, ExecutionError> {
     let authored = path.to_string_lossy().into_owned();
@@ -1142,6 +1175,65 @@ mod tests {
             units,
             digest,
         }
+    }
+
+    /// A captured world that names an `mcp:` tool carries the project's MCP
+    /// registry and pins as units — the admission check inside it sees the
+    /// configured servers; a world without `mcp:` carries none (#1374).
+    #[test]
+    fn the_mcp_registry_rides_the_captured_world_when_a_workflow_names_a_server() {
+        let dir = tempfile::tempdir().expect("project");
+        std::fs::create_dir_all(dir.path().join(".nika")).expect(".nika");
+        std::fs::write(
+            dir.path().join(".nika/mcp_servers.json"),
+            b"{\"mcp_servers_format\":1,\"servers\":{\"sandbox\":{\"command\":[\"true\"]}}}",
+        )
+        .expect("registry");
+        std::fs::write(
+            dir.path().join(".nika/mcp_pins.json"),
+            b"{\"sandbox\":{\"echo\":\"0000\"}}",
+        )
+        .expect("pins");
+        std::fs::write(
+            dir.path().join("mcp.nika.yaml"),
+            b"nika: mcp\npermits:\n  tools: [\"mcp:sandbox/echo\"]\ntasks:\n  call:\n    invoke:\n      tool: \"mcp:sandbox/echo\"\n      args: { text: hi }\n",
+        )
+        .expect("workflow");
+        std::fs::write(
+            dir.path().join("plain.nika.yaml"),
+            b"nika: plain\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 4 }\n",
+        )
+        .expect("workflow");
+        let project = nika_fs::OwnedDir::open(dir.path()).expect("open");
+        let limits = SnapshotLimits::default();
+        let with_mcp = ExecutionSnapshot::capture(&project, Path::new("mcp.nika.yaml"), limits)
+            .expect("captured");
+        assert!(
+            with_mcp
+                .units()
+                .any(|u| u.logical_path() == ".nika/mcp_servers.json"),
+            "the registry rides the world: {:?}",
+            with_mcp
+                .units()
+                .map(|u| u.logical_path().to_owned())
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            with_mcp
+                .units()
+                .any(|u| u.logical_path() == ".nika/mcp_pins.json")
+        );
+        with_mcp
+            .revalidate(limits)
+            .expect("readmits whole with the registry");
+        let plain = ExecutionSnapshot::capture(&project, Path::new("plain.nika.yaml"), limits)
+            .expect("captured");
+        assert!(
+            !plain
+                .units()
+                .any(|u| u.logical_path().starts_with(".nika/")),
+            "no mcp: no registry"
+        );
     }
 
     #[test]

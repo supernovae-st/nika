@@ -206,6 +206,7 @@ pub(crate) fn emit_prologue(
     sandbox_backend: Option<&str>,
     sandbox_policy: Option<&str>,
     sandbox_waived: bool,
+    project_root_fingerprint: Option<&str>,
     input_origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
     resume_unverified: Option<&crate::resume::ResumeUnverified>,
@@ -234,6 +235,10 @@ pub(crate) fn emit_prologue(
     // readers ignore them, newer readers say "unrecorded", never guess).
     if let Some(hash) = crate::proof::ir::semantic_ir_hash(wf) {
         opening.push(("semantic_hash", s(hash.as_hex())));
+    }
+    // The project that wrote this trace (#1367): resume judges it.
+    if let Some(fingerprint) = project_root_fingerprint {
+        opening.push(("project_root_fingerprint", s(fingerprint)));
     }
     if let Some(permits) = wf.permits.as_ref()
         && let Ok(json) = serde_json::to_string(&permits.value)

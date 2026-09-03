@@ -196,6 +196,17 @@ fn load_resume_plan(
         output_json,
     )?;
     judge_access(&recovered.events, access, &label, output_json)?;
+    // The trace's project against this one (#1367): the same fingerprint the
+    // composition root stamps (blake3 of the canonical sandbox root · the
+    // process cwd for a local run).
+    let here = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| nika_runtime::project_root_fingerprint(&cwd));
+    if let nika_dap::resume::ProjectVerdict::Refuse(message) =
+        nika_dap::resume::judge_project(&recovered.events, here.as_deref())
+    {
+        return Err(refuse(format!("--resume: {message}")));
+    }
     let fold = nika_dap::resume::fold_plan(&recovered.events);
     if fold.plan.is_empty() {
         // Nothing skippable — an older engine's trace or a run with no
