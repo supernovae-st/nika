@@ -928,6 +928,10 @@ async fn admit_workflow(
     admission.map_err(Some)
 }
 
+/// How long a cancelled run may take to reach its wave boundary and settle
+/// with terminal frames before the resident drops it (#1353).
+const CANCEL_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
 async fn settle_disposition(
     state: &AuthorityState,
     guard: &mut RunningGuard,
@@ -941,10 +945,19 @@ async fn settle_disposition(
         state
             .backend
             .execute_with_cancel(session.context(), max_cost_usd, cancel.clone());
+    // A cancel signal gives the runtime a grace to reach its next wave
+    // boundary and settle with terminal frames (#1353); only a run that
+    // does not come back in time is dropped mid-flight as before.
     let outcome = tokio::time::timeout(state.limits.execution_timeout(), async {
+        tokio::pin!(execute);
         tokio::select! {
-            outcome = execute => outcome,
-            () = cancel::cancelled(cancel.clone()) => ExecutionDisposition::Cancelled.into(),
+            outcome = &mut execute => outcome,
+            () = cancel::cancelled(cancel.clone()) => {
+                match tokio::time::timeout(CANCEL_GRACE, &mut execute).await {
+                    Ok(outcome) => outcome,
+                    Err(_) => ExecutionDisposition::Cancelled.into(),
+                }
+            }
         }
     })
     .await;

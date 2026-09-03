@@ -1438,6 +1438,7 @@ pub type nika_runtime::identity::EngineIdentity::Output = T
 #[non_exhaustive] pub struct nika_runtime::RunOutcome
 pub nika_runtime::RunOutcome::budget_exceeded: bool
 pub nika_runtime::RunOutcome::cache_hits: alloc::vec::Vec<alloc::string::String>
+pub nika_runtime::RunOutcome::cancelled: bool
 pub nika_runtime::RunOutcome::ok: bool
 pub nika_runtime::RunOutcome::outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub nika_runtime::RunOutcome::paused: core::option::Option<nika_runtime::WorkflowPause>
@@ -1518,6 +1519,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_pin(self, pin: core:
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_plan(self, plan: nika_providers::plan::ExecutionAccessPlan) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_probes(self, probes: alloc::vec::Vec<nika_providers::probe::ProviderProbe>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_boot_access_fields(self, fields: alloc::vec::Vec<(&'static str, nika_types::resource::Value)>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_cancel(self, cancel: nika_types::cancel::CancelCtx) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_closures(self, closures: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_harness_seat_id(self, id: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_input_origins(self, origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>) -> Self

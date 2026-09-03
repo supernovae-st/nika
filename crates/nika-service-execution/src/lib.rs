@@ -394,6 +394,10 @@ impl ServiceExecutionDriver {
             Some(plan) => runtime.with_access_plan(plan)?,
             None => runtime,
         };
+        let runtime = match options.cancel {
+            Some(cancel) => runtime.with_cancel(cancel),
+            None => runtime,
+        };
         let mut stamper = RunSeams::of(self.workflow.run.as_ref().map(|run| &run.value)).stamper();
         let mut sink = ServiceEventSink::new(Some(self.execution_id));
         let outcome = match options.mirror {
@@ -539,6 +543,14 @@ impl AuthorizedRuntime {
         self
     }
 
+    /// The operator's cancellation the runtime reads at every wave boundary
+    /// (#1353).
+    #[must_use]
+    pub fn with_cancel(mut self, cancel: nika_types::cancel::CancelCtx) -> Self {
+        self.runtime = self.runtime.with_cancel(cancel);
+        self
+    }
+
     /// Attach validated prompt answers.
     #[must_use]
     pub fn with_prompt_answers(mut self, answers: BTreeMap<String, Value>) -> Self {
@@ -665,6 +677,9 @@ pub struct ServiceExecutionOptions {
     /// resident's trace journal on disk · #1381): one lane per run, built
     /// when the run starts. The service sink stays the primary.
     mirror: Option<MirrorFactory>,
+    /// The operator's cancellation the runtime observes at every wave
+    /// boundary (#1353).
+    cancel: Option<nika_types::cancel::CancelCtx>,
 }
 
 /// Builds the mirror sink for one run (a lane per run, the child-trace
@@ -680,6 +695,7 @@ impl std::fmt::Debug for ServiceExecutionOptions {
             .field("max_cost_usd", &self.max_cost_usd)
             .field("access_plan", &self.access_plan.is_some())
             .field("mirror", &self.mirror.is_some())
+            .field("cancel", &self.cancel.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -712,7 +728,6 @@ impl ServiceExecutionOptions {
         self
     }
 
-    /// Apply the service admission's spend ceiling.
     #[must_use]
     /// Mirror every event of the run into the sink `factory` builds as well
     /// (the resident's journal on disk: the same NDJSON a `nika run` leaves,
@@ -723,6 +738,22 @@ impl ServiceExecutionOptions {
         self
     }
 
+    /// The operator's cancellation: the runtime reads it at every wave
+    /// boundary and ends the run with terminal frames (#1353).
+    #[must_use]
+    pub fn with_cancel(mut self, cancel: nika_types::cancel::CancelCtx) -> Self {
+        self.cancel = Some(cancel);
+        self
+    }
+
+    /// [`Self::with_cancel`] when the caller may have none.
+    #[must_use]
+    pub fn with_cancel_option(mut self, cancel: Option<nika_types::cancel::CancelCtx>) -> Self {
+        self.cancel = cancel;
+        self
+    }
+
+    /// Apply the service admission's spend ceiling.
     #[must_use]
     pub fn with_max_cost_usd(mut self, max_cost_usd: Option<f64>) -> Self {
         self.max_cost_usd = max_cost_usd;
@@ -868,6 +899,8 @@ pub enum ServiceExecutionStatus {
     Succeeded,
     /// The workflow settled unsuccessfully without exposing task failures.
     Failed,
+    /// The operator cancelled the run; it ended with terminal frames (#1353).
+    Cancelled,
     /// The workflow paused without exposing the pause payload.
     Paused,
     /// The runtime refused execution without exposing its typed error.
@@ -913,6 +946,7 @@ impl ServiceExecutionResult {
                 Some((error.spec_code(), error.wire_message())),
             ),
             Ok(outcome) if outcome.paused.is_some() => (ServiceExecutionStatus::Paused, None),
+            Ok(outcome) if outcome.cancelled => (ServiceExecutionStatus::Cancelled, None),
             Ok(outcome) if outcome.ok && !outcome.budget_exceeded => {
                 (ServiceExecutionStatus::Succeeded, None)
             }

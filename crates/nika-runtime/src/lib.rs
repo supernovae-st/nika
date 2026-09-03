@@ -116,6 +116,7 @@ use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::RawWorkflow;
 use nika_schema::types::{OutputDecl, VarDecl, type_expr_display};
+use nika_types::cancel::CancelCtx;
 use nika_types::resource::{KeyValue, Value as FieldValue};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
@@ -188,6 +189,8 @@ pub struct RunOutcome {
     pub unpriced_calls: u32,
     /// Whether the run stopped on `--max-cost-usd` (NIKA-1704).
     pub budget_exceeded: bool,
+    /// Whether the operator cancelled the run at a wave boundary (#1353).
+    pub cancelled: bool,
 }
 
 impl RunOutcome {
@@ -208,6 +211,7 @@ impl RunOutcome {
             priced_calls: 0,
             unpriced_calls: 0,
             budget_exceeded: false,
+            cancelled: false,
         }
     }
 
@@ -294,6 +298,7 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// `harness_seat` so the trace names the execution override beside
     /// the resolver's plan. `None` without a declaration.
     harness_seat_id: Option<String>,
+    cancel: Option<CancelCtx>,
     /// The FROZEN execution-access plan (One Door · wave 1): resolved
     /// once by the composer, consumed here — the admission belt, the
     /// per-lane seat routing, the task terminal's access stamp. `None`
@@ -410,6 +415,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             access_probes: Vec::new(),
             boot_access_fields: Vec::new(),
             harness_seat_id: None,
+            cancel: None,
             access_plan: None,
             inspect: None,
         }
@@ -517,6 +523,13 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_harness_seat_id(mut self, id: Option<String>) -> Self {
         self.harness_seat_id = id;
+        self
+    }
+
+    /// The operator's cancellation (#1353), read at every wave boundary.
+    #[must_use]
+    pub fn with_cancel(mut self, cancel: CancelCtx) -> Self {
+        self.cancel = Some(cancel);
         self
     }
 
@@ -1069,9 +1082,9 @@ where
             return Ok(Some(outcome.with_ledger(&run_ledger.snapshot())));
         }
 
-        // The budget boundary: settle what ran, cancel what never
-        // started, fail the run with spent-vs-budget (NIKA-1704).
-        if run_ledger.tripped() {
+        // The budget's boundary and the operator's (#1353): the run's terminal.
+        let cancelled = self.cancel.as_ref().is_some_and(CancelCtx::is_cancelled);
+        if run_ledger.tripped() || cancelled {
             // Parked recoveries resolve against what RAN before the
             // abort cancels the rest — no task is left frameless.
             recover::resolve_at_end(
@@ -1083,12 +1096,18 @@ where
                 stamper,
                 sink,
             );
-            let outcome = abort_on_budget(
+            let abort = if cancelled {
+                Abort::Operator
+            } else {
+                Abort::Budget
+            };
+            let outcome = abort_unran(
                 wf,
                 workflow_name,
                 std::mem::take(records),
                 std::mem::take(cache_hits),
                 &run_ledger.snapshot(),
+                abort,
                 stamper,
                 sink,
             );
@@ -1367,50 +1386,78 @@ fn terminal_cost_fields(snap: &ledger::LedgerSnapshot) -> Vec<(&'static str, Fie
 /// settled before the check); every task that never STARTED cancels
 /// with the budget note, then the run fails with spent-vs-budget — the
 /// LiteLLM-shaped error message (both numbers, always).
-fn abort_on_budget(
+/// Why the unstarted tasks settle as cancelled at a wave boundary.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Abort {
+    Budget,
+    Operator,
+}
+
+#[allow(clippy::too_many_arguments)] // the wave boundary's own knob set
+fn abort_unran(
     wf: &RawWorkflow,
     workflow_name: &str,
     mut records: BTreeMap<String, DataflowTaskRecord>,
     cache_hits: Vec<String>,
     snapshot: &ledger::LedgerSnapshot,
+    abort: Abort,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) -> RunOutcome {
+    let (cause, note) = match abort {
+        Abort::Budget => (
+            nika_dataflow::TerminalCause::Budget,
+            "budget · --max-cost-usd reached",
+        ),
+        Abort::Operator => (
+            nika_dataflow::TerminalCause::Operator,
+            "cancelled by the operator",
+        ),
+    };
     for task in &wf.tasks {
         let id = &task.value.id.value;
         if !records.contains_key(id) {
             // Spec 13 · cancelled/budget: this task was UNSTARTED when
             // the cap hit (in-flight work completed and was counted).
-            let record = DataflowTaskRecord::unran(
-                nika_dataflow::TaskStatus::Cancelled,
-                nika_dataflow::TerminalCause::Budget,
-            );
+            let record = DataflowTaskRecord::unran(nika_dataflow::TaskStatus::Cancelled, cause);
             emit(
                 stamper,
                 sink,
                 EventKind::TaskCancelled,
                 &[
                     ("task", s(id)),
-                    ("note", s("budget · --max-cost-usd reached")),
+                    ("note", s(note)),
                     ("outcome", s(&record::outcome_json(&record))),
                 ],
             );
             records.insert(id.clone(), record);
         }
     }
-    let detail = format!(
-        "NIKA-1704 · run budget exceeded — spent ${:.6} of ${:.6} (--max-cost-usd) · \
-         in-flight work completed and was counted · unstarted tasks were cancelled",
-        snapshot.spent_usd,
-        snapshot.budget.unwrap_or(0.0),
-    );
+    let (kind, detail) = match abort {
+        Abort::Budget => (
+            EventKind::WorkflowFailed,
+            format!(
+                "NIKA-1704 · run budget exceeded — spent ${:.6} of ${:.6} (--max-cost-usd) · \
+                 in-flight work completed and was counted · unstarted tasks were cancelled",
+                snapshot.spent_usd,
+                snapshot.budget.unwrap_or(0.0),
+            ),
+        ),
+        Abort::Operator => (
+            EventKind::WorkflowCancelled,
+            "cancelled by the operator — in-flight work completed and was counted · \
+             unstarted tasks were cancelled"
+                .to_owned(),
+        ),
+    };
     let mut fields = vec![("workflow", s(workflow_name)), ("detail", s(&detail))];
     fields.extend(terminal_cost_fields(snapshot));
-    emit(stamper, sink, EventKind::WorkflowFailed, &fields);
+    emit(stamper, sink, kind, &fields);
 
     let mut outcome =
         RunOutcome::from_dataflow(false, records, BTreeMap::new()).with_ledger(snapshot);
     outcome.cache_hits = cache_hits;
+    outcome.cancelled = abort == Abort::Operator;
     outcome
 }
 

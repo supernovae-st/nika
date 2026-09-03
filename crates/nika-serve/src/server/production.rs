@@ -39,7 +39,19 @@ impl ExecutionBackend for ResidentExecutionBackend {
         context: nika_execution::ExecutionContext<'a>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         let display_root = self.display_root.clone();
-        Box::pin(async move { drive_resident_execution(display_root, context, None).await })
+        Box::pin(async move { drive_resident_execution(display_root, context, None, None).await })
+    }
+
+    fn execute_with_cancel<'a>(
+        &'a self,
+        context: nika_execution::ExecutionContext<'a>,
+        max_cost_usd: Option<f64>,
+        cancel: nika_types::cancel::CancelCtx,
+    ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        let display_root = self.display_root.clone();
+        Box::pin(async move {
+            drive_resident_execution(display_root, context, max_cost_usd, Some(cancel)).await
+        })
     }
 
     fn execute_with_max_cost<'a>(
@@ -48,7 +60,9 @@ impl ExecutionBackend for ResidentExecutionBackend {
         max_cost_usd: Option<f64>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         let display_root = self.display_root.clone();
-        Box::pin(async move { drive_resident_execution(display_root, context, max_cost_usd).await })
+        Box::pin(async move {
+            drive_resident_execution(display_root, context, max_cost_usd, None).await
+        })
     }
 }
 
@@ -67,6 +81,7 @@ async fn drive_resident_execution(
     display_root: PathBuf,
     context: nika_execution::ExecutionContext<'_>,
     max_cost_usd: Option<f64>,
+    operator_cancel: Option<nika_types::cancel::CancelCtx>,
 ) -> ExecutionOutcome {
     // The journal a `nika run` would leave, under the project the resident
     // serves: the trace the receipt names exists on disk (#1381). A lane per
@@ -92,7 +107,14 @@ async fn drive_resident_execution(
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     let _cancel = CancelOnDrop(Some(cancel_tx));
     match tokio::task::spawn_blocking(move || {
-        run_admitted_resident_job(driver, cancel_rx, max_cost_usd, plan, journal)
+        run_admitted_resident_job(
+            driver,
+            cancel_rx,
+            max_cost_usd,
+            plan,
+            journal,
+            operator_cancel,
+        )
     })
     .await
     {
@@ -107,6 +129,7 @@ fn run_admitted_resident_job(
     max_cost_usd: Option<f64>,
     plan: nika_service_execution::ExecutionAccessPlan,
     journal: nika_service_execution::MirrorFactory,
+    operator_cancel: Option<nika_types::cancel::CancelCtx>,
 ) -> ExecutionOutcome {
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -117,7 +140,8 @@ fn run_admitted_resident_job(
     let options = ServiceExecutionOptions::new()
         .with_max_cost_usd(max_cost_usd)
         .with_access_plan(plan)
-        .with_mirror(journal);
+        .with_mirror(journal)
+        .with_cancel_option(operator_cancel);
     rt.block_on(async move {
         tokio::select! {
             result = driver.execute(options) => match result {
@@ -125,6 +149,7 @@ fn run_admitted_resident_job(
                     let disposition = match outcome.status() {
                         ServiceExecutionStatus::Succeeded => ExecutionDisposition::Succeeded,
                         ServiceExecutionStatus::Paused => ExecutionDisposition::Paused,
+                        ServiceExecutionStatus::Cancelled => ExecutionDisposition::Cancelled,
                         _ => ExecutionDisposition::Failed,
                     };
                     let mut mapped = ExecutionOutcome::from(disposition);
