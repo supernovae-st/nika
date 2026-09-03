@@ -17,7 +17,7 @@ amends: []
 fci: []
 inv: []
 shadow_zones: []
-nika_codes: ["NIKA-1800", "NIKA-1801"]
+nika_codes: ["NIKA-1800", "NIKA-1801", "NIKA-1807"]
 timeline: "v0.118"
 follow_ups: ["a failed task terminal carries its lane", "a run exit-code table and a code for the resume access refusal", "error on every failed run_settled"]
 ---
@@ -97,6 +97,13 @@ must not spend tokens to prove readiness.
 
 ## Follow-ups
 
-- A failed task terminal carries its lane (`emit_failed` reads the plan).
-- A run exit-code table on `run --help`; a code and an explain entry for
-  the resume access refusal; `error` on every failed `run_settled`.
+- Delivered in wave 2b: a failed task terminal carries its lane and a
+  note naming the model; `run_settled` carries `error` on every failed
+  frame (launch refusals included) and the `access_plan` rows of the
+  lanes that served; `run --help` ends on its exit ladder; the resume
+  access refusal is `NIKA-1807`; « wrote .nika/traces » prints only
+  when a trace exists; the MODELS rung's judges (`verdict_layers` ·
+  capacity · resolution · the boot access stamps) are hosted in
+  `nika_cli_host::models_rung`, the door the MCP oracle reaches (wave 3).
+- The run-time ACCESS READY probe (a non-billable credential check) and
+  the RUN READY preflight at the runtime's admission belt stay open.

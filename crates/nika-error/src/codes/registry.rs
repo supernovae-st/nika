@@ -985,6 +985,17 @@ pub const NIKA_1806: NikaCode = NikaCode {
     slug: "access-harness-gate",
 };
 
+/// NIKA-1807: A resume would switch access silently — the trace rode
+/// one path for a model and this machine now resolves another; the
+/// resume refuses unless `--access` keeps the recorded path or names
+/// the change (One Door · « resume cannot switch access silently »).
+pub const NIKA_1807: NikaCode = NikaCode {
+    num: 1807,
+    category: Category::Access,
+    severity: Severity::Error,
+    slug: "access-resume-moved",
+};
+
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
 /// in their L1 crates, the CONSTANTS are registry-owned here so
@@ -1013,5 +1024,5 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605, NIKA_1700, NIKA_1701,
     NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705, NIKA_1706, NIKA_1707, NIKA_1708, NIKA_1709,
     NIKA_1710, NIKA_1711, NIKA_1800, NIKA_1801, NIKA_1802, NIKA_1803, NIKA_1804, NIKA_1805,
-    NIKA_1806,
+    NIKA_1806, NIKA_1807,
 ];

@@ -192,6 +192,7 @@ where
                 cost_unpriced: None,
                 // F-P6 · the child's own trace attests its steps.
                 evidence: None,
+                access: None,
             }),
         }
     }

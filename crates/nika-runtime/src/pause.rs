@@ -261,6 +261,7 @@ mod tests {
                     error: TaskErrorRecord::new(code, message, false),
                     cost_usd: None,
                     cost_unpriced: None,
+                    access: None,
                 },
             })),
             named: BTreeMap::new(),

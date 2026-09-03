@@ -972,7 +972,7 @@ async fn execute_output_json_lane(
     fold.set_source_path(file);
     let tee = Tee::new(fold, trace);
     let mut events = ExecutionSink::new(tee, execution);
-    let (code, outcome) = drive(runtime, stamper, &mut events).await;
+    let (code, outcome, _refusal) = drive(runtime, stamper, &mut events).await;
     let (mut sink, mut trace) = events.into_inner().into_parts();
     sink.print_final();
     // R4 — the auth-class tail rides stderr (stdout stays the clean
@@ -1058,7 +1058,7 @@ async fn execute_json_lane(
 ) -> RunVerdict {
     let tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
     let mut events = ExecutionSink::new(tee, identity.0);
-    let (code, outcome) = drive(runtime, stamper, &mut events).await;
+    let (code, outcome, refusal) = drive(runtime, stamper, &mut events).await;
     let (mut sink, mut trace) = events.into_inner().into_parts();
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
@@ -1097,7 +1097,12 @@ async fn execute_json_lane(
     let trace_proof = surface.path.as_deref().zip(surface.proof.as_ref());
     // #1403 — the terminal frame carries the first failure's code,
     // message and task: the last line a CI reader parses is the verdict.
-    let cause = nika_cli_host::run_settlement::settlement_error(&outcome);
+    let cause = nika_cli_host::run_settlement::settlement_error(&outcome).or(refusal);
+    // Wave 2b · the verdict frame names the lanes that served (the ONE
+    // lane-row shape) — CI asserts the path on the last line.
+    let lanes = runtime
+        .access_plan()
+        .map(nika_service_execution::access::lane_rows);
     if let Err(e) = nika_cli_host::run_settlement::write_local_run_settlement(
         &mut sink,
         (outcome.ok, outcome.paused.is_some()),
@@ -1106,6 +1111,7 @@ async fn execute_json_lane(
         identity.1,
         trace_proof,
         cause.as_ref(),
+        lanes.as_deref(),
     ) {
         eprintln!("nika run: settlement write failed: {e}");
         return RunVerdict::renderer_failed(trace_path, e.kind());
@@ -1158,7 +1164,7 @@ async fn execute_fold_lane(
         trace,
     );
     let mut events = ExecutionSink::new(tee, execution);
-    let (code, outcome) = drive(runtime, stamper, &mut events).await;
+    let (code, outcome, _refusal) = drive(runtime, stamper, &mut events).await;
     // The run settled: stop riders before the epilogue.
     if let Some(ticker) = &ticker {
         ticker.abort();
@@ -1175,10 +1181,15 @@ async fn execute_fold_lane(
         let label = notify::workflow_label(wf);
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
+    // Wave 2b · « wrote .nika/traces » only when a trace exists (a run
+    // refused before its prologue writes none · the W1 gauntlet read
+    // the line over an empty directory).
+    let trace_recorded = trace_recorded && trace.path().is_some_and(std::path::Path::exists);
     let Ok(mut sink) = fold.lock() else {
         eprintln!("nika run: render state poisoned");
         return RunVerdict::bare(exit::ENV);
     };
+    sink.set_trace_recorded(trace_recorded);
     if mode != RenderMode::Live {
         sink.print_final();
     }
@@ -1335,18 +1346,32 @@ where
     D: nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn,
     C: nika_kernel::clock::ClockDyn + Sync,
 {
-    map_run_result(runtime.run(wf, report, stamper, sink).await)
+    let (code, outcome, _refusal) = map_run_result(runtime.run(wf, report, stamper, sink).await);
+    (code, outcome)
 }
 
 async fn drive(
     runtime: &AuthorizedRuntime,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
-) -> (u8, RunOutcome) {
+) -> (
+    u8,
+    RunOutcome,
+    Option<nika_cli_host::run_settlement::SettlementError>,
+) {
     map_run_result(runtime.run(stamper, sink).await)
 }
 
-fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) {
+/// The runtime's verdict mapped to the exit code, the outcome, and —
+/// for a launch refusal — the cause the settlement frame carries
+/// (wave 2b: `run_settled` names its `error` on EVERY failed frame).
+fn map_run_result(
+    result: Result<RunOutcome, RuntimeError>,
+) -> (
+    u8,
+    RunOutcome,
+    Option<nika_cli_host::run_settlement::SettlementError>,
+) {
     match result {
         Ok(outcome) => {
             // Paused wins the mapping (ADR-099 rider): non-zero on purpose
@@ -1359,10 +1384,11 @@ fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) 
             } else {
                 exit::WORKFLOW
             };
-            (code, outcome)
+            (code, outcome, None)
         }
         Err(err) => {
             use nika_error::traits::NikaErrorCode as _;
+            let cause = nika_cli_host::run_settlement::refusal_error(&err);
             let mut stderr = std::io::stderr().lock();
             if matches!(
                 err,
@@ -1393,6 +1419,7 @@ fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) 
                 return (
                     exit::FILE,
                     RunOutcome::new(false, BTreeMap::new(), BTreeMap::new()),
+                    Some(cause),
                 );
             } else {
                 let _ = writeln!(
@@ -1406,6 +1433,7 @@ fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) 
             (
                 exit::ENV,
                 RunOutcome::new(false, BTreeMap::new(), BTreeMap::new()),
+                Some(cause),
             )
         }
     }

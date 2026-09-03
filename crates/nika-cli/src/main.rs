@@ -412,6 +412,7 @@ struct DoctorArgs {
 }
 
 #[derive(Args)]
+#[command(after_help = help_card::RUN_EXITS)]
 // Six independent CLI flags ARE six bools — the clap-surface idiom
 // (same as TraceArgs), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]

@@ -36,6 +36,7 @@ pub mod harness;
 pub mod help_card;
 pub mod machine_truth;
 pub mod metrics;
+pub mod models_rung;
 pub mod notify;
 pub mod output;
 pub mod probe;

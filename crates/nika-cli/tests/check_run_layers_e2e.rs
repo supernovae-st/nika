@@ -262,3 +262,156 @@ fn the_layers_line_names_the_four_questions() {
         "the old parenthetical is retired: {out}"
     );
 }
+
+/// The `fields` of the first frame of `kind`, as (key, value) pairs.
+fn frame_fields(stdout: &str, kind: &str) -> Vec<(String, serde_json::Value)> {
+    let needle = format!("\"kind\":\"{kind}\"");
+    let line = stdout
+        .lines()
+        .find(|l| l.contains(&needle))
+        .unwrap_or_else(|| panic!("no {kind} frame in:\n{stdout}"));
+    let frame: serde_json::Value = serde_json::from_str(line).expect("one JSON frame");
+    frame["fields"]
+        .as_array()
+        .expect("fields array")
+        .iter()
+        .map(|f| {
+            (
+                f["key"].as_str().expect("field key").to_owned(),
+                f["value"].clone(),
+            )
+        })
+        .collect()
+}
+
+fn field<'a>(fields: &'a [(String, serde_json::Value)], key: &str) -> Option<&'a str> {
+    fields
+        .iter()
+        .find(|(k, _)| k == key)
+        .and_then(|(_, v)| v.as_str())
+}
+
+fn last_frame(stdout: &str) -> serde_json::Value {
+    let line = stdout.lines().last().expect("a verdict frame");
+    serde_json::from_str(line).unwrap_or_else(|e| panic!("the last line is JSON ({e}): {line}"))
+}
+
+/// A FAILED task terminal carries the lane that failed: the API path
+/// pinned by `--access api` dials the dead key, and the `task_failed`
+/// frame names `model` · `provider` · `access` · `access_id` · `billing`
+/// — a sealed trace says which path was allowed to bill (W1-F4).
+#[test]
+fn a_failed_task_terminal_carries_its_lane() {
+    let rig = Rig::new("failed-lane");
+    rig.write("lane.nika.yaml", &workflow(256));
+    let run = rig.nika(&[
+        "run",
+        "lane.nika.yaml",
+        "--json",
+        "--access",
+        "api",
+        "--max-cost-usd",
+        "1",
+    ]);
+    let stdout = text(&run.stdout);
+    assert_eq!(
+        run.status.code(),
+        Some(1),
+        "the API path fails on the dead key\n{stdout}"
+    );
+    let fields = frame_fields(&stdout, "task_failed");
+    assert_eq!(field(&fields, "access_id"), Some("openai"), "{fields:?}");
+    assert_eq!(field(&fields, "access"), Some("api"), "{fields:?}");
+    assert_eq!(
+        field(&fields, "model"),
+        Some("openai/gpt-5.2"),
+        "{fields:?}"
+    );
+    assert_eq!(field(&fields, "provider"), Some("openai"), "{fields:?}");
+    assert_eq!(field(&fields, "billing"), Some("api_metered"), "{fields:?}");
+    assert!(
+        field(&fields, "note").is_some_and(|n| n.contains("openai/gpt-5.2")),
+        "the note names the model, never `?`: {fields:?}"
+    );
+    // The verdict frame carries the cause AND the lanes (W1-F7 · W1-F13).
+    let settled = last_frame(&stdout);
+    assert_eq!(settled["kind"], "run_settled", "{settled}");
+    assert_eq!(settled["status"], "failed", "{settled}");
+    assert_eq!(settled["error"]["task"], "answer", "{settled}");
+    assert_eq!(settled["access_plan"][0]["access"], "openai", "{settled}");
+    assert_eq!(settled["access_plan"][0]["chosen"], "api", "{settled}");
+}
+
+/// A run REFUSED before any task settles with its code on the verdict
+/// frame — `--access mock` on an openai model is NIKA-1801 (a pin is a
+/// pin · never a substitute), and the last line a CI reader parses names
+/// it (W1-F7).
+#[test]
+fn a_refused_run_settles_with_its_code() {
+    let rig = Rig::new("refused-code");
+    rig.write("lane.nika.yaml", &workflow(256));
+    let run = rig.nika(&[
+        "run",
+        "lane.nika.yaml",
+        "--json",
+        "--access",
+        "mock",
+        "--max-cost-usd",
+        "1",
+    ]);
+    let stdout = text(&run.stdout);
+    assert_eq!(
+        run.status.code(),
+        Some(3),
+        "{stdout}\n{}",
+        text(&run.stderr)
+    );
+    let settled = last_frame(&stdout);
+    assert_eq!(settled["kind"], "run_settled", "{settled}");
+    assert_eq!(settled["status"], "failed", "{settled}");
+    assert_eq!(settled["error"]["code"], "NIKA-1801", "{settled}");
+    assert_eq!(settled["error"]["task"], "-", "{settled}");
+    assert!(
+        !stdout.contains("\"kind\":\"task_started\""),
+        "nothing ran: {stdout}"
+    );
+}
+
+/// A seated success settles with the lanes that served (W1-F13): the
+/// verdict frame's `access_plan` rows are the ONE lane-row shape.
+#[test]
+fn a_seated_run_settles_with_its_lanes() {
+    let rig = Rig::new("settled-lanes");
+    rig.write("lane.nika.yaml", &workflow(256));
+    let run = rig.nika(&["run", "lane.nika.yaml", "--json", "--max-cost-usd", "1"]);
+    let stdout = text(&run.stdout);
+    assert_eq!(run.status.code(), Some(0), "{}", text(&run.stderr));
+    let settled = last_frame(&stdout);
+    assert_eq!(settled["status"], "succeeded", "{settled}");
+    assert_eq!(settled["access_plan"][0]["access"], "codex", "{settled}");
+    assert_eq!(settled["access_plan"][0]["chosen"], "harness", "{settled}");
+    assert!(
+        settled.get("error").is_none(),
+        "a green frame claims no cause: {settled}"
+    );
+}
+
+/// `run --help` carries the exit ladder (W1-F6) and `nika explain`
+/// teaches the resume access refusal's code.
+#[test]
+fn the_run_help_and_the_explain_teach_the_exit_codes() {
+    let rig = Rig::new("help");
+    let help = rig.nika(&["run", "--help"]);
+    let out = text(&help.stdout);
+    assert!(
+        out.contains("exit codes") && out.contains("NIKA-1807") && out.contains("4 PAUSED"),
+        "the run help lists its codes: {out}"
+    );
+    let explain = rig.nika(&["explain", "NIKA-1807"]);
+    let out = text(&explain.stdout);
+    assert_eq!(explain.status.code(), Some(0), "{out}");
+    assert!(
+        out.contains("recorded path"),
+        "the code teaches the two flags: {out}"
+    );
+}

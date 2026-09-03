@@ -378,6 +378,9 @@ fn access_code_help(num: u16) -> &'static str {
         1806 => {
             "The harness asked for an action the workflow's `permits:` grants do not cover, so the run PAUSED for a human answer (a gate question is never auto-answered). Resume with `nika run --resume <trace> --answer <task>=true` to grant it once, `=false` to deny — or widen the permits block."
         }
+        1807 => {
+            "The resume's access moved: the trace rode one path for a model and this machine now resolves another. Resume with `--access <recorded>` to keep the recorded path (the refusal names it), or `--access <new>` to name the change explicitly — a silent switch never happens."
+        }
         _ => {
             "Execution access resolution failed. `model:` picks the intelligence; access picks the path — read the plan's witnesses via `nika explain`, then fix the path the witness names."
         }
@@ -1229,6 +1232,7 @@ mod tests {
                 super::NIKA_1804,
                 super::NIKA_1805,
                 super::NIKA_1806,
+                super::NIKA_1807,
             ] {
                 assert_eq!(
                     code.category,
