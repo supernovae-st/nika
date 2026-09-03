@@ -197,6 +197,21 @@ pub(crate) fn boot_attestation_fields(wf: &RawWorkflow) -> Vec<(&'static str, Fi
 /// `TaskScheduled` per task (the storyboard's fixed prologue) — then
 /// open the F-P4 approval book on the opening frame's id (the run
 /// nonce every ticket this run mints is scoped to · NEP-0013 law 2).
+/// The run's identity on the opening frame: the semantic hash of the
+/// workflow and the project that wrote the trace (#1367 · resume judges it).
+fn push_identity(
+    opening: &mut Vec<(&'static str, FieldValue)>,
+    wf: &RawWorkflow,
+    project_root_fingerprint: Option<&str>,
+) {
+    if let Some(hash) = crate::proof::ir::semantic_ir_hash(wf) {
+        opening.push(("semantic_hash", s(hash.as_hex())));
+    }
+    if let Some(fingerprint) = project_root_fingerprint {
+        opening.push(("project_root_fingerprint", s(fingerprint)));
+    }
+}
+
 #[allow(clippy::too_many_arguments)] // the prologue parts + the pens
 pub(crate) fn emit_prologue(
     wf: &RawWorkflow,
@@ -233,13 +248,7 @@ pub(crate) fn emit_prologue(
     // identity + boundary + confinement in its OWN bytes — all three are
     // deterministic projections (no clock, no I/O) and additive (older
     // readers ignore them, newer readers say "unrecorded", never guess).
-    if let Some(hash) = crate::proof::ir::semantic_ir_hash(wf) {
-        opening.push(("semantic_hash", s(hash.as_hex())));
-    }
-    // The project that wrote this trace (#1367): resume judges it.
-    if let Some(fingerprint) = project_root_fingerprint {
-        opening.push(("project_root_fingerprint", s(fingerprint)));
-    }
+    push_identity(&mut opening, wf, project_root_fingerprint);
     if let Some(permits) = wf.permits.as_ref()
         && let Ok(json) = serde_json::to_string(&permits.value)
     {
