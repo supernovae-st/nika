@@ -119,6 +119,14 @@ pub(crate) use nika_runtime_laws::{
 };
 pub use nika_runtime_laws::{identity, sandbox_select};
 
+/// The three read-only value namespaces the run's close reads (inputs ·
+/// consts · secrets) — the `task` module's own alias, spelled once here.
+type ValueBags<'a> = (
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+);
+
 pub use admit::{
     access_pin_refusal, budget_floor_refusal, floor_refusal, modelless_refusal, plan_refusal,
     required_inputs_refusal, scope_to_task, unbounded_breakdown,
@@ -1000,25 +1008,48 @@ where
             sink,
         );
 
-        // Resolve outputs before the terminal frame so type failures fail the run.
-        let mut outputs = resolve_outputs(wf, &records, &inputs, &consts, &secrets);
-        // The output map bypasses the event sink, so scrub it explicitly.
-        crate::secret::scrub_outputs(&mut outputs, &secrets);
+        Ok(self.close_run(
+            wf,
+            (records, ok, cache_hits),
+            (&inputs, &consts, &secrets),
+            &workflow_name,
+            &run_ledger,
+            stamper,
+            sink,
+        ))
+    }
+
+    /// The run's close (split out of `run` at the 100-line ratchet): resolve
+    /// `outputs:` before the terminal frame so a type failure fails the run,
+    /// scrub the map (it bypasses the event sink), stamp the terminal with
+    /// the ledger's snapshot on the kernel clock (#1247).
+    #[allow(clippy::too_many_arguments)] // the run's close carries the run's parts
+    fn close_run(
+        &self,
+        wf: &RawWorkflow,
+        (records, ok, cache_hits): (BTreeMap<String, DataflowTaskRecord>, bool, Vec<String>),
+        (inputs, consts, secrets): ValueBags<'_>,
+        workflow_name: &str,
+        run_ledger: &ledger::RunLedger,
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) -> RunOutcome {
+        let mut outputs = resolve_outputs(wf, &records, inputs, consts, secrets);
+        crate::secret::scrub_outputs(&mut outputs, secrets);
         let snapshot = run_ledger.snapshot_at(self.clock.now());
         let ok = finalize_outputs(
             wf,
             &outputs,
             &records,
-            &workflow_name,
+            workflow_name,
             ok,
             &snapshot,
             stamper,
             sink,
         );
-
         let mut outcome = RunOutcome::from_dataflow(ok, records, outputs).with_ledger(&snapshot);
         outcome.cache_hits = cache_hits;
-        Ok(outcome)
+        outcome
     }
 
     /// One wave through the spine: dispatch + streamed settle, then the
