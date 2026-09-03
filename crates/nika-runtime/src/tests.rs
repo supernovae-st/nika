@@ -774,6 +774,7 @@ fn recovered_success_emits_task_recovered_before_completed() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::Number(99.into()),
             tokens: None,
@@ -839,6 +840,7 @@ fn obs_e_warning_rides_task_completed() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::String(String::new()),
             tokens: Some(84),
@@ -904,6 +906,7 @@ fn no_warning_field_on_a_clean_success() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::String("ok".to_owned()),
             tokens: None,
@@ -970,6 +973,7 @@ fn access_facts_ride_the_infer_terminal() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::String("hi".to_owned()),
             tokens: Some(3),
@@ -1035,6 +1039,7 @@ fn cost_unpriced_reason_rides_task_completed() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::String("bonjour".to_owned()),
             tokens: Some(12),

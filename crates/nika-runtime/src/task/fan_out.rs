@@ -50,6 +50,9 @@ pub(super) struct FanOutAccum {
     pub(super) failed_items: Vec<String>,
     pub(super) recovered_items: Vec<String>,
     pub(super) first_recovered_from: Option<TaskErrorRecord>,
+    /// One row per consumed iteration, in input order (#1276 · #1397):
+    /// index · item · status · code · message.
+    pub(super) items: Vec<Value>,
 }
 
 pub(super) async fn collect_fan_out<S>(stream: &mut S, total: usize, fail_fast: bool) -> FanOutAccum
@@ -69,6 +72,7 @@ where
         failed_items: Vec::new(),
         recovered_items: Vec::new(),
         first_recovered_from: None,
+        items: Vec::new(),
     };
 
     while let Some(iter_ran) = stream.next().await {
@@ -84,6 +88,7 @@ fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) 
     acc.agent_events.extend(iter_ran.agent_events);
     acc.decisions.extend(iter_ran.decisions);
     let identity = identity_from_note(&iter_ran.note);
+    let index = index_from_note(&iter_ran.note).unwrap_or(acc.items.len());
     match iter_ran.result {
         RunResult::Success {
             value,
@@ -93,6 +98,16 @@ fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) 
             recovered_from,
             ..
         } => {
+            acc.items.push(item_row(
+                index,
+                &identity,
+                if recovered_from.is_some() {
+                    "recovered"
+                } else {
+                    "ok"
+                },
+                recovered_from.as_ref(),
+            ));
             if let Some(original) = recovered_from {
                 acc.recovered += 1;
                 acc.recovered_items.push(identity);
@@ -105,6 +120,8 @@ fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) 
             false
         }
         RunResult::SkippedWithError { error, .. } => {
+            acc.items
+                .push(item_row(index, &identity, "recovered", Some(&error)));
             acc.recovered += 1;
             acc.recovered_items.push(identity);
             acc.outputs.push(Value::Null);
@@ -114,6 +131,8 @@ fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) 
             false
         }
         RunResult::Failed { error, .. } => {
+            acc.items
+                .push(item_row(index, &identity, "failed", Some(&error)));
             acc.outputs.push(Value::Null);
             acc.failed_items.push(identity);
             if acc.first_error.is_none() {
@@ -122,6 +141,12 @@ fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) 
             fail_fast
         }
         RunResult::PendingRecovery(pending) => {
+            acc.items.push(item_row(
+                index,
+                &identity,
+                "failed",
+                Some(&pending.render_error),
+            ));
             acc.outputs.push(Value::Null);
             acc.failed_items.push(identity);
             if acc.first_error.is_none() {
@@ -284,6 +309,38 @@ fn annotate_error_in_place(error: &mut TaskErrorRecord, index: usize, identity: 
     error.message = format!("for_each item [{index}] {identity}: {}", error.message);
 }
 
+/// One item's terminal row (#1276 · #1397): the index and the identity the
+/// iteration note carries, the status, and the recorded error's code and
+/// message when there is one.
+fn item_row(index: usize, identity: &str, status: &str, error: Option<&TaskErrorRecord>) -> Value {
+    let mut row = serde_json::json!({ "index": index, "item": identity, "status": status });
+    if let (Some(error), Some(object)) = (error, row.as_object_mut()) {
+        object.insert("code".to_owned(), Value::String(error.code.clone()));
+        object.insert("message".to_owned(), Value::String(error.message.clone()));
+    }
+    row
+}
+
+/// The iteration index the note carries (`for_each[<index>]=<identity>`).
+fn index_from_note(note: &str) -> Option<usize> {
+    note.strip_prefix("for_each[")?
+        .split_once(']')?
+        .0
+        .parse()
+        .ok()
+}
+
+/// The fan-out's item table as ONE compact JSON text (#1276 · #1397): the
+/// consumed rows in input order, then a `never_started` row for every item
+/// the batch stopped before (`fail_fast` · the budget). Rendered on the
+/// terminal frame as `items`.
+pub(super) fn items_json(mut rows: Vec<Value>, items: &[Value]) -> String {
+    for (index, item) in items.iter().enumerate().skip(rows.len()) {
+        rows.push(item_row(index, &item_identity(item), "never_started", None));
+    }
+    serde_json::to_string(&rows).unwrap_or_else(|_| "[]".to_owned())
+}
+
 fn identity_from_note(note: &str) -> String {
     note.split_once('=')
         .map(|(_, id)| id.to_owned())
@@ -331,6 +388,7 @@ mod tests {
             decisions: Vec::new(),
             evidence: None,
             duration_ms: 0,
+            items: None,
             result,
         }
     }
@@ -438,6 +496,37 @@ mod tests {
         assert_eq!(
             fan_note(3, acc.recovered, &acc.failed_items, &acc.recovered_items),
             "3 of 3 items failed: alpha, beta, gamma"
+        );
+        // #1276 · every failure reaches the table, with its code.
+        assert_eq!(acc.items.len(), 3, "one row per item: {:?}", acc.items);
+        for (index, row) in acc.items.iter().enumerate() {
+            assert_eq!(row["index"], index, "{row}");
+            assert_eq!(row["status"], "failed", "{row}");
+            assert_eq!(row["code"], "NIKA-EXEC-001", "{row}");
+        }
+        assert_eq!(acc.items[1]["item"], "beta");
+    }
+
+    /// #1397 · the items a stopped batch never started are named as such,
+    /// after the consumed rows, in input order.
+    #[test]
+    fn items_json_names_the_never_started_tail() {
+        let items = [
+            Value::String("alpha".into()),
+            Value::String("beta".into()),
+            Value::String("gamma".into()),
+        ];
+        let consumed = vec![item_row(0, "alpha", "ok", None)];
+        let text = items_json(consumed, &items);
+        let rows: Vec<Value> = serde_json::from_str(&text).expect("a JSON array");
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0]["status"], "ok");
+        assert_eq!(rows[1]["status"], "never_started");
+        assert_eq!(rows[1]["item"], "beta");
+        assert_eq!(rows[2]["index"], 2);
+        assert!(
+            rows[1].get("code").is_none(),
+            "no error on a never-started row"
         );
     }
 

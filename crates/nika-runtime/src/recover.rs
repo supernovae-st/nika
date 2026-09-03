@@ -104,6 +104,8 @@ struct Parked {
     retries: Vec<RetryStamp>,
     agent_events: Vec<crate::agent_events::StampedAgentEvent>,
     duration_ms: u64,
+    /// The fan-out's item table (#1276), carried to resolution.
+    items: Option<String>,
     resume: Option<crate::resume::ResumeStamp>,
     /// The dispatch boundary's permit decisions recorded before the park
     /// (NEP-0007) — they ride to resolution like the declassify events.
@@ -256,6 +258,7 @@ fn try_park(
         decisions,
         evidence,
         duration_ms,
+        items,
         result,
     } = *ran;
     let pending = match result {
@@ -268,6 +271,7 @@ fn try_park(
                 decisions,
                 evidence,
                 duration_ms,
+                items,
                 result: other,
             };
             let settle = SettleAs::Ran(Box::new(ran));
@@ -287,6 +291,7 @@ fn try_park(
                 retries,
                 agent_events,
                 duration_ms,
+                items,
                 resume,
                 decisions,
                 declassified,
@@ -311,6 +316,7 @@ fn try_park(
         // F-P6 · the parked failure's evidence rides back out.
         evidence: failed.evidence,
         duration_ms,
+        items,
         result: RunResult::Failed {
             error: render_error,
             cost_usd: failed.cost_usd,
@@ -450,6 +456,7 @@ fn resolve_parked(
         agent_events,
         decisions,
         duration_ms,
+        items,
         resume,
         declassified,
         pending,
@@ -505,6 +512,7 @@ fn resolve_parked(
         // F-P6 · the parked failure's evidence rides back out.
         evidence,
         duration_ms,
+        items,
         result,
     }));
     let named = match scope.wf.tasks.get(task_index) {

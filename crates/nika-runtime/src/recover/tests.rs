@@ -369,6 +369,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
             agent_events: Vec::new(),
             evidence: None,
             duration_ms: 0,
+            items: None,
             result: task::RunResult::PendingRecovery(Box::new(pending)),
         })),
         named: BTreeMap::new(),

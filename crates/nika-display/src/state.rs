@@ -99,6 +99,10 @@ pub struct TaskRow {
     /// the task succeeded, but the console must say what the trace
     /// knows, or a green run silently feeds "" downstream.
     pub warning: Option<String>,
+    /// A `for_each` fan-out's per-item terminals (#1276 · #1397): the
+    /// `items` JSON array text the terminal frame carried · index · item ·
+    /// status · code · message. `None` for every other row.
+    pub items_json: Option<String>,
 }
 
 impl TaskRow {
@@ -427,6 +431,10 @@ impl RunView {
         if let Some(d) = str_field(event, "detail") {
             d.clone_into(&mut row.detail);
         }
+        // #1276 · #1397 · a fan-out's item table survives to the readers.
+        if let Some(items) = str_field(event, "items") {
+            row.items_json = Some(items.to_owned());
+        }
     }
 
     /// Keep the ADR-099 checkpoint trio (the `output` value as ONE
@@ -496,6 +504,7 @@ impl RunView {
                 cached: false,
                 recovered: false,
                 warning: None,
+                items_json: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
