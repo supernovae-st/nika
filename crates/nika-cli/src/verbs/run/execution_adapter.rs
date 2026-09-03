@@ -223,6 +223,7 @@ fn run_admitted_context(
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
+    let cancel = nika_types::cancel::CancelCtx::new();
     let runtime = match composed_runtime(
         request.model_override,
         &plan,
@@ -232,13 +233,10 @@ fn run_admitted_context(
         (request.no_trace_file, request.output_json),
         &world,
     ) {
-        Ok(runtime) => runtime,
+        // #1438 · ONE cancel context: the driver flips it on the first signal.
+        Ok(runtime) => runtime.with_cancel(cancel.clone()),
         Err(code) => return RunVerdict::bare(code),
     };
-    // #1438 · the operator's cancellation: ONE context the driver flips on
-    // the first signal and the runtime reads at every wave boundary.
-    let cancel = nika_types::cancel::CancelCtx::new();
-    let runtime = runtime.with_cancel(cancel.clone());
     announce_access(&plan, (request.json, request.output_json), request.mode);
     execute_and_ask(
         &runtime,
