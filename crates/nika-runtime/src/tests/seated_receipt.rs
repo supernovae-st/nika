@@ -27,6 +27,7 @@ fn seated_infer_receipt_exposes_no_numeric_or_responder_identity() {
             cost_usd: None,
             cost_unpriced: Some(nika_types::cost::UnpricedReason::SubscriptionQuota),
             model: None,
+            access: None,
         },
     };
     let mut ok = true;

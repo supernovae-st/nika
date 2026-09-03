@@ -40,6 +40,10 @@ pub struct AgentInput {
     /// (P3 B5) — the harness gate's human verdict. `None` on a fresh
     /// run (an out-of-grants ask then pauses for the operator).
     pub gate_answer: Option<serde_json::Value>,
+    /// One Door · wave 1: the frozen plan routed THIS task to a
+    /// provider path — run the native loop even when a seat is attached
+    /// for another lane (the plan routes, never the seat's presence).
+    pub native_only: bool,
 }
 
 impl AgentInput {
@@ -57,6 +61,7 @@ impl AgentInput {
             schema: None,
             permits: None,
             gate_answer: None,
+            native_only: false,
         }
     }
 }

@@ -517,7 +517,7 @@ fn access_plan_rows_narrate_the_machine_paths() {
     // mock: keyless, compiled in — deterministic on EVERY machine (the
     // env-independent fixture class this advisory section must test on).
     let wf = parse_wf("nika: a\ntasks:\n  t:\n    infer: { prompt: hi, model: \"mock/echo\" }\n");
-    let rows = models_rung::access_plan_rows(&nika_check::check(&wf));
+    let rows = models_rung::access_plan_rows(&wf, &nika_check::check(&wf));
     assert_eq!(rows.len(), 1, "{rows:?}");
     let row = &rows[0];
     assert_eq!(row["model"], "mock/echo");
@@ -531,7 +531,7 @@ fn access_plan_rows_narrate_the_machine_paths() {
     // the chosen class is deterministic (liveness is the RUN's business).
     let wf =
         parse_wf("nika: b\ntasks:\n  t:\n    infer: { prompt: hi, model: \"ollama/llama3.2\" }\n");
-    let rows = models_rung::access_plan_rows(&nika_check::check(&wf));
+    let rows = models_rung::access_plan_rows(&wf, &nika_check::check(&wf));
     assert_eq!(rows[0]["resolved"], true);
     assert_eq!(rows[0]["chosen"], "local");
     assert_eq!(rows[0]["billing"], "local");
@@ -541,7 +541,7 @@ fn access_plan_rows_narrate_the_machine_paths() {
         "nika: c\nconst:\n  m: { default: \"mock/echo\" }\ntasks:\n  t:\n    infer: { prompt: hi, model: \"${{ const.m }}\" }\n",
     );
     assert!(
-        models_rung::access_plan_rows(&nika_check::check(&wf)).is_empty(),
+        models_rung::access_plan_rows(&wf, &nika_check::check(&wf)).is_empty(),
         "a templated model must stay unjudged"
     );
 }

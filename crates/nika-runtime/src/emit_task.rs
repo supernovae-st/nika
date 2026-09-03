@@ -41,6 +41,52 @@ pub(crate) fn emit_recovered(
     );
 }
 
+/// D-2026-08-04-N1 · the access facts — structured provenance for
+/// infer/agent terminals (`model` = the resolved provider/name ·
+/// `provider` = its prefix · `access` = HOW it was reached · `billing`
+/// = the economic lane). Additive fields; the note keeps its historical
+/// `infer · <model>` form, now a render, not a carrier — readers of
+/// pre-access traces still parse it.
+///
+/// One Door · wave 1: the admitted LANE stamps the terminal when the
+/// run carried a frozen plan — `access` · `billing` · `access_id` are
+/// the path that actually served (the plan the prologue recorded),
+/// never a provider-prefix guess. The prefix derivation stays the bare
+/// embedder's fallback; the `SubscriptionQuota` arm is the planless
+/// harness receipt (P3 B7 · `access: harness` · billing `unknown`
+/// until an adapter's own surface attests it · never a fake $0).
+fn push_access_fields(
+    fields: &mut Vec<(&'static str, FieldValue)>,
+    model: Option<&str>,
+    access: Option<&nika_types::access::AccessPlan>,
+    cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+) {
+    if let Some(lane) = access {
+        // The verb's resolved model when it reported one (the API path
+        // answers with the responder's name), else the lane's own model
+        // (a seat run: the requested model IS what the plan resolved).
+        fields.push(("model", s(model.unwrap_or(&lane.model))));
+        fields.push(("provider", s(&lane.provider)));
+        fields.push(("access", s(lane.chosen.as_str())));
+        fields.push(("access_id", s(&lane.access)));
+        fields.push(("billing", s(lane.billing.as_str())));
+    } else if let Some(m) = model {
+        fields.push(("model", s(m)));
+        if let Some((provider, _)) = m.split_once('/') {
+            fields.push(("provider", s(provider)));
+            let access = nika_providers::profile::access_class_for(provider);
+            fields.push(("access", s(access.as_str())));
+            fields.push(("billing", s(access.default_billing().as_str())));
+        }
+    } else if cost_unpriced == Some(nika_types::cost::UnpricedReason::SubscriptionQuota) {
+        fields.push(("access", s("harness")));
+        fields.push((
+            "billing",
+            s(nika_types::access::BillingClass::Unknown.as_str()),
+        ));
+    }
+}
+
 /// Emit one `task_completed` frame — the base fields (`note` ·
 /// `duration_ms`) + spend (`tokens`) + the OBS-E `warning` diagnostic
 /// when present + the ADR-099 checkpoint trio (`def_hash` · `input_hash`
@@ -58,7 +104,7 @@ pub(crate) fn emit_completed(
     tokens: Option<i64>,
     cost_usd: Option<f64>,
     cost_unpriced: Option<nika_types::cost::UnpricedReason>,
-    model: Option<&str>,
+    (model, access): (Option<&str>, Option<&nika_types::access::AccessPlan>),
     warning: Option<&str>,
     child: Option<&crate::child::ChildRunSummary>,
     resume: Option<&resume::ResumeStamp>,
@@ -86,32 +132,7 @@ pub(crate) fn emit_completed(
     if let Some(reason) = cost_unpriced {
         fields.push(("cost_unpriced", s(reason.as_str())));
     }
-    // D-2026-08-04-N1 · the access facts — structured provenance for
-    // infer/agent terminals (`model` = the resolved provider/name ·
-    // `provider` = its prefix · `access` = HOW it was reached ·
-    // `billing` = the economic lane). Additive fields; the note keeps
-    // its historical `infer · <model>` form, now a render, not a
-    // carrier — readers of pre-access traces still parse it.
-    if let Some(m) = model {
-        fields.push(("model", s(m)));
-        if let Some((provider, _)) = m.split_once('/') {
-            fields.push(("provider", s(provider)));
-            let access = nika_providers::profile::access_class_for(provider);
-            fields.push(("access", s(access.as_str())));
-            fields.push(("billing", s(access.default_billing().as_str())));
-        }
-    } else if cost_unpriced == Some(nika_types::cost::UnpricedReason::SubscriptionQuota) {
-        // P3 B7 · the harness row: the task ran on the operator's own
-        // harness (the SubscriptionQuota arm in dispatch is only ever
-        // set there), so the receipt says so — `access: harness`, and
-        // the billing lane stays `unknown` until an adapter's own
-        // surface attests included/extra usage (P5). Never a fake $0.
-        fields.push(("access", s("harness")));
-        fields.push((
-            "billing",
-            s(nika_types::access::BillingClass::Unknown.as_str()),
-        ));
-    }
+    push_access_fields(&mut fields, model, access, cost_unpriced);
     // OBS-E · a non-fatal diagnostic rides the success frame as a
     // `warning` field (the reasoning-model blank-answer footgun) · the
     // task still completes.

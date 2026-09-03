@@ -124,7 +124,7 @@ use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
 pub use admit::{
-    access_pin_refusal, budget_floor_refusal, floor_refusal, required_inputs_refusal,
+    access_pin_refusal, budget_floor_refusal, floor_refusal, plan_refusal, required_inputs_refusal,
     scope_to_task, unbounded_breakdown,
 };
 pub use compose::{
@@ -294,6 +294,11 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// `harness_seat` so the trace names the execution override beside
     /// the resolver's plan. `None` without a declaration.
     harness_seat_id: Option<String>,
+    /// The FROZEN execution-access plan (One Door · wave 1): resolved
+    /// once by the composer, consumed here — the admission belt, the
+    /// per-lane seat routing, the task terminal's access stamp. `None`
+    /// = a bare embedder (the env-declared seat + the pin gate stand).
+    access_plan: Option<nika_providers::ExecutionAccessPlan>,
     /// Live `nika:inspect` cell (ADR-088). Shared with the dispatcher.
     inspect: Option<Arc<nika_builtin::LiveInspect>>,
     /// The run's SOURCE identity — sha256 hex over the exact bytes the
@@ -405,6 +410,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             access_probes: Vec::new(),
             boot_access_fields: Vec::new(),
             harness_seat_id: None,
+            access_plan: None,
             inspect: None,
         }
     }
@@ -512,6 +518,40 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     pub fn with_harness_seat_id(mut self, id: Option<String>) -> Self {
         self.harness_seat_id = id;
         self
+    }
+
+    /// Attach the FROZEN execution-access plan (One Door · wave 1) —
+    /// the runtime executes exactly this plan or refuses at admission;
+    /// nothing downstream re-resolves.
+    #[must_use]
+    pub fn with_access_plan(mut self, plan: nika_providers::ExecutionAccessPlan) -> Self {
+        self.access_plan = Some(plan);
+        self
+    }
+
+    /// The attached plan, when the composer froze one.
+    #[must_use]
+    pub fn access_plan(&self) -> Option<&nika_providers::ExecutionAccessPlan> {
+        self.access_plan.as_ref()
+    }
+
+    /// The seat that serves `model` — the plan's lane when a plan is
+    /// attached (a pinned seat serves every model · a resolved seat only
+    /// its own lanes), else the env-declared seat (the bare embedder).
+    pub(crate) fn seat_for(&self, model: &str) -> Option<&str> {
+        match &self.access_plan {
+            Some(plan) => plan.seat_for(model),
+            None => self.harness_seat_id.as_deref(),
+        }
+    }
+
+    /// The admitted lane's plan for `model` — the access stamp a task
+    /// terminal carries (what actually served, never a prefix guess).
+    pub(crate) fn lane_plan(&self, model: &str) -> Option<nika_types::access::AccessPlan> {
+        self.access_plan
+            .as_ref()
+            .and_then(|plan| plan.lane(model))
+            .map(|lane| lane.plan.clone())
     }
 
     /// Inject the workflow `secrets:` resolver (MINOR-B · the composer's
@@ -863,8 +903,11 @@ where
             &self.var_overrides,
             self.config.max_cost_usd,
             self.model_override.as_deref(),
-            self.access_pin.as_deref(),
-            &self.access_probes,
+            (
+                self.access_pin.as_deref(),
+                &self.access_probes,
+                self.access_plan.as_ref(),
+            ),
         )?;
         let EnvelopeValues {
             inputs,

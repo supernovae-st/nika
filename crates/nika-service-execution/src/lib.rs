@@ -560,23 +560,31 @@ impl AuthorizedRuntime {
         self
     }
 
-    /// Seat an agentic CLI from `--access` (pin wins over env).
+    /// Attach the FROZEN execution-access plan (One Door · wave 1) and
+    /// seat the adapter it admits — the plan is the ONE decision the
+    /// runtime executes: its seat is spawned, its lanes route every
+    /// task, and nothing downstream re-selects.
     ///
     /// # Errors
     ///
-    /// The registry row cannot be built.
-    pub fn with_harness_from_pin(
+    /// The admitted seat's registry row cannot be built.
+    pub fn with_access_plan(
         mut self,
-        pin: Option<&str>,
+        plan: nika_providers::ExecutionAccessPlan,
     ) -> Result<Self, nika_runtime::compose::ComposeError> {
-        let ready = nika_providers::first_ready_infer_harness(self.runtime.access_probes())
-            .or_else(|| nika_providers::first_ready_harness(self.runtime.access_probes()));
-        let Some((backend, id)) =
-            nika_harness::seat_from_pin(pin, ready).map_err(nika_harness::seat_http_err)?
-        else {
-            return Ok(self);
-        };
-        self.runtime = self.runtime.with_harness_backend(Arc::new(backend), id)?;
+        if let Some(id) = plan.seat.clone() {
+            let Some(backend) =
+                nika_harness::seat_from_id(&id).map_err(nika_harness::seat_http_err)?
+            else {
+                return Err(nika_runtime::compose::ComposeError::Http(
+                    nika_harness::seat_http_err(format!(
+                        "the plan admitted seat `{id}` but no registry row builds it"
+                    )),
+                ));
+            };
+            self.runtime = self.runtime.with_harness_backend(Arc::new(backend), id)?;
+        }
+        self.runtime = self.runtime.with_access_plan(plan);
         Ok(self)
     }
 

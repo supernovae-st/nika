@@ -222,6 +222,13 @@ impl<H> InferVerb<H> {
         self
     }
 
+    /// The EFFECTIVE default a model-less task runs on (`--model` ||
+    /// envelope `model:`) — the runtime keys its access lane on it.
+    #[must_use]
+    pub fn default_model(&self) -> &str {
+        &self.default_model
+    }
+
     /// Execute one `infer:` through a proved subscription harness seat.
     ///
     /// This is a single-shot lane: schema failure never retries and no

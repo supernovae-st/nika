@@ -787,6 +787,7 @@ fn recovered_success_emits_task_recovered_before_completed() {
             cost_usd: None,
             cost_unpriced: None,
             model: None,
+            access: None,
         },
     };
     let mut ok = true;
@@ -847,6 +848,7 @@ fn obs_e_warning_rides_task_completed() {
             cost_usd: Some(0.0125),
             cost_unpriced: None,
             model: None,
+            access: None,
         },
     };
     let mut ok = true;
@@ -911,6 +913,7 @@ fn no_warning_field_on_a_clean_success() {
             cost_usd: None,
             cost_unpriced: None,
             model: None,
+            access: None,
         },
     };
     let mut ok = true;
@@ -976,6 +979,7 @@ fn access_facts_ride_the_infer_terminal() {
             cost_usd: None,
             cost_unpriced: Some(nika_types::cost::UnpricedReason::MockProvider),
             model: Some("mock/echo".to_owned()),
+            access: None,
         },
     };
     let mut ok = true;
@@ -1040,6 +1044,7 @@ fn cost_unpriced_reason_rides_task_completed() {
             cost_usd: None,
             cost_unpriced: Some(nika_types::cost::UnpricedReason::LocalModel),
             model: Some("ollama/llama3.2".to_owned()),
+            access: None,
         },
     };
     let mut ok = true;

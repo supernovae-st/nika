@@ -293,47 +293,40 @@ fn run_verdict(
     )
 }
 
-/// The access announce (D-2026-08-04-N1 · P2.6 + R-4): a pinned path is
-/// a behavior the operator chose — said on the human surfaces before the
-/// first frame. And when more than one access CAN serve a model, the
-/// CHOSEN path is announced with its billing class (R-4 · the rich
-/// announce: the choice is a fact worth hearing, never a silent pick).
-/// Machine lanes stay silent (the trace carries the fields).
-fn announce_access_pin(
-    access_pin: Option<&str>,
+/// The access announce (D-2026-08-04-N1 · P2.6 + R-4), PROJECTED from
+/// the frozen plan the run executes (One Door · wave 1 — the announce
+/// can no longer disagree with the run, because it no longer resolves
+/// anything): a pinned path is a behavior the operator chose — said on
+/// the human surfaces before the first frame. And when more than one
+/// access CAN serve a model, the CHOSEN path is announced with its
+/// billing class (R-4 · the rich announce: the choice is a fact worth
+/// hearing, never a silent pick). Machine lanes stay silent (the trace
+/// carries the fields).
+fn announce_access(
+    plan: &nika_providers::ExecutionAccessPlan,
     (json, output_json): (bool, bool),
     mode: RenderMode,
-    report: &CheckReport,
 ) {
     if json || output_json || mode == RenderMode::Quiet {
         return;
     }
-    if let Some(pin) = access_pin {
+    if let Some(pin) = &plan.pin {
         eprintln!("access: pinned `{pin}` — unsatisfied refuses, never substitutes");
     }
     // R-4 · the rich announce: only when a real choice existed (>1
-    // candidate). Feature-off the vec carries provider rows only, so
+    // candidate row). Feature-off the rows carry providers only, so
     // this stays silent exactly as before (one candidate per provider).
-    let probes = nika_cli_host::probe::access_probes_with_harness();
-    for m in &report.requirements.models {
-        let model = m.model.as_str();
-        if model.contains("${{") {
+    for (model, lane) in plan.admitted() {
+        if lane.candidates < 2 {
             continue;
         }
-        let candidates =
-            nika_providers::candidates_for(&probes, nika_providers::provider_of(model));
-        if candidates.len() < 2 {
-            continue;
-        }
-        if let Ok(plan) = nika_providers::resolve_access(model, &candidates, None, access_pin) {
-            eprintln!(
-                "access: {model} → {} ({} · {}) — chosen over {} other path(s)",
-                plan.access,
-                plan.chosen.as_str(),
-                plan.billing.as_str(),
-                candidates.len() - 1
-            );
-        }
+        eprintln!(
+            "access: {model} → {} ({} · {}) — chosen over {} other path(s)",
+            lane.plan.access,
+            lane.plan.chosen.as_str(),
+            lane.plan.billing.as_str(),
+            lane.candidates - 1
+        );
     }
 }
 
@@ -453,9 +446,13 @@ fn answered_leg(
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
+    // The answered leg is the SAME execution attempt continued in-process:
+    // the plan is re-resolved over the same machine, same pin, same
+    // override (wave 1b carries it through the trace instead).
+    let plan = nika_cli_host::access::resolve_plan(wf, report, model_override, access_pin);
     let runtime = match composed_runtime(
         model_override,
-        access_pin,
+        &plan,
         inputs,
         setup,
         max_cost_usd,
@@ -579,7 +576,7 @@ fn output_mode(output: Option<&str>) -> Result<bool, u8> {
 #[allow(clippy::too_many_arguments)]
 fn composed_runtime(
     model_override: Option<&str>,
-    access_pin: Option<&str>,
+    plan: &nika_providers::ExecutionAccessPlan,
     inputs: inputs::ValidatedInputs,
     setup: ResumeSetup,
     max_cost_usd: Option<f64>,
@@ -598,11 +595,11 @@ fn composed_runtime(
         origins,
     } = inputs;
     let wf = world.driver.workflow();
-    let report = world.driver.report();
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
-    // R-2 · the boot-manifest access stamps, composer-computed (P3 B5).
-    let boot_access = crate::verbs::check::models_rung::boot_access_fields(report, access_pin);
+    // R-2 · the boot-manifest access stamps, PROJECTED from the frozen
+    // plan (P3 B5 · One Door wave 1).
+    let boot_access = crate::verbs::check::models_rung::boot_access_fields(plan);
     // F-P3 · the run: declaration rides the SAME composition path (clock ·
     // jitter seed — the stamper half is picked at the drive site). The driver
     // already owns the exact workflow/report/skills admitted with its bytes.
@@ -633,11 +630,12 @@ fn composed_runtime(
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
                 // D-2026-08-04-N1 · the `--access` pin: unsatisfied refuses BEFORE the prologue.
-                .with_access_pin(access_pin.map(ToOwned::to_owned))
-                .with_boot_access_fields(boot_access)
-                .with_access_probes(nika_cli_host::probe::access_probes_with_harness());
-            #[cfg(feature = "access-harness")]
-            let rt = match rt.with_harness_from_pin(access_pin) {
+                .with_access_pin(plan.pin.clone())
+                .with_boot_access_fields(boot_access);
+            // One Door · wave 1: the runtime EXECUTES the frozen plan —
+            // the seat comes from it (never from the pin's spelling), the
+            // admission belt judges it, every lane routes by it.
+            let rt = match rt.with_access_plan(plan.clone()) {
                 Ok(rt) => rt,
                 Err(e) => {
                     return Err(epilogue::env_refusal(
@@ -646,8 +644,6 @@ fn composed_runtime(
                     ));
                 }
             };
-            #[cfg(not(feature = "access-harness"))]
-            let rt = rt;
             Ok(match resume_plan {
                 Some(plan) => rt.with_resume_plan(plan),
                 None => rt,

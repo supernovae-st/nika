@@ -215,6 +215,13 @@ impl<P, T, D> AgentVerb<P, T, D> {
         }
     }
 
+    /// The EFFECTIVE default a model-less task runs on (`--model` ||
+    /// envelope `model:`) — the runtime keys its access lane on it.
+    #[must_use]
+    pub fn default_model(&self) -> &str {
+        &self.default_model
+    }
+
     /// Seat the harness backend (P3 B4): every run then delegates to
     /// the user's own harness (one verb instance per access plan · the
     /// resolver never re-selects).
@@ -354,7 +361,9 @@ where
         // loop's arm/whitelist/budget machinery governs the native
         // path only; the harness boundary is the permission bridge.
         #[cfg(feature = "access-harness")]
-        if let Some(seat) = &self.harness {
+        if let Some(seat) = &self.harness
+            && !input.native_only
+        {
             return harness_path::run_on_harness(seat, input, observer).await;
         }
         // arm_run failures precede any billed call — no spend to decorate.
