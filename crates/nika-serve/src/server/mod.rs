@@ -20,7 +20,7 @@ mod store;
 use std::collections::{BTreeMap, VecDeque};
 use std::future::Future;
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 
@@ -210,6 +210,9 @@ struct AppState {
     schedules: Arc<ScheduleStore>,
     schedule_wake: Arc<Notify>,
     project_refusals: scheduler::ProjectRefusals,
+    last_good_project: scheduler::LastGoodProject,
+    project_load_finding: scheduler::ProjectLoadFinding,
+    fire_refusals: scheduler::FireRefusals,
     clock: Arc<dyn ResidentClock>,
     cancellations: Arc<ActiveCancellations>,
 }
@@ -221,9 +224,16 @@ struct AuthorityState {
     limits: ServerLimits,
     snapshot_limits: SnapshotLimits,
     project: Arc<OnceLock<Arc<OwnedDir>>>,
+    /// The project root as a path: the ARM ledger the resident writes its
+    /// project fires into lives under it (`.nika/arm` · one ledger for both
+    /// firers).
+    workflow_root: Arc<OnceLock<PathBuf>>,
     schedules: Arc<ScheduleStore>,
     schedule_wake: Arc<Notify>,
     project_refusals: scheduler::ProjectRefusals,
+    last_good_project: scheduler::LastGoodProject,
+    project_load_finding: scheduler::ProjectLoadFinding,
+    fire_refusals: scheduler::FireRefusals,
     coordinator: ResidentExecutionCoordinator,
     clock: Arc<dyn ResidentClock>,
     cancellations: Arc<ActiveCancellations>,
@@ -320,9 +330,19 @@ impl ResidentAuthority {
             limits: config.limits(),
             snapshot_limits: config.snapshot_limits(),
             project,
+            workflow_root: {
+                let root = Arc::new(OnceLock::new());
+                if let Some(path) = config.workflow_root() {
+                    let _set = root.set(path.to_owned());
+                }
+                root
+            },
             schedules,
             schedule_wake,
             project_refusals,
+            last_good_project: scheduler::LastGoodProject::default(),
+            project_load_finding: scheduler::ProjectLoadFinding::default(),
+            fire_refusals: scheduler::FireRefusals::default(),
             coordinator: coordinator.clone(),
             clock: Arc::clone(config.clock()),
             cancellations,
@@ -403,6 +423,10 @@ impl BoundServer {
             Arc::clone(project)
         } else {
             let _set = authority.state.project.set(Arc::clone(&prepared.project));
+            let _root = authority
+                .state
+                .workflow_root
+                .set(prepared.workflow_root.clone());
             Arc::clone(&prepared.project)
         };
         let listener = TcpListener::bind(config.bind())
@@ -421,6 +445,9 @@ impl BoundServer {
             schedules: Arc::clone(&authority.state.schedules),
             schedule_wake: Arc::clone(&authority.state.schedule_wake),
             project_refusals: Arc::clone(&authority.state.project_refusals),
+            last_good_project: Arc::clone(&authority.state.last_good_project),
+            project_load_finding: Arc::clone(&authority.state.project_load_finding),
+            fire_refusals: Arc::clone(&authority.state.fire_refusals),
             clock: Arc::clone(&authority.state.clock),
             cancellations: Arc::clone(&authority.state.cancellations),
         });
@@ -485,6 +512,7 @@ struct PreparedAuthority {
 
 struct PreparedHttp {
     token: BearerToken,
+    workflow_root: PathBuf,
     project: Arc<OwnedDir>,
 }
 
@@ -524,7 +552,11 @@ async fn prepare_http(config: &ServerConfig) -> Result<PreparedHttp, ServerError
             OwnedDir::open(&workflow_root)
                 .map_err(|error| ServerError::WorkflowRoot(error.kind()))?,
         );
-        Ok(PreparedHttp { token, project })
+        Ok(PreparedHttp {
+            token,
+            workflow_root,
+            project,
+        })
     })
     .await
     .map_err(|_| ServerError::BlockingTask)?

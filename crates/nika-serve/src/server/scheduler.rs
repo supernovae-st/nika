@@ -15,6 +15,7 @@ use tokio::sync::watch;
 use tokio::task::JoinSet;
 
 use crate::JobOrigin;
+use crate::job::{JobRecord, JobStatus};
 use crate::schedule::{ScheduleClaimEvidence, ScheduleSlotAction};
 
 use super::{AuthorityState, PreparedScheduledRun, ServerError};
@@ -22,9 +23,10 @@ use super::{AuthorityState, PreparedScheduledRun, ServerError};
 const FALLBACK_RESCAN: Duration = Duration::from_secs(5);
 const PLANNER_PROJECTION: usize = 1;
 
-struct ResidentSchedule {
-    origin: ScheduleOrigin,
-    definition: ScheduleDefinition,
+#[derive(Clone)]
+pub(super) struct ResidentSchedule {
+    pub(super) origin: ScheduleOrigin,
+    pub(super) definition: ScheduleDefinition,
 }
 
 /// A project beat whose declaration the planner refused at load. The
@@ -48,6 +50,22 @@ impl RefusedProjectSchedule {
 
 /// The load-time refusal projection, replaced wholesale by every scan.
 pub(super) type ProjectRefusals = Arc<Mutex<BTreeMap<String, RefusedProjectSchedule>>>;
+
+/// The last project registry that loaded whole: retained when an edit
+/// breaks `nika.yaml`, so one bad edit never unschedules everything (#1351).
+pub(super) type LastGoodProject = Arc<Mutex<Vec<ResidentSchedule>>>;
+
+/// The project file's own finding while it does not load (`None` when it
+/// loads): surfaced on every retained project schedule.
+pub(super) type ProjectLoadFinding = Arc<Mutex<Option<String>>>;
+
+/// A schedule whose last fire attempt could not admit its workflow, by
+/// schedule id: a finding on that schedule, never fatal to the resident.
+pub(super) type FireRefusals = Arc<Mutex<BTreeMap<String, String>>>;
+
+/// The reason a fire attempt was refused at admission (the file changed or
+/// vanished): named on the schedule, cleared on the next prepared fire.
+pub(super) const FIRE_ADMISSION_REFUSED: &str = "the workflow could not be admitted at fire time — the file changed or vanished since it was scheduled · the resident keeps running · the next slot re-tries once the file admits";
 
 struct ProjectLoad {
     live: Vec<ResidentSchedule>,
@@ -100,9 +118,25 @@ pub(super) async fn run(
                         handle_overlap(&state, candidate)?;
                         continue;
                     }
-                    if let Some(prepared) = prepare_claim(&state, candidate).await? {
-                        active.insert(key.clone());
-                        executions.spawn_blocking(move || (key, prepared.execute()));
+                    let id = candidate.schedule.definition.id().to_owned();
+                    match prepare_claim(&state, candidate).await {
+                        Ok(Some((prepared, ledger))) => {
+                            clear_fire_refusal(&state, &id);
+                            active.insert(key.clone());
+                            let clock = Arc::clone(&state.clock);
+                            executions.spawn_blocking(move || {
+                                let result = prepared.execute();
+                                if let Some(claim) = ledger {
+                                    settle_in_ledger(claim, &result, clock.now().timestamp());
+                                }
+                                (key, result)
+                            });
+                        }
+                        Ok(None) => {}
+                        Err(ServerError::ScheduledAdmission) => {
+                            record_fire_refusal(&state, &id, FIRE_ADMISSION_REFUSED);
+                        }
+                        Err(error) => return Err(error),
                     }
                 }
                 PlannedAction::Skip(candidate) => consume_skip(&state, candidate)?,
@@ -149,9 +183,26 @@ fn scan(state: &AuthorityState) -> Result<Scan, ServerError> {
         match load_project(project, &now) {
             Ok(load) => {
                 publish_refusals(state, load.refused);
+                set_project_load_finding(state, None);
+                lock(&state.last_good_project).clone_from(&load.live);
                 schedules.extend(load.live);
             }
-            Err(ServerError::ScheduledAdmission) => publish_refusals(state, Vec::new()),
+            Err(ServerError::ScheduledAdmission) => {
+                // The file no longer loads whole: the last registry that did
+                // is retained (never a half-valid world, never a silent
+                // unschedule of everything) and the finding is named on each
+                // retained schedule until the file loads again (#1351).
+                publish_refusals(state, Vec::new());
+                let retained = lock(&state.last_good_project).clone();
+                set_project_load_finding(
+                    state,
+                    Some(format!(
+                        "`nika.yaml` does not load — the last valid registry is retained ({} schedule(s) keep firing) · fix the file; nothing was unscheduled",
+                        retained.len()
+                    )),
+                );
+                schedules.extend(retained);
+            }
             Err(error) => return Err(error),
         }
     }
@@ -202,10 +253,72 @@ fn scan(state: &AuthorityState) -> Result<Scan, ServerError> {
     Ok(Scan { actions, earliest })
 }
 
+/// The exit the ONE ledger records for a settled scheduled run.
+fn ledger_exit(result: &Result<JobRecord, ServerError>) -> u8 {
+    match result {
+        Ok(record) => match record.status() {
+            JobStatus::Succeeded => 0,
+            JobStatus::Paused => 4,
+            _ => 1,
+        },
+        Err(_) => 3,
+    }
+}
+
+/// Land the receipt of a project fire in the ARM ledger — the same history
+/// `nika arm` reads and the CLI edge writes (wave 6 · #1377). A ledger that
+/// refuses the receipt is not fatal: the run settled, the store has it.
+fn settle_in_ledger(
+    claim: nika_arm::ResidentClaim,
+    result: &Result<JobRecord, ServerError>,
+    decided_at: Timestamp,
+) {
+    let trace = result
+        .as_ref()
+        .ok()
+        .and_then(|record| record.trace_id().map(str::to_owned));
+    let _ = claim.settle(ledger_exit(result), trace, decided_at);
+}
+
+/// The resident's claim of a project beat's slot in the ARM ledger: the
+/// same beat lock the CLI edge takes. `None` when the slot is not the
+/// resident's to fire — the ledger already answers it (the edge fired it)
+/// or a live process holds the lock (the edge is firing it now).
+fn claim_in_ledger(
+    state: &AuthorityState,
+    candidate: &FireCandidate,
+    generation: &ArmGeneration,
+    now: &Zoned,
+) -> Result<Option<nika_arm::ResidentClaim>, ServerError> {
+    let Some(root) = state.workflow_root.get() else {
+        return Ok(None);
+    };
+    let slot = candidate
+        .slot
+        .scheduled_for()
+        .to_zoned(jiff::tz::TimeZone::UTC);
+    match nika_arm::claim_for_resident(
+        root,
+        candidate.schedule.definition.id(),
+        &slot,
+        candidate.slot.id().clone(),
+        Some(generation.clone()),
+        std::process::id(),
+        now,
+    ) {
+        Ok(claim) => Ok(Some(claim)),
+        Err(
+            nika_arm::ResidentClaimRefusal::SlotAnswered { .. }
+            | nika_arm::ResidentClaimRefusal::LockHeld { .. },
+        ) => Err(ServerError::SlotOwnedElsewhere),
+        Err(_) => Err(ServerError::ScheduledAdmission),
+    }
+}
+
 async fn prepare_claim(
     state: &Arc<AuthorityState>,
     candidate: FireCandidate,
-) -> Result<Option<PreparedScheduledRun>, ServerError> {
+) -> Result<Option<(PreparedScheduledRun, Option<nika_arm::ResidentClaim>)>, ServerError> {
     let Some(project) = state.project.get().cloned() else {
         return Ok(None);
     };
@@ -213,6 +326,7 @@ async fn prepare_claim(
     let coordinator = state.coordinator.clone();
     let store = Arc::clone(&state.schedules);
     let clock = Arc::clone(&state.clock);
+    let state_for_ledger = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         if candidate.schedule.origin == ScheduleOrigin::Project
             && !project_revision_current(
@@ -250,6 +364,18 @@ async fn prepare_claim(
         if !fire_is_still_due(&store, &candidate, &claim_now)? {
             return Ok(None);
         }
+        // A project beat's slot belongs to whichever firer claims it FIRST in
+        // the ONE ledger: a slot the CLI edge answered, or holds right now,
+        // is not the resident's to fire (#1377).
+        let ledger = if candidate.schedule.origin == ScheduleOrigin::Project {
+            match claim_in_ledger(&state_for_ledger, &candidate, &generation, &claim_now) {
+                Ok(claim) => claim,
+                Err(ServerError::SlotOwnedElsewhere) => return Ok(None),
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
         let claim = ScheduleClaimEvidence::new(
             prepared.run_id().as_str().to_owned(),
             prepared
@@ -270,7 +396,7 @@ async fn prepare_claim(
             claim_now.timestamp(),
             claim,
         )?;
-        Ok(consumed.then_some(prepared))
+        Ok(consumed.then_some((prepared, ledger)))
     })
     .await
     .map_err(|_| ServerError::BlockingTask)?
@@ -385,6 +511,23 @@ fn generation(
     ArmGeneration::compute_resident(&definition.revision(), admitted.snapshot().digest())
 }
 
+fn lock<T>(cell: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    cell.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+fn set_project_load_finding(state: &AuthorityState, finding: Option<String>) {
+    *lock(&state.project_load_finding) = finding;
+}
+
+fn record_fire_refusal(state: &AuthorityState, id: &str, reason: &str) {
+    lock(&state.fire_refusals).insert(id.to_owned(), reason.to_owned());
+}
+
+fn clear_fire_refusal(state: &AuthorityState, id: &str) {
+    lock(&state.fire_refusals).remove(id);
+}
+
 fn publish_refusals(state: &AuthorityState, refused: Vec<RefusedProjectSchedule>) {
     let mut projection = state
         .project_refusals
@@ -445,14 +588,22 @@ fn load_project_definitions(
         .collect()
 }
 
+/// Whether the schedule about to fire is still the one the project file
+/// declares. When the file no longer loads whole, the retained last-good
+/// registry IS the world the resident runs (#1351): its definitions stay
+/// current until the file loads again and says otherwise.
 fn project_revision_current(
     project: &nika_fs::OwnedDir,
     id: &str,
     revision: &ScheduleRevision,
 ) -> Result<bool, ServerError> {
-    Ok(load_project_definitions(project)?
-        .into_iter()
-        .any(|definition| definition.id() == id && definition.revision() == *revision))
+    match load_project_definitions(project) {
+        Ok(definitions) => Ok(definitions
+            .into_iter()
+            .any(|definition| definition.id() == id && definition.revision() == *revision)),
+        Err(ServerError::ScheduledAdmission) => Ok(true),
+        Err(error) => Err(error),
+    }
 }
 
 fn schedule_key(origin: ScheduleOrigin, id: &str) -> String {

@@ -206,7 +206,7 @@ async fn project_refusal_response(id: &str, state: &AppState) -> Response<Respon
         projection.get(id).cloned()
     };
     let Some(refused) = refused else {
-        return schedule_not_found();
+        return retained_project_response(id, state);
     };
     let definition = refused.definition().clone();
     let revision = definition.revision();
@@ -480,6 +480,51 @@ fn pause_json(definition: &ScheduleDefinition) -> Value {
             "until": definition.pause_until(),
         })
     }
+}
+
+/// A live project schedule that carries a finding: its last fire attempt
+/// could not admit the workflow (`schedule.admission`), or the project file
+/// no longer loads and this schedule is retained from the last valid
+/// registry (`project.invalid`). Named, never silent (#1351).
+fn retained_project_response(id: &str, state: &AppState) -> Response<ResponseBody> {
+    let fire_refusal = state
+        .fire_refusals
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(id)
+        .cloned();
+    let retained = state
+        .last_good_project
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .iter()
+        .find(|s| s.definition.id() == id)
+        .map(|s| s.definition.clone());
+    let load_finding = state
+        .project_load_finding
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let Some(definition) = retained else {
+        return schedule_not_found();
+    };
+    let finding = match (fire_refusal, load_finding) {
+        (Some(detail), _) => json!({"code": "schedule.admission", "detail": detail}),
+        (None, Some(detail)) => json!({"code": "project.invalid", "detail": detail}),
+        (None, None) => return schedule_not_found(),
+    };
+    json_response(
+        StatusCode::OK,
+        &json!({
+            "definition": definition_json(&definition),
+            "origin": "project",
+            "revision": definition.revision().as_str(),
+            "active": definition.is_active(),
+            "finding": finding,
+            "next": [],
+            "earliestWakeHint": Value::Null,
+        }),
+    )
 }
 
 fn planner_finding(error: &SchedulePlanError) -> Value {

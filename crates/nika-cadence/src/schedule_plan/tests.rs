@@ -279,6 +279,67 @@ fn cadence_distinguishes_on_time_catch_up_once_and_skip() {
     ));
 }
 
+/// A declaration edit that does not change timing (the workflow path)
+/// keeps a consumed `once` consumed: the memory is keyed by the schedule's
+/// identity, never by a hash of the path (#1354).
+#[test]
+fn a_workflow_path_edit_keeps_the_consumed_once_slot() {
+    let fired = planned(
+        once(MissPolicy::Rattraper),
+        "2026-09-01T09:00:00Z",
+        &ScheduleDecisionState::empty(),
+    );
+    let durable = state_after(fired.due().slot().expect("the once slot"));
+    let mut moved = once(MissPolicy::Rattraper);
+    moved.workflow = "workflows/report-v2.nika.yaml".to_owned();
+    let after_edit = planned(moved, "2026-09-01T09:05:00Z", &durable);
+    assert!(
+        after_edit.due().slot().is_none(),
+        "the consumed once does not re-fire because its path changed: {:?}",
+        after_edit.due()
+    );
+    let mut redated = once(MissPolicy::Rattraper);
+    redated.when = ScheduleWhenDraft::Once {
+        at: "2026-09-08T09:00:00Z".to_owned(),
+    };
+    let later = planned(redated, "2026-09-08T09:01:00Z", &durable);
+    assert!(
+        matches!(later.due(), ScheduleDueVerdict::ScheduledOnTime { slot } if slot.scheduled_for() == ts("2026-09-08T09:00:00Z")),
+        "a once re-dated after the watermark is a new instant and fires: {:?}",
+        later.due()
+    );
+}
+
+/// A cadence edit keeps the missed-slot watermark: catch-up answers only
+/// the slots after the last one the old declaration answered (#1354).
+#[test]
+fn a_cadence_edit_keeps_the_missed_slot_watermark() {
+    let seed = planned(
+        daily(MissPolicy::Rattraper),
+        "2026-09-01T09:00:00Z",
+        &ScheduleDecisionState::empty(),
+    );
+    let durable = state_after(seed.due().slot().expect("seed slot"));
+    let mut twice_daily = daily(MissPolicy::Rattraper);
+    twice_daily.when = ScheduleWhenDraft::Cadence {
+        expression: "TZ=UTC 0 9,21 * * *".to_owned(),
+    };
+    let after_edit = planned(twice_daily, "2026-09-02T12:00:00Z", &durable);
+    match after_edit.due() {
+        ScheduleDueVerdict::CatchUp { slot, missed_slots } => {
+            assert!(
+                slot.scheduled_for() > ts("2026-09-01T09:00:00Z"),
+                "the catch-up starts after the watermark: {slot:?}"
+            );
+            assert_eq!(
+                *missed_slots, 2,
+                "21:00 on the 1st and 09:00 on the 2nd, never the 09:00 already answered"
+            );
+        }
+        other => panic!("a catch-up after the watermark, got {other:?}"),
+    }
+}
+
 #[test]
 fn cadence_max_lateness_boundary_is_inclusive_after_miss_classification() {
     let seed = planned(
