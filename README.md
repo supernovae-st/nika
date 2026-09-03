@@ -9,43 +9,46 @@
 
 # Nika
 
-**Repeatable AI work, in a file.**
+### AI workflows you can understand before they run.
 
 [![Release](https://img.shields.io/github/v/release/supernovae-st/nika?label=release)](https://github.com/supernovae-st/nika/releases/latest)
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main)](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml)
-[![Engine license](https://img.shields.io/badge/engine-AGPL--3.0--or--later-blue.svg)](LICENSE)
-[![Open spec](https://img.shields.io/badge/spec-Apache--2.0-brightgreen.svg)](https://github.com/supernovae-st/nika-spec)
+[![Open spec](https://img.shields.io/badge/spec-open-brightgreen.svg)](https://github.com/supernovae-st/nika-spec)
 
-Put an AI task in a `.nika.yaml` file. Nika checks it before it runs, runs it on
-the model you choose, and keeps a receipt afterwards.
+Nika turns an AI task into one small `.nika.yaml` file. Check it, run it on
+the model you choose, and keep a receipt of what happened.
 
-## Try it
+## Start here
 
 ```sh
 curl -LsSf https://nika.sh/install.sh | sh
 nika try 01-hello
 ```
 
-That first run is a rehearsal: no account, API key, or model server needed.
+**Done.** Your first workflow ran locally. No account, API key, or model server
+was needed.
 
-<p align="center">
-  <img src="media/gifs/dag-execution.optimized.gif" alt="A Nika workflow and its execution graph" width="820">
-</p>
+## The whole idea
 
-## Make one
-
-```sh
-nika new 01-hello hello.nika.yaml
-nika check hello.nika.yaml
-nika run hello.nika.yaml
+```mermaid
+flowchart LR
+    A["✍️ One .nika.yaml file"] --> B["🔎 nika check"]
+    B --> C["▶️ nika run"]
+    C --> D["✅ Result"]
+    C --> E["🧾 Receipt"]
 ```
 
-The whole idea is this small:
+One file is the source of truth. `check` finds problems before a model call.
+`run` executes the same file locally, in CI, or from another program.
+
+## Your first workflow
+
+Save this as `hello.nika.yaml`:
 
 ```yaml
 nika: hello
-model: mock/echo
-permits: {}
+model: mock/echo       # offline demo
+permits: {}            # this workflow can touch nothing else
 
 tasks:
   greet:
@@ -57,105 +60,76 @@ outputs:
   greeting: ${{ tasks.greet.output }}
 ```
 
-Change the prompt. Add tasks. Connect them with `${{ ... }}`. Keep the file in
-Git like any other piece of your product.
-
-## Use a real model
-
-See what this machine can already use:
+Then use the same two commands for every workflow:
 
 ```sh
-nika doctor
-nika catalog
+nika check hello.nika.yaml
+nika run hello.nika.yaml
 ```
 
-Then choose a model when you run:
+That is Nika. Change the prompt, add another task, or connect tasks with
+`${{ ... }}`. The file stays readable and reviewable in Git.
+
+## Use your model
+
+Keep the workflow. Change only the model:
 
 ```sh
 nika run hello.nika.yaml --model ollama/qwen3.5:4b
 ```
 
-Nika works with local models, API providers, and supported agentic CLIs. The
-workflow stays the same when the model changes.
+Not sure what is ready on your machine?
 
-## Why Nika?
+```sh
+nika doctor
+```
 
-- **Check before spending.** Catch invalid dataflow, missing permissions,
-  secret leaks, and impossible budgets before a model call.
-- **Run anywhere.** Use a local model today and a hosted model tomorrow.
-- **See what happened.** Every run produces a local, hash-chained trace.
-- **Review the work.** Prompts, tools, dependencies, limits, and outputs live in
-  one diffable file.
+Nika can use local models, API providers, and supported agentic CLIs without
+changing the workflow itself.
 
-## Four verbs
+## Why people use Nika
 
-| Verb | Use it for |
+- **Repeat it** — the task is a file, not a chat you have to reconstruct.
+- **Review it** — prompts, tools, permissions, and limits are visible in Git.
+- **Check it** — mistakes and unsafe access are caught before execution.
+- **Prove it** — every run leaves a local, hash-chained receipt.
+
+<details>
+<summary><strong>Learn the four building blocks</strong></summary>
+
+| Verb | Plain meaning |
 |---|---|
 | `infer` | Ask a model |
 | `exec` | Run a command |
-| `invoke` | Call an MCP tool |
-| `agent` | Give a model a bounded tool loop |
+| `invoke` | Call a tool or another workflow |
+| `agent` | Let a model use allowed tools for a limited number of turns |
 
-Tasks form a directed graph. Independent tasks run in parallel; references make
-dependencies explicit.
-
-## One door
-
-You do not need to learn the engine to start:
-
-- `nika try 01-hello` rehearses an example.
-- `nika new` creates a workflow.
-- `nika check` inspects it before execution.
-- `nika run` runs it.
-
-The current pre-1.0 work is making that same door coherent for interactive
-sessions, resumes, and long-lived runs. The public
-[roadmap](https://github.com/orgs/supernovae-st/projects/3) is organized around
-conditions for 1.0, not a promised date.
-
-## Install another way
-
-<details>
-<summary>Homebrew, Cargo, Nix, Docker, and release archives</summary>
-
-### Homebrew
-
-```sh
-brew install supernovae-st/tap/nika
-```
-
-### Cargo
-
-```sh
-cargo binstall --git https://github.com/supernovae-st/nika nika-cli
-```
-
-The package name is `nika-cli`; the command is `nika`.
-
-### Nix
-
-```sh
-nix run github:supernovae-st/nika
-```
-
-### Docker
-
-```sh
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika \
-  check hello.nika.yaml
-```
-
-### Release archive
-
-Download a platform archive and `SHA256SUMS` from the
-[latest release](https://github.com/supernovae-st/nika/releases/latest), verify
-it, and put `nika` on your `PATH`.
-
-Windows binaries are not shipped yet. Use WSL2 or build from source.
+Most first workflows only need `infer`. Independent tasks run in parallel;
+`${{ ... }}` references connect them when one needs another's result.
 
 </details>
 
-## Your run data
+<details>
+<summary><strong>Install another way</strong></summary>
+
+```sh
+# Homebrew
+brew install supernovae-st/tap/nika
+
+# Cargo
+cargo binstall --git https://github.com/supernovae-st/nika nika-cli
+
+# Nix
+nix run github:supernovae-st/nika
+```
+
+Or use the [latest release archive](https://github.com/supernovae-st/nika/releases/latest).
+Windows binaries are not shipped yet; use WSL2 or build from source.
+
+</details>
+
+<details>
+<summary><strong>About run data</strong></summary>
 
 Nika writes journals under `.nika/traces/`. Add that directory to `.gitignore`
 unless you deliberately want to publish the runs.
@@ -163,21 +137,20 @@ unless you deliberately want to publish the runs.
 `.nika/traces/` inherits the sensitivity of whatever the workflow read; on a
 shared or CI machine, treat it as a data-at-rest surface.
 
-Verify a journal at any time:
-
 ```sh
 nika trace verify .nika/traces/<run>.ndjson
 ```
 
-## Go further
+</details>
 
-- [Examples](examples/README.md)
-- [Install guide](https://nika.sh/install)
-- [TypeScript SDK](nika-client/README.md)
-- [VS Code, Cursor, and Windsurf extension](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang)
-- [Open workflow specification](https://github.com/supernovae-st/nika-spec)
-- [Roadmap](https://github.com/orgs/supernovae-st/projects/3)
-- [Contributing](CONTRIBUTING.md)
+## Next
 
-Nika is usable today and intentionally pre-1.0. The engine is licensed under
-[AGPL-3.0-or-later](LICENSE); the specification is licensed under Apache-2.0.
+[Examples](examples/README.md) ·
+[Install guide](https://nika.sh/install) ·
+[TypeScript SDK](nika-client/README.md) ·
+[Editor extension](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang) ·
+[Open specification](https://github.com/supernovae-st/nika-spec) ·
+[Roadmap](https://github.com/orgs/supernovae-st/projects/3)
+
+Nika is usable today and intentionally pre-1.0. The engine is
+[AGPL-3.0-or-later](LICENSE); the specification is Apache-2.0.
