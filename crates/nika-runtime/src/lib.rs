@@ -131,7 +131,7 @@ pub use compose::{
     ProdRuntime, RunSeams, RuntimeCapabilities, SimRuntime, capabilities_of, production_runtime,
     simulated_runtime,
 };
-pub use config::RuntimeConfig;
+pub use config::{RuntimeConfig, project_root_fingerprint};
 pub use errors::RuntimeError;
 pub use identity::{
     EngineIdentity, MACHINE_PROTOCOL_VERSION, MACHINE_SNAPSHOT_FORMAT_VERSION, engine_identity,
@@ -871,6 +871,7 @@ where
             self.config.sandbox_backend.as_deref(),
             self.config.sandbox_policy.as_deref(),
             self.config.sandbox_waived,
+            self.config.project_root_fingerprint.as_deref(),
             &self.input_origins,
             self.resume_compat.as_deref(),
             self.resume_unverified.as_ref(),

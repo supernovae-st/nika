@@ -313,6 +313,7 @@ impl ExecutionSnapshot {
             let logical = normalize_logical(import.as_ref())?;
             builder.capture_import(&logical, &authored)?;
         }
+        builder.capture_mcp_registry_if_named()?;
         builder.validate_workflows()?;
         builder.capture_pending_skills()?;
         Ok(builder.finish(root))
@@ -734,6 +735,34 @@ impl<'a, S: ByteSource> SnapshotBuilder<'a, S> {
         self.insert(logical, SnapshotUnitKind::Import, bytes)
     }
 
+    /// The MCP registry and its pins ride the captured world whenever a
+    /// captured workflow names an `mcp:` tool: the admission check inside
+    /// the snapshot reads the servers the project configured through the
+    /// same reader, so a configured lane is reachable at run time and an
+    /// unconfigured one is refused by name (#1374). Decided from the texts
+    /// already captured (the root is read once, never twice); an absent
+    /// file is not packed — the check then says so, honestly.
+    fn capture_mcp_registry_if_named(&mut self) -> Result<(), ExecutionError> {
+        let names_mcp = self
+            .workflow_texts()?
+            .iter()
+            .any(|(_, text)| text.contains("mcp:"));
+        if !names_mcp {
+            return Ok(());
+        }
+        for logical in MCP_REGISTRY_UNITS {
+            if self.units.contains_key(*logical) {
+                continue;
+            }
+            let Ok(bytes) = self.read_bounded(logical) else {
+                continue;
+            };
+            self.record_authored("<mcp>", logical, logical)?;
+            self.insert(logical, SnapshotUnitKind::Import, bytes)?;
+        }
+        Ok(())
+    }
+
     fn validate_workflows(&self) -> Result<(), ExecutionError> {
         let workflows = self.workflow_texts()?;
         for (logical_path, text) in workflows {
@@ -895,6 +924,10 @@ fn resolve_relative(owner: &str, authored: &str) -> Result<String, ExecutionErro
     joined.push(target);
     normalize_logical(&joined)
 }
+
+/// The project's MCP registry and the pins the operator approved: packed
+/// as imports when a captured workflow names an `mcp:` tool.
+const MCP_REGISTRY_UNITS: &[&str] = &[".nika/mcp_servers.json", ".nika/mcp_pins.json"];
 
 fn normalize_logical(path: &Path) -> Result<String, ExecutionError> {
     let authored = path.to_string_lossy().into_owned();
@@ -1123,364 +1156,4 @@ pub(crate) fn report_findings(logical_path: &str, report: &nika_check::CheckRepo
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn valid_snapshot() -> ExecutionSnapshot {
-        let root = "root.nika.yaml".to_owned();
-        let unit = CapturedUnit::new(
-            root.clone(),
-            SnapshotUnitKind::Root,
-            b"nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n"
-                .to_vec(),
-        );
-        let units = BTreeMap::from([(root.clone(), unit)]);
-        let digest = snapshot_digest(&root, &units);
-        ExecutionSnapshot {
-            format_version: SNAPSHOT_FORMAT_VERSION,
-            root,
-            units,
-            digest,
-        }
-    }
-
-    #[test]
-    fn public_readmission_revalidates_owned_bytes_without_a_reader() {
-        let snapshot = valid_snapshot();
-        let digest = snapshot.digest().to_owned();
-        let admitted = crate::ExecutionService::default()
-            .readmit_snapshot(snapshot)
-            .expect("owned snapshot readmits");
-
-        assert_eq!(admitted.snapshot().digest(), digest);
-        assert_eq!(admitted.snapshot().root(), "root.nika.yaml");
-    }
-
-    #[test]
-    fn readmission_refuses_stale_unit_and_aggregate_identities() {
-        let mut stale_unit = valid_snapshot();
-        stale_unit
-            .units
-            .get_mut("root.nika.yaml")
-            .expect("root")
-            .digest = "0".repeat(64);
-        assert!(matches!(
-            crate::ExecutionService::default().readmit_snapshot(stale_unit),
-            Err(ExecutionError::UnitDigestMismatch { .. })
-        ));
-
-        let mut stale_world = valid_snapshot();
-        stale_world.digest = "f".repeat(64);
-        assert!(matches!(
-            crate::ExecutionService::default().readmit_snapshot(stale_world),
-            Err(ExecutionError::SnapshotDigestMismatch)
-        ));
-    }
-
-    #[test]
-    fn readmission_refuses_an_owned_but_unreachable_unit() {
-        let mut snapshot = valid_snapshot();
-        let orphan = CapturedUnit::new(
-            "orphan.nika.yaml".to_owned(),
-            SnapshotUnitKind::Child,
-            b"nika: orphan\npermits: {}\ntasks: {}\n".to_vec(),
-        );
-        snapshot
-            .units
-            .insert(orphan.logical_path().to_owned(), orphan);
-        snapshot.digest = snapshot_digest(&snapshot.root, &snapshot.units);
-
-        assert!(matches!(
-            crate::ExecutionService::default().readmit_snapshot(snapshot),
-            Err(ExecutionError::SnapshotStructureMismatch)
-        ));
-    }
-
-    #[test]
-    fn readmission_refuses_an_unknown_snapshot_format() {
-        let mut snapshot = valid_snapshot();
-        snapshot.format_version = SNAPSHOT_FORMAT_VERSION + 1;
-
-        assert!(matches!(
-            crate::ExecutionService::default().readmit_snapshot(snapshot),
-            Err(ExecutionError::UnsupportedSnapshotFormat { .. })
-        ));
-    }
-
-    #[test]
-    fn encode_round_trip_preserves_owned_bytes_and_refuses_tampering() {
-        let snapshot = valid_snapshot();
-        let encoded = snapshot.encode().expect("encode");
-        let decoded = ExecutionSnapshot::decode(&encoded).expect("decode");
-        assert!(same_snapshot(&snapshot, &decoded));
-        crate::ExecutionService::default()
-            .readmit_snapshot(decoded)
-            .expect("readmit encoded world");
-
-        let tampered = encoded.replace(&snapshot.digest, &"a".repeat(64));
-        assert!(matches!(
-            ExecutionSnapshot::decode(&tampered),
-            Err(ExecutionError::SnapshotDigestMismatch)
-        ));
-        assert!(ExecutionSnapshot::decode("{").is_err());
-    }
-
-    #[test]
-    fn encoded_snapshot_round_trip_preserves_json_escaped_paths() {
-        let root = "quoted\"root.nika.yaml".to_owned();
-        let unit = CapturedUnit::new(root.clone(), SnapshotUnitKind::Root, Vec::new());
-        let units = BTreeMap::from([(root.clone(), unit)]);
-        let snapshot = ExecutionSnapshot {
-            format_version: SNAPSHOT_FORMAT_VERSION,
-            digest: snapshot_digest(&root, &units),
-            root,
-            units,
-        };
-
-        let encoded = snapshot.encode().expect("encode escaped path");
-        let decoded = ExecutionSnapshot::decode(&encoded).expect("decode escaped path");
-        assert!(same_snapshot(&snapshot, &decoded));
-    }
-
-    #[test]
-    fn encoded_envelope_is_bounded_before_json_deserialization() {
-        let limits = SnapshotLimits::new(0, 0, 0, 0);
-        let encoded_limit = limits.max_encoded_bytes();
-        let oversized = " ".repeat(encoded_limit + 1);
-
-        assert_eq!(
-            SnapshotLimits::default().max_total_bytes(),
-            16 * 1024 * 1024
-        );
-        assert!(SnapshotLimits::default().max_encoded_bytes() > 16 * 1024 * 1024);
-
-        assert!(matches!(
-            ExecutionSnapshot::decode_with_limits(&oversized, limits),
-            Err(ExecutionError::EncodedSnapshotSizeLimit { limit })
-                if limit == encoded_limit
-        ));
-    }
-
-    #[test]
-    fn root_and_unit_path_metadata_are_independently_bounded() {
-        let oversized_root = serde_json::json!({
-            "format_version": SNAPSHOT_FORMAT_VERSION,
-            "root": "r".repeat(MAX_LOGICAL_PATH_BYTES + 1),
-            "digest": "0".repeat(SHA256_HEX_BYTES),
-            "units": [],
-        })
-        .to_string();
-        assert!(matches!(
-            ExecutionSnapshot::decode(&oversized_root),
-            Err(ExecutionError::SnapshotMetadataLimit { field: "root", limit })
-                if limit == MAX_LOGICAL_PATH_BYTES
-        ));
-
-        let oversized_path = serde_json::json!({
-            "format_version": SNAPSHOT_FORMAT_VERSION,
-            "root": "root.nika.yaml",
-            "digest": "0".repeat(SHA256_HEX_BYTES),
-            "units": [{
-                "path": "p".repeat(MAX_LOGICAL_PATH_BYTES + 1),
-                "kind": 0,
-                "digest": "0".repeat(SHA256_HEX_BYTES),
-                "bytes_hex": "",
-            }],
-        })
-        .to_string();
-        assert!(matches!(
-            ExecutionSnapshot::decode(&oversized_path),
-            Err(ExecutionError::SnapshotMetadataLimit { field: "unit path", limit })
-                if limit == MAX_LOGICAL_PATH_BYTES
-        ));
-    }
-
-    #[test]
-    fn excessive_unit_count_and_hex_fail_with_typed_limits() {
-        let unit = serde_json::json!({
-            "path": "root.nika.yaml",
-            "kind": 0,
-            "digest": sha256_hex(&[]),
-            "bytes_hex": "",
-        });
-        let excessive_count = serde_json::json!({
-            "format_version": SNAPSHOT_FORMAT_VERSION,
-            "root": "root.nika.yaml",
-            "digest": "0".repeat(SHA256_HEX_BYTES),
-            "units": [unit.clone(), unit],
-        })
-        .to_string();
-        let count_limits = SnapshotLimits::new(0, 1, usize::MAX, usize::MAX);
-        assert!(matches!(
-            ExecutionSnapshot::decode_with_limits(&excessive_count, count_limits),
-            Err(ExecutionError::UnitCountLimit { limit: 1 })
-        ));
-
-        let excessive_hex = serde_json::json!({
-            "format_version": SNAPSHOT_FORMAT_VERSION,
-            "root": "root.nika.yaml",
-            "digest": "0".repeat(SHA256_HEX_BYTES),
-            "units": [{
-                "path": "root.nika.yaml",
-                "kind": 0,
-                "digest": sha256_hex(&[0, 0]),
-                "bytes_hex": "0000",
-            }],
-        })
-        .to_string();
-        let body_limits = SnapshotLimits::new(0, 1, 1, usize::MAX);
-        assert!(matches!(
-            ExecutionSnapshot::decode_with_limits(&excessive_hex, body_limits),
-            Err(ExecutionError::UnitSizeLimit { limit: 1, .. })
-        ));
-    }
-
-    #[test]
-    fn malformed_hex_and_digest_metadata_fail_without_truncation() {
-        let malformed_hex = serde_json::json!({
-            "format_version": SNAPSHOT_FORMAT_VERSION,
-            "root": "root.nika.yaml",
-            "digest": "0".repeat(SHA256_HEX_BYTES),
-            "units": [{
-                "path": "root.nika.yaml",
-                "kind": 0,
-                "digest": sha256_hex(&[0]),
-                "bytes_hex": "0G",
-            }],
-        })
-        .to_string();
-        assert!(matches!(
-            ExecutionSnapshot::decode(&malformed_hex),
-            Err(ExecutionError::SnapshotStructureMismatch)
-        ));
-
-        let tampered_unit_digest = serde_json::json!({
-            "format_version": SNAPSHOT_FORMAT_VERSION,
-            "root": "root.nika.yaml",
-            "digest": "0".repeat(SHA256_HEX_BYTES),
-            "units": [{
-                "path": "root.nika.yaml",
-                "kind": 0,
-                "digest": "f".repeat(SHA256_HEX_BYTES),
-                "bytes_hex": "",
-            }],
-        })
-        .to_string();
-        assert!(matches!(
-            ExecutionSnapshot::decode(&tampered_unit_digest),
-            Err(ExecutionError::UnitDigestMismatch { .. })
-        ));
-
-        let oversized_digest = serde_json::json!({
-            "format_version": SNAPSHOT_FORMAT_VERSION,
-            "root": "root.nika.yaml",
-            "digest": "f".repeat(SHA256_HEX_BYTES + 1),
-            "units": [],
-        })
-        .to_string();
-        assert!(matches!(
-            ExecutionSnapshot::decode(&oversized_digest),
-            Err(ExecutionError::SnapshotMetadataLimit {
-                field: "snapshot digest",
-                limit: SHA256_HEX_BYTES,
-            })
-        ));
-    }
-
-    #[test]
-    fn encoded_limit_arithmetic_saturates_instead_of_wrapping() {
-        let limits = SnapshotLimits::new(usize::MAX, usize::MAX, usize::MAX, usize::MAX);
-        assert_eq!(limits.max_encoded_bytes(), usize::MAX);
-
-        let snapshot = valid_snapshot();
-        let encoded = snapshot.encode().expect("encode");
-        let decoded = ExecutionSnapshot::decode_with_limits(&encoded, limits)
-            .expect("saturated limits remain permissive");
-        assert!(same_snapshot(&snapshot, &decoded));
-    }
-
-    #[test]
-    fn encoded_snapshot_limits_fail_with_typed_errors_before_readmission() {
-        let snapshot = valid_snapshot();
-        let encoded = snapshot.encode().expect("encode");
-
-        let count = SnapshotLimits::new(64, 0, usize::MAX, usize::MAX);
-        assert!(matches!(
-            ExecutionSnapshot::decode_with_limits(&encoded, count),
-            Err(ExecutionError::UnitCountLimit { limit: 0 })
-        ));
-
-        let unit = SnapshotLimits::new(64, 1, 1, usize::MAX);
-        assert!(matches!(
-            ExecutionSnapshot::decode_with_limits(&encoded, unit),
-            Err(ExecutionError::UnitSizeLimit { limit: 1, .. })
-        ));
-
-        let total = SnapshotLimits::new(64, 1, usize::MAX, 1);
-        assert!(matches!(
-            ExecutionSnapshot::decode_with_limits(&encoded, total),
-            Err(ExecutionError::TotalSizeLimit { limit: 1 })
-        ));
-    }
-
-    #[test]
-    fn aggregate_limit_preflights_every_unit_before_decoding_any_body() {
-        let mut snapshot = valid_snapshot();
-        let root_bytes = snapshot
-            .units
-            .get("root.nika.yaml")
-            .map(|unit| unit.bytes.len())
-            .unwrap_or_default();
-        snapshot.units.insert(
-            "z.import".to_owned(),
-            CapturedUnit::new("z.import".to_owned(), SnapshotUnitKind::Import, vec![7]),
-        );
-        snapshot.digest = snapshot_digest(&snapshot.root, &snapshot.units);
-
-        let encoded = snapshot.encode().expect("encode");
-        let mut wire: serde_json::Value = serde_json::from_str(&encoded).expect("wire json");
-        wire["units"][0]["digest"] = serde_json::Value::String("0".repeat(64));
-        let tampered = serde_json::to_string(&wire).expect("tampered wire");
-        let limits = SnapshotLimits::new(64, 2, usize::MAX, root_bytes);
-
-        assert!(matches!(
-            ExecutionSnapshot::decode_with_limits(&tampered, limits),
-            Err(ExecutionError::TotalSizeLimit { limit }) if limit == root_bytes
-        ));
-    }
-
-    proptest::proptest! {
-        #[test]
-        fn snapshot_digest_is_independent_of_map_insertion_order(
-            left in proptest::collection::vec(proptest::num::u8::ANY, 0..256),
-            right in proptest::collection::vec(proptest::num::u8::ANY, 0..256),
-        ) {
-            let a = CapturedUnit::new("imports/a".to_owned(), SnapshotUnitKind::Import, left);
-            let b = CapturedUnit::new("imports/b".to_owned(), SnapshotUnitKind::Import, right);
-            let first = BTreeMap::from([
-                (a.logical_path().to_owned(), a.clone()),
-                (b.logical_path().to_owned(), b.clone()),
-            ]);
-            let second = BTreeMap::from([
-                (b.logical_path().to_owned(), b),
-                (a.logical_path().to_owned(), a),
-            ]);
-            proptest::prop_assert_eq!(
-                snapshot_digest("root.nika.yaml", &first),
-                snapshot_digest("root.nika.yaml", &second),
-            );
-        }
-
-        #[test]
-        fn dot_segments_do_not_change_logical_identity(
-            segments in proptest::collection::vec("[a-z][a-z0-9]{0,7}", 1..8),
-        ) {
-            let plain = segments.join("/");
-            let dotted = format!("./{}", segments.join("/./"));
-            proptest::prop_assert_eq!(
-                normalize_logical(Path::new(&plain)).expect("plain path"),
-                normalize_logical(Path::new(&dotted)).expect("dotted path"),
-            );
-        }
-    }
-}
+mod tests;

@@ -590,6 +590,7 @@ pub mod nika_runtime::config
 #[non_exhaustive] pub struct nika_runtime::config::RuntimeConfig
 pub nika_runtime::config::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::config::RuntimeConfig::max_cost_usd: core::option::Option<f64>
+pub nika_runtime::config::RuntimeConfig::project_root_fingerprint: core::option::Option<alloc::string::String>
 pub nika_runtime::config::RuntimeConfig::sandbox_backend: core::option::Option<alloc::string::String>
 pub nika_runtime::config::RuntimeConfig::sandbox_policy: core::option::Option<alloc::string::String>
 pub nika_runtime::config::RuntimeConfig::sandbox_root: core::option::Option<std::path::PathBuf>
@@ -598,6 +599,7 @@ pub nika_runtime::config::RuntimeConfig::wave_parallelism: core::option::Option<
 impl nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_project_root(self, root: &std::path::Path) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_backend(self, backend: &str) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_policy(self, policy: &str) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_root(self, root: std::path::PathBuf) -> Self
@@ -642,6 +644,7 @@ impl<T> tracing::instrument::Instrument for nika_runtime::config::RuntimeConfig
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::config::RuntimeConfig
 impl<T> typenum::type_operators::Same for nika_runtime::config::RuntimeConfig
 pub type nika_runtime::config::RuntimeConfig::Output = T
+pub fn nika_runtime::config::project_root_fingerprint(root: &std::path::Path) -> core::option::Option<alloc::string::String>
 pub mod nika_runtime::identity
 #[non_exhaustive] pub struct nika_runtime::identity::EngineIdentity
 impl nika_runtime::identity::EngineIdentity
@@ -1597,6 +1600,7 @@ pub type nika_runtime::compose::RuntimeCapabilities::Output = T
 #[non_exhaustive] pub struct nika_runtime::RuntimeConfig
 pub nika_runtime::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::RuntimeConfig::max_cost_usd: core::option::Option<f64>
+pub nika_runtime::RuntimeConfig::project_root_fingerprint: core::option::Option<alloc::string::String>
 pub nika_runtime::RuntimeConfig::sandbox_backend: core::option::Option<alloc::string::String>
 pub nika_runtime::RuntimeConfig::sandbox_policy: core::option::Option<alloc::string::String>
 pub nika_runtime::RuntimeConfig::sandbox_root: core::option::Option<std::path::PathBuf>
@@ -1605,6 +1609,7 @@ pub nika_runtime::RuntimeConfig::wave_parallelism: core::option::Option<core::nu
 impl nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_project_root(self, root: &std::path::Path) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_backend(self, backend: &str) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_policy(self, policy: &str) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_root(self, root: std::path::PathBuf) -> Self
@@ -1818,6 +1823,7 @@ pub const fn nika_runtime::legal(class: nika_runtime::TaskStatus, cause: nika_ru
 pub fn nika_runtime::modelless_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::plan_refusal(plan: &nika_providers::plan::ExecutionAccessPlan) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime::sandbox_select::ComposeError>
+pub fn nika_runtime::project_root_fingerprint(root: &std::path::Path) -> core::option::Option<alloc::string::String>
 pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::scope_to_task(wf: nika_schema::raw::workflow::RawWorkflow, target: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, alloc::string::String>
 pub fn nika_runtime::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>

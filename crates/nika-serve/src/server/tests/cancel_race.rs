@@ -75,5 +75,16 @@ async fn run_concurrent_cancel_round(round: usize) {
         .find(|event| event["status"] == "cancelled")
         .expect("cancelled terminal event");
     assert_eq!(terminal["receipt"], job["receipt"]);
+    // One kind for one terminal, whichever writer won the race (#1350).
+    assert_eq!(
+        terminal["kind"], "execution.cancelled",
+        "the cancelled terminal is `execution.cancelled` from the worker and the route alike: {terminal}"
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|e| e["kind"] == "execution.settled" && e["status"] == "cancelled"),
+        "never `execution.settled` with a cancelled status: {events:?}"
+    );
     server.stop().await.expect("clean stop");
 }

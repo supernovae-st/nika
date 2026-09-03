@@ -964,7 +964,17 @@ async fn settle_disposition(
         ExecutionDisposition::Failed => JobStatus::Failed,
         ExecutionDisposition::Cancelled => JobStatus::Cancelled,
     };
-    let mut event = json!({"kind": "execution.settled", "status": status});
+    // One cancellation terminal (#1350): a cancelled disposition settles as
+    // `execution.cancelled` here as it does on the cancel route, so the race
+    // between the two writers changes the author, never the kind. A failure
+    // that lands under a pending cancel is already mapped to Cancelled above:
+    // cancellation has precedence over failure.
+    let kind = if status == JobStatus::Cancelled {
+        "execution.cancelled"
+    } else {
+        "execution.settled"
+    };
+    let mut event = json!({"kind": kind, "status": status});
     if let Some((code, message)) = outcome.error() {
         event["code"] = json!(code);
         event["message"] = json!(message);
