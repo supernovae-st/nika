@@ -13,6 +13,7 @@ publish                = false  # Internal L4 interface crate (the binary ships,
 [dependencies]
 nika-event  = { path = "../nika-event", version = "0.117.1" }  # the REAL event taxonomy (the fold input)
 nika-cli-host = { path = "../nika-cli-host", version = "0.117.1" } # the host-integration member (the 15k wall · ADR-110 · one unit, two members)
+nika-session = { path = "../nika-session", version = "0.117.1", default-features = false }  # the native session (bare `nika` on a terminal · ADR-125)
 nika-types  = { path = "../nika-types", version = "0.117.1" }  # Timestamp · KeyValue · ids
 nika-schema = { path = "../nika-schema", version = "0.117.1" } # parse (check · inspect · graph · run)
 nika-vocab  = { path = "../nika-vocab", version = "0.117.1" }
@@ -72,7 +73,7 @@ metal       = ["local-infer", "nika-models/metal"]
 # The harness access class (D-2026-08-04-N1 · P3): `infer:`/`agent:`
 # may delegate to the user's own agentic CLI. On by default so the
 # official install.sh binary can pin `--access claude-code`.
-access-harness = ["nika-runtime/access-harness", "nika-cli-host/access-harness"]
+access-harness = ["nika-runtime/access-harness", "nika-cli-host/access-harness", "nika-session/access-harness"]
 
 [[bin]]
 name = "nika-cli"

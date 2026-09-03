@@ -3,52 +3,9 @@
 
 //! The interactive thread's narrow bridge into the production run pipeline.
 
-use crate::Theme;
 use crate::verbs::exit;
 
-use super::{RenderMode, RunVerdict, run_verdict};
-
-pub(crate) struct ThreadRun {
-    pub(crate) answer: Option<String>,
-    pub(crate) interrupted: bool,
-}
-
-/// Run a workflow from the thread. `journal` decides whether the run
-/// leaves its hash-chained trace under `.nika/traces/` the way `nika run`
-/// does: a `/run <path>` the human asked for is a real run and MUST
-/// (nika#1385 · the thread used to strip the accountability layer: no
-/// trace, no cost line, no seal); a staged conversational turn is the
-/// thread's own scratch and leaves none.
-pub(crate) fn run_in_thread(file: &str, theme: Theme, journal: bool) -> ThreadRun {
-    let verdict = run_verdict(
-        file,
-        false,
-        None,
-        theme,
-        RenderMode::Thread,
-        false,
-        None,
-        None,
-        &[],
-        None,
-        !journal, // no_trace_file
-        None,
-        false,
-        None,
-        true,
-        false,
-        true,
-        None,
-    );
-    ThreadRun {
-        answer: verdict
-            .outputs
-            .get("reply")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned),
-        interrupted: verdict.interrupted,
-    }
-}
+use super::RunVerdict;
 
 pub(super) fn block_on_run<F>(
     runtime: &tokio::runtime::Runtime,

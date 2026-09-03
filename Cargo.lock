@@ -4301,6 +4301,7 @@ dependencies = [
  "nika-schema",
  "nika-serve",
  "nika-service-execution",
+ "nika-session",
  "nika-store",
  "nika-trace",
  "nika-types",
@@ -5003,6 +5004,30 @@ dependencies = [
  "nika-types",
  "serde_json",
  "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "nika-session"
+version = "0.117.1"
+dependencies = [
+ "nika-builtin",
+ "nika-cli-host",
+ "nika-dap",
+ "nika-error",
+ "nika-harness",
+ "nika-http",
+ "nika-onboard",
+ "nika-pack",
+ "nika-providers",
+ "nika-runtime",
+ "nika-types",
+ "nika-verb-infer",
+ "nika-vocab",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
  "tokio",
 ]
 

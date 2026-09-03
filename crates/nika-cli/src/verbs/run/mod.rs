@@ -27,11 +27,9 @@ mod ask;
 mod child_runner;
 pub(crate) mod inputs;
 mod sink;
-mod thread;
 
 pub use nika_dap::recover::{RecoveredTrace, recover_events};
 pub use sink::{FoldSink, RenderMode};
-pub(crate) use thread::run_in_thread;
 
 mod example;
 pub use example::example;
@@ -49,6 +47,7 @@ pub use provenance::run_with_repair_target;
 mod heartbeat;
 mod resume_setup;
 mod teardown;
+mod thread;
 // ADR-111 · the outbound pause delivery lives in the host member
 // (ADR-110 precedent — compute descends, render stays).
 use nika_cli_host::notify;
@@ -100,8 +99,6 @@ pub(crate) struct RunVerdict {
     pub(crate) code: u8,
     failure: Option<nika_runtime::TaskErrorRecord>,
     paused: Option<PausedLeg>,
-    outputs: BTreeMap<String, serde_json::Value>,
-    interrupted: bool,
     pub(crate) trace: Option<std::path::PathBuf>,
 }
 
@@ -118,8 +115,6 @@ impl RunVerdict {
             code,
             failure: None,
             paused: None,
-            outputs: BTreeMap::new(),
-            interrupted: false,
             trace: None,
         }
     }
@@ -129,8 +124,6 @@ impl RunVerdict {
             code: exit::WORKFLOW,
             failure: None,
             paused: None,
-            outputs: BTreeMap::new(),
-            interrupted: true,
             trace: None,
         }
     }
@@ -1038,8 +1031,6 @@ async fn execute_output_json_lane(
         code,
         failure: first_failure(&outcome),
         paused: None,
-        outputs: outcome.outputs.clone(),
-        interrupted: false,
         trace: trace_path,
     }
 }
@@ -1121,8 +1112,6 @@ async fn execute_json_lane(
         code,
         failure: first_failure(&outcome),
         paused: None,
-        outputs: outcome.outputs.clone(),
-        interrupted: false,
         trace: trace_path,
     }
 }
@@ -1289,8 +1278,6 @@ fn fold_lane_verdict(
         code,
         failure: first_failure(outcome),
         paused,
-        outputs: outcome.outputs.clone(),
-        interrupted: false,
         trace: trace_path,
     }
 }

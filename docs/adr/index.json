@@ -1361,5 +1361,21 @@
       "requires": ["ADR-123"],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-125",
+      "title": "the native session is a grounded host runtime over the installed engine, never a workflow",
+      "status": "accepted",
+      "date": "2026-09-03",
+      "filename": "adr-125-native-session-runtime.md",
+      "tags": ["architecture","session","grounding","intelligence","one-door"],
+      "affects_crates": ["nika-session","nika-cli","nika-cli-host"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-122","ADR-123","ADR-124","ADR-003"],
+      "requires": ["ADR-124"],
+      "enables": []
+    }
   ]
 }

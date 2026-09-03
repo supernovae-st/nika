@@ -1028,7 +1028,7 @@ impl<T> typenum::type_operators::Same for nika_cli::verbs::serve::ServeArgs
 pub type nika_cli::verbs::serve::ServeArgs::Output = T
 pub fn nika_cli::verbs::serve::run(args: &nika_cli::verbs::serve::ServeArgs) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::session
-pub fn nika_cli::verbs::session::run(theme: nika_display::theme::Theme) -> u8
+pub fn nika_cli::verbs::session::run(_theme: nika_display::theme::Theme) -> u8
 pub mod nika_cli::verbs::sign
 pub struct nika_cli::verbs::sign::SignArgs
 pub nika_cli::verbs::sign::SignArgs::check: bool

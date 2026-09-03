@@ -676,7 +676,7 @@ fn sdk_identity() -> std::process::ExitCode {
     }
 }
 
-/// Bare `nika`, `nika --json`, `nika version`, `nika thread` — decided
+/// Bare `nika` (the session on a terminal · the concierge on a pipe), `nika --json`, `nika version` — decided
 /// before clap so a missing subcommand never clap-fails the front door.
 fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     let mut json = false;
@@ -724,7 +724,13 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     match first {
         None => {
             let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
-            Some(if json {
+            // ADR-125 · bare `nika` on an interactive terminal is the native
+            // session; a pipe keeps the deterministic concierge (exit 0).
+            let interactive =
+                !json && std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+            Some(if interactive {
+                std::process::ExitCode::from(verbs::session::run(interactive_theme(theme)))
+            } else if json {
                 concierge_json(theme)
             } else {
                 concierge(theme)
@@ -735,12 +741,6 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             Some(std::process::ExitCode::SUCCESS)
         }
         Some("--sdk-identity") if positional.len() == 1 => Some(sdk_identity()),
-        Some("thread") if positional.len() == 1 => {
-            let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
-            Some(std::process::ExitCode::from(verbs::session::run(
-                interactive_theme(theme),
-            )))
-        }
         _ => None,
     }
 }

@@ -122,6 +122,7 @@ wrappers = [
   # Transitive consumers via chromiumoxide (nika-browser's CDP backend · M2.5):
   # the CDP WebSocket rides async-tungstenite/tokio · tower-http via its reqwest
   "chromiumoxide", "async-tungstenite", "tower-http",
+  "nika-session",         # L4 native session (ADR-125): blocks on ONE inference at a time (a current-thread runtime per turn) — the seat adapter and the provider registry are async
 ]
 
 [[bans.deny]]
