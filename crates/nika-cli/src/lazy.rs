@@ -70,11 +70,11 @@ pub(crate) fn check_lazy(
     files: Vec<String>,
     flags: &CheckFlags,
     fix: bool,
-    model: Option<&str>,
+    overrides: (Option<&str>, Option<&str>),
     theme: Theme,
 ) -> u8 {
     match lazy_files(files) {
-        Ok(files) => registry_args::check_verb(&files, flags, fix, model, theme),
+        Ok(files) => registry_args::check_verb(&files, flags, fix, overrides, theme),
         Err(code) => code,
     }
 }

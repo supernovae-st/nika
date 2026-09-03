@@ -420,12 +420,13 @@ pub(crate) fn settle_ran(
             error,
             cost_usd,
             cost_unpriced,
+            access,
         } => settle_failed_terminal(
             id,
             &run.note,
             duration,
             error,
-            (cost_usd, cost_unpriced),
+            (cost_usd, cost_unpriced, access.as_deref()),
             attempts,
             evidence.as_ref(),
             &mut record,
@@ -500,7 +501,11 @@ fn settle_pending_backstop(
         note,
         duration,
         pending.render_error,
-        (pending.failed.cost_usd, pending.failed.cost_unpriced),
+        (
+            pending.failed.cost_usd,
+            pending.failed.cost_unpriced,
+            pending.failed.access.as_deref(),
+        ),
         attempts,
         evidence,
         record,
@@ -587,7 +592,11 @@ fn settle_failed_terminal(
     note: &str,
     duration: i64,
     error: TaskErrorRecord,
-    spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+    spend: (
+        Option<f64>,
+        Option<nika_types::cost::UnpricedReason>,
+        Option<&nika_types::access::AccessPlan>,
+    ),
     attempts: u32,
     evidence: Option<&crate::dispatch::commit::CommitEvidence>,
     record: &mut TaskRecord,
@@ -609,6 +618,10 @@ fn settle_failed_terminal(
         ("duration_ms", i(duration)),
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
+    // Wave 2b · the lane that FAILED stamps the terminal like a success
+    // (`model` · `provider` · `access` · `access_id` · `billing`) — a
+    // sealed trace must say which path was allowed to bill.
+    emit_task::push_access_fields(&mut fields, None, spend.2, spend.1);
     // F-P6 · a divergence refusal carries its finding HERE (never a warn);
     // a post-gate verb failure attests the fired ≡ judged digests.
     push_commit_fields(&mut fields, evidence);

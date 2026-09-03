@@ -45,7 +45,7 @@ fn registry_run_refusal_keeps_copy_guidance_and_never_names_cache_as_fixable() {
         false,
         false,
         crate::verbs::check::Profile::Advisory,
-        None,
+        (None, None),
         Theme::new(false, false, false),
     );
     assert_eq!(out.code, exit::FILE);

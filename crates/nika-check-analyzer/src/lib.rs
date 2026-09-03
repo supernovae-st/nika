@@ -41,6 +41,7 @@
 )]
 
 mod builtin_shape;
+mod capacity;
 mod dag;
 pub mod edges;
 mod jq_lint;
@@ -60,9 +61,10 @@ use nika_schema::raw::{RawTask, RawWorkflow};
 use nika_schema::source::Spanned;
 use nika_schema::types::AfterPredicate;
 
+pub use capacity::{CapacityFinding, capacity_findings};
 pub use edges::{Edge, EdgeKind, RecoveryRead, SettledState, role_of_field};
 pub use static_ref::{bare_static_ref, static_literal_of};
-pub use thinking::{MIN_REASONING_MAX_TOKENS, ThinkingFinding, thinking_findings};
+pub use thinking::{MIN_REASONING_MAX_TOKENS, ThinkingFinding, catalog_knows, thinking_findings};
 pub use types_contract::{lowered_returns, returns_type};
 
 /// The analyzer's output — the Graph IR plus its waves · lowering is

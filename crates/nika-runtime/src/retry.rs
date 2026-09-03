@@ -175,16 +175,15 @@ where
         // F-P6 · the binding evidence is lifted BEFORE the spend fold
         // consumes the dispatch (a divergence is never transient).
         let evidence = failed.evidence.clone();
+        let access = failed.access.clone();
         // Debits PER ATTEMPT — a retry storm is never invisible.
         let error = failed.debit_and_fold(ledger, failed_cost, failed_unpriced);
         // Retry iff attempts remain AND the policy admits (spec 05).
         let Some(delay) = self.retry_delay(task, &error, attempt, max_attempts, jitter_key) else {
-            return Err(FailedOutcome::new(
-                error,
-                *failed_cost,
-                *failed_unpriced,
-                evidence,
-            ));
+            return Err(
+                FailedOutcome::new(error, *failed_cost, *failed_unpriced, evidence)
+                    .with_access(access),
+            );
         };
         Ok(delay)
     }

@@ -65,6 +65,9 @@ pub(crate) struct FailedDispatch {
     /// `Refused` when the gate refused the fire (the finding). One field,
     /// so the two states can never both ride.
     pub evidence: Option<commit::CommitEvidence>,
+    /// The admitted lane the failed dispatch rode (One Door · wave 2b) —
+    /// the terminal frame names the path that FAILED, not `?`.
+    pub access: Option<Box<nika_types::access::AccessPlan>>,
 }
 
 impl FailedDispatch {
@@ -77,6 +80,7 @@ impl FailedDispatch {
             cost_source: None,
             cost_unpriced: None,
             evidence: None,
+            access: None,
         }
     }
 
@@ -244,8 +248,18 @@ impl Dispatched {
                 cost_source,
                 cost_unpriced,
                 evidence: None,
+                access: None,
             }),
         }
+    }
+
+    /// The lane a FAILED dispatch rode (wave 2b): the terminal frame
+    /// stamps the path that failed instead of `?`.
+    fn with_failed_access(mut self, access: Option<nika_types::access::AccessPlan>) -> Self {
+        if let Err(failed) = &mut self.result {
+            failed.access = access.map(Box::new);
+        }
+        self
     }
 
     pub(crate) fn template_err(note: &str, err: &RuntimeError) -> Self {
@@ -752,14 +766,18 @@ where
                     format!("infer · seat {seat_id}"),
                     &err,
                     (None, None, None),
-                ),
+                )
+                .with_failed_access(access),
             };
         }
         match self.infer.run(input).await {
             Ok(out) => verb_outcome::infer_success(out, access),
             Err(err) => {
                 let spend = price_failed_spend(err.spend());
-                Dispatched::verb_err_spent("infer · ?".to_owned(), &err, spend)
+                // The note names the model the lane was asked for (the
+                // W1 gauntlet read `infer · ?` in a sealed trace).
+                Dispatched::verb_err_spent(format!("infer · {lane_model}"), &err, spend)
+                    .with_failed_access(access)
             }
         }
     }
@@ -830,7 +848,8 @@ where
             Ok(out) => verb_outcome::agent_success(out, access),
             Err(err) => {
                 let spend = price_failed_spend(err.spend());
-                Dispatched::verb_err_spent("agent · ?".to_owned(), &err, spend)
+                Dispatched::verb_err_spent(format!("agent · {lane_model}"), &err, spend)
+                    .with_failed_access(access)
             }
         }
     }

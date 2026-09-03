@@ -268,8 +268,7 @@ pub(crate) fn models(
     // advisory surface's truth (`access_plan`), with the refusal
     // authority at the run gate. A ✔ that claims exactly what it
     // covered, and names what defers.
-    let key_presence = " · key presence on this machine not judged (advisory: check --json access_plan · \
-         the run gate refuses NIKA-INFER-001)";
+    let key_presence = " · this machine's paths on the ACCESS line";
     let line = if audit.unjudged > 0 {
         format!(
             "{judged} of {n} models resolve in this binary{via} · {} run-time · unjudged{liveness}{key_presence}",
@@ -317,10 +316,10 @@ mod tests {
     /// The claim-narrowing pin (the gauntlet read `✔ MODELS 1 model
     /// resolves in this binary` as « the run will reach it », then the
     /// run refused for a missing key): the green line names what it did
-    /// NOT judge — key presence on this machine — and where that truth
-    /// lives (the advisory `access_plan` · the run gate's NIKA-INFER-001).
-    /// Dropping the clause turns this red; the clause is unconditional
-    /// because the rung never judges key presence, on any workflow.
+    /// NOT judge — this machine's paths — and where that truth lives
+    /// (the ACCESS line right under it · wave 2). Dropping the clause
+    /// turns this red; the clause is unconditional because the rung
+    /// never judges a path, on any workflow.
     #[test]
     fn the_green_line_names_the_key_presence_deferral() {
         let mut out = String::new();
@@ -336,13 +335,10 @@ mod tests {
             Theme::new(false, true, false),
         );
         assert!(out.contains("1 model resolves in this binary"), "{out}");
-        for clause in [
-            "key presence on this machine not judged",
-            "check --json access_plan",
-            "NIKA-INFER-001",
-        ] {
-            assert!(out.contains(clause), "the deferral names `{clause}`: {out}");
-        }
+        assert!(
+            out.contains("this machine's paths on the ACCESS line"),
+            "the deferral points at the ACCESS line: {out}"
+        );
 
         // The mixed list (one judged, one run-time) carries the same
         // narrowing — the deferral is a property of the RUNG, not of the
@@ -366,7 +362,7 @@ mod tests {
             "{out}"
         );
         assert!(
-            out.contains("key presence on this machine not judged"),
+            out.contains("this machine's paths on the ACCESS line"),
             "the mixed line narrows too: {out}"
         );
     }

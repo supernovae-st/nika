@@ -356,7 +356,7 @@ fn judge_access(
             Ok(())
         }
         nika_dap::resume::AccessVerdict::Refuse(message) => {
-            let message = format!("--resume: {message}");
+            let message = format!("--resume: {} · {message}", nika_error::codes::NIKA_1807);
             eprintln!("nika run: {message}");
             epilogue::emit_error_envelope(&message, output_json);
             Err(exit::ENV)

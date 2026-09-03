@@ -21,7 +21,7 @@ pub(super) fn hints_and_verdict(
     repair_target: RepairTarget,
     t: Theme,
     drift_hints: &[String],
-    verdict: bool,
+    (verdict, layers): (bool, &super::VerdictLayers),
 ) {
     let mut distinct_identities = render_report_hints(out, report, t);
     let mut hint_sites = report.hints.len() + drift_hints.len();
@@ -82,6 +82,8 @@ pub(super) fn hints_and_verdict(
             " {}",
             audited_line(report, wf, distinct_identities.len(), hint_sites, grade, t)
         );
+        // Wave 2 · the four questions the green line answered (or not).
+        let _ = writeln!(out, " {}", super::layers_line(layers, t));
     } else if unfilled_scaffold(report) {
         // No NEXT after it: the SLOTS rung already ended on the one
         // command, and `nika explain` has nothing to say about a value

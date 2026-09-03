@@ -398,11 +398,12 @@ fn resume_cannot_switch_access_silently() {
         "an environment refusal\nstdout: {stdout}\nstderr: {stderr}"
     );
     assert!(
-        stderr.contains("ran `openai/gpt-5.2` on `codex`")
+        stderr.contains("NIKA-1807")
+            && stderr.contains("ran `openai/gpt-5.2` on `codex`")
             && stderr.contains("now resolves `openai`")
             && stderr.contains("--access codex")
             && stderr.contains("--access api"),
-        "the refusal names both paths and both flags: {stderr}"
+        "the refusal carries its code and names both paths and both flags: {stderr}"
     );
     assert!(
         !stdout.contains("127.0.0.1:9") && !stderr.contains("127.0.0.1:9"),

@@ -61,7 +61,7 @@ fn provider_row_separates_recognized_from_configured() {
     assert!(
         present
             .detail
-            .contains("— api · recognized · configured (key present)"),
+            .contains("— api · recognized · configured (key present · not validated)"),
         "the access token leads the ladder (D-2026-08-04-N1): {}",
         present.detail
     );

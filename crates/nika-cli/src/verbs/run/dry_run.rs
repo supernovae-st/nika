@@ -100,32 +100,35 @@ fn verdict(
     json: bool,
     theme: Theme,
 ) -> u8 {
-    let seated = plan
-        .admitted()
-        .any(|(_, lane)| lane.plan.chosen == AccessClass::Harness);
     if json {
         let payload = project_access(nika_check::plan::payload(file, wf, report), plan);
         println!("{payload:#}");
-    } else if seated {
-        println!("{file} · subscription-seat preview");
-        for (_, lane) in plan.admitted() {
-            println!(
-                "  requested {} → seat {} · {}",
-                lane.plan.model,
-                lane.plan.access,
-                lane.plan.billing.as_str()
-            );
-        }
-    } else {
-        if let Some(pin) = &plan.pin {
-            println!("access: pinned `{pin}` · admission satisfied");
-        }
-        let plan = crate::verbs::inspect::render_pair(wf, report, theme);
-        if !plan.text.is_empty() {
-            println!("{}", plan.text.trim_end());
-        }
-        println!("\n  dry-run · plan only · no effects executed");
+        return exit::OK;
     }
+    // Wave 2 (W1 gauntlet · the seated preview hid the plan): the text
+    // preview ALWAYS carries the static plan, then one access line per
+    // lane — the same lines the run announces.
+    let rendered = crate::verbs::inspect::render_pair(wf, report, theme);
+    if !rendered.text.is_empty() {
+        println!("{}", rendered.text.trim_end());
+    }
+    if let Some(pin) = &plan.pin {
+        println!("access: pinned `{pin}` · admission satisfied · presence, not validated");
+    }
+    for (model, lane) in plan.admitted() {
+        let seat = if lane.plan.chosen == AccessClass::Harness {
+            " · subscription seat · usage billed to the seat"
+        } else {
+            ""
+        };
+        println!(
+            "access: {model} → {} ({} · {}){seat}",
+            lane.plan.access,
+            lane.plan.chosen.as_str(),
+            lane.plan.billing.as_str()
+        );
+    }
+    println!("\n  dry-run · plan only · no effects executed");
     exit::OK
 }
 
@@ -134,17 +137,9 @@ fn verdict(
 /// the run. A plan with no pin and no lane leaves the payload untouched
 /// (a file with no inference has nothing to say about access).
 fn project_access(mut payload: serde_json::Value, plan: &ExecutionAccessPlan) -> serde_json::Value {
-    let rows: Vec<serde_json::Value> = plan
-        .admitted()
-        .map(|(_, lane)| {
-            serde_json::json!({
-                "requested_model": lane.plan.model,
-                "access": lane.plan.access,
-                "class": lane.plan.chosen.as_str(),
-                "billing": lane.plan.billing.as_str(),
-            })
-        })
-        .collect();
+    // Wave 2 · the ONE lane-row shape (`check --json` · this preview ·
+    // the boot manifest carry the same rows).
+    let rows = nika_service_execution::access::lane_rows(plan);
     if plan.pin.is_none() && rows.is_empty() {
         return payload;
     }
@@ -153,7 +148,8 @@ fn project_access(mut payload: serde_json::Value, plan: &ExecutionAccessPlan) ->
         .any(|(_, lane)| lane.plan.chosen == AccessClass::Harness);
     payload["access"] = serde_json::json!({
         "requested": plan.pin,
-        "resolved": !rows.is_empty(),
+        "resolved": plan.is_admitted(),
+        "seat": plan.seat,
         "plans": rows,
     });
     if seated {
@@ -226,11 +222,10 @@ mod tests {
         let projected = super::project_access(payload, &seated_plan());
         let wire = projected.to_string();
         assert_eq!(projected["access"]["requested"], "codex");
-        assert_eq!(
-            projected["access"]["plans"][0]["requested_model"],
-            "openai/gpt-5.2"
-        );
+        assert_eq!(projected["access"]["seat"], "codex");
+        assert_eq!(projected["access"]["plans"][0]["model"], "openai/gpt-5.2");
         assert_eq!(projected["access"]["plans"][0]["access"], "codex");
+        assert_eq!(projected["access"]["plans"][0]["chosen"], "harness");
         assert_eq!(projected["cost"]["basis"], "subscription_quota");
         for forbidden in ["usd", "max_tokens", "responding_model"] {
             assert!(!wire.contains(forbidden), "{forbidden} leaked: {wire}");
@@ -276,7 +271,7 @@ mod tests {
         let projected = super::project_access(json!({ "cost": { "tasks": [] } }), &plan);
         assert!(projected["access"]["requested"].is_null());
         assert_eq!(projected["access"]["resolved"], true);
-        assert_eq!(projected["access"]["plans"][0]["class"], "mock");
+        assert_eq!(projected["access"]["plans"][0]["chosen"], "mock");
         assert!(
             projected["cost"].get("basis").is_none(),
             "no seat, no quota basis"

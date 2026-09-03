@@ -354,6 +354,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
             cost_usd: None,
             cost_unpriced: None,
             evidence: None,
+            access: None,
         },
         render_error: error("NIKA-VAR-001", "unresolved reference `tasks.ghost.output`"),
         awaiting: std::collections::BTreeSet::from(["ghost".to_owned()]),

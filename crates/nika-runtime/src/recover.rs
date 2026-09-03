@@ -315,18 +315,12 @@ fn try_park(
             error: render_error,
             cost_usd: failed.cost_usd,
             cost_unpriced: failed.cost_unpriced,
+            access: failed.access,
         },
     };
     let settle = SettleAs::Ran(Box::new(ran));
-    Some(finish_with(
-        id,
-        settle,
-        named,
-        resume,
-        integrity,
-        declassified,
-        approval,
-    ))
+    let done = finish_with(id, settle, named, resume, integrity, declassified, approval);
+    Some(done)
 }
 
 /// Resolve + settle every park the spine's terminal truth covers, to a
@@ -471,6 +465,7 @@ fn resolve_parked(
         cost_usd,
         cost_unpriced,
         evidence,
+        access,
     } = failed;
     let result = match recover_template(scope.wf, task_index) {
         Some(template) => {
@@ -489,6 +484,7 @@ fn resolve_parked(
                     error: runtime_error_record(&RuntimeError::from(err)),
                     cost_usd,
                     cost_unpriced,
+                    access: access.clone(),
                 },
             }
         }
@@ -498,6 +494,7 @@ fn resolve_parked(
             error: render_error,
             cost_usd,
             cost_unpriced,
+            access: access.clone(),
         },
     };
     let mut settled_as = SettleAs::Ran(Box::new(RanTask {

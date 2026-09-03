@@ -46,6 +46,9 @@ pub struct CheckArgs {
     /// Price as if this `<provider>/<model>` replaced the envelope default.
     #[arg(long)]
     pub model: Option<String>,
+    /// Judge the access plan under this pin (the same value `run --access` takes).
+    #[arg(long)]
+    pub access: Option<String>,
     /// Internal SDK adapter: emit the report with its immutable snapshot.
     #[arg(long, hide = true)]
     pub sdk_snapshot: bool,
@@ -95,11 +98,11 @@ pub fn dispatch(
     files: &[String],
     flags: &CheckFlags,
     fix: bool,
-    model: Option<&str>,
+    (model, access): (Option<&str>, Option<&str>),
     theme: Theme,
 ) -> VerbOutput {
     let targets: Vec<CheckTarget> = files.iter().cloned().map(CheckTarget::workspace).collect();
-    dispatch_targets(&targets, flags, fix, model, theme)
+    dispatch_targets(&targets, flags, fix, (model, access), theme)
 }
 
 /// [`dispatch`] over already-acquired inputs whose registry provenance has
@@ -109,7 +112,7 @@ pub fn dispatch_targets(
     targets: &[CheckTarget],
     flags: &CheckFlags,
     fix: bool,
-    model: Option<&str>,
+    (model, access): (Option<&str>, Option<&str>),
     theme: Theme,
 ) -> VerbOutput {
     let CheckFlags {
@@ -147,7 +150,7 @@ pub fn dispatch_targets(
         if infer_permits {
             run_infer_permits(&target.path, json)
         } else {
-            run_target_with_profile(target, json, native_strict, profile, model, theme)
+            run_target_with_profile(target, json, native_strict, profile, (model, access), theme)
         }
     } else if json || infer_permits {
         VerbOutput {
@@ -165,7 +168,7 @@ pub fn dispatch_targets(
             code: crate::verbs::exit::ENV,
         }
     } else {
-        run_many_targets(targets, native_strict, profile, model, theme)
+        run_many_targets(targets, native_strict, profile, (model, access), theme)
     }
 }
 
@@ -184,7 +187,8 @@ pub(crate) mod energy;
 pub(crate) mod models_rung;
 mod project;
 use models_rung::{
-    ModelFinding, ModelsAudit, pricing_section, thinking_findings, unresolvable_models,
+    ModelFinding, ModelsAudit, VerdictLayers, capacity_findings, pricing_section,
+    thinking_findings, unresolvable_models,
 };
 
 use nika_display::check_render::{RepairTarget, render};
@@ -205,7 +209,7 @@ pub fn run(
         json,
         native_strict,
         Profile::Advisory,
-        model_override,
+        (model_override, None),
         theme,
     )
 }
@@ -313,7 +317,7 @@ pub fn run_with_profile(
     json: bool,
     native_strict: bool,
     profile: Profile,
-    model_override: Option<&str>,
+    overrides: (Option<&str>, Option<&str>),
     theme: Theme,
 ) -> VerbOutput {
     run_target_with_profile(
@@ -321,7 +325,7 @@ pub fn run_with_profile(
         json,
         native_strict,
         profile,
-        model_override,
+        overrides,
         theme,
     )
 }
@@ -331,7 +335,7 @@ fn run_target_with_profile(
     json: bool,
     native_strict: bool,
     profile: Profile,
-    model_override: Option<&str>,
+    overrides: (Option<&str>, Option<&str>),
     theme: Theme,
 ) -> VerbOutput {
     run_target_with_profile_and_slots(
@@ -339,7 +343,7 @@ fn run_target_with_profile(
         json,
         native_strict,
         profile,
-        model_override,
+        overrides,
         theme,
         false,
     )
@@ -355,7 +359,7 @@ pub(crate) fn run_scaffold(path: &str, theme: Theme) -> VerbOutput {
         false,
         false,
         Profile::Advisory,
-        None,
+        (None, None),
         theme,
         true,
     )
@@ -367,7 +371,7 @@ fn run_target_with_profile_and_slots(
     json: bool,
     native_strict: bool,
     profile: Profile,
-    model_override: Option<&str>,
+    overrides: (Option<&str>, Option<&str>),
     theme: Theme,
     allow_slot_only: bool,
 ) -> VerbOutput {
@@ -384,7 +388,7 @@ fn run_target_with_profile_and_slots(
         json,
         native_strict,
         profile,
-        model_override,
+        overrides,
         theme,
         allow_slot_only,
     )
@@ -395,7 +399,7 @@ pub(crate) fn run_source_with_profile(
     json: bool,
     native_strict: bool,
     profile: Profile,
-    model_override: Option<&str>,
+    overrides: (Option<&str>, Option<&str>),
     theme: Theme,
 ) -> VerbOutput {
     run_source_with_profile_and_slots(
@@ -403,7 +407,7 @@ pub(crate) fn run_source_with_profile(
         json,
         native_strict,
         profile,
-        model_override,
+        overrides,
         theme,
         false,
     )
@@ -415,7 +419,7 @@ fn run_source_with_profile_and_slots(
     json: bool,
     native_strict: bool,
     profile: Profile,
-    model_override: Option<&str>,
+    (model_override, access_pin): (Option<&str>, Option<&str>),
     theme: Theme,
     allow_slot_only: bool,
 ) -> VerbOutput {
@@ -432,6 +436,7 @@ fn run_source_with_profile_and_slots(
         && report.findings.iter().all(|finding| finding.kind == "slot")
         && unresolvable_models(&report, &wf).findings.is_empty()
         && thinking_findings(&wf).is_empty()
+        && capacity_findings(&wf).is_empty()
         && skills.findings.is_empty();
     let out = render_checked_with_profile(
         source.source(),
@@ -443,6 +448,7 @@ fn run_source_with_profile_and_slots(
         json,
         native_strict,
         profile,
+        access_pin,
         theme,
     );
     if slot_only {
@@ -476,6 +482,7 @@ pub(crate) fn run_admitted_pair(
         json,
         false,
         Profile::Advisory,
+        None,
         theme,
     )
 }
@@ -618,6 +625,60 @@ fn lexical_snapshot_path(path: &std::path::Path) -> std::path::PathBuf {
     normalized
 }
 
+/// The MODELS rung's fold + the four layers (wave 2), computed ONCE
+/// beside the exit code: a `model:` this binary cannot resolve is a
+/// FINDING (exit 2), never a green audit; the thinking and capacity
+/// judgments ride the same rung. VALID is the definition (ladder +
+/// resolution + skills), CAPACITY FIT the seat against the declaration;
+/// `clean` folds both (P0-11: one verdict, every surface). ACCESS READY
+/// is the frozen plan this machine resolves for the EFFECTIVE models
+/// (`--model` already applied to `wf`) under `--access` — presence
+/// only, never a dial.
+fn fold_verdicts(
+    wf: &nika_schema::raw::RawWorkflow,
+    report: &CheckReport,
+    skills: &nika_schema::ResolvedSkills,
+    access_pin: Option<&str>,
+) -> (
+    ModelsAudit,
+    bool,
+    nika_providers::ExecutionAccessPlan,
+    VerdictLayers,
+) {
+    let mut models_audit = unresolvable_models(report, wf);
+    let valid = report.is_clean() && models_audit.findings.is_empty() && skills.findings.is_empty();
+    let mut capacity = thinking_findings(wf);
+    capacity.extend(capacity_findings(wf));
+    models_audit.findings.extend(capacity.iter().cloned());
+    let plan = nika_cli_host::access::resolve_plan(wf, report, None, access_pin);
+    let layers = models_rung::verdict_layers(&plan, valid, &capacity);
+    (models_audit, valid && capacity.is_empty(), plan, layers)
+}
+
+/// The operational profile's access footer: RUN READY false is a
+/// `--profile` outcome (exit 2), and the line names the blocker.
+fn access_footer(
+    text: &mut String,
+    theme: Theme,
+    profile: Profile,
+    clean: bool,
+    layers: &VerdictLayers,
+) {
+    if profile == Profile::Operational && clean && layers.access_ready == Some(false) {
+        let _ = writeln!(
+            text,
+            " {}",
+            theme.paint(
+                Role::Bad,
+                &format!(
+                    "✖ operational · access not ready — {}",
+                    layers.blockers.first().map_or("", String::as_str)
+                )
+            )
+        );
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_checked_with_profile(
     source: &str,
@@ -629,21 +690,19 @@ fn render_checked_with_profile(
     json: bool,
     native_strict: bool,
     profile: Profile,
+    access_pin: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
     // Declared-vs-used drift (NIKA-DRIFT-001) — advisory, never an exit input.
     let drift_hints = drift::scan(wf);
     let native_hints = native_hint_count(report);
-    // The MODELS rung (#320): a `model:` this binary cannot resolve is
-    // a FINDING (exit 2), never a green audit — the thinking judgments
-    // ride the same rung.
-    let mut models_audit = unresolvable_models(report, wf);
-    models_audit.findings.extend(thinking_findings(wf));
-    let clean = report.is_clean() && models_audit.findings.is_empty() && skills.findings.is_empty();
+    let (models_audit, clean, plan, layers) = fold_verdicts(wf, report, skills, access_pin);
     // The risk grade (P0-6): a pure projection — advisory by default;
-    // the operational profile folds grade ≥ High into the exit-2 verdict.
+    // the operational profile folds grade ≥ High AND an unready lane
+    // into the exit-2 verdict (RUN READY false is a `--profile` outcome).
     let grade = nika_check::risk_grade(report);
-    let profile_clean = profile != Profile::Operational || grade < nika_check::RiskGrade::High;
+    let profile_clean = profile != Profile::Operational
+        || (grade < nika_check::RiskGrade::High && layers.access_ready != Some(false));
     let strict_clean = clean && profile_clean && (!native_strict || native_hints == 0);
 
     // W8 metrics: a green audit is the content-free check_passed event.
@@ -661,11 +720,10 @@ fn render_checked_with_profile(
             &models_audit,
             skills,
             &drift_hints,
-            clean,
-            strict_clean,
-            native_strict,
+            (clean, strict_clean, native_strict),
             grade,
             profile,
+            (&plan, &layers),
         );
     }
 
@@ -682,6 +740,7 @@ fn render_checked_with_profile(
         // THE verdict, computed once above — the footer shows it, the
         // exit code rides it (P0-11).
         clean,
+        &layers,
     );
     strict_footers(
         &mut text,
@@ -691,6 +750,7 @@ fn render_checked_with_profile(
         profile == Profile::Operational && clean && !profile_clean,
         grade,
     );
+    access_footer(&mut text, theme, profile, clean, &layers);
     naming_note(&mut text, theme, path, wf);
     budget::footnote(&mut text, theme);
     // The `--ascii` byte contract (P1): the report folds through the
@@ -833,11 +893,10 @@ fn json_verdict(
     models_audit: &ModelsAudit,
     skills: &nika_schema::ResolvedSkills,
     drift_hints: &[String],
-    clean: bool,
-    strict_clean: bool,
-    native_strict: bool,
+    (clean, strict_clean, native_strict): (bool, bool, bool),
     grade: nika_check::RiskGrade,
     profile: Profile,
+    (plan, layers): (&nika_providers::ExecutionAccessPlan, &VerdictLayers),
 ) -> VerbOutput {
     let model_findings = &models_audit.findings;
     let mut payload = match serde_json::to_value(report) {
@@ -869,13 +928,26 @@ fn json_verdict(
         // machine would reach each judged model — MACHINE truth (env
         // key presence), presence-gated and advisory like its
         // siblings; `clean` and the exit codes never read it.
-        let access_rows = models_rung::access_plan_rows(wf, report);
+        let access_rows = nika_service_execution::access::lane_rows(plan);
         if !access_rows.is_empty() {
             obj.insert(
                 "access_plan".to_owned(),
                 serde_json::Value::Array(access_rows),
             );
         }
+        // Wave 2 · the four layered verdicts, additive beside `clean`
+        // (`report_version` stays 1 · `clean` keeps meaning VALID +
+        // CAPACITY FIT, what it always folded).
+        obj.insert(
+            "verdicts".to_owned(),
+            serde_json::json!({
+                "valid": layers.valid,
+                "access_ready": layers.access_ready,
+                "capacity_fit": layers.capacity_fit,
+                "run_ready": layers.run_ready(),
+                "blockers": layers.blockers,
+            }),
+        );
         skills.extend_check_json(obj);
         budget::stamp_json(obj);
         obj.insert(
@@ -957,21 +1029,26 @@ pub fn run_many(
     theme: Theme,
 ) -> VerbOutput {
     let targets: Vec<CheckTarget> = paths.iter().cloned().map(CheckTarget::workspace).collect();
-    run_many_targets(&targets, native_strict, profile, model_override, theme)
+    run_many_targets(
+        &targets,
+        native_strict,
+        profile,
+        (model_override, None),
+        theme,
+    )
 }
 
 fn run_many_targets(
     targets: &[CheckTarget],
     native_strict: bool,
     profile: Profile,
-    model_override: Option<&str>,
+    overrides: (Option<&str>, Option<&str>),
     theme: Theme,
 ) -> VerbOutput {
     let mut texts = Vec::with_capacity(targets.len());
     let mut worst = crate::verbs::exit::OK;
     for target in targets {
-        let out =
-            run_target_with_profile(target, false, native_strict, profile, model_override, theme);
+        let out = run_target_with_profile(target, false, native_strict, profile, overrides, theme);
         texts.push(out.text);
         worst = worst.max(out.code);
     }
