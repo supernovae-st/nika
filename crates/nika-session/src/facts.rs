@@ -72,7 +72,101 @@ pub fn answer(input: &str, snapshot: &ProjectSnapshot, root: &Path) -> Option<St
     ) {
         return Some(route(input));
     }
+    if any(
+        &lower,
+        &[
+            "last run",
+            "latest run",
+            "previous run",
+            "what happened",
+            "did it run",
+            "the run",
+        ],
+    ) {
+        return Some(last_run(root));
+    }
     vocabulary(&lower)
+}
+
+/// The newest `.ndjson` under the store by mtime (name tie-break) — the
+/// raw file, since the fact reads its lines itself.
+fn newest_trace(store: &Path) -> Option<std::path::PathBuf> {
+    let mut traces: Vec<(std::time::SystemTime, std::path::PathBuf)> = std::fs::read_dir(store)
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "ndjson"))
+        .filter_map(|p| {
+            std::fs::metadata(&p)
+                .and_then(|m| m.modified())
+                .ok()
+                .map(|t| (t, p))
+        })
+        .collect();
+    traces.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
+    traces.into_iter().next().map(|(_, p)| p)
+}
+
+/// The last run, read from its trace (the evidence), never from memory:
+/// the workflow, every task's outcome, the settlement.
+fn last_run(root: &Path) -> String {
+    let store = root.join(".nika").join("traces");
+    let Some(trace) = newest_trace(&store) else {
+        return "no run yet under this root (no trace in `.nika/traces/`)".to_owned();
+    };
+    let Ok(text) = std::fs::read_to_string(&trace) else {
+        return format!("the latest trace `{}` could not be read", trace.display());
+    };
+    let mut workflow = String::new();
+    let mut tasks: Vec<String> = Vec::new();
+    let mut settled: Option<String> = None;
+    for line in text.lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let kind = v.get("kind").and_then(|k| k.as_str()).unwrap_or("");
+        let field = |key: &str| -> String {
+            v.get("fields")
+                .and_then(|f| f.as_array())
+                .and_then(|rows| {
+                    rows.iter()
+                        .find(|r| r.get("key").and_then(|k| k.as_str()) == Some(key))
+                })
+                .and_then(|r| r.get("value"))
+                .map(|val| match val {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                })
+                .unwrap_or_default()
+        };
+        match kind {
+            "workflow_started" => workflow = field("workflow"),
+            "task_completed" => tasks.push(format!(
+                "✔ {} · {} · {} ms",
+                field("task"),
+                field("note"),
+                field("duration_ms")
+            )),
+            "task_failed" => tasks.push(format!("✖ {} · {}", field("task"), field("error"))),
+            "task_skipped" => tasks.push(format!("○ {} · skipped", field("task"))),
+            "workflow_completed" => settled = Some("completed".to_owned()),
+            "workflow_failed" => settled = Some(format!("failed · {}", field("error"))),
+            "workflow_paused" => settled = Some("paused for a human answer".to_owned()),
+            _ => {}
+        }
+    }
+    let settled = settled.unwrap_or_else(|| {
+        "no settlement line — the run may still be going, or was cut".to_owned()
+    });
+    format!(
+        "last run · `{workflow}` · {settled} · read from `{}`\n  {}",
+        trace.display(),
+        if tasks.is_empty() {
+            "no task line".to_owned()
+        } else {
+            tasks.join("\n  ")
+        }
+    )
 }
 
 /// What Nika calls the words another tool taught — answered from the
@@ -178,6 +272,58 @@ const VOCABULARY: &[(&str, &str)] = &[
         "function",
         "a `task` with one verb (`infer` · `exec` · `invoke` · `agent`) · a reusable one is a child workflow under `invoke: { workflow: … }`",
     ),
+    (
+        "permits",
+        "the declared boundary: what the file may read (`fs.read`) · write (`fs.write`) · reach (`net.http`) · run (`exec`) · call (`tools`) · see (`env`) · absent = zero authority · a run refuses anything outside it · `nika check --infer-permits` writes the tightest block the body needs",
+    ),
+    (
+        "inputs",
+        "what the caller supplies at run time (`--var name=value`) · typed · a `default:` makes one a deployment knob · read as `${{ inputs.name }}`",
+    ),
+    (
+        "const",
+        "values baked in the file · read as `${{ const.name }}` · never a secret",
+    ),
+    (
+        "secrets",
+        "store references only (`{ source: env, key: NAME }`), never a value · read as `${{ secrets.NAME }}` · reaches an effect only through an `egress:` door",
+    ),
+    (
+        "tasks",
+        "the work: a map keyed by task id, one verb each (`infer` · `exec` · `invoke` · `agent`) · the order is the DAG the `with:` bindings and `after:` edges draw",
+    ),
+    (
+        "outputs",
+        "what the workflow returns (`name: ${{ tasks.x.output }}`) · the only place a task's output is read outside `with:`",
+    ),
+    (
+        "model",
+        "the default seat for every `infer` · `<provider>/<name>` · `mock/echo` rehearses offline · a task may name its own",
+    ),
+    (
+        "with",
+        "a task's bindings · `with: { name: \"${{ tasks.x.output }}\" }` IS the data edge · read inside the task as `${{ with.name }}`",
+    ),
+    (
+        "after",
+        "an order edge without data · `after: { x: success }` (or `failure` · `skipped` · `terminal` · `unwind`)",
+    ),
+    (
+        "infer",
+        "the verb for one model call · `prompt` (required) · `system` · `model` · `temperature` · `max_tokens` · `schema` for structured output",
+    ),
+    (
+        "exec",
+        "the verb for a process · `command: [\"prog\", \"arg\"]` (argv · no shell) or `shell: \"…\"` (the explicit door) · needs `permits.exec`",
+    ),
+    (
+        "invoke",
+        "the verb for a builtin (`nika:<name>`) · an MCP tool (`mcp:<server>/<tool>`) · or a child workflow (`workflow: ./x.nika.yaml`)",
+    ),
+    (
+        "agent",
+        "the verb for a governed multi-turn loop · `prompt` · `tools: [globs · default-deny]` · `max_turns` · `max_tokens_total`",
+    ),
 ];
 
 fn vocabulary(lower: &str) -> Option<String> {
@@ -194,6 +340,11 @@ fn vocabulary(lower: &str) -> Option<String> {
             "nika word",
             "nika term",
             "do you have",
+            "what is",
+            "what are",
+            "what does",
+            "meaning of",
+            "explain",
         ],
     );
     if !asks {
@@ -399,6 +550,27 @@ mod tests {
         assert!(
             answer("is there a node concept?", &snap, root)
                 .is_some_and(|v| v.contains("node → a `task`"))
+        );
+        let none_yet = answer("what happened in the last run?", &snap, root).expect("a fact");
+        assert!(none_yet.contains("no run yet"), "{none_yet}");
+        let store = root.join(".nika").join("traces");
+        std::fs::create_dir_all(&store).expect("store");
+        std::fs::write(
+            store.join("2026-09-03T00-00-00Z-abcd.ndjson"),
+            "{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"digest\"}]}\n{\"kind\":\"task_completed\",\"fields\":[{\"key\":\"task\",\"value\":\"read\"},{\"key\":\"note\",\"value\":\"invoke · nika:read\"},{\"key\":\"duration_ms\",\"value\":2}]}\n{\"kind\":\"task_failed\",\"fields\":[{\"key\":\"task\",\"value\":\"sum\"},{\"key\":\"error\",\"value\":\"NIKA-INFER-001 · no seat\"}]}\n{\"kind\":\"workflow_failed\",\"fields\":[{\"key\":\"error\",\"value\":\"task sum failed\"}]}\n",
+        )
+        .expect("trace");
+        let last = answer("what happened in the last run?", &snap, root).expect("a fact");
+        assert!(
+            last.contains("last run · `digest` · failed · task sum failed")
+                && last.contains("✔ read · invoke · nika:read · 2 ms")
+                && last.contains("✖ sum · NIKA-INFER-001"),
+            "read from the trace, never from memory: {last}"
+        );
+        let permits = answer("what is permits?", &snap, root).expect("the language's own word");
+        assert!(
+            permits.contains("permits →") && permits.contains("boundary"),
+            "{permits}"
         );
         assert!(
             answer("tell me about the sea", &snap, root).is_none(),

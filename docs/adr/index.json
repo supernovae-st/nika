@@ -1377,5 +1377,21 @@
       "requires": ["ADR-124"],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-126",
+      "title": "project changes from the session: one typed change set, preview == apply, consent outside the model",
+      "status": "accepted",
+      "date": "2026-09-03",
+      "filename": "adr-126-project-changes-from-the-session.md",
+      "tags": ["architecture","session","authoring","consent","one-door"],
+      "affects_crates": ["nika-session","nika-cli"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-124","ADR-125","ADR-113"],
+      "requires": ["ADR-125"],
+      "enables": []
+    }
   ]
 }

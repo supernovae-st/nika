@@ -5011,10 +5011,14 @@ dependencies = [
 name = "nika-session"
 version = "0.117.1"
 dependencies = [
+ "blake3",
  "nika-builtin",
+ "nika-cap",
+ "nika-check",
  "nika-cli-host",
  "nika-dap",
  "nika-error",
+ "nika-fs",
  "nika-harness",
  "nika-http",
  "nika-onboard",

@@ -24,7 +24,11 @@ nika-error    = { path = "../nika-error", version = "0.117.1" }       # codes::l
 nika-types    = { path = "../nika-types", version = "0.117.1" }       # AccessClass — the census reads the probe rows by class
 nika-onboard  = { path = "../nika-onboard", version = "0.117.1" }     # routing::route_query — the ONE intent router
 nika-harness  = { path = "../nika-harness", version = "0.117.1", optional = true }  # the infer-grade seat (the harness reasoner)
+nika-check    = { path = "../nika-check", version = "0.117.1" }       # CheckReport — the preview's effect rows read the report's own permits and requirements
+nika-cap      = { path = "../nika-cap", version = "0.117.1" }         # ExecPermit — the exec grant's shape in the effect rows
+nika-fs       = { path = "../nika-fs", version = "0.117.1" }          # OwnedDir::write_atomic — a change lands by temp + rename below the root's descriptor
 
+blake3      = { workspace = true }   # the witness of the bytes a preview was built over
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 thiserror   = { workspace = true }

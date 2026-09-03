@@ -8,9 +8,13 @@
 //! guard's reading. No temporary workflow, no trace for a chat turn, no
 //! hidden shell.
 
-use std::path::Path;
+use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
 
 use crate::broker::ContextBroker;
+use crate::change::{
+    PendingGate, ProjectChangeSet, RunRequest, check_on_disk, prose_outside_blocks,
+};
 use crate::guard::KnownWorld;
 use crate::intelligence::{
     IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence, UserIntelligencePreference,
@@ -31,7 +35,7 @@ pub struct IntentDraft {
 }
 
 /// What one turn produced.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum TurnOutcome {
     /// The intelligence's reply, read by the guard.
@@ -47,6 +51,37 @@ pub enum TurnOutcome {
     /// The session asks the first screen again — the NEXT line is the
     /// answer ([`SessionRuntime::choose`]).
     Ask(String),
+    /// A question at the consent prompt, answered; the proposal still
+    /// waits and the NEXT line is still the consent.
+    Held(String),
+    /// The reply proposed a change to the project: the exact preview of
+    /// the bytes the apply would land. The NEXT line is the human's
+    /// consent ([`SessionRuntime::consent`]); nothing is written before it.
+    Proposal(String),
+    /// The set landed and its on-disk check is clean: the door runs the
+    /// workflow once through the SAME run path as `nika run` and reports
+    /// what it observed ([`SessionRuntime::observe_run`]). The apply and
+    /// check report rides along.
+    RunRequested {
+        /// What apply and the check said.
+        report: String,
+        /// The run the human asked for.
+        run: RunRequest,
+    },
+    /// The run paused at a human gate: the question, asked to the human.
+    /// The NEXT line is their answer ([`SessionRuntime::answer_gate`]);
+    /// nothing answers for them.
+    GateAsk(String),
+    /// The human answered the gate: the door resumes the SAME run
+    /// (`--resume <trace> --answer <task>=<value>`) and reports again.
+    ResumeRequested {
+        /// The workflow, relative to the root.
+        workflow: PathBuf,
+        /// The paused trace.
+        trace: PathBuf,
+        /// `task=value`, as the human's line became it.
+        answer: String,
+    },
 }
 
 /// The help card — the few survivors, and the law that everything
@@ -78,8 +113,12 @@ pub struct SessionRuntime {
     known: KnownWorld,
     recent: Vec<(String, String)>,
     census: Option<IntelligenceCensus>,
-    home: Option<std::path::PathBuf>,
+    home: Option<PathBuf>,
     factory: Option<ReasonerFactory>,
+    pending: Option<ProjectChangeSet>,
+    pending_gate: Option<PendingGate>,
+    last_run: Option<(u8, String)>,
+    last_workflow: Option<PathBuf>,
 }
 
 impl std::fmt::Debug for SessionRuntime {
@@ -118,6 +157,10 @@ impl SessionRuntime {
             census: None,
             home: None,
             factory: None,
+            pending: None,
+            pending_gate: None,
+            last_run: None,
+            last_workflow: None,
         }
     }
 
@@ -196,6 +239,9 @@ impl SessionRuntime {
 
     /// One turn.
     pub fn turn(&mut self, input: &str) -> TurnOutcome {
+        // A new turn discards a pending proposal: consent is the NEXT line
+        // and nothing else (the door routes that line to `consent`).
+        self.pending = None;
         let input = input.trim();
         match input {
             "" => return TurnOutcome::Facts(String::new()),
@@ -212,6 +258,12 @@ impl SessionRuntime {
                 };
             }
             _ => {}
+        }
+        if matches!(input, "1" | "2" | "3" | "4") {
+            return TurnOutcome::Facts(format!(
+                "{}\nthe intelligence is already chosen — `/intelligence` shows the first screen again and the next line picks",
+                self.intelligence_line()
+            ));
         }
         if let Some(fact) = crate::facts::answer(input, &self.snapshot, &self.snapshot.root) {
             self.remember(input, &fact);
@@ -242,13 +294,213 @@ impl SessionRuntime {
                 let findings = self.known.audit(&reply.text);
                 let shown = KnownWorld::correct(&reply.text, &findings);
                 self.remember(input, &shown);
-                TurnOutcome::Reply(shown)
+                self.propose_or_reply(input, &shown, &named)
             }
             Err(ReasonError::NoIntelligence) => TurnOutcome::Refusal(
                 "no conversational intelligence — the facts still answer (workflows · builtins · providers · check · explain) · `/intelligence` to choose a path".to_owned(),
             ),
             Err(e) => TurnOutcome::Refusal(format!("{e} — the choice stands (`/intelligence` to change it); nothing was substituted")),
         }
+    }
+
+    /// A reply that carries a file becomes a proposal: the typed change
+    /// set is built from the exact bytes, previewed, and held for the
+    /// human's consent. A reply without one is a reply.
+    fn propose_or_reply(&mut self, input: &str, shown: &str, named: &[String]) -> TurnOutcome {
+        let run = wants_run(input).then(|| RunRequest {
+            workflow: PathBuf::new(),
+            vars: Vec::new(),
+            max_cost_usd: ceiling_in(input)
+                .or(self.snapshot.ceiling)
+                .unwrap_or(DEFAULT_CEILING_USD),
+        });
+        match ProjectChangeSet::from_reply(&self.snapshot.root, input, shown, named, run) {
+            Ok(Some(set)) => {
+                let preview = format!("{}{}", prose_outside_blocks(shown), set.preview());
+                self.pending = Some(set);
+                TurnOutcome::Proposal(preview)
+            }
+            Ok(None) => TurnOutcome::Reply(shown.to_owned()),
+            Err(e) => TurnOutcome::Refusal(format!(
+                "the reply proposed a file the session may not write — {e}"
+            )),
+        }
+    }
+
+    /// The human's answer to a proposal: `yes` lands the set (every
+    /// witness checked before the first write · atomic writes · nothing
+    /// outside the set), the real check follows every workflow written,
+    /// and a run the human asked for is requested ONLY when that check is
+    /// clean. Anything else discards the set; nothing is written.
+    pub fn consent(&mut self, answer: &str) -> TurnOutcome {
+        let Some(set) = self.pending.take() else {
+            return TurnOutcome::Refusal("nothing is pending — ask for a change first".to_owned());
+        };
+        if is_no(answer) {
+            return TurnOutcome::Facts(
+                "discarded · nothing was written · ask again for the change when ready".to_owned(),
+            );
+        }
+        if !is_yes(answer) {
+            // Anything that is neither a yes nor a no is a question about the
+            // proposal: answered from the set itself (what it reaches) or from
+            // the engine, and the proposal HELD — a newcomer who asks « what is
+            // permits? » at the prompt must not lose the file.
+            let lower = answer.to_lowercase();
+            let about_effects = [
+                "read",
+                "write",
+                "network",
+                "reach",
+                "when it runs",
+                "effect",
+                "spend",
+                "cost",
+                "touch",
+            ]
+            .iter()
+            .any(|w| lower.contains(w));
+            let text = if about_effects {
+                set.effects_fact()
+            } else {
+                crate::facts::answer(answer, &self.snapshot, &self.snapshot.root).unwrap_or_else(|| {
+                    "that line is not a consent — ask about the proposal (what it reads and writes · its check · a word) or answer".to_owned()
+                })
+            };
+            self.pending = Some(set);
+            return TurnOutcome::Held(format!(
+                "{text}\n(the proposal still waits · `yes` applies it · `no` discards it)"
+            ));
+        }
+        let applied = match set.apply() {
+            Ok(applied) => applied,
+            Err(e) => return TurnOutcome::Refusal(e.to_string()),
+        };
+        let written: Vec<String> = applied
+            .written
+            .iter()
+            .map(|p| format!("`{}`", p.display()))
+            .collect();
+        let mut report = format!("applied · wrote {}", written.join(" · "));
+        let mut all_clean = true;
+        for wf in set.workflows() {
+            let audit = check_on_disk(&set.root, &wf);
+            all_clean &= audit.clean;
+            let _ = write!(
+                report,
+                "\n  check · `{}` · {}",
+                wf.display(),
+                if audit.clean {
+                    "clean ✔"
+                } else {
+                    "findings ✖"
+                }
+            );
+            for f in &audit.findings {
+                let _ = write!(report, "\n    · {f}");
+            }
+            for h in &audit.hints {
+                let _ = write!(report, "\n    · hint · {h}");
+            }
+        }
+        self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
+        self.remember("(consent)", &report);
+        match set.run {
+            Some(run) if all_clean => {
+                self.last_workflow = Some(run.workflow.clone());
+                TurnOutcome::RunRequested { report, run }
+            }
+            Some(_) => {
+                report.push_str(
+                    "\n  the run was not started: findings stop it — repair them, then ask to run",
+                );
+                TurnOutcome::Facts(report)
+            }
+            None => TurnOutcome::Facts(report),
+        }
+    }
+
+    /// What the door observed of the run it started for the human: the
+    /// exit code's meaning and the trace, remembered as a fact of this
+    /// session — never re-run, never re-authorized (attaching is
+    /// observation). A pause (exit 4) whose trace carries the gate
+    /// becomes the question asked to the human.
+    pub fn observe_run(&mut self, exit: u8, trace: Option<&Path>) -> TurnOutcome {
+        let line = self.observation_line(exit, trace);
+        if exit == 4
+            && let (Some(trace), Some(workflow)) = (trace, self.last_workflow.clone())
+            && let Some(gate) = PendingGate::from_trace(&workflow, trace)
+        {
+            let question = gate.question();
+            self.pending_gate = Some(gate);
+            return TurnOutcome::GateAsk(format!("{line}\n{question}"));
+        }
+        TurnOutcome::Facts(line)
+    }
+
+    /// The human's answer to a pending gate: the resume the door runs.
+    /// Nothing answers for the human; an empty line is not an answer.
+    pub fn answer_gate(&mut self, line: &str) -> TurnOutcome {
+        let Some(gate) = self.pending_gate.take() else {
+            return TurnOutcome::Refusal("no run is waiting for an answer".to_owned());
+        };
+        if line.trim().is_empty() {
+            self.pending_gate = Some(gate);
+            return TurnOutcome::Refusal(
+                "the gate needs an answer — nothing answers for you".to_owned(),
+            );
+        }
+        let answer = gate.answer_arg(line);
+        self.remember("(gate)", &format!("{} answered: {answer}", gate.task));
+        TurnOutcome::ResumeRequested {
+            workflow: gate.workflow,
+            trace: gate.trace,
+            answer,
+        }
+    }
+
+    fn observation_line(&mut self, exit: u8, trace: Option<&Path>) -> String {
+        let meaning = match exit {
+            0 => "succeeded",
+            1 => "the workflow failed",
+            2 => "refused before running (findings)",
+            3 => "refused by the environment",
+            4 => {
+                "paused for a human answer — `nika run <file> --resume <trace> --answer <task>=<value>` continues it"
+            }
+            _ => "ended with an unknown code",
+        };
+        let line = match trace {
+            Some(t) => format!(
+                "run observed · exit {exit} · {meaning} · trace `{}`",
+                t.display()
+            ),
+            None => format!("run observed · exit {exit} · {meaning}"),
+        };
+        let line = match self.trace_hygiene_note() {
+            Some(note) => format!("{line}\n  {note}"),
+            None => line,
+        };
+        self.last_run = Some((exit, line.clone()));
+        self.remember("(run)", &line);
+        line
+    }
+
+    /// In a git repository whose `.gitignore` does not keep `.nika/traces/`
+    /// out, a run's trace (model outputs · file contents · 0600) would be
+    /// one `git add` away from a commit: say so once per run.
+    fn trace_hygiene_note(&self) -> Option<String> {
+        let root = self.snapshot.git_root.as_ref()?;
+        let ignored = std::fs::read_to_string(root.join(".gitignore"))
+            .map(|text| {
+                text.lines().any(|l| {
+                    l.trim().contains(".nika/traces") || l.trim() == ".nika" || l.trim() == ".nika/"
+                })
+            })
+            .unwrap_or(false);
+        (!ignored).then(|| {
+            "runs write `.nika/traces/` (model outputs · file contents · mode 0600) — not ignored by git here · `nika init` adds the line, or add `.nika/traces/` to `.gitignore`".to_owned()
+        })
     }
 
     fn intelligence_card(&self) -> String {
@@ -271,6 +523,91 @@ impl SessionRuntime {
 }
 
 /// The workflow or project files an input names.
+/// The ceiling a run from the session is announced with when the project
+/// file declares none (the CLI's own default).
+const DEFAULT_CEILING_USD: f64 = 0.25;
+
+/// « create it and run it » · « then run it once » — the human asked for
+/// one run with the change.
+fn wants_run(input: &str) -> bool {
+    let lower = input.to_lowercase();
+    [
+        "and run",
+        "then run",
+        "run it",
+        "run once",
+        "run them",
+        "run this",
+        "and execute",
+    ]
+    .iter()
+    .any(|p| lower.contains(p))
+}
+
+/// The ceiling the human named in their own words — « with a ceiling of
+/// 0.05 » · « cap 0.10 » · « max cost 1 » · « $0.05 » · `--max-cost-usd 0.05`
+/// — or none.
+fn ceiling_in(input: &str) -> Option<f64> {
+    let tokens: Vec<&str> = input.split_whitespace().collect();
+    for (i, raw) in tokens.iter().enumerate() {
+        let token = raw.trim_matches(|c: char| matches!(c, ',' | '(' | ')'));
+        let token = token
+            .strip_suffix('.')
+            .filter(|t| t.parse::<f64>().is_ok())
+            .unwrap_or(token);
+        if let Some(dollars) = token.strip_prefix('$')
+            && let Ok(v) = dollars.parse::<f64>()
+        {
+            return Some(v);
+        }
+        if let Some(v) = token
+            .strip_prefix("--max-cost-usd=")
+            .and_then(|v| v.parse::<f64>().ok())
+        {
+            return Some(v);
+        }
+        let previous = i.checked_sub(1).map(|p| tokens[p].to_lowercase());
+        let after_a_ceiling_word = previous.as_deref().is_some_and(|p| {
+            matches!(
+                p,
+                "ceiling"
+                    | "cap"
+                    | "cost"
+                    | "usd"
+                    | "--max-cost-usd"
+                    | "of"
+                    | "to"
+                    | "at"
+                    | "under"
+            )
+        });
+        if after_a_ceiling_word
+            && let Ok(v) = token.trim_start_matches('$').parse::<f64>()
+            && v >= 0.0
+        {
+            return Some(v);
+        }
+    }
+    None
+}
+
+/// The refusal line: `no` in the few words a human types for it.
+fn is_no(answer: &str) -> bool {
+    matches!(
+        answer.trim().to_lowercase().as_str(),
+        "no" | "n" | "non" | "discard" | "cancel" | "drop" | "nope" | "stop"
+    )
+}
+
+/// The consent line, and nothing else: `yes` in the few words a human
+/// types for it.
+fn is_yes(answer: &str) -> bool {
+    matches!(
+        answer.trim().to_lowercase().as_str(),
+        "yes" | "y" | "apply" | "ok" | "oui" | "go" | "do it"
+    )
+}
+
 fn named_files(input: &str) -> Vec<String> {
     input
         .split(|c: char| {
@@ -490,6 +827,313 @@ mod tests {
             1,
             "the path is named once: {}",
             s.banner()
+        );
+    }
+
+    const PROPOSED: &str = "Here it is.\n\n```yaml path=daily.nika.yaml\nnika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\noutputs:\n  said: ${{ tasks.t.output }}\n```\n";
+
+    fn ready_with(dir: &Path, replies: Vec<&str>) -> SessionRuntime {
+        let seated = ResolvedSessionIntelligence {
+            kind: IntelligenceKind::Harness {
+                seat: "codex".to_owned(),
+            },
+            model: None,
+            locus: DataLocus::Remote {
+                product: "codex".to_owned(),
+            },
+            ready: true,
+            why: None,
+        };
+        SessionRuntime::open(
+            dir,
+            seated,
+            Box::new(ScriptedReasoner::new(
+                replies.into_iter().map(str::to_owned).collect(),
+            )),
+        )
+    }
+
+    /// A reply carrying a file is a proposal: nothing is written until the
+    /// consent line says yes; `no` discards; the next yes lands the exact
+    /// bytes and the real check follows; a new turn discards a pending set.
+    #[test]
+    fn a_proposal_lands_only_on_consent() {
+        let dir = tree();
+        let mut s = ready_with(dir.path(), vec![PROPOSED, PROPOSED, PROPOSED]);
+        let TurnOutcome::Proposal(preview) = s.turn("write me a daily digest workflow") else {
+            panic!("a proposal");
+        };
+        assert!(
+            preview.starts_with("Here it is.\n\n"),
+            "the prose above: {preview}"
+        );
+        assert!(
+            preview.contains("proposed change · write me a daily digest workflow"),
+            "the header names this turn's request: {preview}"
+        );
+        assert!(
+            preview.contains("creates `daily.nika.yaml`") && preview.contains("clean ✔"),
+            "{preview}"
+        );
+        assert!(
+            !dir.path().join("daily.nika.yaml").exists(),
+            "nothing written before consent"
+        );
+        assert!(matches!(s.consent("no"), TurnOutcome::Facts(ref t) if t.contains("discarded")));
+        assert!(
+            matches!(s.turn("1"), TurnOutcome::Facts(ref t) if t.contains("already chosen")),
+            "a bare digit is the first-screen reflex, never a message for the seat"
+        );
+        assert!(
+            !dir.path().join("daily.nika.yaml").exists(),
+            "no means nothing"
+        );
+        assert!(
+            matches!(s.consent("yes"), TurnOutcome::Refusal(ref t) if t.contains("nothing is pending"))
+        );
+        assert!(matches!(s.turn("again please"), TurnOutcome::Proposal(_)));
+        assert!(
+            matches!(s.turn("what workflows are here?"), TurnOutcome::Facts(_)),
+            "a new turn"
+        );
+        assert!(
+            matches!(s.consent("yes"), TurnOutcome::Refusal(_)),
+            "the new turn discarded the proposal"
+        );
+        assert!(matches!(s.turn("once more"), TurnOutcome::Proposal(_)));
+        let TurnOutcome::Facts(report) = s.consent("yes") else {
+            panic!("applied");
+        };
+        assert!(
+            report.contains("applied · wrote `daily.nika.yaml`") && report.contains("clean ✔"),
+            "{report}"
+        );
+        let on_disk = std::fs::read_to_string(dir.path().join("daily.nika.yaml")).expect("landed");
+        assert!(
+            on_disk.starts_with("nika: daily\n") && on_disk.ends_with("${{ tasks.t.output }}\n"),
+            "exact bytes"
+        );
+        assert!(
+            s.snapshot
+                .workflows
+                .iter()
+                .any(|w| w.path.ends_with("daily.nika.yaml")),
+            "the snapshot sees it"
+        );
+    }
+
+    /// A question at the consent prompt is answered and the proposal held;
+    /// the next `yes` still lands it.
+    #[test]
+    fn a_question_at_the_consent_prompt_holds_the_proposal() {
+        let dir = tree();
+        let mut s = ready_with(dir.path(), vec![PROPOSED]);
+        assert!(matches!(
+            s.turn("write me a daily digest"),
+            TurnOutcome::Proposal(_)
+        ));
+        let TurnOutcome::Held(text) = s.consent("what is permits?") else {
+            panic!("held");
+        };
+        assert!(text.contains("boundary"), "{text}");
+        let TurnOutcome::Held(text) = s.consent("what will this read and write when it runs?")
+        else {
+            panic!("held");
+        };
+        assert!(
+            text.contains("when it runs:") && text.contains("model mock/echo"),
+            "the set's own effects: {text}"
+        );
+        let TurnOutcome::Held(text) = s.consent("hmm") else {
+            panic!("held");
+        };
+        assert!(
+            text.contains("not a consent") && text.contains("still waits"),
+            "{text}"
+        );
+        assert!(!dir.path().join("daily.nika.yaml").exists());
+        assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
+        assert!(dir.path().join("daily.nika.yaml").exists());
+    }
+
+    /// After a run in a git repository, the missing ignore line is named
+    /// once; a `.gitignore` that keeps the traces out silences it.
+    #[test]
+    fn the_trace_hygiene_note_names_the_missing_ignore_line() {
+        let dir = tree();
+        std::fs::create_dir_all(dir.path().join(".git")).expect("a git root");
+        let mut s = ready_with(dir.path(), vec![PROPOSED]);
+        assert!(s.snapshot.git_root.is_some(), "a git root");
+        let TurnOutcome::Facts(line) = s.observe_run(0, Some(Path::new(".nika/traces/t.ndjson")))
+        else {
+            panic!("an observation");
+        };
+        assert!(line.contains("not ignored by git here"), "{line}");
+        std::fs::write(dir.path().join(".gitignore"), "target/\n.nika/traces/\n").expect("ignore");
+        let TurnOutcome::Facts(line) = s.observe_run(0, Some(Path::new(".nika/traces/t.ndjson")))
+        else {
+            panic!("an observation");
+        };
+        assert!(!line.contains("not ignored"), "{line}");
+    }
+
+    /// « create and run it » requests the run ONLY after a clean on-disk
+    /// check; findings stop it; the door's observation becomes a fact.
+    #[test]
+    fn a_run_is_requested_only_on_a_clean_check() {
+        let dir = tree();
+        let dirty = "```yaml path=bad.nika.yaml\nnika: bad\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
+        let mut s = ready_with(dir.path(), vec![PROPOSED, dirty]);
+        assert!(
+            matches!(s.turn("create a digest and run it once"), TurnOutcome::Proposal(ref p) if p.contains("run `daily.nika.yaml` once"))
+        );
+        let TurnOutcome::RunRequested { report, run } = s.consent("yes") else {
+            panic!("a clean check requests the run");
+        };
+        assert!(report.contains("clean ✔"), "{report}");
+        assert_eq!(run.workflow, PathBuf::from("daily.nika.yaml"));
+        assert!((run.max_cost_usd - DEFAULT_CEILING_USD).abs() < f64::EPSILON);
+        assert_eq!(
+            ceiling_in("create it and run it once with a ceiling of 0.05"),
+            Some(0.05)
+        );
+        assert_eq!(ceiling_in("run it, cap $0.10 please"), Some(0.10));
+        assert_eq!(ceiling_in("run it --max-cost-usd 1"), Some(1.0));
+        assert_eq!(ceiling_in("run it --max-cost-usd=0.5"), Some(0.5));
+        assert_eq!(ceiling_in("run it once"), None, "no number, the default");
+        assert_eq!(
+            ceiling_in("write 3 tasks and run it"),
+            None,
+            "a count is not a ceiling"
+        );
+        let TurnOutcome::Facts(observed) =
+            s.observe_run(0, Some(Path::new(".nika/traces/t.ndjson")))
+        else {
+            panic!("an observation");
+        };
+        assert!(
+            observed.contains("exit 0 · succeeded") && observed.contains("t.ndjson"),
+            "{observed}"
+        );
+        assert!(matches!(
+            s.turn("make a curl one and run it"),
+            TurnOutcome::Proposal(_)
+        ));
+        let TurnOutcome::Facts(report) = s.consent("yes") else {
+            panic!("findings stop the run");
+        };
+        assert!(
+            report.contains("findings ✖") && report.contains("the run was not started"),
+            "{report}"
+        );
+        assert!(
+            dir.path().join("bad.nika.yaml").exists(),
+            "the bytes landed; the run did not start"
+        );
+    }
+
+    /// A paused run returns to the session as a question; the human's line
+    /// becomes the resume the door runs; nothing answers for them.
+    #[test]
+    fn a_paused_run_asks_the_human_and_the_answer_resumes_it() {
+        let dir = tree();
+        let mut s = ready_with(dir.path(), vec![PROPOSED]);
+        assert!(matches!(
+            s.turn("create a digest and run it"),
+            TurnOutcome::Proposal(_)
+        ));
+        assert!(matches!(s.consent("yes"), TurnOutcome::RunRequested { .. }));
+        let store = dir.path().join(".nika").join("traces");
+        std::fs::create_dir_all(&store).expect("store");
+        let trace = store.join("paused.ndjson");
+        std::fs::write(
+            &trace,
+            "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"gate\"},{\"key\":\"mode\",\"value\":\"confirm\"},{\"key\":\"message\",\"value\":\"Ship it?\"}]}\n",
+        )
+        .expect("trace");
+        let TurnOutcome::GateAsk(question) = s.observe_run(4, Some(&trace)) else {
+            panic!("the gate is asked");
+        };
+        assert!(
+            question.contains("paused for a human answer") && question.contains("Ship it?"),
+            "{question}"
+        );
+        assert!(
+            matches!(s.answer_gate(""), TurnOutcome::Refusal(ref t) if t.contains("nothing answers for you"))
+        );
+        let TurnOutcome::ResumeRequested {
+            workflow,
+            trace: t,
+            answer,
+        } = s.answer_gate("yes")
+        else {
+            panic!("the resume");
+        };
+        assert_eq!(workflow, PathBuf::from("daily.nika.yaml"));
+        assert_eq!(t, trace);
+        assert_eq!(answer, "gate=true");
+        assert!(
+            matches!(s.answer_gate("yes"), TurnOutcome::Refusal(_)),
+            "answered once"
+        );
+        assert!(
+            matches!(s.observe_run(0, Some(&trace)), TurnOutcome::Facts(_)),
+            "a completed resume is a fact"
+        );
+    }
+
+    /// The repair round: a dirty apply, then « fix it » — the reasoner's
+    /// repaired file is a witnessed update, consented, checked clean.
+    #[test]
+    fn a_repair_round_updates_the_witnessed_file_to_clean() {
+        let dir = tree();
+        let dirty = "```yaml path=bad.nika.yaml\nnika: bad\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
+        let repaired = "Adding the boundary.\n\n```yaml path=bad.nika.yaml\nnika: bad\npermits: { exec: [\"curl\"], net: { http: [\"example.com\"] } }\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
+        let mut s = ready_with(dir.path(), vec![dirty, repaired]);
+        assert!(matches!(
+            s.turn("make a curl one"),
+            TurnOutcome::Proposal(_)
+        ));
+        let TurnOutcome::Facts(report) = s.consent("yes") else {
+            panic!("applied");
+        };
+        assert!(
+            report.contains("findings ✖") && report.contains("NIKA-AUTH-006"),
+            "{report}"
+        );
+        let TurnOutcome::Proposal(preview) = s.turn("fix it") else {
+            panic!("a repair proposal");
+        };
+        assert!(
+            preview.contains("replaces `bad.nika.yaml` whole") && preview.contains("clean ✔"),
+            "{preview}"
+        );
+        let TurnOutcome::Facts(report) = s.consent("yes") else {
+            panic!("applied");
+        };
+        assert!(
+            report.contains("clean ✔") && !report.contains("findings ✖"),
+            "{report}"
+        );
+        assert!(
+            std::fs::read_to_string(dir.path().join("bad.nika.yaml"))
+                .expect("landed")
+                .contains("permits:")
+        );
+    }
+
+    /// A reply proposing a path outside the root is refused before any preview.
+    #[test]
+    fn a_path_outside_the_root_is_refused_before_preview() {
+        let dir = tree();
+        let evil = "```yaml path=../evil.nika.yaml\nnika: evil\n```\n";
+        let mut s = ready_with(dir.path(), vec![evil]);
+        assert!(
+            matches!(s.turn("write one"), TurnOutcome::Refusal(ref t) if t.contains("not a path inside the project root"))
+        );
+        assert!(
+            matches!(s.consent("yes"), TurnOutcome::Refusal(_)),
+            "nothing pending"
         );
     }
 

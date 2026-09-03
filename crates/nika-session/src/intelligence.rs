@@ -229,7 +229,7 @@ impl IntelligenceCensus {
             self.locals.join(" · ")
         };
         format!(
-            "Nika\nChoose which AI answers your questions here. You can change this later (`/intelligence`).\n\n  1  Use an AI app I already have (a coding assistant you are signed into)\n     {apps}\n  2  Use an API (metered · your own key)\n     {keys}\n  3  Run locally (private · on this machine)\n     {locals}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
+            "Nika\nChoose which AI answers your questions here. You can change this later (`/intelligence`); the choice is kept at ~/.nika/session-intelligence.json.\n\n  1  Use an AI app I already have (a coding assistant you are signed into)\n     {apps}\n  2  Use an API (metered · your own key)\n     {keys}\n  3  Run locally (private · on this machine)\n     {locals}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
         )
     }
 

@@ -220,7 +220,8 @@ enum Command {
     /// Found a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule + MCP ·
     /// `.agents/skills` authoring skill · optional workflow set). Bare on
     /// a terminal the founding wizard runs; flags are the scriptable
-    /// twin. Existing files are skipped — `--force` overwrites.
+    /// twin. Existing files are skipped (`.gitignore` is the one file updated in
+    /// place: the traces line is added) — `--force` overwrites.
     #[command(hide = true, display_order = 10)]
     Init(InitArgs),
     /// Wire Nika into editor/agent MCP clients (explicit, idempotent).
