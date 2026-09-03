@@ -13,12 +13,14 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod fire;
+pub mod resident;
 pub mod state;
 
 pub use fire::{
     CoordinatedRunSeam, ExecutionRunSeam, FireCtx, FireCtxError, FireVerdict, PreparedRun, RunSeam,
     RunShot, RunUpshot, Wait, WaitSeam, fire_beat, labels,
 };
+pub use resident::{ResidentClaim, ResidentClaimRefusal, claim_for_resident, slot_answered};
 pub use state::{
     ArmState, Claim, ExecutionLink, FireKind, Folded, HealOutcome, HistoryEntry, LastRecord,
     Receipt, RecordOutcome, Rotation, Unsettled,

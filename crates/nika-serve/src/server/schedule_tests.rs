@@ -738,6 +738,16 @@ async fn no_schedule_list_delete_trigger_backfill_or_arm_routes_exist() {
     server.stop().await.expect("stop");
 }
 
+/// A project beat due at 08:01 UTC daily: nothing is due at a 08:00:30 start,
+/// the first slot arrives with the clock (the containment tests, #1351).
+fn write_daily_beat(world: &TestWorld) {
+    std::fs::write(
+        world.workflows.join("nika.yaml"),
+        "nika: proj\narm:\n  - workflow: root.nika.yaml\n    cadence: \"TZ=UTC 1 8 * * *\"\n    plafond: 0.25\n    manqué: sauter\n",
+    )
+    .expect("project nika.yaml");
+}
+
 fn write_project_beat(world: &TestWorld, extra: &str) {
     std::fs::write(
         world.workflows.join("nika.yaml"),
@@ -773,6 +783,137 @@ async fn project_beat_with_hash_jitter_surfaces_a_load_finding_and_never_fires()
     clock.advance_to("2026-09-01T08:03:00Z[UTC]");
     clock.wait_for_sleeps(2).await;
     assert_eq!(backend.calls(), 0, "a refused beat never fires");
+    server.stop().await.expect("stop");
+}
+
+/// A broken `nika.yaml` edit retains the last valid registry: the beat keeps
+/// firing, the retained schedule names the finding, a repaired file clears it
+/// (#1351).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_broken_project_edit_retains_the_last_good_registry() {
+    let world = TestWorld::new();
+    write_daily_beat(&world);
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:30Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    std::fs::write(world.workflows.join("nika.yaml"), "nika: [broken\n").expect("break the file");
+    clock.advance_to("2026-09-01T08:01:01Z[UTC]");
+    clock.wait_for_sleeps(2).await;
+    let finding = project_finding(&server, "root").await;
+    assert_eq!(finding["code"], "project.invalid", "{finding}");
+    assert!(
+        finding["detail"]
+            .as_str()
+            .is_some_and(|d| d.contains("retained")),
+        "{finding}"
+    );
+    assert!(backend.calls() >= 1, "the retained beat keeps firing");
+    write_daily_beat(&world);
+    clock.advance_to("2026-09-01T08:02:01Z[UTC]");
+    clock.wait_for_sleeps(3).await;
+    let repaired = server.request(&get_request("/v1/schedules/root")).await;
+    assert_eq!(
+        repaired.status, 404,
+        "a healthy project schedule carries no finding: {}",
+        repaired.body
+    );
+    server.stop().await.expect("stop");
+}
+
+/// A fire-time admission failure (the workflow vanished after it was
+/// scheduled) is a finding on that schedule and never fatal to the resident
+/// (#1351).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_fire_time_admission_failure_is_contained_to_the_schedule() {
+    let world = TestWorld::new();
+    write_daily_beat(&world);
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:30Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    std::fs::remove_file(world.workflows.join("root.nika.yaml")).expect("the workflow vanishes");
+    clock.advance_to("2026-09-01T08:01:01Z[UTC]");
+    clock.wait_for_sleeps(2).await;
+    let finding = project_finding(&server, "root").await;
+    assert_eq!(finding["code"], "schedule.admission", "{finding}");
+    assert_eq!(
+        backend.calls(),
+        0,
+        "nothing fired without an admitted workflow"
+    );
+    let alive = server.request(&get_request("/v1/workflows")).await;
+    assert_eq!(alive.status, 200, "the resident is alive: {}", alive.body);
+    server
+        .stop()
+        .await
+        .expect("a contained failure stops clean");
+}
+
+/// A project beat the resident fires is proven in the ARM ledger — the
+/// history `nika arm` reads and the CLI edge writes (#1377).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_project_beat_fired_by_the_resident_is_proven_in_the_arm_ledger() {
+    let world = TestWorld::new();
+    write_daily_beat(&world);
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:30Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    clock.advance_to("2026-09-01T08:01:01Z[UTC]");
+    backend.wait_for_call().await;
+    let slot: jiff::Zoned = "2026-09-01T08:01:00Z[UTC]".parse().expect("slot");
+    let mut proven = false;
+    for _ in 0..50 {
+        if nika_arm::slot_answered(&world.workflows, "root", &slot).expect("ledger") {
+            proven = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert!(
+        proven,
+        "the resident's fire lands in the ARM ledger as the edge's would"
+    );
+    server.stop().await.expect("stop");
+}
+
+/// A slot the CLI edge already answered in the ARM ledger is not the
+/// resident's to fire: one slot, one firer (#1377).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_slot_the_edge_answered_is_skipped_by_the_resident() {
+    let world = TestWorld::new();
+    write_daily_beat(&world);
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:30Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    let slot: jiff::Zoned = "2026-09-01T08:01:00Z[UTC]".parse().expect("slot");
+    let mut fired = nika_cadence::ledger::HistoryEntry::new(
+        Some(slot.timestamp()),
+        slot.timestamp(),
+        nika_cadence::ledger::DecisionKind::Fired,
+    );
+    fired.exit = Some(0);
+    nika_arm::ArmState::open(&world.workflows)
+        .expect("arm state")
+        .record_fixture("root", &fired)
+        .expect("the edge's own receipt");
+    clock.advance_to("2026-09-01T08:01:01Z[UTC]");
+    clock.wait_for_sleeps(2).await;
+    assert_eq!(
+        backend.calls(),
+        0,
+        "the slot the edge answered is never fired twice"
+    );
     server.stop().await.expect("stop");
 }
 

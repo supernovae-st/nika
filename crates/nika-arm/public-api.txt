@@ -206,6 +206,70 @@ pub type nika_arm::fire::CoordinatedRunSeam = alloc::rc::Rc<dyn core::ops::funct
 pub type nika_arm::fire::ExecutionRunSeam = alloc::rc::Rc<dyn for<'a> core::ops::function::Fn(nika_execution::service::ExecutionContext<'a>, &nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
 pub type nika_arm::fire::RunSeam = alloc::rc::Rc<dyn core::ops::function::Fn(&nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
 pub type nika_arm::fire::WaitSeam = alloc::boxed::Box<dyn core::ops::function::Fn(jiff::signed_duration::SignedDuration) -> nika_arm::fire::Wait>
+pub mod nika_arm::resident
+#[non_exhaustive] pub enum nika_arm::resident::ResidentClaimRefusal
+pub nika_arm::resident::ResidentClaimRefusal::Ledger(core::io::error::Error)
+pub nika_arm::resident::ResidentClaimRefusal::LockHeld
+pub nika_arm::resident::ResidentClaimRefusal::LockHeld::pid: u32
+pub nika_arm::resident::ResidentClaimRefusal::SlotAnswered
+pub nika_arm::resident::ResidentClaimRefusal::SlotAnswered::at: jiff::timestamp::Timestamp
+impl core::error::Error for nika_arm::resident::ResidentClaimRefusal
+impl core::fmt::Debug for nika_arm::resident::ResidentClaimRefusal
+pub fn nika_arm::resident::ResidentClaimRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_arm::resident::ResidentClaimRefusal
+pub fn nika_arm::resident::ResidentClaimRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::resident::ResidentClaimRefusal
+impl<T, U> core::convert::Into<U> for nika_arm::resident::ResidentClaimRefusal where U: core::convert::From<T>
+pub fn nika_arm::resident::ResidentClaimRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::resident::ResidentClaimRefusal where U: core::convert::Into<T>
+pub type nika_arm::resident::ResidentClaimRefusal::Error = core::convert::Infallible
+pub fn nika_arm::resident::ResidentClaimRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::resident::ResidentClaimRefusal where U: core::convert::TryFrom<T>
+pub type nika_arm::resident::ResidentClaimRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::resident::ResidentClaimRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_arm::resident::ResidentClaimRefusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaimRefusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_arm::resident::ResidentClaimRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaimRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::resident::ResidentClaimRefusal where T: ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaimRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::resident::ResidentClaimRefusal where T: ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaimRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::resident::ResidentClaimRefusal
+pub fn nika_arm::resident::ResidentClaimRefusal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::resident::ResidentClaimRefusal where T: 'static
+pub fn nika_arm::resident::ResidentClaimRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::resident::ResidentClaimRefusal
+pub type nika_arm::resident::ResidentClaimRefusal::Output = T
+pub struct nika_arm::resident::ResidentClaim
+impl nika_arm::resident::ResidentClaim
+pub fn nika_arm::resident::ResidentClaim::settle(self, exit: u8, trace: core::option::Option<alloc::string::String>, decided_at: jiff::timestamp::Timestamp) -> core::io::error::Result<()>
+pub const fn nika_arm::resident::ResidentClaim::slot(&self) -> jiff::timestamp::Timestamp
+impl core::fmt::Debug for nika_arm::resident::ResidentClaim
+pub fn nika_arm::resident::ResidentClaim::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::resident::ResidentClaim
+impl<T, U> core::convert::Into<U> for nika_arm::resident::ResidentClaim where U: core::convert::From<T>
+pub fn nika_arm::resident::ResidentClaim::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::resident::ResidentClaim where U: core::convert::Into<T>
+pub type nika_arm::resident::ResidentClaim::Error = core::convert::Infallible
+pub fn nika_arm::resident::ResidentClaim::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::resident::ResidentClaim where U: core::convert::TryFrom<T>
+pub type nika_arm::resident::ResidentClaim::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::resident::ResidentClaim::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::resident::ResidentClaim where T: 'static + ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaim::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::resident::ResidentClaim where T: ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaim::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::resident::ResidentClaim where T: ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaim::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::resident::ResidentClaim
+pub fn nika_arm::resident::ResidentClaim::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::resident::ResidentClaim where T: 'static
+pub fn nika_arm::resident::ResidentClaim::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::resident::ResidentClaim
+pub type nika_arm::resident::ResidentClaim::Output = T
+pub fn nika_arm::resident::claim_for_resident(project_root: &std::path::Path, label: &str, slot: &jiff::zoned::Zoned, slot_id: nika_cadence::firing::SlotId, generation: core::option::Option<nika_cadence::firing::ArmGeneration>, pid: u32, now: &jiff::zoned::Zoned) -> core::result::Result<nika_arm::resident::ResidentClaim, nika_arm::resident::ResidentClaimRefusal>
+pub fn nika_arm::resident::slot_answered(project_root: &std::path::Path, label: &str, slot: &jiff::zoned::Zoned) -> core::io::error::Result<bool>
 pub mod nika_arm::state
 pub use nika_arm::state::Claim
 pub use nika_arm::state::ExecutionLink
@@ -336,6 +400,40 @@ impl<T> nika_error::traits::AsAny for nika_arm::state::Rotation where T: 'static
 pub fn nika_arm::state::Rotation::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_arm::state::Rotation
 pub type nika_arm::state::Rotation::Output = T
+#[non_exhaustive] pub enum nika_arm::ResidentClaimRefusal
+pub nika_arm::ResidentClaimRefusal::Ledger(core::io::error::Error)
+pub nika_arm::ResidentClaimRefusal::LockHeld
+pub nika_arm::ResidentClaimRefusal::LockHeld::pid: u32
+pub nika_arm::ResidentClaimRefusal::SlotAnswered
+pub nika_arm::ResidentClaimRefusal::SlotAnswered::at: jiff::timestamp::Timestamp
+impl core::error::Error for nika_arm::resident::ResidentClaimRefusal
+impl core::fmt::Debug for nika_arm::resident::ResidentClaimRefusal
+pub fn nika_arm::resident::ResidentClaimRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_arm::resident::ResidentClaimRefusal
+pub fn nika_arm::resident::ResidentClaimRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::resident::ResidentClaimRefusal
+impl<T, U> core::convert::Into<U> for nika_arm::resident::ResidentClaimRefusal where U: core::convert::From<T>
+pub fn nika_arm::resident::ResidentClaimRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::resident::ResidentClaimRefusal where U: core::convert::Into<T>
+pub type nika_arm::resident::ResidentClaimRefusal::Error = core::convert::Infallible
+pub fn nika_arm::resident::ResidentClaimRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::resident::ResidentClaimRefusal where U: core::convert::TryFrom<T>
+pub type nika_arm::resident::ResidentClaimRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::resident::ResidentClaimRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_arm::resident::ResidentClaimRefusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaimRefusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_arm::resident::ResidentClaimRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaimRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::resident::ResidentClaimRefusal where T: ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaimRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::resident::ResidentClaimRefusal where T: ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaimRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::resident::ResidentClaimRefusal
+pub fn nika_arm::resident::ResidentClaimRefusal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::resident::ResidentClaimRefusal where T: 'static
+pub fn nika_arm::resident::ResidentClaimRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::resident::ResidentClaimRefusal
+pub type nika_arm::resident::ResidentClaimRefusal::Output = T
 pub enum nika_arm::Wait
 pub nika_arm::Wait::Elapsed
 pub nika_arm::Wait::Interrupted
@@ -562,6 +660,33 @@ impl<T> nika_error::traits::AsAny for nika_arm::fire::PreparedRun where T: 'stat
 pub fn nika_arm::fire::PreparedRun::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_arm::fire::PreparedRun
 pub type nika_arm::fire::PreparedRun::Output = T
+pub struct nika_arm::ResidentClaim
+impl nika_arm::resident::ResidentClaim
+pub fn nika_arm::resident::ResidentClaim::settle(self, exit: u8, trace: core::option::Option<alloc::string::String>, decided_at: jiff::timestamp::Timestamp) -> core::io::error::Result<()>
+pub const fn nika_arm::resident::ResidentClaim::slot(&self) -> jiff::timestamp::Timestamp
+impl core::fmt::Debug for nika_arm::resident::ResidentClaim
+pub fn nika_arm::resident::ResidentClaim::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::resident::ResidentClaim
+impl<T, U> core::convert::Into<U> for nika_arm::resident::ResidentClaim where U: core::convert::From<T>
+pub fn nika_arm::resident::ResidentClaim::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::resident::ResidentClaim where U: core::convert::Into<T>
+pub type nika_arm::resident::ResidentClaim::Error = core::convert::Infallible
+pub fn nika_arm::resident::ResidentClaim::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::resident::ResidentClaim where U: core::convert::TryFrom<T>
+pub type nika_arm::resident::ResidentClaim::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::resident::ResidentClaim::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::resident::ResidentClaim where T: 'static + ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaim::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::resident::ResidentClaim where T: ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaim::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::resident::ResidentClaim where T: ?core::marker::Sized
+pub fn nika_arm::resident::ResidentClaim::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::resident::ResidentClaim
+pub fn nika_arm::resident::ResidentClaim::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::resident::ResidentClaim where T: 'static
+pub fn nika_arm::resident::ResidentClaim::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::resident::ResidentClaim
+pub type nika_arm::resident::ResidentClaim::Output = T
 #[non_exhaustive] pub struct nika_arm::Rotation
 impl nika_arm::state::Rotation
 pub fn nika_arm::state::Rotation::line_count(&self) -> usize
@@ -649,8 +774,10 @@ impl<T> nika_error::traits::AsAny for nika_arm::fire::RunUpshot where T: 'static
 pub fn nika_arm::fire::RunUpshot::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_arm::fire::RunUpshot
 pub type nika_arm::fire::RunUpshot::Output = T
+pub fn nika_arm::claim_for_resident(project_root: &std::path::Path, label: &str, slot: &jiff::zoned::Zoned, slot_id: nika_cadence::firing::SlotId, generation: core::option::Option<nika_cadence::firing::ArmGeneration>, pid: u32, now: &jiff::zoned::Zoned) -> core::result::Result<nika_arm::resident::ResidentClaim, nika_arm::resident::ResidentClaimRefusal>
 pub fn nika_arm::fire_beat(ctx: &nika_arm::fire::FireCtx) -> nika_arm::fire::FireVerdict
 pub fn nika_arm::labels(registry: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_arm::slot_answered(project_root: &std::path::Path, label: &str, slot: &jiff::zoned::Zoned) -> core::io::error::Result<bool>
 pub type nika_arm::CoordinatedRunSeam = alloc::rc::Rc<dyn core::ops::function::Fn(nika_execution::service::AdmittedExecution, &nika_arm::fire::RunShot) -> core::result::Result<nika_arm::fire::PreparedRun, nika_arm::fire::RunUpshot>>
 pub type nika_arm::ExecutionRunSeam = alloc::rc::Rc<dyn for<'a> core::ops::function::Fn(nika_execution::service::ExecutionContext<'a>, &nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
 pub type nika_arm::RunSeam = alloc::rc::Rc<dyn core::ops::function::Fn(&nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>

@@ -436,7 +436,9 @@ fn plan_once(
     limit: usize,
 ) -> SchedulePlan {
     let slot = ScheduleSlot::once(definition, at);
-    if applicable_last(definition, state).is_some_and(|last| last.id == slot.id) {
+    // Consumed iff the instant is at or before the watermark: a path edit
+    // keeps it consumed, a later re-dating is a new instant (#1354).
+    if applicable_last(definition, state).is_some_and(|last| last.scheduled_for >= at) {
         return complete_plan(
             definition,
             ScheduleDueVerdict::OnceConsumed {
@@ -566,26 +568,18 @@ fn classify_due(
     }
 }
 
+/// The persisted last slot is the schedule's WATERMARK: the store scopes
+/// it by origin and schedule id, so a declaration edit — the workflow path,
+/// the cadence text — must not reset it (a consumed `once` stays consumed;
+/// catch-up never re-answers slots the old declaration already answered).
+/// A `SlotId` is local to one slot and never the continuity key; only a
+/// schedule kind that has no slots (a webhook) carries no watermark.
 fn applicable_last<'a>(
     definition: &ScheduleDefinition,
     state: &'a ScheduleDecisionState,
 ) -> Option<&'a ScheduleLastSlot> {
     let last = state.last_slot.as_ref()?;
-    let expected = slot_id_at(definition, last.scheduled_for)?;
-    (expected == last.id).then_some(last)
-}
-
-fn slot_id_at(definition: &ScheduleDefinition, at: Timestamp) -> Option<SlotId> {
-    let key = match definition.when() {
-        ScheduleWhen::Once { .. } => once_key(at),
-        ScheduleWhen::Cadence { expression } => expression.clone(),
-        ScheduleWhen::Webhook => return None,
-    };
-    Some(SlotId::derive(
-        definition.workflow(),
-        &key,
-        &at.to_zoned(TimeZone::UTC),
-    ))
+    (!matches!(definition.when(), ScheduleWhen::Webhook)).then_some(last)
 }
 
 fn once_key(at: Timestamp) -> String {
