@@ -1345,5 +1345,21 @@
       "requires": ["ADR-122"],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-124",
+      "title": "one typed oracle facade: the CLI verb, the MCP tool and the session read the same audit",
+      "status": "accepted",
+      "date": "2026-09-03",
+      "filename": "adr-124-one-oracle-facade.md",
+      "tags": ["architecture","oracle","mcp","check","parity","one-door"],
+      "affects_crates": ["nika-cli-host","nika-cli","nika-mcp"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-122","ADR-123","ADR-003"],
+      "requires": ["ADR-123"],
+      "enables": []
+    }
   ]
 }

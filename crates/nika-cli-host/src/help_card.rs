@@ -15,7 +15,7 @@ pub const AFTER_HELP: &str = "a REAL answer needs exactly one of { an API key ·
 /// can branch on the code alone. The house taxonomy (spec §4 · LOCKED):
 /// 0 the report holds · 1 a workflow ran and failed (`run` only) · 2 the
 /// FILE · 3 the ENVIRONMENT · 4 paused on a human gate (`run` only).
-pub const CHECK_EXITS: &str = "exit codes · 0 the report holds (clean) · 2 the FILE: a grammar refusal or findings (`--json` carries `kind` to tell them apart) · or a mistyped flag (the parser's own usage error) · 3 the ENVIRONMENT: the file is missing or unreadable, a registry is unreachable · never 1 or 4 (those are `run`'s: a failed workflow · a paused gate) · `--profile operational` folds risk ≥ High and an unready access lane into 2";
+pub const CHECK_EXITS: &str = "exit codes · 0 the report holds (clean) · 2 the FILE: a grammar refusal or findings (`--json` carries `kind` to tell them apart) · or a mistyped flag (the parser's own usage error) · 3 the ENVIRONMENT: the file is missing or unreadable, a registry is unreachable · never 1 or 4 (those are `run`'s: a failed workflow · a paused gate) · `--profile operational` folds risk ≥ High and an unready access lane into 2 · the layers line: VALID (grammar · DAG · permits · types · the resolver knows every model) · ACCESS READY (a path on this machine · presence, never a dial) · CAPACITY FIT (the seat's limits vs the declaration) · RUN READY (the three, and no known blocker) · `--json` gate keys: `clean` · `verdicts.{valid,access_ready,capacity_fit,run_ready,blockers}` · `model_findings[]` · `access_plan[]` · `risk_grade` · `judged.{composition,skills}`";
 
 /// `nika run --help` footer (One Door · wave 2b · the W1 gauntlet found
 /// `run`'s codes documented only inside `check`'s help): the run's

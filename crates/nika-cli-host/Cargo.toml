@@ -30,6 +30,7 @@ nika-event     = { path = "../nika-event", version = "0.117.1" }     # Event + n
 nika-types     = { path = "../nika-types", version = "0.117.1" }     # EventId · KeyValue · Timestamp (notify journal fields)
 nika-kernel    = { path = "../nika-kernel", version = "0.117.1" }    # HttpPostDyn seam the notify client posts through
 nika-migrate   = { path = "../nika-migrate", version = "0.117.1" }   # the codemods the fix_ladder arms ride (W1 · W2 · C2 · R5 · D1)
+nika-lints     = { path = "../nika-lints", version = "0.117.1" }     # one-obvious-way rows on the ONE verdict object (ADR-124 · the oracle facade)
 nika-harness   = { path = "../nika-harness", version = "0.117.1", optional = true } # the adapter registry + probes (P3 B6 · access-harness)
 sha2           = { workspace = true }   # ADR-111 — the deterministic CloudEvents id (trace × task)
 hmac           = { workspace = true }   # ADR-111 — Standard Webhooks `v1,` HMAC-SHA256 signature

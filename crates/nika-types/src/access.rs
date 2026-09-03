@@ -321,6 +321,9 @@ pub enum RejectionDimension {
     NotConfigured,
     /// The local server answered nothing at run start.
     NotLive,
+    /// A READY path ranked below the chosen one — the JSON says a choice
+    /// happened (W3-F3: `rejected: []` beside « chosen over 1 other path »).
+    Outranked,
 }
 
 impl RejectionDimension {
@@ -332,6 +335,7 @@ impl RejectionDimension {
             Self::ProviderNotAllowed => "provider_not_allowed",
             Self::NotConfigured => "not_configured",
             Self::NotLive => "not_live",
+            Self::Outranked => "outranked",
         }
     }
 }
@@ -413,6 +417,10 @@ pub struct AccessPlan {
     pub pinned: bool,
     /// Every rejected candidate with its witness.
     pub rejected: alloc::vec::Vec<AccessRejection>,
+    /// The READY paths that ranked below the chosen one — available to a
+    /// pin, never rejected; the machine row names them so « chosen over N
+    /// other path(s) » is a fact in JSON too (W3-F3).
+    pub outranked: alloc::vec::Vec<AccessRejection>,
 }
 
 impl AccessPlan {
@@ -435,7 +443,15 @@ impl AccessPlan {
             billing,
             pinned,
             rejected,
+            outranked: alloc::vec::Vec::new(),
         }
+    }
+
+    /// Name the ready paths that lost the ranking (W3-F3).
+    #[must_use]
+    pub fn with_outranked(mut self, outranked: alloc::vec::Vec<AccessRejection>) -> Self {
+        self.outranked = outranked;
+        self
     }
 }
 

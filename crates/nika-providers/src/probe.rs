@@ -204,6 +204,10 @@ impl ProviderReadiness {
 /// `serves`, `readiness.access == AccessClass::Harness`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "a probe row is a record of independent facts (key · ACP speaker · structured output · product binary) — a state machine would conflate what doctor, the plan and the dry-run must read apart (W3-F1)"
+)]
 pub struct ProviderProbe {
     pub id: String,
     pub requires_key: bool,
@@ -225,6 +229,12 @@ pub struct ProviderProbe {
     /// for `codex`. EMPTY on a provider row: a profile serves
     /// exactly its own id, and the resolver reads that from `id`.
     pub serves: Vec<String>,
+    /// The PRODUCT binary's presence on PATH — a harness seat's own CLI,
+    /// the one an infer-grade seat spawns (`codex` · `claude`) — distinct
+    /// from `key_present`, the ACP speaker an agent-grade seat talks to
+    /// (W3-F1: the two were one fact, and the dry-run blessed a seat whose
+    /// product was gone). A provider row mirrors `key_present`.
+    pub product_present: bool,
 }
 
 impl ProviderProbe {
@@ -249,7 +259,15 @@ impl ProviderProbe {
             readiness,
             endpoint: endpoint.into(),
             serves: Vec::new(),
+            product_present: key_present,
         }
+    }
+
+    /// Name the product binary's presence (a harness row · W3-F1).
+    #[must_use]
+    pub fn with_product_present(mut self, present: bool) -> Self {
+        self.product_present = present;
+        self
     }
 
     /// Name the provider ids a harness-class row serves (R-5c).
@@ -302,7 +320,9 @@ pub fn harness_access_probe(
         ExecutionLocus::Loopback,
         nika_types::access::AccessClass::Harness,
     );
-    ProviderProbe::new(id, false, acp_present, fix, false, readiness, "").with_serves(serves)
+    ProviderProbe::new(id, false, acp_present, fix, false, readiness, "")
+        .with_serves(serves)
+        .with_product_present(product_present)
 }
 
 /// HTTP provider rows plus PATH-only harness rows when `access-harness` is on.

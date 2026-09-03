@@ -14,7 +14,7 @@
 
 use nika_check::CheckReport;
 use nika_providers::probe::ProviderProbe;
-use nika_providers::{ExecutionAccessPlan, ModelNeed, resolve_execution_plan};
+use nika_providers::{ExecutionAccessPlan, ModelNeed, VerbNeeds, resolve_execution_plan_for};
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_types::access::AccessRejection;
 
@@ -88,7 +88,39 @@ pub fn resolve_plan_over(
         }
         None => model_needs(wf, report),
     };
-    resolve_execution_plan(&needs, probes, pin)
+    resolve_execution_plan_for(&needs, probes, pin, verb_needs(wf))
+}
+
+/// The verbs the WORKFLOW carries, whatever its models say (W3-F1: a
+/// model-less `infer:` task yields no model need; the pin judge and the
+/// readiness layer must still see the infer).
+#[must_use]
+pub fn verb_needs(wf: &RawWorkflow) -> VerbNeeds {
+    let mut infer = false;
+    let mut agent = false;
+    for task in &wf.tasks {
+        match &task.value.action {
+            RawAction::Infer(_) => infer = true,
+            RawAction::Agent(_) => agent = true,
+            _ => {}
+        }
+    }
+    VerbNeeds::new(infer, agent)
+}
+
+/// The first `infer:`/`agent:` task whose effective model is EMPTY (no
+/// task `model:`, no envelope `model:`) — the seat must supply it, so a
+/// run with no seat pinned has no path (W3-F13).
+#[must_use]
+pub fn first_modelless_task(wf: &RawWorkflow) -> Option<&str> {
+    if wf.model.is_some() {
+        return None;
+    }
+    wf.tasks.iter().find_map(|task| match &task.value.action {
+        RawAction::Infer(a) if a.model.is_none() => Some(task.value.id.value.as_str()),
+        RawAction::Agent(a) if a.model.is_none() => Some(task.value.id.value.as_str()),
+        _ => None,
+    })
 }
 
 /// The ONE machine shape of an access lane (One Door · wave 2 · the W1
@@ -112,6 +144,8 @@ pub fn lane_rows(plan: &ExecutionAccessPlan) -> Vec<serde_json::Value> {
                 "billing": lane.plan.billing.as_str(),
                 "pinned": lane.plan.pinned,
                 "rejected": rejection_rows(&lane.plan.rejected),
+                "outranked": rejection_rows(&lane.plan.outranked),
+                "candidates": lane.candidates,
             }),
             nika_providers::LaneVerdict::Refused(refusal) => serde_json::json!({
                 "model": model,

@@ -22,8 +22,8 @@ use nika_types::access::{AccessClass, AccessPlan, HarnessRuntime};
 
 use crate::probe::ProviderProbe;
 use crate::resolve_access::{
-    AccessCandidate, AccessRefusal, PinRefusal, access_plan_map, candidates_for, provider_of,
-    refuse_pin_for_verbs, resolve_access,
+    AccessCandidate, AccessRefusal, PinRefusal, VerbNeeds, access_plan_map, candidates_for,
+    provider_of, refuse_pin_for_verbs, resolve_access,
 };
 
 /// What ONE static model is asked to do — the verbs that read it. A
@@ -197,9 +197,23 @@ pub fn resolve_execution_plan(
     probes: &[ProviderProbe],
     pin: Option<&str>,
 ) -> ExecutionAccessPlan {
+    let verbs = VerbNeeds::new(needs.iter().any(|n| n.infer), needs.iter().any(|n| n.agent));
+    resolve_execution_plan_for(needs, probes, pin, verbs)
+}
+
+/// [`resolve_execution_plan`] with the verbs the WORKFLOW carries (W3-F1:
+/// a model-less `infer:` task yields no model need, so the pin judge saw
+/// no infer at all and blessed a seat whose product binary was gone).
+#[must_use]
+pub fn resolve_execution_plan_for(
+    needs: &[ModelNeed],
+    probes: &[ProviderProbe],
+    pin: Option<&str>,
+    verbs: VerbNeeds,
+) -> ExecutionAccessPlan {
     let statics: Vec<&ModelNeed> = needs.iter().filter(|n| !n.model.contains("${{")).collect();
     match pin {
-        Some(pin) => pinned_plan(&statics, probes, pin),
+        Some(pin) => pinned_plan(&statics, probes, pin, verbs),
         None => resolved_plan(&statics, probes),
     }
 }
@@ -207,10 +221,15 @@ pub fn resolve_execution_plan(
 /// A pin is a pin: the pin judge (NIKA-180x · the same teaching the
 /// admission gate speaks) decides first; the lanes are the pinned
 /// resolution the boot manifest already stamped before this module.
-fn pinned_plan(needs: &[&ModelNeed], probes: &[ProviderProbe], pin: &str) -> ExecutionAccessPlan {
+fn pinned_plan(
+    needs: &[&ModelNeed],
+    probes: &[ProviderProbe],
+    pin: &str,
+    verbs: VerbNeeds,
+) -> ExecutionAccessPlan {
     let models: Vec<&str> = needs.iter().map(|n| n.model.as_str()).collect();
-    let has_infer = needs.iter().any(|n| n.infer);
-    let has_agent = needs.iter().any(|n| n.agent);
+    let has_infer = verbs.infer || needs.iter().any(|n| n.infer);
+    let has_agent = verbs.agent || needs.iter().any(|n| n.agent);
     let pin_refusal =
         refuse_pin_for_verbs(models.iter().copied(), probes, pin, has_infer, has_agent);
     // The admitted lanes come from the ONE pinned resolver (a ready seat
@@ -625,6 +644,75 @@ mod tests {
         assert_eq!(
             plan.seat_for("anthropic/claude-sonnet-4-6"),
             Some("claude-code")
+        );
+    }
+
+    /// W3-F1 · a seat is TWO binaries: with the product gone and only the
+    /// ACP speaker on PATH, a pin serving an `infer:` refuses (the
+    /// infer-grade seat spawns the product); a pin serving an `agent:`
+    /// still stands (ACP is the agent's door).
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn a_pinned_seat_without_its_product_binary_refuses_an_infer_workflow() {
+        let probes = vec![
+            api_probe("openai", true),
+            harness_probe("codex", &["openai"], true).with_product_present(false),
+        ];
+        let infer_only =
+            resolve_execution_plan_for(&[], &probes, Some("codex"), VerbNeeds::new(true, false));
+        assert!(
+            matches!(infer_only.pin_refusal, Some(PinRefusal::Unavailable { .. })),
+            "{:?}",
+            infer_only.pin_refusal
+        );
+        assert!(infer_only.seat.is_none(), "a refused pin seats nothing");
+        let agent_only =
+            resolve_execution_plan_for(&[], &probes, Some("codex"), VerbNeeds::new(false, true));
+        assert!(
+            agent_only.pin_refusal.is_none(),
+            "{:?}",
+            agent_only.pin_refusal
+        );
+        assert_eq!(agent_only.seat.as_deref(), Some("codex"));
+        // A static model does not change the verdict: the pin still refuses.
+        let seated = resolve_execution_plan(&[infer("openai/gpt-5.2")], &probes, Some("codex"));
+        assert!(seated.pin_refusal.is_some(), "{:?}", seated.pin_refusal);
+        assert!(!seated.is_admitted());
+    }
+
+    /// W3-F3 · a READY path that lost the ranking rides the lane's
+    /// rejections, so the machine row says a choice happened.
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn an_outranked_ready_path_rides_the_lane_outranked_rows() {
+        let probes = vec![
+            api_probe("openai", true),
+            harness_probe("codex", &["openai"], true),
+        ];
+        let plan = resolve_execution_plan(&[infer("openai/gpt-5-mini")], &probes, None);
+        let lane = plan.lane("openai/gpt-5-mini").expect("admitted");
+        assert_eq!(lane.plan.access, "codex");
+        assert!(
+            lane.plan.rejected.is_empty(),
+            "available to a pin: {:?}",
+            lane.plan.rejected
+        );
+        assert_eq!(lane.plan.outranked.len(), 1, "{:?}", lane.plan.outranked);
+        let loser = &lane.plan.outranked[0];
+        assert_eq!(loser.access, "openai");
+        assert_eq!(
+            loser.dimension,
+            nika_types::access::RejectionDimension::Outranked
+        );
+        assert!(
+            loser.witness.contains("ranked below `codex`"),
+            "{}",
+            loser.witness
+        );
+        assert_eq!(
+            lane.candidates,
+            lane.plan.outranked.len() + 1,
+            "one winner, the rest named"
         );
     }
 }

@@ -72,15 +72,36 @@ pub fn verdict_layers(
     valid: bool,
     capacity: &[ModelFinding],
 ) -> VerdictLayers {
+    verdict_layers_for(plan, valid, capacity, None)
+}
+
+/// [`verdict_layers`] with the model-less task the seat must serve
+/// (W3-F13): `modelless` names the first `infer:`/`agent:` task whose
+/// effective model is empty, when there is one.
+#[must_use]
+pub fn verdict_layers_for(
+    plan: &ExecutionAccessPlan,
+    valid: bool,
+    capacity: &[ModelFinding],
+    modelless: Option<&str>,
+) -> VerdictLayers {
     let mut lines = Vec::new();
     let mut blockers = Vec::new();
+    // W3-F1 · the pin's own verdict (a seat whose binary this machine
+    // lacks · an unsatisfied pin) is a blocker before any lane is read.
+    if let (Some(pin), Some(refusal)) = (&plan.pin, &plan.pin_refusal) {
+        let line = format!("pin `{pin}` refused · {}", pin_message(refusal));
+        blockers.push(format!("access: {line}"));
+        lines.push(line);
+    }
     for (model, lane) in plan.admitted() {
-        let note = if lane.plan.chosen == nika_types::access::AccessClass::Harness {
-            "seat present · sign-in judged at run"
-        } else if lane.plan.chosen == nika_types::access::AccessClass::Api {
-            "key present · not validated (check never dials)"
-        } else {
-            "present · liveness judged at run"
+        let note = match lane.plan.chosen {
+            nika_types::access::AccessClass::Harness => "seat present · sign-in judged at run",
+            nika_types::access::AccessClass::Api => {
+                "key present · not validated (check never dials)"
+            }
+            nika_types::access::AccessClass::Mock => "mock · never dials · nothing to judge",
+            _ => "present · liveness judged at run",
         };
         let others = lane.candidates.saturating_sub(1);
         let tail = if others == 0 {
@@ -115,15 +136,38 @@ pub fn verdict_layers(
         blockers.push(format!("access: {line}"));
         lines.push(line);
     }
-    let access_ready = if plan.lanes.is_empty() {
-        None
+    let access_ready = if !plan.lanes.is_empty() {
+        Some(plan.is_admitted() && plan.pin_refusal.is_none())
+    } else if plan.pin_refusal.is_some() {
+        Some(false)
+    } else if let Some(task) = modelless {
+        // W3-F13 · a model-less infer rides a seat or nothing.
+        if let Some(seat) = &plan.seat {
+            lines.push(format!(
+                "`{task}` → {seat} (harness · seat) · pinned · seat present · sign-in judged at run"
+            ));
+            Some(true)
+        } else {
+            let line = format!(
+                "task `{task}` names no model and no seat is pinned · set `model: <provider/name>` or run with `--access <seat>`"
+            );
+            blockers.push(format!("access: {line}"));
+            lines.push(line);
+            Some(false)
+        }
     } else {
-        Some(plan.is_admitted())
+        None
     };
     if let Some(first) = capacity.first() {
         blockers.push(format!("capacity: {} · {}", first.model, first.why));
     }
+    let seat_served: Vec<String> = plan
+        .admitted()
+        .filter(|(_, lane)| lane.plan.chosen == nika_types::access::AccessClass::Harness)
+        .map(|(model, _)| model.to_owned())
+        .collect();
     VerdictLayers::new(valid, access_ready, lines, capacity.is_empty(), blockers)
+        .with_seat_served(seat_served)
 }
 
 /// Cross `requirements.models` against the RESOLVER (the runnable
@@ -254,4 +298,106 @@ pub fn pricing_section(
         },
         "models": models,
     })
+}
+
+/// The words a pin refusal carries (every variant is a message · the
+/// enum is `#[non_exhaustive]`, so an unknown shape reads as refused).
+fn pin_message(refusal: &nika_providers::resolve_access::PinRefusal) -> &str {
+    use nika_providers::resolve_access::PinRefusal;
+    match refusal {
+        PinRefusal::UnknownToken { message }
+        | PinRefusal::PinUnsatisfied { message }
+        | PinRefusal::NoPath { message }
+        | PinRefusal::Unavailable { message } => message,
+        _ => "refused",
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use nika_providers::resolve_access::PinRefusal;
+
+    use super::*;
+
+    fn plan(
+        pin: Option<&str>,
+        seat: Option<&str>,
+        refusal: Option<PinRefusal>,
+    ) -> ExecutionAccessPlan {
+        ExecutionAccessPlan::new(
+            BTreeMap::new(),
+            pin.map(str::to_owned),
+            seat.map(str::to_owned),
+            refusal,
+        )
+    }
+
+    /// W3-F13 · an `infer:` with no model and no seat pinned has no path:
+    /// ACCESS READY is false, and the blocker names the two fixes.
+    #[test]
+    fn a_model_less_infer_with_no_seat_is_not_ready() {
+        let layers = verdict_layers_for(&plan(None, None, None), true, &[], Some("answer"));
+        assert_eq!(layers.access_ready, Some(false));
+        assert!(layers.run_ready() == Some(false), "{layers:?}");
+        assert!(
+            layers.blockers[0].contains("names no model")
+                && layers.blockers[0].contains("--access"),
+            "{:?}",
+            layers.blockers
+        );
+    }
+
+    /// W3-F13 · the same task with a seat pinned and present is ready;
+    /// the line names the seat and what it serves.
+    #[test]
+    fn a_model_less_infer_on_a_present_seat_is_ready() {
+        let layers = verdict_layers_for(
+            &plan(Some("codex"), Some("codex"), None),
+            true,
+            &[],
+            Some("answer"),
+        );
+        assert_eq!(layers.access_ready, Some(true));
+        assert!(layers.blockers.is_empty(), "{:?}", layers.blockers);
+        assert!(
+            layers.access_lines[0].contains("`answer` → codex")
+                && layers.access_lines[0].contains("seat present"),
+            "{:?}",
+            layers.access_lines
+        );
+    }
+
+    /// W3-F1 · a refused pin (a seat this machine lacks) is a blocker
+    /// before any lane is read, with the refusal's own words.
+    #[test]
+    fn a_refused_pin_is_a_blocker() {
+        let refusal = PinRefusal::Unavailable {
+            message: "Codex is not installed".to_owned(),
+        };
+        let layers = verdict_layers_for(
+            &plan(Some("codex"), None, Some(refusal)),
+            true,
+            &[],
+            Some("answer"),
+        );
+        assert_eq!(layers.access_ready, Some(false));
+        assert!(
+            layers.blockers[0].contains("pin `codex` refused")
+                && layers.blockers[0].contains("not installed"),
+            "{:?}",
+            layers.blockers
+        );
+    }
+
+    /// No infer at all and no lanes: nothing to judge, and the layer says
+    /// so with `None`, never a false red.
+    #[test]
+    fn no_model_and_no_infer_leaves_access_unjudged() {
+        let layers = verdict_layers_for(&plan(None, None, None), true, &[], None);
+        assert_eq!(layers.access_ready, None);
+        assert!(layers.blockers.is_empty());
+    }
 }

@@ -1113,4 +1113,52 @@ mod writes_card {
             "B12 engine writes must be on the WRITES card:\n{out}"
         );
     }
+
+    /// W3-F4 · a seat-served model's COST line says the dollar figure is
+    /// the API counterfactual, in words, on the priced arm.
+    #[test]
+    fn the_cost_rung_names_a_seat_served_model() {
+        let yaml = "nika: seat\nmodel: openai/gpt-5.2\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 64 }\n";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        let layers =
+            crate::check_render::VerdictLayers::new(true, Some(true), Vec::new(), true, Vec::new())
+                .with_seat_served(vec!["openai/gpt-5.2".to_owned()]);
+        let out = render(
+            &report,
+            &wf,
+            yaml,
+            "seat.nika.yaml",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+            &layers,
+        );
+        let cost = out
+            .lines()
+            .find(|l| l.contains("COST"))
+            .expect("a COST line");
+        assert!(
+            cost.contains("seat-served (unmetered): openai/gpt-5.2")
+                && cost.contains("counterfactual"),
+            "{cost}"
+        );
+        let plain = render(
+            &report,
+            &wf,
+            yaml,
+            "seat.nika.yaml",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
+        );
+        assert!(!plain.contains("seat-served"), "no seat, no note");
+    }
 }

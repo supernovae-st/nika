@@ -30,7 +30,7 @@ fn registry_run_refusal_keeps_copy_guidance_and_never_names_cache_as_fixable() {
     let (source, _wf, report) = super::provenance::capture_checked_source(
         &cache_path,
         Some(nika_display::check_render::RepairTarget::RegistryArtifact),
-        false,
+        (false, false),
     )
     .ok()
     .expect("registry acquisition reads the cached bytes");

@@ -112,8 +112,26 @@ fn verdict(
     if !rendered.text.is_empty() {
         println!("{}", rendered.text.trim_end());
     }
+    // W3-F1 · the pin line reads the SAME judge the run's admission
+    // reads: a refused pin is printed as refused and the preview exits
+    // like the run would (3), never « admission satisfied » for a seat
+    // this machine lacks. W3-F13 · a model-less infer with no seat has
+    // no path, and the preview says so before task 1.
+    let refusal =
+        nika_runtime::plan_refusal(plan).or_else(|| nika_runtime::modelless_refusal(wf, plan));
     if let Some(pin) = &plan.pin {
-        println!("access: pinned `{pin}` · admission satisfied · presence, not validated");
+        if plan.pin_refusal.is_some()
+            && let Some(err) = &refusal
+        {
+            println!("access: pinned `{pin}` · REFUSED · {err} → the run refuses before task 1");
+        } else {
+            println!("access: pinned `{pin}` · admitted · seat present · sign-in judged at run");
+        }
+    }
+    if plan.pin_refusal.is_none()
+        && let Some(err) = &refusal
+    {
+        println!("access: REFUSED · {err} → the run refuses before task 1");
     }
     for (model, lane) in plan.admitted() {
         let seat = if lane.plan.chosen == AccessClass::Harness {
@@ -129,6 +147,9 @@ fn verdict(
         );
     }
     println!("\n  dry-run · plan only · no effects executed");
+    if refusal.is_some() {
+        return exit::ENV;
+    }
     exit::OK
 }
 

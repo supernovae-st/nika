@@ -267,4 +267,60 @@ mod tests {
             "{tool:#}"
         );
     }
+
+    /// ADR-124 · the plugin's teaching surface is derived, never typed:
+    /// every example slug the engine-owned authoring skill names resolves
+    /// in the pack. Measured 2026-09-03: the intent table taught six
+    /// `tN-` slugs no example carried (`t1-meeting-actions` …) and no test
+    /// read it. This one does.
+    #[test]
+    fn the_authoring_skill_teaches_only_living_example_slugs() {
+        let skill = include_str!("../../../.agents/plugins/nika/skills/nika-authoring/SKILL.md");
+        let slug_shaped = |token: &str| {
+            token.contains('-')
+                && !token.starts_with('-')
+                && token
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        };
+        // Every backticked token anywhere in the skill that wears the
+        // example-slug shape — `NN-name` or `tN-name` — must resolve.
+        let numbered = |token: &str| {
+            let (head, _) = token.split_once('-').unwrap_or((token, ""));
+            head.len() == 2
+                && (head.bytes().all(|b| b.is_ascii_digit())
+                    || (head.starts_with('t') && head.as_bytes()[1].is_ascii_digit()))
+        };
+        let mut table_rows = 0;
+        let mut in_table = false;
+        for line in skill.lines() {
+            if line.starts_with("### Which example answers which intent") {
+                in_table = true;
+                continue;
+            }
+            if in_table && line.starts_with("###") {
+                in_table = false;
+            }
+            for token in line.split('`').skip(1).step_by(2) {
+                if !slug_shaped(token) {
+                    continue;
+                }
+                let must_resolve = numbered(token) || (in_table && line.starts_with('|'));
+                if !must_resolve {
+                    continue;
+                }
+                if in_table && line.starts_with('|') {
+                    table_rows += 1;
+                }
+                assert!(
+                    nika_pack::example(token).is_some(),
+                    "the skill teaches `{token}`, which no example carries: {line}"
+                );
+            }
+        }
+        assert!(
+            table_rows >= 15,
+            "the intent table was read ({table_rows} slugs)"
+        );
+    }
 }

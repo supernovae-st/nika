@@ -1140,7 +1140,65 @@ impl<T> typenum::type_operators::Same for nika_cli_host::experience::WorkflowPre
 pub type nika_cli_host::experience::WorkflowPreviewV1::Output = T
 pub fn nika_cli_host::experience::route(state: &nika_cli_host::experience::ExperienceStateV1) -> nika_cli_host::experience::NextActionV1
 pub mod nika_cli_host::explain
+#[non_exhaustive] pub enum nika_cli_host::explain::Door
+pub nika_cli_host::explain::Door::Cli
+pub nika_cli_host::explain::Door::Oracle
+impl core::clone::Clone for nika_cli_host::explain::Door
+pub fn nika_cli_host::explain::Door::clone(&self) -> nika_cli_host::explain::Door
+impl core::cmp::Eq for nika_cli_host::explain::Door
+impl core::cmp::PartialEq for nika_cli_host::explain::Door
+pub fn nika_cli_host::explain::Door::eq(&self, other: &nika_cli_host::explain::Door) -> bool
+impl core::default::Default for nika_cli_host::explain::Door
+pub fn nika_cli_host::explain::Door::default() -> nika_cli_host::explain::Door
+impl core::fmt::Debug for nika_cli_host::explain::Door
+pub fn nika_cli_host::explain::Door::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::explain::Door
+impl core::marker::StructuralPartialEq for nika_cli_host::explain::Door
+impl<D> owo_colors::OwoColorize for nika_cli_host::explain::Door
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::explain::Door where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::explain::Door::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::explain::Door where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::explain::Door::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::explain::Door where U: core::convert::From<T>
+pub fn nika_cli_host::explain::Door::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::explain::Door where U: core::convert::Into<T>
+pub type nika_cli_host::explain::Door::Error = core::convert::Infallible
+pub fn nika_cli_host::explain::Door::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::explain::Door where U: core::convert::TryFrom<T>
+pub type nika_cli_host::explain::Door::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::explain::Door::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::explain::Door where T: core::clone::Clone
+pub type nika_cli_host::explain::Door::Owned = T
+pub fn nika_cli_host::explain::Door::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::explain::Door::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::explain::Door where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::explain::Door::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::explain::Door where T: ?core::marker::Sized
+pub fn nika_cli_host::explain::Door::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::explain::Door where T: ?core::marker::Sized
+pub fn nika_cli_host::explain::Door::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::explain::Door where T: core::clone::Clone
+pub unsafe fn nika_cli_host::explain::Door::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::explain::Door
+pub fn nika_cli_host::explain::Door::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::explain::Door where T: core::clone::Clone
+pub fn nika_cli_host::explain::Door::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::explain::Door where T: 'static
+pub fn nika_cli_host::explain::Door::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::explain::Door where T: core::marker::Copy
+pub fn nika_cli_host::explain::Door::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::explain::Door where T: ?core::marker::Sized
+pub fn nika_cli_host::explain::Door::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::explain::Door::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::explain::Door
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::explain::Door
+impl<T> typenum::type_operators::Same for nika_cli_host::explain::Door
+pub type nika_cli_host::explain::Door::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::explain::Door where T: core::default::Default
+pub type nika_cli_host::explain::Door::NoneType = T
+pub fn nika_cli_host::explain::Door::null_value() -> T
 pub fn nika_cli_host::explain::run(wire: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli_host::explain::run_for(wire: &str, theme: nika_display::theme::Theme, door: nika_cli_host::explain::Door) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::fix_ladder
 pub struct nika_cli_host::fix_ladder::Refusal
 pub nika_cli_host::fix_ladder::Refusal::attempted: alloc::vec::Vec<alloc::string::String>
@@ -1192,6 +1250,8 @@ impl nika_cli_host::fix_ladder::Repair
 pub fn nika_cli_host::fix_ladder::Repair::applied(old: &str, new: &str, kind: &'static str) -> Self
 impl core::clone::Clone for nika_cli_host::fix_ladder::Repair
 pub fn nika_cli_host::fix_ladder::Repair::clone(&self) -> nika_cli_host::fix_ladder::Repair
+impl core::fmt::Debug for nika_cli_host::fix_ladder::Repair
+pub fn nika_cli_host::fix_ladder::Repair::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_cli_host::fix_ladder::Repair
 impl<T, U> core::convert::Into<U> for nika_cli_host::fix_ladder::Repair where U: core::convert::From<T>
 pub fn nika_cli_host::fix_ladder::Repair::into(self) -> U
@@ -1229,6 +1289,8 @@ pub type nika_cli_host::fix_ladder::Repair::Output = T
 pub struct nika_cli_host::fix_ladder::StopNotes(pub alloc::vec::Vec<alloc::string::String>)
 impl core::clone::Clone for nika_cli_host::fix_ladder::StopNotes
 pub fn nika_cli_host::fix_ladder::StopNotes::clone(&self) -> nika_cli_host::fix_ladder::StopNotes
+impl core::fmt::Debug for nika_cli_host::fix_ladder::StopNotes
+pub fn nika_cli_host::fix_ladder::StopNotes::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_cli_host::fix_ladder::StopNotes
 impl<T, U> core::convert::Into<U> for nika_cli_host::fix_ladder::StopNotes where U: core::convert::From<T>
 pub fn nika_cli_host::fix_ladder::StopNotes::into(self) -> U
@@ -1265,6 +1327,7 @@ impl<T> typenum::type_operators::Same for nika_cli_host::fix_ladder::StopNotes
 pub type nika_cli_host::fix_ladder::StopNotes::Output = T
 pub const nika_cli_host::fix_ladder::MAX_ROUNDS: usize
 pub fn nika_cli_host::fix_ladder::apply_dead_form_arm(err: &nika_schema::error::SchemaError, source: &mut alloc::string::String, repairs: &mut alloc::vec::Vec<nika_cli_host::fix_ladder::Repair>, stop_notes: &mut nika_cli_host::fix_ladder::StopNotes) -> core::option::Option<bool>
+pub fn nika_cli_host::fix_ladder::apply_prepass(source: &mut alloc::string::String, repairs: &mut alloc::vec::Vec<nika_cli_host::fix_ladder::Repair>, stop_notes: &mut nika_cli_host::fix_ladder::StopNotes)
 pub fn nika_cli_host::fix_ladder::collect_typed_renames(report: &nika_check::CheckReport) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String, &'static str)>
 pub fn nika_cli_host::fix_ladder::judge_round(before: &str, after: &str, attempted: alloc::vec::Vec<alloc::string::String>) -> core::option::Option<nika_cli_host::fix_ladder::Refusal>
 pub fn nika_cli_host::fix_ladder::render_refusals(refusals: &[nika_cli_host::fix_ladder::Refusal], theme: nika_display::theme::Theme) -> alloc::string::String
@@ -1758,6 +1821,7 @@ pub fn nika_cli_host::models_rung::pricing_section(report: &nika_check::CheckRep
 pub fn nika_cli_host::models_rung::thinking_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_display::check_models::ModelFinding>
 pub fn nika_cli_host::models_rung::unresolvable_models(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_display::check_models::ModelsAudit
 pub fn nika_cli_host::models_rung::verdict_layers(plan: &nika_providers::plan::ExecutionAccessPlan, valid: bool, capacity: &[nika_display::check_models::ModelFinding]) -> nika_display::check_render::layers::VerdictLayers
+pub fn nika_cli_host::models_rung::verdict_layers_for(plan: &nika_providers::plan::ExecutionAccessPlan, valid: bool, capacity: &[nika_display::check_models::ModelFinding], modelless: core::option::Option<&str>) -> nika_display::check_render::layers::VerdictLayers
 pub mod nika_cli_host::notify
 pub struct nika_cli_host::notify::NotifyConfig
 impl nika_cli_host::notify::NotifyConfig
@@ -1791,6 +1855,241 @@ pub type nika_cli_host::notify::NotifyConfig::Output = T
 pub async fn nika_cli_host::notify::deliver_paused(workflow: &str, pause: &nika_runtime::pause::WorkflowPause, trace_path: &std::path::Path, resume_hint: &str, stamper: &mut dyn nika_event::stamp::Stamper, sink: &mut dyn nika_event::stamp::EventSink)
 pub fn nika_cli_host::notify::event_id(trace_id: &str, task: &str) -> alloc::string::String
 pub fn nika_cli_host::notify::workflow_label(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::string::String
+pub mod nika_cli_host::oracle
+#[non_exhaustive] pub struct nika_cli_host::oracle::Audit
+pub nika_cli_host::oracle::Audit::report: nika_check::CheckReport
+pub nika_cli_host::oracle::Audit::skills: nika_schema::skill::ResolvedSkills
+pub nika_cli_host::oracle::Audit::verdict: nika_cli_host::oracle::Verdict
+pub nika_cli_host::oracle::Audit::wf: nika_schema::raw::workflow::RawWorkflow
+impl<D> owo_colors::OwoColorize for nika_cli_host::oracle::Audit
+impl<T, U> core::convert::Into<U> for nika_cli_host::oracle::Audit where U: core::convert::From<T>
+pub fn nika_cli_host::oracle::Audit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::oracle::Audit where U: core::convert::Into<T>
+pub type nika_cli_host::oracle::Audit::Error = core::convert::Infallible
+pub fn nika_cli_host::oracle::Audit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::oracle::Audit where U: core::convert::TryFrom<T>
+pub type nika_cli_host::oracle::Audit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::oracle::Audit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::oracle::Audit where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::oracle::Audit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::oracle::Audit where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Audit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::oracle::Audit where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Audit::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::oracle::Audit
+pub fn nika_cli_host::oracle::Audit::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::oracle::Audit where T: 'static
+pub fn nika_cli_host::oracle::Audit::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::oracle::Audit where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Audit::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::oracle::Audit::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::oracle::Audit
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::oracle::Audit
+impl<T> typenum::type_operators::Same for nika_cli_host::oracle::Audit
+pub type nika_cli_host::oracle::Audit::Output = T
+#[non_exhaustive] pub struct nika_cli_host::oracle::AuditOptions<'a>
+pub nika_cli_host::oracle::AuditOptions::access_pin: core::option::Option<&'a str>
+pub nika_cli_host::oracle::AuditOptions::model_override: core::option::Option<&'a str>
+impl<'a> nika_cli_host::oracle::AuditOptions<'a>
+pub fn nika_cli_host::oracle::AuditOptions<'a>::new(model_override: core::option::Option<&'a str>, access_pin: core::option::Option<&'a str>) -> Self
+impl<'a> core::clone::Clone for nika_cli_host::oracle::AuditOptions<'a>
+pub fn nika_cli_host::oracle::AuditOptions<'a>::clone(&self) -> nika_cli_host::oracle::AuditOptions<'a>
+impl<'a> core::default::Default for nika_cli_host::oracle::AuditOptions<'a>
+pub fn nika_cli_host::oracle::AuditOptions<'a>::default() -> nika_cli_host::oracle::AuditOptions<'a>
+impl<'a> core::fmt::Debug for nika_cli_host::oracle::AuditOptions<'a>
+pub fn nika_cli_host::oracle::AuditOptions<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_cli_host::oracle::AuditOptions<'a>
+impl<D> owo_colors::OwoColorize for nika_cli_host::oracle::AuditOptions<'a>
+impl<T, U> core::convert::Into<U> for nika_cli_host::oracle::AuditOptions<'a> where U: core::convert::From<T>
+pub fn nika_cli_host::oracle::AuditOptions<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::oracle::AuditOptions<'a> where U: core::convert::Into<T>
+pub type nika_cli_host::oracle::AuditOptions<'a>::Error = core::convert::Infallible
+pub fn nika_cli_host::oracle::AuditOptions<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::oracle::AuditOptions<'a> where U: core::convert::TryFrom<T>
+pub type nika_cli_host::oracle::AuditOptions<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::oracle::AuditOptions<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::oracle::AuditOptions<'a> where T: core::clone::Clone
+pub type nika_cli_host::oracle::AuditOptions<'a>::Owned = T
+pub fn nika_cli_host::oracle::AuditOptions<'a>::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::oracle::AuditOptions<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::oracle::AuditOptions<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::oracle::AuditOptions<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::oracle::AuditOptions<'a> where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::AuditOptions<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::oracle::AuditOptions<'a> where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::AuditOptions<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::oracle::AuditOptions<'a> where T: core::clone::Clone
+pub unsafe fn nika_cli_host::oracle::AuditOptions<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::oracle::AuditOptions<'a>
+pub fn nika_cli_host::oracle::AuditOptions<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::oracle::AuditOptions<'a> where T: core::clone::Clone
+pub fn nika_cli_host::oracle::AuditOptions<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::oracle::AuditOptions<'a> where T: 'static
+pub fn nika_cli_host::oracle::AuditOptions<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::oracle::AuditOptions<'a> where T: core::marker::Copy
+pub fn nika_cli_host::oracle::AuditOptions<'a>::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::oracle::AuditOptions<'a> where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::AuditOptions<'a>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::oracle::AuditOptions<'a>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::oracle::AuditOptions<'a>
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::oracle::AuditOptions<'a>
+impl<T> typenum::type_operators::Same for nika_cli_host::oracle::AuditOptions<'a>
+pub type nika_cli_host::oracle::AuditOptions<'a>::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::oracle::AuditOptions<'a> where T: core::default::Default
+pub type nika_cli_host::oracle::AuditOptions<'a>::NoneType = T
+pub fn nika_cli_host::oracle::AuditOptions<'a>::null_value() -> T
+#[non_exhaustive] pub struct nika_cli_host::oracle::Judged
+pub nika_cli_host::oracle::Judged::composition: bool
+pub nika_cli_host::oracle::Judged::skills: bool
+impl nika_cli_host::oracle::Judged
+pub const nika_cli_host::oracle::Judged::FULL: Self
+pub fn nika_cli_host::oracle::Judged::new(composition: bool, skills: bool) -> Self
+impl core::clone::Clone for nika_cli_host::oracle::Judged
+pub fn nika_cli_host::oracle::Judged::clone(&self) -> nika_cli_host::oracle::Judged
+impl core::cmp::Eq for nika_cli_host::oracle::Judged
+impl core::cmp::PartialEq for nika_cli_host::oracle::Judged
+pub fn nika_cli_host::oracle::Judged::eq(&self, other: &nika_cli_host::oracle::Judged) -> bool
+impl core::fmt::Debug for nika_cli_host::oracle::Judged
+pub fn nika_cli_host::oracle::Judged::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::oracle::Judged
+impl core::marker::StructuralPartialEq for nika_cli_host::oracle::Judged
+impl<D> owo_colors::OwoColorize for nika_cli_host::oracle::Judged
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::oracle::Judged where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::oracle::Judged::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::oracle::Judged where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::oracle::Judged::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::oracle::Judged where U: core::convert::From<T>
+pub fn nika_cli_host::oracle::Judged::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::oracle::Judged where U: core::convert::Into<T>
+pub type nika_cli_host::oracle::Judged::Error = core::convert::Infallible
+pub fn nika_cli_host::oracle::Judged::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::oracle::Judged where U: core::convert::TryFrom<T>
+pub type nika_cli_host::oracle::Judged::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::oracle::Judged::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::oracle::Judged where T: core::clone::Clone
+pub type nika_cli_host::oracle::Judged::Owned = T
+pub fn nika_cli_host::oracle::Judged::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::oracle::Judged::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::oracle::Judged where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::oracle::Judged::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::oracle::Judged where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Judged::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::oracle::Judged where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Judged::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::oracle::Judged where T: core::clone::Clone
+pub unsafe fn nika_cli_host::oracle::Judged::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::oracle::Judged
+pub fn nika_cli_host::oracle::Judged::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::oracle::Judged where T: core::clone::Clone
+pub fn nika_cli_host::oracle::Judged::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::oracle::Judged where T: 'static
+pub fn nika_cli_host::oracle::Judged::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::oracle::Judged where T: core::marker::Copy
+pub fn nika_cli_host::oracle::Judged::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::oracle::Judged where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Judged::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::oracle::Judged::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::oracle::Judged
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::oracle::Judged
+impl<T> typenum::type_operators::Same for nika_cli_host::oracle::Judged
+pub type nika_cli_host::oracle::Judged::Output = T
+#[non_exhaustive] pub struct nika_cli_host::oracle::Lanes
+pub nika_cli_host::oracle::Lanes::native_strict: bool
+pub nika_cli_host::oracle::Lanes::operational: bool
+impl nika_cli_host::oracle::Lanes
+pub fn nika_cli_host::oracle::Lanes::new(native_strict: bool, operational: bool) -> Self
+impl core::clone::Clone for nika_cli_host::oracle::Lanes
+pub fn nika_cli_host::oracle::Lanes::clone(&self) -> nika_cli_host::oracle::Lanes
+impl core::default::Default for nika_cli_host::oracle::Lanes
+pub fn nika_cli_host::oracle::Lanes::default() -> nika_cli_host::oracle::Lanes
+impl core::fmt::Debug for nika_cli_host::oracle::Lanes
+pub fn nika_cli_host::oracle::Lanes::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::oracle::Lanes
+impl<D> owo_colors::OwoColorize for nika_cli_host::oracle::Lanes
+impl<T, U> core::convert::Into<U> for nika_cli_host::oracle::Lanes where U: core::convert::From<T>
+pub fn nika_cli_host::oracle::Lanes::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::oracle::Lanes where U: core::convert::Into<T>
+pub type nika_cli_host::oracle::Lanes::Error = core::convert::Infallible
+pub fn nika_cli_host::oracle::Lanes::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::oracle::Lanes where U: core::convert::TryFrom<T>
+pub type nika_cli_host::oracle::Lanes::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::oracle::Lanes::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::oracle::Lanes where T: core::clone::Clone
+pub type nika_cli_host::oracle::Lanes::Owned = T
+pub fn nika_cli_host::oracle::Lanes::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::oracle::Lanes::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::oracle::Lanes where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::oracle::Lanes::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::oracle::Lanes where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Lanes::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::oracle::Lanes where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Lanes::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::oracle::Lanes where T: core::clone::Clone
+pub unsafe fn nika_cli_host::oracle::Lanes::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::oracle::Lanes
+pub fn nika_cli_host::oracle::Lanes::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::oracle::Lanes where T: core::clone::Clone
+pub fn nika_cli_host::oracle::Lanes::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::oracle::Lanes where T: 'static
+pub fn nika_cli_host::oracle::Lanes::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::oracle::Lanes where T: core::marker::Copy
+pub fn nika_cli_host::oracle::Lanes::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::oracle::Lanes where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Lanes::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::oracle::Lanes::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::oracle::Lanes
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::oracle::Lanes
+impl<T> typenum::type_operators::Same for nika_cli_host::oracle::Lanes
+pub type nika_cli_host::oracle::Lanes::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::oracle::Lanes where T: core::default::Default
+pub type nika_cli_host::oracle::Lanes::NoneType = T
+pub fn nika_cli_host::oracle::Lanes::null_value() -> T
+#[non_exhaustive] pub struct nika_cli_host::oracle::Verdict
+pub nika_cli_host::oracle::Verdict::capacity: alloc::vec::Vec<nika_display::check_models::ModelFinding>
+pub nika_cli_host::oracle::Verdict::children: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::oracle::Verdict::clean: bool
+pub nika_cli_host::oracle::Verdict::drift: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::oracle::Verdict::grade: nika_check::risk::RiskGrade
+pub nika_cli_host::oracle::Verdict::judged: nika_cli_host::oracle::Judged
+pub nika_cli_host::oracle::Verdict::layers: nika_display::check_render::layers::VerdictLayers
+pub nika_cli_host::oracle::Verdict::models: nika_display::check_models::ModelsAudit
+pub nika_cli_host::oracle::Verdict::plan: nika_providers::plan::ExecutionAccessPlan
+impl nika_cli_host::oracle::Verdict
+pub fn nika_cli_host::oracle::Verdict::profile_clean(&self, operational: bool) -> bool
+pub fn nika_cli_host::oracle::Verdict::strict_clean(&self, report: &nika_check::CheckReport, lanes: nika_cli_host::oracle::Lanes) -> bool
+impl<D> owo_colors::OwoColorize for nika_cli_host::oracle::Verdict
+impl<T, U> core::convert::Into<U> for nika_cli_host::oracle::Verdict where U: core::convert::From<T>
+pub fn nika_cli_host::oracle::Verdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::oracle::Verdict where U: core::convert::Into<T>
+pub type nika_cli_host::oracle::Verdict::Error = core::convert::Infallible
+pub fn nika_cli_host::oracle::Verdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::oracle::Verdict where U: core::convert::TryFrom<T>
+pub type nika_cli_host::oracle::Verdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::oracle::Verdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::oracle::Verdict where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::oracle::Verdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::oracle::Verdict where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Verdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::oracle::Verdict where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Verdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::oracle::Verdict
+pub fn nika_cli_host::oracle::Verdict::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::oracle::Verdict where T: 'static
+pub fn nika_cli_host::oracle::Verdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::oracle::Verdict where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Verdict::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::oracle::Verdict::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::oracle::Verdict
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::oracle::Verdict
+impl<T> typenum::type_operators::Same for nika_cli_host::oracle::Verdict
+pub type nika_cli_host::oracle::Verdict::Output = T
+pub fn nika_cli_host::oracle::audit_json(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, skills: &nika_schema::skill::ResolvedSkills, verdict: &nika_cli_host::oracle::Verdict, lanes: nika_cli_host::oracle::Lanes) -> core::result::Result<serde_json::map::Map<alloc::string::String, serde_json::value::Value>, alloc::string::String>
+pub fn nika_cli_host::oracle::audit_source(source: &str, logical_path: &str, read: core::option::Option<nika_cli_host::oracle::Reader<'_>>, skills_base: core::option::Option<&std::path::Path>, opts: nika_cli_host::oracle::AuditOptions<'_>) -> core::result::Result<nika_cli_host::oracle::Audit, nika_schema::error::SchemaError>
+pub fn nika_cli_host::oracle::child_references(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_cli_host::oracle::judge(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, skills: &nika_schema::skill::ResolvedSkills, judged: nika_cli_host::oracle::Judged, access_pin: core::option::Option<&str>) -> nika_cli_host::oracle::Verdict
+pub fn nika_cli_host::oracle::model_finding_rows(findings: &[nika_display::check_models::ModelFinding]) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_cli_host::oracle::native_hints(report: &nika_check::CheckReport) -> usize
+pub type nika_cli_host::oracle::Reader<'a> = &'a mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_cli_host::output
 pub mod nika_cli_host::output::exit
 pub const nika_cli_host::output::exit::ENV: u8
