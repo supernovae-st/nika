@@ -102,6 +102,12 @@ pub fn is_project_document(yaml: &str) -> bool {
 /// against itself proves nothing).
 pub const TOP_LEVEL_KEYS: &[&str] = &["nika", "ceiling", "arm", "traces", "registry"];
 
+/// The project file's JSON Schema (draft 2020-12 · English descriptions ·
+/// the keys the parser reads) — what `nika spec --schema --project` prints
+/// and editors validate against. Proven against the parser's closed key sets
+/// and enum spellings by the tests, so the two cannot drift apart silently.
+pub const PROJECT_SCHEMA_JSON: &str = include_str!("project.schema.json");
+
 /// The starter the founding wizard offers — laid ONLY on an explicit
 /// yes (never silently). The examples ride commented: absence IS the
 /// defaults, and the file parses to exactly [`Project::default`], a
