@@ -107,4 +107,26 @@ async fn a_cancelled_run_ends_with_terminal_frames_at_the_wave_boundary() {
         matches!(outcome_json, FieldValue::String(s) if s.contains("operator")),
         "the cause is the operator: {outcome_json:?}"
     );
+    // The summary rides the terminal (#1247): the status, the tally, the clock.
+    let summary = |key: &str| field(&sink, EventKind::WorkflowCancelled, None, key);
+    assert!(
+        matches!(summary("status"), Some(FieldValue::String(s)) if s == "cancelled"),
+        "the status names the cancellation"
+    );
+    assert!(
+        matches!(summary("tasks_total"), Some(FieldValue::Int(2))),
+        "two tasks"
+    );
+    assert!(
+        matches!(summary("tasks_ok"), Some(FieldValue::Int(1))),
+        "one completed"
+    );
+    assert!(
+        matches!(summary("tasks_cancelled"), Some(FieldValue::Int(1))),
+        "one cancelled"
+    );
+    assert!(
+        summary("elapsed_ms").is_some(),
+        "the run clock rides the terminal"
+    );
 }

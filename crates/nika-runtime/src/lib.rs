@@ -119,6 +119,14 @@ pub(crate) use nika_runtime_laws::{
 };
 pub use nika_runtime_laws::{identity, sandbox_select};
 
+/// The three read-only value namespaces the run's close reads (inputs ·
+/// consts · secrets) — the `task` module's own alias, spelled once here.
+type ValueBags<'a> = (
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+);
+
 pub use admit::{
     access_pin_refusal, budget_floor_refusal, floor_refusal, modelless_refusal, plan_refusal,
     required_inputs_refusal, scope_to_task, unbounded_breakdown,
@@ -959,7 +967,8 @@ where
         let mut ok = true;
         let mut cache_hits: Vec<String> = Vec::new();
         // The spend ledger carries leaf debits and the run cost gate.
-        let run_ledger = ledger::RunLedger::new(self.config.max_cost_usd);
+        let run_ledger =
+            ledger::RunLedger::new(self.config.max_cost_usd).started_at(self.clock.now());
         let (mut parked, resolve_scope) = parked_scope(
             wf,
             &inputs,
@@ -999,16 +1008,48 @@ where
             sink,
         );
 
-        // Resolve outputs before the terminal frame so type failures fail the run.
-        let mut outputs = resolve_outputs(wf, &records, &inputs, &consts, &secrets);
-        // The output map bypasses the event sink, so scrub it explicitly.
-        crate::secret::scrub_outputs(&mut outputs, &secrets);
-        let snapshot = run_ledger.snapshot();
-        let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, &snapshot, stamper, sink);
+        Ok(self.close_run(
+            wf,
+            (records, ok, cache_hits),
+            (&inputs, &consts, &secrets),
+            &workflow_name,
+            &run_ledger,
+            stamper,
+            sink,
+        ))
+    }
 
+    /// The run's close (split out of `run` at the 100-line ratchet): resolve
+    /// `outputs:` before the terminal frame so a type failure fails the run,
+    /// scrub the map (it bypasses the event sink), stamp the terminal with
+    /// the ledger's snapshot on the kernel clock (#1247).
+    #[allow(clippy::too_many_arguments)] // the run's close carries the run's parts
+    fn close_run(
+        &self,
+        wf: &RawWorkflow,
+        (records, ok, cache_hits): (BTreeMap<String, DataflowTaskRecord>, bool, Vec<String>),
+        (inputs, consts, secrets): ValueBags<'_>,
+        workflow_name: &str,
+        run_ledger: &ledger::RunLedger,
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) -> RunOutcome {
+        let mut outputs = resolve_outputs(wf, &records, inputs, consts, secrets);
+        crate::secret::scrub_outputs(&mut outputs, secrets);
+        let snapshot = run_ledger.snapshot_at(self.clock.now());
+        let ok = finalize_outputs(
+            wf,
+            &outputs,
+            &records,
+            workflow_name,
+            ok,
+            &snapshot,
+            stamper,
+            sink,
+        );
         let mut outcome = RunOutcome::from_dataflow(ok, records, outputs).with_ledger(&snapshot);
         outcome.cache_hits = cache_hits;
-        Ok(outcome)
+        outcome
     }
 
     /// One wave through the spine: dispatch + streamed settle, then the
@@ -1096,7 +1137,7 @@ where
                 workflow_name,
                 std::mem::take(records),
                 std::mem::take(cache_hits),
-                &run_ledger.snapshot(),
+                &run_ledger.snapshot_at(self.clock.now()),
                 cancelled,
                 stamper,
                 sink,
@@ -1301,9 +1342,11 @@ fn resolve_outputs(
 /// `task_failed`) — the event model stays consistent (no orphan task event, no
 /// spurious row) and `--json`/journal consumers see a valid terminal with the
 /// code. Split out of `run()` to keep that function within its line budget.
+#[allow(clippy::too_many_arguments)] // the terminal frame's parts
 fn finalize_outputs(
     wf: &RawWorkflow,
     outputs: &BTreeMap<String, Value>,
+    records: &BTreeMap<String, DataflowTaskRecord>,
     workflow_name: &str,
     mut ok: bool,
     snapshot: &ledger::LedgerSnapshot,
@@ -1336,6 +1379,12 @@ fn finalize_outputs(
         ));
     }
     fields.extend(terminal_cost_fields(snapshot));
+    // What the human card computes rides the frame (#1247): the status
+    // and the task tally; `elapsed_ms` came with the cost fields.
+    fields.extend(abort::terminal_summary_fields(
+        records,
+        if ok { "completed" } else { "failed" },
+    ));
     emit(stamper, sink, kind, &fields);
     ok
 }
@@ -1369,13 +1418,13 @@ fn terminal_cost_fields(snap: &ledger::LedgerSnapshot) -> Vec<(&'static str, Fie
     if snap.unpriced_calls > 0 {
         fields.push(("unpriced_calls", i(i64::from(snap.unpriced_calls))));
     }
+    if let Some(elapsed) = snap.elapsed {
+        let ms = i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
+        fields.push(("elapsed_ms", i(ms)));
+    }
     fields
 }
 
-/// The `--max-cost-usd` stop: settle-what-ran is already done (the wave
-/// settled before the check); every task that never STARTED cancels
-/// with the budget note, then the run fails with spent-vs-budget — the
-/// LiteLLM-shaped error message (both numbers, always).
 /// One typed-`outputs:` contract violation (spec 01 rule 6 · NIKA-VAR-009).
 struct OutputTypeViolation {
     name: String,
