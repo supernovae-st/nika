@@ -107,6 +107,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::access::BillingClass wh
 #[non_exhaustive] pub enum nika_types::access::RejectionDimension
 pub nika_types::access::RejectionDimension::NotConfigured
 pub nika_types::access::RejectionDimension::NotLive
+pub nika_types::access::RejectionDimension::Outranked
 pub nika_types::access::RejectionDimension::PinUnsatisfied
 pub nika_types::access::RejectionDimension::ProviderNotAllowed
 impl nika_types::access::RejectionDimension
@@ -207,11 +208,13 @@ pub nika_types::access::AccessPlan::access: alloc::string::String
 pub nika_types::access::AccessPlan::billing: nika_types::access::BillingClass
 pub nika_types::access::AccessPlan::chosen: nika_types::access::AccessClass
 pub nika_types::access::AccessPlan::model: alloc::string::String
+pub nika_types::access::AccessPlan::outranked: alloc::vec::Vec<nika_types::access::AccessRejection>
 pub nika_types::access::AccessPlan::pinned: bool
 pub nika_types::access::AccessPlan::provider: alloc::string::String
 pub nika_types::access::AccessPlan::rejected: alloc::vec::Vec<nika_types::access::AccessRejection>
 impl nika_types::access::AccessPlan
 pub fn nika_types::access::AccessPlan::new(model: impl core::convert::Into<alloc::string::String>, provider: impl core::convert::Into<alloc::string::String>, access: impl core::convert::Into<alloc::string::String>, chosen: nika_types::access::AccessClass, billing: nika_types::access::BillingClass, pinned: bool, rejected: alloc::vec::Vec<nika_types::access::AccessRejection>) -> Self
+pub fn nika_types::access::AccessPlan::with_outranked(self, outranked: alloc::vec::Vec<nika_types::access::AccessRejection>) -> Self
 impl core::clone::Clone for nika_types::access::AccessPlan
 pub fn nika_types::access::AccessPlan::clone(&self) -> nika_types::access::AccessPlan
 impl core::cmp::Eq for nika_types::access::AccessPlan

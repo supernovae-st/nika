@@ -495,3 +495,163 @@ fn a_seated_resume_keeps_its_lane_and_its_cache() {
         "the leg after the gate rides the same seat: {fields:?}"
     );
 }
+
+const SEAT_ONLY: &str = "nika: seat-only
+tasks:
+  answer:
+    infer:
+      prompt: say hi
+      max_tokens: 256
+";
+
+fn last_frame(stdout: &str) -> serde_json::Value {
+    let line = stdout.lines().last().expect("a verdict frame");
+    serde_json::from_str(line).unwrap_or_else(|e| panic!("the last line is JSON ({e}): {line}"))
+}
+
+fn json_object(stdout: &str) -> serde_json::Value {
+    serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|e| panic!("one JSON object ({e}):\n{stdout}"))
+}
+
+/// W3-F1 · the seat is two binaries. With the product (`codex`) gone and
+/// only the ACP speaker (`codex-acp`) on PATH, a pin serving an `infer:`
+/// is refused on the three doors — `check --access`, the dry-run, the
+/// run — before task 1, with the same code, never « admission satisfied ».
+#[test]
+fn a_pinned_seat_without_its_product_binary_refuses_on_three_doors() {
+    let rig = Rig::new("no-product", true);
+    std::fs::remove_file(rig.root.join("bin").join("codex")).expect("the product goes");
+    std::fs::write(rig.root.join("work").join("seat.nika.yaml"), SEAT_ONLY).expect("workflow");
+    let check = rig.nika(
+        &["check", "seat.nika.yaml", "--json", "--access", "codex"],
+        false,
+    );
+    let obj = json_object(&text(&check.stdout));
+    assert_eq!(obj["verdicts"]["access_ready"], false, "{obj:#}");
+    assert!(
+        obj["verdicts"]["blockers"][0]
+            .as_str()
+            .is_some_and(|b| b.contains("pin `codex` refused")),
+        "{obj:#}"
+    );
+    let dry = rig.nika(
+        &["run", "seat.nika.yaml", "--dry-run", "--access", "codex"],
+        false,
+    );
+    let dry_out = text(&dry.stdout);
+    assert_eq!(
+        dry.status.code(),
+        Some(3),
+        "the preview exits like the run\n{dry_out}"
+    );
+    let dry_all = format!("{dry_out}\n{}", text(&dry.stderr));
+    assert!(
+        dry_all.contains("NIKA-1803") && dry_all.contains("not installed"),
+        "the preview refuses with the code and the fix: {dry_all}"
+    );
+    let run = rig.nika(
+        &[
+            "run",
+            "seat.nika.yaml",
+            "--json",
+            "--access",
+            "codex",
+            "--max-cost-usd",
+            "1",
+        ],
+        false,
+    );
+    let stdout = text(&run.stdout);
+    assert_eq!(
+        run.status.code(),
+        Some(3),
+        "{stdout}\n{}",
+        text(&run.stderr)
+    );
+    let settled = last_frame(&stdout);
+    assert_eq!(settled["kind"], "run_settled", "{settled}");
+    assert_eq!(settled["error"]["code"], "NIKA-1803", "{settled}");
+    assert!(
+        !stdout.contains("\"kind\":\"task_started\""),
+        "nothing ran: {stdout}"
+    );
+}
+
+/// W3-F13 · an `infer:` that names no model rides a seat or nothing:
+/// unpinned, the three doors refuse before task 1 (NIKA-1800) and the
+/// operational profile is red; pinned to a present seat, `check` is
+/// ready and the run rides the seat.
+#[test]
+fn a_model_less_infer_needs_a_model_or_a_seat() {
+    let rig = Rig::new("model-less", true);
+    std::fs::write(rig.root.join("work").join("seat.nika.yaml"), SEAT_ONLY).expect("workflow");
+    let check = rig.nika(&["check", "seat.nika.yaml", "--json"], false);
+    assert_eq!(check.status.code(), Some(0), "advisory: legal");
+    let obj = json_object(&text(&check.stdout));
+    assert_eq!(obj["verdicts"]["access_ready"], false, "{obj:#}");
+    assert!(
+        obj["verdicts"]["blockers"][0]
+            .as_str()
+            .is_some_and(|b| b.contains("names no model") && b.contains("--access")),
+        "{obj:#}"
+    );
+    let operational = rig.nika(
+        &["check", "seat.nika.yaml", "--profile", "operational"],
+        false,
+    );
+    assert_eq!(
+        operational.status.code(),
+        Some(2),
+        "{}",
+        text(&operational.stdout)
+    );
+    let dry = rig.nika(&["run", "seat.nika.yaml", "--dry-run"], false);
+    assert_eq!(dry.status.code(), Some(3), "{}", text(&dry.stdout));
+    assert!(
+        text(&dry.stdout).contains("names no model"),
+        "{}",
+        text(&dry.stdout)
+    );
+    let run = rig.nika(
+        &["run", "seat.nika.yaml", "--json", "--max-cost-usd", "1"],
+        false,
+    );
+    let stdout = text(&run.stdout);
+    assert_eq!(
+        run.status.code(),
+        Some(3),
+        "{stdout}\n{}",
+        text(&run.stderr)
+    );
+    let settled = last_frame(&stdout);
+    assert_eq!(settled["error"]["code"], "NIKA-1800", "{settled}");
+    assert_eq!(settled["error"]["task"], "-", "{settled}");
+    // Pinned to the present seat: ready, and the run rides it.
+    let pinned = rig.nika(
+        &["check", "seat.nika.yaml", "--json", "--access", "codex"],
+        false,
+    );
+    let obj = json_object(&text(&pinned.stdout));
+    assert_eq!(obj["verdicts"]["access_ready"], true, "{obj:#}");
+    let run = rig.nika(
+        &[
+            "run",
+            "seat.nika.yaml",
+            "--json",
+            "--access",
+            "codex",
+            "--max-cost-usd",
+            "1",
+        ],
+        false,
+    );
+    let stdout = text(&run.stdout);
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "{stdout}\n{}",
+        text(&run.stderr)
+    );
+    assert_eq!(last_frame(&stdout)["status"], "succeeded", "{stdout}");
+}

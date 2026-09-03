@@ -71,17 +71,18 @@ four are the decisions that cost rounds when guessed instead of copied.
 | an agent drafts a file and checks it until valid | `15-compose-self-check` |
 | the run reads its own DAG / cost / records | `16-inspect-self` |
 | mock TTS that writes a real WAV | `17-tts-self` |
-| land a typed artifact on disk | `t1-meeting-actions` |
-| poll something, act only when a condition holds | `t1-price-watch` |
-| rows in, chart and report out, zero model calls | `t2-csv-chart-report` |
-| a batch where bad items must not kill the run | `t2-etl-quarantine` |
-| a folder of files, one job per file | `t3-localization-factory` |
-| a human signs before an irreversible step | `t4-release-train` |
+| land a typed artifact on disk | `meeting-actions` |
+| poll something, act only when a condition holds | `price-watch` |
+| rows in, chart and report out, zero model calls | `csv-chart-report` |
+| a batch where bad items must not kill the run | `etl-quarantine` |
+| a folder of files, one job per file | `localization-factory` |
+| a human signs before an irreversible step | `release-train` |
 | a job too big for one file | §Composition below, then `01-hello` for the child |
 
-Second column verified against `nika try` on 2026-07-28. Any
-slug works with or without its `showcase/` prefix and with or without
-the `.nika.yaml` extension. `nika new <slug>` makes one yours;
+Second column pinned to the pack by the engine's own test (every slug
+this table names resolves through `nika_pack::example`). Any slug works
+with or without its `showcase/` prefix and with or without the
+`.nika.yaml` extension. `nika new <slug>` makes one yours;
 `nika new <name>` does the same from the template side
 (`nika new '?'` prints that set).
 
@@ -204,7 +205,7 @@ boundary anyway.** Measured against `nika 0.106.0` on 2026-07-28:
   net.http boundary`. The redirect target is not knowable statically.
   Declare both hosts, or point at the final one.
 - **A dynamic path is the same hole, and a shipped example falls in
-  it.** `t3-localization-factory` declares `tools:` with no `fs:` block
+  it.** `localization-factory` declares `tools:` with no `fs:` block
   and reads through `path: "${{ item }}"`. It passes `--native-strict`
   with `PERMITS body fits the declared boundary`, then dies on its FIRST
   task at run: `NIKA-SEC-004 · ./docs resolves outside the declared
@@ -754,7 +755,7 @@ never a fragment welded between quotes you typed.** A structured value
 interpolated into a string argument is serialized as JSON by the engine,
 with escaping. Two ways to get one: `nika:jq` (any reshaping), or an
 `infer:` carrying a `schema:` (a model's typed output, the shape
-`t1-meeting-actions` uses to land its artifact).
+`meeting-actions` uses to land its artifact).
 
 **Then validate the artifact twice, because well-formed is not right.**
 Parse it, AND spot-check one value against a number you computed by

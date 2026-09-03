@@ -260,7 +260,7 @@ fn run_verdict(
         Err(verdict) => return *verdict,
     };
     let (source, wf, report) =
-        match provenance::capture_checked_source(file, repair_target, output_json) {
+        match provenance::capture_checked_source(file, repair_target, (output_json, json)) {
             Ok(checked) => checked,
             Err(verdict) => return *verdict,
         };

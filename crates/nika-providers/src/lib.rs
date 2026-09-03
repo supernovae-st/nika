@@ -53,7 +53,10 @@ mod test_support;
 pub mod wire;
 
 pub use census::{AccessCensus, AccessPath, SeatFact};
-pub use plan::{ExecutionAccessPlan, LaneVerdict, ModelNeed, ResolvedLane, resolve_execution_plan};
+pub use plan::{
+    ExecutionAccessPlan, LaneVerdict, ModelNeed, ResolvedLane, resolve_execution_plan,
+    resolve_execution_plan_for,
+};
 pub use probe::{KeyAuth, classify_http_status, classify_key_value};
 pub use profile::{
     CANONICAL_IDS, PREFIX_REFUSAL_CODE, Profile, ResolveRefusal, WireFormat, canonical_provider,
@@ -61,6 +64,7 @@ pub use profile::{
     wired_facet_of_this_build,
 };
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};
+pub use resolve_access::VerbNeeds;
 #[cfg(feature = "access-harness")]
 pub use resolve_access::first_ready_infer_harness;
 pub use resolve_access::{

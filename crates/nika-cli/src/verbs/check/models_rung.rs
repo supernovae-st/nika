@@ -9,10 +9,9 @@
 //! (`nika_display::check_render` · the 15k descent).
 
 pub(crate) use nika_cli_host::models_rung::{
-    access_decisions, boot_access_fields, capacity_findings, pricing_section, thinking_findings,
-    unresolvable_models, verdict_layers,
+    access_decisions, boot_access_fields, capacity_findings, thinking_findings, unresolvable_models,
 };
-pub(crate) use nika_display::check_render::{ModelFinding, ModelsAudit, VerdictLayers};
+pub(crate) use nika_display::check_render::VerdictLayers;
 #[cfg(test)]
 use nika_schema::raw::RawWorkflow;
 

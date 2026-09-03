@@ -9,8 +9,9 @@
 //! one architectural unit, two members).
 
 use nika_cli_host::fix_ladder::{
-    MAX_ROUNDS, Refusal, Repair, StopNotes, apply_dead_form_arm, collect_typed_renames,
-    judge_round, render_refusals, render_stops, splice, summary, try_w2_hoist,
+    MAX_ROUNDS, Refusal, Repair, StopNotes, apply_dead_form_arm, apply_prepass,
+    collect_typed_renames, judge_round, render_refusals, render_stops, splice, summary,
+    try_w2_hoist,
 };
 use nika_schema::ParseMode;
 
@@ -125,42 +126,6 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     }
 }
 
-/// C13 · B14: wrap a bare `exec:` scalar and rewrite a simple `needs:`
-/// list, or STOP with why. Runs once before the host ladder so parse
-/// can see a mapping / an `after:` edge.
-fn apply_prepass(source: &mut String, repairs: &mut Vec<Repair>, stop_notes: &mut StopNotes) {
-    if let Some(next) = wrap_bare_exec(source) {
-        *source = next;
-        repairs.push(Repair::applied(
-            "bare exec: string",
-            "command: argv or shell: mapping",
-            "bare-exec",
-        ));
-    } else if has_bare_exec(source) {
-        stop_notes.0.push(
-            "bare `exec:` string must be a YAML mapping — write `command: [\"prog\", …]` \
-             or `shell: \"…\"`"
-                .to_owned(),
-        );
-    }
-    if let Some(next) = rewrite_needs(source) {
-        *source = next;
-        repairs.push(Repair::applied(
-            "needs:",
-            "after: { id: success }",
-            "needs-after",
-        ));
-    }
-    if has_needs_key(source) {
-        stop_notes.0.push(
-            "`needs:` is a foreign dialect key — --fix will not guess `with:` data \
-             vs `after:` order; rewrite to `after: { task: success }` for order, \
-             or a `with:` binding for data"
-                .to_owned(),
-        );
-    }
-}
-
 /// C14 · the live envelope has no `workflow:` object. The host ladder's
 /// W1/R1 success copy still names the dead form; strip it here so the
 /// operator-facing line cannot invent one.
@@ -176,165 +141,6 @@ fn sanitize_success_copy(repairs: &mut [Repair]) {
         r.new = r.new.replace("workflow:", "nika:");
         r.old = r.old.replace("workflow:", "nika:");
     }
-}
-
-fn indent_of(line: &str) -> &str {
-    line.split_at(line.len() - line.trim_start().len()).0
-}
-
-fn wrap_bare_exec(source: &str) -> Option<String> {
-    let mut changed = false;
-    let mut out = String::new();
-    for line in source.lines() {
-        if let Some(wrapped) = wrap_one_bare_exec(line) {
-            out.push_str(&wrapped);
-            changed = true;
-        } else {
-            out.push_str(line);
-        }
-        out.push('\n');
-    }
-    if !source.ends_with('\n') && out.ends_with('\n') {
-        out.pop();
-    }
-    changed.then_some(out)
-}
-
-fn wrap_one_bare_exec(line: &str) -> Option<String> {
-    let trimmed = line.trim_start();
-    let rest = trimmed.strip_prefix("exec:")?.trim();
-    if rest.is_empty()
-        || rest.starts_with('{')
-        || rest.starts_with('[')
-        || rest.starts_with('|')
-        || rest.starts_with('>')
-        || rest == "true"
-        || rest == "false"
-    {
-        return None;
-    }
-    let indent = indent_of(line);
-    let unquoted = rest.trim().trim_matches(|c| c == '"' || c == '\'');
-    if unquoted.is_empty() {
-        return None;
-    }
-    // Live dialect: argv for inert tokens, `shell:` for metacharacters.
-    // Writing both `command:` and `shell: true` is the 0.102 form and
-    // PARSE-019s (P08 · C13).
-    if unquoted
-        .chars()
-        .any(|c| matches!(c, '|' | ';' | '&' | '<' | '>' | '`' | '$' | '(' | ')'))
-    {
-        let escaped = unquoted.replace('\\', "\\\\").replace('"', "\\\"");
-        return Some(format!("{indent}exec:\n{indent}  shell: \"{escaped}\""));
-    }
-    let args: Vec<String> = unquoted
-        .split_whitespace()
-        .map(|w| format!("\"{w}\""))
-        .collect();
-    Some(format!(
-        "{indent}exec:\n{indent}  command: [{}]",
-        args.join(", ")
-    ))
-}
-
-fn has_bare_exec(source: &str) -> bool {
-    source.lines().any(|line| {
-        let t = line.trim_start();
-        t.strip_prefix("exec:").is_some_and(|rest| {
-            let rest = rest.trim();
-            !rest.is_empty()
-                && !rest.starts_with('{')
-                && !rest.starts_with('[')
-                && rest != "true"
-                && rest != "false"
-        })
-    })
-}
-
-fn rewrite_needs(source: &str) -> Option<String> {
-    let lines: Vec<&str> = source.lines().collect();
-    let mut changed = false;
-    let mut out = String::new();
-    for (i, line) in lines.iter().enumerate() {
-        if let Some(rewritten) = rewrite_one_needs(line) {
-            if sibling_has_after(&lines, i) {
-                out.push_str(line);
-            } else {
-                out.push_str(&rewritten);
-                changed = true;
-            }
-        } else {
-            out.push_str(line);
-        }
-        out.push('\n');
-    }
-    if !source.ends_with('\n') && out.ends_with('\n') {
-        out.pop();
-    }
-    changed.then_some(out)
-}
-
-fn rewrite_one_needs(line: &str) -> Option<String> {
-    let trimmed = line.trim_start();
-    let rest = trimmed.strip_prefix("needs:")?.trim();
-    let rest = rest.split('#').next().unwrap_or(rest).trim();
-    let inner = rest.strip_prefix('[')?.strip_suffix(']')?.trim();
-    if inner.is_empty() {
-        return None;
-    }
-    let mut ids = Vec::new();
-    for raw in inner.split(',') {
-        let id = raw.trim().trim_matches('"').trim_matches('\'').trim();
-        if id.is_empty()
-            || !id
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-        {
-            return None;
-        }
-        ids.push(id);
-    }
-    if ids.is_empty() {
-        return None;
-    }
-    let map = ids
-        .iter()
-        .map(|id| format!("{id}: success"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let indent = indent_of(line);
-    Some(format!("{indent}after: {{ {map} }}"))
-}
-
-fn sibling_has_after(lines: &[&str], idx: usize) -> bool {
-    let indent = indent_of(lines[idx]);
-    let same_key = |line: &str| {
-        let t = line.trim_start();
-        indent_of(line) == indent && t.starts_with("after:")
-    };
-    lines[..idx]
-        .iter()
-        .rev()
-        .take_while(|l| {
-            let t = l.trim();
-            t.is_empty() || t.starts_with('#') || indent_of(l).len() >= indent.len()
-        })
-        .any(|l| same_key(l))
-        || lines[idx + 1..]
-            .iter()
-            .take_while(|l| {
-                let t = l.trim();
-                t.is_empty() || t.starts_with('#') || indent_of(l).len() >= indent.len()
-            })
-            .any(|l| same_key(l))
-}
-
-fn has_needs_key(source: &str) -> bool {
-    source.lines().any(|line| {
-        let t = line.trim_start();
-        t.starts_with("needs:") && !t.starts_with("needs: #")
-    })
 }
 
 /// One round's savepoint — the text and the bookkeeping the round may

@@ -631,7 +631,9 @@ fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
 /// Findings + successes go to stdout (they ARE the product); only
 /// environment errors go to stderr.
 fn emit(out: &VerbOutput) -> u8 {
-    if out.code == verbs::exit::ENV {
+    // W3-F10 · a machine refusal (`--json` on a missing file) is ONE JSON
+    // object on stdout, never prose behind a `nika:` prefix on stderr.
+    if out.code == verbs::exit::ENV && !out.text.trim_start().starts_with('{') {
         eprintln!("nika: {}", out.text);
     } else if !out.text.is_empty() {
         println!("{}", out.text.trim_end());

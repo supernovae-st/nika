@@ -33,6 +33,10 @@ pub struct VerdictLayers {
     pub capacity_fit: bool,
     /// The blockers RUN READY names (empty when ready).
     pub blockers: Vec<String>,
+    /// The models whose admitted lane is a subscription seat — the COST
+    /// rung's dollar figure is their API counterfactual, never their bill
+    /// (W3-F4).
+    pub seat_served: Vec<String>,
 }
 
 impl VerdictLayers {
@@ -51,7 +55,15 @@ impl VerdictLayers {
             access_lines,
             capacity_fit,
             blockers,
+            seat_served: Vec::new(),
         }
+    }
+
+    /// Name the seat-served models (W3-F4).
+    #[must_use]
+    pub fn with_seat_served(mut self, models: Vec<String>) -> Self {
+        self.seat_served = models;
+        self
     }
 
     /// RUN READY: valid · every judged lane ready · capacity fit · no

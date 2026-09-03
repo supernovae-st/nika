@@ -17,9 +17,9 @@ amends: []
 fci: []
 inv: []
 shadow_zones: []
-nika_codes: ["NIKA-1800", "NIKA-1801", "NIKA-1807"]
+nika_codes: ["NIKA-1800", "NIKA-1801", "NIKA-1803", "NIKA-1807"]
 timeline: "v0.118"
-follow_ups: ["a failed task terminal carries its lane", "a run exit-code table and a code for the resume access refusal", "error on every failed run_settled"]
+follow_ups: ["a failed task terminal carries its lane", "a run exit-code table and a code for the resume access refusal", "error on every failed run_settled", "the run-time credential probe"]
 ---
 
 # ADR-123: check answers four questions, and run refuses what check refuses
@@ -105,5 +105,12 @@ must not spend tokens to prove readiness.
   when a trace exists; the MODELS rung's judges (`verdict_layers` ·
   capacity · resolution · the boot access stamps) are hosted in
   `nika_cli_host::models_rung`, the door the MCP oracle reaches (wave 3).
-- The run-time ACCESS READY probe (a non-billable credential check) and
-  the RUN READY preflight at the runtime's admission belt stay open.
+- Delivered in wave 3.b (the W3 gauntlet): the RUN READY preflight at
+  the admission belt for the two cases it missed — a pinned seat whose
+  product binary this machine lacks (the seat is two binaries, and the
+  probe row carries both) and an `infer:` that names no model with no seat
+  pinned (NIKA-1800 before task 1); `check`, the dry-run and the run read
+  the same judges. The lane row names the ready paths it outranked; the
+  COST rung says when a model is seat-served.
+- The run-time ACCESS READY probe (a non-billable credential check) stays
+  open.

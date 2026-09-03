@@ -29,8 +29,38 @@ const DOCS_ERRORS_TEXT: &str = "docs.nika.sh/errors";
 /// The `nika explain <code>` verb. Accepts `NIKA-440`, `NIKA-DAG-002`,
 /// or the bare forms (`440` · `DAG-002`). On a TTY the doc-site
 /// reference rides an OSC-8 hyperlink; a piped explain keeps its bytes.
+/// The door the teaching is worded for (ADR-124 · one ladder, two
+/// doors): the CLI names `nika check --fix`; the oracle names the fix
+/// an agent without a shell can reach — `nika_check` with `fix: true`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Door {
+    /// The operator's terminal.
+    #[default]
+    Cli,
+    /// The MCP oracle (read-only · source in, verdict out).
+    Oracle,
+}
+
+impl Door {
+    fn reword(self, hint: &str) -> String {
+        match self {
+            Self::Cli => hint.to_owned(),
+            Self::Oracle => hint.replace("`nika check --fix`", "`nika_check` with `fix: true`"),
+        }
+    }
+}
+
+/// The CLI door of [`run_for`].
 #[must_use]
 pub fn run(wire: &str, theme: Theme) -> VerbOutput {
+    run_for(wire, theme, Door::Cli)
+}
+
+/// The four-rung ladder — a hint kind · the registry · the spec rows ·
+/// the namespaces — worded for `door`.
+#[must_use]
+pub fn run_for(wire: &str, theme: Theme, door: Door) -> VerbOutput {
     // The seam (`Theme::link` → `format::osc8`): text unchanged, escapes
     // only when the links capability resolved on.
     let docs = theme.link(DOCS_ERRORS_URL, DOCS_ERRORS_TEXT);
@@ -49,7 +79,7 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
         // Not a numeric registry code — the spec conformance codes
         // (NIKA-DAG-002 …) live in the embedded canon's error_codes
         // table. Same binary, same single source of truth.
-        if let Some(text) = canon_row(&normalized) {
+        if let Some(text) = canon_row(&normalized, door) {
             return VerbOutput::ok(with_seat_tail(
                 &normalized,
                 seat_escape_tail().as_deref(),
@@ -98,7 +128,7 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
 /// through THE one typed parser ([`nika_pack::error_codes`] · its
 /// anchoring, malformed-row tolerance and escape-free invariant are
 /// pinned at the nika-pack seam, not re-rolled here).
-fn canon_row(code: &str) -> Option<String> {
+fn canon_row(code: &str, door: Door) -> Option<String> {
     let row = nika_pack::error_codes()
         .into_iter()
         .find(|r| r.code == code)?;
@@ -108,7 +138,7 @@ fn canon_row(code: &str) -> Option<String> {
         .map(|l| format!("\n{l}"))
         .unwrap_or_default();
     let fix = cli_fix_hint(code)
-        .map(|h| format!("  fix: {h}\n\n"))
+        .map(|h| format!("  fix: {}\n\n", door.reword(h)))
         .unwrap_or_default();
     Some(format!(
         "{code} · {category} · transient: {transient}\n\n  {failure}\n{lesson}\n{fix}\

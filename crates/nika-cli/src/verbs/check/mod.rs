@@ -182,14 +182,10 @@ use crate::display::theme::{Role, Theme};
 use crate::verbs::{RunSource, VerbOutput, load_checked, load_checked_run_source};
 
 mod budget;
-mod drift;
 pub(crate) mod energy;
 pub(crate) mod models_rung;
 mod project;
-use models_rung::{
-    ModelFinding, ModelsAudit, VerdictLayers, capacity_findings, pricing_section,
-    thinking_findings, unresolvable_models,
-};
+use models_rung::{VerdictLayers, capacity_findings, thinking_findings, unresolvable_models};
 
 use nika_display::check_render::{RepairTarget, render};
 #[cfg(test)]
@@ -272,16 +268,6 @@ fn strict_footers(
             )
         );
     }
-}
-
-/// How many `native-first` hints survive — the count `--native-strict`
-/// folds into the verdict, and the only hint family that ever does.
-fn native_hint_count(report: &CheckReport) -> usize {
-    report
-        .hints
-        .iter()
-        .filter(|h| h.kind == "native-first")
-        .count()
 }
 
 /// The project-file route, taken BEFORE the workflow envelope is applied.
@@ -634,25 +620,22 @@ fn lexical_snapshot_path(path: &std::path::Path) -> std::path::PathBuf {
 /// is the frozen plan this machine resolves for the EFFECTIVE models
 /// (`--model` already applied to `wf`) under `--access` — presence
 /// only, never a dial.
+/// The fold every door shares (ADR-124): the facade judges the MODELS
+/// rung, the frozen plan under `access_pin`, the layered verdicts, the
+/// grade and the drift rows — this verb only renders them.
 fn fold_verdicts(
     wf: &nika_schema::raw::RawWorkflow,
     report: &CheckReport,
     skills: &nika_schema::ResolvedSkills,
     access_pin: Option<&str>,
-) -> (
-    ModelsAudit,
-    bool,
-    nika_providers::ExecutionAccessPlan,
-    VerdictLayers,
-) {
-    let mut models_audit = unresolvable_models(report, wf);
-    let valid = report.is_clean() && models_audit.findings.is_empty() && skills.findings.is_empty();
-    let mut capacity = thinking_findings(wf);
-    capacity.extend(capacity_findings(wf));
-    models_audit.findings.extend(capacity.iter().cloned());
-    let plan = nika_cli_host::access::resolve_plan(wf, report, None, access_pin);
-    let layers = models_rung::verdict_layers(&plan, valid, &capacity);
-    (models_audit, valid && capacity.is_empty(), plan, layers)
+) -> nika_cli_host::oracle::Verdict {
+    nika_cli_host::oracle::judge(
+        wf,
+        report,
+        skills,
+        nika_cli_host::oracle::Judged::FULL,
+        access_pin,
+    )
 }
 
 /// The operational profile's access footer: RUN READY false is a
@@ -661,10 +644,34 @@ fn access_footer(
     text: &mut String,
     theme: Theme,
     profile: Profile,
-    clean: bool,
+    (clean, strict_clean): (bool, bool),
     layers: &VerdictLayers,
+    grade: nika_check::RiskGrade,
 ) {
-    if profile == Profile::Operational && clean && layers.access_ready == Some(false) {
+    if profile != Profile::Operational {
+        return;
+    }
+    // W3-F9 · the operational profile SAYS it held, never silence.
+    if strict_clean {
+        let access = match layers.access_ready {
+            Some(true) => "access ready",
+            Some(false) => "access not ready",
+            None => "access not judged (no model to judge)",
+        };
+        let _ = writeln!(
+            text,
+            " {}",
+            theme.paint(
+                Role::Good,
+                &format!(
+                    "✔ operational · risk {} · {access} — the gates hold",
+                    grade.as_str()
+                )
+            )
+        );
+        return;
+    }
+    if clean && layers.access_ready == Some(false) {
         let _ = writeln!(
             text,
             " {}",
@@ -693,19 +700,14 @@ fn render_checked_with_profile(
     access_pin: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
-    // Declared-vs-used drift (NIKA-DRIFT-001) — advisory, never an exit input.
-    let drift_hints = drift::scan(wf);
-    let native_hints = native_hint_count(report);
-    let (models_audit, clean, plan, layers) = fold_verdicts(wf, report, skills, access_pin);
+    let native_hints = nika_cli_host::oracle::native_hints(report);
+    let lanes = nika_cli_host::oracle::Lanes::new(native_strict, profile == Profile::Operational);
+    let verdict = fold_verdicts(wf, report, skills, access_pin);
     // The risk grade (P0-6): a pure projection — advisory by default;
-    // the operational profile folds grade ≥ High AND an unready lane
-    // into the exit-2 verdict (RUN READY false is a `--profile` outcome).
-    let grade = nika_check::risk_grade(report);
-    let profile_clean = profile != Profile::Operational
-        || (grade < nika_check::RiskGrade::High && layers.access_ready != Some(false));
-    let strict_clean = clean && profile_clean && (!native_strict || native_hints == 0);
+    // `--profile operational` gates on it and on ACCESS READY (ADR-123).
+    let profile_clean = verdict.profile_clean(lanes.operational);
+    let strict_clean = verdict.strict_clean(report, lanes);
 
-    // W8 metrics: a green audit is the content-free check_passed event.
     if strict_clean {
         crate::metrics::record_if_enabled(
             crate::metrics::EventKind::CheckPassed,
@@ -714,17 +716,7 @@ fn render_checked_with_profile(
     }
 
     if json {
-        return json_verdict(
-            report,
-            wf,
-            &models_audit,
-            skills,
-            &drift_hints,
-            (clean, strict_clean, native_strict),
-            grade,
-            profile,
-            (&plan, &layers),
-        );
+        return json_verdict(wf, report, skills, &verdict, lanes);
     }
 
     let mut text = render(
@@ -734,27 +726,30 @@ fn render_checked_with_profile(
         path,
         repair_target,
         theme,
-        &models_audit,
+        &verdict.models,
         skills,
-        &drift_hints,
-        // THE verdict, computed once above — the footer shows it, the
-        // exit code rides it (P0-11).
-        clean,
-        &layers,
+        &verdict.drift,
+        verdict.clean,
+        &verdict.layers,
     );
     strict_footers(
         &mut text,
         theme,
         native_strict && report.is_clean() && native_hints > 0,
         native_hints,
-        profile == Profile::Operational && clean && !profile_clean,
-        grade,
+        profile == Profile::Operational && verdict.clean && !profile_clean,
+        verdict.grade,
     );
-    access_footer(&mut text, theme, profile, clean, &layers);
+    access_footer(
+        &mut text,
+        theme,
+        profile,
+        (verdict.clean, strict_clean),
+        &verdict.layers,
+        verdict.grade,
+    );
     naming_note(&mut text, theme, path, wf);
     budget::footnote(&mut text, theme);
-    // The `--ascii` byte contract (P1): the report folds through the
-    // ONE enforcement seam — ASCII by construction.
     if strict_clean {
         VerbOutput::ok(nika_display::vocab::sober(theme, &text))
     } else {
@@ -762,18 +757,6 @@ fn render_checked_with_profile(
     }
 }
 
-/// The accidental-rename note (INFO, never a refusal).
-///
-/// Copy `foo.nika.yaml` to `bar.nika.yaml`, forget the header, and every
-/// trace keeps saying `foo`: the file moved, its identity did not.
-///
-/// A NOTE because divergence is usually deliberate — the spec's own
-/// example is `deploy.nika.yaml` carrying `nika: deploy-to-prod`, and a
-/// numbered path puts curriculum order in the filename. So an ordering
-/// prefix is stripped before comparing; a different WORD is the
-/// accidental shape. The filename is a location `git mv` may change, the
-/// name is an identity that rides traces — renaming one must never
-/// silently re-identify the other.
 fn naming_note(text: &mut String, theme: Theme, path: &str, wf: &nika_schema::raw::RawWorkflow) {
     let Some(name) = wf.workflow.as_ref().map(|n| n.value.as_str()) else {
         return;
@@ -806,7 +789,7 @@ fn naming_note(text: &mut String, theme: Theme, path: &str, wf: &nika_schema::ra
 }
 
 /// `--json` parse-fatal verdict: one findings row, `parse_fatal: true`.
-fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
+pub(crate) fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     let text = out.text.trim();
     // The plain voice is `PARSE ✗  [NIKA-…] message` on the FIRST line;
     // a span-carrying refusal (#1075) appends a rustc-grade frame under
@@ -841,185 +824,29 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     }
 }
 
-/// Shared `--json` MODELS row shape. `code` rides only when the refusal
-/// is a spec claim (`NIKA-PROVIDER` for a missing/unknown prefix); the
-/// azure class stays engine-local (#761).
-fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
-    serde_json::Value::Array(
-        findings
-            .iter()
-            .map(|f| {
-                let mut row = serde_json::json!({
-                    "model": f.model,
-                    "tasks": f.tasks,
-                    "why": f.why,
-                });
-                if let Some(code) = &f.code {
-                    row["code"] = serde_json::json!(code);
-                }
-                row
-            })
-            .collect(),
-    )
-}
-
-fn extend_model_audit(
-    object: &mut serde_json::Map<String, serde_json::Value>,
-    audit: &ModelsAudit,
-) {
-    if audit.unjudged > 0 {
-        object.insert(
-            "models_unjudged".to_owned(),
-            serde_json::json!(audit.unjudged),
-        );
-    }
-    for (key, findings) in [
-        ("model_findings", audit.findings.as_slice()),
-        ("models_catalog_warnings", audit.catalog_warnings.as_slice()),
-    ] {
-        if !findings.is_empty() {
-            object.insert(key.to_owned(), model_finding_rows(findings));
-        }
-    }
-}
-
-/// `--json` verdict object. Drift and one-obvious-way rows append to
-/// `hints[]` plus their `code`. Both families are warnings — `clean`
-/// never reads them.
-#[allow(clippy::too_many_arguments)] // the verdict's seams, one each — the render.rs:427 precedent
+/// Shared `--json` MODELS row shape. `code` rides only when the refusal/// `--json` — the ONE verdict object (`nika_cli_host::oracle::audit_json`
+/// · the same keys the MCP oracle emits · ADR-124) plus this door's own
+/// decoration: the ambient budget the cwd can see.
 fn json_verdict(
-    report: &CheckReport,
     wf: &nika_schema::raw::RawWorkflow,
-    models_audit: &ModelsAudit,
+    report: &CheckReport,
     skills: &nika_schema::ResolvedSkills,
-    drift_hints: &[String],
-    (clean, strict_clean, native_strict): (bool, bool, bool),
-    grade: nika_check::RiskGrade,
-    profile: Profile,
-    (plan, layers): (&nika_providers::ExecutionAccessPlan, &VerdictLayers),
+    verdict: &nika_cli_host::oracle::Verdict,
+    lanes: nika_cli_host::oracle::Lanes,
 ) -> VerbOutput {
-    let model_findings = &models_audit.findings;
-    let mut payload = match serde_json::to_value(report) {
-        Ok(v) => v,
-        Err(e) => return VerbOutput::env(format!("cannot serialize report: {e}")),
+    let mut obj = match nika_cli_host::oracle::audit_json(wf, report, skills, verdict, lanes) {
+        Ok(obj) => obj,
+        Err(why) => return VerbOutput::env(why),
     };
-    let identity = match serde_json::to_value(nika_runtime::engine_identity()) {
-        Ok(serde_json::Value::Object(identity)) => identity,
-        Ok(_) => return VerbOutput::env("engine identity is not a JSON object".to_owned()),
-        Err(error) => {
-            return VerbOutput::env(format!("cannot serialize engine identity: {error}"));
-        }
-    };
-    if let Some(obj) = payload.as_object_mut() {
-        if let Some(hints) = obj
-            .get_mut("hints")
-            .and_then(serde_json::Value::as_array_mut)
-        {
-            push_advisory_json_hints(hints, drift_hints, wf);
-        }
-        obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
-        obj.insert(
-            "models_resolve".to_owned(),
-            serde_json::Value::Bool(model_findings.is_empty()),
-        );
-        // Presence-gated model truth stays advisory; `clean` is untouched.
-        extend_model_audit(obj, models_audit);
-        // The access-plan rows (D-2026-08-04-N1 · P2.5): HOW this
-        // machine would reach each judged model — MACHINE truth (env
-        // key presence), presence-gated and advisory like its
-        // siblings; `clean` and the exit codes never read it.
-        let access_rows = nika_service_execution::access::lane_rows(plan);
-        if !access_rows.is_empty() {
-            obj.insert(
-                "access_plan".to_owned(),
-                serde_json::Value::Array(access_rows),
-            );
-        }
-        // Wave 2 · the four layered verdicts, additive beside `clean`
-        // (`report_version` stays 1 · `clean` keeps meaning VALID +
-        // CAPACITY FIT, what it always folded).
-        obj.insert(
-            "verdicts".to_owned(),
-            serde_json::json!({
-                "valid": layers.valid,
-                "access_ready": layers.access_ready,
-                "capacity_fit": layers.capacity_fit,
-                "run_ready": layers.run_ready(),
-                "blockers": layers.blockers,
-            }),
-        );
-        skills.extend_check_json(obj);
-        budget::stamp_json(obj);
-        obj.insert(
-            "pricing".to_owned(),
-            pricing_section(report, model_findings),
-        );
-        // The grade rides EVERY payload (advisory included) — text, JSON
-        // and the exit code render the one verdict (P0-11's law).
-        obj.insert(
-            "risk_grade".to_owned(),
-            serde_json::Value::String(grade.as_str().to_owned()),
-        );
-        obj.extend(identity);
-        if profile == Profile::Operational {
-            obj.insert(
-                "operational_clean".to_owned(),
-                serde_json::Value::Bool(strict_clean),
-            );
-        }
-        if native_strict {
-            obj.insert(
-                "native_strict_clean".to_owned(),
-                serde_json::Value::Bool(strict_clean),
-            );
-        }
-        nika_check::stamp_paid_ready(obj, &report.hints);
-    }
-    let text = format!("{payload:#}");
-    if strict_clean {
+    budget::stamp_json(&mut obj);
+    let text = format!("{:#}", serde_json::Value::Object(obj));
+    if verdict.strict_clean(report, lanes) {
         VerbOutput::ok(text)
     } else {
         VerbOutput::file(text)
     }
 }
 
-/// Drift + one-obvious-way rows on the machine `hints[]`.
-///
-/// Native-first already rides `CheckReport.hints` (kind + numbered
-/// `code` + task + advice that starts with the rule id). One-obvious-way
-/// lives in `nika-lints` and cannot join that report without a
-/// nika-check → nika-lints cycle, so this edge is the public door (#763).
-fn push_advisory_json_hints(
-    hints: &mut Vec<serde_json::Value>,
-    drift_hints: &[String],
-    wf: &nika_schema::raw::RawWorkflow,
-) {
-    for advice in drift_hints {
-        hints.push(serde_json::json!({
-            "kind": "drift",
-            "task": "-",
-            "advice": advice,
-            "code": drift::DRIFT_CODE,
-        }));
-    }
-    for lint in nika_lints::one_obvious_way(wf) {
-        hints.push(serde_json::json!({
-            "kind": "one-obvious-way",
-            "code": lint.rule,
-            "task": lint.task_id,
-            "advice": format!("{} · {}", lint.rule, lint.message),
-        }));
-    }
-}
-
-/// Several files through the same per-file ladder — the pre-commit / CI
-/// shape (`nika check a.nika.yaml b.nika.yaml`). Each file gets the FULL
-/// [`run`] report (its header names the file), every file still audits
-/// after an earlier failure (no stop-at-first — the hook UX law), and the
-/// worst spec-§4 exit survives (3 environment > 2 findings). The machine
-/// modes stay one-file-per-call — `report_version: 1` is a per-file
-/// contract — so `main` refuses `--json`/`--infer-permits` upstream
-/// before this is reached.
 #[must_use]
 pub fn run_many(
     paths: &[String],

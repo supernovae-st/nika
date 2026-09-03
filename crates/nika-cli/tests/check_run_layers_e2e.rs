@@ -415,3 +415,82 @@ fn the_run_help_and_the_explain_teach_the_exit_codes() {
         "the code teaches the two flags: {out}"
     );
 }
+
+/// W3-F10 · the exit-3 lane is ONE JSON object on stdout under `--json`
+/// on both verbs — a missing file never prints prose to a machine reader.
+#[test]
+fn the_exit_three_lane_is_json_on_both_verbs() {
+    let rig = Rig::new("exit-three");
+    for args in [
+        vec!["check", "missing.nika.yaml", "--json"],
+        vec!["run", "missing.nika.yaml", "--json", "--max-cost-usd", "1"],
+    ] {
+        let out = rig.nika(&args);
+        let stdout = text(&out.stdout);
+        let stderr = text(&out.stderr);
+        assert_eq!(out.status.code(), Some(3), "{args:?}\n{stdout}\n{stderr}");
+        let obj: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
+            panic!("{args:?}: stdout is one JSON object ({e}):\n{stdout}\nstderr: {stderr}")
+        });
+        assert_eq!(obj["parse_fatal"], true, "{obj:#}");
+        assert_eq!(obj["clean"], false, "{obj:#}");
+        assert!(
+            !stderr.contains("nika: {"),
+            "no prefixed JSON on stderr: {stderr}"
+        );
+    }
+}
+
+/// W3-F6 · `check --help` carries the layers legend and the `--json` gate
+/// keys where a CI author looks.
+#[test]
+fn the_check_help_carries_the_legend_and_the_gate_keys() {
+    let rig = Rig::new("check-help");
+    let help = text(&rig.nika(&["check", "--help"]).stdout);
+    for word in [
+        "ACCESS READY (",
+        "RUN READY (",
+        "verdicts.{valid,access_ready,capacity_fit,run_ready,blockers}",
+        "model_findings[]",
+        "judged.{composition,skills}",
+    ] {
+        assert!(help.contains(word), "`{word}` in: {help}");
+    }
+}
+
+/// W3-F3 · an outranked ready path rides the lane row: the seat wins over
+/// the present API key, and the JSON says so.
+#[test]
+fn an_outranked_path_rides_the_lane_rows() {
+    let rig = Rig::new("outranked");
+    rig.write("lane.nika.yaml", &workflow(256));
+    let out = rig.nika(&["check", "lane.nika.yaml", "--json"]);
+    let obj: serde_json::Value =
+        serde_json::from_str(text(&out.stdout).trim()).expect("one object");
+    let lane = &obj["access_plan"][0];
+    assert_eq!(lane["access"], "codex", "{obj:#}");
+    let outranked = lane["outranked"].as_array().expect("outranked rows");
+    assert!(
+        outranked
+            .iter()
+            .any(|r| r["access"] == "openai" && r["dimension"] == "outranked"),
+        "{obj:#}"
+    );
+    assert_eq!(lane["candidates"], 2, "{obj:#}");
+}
+
+/// W3-F9 · the operational profile SAYS it held on a green file, and the
+/// mock lane reads « never dials ».
+#[test]
+fn the_operational_footer_prints_on_green_and_the_mock_lane_never_dials() {
+    let rig = Rig::new("operational-green");
+    rig.write(
+        "mock.nika.yaml",
+        "nika: m\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
+    );
+    let out = rig.nika(&["check", "mock.nika.yaml", "--profile", "operational"]);
+    let stdout = text(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{stdout}");
+    assert!(stdout.contains("✔ operational · risk"), "{stdout}");
+    assert!(stdout.contains("never dials"), "{stdout}");
+}

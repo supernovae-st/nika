@@ -169,10 +169,12 @@ pub nika_display::check_render::VerdictLayers::access_lines: alloc::vec::Vec<all
 pub nika_display::check_render::VerdictLayers::access_ready: core::option::Option<bool>
 pub nika_display::check_render::VerdictLayers::blockers: alloc::vec::Vec<alloc::string::String>
 pub nika_display::check_render::VerdictLayers::capacity_fit: bool
+pub nika_display::check_render::VerdictLayers::seat_served: alloc::vec::Vec<alloc::string::String>
 pub nika_display::check_render::VerdictLayers::valid: bool
 impl nika_display::check_render::VerdictLayers
 pub fn nika_display::check_render::VerdictLayers::new(valid: bool, access_ready: core::option::Option<bool>, access_lines: alloc::vec::Vec<alloc::string::String>, capacity_fit: bool, blockers: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_display::check_render::VerdictLayers::run_ready(&self) -> core::option::Option<bool>
+pub fn nika_display::check_render::VerdictLayers::with_seat_served(self, models: alloc::vec::Vec<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_display::check_render::VerdictLayers
 pub fn nika_display::check_render::VerdictLayers::clone(&self) -> nika_display::check_render::VerdictLayers
 impl core::cmp::Eq for nika_display::check_render::VerdictLayers
