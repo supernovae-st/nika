@@ -131,7 +131,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `c39c1c274` (`c39c1c2746361546c063954c89690d8540021980`)             |
+| HEAD             | `6ade6b4b6` (`6ade6b4b6de5274600c9eb451cb0c7bd532dcbf2`)             |
 | workspace        | v0.117.1                                  |
 | crates (workspace)| 72                                              |
 | crates (admitted)| 63                                             |

@@ -396,7 +396,16 @@ impl ServiceExecutionDriver {
         };
         let mut stamper = RunSeams::of(self.workflow.run.as_ref().map(|run| &run.value)).stamper();
         let mut sink = ServiceEventSink::new(Some(self.execution_id));
-        let outcome = runtime.run(stamper.as_mut(), &mut sink).await;
+        let outcome = match options.mirror {
+            Some(factory) => {
+                let mut tee = MirroredSink {
+                    primary: &mut sink,
+                    mirror: factory(),
+                };
+                runtime.run(stamper.as_mut(), &mut tee).await
+            }
+            None => runtime.run(stamper.as_mut(), &mut sink).await,
+        };
         Ok(ServiceExecutionResult::from_runtime(
             &outcome,
             sink.into_events(),
@@ -652,7 +661,15 @@ pub struct ServiceExecutionOptions {
     model_override: Option<String>,
     max_cost_usd: Option<f64>,
     access_plan: Option<ExecutionAccessPlan>,
+    /// A factory for a second sink every event is mirrored into (the
+    /// resident's trace journal on disk · #1381): one lane per run, built
+    /// when the run starts. The service sink stays the primary.
+    mirror: Option<MirrorFactory>,
 }
+
+/// Builds the mirror sink for one run (a lane per run, the child-trace
+/// precedent): the caller decides where the journal lands.
+pub type MirrorFactory = Arc<dyn Fn() -> Box<dyn EventSink + Send> + Send + Sync>;
 
 impl std::fmt::Debug for ServiceExecutionOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -662,6 +679,7 @@ impl std::fmt::Debug for ServiceExecutionOptions {
             .field("model_override", &self.model_override)
             .field("max_cost_usd", &self.max_cost_usd)
             .field("access_plan", &self.access_plan.is_some())
+            .field("mirror", &self.mirror.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -695,6 +713,16 @@ impl ServiceExecutionOptions {
     }
 
     /// Apply the service admission's spend ceiling.
+    #[must_use]
+    /// Mirror every event of the run into the sink `factory` builds as well
+    /// (the resident's journal on disk: the same NDJSON a `nika run` leaves,
+    /// so the trace a receipt names exists and `nika trace verify` can seal
+    /// it · #1381).
+    pub fn with_mirror(mut self, factory: MirrorFactory) -> Self {
+        self.mirror = Some(factory);
+        self
+    }
+
     #[must_use]
     pub fn with_max_cost_usd(mut self, max_cost_usd: Option<f64>) -> Self {
         self.max_cost_usd = max_cost_usd;
@@ -789,6 +817,21 @@ impl ServiceEvent {
 struct ServiceEventSink {
     execution: Option<ExecutionId>,
     events: Vec<ServiceEvent>,
+}
+
+/// The service sink first (the receipt's own record), the mirror second
+/// (the journal on disk); a mirror that cannot write never touches the
+/// primary (#1381).
+struct MirroredSink<'a> {
+    primary: &'a mut ServiceEventSink,
+    mirror: Box<dyn EventSink + Send>,
+}
+
+impl EventSink for MirroredSink<'_> {
+    fn emit(&mut self, event: Event) {
+        self.primary.emit(event.clone());
+        self.mirror.emit(event);
+    }
 }
 
 impl ServiceEventSink {
