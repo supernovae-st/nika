@@ -1271,6 +1271,9 @@ fn a_stripped_trace_proceeds_but_attests_the_unchained_trust() {
             "--color",
             "never",
         ])
+        // #1367 · the staged run wrote the trace from its directory: resume
+        // from there (another cwd is another project and refuses).
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(resumed.stdout).expect("utf8");
