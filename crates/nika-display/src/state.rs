@@ -324,15 +324,7 @@ impl RunView {
                 self.verdict = Some(true);
                 self.absorb_terminal_cost(event);
             }
-            // #1438 · the operator's cancellation at a wave boundary: a
-            // decision, never a defect · the detail says what completed and
-            // what never started, the cost summary rides like every terminal.
-            EventKind::WorkflowCancelled => {
-                self.verdict = Some(false);
-                self.cancelled = true;
-                self.workflow_detail = str_field(event, "detail").map(str::to_owned);
-                self.absorb_terminal_cost(event);
-            }
+            EventKind::WorkflowCancelled => self.apply_workflow_cancelled(event),
             EventKind::WorkflowFailed => {
                 self.verdict = Some(false);
                 // A workflow-level reason (run-end NIKA-VAR-009) rides the
@@ -357,6 +349,16 @@ impl RunView {
             // nothing rather than lying.
             _ => {}
         }
+    }
+
+    /// The operator's cancellation at a wave boundary (#1438): a decision,
+    /// never a defect · the detail says what completed and what never
+    /// started, the cost summary rides like every terminal.
+    fn apply_workflow_cancelled(&mut self, event: &Event) {
+        self.verdict = Some(false);
+        self.cancelled = true;
+        self.workflow_detail = str_field(event, "detail").map(str::to_owned);
+        self.absorb_terminal_cost(event);
     }
 
     /// One `task_completed` frame — row terminal stamp · output · tokens
