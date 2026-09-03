@@ -30,6 +30,18 @@ pub fn schema() -> VerbOutput {
     VerbOutput::ok(nika_pack::schema_json().to_owned())
 }
 
+/// `nika spec --schema --project` — the JSON Schema for the project file
+/// (`nika.yaml` · W0-F3): owned by the grammar's crate, proven against its
+/// parser, English throughout.
+#[must_use]
+pub fn project_schema() -> VerbOutput {
+    VerbOutput::ok(
+        nika_vocab::project::PROJECT_SCHEMA_JSON
+            .trim_end()
+            .to_owned(),
+    )
+}
+
 // The showroom listing lives in `verbs::examples` (the organized
 // corpus experience — tiers · titles · verb chips · full filenames);
 // `run` executes via `verbs::run::example`.
@@ -37,8 +49,14 @@ pub fn schema() -> VerbOutput {
 /// The pack identity's two dumps behind one verb — the spec card,
 /// `--canon`, or the JSON Schema — one verb over the pack identity.
 #[must_use]
-pub fn spec_or_schema(canon: bool, want_schema: bool) -> crate::verbs::VerbOutput {
-    if want_schema { schema() } else { spec(canon) }
+pub fn spec_or_schema(canon: bool, want_schema: bool, project: bool) -> crate::verbs::VerbOutput {
+    if want_schema && project {
+        project_schema()
+    } else if want_schema {
+        schema()
+    } else {
+        spec(canon)
+    }
 }
 
 #[cfg(test)]

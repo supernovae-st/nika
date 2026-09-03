@@ -261,6 +261,10 @@ enum Command {
         /// `schema` verb, one roof).
         #[arg(long, conflicts_with = "canon")]
         schema: bool,
+        /// With `--schema`: the project file's schema (`nika.yaml`) instead
+        /// of the workflow's.
+        #[arg(long, requires = "schema")]
+        project: bool,
     },
     /// The embedded provider/model catalog (models · capabilities · env vars).
     #[command(hide = true, display_order = 52)]
@@ -862,9 +866,11 @@ fn dispatch_verb(
             yes,
         } => wire_verb(target, &dir, dry_run, yes),
         Command::Model { action } => model_args::model_verb(action),
-        Command::Spec { canon, schema } => {
-            emit(&verbs::pack_surface::spec_or_schema(canon, schema))
-        }
+        Command::Spec {
+            canon,
+            schema,
+            project,
+        } => emit(&verbs::pack_surface::spec_or_schema(canon, schema, project)),
         Command::Catalog { json, tools } => {
             if tools {
                 emit(&verbs::tools::run(json, plain_theme))

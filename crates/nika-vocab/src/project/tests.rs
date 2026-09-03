@@ -544,3 +544,70 @@ fn the_type_discriminant_is_tasks_never_the_filename() {
     assert!(!is_project("ceiling: 0.50\n"));
     assert!(!is_project("name: something\ntasks: []\n"));
 }
+
+/// The schema and the parser cannot drift apart (W0-F3): every key set the
+/// parser closes is the schema's `properties`, and every enum the schema
+/// declares is the spelling set the parser accepts.
+#[test]
+fn the_project_schema_mirrors_the_parser() {
+    let schema: serde_json::Value =
+        serde_json::from_str(super::PROJECT_SCHEMA_JSON).expect("the schema is JSON");
+    let keys = |node: &serde_json::Value| -> Vec<String> {
+        let mut keys: Vec<String> = node["properties"]
+            .as_object()
+            .expect("an object schema")
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
+    };
+    let sorted = |set: &[&str]| -> Vec<String> {
+        let mut keys: Vec<String> = set.iter().map(|k| (*k).to_owned()).collect();
+        keys.sort();
+        keys
+    };
+    assert_eq!(keys(&schema), sorted(super::TOP_LEVEL_KEYS));
+    assert_eq!(
+        keys(&schema["properties"]["traces"]),
+        sorted(super::parse::TRACES_KEYS)
+    );
+    assert_eq!(
+        keys(&schema["properties"]["registry"]),
+        sorted(super::parse::REGISTRY_KEYS)
+    );
+    assert_eq!(
+        keys(&schema["properties"]["arm"]["items"]),
+        sorted(super::parse::ARM_ENTRY_KEYS)
+    );
+    assert_eq!(
+        schema["additionalProperties"], false,
+        "the grammar is closed"
+    );
+    let floor: Vec<&str> = schema["properties"]["registry"]["properties"]["floor"]["enum"]
+        .as_array()
+        .expect("the floor enum")
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    let tiers: Vec<&str> = ProvenanceFloor::ALL.iter().map(|t| t.as_str()).collect();
+    assert_eq!(floor, tiers, "the floor spellings are the ladder's");
+    let miss: Vec<&str> = schema["properties"]["arm"]["items"]["properties"]["manqué"]["enum"]
+        .as_array()
+        .expect("the miss-policy enum")
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    for policy in [
+        MissPolicy::Rattraper,
+        MissPolicy::RattraperUneFois,
+        MissPolicy::Sauter,
+    ] {
+        assert!(
+            miss.contains(&policy.as_str()),
+            "{} is a miss policy",
+            policy.as_str()
+        );
+    }
+    assert_eq!(miss.len(), 3);
+}

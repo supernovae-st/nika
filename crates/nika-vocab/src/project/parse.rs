@@ -22,13 +22,13 @@ use super::{
 use std::time::Duration;
 
 /// The closed `traces:` key set.
-const TRACES_KEYS: &[&str] = &["keep"];
+pub(crate) const TRACES_KEYS: &[&str] = &["keep"];
 /// The closed `registry:` key set.
-const REGISTRY_KEYS: &[&str] = &["floor"];
+pub(crate) const REGISTRY_KEYS: &[&str] = &["floor"];
 /// The closed `arm:` entry key set — the registry's THIRTEEN keys
 /// (the cadence arc's `Beat` defines them; this gate accepts them all
 /// and judges only the five that are its own).
-const ARM_ENTRY_KEYS: &[&str] = &[
+pub(crate) const ARM_ENTRY_KEYS: &[&str] = &[
     "workflow",
     "cadence",
     "où",

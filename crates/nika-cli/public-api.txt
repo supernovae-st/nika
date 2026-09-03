@@ -866,9 +866,10 @@ pub mod nika_cli::verbs::new
 pub fn nika_cli::verbs::new::dispatch(from: core::option::Option<&str>, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::new::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::pack_surface
+pub fn nika_cli::verbs::pack_surface::project_schema() -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::pack_surface::schema() -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::pack_surface::spec(canon: bool) -> nika_cli_host::output::VerbOutput
-pub fn nika_cli::verbs::pack_surface::spec_or_schema(canon: bool, want_schema: bool) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::pack_surface::spec_or_schema(canon: bool, want_schema: bool, project: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::run
 pub use nika_cli::verbs::run::RecoveredTrace
 pub use nika_cli::verbs::run::recover_events
