@@ -93,6 +93,42 @@ pub enum ResumeVersion {
 /// The trace's recorded engine version — the `workflow_started` boot
 /// manifest's `engine_version` field (`None` on a pre-A5 journal).
 #[must_use]
+/// The project root fingerprint the trace's opening frame recorded, when
+/// the engine that wrote it knew one (#1367).
+pub fn trace_project_root(events: &[Event]) -> Option<String> {
+    let started = events
+        .iter()
+        .find(|e| matches!(e.kind, EventKind::WorkflowStarted))?;
+    str_field(started, "project_root_fingerprint").map(str::to_owned)
+}
+
+/// Whether `--resume` runs in the project that wrote the trace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ProjectVerdict {
+    /// The trace names no project (an older engine wrote it): no claim.
+    Unbound,
+    /// The trace names this project.
+    Proceed,
+    /// The trace names another project: refused, with the teaching.
+    Refuse(String),
+}
+
+/// Judge the trace's project against the current one: a trace is not a
+/// bearer artifact — a copy resumed from another project would replay the
+/// first project's outputs under the second's name (#1367).
+#[must_use]
+pub fn judge_project(events: &[Event], current: Option<&str>) -> ProjectVerdict {
+    match (trace_project_root(events), current) {
+        (None, _) => ProjectVerdict::Unbound,
+        (Some(recorded), Some(here)) if recorded == here => ProjectVerdict::Proceed,
+        (Some(_), _) => ProjectVerdict::Refuse(
+            "this trace was written by another project (its root fingerprint differs) — a trace is not a bearer artifact: resume it from the project that wrote it, or run the workflow afresh here".to_owned(),
+        ),
+    }
+}
+
+#[must_use]
 pub fn trace_engine_version(events: &[Event]) -> Option<String> {
     let started = events
         .iter()
@@ -1045,6 +1081,38 @@ mod tests {
             ));
         }
         e
+    }
+
+    fn started_in_project(root: Option<&str>) -> Event {
+        let mut e = started(Some("0.117.1"));
+        if let Some(r) = root {
+            e = e.with_field(KeyValue::new(
+                "project_root_fingerprint",
+                FieldValue::String(r.to_owned()),
+            ));
+        }
+        e
+    }
+
+    /// A trace names the project that wrote it; another project refuses to
+    /// resume it; an older trace with no project is no claim (#1367).
+    #[test]
+    fn a_trace_is_bound_to_the_project_that_wrote_it() {
+        let here = vec![started_in_project(Some("aaaa"))];
+        assert_eq!(judge_project(&here, Some("aaaa")), ProjectVerdict::Proceed);
+        assert!(matches!(
+            judge_project(&here, Some("bbbb")),
+            ProjectVerdict::Refuse(ref t) if t.contains("another project") && t.contains("not a bearer artifact")
+        ));
+        assert!(
+            matches!(judge_project(&here, None), ProjectVerdict::Refuse(_)),
+            "no current fingerprint cannot match a bound trace"
+        );
+        assert_eq!(
+            judge_project(&[started_in_project(None)], Some("aaaa")),
+            ProjectVerdict::Unbound
+        );
+        assert_eq!(trace_project_root(&here).as_deref(), Some("aaaa"));
     }
 
     #[test]

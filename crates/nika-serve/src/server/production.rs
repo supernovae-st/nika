@@ -68,6 +68,17 @@ async fn drive_resident_execution(
     context: nika_execution::ExecutionContext<'_>,
     max_cost_usd: Option<f64>,
 ) -> ExecutionOutcome {
+    // The journal a `nika run` would leave, under the project the resident
+    // serves: the trace the receipt names exists on disk (#1381). A lane per
+    // run — the factory builds the sink inside the worker.
+    let journal_dir = display_root.join(nika_dap::store::TRACE_DIR);
+    let (execution_id, trace_id) = (context.execution_id(), context.trace_id());
+    let journal: nika_service_execution::MirrorFactory = std::sync::Arc::new(move || {
+        Box::new(
+            nika_dap::journal::TraceFileSink::new(journal_dir.clone())
+                .for_execution(execution_id, trace_id),
+        )
+    });
     let Some(driver) = ServiceExecutionDriver::new(context, display_root) else {
         return ExecutionOutcome::failed(
             "admission_refused",
@@ -81,7 +92,7 @@ async fn drive_resident_execution(
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     let _cancel = CancelOnDrop(Some(cancel_tx));
     match tokio::task::spawn_blocking(move || {
-        run_admitted_resident_job(driver, cancel_rx, max_cost_usd, plan)
+        run_admitted_resident_job(driver, cancel_rx, max_cost_usd, plan, journal)
     })
     .await
     {
@@ -95,6 +106,7 @@ fn run_admitted_resident_job(
     cancel: tokio::sync::oneshot::Receiver<()>,
     max_cost_usd: Option<f64>,
     plan: nika_service_execution::ExecutionAccessPlan,
+    journal: nika_service_execution::MirrorFactory,
 ) -> ExecutionOutcome {
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -104,7 +116,8 @@ fn run_admitted_resident_job(
     };
     let options = ServiceExecutionOptions::new()
         .with_max_cost_usd(max_cost_usd)
-        .with_access_plan(plan);
+        .with_access_plan(plan)
+        .with_mirror(journal);
     rt.block_on(async move {
         tokio::select! {
             result = driver.execute(options) => match result {

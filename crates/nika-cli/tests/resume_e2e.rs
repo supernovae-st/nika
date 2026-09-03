@@ -1191,6 +1191,7 @@ fn a_tampered_trace_is_refused_naming_the_opt_out() {
             "--color",
             "never",
         ])
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stderr = String::from_utf8(refused.stderr).expect("utf8");
@@ -1271,6 +1272,9 @@ fn a_stripped_trace_proceeds_but_attests_the_unchained_trust() {
             "--color",
             "never",
         ])
+        // #1367 · the staged run wrote the trace from its directory: resume
+        // from there (another cwd is another project and refuses).
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(resumed.stdout).expect("utf8");
@@ -1318,6 +1322,7 @@ fn the_named_opt_out_proceeds_loudly_and_attests() {
             "--color",
             "never",
         ])
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(opted.stdout).expect("utf8");
@@ -1352,6 +1357,7 @@ fn the_named_opt_out_proceeds_loudly_and_attests() {
             "--color",
             "never",
         ])
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(control.stdout).expect("utf8");
@@ -1425,6 +1431,9 @@ fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
             "--color",
             "never",
         ])
+        // #1367 · a trace resumes from the project that wrote it (the run's
+        // cwd is its root); another cwd is another project and refuses.
+        .current_dir(&dir)
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(resumed.stdout).expect("utf8");
@@ -1462,6 +1471,7 @@ fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
             "--color",
             "never",
         ])
+        .current_dir(&dir)
         .output()
         .expect("binary runs");
     let stderr = String::from_utf8(refused.stderr).expect("utf8");

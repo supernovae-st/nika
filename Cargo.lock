@@ -4970,6 +4970,7 @@ dependencies = [
  "jiff",
  "miette",
  "nika-cadence",
+ "nika-dap",
  "nika-error",
  "nika-execution",
  "nika-fs",
