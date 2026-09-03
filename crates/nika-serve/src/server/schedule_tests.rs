@@ -634,6 +634,52 @@ async fn active_unplannable_schedule_is_refused_before_persistence() {
     server.stop().await.expect("stop");
 }
 
+/// The served registry's scope binds schedules too (#1369): a listener on
+/// `workflows/` refuses a schedule naming a workflow outside it, with the
+/// teaching; one under it is accepted under its project-relative name.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_schedule_cannot_reach_outside_the_served_registry() {
+    let world = TestWorld::new();
+    std::fs::write(
+        world.root.path().join("top.nika.yaml"),
+        "nika: top\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n",
+    )
+    .expect("a workflow outside the served registry");
+    let server = world
+        .start_with_workflow_roots(
+            Arc::new(NoopBackend),
+            limits(),
+            world.root.path(),
+            &world.workflows,
+        )
+        .await;
+    let outside = server
+        .request(&put_request(
+            "top",
+            &body("top.nika.yaml", 0.25),
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(outside.status, 422, "{}", outside.body);
+    assert!(
+        outside.body.contains("schedule.workflow_outside_registry")
+            && outside.body.contains("serve --workflows"),
+        "the teaching: {}",
+        outside.body
+    );
+    let inside = server
+        .request(&put_request(
+            "inside",
+            &body("workflows/root.nika.yaml", 0.25),
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(inside.status, 200, "{}", inside.body);
+    server.stop().await.expect("stop");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn validation_and_fire_share_the_resident_workflow_root() {
     let world = TestWorld::new();

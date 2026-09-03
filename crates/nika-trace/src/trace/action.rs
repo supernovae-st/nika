@@ -33,7 +33,12 @@ pub enum TraceAction {
     /// workflow · terminal state (completed/failed/paused) · the
     /// resume-candidate marker (★ — the newest of each workflow, the
     /// trace retention never collects · ADR-100).
-    Ls {},
+    Ls {
+        /// One JSON document (`traces: [{name, path, workflow, state,
+        /// paused_task, bytes, modified, newest}]`) instead of the table.
+        #[arg(long)]
+        json: bool,
+    },
     /// Remove traces from the store — one by name/path, `--older-than
     /// <dur>`, or `--all`. Removing a paused trace refuses without
     /// `--force` and names the unanswered prompt it would destroy
@@ -58,6 +63,10 @@ pub enum TraceAction {
     Outputs {
         /// Trace NDJSON path (default: the workspace's latest trace).
         trace: Option<PathBuf>,
+        /// One JSON document (`trace` · `tasks: [{id, verb, status, cause,
+        /// error_code, recovered_from, …}]`) instead of the table.
+        #[arg(long)]
+        json: bool,
     },
     /// Project the journal to OTLP/JSON lines — every `OTel` tool becomes
     /// a viewer (drag into Jaeger UI ≥1.60 · POST lines to any OTLP/HTTP

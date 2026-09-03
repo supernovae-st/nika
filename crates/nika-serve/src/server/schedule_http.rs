@@ -274,6 +274,19 @@ async fn validate_workflow(
     definition: &ScheduleDefinition,
     state: &AppState,
 ) -> Result<(), Response<ResponseBody>> {
+    // The served registry's scope (#1369): what this listener exposes is
+    // what it schedules; the resident's own beats are not this door's.
+    if let Some(prefix) = &state.registry_scope
+        && !super::registry::within_scope(Some(prefix), definition.workflow())
+    {
+        return Err(json_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "schedule.workflow_outside_registry",
+            &format!(
+                "workflow is outside the served registry `{prefix}/` — this listener exposes and schedules only what lives under it (serve --workflows)"
+            ),
+        ));
+    }
     let project = Arc::clone(&state.project);
     let service = state.service;
     let workflow = definition.workflow().to_owned();

@@ -20,7 +20,7 @@ use super::*;
 use crate::{MAX_EXECUTION_SNAPSHOT_METADATA_BYTES, MAX_EXECUTION_SNAPSHOT_PATH_BYTES};
 
 pub(super) const TOKEN: &str = "remote-test-token-012345678901234567890123456789";
-const WORKFLOW: &str = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
+pub(super) const WORKFLOW: &str = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
 
 pub(super) struct TestWorld {
     pub(super) root: tempfile::TempDir,
@@ -146,7 +146,7 @@ impl TestServer {
 }
 
 #[derive(Debug)]
-struct TestBackend {
+pub(super) struct TestBackend {
     calls: AtomicUsize,
     disposition: ExecutionDisposition,
     hang: bool,
@@ -201,7 +201,7 @@ impl ExecutionBackend for GatedBackend {
 }
 
 impl TestBackend {
-    fn completes(disposition: ExecutionDisposition) -> Self {
+    pub(super) fn completes(disposition: ExecutionDisposition) -> Self {
         Self {
             calls: AtomicUsize::new(0),
             disposition,

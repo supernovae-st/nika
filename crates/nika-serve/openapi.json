@@ -671,7 +671,7 @@
   "info": {
     "description": "Authenticated loopback remote execution and declarative schedules. Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent.",
     "title": "nika serve",
-    "version": "0.116.2"
+    "version": "0.117.1"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -1353,7 +1353,7 @@
                 }
               }
             },
-            "description": "Relative .nika.yaml names"
+            "description": "Project-relative .nika.yaml names under the served registry (--workflows)"
           },
           "401": {
             "content": {

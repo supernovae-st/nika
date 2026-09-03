@@ -201,6 +201,10 @@ struct AppState {
     token: BearerToken,
     store: StoreHandle,
     project: Arc<OwnedDir>,
+    /// The served registry (`--workflows`) and its project-relative scope
+    /// (#1369): what this listener exposes and schedules.
+    registry: Arc<OwnedDir>,
+    registry_scope: Option<String>,
     service: ExecutionService,
     coordinator: ResidentExecutionCoordinator,
     limits: ServerLimits,
@@ -429,6 +433,10 @@ impl BoundServer {
                 .set(prepared.workflow_root.clone());
             Arc::clone(&prepared.project)
         };
+        let registry_scope = registry::registry_scope(
+            authority.state.workflow_root.get().map(PathBuf::as_path),
+            config.workflow_root(),
+        );
         let listener = TcpListener::bind(config.bind())
             .await
             .map_err(|error| ServerError::Listener(error.kind()))?;
@@ -436,6 +444,8 @@ impl BoundServer {
             token: prepared.token,
             store: authority.state.store.clone(),
             project,
+            registry: Arc::clone(&prepared.project),
+            registry_scope,
             service: authority.state.service,
             coordinator: authority.coordinator.clone(),
             limits: authority.state.limits,
@@ -1123,6 +1133,8 @@ mod coordinator_tests;
 mod credential_tests;
 #[cfg(test)]
 mod failure_tests;
+#[cfg(test)]
+mod registry_tests;
 #[cfg(test)]
 mod result_tests;
 #[cfg(test)]

@@ -51,6 +51,26 @@ pub fn outputs(trace: &str, theme: Theme) -> VerbOutput {
     VerbOutput::ok(render_outputs(&view, trace, theme))
 }
 
+/// `nika trace outputs --json <trace>` — the per-task machine projection
+/// (#1247 · #1275): one document, `trace` and `tasks` (each with its id,
+/// verb, status, cause, error code and the original error a recovered
+/// task was repaired from). The projection `tasks_json` carries.
+#[must_use]
+pub fn outputs_json(trace: &str) -> VerbOutput {
+    let (view, events) = match load_view_and_events(trace) {
+        Ok(pair) => pair,
+        Err(out) => return out,
+    };
+    let projection = tasks_json(&view, &events);
+    let document = serde_json::json!({
+        "outputs_version": 1,
+        "trace": trace,
+        "state": projection["state"],
+        "tasks": projection["tasks"],
+    });
+    VerbOutput::ok(serde_json::to_string_pretty(&document).unwrap_or_default())
+}
+
 /// Load + tolerantly parse + fold one trace file (the shared entry of
 /// every static trace reader).
 pub(crate) fn load_view(trace: &str) -> Result<RunView, VerbOutput> {
@@ -552,6 +572,30 @@ mod tests {
     /// One row per task: verb (the started note) · duration · tokens ·
     /// preview or the honest dash — plus the totals + peek hint with
     /// the REAL trace path.
+    /// `outputs --json` (#1247): one document — the run's state and one
+    /// row per task with its id, verb and status (the projection the engine
+    /// carried with no verb to print it).
+    #[test]
+    fn outputs_json_projects_every_task() {
+        let path = stage("outputs-json.ndjson", &demo::success());
+        let out = outputs_json(&path.to_string_lossy());
+        assert_eq!(out.code, exit::OK);
+        let doc: serde_json::Value = serde_json::from_str(&out.text).expect("one JSON document");
+        assert_eq!(doc["outputs_version"], 1);
+        assert_eq!(doc["state"], "completed", "{doc}");
+        let tasks = doc["tasks"].as_array().expect("the task rows");
+        assert!(!tasks.is_empty(), "{doc}");
+        for task in tasks {
+            assert!(task["id"].is_string(), "{task}");
+            assert!(task["status"].is_string(), "{task}");
+            assert!(task.get("recovered_from").is_some(), "{task}");
+        }
+        assert!(
+            tasks.iter().any(|t| t["status"] == "ok"),
+            "the demo completes tasks: {doc}"
+        );
+    }
+
     #[test]
     fn outputs_table_renders_per_task_rows_and_totals() {
         let path = stage("outputs-demo.ndjson", &demo::success());

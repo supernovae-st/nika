@@ -22,7 +22,7 @@ use super::model::{
     HealthResponse, JobResponse, JobStatusResponse, SnapshotValidationAck,
     TraceVerificationResponse, WorkflowListResponse, WorkflowMetadataResponse,
 };
-use super::registry::{list_workflows, valid_workflow_name, workflow_exists};
+use super::registry::{list_workflows_under, valid_workflow_name, within_scope, workflow_exists};
 use super::sse;
 
 const IDEMPOTENCY_KEY: &str = "idempotency-key";
@@ -395,9 +395,15 @@ async fn admit_job(
 }
 
 async fn list_registry(state: &AppState) -> Response<ResponseBody> {
-    let project = Arc::clone(&state.project);
+    // The served registry (#1369): walked from `--workflows`, named from the
+    // project root; the whole project only when the two roots coincide.
+    let (dir, prefix) = match &state.registry_scope {
+        Some(prefix) => (Arc::clone(&state.registry), prefix.clone()),
+        None => (Arc::clone(&state.project), String::new()),
+    };
     let limits = state.snapshot_limits;
-    let listed = tokio::task::spawn_blocking(move || list_workflows(&project, limits)).await;
+    let listed =
+        tokio::task::spawn_blocking(move || list_workflows_under(&dir, &prefix, limits)).await;
     match listed {
         Ok(Ok(workflows)) => json_response(StatusCode::OK, &WorkflowListResponse::new(workflows)),
         Ok(Err(
@@ -413,7 +419,10 @@ async fn workflow_metadata(path: &str, state: &AppState) -> Response<ResponseBod
         return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
             .into_response();
     };
-    if name.is_empty() || !valid_workflow_name(name) {
+    if name.is_empty()
+        || !valid_workflow_name(name)
+        || !within_scope(state.registry_scope.as_deref(), name)
+    {
         return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
             .into_response();
     }
