@@ -481,7 +481,11 @@ struct RunArgs {
     /// trusted: a broken chain refuses (exit 2), naming `nika trace
     /// verify` and the `--resume-unverified` opt-out. The trace's
     /// recorded engine version is JUDGED (F-P21): a resume under a
-    /// different engine refuses, naming both versions.
+    /// different engine refuses, naming both versions. The trace's recorded
+    /// project is JUDGED first: a trace written by another project refuses
+    /// (exit 3 · a trace is not a bearer artifact — resume it from the
+    /// project that wrote it). Under `--resume-unverified` that binding is
+    /// unverified too, and every recorded human decision re-asks.
     #[arg(long, value_name = "TRACE", conflicts_with = "dry_run")]
     resume: Option<PathBuf>,
     /// Declare a cross-version resume compatible (F-P21 · NEP-0014 law

@@ -164,6 +164,10 @@ fn load_resume_plan(
     if let Some(note) = &recovered.truncated_note {
         eprintln!("nika run: {note}");
     }
+    // The project judgment FIRST (#1367 · the wave-7 gauntlet): a trace
+    // written by another project has nothing else to judge, and no notice
+    // below may describe a run that never happens.
+    judge_project(&recovered.events, unverified.is_some(), output_json)?;
     // F-P21 (NEP-0014 law 4) — the version judgment BEFORE the fold:
     // judged, never assumed (the silent cross-version degradation dies).
     let judgment = nika_dap::resume::judge_version(&recovered.events, env!("CARGO_PKG_VERSION"));
@@ -196,7 +200,6 @@ fn load_resume_plan(
         output_json,
     )?;
     judge_access(&recovered.events, access, &label, output_json)?;
-    judge_project(&recovered.events, output_json)?;
     let fold = nika_dap::resume::fold_plan(&recovered.events);
     if fold.plan.is_empty() {
         // Nothing skippable — an older engine's trace or a run with no
@@ -209,6 +212,7 @@ fn load_resume_plan(
         );
     }
     let mut plan = fold.plan;
+    reask_gates_when_unverified(&mut plan, wf, unverified.is_some());
     if let Some(from) = &req.from {
         nika_dap::resume::apply_from(&mut plan, wf, from)
             .map_err(|message| refuse(format!("--resume: {message}")))?;
@@ -329,14 +333,48 @@ fn gate_trust(
 /// The resume's ACCESS judgment (One Door · wave 1b · the pack's law
 /// « resume cannot switch access silently »): the lanes the trace's
 /// boot manifest recorded against the frozen plan THIS resume resolved.
+/// Under `--resume-unverified` every recorded human decision re-asks (the
+/// wave-7 gauntlet): a decision is a credential, and the chain that bound it
+/// to this run is waived. Says which ones.
+fn reask_gates_when_unverified(
+    plan: &mut nika_runtime::resume::ResumePlan,
+    wf: &RawWorkflow,
+    unverified: bool,
+) {
+    if !unverified {
+        return;
+    }
+    let asked = nika_dap::resume::strip_gate_records(plan, wf);
+    if !asked.is_empty() {
+        eprintln!(
+            "nika run: --resume: unverified — {} recorded human decision(s) re-ask ({}) · a \
+             decision is a credential and the chain that bound it is waived",
+            asked.len(),
+            asked.join(" · ")
+        );
+    }
+}
+
 /// The trace's project against this one (#1367): the same fingerprint the
 /// composition root stamps (blake3 of the canonical sandbox root · the
 /// process cwd for a local run). Another project refuses with the teaching;
 /// an older trace with no fingerprint is no claim.
-fn judge_project(events: &[nika_event::Event], output_json: bool) -> Result<(), u8> {
+fn judge_project(
+    events: &[nika_event::Event],
+    unverified: bool,
+    output_json: bool,
+) -> Result<(), u8> {
     let here = std::env::current_dir()
         .ok()
         .and_then(|cwd| nika_runtime::project_root_fingerprint(&cwd));
+    if unverified {
+        // The recorded fingerprint is data the waived chain no longer
+        // protects: say so before trusting it.
+        eprintln!(
+            "nika run: --resume: unverified — the trace's project binding is a recorded field the \
+             waived chain no longer protects; resume only a trace you wrote"
+        );
+    }
     match nika_dap::resume::judge_project(events, here.as_deref()) {
         nika_dap::resume::ProjectVerdict::Refuse(message) => {
             let message = format!("--resume: {message}");

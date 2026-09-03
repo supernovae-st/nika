@@ -447,13 +447,15 @@ fn answered_leg(
     // override — and judged against the trace's recorded lanes like any
     // resume (wave 1b · an access change is never silent).
     let plan = nika_cli_host::access::resolve_plan(wf, report, model_override, access_pin);
+    // A refusal reaches BOTH machine faces: the `--output json` envelope
+    // and the `--json` stream (the wave-7 gauntlet measured 0 bytes there).
     let setup = match resume_setup(
         Some(request),
         wf,
         source,
         model_override,
         (&plan, access_pin),
-        output_json,
+        output_json || json,
     ) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
