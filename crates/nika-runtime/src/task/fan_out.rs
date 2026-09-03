@@ -204,6 +204,7 @@ pub(super) fn fan_out_result(
             error,
             cost_usd,
             cost_unpriced,
+            access: None,
         },
     }
 }
@@ -346,6 +347,7 @@ mod tests {
                 ),
                 cost_usd: None,
                 cost_unpriced: None,
+                access: None,
             },
         )
     }
@@ -489,6 +491,7 @@ mod tests {
                 error: boom("command exited with status 1:"),
                 cost_usd: None,
                 cost_unpriced: None,
+                access: None,
             },
         );
         stamp_iteration(&mut ran, 2, &Value::String("gamma".into()));

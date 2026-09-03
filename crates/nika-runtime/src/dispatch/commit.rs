@@ -173,6 +173,7 @@ impl super::Dispatched {
                 cost_source: None,
                 cost_unpriced: None,
                 evidence: Some(CommitEvidence::Refused(Box::new(divergence))),
+                access: None,
             }),
         }
     }

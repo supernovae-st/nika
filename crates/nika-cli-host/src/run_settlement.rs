@@ -158,6 +158,10 @@ struct RunSettlement<'a, T> {
     /// The cause, when `status` is `failed` and a task failed (#1403).
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<&'a SettlementError>,
+    /// The lanes the run executed (One Door · wave 2b · the ONE lane-row
+    /// shape) — the verdict frame answers « which path served ».
+    #[serde(skip_serializing_if = "Option::is_none")]
+    access_plan: Option<&'a [serde_json::Value]>,
 }
 
 /// Append exactly one terminal NDJSON document to a machine stream.
@@ -205,6 +209,7 @@ fn write_run_settlement_bound<T: Serialize>(
             outputs,
             receipt,
             error,
+            access_plan: None,
         },
     )
     .map_err(std::io::Error::from)?;
@@ -224,6 +229,7 @@ pub fn write_local_run_settlement<T: Serialize, W: Write>(
     snapshot_digest: &str,
     trace: Option<(&Path, &TraceProof)>,
     error: Option<&SettlementError>,
+    access_plan: Option<&[serde_json::Value]>,
 ) -> std::io::Result<()> {
     let execution_id = execution.to_string();
     let trace_id = nika_types::id::TraceId::from(execution).to_string();
@@ -255,7 +261,22 @@ pub fn write_local_run_settlement<T: Serialize, W: Write>(
         // A cause rides only a FAILED frame: a paused or succeeded run
         // has none to claim.
         error: error.filter(|_| status == "failed"),
+        access_plan,
     })
+}
+
+/// The cause of a run the runtime REFUSED before any task (the launch
+/// refusals the operator can fix: no access path · an unsatisfied pin ·
+/// a missing input) — the verdict frame carries the code CI branches on
+/// (wave 2b · the W1 gauntlet met a failed `run_settled` with no
+/// `error`). `task` is `-`: no task ran.
+#[must_use]
+pub fn refusal_error(err: &nika_runtime::RuntimeError) -> SettlementError {
+    SettlementError {
+        code: err.spec_code(),
+        message: err.to_string(),
+        task: "-".to_owned(),
+    }
 }
 
 #[cfg(test)]
@@ -340,6 +361,7 @@ mod tests {
                 "snapshot",
                 None,
                 None,
+                None,
             )
             .expect("settlement writes");
         }
@@ -369,6 +391,7 @@ mod tests {
                 execution,
                 "snapshot",
                 Some((Path::new(".nika/traces/exact.ndjson"), &proof)),
+                None,
                 None,
             )
             .expect("settlement writes");

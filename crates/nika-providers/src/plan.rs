@@ -213,8 +213,13 @@ fn pinned_plan(needs: &[&ModelNeed], probes: &[ProviderProbe], pin: &str) -> Exe
     let has_agent = needs.iter().any(|n| n.agent);
     let pin_refusal =
         refuse_pin_for_verbs(models.iter().copied(), probes, pin, has_infer, has_agent);
+    // The admitted lanes come from the ONE pinned resolver (a ready seat
+    // pin serves EVERY static model — the envelope `model:` is a hint
+    // there); every static model the resolver dropped keeps its lane as
+    // REFUSED with the witnesses (wave 2: a refused lane must reach
+    // `check`'s ACCESS rung; the map used to drop it silently).
     let owned: Vec<String> = models.iter().map(|m| (*m).to_owned()).collect();
-    let lanes = access_plan_map(&owned, probes, Some(pin))
+    let mut lanes: BTreeMap<String, LaneVerdict> = access_plan_map(&owned, probes, Some(pin))
         .into_iter()
         .map(|(model, plan)| {
             let candidates = candidates_for(probes, provider_of(&model)).len();
@@ -224,6 +229,20 @@ fn pinned_plan(needs: &[&ModelNeed], probes: &[ProviderProbe], pin: &str) -> Exe
             )
         })
         .collect();
+    for model in &models {
+        if lanes.contains_key(*model) {
+            continue;
+        }
+        let candidates = candidates_for(probes, provider_of(model));
+        let verdict = match resolve_access(model, &candidates, None, Some(pin)) {
+            Ok(plan) => LaneVerdict::Admitted(ResolvedLane {
+                plan,
+                candidates: candidates.len(),
+            }),
+            Err(refusal) => LaneVerdict::Refused(refusal),
+        };
+        lanes.insert((*model).to_owned(), verdict);
+    }
     let seat = if pin_refusal.is_none() {
         pinned_seat(pin, probes)
     } else {
@@ -339,6 +358,7 @@ fn infer_grade_ready(id: &str, probes: &[ProviderProbe]) -> bool {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
+    #[cfg(feature = "access-harness")]
     use nika_types::access::BillingClass;
 
     use super::*;
@@ -364,6 +384,7 @@ mod tests {
         )
     }
 
+    #[cfg(feature = "access-harness")]
     fn harness_probe(id: &str, serves: &[&str], signed_in: bool) -> ProviderProbe {
         ProviderProbe::new(
             id,

@@ -26,7 +26,7 @@ fn registry_cache_provenance_survives_acquisition_into_the_footer() {
         std::slice::from_ref(&target),
         &flags,
         false,
-        None,
+        (None, None),
         Theme::new(false, false, false),
     );
     assert_eq!(out.code, 0, "{}", out.text);
@@ -47,7 +47,7 @@ fn registry_cache_provenance_survives_acquisition_into_the_footer() {
         &[target],
         &flags,
         true,
-        None,
+        (None, None),
         Theme::new(false, false, false),
     );
     assert_eq!(refused.code, 3);
@@ -90,7 +90,7 @@ fn direct_cache_path_is_never_a_repair_target_or_footer_command() {
         std::slice::from_ref(&target),
         &flags,
         false,
-        None,
+        (None, None),
         Theme::new(false, false, false),
     );
     assert!(
@@ -104,7 +104,7 @@ fn direct_cache_path_is_never_a_repair_target_or_footer_command() {
         &[target],
         &flags,
         true,
-        None,
+        (None, None),
         Theme::new(false, false, false),
     );
     assert_eq!(refused.code, 3);
@@ -130,7 +130,7 @@ fn stream_sources_refuse_fix_while_regular_workspace_symlinks_remain_files() {
             &[target],
             &flags,
             true,
-            None,
+            (None, None),
             Theme::new(false, false, false),
         );
         assert_eq!(out.code, 3);
@@ -187,7 +187,7 @@ fn atomic_fix_of_a_scratch_hardlink_never_mutates_the_cache_inode() {
             profile: Profile::Advisory,
         },
         true,
-        None,
+        (None, None),
         Theme::new(false, false, false),
     );
     assert_eq!(out.code, 0, "{}", out.text);

@@ -18,6 +18,7 @@ mod trifecta_rung_tests {
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
         )
     }
 
@@ -215,6 +216,7 @@ mod hint_dedup_tests {
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
         )
     }
 
@@ -403,6 +405,7 @@ mod journey_rung_tests {
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
         )
     }
 
@@ -699,6 +702,7 @@ mod models_rung_tests {
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
         );
         let green = out
             .lines()
@@ -737,6 +741,7 @@ mod models_rung_liveness_tests {
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
         )
     }
 
@@ -805,6 +810,7 @@ mod a_sanctioned_egress_is_stated_never_erased {
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
         )
     }
 
@@ -897,6 +903,7 @@ mod audited_line_names_the_blast_radius {
             &nika_schema::ResolvedSkills::default(),
             &[],
             true,
+            &crate::check_render::VerdictLayers::default(),
         )
     }
 
@@ -954,6 +961,7 @@ mod permits_panel_under_red_conformance {
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
         )
     }
 
@@ -1018,6 +1026,7 @@ mod builtin_contract_code_on_tools_and_args {
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
         )
     }
 
@@ -1039,6 +1048,7 @@ mod builtin_contract_code_on_tools_and_args {
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
         );
         assert!(
             out.contains("[NIKA-INVOKE-001]") && out.contains("mcp:spotify/search"),
@@ -1095,6 +1105,7 @@ mod writes_card {
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
         );
         assert!(out.contains("WRITES"), "B12 WRITES rung missing:\n{out}");
         assert!(

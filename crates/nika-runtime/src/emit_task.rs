@@ -55,7 +55,7 @@ pub(crate) fn emit_recovered(
 /// embedder's fallback; the `SubscriptionQuota` arm is the planless
 /// harness receipt (P3 B7 · `access: harness` · billing `unknown`
 /// until an adapter's own surface attests it · never a fake $0).
-fn push_access_fields(
+pub(crate) fn push_access_fields(
     fields: &mut Vec<(&'static str, FieldValue)>,
     model: Option<&str>,
     access: Option<&nika_types::access::AccessPlan>,

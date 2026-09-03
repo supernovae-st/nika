@@ -272,14 +272,27 @@ pub fn trace_access_lanes(events: &[Event]) -> Option<BTreeMap<String, LaneCarry
         .find(|e| matches!(e.kind, EventKind::WorkflowStarted))?;
     let raw = str_field(started, "access_plan")?;
     let rows: serde_json::Value = serde_json::from_str(raw).ok()?;
+    let carry = |model: &str, row: &serde_json::Value| {
+        let access = row.get("access")?.as_str()?;
+        let chosen = row.get("chosen").and_then(serde_json::Value::as_str);
+        Some((
+            model.to_owned(),
+            (access.to_owned(), pin_flag(access, chosen)),
+        ))
+    };
+    // Wave 2 writes the ONE lane-row shape (an array with `model` on
+    // each row); the 0.117 manifests carried a map keyed by model.
+    if let Some(list) = rows.as_array() {
+        return Some(
+            list.iter()
+                .filter_map(|row| carry(row.get("model")?.as_str()?, row))
+                .collect(),
+        );
+    }
     Some(
         rows.as_object()?
             .iter()
-            .filter_map(|(model, row)| {
-                let access = row.get("access")?.as_str()?;
-                let chosen = row.get("chosen").and_then(serde_json::Value::as_str);
-                Some((model.clone(), (access.to_owned(), pin_flag(access, chosen))))
-            })
+            .filter_map(|(model, row)| carry(model, row))
             .collect(),
     )
 }

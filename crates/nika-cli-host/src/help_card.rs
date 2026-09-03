@@ -15,7 +15,12 @@ pub const AFTER_HELP: &str = "a REAL answer needs exactly one of { an API key ·
 /// can branch on the code alone. The house taxonomy (spec §4 · LOCKED):
 /// 0 the report holds · 1 a workflow ran and failed (`run` only) · 2 the
 /// FILE · 3 the ENVIRONMENT · 4 paused on a human gate (`run` only).
-pub const CHECK_EXITS: &str = "exit codes · 0 the report holds (clean) · 2 the FILE: a grammar refusal or findings (`--json` carries `kind` to tell them apart) · 3 the ENVIRONMENT: the file is missing or unreadable, a registry is unreachable, a flag is misused · never 1 or 4 (those are `run`'s: a failed workflow · a paused gate) · `--profile operational` folds risk ≥ High into 2";
+pub const CHECK_EXITS: &str = "exit codes · 0 the report holds (clean) · 2 the FILE: a grammar refusal or findings (`--json` carries `kind` to tell them apart) · or a mistyped flag (the parser's own usage error) · 3 the ENVIRONMENT: the file is missing or unreadable, a registry is unreachable · never 1 or 4 (those are `run`'s: a failed workflow · a paused gate) · `--profile operational` folds risk ≥ High and an unready access lane into 2";
+
+/// `nika run --help` footer (One Door · wave 2b · the W1 gauntlet found
+/// `run`'s codes documented only inside `check`'s help): the run's
+/// exit ladder, so CI can branch on the code alone.
+pub const RUN_EXITS: &str = "exit codes · 0 the run settled (or `--dry-run` previewed) · 1 the WORKFLOW: a task failed and the run settled failed · 2 the FILE: findings (the same audit `check` prints) or a cost floor above `--max-cost-usd` (NIKA-1709) · 3 the ENVIRONMENT: no ready access path (NIKA-1800), an unsatisfied `--access` (NIKA-1801 · NIKA-1803), a resume that would switch access (NIKA-1807), an unreadable file · 4 PAUSED on a human gate (resume with `--resume <trace> --answer <task>=<value>`)";
 
 /// `nika test --help` footer (#1404): the golden test's exit ladder.
 pub const TEST_EXITS: &str = "exit codes · 0 the golden matches · 1 the mock run failed or the outputs drifted from the golden · 2 the FILE has findings (`check` dirty) · 3 no golden yet (`--update` writes one), the file is missing, or `--var` without `--case` · a rule table: `--case <name>` pins `<file>.<name>.golden.json`, `--var KEY=VALUE` binds the case";

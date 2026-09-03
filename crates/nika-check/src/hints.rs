@@ -362,6 +362,10 @@ fn push_infer_hints(
         && let Some(m) = &a.model
         && !m.value.contains("${{")
         && let Some((provider, name)) = m.value.split_once('/')
+        // Only a seat the catalog POSITIVELY knows (W1 gauntlet p06: the
+        // capability defaults read `mock/echo` as reasoning-capable and
+        // the hint blamed the mock task for the envelope's seat).
+        && crate::analyzer::catalog_knows(provider, name, &m.value)
         && nika_catalog::model_capabilities(provider, name).reasoning
     {
         hints.push(hint("thinking-budget", id, format!(

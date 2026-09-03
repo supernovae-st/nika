@@ -973,12 +973,12 @@ fn provider_finding_auth(p: &ProviderProbe, auth: KeyAuth) -> Finding {
             // a structured workflow wants that fact on the health surface.
             let detail = if p.structured_native {
                 format!(
-                    "{} — {access} · recognized · configured (key present){locus_note}",
+                    "{} — {access} · recognized · configured (key present · not validated){locus_note}",
                     p.id
                 )
             } else {
                 format!(
-                    "{} — {access} · recognized · configured (key present) · structured output via instruction + local validation \
+                    "{} — {access} · recognized · configured (key present · not validated) · structured output via instruction + local validation \
                      (no native json_schema){locus_note}",
                     p.id
                 )

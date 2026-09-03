@@ -164,9 +164,66 @@ impl<T> tracing::instrument::Instrument for nika_display::check_render::ModelsAu
 impl<T> tracing::instrument::WithSubscriber for nika_display::check_render::ModelsAudit
 impl<T> typenum::type_operators::Same for nika_display::check_render::ModelsAudit
 pub type nika_display::check_render::ModelsAudit::Output = T
+#[non_exhaustive] pub struct nika_display::check_render::VerdictLayers
+pub nika_display::check_render::VerdictLayers::access_lines: alloc::vec::Vec<alloc::string::String>
+pub nika_display::check_render::VerdictLayers::access_ready: core::option::Option<bool>
+pub nika_display::check_render::VerdictLayers::blockers: alloc::vec::Vec<alloc::string::String>
+pub nika_display::check_render::VerdictLayers::capacity_fit: bool
+pub nika_display::check_render::VerdictLayers::valid: bool
+impl nika_display::check_render::VerdictLayers
+pub fn nika_display::check_render::VerdictLayers::new(valid: bool, access_ready: core::option::Option<bool>, access_lines: alloc::vec::Vec<alloc::string::String>, capacity_fit: bool, blockers: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_display::check_render::VerdictLayers::run_ready(&self) -> core::option::Option<bool>
+impl core::clone::Clone for nika_display::check_render::VerdictLayers
+pub fn nika_display::check_render::VerdictLayers::clone(&self) -> nika_display::check_render::VerdictLayers
+impl core::cmp::Eq for nika_display::check_render::VerdictLayers
+impl core::cmp::PartialEq for nika_display::check_render::VerdictLayers
+pub fn nika_display::check_render::VerdictLayers::eq(&self, other: &nika_display::check_render::VerdictLayers) -> bool
+impl core::default::Default for nika_display::check_render::VerdictLayers
+pub fn nika_display::check_render::VerdictLayers::default() -> Self
+impl core::fmt::Debug for nika_display::check_render::VerdictLayers
+pub fn nika_display::check_render::VerdictLayers::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::check_render::VerdictLayers
+impl<D> owo_colors::OwoColorize for nika_display::check_render::VerdictLayers
+impl<Q, K> equivalent::Equivalent<K> for nika_display::check_render::VerdictLayers where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::check_render::VerdictLayers::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::VerdictLayers where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::check_render::VerdictLayers::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::check_render::VerdictLayers where U: core::convert::From<T>
+pub fn nika_display::check_render::VerdictLayers::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::check_render::VerdictLayers where U: core::convert::Into<T>
+pub type nika_display::check_render::VerdictLayers::Error = core::convert::Infallible
+pub fn nika_display::check_render::VerdictLayers::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::check_render::VerdictLayers where U: core::convert::TryFrom<T>
+pub type nika_display::check_render::VerdictLayers::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::check_render::VerdictLayers::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::check_render::VerdictLayers where T: core::clone::Clone
+pub type nika_display::check_render::VerdictLayers::Owned = T
+pub fn nika_display::check_render::VerdictLayers::clone_into(&self, target: &mut T)
+pub fn nika_display::check_render::VerdictLayers::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::check_render::VerdictLayers where T: 'static + ?core::marker::Sized
+pub fn nika_display::check_render::VerdictLayers::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::check_render::VerdictLayers where T: ?core::marker::Sized
+pub fn nika_display::check_render::VerdictLayers::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::check_render::VerdictLayers where T: ?core::marker::Sized
+pub fn nika_display::check_render::VerdictLayers::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::check_render::VerdictLayers where T: core::clone::Clone
+pub unsafe fn nika_display::check_render::VerdictLayers::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::check_render::VerdictLayers
+pub fn nika_display::check_render::VerdictLayers::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::check_render::VerdictLayers where T: core::clone::Clone
+pub fn nika_display::check_render::VerdictLayers::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::check_render::VerdictLayers where T: 'static
+pub fn nika_display::check_render::VerdictLayers::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::check_render::VerdictLayers where T: ?core::marker::Sized
+pub fn nika_display::check_render::VerdictLayers::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::check_render::VerdictLayers::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::check_render::VerdictLayers
+impl<T> tracing::instrument::WithSubscriber for nika_display::check_render::VerdictLayers
+impl<T> typenum::type_operators::Same for nika_display::check_render::VerdictLayers
+pub type nika_display::check_render::VerdictLayers::Output = T
 pub fn nika_display::check_render::mark(theme: nika_display::theme::Theme, ok: bool) -> alloc::string::String
 pub fn nika_display::check_render::permits(out: &mut alloc::string::String, report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, t: nika_display::theme::Theme)
-pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, repair_target: nika_display::check_render::RepairTarget, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String], verdict: bool) -> alloc::string::String
+pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, repair_target: nika_display::check_render::RepairTarget, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String], verdict: bool, layers: &nika_display::check_render::VerdictLayers) -> alloc::string::String
 pub fn nika_display::check_render::required_inputs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<&str>
 pub mod nika_display::chrome
 pub const nika_display::chrome::PULSE: [char; 3]

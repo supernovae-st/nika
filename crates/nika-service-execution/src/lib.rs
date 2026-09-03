@@ -623,6 +623,13 @@ impl AuthorizedRuntime {
         Ok(self)
     }
 
+    /// The frozen access plan this runtime executes (wave 2b · the
+    /// settlement frame projects its lanes).
+    #[must_use]
+    pub fn access_plan(&self) -> Option<&ExecutionAccessPlan> {
+        self.runtime.access_plan()
+    }
+
     /// Attach the verified resume plan.
     #[must_use]
     pub fn with_resume_plan(mut self, plan: nika_runtime::resume::ResumePlan) -> Self {

@@ -115,6 +115,7 @@ pub fn render(
     skills: &nika_schema::ResolvedSkills,
     drift_hints: &[String],
     verdict: bool,
+    layers: &VerdictLayers,
 ) -> String {
     let mut out = String::new();
     let name = path.rsplit('/').next().unwrap_or(path);
@@ -131,7 +132,7 @@ pub fn render(
 
     plan(&mut out, report, wf, t);
     crate::check_models::models(&mut out, report, wf, models_audit, t);
-    // SKILLS (#473) · silent when nothing is referenced (rows self-teach).
+    access_rung(&mut out, layers, t);
     if let Some((ok_msg, rows)) = skills.rung() {
         section_list(&mut out, t, "SKILLS", &ok_msg, rows);
     }
@@ -198,7 +199,7 @@ pub fn render(
         repair_target,
         t,
         drift_hints,
-        verdict,
+        (verdict, layers),
     );
     paint_dag_if_interactive(&mut out, wf, report, t);
     out
@@ -1479,6 +1480,9 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
     }
 }
 mod footer;
+mod layers;
+pub use layers::VerdictLayers;
+use layers::{access_rung, layers_line};
 mod permits_glance;
 mod slots;
 use footer::hints_and_verdict;
