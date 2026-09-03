@@ -742,6 +742,26 @@ pub fn apply_from(plan: &mut ResumePlan, wf: &RawWorkflow, from: &str) -> Result
     Ok(())
 }
 
+/// Drop every recorded `nika:prompt` decision from the plan (the wave-7
+/// gauntlet · `--resume-unverified`): a recorded human decision is a
+/// credential, and a chain the operator waived no longer binds it to this
+/// run — it re-asks. Returns the task ids that will ask again.
+pub fn strip_gate_records(plan: &mut ResumePlan, wf: &RawWorkflow) -> Vec<String> {
+    let mut asked = Vec::new();
+    for task in &wf.tasks {
+        let id = &task.value.id.value;
+        let is_prompt = matches!(
+            &task.value.action,
+            nika_schema::raw::RawAction::Invoke(invoke)
+                if invoke.tool().map(|t| t.value.as_str()) == Some("nika:prompt")
+        );
+        if is_prompt && plan.remove(id).is_some() {
+            asked.push(id.clone());
+        }
+    }
+    asked
+}
+
 /// The post-run summary line (`--resume` only): what skipped, what ran.
 #[must_use]
 pub fn summary_line(cache_hits: usize, ran_live: usize) -> String {
@@ -846,6 +866,7 @@ mod tests {
             );
         }
         apply_from(&mut plan, &wf, "a").expect("known id");
+        // (the gate stripper's test lives below · same fixture shape)
         // a forced · b (after a) · c (with: binding on b) — solo stays.
         assert!(!plan.contains_key("a"));
         assert!(!plan.contains_key("b"), "control edge walked");
@@ -1363,6 +1384,33 @@ mod access_tests {
             AccessVerdict::Proceed {
                 changed: Vec::new()
             }
+        );
+    }
+
+    /// Under `--resume-unverified` the recorded human decisions re-ask: the
+    /// prompt's record leaves the plan, the computed tasks' records stay.
+    #[test]
+    fn strip_gate_records_drops_only_the_prompt_decisions() {
+        let wf = nika_schema::parse(
+            "nika: gated\npermits: { tools: [\"nika:jq\", \"nika:prompt\"] }\ntasks:\n  step:\n    invoke: { tool: \"nika:jq\", args: { input: 1, expression: \".\" } }\n  gate:\n    invoke: { tool: \"nika:prompt\", args: { message: \"ship?\", default: \"yes\" } }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("parses");
+        let mut plan = super::ResumePlan::new();
+        for id in ["step", "gate"] {
+            plan.insert(
+                id.to_owned(),
+                super::PriorSuccess::new("d".repeat(64), "i".repeat(64), serde_json::json!(true)),
+            );
+        }
+        let asked = super::strip_gate_records(&mut plan, &wf);
+        assert_eq!(asked, vec!["gate".to_owned()]);
+        assert!(plan.contains_key("step"), "a computed record stays");
+        assert!(!plan.contains_key("gate"), "the decision re-asks");
+        assert!(
+            super::strip_gate_records(&mut plan, &wf).is_empty(),
+            "idempotent"
         );
     }
 }

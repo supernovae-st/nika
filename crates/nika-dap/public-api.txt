@@ -2621,6 +2621,7 @@ pub fn nika_dap::resume::parse_answers(pairs: &[alloc::string::String], wf: &nik
 pub fn nika_dap::resume::pin_flag(access: &str, chosen: core::option::Option<&str>) -> alloc::string::String
 pub fn nika_dap::resume::refuse_reopened_settled_gates(plan: &nika_runtime::resume::ResumePlan, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::result::Result<(), alloc::string::String>
 pub fn nika_dap::resume::source_drifted(yaml: &str, events: &[nika_event::event::Event]) -> core::option::Option<bool>
+pub fn nika_dap::resume::strip_gate_records(plan: &mut nika_runtime::resume::ResumePlan, wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_dap::resume::summary_line(cache_hits: usize, ran_live: usize) -> alloc::string::String
 pub fn nika_dap::resume::trace_access_lanes(events: &[nika_event::event::Event]) -> core::option::Option<alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dap::resume::LaneCarry>>
 pub fn nika_dap::resume::trace_engine_version(events: &[nika_event::event::Event]) -> core::option::Option<alloc::string::String>

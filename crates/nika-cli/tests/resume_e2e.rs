@@ -956,10 +956,16 @@ fn a_cross_version_resume_refuses_naming_both_versions() {
         stderr.contains("--resume-compat 0.0.0-test"),
         "the exact teaching: {stderr}"
     );
+    // The refusal reaches the `--json` stream as one typed line (#1439)
+    // and no run ever starts.
+    let stream = String::from_utf8_lossy(&refused.stdout);
     assert!(
-        refused.stdout.is_empty(),
-        "a judged resume never starts:\n{}",
-        String::from_utf8_lossy(&refused.stdout)
+        stream.contains("\"error\""),
+        "the refusal reaches the stream:\n{stream}"
+    );
+    assert!(
+        !stream.contains("\"kind\":\"workflow_started\""),
+        "a judged resume never starts:\n{stream}"
     );
 
     // A WRONG token is its own named refusal.
@@ -1208,10 +1214,16 @@ fn a_tampered_trace_is_refused_naming_the_opt_out() {
         stderr.contains("--resume-unverified"),
         "the opt-out is named: {stderr}"
     );
+    // The refusal reaches the `--json` stream as one typed line (#1439)
+    // and no run ever starts.
+    let stream = String::from_utf8_lossy(&refused.stdout);
     assert!(
-        refused.stdout.is_empty(),
-        "a refused resume never starts:\n{}",
-        String::from_utf8_lossy(&refused.stdout)
+        stream.contains("\"error\""),
+        "the refusal reaches the stream:\n{stream}"
+    );
+    assert!(
+        !stream.contains("\"kind\":\"workflow_started\""),
+        "a judged resume never starts:\n{stream}"
     );
     assert_eq!(
         trace_count(&wf),

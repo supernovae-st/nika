@@ -222,7 +222,7 @@ fn run_admitted_context(
         source,
         request.model_override,
         (&plan, request.access_pin),
-        request.output_json,
+        request.output_json || request.json,
     ) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
