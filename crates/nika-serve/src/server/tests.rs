@@ -20,7 +20,7 @@ use super::*;
 use crate::{MAX_EXECUTION_SNAPSHOT_METADATA_BYTES, MAX_EXECUTION_SNAPSHOT_PATH_BYTES};
 
 pub(super) const TOKEN: &str = "remote-test-token-012345678901234567890123456789";
-const WORKFLOW: &str = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
+pub(super) const WORKFLOW: &str = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
 
 pub(super) struct TestWorld {
     pub(super) root: tempfile::TempDir,
@@ -146,7 +146,7 @@ impl TestServer {
 }
 
 #[derive(Debug)]
-struct TestBackend {
+pub(super) struct TestBackend {
     calls: AtomicUsize,
     disposition: ExecutionDisposition,
     hang: bool,
@@ -201,7 +201,7 @@ impl ExecutionBackend for GatedBackend {
 }
 
 impl TestBackend {
-    fn completes(disposition: ExecutionDisposition) -> Self {
+    pub(super) fn completes(disposition: ExecutionDisposition) -> Self {
         Self {
             calls: AtomicUsize::new(0),
             disposition,
@@ -375,48 +375,6 @@ mod budget;
 mod cancel_race;
 #[cfg(test)]
 mod request_lifecycle;
-
-/// `--workflows` scopes the served registry (#1369): with the resident at
-/// the project root and the listener on `workflows/`, the listing names only
-/// what lives under `workflows/` (from the project root), and a workflow
-/// outside it has no metadata route.
-#[tokio::test(flavor = "multi_thread")]
-async fn served_registry_is_scoped_to_the_workflows_directory() {
-    let world = TestWorld::new();
-    std::fs::write(
-        world.root.path().join("top.nika.yaml"),
-        WORKFLOW.replace("nika: root", "nika: top"),
-    )
-    .expect("a workflow outside the served registry");
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world
-        .start_with_workflow_roots(backend, limits(), world.root.path(), &world.workflows)
-        .await;
-
-    let listed = server.request(&get_request("/v1/workflows")).await;
-    assert_eq!(listed.status, 200, "{}", listed.body);
-    let names = listed.json()["workflows"]
-        .as_array()
-        .expect("workflow list")
-        .iter()
-        .map(|value| value.as_str().expect("name").to_owned())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        names,
-        vec!["workflows/root.nika.yaml".to_owned()],
-        "{names:?}"
-    );
-
-    let inside = server
-        .request(&get_request("/v1/workflows/workflows/root.nika.yaml"))
-        .await;
-    assert_eq!(inside.status, 200, "{}", inside.body);
-    let outside = server
-        .request(&get_request("/v1/workflows/top.nika.yaml"))
-        .await;
-    assert_eq!(outside.status, 404, "{}", outside.body);
-    server.stop().await.expect("stop");
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn workflows_list_and_metadata_are_authenticated_and_contained() {

@@ -1105,6 +1105,8 @@ mod credential_tests;
 #[cfg(test)]
 mod failure_tests;
 #[cfg(test)]
+mod registry_tests;
+#[cfg(test)]
 mod result_tests;
 #[cfg(test)]
 mod schedule_tests;
