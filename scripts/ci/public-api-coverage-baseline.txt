@@ -151,3 +151,4 @@ nika-tui-core
 # nika-secret/nika-proof/nika-dap/nika-cap precedent: the module the wall-crate
 # merely HOSTS rather than owns. ---
 nika-dataflow
+nika-session

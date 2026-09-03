@@ -384,8 +384,6 @@ mod tests {
             code: exit::WORKFLOW,
             failure: Some(nika_runtime::TaskErrorRecord::new(code, message, false)),
             paused: None,
-            outputs: std::collections::BTreeMap::new(),
-            interrupted: false,
             trace: None,
         }
     }

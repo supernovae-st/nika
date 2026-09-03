@@ -1,0 +1,42 @@
+[package]
+name          = "nika-session"
+description   = "The native session — bare `nika` on a terminal: a grounded conversation over the installed engine (the project snapshot · the selected intelligence · the context broker · the hallucination guard · the deterministic facts). Layer L4 — a host runtime, never a workflow."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-022.
+
+[dependencies]
+nika-cli-host = { path = "../nika-cli-host", version = "0.117.1", default-features = false }  # the ONE probe/census · the oracle facade · the git-root walk (lateral L4→L4 · ADR-124 precedent)
+nika-providers = { path = "../nika-providers", version = "0.117.1", default-features = false }  # AccessClass · the resolver law (the guard's model check) · ProviderRegistry (the API/local reasoner)
+nika-verb-infer = { path = "../nika-verb-infer", version = "0.117.1", default-features = false }  # ONE inference call, no workflow (the API/local reasoner)
+nika-http     = { path = "../nika-http", version = "0.117.1" }        # ReqwestHttp — the API reasoner's wire
+nika-runtime  = { path = "../nika-runtime", version = "0.117.1" }     # compose::config_from_env — the ONE env boundary · engine_identity
+nika-dap      = { path = "../nika-dap", version = "0.117.1" }         # inventory::collect_workflows — the ONE workspace walker
+nika-vocab    = { path = "../nika-vocab", version = "0.117.1" }       # project::discover — the project file
+nika-pack     = { path = "../nika-pack", version = "0.117.1" }        # the embedded facts (canon · schema · examples · templates · codes)
+nika-builtin  = { path = "../nika-builtin", version = "0.117.1" }     # tools_json — the builtin names the guard trusts
+nika-error    = { path = "../nika-error", version = "0.117.1" }       # codes::lookup — the numeric registry the guard trusts
+nika-types    = { path = "../nika-types", version = "0.117.1" }       # AccessClass — the census reads the probe rows by class
+nika-onboard  = { path = "../nika-onboard", version = "0.117.1" }     # routing::route_query — the ONE intent router
+nika-harness  = { path = "../nika-harness", version = "0.117.1", optional = true }  # the infer-grade seat (the harness reasoner)
+
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+tokio       = { workspace = true }
+
+[features]
+default = ["access-harness"]
+# The harness reasoner (an existing AI app's seat reasons with the human).
+access-harness = ["dep:nika-harness", "nika-cli-host/access-harness", "nika-verb-infer/access-harness", "nika-providers/access-harness"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = { workspace = true }

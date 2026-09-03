@@ -2712,6 +2712,7 @@ pub fn nika_cli_host::probe::auth_class_witness(detail: &str) -> bool
 pub fn nika_cli_host::probe::capability_receipts(probe: &nika_cli_host::probe::Probe) -> alloc::vec::Vec<nika_cli_host::probe::HostCapabilityReceipt>
 pub fn nika_cli_host::probe::collect(ping: bool) -> nika_cli_host::probe::Probe
 pub fn nika_cli_host::probe::environment_json(probe: &nika_cli_host::probe::Probe) -> serde_json::value::Value
+pub fn nika_cli_host::probe::home_dir() -> core::option::Option<std::path::PathBuf>
 pub fn nika_cli_host::probe::print_seat_escape<'a, W: core::io::write::Write>(witnesses: impl core::iter::traits::collect::IntoIterator<Item = &'a str>, prefix: &str, out: &mut W)
 pub fn nika_cli_host::probe::sandbox_probe() -> nika_cli_host::probe::SandboxProbe
 pub fn nika_cli_host::probe::seat_escape_tail() -> core::option::Option<alloc::string::String>
@@ -3074,3 +3075,4 @@ pub type nika_cli_host::wire::WireOptions::NoneType = T
 pub fn nika_cli_host::wire::WireOptions::null_value() -> T
 pub fn nika_cli_host::wire::run(target: nika_cli_host::wire::WireTarget, dir: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli_host::wire::run_with(target: nika_cli_host::wire::WireTarget, dir: &str, options: nika_cli_host::wire::WireOptions) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli_host::find_git_root(start: &std::path::Path) -> core::option::Option<(std::path::PathBuf, core::option::Option<alloc::string::String>)>
