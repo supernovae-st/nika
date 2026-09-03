@@ -56,7 +56,6 @@ struct CliExecutionRequest<'a> {
     task_filter: Option<&'a str>,
     no_outputs: bool,
     max_cost_usd: Option<f64>,
-    interruptible: bool,
 }
 
 /// ARM's in-process adapter over exact service-admitted bytes; it never reopens
@@ -84,7 +83,6 @@ pub(crate) fn run_arm_context(
         task_filter: None,
         no_outputs: false,
         max_cost_usd: Some(max_cost_usd),
-        interruptible: false,
     };
     run_admitted_context(context, &request, display_root)
 }
@@ -105,7 +103,6 @@ pub(super) fn run_admitted(
     task_filter: Option<&str>,
     no_outputs: bool,
     max_cost_usd: Option<f64>,
-    interruptible: bool,
 ) -> RunVerdict {
     let (project, root, display_root) = match execution_project(file) {
         Ok(parts) => parts,
@@ -142,7 +139,6 @@ pub(super) fn run_admitted(
         task_filter,
         no_outputs,
         max_cost_usd,
-        interruptible,
     };
     let session = service.begin(admitted);
     let outcome = run_admitted_context(session.context(), &request, display_root);
@@ -239,6 +235,10 @@ fn run_admitted_context(
         Ok(runtime) => runtime,
         Err(code) => return RunVerdict::bare(code),
     };
+    // #1438 · the operator's cancellation: ONE context the driver flips on
+    // the first signal and the runtime reads at every wave boundary.
+    let cancel = nika_types::cancel::CancelCtx::new();
+    let runtime = runtime.with_cancel(cancel.clone());
     announce_access(&plan, (request.json, request.output_json), request.mode);
     execute_and_ask(
         &runtime,
@@ -257,7 +257,7 @@ fn run_admitted_context(
             request.no_trace_file,
             request.no_outputs,
         ),
-        request.interruptible,
+        &cancel,
         &world,
     )
 }
@@ -381,7 +381,6 @@ mod tests {
             task_filter: None,
             no_outputs: false,
             max_cost_usd: None,
-            interruptible: false,
         };
         let session = service.begin(admitted);
         let outcome =
