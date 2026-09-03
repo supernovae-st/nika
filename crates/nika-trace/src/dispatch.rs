@@ -82,7 +82,11 @@ pub fn trace_verb(
         trace::TraceAction::Evidence { args } => evidence_run(args),
         trace::TraceAction::Receipt { action } => emit(&receipt::run(action)),
         trace::TraceAction::Show(args) => trace_render(&args, false, color, link_when, theme.ascii),
-        trace::TraceAction::Ls {} => emit(&trace::manage::ls(theme)),
+        trace::TraceAction::Ls { json } => emit(&if json {
+            trace::manage::ls_json()
+        } else {
+            trace::manage::ls(theme)
+        }),
         trace::TraceAction::Rm {
             trace,
             older_than,
@@ -92,11 +96,14 @@ pub fn trace_verb(
             Ok(target) => emit(&trace::manage::rm(&target, force, theme)),
             Err(code) => code,
         },
-        trace::TraceAction::Outputs { trace } => {
+        trace::TraceAction::Outputs { trace, json } => {
             let trace = match trace::manage::resolve_trace(trace) {
                 Ok(path) => path,
                 Err(code) => return code,
             };
+            if json {
+                return emit(&trace::outputs_json(&trace.to_string_lossy()));
+            }
             let mut theme = theme;
             // The dur column's bracket accents: TTY comfort only.
             theme.accents = std::io::stdout().is_terminal();

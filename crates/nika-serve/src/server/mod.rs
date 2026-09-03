@@ -201,6 +201,10 @@ struct AppState {
     token: BearerToken,
     store: StoreHandle,
     project: Arc<OwnedDir>,
+    /// The served registry (`--workflows`) and its project-relative scope
+    /// (#1369): what this listener exposes and schedules.
+    registry: Arc<OwnedDir>,
+    registry_scope: Option<String>,
     service: ExecutionService,
     coordinator: ResidentExecutionCoordinator,
     limits: ServerLimits,
@@ -221,6 +225,8 @@ struct AuthorityState {
     limits: ServerLimits,
     snapshot_limits: SnapshotLimits,
     project: Arc<OnceLock<Arc<OwnedDir>>>,
+    /// The resident's project root as configured (the scope's anchor · #1369).
+    workflow_root: Option<std::path::PathBuf>,
     schedules: Arc<ScheduleStore>,
     schedule_wake: Arc<Notify>,
     project_refusals: scheduler::ProjectRefusals,
@@ -320,6 +326,7 @@ impl ResidentAuthority {
             limits: config.limits(),
             snapshot_limits: config.snapshot_limits(),
             project,
+            workflow_root: config.workflow_root().map(Path::to_owned),
             schedules,
             schedule_wake,
             project_refusals,
@@ -405,6 +412,10 @@ impl BoundServer {
             let _set = authority.state.project.set(Arc::clone(&prepared.project));
             Arc::clone(&prepared.project)
         };
+        let registry_scope = registry::registry_scope(
+            authority.state.workflow_root.as_deref(),
+            config.workflow_root(),
+        );
         let listener = TcpListener::bind(config.bind())
             .await
             .map_err(|error| ServerError::Listener(error.kind()))?;
@@ -412,6 +423,8 @@ impl BoundServer {
             token: prepared.token,
             store: authority.state.store.clone(),
             project,
+            registry: Arc::clone(&prepared.project),
+            registry_scope,
             service: authority.state.service,
             coordinator: authority.coordinator.clone(),
             limits: authority.state.limits,
@@ -1091,6 +1104,8 @@ mod coordinator_tests;
 mod credential_tests;
 #[cfg(test)]
 mod failure_tests;
+#[cfg(test)]
+mod registry_tests;
 #[cfg(test)]
 mod result_tests;
 #[cfg(test)]
