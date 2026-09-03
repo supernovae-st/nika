@@ -1191,6 +1191,7 @@ fn a_tampered_trace_is_refused_naming_the_opt_out() {
             "--color",
             "never",
         ])
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stderr = String::from_utf8(refused.stderr).expect("utf8");
@@ -1321,6 +1322,7 @@ fn the_named_opt_out_proceeds_loudly_and_attests() {
             "--color",
             "never",
         ])
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(opted.stdout).expect("utf8");
@@ -1355,6 +1357,7 @@ fn the_named_opt_out_proceeds_loudly_and_attests() {
             "--color",
             "never",
         ])
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(control.stdout).expect("utf8");
