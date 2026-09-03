@@ -673,7 +673,6 @@ where
 
         let mut acc = fan_out::collect_fan_out(&mut stream, total, fail_fast).await;
         drop(stream);
-        // #1276 · #1397 · every item's terminal, the never-started ones too.
         let item_terminals = fan_out::items_json(std::mem::take(&mut acc.items), &items);
         if acc.outputs.len() < total && ledger.tripped() && acc.first_error.is_none() {
             acc.first_error = Some(fan_out::budget_stop_record(total - acc.outputs.len()));
