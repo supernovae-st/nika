@@ -30,11 +30,11 @@ use crate::errors::RuntimeError;
 
 /// A task's parsed `returns:` contract, resolved once per task lane —
 /// the named-type environment rides along for `Ref` resolution.
-pub(crate) struct TaskContract<'a> {
+pub struct TaskContract<'a> {
     /// The parsed `returns:` type.
-    pub(crate) ty: NikaType,
+    pub ty: NikaType,
     /// The workflow's acyclic named types (`types:` · shared per run).
-    pub(crate) named: &'a BTreeMap<String, NikaType>,
+    pub named: &'a BTreeMap<String, NikaType>,
 }
 
 impl<'a> TaskContract<'a> {
@@ -44,7 +44,8 @@ impl<'a> TaskContract<'a> {
     /// `run()` gates on `is_clean`, under which the named map carries
     /// EVERY declaration — kept `None` for belt-and-braces: never
     /// guess a contract).
-    pub(crate) fn of(task: &RawTask, named: &'a BTreeMap<String, NikaType>) -> Option<Self> {
+    #[must_use]
+    pub fn of(task: &RawTask, named: &'a BTreeMap<String, NikaType>) -> Option<Self> {
         let ret = task.returns.as_ref()?;
         let declared: std::collections::BTreeSet<String> = named.keys().cloned().collect();
         let ty = nika_types::types::parse_type(
@@ -59,13 +60,17 @@ impl<'a> TaskContract<'a> {
     /// The JSON-Schema projection (`lower(returns)`) — what the
     /// structured-output lane of `infer:`/`agent:` compiles (spec 09
     /// §returns · « the same enforcement lane as `schema:` »).
-    pub(crate) fn lowered(&self) -> serde_json::Value {
+    #[must_use]
+    pub fn lowered(&self) -> serde_json::Value {
         lower(&self.ty, self.named)
     }
 
     /// The run-time fit (`NIKA-TYPE-101` on violation) — `task` names
     /// the offender in the diagnostic.
-    pub(crate) fn check_fit(
+    ///
+    /// # Errors
+    /// The typed contract violation (`NIKA-TYPE-101`), naming the task.
+    pub fn check_fit(
         &self,
         task_note: &str,
         value: &serde_json::Value,
@@ -84,7 +89,10 @@ impl<'a> TaskContract<'a> {
 }
 
 /// `raw bytes → decode → value` (spec 09 §decode · normative table).
-pub(crate) fn decode_bytes(
+///
+/// # Errors
+/// The decode refusal for the mode (bytes that are not the declared form).
+pub fn decode_bytes(
     mode: nika_schema::DecodeMode,
     raw: &[u8],
 ) -> Result<serde_json::Value, RuntimeError> {

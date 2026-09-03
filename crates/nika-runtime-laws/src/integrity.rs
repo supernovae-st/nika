@@ -58,7 +58,7 @@ use crate::record::TaskRecord;
 /// `records` is the wave-frozen view (same-wave tasks never reference
 /// each other — checker law), so every `tasks.X` read resolves against
 /// a FINAL label.
-pub(crate) fn task_integrity(task: &RawTask, records: &BTreeMap<String, TaskRecord>) -> Integrity {
+pub fn task_integrity(task: &RawTask, records: &BTreeMap<String, TaskRecord>) -> Integrity {
     let taint = ValueTaint::of_task(task, records);
 
     // Effect taint: the verb's effect-carrying fields (exec argv/shell
@@ -108,7 +108,7 @@ pub(crate) fn task_integrity(task: &RawTask, records: &BTreeMap<String, TaskReco
 /// the oracle — a `from:` binding reads TRUSTED here (scoped to THIS
 /// task, the only door through the re-gate); the receipt event is the
 /// settle spine's.
-pub(crate) struct ValueTaint<'a> {
+pub struct ValueTaint<'a> {
     /// `with:` slot taints, progressive (a with-value may reference an
     /// EARLIER with key — declaration order, the content-flow walk).
     with_taint: BTreeMap<&'a str, Integrity>,
@@ -123,7 +123,8 @@ pub(crate) struct ValueTaint<'a> {
 impl<'a> ValueTaint<'a> {
     /// The task-local taints (the first two steps of the integrity
     /// walk), borrowed from the task's own templates.
-    pub(crate) fn of_task(task: &'a RawTask, records: &BTreeMap<String, TaskRecord>) -> Self {
+    #[must_use]
+    pub fn of_task(task: &'a RawTask, records: &BTreeMap<String, TaskRecord>) -> Self {
         // the `taint` doors only — `data-as-code` raises no binding
         let declassified: std::collections::BTreeSet<String> = task
             .taint_lifts()
@@ -166,7 +167,8 @@ impl<'a> ValueTaint<'a> {
     /// `with:` · no `for_each` · no `declassify:` — a cleanup never
     /// declares the door); the records/inputs lookups of
     /// [`ValueTaint::label`] still apply.
-    pub(crate) fn bare() -> ValueTaint<'static> {
+    #[must_use]
+    pub fn bare() -> ValueTaint<'static> {
         ValueTaint {
             with_taint: BTreeMap::new(),
             item_taint: None,
@@ -179,11 +181,8 @@ impl<'a> ValueTaint<'a> {
     /// law as the task-level walk — `inputs.X` is the caller boundary,
     /// `tasks.X` reads the settled record's label, a declassified binding
     /// reads trusted HERE).
-    pub(crate) fn label(
-        &self,
-        template: &str,
-        records: &BTreeMap<String, TaskRecord>,
-    ) -> Integrity {
+    #[must_use]
+    pub fn label(&self, template: &str, records: &BTreeMap<String, TaskRecord>) -> Integrity {
         join_refs(
             &refs_in_str(template),
             &self.with_taint,

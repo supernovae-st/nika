@@ -1393,5 +1393,21 @@
       "requires": ["ADR-125"],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-127",
+      "title": "nika-runtime size-cap member split: the run's laws descend to nika-runtime-laws",
+      "status": "accepted",
+      "date": "2026-09-03",
+      "filename": "adr-127-nika-runtime-laws-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","runtime"],
+      "affects_crates": ["nika-runtime","nika-runtime-laws"],
+      "affects_layers": ["L3"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-110","ADR-022","ADR-024","ADR-125","ADR-126"],
+      "requires": ["ADR-110"],
+      "enables": []
+    }
   ]
 }

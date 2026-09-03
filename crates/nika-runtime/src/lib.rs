@@ -52,22 +52,13 @@ mod admit;
 mod admit_resolved_tests;
 mod agent_events;
 pub mod approval;
-#[cfg(test)]
-#[path = "../build_support.rs"]
-mod build_support;
 pub mod child;
-mod compat_record;
 pub mod compose;
 pub mod config;
-mod contract;
 mod dispatch;
 mod emit_task;
-mod errors;
 pub(crate) mod harness_seat;
-pub mod identity;
-mod integrity;
 mod ledger;
-mod origins;
 mod pause;
 /// The proof layer (spec 15) — re-exported whole from the standalone
 /// `nika-proof` crate (L0 · the 15k crate-size split), so every
@@ -89,17 +80,13 @@ mod retry_safety_tests;
 mod run_clock_tests;
 /// The ONE OS-sandbox selection (ADR-095 Layer 6 · #888) — `pub` because
 /// `nika-mcp`'s spawn confinement rides the same decision (L4→L3).
-pub mod sandbox_select;
-mod secret;
 mod settle;
 /// The effects-simulated seams (the `nika test` plane · P0-16) — `pub`
 /// because [`SimRuntime`](compose::SimRuntime) names them in its spelling
 /// (the `compose::StderrEmitter` precedent).
 pub mod simulated;
-mod stamp;
 mod task;
 mod trust;
-pub(crate) mod witness;
 mod workflow_call;
 
 use std::collections::BTreeMap;
@@ -124,6 +111,13 @@ use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
+
+// ADR-127 · the run's laws live in the member crate; every historical
+// path holds through these re-exports.
+pub(crate) use nika_runtime_laws::{
+    compat_record, contract, errors, integrity, origins, secret, stamp, witness,
+};
+pub use nika_runtime_laws::{identity, sandbox_select};
 
 pub use admit::{
     access_pin_refusal, budget_floor_refusal, floor_refusal, modelless_refusal, plan_refusal,

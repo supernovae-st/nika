@@ -7,4 +7,4 @@
 //! `std`). This shim keeps the crate's call sites reading
 //! `crate::witness::{PermitWitness, PermitDecision}` exactly as before.
 
-pub(crate) use nika_cap::{PermitDecision, PermitWitness};
+pub use nika_cap::{PermitDecision, PermitWitness};

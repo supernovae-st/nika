@@ -5,7 +5,7 @@
 //! composition root rides the same decision: the exec runner (`compose`)
 //! and the MCP spawn (`nika-mcp`) used to carry twin selectors that would
 //! have drifted N×1. The selection lives here once and answers a
-//! [`SandboxDecision`](crate::sandbox_select::SandboxDecision) — the
+//! [`SandboxDecision`] — the
 //! record the runtime confines with, the doctor
 //! (#891) will report, and the journal witnesses. The selection itself is
 //! unchanged (Seatbelt on macOS · bwrap on Linux · the deliberate loud
