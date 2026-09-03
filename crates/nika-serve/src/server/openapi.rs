@@ -392,7 +392,7 @@ fn openapi_path() -> Value {
 fn workflow_list_path() -> Value {
     json!({"get": {
         "summary": "Contained workflow names",
-        "responses": {"200": {"description": "Relative .nika.yaml names", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowList"}}}}, "401": error_ref()}
+        "responses": {"200": {"description": "Project-relative .nika.yaml names under the served registry (--workflows)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowList"}}}}, "401": error_ref()}
     }})
 }
 

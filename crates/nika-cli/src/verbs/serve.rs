@@ -35,7 +35,9 @@ pub struct ServeArgs {
     /// Bind an authenticated HTTP listener. Requires `--workflows` and `--token-file`.
     #[arg(long, value_name = "ADDR")]
     pub bind: Option<String>,
-    /// Held registry root of `.nika.yaml` workflows. Requires `--bind`.
+    /// The served registry: the listener exposes and schedules only the
+    /// `.nika.yaml` workflows under this directory, named from the project
+    /// root. Requires `--bind`.
     #[arg(long, value_name = "DIR")]
     pub workflows: Option<PathBuf>,
     /// Acknowledge a non-loopback `--bind`. Authentication is unchanged.
