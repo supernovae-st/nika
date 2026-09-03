@@ -6,11 +6,11 @@
 //! bodies moved verbatim. The finding TYPE lives beside its renderer
 //! (`nika_display::check_render` · the 15k descent).
 
-pub(crate) use nika_display::check_render::{ModelFinding, ModelsAudit};
+pub(crate) use nika_display::check_render::{ModelFinding, ModelsAudit, VerdictLayers};
 use nika_providers::ExecutionAccessPlan;
 use nika_providers::resolve_access::AccessRefusal;
 use nika_schema::raw::RawWorkflow;
-use nika_types::access::{AccessPlan, AccessRejection};
+use nika_types::access::AccessPlan;
 
 /// The admission-time access decision per statically-known model
 /// (D-2026-08-04-N1 · P2.5) — the SAME frozen plan the run executes
@@ -37,70 +37,102 @@ pub(crate) fn boot_access_fields(
     if let Some(pin) = &plan.pin {
         fields.push(("access_pin", FieldValue::String(pin.clone())));
     }
-    let rows: serde_json::Map<String, serde_json::Value> = plan
-        .admitted()
-        .map(|(model, lane)| {
-            (
-                model.to_owned(),
-                serde_json::json!({
-                    "access": lane.plan.access,
-                    "chosen": lane.plan.chosen.as_str(),
-                    "billing": lane.plan.billing.as_str(),
-                }),
-            )
-        })
-        .collect();
+    // Wave 2 · the ONE lane-row shape (`lane_rows`) — the same rows
+    // `check --json` and `run --dry-run --json` carry, as one JSON text.
+    let rows = nika_service_execution::access::lane_rows(plan);
     if !rows.is_empty() {
         fields.push((
             "access_plan",
-            FieldValue::String(serde_json::Value::Object(rows).to_string()),
+            FieldValue::String(serde_json::Value::Array(rows).to_string()),
         ));
     }
     fields
 }
 
-/// The `check --json` rows over [`access_decisions`] — wire keys match
-/// the `AccessPlan` serde shape (`chosen`/`billing` `snake_case`), plus
-/// the `resolved` discriminant a machine consumer branches on.
-pub(super) fn access_plan_rows(
-    wf: &RawWorkflow,
-    report: &nika_check::CheckReport,
-) -> Vec<serde_json::Value> {
-    access_decisions(wf, report)
+/// The CAPACITY laws in this rung's finding shape (wave 2) — the judge
+/// is [`nika_check::capacity_findings`]; the fold sites pin it.
+pub(crate) fn capacity_findings(wf: &RawWorkflow) -> Vec<ModelFinding> {
+    nika_check::capacity_findings(wf)
         .into_iter()
-        .map(|(model, decision)| match decision {
-            Ok(plan) => serde_json::json!({
-                "model": model,
-                "provider": plan.provider,
-                "resolved": true,
-                "access": plan.access,
-                "chosen": plan.chosen.as_str(),
-                "billing": plan.billing.as_str(),
-                "pinned": plan.pinned,
-                "rejected": rejection_rows(&plan.rejected),
-            }),
-            Err(refusal) => serde_json::json!({
-                "model": model,
-                "provider": refusal.provider,
-                "resolved": false,
-                "rejected": rejection_rows(&refusal.rejected),
-            }),
-        })
+        .map(|f| ModelFinding::new(f.model, vec![f.task], f.why))
         .collect()
 }
 
-fn rejection_rows(rejected: &[AccessRejection]) -> Vec<serde_json::Value> {
-    rejected
-        .iter()
-        .map(|r| {
-            serde_json::json!({
-                "access": r.access,
-                "dimension": r.dimension.as_str(),
-                "layer": r.layer.as_str(),
-                "witness": r.witness,
-            })
-        })
-        .collect()
+/// The four layered verdicts (wave 2) — computed ONCE beside the exit
+/// code from the frozen plan and the folded audit; the render and the
+/// JSON both project this value.
+pub(crate) fn verdict_layers(
+    plan: &ExecutionAccessPlan,
+    valid: bool,
+    capacity: &[ModelFinding],
+) -> VerdictLayers {
+    let mut lines = Vec::new();
+    let mut blockers = Vec::new();
+    for (model, lane) in plan.admitted() {
+        let note = if lane.plan.chosen == nika_types::access::AccessClass::Harness {
+            "seat present · sign-in judged at run"
+        } else if lane.plan.chosen == nika_types::access::AccessClass::Api {
+            "key present · not validated (check never dials)"
+        } else {
+            "present · liveness judged at run"
+        };
+        let others = lane.candidates.saturating_sub(1);
+        let tail = if others == 0 {
+            String::new()
+        } else {
+            format!(" · chosen over {others} other path(s)")
+        };
+        lines.push(format!(
+            "{model} → {} ({} · {}) · {note}{tail}",
+            lane.plan.access,
+            lane.plan.chosen.as_str(),
+            lane.plan.billing.as_str()
+        ));
+    }
+    for (model, refusal) in plan.lanes.iter().filter_map(|(m, v)| match v {
+        nika_providers::LaneVerdict::Refused(r) => Some((m, r)),
+        _ => None,
+    }) {
+        let witnesses: Vec<String> = refusal
+            .rejected
+            .iter()
+            .map(nika_types::access::AccessRejection::witness_line)
+            .collect();
+        let line = if witnesses.is_empty() {
+            format!("{model} → no path on this machine")
+        } else {
+            format!(
+                "{model} → no path on this machine · {}",
+                witnesses.join(" · ")
+            )
+        };
+        blockers.push(format!("access: {line}"));
+        lines.push(line);
+    }
+    let access_ready = if plan.lanes.is_empty() {
+        None
+    } else {
+        Some(plan.is_admitted())
+    };
+    if let Some(first) = capacity.first() {
+        blockers.push(format!("capacity: {} · {}", first.model, first.why));
+    }
+    VerdictLayers::new(valid, access_ready, lines, capacity.is_empty(), blockers)
+}
+
+/// The `check --json` rows — the ONE lane-row shape
+/// ([`nika_service_execution::access::lane_rows`]) every machine surface
+/// carries, resolved under `pin` (`check --access`). The verb reads the
+/// rows off the plan it already resolved; this door serves the tests.
+#[cfg(test)]
+pub(super) fn access_plan_rows(
+    wf: &RawWorkflow,
+    report: &nika_check::CheckReport,
+    pin: Option<&str>,
+) -> Vec<serde_json::Value> {
+    nika_service_execution::access::lane_rows(&nika_cli_host::access::resolve_plan(
+        wf, report, None, pin,
+    ))
 }
 
 /// Cross `requirements.models` against the RESOLVER (the runnable

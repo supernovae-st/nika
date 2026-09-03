@@ -52,7 +52,8 @@ pub(crate) fn check_arm(args: verbs::check::CheckArgs, plain_theme: Theme) -> u8
                     && !args.infer_permits
                     && !args.native_strict
                     && args.profile == verbs::check::Profile::Advisory
-                    && args.model.is_none() =>
+                    && args.model.is_none()
+                    && args.access.is_none() =>
             {
                 verbs::check::run_snapshot_export(file, interactive_theme(plain_theme))
             }
@@ -74,7 +75,7 @@ pub(crate) fn check_arm(args: verbs::check::CheckArgs, plain_theme: Theme) -> u8
         args.files,
         &flags,
         args.fix,
-        args.model.as_deref(),
+        (args.model.as_deref(), args.access.as_deref()),
         interactive_theme(plain_theme),
     )
 }

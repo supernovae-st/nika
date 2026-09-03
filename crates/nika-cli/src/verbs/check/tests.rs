@@ -416,7 +416,7 @@ pub(crate) fn checked_output_profile(
         false,
         native_strict,
         profile,
-        None,
+        (None, None),
         theme,
     )
 }
@@ -550,7 +550,7 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
         true,
         false,
         Profile::Operational,
-        None,
+        (None, None),
         Theme::new(false, true, false),
     );
     assert_eq!(out.code, 2, "the machine surface agrees: {}", out.text);

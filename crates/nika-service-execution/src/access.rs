@@ -16,6 +16,7 @@ use nika_check::CheckReport;
 use nika_providers::probe::ProviderProbe;
 use nika_providers::{ExecutionAccessPlan, ModelNeed, resolve_execution_plan};
 use nika_schema::raw::{RawAction, RawWorkflow};
+use nika_types::access::AccessRejection;
 
 /// This machine's access-probe rows: the provider rows (key presence ·
 /// endpoint overrides · the locals) PLUS the harness rows when the
@@ -88,6 +89,60 @@ pub fn resolve_plan_over(
         None => model_needs(wf, report),
     };
     resolve_execution_plan(&needs, probes, pin)
+}
+
+/// The ONE machine shape of an access lane (One Door · wave 2 · the W1
+/// gauntlet met three): `check --json`'s `access_plan[]`, `run --dry-run
+/// --json`'s `access.plans[]` and the trace's boot manifest `access_plan`
+/// all carry exactly these rows — `model` · `provider` · `resolved` ·
+/// `access` (the id that serves) · `chosen` (its class) · `billing` ·
+/// `pinned` · `rejected[]` with `access` · `dimension` · `layer` ·
+/// `witness`. A refused lane carries `resolved: false` and its witnesses.
+#[must_use]
+pub fn lane_rows(plan: &ExecutionAccessPlan) -> Vec<serde_json::Value> {
+    plan.lanes
+        .iter()
+        .map(|(model, verdict)| match verdict {
+            nika_providers::LaneVerdict::Admitted(lane) => serde_json::json!({
+                "model": model,
+                "provider": lane.plan.provider,
+                "resolved": true,
+                "access": lane.plan.access,
+                "chosen": lane.plan.chosen.as_str(),
+                "billing": lane.plan.billing.as_str(),
+                "pinned": lane.plan.pinned,
+                "rejected": rejection_rows(&lane.plan.rejected),
+            }),
+            nika_providers::LaneVerdict::Refused(refusal) => serde_json::json!({
+                "model": model,
+                "provider": refusal.provider,
+                "resolved": false,
+                "rejected": rejection_rows(&refusal.rejected),
+            }),
+            // `#[non_exhaustive]` · a verdict this build does not know is
+            // never rendered as admitted (fail closed on the machine face).
+            _ => serde_json::json!({
+                "model": model,
+                "resolved": false,
+                "rejected": [],
+                "note": "lane verdict unknown to this build",
+            }),
+        })
+        .collect()
+}
+
+fn rejection_rows(rejected: &[AccessRejection]) -> Vec<serde_json::Value> {
+    rejected
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "access": r.access,
+                "dimension": r.dimension.as_str(),
+                "layer": r.layer.as_str(),
+                "witness": r.witness,
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -163,5 +218,39 @@ mod tests {
         assert!(run_plan.is_admitted(), "the run rides mock");
         assert!(run_plan.lane("mock/echo").is_some());
         assert!(run_plan.lane("mistral/mistral-small-latest").is_none());
+    }
+
+    /// The one shape: an admitted lane and a refused lane render the
+    /// same keys on every machine surface (`resolved` tells them apart).
+    #[test]
+    fn the_lane_rows_carry_one_shape_for_admitted_and_refused() {
+        let wf = parse(
+            "nika: t\nmodel: mistral/mistral-small-latest\ntasks:\n  a:\n    infer: { prompt: hi }\n  b:\n    infer: { prompt: hi, model: \"mock/echo\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        let probes = [api_probe("mistral", false)];
+        let plan = resolve_plan_over(&wf, &report, None, None, &probes);
+        let rows = lane_rows(&plan);
+        assert_eq!(rows.len(), 2, "{rows:?}");
+        let refused = rows
+            .iter()
+            .find(|r| r["model"] == "mistral/mistral-small-latest")
+            .expect("row");
+        assert_eq!(refused["resolved"], false);
+        assert_eq!(refused["provider"], "mistral");
+        assert!(
+            refused["rejected"]
+                .as_array()
+                .is_some_and(|r| !r.is_empty()),
+            "{refused}"
+        );
+        let admitted = rows
+            .iter()
+            .find(|r| r["model"] == "mock/echo")
+            .expect("row");
+        assert_eq!(admitted["resolved"], true);
+        assert_eq!(admitted["chosen"], "mock");
+        assert_eq!(admitted["access"], "mock");
+        assert_eq!(admitted["pinned"], false);
     }
 }

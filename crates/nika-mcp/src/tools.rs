@@ -545,6 +545,15 @@ pub(crate) fn audit(yaml: &str, native_strict: bool) -> Result<String, String> {
             "why": f.why,
         })
     }));
+    // Wave 2 · the CAPACITY laws (the seat against the declaration) —
+    // the CLI twin folds them into the same rung.
+    model_findings.extend(nika_check::capacity_findings(&wf).into_iter().map(|f| {
+        serde_json::json!({
+            "model": f.model,
+            "tasks": [f.task],
+            "why": f.why,
+        })
+    }));
     // The is_clean mirror law, applied to the native-first lane. `hints`
     // are NOT part of `is_clean()`: a workflow whose real work sits in
     // `exec python3 helper.py` reads "✔ clean" here while `nika check

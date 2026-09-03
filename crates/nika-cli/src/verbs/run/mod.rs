@@ -269,11 +269,18 @@ fn run_verdict(
     if require_signature && let Err(code) = require_signature_gate(&source, output_json) {
         return RunVerdict::bare(code);
     }
-    let (_wf, _report, _skills) =
-        match scoped_clean_gate(wf, report, task_filter, &source, json, theme, output_json) {
-            Ok(triple) => triple,
-            Err(code) => return RunVerdict::bare(code),
-        };
+    let (_wf, _report, _skills) = match scoped_clean_gate(
+        wf,
+        report,
+        task_filter,
+        &source,
+        json,
+        theme,
+        (output_json, model_override),
+    ) {
+        Ok(triple) => triple,
+        Err(code) => return RunVerdict::bare(code),
+    };
     run_admitted(
         file,
         &source,
@@ -784,7 +791,7 @@ fn scoped_clean_gate(
     source: &crate::verbs::RunSource,
     json: bool,
     theme: Theme,
-    output_json: bool,
+    (output_json, model_override): (bool, Option<&str>),
 ) -> Result<(RawWorkflow, CheckReport, BTreeMap<String, String>), u8> {
     let refuse = || {
         let out = crate::verbs::check::run_source_with_profile(
@@ -792,13 +799,34 @@ fn scoped_clean_gate(
             json,
             false,
             crate::verbs::check::Profile::Advisory,
-            None,
+            (model_override, None),
             theme,
         );
         epilogue::emit_diagnostic(&out.text, output_json);
         out.code
     };
     if !report.is_clean() {
+        return Err(refuse());
+    }
+    // Wave 2 · the MODELS rung's judgments (resolution · thinking ·
+    // capacity) refuse HERE too — `check` said red, the run used to run
+    // (the W1 rig measured it on a reasoning seat under a tiny cap).
+    // Judged on the EFFECTIVE model (`--model` applied), like `check`.
+    let judged = model_override.map_or_else(
+        || wf.clone(),
+        |model| crate::verbs::with_model_override(&wf, model),
+    );
+    let judged_report = if model_override.is_some() {
+        nika_check::check(&judged)
+    } else {
+        report.clone()
+    };
+    if !crate::verbs::check::models_rung::unresolvable_models(&judged_report, &judged)
+        .findings
+        .is_empty()
+        || !nika_check::thinking_findings(&judged).is_empty()
+        || !nika_check::capacity_findings(&judged).is_empty()
+    {
         return Err(refuse());
     }
     let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;

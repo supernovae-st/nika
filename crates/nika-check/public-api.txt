@@ -1,10 +1,13 @@
 pub mod nika_check
 pub use nika_check::AnalyzedWorkflow
+pub use nika_check::CapacityFinding
 pub use nika_check::ERROR_DOCS_BASE
 pub use nika_check::MIN_REASONING_MAX_TOKENS
 pub use nika_check::ThinkingFinding
 pub use nika_check::analyze
 pub use nika_check::analyzer
+pub use nika_check::capacity_findings
+pub use nika_check::catalog_knows
 pub use nika_check::lowered_returns
 pub use nika_check::returns_type
 pub use nika_check::static_literal_of

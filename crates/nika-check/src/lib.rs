@@ -200,7 +200,10 @@ pub use walk::static_read_paths;
 // The analyzer's surface at the crate root — the shape `nika-schema`
 // re-exported pre-split (substrate descent 2026-08-25 · ADR-115's direction).
 pub use analyzer::{AnalyzedWorkflow, analyze, lowered_returns, returns_type, static_literal_of};
-pub use analyzer::{MIN_REASONING_MAX_TOKENS, ThinkingFinding, thinking_findings};
+pub use analyzer::{
+    CapacityFinding, MIN_REASONING_MAX_TOKENS, ThinkingFinding, capacity_findings, catalog_knows,
+    thinking_findings,
+};
 
 /// The JSON contract version of [`CheckReport`] — bumped on any
 /// breaking field rename/removal so agent loops fail LOUDLY instead of
