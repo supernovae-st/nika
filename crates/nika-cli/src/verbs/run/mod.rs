@@ -301,6 +301,19 @@ fn announce_access(
     if let Some(pin) = &plan.pin {
         eprintln!("access: pinned `{pin}` — unsatisfied refuses, never substitutes");
     }
+    // #1445 · the rehearsal explains itself BEFORE the run, not on the
+    // closing card: a mock lane echoes the prompt, and here are the two
+    // doors to a real answer.
+    if plan
+        .admitted()
+        .any(|(_, lane)| matches!(lane.plan.chosen, nika_types::access::AccessClass::Mock))
+    {
+        eprintln!(
+            "rehearsal: mock/echo answers by echoing the prompt — not a real answer · \
+             a real one: `--model <provider/model>` with its key, or `--access <seat>` \
+             (nika doctor lists them)"
+        );
+    }
     // R-4 · the rich announce: only when a real choice existed (>1
     // candidate row). Feature-off the rows carry providers only, so
     // this stays silent exactly as before (one candidate per provider).

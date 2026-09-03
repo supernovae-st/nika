@@ -263,6 +263,11 @@ fn the_mock_override_leaves_the_seat_unannounced() {
         !stderr.contains("access:"),
         "a one-candidate mock lane has nothing to announce: {stderr}"
     );
+    // #1445 · the rehearsal explains itself before the run.
+    assert!(
+        stderr.contains("rehearsal: mock/echo answers by echoing the prompt"),
+        "the mock lane says it echoes, up front: {stderr}"
+    );
 }
 
 /// `check --json` reads the same plan: its `access_plan` row names the

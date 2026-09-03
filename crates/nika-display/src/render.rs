@@ -467,7 +467,12 @@ fn display_note(row: &TaskRow, view: &RunView) -> String {
                     .to_owned(),
             }
         }
-        _ => row.note.clone(),
+        // #1444 · a task that consumed a recovered fallback is not a
+        // clean success: the storyboard names the upstream it drank from.
+        _ => match row.integrity_source.as_deref() {
+            Some(source) => format!("{} · input from recovered {source}", row.note),
+            None => row.note.clone(),
+        },
     }
 }
 

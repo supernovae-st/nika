@@ -679,6 +679,7 @@ pub nika_display::state::TaskRow::duration_ms: core::option::Option<u64>
 pub nika_display::state::TaskRow::ended_ms: core::option::Option<i64>
 pub nika_display::state::TaskRow::id: alloc::string::String
 pub nika_display::state::TaskRow::input_hash: core::option::Option<alloc::string::String>
+pub nika_display::state::TaskRow::integrity_source: core::option::Option<alloc::string::String>
 pub nika_display::state::TaskRow::items_json: core::option::Option<alloc::string::String>
 pub nika_display::state::TaskRow::model: core::option::Option<alloc::string::String>
 pub nika_display::state::TaskRow::note: alloc::string::String
