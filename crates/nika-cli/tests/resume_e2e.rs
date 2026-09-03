@@ -1425,6 +1425,9 @@ fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
             "--color",
             "never",
         ])
+        // #1367 · a trace resumes from the project that wrote it (the run's
+        // cwd is its root); another cwd is another project and refuses.
+        .current_dir(&dir)
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(resumed.stdout).expect("utf8");
@@ -1462,6 +1465,7 @@ fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
             "--color",
             "never",
         ])
+        .current_dir(&dir)
         .output()
         .expect("binary runs");
     let stderr = String::from_utf8(refused.stderr).expect("utf8");
