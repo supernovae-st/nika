@@ -151,6 +151,47 @@ pub fn ls(theme: Theme) -> VerbOutput {
     ls_in(Path::new(store::TRACE_DIR), theme)
 }
 
+/// `nika trace ls --json` — the store's facts as one JSON document
+/// (#1247): every trace with its name, path, workflow, terminal state, the
+/// awaiting task when paused, size, mtime, and whether it is the newest of
+/// its workflow (the resume candidate the retention never collects).
+#[must_use]
+pub fn ls_json() -> VerbOutput {
+    ls_json_in(Path::new(store::TRACE_DIR))
+}
+
+/// The dir-injected core of [`ls_json`].
+pub(crate) fn ls_json_in(dir: &Path) -> VerbOutput {
+    let traces = store::scan(dir);
+    let newest = retention::newest_per_workflow(&traces);
+    let rows: Vec<serde_json::Value> = traces
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            let modified = t
+                .modified
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
+            serde_json::json!({
+                "name": t.name,
+                "path": t.path.to_string_lossy(),
+                "workflow": t.workflow,
+                "state": t.state.as_str(),
+                "paused_task": t.paused_task,
+                "bytes": t.bytes,
+                "modified_unix": modified,
+                "newest": newest.contains(&i),
+            })
+        })
+        .collect();
+    let document = serde_json::json!({
+        "ls_version": 1,
+        "dir": dir.to_string_lossy(),
+        "traces": rows,
+    });
+    VerbOutput::ok(serde_json::to_string_pretty(&document).unwrap_or_default())
+}
+
 /// The dir-injected core (tests point it at a staged store).
 pub(crate) fn ls_in(dir: &Path, theme: Theme) -> VerbOutput {
     let traces = store::scan(dir);
@@ -494,6 +535,51 @@ mod tests {
         let dir = temp_store("latest-empty");
         assert_eq!(latest_in(&dir), None);
         assert_eq!(latest_in(&dir.join("never-created")), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// `ls --json` (#1247): one document, one object per trace with the
+    /// store's facts — state, the newest-of-its-workflow marker, size, mtime.
+    #[test]
+    fn ls_json_lists_the_stores_facts() {
+        let dir = temp_store("ls-json");
+        stage_trace(
+            &dir,
+            "gate.ndjson",
+            &ndjson(&run_events("gatey", Some(EventKind::WorkflowPaused))),
+            Duration::from_secs(2 * 3_600),
+        );
+        stage_trace(
+            &dir,
+            "ok.ndjson",
+            &ndjson(&run_events("veille", Some(EventKind::WorkflowCompleted))),
+            Duration::from_secs(60),
+        );
+        let out = ls_json_in(&dir);
+        assert_eq!(out.code, exit::OK);
+        let doc: serde_json::Value = serde_json::from_str(&out.text).expect("one JSON document");
+        assert_eq!(doc["ls_version"], 1);
+        let traces = doc["traces"].as_array().expect("the rows");
+        assert_eq!(traces.len(), 2, "{doc}");
+        let states: Vec<&str> = traces.iter().filter_map(|t| t["state"].as_str()).collect();
+        assert!(
+            states.contains(&"paused") && states.contains(&"completed"),
+            "{doc}"
+        );
+        for trace in traces {
+            assert!(
+                trace["name"]
+                    .as_str()
+                    .is_some_and(|n| n.ends_with(".ndjson")),
+                "{trace}"
+            );
+            assert!(trace["bytes"].as_u64().is_some_and(|b| b > 0), "{trace}");
+            assert!(
+                trace["modified_unix"].as_u64().is_some_and(|m| m > 0),
+                "{trace}"
+            );
+            assert_eq!(trace["newest"], true, "one trace per workflow: {trace}");
+        }
         let _ = std::fs::remove_dir_all(dir);
     }
 
