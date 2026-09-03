@@ -16,7 +16,12 @@ use std::path::PathBuf;
 
 use nika_session::intelligence::{IntelligenceKind, UserIntelligencePreference};
 use nika_session::reasoner::{NoReasoner, ProviderReasoner, SessionReasoner};
-use nika_session::{IntelligenceCensus, ResolvedSessionIntelligence, SessionRuntime, TurnOutcome};
+use nika_session::{
+    IntelligenceCensus, ResolvedSessionIntelligence, RunRequest, SessionRuntime, TurnOutcome,
+};
+
+use crate::verbs::run::RenderMode;
+use nika_dap::resume::ResumeRequest;
 
 use crate::Theme;
 use crate::verbs::exit;
@@ -101,6 +106,7 @@ fn drive<R: BufRead, W: Write>(
     census: &IntelligenceCensus,
     home: Option<&std::path::Path>,
     cwd: &std::path::Path,
+    theme: Theme,
 ) -> std::io::Result<u8> {
     let kept = home.and_then(UserIntelligencePreference::load);
     let pref = if let Some(pref) = kept {
@@ -117,19 +123,19 @@ fn drive<R: BufRead, W: Write>(
     let mut session =
         SessionRuntime::open_with(cwd, census.clone(), &pref, home, Box::new(reasoner_for));
     writeln!(output, "{}", session.banner())?;
-    let mut asking = false;
+    let mut next = Next::Turn;
     loop {
-        write!(output, "\n{}", if asking { "› " } else { "nika › " })?;
+        write!(output, "\n{}", next.prompt())?;
         output.flush()?;
         let mut line = String::new();
         if input.read_line(&mut line)? == 0 {
             return Ok(exit::OK);
         }
-        let outcome = if asking {
-            asking = false;
-            session.choose(line.trim())
-        } else {
-            session.turn(&line)
+        let outcome = match std::mem::replace(&mut next, Next::Turn) {
+            Next::Turn => session.turn(&line),
+            Next::Choice => session.choose(line.trim()),
+            Next::Consent => session.consent(line.trim()),
+            Next::Gate => session.answer_gate(line.trim()),
         };
         match outcome {
             TurnOutcome::Quit => return Ok(exit::OK),
@@ -139,8 +145,39 @@ fn drive<R: BufRead, W: Write>(
                 }
             }
             TurnOutcome::Ask(screen) => {
-                asking = true;
+                next = Next::Choice;
                 writeln!(output, "{screen}")?;
+            }
+            TurnOutcome::Proposal(preview) | TurnOutcome::Held(preview) => {
+                next = Next::Consent;
+                writeln!(output, "{preview}")?;
+            }
+            TurnOutcome::RunRequested { report, run } => {
+                writeln!(output, "{report}")?;
+                writeln!(
+                    output,
+                    "running `{}` once · ceiling ${:.2}",
+                    run.workflow.display(),
+                    run.max_cost_usd
+                )?;
+                output.flush()?;
+                let (code, trace) = run_once(&session.snapshot.root, &run, theme);
+                next = observed(output, session.observe_run(code, trace.as_deref()))?;
+            }
+            TurnOutcome::GateAsk(question) => {
+                next = Next::Gate;
+                writeln!(output, "{question}")?;
+            }
+            TurnOutcome::ResumeRequested {
+                workflow,
+                trace,
+                answer,
+            } => {
+                writeln!(output, "resuming `{}` with your answer", workflow.display())?;
+                output.flush()?;
+                let (code, newest) =
+                    run_resume(&session.snapshot.root, &workflow, &trace, &answer, theme);
+                next = observed(output, session.observe_run(code, newest.as_deref()))?;
             }
             TurnOutcome::Refusal(text) => writeln!(output, "✖ {text}")?,
             _ => {}
@@ -148,16 +185,188 @@ fn drive<R: BufRead, W: Write>(
     }
 }
 
+/// A line source that takes its lock INSIDE each read and releases it
+/// before returning: the door never holds stdin across a turn, so a run it
+/// starts can ask its own gate on the same terminal (`ask_on_tty` locks
+/// stdin too — held across the loop, that lock never came back).
+struct PerCallLines<F> {
+    fill: F,
+    buf: Vec<u8>,
+    pos: usize,
+}
+
+impl<F> PerCallLines<F>
+where
+    F: FnMut(&mut Vec<u8>) -> std::io::Result<usize>,
+{
+    fn new(fill: F) -> Self {
+        Self {
+            fill,
+            buf: Vec::new(),
+            pos: 0,
+        }
+    }
+}
+
+impl<F> std::io::Read for PerCallLines<F>
+where
+    F: FnMut(&mut Vec<u8>) -> std::io::Result<usize>,
+{
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        let available = self.fill_buf()?;
+        let n = available.len().min(out.len());
+        out[..n].copy_from_slice(&available[..n]);
+        self.consume(n);
+        Ok(n)
+    }
+}
+
+impl<F> BufRead for PerCallLines<F>
+where
+    F: FnMut(&mut Vec<u8>) -> std::io::Result<usize>,
+{
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        if self.pos >= self.buf.len() {
+            self.buf.clear();
+            self.pos = 0;
+            (self.fill)(&mut self.buf)?;
+        }
+        Ok(&self.buf[self.pos..])
+    }
+
+    fn consume(&mut self, amt: usize) {
+        self.pos = (self.pos + amt).min(self.buf.len());
+    }
+}
+
+/// What the next line the human types is for.
+enum Next {
+    /// A turn of the conversation.
+    Turn,
+    /// The answer to the first screen (`/intelligence`).
+    Choice,
+    /// The consent to a proposal (`yes` lands it; anything else discards).
+    Consent,
+    /// The answer to a human gate the run paused on.
+    Gate,
+}
+
+impl Next {
+    fn prompt(&self) -> &'static str {
+        match self {
+            Self::Turn => "nika › ",
+            Self::Choice => "› ",
+            Self::Consent => "apply? › ",
+            Self::Gate => "answer › ",
+        }
+    }
+}
+
+/// Print what the session observed of a run; a gate's question makes the
+/// next line the human's answer.
+fn observed<W: Write>(output: &mut W, outcome: TurnOutcome) -> std::io::Result<Next> {
+    match outcome {
+        TurnOutcome::GateAsk(question) => {
+            writeln!(output, "{question}")?;
+            Ok(Next::Gate)
+        }
+        TurnOutcome::Facts(line) | TurnOutcome::Refusal(line) => {
+            writeln!(output, "{line}")?;
+            Ok(Next::Turn)
+        }
+        _ => Ok(Next::Turn),
+    }
+}
+
+/// Resume the SAME run with the human's answer, through the path `nika run
+/// --resume` owns; the exit code and the trace the resume left.
+fn run_resume(
+    root: &std::path::Path,
+    workflow: &std::path::Path,
+    trace: &std::path::Path,
+    answer: &str,
+    theme: Theme,
+) -> (u8, Option<std::path::PathBuf>) {
+    let before = nika_trace::trace::manage::latest();
+    let file = root.join(workflow).display().to_string();
+    let resume = ResumeRequest {
+        trace: Some(trace.to_path_buf()),
+        from: None,
+        answers: vec![answer.to_owned()],
+        compat: None,
+        allow_unverified: false,
+    };
+    let code = crate::verbs::run::run(
+        &file,
+        false,
+        None,
+        theme,
+        RenderMode::Thread,
+        false,
+        None,
+        None,
+        &[],
+        Some(&resume),
+        false,
+        None,
+        false,
+        None,
+        false,
+        false,
+    );
+    let after = nika_trace::trace::manage::latest();
+    (code, after.filter(|a| Some(a) != before.as_ref()))
+}
+
+/// The run the human consented to, through the SAME path as `nika run`
+/// (the door executes; the session observes): the exit code, and the
+/// trace the run left when it left one.
+fn run_once(
+    root: &std::path::Path,
+    run: &RunRequest,
+    theme: Theme,
+) -> (u8, Option<std::path::PathBuf>) {
+    let before = nika_trace::trace::manage::latest();
+    let file = root.join(&run.workflow).display().to_string();
+    let code = crate::verbs::run::run(
+        &file,
+        false,
+        None,
+        theme,
+        RenderMode::Thread,
+        false,
+        None,
+        None,
+        &run.vars,
+        None,
+        false,
+        None,
+        false,
+        Some(run.max_cost_usd),
+        false,
+        false,
+    );
+    let after = nika_trace::trace::manage::latest();
+    (code, after.filter(|a| Some(a) != before.as_ref()))
+}
+
 /// Open the native session on this terminal.
 #[must_use]
-pub fn run(_theme: Theme) -> u8 {
-    let stdin = std::io::stdin();
-    let mut input = stdin.lock();
+pub fn run(theme: Theme) -> u8 {
+    let mut input =
+        PerCallLines::new(|buf: &mut Vec<u8>| std::io::stdin().lock().read_until(b'\n', buf));
     let mut output = std::io::stdout();
     let census = IntelligenceCensus::take();
     let home = nika_cli_host::probe::home_dir();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    match drive(&mut input, &mut output, &census, home.as_deref(), &cwd) {
+    match drive(
+        &mut input,
+        &mut output,
+        &census,
+        home.as_deref(),
+        &cwd,
+        theme,
+    ) {
         Ok(code) => code,
         Err(error) => {
             eprintln!("nika: session I/O failed: {error}");
@@ -194,6 +403,7 @@ mod tests {
             &census,
             Some(home.path()),
             project.path(),
+            Theme::new(false, false, false),
         )
         .expect("io");
         assert_eq!(code, exit::OK);
@@ -233,12 +443,35 @@ mod tests {
             &IntelligenceCensus::empty(),
             Some(home.path()),
             project.path(),
+            Theme::new(false, false, false),
         )
         .expect("io");
         assert_eq!(code, exit::OK, "EOF closes the session cleanly");
         let text = String::from_utf8(output).expect("utf8");
         assert!(!text.contains("Choose which AI"), "{text}");
         assert!(text.contains("/intelligence"), "the help card: {text}");
+    }
+
+    /// The door's line source takes its lock per line: one fill per line
+    /// read, nothing held between lines, EOF when the source is dry.
+    #[test]
+    fn the_line_source_fills_once_per_line_and_holds_nothing_between() {
+        let mut fills = 0usize;
+        let mut cursor = Cursor::new(b"one\ntwo\n".to_vec());
+        let mut lines = PerCallLines::new(|buf: &mut Vec<u8>| {
+            fills += 1;
+            cursor.read_until(b'\n', buf)
+        });
+        let mut line = String::new();
+        assert_eq!(lines.read_line(&mut line).expect("io"), 4);
+        assert_eq!(line, "one\n");
+        line.clear();
+        assert_eq!(lines.read_line(&mut line).expect("io"), 4);
+        assert_eq!(line, "two\n");
+        line.clear();
+        assert_eq!(lines.read_line(&mut line).expect("io"), 0, "EOF");
+        drop(lines);
+        assert_eq!(fills, 3, "one fill per line, one for the EOF");
     }
 
     /// `/intelligence` asks again in-session and the next line answers.
@@ -257,6 +490,7 @@ mod tests {
             &IntelligenceCensus::empty(),
             Some(home.path()),
             project.path(),
+            Theme::new(false, false, false),
         )
         .expect("io");
         assert_eq!(code, exit::OK);

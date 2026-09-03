@@ -13,13 +13,18 @@
 //! answers Nika facts from the engine's own authorities ([`facts`]), and
 //! reads every reply through the [`guard`] before a human sees it — a
 //! named builtin, model, code, MCP server, verb or field this engine does
-//! not carry is corrected, never presented as real.
+//! not carry is corrected, never presented as real. A reply that carries
+//! a file becomes a typed [`change`] set: previewed from the exact bytes
+//! the apply consumes, witnessed against stale targets, landed only on
+//! the human's consent, checked by the real checker after it lands
+//! (ADR-126 · wave 5).
 //!
 //! What the session must NOT own is what it queries: the grammar, the
 //! catalogs, the codes, the checker, the runtime. Its identity core
 //! ([`identity`]) says so to the model in six laws.
 
 pub mod broker;
+pub mod change;
 pub mod facts;
 pub mod guard;
 pub mod identity;
@@ -29,6 +34,10 @@ pub mod runtime;
 pub mod snapshot;
 
 pub use broker::{ContextBroker, SessionContextBundle, Snippet};
+pub use change::{
+    Applied, ChangeError, PendingGate, ProjectChange, ProjectChangeSet, RunRequest, Witness,
+    WorkflowAudit,
+};
 pub use guard::{Finding, KnownWorld};
 pub use intelligence::{
     DataLocus, IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence,
