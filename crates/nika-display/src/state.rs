@@ -103,6 +103,11 @@ pub struct TaskRow {
     /// `items` JSON array text the terminal frame carried · index · item ·
     /// status · code · message. `None` for every other row.
     pub items_json: Option<String>,
+    /// The task consumed RECOVERED data (#1444 · the lineage leg of #1275):
+    /// the upstream task whose fallback fed this one, from the terminal
+    /// frame's `integrity_source` (present only when `integrity` reads
+    /// `untrusted`). A clean success renders as one; this one must not.
+    pub integrity_source: Option<String>,
 }
 
 impl TaskRow {
@@ -435,6 +440,13 @@ impl RunView {
         if let Some(items) = str_field(event, "items") {
             row.items_json = Some(items.to_owned());
         }
+        // #1444 · a task fed by a recovered fallback says so on every
+        // prose surface, not only in the JSON.
+        if str_field(event, "integrity") == Some("untrusted")
+            && let Some(source) = str_field(event, "integrity_source")
+        {
+            row.integrity_source = Some(source.to_owned());
+        }
     }
 
     /// Keep the ADR-099 checkpoint trio (the `output` value as ONE
@@ -505,6 +517,7 @@ impl RunView {
                 recovered: false,
                 warning: None,
                 items_json: None,
+                integrity_source: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
@@ -925,5 +938,35 @@ mod tests {
             Some("cancelled by the operator")
         );
         assert_eq!(view.unpriced_calls, 2, "the terminal's summary rides");
+    }
+
+    /// #1444 · the fold keeps the lineage a terminal frame carries: the
+    /// upstream whose recovered fallback fed this task.
+    #[test]
+    fn a_task_fed_by_a_recovered_fallback_keeps_its_source() {
+        use nika_types::resource::{KeyValue, Value};
+        let mut view = RunView::new();
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 10)
+                .with_field(KeyValue::new("task", Value::String("c".to_owned())))
+                .with_field(KeyValue::new(
+                    "integrity",
+                    Value::String("untrusted".to_owned()),
+                ))
+                .with_field(KeyValue::new(
+                    "integrity_source",
+                    Value::String("b".to_owned()),
+                )),
+        );
+        assert_eq!(view.rows()[0].integrity_source.as_deref(), Some("b"));
+        let mut clean = RunView::new();
+        clean.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 10)
+                .with_field(KeyValue::new("task", Value::String("c".to_owned()))),
+        );
+        assert!(
+            clean.rows()[0].integrity_source.is_none(),
+            "a clean row has no source"
+        );
     }
 }
