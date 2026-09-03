@@ -22,8 +22,8 @@ use nika_types::access::{AccessClass, AccessPlan, HarnessRuntime};
 
 use crate::probe::ProviderProbe;
 use crate::resolve_access::{
-    AccessCandidate, AccessRefusal, PinRefusal, candidates_for, provider_of, refuse_pin_for_verbs,
-    resolve_access,
+    AccessCandidate, AccessRefusal, PinRefusal, access_plan_map, candidates_for, provider_of,
+    refuse_pin_for_verbs, resolve_access,
 };
 
 /// What ONE static model is asked to do — the verbs that read it. A
@@ -213,25 +213,36 @@ fn pinned_plan(needs: &[&ModelNeed], probes: &[ProviderProbe], pin: &str) -> Exe
     let has_agent = needs.iter().any(|n| n.agent);
     let pin_refusal =
         refuse_pin_for_verbs(models.iter().copied(), probes, pin, has_infer, has_agent);
-    // Every static model keeps its lane under the pin — admitted with
-    // its candidate count, or REFUSED with the witnesses (wave 2: a
-    // refused lane must reach `check`'s ACCESS rung; the map-shaped
-    // resolver used to drop it silently).
-    let lanes = models
-        .iter()
-        .map(|model| {
-            let candidates = candidates_for(probes, provider_of(model));
-            let verdict =
-                match crate::resolve_access::resolve_access(model, &candidates, None, Some(pin)) {
-                    Ok(plan) => LaneVerdict::Admitted(ResolvedLane {
-                        plan,
-                        candidates: candidates.len(),
-                    }),
-                    Err(refusal) => LaneVerdict::Refused(refusal),
-                };
-            ((*model).to_owned(), verdict)
+    // The admitted lanes come from the ONE pinned resolver (a ready seat
+    // pin serves EVERY static model — the envelope `model:` is a hint
+    // there); every static model the resolver dropped keeps its lane as
+    // REFUSED with the witnesses (wave 2: a refused lane must reach
+    // `check`'s ACCESS rung; the map used to drop it silently).
+    let owned: Vec<String> = models.iter().map(|m| (*m).to_owned()).collect();
+    let mut lanes: BTreeMap<String, LaneVerdict> = access_plan_map(&owned, probes, Some(pin))
+        .into_iter()
+        .map(|(model, plan)| {
+            let candidates = candidates_for(probes, provider_of(&model)).len();
+            (
+                model,
+                LaneVerdict::Admitted(ResolvedLane { plan, candidates }),
+            )
         })
         .collect();
+    for model in &models {
+        if lanes.contains_key(*model) {
+            continue;
+        }
+        let candidates = candidates_for(probes, provider_of(model));
+        let verdict = match resolve_access(model, &candidates, None, Some(pin)) {
+            Ok(plan) => LaneVerdict::Admitted(ResolvedLane {
+                plan,
+                candidates: candidates.len(),
+            }),
+            Err(refusal) => LaneVerdict::Refused(refusal),
+        };
+        lanes.insert((*model).to_owned(), verdict);
+    }
     let seat = if pin_refusal.is_none() {
         pinned_seat(pin, probes)
     } else {
