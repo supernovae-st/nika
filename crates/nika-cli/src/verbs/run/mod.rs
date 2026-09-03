@@ -119,15 +119,6 @@ impl RunVerdict {
         }
     }
 
-    fn interrupted() -> Self {
-        Self {
-            code: exit::WORKFLOW,
-            failure: None,
-            paused: None,
-            trace: None,
-        }
-    }
-
     fn renderer_failed(trace: Option<std::path::PathBuf>, kind: std::io::ErrorKind) -> Self {
         let code = if kind == std::io::ErrorKind::BrokenPipe {
             141
@@ -198,7 +189,6 @@ pub fn run(
         max_cost_usd,
         no_gc,
         require_signature,
-        false,
         None,
     )
     .code
@@ -245,7 +235,6 @@ fn run_verdict(
     max_cost_usd: Option<f64>,
     no_gc: bool,
     require_signature: bool,
-    interruptible: bool,
     repair_target: Option<nika_display::check_render::RepairTarget>,
 ) -> RunVerdict {
     let (output_json, max_cost_usd) = match preflight(output, max_cost_usd, no_gc, dry_run) {
@@ -289,7 +278,6 @@ fn run_verdict(
         task_filter,
         no_outputs,
         max_cost_usd,
-        interruptible,
     )
 }
 
@@ -351,7 +339,7 @@ fn execute_and_ask(
     theme: Theme,
     mode: RenderMode,
     (json, output_json, no_trace_file, no_outputs): (bool, bool, bool, bool),
-    interruptible: bool,
+    cancel: &nika_types::cancel::CancelCtx,
     world: &AdmittedWorld,
 ) -> RunVerdict {
     let rt = match executor(output_json) {
@@ -377,7 +365,7 @@ fn execute_and_ask(
         model_override,
         &carry,
     );
-    let mut verdict = thread::block_on_run(&rt, future, interruptible);
+    let mut verdict = thread::block_on_run(&rt, future, cancel);
     let mut legs = 0usize;
     while verdict.code == exit::PAUSED && !json && !output_json && legs <= wf.tasks.len() {
         let Some(leg) = verdict.paused.take() else {
@@ -412,6 +400,7 @@ fn execute_and_ask(
             mode,
             (json, output_json, no_trace_file, !no_outputs),
             &rt,
+            cancel,
             world,
         );
     }
@@ -436,6 +425,7 @@ fn answered_leg(
     mode: RenderMode,
     (json, output_json, no_trace_file, outputs): (bool, bool, bool, bool),
     rt: &tokio::runtime::Runtime,
+    cancel: &nika_types::cancel::CancelCtx,
     world: &AdmittedWorld,
 ) -> RunVerdict {
     let inputs = match inputs::validated_var_overrides(vars, wf, output_json) {
@@ -472,8 +462,11 @@ fn answered_leg(
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
     };
+    // #1438 · the continuation listens like the first leg: the same
+    // cancel, observed at the runtime's wave boundary.
+    let runtime = runtime.with_cancel(cancel.clone());
     let carry = epilogue::resume_carry(vars, model_override);
-    rt.block_on(execute(
+    let future = execute(
         &runtime,
         (file, wf),
         report,
@@ -487,7 +480,8 @@ fn answered_leg(
         outputs,
         model_override,
         &carry,
-    ))
+    );
+    thread::block_on_run(rt, future, cancel)
 }
 
 /// Build the current-thread executor the run blocks on — an executor
@@ -1098,7 +1092,7 @@ async fn execute_json_lane(
         .map(nika_service_execution::access::lane_rows);
     if let Err(e) = nika_cli_host::run_settlement::write_local_run_settlement(
         &mut sink,
-        (outcome.ok, outcome.paused.is_some()),
+        nika_cli_host::run_settlement::settled_status(&outcome),
         &outcome.outputs,
         identity.0,
         identity.1,
@@ -1368,6 +1362,10 @@ fn map_run_result(
             // never the WORKFLOW failure code (a pause is not a defect).
             let code = if outcome.paused.is_some() {
                 exit::PAUSED
+            } else if outcome.cancelled {
+                // #1438 · the operator's cancellation at a wave boundary is
+                // a decision (the terminal says so), never the WORKFLOW code.
+                exit::CANCELLED
             } else if outcome.ok {
                 exit::OK
             } else {

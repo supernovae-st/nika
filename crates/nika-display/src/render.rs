@@ -213,7 +213,9 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
 
     // Failure card (only on a failed verdict · derives the explain hint) —
     // the SAME card the compact `--quiet` surface renders (shared helper).
-    if view.verdict == Some(false) {
+    if view.cancelled {
+        append_cancelled_card(&mut lines, view, theme);
+    } else if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
     } else if view.paused_task.is_some() {
         append_paused_card(&mut lines, view, theme);
@@ -379,7 +381,9 @@ pub fn stream_summary(view: &RunView, theme: &Theme, notes: &[String]) -> Vec<St
     if let Some(note) = crate::fruit::rehearsal_note(view) {
         lines.push(format!("    {}", theme.paint(Role::Dim, note)));
     }
-    if view.verdict == Some(false) {
+    if view.cancelled {
+        append_cancelled_card(&mut lines, view, theme);
+    } else if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
     } else if view.paused_task.is_some() {
         append_paused_card(&mut lines, view, theme);
@@ -639,6 +643,9 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
             theme.paint(Role::Warn, if theme.ascii { "! " } else { "⚠ " })
         }
         Some(true) => theme.glyph(TaskState::Ok, 0),
+        // #1438 · a cancelled run is a decision: the dim blocked glyph,
+        // never the red cross.
+        Some(false) if view.cancelled => theme.glyph(TaskState::Cancelled, 0),
         Some(false) => theme.glyph(TaskState::Failed, 0),
         None => theme.glyph(TaskState::Pending, 0),
     };
@@ -655,7 +662,9 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
 
     // Errors always (spec §3.5) — the same failure card the full frame emits,
     // appended so a quiet run still surfaces WHY it failed + the explain hint.
-    if view.verdict == Some(false) {
+    if view.cancelled {
+        append_cancelled_card(&mut lines, view, theme);
+    } else if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
     } else if view.paused_task.is_some() {
         append_paused_card(&mut lines, view, theme);
@@ -766,6 +775,24 @@ fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
             }
         }
     }
+}
+
+/// The cancelled card (#1438): the operator's cancellation is a decision,
+/// never a defect · dim, no explain hint, the terminal's detail names what
+/// completed and what never started.
+// `&Theme` to match the frame borrows that thread it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn append_cancelled_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
+    let detail = view
+        .workflow_detail
+        .as_deref()
+        .unwrap_or("cancelled by the operator");
+    lines.push(String::new());
+    lines.push(format!(
+        "  {}{}",
+        theme.glyph(TaskState::Cancelled, 0),
+        theme.paint(Role::Strong, detail),
+    ));
 }
 
 /// Extend a meter line with rule dashes to a stable width.

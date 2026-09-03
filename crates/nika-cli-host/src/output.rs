@@ -23,6 +23,12 @@ pub mod exit {
     /// proceed past an unanswered human gate. Resume with
     /// `--resume <trace> --answer <task>=<value>`.
     pub const PAUSED: u8 = 4;
+    /// The operator CANCELLED the run (Ctrl-C · SIGTERM · #1438): in-flight
+    /// work completed and was counted, the unstarted tasks settled as
+    /// cancelled, the trace ends with `workflow_cancelled`. 128 + SIGINT ·
+    /// the code every shell and CI reader already treats as « interrupted »
+    /// · never the WORKFLOW failure code (a decision is not a defect).
+    pub const CANCELLED: u8 = 130;
 }
 
 /// One verb invocation's outcome: the text to print + the exit code.

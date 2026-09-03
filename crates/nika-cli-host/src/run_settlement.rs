@@ -217,13 +217,29 @@ fn write_run_settlement_bound<T: Serialize>(
     writer.flush()
 }
 
+/// The `run_settled` status of a run the runtime returned (#1438): a pause
+/// wins (the gate is unanswered), then the operator's cancellation (a
+/// decision, never a failure), then the verdict.
+#[must_use]
+pub fn settled_status(outcome: &nika_runtime::RunOutcome) -> &'static str {
+    if outcome.paused.is_some() {
+        "paused"
+    } else if outcome.cancelled {
+        "cancelled"
+    } else if outcome.ok {
+        "succeeded"
+    } else {
+        "failed"
+    }
+}
+
 /// Project the typed local execution identity into its terminal envelope.
 ///
 /// # Errors
 /// Returns the writer or serialization error.
 pub fn write_local_run_settlement<T: Serialize, W: Write>(
     writer: &mut nika_dap::journal::JsonSink<W>,
-    outcome: (bool, bool),
+    status: &str,
     outputs: &T,
     execution: nika_types::id::ExecutionId,
     snapshot_digest: &str,
@@ -245,13 +261,6 @@ pub fn write_local_run_settlement<T: Serialize, W: Write>(
             proof.sealed,
         )
     });
-    let status = if outcome.1 {
-        "paused"
-    } else if outcome.0 {
-        "succeeded"
-    } else {
-        "failed"
-    };
     writer.write_record(&RunSettlement {
         kind: "run_settled",
         status,
@@ -355,7 +364,7 @@ mod tests {
             let mut writer = nika_dap::journal::JsonSink::new(&mut out);
             write_local_run_settlement(
                 &mut writer,
-                (false, true),
+                "paused",
                 &json!({}),
                 execution,
                 "snapshot",
@@ -386,7 +395,7 @@ mod tests {
             let mut writer = nika_dap::journal::JsonSink::new(&mut out);
             write_local_run_settlement(
                 &mut writer,
-                (true, false),
+                "succeeded",
                 &json!({}),
                 execution,
                 "snapshot",
@@ -415,5 +424,22 @@ mod tests {
             nika_types::id::TraceId::from(execution).to_string()
         );
         assert_eq!(binding["snapshot_digest"], "snapshot-abc");
+    }
+
+    /// #1438 · the operator's cancellation settles as `cancelled`, never as
+    /// the failure it is not; a pause still wins.
+    #[test]
+    fn a_cancelled_outcome_settles_as_cancelled() {
+        let mut outcome = nika_runtime::RunOutcome::new(
+            false,
+            std::collections::BTreeMap::new(),
+            std::collections::BTreeMap::new(),
+        );
+        assert_eq!(settled_status(&outcome), "failed");
+        outcome.cancelled = true;
+        assert_eq!(settled_status(&outcome), "cancelled");
+        outcome.cancelled = false;
+        outcome.ok = true;
+        assert_eq!(settled_status(&outcome), "succeeded");
     }
 }

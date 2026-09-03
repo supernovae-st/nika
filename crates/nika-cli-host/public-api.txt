@@ -2092,6 +2092,7 @@ pub fn nika_cli_host::oracle::native_hints(report: &nika_check::CheckReport) -> 
 pub type nika_cli_host::oracle::Reader<'a> = &'a mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_cli_host::output
 pub mod nika_cli_host::output::exit
+pub const nika_cli_host::output::exit::CANCELLED: u8
 pub const nika_cli_host::output::exit::ENV: u8
 pub const nika_cli_host::output::exit::FILE: u8
 pub const nika_cli_host::output::exit::OK: u8
@@ -2853,9 +2854,10 @@ pub fn nika_cli_host::run_settlement::local_receipt_binding(execution: nika_type
 pub fn nika_cli_host::run_settlement::plan_waves(workflow: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>
 pub fn nika_cli_host::run_settlement::refusal_error(err: &nika_runtime_laws::errors::RuntimeError) -> nika_cli_host::run_settlement::SettlementError
 pub fn nika_cli_host::run_settlement::sensitive_journey(report: &nika_check::CheckReport) -> bool
+pub fn nika_cli_host::run_settlement::settled_status(outcome: &nika_runtime::RunOutcome) -> &'static str
 pub fn nika_cli_host::run_settlement::settlement_error(outcome: &nika_runtime::RunOutcome) -> core::option::Option<nika_cli_host::run_settlement::SettlementError>
 pub fn nika_cli_host::run_settlement::write_failed_run_settlement<T: serde_core::ser::Serialize>(writer: &mut impl core::io::write::Write, outputs: &T, receipt: core::option::Option<nika_cli_host::run_settlement::LocalRunReceipt<'_>>, error: core::option::Option<&nika_cli_host::run_settlement::SettlementError>) -> core::io::error::Result<()>
-pub fn nika_cli_host::run_settlement::write_local_run_settlement<T: serde_core::ser::Serialize, W: core::io::write::Write>(writer: &mut nika_dap::journal::JsonSink<W>, outcome: (bool, bool), outputs: &T, execution: nika_types::id::ExecutionId, snapshot_digest: &str, trace: core::option::Option<(&std::path::Path, &nika_cli_host::run_settlement::TraceProof)>, error: core::option::Option<&nika_cli_host::run_settlement::SettlementError>, access_plan: core::option::Option<&[serde_json::value::Value]>) -> core::io::error::Result<()>
+pub fn nika_cli_host::run_settlement::write_local_run_settlement<T: serde_core::ser::Serialize, W: core::io::write::Write>(writer: &mut nika_dap::journal::JsonSink<W>, status: &str, outputs: &T, execution: nika_types::id::ExecutionId, snapshot_digest: &str, trace: core::option::Option<(&std::path::Path, &nika_cli_host::run_settlement::TraceProof)>, error: core::option::Option<&nika_cli_host::run_settlement::SettlementError>, access_plan: core::option::Option<&[serde_json::value::Value]>) -> core::io::error::Result<()>
 pub fn nika_cli_host::run_settlement::write_run_settlement<T: serde_core::ser::Serialize>(writer: &mut impl core::io::write::Write, status: &str, outputs: &T, receipt: core::option::Option<nika_cli_host::run_settlement::LocalRunReceipt<'_>>) -> core::io::error::Result<()>
 pub mod nika_cli_host::source
 pub struct nika_cli_host::source::RunSource
