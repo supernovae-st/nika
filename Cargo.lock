@@ -4347,6 +4347,7 @@ dependencies = [
  "nika-registry-client",
  "nika-runtime",
  "nika-schema",
+ "nika-service-execution",
  "nika-types",
  "nix 0.31.3",
  "serde",

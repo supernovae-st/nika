@@ -39,10 +39,11 @@ pub fn harness_provider_rows() -> Vec<ProviderProbe> {
 
 /// The access-probe rows every admission surface judges (P3 B6): the
 /// provider rows PLUS the harness rows when the feature is on — ONE
-/// fn, so the run's gate and `check`/`explain` can never drift (the
-/// composer's `production_runtime` internal collection is the
-/// non-CLI default; this is the CLI surfaces' superset).
+/// door, so the run's gate, `check`/`explain` and the resident's jobs
+/// can never drift (since wave 1b the door itself is
+/// [`nika_service_execution::access::access_probes_env`]; this is its
+/// CLI-facing name).
 #[must_use]
 pub fn access_probes_with_harness() -> Vec<ProviderProbe> {
-    nika_providers::probe::collect_access_probes_env(nika_runtime::compose::config_from_env())
+    nika_service_execution::access::access_probes_env()
 }

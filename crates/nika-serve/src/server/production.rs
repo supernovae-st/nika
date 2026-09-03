@@ -74,10 +74,14 @@ async fn drive_resident_execution(
             "workflow world could not be composed",
         );
     };
+    // One Door · wave 1b: the resident resolves the SAME frozen plan the
+    // CLI door does (no pin, no override on a resident job) and executes
+    // it — a job with no ready path refuses before its first task.
+    let plan = driver.resolve_access_plan(None, None);
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     let _cancel = CancelOnDrop(Some(cancel_tx));
     match tokio::task::spawn_blocking(move || {
-        run_admitted_resident_job(driver, cancel_rx, max_cost_usd)
+        run_admitted_resident_job(driver, cancel_rx, max_cost_usd, plan)
     })
     .await
     {
@@ -90,6 +94,7 @@ fn run_admitted_resident_job(
     driver: ServiceExecutionDriver,
     cancel: tokio::sync::oneshot::Receiver<()>,
     max_cost_usd: Option<f64>,
+    plan: nika_service_execution::ExecutionAccessPlan,
 ) -> ExecutionOutcome {
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -97,9 +102,12 @@ fn run_admitted_resident_job(
     else {
         return ExecutionOutcome::failed("NIKA-COMP-001", "execution runtime could not start");
     };
+    let options = ServiceExecutionOptions::new()
+        .with_max_cost_usd(max_cost_usd)
+        .with_access_plan(plan);
     rt.block_on(async move {
         tokio::select! {
-            result = driver.execute(ServiceExecutionOptions::new().with_max_cost_usd(max_cost_usd)) => match result {
+            result = driver.execute(options) => match result {
                 Ok(outcome) => {
                     let disposition = match outcome.status() {
                         ServiceExecutionStatus::Succeeded => ExecutionDisposition::Succeeded,

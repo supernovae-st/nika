@@ -21,6 +21,7 @@ nika-models    = { path = "../nika-models", version = "0.117.1" }    # model ids
 nika-pack      = { path = "../nika-pack", version = "0.117.1" }      # embedded pack version (kit probes)
 nika-providers = { path = "../nika-providers", version = "0.117.1" } # ProviderRegistry + ExecutionLocus (the probe ladders)
 nika-runtime   = { path = "../nika-runtime", version = "0.117.1" }   # trace-store shapes retention walks + WorkflowPause/Stamper (notify · ADR-111)
+nika-service-execution = { path = "../nika-service-execution", version = "0.117.1" } # the ONE access-plan resolver + probe door every door executes (One Door · wave 1b)
 nika-registry-client = { path = "../nika-registry-client", version = "0.117.1" } # canonical registry cache root for --fix provenance
 nix            = { workspace = true, features = ["fs", "feature"] }   # FIFO fixtures · sysconf RAM probe (first-wow cascade)
 nika-schema    = { path = "../nika-schema", version = "0.117.1" }    # RawWorkflow (context envelope · glance)

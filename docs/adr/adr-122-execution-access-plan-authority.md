@@ -117,8 +117,11 @@ time.
 
 ## Follow-ups
 
-- Wave 1b: the trace, the billing ledger, `serve`, `arm` and the resume
-  identity carry the plan (today an answered gate leg re-resolves over
-  the same machine).
+- Delivered in wave 1b: the resume judges the recorded lanes against
+  the live plan (a moved lane refuses unless `--access` names it), the
+  lane joins the resume identity, `nika serve` resolves and attaches
+  the plan through `ServiceExecutionOptions`, ARM inherits through the
+  CLI door, and `nika_service_execution::access` is the one resolver
+  every door reads.
 - Wave 2: the layered `check` verdicts (VALID · ACCESS READY · CAPACITY
   FIT · RUN READY) read the same plan.
