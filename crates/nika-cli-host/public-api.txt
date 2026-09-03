@@ -2848,10 +2848,10 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::run_settlement::Trace
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::run_settlement::TraceProof
 impl<T> typenum::type_operators::Same for nika_cli_host::run_settlement::TraceProof
 pub type nika_cli_host::run_settlement::TraceProof::Output = T
-pub fn nika_cli_host::run_settlement::first_failure(outcome: &nika_runtime::RunOutcome) -> core::option::Option<nika_runtime::compat_record::TaskErrorRecord>
+pub fn nika_cli_host::run_settlement::first_failure(outcome: &nika_runtime::RunOutcome) -> core::option::Option<nika_runtime_laws::compat_record::TaskErrorRecord>
 pub fn nika_cli_host::run_settlement::local_receipt_binding(execution: nika_types::id::ExecutionId, snapshot_digest: &str) -> serde_json::value::Value
 pub fn nika_cli_host::run_settlement::plan_waves(workflow: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>
-pub fn nika_cli_host::run_settlement::refusal_error(err: &nika_runtime::errors::RuntimeError) -> nika_cli_host::run_settlement::SettlementError
+pub fn nika_cli_host::run_settlement::refusal_error(err: &nika_runtime_laws::errors::RuntimeError) -> nika_cli_host::run_settlement::SettlementError
 pub fn nika_cli_host::run_settlement::sensitive_journey(report: &nika_check::CheckReport) -> bool
 pub fn nika_cli_host::run_settlement::settlement_error(outcome: &nika_runtime::RunOutcome) -> core::option::Option<nika_cli_host::run_settlement::SettlementError>
 pub fn nika_cli_host::run_settlement::write_failed_run_settlement<T: serde_core::ser::Serialize>(writer: &mut impl core::io::write::Write, outputs: &T, receipt: core::option::Option<nika_cli_host::run_settlement::LocalRunReceipt<'_>>, error: core::option::Option<&nika_cli_host::run_settlement::SettlementError>) -> core::io::error::Result<()>
