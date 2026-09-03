@@ -894,7 +894,6 @@ where
 
             self.race_budget(attempts, budget).await
         };
-
         let duration_ms = self.since_ms(started);
         if note.is_empty() {
             verb_note_prefix(&task.action).clone_into(&mut note); // timed out pre-dispatch
