@@ -22,9 +22,10 @@ use super::{AuthorityState, PreparedScheduledRun, ServerError};
 const FALLBACK_RESCAN: Duration = Duration::from_secs(5);
 const PLANNER_PROJECTION: usize = 1;
 
-struct ResidentSchedule {
-    origin: ScheduleOrigin,
-    definition: ScheduleDefinition,
+#[derive(Clone)]
+pub(super) struct ResidentSchedule {
+    pub(super) origin: ScheduleOrigin,
+    pub(super) definition: ScheduleDefinition,
 }
 
 /// A project beat whose declaration the planner refused at load. The
@@ -48,6 +49,22 @@ impl RefusedProjectSchedule {
 
 /// The load-time refusal projection, replaced wholesale by every scan.
 pub(super) type ProjectRefusals = Arc<Mutex<BTreeMap<String, RefusedProjectSchedule>>>;
+
+/// The last project registry that loaded whole: retained when an edit
+/// breaks `nika.yaml`, so one bad edit never unschedules everything (#1351).
+pub(super) type LastGoodProject = Arc<Mutex<Vec<ResidentSchedule>>>;
+
+/// The project file's own finding while it does not load (`None` when it
+/// loads): surfaced on every retained project schedule.
+pub(super) type ProjectLoadFinding = Arc<Mutex<Option<String>>>;
+
+/// A schedule whose last fire attempt could not admit its workflow, by
+/// schedule id: a finding on that schedule, never fatal to the resident.
+pub(super) type FireRefusals = Arc<Mutex<BTreeMap<String, String>>>;
+
+/// The reason a fire attempt was refused at admission (the file changed or
+/// vanished): named on the schedule, cleared on the next prepared fire.
+pub(super) const FIRE_ADMISSION_REFUSED: &str = "the workflow could not be admitted at fire time — the file changed or vanished since it was scheduled · the resident keeps running · the next slot re-tries once the file admits";
 
 struct ProjectLoad {
     live: Vec<ResidentSchedule>,
@@ -100,9 +117,18 @@ pub(super) async fn run(
                         handle_overlap(&state, candidate)?;
                         continue;
                     }
-                    if let Some(prepared) = prepare_claim(&state, candidate).await? {
-                        active.insert(key.clone());
-                        executions.spawn_blocking(move || (key, prepared.execute()));
+                    let id = candidate.schedule.definition.id().to_owned();
+                    match prepare_claim(&state, candidate).await {
+                        Ok(Some(prepared)) => {
+                            clear_fire_refusal(&state, &id);
+                            active.insert(key.clone());
+                            executions.spawn_blocking(move || (key, prepared.execute()));
+                        }
+                        Ok(None) => {}
+                        Err(ServerError::ScheduledAdmission) => {
+                            record_fire_refusal(&state, &id, FIRE_ADMISSION_REFUSED);
+                        }
+                        Err(error) => return Err(error),
                     }
                 }
                 PlannedAction::Skip(candidate) => consume_skip(&state, candidate)?,
@@ -149,9 +175,26 @@ fn scan(state: &AuthorityState) -> Result<Scan, ServerError> {
         match load_project(project, &now) {
             Ok(load) => {
                 publish_refusals(state, load.refused);
+                set_project_load_finding(state, None);
+                lock(&state.last_good_project).clone_from(&load.live);
                 schedules.extend(load.live);
             }
-            Err(ServerError::ScheduledAdmission) => publish_refusals(state, Vec::new()),
+            Err(ServerError::ScheduledAdmission) => {
+                // The file no longer loads whole: the last registry that did
+                // is retained (never a half-valid world, never a silent
+                // unschedule of everything) and the finding is named on each
+                // retained schedule until the file loads again (#1351).
+                publish_refusals(state, Vec::new());
+                let retained = lock(&state.last_good_project).clone();
+                set_project_load_finding(
+                    state,
+                    Some(format!(
+                        "`nika.yaml` does not load — the last valid registry is retained ({} schedule(s) keep firing) · fix the file; nothing was unscheduled",
+                        retained.len()
+                    )),
+                );
+                schedules.extend(retained);
+            }
             Err(error) => return Err(error),
         }
     }
@@ -385,6 +428,23 @@ fn generation(
     ArmGeneration::compute_resident(&definition.revision(), admitted.snapshot().digest())
 }
 
+fn lock<T>(cell: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    cell.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+fn set_project_load_finding(state: &AuthorityState, finding: Option<String>) {
+    *lock(&state.project_load_finding) = finding;
+}
+
+fn record_fire_refusal(state: &AuthorityState, id: &str, reason: &str) {
+    lock(&state.fire_refusals).insert(id.to_owned(), reason.to_owned());
+}
+
+fn clear_fire_refusal(state: &AuthorityState, id: &str) {
+    lock(&state.fire_refusals).remove(id);
+}
+
 fn publish_refusals(state: &AuthorityState, refused: Vec<RefusedProjectSchedule>) {
     let mut projection = state
         .project_refusals
@@ -445,14 +505,22 @@ fn load_project_definitions(
         .collect()
 }
 
+/// Whether the schedule about to fire is still the one the project file
+/// declares. When the file no longer loads whole, the retained last-good
+/// registry IS the world the resident runs (#1351): its definitions stay
+/// current until the file loads again and says otherwise.
 fn project_revision_current(
     project: &nika_fs::OwnedDir,
     id: &str,
     revision: &ScheduleRevision,
 ) -> Result<bool, ServerError> {
-    Ok(load_project_definitions(project)?
-        .into_iter()
-        .any(|definition| definition.id() == id && definition.revision() == *revision))
+    match load_project_definitions(project) {
+        Ok(definitions) => Ok(definitions
+            .into_iter()
+            .any(|definition| definition.id() == id && definition.revision() == *revision)),
+        Err(ServerError::ScheduledAdmission) => Ok(true),
+        Err(error) => Err(error),
+    }
 }
 
 fn schedule_key(origin: ScheduleOrigin, id: &str) -> String {
