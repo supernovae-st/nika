@@ -46,6 +46,7 @@
 
 #![forbid(unsafe_code)]
 
+mod abort;
 mod admit;
 #[cfg(test)]
 mod admit_resolved_tests;
@@ -1096,18 +1097,13 @@ where
                 stamper,
                 sink,
             );
-            let abort = if cancelled {
-                Abort::Operator
-            } else {
-                Abort::Budget
-            };
-            let outcome = abort_unran(
+            let outcome = abort::abort_unran(
                 wf,
                 workflow_name,
                 std::mem::take(records),
                 std::mem::take(cache_hits),
                 &run_ledger.snapshot(),
-                abort,
+                cancelled,
                 stamper,
                 sink,
             );
@@ -1386,81 +1382,6 @@ fn terminal_cost_fields(snap: &ledger::LedgerSnapshot) -> Vec<(&'static str, Fie
 /// settled before the check); every task that never STARTED cancels
 /// with the budget note, then the run fails with spent-vs-budget — the
 /// LiteLLM-shaped error message (both numbers, always).
-/// Why the unstarted tasks settle as cancelled at a wave boundary.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Abort {
-    Budget,
-    Operator,
-}
-
-#[allow(clippy::too_many_arguments)] // the wave boundary's own knob set
-fn abort_unran(
-    wf: &RawWorkflow,
-    workflow_name: &str,
-    mut records: BTreeMap<String, DataflowTaskRecord>,
-    cache_hits: Vec<String>,
-    snapshot: &ledger::LedgerSnapshot,
-    abort: Abort,
-    stamper: &mut dyn Stamper,
-    sink: &mut dyn EventSink,
-) -> RunOutcome {
-    let (cause, note) = match abort {
-        Abort::Budget => (
-            nika_dataflow::TerminalCause::Budget,
-            "budget · --max-cost-usd reached",
-        ),
-        Abort::Operator => (
-            nika_dataflow::TerminalCause::Operator,
-            "cancelled by the operator",
-        ),
-    };
-    for task in &wf.tasks {
-        let id = &task.value.id.value;
-        if !records.contains_key(id) {
-            // Spec 13 · cancelled/budget: this task was UNSTARTED when
-            // the cap hit (in-flight work completed and was counted).
-            let record = DataflowTaskRecord::unran(nika_dataflow::TaskStatus::Cancelled, cause);
-            emit(
-                stamper,
-                sink,
-                EventKind::TaskCancelled,
-                &[
-                    ("task", s(id)),
-                    ("note", s(note)),
-                    ("outcome", s(&record::outcome_json(&record))),
-                ],
-            );
-            records.insert(id.clone(), record);
-        }
-    }
-    let (kind, detail) = match abort {
-        Abort::Budget => (
-            EventKind::WorkflowFailed,
-            format!(
-                "NIKA-1704 · run budget exceeded — spent ${:.6} of ${:.6} (--max-cost-usd) · \
-                 in-flight work completed and was counted · unstarted tasks were cancelled",
-                snapshot.spent_usd,
-                snapshot.budget.unwrap_or(0.0),
-            ),
-        ),
-        Abort::Operator => (
-            EventKind::WorkflowCancelled,
-            "cancelled by the operator — in-flight work completed and was counted · \
-             unstarted tasks were cancelled"
-                .to_owned(),
-        ),
-    };
-    let mut fields = vec![("workflow", s(workflow_name)), ("detail", s(&detail))];
-    fields.extend(terminal_cost_fields(snapshot));
-    emit(stamper, sink, kind, &fields);
-
-    let mut outcome =
-        RunOutcome::from_dataflow(false, records, BTreeMap::new()).with_ledger(snapshot);
-    outcome.cache_hits = cache_hits;
-    outcome.cancelled = abort == Abort::Operator;
-    outcome
-}
-
 /// One typed-`outputs:` contract violation (spec 01 rule 6 · NIKA-VAR-009).
 struct OutputTypeViolation {
     name: String,
