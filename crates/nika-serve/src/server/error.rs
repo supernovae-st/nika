@@ -85,6 +85,12 @@ pub enum ServerError {
     /// A scheduled snapshot or provenance binding was not canonical.
     #[error("scheduled execution admission was refused")]
     ScheduledAdmission,
+    /// A project beat's slot is answered or held by the other firer in the
+    /// ONE ledger (`nika arm fire`): not the resident's to fire (#1377).
+    #[error(
+        "serve · the slot is answered or held by the CLI edge in the ARM ledger — one slot, one firer"
+    )]
+    SlotOwnedElsewhere,
     /// A slot replay resolved to different immutable snapshot bytes.
     #[error("scheduled execution idempotency key conflicts with another snapshot")]
     ScheduledIdempotencyConflict,

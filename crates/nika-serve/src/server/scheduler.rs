@@ -15,6 +15,7 @@ use tokio::sync::watch;
 use tokio::task::JoinSet;
 
 use crate::JobOrigin;
+use crate::job::{JobRecord, JobStatus};
 use crate::schedule::{ScheduleClaimEvidence, ScheduleSlotAction};
 
 use super::{AuthorityState, PreparedScheduledRun, ServerError};
@@ -119,10 +120,17 @@ pub(super) async fn run(
                     }
                     let id = candidate.schedule.definition.id().to_owned();
                     match prepare_claim(&state, candidate).await {
-                        Ok(Some(prepared)) => {
+                        Ok(Some((prepared, ledger))) => {
                             clear_fire_refusal(&state, &id);
                             active.insert(key.clone());
-                            executions.spawn_blocking(move || (key, prepared.execute()));
+                            let clock = Arc::clone(&state.clock);
+                            executions.spawn_blocking(move || {
+                                let result = prepared.execute();
+                                if let Some(claim) = ledger {
+                                    settle_in_ledger(claim, &result, clock.now().timestamp());
+                                }
+                                (key, result)
+                            });
                         }
                         Ok(None) => {}
                         Err(ServerError::ScheduledAdmission) => {
@@ -245,10 +253,72 @@ fn scan(state: &AuthorityState) -> Result<Scan, ServerError> {
     Ok(Scan { actions, earliest })
 }
 
+/// The exit the ONE ledger records for a settled scheduled run.
+fn ledger_exit(result: &Result<JobRecord, ServerError>) -> u8 {
+    match result {
+        Ok(record) => match record.status() {
+            JobStatus::Succeeded => 0,
+            JobStatus::Paused => 4,
+            _ => 1,
+        },
+        Err(_) => 3,
+    }
+}
+
+/// Land the receipt of a project fire in the ARM ledger — the same history
+/// `nika arm` reads and the CLI edge writes (wave 6 · #1377). A ledger that
+/// refuses the receipt is not fatal: the run settled, the store has it.
+fn settle_in_ledger(
+    claim: nika_arm::ResidentClaim,
+    result: &Result<JobRecord, ServerError>,
+    decided_at: Timestamp,
+) {
+    let trace = result
+        .as_ref()
+        .ok()
+        .and_then(|record| record.trace_id().map(str::to_owned));
+    let _ = claim.settle(ledger_exit(result), trace, decided_at);
+}
+
+/// The resident's claim of a project beat's slot in the ARM ledger: the
+/// same beat lock the CLI edge takes. `None` when the slot is not the
+/// resident's to fire — the ledger already answers it (the edge fired it)
+/// or a live process holds the lock (the edge is firing it now).
+fn claim_in_ledger(
+    state: &AuthorityState,
+    candidate: &FireCandidate,
+    generation: &ArmGeneration,
+    now: &Zoned,
+) -> Result<Option<nika_arm::ResidentClaim>, ServerError> {
+    let Some(root) = state.workflow_root.get() else {
+        return Ok(None);
+    };
+    let slot = candidate
+        .slot
+        .scheduled_for()
+        .to_zoned(jiff::tz::TimeZone::UTC);
+    match nika_arm::claim_for_resident(
+        root,
+        candidate.schedule.definition.id(),
+        &slot,
+        candidate.slot.id().clone(),
+        Some(generation.clone()),
+        std::process::id(),
+        now,
+    ) {
+        Ok(claim) => Ok(Some(claim)),
+        Err(
+            nika_arm::ResidentClaimRefusal::SlotAnswered { .. }
+            | nika_arm::ResidentClaimRefusal::LockHeld { .. },
+        ) => Err(ServerError::SlotOwnedElsewhere),
+        Err(_) => Err(ServerError::ScheduledAdmission),
+    }
+}
+
 async fn prepare_claim(
     state: &Arc<AuthorityState>,
     candidate: FireCandidate,
-) -> Result<Option<PreparedScheduledRun>, ServerError> {
+) -> Result<Option<(PreparedScheduledRun, Option<nika_arm::ResidentClaim>)>, ServerError> {
     let Some(project) = state.project.get().cloned() else {
         return Ok(None);
     };
@@ -256,6 +326,7 @@ async fn prepare_claim(
     let coordinator = state.coordinator.clone();
     let store = Arc::clone(&state.schedules);
     let clock = Arc::clone(&state.clock);
+    let state_for_ledger = Arc::clone(state);
     tokio::task::spawn_blocking(move || {
         if candidate.schedule.origin == ScheduleOrigin::Project
             && !project_revision_current(
@@ -293,6 +364,18 @@ async fn prepare_claim(
         if !fire_is_still_due(&store, &candidate, &claim_now)? {
             return Ok(None);
         }
+        // A project beat's slot belongs to whichever firer claims it FIRST in
+        // the ONE ledger: a slot the CLI edge answered, or holds right now,
+        // is not the resident's to fire (#1377).
+        let ledger = if candidate.schedule.origin == ScheduleOrigin::Project {
+            match claim_in_ledger(&state_for_ledger, &candidate, &generation, &claim_now) {
+                Ok(claim) => claim,
+                Err(ServerError::SlotOwnedElsewhere) => return Ok(None),
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
         let claim = ScheduleClaimEvidence::new(
             prepared.run_id().as_str().to_owned(),
             prepared
@@ -313,7 +396,7 @@ async fn prepare_claim(
             claim_now.timestamp(),
             claim,
         )?;
-        Ok(consumed.then_some(prepared))
+        Ok(consumed.then_some((prepared, ledger)))
     })
     .await
     .map_err(|_| ServerError::BlockingTask)?

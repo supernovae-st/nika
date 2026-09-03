@@ -105,7 +105,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `c39c1c274` (`c39c1c2746361546c063954c89690d8540021980`)             |
+| HEAD             | `95d0b4c0e` (`95d0b4c0e3bedf463bb232745f04ffaba0da9a3a`)             |
 | workspace        | v0.117.1                                  |
 | crates (workspace)| 72                                              |
 | crates (admitted)| 63                                             |
@@ -117,7 +117,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 5                                              |
 | L3               | 3                                              |
 | L4               | 15                                              |
-| lib tests        | 7083 passed, 0 failed                              |
+| lib tests        | 7086 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
