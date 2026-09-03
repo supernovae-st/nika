@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The DYNAMIC scrub half of the secrets seam — it stays in the
-//! runtime because it implements the runtime's own `EventSink`
-//! (the resolution half descended to `nika-secret` 2026-08-06).
+//! The DYNAMIC scrub half of the secrets seam — it implements the run's
+//! `EventSink` (the stamp seam this member re-exports · ADR-127) and is
+//! the custody's home; the resolution half descended to `nika-secret`
+//! 2026-08-06.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -39,7 +40,7 @@ const PAYLOAD_FIELDS: [&str; 4] = [
 /// `outcome`/`output` payloads would carry that value into the journal
 /// in plaintext. The runtime knows the resolved map, so the run's ONE
 /// sink seam is wrapped and every event's string fields are scrubbed
-/// (needles under [`WIDE_SCRUB_MIN`] · the [`PAYLOAD_FIELDS`] only)
+/// (needles under `WIDE_SCRUB_MIN` · the `PAYLOAD_FIELDS` only)
 /// before any lane (journal · `--json` · the live fold) sees them.
 pub struct RedactingSink<'a> {
     /// The lane this scrub rides (the run verb's whole tee in production).

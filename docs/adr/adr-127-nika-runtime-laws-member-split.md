@@ -2,12 +2,16 @@
 id: ADR-127
 title: "nika-runtime size-cap member split: the run's laws descend to nika-runtime-laws"
 status: accepted
-date: 2026-09-03
-deciders: ["Thibaut Melen"]
+date: "2026-09-03"
+phase: "pre-1.0 · one door"
+deciders: ["@ThibautMelen"]
 tags: ["architecture", "crates", "split", "size-cap", "runtime"]
+affects_crates: ["nika-runtime", "nika-runtime-laws"]
+affects_layers: ["L3"]
 supersedes: []
-superseded_by: null
-related: ["adr-110", "adr-022", "adr-024", "adr-125", "adr-126"]
+superseded_by: []
+related: ["ADR-110", "ADR-022", "ADR-024", "ADR-125", "ADR-126"]
+requires: ["ADR-110"]
 ---
 
 # ADR-127: nika-runtime size-cap member split — nika-runtime-laws
@@ -78,8 +82,10 @@ in the member and `pub(crate)` re-imports in the runtime.
 
 ## Consequences
 
-- Vector 24 returns GREEN with real headroom (`nika-runtime` ≈ 11.7k
-  · `nika-runtime-laws` ≈ 3.3k).
+- Vector 24 returns GREEN with real headroom (`nika-runtime` 13 234
+  lines · 1 766 below the wall · `nika-runtime-laws` ≈ 1.8k; the boot
+  trust and the semantic IR stayed with the definition fold, so the
+  member is smaller than the draft's 3.3k).
 - `nika-runtime-laws` is a member of the `nika-runtime` unit, not a
   new architectural unit: the same L3 row, `publish = false`, one
   public surface re-exported by the operator crate.

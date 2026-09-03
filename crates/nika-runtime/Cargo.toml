@@ -23,7 +23,6 @@ nika-proof       = { path = "../nika-proof", version = "0.117.1" }        # the 
 nika-tmpl        = { path = "../nika-tmpl", version = "0.117.1" }         # the ONE ${{ }} island lexer · shared with the checker (check⇄run parity)
 nika-cap         = { path = "../nika-cap", version = "0.117.1" }        # is_pure_internal — the NEP-0003 pure class the absent-block run admits (leaf dep · zero cycle)
 nika-catalog     = { path = "../nika-catalog", version = "0.117.1", features = ["pricing"] } # estimate_cost_for — the ONE pricing seam (floor + actual agree by construction)
-nika-cel         = { path = "../nika-cel", version = "0.117.1" }          # the cel-subset/0.1 engine behind the expr seam (parse · compute · Resolver · L0)
 nika-kernel      = { path = "../nika-kernel", version = "0.117.1" }       # ShellRunDyn · ToolExecuteDyn · ClockDyn · ai seams (hub only)
 nika-verb-infer  = { path = "../nika-verb-infer", version = "0.117.1" }
 nika-verb-exec   = { path = "../nika-verb-exec", version = "0.117.1" }
@@ -50,10 +49,7 @@ serde            = { workspace = true }   # TerminalCause wire form (snake_case 
 serde_json       = { workspace = true }
 blake3           = { workspace = true }   # ADR-099 resume keys — hash of the JCS key payloads (content, never mtimes)
 serde_json_canonicalizer = { workspace = true }   # ADR-099 resume keys — RFC 8785 canonical bytes (trap 5 · map order + whitespace)
-thiserror        = { workspace = true }
 url              = { workspace = true }   # the re-gate's host extraction — the SAME WHATWG parse the check + the http effect read (no check⇄run drift)
-miette           = { workspace = true }
-uuid             = { workspace = true }
 
 [dev-dependencies]
 # `testing` unlocks the two empty-namespace Scope constructors the dispatch
