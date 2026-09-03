@@ -43,6 +43,10 @@ use nika_runtime::compose::{
 };
 use nika_runtime::{EventSink, InputOrigin, RunOutcome, RunSeams, RuntimeError, Stamper};
 
+pub mod access;
+
+pub use nika_providers::ExecutionAccessPlan;
+
 /// Metadata a child trace lane commits into its parent's trace-forest row.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
@@ -333,6 +337,31 @@ impl ServiceExecutionDriver {
         }
     }
 
+    /// The frozen access plan for one execution attempt of the admitted
+    /// pair (One Door · wave 1b): the effective models with their verbs
+    /// under `model_override`, this machine's probe rows, the `pin`.
+    /// Every door resolves here and hands the value to
+    /// [`ServiceExecutionOptions::with_access_plan`].
+    #[must_use]
+    pub fn resolve_access_plan(
+        &self,
+        model_override: Option<&str>,
+        pin: Option<&str>,
+    ) -> ExecutionAccessPlan {
+        access::resolve_plan(&self.workflow, &self.report, model_override, pin)
+    }
+
+    /// [`Self::resolve_access_plan`] over INJECTED probe rows (tests).
+    #[must_use]
+    pub fn resolve_access_plan_over(
+        &self,
+        model_override: Option<&str>,
+        pin: Option<&str>,
+        probes: &[nika_providers::probe::ProviderProbe],
+    ) -> ExecutionAccessPlan {
+        access::resolve_plan_over(&self.workflow, &self.report, model_override, pin, probes)
+    }
+
     /// Execute through the service-safe composition and metadata projection.
     ///
     /// A runtime refusal is projected to the result's redacted `Refused`
@@ -359,6 +388,12 @@ impl ServiceExecutionDriver {
             .with_max_cost_usd(options.max_cost_usd)
             .with_prompt_pause(true)
             .with_model_override(options.model_override);
+        // One Door · wave 1b: the door that resolved the plan hands it in;
+        // the runtime seats from it, judges it, routes by it.
+        let runtime = match options.access_plan {
+            Some(plan) => runtime.with_access_plan(plan)?,
+            None => runtime,
+        };
         let mut stamper = RunSeams::of(self.workflow.run.as_ref().map(|run| &run.value)).stamper();
         let mut sink = ServiceEventSink::new(Some(self.execution_id));
         let outcome = runtime.run(stamper.as_mut(), &mut sink).await;
@@ -609,6 +644,7 @@ pub struct ServiceExecutionOptions {
     input_origins: BTreeMap<String, InputOrigin>,
     model_override: Option<String>,
     max_cost_usd: Option<f64>,
+    access_plan: Option<ExecutionAccessPlan>,
 }
 
 impl std::fmt::Debug for ServiceExecutionOptions {
@@ -618,6 +654,7 @@ impl std::fmt::Debug for ServiceExecutionOptions {
             .field("origin_count", &self.input_origins.len())
             .field("model_override", &self.model_override)
             .field("max_cost_usd", &self.max_cost_usd)
+            .field("access_plan", &self.access_plan.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -654,6 +691,15 @@ impl ServiceExecutionOptions {
     #[must_use]
     pub fn with_max_cost_usd(mut self, max_cost_usd: Option<f64>) -> Self {
         self.max_cost_usd = max_cost_usd;
+        self
+    }
+
+    /// Hand in the frozen access plan the door resolved
+    /// ([`ServiceExecutionDriver::resolve_access_plan`]) — the runtime
+    /// executes it: the seat, the admission belt, every lane.
+    #[must_use]
+    pub fn with_access_plan(mut self, plan: ExecutionAccessPlan) -> Self {
+        self.access_plan = Some(plan);
         self
     }
 }

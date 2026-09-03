@@ -30,6 +30,7 @@ mod unit {
             skills: BTreeMap::new(),
             child_closures: BTreeMap::new(),
             access_pin: None,
+            lane_access: BTreeMap::new(),
         }
     }
 
@@ -130,6 +131,7 @@ mod unit {
             &BTreeMap::new(),
             &BTreeMap::new(),
             None,
+            &BTreeMap::new(),
         );
         let ctx_v2 = ResumeContext::of(
             &wf,
@@ -138,6 +140,7 @@ mod unit {
             &BTreeMap::new(),
             &BTreeMap::new(),
             None,
+            &BTreeMap::new(),
         );
         let a = stamp(
             &wf.tasks[0].value,
@@ -167,6 +170,7 @@ mod unit {
             &BTreeMap::new(),
             &BTreeMap::new(),
             None,
+            &BTreeMap::new(),
         );
         let c = stamp(
             &wf2.tasks[0].value,
@@ -201,6 +205,7 @@ mod unit {
                 &BTreeMap::new(),
                 &BTreeMap::new(),
                 None,
+                &BTreeMap::new(),
             );
             stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx).expect("eligible")
         };
@@ -267,6 +272,7 @@ mod unit {
                 &BTreeMap::new(),
                 &BTreeMap::new(),
                 pin,
+                &BTreeMap::new(),
             );
             stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx).expect("eligible")
         };
@@ -295,6 +301,64 @@ mod unit {
         );
     }
 
+    /// One Door · wave 1b (the chosen-access half of R-1): the LANE an
+    /// infer/agent task rides joins its identity — a task served by
+    /// `codex` and resumed on a machine that resolves `api` RE-RUNS; the
+    /// same lane is stable; an exec task never reads the lane map.
+    #[test]
+    fn the_lane_access_rekeys_infer_and_agent_only() {
+        const INFER: &str =
+            "nika: t\nmodel: openai/gpt-5.2\ntasks:\n  go:\n    infer: { prompt: \"hi\" }\n";
+        const PINNED: &str = "nika: t\nmodel: mock/echo\ntasks:\n  go:\n    infer: { prompt: \"hi\", model: \"openai/gpt-5.2\" }\n";
+        const EXEC: &str = "nika: t\nmodel: openai/gpt-5.2\ntasks:\n  run:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let records = BTreeMap::new();
+        let vars = BTreeMap::new();
+        let stamp_with = |yaml: &str, lane: Option<&str>| {
+            let wf = parse(yaml);
+            let lanes: BTreeMap<String, String> = lane
+                .map(|id| BTreeMap::from([("openai/gpt-5.2".to_owned(), id.to_owned())]))
+                .unwrap_or_default();
+            let ctx = ResumeContext::of(
+                &wf,
+                &BTreeMap::new(),
+                None,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                None,
+                &lanes,
+            );
+            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx).expect("eligible")
+        };
+        let seated = stamp_with(INFER, Some("codex"));
+        let api = stamp_with(INFER, Some("api"));
+        assert_ne!(
+            seated.def_hash, api.def_hash,
+            "a moved lane re-keys (codex → api)"
+        );
+        assert_eq!(
+            seated.def_hash,
+            stamp_with(INFER, Some("codex")).def_hash,
+            "the same lane is stable (no churn)"
+        );
+        assert_ne!(
+            seated.def_hash,
+            stamp_with(INFER, None).def_hash,
+            "a planless run and a seated run differ"
+        );
+        // A task that pins its own model reads ITS lane, not the envelope's.
+        assert_ne!(
+            stamp_with(PINNED, Some("codex")).def_hash,
+            stamp_with(PINNED, Some("api")).def_hash,
+            "the task's own model selects the lane"
+        );
+        // Exec never reads the lane map.
+        assert_eq!(
+            stamp_with(EXEC, Some("codex")).def_hash,
+            stamp_with(EXEC, None).def_hash,
+            "an exec task's identity ignores the lanes"
+        );
+    }
+
     /// #473 · an agent task's `skills:` participate in its DEFINITION
     /// identity by TEXT (spec 02 §agent skills · the ADR-099 law): an
     /// edited SKILL.md re-runs the task; the same text is stable; a
@@ -310,8 +374,15 @@ mod unit {
         let vars = BTreeMap::new();
         let stamp_with = |yaml: &str, skills: &BTreeMap<String, String>| {
             let wf = parse(yaml);
-            let ctx =
-                ResumeContext::of(&wf, &BTreeMap::new(), None, skills, &BTreeMap::new(), None);
+            let ctx = ResumeContext::of(
+                &wf,
+                &BTreeMap::new(),
+                None,
+                skills,
+                &BTreeMap::new(),
+                None,
+                &BTreeMap::new(),
+            );
             stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx)
         };
         let v1 = BTreeMap::from([(
@@ -368,6 +439,7 @@ mod unit {
             &BTreeMap::new(),
             &BTreeMap::new(),
             None,
+            &BTreeMap::new(),
         );
         let vars = BTreeMap::new();
         let leaked = BTreeMap::from([(
@@ -503,6 +575,7 @@ mod unit {
                 &BTreeMap::new(),
                 closures,
                 None,
+                &BTreeMap::new(),
             );
             stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx)
         };
@@ -620,6 +693,7 @@ mod trace_carry {
             &BTreeMap::new(),
             &BTreeMap::new(),
             None,
+            &BTreeMap::new(),
         );
         let stamp = crate::resume::stamp(
             &wf.tasks[0].value,

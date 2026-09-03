@@ -66,6 +66,7 @@ pub(super) fn resume_setup(
     wf: &RawWorkflow,
     source: &str,
     model_override: Option<&str>,
+    access: (&nika_providers::ExecutionAccessPlan, Option<&str>),
     output_json: bool,
 ) -> Result<ResumeSetup, u8> {
     let loaded = match resume {
@@ -80,6 +81,7 @@ pub(super) fn resume_setup(
                 wf,
                 source,
                 model_override,
+                access,
                 output_json,
             )?),
         },
@@ -144,6 +146,7 @@ fn load_resume_plan(
     wf: &RawWorkflow,
     source: &str,
     model_override: Option<&str>,
+    access: (&nika_providers::ExecutionAccessPlan, Option<&str>),
     output_json: bool,
 ) -> Result<LoadedResume, u8> {
     let label = trace.display().to_string();
@@ -192,6 +195,7 @@ fn load_resume_plan(
         &label,
         output_json,
     )?;
+    judge_access(&recovered.events, access, &label, output_json)?;
     let fold = nika_dap::resume::fold_plan(&recovered.events);
     if fold.plan.is_empty() {
         // Nothing skippable — an older engine's trace or a run with no
@@ -318,6 +322,50 @@ fn gate_trust(
             epilogue::emit_error_envelope(&message, output_json);
             Err(exit::ENV)
         }
+    }
+}
+
+/// The resume's ACCESS judgment (One Door · wave 1b · the pack's law
+/// « resume cannot switch access silently »): the lanes the trace's
+/// boot manifest recorded against the frozen plan THIS resume resolved.
+/// An explicit `--access` names the change (noticed on stderr); silence
+/// over a moved lane refuses, naming both paths and the two flags.
+fn judge_access(
+    events: &[nika_event::Event],
+    (plan, pin): (&nika_providers::ExecutionAccessPlan, Option<&str>),
+    label: &str,
+    output_json: bool,
+) -> Result<(), u8> {
+    let live: std::collections::BTreeMap<String, nika_dap::resume::LaneCarry> = plan
+        .admitted()
+        .map(|(model, lane)| {
+            let flag =
+                nika_dap::resume::pin_flag(&lane.plan.access, Some(lane.plan.chosen.as_str()));
+            (model.to_owned(), (lane.plan.access.clone(), flag))
+        })
+        .collect();
+    let recorded = nika_dap::resume::trace_access_lanes(events);
+    match nika_dap::resume::judge_access(recorded.as_ref(), &live, pin) {
+        nika_dap::resume::AccessVerdict::Proceed { changed } => {
+            for (model, was, now) in changed {
+                eprintln!(
+                    "nika run: --resume: access change declared — {label} ran `{model}` on \
+                     `{was}`, this resume runs it on `{now}`"
+                );
+            }
+            Ok(())
+        }
+        nika_dap::resume::AccessVerdict::Refuse(message) => {
+            let message = format!("--resume: {message}");
+            eprintln!("nika run: {message}");
+            epilogue::emit_error_envelope(&message, output_json);
+            Err(exit::ENV)
+        }
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and caller ship together; fail loud beats silently-wrong output"
+        )]
+        other => unreachable!("unknown access verdict: {other:?}"),
     }
 }
 

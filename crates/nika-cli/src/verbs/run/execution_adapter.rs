@@ -183,12 +183,9 @@ fn run_admitted_context(
         Err(code) => return RunVerdict::bare(code),
     };
     let source = world.driver.root_source();
-    // One Door · wave 1: the access plan is resolved ONCE per execution
-    // attempt (the effective models with their verbs, this machine's
-    // probe rows, the `--access` pin) — the dry-run preview, the composer
-    // (seat + boot manifest), the announce and the runtime's admission
-    // belt all PROJECT this value. Nothing on the run path resolves
-    // access a second time.
+    // One Door · wave 1: the access plan is resolved ONCE per attempt —
+    // the dry-run preview, the composer, the announce, the resume
+    // judgment and the admission belt all PROJECT this value.
     let plan = nika_cli_host::access::resolve_plan(
         &wf,
         &report,
@@ -224,6 +221,7 @@ fn run_admitted_context(
         &wf,
         source,
         request.model_override,
+        (&plan, request.access_pin),
         request.output_json,
     ) {
         Ok(setup) => setup,

@@ -398,6 +398,12 @@ pub(crate) struct ResumeContext {
     /// access can serve one provider ») is unreachable while every
     /// provider carries exactly one row.
     access_pin: Option<String>,
+    /// The admitted LANE per static model when the run carries a frozen
+    /// plan (One Door · wave 1b · the chosen-access half the pin field
+    /// above waited for): `model → access id` (`codex` · `api` · `mock`…).
+    /// A task that rides a lane whose path moved re-runs — never serves
+    /// the other path's cached output.
+    lane_access: BTreeMap<String, String>,
 }
 
 impl ResumeContext {
@@ -413,6 +419,7 @@ impl ResumeContext {
         skills: &BTreeMap<String, String>,
         child_closures: &BTreeMap<String, String>,
         access_pin: Option<&str>,
+        lane_access: &BTreeMap<String, String>,
     ) -> Self {
         let markers = wf
             .secrets
@@ -443,6 +450,7 @@ impl ResumeContext {
             skills: skills.clone(),
             child_closures: child_closures.clone(),
             access_pin: access_pin.filter(|p| !p.is_empty()).map(ToOwned::to_owned),
+            lane_access: lane_access.clone(),
         }
     }
 
@@ -490,6 +498,16 @@ pub(crate) fn stamp(
         && let Some(obj) = definition.as_object_mut()
     {
         obj.insert("access_pin".to_owned(), json!(pin));
+    }
+    // One Door · wave 1b (the chosen-access half): the LANE an infer/agent
+    // task rides is behavior-bearing exactly like the pin — a task served
+    // by `codex` and resumed on a machine that resolves `api` RE-RUNS.
+    if touches_intelligence(task)
+        && let Some(model) = task_model(task).or(ctx.default_model.as_deref())
+        && let Some(access) = ctx.lane_access.get(model)
+        && let Some(obj) = definition.as_object_mut()
+    {
+        obj.insert("access".to_owned(), json!(access));
     }
     // #473 · an agent task's `skills:` TEXTS join its definition identity
     // (spec 02 §agent skills · the same law as an edited prompt): editing
@@ -556,6 +574,18 @@ fn reads_default_model(task: &RawTask) -> bool {
         _ => false,
     };
     action_reads(&task.action)
+}
+
+/// The task's own literal `model:` (an infer/agent that pins one) — a
+/// templated model is not a static fact (`None` · the lane map never
+/// carries it either).
+fn task_model(task: &RawTask) -> Option<&str> {
+    let model = match &task.action {
+        RawAction::Infer(a) => a.model.as_ref(),
+        RawAction::Agent(a) => a.model.as_ref(),
+        _ => None,
+    }?;
+    (!model.value.contains("${{")).then_some(model.value.as_str())
 }
 
 /// The R-1 detector (P3): does this task run an infer/agent action

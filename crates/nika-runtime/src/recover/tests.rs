@@ -335,6 +335,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
         &BTreeMap::new(),
         &BTreeMap::new(),
         None,
+        &BTreeMap::new(),
     );
     let scope = crate::recover::ResolveScope {
         wf: &wf,

@@ -44,6 +44,7 @@ pub(crate) fn boot_access_fields(
                 model.to_owned(),
                 serde_json::json!({
                     "access": lane.plan.access,
+                    "chosen": lane.plan.chosen.as_str(),
                     "billing": lane.plan.billing.as_str(),
                 }),
             )

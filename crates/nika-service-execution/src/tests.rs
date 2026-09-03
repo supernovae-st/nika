@@ -172,3 +172,43 @@ async fn service_result_never_exposes_pause_material() -> TestResult<()> {
     assert!(!parts.contains(SECRET_QUESTION));
     Ok(())
 }
+
+/// One Door · wave 1b: the driver executes the plan the door hands in —
+/// an admitted mock lane runs; a lane with no ready path refuses BEFORE
+/// any task (`NIKA-1800` on the refused status).
+#[tokio::test]
+async fn the_options_plan_is_executed_as_resolved() -> TestResult<()> {
+    let root = "nika: root\nmodel: mock/echo\ntasks:\n  say:\n    infer: { prompt: hi }\n";
+    let driver = admitted_driver(&[("root.nika.yaml", root)])?;
+    // Resolved over the real probe rows: mock is compiled in, always admitted.
+    let plan = driver.resolve_access_plan(None, None);
+    assert!(plan.is_admitted(), "{plan:?}");
+    let result = driver
+        .execute(ServiceExecutionOptions::new().with_access_plan(plan))
+        .await?;
+    assert_eq!(result.status(), ServiceExecutionStatus::Succeeded);
+
+    // The same file under a plan whose lane is refused: nothing runs.
+    let refused = nika_providers::ExecutionAccessPlan::new(
+        BTreeMap::from([(
+            "mock/echo".to_owned(),
+            nika_providers::LaneVerdict::Refused(
+                nika_providers::resolve_access::AccessRefusal::new("mock/echo", "mock", Vec::new()),
+            ),
+        )]),
+        None,
+        None,
+        None,
+    );
+    let result = driver
+        .execute(ServiceExecutionOptions::new().with_access_plan(refused))
+        .await?;
+    assert_eq!(result.status(), ServiceExecutionStatus::Refused);
+    let (code, message) = result.error().expect("a refusal names its code");
+    assert_eq!(code, "NIKA-1800", "{message}");
+    assert!(
+        result.events().iter().all(|e| e.kind() != "task_started"),
+        "nothing ran"
+    );
+    Ok(())
+}
