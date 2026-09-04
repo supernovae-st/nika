@@ -20,6 +20,79 @@ fn pure_root() -> &'static str {
     "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n"
 }
 
+#[test]
+#[allow(
+    clippy::panic,
+    reason = "sentinel proves a refused world cannot reach its effect driver"
+)]
+fn snapshot_admission_refuses_static_model_findings_before_execution() {
+    for (model, tokens) in [
+        ("openai/gpt-5.2", 32),
+        ("openai/gpt-5.2", 200_000),
+        ("not-a-provider/model", 512),
+    ] {
+        let root = format!(
+            "nika: root\nmodel: {model}\ntasks:\n  say:\n    infer: {{ prompt: hi, max_tokens: {tokens} }}\n"
+        );
+        let (_tmp, owned) = project(&[("root.nika.yaml", &root)]);
+        let service = ExecutionService::default();
+        let admitted = service.admit(&owned, Path::new("root.nika.yaml"));
+        assert!(
+            matches!(&admitted, Err(ExecutionError::CheckFailed { findings })
+            if !findings.is_empty()),
+            "{model}/{tokens}: {admitted:?}"
+        );
+        if let Ok(admitted) = admitted {
+            service.execute(admitted, |_| {
+                panic!("model refusal reached the effect driver")
+            });
+        }
+    }
+}
+
+#[test]
+fn effective_override_admits_the_owned_bytes_without_rewriting_the_snapshot() {
+    let root = "nika: root\nmodel: openai/gpt-5.2\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 32 }\n";
+    let (_tmp, owned) = project(&[("root.nika.yaml", root)]);
+    let service = ExecutionService::default();
+    let admitted = service
+        .admit_with_model_override(&owned, Path::new("root.nika.yaml"), Some("mock/echo"))
+        .expect("effective mock has no reasoning floor");
+    assert_eq!(admitted.snapshot().text("root.nika.yaml"), Some(root));
+    let digest = admitted.snapshot().digest().to_owned();
+    let snapshot = admitted.snapshot().clone();
+    assert!(service.readmit_snapshot(snapshot.clone()).is_err());
+    let readmitted = service
+        .readmit_snapshot_with_model_override(snapshot, Some("mock/echo"))
+        .expect("readmission uses this leg's effective override");
+    assert_eq!(readmitted.snapshot().digest(), digest);
+    let captured = service
+        .admit_root_bytes_with_model_override(
+            &owned,
+            Path::new("root.nika.yaml"),
+            root.as_bytes(),
+            Some("mock/echo"),
+        )
+        .expect("already captured root bytes use the same gate");
+    assert_eq!(captured.snapshot().digest(), digest);
+}
+
+#[test]
+fn a_root_override_cannot_waive_a_captured_childs_own_capacity_gate() {
+    let root = "nika: root\nmodel: openai/gpt-5.2\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 32 }\n  call:\n    invoke: { workflow: ./child.nika.yaml }\n";
+    let child = "nika: child\nmodel: openai/gpt-5.2\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 200000 }\n";
+    let (_tmp, owned) = project(&[("root.nika.yaml", root), ("child.nika.yaml", child)]);
+    let result = ExecutionService::default().admit_with_model_override(
+        &owned,
+        Path::new("root.nika.yaml"),
+        Some("mock/echo"),
+    );
+    assert!(
+        matches!(result, Err(ExecutionError::CheckFailed { findings })
+        if findings.iter().any(|finding| finding.contains("child.nika.yaml") && finding.contains("exceeds")))
+    );
+}
+
 fn project(files: &[(&str, &str)]) -> (tempfile::TempDir, OwnedDir) {
     let tmp = tempfile::tempdir().expect("tempdir");
     for (name, body) in files {

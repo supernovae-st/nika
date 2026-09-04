@@ -179,11 +179,9 @@ pub fn judge(
     capacity.extend(capacity_findings(wf));
     models.findings.extend(capacity.iter().cloned());
     let plan = crate::access::resolve_plan(wf, report, None, access_pin);
-    let modelless = if plan.lanes.is_empty() {
-        nika_service_execution::access::first_modelless_task(wf)
-    } else {
-        None
-    };
+    // The effective workflow already carries any audit_source override.
+    // An unrelated static lane does not supply a missing task model.
+    let modelless = nika_service_execution::access::first_modelless_task(wf);
     let layers = verdict_layers_for(&plan, valid, &capacity, modelless);
     let grade = nika_check::risk_grade(report);
     let drift = nika_dap::drift::scan(wf);
@@ -434,6 +432,140 @@ mod tests {
     fn audit(source: &str) -> Audit {
         audit_source(source, "w.nika.yaml", None, None, AuditOptions::default())
             .expect("the fixture parses")
+    }
+
+    const MIXED_MODELS: &str = "nika: mixed\ntasks:\n  explicit:\n    infer: { prompt: hi, max_tokens: 10, model: mock/echo }\n  needs_model:\n    infer: { prompt: hi, max_tokens: 10 }\n";
+
+    fn has_modelless_blocker(audit: &Audit) -> bool {
+        audit
+            .verdict
+            .layers
+            .blockers
+            .iter()
+            .any(|line| line.contains("task `needs_model` names no model"))
+    }
+
+    /// One admitted static lane cannot supply another task's absent model.
+    /// Both the typed verdict and its machine projection must say not ready.
+    #[test]
+    fn a_mixed_mock_and_modelless_workflow_is_not_access_ready() {
+        for access_pin in [None, Some("mock")] {
+            let audit = audit_source(
+                MIXED_MODELS,
+                "w.nika.yaml",
+                None,
+                None,
+                AuditOptions::new(None, access_pin),
+            )
+            .expect("parses");
+            assert!(
+                audit.verdict.clean,
+                "model-less is legal, access is separate"
+            );
+            assert!(audit.verdict.plan.lane("mock/echo").is_some());
+            assert!(audit.verdict.plan.is_admitted());
+            assert_eq!(audit.verdict.layers.access_ready, Some(false));
+            assert_eq!(audit.verdict.layers.run_ready(), Some(false));
+            assert!(!audit.verdict.profile_clean(true));
+            assert!(has_modelless_blocker(&audit));
+            let obj = audit_json(
+                &audit.wf,
+                &audit.report,
+                &audit.skills,
+                &audit.verdict,
+                Lanes::new(false, true),
+            )
+            .expect("serializes");
+            assert_eq!(obj["verdicts"]["access_ready"], false);
+            assert_eq!(obj["verdicts"]["run_ready"], false);
+            assert_eq!(obj["operational_clean"], false);
+        }
+    }
+
+    /// The existing envelope override fills the missing model before the
+    /// oracle judges it; the explicit task model is still its own choice.
+    #[test]
+    fn a_mock_override_supplies_the_mixed_workflows_missing_model() {
+        let audit = audit_source(
+            MIXED_MODELS,
+            "w.nika.yaml",
+            None,
+            None,
+            AuditOptions::new(Some("mock/echo"), None),
+        )
+        .expect("parses");
+        assert!(audit.verdict.clean);
+        assert_eq!(audit.verdict.layers.access_ready, Some(true));
+        assert_eq!(audit.verdict.layers.run_ready(), Some(true));
+        assert!(!has_modelless_blocker(&audit));
+        let model = audit
+            .report
+            .requirements
+            .models
+            .iter()
+            .find(|model| model.model == "mock/echo")
+            .expect("effective mock lane");
+        assert!(model.tasks.iter().any(|task| task == "explicit"));
+        assert!(model.tasks.iter().any(|task| task == "needs_model"));
+    }
+
+    /// A model override never repairs an invalid access pin. Without the
+    /// override, the missing model is also disclosed beside that refusal.
+    #[test]
+    fn a_mixed_workflows_refused_pin_survives_model_overrides() {
+        for model_override in [None, Some("mock/echo")] {
+            let audit = audit_source(
+                MIXED_MODELS,
+                "w.nika.yaml",
+                None,
+                None,
+                AuditOptions::new(model_override, Some("not-a-real-access-pin")),
+            )
+            .expect("parses");
+            assert!(audit.verdict.plan.pin_refusal.is_some());
+            assert_eq!(audit.verdict.layers.access_ready, Some(false));
+            assert_eq!(audit.verdict.layers.run_ready(), Some(false));
+            assert!(
+                audit.verdict.layers.blockers[0].contains("pin `not-a-real-access-pin` refused")
+            );
+            assert_eq!(has_modelless_blocker(&audit), model_override.is_none());
+        }
+    }
+
+    /// Only tasks inheriting the envelope take the override. An explicit
+    /// unresolvable provider remains refused, with or without a mock pin.
+    #[test]
+    fn a_refused_explicit_lane_survives_mixed_workflow_overrides_and_pins() {
+        let source = format!(
+            "{MIXED_MODELS}  refused:\n    infer: {{ prompt: hi, max_tokens: 10, model: unavailable-provider/model }}\n"
+        );
+        for model_override in [None, Some("mock/echo")] {
+            for access_pin in [None, Some("mock")] {
+                let audit = audit_source(
+                    &source,
+                    "w.nika.yaml",
+                    None,
+                    None,
+                    AuditOptions::new(model_override, access_pin),
+                )
+                .expect("parses");
+                assert!(audit.verdict.plan.lane("mock/echo").is_some());
+                assert!(matches!(
+                    audit.verdict.plan.lanes.get("unavailable-provider/model"),
+                    Some(nika_providers::LaneVerdict::Refused(_))
+                ));
+                assert_eq!(
+                    audit.verdict.plan.pin_refusal.is_some(),
+                    access_pin.is_some()
+                );
+                assert_eq!(audit.verdict.layers.access_ready, Some(false));
+                assert_eq!(audit.verdict.layers.run_ready(), Some(false));
+                assert_eq!(has_modelless_blocker(&audit), model_override.is_none());
+                assert!(audit.verdict.layers.blockers.iter().any(|line| {
+                    line.contains("unavailable-provider/model → no path on this machine")
+                }));
+            }
+        }
     }
 
     /// The facade's verdict object carries the keys both doors agree on,

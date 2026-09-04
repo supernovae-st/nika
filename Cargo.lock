@@ -4493,6 +4493,7 @@ version = "0.118.1"
 dependencies = [
  "nika-check",
  "nika-fs",
+ "nika-providers",
  "nika-schema",
  "nika-types",
  "proptest",

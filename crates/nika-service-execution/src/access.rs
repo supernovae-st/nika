@@ -108,20 +108,7 @@ pub fn verb_needs(wf: &RawWorkflow) -> VerbNeeds {
     VerbNeeds::new(infer, agent)
 }
 
-/// The first `infer:`/`agent:` task whose effective model is EMPTY (no
-/// task `model:`, no envelope `model:`) — the seat must supply it, so a
-/// run with no seat pinned has no path (W3-F13).
-#[must_use]
-pub fn first_modelless_task(wf: &RawWorkflow) -> Option<&str> {
-    if wf.model.is_some() {
-        return None;
-    }
-    wf.tasks.iter().find_map(|task| match &task.value.action {
-        RawAction::Infer(a) if a.model.is_none() => Some(task.value.id.value.as_str()),
-        RawAction::Agent(a) if a.model.is_none() => Some(task.value.id.value.as_str()),
-        _ => None,
-    })
-}
+pub use nika_runtime::first_modelless_task;
 
 /// The ONE machine shape of an access lane (One Door · wave 2 · the W1
 /// gauntlet met three): `check --json`'s `access_plan[]`, `run --dry-run
@@ -182,6 +169,27 @@ fn rejection_rows(rejected: &[AccessRejection]) -> Vec<serde_json::Value> {
             })
         })
         .collect()
+}
+
+/// Boot evidence projected from the exact plan attached to this runtime.
+/// Root and child attempts stamp their own lanes and the inherited explicit pin.
+#[must_use]
+pub fn boot_access_fields(
+    plan: &ExecutionAccessPlan,
+) -> Vec<(&'static str, nika_types::resource::Value)> {
+    use nika_types::resource::Value as FieldValue;
+    let mut fields = Vec::new();
+    if let Some(pin) = &plan.pin {
+        fields.push(("access_pin", FieldValue::String(pin.clone())));
+    }
+    let rows = lane_rows(plan);
+    if !rows.is_empty() {
+        fields.push((
+            "access_plan",
+            FieldValue::String(serde_json::Value::Array(rows).to_string()),
+        ));
+    }
+    fields
 }
 
 #[cfg(test)]

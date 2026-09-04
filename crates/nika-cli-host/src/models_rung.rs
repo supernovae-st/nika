@@ -36,21 +36,7 @@ pub fn access_decisions(
 pub fn boot_access_fields(
     plan: &ExecutionAccessPlan,
 ) -> Vec<(&'static str, nika_types::resource::Value)> {
-    use nika_types::resource::Value as FieldValue;
-    let mut fields = Vec::new();
-    if let Some(pin) = &plan.pin {
-        fields.push(("access_pin", FieldValue::String(pin.clone())));
-    }
-    // Wave 2 · the ONE lane-row shape (`lane_rows`) — the same rows
-    // `check --json` and `run --dry-run --json` carry, as one JSON text.
-    let rows = nika_service_execution::access::lane_rows(plan);
-    if !rows.is_empty() {
-        fields.push((
-            "access_plan",
-            FieldValue::String(serde_json::Value::Array(rows).to_string()),
-        ));
-    }
-    fields
+    nika_service_execution::access::boot_access_fields(plan)
 }
 
 /// The CAPACITY laws in this rung's finding shape (wave 2) — the judge
@@ -77,7 +63,7 @@ pub fn verdict_layers(
 
 /// [`verdict_layers`] with the model-less task the seat must serve
 /// (W3-F13): `modelless` names the first `infer:`/`agent:` task whose
-/// effective model is empty, when there is one.
+/// effective model is empty, including alongside explicit model lanes.
 #[must_use]
 pub fn verdict_layers_for(
     plan: &ExecutionAccessPlan,
@@ -137,28 +123,32 @@ pub fn verdict_layers_for(
         blockers.push(format!("access: {line}"));
         lines.push(line);
     }
-    let access_ready = if !plan.lanes.is_empty() {
-        Some(plan.is_admitted() && plan.pin_refusal.is_none())
-    } else if plan.pin_refusal.is_some() {
-        Some(false)
-    } else if let Some(task) = modelless {
+    let modelless_ready = if let Some(task) = modelless {
         // W3-F13 · a model-less infer rides a seat or nothing.
         if let Some(seat) = &plan.seat {
             lines.push(format!(
                 "`{task}` → {seat} (harness · seat) · pinned · seat present · sign-in judged at run"
             ));
-            Some(true)
+            true
         } else {
             let line = format!(
                 "task `{task}` names no model and no seat is pinned · set `model: <provider/name>` or run with `--access <seat>`"
             );
             blockers.push(format!("access: {line}"));
             lines.push(line);
-            Some(false)
+            false
         }
     } else {
-        None
+        true
     };
+    // Every static lane, the pin, and a model-less task's seat requirement
+    // must hold together. None of these facts can override another refusal.
+    let access_ready =
+        if !plan.lanes.is_empty() || modelless.is_some() || plan.pin_refusal.is_some() {
+            Some(plan.is_admitted() && modelless_ready)
+        } else {
+            None
+        };
     if let Some(first) = capacity.first() {
         blockers.push(format!("capacity: {} · {}", first.model, first.why));
     }
@@ -369,6 +359,62 @@ mod tests {
             "{:?}",
             layers.access_lines
         );
+    }
+
+    /// An admitted lane and the model-less requirement are independent
+    /// inputs to the fold: the lane cannot hide the missing path.
+    #[test]
+    fn an_admitted_lane_does_not_hide_a_modelless_task() {
+        let plan = nika_providers::resolve_execution_plan(
+            &[nika_providers::ModelNeed::new("mock/echo", true, false)],
+            &[],
+            None,
+        );
+        assert!(plan.is_admitted());
+        assert!(!plan.lanes.is_empty());
+        let layers = verdict_layers_for(&plan, true, &[], Some("answer"));
+        assert_eq!(layers.access_ready, Some(false));
+        assert_eq!(layers.run_ready(), Some(false));
+        assert!(
+            layers
+                .access_lines
+                .iter()
+                .any(|line| line.starts_with("mock/echo →"))
+        );
+        assert!(
+            layers
+                .blockers
+                .iter()
+                .any(|line| line.contains("task `answer` names no model"))
+        );
+    }
+
+    /// Even a supplied seat cannot turn a refused plan green. These pure
+    /// projection fixtures deliberately keep the seat beside each refusal.
+    #[test]
+    fn a_modelless_seat_does_not_clear_pin_or_lane_refusals() {
+        let pin_refused = plan(
+            Some("codex"),
+            Some("codex"),
+            Some(PinRefusal::Unavailable {
+                message: "Codex is not installed".to_owned(),
+            }),
+        );
+        let mut lane_refused = plan(Some("codex"), Some("codex"), None);
+        lane_refused.lanes.insert(
+            "unavailable-provider/model".to_owned(),
+            nika_providers::LaneVerdict::Refused(AccessRefusal::new(
+                "unavailable-provider/model",
+                "unavailable-provider",
+                Vec::new(),
+            )),
+        );
+        for plan in [pin_refused, lane_refused] {
+            let layers = verdict_layers_for(&plan, true, &[], Some("answer"));
+            assert_eq!(layers.access_ready, Some(false));
+            assert_eq!(layers.run_ready(), Some(false));
+            assert!(!layers.blockers.is_empty());
+        }
     }
 
     /// W3-F1 · a refused pin (a seat this machine lacks) is a blocker

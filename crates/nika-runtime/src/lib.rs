@@ -128,8 +128,8 @@ type ValueBags<'a> = (
 );
 
 pub use admit::{
-    access_pin_refusal, budget_floor_refusal, floor_refusal, modelless_refusal, plan_refusal,
-    required_inputs_refusal, scope_to_task, unbounded_breakdown,
+    access_pin_refusal, budget_floor_refusal, first_modelless_task, floor_refusal,
+    modelless_refusal, plan_refusal, required_inputs_refusal, scope_to_task, unbounded_breakdown,
 };
 pub use compose::{
     ProdRuntime, RunSeams, RuntimeCapabilities, SimRuntime, capabilities_of, production_runtime,

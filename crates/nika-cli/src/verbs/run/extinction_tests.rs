@@ -51,7 +51,17 @@ fn child_execution_has_no_post_admission_filesystem_reader() {
     assert!(EXECUTION_ADAPTER.contains("ServiceExecutionDriver::for_local_interface"));
     assert!(RUNTIME_DRIVER.contains("impl ChildRunner for ServiceExecutionDriver"));
     assert!(!RUNTIME_DRIVER.contains("pub trait CapturedSnapshot"));
-    assert!(!RUNTIME_DRIVER.contains("workflow: &RawWorkflow,\n        report:"));
+    // Only the execution entry point must reject caller-supplied authority.
+    // A private child-plan judge legitimately borrows its captured pair.
+    let run_signature = RUNTIME_DRIVER
+        .split_once("pub async fn run(")
+        .expect("sealed runtime entry point")
+        .1
+        .split_once('{')
+        .expect("run body")
+        .0;
+    assert!(!run_signature.contains("RawWorkflow"));
+    assert!(!run_signature.contains("CheckReport"));
     for forbidden in ["std::fs::read(", "read_to_string(", "nika_fs::OwnedDir"] {
         assert!(
             !RUNTIME_DRIVER.contains(forbidden),
@@ -99,6 +109,7 @@ fn stdin_bytes_enter_the_same_admitted_world_without_a_temp_file() {
         &project,
         std::path::Path::new("-"),
         &source,
+        None,
     )
     .expect("admitted stdin");
 

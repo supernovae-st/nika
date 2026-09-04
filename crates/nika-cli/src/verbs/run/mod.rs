@@ -344,7 +344,7 @@ fn announce_access(
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn execute_and_ask(
     runtime: &AuthorizedRuntime,
-    (file, source): (&str, &str),
+    file: &str,
     (wf, report): (&RawWorkflow, &CheckReport),
     resumed: bool,
     vars: &[String],
@@ -404,8 +404,7 @@ fn execute_and_ask(
             allow_unverified: false,
         };
         verdict = answered_leg(
-            (file, source),
-            (wf, report),
+            file,
             &request,
             vars,
             model_override,
@@ -423,14 +422,14 @@ fn execute_and_ask(
 }
 
 /// One answered continuation of a paused run — re-validate the vars,
-/// fold the paused trace (plan + F-P4 ticket), recompose, re-drive.
+/// readmit the captured world with a fresh engine identity, fold the previous
+/// leg's trace (plan + F-P4 ticket), recompose, re-drive.
 /// Exactly what a manual `--resume <trace> --answer <task>=<value>`
 /// invocation does, minus the process boundary: upstream work
 /// cache-hits visibly, the gate binds the attested answer.
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn answered_leg(
-    (file, source): (&str, &str),
-    (wf, report): (&RawWorkflow, &CheckReport),
+    file: &str,
     request: &ResumeRequest,
     vars: &[String],
     model_override: Option<&str>,
@@ -441,17 +440,23 @@ fn answered_leg(
     (json, output_json, no_trace_file, outputs): (bool, bool, bool, bool),
     rt: &tokio::runtime::Runtime,
     cancel: &nika_types::cancel::CancelCtx,
-    world: &AdmittedWorld,
+    previous_world: &AdmittedWorld,
 ) -> RunVerdict {
+    let (session, world) = match previous_world.readmit_leg(model_override, output_json) {
+        Ok(leg) => leg,
+        Err(verdict) => return *verdict,
+    };
+    let wf = world.driver.workflow();
+    let report = world.driver.report();
+    let source = world.driver.root_source();
     let inputs = match inputs::validated_var_overrides(vars, wf, output_json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
-    // The answered leg is the SAME execution attempt continued in-process:
-    // the plan is re-resolved over the same machine, same pin, same
-    // override — and judged against the trace's recorded lanes like any
-    // resume (wave 1b · an access change is never silent).
-    let plan = nika_cli_host::access::resolve_plan(wf, report, model_override, access_pin);
+    // The new leg resolves access over the captured program with the same
+    // pin and override, then judges it against the previous leg's recorded
+    // lanes and validates that leg's approval ticket like any manual resume.
+    let plan = world.driver.resolve_access_plan(model_override, access_pin);
     // A refusal reaches BOTH machine faces: the `--output json` envelope
     // and the `--json` stream (the wave-7 gauntlet measured 0 bytes there).
     let setup = match resume_setup(
@@ -472,7 +477,7 @@ fn answered_leg(
         setup,
         max_cost_usd,
         (no_trace_file, output_json),
-        world,
+        &world,
     ) {
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
@@ -496,7 +501,9 @@ fn answered_leg(
         model_override,
         &carry,
     );
-    thread::block_on_run(rt, future, cancel)
+    session
+        .complete(thread::block_on_run(rt, future, cancel))
+        .into_outcome()
 }
 
 /// Build the current-thread executor the run blocks on — an executor

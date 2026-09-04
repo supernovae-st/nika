@@ -152,6 +152,8 @@ pub struct ServiceExecutionDriver {
     display_root: PathBuf,
     child_traces: Arc<dyn ChildTraceFactory>,
     surface: DriverSurface,
+    child_access_pin: Option<String>,
+    access_probes: Vec<nika_providers::probe::ProviderProbe>,
 }
 
 impl std::fmt::Debug for ServiceExecutionDriver {
@@ -177,6 +179,8 @@ impl Clone for ServiceExecutionDriver {
             display_root: self.display_root.clone(),
             child_traces: Arc::clone(&self.child_traces),
             surface: self.surface,
+            child_access_pin: self.child_access_pin.clone(),
+            access_probes: self.access_probes.clone(),
         }
     }
 }
@@ -229,6 +233,8 @@ impl ServiceExecutionDriver {
             display_root,
             child_traces: Arc::new(SilentChildTraceFactory),
             surface,
+            child_access_pin: None,
+            access_probes: access::access_probes_env(),
         })
     }
 
@@ -290,6 +296,12 @@ impl ServiceExecutionDriver {
 
     /// Compose the real production runtime plus snapshot-backed child runner.
     ///
+    /// Before calling [`AuthorizedRuntime::run`], attach a frozen plan with
+    /// [`AuthorizedRuntime::with_access_plan`], resolved for the same effective
+    /// model override and access pin via [`Self::resolve_access_plan`]. Even a
+    /// workflow with no model needs an attached plan (its lane map is empty).
+    /// [`Self::execute`] supplies this step when the caller omits a plan.
+    ///
     /// # Errors
     ///
     /// Returns [`ComposeError`] when the production HTTP or sandbox seams
@@ -321,6 +333,7 @@ impl ServiceExecutionDriver {
             runtime,
             self.workflow.clone(),
             self.report.clone(),
+            self.clone(),
         ))
     }
 
@@ -349,7 +362,7 @@ impl ServiceExecutionDriver {
         model_override: Option<&str>,
         pin: Option<&str>,
     ) -> ExecutionAccessPlan {
-        access::resolve_plan(&self.workflow, &self.report, model_override, pin)
+        self.resolve_access_plan_over(model_override, pin, &self.access_probes)
     }
 
     /// [`Self::resolve_access_plan`] over INJECTED probe rows (tests).
@@ -365,6 +378,10 @@ impl ServiceExecutionDriver {
 
     /// Execute through the service-safe composition and metadata projection.
     ///
+    /// A supplied access plan is executed as resolved. Otherwise, resolve one
+    /// plan from this driver's captured probe rows and the effective model
+    /// override, with no access pin, before attaching it to the runtime.
+    ///
     /// A runtime refusal is projected to the result's redacted `Refused`
     /// status, while construction failures return [`ComposeError`] before any
     /// event or workflow effect.
@@ -376,6 +393,10 @@ impl ServiceExecutionDriver {
         &self,
         options: ServiceExecutionOptions,
     ) -> Result<ServiceExecutionResult, ComposeError> {
+        let plan = match options.access_plan {
+            Some(plan) => plan,
+            None => self.resolve_access_plan(options.model_override.as_deref(), None),
+        };
         let envelope_model = self
             .workflow
             .model
@@ -389,12 +410,9 @@ impl ServiceExecutionDriver {
             .with_max_cost_usd(options.max_cost_usd)
             .with_prompt_pause(true)
             .with_model_override(options.model_override);
-        // One Door · wave 1b: the door that resolved the plan hands it in;
-        // the runtime seats from it, judges it, routes by it.
-        let runtime = match options.access_plan {
-            Some(plan) => runtime.with_access_plan(plan)?,
-            None => runtime,
-        };
+        // Both convenience and explicit composition execute a frozen plan;
+        // neither may enter the substrate's planless embedder fallback.
+        let runtime = runtime.with_access_plan(plan)?;
         let runtime = match options.cancel {
             Some(cancel) => runtime.with_cancel(cancel),
             None => runtime,
@@ -467,6 +485,20 @@ impl ServiceExecutionDriver {
         }
         Ok((logical, source, workflow, report))
     }
+
+    fn child_access_plan(
+        &self,
+        workflow: &RawWorkflow,
+        report: &nika_check::CheckReport,
+    ) -> ExecutionAccessPlan {
+        access::resolve_plan_over(
+            workflow,
+            report,
+            None,
+            self.child_access_pin.as_deref(),
+            &self.access_probes,
+        )
+    }
 }
 
 /// Production runtime whose workflow and report are sealed to one readmitted
@@ -481,6 +513,8 @@ pub struct AuthorizedRuntime {
     runtime: ProdRuntime,
     workflow: RawWorkflow,
     report: nika_check::CheckReport,
+    child_driver: ServiceExecutionDriver,
+    model_override: Option<String>,
 }
 
 impl std::fmt::Debug for AuthorizedRuntime {
@@ -493,24 +527,52 @@ impl std::fmt::Debug for AuthorizedRuntime {
 }
 
 impl AuthorizedRuntime {
-    fn new(runtime: ProdRuntime, workflow: RawWorkflow, report: nika_check::CheckReport) -> Self {
+    fn new(
+        runtime: ProdRuntime,
+        workflow: RawWorkflow,
+        report: nika_check::CheckReport,
+        child_driver: ServiceExecutionDriver,
+    ) -> Self {
         Self {
             runtime,
             workflow,
             report,
+            child_driver,
+            model_override: None,
         }
     }
 
     /// Execute the internally bound workflow/report pair.
     ///
+    /// Requires an attached frozen plan, including for workflows whose plan
+    /// has no model lanes. A missing plan refuses before the prologue or any
+    /// task; it never selects the raw runtime's planless embedder behavior.
+    ///
     /// # Errors
     ///
-    /// Returns the runtime's typed admission or execution refusal.
+    /// Returns [`RuntimeError::AccessNoPath`] when no frozen plan is attached,
+    /// or the runtime's typed admission or execution refusal. Admission
+    /// refusals produce no runtime events or settlement.
     pub async fn run(
         &self,
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<RunOutcome, RuntimeError> {
+        if self.runtime.access_plan().is_none() {
+            return Err(RuntimeError::AccessNoPath {
+                message: "authorized execution requires a frozen access plan; attach one with \
+                    AuthorizedRuntime::with_access_plan before running"
+                    .to_owned(),
+            });
+        }
+        // A structurally clean captured report cannot waive the MODELS
+        // judgments under the actual override chosen by CLI, ARM or Serve.
+        // This gate precedes even the runtime prologue (zero events/effects).
+        if !nika_execution::model_admission_findings(&self.workflow, self.model_override.as_deref())
+            .is_empty()
+        {
+            return Err(RuntimeError::DirtyReport);
+        }
         self.runtime
             .run(&self.workflow, &self.report, stamper, sink)
             .await
@@ -589,6 +651,7 @@ impl AuthorizedRuntime {
     /// Attach the effective model override.
     #[must_use]
     pub fn with_model_override(mut self, model: Option<String>) -> Self {
+        self.model_override.clone_from(&model);
         self.runtime = self.runtime.with_model_override(model);
         self
     }
@@ -596,6 +659,14 @@ impl AuthorizedRuntime {
     /// Attach the operator's access-path pin.
     #[must_use]
     pub fn with_access_pin(mut self, pin: Option<String>) -> Self {
+        // Once attached, the frozen plan is authoritative for root and child
+        // alike, even if a legacy caller also sets the separate pin field.
+        self.child_driver
+            .child_access_pin
+            .clone_from(self.runtime.access_plan().map_or(&pin, |plan| &plan.pin));
+        self.runtime = self
+            .runtime
+            .with_child_runner(Arc::new(self.child_driver.clone()));
         self.runtime = self.runtime.with_access_pin(pin);
         self
     }
@@ -603,6 +674,10 @@ impl AuthorizedRuntime {
     /// Attach the access candidates judged by the run gate.
     #[must_use]
     pub fn with_access_probes(mut self, probes: Vec<nika_providers::probe::ProviderProbe>) -> Self {
+        self.child_driver.access_probes.clone_from(&probes);
+        self.runtime = self
+            .runtime
+            .with_child_runner(Arc::new(self.child_driver.clone()));
         self.runtime = self.runtime.with_access_probes(probes);
         self
     }
@@ -629,6 +704,12 @@ impl AuthorizedRuntime {
         mut self,
         plan: nika_providers::ExecutionAccessPlan,
     ) -> Result<Self, nika_runtime::compose::ComposeError> {
+        // A child owns different model needs. Carry the explicit constraint,
+        // never the parent's lane map, into its captured-world composition.
+        self.child_driver.child_access_pin.clone_from(&plan.pin);
+        self.runtime = self
+            .runtime
+            .with_child_runner(Arc::new(self.child_driver.clone()));
         if let Some(id) = plan.seat.clone() {
             let Some(backend) =
                 nika_harness::seat_from_id(&id).map_err(nika_harness::seat_http_err)?
@@ -641,7 +722,10 @@ impl AuthorizedRuntime {
             };
             self.runtime = self.runtime.with_harness_backend(Arc::new(backend), id)?;
         }
-        self.runtime = self.runtime.with_access_plan(plan);
+        self.runtime = self
+            .runtime
+            .with_boot_access_fields(access::boot_access_fields(&plan))
+            .with_access_plan(plan);
         Ok(self)
     }
 
@@ -764,6 +848,8 @@ impl ServiceExecutionOptions {
     /// Hand in the frozen access plan the door resolved
     /// ([`ServiceExecutionDriver::resolve_access_plan`]) — the runtime
     /// executes it: the seat, the admission belt, every lane.
+    /// When omitted, [`ServiceExecutionDriver::execute`] resolves one from
+    /// its captured probe rows and the effective model override, without a pin.
     #[must_use]
     pub fn with_access_plan(mut self, plan: ExecutionAccessPlan) -> Self {
         self.access_plan = Some(plan);
@@ -964,9 +1050,14 @@ impl ServiceExecutionResult {
         let mut result = Self::new(status, events);
         if let Ok(outcome) = outcome {
             result.outputs.clone_from(&outcome.outputs);
-            // ADR-128 · the settlement itself rides to the resident door:
-            // projected there whole, never refolded from the disposition.
-            result.settlement = Some(outcome.settlement.clone());
+            // Preserve runtime facts and the local forensic outcome. Only
+            // diagnostic text crosses the same public redaction boundary as
+            // the top-level error; the nested copy must not bypass it.
+            let mut settlement = outcome.settlement.clone();
+            if let Some(error) = &mut settlement.error {
+                error.message = redact_service_message(&error.message);
+            }
+            result.settlement = Some(settlement);
         }
         if let Some((code, message)) = error {
             result.error_code = Some(code);
@@ -999,8 +1090,9 @@ impl ServiceExecutionResult {
         Some((self.error_code.as_deref()?, self.error_message.as_deref()?))
     }
 
-    /// The runtime's settlement (ADR-128), when the run reached one — a
-    /// refusal before any task carries none.
+    /// The runtime's settlement (ADR-128), with public diagnostic text
+    /// redacted. A refusal before any task carries none; state, cause, tally
+    /// and spend remain exactly the runtime's facts.
     #[must_use]
     pub fn settlement(&self) -> Option<&RunSettlement> {
         self.settlement.as_ref()
@@ -1020,6 +1112,12 @@ impl ChildRunner for ServiceExecutionDriver {
     ) -> Pin<Box<dyn Future<Output = Result<ChildOutcome, ChildRunRefusal>> + 'a>> {
         Box::pin(async move {
             let (logical, source, workflow, report) = self.load_child(&call)?;
+            let plan = self.child_access_plan(&workflow, &report);
+            if let Some(error) = nika_runtime::plan_refusal(&plan)
+                .or_else(|| nika_runtime::modelless_refusal(&workflow, &plan))
+            {
+                return Err(refusal(&error.spec_code(), error.wire_message()));
+            }
             let child_permits = effective_permits(
                 workflow.permits.as_ref().map(|permits| &permits.value),
                 call.parent_permits.as_ref(),
@@ -1054,20 +1152,24 @@ impl ChildRunner for ServiceExecutionDriver {
             let mut child_driver = self.clone();
             child_driver.root_logical.clone_from(&logical);
             child_driver.root_source.clone_from(&source);
+            child_driver.workflow.clone_from(&workflow);
+            child_driver.report.clone_from(&report);
+            child_driver.skills = nika_schema::resolve_skills(&workflow, &mut reader);
             let runtime = runtime
-                .with_skills(nika_schema::resolve_skills(&workflow, &mut reader).texts)
-                .with_child_runner(Arc::new(child_driver))
+                .with_skills(child_driver.skills.texts.clone())
+                .with_child_runner(Arc::new(child_driver.clone()))
                 .with_child_closures(admitted_closure_digests(
                     &workflow,
                     &self.snapshot,
                     &logical,
                 ));
+            let runtime = AuthorizedRuntime::new(runtime, workflow.clone(), report, child_driver)
+                .with_access_plan(plan)
+                .map_err(|error| refusal("NIKA-COMP-001", format!("child access: {error}")))?;
             let mut trace = self.child_traces.create();
             let def_hash = sha256_hex(source.as_bytes());
             let mut stamper = RunSeams::of(workflow.run.as_ref().map(|run| &run.value)).stamper();
-            let run = runtime
-                .run(&workflow, &report, stamper.as_mut(), trace.sink())
-                .await;
+            let run = runtime.run(stamper.as_mut(), trace.sink()).await;
             let (ok, outputs, cost, failure) = child_run_parts(&run);
             let metadata = trace.metadata();
             let trace = Some(ChildRunSummary::new(
@@ -1196,7 +1298,11 @@ fn redact_service_message(raw: &str) -> String {
         }
         out.push_str(token);
         if out.len() >= 240 {
-            out.truncate(240);
+            let mut end = 240;
+            while !out.is_char_boundary(end) {
+                end -= 1;
+            }
+            out.truncate(end);
             break;
         }
     }
