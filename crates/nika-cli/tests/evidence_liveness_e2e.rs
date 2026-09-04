@@ -27,8 +27,9 @@ struct Rig {
 }
 
 impl Rig {
-    fn new() -> Self {
-        let root = std::env::temp_dir().join(format!("nika-liveness-e2e-{}", std::process::id()));
+    fn new(label: &str) -> Self {
+        let root =
+            std::env::temp_dir().join(format!("nika-liveness-e2e-{label}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         for sub in ["home", "work"] {
             std::fs::create_dir_all(root.join(sub)).expect("rig dir");
@@ -92,7 +93,7 @@ fn running_row(rig: &Rig) -> serde_json::Value {
 
 #[test]
 fn a_dead_writer_reads_dead_and_verify_exits_incomplete() {
-    let rig = Rig::new();
+    let rig = Rig::new("dead");
     let mut child = rig.spawn_run();
     let mut reader = BufReader::new(child.stdout.take().expect("piped stdout"));
     // The first wave settled: the journal is open, the lease is held, the
@@ -150,4 +151,48 @@ fn a_dead_writer_reads_dead_and_verify_exits_incomplete() {
             .contains("workflow_failed"),
         "a dead writer proves incomplete evidence, never a failed run"
     );
+}
+
+/// The freeze audit · a run in flight refuses a resume: its writer holds
+/// the lease, and a second execution over a partial journal would re-run
+/// and re-spend its in-flight tasks. The refusal is the ENV class (3) and
+/// names the writer.
+#[test]
+fn an_alive_writer_refuses_a_resume() {
+    let rig = Rig::new("resume");
+    let mut child = rig.spawn_run();
+    let mut reader = BufReader::new(child.stdout.take().expect("piped stdout"));
+    let mut line = String::new();
+    loop {
+        line.clear();
+        let n = reader.read_line(&mut line).expect("stdout readable");
+        assert!(n > 0, "the stream ended before the first task settled");
+        if line.contains("\"kind\":\"task_completed\"") {
+            break;
+        }
+    }
+    let row = running_row(&rig);
+    assert_eq!(row["liveness"], "alive", "{row}");
+    let trace = row["path"].as_str().expect("the trace path").to_owned();
+    let out = rig
+        .command(&[
+            "run",
+            "wait.nika.yaml",
+            "--resume",
+            &trace,
+            "--max-cost-usd",
+            "0.01",
+        ])
+        .output()
+        .expect("the resume runs");
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert_eq!(out.status.code(), Some(3), "the ENV class:\n{stderr}");
+    assert!(stderr.contains("is alive"), "{stderr}");
+    let pid = child.id().to_string();
+    let delivered = Command::new("kill")
+        .args(["-KILL", &pid])
+        .status()
+        .expect("kill runs");
+    assert!(delivered.success(), "kill delivered");
+    let _ = child.wait();
 }

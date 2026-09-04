@@ -115,6 +115,7 @@ fn arbitrary_trace_note_error_is_env_with_the_exact_path() {
             std::io::ErrorKind::PermissionDenied,
             "injected note refusal",
         )),
+        lost: false,
     };
     let verdict = surfaced_trace(surface).expect_err("the note refusal must be terminal");
     assert_eq!(verdict.code, exit::ENV);

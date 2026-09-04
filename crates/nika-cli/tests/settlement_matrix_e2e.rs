@@ -304,6 +304,15 @@ fn row_clean_every_door_says_succeeded() {
     let rig = Rig::new("clean");
     let (code, lines) = rig.run_json(&["clean.nika.yaml"]);
     assert_eq!(code, 0);
+    // ADR-129 · the local door names the evidence it left, and the word
+    // agrees with the receipt (this rig holds no signing key: unsealed).
+    let settled = settled_of(&lines);
+    let expected = if settled["receipt"]["sealed"] == true {
+        "sealed"
+    } else {
+        "unsealed"
+    };
+    assert_eq!(settled["evidence"], expected, "{settled}");
     doors_agree(
         &rig,
         &lines,

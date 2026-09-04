@@ -2738,6 +2738,56 @@ pub use nika_cli_host::run_settlement::RunCause
 pub use nika_cli_host::run_settlement::RunSettlement
 pub use nika_cli_host::run_settlement::RunState
 pub use nika_cli_host::run_settlement::SettlementError
+pub enum nika_cli_host::run_settlement::LocalEvidence<'a>
+pub nika_cli_host::run_settlement::LocalEvidence::Journal
+pub nika_cli_host::run_settlement::LocalEvidence::Journal::path: &'a std::path::Path
+pub nika_cli_host::run_settlement::LocalEvidence::Journal::proof: &'a nika_cli_host::run_settlement::TraceProof
+pub nika_cli_host::run_settlement::LocalEvidence::Lost
+pub nika_cli_host::run_settlement::LocalEvidence::None
+impl<'a> nika_cli_host::run_settlement::LocalEvidence<'a>
+pub const fn nika_cli_host::run_settlement::LocalEvidence<'a>::of(path: core::option::Option<&'a std::path::Path>, proof: core::option::Option<&'a nika_cli_host::run_settlement::TraceProof>, lost: bool) -> Self
+pub const fn nika_cli_host::run_settlement::LocalEvidence<'a>::word(self) -> &'static str
+impl<'a> core::clone::Clone for nika_cli_host::run_settlement::LocalEvidence<'a>
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::clone(&self) -> nika_cli_host::run_settlement::LocalEvidence<'a>
+impl<'a> core::fmt::Debug for nika_cli_host::run_settlement::LocalEvidence<'a>
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_cli_host::run_settlement::LocalEvidence<'a>
+impl<D> owo_colors::OwoColorize for nika_cli_host::run_settlement::LocalEvidence<'a>
+impl<T, U> core::convert::Into<U> for nika_cli_host::run_settlement::LocalEvidence<'a> where U: core::convert::From<T>
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::run_settlement::LocalEvidence<'a> where U: core::convert::Into<T>
+pub type nika_cli_host::run_settlement::LocalEvidence<'a>::Error = core::convert::Infallible
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::run_settlement::LocalEvidence<'a> where U: core::convert::TryFrom<T>
+pub type nika_cli_host::run_settlement::LocalEvidence<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::run_settlement::LocalEvidence<'a> where T: core::clone::Clone
+pub type nika_cli_host::run_settlement::LocalEvidence<'a>::Owned = T
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::run_settlement::LocalEvidence<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::run_settlement::LocalEvidence<'a> where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::run_settlement::LocalEvidence<'a> where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::run_settlement::LocalEvidence<'a> where T: core::clone::Clone
+pub unsafe fn nika_cli_host::run_settlement::LocalEvidence<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::run_settlement::LocalEvidence<'a>
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::run_settlement::LocalEvidence<'a> where T: core::clone::Clone
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::run_settlement::LocalEvidence<'a> where T: 'static
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::run_settlement::LocalEvidence<'a> where T: core::marker::Copy
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::run_settlement::LocalEvidence<'a> where T: ?core::marker::Sized
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::run_settlement::LocalEvidence<'a>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::run_settlement::LocalEvidence<'a>
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::run_settlement::LocalEvidence<'a>
+impl<T> typenum::type_operators::Same for nika_cli_host::run_settlement::LocalEvidence<'a>
+pub type nika_cli_host::run_settlement::LocalEvidence<'a>::Output = T
 pub struct nika_cli_host::run_settlement::LocalRunReceipt<'a>
 impl<'a> nika_cli_host::run_settlement::LocalRunReceipt<'a>
 pub const fn nika_cli_host::run_settlement::LocalRunReceipt<'a>::new(execution_id: &'a str, trace_id: &'a str, snapshot_digest: &'a str, trace_path: &'a str, chain_head: &'a str, chain_len: usize, sealed: bool) -> Self
@@ -2809,7 +2859,7 @@ pub fn nika_cli_host::run_settlement::plan_waves(workflow: &nika_schema::raw::wo
 pub fn nika_cli_host::run_settlement::refusal_settlement(err: &nika_runtime_laws::errors::RuntimeError) -> nika_event::settlement::RunSettlement
 pub fn nika_cli_host::run_settlement::sensitive_journey(report: &nika_check::CheckReport) -> bool
 pub fn nika_cli_host::run_settlement::settlement_error(outcome: &nika_runtime::RunOutcome) -> core::option::Option<nika_event::settlement::SettlementError>
-pub fn nika_cli_host::run_settlement::write_local_run_settlement<T: serde_core::ser::Serialize, W: core::io::write::Write>(writer: &mut nika_dap::journal::JsonSink<W>, settlement: &nika_event::settlement::RunSettlement, outputs: &T, execution: nika_types::id::ExecutionId, snapshot_digest: &str, trace: core::option::Option<(&std::path::Path, &nika_cli_host::run_settlement::TraceProof)>, access_plan: core::option::Option<&[serde_json::value::Value]>) -> core::io::error::Result<()>
+pub fn nika_cli_host::run_settlement::write_local_run_settlement<T: serde_core::ser::Serialize, W: core::io::write::Write>(writer: &mut nika_dap::journal::JsonSink<W>, settlement: &nika_event::settlement::RunSettlement, outputs: &T, execution: nika_types::id::ExecutionId, snapshot_digest: &str, evidence: nika_cli_host::run_settlement::LocalEvidence<'_>, access_plan: core::option::Option<&[serde_json::value::Value]>) -> core::io::error::Result<()>
 pub fn nika_cli_host::run_settlement::write_run_settlement<T: serde_core::ser::Serialize>(writer: &mut impl core::io::write::Write, settlement: &nika_event::settlement::RunSettlement, outputs: &T, receipt: core::option::Option<nika_cli_host::run_settlement::LocalRunReceipt<'_>>) -> core::io::error::Result<()>
 pub mod nika_cli_host::source
 pub struct nika_cli_host::source::RunSource
