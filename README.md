@@ -7,19 +7,21 @@
   </a>
 </p>
 
-# Nika
-
-### Intent as Code.
-
-[![Release](https://img.shields.io/github/v/release/supernovae-st/nika?label=release)](https://github.com/supernovae-st/nika/releases/latest)
-[![CI](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main)](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml)
-[![Open spec](https://img.shields.io/badge/spec-open-brightgreen.svg)](https://github.com/supernovae-st/nika-spec)
-
-Write what should happen. Nika puts that intent in one `.nika.yaml` file you
-can check before it runs, run on any model, and verify afterwards.
+<h1 align="center">Intent as Code.</h1>
 
 <p align="center">
-  <img src="media/gifs/intent-to-proof.optimized.gif" alt="An intent becomes one Nika workflow, then a checked plan, a run, and a verifiable receipt" width="960">
+  Turn repeatable AI work into one readable file.<br>
+  Check it. Run it on any model. Keep the proof.
+</p>
+
+<p align="center">
+  <a href="https://github.com/supernovae-st/nika/releases/latest"><img src="https://img.shields.io/github/v/release/supernovae-st/nika?label=release" alt="Latest release"></a>
+  <a href="https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml"><img src="https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main" alt="CI status"></a>
+  <a href="https://github.com/supernovae-st/nika-spec"><img src="https://img.shields.io/badge/spec-open-8b8cf8.svg" alt="Open specification"></a>
+</p>
+
+<p align="center">
+  <img src="media/gifs/one-way.optimized.gif" alt="A real Nika workflow running locally from one command" width="960">
 </p>
 
 ## Start here

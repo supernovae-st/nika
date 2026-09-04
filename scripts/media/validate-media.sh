@@ -51,8 +51,7 @@ done
 
 # ── existence ───────────────────────────────────────────────────────────
 required=(
-  media/raw/intent-to-proof-background.png
-  media/gifs/intent-to-proof.optimized.gif
+  media/gifs/one-way.optimized.gif
   media/gifs/full-loop.optimized.gif
   media/gifs/static-check-fix.optimized.gif
   media/gifs/chat-to-workflow.optimized.gif
@@ -72,9 +71,9 @@ required=(
   media/videos/editor-diagnostics.webm
   media/videos/permits-audit.webm
   media/videos/on-error-recover.webm
-  media/videos/intent-to-proof.mp4
-  media/videos/intent-to-proof.webm
-  media/posters/intent-to-proof.png
+  media/videos/one-way.mp4
+  media/videos/one-way.webm
+  media/posters/one-way.png
   media/posters/static-check-fix.png
   media/posters/chat-to-workflow.png
   media/posters/dag-execution.png
