@@ -1,0 +1,479 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nika · intent → check → run → proof</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  :root {
+    --bg: #08090c;
+    --surface: #0e1015;
+    --surface-raised: #131620;
+    --border: #252936;
+    --border-soft: #191c25;
+    --fg: #f5f7fb;
+    --fg-muted: #9298a8;
+    --fg-faint: #555c6d;
+    --accent: #8b8cf8;
+    --accent-dim: rgba(139, 140, 248, .12);
+    --accent-glow: rgba(139, 140, 248, .26);
+    --ok: #8ee7c0;
+    --ok-dim: rgba(142, 231, 192, .12);
+    --font-label: "Geist", "Inter", system-ui, sans-serif;
+    --font-mono: "Geist Mono", "SFMono-Regular", ui-monospace, monospace;
+  }
+
+  .stage {
+    background:
+      radial-gradient(900px 480px at 50% 46%, rgba(139, 140, 248, .055), transparent 72%),
+      var(--bg);
+  }
+  .stage::after {
+    content: "";
+    position: absolute;
+    inset: 18px;
+    border: 1px solid rgba(255, 255, 255, .035);
+    border-radius: 22px;
+    pointer-events: none;
+  }
+
+  #brand {
+    position: absolute;
+    left: 56px;
+    top: 45px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    opacity: 0;
+  }
+  #brand .mark { color: var(--fg); font-weight: 600; }
+  #brand .spark { color: var(--accent); }
+
+  #phases {
+    position: absolute;
+    left: 610px;
+    top: 46px;
+    width: 920px;
+    height: 42px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    opacity: 0;
+  }
+  #phase-line,
+  #phase-fill {
+    position: absolute;
+    left: 115px;
+    right: 115px;
+    top: 8px;
+    height: 1px;
+    background: var(--border);
+  }
+  #phase-fill {
+    right: auto;
+    width: var(--phase, 0px);
+    background: var(--accent);
+    box-shadow: 0 0 18px var(--accent-glow);
+  }
+  .phase {
+    position: relative;
+    padding-top: 23px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--fg-faint);
+  }
+  .phase::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: calc(50% - 5px);
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg);
+    transition: none;
+  }
+  .phase.active { color: var(--fg); }
+  .phase.active::before {
+    border-color: var(--accent);
+    background: var(--accent);
+    box-shadow: 0 0 18px var(--accent-glow);
+  }
+  .phase.done { color: var(--fg-muted); }
+  .phase.done::before { border-color: var(--ok); background: var(--ok); }
+
+  #flow {
+    position: absolute;
+    inset: 0;
+    transform-origin: 50% 50%;
+  }
+  #intent {
+    --ix: 420px;
+    --iy: 285px;
+    --iw: 760px;
+    --ih: 245px;
+    position: absolute;
+    left: var(--ix);
+    top: var(--iy);
+    width: var(--iw);
+    height: var(--ih);
+    overflow: hidden;
+    background: rgba(14, 16, 21, .96);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 28px 90px rgba(0, 0, 0, .45);
+    opacity: 0;
+  }
+  #intent .full {
+    position: absolute;
+    inset: 0;
+    padding: 34px 40px;
+  }
+  #intent .compact {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    opacity: 0;
+  }
+  #intent.morphed .full { display: none; }
+  #intent.running {
+    border-color: var(--accent);
+    background: var(--surface-raised);
+    box-shadow: 0 0 0 1px rgba(139, 140, 248, .12), 0 18px 60px var(--accent-dim);
+  }
+  #intent.done { border-color: rgba(142, 231, 192, .42); }
+  #intent .intent-tick {
+    position: absolute;
+    top: 16px;
+    right: 18px;
+    color: var(--ok);
+    font-family: var(--font-mono);
+    font-size: 15px;
+    opacity: 0;
+  }
+  #intent.done .intent-tick { opacity: 1; }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  #intent-copy {
+    display: inline;
+    font-size: 38px;
+    line-height: 1.24;
+    letter-spacing: -.03em;
+  }
+  #intent .hint {
+    position: absolute;
+    left: 40px;
+    bottom: 30px;
+    font-size: 15px;
+    color: var(--fg-muted);
+  }
+  #intent .compact strong {
+    font-family: var(--font-mono);
+    font-size: 19px;
+    font-weight: 500;
+    color: var(--fg);
+  }
+  #intent .compact span {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--fg-faint);
+  }
+
+  #dag { position: absolute; inset: 0; opacity: 0; }
+  #dag svg { position: absolute; inset: 0; }
+  .edge {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 2;
+  }
+  .edge.lit { stroke: var(--accent); opacity: .9; }
+  .node {
+    width: 230px;
+    height: 110px;
+    padding: 21px 22px;
+    border-radius: 16px;
+    background: rgba(14, 16, 21, .98);
+    border-color: var(--border);
+    opacity: 0;
+  }
+  .node .id { font-family: var(--font-label); font-size: 21px; letter-spacing: -.02em; }
+  .node .verb { margin-top: 9px; color: var(--fg-faint); }
+  .node .tick { color: var(--ok); top: 17px; right: 19px; }
+  .node.running {
+    border-color: var(--accent);
+    background: var(--surface-raised);
+    box-shadow: 0 0 0 1px rgba(139, 140, 248, .12), 0 18px 60px var(--accent-dim);
+  }
+  .node.done { border-color: rgba(142, 231, 192, .42); }
+  .node.done .verb { color: var(--fg-muted); }
+
+  #n-extract { left: 430px; top: 380px; }
+  #n-save { left: 770px; top: 380px; }
+
+  #check-note {
+    position: absolute;
+    left: 430px;
+    top: 535px;
+    width: 570px;
+    display: flex;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--fg-muted);
+    opacity: 0;
+  }
+  #check-note span {
+    padding: 8px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: rgba(14, 16, 21, .72);
+  }
+  #check-note .ok { color: var(--ok); border-color: rgba(142, 231, 192, .2); }
+
+  .pulse {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 20px var(--accent-glow);
+    opacity: 0;
+    offset-rotate: 0deg;
+  }
+
+  #result {
+    position: absolute;
+    left: 1015px;
+    top: 205px;
+    width: 500px;
+    height: 382px;
+    padding: 27px 28px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: rgba(14, 16, 21, .98);
+    box-shadow: 0 30px 100px rgba(0, 0, 0, .48);
+    opacity: 0;
+  }
+  #result .result-title {
+    margin-top: 17px;
+    font-size: 30px;
+    letter-spacing: -.03em;
+  }
+  #result .file {
+    margin-top: 7px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--fg-muted);
+  }
+  .action {
+    display: grid;
+    grid-template-columns: 62px 1fr 72px;
+    gap: 12px;
+    align-items: center;
+    padding: 15px 0;
+    border-top: 1px solid var(--border-soft);
+    font-size: 16px;
+    opacity: 0;
+  }
+  .action.first { margin-top: 23px; }
+  .action .owner { color: var(--accent); font-family: var(--font-mono); font-size: 14px; }
+  .action .due { color: var(--fg-faint); font-family: var(--font-mono); font-size: 12px; text-align: right; }
+
+  #proof {
+    position: absolute;
+    left: 1015px;
+    top: 615px;
+    width: 500px;
+    height: 126px;
+    display: grid;
+    grid-template-columns: 54px 1fr;
+    gap: 16px;
+    align-items: center;
+    padding: 22px 26px;
+    border: 1px solid rgba(142, 231, 192, .28);
+    border-radius: 16px;
+    background: var(--ok-dim);
+    opacity: 0;
+  }
+  #proof .seal {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(142, 231, 192, .42);
+    border-radius: 50%;
+    color: var(--ok);
+    font-size: 22px;
+  }
+  #proof strong { display: block; font-size: 17px; font-weight: 550; }
+  #proof code {
+    display: block;
+    margin-top: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--fg-muted);
+  }
+
+  #promise {
+    position: absolute;
+    left: 92px;
+    bottom: 62px;
+    font-size: 24px;
+    letter-spacing: -.02em;
+    color: var(--fg-muted);
+    opacity: 0;
+  }
+  #promise strong { color: var(--fg); font-weight: 550; }
+</style>
+
+<div class="stage" id="stage">
+  <div id="brand"><span class="spark">✦</span><span class="mark">Nika</span><span>one workflow</span></div>
+
+  <div id="phases">
+    <div id="phase-line"></div>
+    <div id="phase-fill"></div>
+    <div class="phase active" id="p-intent">Intent</div>
+    <div class="phase" id="p-check">Check</div>
+    <div class="phase" id="p-run">Run</div>
+    <div class="phase" id="p-proof">Proof</div>
+  </div>
+
+  <div id="flow">
+    <div class="card" id="intent">
+      <div class="full">
+        <div class="eyebrow">Your intent</div>
+        <div style="margin-top: 25px"><span id="intent-copy">Turn this meeting into clear action items.</span><span class="caret" id="intent-caret"></span></div>
+        <div class="hint">Say what should happen. Keep it as code.</div>
+      </div>
+      <div class="compact">
+        <strong>transcript</strong>
+        <span>read meeting.txt</span>
+        <span class="intent-tick">✓</span>
+      </div>
+    </div>
+
+    <div id="dag">
+      <svg width="1600" height="900" viewBox="0 0 1600 900">
+        <path class="edge" id="e-1" d="M 320 435 C 360 435, 390 435, 430 435" />
+        <path class="edge" id="e-2" d="M 660 435 C 700 435, 730 435, 770 435" />
+      </svg>
+      <div class="node" id="n-extract"><div class="id">extract</div><div class="verb">AI · typed output</div><span class="tick">✓</span></div>
+      <div class="node" id="n-save"><div class="id">save</div><div class="verb">write JSON</div><span class="tick">✓</span></div>
+      <div class="pulse" id="pulse-1"></div>
+      <div class="pulse" id="pulse-2"></div>
+      <div id="check-note"><span class="ok">✓ plan valid</span><span>3 tasks</span><span>permissions visible</span></div>
+    </div>
+  </div>
+
+  <div class="card" id="result">
+    <div class="eyebrow">Result</div>
+    <div class="result-title">3 action items</div>
+    <div class="file">action-items.json</div>
+    <div class="action first"><span class="owner">Marco</span><span>Fix the email queue</span><span class="due">Friday</span></div>
+    <div class="action"><span class="owner">Sam</span><span>Review pricing page copy</span><span class="due">Thursday</span></div>
+    <div class="action"><span class="owner">Lea</span><span>Chase the staging infra ticket</span><span class="due">—</span></div>
+  </div>
+
+  <div class="card" id="proof">
+    <div class="seal">✓</div>
+    <div><strong>Result bound to its run</strong><code>15 events · chain 66549215…e18d08</code></div>
+  </div>
+
+  <div id="promise"><strong>One intent.</strong> A visible plan. A verifiable result.</div>
+</div>
+
+<script src="scene.js"></script>
+<script>
+  const S = window.Scene;
+  S.define({ name: "intent-dag-proof", duration: 13200, fps: 24, width: 1600, height: 900, posterAt: 11100 });
+
+  S.fade("#brand", { at: 150, dur: 450, y: 8 });
+  S.fade("#phases", { at: 250, dur: 500, y: 8 });
+  S.fade("#intent", { at: 650, dur: 520, y: 18, scale: .985 });
+  S.type("#intent-copy", { at: 1050, dur: 1350, caret: "#intent-caret" });
+
+  // The intent becomes the first node of the checked graph.
+  S.fade("#intent .full", { at: 2750, dur: 320, from: 1, to: 0 });
+  S.style("#intent", "--ix", { at: 2920, dur: 760, from: 420, to: 90, unit: "px", ease: "inout" });
+  S.style("#intent", "--iy", { at: 2920, dur: 760, from: 285, to: 380, unit: "px", ease: "inout" });
+  S.style("#intent", "--iw", { at: 2920, dur: 760, from: 760, to: 230, unit: "px", ease: "inout" });
+  S.style("#intent", "--ih", { at: 2920, dur: 760, from: 245, to: 110, unit: "px", ease: "inout" });
+  S.cls("#intent", { at: 3380, add: ["morphed"] });
+  S.fade("#intent .compact", { at: 3480, dur: 360, y: 8 });
+  S.cls("#p-intent", { at: 3000, add: ["done"], remove: ["active"] });
+  S.cls("#p-check", { at: 3000, add: ["active"] });
+  S.style("#phase-fill", "--phase", { at: 3000, dur: 650, from: 0, to: 230, unit: "px" });
+
+  S.fade("#dag", { at: 3500, dur: 180 });
+  S.fade("#n-extract", { at: 3760, dur: 360, x: -18, scale: .97 });
+  S.draw("#e-1", { at: 3980, dur: 440 });
+  S.fade("#n-save", { at: 4260, dur: 360, x: -18, scale: .97 });
+  S.draw("#e-2", { at: 4480, dur: 440 });
+  S.fade("#check-note", { at: 4900, dur: 420, y: 10 });
+
+  // Run: the same plan lights up in order and the values travel its edges.
+  S.cls("#p-check", { at: 5650, add: ["done"], remove: ["active"] });
+  S.cls("#p-run", { at: 5650, add: ["active"] });
+  S.style("#phase-fill", "--phase", { at: 5650, dur: 550, from: 230, to: 460, unit: "px" });
+  S.fade("#check-note", { at: 5680, dur: 280, from: 1, to: 0 });
+
+  S.cls("#intent", { at: 5850, add: ["running"] });
+  S.cls("#intent", { at: 6500, add: ["done"], remove: ["running"] });
+  S.cls("#e-1", { at: 6500, add: ["lit"] });
+  S.fade("#pulse-1", { at: 6460, dur: 100 });
+  S.style("#pulse-1", "offset-distance", { at: 6500, dur: 520, from: 0, to: 100, unit: "%", ease: "inout" });
+  S.fade("#pulse-1", { at: 6920, dur: 140, from: 1, to: 0 });
+
+  S.cls("#n-extract", { at: 6900, add: ["running"] });
+  S.cls("#n-extract", { at: 7600, add: ["done"], remove: ["running"] });
+  S.cls("#e-2", { at: 7600, add: ["lit"] });
+  S.fade("#pulse-2", { at: 7560, dur: 100 });
+  S.style("#pulse-2", "offset-distance", { at: 7600, dur: 520, from: 0, to: 100, unit: "%", ease: "inout" });
+  S.fade("#pulse-2", { at: 8020, dur: 140, from: 1, to: 0 });
+  S.cls("#n-save", { at: 8000, add: ["running"] });
+  S.cls("#n-save", { at: 8580, add: ["done"], remove: ["running"] });
+
+  // The graph makes room for the result instead of disappearing.
+  S.camera("#flow", { at: 8650, dur: 720, fromScale: 1, toScale: .82, fromX: 0, toX: -40, fromY: 0, toY: -8 });
+  S.fade("#result", { at: 9000, dur: 520, x: 22, scale: .985 });
+  S.lines("#result .action", { at: 9470, stagger: 180, dur: 300, y: 8 });
+
+  S.cls("#p-run", { at: 10100, add: ["done"], remove: ["active"] });
+  S.cls("#p-proof", { at: 10100, add: ["active"] });
+  S.style("#phase-fill", "--phase", { at: 10100, dur: 550, from: 460, to: 690, unit: "px" });
+  S.fade("#proof", { at: 10350, dur: 520, y: 14, scale: .98 });
+  S.cls("#p-proof", { at: 10950, add: ["done"], remove: ["active"] });
+  S.fade("#promise", { at: 10900, dur: 500, y: 10 });
+
+  // Quiet loop close.
+  for (const sel of ["#intent", "#dag", "#result", "#proof", "#promise"])
+    S.fade(sel, { at: 12600, dur: 450, from: 1, to: 0 });
+  S.fade("#phases", { at: 12700, dur: 350, from: 1, to: 0 });
+  S.fade("#brand", { at: 12750, dur: 300, from: 1, to: 0 });
+
+  const p1 = document.getElementById("pulse-1");
+  const p2 = document.getElementById("pulse-2");
+  p1.style.offsetPath = `path('${document.getElementById("e-1").getAttribute("d")}')`;
+  p2.style.offsetPath = `path('${document.getElementById("e-2").getAttribute("d")}')`;
+
+  S.ready();
+</script>

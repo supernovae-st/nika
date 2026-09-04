@@ -10,8 +10,8 @@
 <h1 align="center">Intent as Code.</h1>
 
 <p align="center">
-  Turn repeatable AI work into one readable file.<br>
-  Check it. Run it on any model. Keep the proof.
+  Describe the outcome once. Nika turns it into a visible workflow,<br>
+  checks the plan, runs it on your model, and keeps proof of what happened.
 </p>
 
 <p align="center">
@@ -21,54 +21,48 @@
 </p>
 
 <p align="center">
-  <img src="media/gifs/one-way.optimized.gif" alt="A real Nika workflow running locally from one command" width="960">
+  <img src="media/gifs/intent-dag-proof.optimized.gif" alt="An intent becomes a checked workflow graph, runs, produces action items, and records tamper-evident proof" width="960">
 </p>
 
-## Start here
+## Intent → Check → Run → Proof
+
+Install Nika:
 
 ```sh
 curl -LsSf https://nika.sh/install.sh | sh
-nika try 01-hello
 ```
 
-**Done.** Your first workflow ran locally. No account, API key, or model server
-was needed.
-
-## Your first workflow
-
-Save this as `hello.nika.yaml`:
-
-```yaml
-nika: hello
-model: mock/echo       # offline demo
-permits: {}            # this workflow can touch nothing else
-
-tasks:
-  greet:
-    infer:
-      prompt: "Say hello in French."
-      max_tokens: 64
-
-outputs:
-  greeting: ${{ tasks.greet.output }}
-```
-
-Then use the same two commands for every workflow:
+Open an empty folder and follow one path:
 
 ```sh
-nika check hello.nika.yaml
-nika run hello.nika.yaml
+nika new           # Intent — say what result you want
+nika check         # Check  — see the plan before it runs
+nika run           # Run    — execute the plan and get the result
+nika trace verify  # Proof  — verify the run record
 ```
 
-That is Nika. Change the prompt, add another task, or connect tasks with
-`${{ ... }}`. The file stays readable and reviewable in Git.
+| Step | Command | What you get |
+|---|---|---|
+| **Intent** | `nika new` | Answer three questions. Nika creates one readable workflow file. |
+| **Check** | `nika check` | See every step and everything it can access. Nothing runs yet. |
+| **Run** | `nika run` | Watch the steps execute. Get the text, data, or file you asked for. |
+| **Proof** | `nika trace verify` | Check that the recorded run has not been altered. |
 
-## Use your model
+That is the whole loop. With one workflow in the folder, no filenames or flags
+are required. Nika also verifies the latest run by default.
 
-Keep the workflow. Change only the model:
+## One workflow. One file.
+
+`nika new` creates a `.nika.yaml` file you can open, edit, review, and commit.
+Its tasks are the DAG nodes. References connect them. Permissions state exactly
+what the workflow may touch. `nika check` shows all of it before execution.
+
+## Bring your model
+
+Keep the workflow. Change only the model when you run it:
 
 ```sh
-nika run hello.nika.yaml --model ollama/qwen3.5:4b
+nika run --model ollama/qwen3.5:4b
 ```
 
 Not sure what is ready on your machine?
@@ -79,13 +73,6 @@ nika doctor
 
 Nika can use local models, API providers, and supported agentic CLIs without
 changing the workflow itself.
-
-## Why people use Nika
-
-- **Repeat it** — the task is a file, not a chat you have to reconstruct.
-- **Review it** — prompts, tools, permissions, and limits are visible in Git.
-- **Check it** — mistakes and unsafe access are caught before execution.
-- **Prove it** — every run leaves a local, hash-chained receipt.
 
 <details>
 <summary><strong>Learn the four building blocks</strong></summary>
@@ -130,9 +117,8 @@ unless you deliberately want to publish the runs.
 `.nika/traces/` inherits the sensitivity of whatever the workflow read; on a
 shared or CI machine, treat it as a data-at-rest surface.
 
-```sh
-nika trace verify .nika/traces/<run>.ndjson
-```
+`nika trace verify` checks the latest run. A trace proves what Nika recorded
+and whether that record changed; it does not claim that an AI answer is true.
 
 </details>
 
@@ -140,7 +126,6 @@ nika trace verify .nika/traces/<run>.ndjson
 
 [Examples](examples/README.md) ·
 [Install guide](https://nika.sh/install) ·
-[TypeScript SDK](nika-client/README.md) ·
 [Editor extension](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang) ·
 [Open specification](https://github.com/supernovae-st/nika-spec) ·
 [Roadmap](https://github.com/orgs/supernovae-st/projects/3)

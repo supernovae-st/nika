@@ -32,7 +32,7 @@ media/
 ```sh
 bash scripts/media/capture-transcripts.sh     # refresh real CLI transcripts
 cd scripts/media && npm install               # once (playwright-core)
-node render-motion.mjs static-check-fix chat-to-workflow dag-execution
+node render-motion.mjs intent-dag-proof static-check-fix chat-to-workflow dag-execution
 bash scripts/media/validate-media.sh          # honesty + budget gate
 ```
 
@@ -45,7 +45,6 @@ rendered against the real installed binary in a staged workdir:
 
 ```sh
 brew install vhs                              # once
-bash scripts/media/render-tape.sh one-way     # → GIF + MP4 + WebM + poster
 bash scripts/media/render-tape.sh full-loop   # → media/gifs/full-loop.optimized.gif
 bash scripts/media/validate-media.sh          # same honesty + budget gate
 ```

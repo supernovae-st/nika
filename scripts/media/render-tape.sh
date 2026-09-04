@@ -57,21 +57,6 @@ else
 fi
 echo "→ $OUT ($(du -h "$OUT" | cut -f1))"
 
-# A tape may declare the same real capture in web video formats and may take
-# its own poster at the exact authored beat. Copy only the outputs it emitted;
-# older tapes that declare a GIF alone keep their historical contract.
-mkdir -p "$ROOT/media/videos" "$ROOT/media/posters"
-for EXT in mp4 webm; do
-  if [ -f "$WORK/$NAME.$EXT" ]; then
-    cp "$WORK/$NAME.$EXT" "$ROOT/media/videos/$NAME.$EXT"
-    echo "→ $ROOT/media/videos/$NAME.$EXT ($(du -h "$ROOT/media/videos/$NAME.$EXT" | cut -f1))"
-  fi
-done
-if [ -f "$WORK/$NAME.png" ]; then
-  cp "$WORK/$NAME.png" "$ROOT/media/posters/$NAME.png"
-  echo "→ $ROOT/media/posters/$NAME.png ($(du -h "$ROOT/media/posters/$NAME.png" | cut -f1))"
-fi
-
 # The hero also installs at its hotlinked home (README + homebrew-tap +
 # the city READMEs embed media/nika-hero.gif by URL — the name is the API).
 if [ "$NAME" = "nika-hero" ]; then
