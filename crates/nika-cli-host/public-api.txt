@@ -2095,6 +2095,7 @@ pub mod nika_cli_host::output::exit
 pub const nika_cli_host::output::exit::CANCELLED: u8
 pub const nika_cli_host::output::exit::ENV: u8
 pub const nika_cli_host::output::exit::FILE: u8
+pub const nika_cli_host::output::exit::INCOMPLETE: u8
 pub const nika_cli_host::output::exit::OK: u8
 pub const nika_cli_host::output::exit::PAUSED: u8
 pub const nika_cli_host::output::exit::WORKFLOW: u8

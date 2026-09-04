@@ -259,7 +259,9 @@ pub enum JobStatus {
     Queued,
     /// Execution owns the job in the active server incarnation.
     Running,
-    /// Execution ownership was lost and effect settlement is unknown.
+    /// Execution ownership was lost and effect settlement is unknown — an
+    /// EVIDENCE state (the journal is INCOMPLETE · ADR-129), never a run
+    /// state: the run's own settlement, when it exists, is its terminal frame.
     Interrupted,
     /// Execution paused with resumable state.
     Paused,

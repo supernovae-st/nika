@@ -29,6 +29,12 @@ pub mod exit {
     /// the code every shell and CI reader already treats as « interrupted »
     /// · never the WORKFLOW failure code (a decision is not a defect).
     pub const CANCELLED: u8 = 130;
+    /// The journal never reached a terminal frame (`trace verify` · ADR-129
+    /// · #1442): the chain holds, the lifecycle end is unattested — a run
+    /// in flight or a writer that died. Non-zero on purpose: a monitor
+    /// wired on the exit code must never green a dead run. Distinct from
+    /// FILE (a broken or forged chain) and ENV (a missing input).
+    pub const INCOMPLETE: u8 = 5;
 }
 
 /// One verb invocation's outcome: the text to print + the exit code.

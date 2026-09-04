@@ -197,6 +197,65 @@ pub fn verify_with(trace: &str, opts: &VerifyOptions) -> VerbOutput {
     }
 }
 
+/// The chain-intact headline the verify surface prints (F-P2): the same
+/// words the pre-tier surface printed for `Intact`; `Torn` and
+/// `Incomplete` name the crash signature the journal carries.
+fn headline_prose(headline: ChainHeadline, events: usize, head: &str) -> String {
+    match headline {
+        ChainHeadline::Torn => format!(
+            "OK — {events} events · chain intact · head {head}\n  the final line is TORN (a crash mid-write, not tampering) — the chain\n  covers every complete line"
+        ),
+        ChainHeadline::Intact => format!(
+            "OK — {events} events · chain intact · head {head}\n  internally consistent (tamper-evident, not tamper-proof) — compare the head\n  against the one the run printed to close the loop"
+        ),
+        // F-P2 · the killed run: the chain attests every complete line —
+        // the lifecycle end is absent, said out loud, a FINDING the
+        // VERIFIER carries (the dying run writes nothing); ADR-129 makes
+        // the exit say it too.
+        ChainHeadline::Incomplete => format!(
+            "INCOMPLETE — {events} events · chain intact · head {head}\n  the journal never reached a terminal frame (no workflow_completed · workflow_failed ·\n  workflow_paused · workflow_cancelled · run_sealed) — the run was killed or crashed:\n  the chain attests every complete line; the lifecycle end is unattested, a finding\n  the verifier carries (the dying run can attest nothing)"
+        ),
+    }
+}
+
+/// Every ladder line, collected once: the prose appends them, the JSON
+/// projection carries them under `lines` — the tier report's own, the
+/// permit-witness finding, then the F-P18 cost-replay leg (NEP-0017 · a
+/// SCOPED STATED VERDICT that never moves the chain verdict nor the exit
+/// code; the judge is pure, the LOCAL identity is this binary's
+/// compile-time catalog, injected here).
+fn ladder_lines(raw: &str, report: &tier::TierReport) -> Vec<String> {
+    let mut lines: Vec<String> = report.lines.clone();
+    if let Some(finding) = witness_finding(raw) {
+        lines.push(finding.to_owned());
+    }
+    let snapshot = nika_catalog::pricing_snapshot();
+    let leg = nika_dap::cost_replay::cost_replay_leg(
+        raw,
+        &nika_dap::cost_replay::PricingPin::new(
+            nika_catalog::PRICING_SCHEMA,
+            snapshot.as_of,
+            snapshot.source_sha256_16,
+        ),
+    );
+    lines.extend(leg.lines.iter().cloned());
+    lines
+}
+
+/// What the lease says about an INCOMPLETE journal's writer (ADR-129).
+fn liveness_line(liveness: nika_dap::liveness::Liveness) -> String {
+    use nika_dap::liveness::Liveness;
+    match liveness {
+        Liveness::Alive { pid } => format!(
+            "the writer is alive (pid {pid} on this host) — a run in flight: verify again once it settles"
+        ),
+        Liveness::Dead { pid } => format!(
+            "the writer is dead (pid {pid} on this host · killed or crashed) — the evidence is incomplete; the run never settled"
+        ),
+        _ => "no liveness record (an older engine's journal, or another host) — this reader cannot say whether the writer lives".to_owned(),
+    }
+}
+
 /// The bounded read of one journal. NEP-0012 law 1 · the journal is
 /// untrusted input: bound the total read BEFORE it happens (the per-line
 /// cap rides `chain.rs` · this is the whole-file half). A refusal is
@@ -364,44 +423,8 @@ fn tiered(
             tampered_verdict(events, head, &report.lines),
         );
     }
-    let mut out = match headline {
-        ChainHeadline::Torn => format!(
-            "OK — {events} events · chain intact · head {head}\n  the final line is TORN (a crash mid-write, not tampering) — the chain\n  covers every complete line"
-        ),
-        ChainHeadline::Intact => format!(
-            "OK — {events} events · chain intact · head {head}\n  internally consistent (tamper-evident, not tamper-proof) — compare the head\n  against the one the run printed to close the loop"
-        ),
-        // F-P2 · the killed run: the chain attests every complete line —
-        // the lifecycle end is absent, said out loud. A FINDING (the
-        // exit stays OK: the journal is honestly what it is), never the
-        // `unknown` silence a truncated fold used to answer. The
-        // attestation rides the VERIFIER — the dying run writes nothing.
-        ChainHeadline::Incomplete => format!(
-            "INCOMPLETE — {events} events · chain intact · head {head}\n  the journal never reached a terminal frame (no workflow_completed · workflow_failed ·\n  workflow_paused · workflow_cancelled · run_sealed) — the run was killed or crashed:\n  the chain attests every complete line; the lifecycle end is unattested, a finding\n  the verifier carries (the dying run can attest nothing)"
-        ),
-    };
-    // Every ladder line is collected once: the prose appends them, the
-    // JSON projection carries them under `lines`.
-    let mut lines: Vec<String> = report.lines.clone();
-    if let Some(finding) = witness_finding(raw) {
-        lines.push(finding.to_owned());
-    }
-    // F-P18 · the cost-replay leg (NEP-0017 · la table de prix DANS le
-    // pin): a SCOPED STATED VERDICT — it rides after the ladder and the
-    // witness finding and never moves the chain verdict nor the exit
-    // code (the F-P2 `Incomplete` posture). The judge is pure; the
-    // LOCAL identity is this binary's compile-time catalog, injected
-    // here (the leg reads no catalog itself).
-    let snapshot = nika_catalog::pricing_snapshot();
-    let leg = nika_dap::cost_replay::cost_replay_leg(
-        raw,
-        &nika_dap::cost_replay::PricingPin::new(
-            nika_catalog::PRICING_SCHEMA,
-            snapshot.as_of,
-            snapshot.source_sha256_16,
-        ),
-    );
-    lines.extend(leg.lines.iter().cloned());
+    let mut out = headline_prose(headline, events, head);
+    let mut lines = ladder_lines(raw, &report);
     let code = match report.exit {
         tier::TierExit::Ok => super::exit::OK,
         tier::TierExit::File => super::exit::FILE,
@@ -409,11 +432,36 @@ fn tiered(
         // an era answer (ENV), never a guessed forgery.
         _ => super::exit::ENV,
     };
+    // ADR-129 · #1442 · a journal that never reached a terminal frame is
+    // INCOMPLETE evidence: the chain holds, the lifecycle end is unattested,
+    // and the exit says so — a monitor wired on the code must never green a
+    // dead run. The writer's lease tells a run in flight from a dead one.
+    let liveness = if matches!(headline, ChainHeadline::Incomplete) {
+        let l = nika_dap::liveness::probe(std::path::Path::new(trace));
+        lines.push(liveness_line(l));
+        Some(l)
+    } else {
+        None
+    };
+    let code = if liveness.is_some() && code == super::exit::OK {
+        super::exit::INCOMPLETE
+    } else {
+        code
+    };
     if opts.json {
         return VerbOutput {
             text: format!(
                 "{}\n",
-                ladder_doc(trace, events, head, headline, &report, code, &lines)
+                ladder_doc(
+                    trace,
+                    events,
+                    head,
+                    headline,
+                    &report,
+                    code,
+                    &lines,
+                    liveness.map(nika_dap::liveness::Liveness::as_str),
+                )
             ),
             code,
         };
@@ -650,10 +698,11 @@ mod tests {
         let _ = std::fs::remove_file(key);
     }
 
-    /// (F-P2) A journal that never reached a terminal frame verifies
-    /// INCOMPLETE — the finding is the VERIFIER's (the dying run writes
-    /// nothing) and the exit stays OK: the journal is honestly what it
-    /// is, the tier ladder still speaks.
+    /// (F-P2 · ADR-129) A journal that never reached a terminal frame
+    /// verifies INCOMPLETE — the finding is the VERIFIER's (the dying run
+    /// writes nothing) and the exit says so (#1442: a monitor wired on the
+    /// code must never green a dead run); with no lease the writer's
+    /// liveness is honestly unknown.
     #[test]
     fn a_terminal_less_journal_verifies_incomplete() {
         let trace = stage(
@@ -661,8 +710,9 @@ mod tests {
             &chained(&["workflow_started", "task_completed"]),
         );
         let out = verify_with(&trace.to_string_lossy(), &VerifyOptions::default());
-        assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
+        assert_eq!(out.code, super::super::exit::INCOMPLETE, "{}", out.text);
         assert!(out.text.contains("INCOMPLETE — 2 events"), "{}", out.text);
+        assert!(out.text.contains("no liveness record"), "{}", out.text);
         assert!(
             out.text.contains("never reached a terminal frame"),
             "{}",
@@ -1153,6 +1203,9 @@ mod tests {
                 &[("plane", "exec"), ("decision", "allow")],
             ),
             ("task_completed", &[("task", "stamp")]),
+            // ADR-129 · the journal reaches its terminal: the witness rule is
+            // judged on a COMPLETE run (an incomplete one exits its own class).
+            ("workflow_completed", &[]),
         ]);
         let path = stage("witness-present", &witnessed);
         let out = verify(&path.to_string_lossy());
@@ -1169,6 +1222,9 @@ mod tests {
                 &[("task", "think"), ("note", "infer · mock/echo")],
             ),
             ("task_completed", &[("task", "think")]),
+            // ADR-129 · the journal reaches its terminal: the witness rule is
+            // judged on a COMPLETE run (an incomplete one exits its own class).
+            ("workflow_completed", &[]),
         ]);
         let path = stage("witness-infer-only", &infer_only);
         let out = verify(&path.to_string_lossy());

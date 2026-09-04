@@ -4392,6 +4392,7 @@ dependencies = [
  "nika-store",
  "nika-types",
  "nika-vocab",
+ "nix 0.31.3",
  "p384",
  "proptest",
  "serde",

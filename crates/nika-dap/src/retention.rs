@@ -363,6 +363,7 @@ pub fn collect(dir: &Path, cfg: &RetentionConfig, now: SystemTime) -> Option<GcR
     let mut removed: BTreeMap<usize, Reason> = BTreeMap::new();
     for (i, reason) in marked {
         if std::fs::remove_file(&traces[i].path).is_ok() {
+            crate::liveness::remove_lease(&traces[i].path);
             removed.insert(i, reason);
         }
     }

@@ -222,6 +222,11 @@ pub struct TraceFileSink {
     chain: ChainState,
     /// Lines actually written (the anchor trio's count).
     written: usize,
+    /// The liveness lease held for the journal's lifetime (ADR-129 ·
+    /// `<trace>.lock`): `None` when disabled, when the open failed, or
+    /// when the lease could not be taken (fail-open: the store then reads
+    /// `unknown`, never a guess).
+    lease: Option<crate::liveness::Lease>,
 }
 
 impl TraceFileSink {
@@ -236,6 +241,7 @@ impl TraceFileSink {
             error: None,
             chain: ChainState::genesis(),
             written: 0,
+            lease: None,
         }
     }
 
@@ -252,6 +258,7 @@ impl TraceFileSink {
             error: None,
             chain: ChainState::genesis(),
             written: 0,
+            lease: None,
         }
     }
 
@@ -365,6 +372,10 @@ impl TraceFileSink {
             }
             Err(e) => return Err(e),
         };
+        // The liveness lease (ADR-129): held until this sink drops — the
+        // kernel releases it when the process ends, however it ends. A
+        // lease that cannot be taken leaves the reader honest (`unknown`).
+        self.lease = crate::liveness::hold(&path).ok();
         self.lane = Lane::Open(BufWriter::new(file));
         self.path = Some(path);
         Ok(())
