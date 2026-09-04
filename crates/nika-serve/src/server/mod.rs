@@ -573,6 +573,14 @@ async fn prepare_authority(config: &ResidentConfig) -> Result<PreparedAuthority,
             })
             .transpose()?;
         let incarnation = store.claim_server_incarnation()?;
+        // ADR-132 · the freeze audit: the stamps are written AFTER the
+        // server lease is held — a second start that loses the lease never
+        // rewrites the live resident's writer, and a newer protocol's stamp
+        // never lands beside an older resident still serving.
+        store.stamp_writer_as_resident()?;
+        schedules
+            .stamp_writer_as_resident()
+            .map_err(ServerError::ScheduleStore)?;
         store.settle_interrupted_jobs(&incarnation)?;
         Ok(PreparedAuthority {
             store,

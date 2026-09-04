@@ -61,12 +61,23 @@ impl ScheduleStore {
             let _local = store.local_guard()?;
             let _lease = store.kernel_lease()?;
             store.initialize_or_load()?;
-            store.stamp_writer()?;
         }
         Ok(store)
     }
 
-    /// ADR-132 · this engine becomes the store's writer at open.
+    /// ADR-132 · the RESIDENT becomes the store's writer once it holds the
+    /// server lease (never at open: a start that loses the lease must not
+    /// rewrite the live resident's stamp).
+    ///
+    /// # Errors
+    /// Returns an error when locking, loading or writing fails.
+    pub(crate) fn stamp_writer_as_resident(&self) -> Result<(), ScheduleStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        self.stamp_writer()
+    }
+
+    /// The stamp itself. Held under the caller's lease.
     fn stamp_writer(&self) -> Result<(), ScheduleStoreError> {
         let mut state = self.load_state()?;
         let mine = crate::writer::WriterStamp::this_engine();
