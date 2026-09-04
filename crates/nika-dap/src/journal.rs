@@ -227,6 +227,11 @@ pub struct TraceFileSink {
     /// when the lease could not be taken (fail-open: the store then reads
     /// `unknown`, never a guess).
     lease: Option<crate::liveness::Lease>,
+    /// Whether a terminal frame was written: a sink that reached its
+    /// terminal removes its lease on drop (a clean run leaves no sidecar);
+    /// one that did not keeps the file, and the kernel releases the lock —
+    /// the reader says `dead`.
+    saw_terminal: bool,
 }
 
 impl TraceFileSink {
@@ -242,6 +247,7 @@ impl TraceFileSink {
             chain: ChainState::genesis(),
             written: 0,
             lease: None,
+            saw_terminal: false,
         }
     }
 
@@ -259,6 +265,7 @@ impl TraceFileSink {
             chain: ChainState::genesis(),
             written: 0,
             lease: None,
+            saw_terminal: false,
         }
     }
 
@@ -293,8 +300,9 @@ impl TraceFileSink {
 
     /// The buffered fs error, if journaling ever failed.
     #[must_use]
-    pub fn into_error(self) -> Option<std::io::Error> {
-        self.error
+    pub fn into_error(mut self) -> Option<std::io::Error> {
+        // `take`, not a move: the sink implements `Drop` (the lease).
+        self.error.take()
     }
 
     /// The chain HEAD — sha256 of the last written line's exact bytes.
@@ -382,6 +390,22 @@ impl TraceFileSink {
     }
 }
 
+/// ADR-129 · the lease outlives the writer iff the writer died before its
+/// terminal frame. A sink dropped after its terminal removes the sidecar
+/// (the lock first, then the file); one dropped without a terminal keeps
+/// it — the kernel releases the lock, the store reads `dead`.
+impl Drop for TraceFileSink {
+    fn drop(&mut self) {
+        if !self.saw_terminal {
+            return;
+        }
+        self.lease = None;
+        if let Some(path) = &self.path {
+            crate::liveness::remove_lease(path);
+        }
+    }
+}
+
 fn journal_identity(first: &Event) -> Uuid {
     first.execution.map_or_else(
         || first.run.map_or(first.id.uuid, |run| run.uuid),
@@ -424,6 +448,9 @@ impl EventSink for TraceFileSink {
             Ok(next) => {
                 self.chain.commit(next);
                 self.written += 1;
+                if event.kind.is_terminal() {
+                    self.saw_terminal = true;
+                }
             }
             Err(e) => {
                 self.error = Some(e);
@@ -565,6 +592,59 @@ pub(crate) fn now_millis() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    /// ADR-129 · a sink that reached its terminal leaves no lease; one that
+    /// did not leaves the file, unlocked — the reader says `dead`.
+    #[cfg(unix)]
+    #[test]
+    fn the_lease_outlives_the_writer_only_when_it_died_before_its_terminal() {
+        use super::*;
+        use nika_event::EventKind;
+        use nika_types::id::EventId;
+        use nika_types::timestamp::Timestamp;
+        let dir = std::env::temp_dir().join(format!("nika-lease-drop-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let frame = |kind: EventKind, ms: u64| {
+            Event::new(
+                EventId::new(Uuid::from_u128(u128::from(ms))),
+                Timestamp::from_unix_ms(ms),
+                kind,
+            )
+        };
+        // clean: started + terminal, then drop → no sidecar
+        let clean = {
+            let mut sink = TraceFileSink::new(dir.join("clean"));
+            sink.emit(frame(EventKind::WorkflowStarted, 1));
+            sink.emit(frame(EventKind::WorkflowCompleted, 2));
+            sink.path()
+                .map(std::path::Path::to_path_buf)
+                .expect("opened")
+        };
+        assert!(clean.exists(), "the journal stays");
+        assert!(
+            !crate::liveness::lease_path(&clean).exists(),
+            "a clean run leaves no lease"
+        );
+        // dead: started only, then drop → the lease file stays, unlocked
+        let dead = {
+            let mut sink = TraceFileSink::new(dir.join("dead"));
+            sink.emit(frame(EventKind::WorkflowStarted, 1));
+            sink.path()
+                .map(std::path::Path::to_path_buf)
+                .expect("opened")
+        };
+        assert!(
+            crate::liveness::lease_path(&dead).exists(),
+            "the lease stays"
+        );
+        assert!(
+            matches!(
+                crate::liveness::probe(&dead),
+                crate::liveness::Liveness::Dead { .. }
+            ),
+            "nobody holds it: the writer is gone"
+        );
+    }
+
     use super::*;
     use nika_display::demo;
     use nika_types::id::{ExecutionId, RunId};
