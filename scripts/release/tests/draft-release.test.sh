@@ -58,7 +58,7 @@ if [ "\$1" = api ]; then
     repos/$REPO/releases/tags/$TAG)
       if [ "\$kind" = published ]; then printf '%s\n' "\$id"; exit 0; fi
       echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
-    "repos/$REPO/releases?per_page=100")
+    repos/$REPO/releases)
       if [ -n "\${GH_LIST_FAIL:-}" ]; then echo "gh: Unauthorized (HTTP 401)" >&2; exit 1; fi
       if [ "\$kind" != absent ]; then printf '%s\n' "\$id"; fi
       exit 0 ;;
@@ -121,7 +121,7 @@ if grep -q '^release create ' "$LOG"; then fail "the barrier created a draft on 
 # 5 · the mutation: a lookup through the by-tag endpoint cannot see the draft it
 #     just created — the shape that killed v0.118.0 must read RED here.
 mutant="$TEST_ROOT/mutant.sh"
-sed 's|gh api "repos/${repo}/releases?per_page=100" \\|gh api "repos/${repo}/releases/tags/${tag}" \\|; s|    --jq "\[.\[\] \| select(.tag_name == \\"${tag}\\")\] \| map(.id) \| first // empty" \\|    --jq ".id" \\|' \
+sed 's|gh api "repos/${repo}/releases" --paginate \\|gh api "repos/${repo}/releases/tags/${tag}" \\|; s|    --jq "\[.\[\] \| select(.tag_name == \\"${tag}\\")\] \| map(.id) \| first // empty" \\|    --jq ".id" \\|' \
   "$ROOT/scripts/release/prepare-draft-release.sh" >"$mutant"
 grep -q 'releases/tags/${tag}' "$mutant" || fail "the mutant was not produced"
 cp "$mutant" "$TEST_ROOT/prepare-draft-release.sh"

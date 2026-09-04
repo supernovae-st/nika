@@ -30,10 +30,11 @@ scratch="$(mktemp -d)"
 trap 'rm -r "$scratch"' EXIT
 
 # The id of the one release (draft or published) carrying the tag, or nothing.
-# One request, one jq answer: no pager, no `head`, nothing that could turn a
-# SIGPIPE into a verdict.
+# The list is read whole (`--paginate`, the house shape of every list read
+# here) and answered by one jq expression per page: no pager, no `head`,
+# nothing that could turn a SIGPIPE into a verdict.
 lookup_release_id() {
-  gh api "repos/${repo}/releases?per_page=100" \
+  gh api "repos/${repo}/releases" --paginate \
     --jq "[.[] | select(.tag_name == \"${tag}\")] | map(.id) | first // empty" \
     2>"$scratch/error"
 }
