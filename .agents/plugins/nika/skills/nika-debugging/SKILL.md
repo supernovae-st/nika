@@ -5,9 +5,10 @@ description: Diagnose and repair failed, paused or suspicious Nika runs from the
 
 # Debugging Nika runs
 
-Every run writes a hash-chained journal to `.nika/traces/`. That journal
-is the ONLY truth about what happened — debug from the trace, never from
-a memory of the terminal scroll.
+Execution journals are enabled by default under `.nika/traces/`. A refusal
+before execution, disabled recording or lost ownership can leave no complete
+journal. Start from the available runtime evidence, not a memory of terminal
+scroll; a receipt alone does not prove a sealed journal exists.
 
 ## The forensic loop (evidence first)
 
@@ -52,9 +53,7 @@ Confirm gates take booleans (`--answer approve=true`); every task the
 journal already proved is skipped as a visible cache hit, so only the
 prompt and its downstream run. Removing a paused trace refuses
 without `--force` and names the prompt it would destroy — that
-refusal is protecting an answer, not being difficult. (Traces
-recorded by 0.106.x and earlier can still show a
-`NIKA-BUILTIN-PROMPT-001` failure — same repair line.)
+refusal is protecting an answer, not being difficult.
 
 A failed run's card prints its own forensics line (`autopsy:
 nika trace peek <trace> <task>`) — start there, it points at the
@@ -83,25 +82,28 @@ exact failing task.
   more — thinking models routinely think past 30s.
 - **Permits violation**: the run was blocked by its own declared
   boundary — read the finding, then either the task is wrong or the
-  boundary is (widen it consciously, never delete it). Every permit
-  decision is recorded in the journal, GRANTED and REFUSED alike, so
-  the trace names the exact boundary the run actually rode — read it
-  there instead of guessing. A workflow with NO `permits:` block has
+  boundary is (widen it consciously, never delete it). Read the recorded
+  grant/refusal events when available; an admission refusal before the
+  prologue can have no journal, so retain its typed diagnostic too.
+  A workflow with NO `permits:` block has
   zero authority (`NIKA-AUTH-006`), and check refuses it before the
   run ever starts.
 - **A child process cannot see a variable**: the environment is
   composed from a cleared slate, so an unnamed variable simply is not
   there. Name it in `permits: { env: [NAME] }` or in the task's own
   `env:` map.
-- **Cost cap hit**: `--max-cost-usd` blocks BEFORE the call that would
-  cross the cap — that is the feature working, not a bug. Raise the
-  cap deliberately or shrink the task.
+- **Cost cap hit**: a known over-budget floor refuses before execution.
+  During execution, crossing the metered budget stops new admissions;
+  already-started calls finish and count, so the total can exceed the cap.
+  Inspect the recorded spend and unpriced calls before deliberately changing
+  the cap, concurrency or task limits.
 
 ## Tamper evidence
 
-`nika trace verify <trace>` checks the hash chain: any edited,
-inserted, dropped or reordered line breaks every hash after it.
-Exit 0 intact · 2 broken · 3 unchained (pre-chain journal). The
+`nika trace verify <trace>` checks the recorded hash links. A consistent
+unkeyed chain alone does not rule out rewriting the entire journal; compare
+the head with independently trusted evidence or verify its trusted seal.
+Exit 0 verified · 2 broken · 3 unchained or missing input · 5 incomplete. The
 verdict also names the highest tier honestly attained — chain OK ·
 **SEALED** (the `run_sealed` signature verifies against a custody
 key) · **ANCHORED** (the detached sidecar verifies fully offline) ·
@@ -109,9 +111,10 @@ key) · **ANCHORED** (the detached sidecar verifies fully offline) ·
 re-executes). A journal that never reached a lifecycle-terminal frame
 verifies **INCOMPLETE**: the verifier's finding about a run that died
 mid-flight — not a pass, and not a tamper claim. Say which one you
-have. Cite the trace in any report — a verified chain is proof, prose
-is not; `nika trace evidence <trace>` exports the pack an auditor reads
-without trusting you.
+have. Cite the trace and the actual proof tier; `nika trace evidence <trace>`
+exports the pack an auditor can inspect independently. Verification reads
+existing evidence: it never creates or seals a journal, and a signature
+does not prove that the producer told the truth.
 
 ## Honesty lines
 

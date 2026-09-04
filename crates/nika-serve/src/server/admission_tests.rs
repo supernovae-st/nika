@@ -220,6 +220,23 @@ async fn the_terminal_event_carries_the_runtimes_settlement() {
         .await
         .json();
     assert_eq!(job["status"], "succeeded", "{job}");
+    assert_eq!(
+        job["settlement"], expected,
+        "a terminal GET keeps the runtime facts"
+    );
+    let replay = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "settles",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(replay.status, 200);
+    assert_eq!(
+        replay.json()["settlement"],
+        expected,
+        "idempotent admission keeps them too"
+    );
     server.stop().await.expect("clean stop");
 }
 

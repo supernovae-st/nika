@@ -36,8 +36,22 @@ impl ExecutionService {
         project: &OwnedDir,
         root: &Path,
     ) -> Result<AdmittedExecution, ExecutionError> {
+        self.admit_with_model_override(project, root, None)
+    }
+
+    /// Capture and admit using the effective envelope model for this attempt.
+    /// Explicit task models and child workflow models are not overridden.
+    ///
+    /// # Errors
+    /// Returns the same capture and admission refusals as [`Self::admit`].
+    pub fn admit_with_model_override(
+        &self,
+        project: &OwnedDir,
+        root: &Path,
+        model_override: Option<&str>,
+    ) -> Result<AdmittedExecution, ExecutionError> {
         let snapshot = ExecutionSnapshot::capture(project, root, self.limits)?;
-        self.readmit_snapshot(snapshot)
+        self.readmit_snapshot_with_model_override(snapshot, model_override)
     }
 
     /// Admit root bytes already captured by an interface, with transitive
@@ -53,9 +67,23 @@ impl ExecutionService {
         root: &Path,
         root_bytes: &[u8],
     ) -> Result<AdmittedExecution, ExecutionError> {
+        self.admit_root_bytes_with_model_override(project, root, root_bytes, None)
+    }
+
+    /// Admit already captured root bytes under this attempt's model override.
+    ///
+    /// # Errors
+    /// Returns the same refusals as [`Self::admit_root_bytes`].
+    pub fn admit_root_bytes_with_model_override(
+        &self,
+        project: &OwnedDir,
+        root: &Path,
+        root_bytes: &[u8],
+        model_override: Option<&str>,
+    ) -> Result<AdmittedExecution, ExecutionError> {
         let snapshot =
             ExecutionSnapshot::capture_root_bytes(project, root, root_bytes, self.limits)?;
-        self.readmit_snapshot(snapshot)
+        self.readmit_snapshot_with_model_override(snapshot, model_override)
     }
 
     /// Admit a workflow world with explicit project-level imports.
@@ -139,6 +167,21 @@ impl ExecutionService {
         &self,
         snapshot: ExecutionSnapshot,
     ) -> Result<AdmittedExecution, ExecutionError> {
+        self.readmit_snapshot_with_model_override(snapshot, None)
+    }
+
+    /// Readmit the owned world, judging the effective root model for this leg.
+    /// The snapshot and parsed workflow retain their authored bytes; runtime
+    /// admission judges again with the override actually selected by its door.
+    ///
+    /// # Errors
+    /// Returns the same refusals as [`Self::readmit_snapshot`], including the
+    /// effective model's resolution, thinking and capacity findings.
+    pub fn readmit_snapshot_with_model_override(
+        &self,
+        snapshot: ExecutionSnapshot,
+        model_override: Option<&str>,
+    ) -> Result<AdmittedExecution, ExecutionError> {
         snapshot.revalidate(self.limits)?;
         let root = snapshot.root().to_owned();
         let root_text = snapshot
@@ -158,6 +201,7 @@ impl ExecutionService {
             let findings = crate::snapshot::report_findings(&root, &check);
             return Err(ExecutionError::CheckFailed { findings });
         }
+        validate_models(&root, &workflow, model_override)?;
         let skills = validate_skills(&snapshot, &root, &workflow)?;
         validate_child_worlds(&snapshot, &root)?;
         let execution_id = ExecutionId::generate();
@@ -454,9 +498,27 @@ fn validate_child_worlds(snapshot: &ExecutionSnapshot, root: &str) -> Result<(),
                 findings: crate::snapshot::report_findings(unit.logical_path(), &report),
             });
         }
+        validate_models(unit.logical_path(), &workflow, None)?;
         validate_skills(snapshot, unit.logical_path(), &workflow)?;
     }
     Ok(())
+}
+
+fn validate_models(
+    logical_path: &str,
+    workflow: &RawWorkflow,
+    model_override: Option<&str>,
+) -> Result<(), ExecutionError> {
+    let findings = crate::model_admission_findings(workflow, model_override);
+    if findings.is_empty() {
+        return Ok(());
+    }
+    Err(ExecutionError::CheckFailed {
+        findings: findings
+            .into_iter()
+            .map(|finding| format!("workflow `{logical_path}`: {finding}"))
+            .collect(),
+    })
 }
 
 #[cfg(test)]

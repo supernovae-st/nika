@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::pin::Pin;
@@ -135,10 +136,14 @@ fn parse_cursor(value: &str) -> Result<u64, ApiError> {
     value.parse().map_err(|_| ApiError::invalid_cursor())
 }
 
-/// ADR-130 · one terminal set, the record's own (`JobStatus::is_settled`),
-/// never a second hand-typed copy of the four words.
-fn is_terminal(status: JobStatus) -> bool {
-    status.is_settled()
+/// A paused observation completes while leaving the job resumable.
+fn observation_ended(status: JobStatus) -> bool {
+    status.is_settled() || status == JobStatus::Paused
+}
+
+fn is_pause_boundary(event: &JobEvent) -> bool {
+    string_field(event.payload(), "kind") == Some("execution.settled")
+        && string_field(event.payload(), "status") == Some("paused")
 }
 
 #[derive(Debug, Serialize)]
@@ -151,9 +156,9 @@ struct ProjectedEvent<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    outputs: Option<&'a BTreeMap<String, Value>>,
+    outputs: Option<Cow<'a, BTreeMap<String, Value>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    receipt: Option<&'a JobReceipt>,
+    receipt: Option<Cow<'a, JobReceipt>>,
     /// ADR-128 · the runtime's settlement, whole, on the terminal frame.
     #[serde(skip_serializing_if = "Option::is_none")]
     settlement: Option<&'a Value>,
@@ -171,8 +176,30 @@ fn projected<'a>(
         status: string_field(event.payload(), "status"),
         code: string_field(event.payload(), "code"),
         message: string_field(event.payload(), "message"),
-        outputs: if terminal { record.outputs() } else { None },
-        receipt: if terminal { record.receipt() } else { None },
+        outputs: if terminal {
+            record.outputs().map(Cow::Borrowed)
+        } else if is_pause_boundary(event) {
+            event
+                .payload()
+                .get("outputs")
+                .cloned()
+                .and_then(|value| serde_json::from_value(value).ok())
+                .map(Cow::Owned)
+        } else {
+            None
+        },
+        receipt: if terminal {
+            record.receipt().map(Cow::Borrowed)
+        } else if is_pause_boundary(event) {
+            event
+                .payload()
+                .get("receipt")
+                .cloned()
+                .and_then(|value| serde_json::from_value(value).ok())
+                .map(Cow::Owned)
+        } else {
+            None
+        },
         settlement: event.payload().get("settlement"),
     }
 }
@@ -217,7 +244,7 @@ async fn pump_events(
             return;
         };
         if page.events.is_empty() {
-            if is_terminal(page.record.status()) {
+            if observation_ended(page.record.status()) {
                 return;
             }
             tokio::select! {
@@ -261,6 +288,12 @@ async fn emit_page(
             return false;
         }
         *after = event.sequence();
+        // Even if a later resume is already in this page, this stream owns
+        // only the observation leg that ended at the pause. A new stream
+        // can continue from this durable sequence.
+        if is_pause_boundary(event) {
+            return false;
+        }
     }
     true
 }
@@ -446,6 +479,129 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    fn paused_then_resumed_job() -> (tempfile::TempDir, crate::JobStore, crate::JobId) {
+        let root = tempfile::tempdir().expect("root");
+        let store = crate::JobStore::open(root.path()).expect("store");
+        let admission = store
+            .create_or_replay(
+                crate::IdempotencyKey::new("paused-leg").expect("key"),
+                crate::RequestDigest::from_bytes([61; 32]),
+            )
+            .expect("create");
+        let id = admission.record().id();
+        let digest = crate::RequestDigest::from_bytes([62; 32])
+            .as_str()
+            .to_owned();
+        store
+            .start_execution(
+                id,
+                "execution-61".to_owned(),
+                "trace-61".to_owned(),
+                digest.clone(),
+                &[json!({"kind": "execution.started", "status": "running"})],
+            )
+            .expect("start");
+        let paused_receipt = JobReceipt::new(
+            id.clone(),
+            "execution-61",
+            "trace-61",
+            digest.clone(),
+            Some("paused-head".to_owned()),
+        )
+        .expect("receipt");
+        store
+            .transition_with_events(
+                id,
+                JobStatus::Paused,
+                &[json!({
+                    "kind": "execution.settled", "status": "paused",
+                    "settlement": {"status": "paused", "cause": "human_gate"},
+                    "outputs": {"draft": 42}, "receipt": paused_receipt,
+                })],
+            )
+            .expect("pause");
+        store
+            .transition_with_events(
+                id,
+                JobStatus::Running,
+                &[json!({"kind": "execution.started", "status": "running"})],
+            )
+            .expect("resume remains legal");
+        let final_receipt = JobReceipt::new(
+            id.clone(),
+            "execution-61",
+            "trace-61",
+            digest,
+            Some("final-head".to_owned()),
+        )
+        .expect("final receipt");
+        store
+            .settle_with_events(
+                id,
+                JobStatus::Succeeded,
+                &[json!({"kind": "execution.settled", "status": "succeeded"})],
+                Some(BTreeMap::from([("final".to_owned(), json!(84))])),
+                Some(final_receipt),
+            )
+            .expect("settle resumed leg");
+        (root, store, id.clone())
+    }
+
+    #[tokio::test]
+    async fn a_pause_boundary_keeps_its_own_evidence_after_the_job_resumes() {
+        let (_root, store, id) = paused_then_resumed_job();
+        let limit = crate::EventPageLimit::new(crate::MAX_EVENT_PAGE_LEN).expect("limit");
+        let (events, record, terminal) = store
+            .event_page(&id, 0, limit)
+            .expect("journal still verifies");
+        let (tx, mut rx) = mpsc::channel(8);
+        let mut after = 0;
+        assert!(
+            !emit_page(
+                &tx,
+                &events,
+                &record,
+                terminal,
+                &mut after,
+                Duration::from_secs(1)
+            )
+            .await
+        );
+        assert_eq!(after, 2, "first observation stops before the resumed leg");
+        let _started = rx.try_recv().expect("started frame");
+        let pause = rx.try_recv().expect("paused frame");
+        assert!(rx.try_recv().is_err(), "later leg belongs to a new stream");
+        let pause = String::from_utf8(pause.to_vec()).expect("utf8 frame");
+        let data = pause
+            .lines()
+            .find_map(|line| line.strip_prefix("data: "))
+            .expect("data");
+        let pause: Value = serde_json::from_str(data).expect("event");
+        assert_eq!(pause["outputs"]["draft"], 42);
+        assert!(pause["outputs"].get("final").is_none());
+        assert_eq!(pause["receipt"]["chain_head"], "paused-head");
+        assert_eq!(
+            record.receipt().expect("final receipt").chain_head(),
+            Some("final-head")
+        );
+
+        let (events, record, terminal) = store
+            .event_page(&id, after, limit)
+            .expect("next observation");
+        assert!(
+            emit_page(
+                &tx,
+                &events,
+                &record,
+                terminal,
+                &mut after,
+                Duration::from_secs(1)
+            )
+            .await
+        );
+        assert_eq!(after, 4, "cursor can observe the later resumed leg");
     }
 
     fn projected_from(payload: &serde_json::Value, sequence: u64) -> ProjectedEvent<'_> {

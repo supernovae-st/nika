@@ -55,15 +55,25 @@ const GATED: &str = "nika: gate-ask\npermits:\n  exec: [\"echo\"]\n  tools: [\"n
 /// hermetic (the nika#675 lesson), `NO_COLOR` pinned so every `expect`
 /// needle sits on plain bytes.
 fn spawn_gate_run(dir: &std::path::Path) -> LoggedSession {
-    std::fs::write(dir.join("gate.nika.yaml"), GATED).expect("fixture written");
+    spawn_workflow(dir, GATED, &[])
+}
+
+fn spawn_workflow(dir: &std::path::Path, source: &str, args: &[&str]) -> LoggedSession {
+    std::fs::write(dir.join("gate.nika.yaml"), source).expect("fixture written");
+    let home = dir.join("home");
+    std::fs::create_dir(&home).expect("isolated approval claim store");
     let mut cmd = Command::new(bin());
-    cmd.args(["run", "gate.nika.yaml"]).current_dir(dir);
+    cmd.args(["run", "gate.nika.yaml", "--no-gc"])
+        .args(args)
+        .current_dir(dir);
     cmd.env_remove("NO_COLOR")
         .env_remove("CLICOLOR")
         .env_remove("CLICOLOR_FORCE")
         .env_remove("FORCE_COLOR");
     cmd.env("TERM", "xterm-256color");
     cmd.env("NO_COLOR", "1");
+    cmd.env("HOME", home);
+    cmd.env_remove("NIKA_NO_TRACE_FILE");
     let session = OsSession::spawn(cmd).expect("pty spawn");
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(30)));
@@ -79,10 +89,8 @@ fn exit_code(session: &mut LoggedSession) -> i32 {
 }
 
 /// Every trace journal the scenario wrote, as text. An ask leg writes
-/// its OWN trace (pause journal · then the resumed leg's) — two births
-/// in the same second differ only by the random name tail, so picking
-/// "the newest by name" elected the WRONG file (the first red run's
-/// lesson). Assertions scan ALL of them instead.
+/// its OWN execution/trace identity. Filename ordering does not establish
+/// leg order, so assertions inspect all of them.
 fn trace_journals(dir: &std::path::Path) -> Vec<String> {
     let traces = dir.join(".nika/traces");
     let mut bodies: Vec<String> = std::fs::read_dir(&traces)
@@ -95,6 +103,46 @@ fn trace_journals(dir: &std::path::Path) -> Vec<String> {
     bodies.sort();
     assert!(!bodies.is_empty(), "a trace was written");
     bodies
+}
+
+/// Every leg closes one verified journal under its own engine identity.
+fn assert_leg_journals(journals: &[String], expected: usize) -> Vec<Vec<nika_event::Event>> {
+    assert_eq!(journals.len(), expected, "one journal per execution leg");
+    let mut identities = std::collections::HashSet::new();
+    let mut legs = Vec::new();
+    for journal in journals {
+        assert!(matches!(
+            nika_dap::chain::walk(journal),
+            nika_dap::chain::Verdict::Intact { .. }
+        ));
+        let recovered = nika_dap::recover::recover_events(journal, "interactive leg")
+            .expect("readable journal");
+        assert!(recovered.truncated_note.is_none());
+        let execution = recovered.events[0].execution.expect("engine execution ID");
+        assert!(
+            identities.insert(execution),
+            "each leg has a fresh identity"
+        );
+        assert!(
+            recovered
+                .events
+                .iter()
+                .all(|event| event.execution == Some(execution)),
+            "every projection in the journal names the same execution"
+        );
+        assert_eq!(
+            recovered
+                .events
+                .iter()
+                .filter(|event| event.is_terminal())
+                .count(),
+            1,
+            "one terminal settlement per leg"
+        );
+        assert!(nika_event::settlement::RunSettlement::from_events(&recovered.events).is_some());
+        legs.push(recovered.events);
+    }
+    legs
 }
 
 #[test]
@@ -121,6 +169,7 @@ fn the_gate_asks_on_a_terminal_and_the_answer_completes_the_run() {
     // downstream and the run completed (the pause leg's journal sits
     // beside it; both are honest).
     let journals = trace_journals(dir);
+    let _ = assert_leg_journals(&journals, 2);
     assert!(
         journals
             .iter()
@@ -128,6 +177,88 @@ fn the_gate_asks_on_a_terminal_and_the_answer_completes_the_run() {
         "one journal carries the completed run + the bound answer:\n{}",
         journals.join("\n────\n")
     );
+}
+
+#[test]
+fn two_sequential_gates_have_three_identities_and_journals_at_fixed_time() {
+    let dir = fresh_dir("two-gates");
+    let dir = dir.path();
+    let source = r#"nika: sequential-gates
+model: openai/gpt-5.2
+run: { entropy: none, clock: virtual }
+permits:
+  tools: ["nika:prompt"]
+tasks:
+  first:
+    invoke:
+      tool: nika:prompt
+      args: { mode: confirm, message: "first gate?" }
+  second:
+    with:
+      approved: ${{ tasks.first.output }}
+    when: ${{ with.approved == true }}
+    invoke:
+      tool: nika:prompt
+      args: { mode: confirm, message: "second gate?" }
+  after:
+    with:
+      approved: ${{ tasks.second.output }}
+    when: ${{ with.approved == true }}
+    infer: { prompt: "captured answer", max_tokens: 256 }
+outputs:
+  answer: ${{ tasks.after.output }}
+"#;
+    let mut p = spawn_workflow(dir, source, &["--model", "mock/echo", "--access", "mock"]);
+    p.expect("first gate?").expect("first gate asks");
+    p.expect("[y/N]").expect("first answer shape");
+    std::fs::write(dir.join("gate.nika.yaml"), "not: the admitted workflow\n")
+        .expect("replace the visible root between legs");
+    p.send_line("y").expect("first answer");
+    p.expect("second gate?").expect("second gate asks");
+    p.expect("[y/N]").expect("second answer shape");
+    std::fs::remove_file(dir.join("gate.nika.yaml")).expect("remove the visible root");
+    p.send_line("y").expect("second answer");
+    p.expect(Eof).expect("conversation ends");
+    assert_eq!(exit_code(&mut p), 0, "both captured gates complete");
+
+    let journals = trace_journals(dir);
+    let legs = assert_leg_journals(&journals, 3);
+    assert!(
+        legs.iter()
+            .all(|events| events[0].timestamp == legs[0][0].timestamp)
+    );
+    let mut paused = 0;
+    let mut completed = 0;
+    for events in &legs {
+        paused += events
+            .iter()
+            .filter(|e| e.kind == nika_event::EventKind::WorkflowPaused)
+            .count();
+        completed += events
+            .iter()
+            .filter(|e| e.kind == nika_event::EventKind::WorkflowCompleted)
+            .count();
+        assert!(
+            events
+                .iter()
+                .any(|e| e.str_field("model_override") == Some("mock/echo"))
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| e.str_field("access_pin") == Some("mock"))
+        );
+        assert_eq!(
+            nika_dap::resume::trace_access_lanes(events)
+                .expect("recorded access")
+                .get("mock/echo"),
+            Some(&("mock".to_owned(), "mock".to_owned()))
+        );
+    }
+    assert_eq!((paused, completed), (2, 1));
+    assert!(journals.iter().any(|j| {
+        j.contains("captured answer") && j.contains("\"kind\":\"workflow_completed\"")
+    }));
 }
 
 #[test]

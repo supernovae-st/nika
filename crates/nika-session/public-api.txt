@@ -1680,6 +1680,7 @@ pub nika_session::snapshot::ProjectSnapshot::git_root: core::option::Option<std:
 pub nika_session::snapshot::ProjectSnapshot::project_file: core::option::Option<std::path::PathBuf>
 pub nika_session::snapshot::ProjectSnapshot::root: std::path::PathBuf
 pub nika_session::snapshot::ProjectSnapshot::truncated: bool
+pub nika_session::snapshot::ProjectSnapshot::walk_truncated: bool
 pub nika_session::snapshot::ProjectSnapshot::workflows: alloc::vec::Vec<nika_session::snapshot::WorkflowSeen>
 impl nika_session::snapshot::ProjectSnapshot
 pub fn nika_session::snapshot::ProjectSnapshot::facts_lines(&self) -> alloc::vec::Vec<alloc::string::String>
@@ -2615,6 +2616,7 @@ pub nika_session::ProjectSnapshot::git_root: core::option::Option<std::path::Pat
 pub nika_session::ProjectSnapshot::project_file: core::option::Option<std::path::PathBuf>
 pub nika_session::ProjectSnapshot::root: std::path::PathBuf
 pub nika_session::ProjectSnapshot::truncated: bool
+pub nika_session::ProjectSnapshot::walk_truncated: bool
 pub nika_session::ProjectSnapshot::workflows: alloc::vec::Vec<nika_session::snapshot::WorkflowSeen>
 impl nika_session::snapshot::ProjectSnapshot
 pub fn nika_session::snapshot::ProjectSnapshot::facts_lines(&self) -> alloc::vec::Vec<alloc::string::String>

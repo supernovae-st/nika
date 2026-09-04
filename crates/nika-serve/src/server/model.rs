@@ -41,6 +41,8 @@ pub(crate) struct JobResponse<'a> {
     outputs: Option<&'a BTreeMap<String, Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     receipt: Option<&'a JobReceipt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    settlement: Option<&'a Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -63,6 +65,7 @@ impl<'a> From<&'a JobRecord> for JobResponse<'a> {
             error,
             outputs: record.outputs(),
             receipt: record.receipt(),
+            settlement: record.settlement(),
         }
     }
 }

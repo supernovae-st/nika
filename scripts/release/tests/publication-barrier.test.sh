@@ -246,8 +246,9 @@ if TAG_SHA=3333333333333333333333333333333333333333 PATH="$BIN:$PATH" \
   fail 'tag move passed'
 fi
 
-# Draft creation happens only after an explicit 404; an unknown lookup cannot
-# be converted into a create. This is also the pre-barrier failure proof.
+# Draft creation happens only after the release list answers EMPTY (the
+# by-tag endpoint never sees a draft: v0.118.0 died on its 404); an unknown
+# lookup cannot be converted into a create. Also the pre-barrier failure proof.
 cat >"$BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -261,6 +262,12 @@ if [ "$1" = api ]; then
     exit 1
   fi
   endpoint="$2"
+  if [[ "$endpoint" == */releases ]]; then
+    # the list answers 200 with what it carries, drafts included; an empty
+    # list is the only absence GitHub states for a tag
+    [ ! -e "$RELEASE_STATE" ] || printf '123\n'
+    exit 0
+  fi
   if [ ! -e "$RELEASE_STATE" ]; then
     echo 'gh: Not Found (HTTP 404)' >&2
     exit 1

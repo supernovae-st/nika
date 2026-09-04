@@ -43,7 +43,10 @@ pub(crate) fn gates(
             if let Some(err) = plan_refusal(plan) {
                 return Err(err);
             }
-            if let Some(err) = modelless_refusal(wf, plan) {
+            // Judge the same effective envelope that produced the plan.
+            // A task-local model keeps winning over the operator's default.
+            let effective = model_override.map(|model| nika_check::with_model_override(wf, model));
+            if let Some(err) = modelless_refusal(effective.as_ref().unwrap_or(wf), plan) {
                 return Err(err);
             }
         }
@@ -61,6 +64,9 @@ pub(crate) fn gates(
 /// no seat pinned the run has no path, and it says so BEFORE task 1
 /// (NIKA-1800) instead of dying in dispatch on an empty model. `check`'s
 /// ACCESS layer and the dry-run read the same judge.
+/// Pass the effective workflow, with any envelope model override applied via
+/// [`nika_check::with_model_override`]; unrelated admitted lanes do not supply
+/// a missing task model.
 #[must_use]
 pub fn modelless_refusal(wf: &RawWorkflow, plan: &ExecutionAccessPlan) -> Option<RuntimeError> {
     if plan.seat.is_some() || plan.pin_refusal.is_some() {
@@ -76,8 +82,11 @@ pub fn modelless_refusal(wf: &RawWorkflow, plan: &ExecutionAccessPlan) -> Option
     })
 }
 
-/// The first `infer:`/`agent:` task with an EMPTY effective model.
-fn first_modelless_task(wf: &RawWorkflow) -> Option<&str> {
+/// The first `infer:`/`agent:` task without a task or envelope model.
+/// Callers must first apply an operator's effective envelope override through
+/// [`nika_check::with_model_override`]; unrelated model lanes do not supply it.
+#[must_use]
+pub fn first_modelless_task(wf: &RawWorkflow) -> Option<&str> {
     if wf.model.is_some() {
         return None;
     }

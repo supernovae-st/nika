@@ -1170,6 +1170,7 @@ pub type nika_runtime::WorkflowPause::Output = T
 pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, probes: &[nika_providers::probe::ProviderProbe], access_pin: core::option::Option<&str>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
+pub fn nika_runtime::first_modelless_task(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<&str>
 pub fn nika_runtime::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>
 pub fn nika_runtime::modelless_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::plan_refusal(plan: &nika_providers::plan::ExecutionAccessPlan) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>

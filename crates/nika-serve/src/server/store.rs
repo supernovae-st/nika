@@ -191,6 +191,15 @@ enum RequestCommand {
 }
 
 enum ControlCommand {
+    CancelQueued {
+        id: JobId,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        event: Value,
+        receipt: Box<JobReceipt>,
+        reply: Reply<JobRecord>,
+    },
     Transition {
         id: JobId,
         status: JobStatus,
@@ -298,21 +307,24 @@ impl StoreHandle {
         receive(answer).await
     }
 
-    pub(super) async fn start_execution(
+    #[allow(clippy::too_many_arguments)]
+    pub(super) async fn cancel_queued(
         &self,
         id: JobId,
         execution_id: String,
         trace_id: String,
         snapshot_digest: String,
         event: Value,
+        receipt: JobReceipt,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control(ControlCommand::StartExecution {
+        self.send_control(ControlCommand::CancelQueued {
             id,
             execution_id,
             trace_id,
             snapshot_digest,
             event,
+            receipt: Box::new(receipt),
             reply,
         })?;
         receive(answer).await
@@ -399,31 +411,6 @@ impl StoreHandle {
             reply,
         })?;
         receive(answer).await
-    }
-
-    pub(super) async fn settle_with_result(
-        &self,
-        id: JobId,
-        status: JobStatus,
-        event: Value,
-        outputs: Option<BTreeMap<String, Value>>,
-        receipt: Option<JobReceipt>,
-    ) -> Result<JobRecord, ServerError> {
-        let (reply, answer) = oneshot::channel();
-        self.send_control(ControlCommand::Transition {
-            id,
-            status,
-            event,
-            outputs,
-            receipt: receipt.map(Box::new),
-            reply,
-        })?;
-        let result = receive(answer).await;
-        #[cfg(test)]
-        if result.is_ok() {
-            self.shutdown_probe.mark_terminal_settled();
-        }
-        result
     }
 
     pub(super) async fn settle_with_result_reliable(
@@ -727,6 +714,28 @@ fn serve_control(
     events: &Notify,
 ) -> bool {
     match command {
+        ControlCommand::CancelQueued {
+            id,
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            event,
+            receipt,
+            reply,
+        } => {
+            let result = store
+                .cancel_queued(
+                    &id,
+                    execution_id,
+                    trace_id,
+                    snapshot_digest,
+                    &event,
+                    *receipt,
+                )
+                .map(|mutation| mutation.record().clone());
+            notify_persisted(&result, events);
+            let _result = reply.send(result);
+        }
         ControlCommand::Transition {
             id,
             status,

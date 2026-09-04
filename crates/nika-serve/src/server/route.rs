@@ -572,70 +572,33 @@ async fn cancel_job(path: &str, state: &AppState) -> Response<ResponseBody> {
     let Ok(id) = JobId::parse(raw_id) else {
         return job_not_found();
     };
-    state.cancellations.cancel(&id);
     let record = match state.store.get(id.clone()).await {
         Ok(Some(record)) => record,
-        Ok(None) => {
-            state.cancellations.retire(&id);
-            return job_not_found();
-        }
+        Ok(None) => return job_not_found(),
         Err(
             super::ServerError::JobStore(crate::JobStoreError::Busy)
             | super::ServerError::StoreQueueFull,
         ) => return store_busy(),
         Err(_) => return internal_error(),
     };
-    if record.status().is_settled() {
+    if record.status().is_settled() || record.status() == crate::JobStatus::Paused {
         state.cancellations.retire(&id);
         return json_response(StatusCode::OK, &JobResponse::from(&record));
     }
-    let record = match ensure_cancel_identity(state, id.clone(), record).await {
-        Ok(record) => record,
-        Err(response) => return response,
-    };
-    if record.status().is_settled() {
-        state.cancellations.retire(&id);
-        return json_response(StatusCode::OK, &JobResponse::from(&record));
+    if record.status() == crate::JobStatus::Running {
+        state.cancellations.cancel(&id);
+        return current_job(state, id).await;
     }
-    let receipt = cancellation_receipt(&record);
-    let event = serde_json::json!({
-        "kind": "execution.cancelled",
-        "status": "cancelled"
-    });
-    match state
-        .store
-        .settle_with_result(
-            id.clone(),
-            crate::JobStatus::Cancelled,
-            event,
-            None,
-            receipt,
-        )
-        .await
-    {
-        Ok(cancelled) => {
-            state.cancellations.retire(&id);
-            json_response(StatusCode::OK, &JobResponse::from(&cancelled))
-        }
-        Err(super::ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) => {
-            current_job(state, id).await
-        }
-        Err(
-            super::ServerError::JobStore(crate::JobStoreError::Busy)
-            | super::ServerError::StoreQueueFull,
-        ) => store_busy(),
-        Err(_) => internal_error(),
+    match cancel_queued_job(state, id, record).await {
+        Ok(response) | Err(response) => response,
     }
 }
 
-async fn ensure_cancel_identity(
+async fn cancel_queued_job(
     state: &AppState,
     id: JobId,
     record: crate::JobRecord,
-) -> Result<crate::JobRecord, Response<ResponseBody>> {
-    if record.execution_id().is_some() {
-        return Ok(record);
-    }
+) -> Result<Response<ResponseBody>, Response<ResponseBody>> {
     let encoded = state.store.load_world(id.clone()).await.map_err(|error| {
         if matches!(
             error,
@@ -656,24 +619,42 @@ async fn ensure_cancel_identity(
     .await
     .map_err(|_| internal_error())?
     .map_err(|_| internal_error())?;
+    let execution_id = admitted.execution_id().to_string();
+    let trace_id = admitted.trace_id().to_string();
+    let snapshot_digest = admitted.snapshot().digest().to_owned();
+    let receipt = crate::JobReceipt::with_origin(
+        id.clone(),
+        execution_id.clone(),
+        trace_id.clone(),
+        snapshot_digest.clone(),
+        None,
+        record.origin().clone(),
+    )
+    .map_err(|_| internal_error())?;
     match state
         .store
-        .start_execution(
+        .cancel_queued(
             id.clone(),
-            admitted.execution_id().to_string(),
-            admitted.trace_id().to_string(),
-            admitted.snapshot().digest().to_owned(),
-            serde_json::json!({"kind": "execution.started", "status": "running"}),
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            serde_json::json!({"kind": "execution.cancelled", "status": "cancelled"}),
+            receipt,
         )
         .await
     {
-        Ok(started) => Ok(started),
+        Ok(cancelled) => {
+            state.cancellations.retire(&id);
+            Ok(json_response(
+                StatusCode::OK,
+                &JobResponse::from(&cancelled),
+            ))
+        }
         Err(super::ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) => {
-            match state.store.get(id).await {
-                Ok(Some(current)) => Ok(current),
-                Ok(None) => Err(job_not_found()),
-                Err(_) => Err(store_busy()),
-            }
+            // A worker may have started while admission was reconstructed.
+            // Only its execution owner may persist the resulting settlement.
+            state.cancellations.cancel(&id);
+            Ok(current_job(state, id).await)
         }
         Err(
             super::ServerError::JobStore(crate::JobStoreError::Busy)
@@ -683,25 +664,17 @@ async fn ensure_cancel_identity(
     }
 }
 
-fn cancellation_receipt(record: &crate::JobRecord) -> Option<crate::JobReceipt> {
-    crate::JobReceipt::with_origin(
-        record.id().clone(),
-        record.execution_id()?,
-        record.trace_id()?,
-        record.snapshot_digest()?,
-        None,
-        record.origin().clone(),
-    )
-    .ok()
-}
-
 async fn current_job(state: &AppState, id: JobId) -> Response<ResponseBody> {
     match state.store.get(id.clone()).await {
         Ok(Some(record)) => {
-            if record.status().is_settled() {
-                state.cancellations.retire(&id);
-            }
-            json_response(StatusCode::OK, &JobResponse::from(&record))
+            let status =
+                if record.status().is_settled() || record.status() == crate::JobStatus::Paused {
+                    state.cancellations.retire(&id);
+                    StatusCode::OK
+                } else {
+                    StatusCode::ACCEPTED
+                };
+            json_response(status, &JobResponse::from(&record))
         }
         Ok(None) => job_not_found(),
         Err(_) => store_busy(),

@@ -143,15 +143,18 @@ with or without its `showcase/` prefix and with or without the
    deliberately. For an effecting workflow, rehearse with
    `nika run <file> --model mock/echo` in scratch, inspect the artifacts, and
    verify its trace; never promise a golden that cannot run.
-8. **Prove a run that mattered**: every run writes a hash-chained
-   journal to `.nika/traces/`. `nika trace verify <trace>` climbs a
+8. **Prove a run that mattered**: execution journals are enabled by default
+   under `.nika/traces/`; a refusal before execution, disabled recording or
+   lost ownership can leave no complete trace. `nika trace verify <trace>` climbs a
    four-tier ladder and reports the highest tier honestly attained —
    chain OK · **SEALED** (the run signature verifies against a custody
    key) · **ANCHORED** (the detached transparency-log sidecar verifies
    fully offline) · **REPLAYED** (`--replay <fresh-trace>` compares a fresh run;
    verify never re-executes). `nika trace show <trace>` reads the card;
    `nika trace evidence <trace>` exports the pack an auditor reads without
-   trusting you. Cite the trace, never a memory of the run.
+   trusting your summary. Verification never creates or seals the journal;
+   an internally consistent chain does not itself prove producer honesty.
+   Cite the trace and the actual proof tier, never a memory of the run.
 
 ## The envelope: three value authorities, one boundary
 
@@ -428,7 +431,10 @@ header (the honest red class, CONVENTIONS §10).
   cloud floor; if it still floors, hand the human the word "unpriced"
   and never a number.
 - A spend cap rides the run: `nika run <file> --max-cost-usd <n>`
-  blocks BEFORE the call that would cross the cap.
+  refuses a known over-budget floor before execution. During execution,
+  crossing the metered budget stops new admissions; already-started calls
+  finish and count, so a concurrent wave can overshoot. Unpriced calls
+  have no measured USD bound. Do not promise a hard invoice ceiling.
 - `nika explain <file>` narrates all of this (waves · cost · touches ·
   how to run) — use it before handing a workflow to a human.
 

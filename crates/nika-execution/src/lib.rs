@@ -7,10 +7,12 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod error;
+mod model_admission;
 mod service;
 mod snapshot;
 
 pub use error::ExecutionError;
+pub use model_admission::model_admission_findings;
 pub use service::{
     AdmittedExecution, ExecutionContext, ExecutionService, ExecutionSession, ExecutionVerdict,
 };

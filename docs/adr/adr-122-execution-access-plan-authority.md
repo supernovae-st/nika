@@ -125,3 +125,43 @@ time.
   every door reads.
 - Wave 2: the layered `check` verdicts (VALID · ACCESS READY · CAPACITY
   FIT · RUN READY) read the same plan.
+
+## Amendment · closing audit, 2026-09-04
+
+Static model resolution, thinking and known capacity are now judged at
+`ExecutionService` admission for the root and every captured workflow,
+before an execution identity is minted. The root's envelope override is
+applied for that judgment; explicit task models and child workflow models
+retain their own authority. `AuthorizedRuntime` rechecks the actual
+override before its prologue, so admitting under one model does not permit
+running under another invalid model. The judges remain the provider and
+checker functions, not copies in CLI, Serve or the SDK.
+
+A child workflow is a distinct composition over captured bytes. It carries
+the root's explicit access pin and probe facts, but resolves its own model
+needs into its own frozen plan before child composition. Copying the
+root's lane map would omit child-only models; losing the pin would permit
+a different access path. Child boot fields and execution both read the
+child plan. The CLI boot-field helper delegates to the service projection.
+
+`AuthorizedRuntime` cannot execute without an attached frozen plan, even
+for a workflow whose plan has no model lanes. `ServiceExecutionDriver::
+execute` derives an omitted plan from its captured facts and effective
+model; direct builder callers must attach theirs. The generic low-level
+`Runtime` remains an injected execution substrate, not a second authorized
+service door. The model-less gate judges the effective envelope too: a
+legal override supplies a missing default but never replaces a task model.
+The predicate is owned by `nika-runtime::first_modelless_task` and
+re-exported by service access. The oracle evaluates it alongside all
+static lanes: an admitted model cannot hide another task's missing model,
+and a seat cannot clear a refused lane or pin.
+
+The closure-wide static check does not claim to predict dynamically chosen
+models or future remote availability. Tests cover known capacity refusal
+before events, explicit task-model precedence, child-plan propagation and
+redaction of nested settlement errors. Provider calls and harness behavior
+require their separate executable fixtures.
+
+See [One Door proof boundaries](../architecture/one-door-proof-boundaries.md)
+for the distinction between source tests, same-job replay preservation,
+cross-run comparison and published-artifact provenance.
