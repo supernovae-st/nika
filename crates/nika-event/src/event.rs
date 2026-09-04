@@ -116,6 +116,44 @@ impl Event {
     pub const fn is_terminal(&self) -> bool {
         self.kind.is_terminal()
     }
+
+    /// The value of the field `key` — the FIRST one, when a frame carries
+    /// it (the one reader every projection shares; a hand-rolled scan per
+    /// crate drifts).
+    #[must_use]
+    pub fn field(&self, key: &str) -> Option<&nika_types::resource::Value> {
+        self.fields.iter().find(|f| f.key == key).map(|f| &f.value)
+    }
+
+    /// The field `key` as a string, when it is one.
+    #[must_use]
+    pub fn str_field(&self, key: &str) -> Option<&str> {
+        match self.field(key)? {
+            nika_types::resource::Value::String(s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
+
+    /// The field `key` as an integer, when it is one.
+    #[must_use]
+    pub fn int_field(&self, key: &str) -> Option<i64> {
+        match self.field(key)? {
+            nika_types::resource::Value::Int(i) => Some(*i),
+            _ => None,
+        }
+    }
+
+    /// The field `key` as a float (an integer reads as its float), when it
+    /// is one.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)] // an i64 count read as a float measurement
+    pub fn float_field(&self, key: &str) -> Option<f64> {
+        match self.field(key)? {
+            nika_types::resource::Value::Float(f) => Some(*f),
+            nika_types::resource::Value::Int(i) => Some(*i as f64),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]

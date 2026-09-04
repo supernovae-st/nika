@@ -3022,10 +3022,10 @@ pub fn nika_dap::stats::quantile_h7(sorted: &[f64], q: f64) -> core::option::Opt
 pub mod nika_dap::store
 #[non_exhaustive] pub enum nika_dap::store::TraceState
 pub nika_dap::store::TraceState::Cancelled
-pub nika_dap::store::TraceState::Completed
 pub nika_dap::store::TraceState::Failed
 pub nika_dap::store::TraceState::Paused
 pub nika_dap::store::TraceState::Running
+pub nika_dap::store::TraceState::Succeeded
 impl nika_dap::store::TraceState
 pub const fn nika_dap::store::TraceState::as_str(self) -> &'static str
 pub const fn nika_dap::store::TraceState::is_finished(self) -> bool

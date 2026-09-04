@@ -104,7 +104,7 @@ pub(crate) mod tests {
         );
         let traces = scan(&dir);
         assert_eq!(traces.len(), 1);
-        assert_eq!(traces[0].state, TraceState::Completed);
+        assert_eq!(traces[0].state, TraceState::Succeeded);
         assert_eq!(traces[0].workflow, "veille");
         let _ = std::fs::remove_dir_all(dir);
     }

@@ -906,10 +906,12 @@ pub nika_runtime::RunOutcome::outputs: alloc::collections::btree::map::BTreeMap<
 pub nika_runtime::RunOutcome::paused: core::option::Option<nika_runtime::WorkflowPause>
 pub nika_runtime::RunOutcome::priced_calls: u32
 pub nika_runtime::RunOutcome::records: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime_laws::compat_record::TaskRecord>
+pub nika_runtime::RunOutcome::settlement: nika_event::settlement::RunSettlement
 pub nika_runtime::RunOutcome::total_cost_usd: core::option::Option<f64>
 pub nika_runtime::RunOutcome::unpriced_calls: u32
 impl nika_runtime::RunOutcome
 pub fn nika_runtime::RunOutcome::new(ok: bool, records: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime_laws::compat_record::TaskRecord>, outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
+pub fn nika_runtime::RunOutcome::with_settlement(self, settlement: nika_event::settlement::RunSettlement) -> Self
 impl core::fmt::Debug for nika_runtime::RunOutcome
 pub fn nika_runtime::RunOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_runtime::RunOutcome

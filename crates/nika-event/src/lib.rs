@@ -52,6 +52,7 @@ pub mod event;
 #[cfg(feature = "serde")]
 pub mod fold;
 pub mod kind;
+pub mod settlement;
 pub mod source_id;
 pub mod stamp;
 
@@ -66,4 +67,7 @@ pub mod prelude {
     pub use crate::error::EventError;
     pub use crate::event::Event;
     pub use crate::kind::{EventClass, EventKind};
+    pub use crate::settlement::{
+        CostQualifier, RunCause, RunSettlement, RunState, SettlementError, Spend, TaskTally,
+    };
 }
