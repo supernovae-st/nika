@@ -1421,8 +1421,24 @@
       "affects_layers": ["L0","L3","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-099","ADR-122","ADR-123","ADR-125","ADR-127"],
+      "related": ["ADR-099","ADR-122","ADR-123","ADR-125","ADR-127","ADR-129"],
       "requires": ["ADR-127"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-129",
+      "title": "Run state and evidence state are distinct: the writer's lease, the INCOMPLETE exit, the resident's interrupted",
+      "status": "accepted",
+      "date": "2026-09-04",
+      "filename": "adr-129-run-state-is-not-evidence-state.md",
+      "tags": ["architecture","trace","evidence","one-door","liveness"],
+      "affects_crates": ["nika-dap","nika-trace","nika-cli-host","nika-serve"],
+      "affects_layers": ["L3","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-099","ADR-100","ADR-128"],
+      "requires": ["ADR-128"],
       "enables": []
     }
   ]

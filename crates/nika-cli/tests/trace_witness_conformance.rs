@@ -87,8 +87,8 @@ fn runtime_trace_fixtures_hold_their_verify_verdict() {
             }
             "incomplete" => {
                 assert_eq!(
-                    out.code, 0,
-                    "{name}: incomplete is not a verification failure: {}",
+                    out.code, 5,
+                    "{name}: incomplete exits its own class (ADR-129) — never OK, never tampered: {}",
                     out.text
                 );
                 assert!(

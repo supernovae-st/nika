@@ -32,6 +32,7 @@ pub mod evidence;
 pub mod flow;
 pub mod inventory;
 pub mod journal;
+pub mod liveness;
 pub mod memory;
 pub mod otel;
 pub mod quarantine;

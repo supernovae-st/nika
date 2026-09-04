@@ -44,6 +44,7 @@ pub(super) fn ladder_doc(
     report: &tier::TierReport,
     code: u8,
     lines: &[String],
+    liveness: Option<&str>,
 ) -> String {
     let seal = match &report.seal {
         tier::SealTier::Unsealed => serde_json::json!({"tier": "unsealed"}),
@@ -97,7 +98,7 @@ pub(super) fn ladder_doc(
         "trace": trace,
         "tier": attained,
         "exit": code,
-        "chain": {"events": events, "head": head, "headline": headline},
+        "chain": {"events": events, "head": head, "headline": headline, "liveness": liveness},
         "seal": seal,
         "anchor": anchor,
         "replay": replay,

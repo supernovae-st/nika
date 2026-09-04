@@ -1764,6 +1764,8 @@ pub fn nika_dap::journal::TraceFileSink::into_error(self) -> core::option::Optio
 pub fn nika_dap::journal::TraceFileSink::is_disabled(&self) -> bool
 pub fn nika_dap::journal::TraceFileSink::new(dir: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn nika_dap::journal::TraceFileSink::path(&self) -> core::option::Option<&std::path::Path>
+impl core::ops::drop::Drop for nika_dap::journal::TraceFileSink
+pub fn nika_dap::journal::TraceFileSink::drop(&mut self)
 impl nika_event::stamp::EventSink for nika_dap::journal::TraceFileSink
 pub fn nika_dap::journal::TraceFileSink::emit(&mut self, event: nika_event::event::Event)
 impl<D> owo_colors::OwoColorize for nika_dap::journal::TraceFileSink
@@ -1794,6 +1796,99 @@ impl<T> typenum::type_operators::Same for nika_dap::journal::TraceFileSink
 pub type nika_dap::journal::TraceFileSink::Output = T
 pub fn nika_dap::journal::seal_journal(trace: &mut nika_dap::journal::TraceFileSink, workflow_hash: core::option::Option<&str>) -> bool
 pub fn nika_dap::journal::seal_journal_with(trace: &mut nika_dap::journal::TraceFileSink, workflow_hash: core::option::Option<&str>, teardown: core::option::Option<&nika_dap::seal::SealTeardown>) -> bool
+pub mod nika_dap::liveness
+#[non_exhaustive] pub enum nika_dap::liveness::Liveness
+pub nika_dap::liveness::Liveness::Alive
+pub nika_dap::liveness::Liveness::Alive::pid: u32
+pub nika_dap::liveness::Liveness::Dead
+pub nika_dap::liveness::Liveness::Dead::pid: u32
+pub nika_dap::liveness::Liveness::Unknown
+impl nika_dap::liveness::Liveness
+pub const fn nika_dap::liveness::Liveness::as_str(self) -> &'static str
+pub const fn nika_dap::liveness::Liveness::pid(self) -> core::option::Option<u32>
+impl core::clone::Clone for nika_dap::liveness::Liveness
+pub fn nika_dap::liveness::Liveness::clone(&self) -> nika_dap::liveness::Liveness
+impl core::cmp::Eq for nika_dap::liveness::Liveness
+impl core::cmp::PartialEq for nika_dap::liveness::Liveness
+pub fn nika_dap::liveness::Liveness::eq(&self, other: &nika_dap::liveness::Liveness) -> bool
+impl core::fmt::Debug for nika_dap::liveness::Liveness
+pub fn nika_dap::liveness::Liveness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::liveness::Liveness
+impl core::marker::StructuralPartialEq for nika_dap::liveness::Liveness
+impl<D> owo_colors::OwoColorize for nika_dap::liveness::Liveness
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::liveness::Liveness where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::liveness::Liveness::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::liveness::Liveness where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::liveness::Liveness::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::liveness::Liveness where U: core::convert::From<T>
+pub fn nika_dap::liveness::Liveness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::liveness::Liveness where U: core::convert::Into<T>
+pub type nika_dap::liveness::Liveness::Error = core::convert::Infallible
+pub fn nika_dap::liveness::Liveness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::liveness::Liveness where U: core::convert::TryFrom<T>
+pub type nika_dap::liveness::Liveness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::liveness::Liveness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::liveness::Liveness where T: core::clone::Clone
+pub type nika_dap::liveness::Liveness::Owned = T
+pub fn nika_dap::liveness::Liveness::clone_into(&self, target: &mut T)
+pub fn nika_dap::liveness::Liveness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::liveness::Liveness where T: 'static + ?core::marker::Sized
+pub fn nika_dap::liveness::Liveness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::liveness::Liveness where T: ?core::marker::Sized
+pub fn nika_dap::liveness::Liveness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::liveness::Liveness where T: ?core::marker::Sized
+pub fn nika_dap::liveness::Liveness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::liveness::Liveness where T: core::clone::Clone
+pub unsafe fn nika_dap::liveness::Liveness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::liveness::Liveness
+pub fn nika_dap::liveness::Liveness::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::liveness::Liveness where T: core::clone::Clone
+pub fn nika_dap::liveness::Liveness::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::liveness::Liveness where T: 'static
+pub fn nika_dap::liveness::Liveness::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::liveness::Liveness where T: core::marker::Copy
+pub fn nika_dap::liveness::Liveness::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::liveness::Liveness where T: ?core::marker::Sized
+pub fn nika_dap::liveness::Liveness::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::liveness::Liveness::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::liveness::Liveness
+impl<T> tracing::instrument::WithSubscriber for nika_dap::liveness::Liveness
+impl<T> typenum::type_operators::Same for nika_dap::liveness::Liveness
+pub type nika_dap::liveness::Liveness::Output = T
+pub struct nika_dap::liveness::Lease
+impl core::fmt::Debug for nika_dap::liveness::Lease
+pub fn nika_dap::liveness::Lease::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dap::liveness::Lease
+impl<T, U> core::convert::Into<U> for nika_dap::liveness::Lease where U: core::convert::From<T>
+pub fn nika_dap::liveness::Lease::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::liveness::Lease where U: core::convert::Into<T>
+pub type nika_dap::liveness::Lease::Error = core::convert::Infallible
+pub fn nika_dap::liveness::Lease::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::liveness::Lease where U: core::convert::TryFrom<T>
+pub type nika_dap::liveness::Lease::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::liveness::Lease::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_dap::liveness::Lease where T: 'static + ?core::marker::Sized
+pub fn nika_dap::liveness::Lease::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::liveness::Lease where T: ?core::marker::Sized
+pub fn nika_dap::liveness::Lease::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::liveness::Lease where T: ?core::marker::Sized
+pub fn nika_dap::liveness::Lease::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dap::liveness::Lease
+pub fn nika_dap::liveness::Lease::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dap::liveness::Lease where T: 'static
+pub fn nika_dap::liveness::Lease::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::liveness::Lease where T: ?core::marker::Sized
+pub fn nika_dap::liveness::Lease::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::liveness::Lease::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::liveness::Lease
+impl<T> tracing::instrument::WithSubscriber for nika_dap::liveness::Lease
+impl<T> typenum::type_operators::Same for nika_dap::liveness::Lease
+pub type nika_dap::liveness::Lease::Output = T
+pub fn nika_dap::liveness::hold(trace: &std::path::Path) -> core::io::error::Result<nika_dap::liveness::Lease>
+pub fn nika_dap::liveness::host_name() -> alloc::string::String
+pub fn nika_dap::liveness::lease_path(trace: &std::path::Path) -> std::path::PathBuf
+pub fn nika_dap::liveness::probe(trace: &std::path::Path) -> nika_dap::liveness::Liveness
+pub fn nika_dap::liveness::remove_lease(trace: &std::path::Path)
 pub mod nika_dap::memory
 #[non_exhaustive] pub struct nika_dap::memory::MemoryAttend
 pub nika_dap::memory::MemoryAttend::fold: core::option::Option<serde_json::value::Value>
@@ -3080,6 +3175,7 @@ impl<T> typenum::type_operators::Same for nika_dap::store::TraceState
 pub type nika_dap::store::TraceState::Output = T
 #[non_exhaustive] pub struct nika_dap::store::TraceMeta
 pub nika_dap::store::TraceMeta::bytes: u64
+pub nika_dap::store::TraceMeta::liveness: core::option::Option<nika_dap::liveness::Liveness>
 pub nika_dap::store::TraceMeta::modified: std::time::SystemTime
 pub nika_dap::store::TraceMeta::name: alloc::string::String
 pub nika_dap::store::TraceMeta::path: std::path::PathBuf
@@ -3088,6 +3184,8 @@ pub nika_dap::store::TraceMeta::state: nika_dap::store::TraceState
 pub nika_dap::store::TraceMeta::workflow: alloc::string::String
 impl nika_dap::store::TraceMeta
 pub fn nika_dap::store::TraceMeta::new(path: std::path::PathBuf, name: alloc::string::String, workflow: alloc::string::String, state: nika_dap::store::TraceState, paused_task: core::option::Option<alloc::string::String>, bytes: u64, modified: std::time::SystemTime) -> Self
+pub const fn nika_dap::store::TraceMeta::state_word(&self) -> &'static str
+pub const fn nika_dap::store::TraceMeta::with_liveness(self, liveness: nika_dap::liveness::Liveness) -> Self
 impl core::clone::Clone for nika_dap::store::TraceMeta
 pub fn nika_dap::store::TraceMeta::clone(&self) -> nika_dap::store::TraceMeta
 impl core::fmt::Debug for nika_dap::store::TraceMeta

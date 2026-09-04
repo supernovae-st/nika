@@ -63,6 +63,7 @@ fn schemas() -> Value {
             "WorkflowMetadata": workflow_metadata_schema(),
             "JobStatus": {
                 "type": "string",
+                "description": "queued and running: the resident owns the execution. interrupted: execution ownership was lost and effect settlement is unknown — an EVIDENCE state (the journal is INCOMPLETE), never a run state (ADR-129). paused, succeeded, failed and cancelled: the run's own settlement, the words its terminal frame carries (ADR-128).",
                 "enum": ["queued", "running", "interrupted", "paused", "succeeded", "failed", "cancelled"]
             },
             "Job": {

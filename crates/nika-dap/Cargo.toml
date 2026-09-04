@@ -39,6 +39,7 @@ cms            = { workspace = true }   # the TSA token's CMS SignedData verific
 p384           = { workspace = true }   # the Sigstore TSA leaf's ECDSA P-384
 jiff           = { workspace = true }   # the sidecar's `anchored_at` RFC 3339 render
 uuid           = { workspace = true }   # the RFC 3161 nonce entropy
+nix            = { workspace = true, features = ["fs", "hostname"] }   # the writer's liveness lease (flock) + the host it records (ADR-129)
 
 [dev-dependencies]
 tempfile = { workspace = true }   # replay fixtures on disk
