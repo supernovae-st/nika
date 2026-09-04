@@ -231,7 +231,9 @@ pub fn peek(trace: &str, task: &str, raw: bool, theme: Theme) -> VerbOutput {
         // peek delivers it instead of shrugging. (`--raw` keeps its
         // jq-pipe contract — a failure has no value to pipe.)
         if !raw && row.state == TaskState::Failed && !row.detail.is_empty() {
-            return VerbOutput::ok(render_failure_peek(row, theme));
+            let mut out = render_failure_peek(row, theme);
+            out.push_str(&item_table(row, theme));
+            return VerbOutput::ok(out);
         }
         return VerbOutput::env(no_output_message(&view, row));
     };
@@ -239,12 +241,9 @@ pub fn peek(trace: &str, task: &str, raw: bool, theme: Theme) -> VerbOutput {
         // The exact recorded value — the machine arm of peek.
         return VerbOutput::ok(text.to_owned());
     }
-    VerbOutput::ok(render_peek(
-        row,
-        text,
-        recovered_from(&events, task).as_deref(),
-        theme,
-    ))
+    let mut out = render_peek(row, text, recovered_from(&events, task).as_deref(), theme);
+    out.push_str(&item_table(row, theme));
+    VerbOutput::ok(out)
 }
 
 /// Load + fold, keeping the events so `recovered_from` is readable.
@@ -292,12 +291,17 @@ pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::V
                     TaskState::Pending => "pending",
                 }
             };
+            let items = row
+                .items_json
+                .as_deref()
+                .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok());
             serde_json::json!({
                 "id": row.id,
                 "verb": row.started_note,
                 "status": status,
                 "error_code": recovered,
                 "recovered_from": recovered,
+                "items": items,
             })
         })
         .collect();
@@ -316,6 +320,123 @@ pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::V
         "state": run_state,
         "tasks": tasks,
     })
+}
+
+/// One decoded item row of a fan-out's `items` table.
+struct ItemRow {
+    index: u64,
+    item: String,
+    status: String,
+    code: Option<String>,
+    message: Option<String>,
+}
+
+fn item_rows(row: &TaskRow) -> Vec<ItemRow> {
+    let Some(text) = row.items_json.as_deref() else {
+        return Vec::new();
+    };
+    let Ok(serde_json::Value::Array(rows)) = serde_json::from_str::<serde_json::Value>(text) else {
+        return Vec::new();
+    };
+    rows.iter()
+        .map(|r| ItemRow {
+            index: r["index"].as_u64().unwrap_or_default(),
+            item: r["item"].as_str().unwrap_or("?").to_owned(),
+            status: r["status"].as_str().unwrap_or("?").to_owned(),
+            code: r["code"].as_str().map(str::to_owned),
+            message: r["message"].as_str().map(str::to_owned),
+        })
+        .collect()
+}
+
+/// The human word for an item's status (`never_started` reads as prose).
+fn item_status_word(status: &str) -> &str {
+    match status {
+        "never_started" => "never started",
+        other => other,
+    }
+}
+
+/// The fan-out's item table (#1276 · #1397): one line per item in input
+/// order · index · item · status · the recorded code and message when the
+/// item failed or recovered. Empty for a row that carries no table.
+fn item_table(row: &TaskRow, theme: Theme) -> String {
+    let rows = item_rows(row);
+    if rows.is_empty() {
+        return String::new();
+    }
+    let mut out = String::new();
+    let _ = writeln!(out);
+    let _ = writeln!(
+        out,
+        "  {}",
+        theme.paint(Role::Strong, &format!("items · {}", rows.len()))
+    );
+    let width = rows
+        .iter()
+        .map(|r| r.item.chars().count())
+        .max()
+        .unwrap_or(1)
+        .min(40);
+    for r in &rows {
+        let role = match r.status.as_str() {
+            "ok" => Role::Good,
+            "failed" => Role::Bad,
+            _ => Role::Dim,
+        };
+        let item: String = r.item.chars().take(40).collect();
+        let mut line = format!(
+            "    {:>3}  {item:<width$}  {}",
+            r.index,
+            theme.paint(role, item_status_word(&r.status))
+        );
+        if let Some(code) = &r.code {
+            let _ = write!(line, "  {code}");
+            if let Some(message) = &r.message {
+                let _ = write!(line, " · {message}");
+            }
+        }
+        let _ = writeln!(out, "{line}");
+    }
+    out
+}
+
+/// The `trace show` companion (#1397): one summary line per fan-out row
+/// that carries an item table · the tally by status and the peek that
+/// prints the whole table.
+#[must_use]
+pub fn item_summary_lines(view: &RunView, trace: &str, theme: Theme) -> Vec<String> {
+    view.rows()
+        .iter()
+        .filter_map(|row| {
+            let rows = item_rows(row);
+            if rows.is_empty() {
+                return None;
+            }
+            let tally = |status: &str| rows.iter().filter(|r| r.status == status).count();
+            let mut parts = vec![format!("{} ok", tally("ok"))];
+            for status in ["recovered", "failed", "never_started"] {
+                let n = tally(status);
+                if n > 0 {
+                    parts.push(format!("{n} {}", item_status_word(status)));
+                }
+            }
+            Some(format!(
+                "  {} {}",
+                theme.paint(Role::Strong, &row.id),
+                theme.paint(
+                    Role::Dim,
+                    &format!(
+                        "items · {} · {} · nika trace peek {} {}",
+                        rows.len(),
+                        parts.join(" · "),
+                        crate::linked_path(theme, trace),
+                        row.id
+                    )
+                )
+            ))
+        })
+        .collect()
 }
 
 /// The readable unknown-task refusal: name what the trace DOES record.
@@ -1059,5 +1180,58 @@ mod tests {
         assert_eq!(json["tasks"][0]["status"], "recovered");
         assert_eq!(json["tasks"][0]["recovered_from"], "NIKA-EXEC-001");
         assert_eq!(json["tasks"][0]["error_code"], "NIKA-EXEC-001");
+    }
+
+    /// #1276 · #1397 · a fan-out's item table reaches every reader: the
+    /// autopsy prints one line per item with the recorded code, the machine
+    /// projection carries the rows, `show`'s companion tallies them.
+    #[test]
+    fn a_fan_out_autopsy_prints_the_item_table() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let items = r#"[{"index":0,"item":"alpha","status":"ok"},{"index":1,"item":"beta","status":"failed","code":"NIKA-EXEC-001","message":"for_each item [1] beta: exit 1"},{"index":2,"item":"gamma","status":"never_started"}]"#;
+        let events = vec![
+            demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(KeyValue::new("task", Value::String("fan".into())))
+                .with_field(KeyValue::new("note", Value::String("exec · false".into()))),
+            demo::bare_event(EventKind::TaskFailed, 12)
+                .with_field(KeyValue::new("task", Value::String("fan".into())))
+                .with_field(KeyValue::new("duration_ms", Value::Int(9)))
+                .with_field(KeyValue::new(
+                    "detail",
+                    Value::String("NIKA-EXEC-001 · for_each item [1] beta: exit 1".into()),
+                ))
+                .with_field(KeyValue::new("items", Value::String(items.into()))),
+        ];
+        let path = stage("peek-fan-items.ndjson", &events);
+        let out = peek(&path.to_string_lossy(), "fan", false, plain());
+        assert_eq!(out.code, exit::OK);
+        assert!(
+            out.text.contains("items · 3"),
+            "the table header: {}",
+            out.text
+        );
+        assert!(out.text.contains("alpha"), "{}", out.text);
+        assert!(
+            out.text.contains("beta") && out.text.contains("NIKA-EXEC-001"),
+            "the failed item with its code: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("gamma") && out.text.contains("never started"),
+            "the never-started item: {}",
+            out.text
+        );
+        let (view, events) = load_view_and_events(&path.to_string_lossy()).expect("loads");
+        let json = tasks_json(&view, &events);
+        assert_eq!(json["tasks"][0]["items"][2]["status"], "never_started");
+        assert_eq!(json["tasks"][0]["items"][1]["code"], "NIKA-EXEC-001");
+        let summary = item_summary_lines(&view, &path.to_string_lossy(), plain());
+        assert_eq!(summary.len(), 1, "{summary:?}");
+        assert!(
+            summary[0].contains("1 ok · 1 failed · 1 never started"),
+            "the tally: {}",
+            summary[0]
+        );
     }
 }

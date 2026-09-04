@@ -209,6 +209,10 @@ pub(crate) struct RanTask {
     /// determinism contract is "deterministic seams in · deterministic
     /// stream out", and the clock is a seam).
     pub duration_ms: u64,
+    /// A `for_each` fan-out's per-item terminals (#1276 · #1397): one
+    /// compact JSON array text · index · item · status · code · message ·
+    /// rides the terminal frame as `items`. `None` for every other lane.
+    pub items: Option<String>,
     /// The terminal result after `retry:` + `on_error:`.
     pub result: RunResult,
 }
@@ -669,6 +673,7 @@ where
 
         let mut acc = fan_out::collect_fan_out(&mut stream, total, fail_fast).await;
         drop(stream);
+        let item_terminals = fan_out::items_json(std::mem::take(&mut acc.items), &items);
         if acc.outputs.len() < total && ledger.tripped() && acc.first_error.is_none() {
             acc.first_error = Some(fan_out::budget_stop_record(total - acc.outputs.len()));
         }
@@ -693,6 +698,7 @@ where
             decisions: acc.decisions,
             evidence: None,
             duration_ms: 0,
+            items: Some(item_terminals),
             result,
         };
         let finally_scope =
@@ -760,6 +766,7 @@ where
                     decisions: Vec::new(),
                     evidence: None,
                     duration_ms: 0,
+                    items: None,
                     result: RunResult::Failed {
                         error: runtime_error_record(&err),
                         cost_usd: None,
@@ -887,7 +894,6 @@ where
 
             self.race_budget(attempts, budget).await
         };
-
         let duration_ms = self.since_ms(started);
         if note.is_empty() {
             verb_note_prefix(&task.action).clone_into(&mut note); // timed out pre-dispatch
@@ -904,6 +910,7 @@ where
             decisions: witness.take(),
             evidence,
             duration_ms,
+            items: None,
             result,
         }
     }

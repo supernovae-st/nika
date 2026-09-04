@@ -247,6 +247,15 @@ fn trace_render(
             frame(&view, &theme, 0)
         };
         print_lines(&lines);
+        // #1397 · a fan-out's items, tallied · the whole table is one peek away.
+        let shown = args.trace.as_deref().map_or_else(
+            || {
+                trace::manage::latest()
+                    .map_or_else(|| "<trace>".to_owned(), |p| p.display().to_string())
+            },
+            |p| p.display().to_string(),
+        );
+        print_lines(&trace::item_summary_lines(&view, &shown, theme));
     }
     // The trace surface owns the run overlays (replay = re-render, never
     // re-execute): the waterfall + the verdict card close the read, from

@@ -776,6 +776,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_trace::trace::action::Trace
 impl<T> typenum::type_operators::Same for nika_trace::trace::action::TraceArgs
 pub type nika_trace::trace::action::TraceArgs::Output = T
 pub fn nika_trace::trace::flow(trace: &str, workflow: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace::item_summary_lines(view: &nika_display::state::RunView, trace: &str, theme: nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_trace::trace::outputs(trace: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace::outputs_json(trace: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace::peek(trace: &str, task: &str, raw: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
