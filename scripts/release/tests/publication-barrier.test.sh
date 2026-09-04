@@ -263,6 +263,12 @@ if [ "$1" = api ]; then
   fi
   endpoint="$2"
   if [[ "$endpoint" == */releases ]]; then
+    if [[ " $* " == *" --method POST "* ]]; then
+      : >"$RELEASE_STATE"
+      printf 'create\n' >>"$RELEASE_LOG"
+      printf '123\n'
+      exit 0
+    fi
     # the list answers 200 with what it carries, drafts included; an empty
     # list is the only absence GitHub states for a tag
     [ ! -e "$RELEASE_STATE" ] || printf '123\n'
@@ -277,11 +283,6 @@ if [ "$1" = api ]; then
   else
     printf '123\n'
   fi
-  exit 0
-fi
-if [ "$1 $2" = 'release create' ]; then
-  : >"$RELEASE_STATE"
-  printf 'create\n' >>"$RELEASE_LOG"
   exit 0
 fi
 exit 90
@@ -300,7 +301,7 @@ PATH="$BIN:$PATH" RELEASE_STATE="$RELEASE_STATE" RELEASE_LOG="$RELEASE_LOG" \
 # target_commitish is creation routing metadata, not an existing release's
 # identity. A release whose API target is the branch name must still bind by
 # immutable release ID, exact tag/prerelease, and repeatedly resolved tag SHA.
-[ -z "$(rg -n 'target_commitish' "$ROOT/scripts/release/prepare-draft-release.sh" || true)" ] \
+[ -z "$(rg -n 'target_commitish' "$ROOT/scripts/release/read-release-state.sh" "$ROOT/scripts/release/resolve-release-tag.sh" || true)" ] \
   || fail 'existing release identity still trusts target_commitish'
 PATH="$BIN:$PATH" RELEASE_STATE="$RELEASE_STATE" RELEASE_LOG="$RELEASE_LOG" \
   bash "$ROOT/scripts/release/prepare-draft-release.sh" "$TAG" \
