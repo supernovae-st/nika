@@ -11,33 +11,33 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-022.
 
 [dependencies]
-nika-schema = { path = "../nika-schema", version = "0.117.1" }  # parse (the `nika_check` tool's input)
-nika-check  = { path = "../nika-check", version = "0.117.1" }  # the ADR-092 check ladder (the `nika_check` tool)
-nika-graph  = { path = "../nika-graph", version = "0.117.1" }   # the canonical projection (the `nika_inspect` tool serves it verbatim)
-nika-providers = { path = "../nika-providers", version = "0.117.1", default-features = false }  # the resolver law: every model resolves in THIS binary (#320)
-nika-pack   = { path = "../nika-pack", version = "0.117.1" }    # embedded canon error_codes — the spec codes (NIKA-VAR-* · NIKA-DAG-* …)
+nika-schema = { path = "../nika-schema", version = "0.118.0" }  # parse (the `nika_check` tool's input)
+nika-check  = { path = "../nika-check", version = "0.118.0" }  # the ADR-092 check ladder (the `nika_check` tool)
+nika-graph  = { path = "../nika-graph", version = "0.118.0" }   # the canonical projection (the `nika_inspect` tool serves it verbatim)
+nika-providers = { path = "../nika-providers", version = "0.118.0", default-features = false }  # the resolver law: every model resolves in THIS binary (#320)
+nika-pack   = { path = "../nika-pack", version = "0.118.0" }    # embedded canon error_codes — the spec codes (NIKA-VAR-* · NIKA-DAG-* …)
 # The embedded knowledge payloads (`nika_catalog` · `nika_tools`) — the SAME
 # versioned projections `nika catalog|tools --json` emit (one builder per
 # owning crate · zero duplication). L4→L0 / L4→L1.5, strictly downward.
-nika-catalog = { path = "../nika-catalog", version = "0.117.1", default-features = false, features = ["serde", "capabilities"] }
-nika-onboard = { path = "../nika-onboard", version = "0.117.1" }  # the ONE routing door (RAMS-11 · MCP follows the CLI's router)
-nika-builtin = { path = "../nika-builtin", version = "0.117.1" }
+nika-catalog = { path = "../nika-catalog", version = "0.118.0", default-features = false, features = ["serde", "capabilities"] }
+nika-onboard = { path = "../nika-onboard", version = "0.118.0" }  # the ONE routing door (RAMS-11 · MCP follows the CLI's router)
+nika-builtin = { path = "../nika-builtin", version = "0.118.0" }
 # The `check --fix` repair LADDER (the typed-rename splices · the dead-form
 # migrations · the W2 hoist) — `nika_check(fix: true)` walks the SAME arms the
 # CLI verb walks, in memory (#1270 · one ladder, two doors · never a second
 # fixer to drift). L4→L4 lateral, the nika-onboard precedent; the host crate
 # never depends on this one.
-nika-cli-host = { path = "../nika-cli-host", version = "0.117.1", default-features = false }
-nika-migrate = { path = "../nika-migrate", version = "0.117.1" }  # `repair::word_sites` — the ONE whole-token scan (the `nika_examples` builtin route)
+nika-cli-host = { path = "../nika-cli-host", version = "0.118.0", default-features = false }
+nika-migrate = { path = "../nika-migrate", version = "0.118.0" }  # `repair::word_sites` — the ONE whole-token scan (the `nika_examples` builtin route)
 # The exec verb's OS sandbox (ADR-095 Layer 6) — a spawned MCP server rides
 # the SAME confinement (never a bespoke second sandbox). The selection itself
 # lives at the L3 composition root (#888 · the ONE `select_command_sandbox`);
 # the mechanism crates stay the L1 pure mechanisms. L4→L3/L0.5/L1, strictly
 # downward (the nika-cli precedent).
-nika-kernel = { path = "../nika-kernel", version = "0.117.1" }              # the CommandSandbox seam · SandboxSpec · the NetPolicy tri-state · DANGEROUS_ENV_VARS
-nika-runtime = { path = "../nika-runtime", version = "0.117.1" }            # the ONE sandbox selection (#888 · L4→L3 — already transitive via nika-onboard, now explicit)
-nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.117.1" }  # the macOS jail (sandbox-exec)
-nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.117.1" }  # the Linux jail (bwrap)
+nika-kernel = { path = "../nika-kernel", version = "0.118.0" }              # the CommandSandbox seam · SandboxSpec · the NetPolicy tri-state · DANGEROUS_ENV_VARS
+nika-runtime = { path = "../nika-runtime", version = "0.118.0" }            # the ONE sandbox selection (#888 · L4→L3 — already transitive via nika-onboard, now explicit)
+nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.118.0" }  # the macOS jail (sandbox-exec)
+nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.118.0" }  # the Linux jail (bwrap)
 
 serde_json  = { workspace = true }   # JSON-RPC 2.0 messages (the only wire format · no SDK)
 serde       = { workspace = true }   # the lockfile/registry envelopes (pin.rs · client.rs)

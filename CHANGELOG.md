@@ -16,6 +16,154 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.118.0](https://github.com/supernovae-st/nika/compare/v0.117.1..v0.118.0) - 2026-09-04
+
+### Added
+
+- **A `for_each` names every item's terminal (wave 7 · #1276 · #1397).** The fan-out's terminal frame carries an additive `items` field: one row per item in input order with `index` · `item` · `status` (`ok` · `recovered` · `failed` · `never_started`) · `code` and `message` when an error was recorded. Failures 2..N reach the journal with their own codes (only the first casualty used to survive), and a hard-failed batch says which items ran, failed or never started. `nika trace peek <task>` prints the item table on a value peek and on the autopsy, `nika trace show` tallies it per fan-out, `nika trace outputs --json` carries the rows.
+- **Project changes from the session (ADR-126 · wave 5).** A reply that carries a workflow (a fenced block naming its path) becomes a typed change set: the session previews the exact bytes it would land — a create in full, an update whole with the current file witnessed — with the engine's own check of those bytes (findings · hints · what the workflow reaches when it runs: reads · writes · network · programs · tools · models · secrets · spend · human gates) and the fix ladder's repairs listed; nothing is written until the next line says `yes`; a stale target applies nothing; every workflow written is checked for real after it lands; « create it and run it once » runs it through the same path as `nika run`, only when that check is clean, and the session reports what it observed. Paths outside the root and files you never named are refused before any preview. « What happened in the last run? » is read from the trace, never from memory. A run that pauses at a human gate returns to the session as the gate's own question; your answer resumes it, and nothing answers for you.
+- **`nika spec --schema --project` (wave 6 · W0-F3).** The project file (`nika.yaml`) has a machine schema: a JSON Schema (draft 2020-12) in English — the project's name and ceiling, the `arm:` beats with every key the parser reads and every value form it accepts, the trace retention policy, the registry provenance floor — owned by the grammar's crate and proven against its parser's closed key sets and enum spellings, so editors validate what the engine refuses.
+- **The terminal frame carries the run's summary (wave 7 · #1247).** `workflow_completed`, `workflow_failed` and `workflow_cancelled` now carry what the human card computes: `status`, `elapsed_ms` (the run clock, read through the kernel seam), and the task tally (`tasks_total` · `tasks_ok` · `tasks_failed` · `tasks_recovered` · `tasks_skipped` · `tasks_cancelled`) next to the cost fields — a `--json` consumer no longer re-derives the summary from the task frames.
+- **`trace ls --json` and `trace outputs --json` (wave 7 · #1247).** The two trace verbs whose content is structured data speak JSON on request: `ls` gives the store's facts per trace (name, path, workflow, state, the awaiting task when paused, bytes, mtime, the newest-of-its-workflow marker); `outputs` gives the per-task projection a machine consumer needs (id, verb, status, cause, error code, and the original error a recovered task was repaired from — the projection the engine carried with no verb to print it).
+
+### Changed
+
+- **One access plan is the execution authority.** `nika run` resolves the
+  access plan once per attempt (the effective models with their verbs,
+  this machine's provider and seat rows, the `--access` pin) and then
+  executes exactly that plan: the seat comes from the plan, the announce,
+  the `--dry-run` preview, `check --json`'s `access_plan` rows and the
+  boot manifest are projections of it, and every `infer:`/`agent:` task
+  routes by its own lane. A model with no ready path refuses before the
+  first task (`NIKA-1800`, with the witnesses) instead of failing inside
+  a task with a provider error; an ACP-only seat never serves an `infer:`
+  lane; one seat holds a run. On the shipped 0.116.2 the announce could
+  name a seat the run never rode and the run could dial the API with a
+  dead key while the seat was ready (the census-B divergence).
+- **The freeze audit's fixes (One Door · OD-F12).** Ten proven slices, each
+  the smallest correct owner of a gap the audit found:
+  (1) The resident projects the run's settlement whole (ADR-128):
+  `execution.settled` and `execution.cancelled` carry `settlement` (`status` ·
+  `cause` · `elapsed_ms` · `tasks` · `spend` · `error`), the SSE frame
+  projects it, the OpenAPI names it (`RunSettlement`), the job's status is the
+  settlement's own state, and the SSE terminal set is the record's
+  (`JobStatus::is_settled`).
+  (2) A retry finds its job before the registry is read again (ADR-132 · G1):
+  `POST /v1/jobs` looks the `Idempotency-Key` up BEFORE capturing, so a
+  lost-response retry replays the ORIGINAL job even after the served workflow
+  changed, vanished or went red, and never executes changed bytes; the
+  resident's own `schedule:` key namespace is refused to a manual caller.
+  (3) The resident stamps its stores after it holds the lease (ADR-132): a
+  second `nika serve` that loses the server lease never rewrites the live
+  resident's writer stamp; opening a store never stamps it.
+  (4) Words never above the proof: a digest a caller sends is a
+  caller-supplied integrity digest, never an « attestation » (ADR-131
+  amended); the resident's status words are proven equal to the settlement's
+  (ADR-130).
+  (5) `nika check --sdk-snapshot` is public: the SDK's producer of the
+  snapshot body, still an adapter of `check`, never a verb.
+  (6) The session decides a proposal only once it landed (ADR-133): a stale
+  apply leaves it undecided (a retry reads `wrong_state`, never a false
+  `already_consumed`), and the check after an apply is the same composed
+  judgment `nika check` makes.
+  (7) The local door says what evidence it left and never resumes a run in
+  flight (ADR-129): `run_settled.evidence` (`sealed` · `unsealed` · `lost` ·
+  `none`), and `nika run --resume` on a trace whose writer is alive refuses
+  (ENV · the writer named).
+  (8) Unknown cost is never a zero on a human line (ADR-128 · #1278): the
+  closing card and the live meter say `unmetered` or `unpriced (N calls)`
+  instead of `$0.00`; `nika trace session` says « no spend metered »; the cost
+  replay prints the journaled qualifier.
+  (9) `nika-tui-core` reads graph format 3, pinned to `nika-graph` (ADR-130):
+  a node knows its `kind`, a cleanup unit is never seated on the board, and
+  the wasm doors refuse a format they do not speak, naming both numbers.
+  (10) The seat words never above the rung (ADR-134): `nika doctor` says « its
+  login command reports signed in », the welcome line and the escape hatch say
+  a seat is « present (its login is judged at run) », a local endpoint that
+  answered a ping « answered ».
+- **A dead writer is told from a run in flight (ADR-129 · #1442).** The run that writes a journal holds a lease beside it (`<trace>.lock` · owner-only · released by the kernel when the process ends, however it ends); `trace ls` asks the lease and prints `dead` — on both faces, with `liveness` on the machine one — for a running trace whose writer died, `running` for a live writer or one this host cannot judge, never a guess. `trace verify` exits the new INCOMPLETE class (5) for a journal that never reached a terminal frame and names the writer's liveness, so a monitor wired on the exit code can no longer green a dead run; FILE (2) stays the broken chain, ENV (3) the missing input. A dead process proves incomplete evidence, never a failed run: no door invents a terminal frame. The resident's `interrupted` is published as an evidence state (ownership lost · the journal INCOMPLETE), never a run state.
+- **`check` answers four questions and `run` refuses what `check`
+  refuses.** The audit now carries an ACCESS rung and a layers line
+  (VALID · ACCESS READY · CAPACITY FIT · RUN READY); `--json` adds a
+  `verdicts` object beside `clean` (which keeps its meaning). New CAPACITY
+  laws judge the seat against the declaration from the catalog's positive
+  knowledge: an `infer.max_tokens` above the seat's max output, a
+  `schema:` on a seat without a JSON mode, an `agent.max_tokens_total`
+  above the context window, a `vision:` input on a text-only seat.
+  `check --access <pin>` judges the plan under the pin `run --access`
+  takes, and `--profile operational` folds an unready lane into exit 2.
+  The MODELS rung's judgments (resolution · thinking · capacity) now gate
+  `run` before task 1 too. One lane-row shape rides `check --json`
+  (`access_plan`), `run --dry-run --json` (`access.plans`) and the boot
+  manifest; the text dry-run always prints the plan plus one access line
+  per lane; « key present » reads « key present · not validated ».
+- **The native session (ADR-125 · wave 4).** Bare `nika` on an interactive terminal opens a grounded conversation over the installed engine: the first run asks how Nika should think with you (an AI app you already have · an API · a local engine · none — in that order, in human words) and keeps the answer at `~/.nika/session-intelligence.json`; each path names where your project context goes before the first turn; an explicit choice this machine cannot serve is refused with its fix, never replaced. The session observes the project once, answers Nika facts from the engine (the workflows · the builtins · the providers · a workflow's verdict · a code · a shape) without asking any model, hands the chosen intelligence only a minimal bundle (the six laws · the project facts · the files you named, inside the root, secrets redacted · never the environment), and reads every reply through a guard that corrects any builtin, model, code, MCP server, verb or workflow field the engine does not carry. No temporary workflow, no trace for a chat turn, no hidden shell. A pipe keeps the concierge; `nika thread` is gone.
+- **One vocabulary, one owner (ADR-130).** The historical task-record twin (`nika-runtime-laws::compat_record`) is deleted: `nika_runtime::{TaskStatus, TerminalCause, TaskErrorRecord, TaskRecord}` are the `nika-dataflow` owner's types, re-exported (an exhaustive match outside the crate now needs a wildcard arm). The resident's `JobStatus` is a projection of the settlement's `RunState` through one `From` (the four shared words equal by construction, `JobStatus::run_state` names which statuses are run states at all — `queued` · `running` · `interrupted` are the job's own). `nika-tui-core`'s copied frame kinds are pinned to `nika-event` by a test.
+- **One oracle facade (ADR-124).** `nika check --json` and the MCP `nika_check` tool are projections of the same typed audit (`nika_cli_host::oracle`): the same MODELS rung (a templated `model:` judges as its declared default on the oracle too), the same layered `verdicts`, the same `access_plan` rows, the same hint rows; the oracle's payload says what it could not judge (`judged.composition` · `judged.skills`). The oracle's `fix: true` runs the CLI's prepass (a bare `exec:` scalar · a `needs:` list) — « the same ladder as `nika check --fix` » is now true. `nika_explain` is the CLI's four-rung ladder, worded for an agent without a shell. The plugin's example table names only living examples (six dead `tN-` slugs gone), pinned by a test.
+- **The session machine's answers are typed (ADR-133).** A refusal carries a class a host acts on (`no_intelligence` · `intelligence_refused` · `not_allowed` · `wrong_state` · `stale_revision` · `already_consumed` · `empty_answer` · `io`), a proposal and a paused gate carry an identity, and `consent_to` / `answer_gate_for` judge a consent or an answer by that identity — a stale one applies nothing, a decided one stays decided — so a remote host drives the same machine without parsing prose.
+- **A resume cannot switch access silently, and the resident executes the
+  same plan.** `nika run --resume` judges the lanes the trace's boot
+  manifest recorded against the plan this machine resolves now: a moved
+  lane refuses on the environment exit, naming both paths and the two
+  explicit `--access` flags; an explicit `--access` names the change and
+  proceeds with a notice. The lane an `infer:`/`agent:` task rode joins
+  its resume identity, so a task served by a seat is never served from
+  the trace on another path. `nika serve` resolves the frozen access
+  plan for every resident job through the one resolver the CLI uses
+  (`nika_service_execution::access`) and attaches it to the run — a job
+  with no ready path refuses before its first task.
+- **The run's laws descend to `nika-runtime-laws` (ADR-127).** `nika-runtime` stood one line from the 15k wall; the laws a run obeys before and after it executes — the one-voice error, the typed contracts, the record mirror, the input origins, the engine identity, the record integrity, the secret custody, the sandbox verdict, the event stamp seams, the resume field names — now live in the `nika-runtime` unit's second member (`publish = false`), re-exported at every historical path. No public path moves; the runtime keeps real headroom for the terminal summary, the per-item `for_each` terminals and the V7 credential seams.
+- **The run's faces say the whole truth.** A failed task terminal now
+  carries the lane that failed (`model` · `provider` · `access` ·
+  `access_id` · `billing`, and a note naming the model instead of `?`);
+  `run_settled` carries an `error` on every failed frame, a launch
+  refusal included (`NIKA-1800` · `NIKA-1801` · a missing input), and the
+  `access_plan` rows of the lanes the run executed; `nika run --help`
+  ends on its exit-code ladder; the resume that would switch access
+  silently refuses as `NIKA-1807` (with `nika explain`); « wrote
+  .nika/traces » prints only when a trace exists; `check --help` no
+  longer claims a mistyped flag exits 3.
+- **One settlement, every door (ADR-128).** The runtime builds the run's settlement once at the boundary that ends the run — the state (`succeeded` · `failed` · `paused` · `cancelled`), why (`normal` · `human_gate` · `task_failed` · `output_contract` · `budget` · `operator` · `refused`), the elapsed time, the task tally (now with `never_started`), the spend with a `cost_qualifier` (`priced` · `partially_priced` · `unpriced` · `unmetered`) and the failure named — and writes it on the terminal frame; `run_settled` carries it flattened (`cause` · `tasks` · `spend` beside `status` and `error`, a launch refusal settling as `failed` · `refused`), the resident's status and the CLI's exit code are projections of it, `trace outputs --json` reads it back through the one reader and carries a `settlement` object, and `trace ls` prints `succeeded` where it printed `completed`. The invented `recovered` run state is gone: recovery is a tally on the settlement and a fact on the task row.
+- **A harness seat is admitted by presence; its confinement stays the next program (#1253).**
+  The access plan says how far a path's identity is proven (`declared` ·
+  `discovered` · `observed` · ADR-134) and every human line now says what was
+  checked (a seat « present », its login « judged at run », a status command
+  that « reports signed in »); nothing yet hashes, pins or sandboxes the
+  seat's binary, so an executable that impersonates a seat on PATH runs with
+  the user's rights. Pin the seats you trust on a machine you control;
+  `attested` stays reserved until a handshake proves an identity.
+- **The resident's job door is public (ADR-131 · #1441).** `POST /v1/jobs` and `POST /v1/check` admit a workflow BY NAME from the served registry (`{"workflow": "<name>"}` · the names `GET /v1/workflows` lists): the resident captures its world through the one `ExecutionService`, exactly as a schedule fires. The snapshot form stays for a remote world — it is the body `nika check <file> --json --sdk-snapshot` prints — and its digests are now optional caller-supplied integrity digests (a content assertion, never a signature): absent, the resident computes them; present, they must match or the request is refused as `snapshot_tampered` with honest words (an integrity digest that failed, the producer named). The OpenAPI documents both forms, the unit `kind` legend and the producer; the listen banner and `serve --workflows` say it; `nika explain snapshot_tampered` (and every resident code) answers with the engine's voice.
+- **Every access lane carries `trust` (ADR-134).** `declared` (a profile or a pin says the path exists) · `discovered` (a key in the environment, an adapter on PATH — presence, never identity) · `observed` (an explicit probe answered) — on `check --json`, `run --dry-run --json`, the trace's boot manifest and the human announce, derived from the probe's evidence and never above it; a harness seat found on PATH reads `discovered`, which is what it is, and a refused lane says `null`.
+- **The pre-flight tells the truth about a seat (wave 3.b · the W3 gauntlet).** A harness seat is two binaries: the product an infer-grade seat spawns (`codex`) and the ACP speaker an agent-grade seat talks to (`codex-acp`); the probe row now carries both, and a pin is judged for the verbs the workflow carries — a seat whose product binary is gone refuses on `check --access`, on `run --dry-run` (printed as REFUSED, exit 3) and on `run` before task 1 (NIKA-1803), where it used to print « admission satisfied » and die in dispatch. An `infer:` that names no model rides a seat or nothing: unpinned, `check` says ACCESS READY false with the two fixes, the dry-run and the run refuse before task 1 (NIKA-1800), `--profile operational` is red. The lane row names the ready paths it outranked (`outranked[]` · `candidates`). The COST rung says when a model is seat-served (unmetered · the dollar figure is the API counterfactual). `check --help` carries the layers legend and the `--json` gate keys. The oracle's clean answer names the child workflows it did not read, `verbose: true` returns the verdict object on a clean answer, and its next actions name `nika_explain`. The operational profile prints its footer on green; the mock lane reads « never dials ». The exit-3 lane is one JSON object on stdout under `--json` on both verbs.
+- **The resident's writer stamp (ADR-132 · #1352).** Both resident stores (`jobs/state.json` · `schedules/state.json`) carry the engine that last wrote them and the machine-protocol generation it spoke; a store is re-stamped at every open by a different engine, and one last written by a NEWER protocol refuses to open, naming both engines (its state is not ours to reinterpret). `nika doctor` gains a `resident` line: the stamps beside the server lease — `alive · engine X (this binary)`, `⚠ alive · engine X — this binary is Y: restart the resident`, `✖ newer than this binary`, or `not running · stores last written by X`.
+- **The public executable is born `nika` (ADR-135).** The bin target of the
+  `nika-cli` package is named `nika` and the package runs it by default:
+  `cargo build --release --locked --bin nika` yields `target/release/nika`, the
+  release builds, signs and stages that same file (no rename at packaging), the
+  flake installs it without a `postInstall` rename, the tap, the image and
+  cargo-binstall are unchanged, the integration tests read
+  `CARGO_BIN_EXE_nika`, and the scripts that probe a built binary probe
+  `target/{debug,release}/nika`. Two gates keep the identity from splitting
+  again: `tests/public_binary_identity.rs` (cargo metadata · exactly one bin
+  target named `nika`, owned by `nika-cli`, `default_run`) and the ratchet
+  `check-public-binary.sh` (the manifests, the release line, the flake, the
+  tests · self-tested against seven mutants). The « `nika` is reserved for the
+  L5 composition root » comment is retired: a future root takes the target by
+  moving it, never by adding a second executable.
+
+### Fixed
+
+- **The pre-tag projection asks the estate question.** `scripts/ci/next-tag-project.sh --check` refuses a stale estate manifest, the same question the release workflow asks on every build leg after the tag exists: `v0.117.1` regenerated the manifest one commit too early and died there. The ceremony now hears it before the tag.
+- **A cancelled run ends with terminal frames (wave 7 · #1353).** The runtime observes the operator's cancellation at every wave boundary: in-flight work completes and is counted, the unstarted tasks settle as cancelled by the operator (`terminal_cause: operator`), the run ends with `workflow_cancelled` and the outcome says so; the service driver carries the cancellation into the runtime and names the status (`Cancelled`); the resident gives a cancelled run a five-second grace to reach that boundary before it drops it mid-flight.
+- **Ctrl-C cancels a run instead of being lost (wave 7 · #1438).** A `nika run` always listens: the first SIGINT (Ctrl-C) or SIGTERM cancels at the wave boundary the runtime already visits · in-flight work completes and is counted, the unstarted tasks settle as cancelled by the operator, the run ends with one `workflow_cancelled` terminal and the trace seals; the card and `run_settled` say `cancelled`, `trace ls` and `trace outputs --json` too, and the exit code is 130 (the cancelled class, documented in `run --help`). A second Ctrl-C aborts mid-flight and says the trace is incomplete. Before, a run had no listener at all: from a terminal the process died without a terminal frame, from a script it ignored the signal and completed.
+- **A task fed by a recovered fallback says so in prose (wave 7 · #1444).** `nika trace outputs`, `nika trace peek` and the storyboard note read « input from recovered <task> » on a task whose input came from an upstream `on_error: recover` fallback · the lineage the JSON already carried (`integrity_source`) · and `trace outputs --json` names the source.
+- **The MCP lane is reachable at run time; a trace is bound to the project that wrote it (wave 7 · #1374 · #1367).** The captured execution world now packs `.nika/mcp_servers.json` and `.nika/mcp_pins.json` whenever a workflow names an `mcp:` tool, so a configured server is admitted at run time instead of every `mcp:` workflow fail-closing as « not configured » while the registry and the pins were right; a project with no registry still gets the honest refusal by name. The opening frame carries the fingerprint of the project root that wrote the trace, and `--resume` from another project refuses with the teaching (« a trace is not a bearer artifact: resume it from the project that wrote it ») instead of replaying the first project's cached outputs; an older trace with no fingerprint resumes as before.
+- **One ledger for two firers (wave 6 · #1377).** The resident (`nika serve`) claims a project beat's slot through the ARM ledger — the same per-beat lock `nika arm fire` takes, the same history `nika arm` reads — and lands the receipt there when the run settles. A slot the CLI edge already answered, or holds right now, is not the resident's to fire, and a slot the resident answered is skipped by the edge: one slot, one firer, whichever claims it first. `nika arm` reports the resident's fires as proven instead of calling the beat « never fired ».
+- **The rehearsal explains itself before the run, and doctor says whether a seat is usable now (wave 7 · #1445).** A run whose lane is `mock/echo` prints « rehearsal: mock/echo answers by echoing the prompt — not a real answer » with the two doors to a real one before the first frame; `nika doctor`'s codex line reads « usable for `infer:` now · `agent:` needs the ACP speaker » instead of a warning that looked like a refusal.
+- **One bad schedule is contained; a broken edit keeps the last valid registry (wave 6 · #1351 · #1354).** A schedule whose workflow cannot be admitted at fire time (the file changed or vanished) is a finding on that schedule (`schedule.admission` on its status) and never fatal to the resident: every other schedule and the HTTP API keep running, and the next slot re-tries once the file admits. An edit that breaks `nika.yaml` no longer unschedules everything for the pass: the last registry that loaded whole is retained and keeps firing, each retained schedule names the finding (`project.invalid` · « the last valid registry is retained · fix the file; nothing was unscheduled ») until the file loads again. Decision memory now outlives a declaration edit: the persisted last slot is the schedule's watermark, keyed by its identity, so editing a workflow path keeps a consumed `once` consumed and editing a cadence keeps the missed-slot floor (catch-up never re-answers slots the old declaration already answered); a `SlotId` is local to one slot and never the continuity key.
+- **A resume judges its project first, refuses on both machine faces, and never replays a human decision it cannot verify (wave 7 · the security-auditor gauntlet).** A trace written by another project refuses before any other judgment (no « the current bytes are what runs » notice for a run that never happens); every resume refusal now reaches the `--json` stream as well as the `--output json` envelope (the stream printed nothing); under `--resume-unverified` every recorded `nika:prompt` decision re-asks — a recorded decision is a credential, and the chain that bound it to the run is waived — and the door says the project binding is unverified too. `run --help` documents the project binding and its exit.
+- **`serve --workflows` scopes the served registry (wave 7 · #1369).** The listener exposes (`GET /v1/workflows`, its metadata) and schedules only the workflows under the `--workflows` directory, named from the project root the resident serves; a schedule naming a workflow outside it is refused with the teaching (`schedule.workflow_outside_registry`). The resident's own root — `nika.yaml`, the ledger, the beats — is unchanged, and a served root that is not inside the project stays a project of its own.
+- **A resident job leaves its trace journal; one cancellation terminal (wave 7 · #1381 · #1350).** A job admitted over HTTP now leaves the same NDJSON journal a `nika run` leaves, under the project's `.nika/traces/`, named by the trace the receipt names, so `nika trace verify` can seal it (the service driver mirrors every event into the journal the resident supplies; the receipt's own record stays the primary). A cancelled run settles as `execution.cancelled` from the worker and the cancel route alike — one kind for one terminal whichever writer wins the race — and a failure that lands under a pending cancel settles as cancelled: cancellation has precedence over failure.
 ## [0.117.1](https://github.com/supernovae-st/nika/compare/v0.117.0..v0.117.1) - 2026-09-02
 
 ### Fixed

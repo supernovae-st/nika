@@ -13,12 +13,12 @@ homepage.workspace     = true
 publish                = false  # Internal L2 verb crate.
 
 [dependencies]
-nika-types      = { path = "../nika-types", version = "0.117.1", features = ["serde"] } # SpendOnFailure (billed-then-failed spend · Cost Intelligence)
-nika-error     = { path = "../nika-error", version = "0.117.1" }
-nika-kernel    = { path = "../nika-kernel", version = "0.117.1" }
-nika-catalog   = { path = "../nika-catalog", version = "0.117.1", features = ["pricing"] } # find_pricing_for — the priced-ness the unmetered gate reads (R3-F1)
-nika-providers = { path = "../nika-providers", version = "0.117.1" }
-nika-harness   = { path = "../nika-harness", version = "0.117.1", optional = true }
+nika-types      = { path = "../nika-types", version = "0.118.0", features = ["serde"] } # SpendOnFailure (billed-then-failed spend · Cost Intelligence)
+nika-error     = { path = "../nika-error", version = "0.118.0" }
+nika-kernel    = { path = "../nika-kernel", version = "0.118.0" }
+nika-catalog   = { path = "../nika-catalog", version = "0.118.0", features = ["pricing"] } # find_pricing_for — the priced-ness the unmetered gate reads (R3-F1)
+nika-providers = { path = "../nika-providers", version = "0.118.0" }
+nika-harness   = { path = "../nika-harness", version = "0.118.0", optional = true }
 jsonschema     = { workspace = true }
 miette         = { workspace = true }
 serde_json     = { workspace = true }
