@@ -217,7 +217,7 @@ impl TestBackend {
         }
     }
 
-    fn calls(&self) -> usize {
+    pub(super) fn calls(&self) -> usize {
         self.calls.load(Ordering::SeqCst)
     }
 }
@@ -997,11 +997,9 @@ fn assert_http_response_boundary(address: SocketAddr, request: &str, response: &
 }
 
 pub(super) fn post_request(body: &str, key: &str, authorization: &str) -> String {
-    let body = if body == r#"{"workflow":"root.nika.yaml"}"# {
-        snapshot_body(WORKFLOW)
-    } else {
-        body.to_owned()
-    };
+    // ADR-131 · the by-name body is a REAL form of the door now: the
+    // harness sends it as written, no rewrite into a snapshot.
+    let body = body.to_owned();
     format!(
         "POST /v1/jobs HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\nIdempotency-Key: {key}\r\n{authorization}\r\n{body}",
         body.len()
@@ -1065,7 +1063,7 @@ fn cancel_request(id: &str) -> String {
     )
 }
 
-fn check_request(body: &str) -> String {
+pub(super) fn check_request(body: &str) -> String {
     format!(
         "POST /v1/check HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{body}",
         body.len(),
@@ -1202,42 +1200,6 @@ async fn openapi_is_authenticated_and_lists_only_real_authorities() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn machine_check_and_job_admission_judge_identical_caller_bytes_not_server_paths() {
-    let world = TestWorld::new();
-    std::fs::write(
-        world.workflows.join("root.nika.yaml"),
-        "nika: divergent-server-copy\ntasks: {}\n",
-    )
-    .expect("divergent server-local path");
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let server = world.start(backend.clone(), limits()).await;
-    let snapshot = snapshot_body(WORKFLOW);
-
-    let checked = server.request(&check_request(&snapshot)).await;
-    assert_eq!(checked.status, 200, "{}", checked.body);
-    assert_eq!(checked.json()["status"], "accepted");
-
-    let created = server
-        .request(&post_request(&snapshot, "bytes-first", &auth_header()))
-        .await;
-    assert_eq!(created.status, 202, "{}", created.body);
-    let id = created.json()["id"].as_str().expect("job id").to_owned();
-    wait_for_status(&server, &id, "succeeded")
-        .await
-        .expect("caller snapshot executes");
-    let job = server
-        .request(&get_request(&format!("/v1/jobs/{id}")))
-        .await
-        .json();
-    assert_eq!(
-        job["receipt"]["snapshot_digest"],
-        checked.json()["snapshot_digest"]
-    );
-    assert_eq!(backend.calls(), 1);
-    server.stop().await.expect("clean stop");
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn idempotency_is_bound_to_exact_snapshot_body_bytes() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
@@ -1295,6 +1257,18 @@ async fn snapshot_wire_refusals_have_stable_typed_codes_and_never_execute() {
         assert_eq!(response.status, 422, "{key}: {}", response.body);
         assert_eq!(response.json()["error"]["code"], code, "{key}");
         assert!(response.json().get("id").is_none(), "{key}");
+        if code == "snapshot_tampered" {
+            // ADR-131 · an attestation that failed, the producer named —
+            // never an accusation.
+            let message = response.json()["error"]["message"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned();
+            assert!(
+                message.contains("attests") && message.contains("--sdk-snapshot"),
+                "{key}: {message}"
+            );
+        }
     }
     assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");

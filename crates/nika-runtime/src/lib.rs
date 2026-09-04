@@ -116,9 +116,7 @@ use serde_json::Value;
 
 // ADR-127 · the run's laws live in the member crate; every historical
 // path holds through these re-exports.
-pub(crate) use nika_runtime_laws::{
-    compat_record, contract, errors, integrity, origins, secret, stamp, witness,
-};
+pub(crate) use nika_runtime_laws::{contract, errors, integrity, origins, secret, stamp, witness};
 pub use nika_runtime_laws::{identity, sandbox_select};
 
 /// The three read-only value namespaces the run's close reads (inputs ·
@@ -148,9 +146,11 @@ pub use pause::WorkflowPause;
 // modules keep their historical `crate::{expr,jq,record}` names so every
 // call site inside this crate reads exactly as it did before the move; the
 // public types keep their `nika_runtime::…` paths below.
-pub use compat_record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
+// ADR-130 · the task vocabulary has ONE owner (nika-dataflow); the historical
+// `nika_runtime::…` paths are re-exports of it, never a twin.
 pub use nika_dataflow::DataflowError;
 use nika_dataflow::TaskRecord as DataflowTaskRecord;
+pub use nika_dataflow::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
 pub(crate) use nika_dataflow::{expr, jq, record};
 // The shared execution driver (`ServiceExecutionDriver` + `AuthorizedRuntime`
 // + the `ChildTrace*`/`Service*` family) descended to `nika-service-execution`
@@ -228,21 +228,6 @@ impl RunOutcome {
                 RunSettlement::new(RunState::Failed, RunCause::TaskFailed)
             },
         }
-    }
-
-    fn from_dataflow(
-        ok: bool,
-        records: BTreeMap<String, DataflowTaskRecord>,
-        outputs: BTreeMap<String, Value>,
-    ) -> Self {
-        Self::new(
-            ok,
-            records
-                .into_iter()
-                .map(|(id, record)| (id, record.into()))
-                .collect(),
-            outputs,
-        )
     }
 
     /// Carry the run's settlement (ADR-128 · ONE site — normal · paused ·
@@ -1084,8 +1069,7 @@ where
             stamper,
             sink,
         );
-        let mut outcome =
-            RunOutcome::from_dataflow(ok, records, outputs).with_settlement(settlement);
+        let mut outcome = RunOutcome::new(ok, records, outputs).with_settlement(settlement);
         outcome.cache_hits = cache_hits;
         outcome
     }
@@ -1150,8 +1134,7 @@ where
         if let Some(p) = paused {
             let snapshot = run_ledger.snapshot_at(self.clock.now());
             let settlement = emit_paused(workflow_name, &p, records, &snapshot, stamper, sink);
-            let mut outcome =
-                RunOutcome::from_dataflow(true, std::mem::take(records), BTreeMap::new());
+            let mut outcome = RunOutcome::new(true, std::mem::take(records), BTreeMap::new());
             outcome.cache_hits = std::mem::take(cache_hits);
             outcome.paused = Some(p);
             return Ok(Some(outcome.with_settlement(settlement)));

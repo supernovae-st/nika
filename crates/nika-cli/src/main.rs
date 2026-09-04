@@ -19,6 +19,7 @@ mod lazy;
 mod model_args;
 mod pipe_hygiene;
 mod registry_args;
+mod resident;
 mod try_args;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
@@ -31,6 +32,7 @@ use arms::{check_arm, inspect_arm, test_arm};
 use init_args::{InitArgs, init_verb};
 use lazy::run_lazy;
 pub(crate) use nika_cli_host::help_card;
+use resident::resident_finding;
 
 #[derive(Parser)]
 // The PUBLIC binary name is `nika` (the release renames the nika-cli artifact +
@@ -628,11 +630,12 @@ fn mirror_verb(json: bool, deep: bool, theme: Theme) -> u8 {
 /// precedent) — `--verbose` unfolds the healthy machine's advisory
 /// notes (B-8b · the human lane defaults to calm).
 fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
-    emit(&verbs::doctor::run(
+    emit(&verbs::doctor::run_with(
         args.ping,
         args.json,
         args.verbose,
         theme,
+        resident_finding(),
     ))
 }
 

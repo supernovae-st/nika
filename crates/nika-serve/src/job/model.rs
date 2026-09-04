@@ -416,6 +416,22 @@ impl JobStatus {
         )
     }
 
+    /// The run state this status projects, when it projects one (ADR-130 ·
+    /// the four shared words are the settlement's); `queued` · `running` ·
+    /// `interrupted` are the job's own — ownership and evidence, never a
+    /// run state.
+    #[must_use]
+    pub const fn run_state(self) -> Option<nika_event::settlement::RunState> {
+        use nika_event::settlement::RunState;
+        match self {
+            Self::Succeeded => Some(RunState::Succeeded),
+            Self::Failed => Some(RunState::Failed),
+            Self::Paused => Some(RunState::Paused),
+            Self::Cancelled => Some(RunState::Cancelled),
+            Self::Queued | Self::Running | Self::Interrupted => None,
+        }
+    }
+
     /// Whether this status is a durable terminal settlement.
     #[must_use]
     pub const fn is_settled(self) -> bool {
@@ -423,6 +439,22 @@ impl JobStatus {
             self,
             Self::Succeeded | Self::Failed | Self::Interrupted | Self::Cancelled
         )
+    }
+}
+
+/// The settlement's state, projected (ADR-130): ONE mapping, the words equal
+/// by construction (proven in `tests`).
+impl From<nika_event::settlement::RunState> for JobStatus {
+    fn from(state: nika_event::settlement::RunState) -> Self {
+        use nika_event::settlement::RunState;
+        match state {
+            RunState::Succeeded => Self::Succeeded,
+            RunState::Paused => Self::Paused,
+            RunState::Cancelled => Self::Cancelled,
+            // `#[non_exhaustive]`: a state this resident does not know
+            // settles as a failure with its cause on the frame.
+            RunState::Failed | _ => Self::Failed,
+        }
     }
 }
 
@@ -825,6 +857,10 @@ pub enum JobStoreError {
     /// disclose the operator's durable root.
     #[error("job store I/O failed: {0}")]
     Io(io::ErrorKind),
+    /// The store was last written by an engine speaking a NEWER machine
+    /// protocol than this one (ADR-132 · #1352): refused, never reinterpreted.
+    #[error("{0}")]
+    WrittenByNewerEngine(String),
     /// An idempotency key violated its bounded wire contract.
     #[error("idempotency key must contain 1 to 255 visible ASCII bytes")]
     InvalidIdempotencyKey,

@@ -41,6 +41,8 @@ impl LegacyPersistedStateV2 {
                 .into_iter()
                 .map(migrate_job)
                 .collect::<Result<Vec<_>, _>>()?,
+            // a migrated store is written by THIS engine (ADR-132)
+            writer: Some(crate::writer::WriterStamp::this_engine()),
         };
         state.validate()?;
         Ok(state)

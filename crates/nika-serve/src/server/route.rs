@@ -32,7 +32,8 @@ const UNIT_COUNT_PROBE_MARKER: &str = "nika snapshot wire unit count exceeded";
 #[derive(serde::Deserialize)]
 struct SnapshotWireProbe<'a> {
     root: &'a str,
-    digest: &'a str,
+    #[serde(default)]
+    digest: Option<&'a str>,
     #[serde(borrow)]
     units: BoundedWireUnits<'a>,
 }
@@ -42,8 +43,20 @@ struct BoundedWireUnits<'a>(Vec<SnapshotWireUnit<'a>>);
 #[derive(serde::Deserialize)]
 struct SnapshotWireUnit<'a> {
     path: &'a str,
-    digest: &'a str,
+    #[serde(default)]
+    digest: Option<&'a str>,
     bytes_hex: &'a str,
+}
+
+/// The by-name form of the job door (ADR-131 · #1441): the world lives in
+/// the served registry and the resident captures it — the one owner.
+#[derive(serde::Deserialize)]
+struct JobByName {
+    /// Owned, not borrowed: a name with an escape (`nested\\root`) must
+    /// still reach the name judge, which refuses it as not served.
+    workflow: String,
+    #[serde(default)]
+    units: Option<serde::de::IgnoredAny>,
 }
 
 impl<'de: 'a, 'a> serde::Deserialize<'de> for BoundedWireUnits<'a> {
@@ -180,16 +193,78 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
         Ok(body) => body,
         Err(error) => return error.into_response(),
     };
+    let digest = RequestDigest::from_bytes(Sha256::digest(&body).into());
+    // ADR-131 · two forms, one admission: a NAME from the served registry
+    // (the resident captures the world — the one owner of the snapshot and
+    // its digest domain) or the snapshot `nika check <file> --json
+    // --sdk-snapshot` prints (digests optional: computed when absent,
+    // attested when present).
+    if let Some(name) = by_name(&body) {
+        let admitted = match admit_by_name(&name, &state).await {
+            Ok(admitted) => admitted,
+            Err(response) => return response,
+        };
+        let Ok(world) = admitted.snapshot().encode() else {
+            return admission_refused().into_response();
+        };
+        return admit_job(state, key, digest, name, world).await;
+    }
     let admitted = match readmit_body(&body, &state).await {
         Ok(admitted) => admitted,
         Err(response) => return response,
     };
-    let digest = RequestDigest::from_bytes(Sha256::digest(&body).into());
     let workflow = admitted.snapshot().root().to_owned();
-    let Ok(world) = String::from_utf8(body.to_vec()) else {
-        return malformed_snapshot_encoding().into_response();
+    // The stored world is the engine's canonical encoding: digests the
+    // caller omitted are present from here on.
+    let Ok(world) = admitted.snapshot().encode() else {
+        return admission_refused().into_response();
     };
     admit_job(state, key, digest, workflow, world).await
+}
+
+/// The by-name form, when the body is one (`{"workflow": "<name>"}` with no
+/// `units`); `None` for a snapshot body.
+fn by_name(body: &[u8]) -> Option<String> {
+    let probe: JobByName = serde_json::from_slice(body).ok()?;
+    probe.units.is_none().then_some(probe.workflow)
+}
+
+/// Capture and admit a workflow the served registry names (ADR-131): the
+/// name must be one `GET /v1/workflows` lists — valid, inside the scope,
+/// present — then the resident captures its world exactly as a schedule
+/// does, through the one `ExecutionService`.
+async fn admit_by_name(
+    name: &str,
+    state: &AppState,
+) -> Result<nika_execution::AdmittedExecution, Response<ResponseBody>> {
+    if !valid_workflow_name(name) || !within_scope(state.registry_scope.as_deref(), name) {
+        return Err(unknown_workflow(name).into_response());
+    }
+    let project = Arc::clone(&state.project);
+    let service = state.service;
+    let lookup = name.to_owned();
+    let admitted = tokio::task::spawn_blocking(move || {
+        if !workflow_exists(&project, &lookup) {
+            return Err(None);
+        }
+        service
+            .admit(&project, std::path::Path::new(&lookup))
+            .map_err(Some)
+    })
+    .await
+    .map_err(|_| admission_refused().into_response())?;
+    admitted.map_err(|error| match error {
+        None => unknown_workflow(name).into_response(),
+        Some(error) => capture_refused(&error),
+    })
+}
+
+fn unknown_workflow(_name: &str) -> ApiError {
+    ApiError::new(
+        StatusCode::NOT_FOUND,
+        "not_found",
+        "no workflow by that name under the served registry — GET /v1/workflows lists the names this resident admits",
+    )
 }
 
 async fn check_snapshot(
@@ -203,7 +278,13 @@ async fn check_snapshot(
         Ok(body) => body,
         Err(error) => return error.into_response(),
     };
-    match readmit_body(&body, &state).await {
+    // The check door admits by name too (ADR-131): the same two forms, the
+    // same admission, the compact acknowledgement.
+    let admitted = match by_name(&body) {
+        Some(name) => admit_by_name(&name, &state).await,
+        None => readmit_body(&body, &state).await,
+    };
+    match admitted {
         Ok(admitted) => json_response(
             StatusCode::OK,
             &SnapshotValidationAck::accepted(admitted.snapshot()),
@@ -296,12 +377,12 @@ fn validate_wire_envelope(encoded: &str) -> Result<(), ApiError> {
             "snapshot logical path exceeds the encoded metadata limit",
         ));
     }
-    if !canonical_digest(probe.digest)
+    if probe.digest.is_some_and(|digest| !canonical_digest(digest))
         || probe
             .units
             .0
             .iter()
-            .any(|unit| !canonical_digest(unit.digest))
+            .any(|unit| unit.digest.is_some_and(|digest| !canonical_digest(digest)))
     {
         return Err(ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,

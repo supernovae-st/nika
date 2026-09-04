@@ -512,7 +512,13 @@ impl ExecutionSnapshot {
             let kind = SnapshotUnitKind::from_tag(unit.kind)?;
             let bytes = decode_preflighted_hex_bytes(&unit.bytes_hex)?;
             let captured = CapturedUnit::new(unit.path.into_owned(), kind, bytes);
-            if captured.digest != unit.digest.as_ref() {
+            // An attested unit digest must match the bytes; an absent one is
+            // computed (the engine is the one owner of the digest domain).
+            if unit
+                .digest
+                .as_deref()
+                .is_some_and(|claimed| captured.digest != claimed)
+            {
                 return Err(ExecutionError::UnitDigestMismatch {
                     logical_path: captured.logical_path.clone(),
                 });
@@ -524,16 +530,21 @@ impl ExecutionSnapshot {
                 return Err(ExecutionError::SnapshotStructureMismatch);
             }
         }
-        let snapshot = Self {
-            format_version: wire.format_version,
-            root: wire.root.into_owned(),
-            units,
-            digest: wire.digest.into_owned(),
-        };
-        if snapshot_digest(&snapshot.root, &snapshot.units) != snapshot.digest {
+        let root = wire.root.into_owned();
+        let digest = snapshot_digest(&root, &units);
+        if wire
+            .digest
+            .as_deref()
+            .is_some_and(|claimed| claimed != digest)
+        {
             return Err(ExecutionError::SnapshotDigestMismatch);
         }
-        Ok(snapshot)
+        Ok(Self {
+            format_version: wire.format_version,
+            root,
+            units,
+            digest,
+        })
     }
 
     pub(crate) fn resolve_text(&self, owner: &str, authored: &str) -> Result<String, String> {
@@ -982,8 +993,10 @@ struct BorrowedWireSnapshot<'a> {
     format_version: u32,
     #[serde(borrow)]
     root: Cow<'a, str>,
-    #[serde(borrow)]
-    digest: Cow<'a, str>,
+    /// The caller's attestation of the world's digest — optional (ADR-131):
+    /// absent, the engine computes it; present, it must match.
+    #[serde(borrow, default)]
+    digest: Option<Cow<'a, str>>,
     #[serde(borrow)]
     units: Vec<BorrowedWireUnit<'a>>,
 }
@@ -993,8 +1006,9 @@ struct BorrowedWireUnit<'a> {
     #[serde(borrow)]
     path: Cow<'a, str>,
     kind: u8,
-    #[serde(borrow)]
-    digest: Cow<'a, str>,
+    /// The caller's attestation of the unit's digest — optional (ADR-131).
+    #[serde(borrow, default)]
+    digest: Option<Cow<'a, str>>,
     #[serde(borrow)]
     bytes_hex: Cow<'a, str>,
 }
@@ -1027,12 +1041,16 @@ fn preflight_wire_metadata_and_bodies(
     limits: SnapshotLimits,
 ) -> Result<(), ExecutionError> {
     enforce_metadata_limit("root", wire.root.len(), MAX_LOGICAL_PATH_BYTES)?;
-    preflight_digest("snapshot digest", &wire.digest)?;
+    if let Some(digest) = wire.digest.as_deref() {
+        preflight_digest("snapshot digest", digest)?;
+    }
 
     let mut total_bytes = 0usize;
     for unit in &wire.units {
         enforce_metadata_limit("unit path", unit.path.len(), MAX_LOGICAL_PATH_BYTES)?;
-        preflight_digest("unit digest", &unit.digest)?;
+        if let Some(digest) = unit.digest.as_deref() {
+            preflight_digest("unit digest", digest)?;
+        }
         let byte_len = decoded_hex_len(&unit.bytes_hex)?;
         if byte_len > limits.unit_bytes {
             return Err(ExecutionError::UnitSizeLimit {

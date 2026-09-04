@@ -152,8 +152,22 @@ impl JobStore {
             let _local = store.local_guard()?;
             let _lease = store.kernel_lease()?;
             store.initialize_or_load()?;
+            store.stamp_writer()?;
         }
         Ok(store)
+    }
+
+    /// ADR-132 · this engine becomes the store's writer at open (a store an
+    /// older engine wrote is re-stamped; the newer-writer refusal already
+    /// fired in `validate`). Held under the caller's lease.
+    fn stamp_writer(&self) -> Result<(), JobStoreError> {
+        let mut state = self.load_state()?;
+        let mine = crate::writer::WriterStamp::this_engine();
+        if state.writer.as_ref() != Some(&mine) {
+            state.writer = Some(mine);
+            self.persist(&state)?;
+        }
+        Ok(())
     }
 
     /// Create a job or replay the record already bound to this key.
@@ -987,6 +1001,10 @@ pub(super) struct PersistedState {
     version: u32,
     incarnation: IncarnationLedger,
     pub(super) jobs: Vec<StoredJob>,
+    /// The engine that last wrote this store (ADR-132 · #1352) — absent on
+    /// a store written before the stamp existed.
+    #[serde(default)]
+    writer: Option<crate::writer::WriterStamp>,
 }
 
 impl PersistedState {
@@ -995,6 +1013,7 @@ impl PersistedState {
             version: STATE_VERSION,
             incarnation: IncarnationLedger::new(),
             jobs: Vec::new(),
+            writer: Some(crate::writer::WriterStamp::this_engine()),
         }
     }
 
@@ -1003,6 +1022,15 @@ impl PersistedState {
             return Err(JobStoreError::Corrupt(
                 "state version is unsupported".to_owned(),
             ));
+        }
+        // ADR-132 · #1352 · a store last written by a NEWER protocol is not
+        // ours to reinterpret: fail closed, name both engines.
+        if let Some(reason) = self
+            .writer
+            .as_ref()
+            .and_then(crate::writer::WriterStamp::newer_than_this_engine)
+        {
+            return Err(JobStoreError::WrittenByNewerEngine(reason));
         }
         self.incarnation.validate()?;
         let mut ids = BTreeSet::new();

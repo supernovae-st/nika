@@ -105,26 +105,27 @@ fn schemas() -> Value {
                     "status": {"$ref": "#/components/schemas/JobStatus"}
                 }
             },
+            "JobByName": job_by_name_schema(),
             "ExecutionSnapshot": {
                 "type": "object",
                 "additionalProperties": false,
-                "description": "Immutable byte-owned execution world. Unit bytes are canonical lowercase hexadecimal and digests are canonical lowercase SHA-256. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
-                "required": ["format_version", "root", "digest", "units"],
+                "description": "Immutable byte-owned execution world — the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer; a client never hashes). Unit bytes are canonical lowercase hexadecimal. `digest` and every unit `digest` are OPTIONAL attestations (canonical lowercase SHA-256): absent, the resident computes them and the receipt carries the result; present, they must match the bytes or the request is refused as `snapshot_tampered`. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
+                "required": ["format_version", "root", "units"],
                 "properties": {
                     "format_version": {"type": "integer", "const": 1},
                     "root": {"type": "string", "minLength": 1, "maxLength": 4096},
-                    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional attestation of the world's digest"},
                     "units": {
                         "type": "array",
                         "maxItems": 256,
                         "items": {
                             "type": "object",
                             "additionalProperties": false,
-                            "required": ["path", "kind", "digest", "bytes_hex"],
+                            "required": ["path", "kind", "bytes_hex"],
                             "properties": {
                                 "path": {"type": "string", "minLength": 1, "maxLength": 4096},
-                                "kind": {"type": "integer", "minimum": 0, "maximum": 3},
-                                "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                                "kind": {"type": "integer", "minimum": 0, "maximum": 3, "description": "0 root (the admitted workflow) · 1 child (a transitively invoked workflow) · 2 skill (an Agent Skill document) · 3 import (an opaque import the caller supplied)"},
+                                "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional attestation of the unit's digest"},
                                 "bytes_hex": {"type": "string", "pattern": "^(?:[0-9a-f]{2})*$"}
                             }
                         }
@@ -405,10 +406,23 @@ fn workflow_metadata_path() -> Value {
     }})
 }
 
+/// The by-name form of the job door (ADR-131).
+fn job_by_name_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes.",
+        "required": ["workflow"],
+        "properties": {
+            "workflow": {"type": "string", "minLength": 1, "maxLength": 4096}
+        }
+    })
+}
+
 fn jobs_path() -> Value {
     json!({"post": {
-        "summary": "Admit immutable snapshot bytes as a durable job",
-        "description": "The server decodes and readmits this exact body through ExecutionService and never interprets a caller filesystem path. Idempotency binds to the exact snapshot payload bytes.",
+        "summary": "Admit a workflow as a durable job — by served name, or as immutable snapshot bytes",
+        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional attestations. The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
         "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}],
         "requestBody": snapshot_request_body(),
         "responses": {
@@ -428,8 +442,8 @@ fn jobs_path() -> Value {
 
 fn check_path() -> Value {
     json!({"post": {
-        "summary": "Judge immutable snapshot bytes without creating a job",
-        "description": "Runs the same decode and ExecutionService readmission as POST /v1/jobs over the exact request body.",
+        "summary": "Judge a workflow without creating a job — by served name, or as immutable snapshot bytes",
+        "description": "Runs the same admission as POST /v1/jobs (ADR-131 · both forms) over the exact request body, and creates nothing.",
         "requestBody": snapshot_request_body(),
         "responses": {
             "200": {"description": "Compact snapshot validation acknowledgement, not the full engine check report", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SnapshotValidationAck"}}}},
@@ -489,10 +503,10 @@ fn job_trace_verify_path() -> Value {
 }
 
 fn snapshot_request_body() -> Value {
-    json!({
-        "required": true,
-        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ExecutionSnapshot"}}}
-    })
+    json!({"required": true, "content": {"application/json": {"schema": {"oneOf": [
+        {"$ref": "#/components/schemas/JobByName"},
+        {"$ref": "#/components/schemas/ExecutionSnapshot"}
+    ]}}}})
 }
 
 fn job_id_param() -> Value {

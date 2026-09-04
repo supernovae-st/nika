@@ -263,7 +263,9 @@ mod tests {
             TaskStatus::Success => TerminalCause::Normal,
             TaskStatus::Failure => TerminalCause::VerbError,
             TaskStatus::Skipped => TerminalCause::Gate,
-            TaskStatus::Cancelled => TerminalCause::Upstream,
+            // the owner's enum is `#[non_exhaustive]` (ADR-130): a state this
+            // fixture does not model settles as an upstream cancellation.
+            TaskStatus::Cancelled | _ => TerminalCause::Upstream,
         };
         let mut record = TaskRecord::unran(status, cause);
         record.output = output;

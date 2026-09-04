@@ -176,6 +176,10 @@ pub enum ScheduleStoreError {
     /// Descriptor-rooted filesystem access failed.
     #[error("schedule store I/O failed: {0}")]
     Io(io::ErrorKind),
+    /// The store was last written by an engine speaking a NEWER machine
+    /// protocol than this one (ADR-132 · #1352): refused, never reinterpreted.
+    #[error("{0}")]
+    WrittenByNewerEngine(String),
     /// The canonical schedule model refused the draft.
     #[error("schedule is invalid: {0}")]
     InvalidSchedule(ScheduleFinding),
