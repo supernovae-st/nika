@@ -1,3 +1,27 @@
+---
+id: ADR-133
+title: "The session machine is portable: typed outcomes, proposal and gate identities, hosts that judge by identity"
+status: accepted
+date: "2026-09-04"
+phase: "pre-1.0 · one door"
+deciders: ["@ThibautMelen"]
+tags: ["architecture", "session", "one-door", "idempotency"]
+affects_crates: ["nika-session", "nika-cli"]
+affects_layers: ["L4"]
+supersedes: []
+superseded_by: []
+related: []
+requires: []
+enables: []
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: ""
+follow_ups: ["the session over a wire (the resident's session door · the SDK) on these types", "a SessionId minted per session when a remote host needs one"]
+---
+
 # ADR-133 · The session machine is portable: typed outcomes, identities, hosts
 
 - Status: accepted

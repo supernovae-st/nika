@@ -1,3 +1,27 @@
+---
+id: ADR-134
+title: "Trust is a rung, never a word: declared · discovered · observed on every access lane"
+status: accepted
+date: "2026-09-04"
+phase: "pre-1.0 · one door"
+deciders: ["@ThibautMelen"]
+tags: ["architecture", "access", "trust", "one-door"]
+affects_crates: ["nika-types", "nika-providers", "nika-service-execution", "nika-cli-host", "nika-cli"]
+affects_layers: ["L0", "L2", "L3", "L4"]
+supersedes: []
+superseded_by: []
+related: []
+requires: []
+enables: []
+amends: []
+fci: []
+inv: []
+shadow_zones: []
+nika_codes: []
+timeline: ""
+follow_ups: ["an `attested` rung when a handshake, a hash or a signed identity proves a seat (#1253's confinement half)", "the SDK's lane type learns `trust` with the 0.118 OpenAPI regeneration"]
+---
+
 # ADR-134 · Trust is a rung, never a word
 
 - Status: accepted
