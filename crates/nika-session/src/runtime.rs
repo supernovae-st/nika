@@ -490,7 +490,12 @@ impl SessionRuntime {
                 RefusalClass::AlreadyConsumed,
                 format!("the proposal {id} was already decided — its effect happened once"),
             )),
-            None => TurnOutcome::Refusal(self.nothing_pending()),
+            None => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                format!(
+                    "nothing is pending — the proposal {id} is neither waiting nor the last decided · ask for the change again"
+                ),
+            )),
         }
     }
 
@@ -534,7 +539,12 @@ impl SessionRuntime {
                 RefusalClass::AlreadyConsumed,
                 format!("the gate {id} was answered once — a decided gate stays decided"),
             )),
-            None => TurnOutcome::Refusal(self.no_gate_waiting()),
+            None => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                format!(
+                    "no run is waiting for an answer — the gate {id} is neither waiting nor the last answered"
+                ),
+            )),
         }
     }
 
@@ -1397,6 +1407,14 @@ mod tests {
             panic!("nothing pending");
         };
         assert!(none.text.contains("nothing is pending"), "{none}");
+        let TurnOutcome::Refusal(foreign) = s.consent_to(&other, "yes") else {
+            panic!("wrong state");
+        };
+        assert_eq!(foreign.class, RefusalClass::WrongState, "{foreign}");
+        assert!(
+            foreign.text.contains(&other.to_string()) && !foreign.text.contains(&id.to_string()),
+            "the refusal names the caller's id, never the last decided one: {foreign}"
+        );
         assert!(s.waiting_gate().is_none());
         let gate = GateId::new(Path::new("never.ndjson"), "gate");
         let TurnOutcome::Refusal(no_gate) = s.answer_gate_for(&gate, "yes") else {

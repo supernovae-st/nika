@@ -128,7 +128,9 @@ pub fn first_modelless_task(wf: &RawWorkflow) -> Option<&str> {
 /// --json`'s `access.plans[]` and the trace's boot manifest `access_plan`
 /// all carry exactly these rows — `model` · `provider` · `resolved` ·
 /// `access` (the id that serves) · `chosen` (its class) · `billing` ·
-/// `trust` (declared · discovered · observed · ADR-134) · `pinned` · `rejected[]` with `access` · `dimension` · `layer` ·
+/// `trust` (declared · discovered · observed · ADR-134 · `null` on a
+/// refused lane: no path serves, the rejected candidates carry their own
+/// witnesses) · `pinned` · `rejected[]` with `access` · `dimension` · `layer` ·
 /// `witness`. A refused lane carries `resolved: false` and its witnesses.
 #[must_use]
 pub fn lane_rows(plan: &ExecutionAccessPlan) -> Vec<serde_json::Value> {
@@ -152,6 +154,7 @@ pub fn lane_rows(plan: &ExecutionAccessPlan) -> Vec<serde_json::Value> {
                 "model": model,
                 "provider": refusal.provider,
                 "resolved": false,
+                "trust": serde_json::Value::Null,
                 "rejected": rejection_rows(&refusal.rejected),
             }),
             // `#[non_exhaustive]` · a verdict this build does not know is
@@ -159,6 +162,7 @@ pub fn lane_rows(plan: &ExecutionAccessPlan) -> Vec<serde_json::Value> {
             _ => serde_json::json!({
                 "model": model,
                 "resolved": false,
+                "trust": serde_json::Value::Null,
                 "rejected": [],
                 "note": "lane verdict unknown to this build",
             }),
@@ -273,6 +277,10 @@ mod tests {
             .expect("row");
         assert_eq!(refused["resolved"], false);
         assert_eq!(refused["provider"], "mistral");
+        assert!(
+            refused["trust"].is_null(),
+            "ADR-134 §3 · every row says trust · a refused lane says null: {refused}"
+        );
         assert!(
             refused["rejected"]
                 .as_array()
