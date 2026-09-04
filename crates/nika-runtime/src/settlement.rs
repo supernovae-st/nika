@@ -168,7 +168,7 @@ pub(crate) struct OutputTypeViolation {
 /// `fits` (lenient exactly where the core is: a whole float like `42.0`
 /// inhabits `integer` · a genuine cross-type mismatch refuses). An output
 /// whose `${{ }}` reference no longer resolves is OMITTED by
-/// [`resolve_outputs`] (spec §3 · not a type error); a `type:` that does
+/// [`super::resolve_outputs`] (spec §3 · not a type error); a `type:` that does
 /// not parse is the check's refusal (`NIKA-TYPE-001` · audit-before-run
 /// keeps it out of the run), never the run's. `None` ⇒ every typed output
 /// honours its declared type.
