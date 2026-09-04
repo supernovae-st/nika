@@ -16,6 +16,31 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.118.2](https://github.com/supernovae-st/nika/compare/v0.118.1..v0.118.2) - 2026-09-05
+
+### Fixed
+
+- **Retain the draft release ID returned by creation.** A committed draft
+  no longer depends on immediate visibility in the release list. The POST
+  response owns the next read, which rechecks its immutable ID, exact tag,
+  prerelease state and resolved tag commit before publication can proceed.
+  Delayed-list and malformed-response regressions reproduce the failure of
+  the unpublished v0.118.1 train; existing tags remain immutable.
+
+### Security
+
+- **Validate public custody before disclosure and preserve existing keys.**
+  Trust output and rotation now reconstruct decoded public keys, dropping
+  untrusted comments and trailing bytes. Signing also binds the public key
+  and its key number to the opened secret. Broken explicit custody refuses
+  fallback; non-forced initialization preserves corrupt or orphaned files
+  and refuses concurrent writers. Known path aliases cannot collapse the
+  two key slots. One guarded keyring constructor and one public-box decoder
+  serve signing, trace and evidence readers. Retired records keep their
+  historical fingerprints; older imported custom-comment seals require
+  their original public enrollment record after canonical retirement.
+  Engine-generated public boxes are unchanged. File pairs are not atomic.
+
 ## [0.118.1](https://github.com/supernovae-st/nika/compare/v0.118.0..v0.118.1) - 2026-09-04
 
 ### Fixed
