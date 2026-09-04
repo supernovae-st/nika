@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nika.sh/spec/v1/project.schema.json",
+  "title": "Nika project file · nika.yaml · v1",
+  "description": "Structural contract for a project's `nika.yaml`: the project's name, its default spend ceiling, the team arming registry (`arm:`), the trace retention policy and the registry provenance floor. The grammar is closed — an unknown key anywhere is a named refusal — and every value form below is the one the parser accepts; the beat keys keep the French spellings the parser reads (`où` · `manqué` · `après_saut` · …) and each is described here in English.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "nika": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "The project's name — a kebab identifier (`my-project`)."
+    },
+    "ceiling": {
+      "type": "number",
+      "minimum": 0,
+      "description": "The default `--max-cost-usd` for every run in this project (USD). A run may lower it, never raise it silently."
+    },
+    "arm": {
+      "type": "array",
+      "description": "The team arming registry: the beats the resident (`nika serve`) fires on their cadence. Validated by every door, fired by one.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workflow",
+          "cadence"
+        ],
+        "properties": {
+          "workflow": {
+            "type": "string",
+            "pattern": "\\.nika\\.yaml$",
+            "description": "The workflow file, relative to the project root (`workflows/nightly.nika.yaml`)."
+          },
+          "cadence": {
+            "type": "string",
+            "description": "When the beat fires — a cadence phrase (`dimanche 18h07` · `toutes les 6h` · `chaque jour à 09:00`) or a five-field cron line."
+          },
+          "où": {
+            "type": "string",
+            "enum": [
+              "local",
+              "cloud"
+            ],
+            "description": "Where the beat runs: `local` (this machine's resident) or `cloud` (a remote resident)."
+          },
+          "plafond": {
+            "type": "number",
+            "minimum": 0,
+            "description": "The beat's own spend ceiling in USD (`--max-cost-usd` for each fire); defaults to the project's `ceiling`."
+          },
+          "manqué": {
+            "type": "string",
+            "enum": [
+              "rattraper",
+              "rattraper-une-fois",
+              "sauter"
+            ],
+            "description": "What a missed slot becomes when the resident comes back: `rattraper` (fire every missed slot), `rattraper-une-fois` (fire once for all of them), `sauter` (skip them)."
+          },
+          "chevauchement": {
+            "type": "string",
+            "enum": [
+              "sauter",
+              "file",
+              "remplacer"
+            ],
+            "description": "What a new slot does while the previous fire still runs: `sauter` (skip it), `file` (queue it), `remplacer` (replace the running one)."
+          },
+          "après_saut": {
+            "type": "string",
+            "enum": [
+              "prochain-créneau",
+              "à-complétion"
+            ],
+            "description": "When the beat resumes after a skipped slot: at the next slot (`prochain-créneau`) or when the running fire completes (`à-complétion`)."
+          },
+          "actif": {
+            "type": "boolean",
+            "description": "Whether the beat is armed. A suspended beat (`false`) must say why in `raison`."
+          },
+          "raison": {
+            "type": "string",
+            "description": "Why the beat is suspended, verbatim — required when `actif: false`."
+          },
+          "jusqu_au": {
+            "type": "string",
+            "description": "The beat's expiry — an instant after which it no longer fires (`2026-12-31` · `2026-12-31T18:00:00Z`)."
+          },
+          "tolérance": {
+            "type": "string",
+            "pattern": "^[0-9]+/[0-9]+$",
+            "description": "The (m,k)-firm skip tolerance (`3/4`). Accepted in the file, refused at apply and load until the (m,k) law exists."
+          },
+          "décalage": {
+            "type": "string",
+            "description": "A fixed offset applied to every slot (`+7m` · `-1h`)."
+          },
+          "par": {
+            "type": "string",
+            "description": "Who armed the beat, verbatim (a name, a handle) — the provenance line the ledger reads."
+          }
+        }
+      }
+    },
+    "traces": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The trace retention policy for `.nika/traces/`.",
+      "properties": {
+        "keep": {
+          "type": "string",
+          "pattern": "^[0-9]+d$",
+          "description": "The retention age cap (`30d`): a trace older than this exits even under the keep-N window. A paused trace is never collected."
+        }
+      }
+    },
+    "registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The registry provenance admission floor — a gate on what the project installs.",
+      "properties": {
+        "floor": {
+          "type": "string",
+          "enum": [
+            "unprovenanced",
+            "provenanced",
+            "stage-clear",
+            "verified"
+          ],
+          "description": "Refuse artifacts below this provenance tier: `unprovenanced` (digest-consistent) · `provenanced` (minisign-verified under the publisher's key) · `stage-clear` (a staged-window statement) · `verified` (a complete in-toto layout)."
+        }
+      }
+    }
+  }
+}
