@@ -222,3 +222,61 @@ async fn the_terminal_event_carries_the_runtimes_settlement() {
     assert_eq!(job["status"], "succeeded", "{job}");
     server.stop().await.expect("clean stop");
 }
+
+/// ADR-132 · the freeze audit (G1) · a retry with the same key finds its
+/// job BEFORE the resident reads the registry again: the workflow changes,
+/// then vanishes, and the retry still replays the ORIGINAL job (200 · the
+/// same id · one execution, ever); the same key with other bytes is a
+/// typed conflict; the resident's own `schedule:` namespace is refused.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_retry_replays_its_job_before_the_registry_is_read_again() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let body = r#"{"workflow":"root.nika.yaml"}"#;
+    let first = server
+        .request(&post_request(body, "retry-k", &auth_header()))
+        .await;
+    assert_eq!(first.status, 202, "{}", first.body);
+    let id = first.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("the job settles");
+    // The file changes on disk (another valid workflow under the same name).
+    std::fs::write(
+        world.workflows.join("root.nika.yaml"),
+        WORKFLOW.replace("value:", "other:"),
+    )
+    .expect("the workflow mutates");
+    let retry = server
+        .request(&post_request(body, "retry-k", &auth_header()))
+        .await;
+    assert_eq!(retry.status, 200, "{}", retry.body);
+    assert_eq!(retry.json()["id"], id, "the ORIGINAL job replays");
+    // The file vanishes: the retry still finds its job, never a 404.
+    std::fs::remove_file(world.workflows.join("root.nika.yaml")).expect("the workflow vanishes");
+    let again = server
+        .request(&post_request(body, "retry-k", &auth_header()))
+        .await;
+    assert_eq!(again.status, 200, "{}", again.body);
+    assert_eq!(again.json()["id"], id, "{}", again.body);
+    assert_eq!(backend.calls(), 1, "one execution, ever");
+    // The same key with other bytes is a typed conflict, still capture-free.
+    let conflict = server
+        .request(&post_request(
+            r#"{"workflow":"other.nika.yaml"}"#,
+            "retry-k",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(conflict.status, 409, "{}", conflict.body);
+    assert_eq!(conflict.json()["error"]["code"], "idempotency_conflict");
+    // The resident's own key namespace is refused to a manual caller.
+    let reserved = server
+        .request(&post_request(body, "schedule:x:0", &auth_header()))
+        .await;
+    assert_eq!(reserved.status, 400, "{}", reserved.body);
+    assert_eq!(reserved.json()["error"]["code"], "invalid_idempotency_key");
+    assert_eq!(backend.calls(), 1);
+    server.stop().await.expect("clean stop");
+}

@@ -153,6 +153,11 @@ enum RequestCommand {
         world: String,
         reply: Reply<Admission>,
     },
+    Replay {
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        reply: Reply<Option<Admission>>,
+    },
     PrepareScheduled {
         key: IdempotencyKey,
         digest: RequestDigest,
@@ -242,6 +247,17 @@ impl StoreHandle {
             world,
             reply,
         })?;
+        receive(answer).await
+    }
+
+    /// The job already bound to this key, without creating one (ADR-132).
+    pub(super) async fn replay(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+    ) -> Result<Option<Admission>, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_request(RequestCommand::Replay { key, digest, reply })?;
         receive(answer).await
     }
 
@@ -637,6 +653,10 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             reply,
         } => {
             let result = store.create_or_replay_captured(key, digest, max_jobs, workflow, &world);
+            let _result = reply.send(result);
+        }
+        RequestCommand::Replay { key, digest, reply } => {
+            let result = store.replay(&key, &digest);
             let _result = reply.send(result);
         }
         RequestCommand::PrepareScheduled {
