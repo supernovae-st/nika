@@ -81,6 +81,7 @@ mod run_clock_tests;
 /// The ONE OS-sandbox selection (ADR-095 Layer 6 · #888) — `pub` because
 /// `nika-mcp`'s spawn confinement rides the same decision (L4→L3).
 mod settle;
+mod settlement;
 /// The effects-simulated seams (the `nika test` plane · P0-16) — `pub`
 /// because [`SimRuntime`](compose::SimRuntime) names them in its spelling
 /// (the `compose::StderrEmitter` precedent).
@@ -95,6 +96,7 @@ use std::sync::Arc;
 
 use futures_util::StreamExt;
 use nika_check::CheckReport;
+use nika_event::settlement::{RunCause, RunSettlement, RunState};
 use nika_event::{Event, EventKind};
 use nika_kernel::ai::provider::{ProviderInferDyn, ProviderMeta};
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
@@ -103,7 +105,7 @@ use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::RawWorkflow;
-use nika_schema::types::{OutputDecl, VarDecl, type_expr_display};
+use nika_schema::types::{OutputDecl, VarDecl};
 use nika_types::cancel::CancelCtx;
 use nika_types::resource::{KeyValue, Value as FieldValue};
 use nika_verb_agent::AgentVerb;
@@ -194,6 +196,11 @@ pub struct RunOutcome {
     pub budget_exceeded: bool,
     /// Whether the operator cancelled the run at a wave boundary (#1353).
     pub cancelled: bool,
+    /// The run's settlement — built ONCE at the boundary that ended the
+    /// run (ADR-128); `ok` · `cancelled` · `budget_exceeded` and the cost
+    /// fields above are its projections, set together by
+    /// [`Self::with_settlement`]. Every door reads THIS.
+    pub settlement: RunSettlement,
 }
 
 impl RunOutcome {
@@ -215,6 +222,11 @@ impl RunOutcome {
             unpriced_calls: 0,
             budget_exceeded: false,
             cancelled: false,
+            settlement: if ok {
+                RunSettlement::new(RunState::Succeeded, RunCause::Normal)
+            } else {
+                RunSettlement::new(RunState::Failed, RunCause::TaskFailed)
+            },
         }
     }
 
@@ -233,13 +245,19 @@ impl RunOutcome {
         )
     }
 
-    /// Fold the run ledger's terminal snapshot onto the outcome (one
-    /// site — normal · paused · budget-abort all flow through).
-    fn with_ledger(mut self, snap: &ledger::LedgerSnapshot) -> Self {
-        self.total_cost_usd = snap.any_priced.then_some(snap.spent_usd);
-        self.priced_calls = snap.priced_calls;
-        self.unpriced_calls = snap.unpriced_calls;
-        self.budget_exceeded = snap.tripped;
+    /// Carry the run's settlement (ADR-128 · ONE site — normal · paused ·
+    /// cancelled · budget all flow through) and set its projections: the
+    /// verdict (a pause keeps `ok`: a decision point, never a failure), the
+    /// cancellation, the budget stop, the metered spend.
+    #[must_use]
+    pub fn with_settlement(mut self, settlement: RunSettlement) -> Self {
+        self.ok = matches!(settlement.state, RunState::Succeeded | RunState::Paused);
+        self.cancelled = settlement.state == RunState::Cancelled;
+        self.budget_exceeded = settlement.cause == RunCause::Budget;
+        self.total_cost_usd = settlement.spend.total_cost_usd;
+        self.priced_calls = settlement.spend.priced_calls;
+        self.unpriced_calls = settlement.spend.unpriced_calls;
+        self.settlement = settlement;
         self
     }
 }
@@ -747,6 +765,25 @@ pub(crate) fn emit(
     ts
 }
 
+/// Emit a terminal frame (ADR-128): the site's own fields, then the
+/// settlement's — its kind IS the settlement's state.
+pub(crate) fn emit_terminal(
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+    fields: &[(&str, FieldValue)],
+    settlement: &RunSettlement,
+) {
+    let (id, ts) = stamper.next();
+    let mut event = Event::new(id, ts, settlement.terminal_kind());
+    for (key, value) in fields {
+        event = event.with_field(KeyValue::new(*key, value.clone()));
+    }
+    for field in settlement.fields() {
+        event = event.with_field(field);
+    }
+    sink.emit(event);
+}
+
 pub(crate) fn s(v: &str) -> FieldValue {
     FieldValue::String(v.to_owned())
 }
@@ -1037,7 +1074,7 @@ where
         let mut outputs = resolve_outputs(wf, &records, inputs, consts, secrets);
         crate::secret::scrub_outputs(&mut outputs, secrets);
         let snapshot = run_ledger.snapshot_at(self.clock.now());
-        let ok = finalize_outputs(
+        let (ok, settlement) = settlement::finalize_outputs(
             wf,
             &outputs,
             &records,
@@ -1047,7 +1084,8 @@ where
             stamper,
             sink,
         );
-        let mut outcome = RunOutcome::from_dataflow(ok, records, outputs).with_ledger(&snapshot);
+        let mut outcome =
+            RunOutcome::from_dataflow(ok, records, outputs).with_settlement(settlement);
         outcome.cache_hits = cache_hits;
         outcome
     }
@@ -1110,12 +1148,13 @@ where
         self.publish_inspect(records, run_ledger);
 
         if let Some(p) = paused {
-            emit_paused(workflow_name, &p, stamper, sink);
+            let snapshot = run_ledger.snapshot_at(self.clock.now());
+            let settlement = emit_paused(workflow_name, &p, records, &snapshot, stamper, sink);
             let mut outcome =
                 RunOutcome::from_dataflow(true, std::mem::take(records), BTreeMap::new());
             outcome.cache_hits = std::mem::take(cache_hits);
             outcome.paused = Some(p);
-            return Ok(Some(outcome.with_ledger(&run_ledger.snapshot())));
+            return Ok(Some(outcome.with_settlement(settlement)));
         }
 
         // The budget's boundary and the operator's (#1353): the run's terminal.
@@ -1276,9 +1315,11 @@ where
 fn emit_paused(
     workflow_name: &str,
     pause: &WorkflowPause,
+    records: &BTreeMap<String, DataflowTaskRecord>,
+    snapshot: &ledger::LedgerSnapshot,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
-) {
+) -> RunSettlement {
     let mut fields = vec![
         ("workflow", s(workflow_name)),
         ("task", s(&pause.task)),
@@ -1307,7 +1348,17 @@ fn emit_paused(
         fields.push(("approval_minted_at_ms", i(ticket.minted_at_ms)));
         fields.push(("approval_ttl_seconds", i(i64::from(ticket.ttl_seconds))));
     }
-    emit(stamper, sink, EventKind::WorkflowPaused, &fields);
+    // The settlement so far rides the pause too (ADR-128): the tally and
+    // the spend of what ran before the gate, the state `paused`.
+    let settlement = settlement::settle_run(
+        records,
+        snapshot,
+        RunState::Paused,
+        RunCause::HumanGate,
+        None,
+    );
+    emit_terminal(stamper, sink, &fields, &settlement);
+    settlement
 }
 
 /// Resolve workflow `outputs:` from the final records · an output whose
@@ -1333,144 +1384,6 @@ fn resolve_outputs(
             Some((key.value.clone(), rendered))
         })
         .collect()
-}
-
-/// Resolve the run's verdict over the typed `outputs:` and emit the terminal
-/// frame. Returns the final `ok` (false if a typed output broke its declared
-/// `type:` · spec 01 rule 6 · NIKA-VAR-009). The reason rides the
-/// `WorkflowFailed` frame as a WORKFLOW-level `detail` (not a phantom
-/// `task_failed`) — the event model stays consistent (no orphan task event, no
-/// spurious row) and `--json`/journal consumers see a valid terminal with the
-/// code. Split out of `run()` to keep that function within its line budget.
-#[allow(clippy::too_many_arguments)] // the terminal frame's parts
-fn finalize_outputs(
-    wf: &RawWorkflow,
-    outputs: &BTreeMap<String, Value>,
-    records: &BTreeMap<String, DataflowTaskRecord>,
-    workflow_name: &str,
-    mut ok: bool,
-    snapshot: &ledger::LedgerSnapshot,
-    stamper: &mut dyn Stamper,
-    sink: &mut dyn EventSink,
-) -> bool {
-    // A typed output is checked only when every task otherwise settled (a task
-    // failure is already the verdict · the output reference is then omitted).
-    let violation = if ok {
-        first_output_type_violation(wf, outputs)
-    } else {
-        None
-    };
-    if violation.is_some() {
-        ok = false;
-    }
-    let kind = if ok {
-        EventKind::WorkflowCompleted
-    } else {
-        EventKind::WorkflowFailed
-    };
-    let mut fields = vec![("workflow", s(workflow_name))];
-    if let Some(v) = &violation {
-        fields.push((
-            "detail",
-            s(&format!(
-                "NIKA-VAR-009 · output `{}` is {}, declared type: {}",
-                v.name, v.actual, v.expected
-            )),
-        ));
-    }
-    fields.extend(terminal_cost_fields(snapshot));
-    // What the human card computes rides the frame (#1247): the status
-    // and the task tally; `elapsed_ms` came with the cost fields.
-    fields.extend(abort::terminal_summary_fields(
-        records,
-        if ok { "completed" } else { "failed" },
-    ));
-    emit(stamper, sink, kind, &fields);
-    ok
-}
-
-/// The run-level cost summary the terminal frame carries — ONLY when
-/// there is something honest to say: totals ride iff at least one leaf
-/// METERED real spend (a mock/local run stays field-free — a
-/// `total_cost_usd: 0.0` nobody metered would be the fake zero at the
-/// run level); the unpriced count rides independently so `≥ $X` renders
-/// can say what the total does NOT cover.
-fn terminal_cost_fields(snap: &ledger::LedgerSnapshot) -> Vec<(&'static str, FieldValue)> {
-    let mut fields = Vec::new();
-    if snap.any_priced {
-        fields.push(("total_cost_usd", FieldValue::Float(snap.spent_usd)));
-        fields.push(("priced_calls", i(i64::from(snap.priced_calls))));
-        // The snapshot identity the total was priced against — the
-        // point-in-time honesty stamp (prices move; the trace says
-        // WHICH prices billed this run).
-        fields.push(("pricing_as_of", s(nika_catalog::pricing_snapshot().as_of)));
-        // Micro-USD rounding at the serialization edge: consumers must
-        // never see f64 accumulation dust (`0.030000000000000002`).
-        let by_source: std::collections::BTreeMap<&String, f64> = snap
-            .by_source
-            .iter()
-            .map(|(k, v)| (k, (v * 1e6).round() / 1e6))
-            .collect();
-        if let Ok(json) = serde_json::to_string(&by_source) {
-            fields.push(("cost_by_source", s(&json)));
-        }
-    }
-    if snap.unpriced_calls > 0 {
-        fields.push(("unpriced_calls", i(i64::from(snap.unpriced_calls))));
-    }
-    if let Some(elapsed) = snap.elapsed {
-        let ms = i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
-        fields.push(("elapsed_ms", i(ms)));
-    }
-    fields
-}
-
-/// One typed-`outputs:` contract violation (spec 01 rule 6 · NIKA-VAR-009).
-struct OutputTypeViolation {
-    name: String,
-    expected: String,
-    actual: &'static str,
-}
-
-/// The FIRST typed `outputs:` value whose resolved JSON value does not
-/// inhabit its declared `type:` (spec 01 §engine-MUST rule 6 · NIKA-VAR-009
-/// · the output half of the callable contract). Post-R3b the declared
-/// type speaks the full `TypeExpr` and the judgment is the ONE type core's
-/// `fits` (lenient exactly where the core is: a whole float like `42.0`
-/// inhabits `integer` · a genuine cross-type mismatch refuses). An output
-/// whose `${{ }}` reference no longer resolves is OMITTED by
-/// [`resolve_outputs`] (spec §3 · not a type error); a `type:` that does
-/// not parse is the check's refusal (`NIKA-TYPE-001` · audit-before-run
-/// keeps it out of the run), never the run's. `None` ⇒ every typed output
-/// honours its declared type.
-fn first_output_type_violation(
-    wf: &RawWorkflow,
-    resolved: &BTreeMap<String, Value>,
-) -> Option<OutputTypeViolation> {
-    let named = std::collections::BTreeMap::new();
-    let type_names = std::collections::BTreeSet::new();
-    for (key, decl) in &wf.outputs {
-        let OutputDecl::Typed {
-            r#type: Some(ty), ..
-        } = decl
-        else {
-            continue; // untyped output OR no declared type → nothing to check
-        };
-        let Some(value) = resolved.get(key.value.as_str()) else {
-            continue; // unresolved → omitted upstream, not a type error
-        };
-        let Ok(declared) = nika_types::types::parse_type(&ty.value, &type_names, "outputs") else {
-            continue; // the check owns this refusal (NIKA-TYPE-001)
-        };
-        if !nika_types::types::fits(value, &declared, &named) {
-            return Some(OutputTypeViolation {
-                name: key.value.clone(),
-                expected: type_expr_display(&ty.value),
-                actual: json_type_name(value),
-            });
-        }
-    }
-    None
 }
 
 /// The JSON type name for a NIKA-VAR-009 diagnostic.

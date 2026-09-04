@@ -631,7 +631,9 @@ fn a_model_less_infer_needs_a_model_or_a_seat() {
     );
     let settled = last_frame(&stdout);
     assert_eq!(settled["error"]["code"], "NIKA-1800", "{settled}");
-    assert_eq!(settled["error"]["task"], "-", "{settled}");
+    // ADR-128 · a launch refusal names no task: the field is absent.
+    assert!(settled["error"].get("task").is_none(), "{settled}");
+    assert_eq!(settled["cause"], "refused", "{settled}");
     // Pinned to the present seat: ready, and the run rides it.
     let pinned = rig.nika(
         &["check", "seat.nika.yaml", "--json", "--access", "codex"],

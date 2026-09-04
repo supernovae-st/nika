@@ -523,7 +523,7 @@ pub(crate) mod tests {
         );
         assert_eq!(g.samples.len(), 1);
         let run = &g.samples[0];
-        assert_eq!(run.state, TraceState::Completed);
+        assert_eq!(run.state, TraceState::Succeeded);
         let t = run.tasks.iter().find(|t| t.id == "t").expect("test value");
         assert_eq!(t.duration_ms, Some(40), "the completion sample survived");
     }

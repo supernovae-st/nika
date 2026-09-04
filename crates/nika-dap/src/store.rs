@@ -41,8 +41,9 @@ pub const QUARANTINE_DIR: &str = ".nika/quarantine";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TraceState {
-    /// `workflow_completed` — a finished, successful run.
-    Completed,
+    /// `workflow_completed` — a finished, successful run (the settlement's
+    /// `succeeded` · ADR-128: a kind is not a state word).
+    Succeeded,
     /// `workflow_failed` — a finished, failed run.
     Failed,
     /// `workflow_cancelled` — a finished run stopped by decision.
@@ -60,7 +61,7 @@ impl TraceState {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Completed => "completed",
+            Self::Succeeded => "succeeded",
             Self::Failed => "failed",
             Self::Cancelled => "cancelled",
             Self::Paused => "paused",
@@ -73,7 +74,7 @@ impl TraceState {
     /// traces"). Paused runs are obligations; running ones aren't done.
     #[must_use]
     pub const fn is_finished(self) -> bool {
-        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+        matches!(self, Self::Succeeded | Self::Failed | Self::Cancelled)
     }
 }
 
@@ -194,7 +195,7 @@ pub fn fold_facts(events: &[Event]) -> (String, TraceState, Option<String>) {
             continue;
         }
         state = match event.kind {
-            EventKind::WorkflowCompleted => TraceState::Completed,
+            EventKind::WorkflowCompleted => TraceState::Succeeded,
             EventKind::WorkflowFailed => TraceState::Failed,
             EventKind::WorkflowCancelled => TraceState::Cancelled,
             EventKind::WorkflowPaused => TraceState::Paused,
@@ -359,7 +360,7 @@ pub(crate) mod tests {
         assert_eq!(traces.len(), 2);
         assert_eq!(traces[0].name, "new-fail.ndjson", "newest first");
         assert_eq!(traces[0].state, TraceState::Failed);
-        assert_eq!(traces[1].state, TraceState::Completed);
+        assert_eq!(traces[1].state, TraceState::Succeeded);
         assert!(traces.iter().all(|t| t.workflow == "veille"));
         assert!(traces.iter().all(|t| t.bytes > 0), "real sizes");
         let _ = std::fs::remove_dir_all(dir);
@@ -394,7 +395,7 @@ pub(crate) mod tests {
             .iter()
             .find(|t| t.name == "answered.ndjson")
             .expect("scanned");
-        assert_eq!(answered.state, TraceState::Completed, "last wins");
+        assert_eq!(answered.state, TraceState::Succeeded, "last wins");
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -439,7 +440,7 @@ pub(crate) mod tests {
     /// running trace is never part of the observability window.
     #[test]
     fn finished_covers_both_verdicts_and_cancellation_only() {
-        assert!(TraceState::Completed.is_finished());
+        assert!(TraceState::Succeeded.is_finished());
         assert!(TraceState::Failed.is_finished());
         assert!(TraceState::Cancelled.is_finished());
         assert!(!TraceState::Paused.is_finished());

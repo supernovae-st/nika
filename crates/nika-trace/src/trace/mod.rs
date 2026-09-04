@@ -62,12 +62,16 @@ pub fn outputs_json(trace: &str) -> VerbOutput {
         Err(out) => return out,
     };
     let projection = tasks_json(&view, &events);
-    let document = serde_json::json!({
+    let mut document = serde_json::json!({
         "outputs_version": 1,
         "trace": trace,
         "state": projection["state"],
         "tasks": projection["tasks"],
     });
+    // ADR-128 · the settlement rides whole when the journal reached one.
+    if let Some(settlement) = projection.get("settlement") {
+        document["settlement"] = settlement.clone();
+    }
     VerbOutput::ok(serde_json::to_string_pretty(&document).unwrap_or_default())
 }
 
@@ -310,21 +314,23 @@ pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::V
             })
         })
         .collect();
-    let run_state = if view.cancelled {
-        "cancelled"
-    } else if view.verdict == Some(true) && view.recovered_count() > 0 {
-        "recovered"
-    } else if view.verdict == Some(true) {
-        "completed"
-    } else if view.verdict == Some(false) {
-        "failed"
-    } else {
-        "running"
-    };
-    serde_json::json!({
+    // ADR-128 · the run's state is the terminal frame's settlement, read
+    // by the ONE reader (`recovered` is a tally on it, never a state); a
+    // journal with no terminal frame is still running — or torn, which
+    // the store's liveness law tells apart (#1442).
+    let settlement = nika_event::settlement::RunSettlement::from_events(events);
+    let run_state = settlement.as_ref().map_or("running", |s| s.state.as_str());
+    let mut doc = serde_json::json!({
         "state": run_state,
         "tasks": tasks,
-    })
+    });
+    if let Some(value) = settlement
+        .as_ref()
+        .and_then(|s| serde_json::to_value(s).ok())
+    {
+        doc["settlement"] = value;
+    }
+    doc
 }
 
 /// One decoded item row of a fan-out's `items` table.
@@ -714,7 +720,8 @@ mod tests {
         assert_eq!(out.code, exit::OK);
         let doc: serde_json::Value = serde_json::from_str(&out.text).expect("one JSON document");
         assert_eq!(doc["outputs_version"], 1);
-        assert_eq!(doc["state"], "completed", "{doc}");
+        assert_eq!(doc["state"], "succeeded", "{doc}");
+        assert_eq!(doc["settlement"]["status"], "succeeded", "{doc}");
         let tasks = doc["tasks"].as_array().expect("the task rows");
         assert!(!tasks.is_empty(), "{doc}");
         for task in tasks {
@@ -1185,7 +1192,9 @@ mod tests {
 
         let (view, evs) = load_view_and_events(&trace).expect("loads");
         let json = tasks_json(&view, &evs);
-        assert_eq!(json["state"], "recovered");
+        // ADR-128 · `recovered` is a fact on the task row (and a tally on the
+        // settlement), never a run STATE: the run succeeded.
+        assert_eq!(json["state"], "succeeded");
         assert_eq!(json["tasks"][0]["status"], "recovered");
         assert_eq!(json["tasks"][0]["recovered_from"], "NIKA-EXEC-001");
         assert_eq!(json["tasks"][0]["error_code"], "NIKA-EXEC-001");

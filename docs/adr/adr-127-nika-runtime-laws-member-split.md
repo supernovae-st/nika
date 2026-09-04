@@ -10,7 +10,7 @@ affects_crates: ["nika-runtime", "nika-runtime-laws"]
 affects_layers: ["L3"]
 supersedes: []
 superseded_by: []
-related: ["ADR-110", "ADR-022", "ADR-024", "ADR-125", "ADR-126"]
+related: ["ADR-022", "ADR-024", "ADR-110", "ADR-125", "ADR-126", "ADR-128"]
 requires: ["ADR-110"]
 ---
 

@@ -370,7 +370,9 @@ fn a_refused_run_settles_with_its_code() {
     assert_eq!(settled["kind"], "run_settled", "{settled}");
     assert_eq!(settled["status"], "failed", "{settled}");
     assert_eq!(settled["error"]["code"], "NIKA-1801", "{settled}");
-    assert_eq!(settled["error"]["task"], "-", "{settled}");
+    // ADR-128 · a launch refusal names no task: the field is absent.
+    assert!(settled["error"].get("task").is_none(), "{settled}");
+    assert_eq!(settled["cause"], "refused", "{settled}");
     assert!(
         !stdout.contains("\"kind\":\"task_started\""),
         "nothing ran: {stdout}"
