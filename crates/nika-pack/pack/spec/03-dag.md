@@ -698,6 +698,16 @@ for_each:
 - **`fail_fast: false`** · iteration errors are collected · remaining
   iterations keep running · parent task transitions to `failure` (with
   per-iteration error details) ONLY after all iterations complete.
+- **`on_error:` runs BEFORE `fail_fast` sees an iteration** · a task-level
+  `on_error: { recover: … }` settles every failed item as `recovered`, so
+  `fail_fast: true` under a blanket `recover` has no observable effect
+  (measured on the reference engine · byte-identical journals). `fail_fast`
+  is the batch's stop policy; `on_error` is the item's outcome · never both
+  for the same intent.
+- **Every item's terminal is recorded** · the fan-out's terminal frame
+  carries `items` (one row per item in input order · `index` · `item` ·
+  `status` ∈ `ok` · `recovered` · `failed` · `never_started` · `code` and
+  `message` when an error was recorded) · see [17 §the kind vocabulary](./17-trace.md#the-kind-vocabulary-normative--closed-per-minor).
 - **Use cases** · « process N URLs · report which failed but don't abort »
   (false) vs « if any LLM call fails, the whole batch is invalid » (true).
 
