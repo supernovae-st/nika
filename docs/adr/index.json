@@ -1325,7 +1325,7 @@
       "affects_layers": ["L1.5","L2","L3","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-120","ADR-099","ADR-003"],
+      "related": ["ADR-120","ADR-099","ADR-003","ADR-131"],
       "requires": [],
       "enables": []
     }
@@ -1421,7 +1421,7 @@
       "affects_layers": ["L0","L3","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-099","ADR-122","ADR-123","ADR-125","ADR-127","ADR-129","ADR-130"],
+      "related": ["ADR-099","ADR-122","ADR-123","ADR-125","ADR-127","ADR-129","ADR-130","ADR-131"],
       "requires": ["ADR-127"],
       "enables": []
     }
@@ -1455,6 +1455,22 @@
       "superseded_by": [],
       "related": ["ADR-127","ADR-128","ADR-129"],
       "requires": ["ADR-128"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-131",
+      "title": "The resident's job door is public: admission by served name, digests as optional attestations, the engine as the one producer",
+      "status": "accepted",
+      "date": "2026-09-04",
+      "filename": "adr-131-the-residents-job-door-is-public.md",
+      "tags": ["architecture","serve","one-door","snapshot","admission"],
+      "affects_crates": ["nika-execution","nika-serve","nika-error","nika-cli-host","nika-cli"],
+      "affects_layers": ["L2","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-122","ADR-128"],
+      "requires": ["ADR-122"],
       "enables": []
     }
   ]

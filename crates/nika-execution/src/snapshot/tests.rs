@@ -421,3 +421,37 @@ proptest::proptest! {
         );
     }
 }
+
+/// ADR-131 · digests are optional attestations on the wire: a body without
+/// them decodes to the same snapshot (the engine computes the digests), a
+/// body with a wrong one refuses.
+#[test]
+fn a_wire_body_without_digests_decodes_to_the_same_world() {
+    let snapshot = valid_snapshot();
+    let encoded = snapshot.encode().expect("encodes");
+    let mut wire: serde_json::Value = serde_json::from_str(&encoded).expect("json");
+    wire.as_object_mut().expect("object").remove("digest");
+    for unit in wire["units"].as_array_mut().expect("units") {
+        unit.as_object_mut().expect("unit").remove("digest");
+    }
+    let bare = ExecutionSnapshot::decode(&wire.to_string()).expect("a digest-less body decodes");
+    assert_eq!(
+        bare.digest(),
+        snapshot.digest(),
+        "the engine computed the same digest"
+    );
+    assert_eq!(
+        bare.encode().expect("encodes"),
+        encoded,
+        "the same canonical world"
+    );
+    let mut wrong: serde_json::Value = serde_json::from_str(&encoded).expect("json");
+    wrong["digest"] = serde_json::Value::String("0".repeat(64));
+    assert!(
+        matches!(
+            ExecutionSnapshot::decode(&wrong.to_string()),
+            Err(ExecutionError::SnapshotDigestMismatch)
+        ),
+        "an attested digest that mismatches refuses"
+    );
+}

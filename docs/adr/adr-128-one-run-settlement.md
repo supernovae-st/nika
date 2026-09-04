@@ -10,7 +10,7 @@ affects_crates: ["nika-event", "nika-runtime", "nika-cli-host", "nika-cli", "nik
 affects_layers: ["L0", "L3", "L4"]
 supersedes: []
 superseded_by: []
-related: ["ADR-099", "ADR-122", "ADR-123", "ADR-125", "ADR-127", "ADR-129", "ADR-130"]
+related: ["ADR-099", "ADR-122", "ADR-123", "ADR-125", "ADR-127", "ADR-129", "ADR-130", "ADR-131"]
 requires: ["ADR-127"]
 enables: []
 amends: []

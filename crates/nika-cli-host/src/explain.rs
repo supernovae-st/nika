@@ -70,6 +70,11 @@ pub fn run_for(wire: &str, theme: Theme, door: Door) -> VerbOutput {
     if let Some(help) = nika_check::hint_help(wire) {
         return VerbOutput::ok(format!("{wire} · hint\n\n  {help}\n"));
     }
+    // The resident's wire codes (`nika serve` · #1441 · ADR-131): the same
+    // voice as the engine's, from the same table the MCP tool reads.
+    if let Some(text) = nika_error::codes::resident_help(wire) {
+        return VerbOutput::ok(text);
+    }
     let normalized = if wire.starts_with("NIKA-") {
         wire.to_owned()
     } else {

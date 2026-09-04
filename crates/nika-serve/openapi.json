@@ -67,9 +67,10 @@
       },
       "ExecutionSnapshot": {
         "additionalProperties": false,
-        "description": "Immutable byte-owned execution world. Unit bytes are canonical lowercase hexadecimal and digests are canonical lowercase SHA-256. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
+        "description": "Immutable byte-owned execution world — the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer; a client never hashes). Unit bytes are canonical lowercase hexadecimal. `digest` and every unit `digest` are OPTIONAL attestations (canonical lowercase SHA-256): absent, the resident computes them and the receipt carries the result; present, they must match the bytes or the request is refused as `snapshot_tampered`. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
         "properties": {
           "digest": {
+            "description": "Optional attestation of the world's digest",
             "pattern": "^[0-9a-f]{64}$",
             "type": "string"
           },
@@ -91,10 +92,12 @@
                   "type": "string"
                 },
                 "digest": {
+                  "description": "Optional attestation of the unit's digest",
                   "pattern": "^[0-9a-f]{64}$",
                   "type": "string"
                 },
                 "kind": {
+                  "description": "0 root (the admitted workflow) · 1 child (a transitively invoked workflow) · 2 skill (an Agent Skill document) · 3 import (an opaque import the caller supplied)",
                   "maximum": 3,
                   "minimum": 0,
                   "type": "integer"
@@ -108,7 +111,6 @@
               "required": [
                 "path",
                 "kind",
-                "digest",
                 "bytes_hex"
               ],
               "type": "object"
@@ -120,7 +122,6 @@
         "required": [
           "format_version",
           "root",
-          "digest",
           "units"
         ],
         "type": "object"
@@ -255,6 +256,21 @@
         "required": [
           "id",
           "status"
+        ],
+        "type": "object"
+      },
+      "JobByName": {
+        "additionalProperties": false,
+        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes.",
+        "properties": {
+          "workflow": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow"
         ],
         "type": "object"
       },
@@ -696,12 +712,19 @@
     },
     "/v1/check": {
       "post": {
-        "description": "Runs the same decode and ExecutionService readmission as POST /v1/jobs over the exact request body.",
+        "description": "Runs the same admission as POST /v1/jobs (ADR-131 · both forms) over the exact request body, and creates nothing.",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExecutionSnapshot"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/JobByName"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ExecutionSnapshot"
+                  }
+                ]
               }
             }
           },
@@ -769,12 +792,12 @@
             "description": "Malformed, unsupported, tampered, or semantically refused snapshot"
           }
         },
-        "summary": "Judge immutable snapshot bytes without creating a job"
+        "summary": "Judge a workflow without creating a job — by served name, or as immutable snapshot bytes"
       }
     },
     "/v1/jobs": {
       "post": {
-        "description": "The server decodes and readmits this exact body through ExecutionService and never interprets a caller filesystem path. Idempotency binds to the exact snapshot payload bytes.",
+        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional attestations. The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -784,7 +807,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExecutionSnapshot"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/JobByName"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ExecutionSnapshot"
+                  }
+                ]
               }
             }
           },
@@ -902,7 +932,7 @@
             "description": "Durable job capacity exhausted"
           }
         },
-        "summary": "Admit immutable snapshot bytes as a durable job"
+        "summary": "Admit a workflow as a durable job — by served name, or as immutable snapshot bytes"
       }
     },
     "/v1/jobs/{id}": {

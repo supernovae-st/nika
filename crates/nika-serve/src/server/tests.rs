@@ -997,11 +997,9 @@ fn assert_http_response_boundary(address: SocketAddr, request: &str, response: &
 }
 
 pub(super) fn post_request(body: &str, key: &str, authorization: &str) -> String {
-    let body = if body == r#"{"workflow":"root.nika.yaml"}"# {
-        snapshot_body(WORKFLOW)
-    } else {
-        body.to_owned()
-    };
+    // ADR-131 · the by-name body is a REAL form of the door now: the
+    // harness sends it as written, no rewrite into a snapshot.
+    let body = body.to_owned();
     format!(
         "POST /v1/jobs HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\nIdempotency-Key: {key}\r\n{authorization}\r\n{body}",
         body.len()
@@ -1270,6 +1268,89 @@ async fn idempotency_is_bound_to_exact_snapshot_body_bytes() {
     server.stop().await.expect("clean stop");
 }
 
+/// ADR-131 · #1441 · a workflow the served registry lists is admitted by
+/// NAME: the resident captures the world itself (the one owner), the job
+/// runs, and a name the registry does not list is a 404 that teaches.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_served_workflow_is_admitted_by_name_and_runs() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let response = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "by-name",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(response.status, 202, "{}", response.body);
+    let job = response.json();
+    assert!(job["id"].is_string(), "{job}");
+    let id = job["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("the job settles");
+    assert_eq!(
+        backend.calls(),
+        1,
+        "the resident captured and ran the world once"
+    );
+    let unknown = server
+        .request(&post_request(
+            r#"{"workflow":"nowhere.nika.yaml"}"#,
+            "by-name-unknown",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(unknown.status, 404, "{}", unknown.body);
+    assert_eq!(unknown.json()["error"]["code"], "not_found");
+    assert!(
+        unknown.json()["error"]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("GET /v1/workflows")),
+        "the refusal teaches where the names are: {}",
+        unknown.body
+    );
+    assert_eq!(backend.calls(), 1);
+    server.stop().await.expect("clean stop");
+}
+
+/// ADR-131 · a snapshot whose digests are absent is admitted — the
+/// resident computes them, and the receipt carries the engine's digest,
+/// the same one an attested body would carry.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_digest_less_snapshot_is_admitted_with_the_engines_digest() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let attested = serde_json::from_str::<Value>(&snapshot_body(WORKFLOW)).expect("snapshot");
+    let engine_digest = attested["digest"].as_str().expect("digest").to_owned();
+    let mut bare = attested.clone();
+    bare.as_object_mut().expect("object").remove("digest");
+    bare["units"][0]
+        .as_object_mut()
+        .expect("unit")
+        .remove("digest");
+    let response = server
+        .request(&post_request(&bare.to_string(), "bare", &auth_header()))
+        .await;
+    assert_eq!(response.status, 202, "{}", response.body);
+    let job = response.json();
+    let id = job["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("the job settles");
+    let settled = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    assert_eq!(
+        settled["receipt"]["snapshot_digest"], engine_digest,
+        "the resident computed the engine's own digest: {settled}"
+    );
+    server.stop().await.expect("clean stop");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn snapshot_wire_refusals_have_stable_typed_codes_and_never_execute() {
     let world = TestWorld::new();
@@ -1295,6 +1376,18 @@ async fn snapshot_wire_refusals_have_stable_typed_codes_and_never_execute() {
         assert_eq!(response.status, 422, "{key}: {}", response.body);
         assert_eq!(response.json()["error"]["code"], code, "{key}");
         assert!(response.json().get("id").is_none(), "{key}");
+        if code == "snapshot_tampered" {
+            // ADR-131 · an attestation that failed, the producer named —
+            // never an accusation.
+            let message = response.json()["error"]["message"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned();
+            assert!(
+                message.contains("attests") && message.contains("--sdk-snapshot"),
+                "{key}: {message}"
+            );
+        }
     }
     assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");
