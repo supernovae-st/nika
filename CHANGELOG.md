@@ -20,6 +20,35 @@ pull requests collided on 2026-08-24 with no source overlap between them, and
 
 ### Fixed
 
+- **One admitted world across root, child and answered execution legs.**
+  Static model resolution, thinking and known capacity are checked for the
+  entire captured workflow closure before execution, with the root override
+  never replacing an explicit task or child model. Child workflows retain
+  the attempt's captured access facts and pin while owning their own lane
+  plans. Each answered CLI leg is readmitted from the original snapshot and
+  receives fresh execution and trace identities, including with a fixed
+  clock or a changed or deleted source file. Public nested settlement
+  errors use the existing redaction boundary. The authorized service runner
+  requires a frozen plan, and the model-less gate honors a legal envelope
+  override without waiving an unrelated task's missing model. Check and
+  runtime now share that predicate; an unrelated admitted lane cannot
+  produce ACCESS READY when a mixed workflow still needs a model.
+- **The resident preserves the runtime's actual result across cancellation,
+  pause and replay.** Cancelling an active job acknowledges the request;
+  the runtime may still succeed or fail, and a missing result after grace
+  is interrupted rather than fabricated cancellation. Queued cancellation
+  and execution claim have one leased winner. Durable GET, idempotent
+  admission replay and SSE expose the stored settlement; a pause closes
+  the observation with that leg's outputs and receipt while the job stays
+  resumable. Ordinary event append cannot inject a pause boundary, and
+  malformed pause results are rejected without committing a mutation.
+- **The native session grounds commands and inventory in installed facts.**
+  Retired `graph`, `tools`, `fix` and the nonexistent `version` command are
+  no longer accepted as installed capabilities; the active `inspect`,
+  `catalog --tools`, `check --fix` and `--version` surfaces remain. Project
+  snapshots retain both workflow-list and filesystem-walk truncation, and
+  deterministic answers and model prompts disclose incomplete inventory
+  instead of turning an unreadable scan into a claim that no workflows exist.
 - **The release train starts again (`v0.118.0` died at its own draft).**
   `prepare-draft-release.sh` created the draft, then looked it up through the
   by-tag endpoint, which returns published releases only: a fresh draft
