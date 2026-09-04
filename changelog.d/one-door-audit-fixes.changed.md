@@ -1,10 +1,41 @@
-- **The resident projects the run's settlement (ADR-128 · the freeze audit).** `execution.settled` and `execution.cancelled` carry `settlement` whole (`status` · `cause` · `elapsed_ms` · `tasks` · `spend` · `error`), the SSE frame projects it and the OpenAPI names it (`RunSettlement`): the SDK's HTTP door reads the same tally, cause and spend the CLI's `run_settled` carries, and the job's status is the settlement's own state. The SSE terminal set is the record's (`JobStatus::is_settled`), no longer a second copy of the four words.
-- **A retry finds its job before the registry is read again (ADR-132 · G1).** `POST /v1/jobs` looks the `Idempotency-Key` up BEFORE capturing: a lost-response retry replays the ORIGINAL job (200 · the same id) even after the served workflow changed, vanished or went red, and never executes changed bytes; the same key with other bytes stays a typed `idempotency_conflict`. The resident's own `schedule:` key namespace is refused to a manual caller (`invalid_idempotency_key`).
-- **The resident stamps its stores after it holds the lease (ADR-132).** A second `nika serve` that loses the server lease never rewrites the live resident's writer stamp, and a newer protocol's stamp never lands beside an older resident still serving; opening a store never stamps it.
-- **Words never above the proof (ADR-131 amended · ADR-130 proven).** A digest a caller sends is a caller-supplied integrity digest, never an « attestation » (nothing signs it): the OpenAPI, the `snapshot_tampered` refusal and `nika explain` say so. The resident's status words are proven equal to the settlement's by a test, as ADR-130 claimed.
-- **`nika check --sdk-snapshot` is public.** The resident's refusals, the listen banner and the OpenAPI tell a human to type it; `--help` now names it too (the SDK's producer of the snapshot body), still an adapter of `check`, never a verb.
-- **The session decides a proposal only once it landed (ADR-133).** A stale apply (the file changed after the preview) leaves the proposal undecided, so a retry by identity reads `wrong_state`, never a false `already_consumed`; the check the session runs after an apply is the same judgment `nika check` makes (a child the workflow invokes and its skills are judged), no longer a child-blind second check.
-- **The local door says what evidence it left, and never resumes a run in flight (ADR-129).** `run_settled` carries `evidence` (`sealed` · `unsealed` · `lost` · `none`): a journal whose writer lane died after the run's effects is `lost`, said, never implied by an absent receipt. `nika run --resume` on a trace whose writer is alive refuses (ENV · « the writer is alive »): a second execution over a partial journal would re-run and re-spend its in-flight tasks.
-- **Unknown cost is never a zero on a human line (ADR-128 · #1278).** The closing card and the live meter of `nika run` say `unmetered` (or `unpriced (N calls)`) instead of `$0.00` when nothing was metered; `nika trace session` says « no spend metered »; the cost replay prints the journaled qualifier beside the total, and says « nothing metered » when the journal carries none.
-- **`nika-tui-core` reads graph format 3 and pins it to the engine (ADR-130).** The crate read `graph_format: 2` while the engine emitted 3 (a cleanup unit is a node, never a task): the ingress carries the engine's number, pinned by a test against `nika-graph`, a node knows its `kind`, a cleanup unit is never seated on the board, and the wasm doors refuse a document whose format they do not speak, naming both numbers.
-- **The seat words never above the rung (ADR-134 · #1253's trust half).** `nika doctor` says « its login command reports signed in » (a status command's exit code, never an authentication), the welcome line and the escape hatch say a seat is « present (its login is judged at run) », a local endpoint that answered a ping « answered », never « verified ».
+- **The freeze audit's fixes (One Door · OD-F12).** Ten proven slices, each
+  the smallest correct owner of a gap the audit found:
+  (1) The resident projects the run's settlement whole (ADR-128):
+  `execution.settled` and `execution.cancelled` carry `settlement` (`status` ·
+  `cause` · `elapsed_ms` · `tasks` · `spend` · `error`), the SSE frame
+  projects it, the OpenAPI names it (`RunSettlement`), the job's status is the
+  settlement's own state, and the SSE terminal set is the record's
+  (`JobStatus::is_settled`).
+  (2) A retry finds its job before the registry is read again (ADR-132 · G1):
+  `POST /v1/jobs` looks the `Idempotency-Key` up BEFORE capturing, so a
+  lost-response retry replays the ORIGINAL job even after the served workflow
+  changed, vanished or went red, and never executes changed bytes; the
+  resident's own `schedule:` key namespace is refused to a manual caller.
+  (3) The resident stamps its stores after it holds the lease (ADR-132): a
+  second `nika serve` that loses the server lease never rewrites the live
+  resident's writer stamp; opening a store never stamps it.
+  (4) Words never above the proof: a digest a caller sends is a
+  caller-supplied integrity digest, never an « attestation » (ADR-131
+  amended); the resident's status words are proven equal to the settlement's
+  (ADR-130).
+  (5) `nika check --sdk-snapshot` is public: the SDK's producer of the
+  snapshot body, still an adapter of `check`, never a verb.
+  (6) The session decides a proposal only once it landed (ADR-133): a stale
+  apply leaves it undecided (a retry reads `wrong_state`, never a false
+  `already_consumed`), and the check after an apply is the same composed
+  judgment `nika check` makes.
+  (7) The local door says what evidence it left and never resumes a run in
+  flight (ADR-129): `run_settled.evidence` (`sealed` · `unsealed` · `lost` ·
+  `none`), and `nika run --resume` on a trace whose writer is alive refuses
+  (ENV · the writer named).
+  (8) Unknown cost is never a zero on a human line (ADR-128 · #1278): the
+  closing card and the live meter say `unmetered` or `unpriced (N calls)`
+  instead of `$0.00`; `nika trace session` says « no spend metered »; the cost
+  replay prints the journaled qualifier.
+  (9) `nika-tui-core` reads graph format 3, pinned to `nika-graph` (ADR-130):
+  a node knows its `kind`, a cleanup unit is never seated on the board, and
+  the wasm doors refuse a format they do not speak, naming both numbers.
+  (10) The seat words never above the rung (ADR-134): `nika doctor` says « its
+  login command reports signed in », the welcome line and the escape hatch say
+  a seat is « present (its login is judged at run) », a local endpoint that
+  answered a ping « answered ».

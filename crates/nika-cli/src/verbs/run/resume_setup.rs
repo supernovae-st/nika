@@ -156,15 +156,6 @@ fn load_resume_plan(
         exit::ENV
     };
     let raw = read_trace(trace, &label, output_json)?;
-    // The freeze audit · a run in flight cannot be resumed: its writer
-    // holds the journal's lease, and a second execution over a partial
-    // journal would re-run and re-spend its in-flight tasks (ADR-129 · the
-    // lease is the liveness truth, never a guess).
-    if let nika_dap::liveness::Liveness::Alive { pid } = nika_dap::liveness::probe(trace) {
-        return Err(refuse(format!(
-            "--resume: the writer of {label} is alive (pid {pid} on this host) — a run in flight cannot be resumed: wait for its terminal, or cancel it"
-        )));
-    }
     // ADR-099 trust amendment — the chain verdict BEFORE the fold (own
     // fn: the 100-line wall, and the judgment belongs to itself).
     let unverified = gate_trust(&raw, &label, req.allow_unverified, output_json)?;
@@ -256,6 +247,15 @@ fn read_trace(trace: &std::path::Path, label: &str, output_json: bool) -> Result
         epilogue::emit_error_envelope(&message, output_json);
         exit::ENV
     };
+    // The freeze audit · a run in flight cannot be resumed: its writer
+    // holds the journal's lease, and a second execution over a partial
+    // journal would re-run and re-spend its in-flight tasks (ADR-129 · the
+    // lease is the liveness truth, never a guess).
+    if let nika_dap::liveness::Liveness::Alive { pid } = nika_dap::liveness::probe(trace) {
+        return Err(refuse(format!(
+            "--resume: the writer of {label} is alive (pid {pid} on this host) — a run in flight cannot be resumed: wait for its terminal, or cancel it"
+        )));
+    }
     let trace_parent = trace
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty());
