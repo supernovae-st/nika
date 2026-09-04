@@ -17,7 +17,7 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
 use crate::seal::{
-    KEYRING_SERVICE, KEYRING_USER_PUB, fallback_key_path, fingerprint, key_file_env, retired_path,
+    KEYRING_USER_PUB, fallback_key_path, fingerprint, key_file_env, keyring_entry, retired_path,
 };
 
 #[must_use]
@@ -31,22 +31,23 @@ pub fn sidecar_path(workflow: &Path) -> PathBuf {
 fn enrolled_pubboxes() -> Vec<String> {
     let current = if let Ok(pf) = key_file_env("NIKA_RUN_PUB_FILE") {
         std::fs::read_to_string(pf).ok() // seam-bypass-ok: CLI custody read (L4 surface)
-    } else if let Some(pk) = crate::seal::keychain_enabled()
-        .then(|| keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB).ok())
-        .flatten()
-        .and_then(|entry| entry.get_password().ok())
+    } else if let Some(pk) =
+        keyring_entry(KEYRING_USER_PUB).and_then(|entry| entry.get_password().ok())
     {
         Some(pk)
     } else {
         fallback_key_path().and_then(|p| std::fs::read_to_string(p.with_extension("pub")).ok()) // seam-bypass-ok: same custody read
     };
-    let mut out: Vec<String> = current.into_iter().map(|pk| pk.trim().to_owned()).collect();
     let retired = retired_path().and_then(|p| std::fs::read_to_string(p).ok()); // seam-bypass-ok: same custody read
-    if let Some(text) = retired {
-        let lines = text.lines().map(str::trim);
-        out.extend(lines.filter(|l| !l.is_empty()).map(str::to_owned));
-    }
-    out
+    enrolled_from_text(current.as_deref(), retired.as_deref())
+}
+
+fn enrolled_from_text(current: Option<&str>, retired: Option<&str>) -> Vec<String> {
+    current
+        .into_iter()
+        .chain(retired)
+        .flat_map(crate::seal::parse_public_boxes)
+        .collect()
 }
 /// The workflow-signature verdict (each surface maps its own exit codes).
 pub enum WorkflowSig {
@@ -149,6 +150,25 @@ mod tests {
     fn keypair() -> (String, minisign::SecretKey) {
         let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair");
         (pair.pk.to_box().expect("pk box").to_string(), pair.sk)
+    }
+
+    #[test]
+    fn a_retired_key_still_verifies_after_the_current_key_changes() {
+        let (old, secret) = keypair();
+        let (current, _) = keypair();
+        let bytes = b"synthetic signed bytes";
+        let signature = minisign::sign(None, &secret, Cursor::new(bytes), None, None)
+            .expect("synthetic signature")
+            .into_string();
+        let candidates = enrolled_from_text(Some(&current), Some(&old));
+        assert_eq!(
+            candidates,
+            vec![current.trim().to_owned(), old.trim().to_owned()]
+        );
+        let WorkflowSig::Valid(found) = verify_sidecar(bytes, &signature, &candidates) else {
+            panic!("the retired public box must remain whole and verifiable");
+        };
+        assert_eq!(found, fingerprint(old.trim()));
     }
     /// `sign → check` round-trip: a workflow signed with an injected key
     /// verifies against that key's enrolled pub, naming its TOFU

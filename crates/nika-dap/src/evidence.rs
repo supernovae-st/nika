@@ -56,6 +56,7 @@ use nika_runtime::proof::{HashDomain, SemanticHash, preimage};
 use serde_json::{Value, json};
 
 use crate::chain::{Verdict, walk};
+use crate::seal::fingerprint;
 use nika_event::source_id::sha256_hex;
 
 mod redact;
@@ -196,24 +197,14 @@ struct ValidFile {
     semantic: Option<SemanticHash>,
 }
 
-/// The public fingerprint of a public-key box string — the first 16
-/// hex of its sha256. Mirror of `nika-cli`'s `seal::fingerprint` (the
-/// minting side): the RULE is one line of sha2, and the verifier side
-/// of the custody belongs to the forensics plane.
-fn fingerprint(pubkey_box: &str) -> String {
-    sha256_hex(pubkey_box.as_bytes())[..16].to_owned()
-}
-
 /// Add one public-key box to the enrolment set, deduped by
 /// fingerprint — a key enrolled in two places is one candidate.
 fn push_unique_pubkey(out: &mut Vec<(String, String)>, pk_box: &str) {
-    let pk_box = pk_box.trim();
-    if pk_box.is_empty() || minisign::PublicKeyBox::from_string(pk_box).is_err() {
-        return; // blank line or non-key text in a custody file — never a candidate
-    }
-    let fp = fingerprint(pk_box);
-    if !out.iter().any(|(known, _)| known == &fp) {
-        out.push((fp, pk_box.to_owned()));
+    for pk_box in crate::seal::parse_public_boxes(pk_box) {
+        let fp = fingerprint(&pk_box);
+        if !out.iter().any(|(known, _)| known == &fp) {
+            out.push((fp, pk_box));
+        }
     }
 }
 
@@ -235,8 +226,7 @@ pub fn candidate_pubkeys() -> Vec<(String, String)> {
             push_unique_pubkey(&mut out, &text);
         }
     }
-    if crate::seal::keychain_enabled()
-        && let Ok(entry) = keyring::Entry::new("nika", "run-signing-key.pub")
+    if let Some(entry) = crate::seal::keyring_entry(crate::seal::KEYRING_USER_PUB)
         && let Ok(text) = entry.get_password()
     {
         push_unique_pubkey(&mut out, &text);
@@ -251,9 +241,7 @@ pub fn candidate_pubkeys() -> Vec<(String, String)> {
         }
         // seam-bypass-ok: run-key custody read — the retired-pubs ledger
         if let Ok(text) = std::fs::read_to_string(keys_dir.join("retired.pub")) {
-            for line in text.lines() {
-                push_unique_pubkey(&mut out, line);
-            }
+            push_unique_pubkey(&mut out, &text);
         }
     }
     out
