@@ -17,7 +17,7 @@
 use std::process::Command;
 
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    Command::new(env!("CARGO_BIN_EXE_nika"))
 }
 
 /// Statically clean (check passes · the exec authority is declared),

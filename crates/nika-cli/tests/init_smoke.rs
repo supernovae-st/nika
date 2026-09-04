@@ -13,7 +13,7 @@ use std::process::Command;
 
 /// The compiled binary under test (the cargo-provided path).
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    Command::new(env!("CARGO_BIN_EXE_nika"))
 }
 
 /// A unique scratch dir per test-process (workspace-independent).

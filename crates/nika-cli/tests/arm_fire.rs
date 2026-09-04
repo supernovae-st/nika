@@ -21,7 +21,7 @@ use std::io::Write as _;
 use std::process::Command;
 
 fn bin() -> Command {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
     // A pause must PARK, never ask (the TTY ask would block a developer
     // machine): stdin stays closed, so the gate goes durable.
     cmd.stdin(std::process::Stdio::null());
@@ -32,12 +32,7 @@ fn bin() -> Command {
 #[cfg(unix)]
 fn bin_with_stream_setup(setup: &str) -> Command {
     let mut cmd = Command::new("/bin/sh");
-    cmd.args([
-        "-c",
-        setup,
-        "nika-stdout-setup",
-        env!("CARGO_BIN_EXE_nika-cli"),
-    ]);
+    cmd.args(["-c", setup, "nika-stdout-setup", env!("CARGO_BIN_EXE_nika")]);
     cmd.stdin(std::process::Stdio::null());
     cmd.env("NIKA_KEYCHAIN", "off");
     cmd

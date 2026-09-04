@@ -9,6 +9,7 @@ rust-version.workspace = true
 repository.workspace   = true
 homepage.workspace     = true
 publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
+default-run            = "nika" # the one public executable (ADR-135) · `cargo run` and `--bin` know no other name
 
 [dependencies]
 nika-event  = { path = "../nika-event", version = "0.117.1" }  # the REAL event taxonomy (the fold input)
@@ -76,10 +77,15 @@ metal       = ["local-infer", "nika-models/metal"]
 access-harness = ["nika-runtime/access-harness", "nika-cli-host/access-harness", "nika-session/access-harness"]
 
 [[bin]]
-name = "nika-cli"
+# The public executable is BORN `nika` (ADR-135): the same name from
+# `cargo build --bin nika` through target/release/nika, the release
+# tarball, the tap, the flake and the user's prompt — no rename at
+# packaging, no second executable. The package keeps its layer name
+# (`nika-cli`, L4); a future L5 composition root takes this target by
+# moving it, never by renaming it. Gated by check-public-binary.sh and
+# tests/public_binary_identity.rs.
+name = "nika"
 path = "src/main.rs"
-# The final user-facing binary name (`nika`) is reserved for the L5
-# composition root; this dev-named bin is the seed it will compose.
 
 [dev-dependencies]
 nika-arm = { path = "../nika-arm", version = "0.117.1", features = ["test-support"] }
@@ -119,7 +125,7 @@ err_prefix    = "none"
 workspace = true
 
 # cargo-binstall resolution (#383). The release tarball carries the binary
-# under its PUBLIC name (`nika`, renamed at packaging — release.yml), and the
+# under its public name (`nika` — the bin target's own name, ADR-135), and the
 # asset names use macos/linux × arm64/x64 rather than target triples, so the
 # bin-dir and every pkg-url are spelled explicitly — binstall's default
 # heuristics miss the assets and silently fall back to a source build.

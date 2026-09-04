@@ -28,10 +28,10 @@ repo="$(cd "$(dirname "$0")/../.." && pwd)"
 bin=""
 for candidate in \
   "${NIKA_BIN:-}" \
-  "${CARGO_TARGET_DIR:-}/debug/nika-cli" \
-  "${CARGO_TARGET_DIR:-}/release/nika-cli" \
-  "$repo/target/debug/nika-cli" \
-  "$repo/target/release/nika-cli"; do
+  "${CARGO_TARGET_DIR:-}/debug/nika" \
+  "${CARGO_TARGET_DIR:-}/release/nika" \
+  "$repo/target/debug/nika" \
+  "$repo/target/release/nika"; do
   if [ -n "$candidate" ] && [ -x "$candidate" ]; then
     bin="$candidate"
     break

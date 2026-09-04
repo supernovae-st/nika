@@ -36,7 +36,7 @@ jobs:
       # vector shipped). The build IS the vector's input. No workflow
       # input is interpolated here: the command is a constant.
       - name: Build the CLI (vector 45 renders the real surfaces)
-        run: cargo build -p nika-cli --bin nika-cli
+        run: cargo build -p nika-cli --bin nika
 
       - name: Run hygiene dashboard
         id: hygiene

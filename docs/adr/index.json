@@ -1133,7 +1133,7 @@
       "affects_layers": ["L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-022","ADR-023","ADR-024"],
+      "related": ["ADR-022","ADR-023","ADR-024","ADR-135"],
       "requires": [],
       "enables": []
     }
@@ -1453,7 +1453,7 @@
       "affects_layers": ["L2","L3","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-127","ADR-128","ADR-129"],
+      "related": ["ADR-127","ADR-128","ADR-129","ADR-135"],
       "requires": ["ADR-128"],
       "enables": []
     }
@@ -1518,6 +1518,22 @@
       "supersedes": [],
       "superseded_by": [],
       "related": [],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-135",
+      "title": "The public executable is born nika: one bin target with the public name, no packaging rename, no second executable",
+      "status": "accepted",
+      "date": "2026-09-04",
+      "filename": "adr-135-the-public-executable-is-born-nika.md",
+      "tags": ["architecture","build","release","one-door"],
+      "affects_crates": ["nika-cli"],
+      "affects_layers": ["L4","L5"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-110","ADR-130"],
       "requires": [],
       "enables": []
     }

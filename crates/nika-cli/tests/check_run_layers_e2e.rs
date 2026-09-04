@@ -70,7 +70,7 @@ impl Rig {
     /// seat on PATH — the seat is the admitted lane, the key is present.
     fn nika(&self, args: &[&str]) -> std::process::Output {
         let path = format!("{}:/usr/bin:/bin", self.root.join("bin").display());
-        Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+        Command::new(env!("CARGO_BIN_EXE_nika"))
             .args(args)
             .env_clear()
             .env("PATH", path)

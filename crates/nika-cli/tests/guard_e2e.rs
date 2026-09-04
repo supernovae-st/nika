@@ -17,7 +17,7 @@ use std::io::Write as _;
 use std::process::Command;
 
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    Command::new(env!("CARGO_BIN_EXE_nika"))
 }
 
 /// The clean shape (the same one-task infer the guard's lib matrix

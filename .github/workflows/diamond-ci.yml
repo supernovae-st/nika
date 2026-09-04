@@ -90,6 +90,11 @@ jobs:
           # precisely that, a close whose proof does not exist. This is the
           # proof it was asking for.
           - gate-lock
+          # The public executable is born `nika` (ADR-135): one bin target with
+          # the public name, no packaging rename, no second executable. This is
+          # the packaging half, judged without cargo; cargo's own reading is
+          # crates/nika-cli/tests/public_binary_identity.rs on the tests leg.
+          - public-binary
     env:
       CHECK: ${{ matrix.check }}
     steps:

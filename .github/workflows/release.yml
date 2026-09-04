@@ -160,7 +160,7 @@ jobs:
             ~/.cargo/git
             target
           key: release-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
-      - name: Build nika-cli (release · locked · sovereign lane whole)
+      - name: Build nika (release · locked · sovereign lane whole)
         # `local-infer` on every target (#518 ruling · option A-CPU): the
         # shipped binary pulls AND serves — measured +2.4 MB. CPU on
         # purpose, darwin included: candle 0.10's quantized rms-norm Metal
@@ -170,7 +170,7 @@ jobs:
         # main, API-frozen, since 2026-08-08, and was never in this line.
         # A downloadable binary that cannot `--access` a seat is a lie
         # the wiring gate now catches. metal stays off (tombstone).
-        run: cargo build --release --locked --bin nika-cli --target ${{ matrix.target }} --features local-infer,access-harness
+        run: cargo build --release --locked --bin nika --target ${{ matrix.target }} --features local-infer,access-harness
       - name: Sign + notarize (macOS)
         # Gatekeeper-trust the binary so browser-downloads do not show
         # "unidentified developer". SAFETY: continue-on-error is MANDATORY —
@@ -218,7 +218,7 @@ jobs:
           echo "Signing with identity: $IDENTITY"
 
           # ── 3. Sign the binary (hardened runtime + secure timestamp) ──
-          BINARY="target/$TARGET/release/nika-cli"
+          BINARY="target/$TARGET/release/nika"
           codesign --force --options runtime --timestamp \
             --sign "$IDENTITY" "$BINARY"
           codesign --verify --strict --verbose=2 "$BINARY"
@@ -245,10 +245,10 @@ jobs:
           set -euo pipefail
           version="${REF_NAME#v}"
           stage="$(mktemp -d)"
-          # The PUBLIC binary is `nika` (the formula does `bin.install "nika"`).
-          # nika-cli is the seed surface until the L5 `nika` composition root
-          # ships; the release renames it to its public name.
-          cp "target/${TARGET}/release/nika-cli" "${stage}/nika"
+          # The PUBLIC binary is `nika` (the formula does `bin.install "nika"`)
+          # and it is BORN `nika`: the bin target carries the name (ADR-135),
+          # so this is a staging copy, never a rename.
+          cp "target/${TARGET}/release/nika" "${stage}/nika"
           chmod +x "${stage}/nika"
           # Pre-generated shell completions ride the tarball (#487) so distro
           # packages (AUR nika-bin · future nixpkgs/apk) can `install -Dm644`

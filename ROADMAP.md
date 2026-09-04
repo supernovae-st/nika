@@ -325,7 +325,9 @@ Sub-phased per Q2 (topological × user-value):
 
 ### L5 — binary (1 crate)
 
-`nika` (composition root, <500 LOC, zero logic).
+`nika` (composition root, <500 LOC, zero logic). The executable identity
+`nika` is already born as `nika-cli`'s bin target (ADR-135); L5 takes the
+target by moving it, never by renaming it.
 
 ### Memory subsystem detail — the Connectome cluster (1 orchestrator + 10 satellites · ADR-004)
 

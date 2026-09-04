@@ -32,7 +32,7 @@ use std::io::Write as _;
 use std::process::Command;
 
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    Command::new(env!("CARGO_BIN_EXE_nika"))
 }
 
 fn write_fixture(dir: &std::path::Path, name: &str, yaml: &str) -> std::path::PathBuf {

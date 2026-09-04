@@ -265,7 +265,7 @@ struct Outcome {
 }
 
 fn nika() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    Command::new(env!("CARGO_BIN_EXE_nika"))
 }
 
 /// Spawn and wait with the row's ceiling — stdout/stderr land in FILES

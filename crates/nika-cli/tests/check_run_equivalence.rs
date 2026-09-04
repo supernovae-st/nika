@@ -66,7 +66,7 @@ struct Observed {
 }
 
 fn run_observed(workflow: &Path, envs: &[(String, String)], vars: &[(String, String)]) -> Observed {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
     cmd.arg("run").arg(workflow).arg("--json");
     for (k, v) in vars {
         cmd.arg("--var").arg(format!("{k}={v}"));
@@ -420,7 +420,7 @@ fn deferred_fixtures_match_their_run_contract_and_are_witnessed() {
         // resolved-host argument cannot mask it), so the refusal is
         // asserted to be a NAMED static finding (never a crash, never
         // an empty mouth) and the pre-emption is counted and told.
-        let check = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+        let check = Command::new(env!("CARGO_BIN_EXE_nika"))
             .arg("check")
             .arg(&input)
             .output()
@@ -537,7 +537,7 @@ fn e_diff_runtime_fs_leg() {
         );
         let wf = root.join(format!("{name}.nika.yaml"));
         std::fs::write(&wf, yaml).expect("write workflow");
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
         cmd.arg("run").arg(&wf).arg("--json").current_dir(&root);
         let out = cmd.output().expect("binary runs");
         let ok = out.status.success();

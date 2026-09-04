@@ -431,9 +431,8 @@ Prefer a guided page? Every install path, step by step: [nika.sh/install](https:
 Already carrying a toolchain?
 
 ```sh
-# cargo: fetches the PREBUILT release tarball (no compile); the binary lands
-# as `nika-cli` until the crates.io publish; symlink the public name once:
-#   ln -sf ~/.cargo/bin/nika-cli ~/.cargo/bin/nika
+# cargo: fetches the PREBUILT release tarball (no compile); the package is
+# `nika-cli`, the executable it installs is `nika` (ADR-135) — nothing to symlink
 cargo binstall --git https://github.com/supernovae-st/nika nika-cli
 
 # nix: builds the exact release source via the flake (first run compiles,

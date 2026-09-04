@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn bin() -> Command {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
     cmd.stdin(std::process::Stdio::null());
     cmd
 }

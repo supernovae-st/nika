@@ -125,7 +125,7 @@ fn every_declared_verb_is_reachable_in_the_shipped_dispatcher() {
     let mut broken: Vec<(String, Option<i32>)> = Vec::new();
 
     for verb in &verbs {
-        let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+        let out = Command::new(env!("CARGO_BIN_EXE_nika"))
             .args([verb.as_str(), "--help"])
             .output()
             .unwrap_or_else(|e| panic!("spawn `{verb} --help`: {e}"));
@@ -148,7 +148,7 @@ fn every_declared_verb_is_reachable_in_the_shipped_dispatcher() {
 fn an_undeclared_verb_is_still_refused() {
     // The negative end. Without it, a dispatcher that answered `--help`
     // for ANY argv would pass the traversal above.
-    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_nika"))
         .args(["definitely-not-a-verb", "--help"])
         .output()
         .expect("spawn");

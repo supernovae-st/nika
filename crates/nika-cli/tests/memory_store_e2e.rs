@@ -40,7 +40,7 @@ use nika_store::{
 };
 
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    Command::new(env!("CARGO_BIN_EXE_nika"))
 }
 
 /// A hermetic run-signing key pair on disk: the `NIKA_RUN_*_FILE` custody
