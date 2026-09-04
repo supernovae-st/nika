@@ -14,7 +14,9 @@ use uuid::Uuid;
 const DIGEST_HEX_LEN: usize = 64;
 const MAX_IDEMPOTENCY_KEY_BYTES: usize = 255;
 
-/// Maximum encoded size of one durable event payload.
+/// Maximum encoded size of an ordinary durable event payload.
+/// A paused result carrying outputs uses [`MAX_JOB_SNAPSHOT_BYTES`], the
+/// same bound as final result storage; oversized results are never truncated.
 pub const MAX_EVENT_PAYLOAD_BYTES: usize = 64 * 1024;
 /// Maximum number of event payloads admitted by one append operation.
 pub const MAX_EVENT_BATCH_LEN: usize = 64;
@@ -516,6 +518,14 @@ pub struct JobRecord {
     /// Receipt bound atomically to a terminal settlement.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) receipt: Option<JobReceipt>,
+    /// Read projection of the hash-bound terminal event, never a second
+    /// persisted settlement. Rebuilt after validation and event mutation.
+    #[serde(skip)]
+    pub(crate) settlement: Option<Value>,
+    #[serde(skip)]
+    pub(crate) paused_outputs: Option<BTreeMap<String, Value>>,
+    #[serde(skip)]
+    pub(crate) paused_receipt: Option<JobReceipt>,
 }
 
 impl JobRecord {
@@ -583,7 +593,9 @@ impl JobRecord {
     /// Return declared workflow outputs after a terminal settlement.
     #[must_use]
     pub fn outputs(&self) -> Option<&BTreeMap<String, Value>> {
-        if self.status.is_settled() {
+        if self.status == JobStatus::Paused {
+            self.paused_outputs.as_ref()
+        } else if self.status.is_settled() {
             self.outputs.as_ref()
         } else {
             None
@@ -593,11 +605,20 @@ impl JobRecord {
     /// Return the execution receipt after a terminal settlement.
     #[must_use]
     pub fn receipt(&self) -> Option<&JobReceipt> {
-        if self.status.is_settled() {
+        if self.status == JobStatus::Paused {
+            self.paused_receipt.as_ref()
+        } else if self.status.is_settled() {
             self.receipt.as_ref()
         } else {
             None
         }
+    }
+
+    /// Runtime settlement projected from the validated terminal event.
+    /// Absent when no runtime settled (or an older adapter omitted it).
+    #[must_use]
+    pub fn settlement(&self) -> Option<&Value> {
+        self.settlement.as_ref()
     }
 }
 
@@ -906,6 +927,9 @@ pub enum JobStoreError {
     /// A lifecycle transition omitted its mandatory durable event.
     #[error("a lifecycle transition requires at least one event")]
     TransitionEventRequired,
+    /// A pause boundary was appended without its matching lifecycle mutation.
+    #[error("a pause observation requires its matching lifecycle transition")]
+    InvalidObservationEvent,
     /// An approval event omitted its canonical claim digest.
     #[error("approval_decided event requires a canonical digest")]
     InvalidApprovalEvent,

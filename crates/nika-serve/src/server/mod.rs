@@ -219,8 +219,8 @@ pub trait ExecutionBackend: Send + Sync + 'static {
     /// Execute with a run-scoped cooperative cancellation token.
     ///
     /// The default preserves existing adapters; the resident owner also drops
-    /// this future when the token fires, so an adapter cannot make HTTP
-    /// cancellation depend on polling the token itself.
+    /// this future if cancellation grace expires. An adapter returns its
+    /// actual settlement during grace; the resident never invents one.
     fn execute_with_cancel<'a>(
         &'a self,
         context: ExecutionContext<'a>,
@@ -1030,31 +1030,22 @@ async fn settle_disposition(
             .backend
             .execute_with_cancel(session.context(), max_cost_usd, cancel.clone());
     // A cancel signal gives the runtime a grace to reach its next wave
-    // boundary and settle with terminal frames (#1353); only a run that
-    // does not come back in time is dropped mid-flight as before.
+    // boundary and return its result. A signal requests action; only the
+    // execution owner can settle it. No returned result means interruption.
     let outcome = tokio::time::timeout(state.limits.execution_timeout(), async {
         tokio::pin!(execute);
         tokio::select! {
-            outcome = &mut execute => outcome,
+            outcome = &mut execute => Some(outcome),
             () = cancel::cancelled(cancel.clone()) => {
-                match tokio::time::timeout(CANCEL_GRACE, &mut execute).await {
-                    Ok(outcome) => outcome,
-                    Err(_) => ExecutionDisposition::Cancelled.into(),
-                }
+                tokio::time::timeout(CANCEL_GRACE, &mut execute).await.ok()
             }
         }
     })
     .await;
-    let Ok(outcome) = outcome else {
+    let Ok(Some(outcome)) = outcome else {
         guard.interrupt().await?;
         return Ok(());
     };
-    let outcome =
-        if cancel.is_cancelled() && outcome.disposition() != ExecutionDisposition::Cancelled {
-            ExecutionDisposition::Cancelled.into()
-        } else {
-            outcome
-        };
     let verdict = session.complete(outcome.disposition());
     // ADR-130 · the job's status is the settlement's state, projected
     // through ONE mapping (the words are the settlement's): the runtime's
@@ -1064,11 +1055,8 @@ async fn settle_disposition(
         || nika_event::settlement::RunState::from(*verdict.outcome()),
         |settlement| settlement.state,
     ));
-    // One cancellation terminal (#1350): a cancelled disposition settles as
-    // `execution.cancelled` here as it does on the cancel route, so the race
-    // between the two writers changes the author, never the kind. A failure
-    // that lands under a pending cancel is already mapped to Cancelled above:
-    // cancellation has precedence over failure.
+    // Preserve the runtime's actual status, including success or failure
+    // racing cancellation. The route never writes an active run's result.
     let kind = if status == JobStatus::Cancelled {
         "execution.cancelled"
     } else {
@@ -1087,8 +1075,8 @@ async fn settle_disposition(
         event["code"] = json!(code);
         event["message"] = json!(message);
     }
-    let receipt = status
-        .is_settled()
+    let observation_ended = status.is_settled() || status == JobStatus::Paused;
+    let receipt = observation_ended
         .then(|| {
             JobReceipt::with_origin(
                 guard.id.clone(),
@@ -1100,12 +1088,24 @@ async fn settle_disposition(
             )
         })
         .transpose()?;
-    let outputs = if status.is_settled() {
+    let outputs = if observation_ended {
         outcome.outputs.clone()
     } else {
         None
     };
-    guard.settle_result(status, event, outputs, receipt).await?;
+    if status == JobStatus::Paused {
+        // A pause ends this observation leg, but the job may resume. Bind
+        // its evidence to the event so later record changes preserve hashes.
+        if let Some(outputs) = outputs {
+            event["outputs"] = json!(outputs);
+        }
+        if let Some(receipt) = receipt {
+            event["receipt"] = json!(receipt);
+        }
+        guard.settle_result(status, event, None, None).await?;
+    } else {
+        guard.settle_result(status, event, outputs, receipt).await?;
+    }
     Ok(())
 }
 
@@ -1147,23 +1147,9 @@ impl RunningGuard {
         outputs: Option<BTreeMap<String, serde_json::Value>>,
         receipt: Option<JobReceipt>,
     ) -> Result<(), ServerError> {
-        let result = self
-            .store
+        self.store
             .settle_with_result_reliable(self.id.clone(), status, event, outputs, receipt)
-            .await;
-        if let Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) = &result
-        {
-            let already_cancelled = self
-                .store
-                .get(self.id.clone())
-                .await?
-                .is_some_and(|record| record.status() == JobStatus::Cancelled);
-            if already_cancelled {
-                self.disarm();
-                return Ok(());
-            }
-        }
-        result?;
+            .await?;
         self.disarm();
         Ok(())
     }

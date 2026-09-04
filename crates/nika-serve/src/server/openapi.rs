@@ -81,6 +81,7 @@ fn schemas() -> Value {
                         "additionalProperties": true
                     },
                     "receipt": {"$ref": "#/components/schemas/JobReceipt"},
+                    "settlement": {"$ref": "#/components/schemas/RunSettlement"},
                     "error": {
                         "type": "object",
                         "additionalProperties": false,
@@ -220,7 +221,7 @@ fn run_settlement_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "description": "The run's settlement (ADR-128), built once by the runtime and projected whole: the state word every door speaks, why, the elapsed time on the kernel clock, the task tally, the spend with its qualifier, the failure named. Unknown cost is never zero: `total_cost_usd` is absent when nothing was metered. Present on the terminal event of a job whose runtime settled; absent when the resident lost the execution (interrupted) or refused it before any task.",
+        "description": "The run's settlement (ADR-128), built once by the runtime and projected whole: the state word every door speaks, why, the elapsed time on the kernel clock, the task tally, the spend with its qualifier, the failure named. Unknown cost is never zero: `total_cost_usd` is absent when nothing was metered. Present on the terminal event and durable job response of a job whose runtime settled; absent when the resident lost the execution (interrupted) or refused it before any task. Reattachment and idempotent admission replay project the same hash-bound terminal event, never a new settlement.",
         "required": ["status", "cause", "spend"],
         "properties": {
             "status": {"type": "string", "enum": ["succeeded", "failed", "paused", "cancelled"]},
@@ -542,10 +543,10 @@ fn job_events_path() -> Value {
 
 fn job_cancel_path() -> Value {
     json!({"post": {
-        "summary": "Idempotently cancel a queued, running, or paused job",
-        "description": "Cancellation signals the run-scoped engine token before durable terminal settlement. A terminal replay returns the existing result unchanged.",
+        "summary": "Request cancellation or replay an ended observation",
+        "description": "A queued job cancels atomically before execution claims it. An active job receives the run-scoped cancellation signal and returns 202 until its execution owner settles: the result may be success, failure or cancellation; expired grace means interrupted, never an invented cancellation. A paused or final observation returns its existing result unchanged.",
         "parameters": [job_id_param()],
-        "responses": {"200": {"description": "Cancelled or already terminal job", "content": json_job()}, "401": error_ref(), "404": error_ref(), "503": error_ref()}
+        "responses": {"200": {"description": "Cancelled before execution, or already ended observation", "content": json_job()}, "202": {"description": "Cancellation requested; execution has not yet settled", "content": json_job()}, "401": error_ref(), "404": error_ref(), "503": error_ref()}
     }})
 }
 

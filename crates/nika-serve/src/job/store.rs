@@ -15,6 +15,7 @@ use sha2::{Digest as _, Sha256};
 mod admission;
 mod binding;
 mod migration;
+mod stored_job;
 
 use binding::{
     attach_interrupted_receipt, ensure_receipt_matches, has_complete_execution_identity,
@@ -304,6 +305,9 @@ impl JobStore {
             error_message: String::new(),
             outputs: None,
             receipt: None,
+            settlement: None,
+            paused_outputs: None,
+            paused_receipt: None,
         };
         if let Some(world) = world {
             self.dir.write_atomic(&world_file(&record.id), world)?;
@@ -924,8 +928,11 @@ impl JobStore {
         let text = self
             .read_state_optional()?
             .ok_or_else(missing_state_error)?;
-        let state = decode_state(&text)?.state;
+        let mut state = decode_state(&text)?.state;
         self.verify_approval_history(&state)?;
+        for job in &mut state.jobs {
+            job.project_settlement()?;
+        }
         Ok(state)
     }
 
@@ -1135,55 +1142,6 @@ pub(super) struct StoredJob {
     terminal_sequence: Option<u64>,
 }
 
-impl StoredJob {
-    fn final_sequence_after(&self, batch: &ValidatedEventBatch<'_>) -> Result<u64, JobStoreError> {
-        let appended = u64::try_from(batch.len())
-            .map_err(|_| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
-        self.event_count
-            .checked_add(appended)
-            .ok_or_else(|| JobStoreError::SequenceExhausted(self.record.id.clone()))
-    }
-
-    fn append_payloads(
-        &mut self,
-        batch: &ValidatedEventBatch<'_>,
-    ) -> Result<Vec<JobEvent>, JobStoreError> {
-        let mut next = self
-            .events
-            .last()
-            .map_or(Ok(1), |event| event.sequence.checked_add(1).ok_or(()))
-            .map_err(|()| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
-        let mut appended = Vec::with_capacity(batch.len());
-        for payload in batch.payloads() {
-            let previous_hash = self.event_head.clone();
-            let hash = hash_event(
-                &self.record,
-                self.terminal_sequence,
-                next,
-                previous_hash.as_ref(),
-                payload,
-            )?;
-            let event = JobEvent {
-                sequence: next,
-                payload: payload.clone(),
-                previous_hash,
-                hash,
-            };
-            next = next
-                .checked_add(1)
-                .ok_or_else(|| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
-            self.events.push(event.clone());
-            self.event_count = self
-                .event_count
-                .checked_add(1)
-                .ok_or_else(|| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
-            self.event_head = Some(event.hash.clone());
-            appended.push(event);
-        }
-        Ok(appended)
-    }
-}
-
 fn world_file(id: &JobId) -> String {
     format!("{}.world", id.as_str())
 }
@@ -1231,6 +1189,7 @@ fn validate_events(job: &StoredJob) -> Result<(), JobStoreError> {
             ));
         }
         event.hash.validate()?;
+        stored_job::validate_pause_payload(&event.payload, &job.record.id)?;
         if event.previous_hash.as_ref() != previous {
             return Err(JobStoreError::Corrupt(
                 "event chain predecessor does not match".to_owned(),
@@ -1310,6 +1269,7 @@ fn missing_state_error() -> JobStoreError {
 
 struct ValidatedEventBatch<'a> {
     payloads: &'a [Value],
+    transition: bool,
 }
 
 impl<'a> ValidatedEventBatch<'a> {
@@ -1322,23 +1282,39 @@ impl<'a> ValidatedEventBatch<'a> {
         }
         for (index, payload) in payloads.iter().enumerate() {
             let bytes = encoded_payload_len(payload)?;
-            if bytes > MAX_EVENT_PAYLOAD_BYTES {
+            // A paused result lives in its immutable event, whereas a final
+            // result lives in the record. Both obey the whole-store bound;
+            // moving the result must not shrink outputs to an ordinary event.
+            let maximum = if payload["kind"] == "execution.settled"
+                && payload["status"] == "paused"
+                && payload.get("outputs").is_some()
+            {
+                MAX_JOB_SNAPSHOT_BYTES
+            } else {
+                MAX_EVENT_PAYLOAD_BYTES
+            };
+            if bytes > maximum {
                 return Err(JobStoreError::EventPayloadTooLarge {
                     index,
                     bytes,
-                    maximum: MAX_EVENT_PAYLOAD_BYTES,
+                    maximum,
                 });
             }
             validate_approval_event(payload)?;
         }
-        Ok(Self { payloads })
+        Ok(Self {
+            payloads,
+            transition: false,
+        })
     }
 
     fn for_transition(payloads: &'a [Value]) -> Result<Self, JobStoreError> {
         if payloads.is_empty() {
             return Err(JobStoreError::TransitionEventRequired);
         }
-        Self::new(payloads)
+        let mut batch = Self::new(payloads)?;
+        batch.transition = true;
+        Ok(batch)
     }
 
     fn payloads(&self) -> &'a [Value] {

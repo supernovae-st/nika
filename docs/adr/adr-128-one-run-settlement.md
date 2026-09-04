@@ -120,3 +120,33 @@ one evidence trail »: a settlement is engine truth, computed once.
 - Making `RunSettlement` a runtime type: rejected — readers (`nika-trace`
   · `nika-dap` · the resident · tui-core) must not depend on the runtime
   to read a frame.
+
+## Amendment · closing audit, 2026-09-04
+
+Cancellation acknowledges an **action**, not an outcome. An active resident
+job's cancel route signals its runtime owner and returns `202` while that
+owner is running. A settlement returned during the grace period wins,
+including success or failure racing cancellation. No returned settlement
+means `interrupted`, never a fabricated runtime cancellation. A queued job
+has no runtime owner: cancellation and execution claim compete under one
+store lease, binding the winning identity and result atomically.
+
+A pause ends an **execution leg's observation**, not the durable job's
+lifecycle. Its outputs, receipt and settlement live in its hash-chained
+pause event. SSE closes at that boundary even when replaying it after a
+later leg started; it never substitutes the later leg's receipt. Generic
+event append cannot create or replace a pause boundary. A resumed CLI leg
+is readmitted from the owned snapshot and receives a fresh execution and
+trace identity, even if the visible source was edited or deleted.
+
+The durable job GET, idempotent admission replay and SSE all expose the
+same stored settlement. Projection fields are reconstructed from existing
+events rather than added to the v3 hash preimage: a final result uses the
+bound terminal sequence, not the last event with a suggestive payload.
+Old records without settlement fields remain absent, never invented.
+This is read compatibility for evidence, not a second execution law.
+
+Regression evidence lives in `nika-serve`'s `job/result_tests.rs`,
+`server/tests/cancel_race.rs`, `server/tests/pause_boundary.rs` and SSE
+tests, plus `nika-cli/tests/ask_pty.rs`. Library tests and the PTY target
+have different runners; passing the former does not imply the latter ran.

@@ -374,6 +374,8 @@ mod budget;
 #[cfg(test)]
 mod cancel_race;
 #[cfg(test)]
+mod pause_boundary;
+#[cfg(test)]
 mod request_lifecycle;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -786,6 +788,17 @@ async fn queued_cancel_mints_identity_and_receipt_without_entering_the_backend()
         .expect("first settled");
     tokio::time::sleep(Duration::from_millis(30)).await;
     assert_eq!(backend.calls(), 1, "cancelled queue row stays inert");
+    let events = server.request(&events_request(&queued_id, None)).await;
+    let events = parse_sse_data(&events.body);
+    assert!(
+        events
+            .iter()
+            .all(|event| event["kind"] != "execution.started")
+    );
+    assert_eq!(
+        events.last().expect("queued cancellation")["kind"],
+        "execution.cancelled"
+    );
     server.stop().await.expect("clean stop");
     let replacement = world
         .start(
