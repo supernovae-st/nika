@@ -148,7 +148,7 @@ fn drive<R: BufRead, W: Write>(
                 next = Next::Choice;
                 writeln!(output, "{screen}")?;
             }
-            TurnOutcome::Proposal(preview) | TurnOutcome::Held(preview) => {
+            TurnOutcome::Proposal { preview, .. } | TurnOutcome::Held { preview, .. } => {
                 next = Next::Consent;
                 writeln!(output, "{preview}")?;
             }
@@ -164,7 +164,7 @@ fn drive<R: BufRead, W: Write>(
                 let (code, trace) = run_once(&session.snapshot.root, &run, theme);
                 next = observed(output, session.observe_run(code, trace.as_deref()))?;
             }
-            TurnOutcome::GateAsk(question) => {
+            TurnOutcome::GateAsk { question, .. } => {
                 next = Next::Gate;
                 writeln!(output, "{question}")?;
             }
@@ -266,12 +266,16 @@ impl Next {
 /// next line the human's answer.
 fn observed<W: Write>(output: &mut W, outcome: TurnOutcome) -> std::io::Result<Next> {
     match outcome {
-        TurnOutcome::GateAsk(question) => {
+        TurnOutcome::GateAsk { question, .. } => {
             writeln!(output, "{question}")?;
             Ok(Next::Gate)
         }
-        TurnOutcome::Facts(line) | TurnOutcome::Refusal(line) => {
+        TurnOutcome::Facts(line) => {
             writeln!(output, "{line}")?;
+            Ok(Next::Turn)
+        }
+        TurnOutcome::Refusal(why) => {
+            writeln!(output, "{why}")?;
             Ok(Next::Turn)
         }
         _ => Ok(Next::Turn),
