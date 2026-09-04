@@ -11,12 +11,16 @@ credentials, a model you chose, and a journal you can export.
 
 ## Spend (the envelope is part of the contract)
 
-- `nika check <file>` prints the cost BEFORE any token: `≤ $X` is a
-  ceiling · `≥ $X FLOOR` means at least one task is unbounded — fix
+- `nika check <file>` estimates output-token cost BEFORE any token: `≤ $X`
+  bounds that output estimate, not prompt/input cost or the entire invoice.
+  `≥ $X FLOOR` means at least one task is unbounded — fix
   the reason (a missing `max_tokens`, an uncataloged model, an
   expression fan-out), never ship a floor to production.
-- Cap the run: `nika run <file> --max-cost-usd <n>` blocks BEFORE the
-  call that would cross the cap.
+- Cap the run: `nika run <file> --max-cost-usd <n>` refuses a known
+  over-budget floor before execution. Crossing the metered budget during
+  execution stops new admissions; already-started calls finish and count.
+  A concurrent wave can overshoot, and unpriced work has no measured USD
+  bound. Choose concurrency and model limits with that exposure in mind.
 - A local model is **unpriced compute, not free** — say "unpriced",
   never "$0".
 
@@ -77,8 +81,10 @@ that leaned on an ambient variable must now name it.
   URL (`${{ inputs.repo }}` in the address) — the checker refuses
   conservatively. Pin the URL, or drop the `host:` scope and keep
   the tool-level sink.
-- Values come from the environment at run time; CI injects them the
-  same way a shell does. Never a literal in YAML, never in a trace.
+- Use the declared secret source at run time; CI can inject an environment
+  source. Never put a credential literal in YAML. Public redaction is not
+  journal confidentiality: raw task outputs can contain sensitive data,
+  so protect trace storage and review evidence before sharing it.
 - `nika doctor` audits the machine: binary, PATH, provider env vars.
 
 ## Models (a one-line swap, both directions)
@@ -100,11 +106,11 @@ that leaned on an ambient variable must now name it.
 - Pin behavior: `nika test <file> --update` writes
   `<file>.golden.json` from a mock run; `nika test <file>` replays
   and compares — deterministic, zero model keys, CI-safe.
-- **Mock mocks the MODEL, not the tools**: a live `nika:fetch` still
-  rides the network under `nika test`, and a `secrets:` entry still
-  resolves from the environment (export a dummy in CI). Golden the
-  hermetic workflows (read · jq · write · infer); a workflow whose
-  truth lives on the network is proven by its TRACE, not a golden.
+- `nika test` uses the simulated plane and refuses network, subprocess
+  and write effects. Golden only workflows that fit that plane. For an
+  effecting rehearsal, use `nika run <file> --model mock/echo` in scratch:
+  that flag mocks the model, not the tools, so declared effects and secret
+  sources remain real. Inspect those artifacts and the trace separately.
 - `--native-strict` in CI keeps `exec:` honest: any shell task an
   embedded builtin covers fails the gate (the exec ledger documents
   the survivors).

@@ -183,7 +183,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 123
-  aggregate_sha256: 1eb03dcc134bec4d48ab8fb65affb595eca7a4cf61f9ffb6bf9616429f07313c
+  aggregate_sha256: 03498d9d439fa1f9ed96086dbd71dc349e44a1db0bd09cbb181288f5ee12f181
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
@@ -203,7 +203,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 32
-  aggregate_sha256: 6c05b71375da3f4f7fb7f1343e1105f1b770a0f7d346eb88dd8618759b838165
+  aggregate_sha256: f306c4471504e8e7449d3647c1c9b6df7c1a82d4842072e600725406168da2d7
   evidence: "the engine-owned portable release kit; wave-sweep advances its manifests with the engine and nika-plugins mirrors these bytes only from immutable engine release tags via resync-mirror.py"
   note: "direction is engine tag → nika-plugins mirror; clients-resync owns only clients.registry.yaml and must never overwrite this tree from a moving downstream main branch"
 - glob: ".claude/**"

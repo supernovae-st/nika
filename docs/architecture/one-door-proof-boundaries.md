@@ -18,6 +18,7 @@ kinds of evidence.
 | Who may change a job's state? | Resident owner and leased `JobStore` transitions | Request cancellation; never manufacture its requested outcome |
 | What can be replayed? | Hash-bound stored event and receipt | Resume observation by sequence; never re-execute a completed admission to recover its answer |
 | What does a trace prove? | Trace verifier and writer-liveness checks | Report the proof tier; never infer a sealed trace from a receipt alone |
+| What does the budget bound? | Admission floor and runtime spend ledger | Distinguish output estimates, recorded spend, in-flight exposure and unpriced work; never promise an invoice ceiling |
 
 Zero legacy means removing a replaced decision path and migrating its owned
 callers. It does not mean deleting unique operator capabilities because
@@ -84,6 +85,9 @@ overwrite a successful result with a cancellation request.
   harness cannot be evidence of runtime liveness.
 - Repeat installed-package tests on the exact published engine and SDK.
   Source and debug-binary evidence do not prove a registry artifact.
+- Keep agent teaching aligned with the spend ledger: crossing the measured
+  budget stops new admissions, not already-started calls. Unpriced work and
+  input costs omitted by an output-only estimate are not proved free or capped.
 
 The focused Rust regressions are in `nika-execution`,
 `nika-service-execution`, `nika-serve` and the CLI answered-leg tests.
