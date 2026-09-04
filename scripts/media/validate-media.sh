@@ -51,6 +51,7 @@ done
 
 # ── existence ───────────────────────────────────────────────────────────
 required=(
+  media/brand/nika-logomark.svg
   media/gifs/intent-dag-proof.optimized.gif
   media/gifs/full-loop.optimized.gif
   media/gifs/static-check-fix.optimized.gif
@@ -80,7 +81,9 @@ required=(
   media/posters/editor-diagnostics.png
   media/posters/permits-audit.png
   media/posters/on-error-recover.png
+  media/storyboards/intent-dag-proof.png
   media/raw/transcripts.json
+  scripts/media/motion/intent-dag-proof.storyboard.md
 )
 for f in "${required[@]}"; do
   if [ -f "$f" ]; then say "✔ $f"; else

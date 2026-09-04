@@ -19,9 +19,11 @@ Official visual assets for the README, docs, website and social surfaces.
 
 ```
 media/
-  gifs/      *.optimized.gif   — README embeds (1280px · 16fps · ≤8MB)
+  brand/     nika-logomark.svg — official butterfly mark (geometry preserved)
+  gifs/      *.optimized.gif   — README embeds (scene width/fps · ≤8MB)
   videos/    *.mp4 + *.webm    — docs + website embeds
   posters/   *.png             — static frame per animation (og:image, video poster)
+  storyboards/*.png            — six-beat visual QA contact sheets
   social/    og-card + github-social-preview — share cards (scene: motion/og-card.html)
   raw/       *.txt + *.json    — captured CLI transcripts (the source of truth)
   nika-hero.gif                — real terminal capture (check + run)
@@ -31,14 +33,15 @@ media/
 
 ```sh
 bash scripts/media/capture-transcripts.sh     # refresh real CLI transcripts
-cd scripts/media && npm install               # once (playwright-core)
+cd scripts/media && npm install               # once (Playwright + GSAP + Geist)
 node render-motion.mjs intent-dag-proof static-check-fix chat-to-workflow dag-execution
 bash scripts/media/validate-media.sh          # honesty + budget gate
 ```
 
-The motion scenes live in `scripts/media/motion/*.html` — self-contained
-HTML/SVG timelines rendered frame-by-frame in headless Chrome. Open any
-scene in a browser to preview it live.
+The motion scenes live in `scripts/media/motion/*.html` — deterministic
+HTML/SVG timelines rendered frame-by-frame in headless Chrome. The README hero
+has a checked-in production storyboard beside its scene. Open any scene in a
+browser to preview it live.
 
 Terminal captures (the second lane) are VHS tapes in `scripts/media/tapes/`,
 rendered against the real installed binary in a staged workdir:
