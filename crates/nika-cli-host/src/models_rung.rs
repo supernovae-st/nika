@@ -110,10 +110,11 @@ pub fn verdict_layers_for(
             format!(" · chosen over {others} other path(s)")
         };
         lines.push(format!(
-            "{model} → {} ({} · {}) · {note}{tail}",
+            "{model} → {} ({} · {} · {}) · {note}{tail}",
             lane.plan.access,
             lane.plan.chosen.as_str(),
-            lane.plan.billing.as_str()
+            lane.plan.billing.as_str(),
+            lane.plan.trust.as_str()
         ));
     }
     for (model, refusal) in plan.lanes.iter().filter_map(|(m, v)| match v {

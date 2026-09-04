@@ -393,6 +393,60 @@ impl AccessRejection {
     }
 }
 
+/// How far a chosen path's IDENTITY is proven — a rung, never a word
+/// (ADR-134). The plan and every wire row carry it so a reader can never
+/// take « the seat is present » for « the seat is who it says »: a
+/// harness found on PATH is DISCOVERED, an API key in the environment is
+/// DISCOVERED, and nothing is OBSERVED until an explicit probe answered
+/// (`doctor --ping`). An `attested` rung (a handshake · a hash · a signed
+/// identity) is reserved: no path reaches it in this build, so the enum
+/// does not name it yet (#1253's confinement half).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum Trust {
+    /// A profile or a pin says the path exists; nothing on this machine
+    /// was checked (a keyless local server without a ping).
+    Declared,
+    /// Something on this machine was found: a key in the environment, an
+    /// adapter binary on PATH. Presence, never identity.
+    Discovered,
+    /// An explicit probe answered from the path itself (`doctor --ping` ·
+    /// the in-crate mock, which is the engine's own).
+    Observed,
+}
+
+impl Trust {
+    /// The `snake_case` wire form (`trust` on every lane row).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Declared => "declared",
+            Self::Discovered => "discovered",
+            Self::Observed => "observed",
+        }
+    }
+
+    /// The rung a probe's evidence earns — the floor of what it proves,
+    /// never above it: an answer that reached is observed; a key or a
+    /// seat present is discovered; a keyless local path is declared until
+    /// it is pinged; the mock is the engine's own.
+    #[must_use]
+    pub const fn from_evidence(
+        class: AccessClass,
+        configured: bool,
+        reachable: Option<bool>,
+    ) -> Self {
+        match (class, configured, reachable) {
+            (_, _, Some(true)) | (AccessClass::Mock, _, _) => Self::Observed,
+            (AccessClass::Local, _, _) => Self::Declared,
+            (_, true, _) => Self::Discovered,
+            _ => Self::Declared,
+        }
+    }
+}
+
 /// The admission-time access decision (A-9 · A-10) — recorded in
 /// `check --json`, the trace prologue, and the lock when one exists.
 /// Run time may only REFUSE on liveness; it never re-plans.
@@ -421,6 +475,10 @@ pub struct AccessPlan {
     /// pin, never rejected; the machine row names them so « chosen over N
     /// other path(s) » is a fact in JSON too (W3-F3).
     pub outranked: alloc::vec::Vec<AccessRejection>,
+    /// How far the chosen path's identity is proven (ADR-134): declared
+    /// by a profile or a pin · discovered on this machine · observed by a
+    /// probe that answered. Never above the evidence.
+    pub trust: Trust,
 }
 
 impl AccessPlan {
@@ -444,6 +502,7 @@ impl AccessPlan {
             pinned,
             rejected,
             outranked: alloc::vec::Vec::new(),
+            trust: Trust::Declared,
         }
     }
 
@@ -453,11 +512,70 @@ impl AccessPlan {
         self.outranked = outranked;
         self
     }
+
+    /// The rung the chosen path's evidence earned (ADR-134).
+    #[must_use]
+    pub const fn with_trust(mut self, trust: Trust) -> Self {
+        self.trust = trust;
+        self
+    }
 }
 
 #[cfg(test)]
 mod plan_tests {
     use super::*;
+
+    /// Trust is a rung, never a word (ADR-134): the evidence earns the
+    /// floor of what it proves — a keyless local path is declared until
+    /// pinged, a key or a seat present is discovered, only an answer is
+    /// observed, the mock is the engine's own — and a plan starts at the
+    /// floor.
+    #[test]
+    fn trust_is_a_rung_never_above_the_evidence() {
+        assert_eq!(Trust::Declared.as_str(), "declared");
+        assert_eq!(Trust::Discovered.as_str(), "discovered");
+        assert_eq!(Trust::Observed.as_str(), "observed");
+        assert!(Trust::Declared < Trust::Discovered && Trust::Discovered < Trust::Observed);
+        assert_eq!(
+            Trust::from_evidence(AccessClass::Local, true, None),
+            Trust::Declared
+        );
+        assert_eq!(
+            Trust::from_evidence(AccessClass::Local, true, Some(true)),
+            Trust::Observed
+        );
+        assert_eq!(
+            Trust::from_evidence(AccessClass::Api, true, None),
+            Trust::Discovered
+        );
+        assert_eq!(
+            Trust::from_evidence(AccessClass::Api, false, None),
+            Trust::Declared
+        );
+        assert_eq!(
+            Trust::from_evidence(AccessClass::Harness, true, Some(false)),
+            Trust::Discovered
+        );
+        assert_eq!(
+            Trust::from_evidence(AccessClass::Mock, true, None),
+            Trust::Observed
+        );
+        let plan = AccessPlan::new(
+            "openai/x",
+            "openai",
+            "codex",
+            AccessClass::Harness,
+            BillingClass::Unknown,
+            true,
+            alloc::vec::Vec::new(),
+        );
+        assert_eq!(
+            plan.trust,
+            Trust::Declared,
+            "the floor, until the evidence says more"
+        );
+        assert_eq!(plan.with_trust(Trust::Discovered).trust, Trust::Discovered);
+    }
 
     #[test]
     fn rejection_vocabulary_is_snake_case_and_distinct() {

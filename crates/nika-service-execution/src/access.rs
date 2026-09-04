@@ -128,7 +128,7 @@ pub fn first_modelless_task(wf: &RawWorkflow) -> Option<&str> {
 /// --json`'s `access.plans[]` and the trace's boot manifest `access_plan`
 /// all carry exactly these rows — `model` · `provider` · `resolved` ·
 /// `access` (the id that serves) · `chosen` (its class) · `billing` ·
-/// `pinned` · `rejected[]` with `access` · `dimension` · `layer` ·
+/// `trust` (declared · discovered · observed · ADR-134) · `pinned` · `rejected[]` with `access` · `dimension` · `layer` ·
 /// `witness`. A refused lane carries `resolved: false` and its witnesses.
 #[must_use]
 pub fn lane_rows(plan: &ExecutionAccessPlan) -> Vec<serde_json::Value> {
@@ -142,6 +142,7 @@ pub fn lane_rows(plan: &ExecutionAccessPlan) -> Vec<serde_json::Value> {
                 "access": lane.plan.access,
                 "chosen": lane.plan.chosen.as_str(),
                 "billing": lane.plan.billing.as_str(),
+                "trust": lane.plan.trust.as_str(),
                 "pinned": lane.plan.pinned,
                 "rejected": rejection_rows(&lane.plan.rejected),
                 "outranked": rejection_rows(&lane.plan.outranked),
@@ -286,5 +287,9 @@ mod tests {
         assert_eq!(admitted["chosen"], "mock");
         assert_eq!(admitted["access"], "mock");
         assert_eq!(admitted["pinned"], false);
+        assert_eq!(
+            admitted["trust"], "observed",
+            "the mock is the engine's own"
+        );
     }
 }
