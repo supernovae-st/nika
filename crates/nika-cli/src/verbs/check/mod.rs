@@ -49,8 +49,10 @@ pub struct CheckArgs {
     /// Judge the access plan under this pin (the same value `run --access` takes).
     #[arg(long)]
     pub access: Option<String>,
-    /// Internal SDK adapter: emit the report with its immutable snapshot.
-    #[arg(long, hide = true)]
+    /// Print the report with the execution snapshot the resident admits
+    /// (the SDK's producer · the body `POST /v1/jobs` and `POST /v1/check`
+    /// take · ADR-131).
+    #[arg(long)]
     pub sdk_snapshot: bool,
 }
 
