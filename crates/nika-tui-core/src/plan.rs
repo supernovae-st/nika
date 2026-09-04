@@ -21,8 +21,9 @@
 //! may never show.
 //!
 //! ⚠️ The graph is NOT ours — it is the engine's canonical projection
-//! (`nika inspect --format json` · `graph_format: 2`, carried here by
-//! [`crate::ingress::GraphDoc`]).
+//! (`nika inspect --format json` · `graph_format: 3`, carried here by
+//! [`crate::ingress::GraphDoc`]). The board seats TASKS: a cleanup unit
+//! (`kind: "finally"`) is on the map, never in a slot.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -107,13 +108,9 @@ fn print_of(n: &Node) -> String {
 pub fn seat_first(g: &GraphDoc) -> Board {
     Board {
         rev: 1,
-        slots: g.nodes.iter().map(|n| Some(n.id.clone())).collect(),
-        marks: g.nodes.iter().map(|_| Mark::Born).collect(),
-        prints: g
-            .nodes
-            .iter()
-            .map(|n| (n.id.clone(), print_of(n)))
-            .collect(),
+        slots: g.tasks().map(|n| Some(n.id.clone())).collect(),
+        marks: g.tasks().map(|_| Mark::Born).collect(),
+        prints: g.tasks().map(|n| (n.id.clone(), print_of(n))).collect(),
     }
 }
 
@@ -121,16 +118,12 @@ pub fn seat_first(g: &GraphDoc) -> Board {
 /// nobody moves.
 #[must_use]
 pub fn seat_next(prev: &Board, g: &GraphDoc) -> Board {
-    let vus: BTreeMap<&str, &Node> = g.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let vus: BTreeMap<&str, &Node> = g.tasks().map(|n| (n.id.as_str(), n)).collect();
     // ⭐ ONE fingerprint pass. `print_of` used to run once per survivor for
     // the comparison, then again for EVERY node to fill the board — each
     // survivor serialized twice per revision, for the same bytes. Computed
     // here, read twice.
-    let prints: BTreeMap<String, String> = g
-        .nodes
-        .iter()
-        .map(|n| (n.id.clone(), print_of(n)))
-        .collect();
+    let prints: BTreeMap<String, String> = g.tasks().map(|n| (n.id.clone(), print_of(n))).collect();
     let mut slots = prev.slots.clone();
     let mut marks: Vec<Mark> = prev.slots.iter().map(|_| Mark::Kept).collect();
 
@@ -159,7 +152,7 @@ pub fn seat_next(prev: &Board, g: &GraphDoc) -> Board {
     // would resurrect a name where the eye had recorded an absence — that
     // would be compaction under another name.
     let present: BTreeSet<String> = slots.iter().flatten().cloned().collect();
-    for n in &g.nodes {
+    for n in g.tasks() {
         if present.contains(n.id.as_str()) {
             continue;
         }

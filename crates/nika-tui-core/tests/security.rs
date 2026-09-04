@@ -160,7 +160,7 @@ fn the_revision_never_wraps() {
     let board = serde_json::json!({
         "rev": u32::MAX, "slots": ["a"], "marks": ["+"], "prints": {"a": "p"},
     });
-    let graph = r#"{"graph_format":2,"workflow":"t","nodes":[],"edges":[]}"#;
+    let graph = r#"{"graph_format":3,"workflow":"t","nodes":[],"edges":[]}"#;
     let out = wasm::board_next(&board.to_string(), graph);
     let v: serde_json::Value = serde_json::from_str(&out).expect("json");
     assert_eq!(v["rev"].as_u64(), Some(u64::from(u32::MAX)));

@@ -262,6 +262,7 @@ pub nika_tui_core::ingress::GraphDoc::nodes: alloc::vec::Vec<nika_tui_core::ingr
 pub nika_tui_core::ingress::GraphDoc::workflow: alloc::string::String
 impl nika_tui_core::ingress::GraphDoc
 pub const fn nika_tui_core::ingress::GraphDoc::new(graph_format: u32, workflow: alloc::string::String, nodes: alloc::vec::Vec<nika_tui_core::ingress::Node>, edges: alloc::vec::Vec<nika_tui_core::ingress::Edge>) -> Self
+pub fn nika_tui_core::ingress::GraphDoc::tasks(&self) -> impl core::iter::traits::iterator::Iterator<Item = &nika_tui_core::ingress::Node>
 pub fn nika_tui_core::ingress::GraphDoc::with_nodes(&self, nodes: alloc::vec::Vec<nika_tui_core::ingress::Node>) -> Self
 impl core::clone::Clone for nika_tui_core::ingress::GraphDoc
 pub fn nika_tui_core::ingress::GraphDoc::clone(&self) -> nika_tui_core::ingress::GraphDoc
@@ -302,6 +303,7 @@ pub nika_tui_core::ingress::Node::cost_interval: core::option::Option<[f64; 2]>
 pub nika_tui_core::ingress::Node::extra: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub nika_tui_core::ingress::Node::fan_out: core::option::Option<nika_tui_core::ingress::FanOut>
 pub nika_tui_core::ingress::Node::id: alloc::string::String
+pub nika_tui_core::ingress::Node::kind: alloc::string::String
 pub nika_tui_core::ingress::Node::model: core::option::Option<alloc::string::String>
 pub nika_tui_core::ingress::Node::on_error: core::option::Option<alloc::string::String>
 pub nika_tui_core::ingress::Node::outputs: alloc::vec::Vec<alloc::string::String>
@@ -347,6 +349,7 @@ pub unsafe fn nika_tui_core::ingress::Node::clone_to_uninit(&self, dest: *mut u8
 impl<T> core::convert::From<T> for nika_tui_core::ingress::Node
 pub fn nika_tui_core::ingress::Node::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_tui_core::ingress::Node where T: for<'de> serde_core::de::Deserialize<'de>
+pub const nika_tui_core::ingress::GRAPH_FORMAT: u32
 pub fn nika_tui_core::ingress::run_from_journal(bytes: &str) -> core::result::Result<nika_tui_core::model::Run, nika_tui_core::ingress::IngressError>
 pub mod nika_tui_core::model
 #[non_exhaustive] pub enum nika_tui_core::model::Family

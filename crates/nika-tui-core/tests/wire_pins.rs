@@ -49,3 +49,35 @@ fn the_fold_reads_the_owners_spellings_and_nothing_else() {
         "an unknown spelling folds no step: the fold reads the copied kinds only"
     );
 }
+
+/// The graph envelope this crate reads is the engine's own number: a bump
+/// on either side fails here first (the 2026-09-04 audit found the crate
+/// reading format 2 while the engine emitted 3 — a copy nothing pinned).
+#[test]
+fn the_graph_format_is_the_engines() {
+    assert_eq!(
+        nika_tui_core::ingress::GRAPH_FORMAT,
+        nika_graph::GRAPH_FORMAT,
+        "nika-tui-core reads another graph format than nika-graph emits"
+    );
+}
+
+/// A cleanup unit (`kind: "finally"`) is a node on the map, never a slot on
+/// the board — the reason format 3 exists (a reader that did not know
+/// `kind` seated it as a task).
+#[test]
+fn a_cleanup_unit_is_never_a_slot() {
+    let doc: nika_tui_core::ingress::GraphDoc = serde_json::from_value(serde_json::json!({
+        "graph_format": nika_graph::GRAPH_FORMAT,
+        "workflow": "t",
+        "nodes": [
+            {"id": "a", "verb": "exec"},
+            {"id": "cleanup", "verb": "exec", "kind": "finally"}
+        ],
+        "edges": []
+    }))
+    .expect("a format-3 document");
+    let board = nika_tui_core::plan::seat_first(&doc);
+    assert_eq!(board.slots, vec![Some("a".to_owned())]);
+    assert_eq!(doc.tasks().count(), 1);
+}
