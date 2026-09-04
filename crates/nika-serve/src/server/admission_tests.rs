@@ -3,13 +3,13 @@
 
 use std::sync::Arc;
 
-use super::ExecutionDisposition;
 use serde_json::Value;
 
 use super::tests::{
-    TestBackend, TestWorld, WORKFLOW, auth_header, check_request, get_request, limits,
-    post_request, snapshot_body, wait_for_status,
+    TestBackend, TestWorld, WORKFLOW, auth_header, check_request, events_request, get_request,
+    limits, parse_sse_data, post_request, snapshot_body, wait_for_status,
 };
+use super::{ExecutionBackend, ExecutionDisposition, ExecutionOutcome};
 
 /// ADR-131 · #1441 · a workflow the served registry lists is admitted by
 /// NAME: the resident captures the world itself (the one owner), the job
@@ -129,5 +129,96 @@ async fn machine_check_and_job_admission_judge_identical_caller_bytes_not_server
         checked.json()["snapshot_digest"]
     );
     assert_eq!(backend.calls(), 1);
+    server.stop().await.expect("clean stop");
+}
+
+/// A backend that settles with the runtime's own settlement (ADR-128): the
+/// resident projects it whole on the terminal event and the job's status
+/// is the settlement's state.
+#[derive(Debug)]
+struct SettlingBackend {
+    settlement: nika_event::settlement::RunSettlement,
+}
+
+impl ExecutionBackend for SettlingBackend {
+    fn execute<'a>(
+        &'a self,
+        _context: nika_execution::ExecutionContext<'a>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ExecutionOutcome> + Send + 'a>> {
+        Box::pin(async move {
+            use nika_event::settlement::RunState;
+            let disposition = match self.settlement.state {
+                RunState::Succeeded => ExecutionDisposition::Succeeded,
+                RunState::Paused => ExecutionDisposition::Paused,
+                RunState::Cancelled => ExecutionDisposition::Cancelled,
+                _ => ExecutionDisposition::Failed,
+            };
+            let mut outcome =
+                ExecutionOutcome::from(disposition).with_settlement(self.settlement.clone());
+            if let Some(error) = &self.settlement.error {
+                outcome = outcome.with_error(error.code.clone(), error.message.clone());
+            }
+            outcome
+        })
+    }
+}
+
+/// ADR-128 · the terminal event carries the runtime's settlement whole and
+/// the job's status is its state: the SDK's HTTP door reads the same cause,
+/// tally and spend the CLI's `run_settled` carries, and an unmetered run
+/// never shows a zero it did not meter.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_terminal_event_carries_the_runtimes_settlement() {
+    use nika_event::settlement::{RunCause, RunSettlement, RunState, Spend, TaskTally};
+    let world = TestWorld::new();
+    let mut tally = TaskTally::new();
+    tally.total = 2;
+    tally.ok = 2;
+    let mut settlement = RunSettlement::new(RunState::Succeeded, RunCause::Normal)
+        .with_spend(Spend::new(None, 0, 2));
+    settlement.tasks = Some(tally);
+    settlement.elapsed_ms = Some(12);
+    let expected = serde_json::to_value(&settlement).expect("a settlement serializes");
+    let server = world
+        .start(Arc::new(SettlingBackend { settlement }), limits())
+        .await;
+    let response = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "settles",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(response.status, 202, "{}", response.body);
+    let id = response.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("the job settles");
+    let streamed = server.request(&events_request(&id, None)).await;
+    let events = parse_sse_data(&streamed.body);
+    let terminal = events
+        .iter()
+        .find(|event| event["kind"] == "execution.settled")
+        .expect("a settled terminal frame on the stream");
+    assert_eq!(
+        terminal["settlement"], expected,
+        "the settlement rides the terminal frame whole: {terminal}"
+    );
+    assert_eq!(
+        terminal["status"], terminal["settlement"]["status"],
+        "the job's status IS the settlement's state: {terminal}"
+    );
+    assert_eq!(terminal["settlement"]["spend"]["qualifier"], "unpriced");
+    assert!(
+        terminal["settlement"]["spend"]
+            .get("total_cost_usd")
+            .is_none(),
+        "unknown cost is never zero: {terminal}"
+    );
+    let job = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await
+        .json();
+    assert_eq!(job["status"], "succeeded", "{job}");
     server.stop().await.expect("clean stop");
 }

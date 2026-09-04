@@ -300,6 +300,9 @@
             "minimum": 1,
             "type": "integer"
           },
+          "settlement": {
+            "$ref": "#/components/schemas/RunSettlement"
+          },
           "status": {
             "anyOf": [
               {
@@ -455,6 +458,150 @@
         },
         "required": [
           "status"
+        ],
+        "type": "object"
+      },
+      "RunSettlement": {
+        "additionalProperties": false,
+        "description": "The run's settlement (ADR-128), built once by the runtime and projected whole: the state word every door speaks, why, the elapsed time on the kernel clock, the task tally, the spend with its qualifier, the failure named. Unknown cost is never zero: `total_cost_usd` is absent when nothing was metered. Present on the terminal event of a job whose runtime settled; absent when the resident lost the execution (interrupted) or refused it before any task.",
+        "properties": {
+          "cause": {
+            "enum": [
+              "normal",
+              "human_gate",
+              "task_failed",
+              "output_contract",
+              "budget",
+              "operator",
+              "refused"
+            ],
+            "type": "string"
+          },
+          "elapsed_ms": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "task": {
+                "description": "The task that failed · absent for a run-level cause",
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "spend": {
+            "additionalProperties": false,
+            "properties": {
+              "by_source": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              "priced_calls": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "pricing_as_of": {
+                "type": "string"
+              },
+              "qualifier": {
+                "enum": [
+                  "priced",
+                  "partially_priced",
+                  "unpriced",
+                  "unmetered"
+                ],
+                "type": "string"
+              },
+              "total_cost_usd": {
+                "description": "Present only when at least one leaf metered real spend",
+                "minimum": 0,
+                "type": "number"
+              },
+              "unpriced_calls": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "priced_calls",
+              "unpriced_calls",
+              "qualifier"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "paused",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "tasks": {
+            "additionalProperties": false,
+            "properties": {
+              "cancelled": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "failed": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "never_started": {
+                "description": "Cancelled at the boundary without ever starting (counted in `cancelled` too)",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "ok": {
+                "description": "A recovered task IS a success (counted here too)",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "recovered": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "skipped": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "ok",
+              "failed",
+              "recovered",
+              "skipped",
+              "cancelled",
+              "never_started"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "status",
+          "cause",
+          "spend"
         ],
         "type": "object"
       },

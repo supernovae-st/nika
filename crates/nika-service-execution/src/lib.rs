@@ -25,7 +25,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use nika_event::Event;
-use nika_event::settlement::RunState;
+use nika_event::settlement::{RunSettlement, RunState};
 use nika_event::source_id::{lf_normal_form, sha256_hex};
 use nika_execution::{ExecutionContext, ExecutionSnapshot};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
@@ -916,6 +916,7 @@ pub struct ServiceExecutionResult {
     outputs: BTreeMap<String, Value>,
     error_code: Option<String>,
     error_message: Option<String>,
+    settlement: Option<RunSettlement>,
 }
 
 impl std::fmt::Debug for ServiceExecutionResult {
@@ -937,6 +938,7 @@ impl ServiceExecutionResult {
             outputs: BTreeMap::new(),
             error_code: None,
             error_message: None,
+            settlement: None,
         }
     }
 
@@ -962,6 +964,9 @@ impl ServiceExecutionResult {
         let mut result = Self::new(status, events);
         if let Ok(outcome) = outcome {
             result.outputs.clone_from(&outcome.outputs);
+            // ADR-128 · the settlement itself rides to the resident door:
+            // projected there whole, never refolded from the disposition.
+            result.settlement = Some(outcome.settlement.clone());
         }
         if let Some((code, message)) = error {
             result.error_code = Some(code);
@@ -992,6 +997,13 @@ impl ServiceExecutionResult {
     #[must_use]
     pub fn error(&self) -> Option<(&str, &str)> {
         Some((self.error_code.as_deref()?, self.error_message.as_deref()?))
+    }
+
+    /// The runtime's settlement (ADR-128), when the run reached one — a
+    /// refusal before any task carries none.
+    #[must_use]
+    pub fn settlement(&self) -> Option<&RunSettlement> {
+        self.settlement.as_ref()
     }
 
     /// Consume the result into its redacted status and event projection.

@@ -95,6 +95,7 @@ fn schemas() -> Value {
             "JobOrigin": job_origin_schema(),
             "JobReceipt": job_receipt_schema(),
             "JobEvent": job_event_schema(),
+            "RunSettlement": run_settlement_schema(),
             "TraceVerification": trace_verification_schema(),
             "JobStatusOnly": {
                 "type": "object",
@@ -206,7 +207,62 @@ fn job_event_schema() -> Value {
             "code": {"type": "string"},
             "message": {"type": "string"},
             "outputs": {"type": "object", "additionalProperties": true},
-            "receipt": {"$ref": "#/components/schemas/JobReceipt"}
+            "receipt": {"$ref": "#/components/schemas/JobReceipt"},
+            "settlement": {"$ref": "#/components/schemas/RunSettlement"}
+        }
+    })
+}
+
+/// ADR-128 · the run's settlement, built once by the runtime and projected
+/// here whole on the terminal event (`execution.settled` ·
+/// `execution.cancelled`): the same object the CLI's `run_settled` flattens.
+fn run_settlement_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The run's settlement (ADR-128), built once by the runtime and projected whole: the state word every door speaks, why, the elapsed time on the kernel clock, the task tally, the spend with its qualifier, the failure named. Unknown cost is never zero: `total_cost_usd` is absent when nothing was metered. Present on the terminal event of a job whose runtime settled; absent when the resident lost the execution (interrupted) or refused it before any task.",
+        "required": ["status", "cause", "spend"],
+        "properties": {
+            "status": {"type": "string", "enum": ["succeeded", "failed", "paused", "cancelled"]},
+            "cause": {"type": "string", "enum": ["normal", "human_gate", "task_failed", "output_contract", "budget", "operator", "refused"]},
+            "elapsed_ms": {"type": "integer", "minimum": 0},
+            "tasks": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["total", "ok", "failed", "recovered", "skipped", "cancelled", "never_started"],
+                "properties": {
+                    "total": {"type": "integer", "minimum": 0},
+                    "ok": {"type": "integer", "minimum": 0, "description": "A recovered task IS a success (counted here too)"},
+                    "failed": {"type": "integer", "minimum": 0},
+                    "recovered": {"type": "integer", "minimum": 0},
+                    "skipped": {"type": "integer", "minimum": 0},
+                    "cancelled": {"type": "integer", "minimum": 0},
+                    "never_started": {"type": "integer", "minimum": 0, "description": "Cancelled at the boundary without ever starting (counted in `cancelled` too)"}
+                }
+            },
+            "spend": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["priced_calls", "unpriced_calls", "qualifier"],
+                "properties": {
+                    "total_cost_usd": {"type": "number", "minimum": 0, "description": "Present only when at least one leaf metered real spend"},
+                    "priced_calls": {"type": "integer", "minimum": 0},
+                    "unpriced_calls": {"type": "integer", "minimum": 0},
+                    "qualifier": {"type": "string", "enum": ["priced", "partially_priced", "unpriced", "unmetered"]},
+                    "pricing_as_of": {"type": "string"},
+                    "by_source": {"type": "object", "additionalProperties": {"type": "number"}}
+                }
+            },
+            "error": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["code", "message"],
+                "properties": {
+                    "code": {"type": "string"},
+                    "message": {"type": "string"},
+                    "task": {"type": "string", "description": "The task that failed · absent for a run-level cause"}
+                }
+            }
         }
     })
 }

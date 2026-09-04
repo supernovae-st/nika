@@ -70,14 +70,16 @@ pub enum ExecutionDisposition {
 }
 
 /// Adapter result: disposition plus optional redacted diagnosis, declared
-/// workflow outputs, and trace chain head.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// workflow outputs, trace chain head and the runtime's settlement
+/// (ADR-128 · projected whole on the terminal event).
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExecutionOutcome {
     disposition: ExecutionDisposition,
     error_code: Option<String>,
     error_message: Option<String>,
     outputs: Option<BTreeMap<String, serde_json::Value>>,
     chain_head: Option<String>,
+    settlement: Option<Box<nika_event::settlement::RunSettlement>>,
 }
 
 /// The disposition IS a run state (ADR-130 · the resident's word for the
@@ -101,6 +103,7 @@ impl From<ExecutionDisposition> for ExecutionOutcome {
             error_message: None,
             outputs: None,
             chain_head: None,
+            settlement: None,
         }
     }
 }
@@ -115,6 +118,7 @@ impl ExecutionOutcome {
             error_message: Some(message.into()),
             outputs: None,
             chain_head: None,
+            settlement: None,
         }
     }
 
@@ -145,6 +149,21 @@ impl ExecutionOutcome {
     pub fn with_chain_head(mut self, chain_head: impl Into<String>) -> Self {
         self.chain_head = Some(chain_head.into());
         self
+    }
+
+    /// Attach the runtime's settlement (ADR-128): the resident projects it
+    /// whole on its terminal event, so the SDK's HTTP door reads the same
+    /// cause, tally and spend the CLI's `run_settled` carries.
+    #[must_use]
+    pub fn with_settlement(mut self, settlement: nika_event::settlement::RunSettlement) -> Self {
+        self.settlement = Some(Box::new(settlement));
+        self
+    }
+
+    /// The runtime's settlement, when the backend carried one.
+    #[must_use]
+    pub fn settlement(&self) -> Option<&nika_event::settlement::RunSettlement> {
+        self.settlement.as_deref()
     }
 
     /// Declared workflow outputs supplied by the execution adapter.
@@ -1020,15 +1039,21 @@ async fn settle_disposition(
         guard.interrupt().await?;
         return Ok(());
     };
-    let outcome = if cancel.is_cancelled() {
-        ExecutionDisposition::Cancelled.into()
-    } else {
-        outcome
-    };
+    let outcome =
+        if cancel.is_cancelled() && outcome.disposition() != ExecutionDisposition::Cancelled {
+            ExecutionDisposition::Cancelled.into()
+        } else {
+            outcome
+        };
     let verdict = session.complete(outcome.disposition());
     // ADR-130 · the job's status is the settlement's state, projected
-    // through ONE mapping (the words are the settlement's).
-    let status = JobStatus::from(nika_event::settlement::RunState::from(*verdict.outcome()));
+    // through ONE mapping (the words are the settlement's): the runtime's
+    // own settlement when the backend carried it, the disposition's run
+    // state otherwise.
+    let status = JobStatus::from(outcome.settlement().map_or_else(
+        || nika_event::settlement::RunState::from(*verdict.outcome()),
+        |settlement| settlement.state,
+    ));
     // One cancellation terminal (#1350): a cancelled disposition settles as
     // `execution.cancelled` here as it does on the cancel route, so the race
     // between the two writers changes the author, never the kind. A failure
@@ -1040,6 +1065,14 @@ async fn settle_disposition(
         "execution.settled"
     };
     let mut event = json!({"kind": kind, "status": status});
+    // ADR-128 · the settlement rides the terminal event whole (status ·
+    // cause · elapsed · tasks · spend · error): the SDK's HTTP door reads
+    // it as the CLI's `run_settled` is read, never a refold.
+    if let Some(settlement) = outcome.settlement()
+        && let Ok(value) = serde_json::to_value(settlement)
+    {
+        event["settlement"] = value;
+    }
     if let Some((code, message)) = outcome.error() {
         event["code"] = json!(code);
         event["message"] = json!(message);
