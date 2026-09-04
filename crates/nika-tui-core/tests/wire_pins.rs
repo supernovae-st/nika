@@ -81,3 +81,24 @@ fn a_cleanup_unit_is_never_a_slot() {
     assert_eq!(board.slots, vec![Some("a".to_owned())]);
     assert_eq!(doc.tasks().count(), 1);
 }
+
+/// The published law: a reader refuses a graph format it does not speak,
+/// naming both numbers — never a silent misread.
+#[test]
+fn a_reader_refuses_a_format_it_does_not_speak() {
+    let stale = r#"{"graph_format":2,"workflow":"t","nodes":[],"edges":[]}"#;
+    let out = nika_tui_core::wasm::board_first(stale);
+    let v: serde_json::Value = serde_json::from_str(&out).expect("json");
+    let error = v["error"].as_str().expect("a refusal");
+    assert!(
+        error.contains("graph_format 2 is not 3"),
+        "the numbers are named: {error}"
+    );
+    let spoken = format!(
+        r#"{{"graph_format":{},"workflow":"t","nodes":[],"edges":[]}}"#,
+        nika_graph::GRAPH_FORMAT
+    );
+    let ok: serde_json::Value =
+        serde_json::from_str(&nika_tui_core::wasm::board_first(&spoken)).expect("json");
+    assert!(ok.get("error").is_none(), "{ok}");
+}

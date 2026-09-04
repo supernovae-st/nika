@@ -138,12 +138,18 @@ fn a_skipped_step_says_so_and_stays_timeless() {
 }
 
 /// The graph mirror reads a real inspect output — verb enum, tool/model
-/// slots, permits per node, typed edges.
+/// slots, permits per node, typed edges. (Captured as format 2 on a 0.116
+/// binary, migrated to format 3 by the engine's own law: every node of a
+/// format-2 document is a task.)
 #[test]
 fn the_graph_mirror_reads_inspect() {
     let bytes = std::fs::read_to_string("tests/fixtures/inspect-gated.json").expect("fixture");
     let g: GraphDoc = serde_json::from_str(&bytes).expect("parses");
-    assert_eq!(g.graph_format, 2);
+    assert_eq!(g.graph_format, nika_tui_core::ingress::GRAPH_FORMAT);
+    assert!(
+        g.nodes.iter().all(|n| n.kind == "task"),
+        "a migrated node is a task"
+    );
     assert_eq!(g.workflow, "triage-tickets");
     assert!(!g.nodes.is_empty());
     // the gate node is an invoke on nika:prompt, and says so
