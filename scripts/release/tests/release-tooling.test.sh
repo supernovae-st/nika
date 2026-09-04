@@ -685,6 +685,8 @@ bash "$ROOT/scripts/release/tests/publication-barrier.test.sh" >/dev/null \
   || fail 'the cross-registry publication barrier regression failed'
 bash "$ROOT/scripts/release/tests/finalize-release.test.sh" >/dev/null \
   || fail 'the write-only finalizer barrier regression failed'
+bash "$ROOT/scripts/release/tests/next-tag-estate.test.sh" >/dev/null \
+  || fail 'the pre-tag estate question regression failed'
 grep -q 'TAP_DEPLOY_KEY' "$ROOT/docs/RELEASING.md" \
   || fail 'the operator guide does not name the release workflow deploy key'
 if grep -q 'HOMEBREW_TAP_TOKEN' "$ROOT/docs/RELEASING.md"; then
