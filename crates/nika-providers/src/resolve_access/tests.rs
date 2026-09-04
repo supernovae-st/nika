@@ -593,3 +593,27 @@ fn candidates_bridge_reads_the_probe_truth() {
     assert_eq!(candidates[0].class, AccessClass::Api);
     assert!(candidates[0].fix_var.is_some());
 }
+
+/// The plan carries the chosen candidate's rung (ADR-134): a seat on PATH
+/// is discovered, a keyless local path is declared, only a probe that
+/// answered is observed — never above the evidence.
+#[test]
+fn the_plan_carries_the_candidates_rung_never_above_the_evidence() {
+    let seat = AccessCandidate::new("codex", AccessClass::Harness, true);
+    assert_eq!(seat.trust, Trust::Discovered);
+    let plan = resolve_access("openai/gpt-x", &[seat], None, None).expect("admitted");
+    assert_eq!(plan.trust, Trust::Discovered);
+    assert_eq!(local("ollama", true).trust, Trust::Declared);
+    let pinged = local("ollama", true).with_trust(Trust::from_evidence(
+        AccessClass::Local,
+        true,
+        Some(true),
+    ));
+    assert_eq!(pinged.trust, Trust::Observed);
+    let plan = resolve_access("ollama/x", &[pinged], None, None).expect("admitted");
+    assert_eq!(plan.trust, Trust::Observed);
+    assert_eq!(
+        AccessCandidate::new("mock", AccessClass::Mock, true).trust,
+        Trust::Observed
+    );
+}

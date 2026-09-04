@@ -882,10 +882,12 @@ pub nika_providers::resolve_access::AccessCandidate::billing: nika_types::access
 pub nika_providers::resolve_access::AccessCandidate::class: nika_types::access::AccessClass
 pub nika_providers::resolve_access::AccessCandidate::configured: bool
 pub nika_providers::resolve_access::AccessCandidate::fix_var: core::option::Option<alloc::string::String>
+pub nika_providers::resolve_access::AccessCandidate::trust: nika_types::access::Trust
 impl nika_providers::resolve_access::AccessCandidate
 pub fn nika_providers::resolve_access::AccessCandidate::new(access: impl core::convert::Into<alloc::string::String>, class: nika_types::access::AccessClass, configured: bool) -> Self
 pub fn nika_providers::resolve_access::AccessCandidate::with_billing(self, billing: nika_types::access::BillingClass) -> Self
 pub fn nika_providers::resolve_access::AccessCandidate::with_fix_var(self, var: impl core::convert::Into<alloc::string::String>) -> Self
+pub const fn nika_providers::resolve_access::AccessCandidate::with_trust(self, trust: nika_types::access::Trust) -> Self
 impl core::clone::Clone for nika_providers::resolve_access::AccessCandidate
 pub fn nika_providers::resolve_access::AccessCandidate::clone(&self) -> nika_providers::resolve_access::AccessCandidate
 impl core::cmp::Eq for nika_providers::resolve_access::AccessCandidate
@@ -1178,10 +1180,12 @@ pub nika_providers::AccessCandidate::billing: nika_types::access::BillingClass
 pub nika_providers::AccessCandidate::class: nika_types::access::AccessClass
 pub nika_providers::AccessCandidate::configured: bool
 pub nika_providers::AccessCandidate::fix_var: core::option::Option<alloc::string::String>
+pub nika_providers::AccessCandidate::trust: nika_types::access::Trust
 impl nika_providers::resolve_access::AccessCandidate
 pub fn nika_providers::resolve_access::AccessCandidate::new(access: impl core::convert::Into<alloc::string::String>, class: nika_types::access::AccessClass, configured: bool) -> Self
 pub fn nika_providers::resolve_access::AccessCandidate::with_billing(self, billing: nika_types::access::BillingClass) -> Self
 pub fn nika_providers::resolve_access::AccessCandidate::with_fix_var(self, var: impl core::convert::Into<alloc::string::String>) -> Self
+pub const fn nika_providers::resolve_access::AccessCandidate::with_trust(self, trust: nika_types::access::Trust) -> Self
 impl core::clone::Clone for nika_providers::resolve_access::AccessCandidate
 pub fn nika_providers::resolve_access::AccessCandidate::clone(&self) -> nika_providers::resolve_access::AccessCandidate
 impl core::cmp::Eq for nika_providers::resolve_access::AccessCandidate

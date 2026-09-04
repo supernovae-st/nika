@@ -29,6 +29,7 @@ pub mod facts;
 pub mod guard;
 pub mod identity;
 pub mod intelligence;
+pub mod outcome;
 pub mod reasoner;
 pub mod runtime;
 pub mod snapshot;
@@ -43,6 +44,7 @@ pub use intelligence::{
     DataLocus, IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence,
     UserIntelligencePreference,
 };
+pub use outcome::{GateId, ProposalId, Refusal, RefusalClass};
 pub use reasoner::{ReasonError, Reply, ScriptedReasoner, SessionReasoner};
 pub use runtime::{SessionRuntime, TurnOutcome};
 pub use snapshot::ProjectSnapshot;

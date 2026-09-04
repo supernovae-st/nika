@@ -15,7 +15,7 @@
 
 use nika_types::access::{
     AccessClass, AccessPlan, AccessRejection, BillingClass, HarnessRuntime, RejectionDimension,
-    RejectionLayer,
+    RejectionLayer, Trust,
 };
 
 use crate::probe::ProviderProbe;
@@ -38,6 +38,9 @@ pub struct AccessCandidate {
     /// The economic lane — the class's honest default until a probe
     /// reports better evidence (subscription ≠ free · unknown ≠ $0).
     pub billing: BillingClass,
+    /// How far this path's identity is proven (ADR-134) — the floor the
+    /// probe's evidence earns, raised only by [`Self::with_trust`].
+    pub trust: Trust,
 }
 
 impl AccessCandidate {
@@ -50,7 +53,15 @@ impl AccessCandidate {
             configured,
             fix_var: None,
             billing: class.default_billing(),
+            trust: Trust::from_evidence(class, configured, None),
         }
+    }
+
+    /// The rung the probe's evidence earned (ADR-134).
+    #[must_use]
+    pub const fn with_trust(mut self, trust: Trust) -> Self {
+        self.trust = trust;
+        self
     }
 
     /// Name the credential env var an unconfigured refusal teaches.
@@ -277,7 +288,8 @@ pub fn resolve_access(
             pin.is_some(),
             rejected,
         )
-        .with_outranked(outranked)),
+        .with_outranked(outranked)
+        .with_trust(c.trust)),
         None => Err(AccessRefusal::new(model, provider, rejected)),
     }
 }
@@ -704,7 +716,12 @@ pub fn candidates_for(probes: &[ProviderProbe], provider: &str) -> Vec<AccessCan
 /// and key state, the conventional env var named when a required key
 /// is absent.
 fn profile_candidate(p: &ProviderProbe) -> AccessCandidate {
-    let candidate = AccessCandidate::new(p.id.clone(), p.readiness.access, p.readiness.configured);
+    let candidate = AccessCandidate::new(p.id.clone(), p.readiness.access, p.readiness.configured)
+        .with_trust(Trust::from_evidence(
+            p.readiness.access,
+            p.readiness.configured,
+            p.readiness.reachable,
+        ));
     if p.requires_key {
         candidate.with_fix_var(p.fix_var.clone())
     } else {
@@ -804,7 +821,11 @@ fn stamp_harness_plans(
                     BillingClass::Unknown,
                     true,
                     Vec::new(),
-                ),
+                )
+                // A pinned seat was found on PATH (the pin refuses when it is
+                // absent) — discovered, never observed: nothing dialed it
+                // (#1253's trust half · ADR-134).
+                .with_trust(Trust::Discovered),
             )
         })
         .collect()

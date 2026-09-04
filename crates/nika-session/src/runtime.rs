@@ -19,6 +19,7 @@ use crate::guard::KnownWorld;
 use crate::intelligence::{
     IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence, UserIntelligencePreference,
 };
+use crate::outcome::{GateId, ProposalId, Refusal, RefusalClass};
 use crate::reasoner::{ReasonError, SessionReasoner};
 use crate::snapshot::ProjectSnapshot;
 
@@ -46,18 +47,29 @@ pub enum TurnOutcome {
     Help(String),
     /// The human closed the session.
     Quit,
-    /// The turn was refused, with the reason and the fix.
-    Refusal(String),
+    /// The turn was refused: the class a host acts on, and the sentence
+    /// that names the fix.
+    Refusal(Refusal),
     /// The session asks the first screen again — the NEXT line is the
     /// answer ([`SessionRuntime::choose`]).
     Ask(String),
     /// A question at the consent prompt, answered; the proposal still
     /// waits and the NEXT line is still the consent.
-    Held(String),
+    Held {
+        /// The proposal that still waits.
+        id: ProposalId,
+        /// The answer, and the reminder that the proposal waits.
+        preview: String,
+    },
     /// The reply proposed a change to the project: the exact preview of
     /// the bytes the apply would land. The NEXT line is the human's
     /// consent ([`SessionRuntime::consent`]); nothing is written before it.
-    Proposal(String),
+    Proposal {
+        /// The identity a consent names ([`SessionRuntime::consent_to`]).
+        id: ProposalId,
+        /// The exact preview.
+        preview: String,
+    },
     /// The set landed and its on-disk check is clean: the door runs the
     /// workflow once through the SAME run path as `nika run` and reports
     /// what it observed ([`SessionRuntime::observe_run`]). The apply and
@@ -71,7 +83,12 @@ pub enum TurnOutcome {
     /// The run paused at a human gate: the question, asked to the human.
     /// The NEXT line is their answer ([`SessionRuntime::answer_gate`]);
     /// nothing answers for them.
-    GateAsk(String),
+    GateAsk {
+        /// The gate an answer names ([`SessionRuntime::answer_gate_for`]).
+        id: GateId,
+        /// The observation and the question.
+        question: String,
+    },
     /// The human answered the gate: the door resumes the SAME run
     /// (`--resume <trace> --answer <task>=<value>`) and reports again.
     ResumeRequested {
@@ -117,6 +134,8 @@ pub struct SessionRuntime {
     factory: Option<ReasonerFactory>,
     pending: Option<ProjectChangeSet>,
     pending_gate: Option<PendingGate>,
+    decided: Option<ProposalId>,
+    answered: Option<GateId>,
     last_run: Option<(u8, String)>,
     last_workflow: Option<PathBuf>,
 }
@@ -159,6 +178,8 @@ impl SessionRuntime {
             factory: None,
             pending: None,
             pending_gate: None,
+            decided: None,
+            answered: None,
             last_run: None,
             last_workflow: None,
         }
@@ -190,14 +211,19 @@ impl SessionRuntime {
     /// serve it, and the previous choice stands.
     pub fn choose(&mut self, answer: &str) -> TurnOutcome {
         let (Some(census), Some(factory)) = (&self.census, &self.factory) else {
-            return TurnOutcome::Refusal(
-                "this session cannot re-choose its intelligence — quit and open `nika` again"
-                    .to_owned(),
-            );
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                "this session cannot re-choose its intelligence — quit and open `nika` again",
+            ));
         };
         let pref = match census.choose(answer) {
             Ok(pref) => pref,
-            Err(why) => return TurnOutcome::Refusal(format!("{why} · the previous choice stands")),
+            Err(why) => {
+                return TurnOutcome::Refusal(Refusal::new(
+                    RefusalClass::IntelligenceRefused,
+                    format!("{why} · the previous choice stands"),
+                ));
+            }
         };
         let resolved = ResolvedSessionIntelligence::resolve(&pref, census);
         let kept = match &self.home {
@@ -274,8 +300,11 @@ impl SessionRuntime {
                 self.intelligence.why.clone().unwrap_or_else(|| {
                     "this session has no conversational intelligence".to_owned()
                 });
-            return TurnOutcome::Refusal(format!(
-                "{why} — the facts still answer (workflows · builtins · providers · check · explain)"
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::NoIntelligence,
+                format!(
+                    "{why} — the facts still answer (workflows · builtins · providers · check · explain)"
+                ),
             ));
         }
         if self.intent.goal.is_none() {
@@ -296,10 +325,16 @@ impl SessionRuntime {
                 self.remember(input, &shown);
                 self.propose_or_reply(input, &shown, &named)
             }
-            Err(ReasonError::NoIntelligence) => TurnOutcome::Refusal(
-                "no conversational intelligence — the facts still answer (workflows · builtins · providers · check · explain) · `/intelligence` to choose a path".to_owned(),
-            ),
-            Err(e) => TurnOutcome::Refusal(format!("{e} — the choice stands (`/intelligence` to change it); nothing was substituted")),
+            Err(ReasonError::NoIntelligence) => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::NoIntelligence,
+                "no conversational intelligence — the facts still answer (workflows · builtins · providers · check · explain) · `/intelligence` to choose a path",
+            )),
+            Err(e) => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::IntelligenceRefused,
+                format!(
+                    "{e} — the choice stands (`/intelligence` to change it); nothing was substituted"
+                ),
+            )),
         }
     }
 
@@ -316,13 +351,16 @@ impl SessionRuntime {
         });
         match ProjectChangeSet::from_reply(&self.snapshot.root, input, shown, named, run) {
             Ok(Some(set)) => {
-                let preview = format!("{}{}", prose_outside_blocks(shown), set.preview());
+                let bytes = set.preview();
+                let id = ProposalId::of(&bytes);
+                let preview = format!("{}{}", prose_outside_blocks(shown), bytes);
                 self.pending = Some(set);
-                TurnOutcome::Proposal(preview)
+                TurnOutcome::Proposal { id, preview }
             }
             Ok(None) => TurnOutcome::Reply(shown.to_owned()),
-            Err(e) => TurnOutcome::Refusal(format!(
-                "the reply proposed a file the session may not write — {e}"
+            Err(e) => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::NotAllowed,
+                format!("the reply proposed a file the session may not write — {e}"),
             )),
         }
     }
@@ -334,9 +372,11 @@ impl SessionRuntime {
     /// clean. Anything else discards the set; nothing is written.
     pub fn consent(&mut self, answer: &str) -> TurnOutcome {
         let Some(set) = self.pending.take() else {
-            return TurnOutcome::Refusal("nothing is pending — ask for a change first".to_owned());
+            return TurnOutcome::Refusal(self.nothing_pending());
         };
+        let id = ProposalId::of(&set.preview());
         if is_no(answer) {
+            self.decided = Some(id);
             return TurnOutcome::Facts(
                 "discarded · nothing was written · ask again for the change when ready".to_owned(),
             );
@@ -368,13 +408,17 @@ impl SessionRuntime {
                 })
             };
             self.pending = Some(set);
-            return TurnOutcome::Held(format!(
-                "{text}\n(the proposal still waits · `yes` applies it · `no` discards it)"
-            ));
+            return TurnOutcome::Held {
+                id,
+                preview: format!(
+                    "{text}\n(the proposal still waits · `yes` applies it · `no` discards it)"
+                ),
+            };
         }
+        self.decided = Some(id);
         let applied = match set.apply() {
             Ok(applied) => applied,
-            Err(e) => return TurnOutcome::Refusal(e.to_string()),
+            Err(e) => return TurnOutcome::Refusal(Refusal::from_change(&e)),
         };
         let written: Vec<String> = applied
             .written
@@ -420,6 +464,102 @@ impl SessionRuntime {
         }
     }
 
+    /// The proposal waiting for a consent, when one is (its identity: the
+    /// witness of the preview's bytes).
+    #[must_use]
+    pub fn pending_proposal(&self) -> Option<ProposalId> {
+        self.pending
+            .as_ref()
+            .map(|set| ProposalId::of(&set.preview()))
+    }
+
+    /// A consent that names the proposal it answers — a remote host, a
+    /// reconnect (ADR-133): refused as stale when another proposal waits,
+    /// as already consumed when that proposal was decided, as the wrong
+    /// state when none is pending. Never applied twice.
+    pub fn consent_to(&mut self, id: &ProposalId, answer: &str) -> TurnOutcome {
+        match self.pending_proposal() {
+            Some(waiting) if waiting != *id => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::StaleRevision,
+                format!(
+                    "the proposal {id} is not the one waiting ({waiting}) — read the preview again before consenting"
+                ),
+            )),
+            Some(_) => self.consent(answer),
+            None if self.decided.as_ref() == Some(id) => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::AlreadyConsumed,
+                format!("the proposal {id} was already decided — its effect happened once"),
+            )),
+            None => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                format!(
+                    "nothing is pending — the proposal {id} is neither waiting nor the last decided · ask for the change again"
+                ),
+            )),
+        }
+    }
+
+    /// The refusal for a consent with no proposal: the last one was
+    /// already decided, or none was ever proposed.
+    fn nothing_pending(&self) -> Refusal {
+        match &self.decided {
+            Some(id) => Refusal::new(
+                RefusalClass::AlreadyConsumed,
+                format!(
+                    "the proposal {id} was already decided — nothing is pending · ask again for the change"
+                ),
+            ),
+            None => Refusal::new(
+                RefusalClass::WrongState,
+                "nothing is pending — ask for a change first",
+            ),
+        }
+    }
+
+    /// The gate waiting for an answer, when one is.
+    #[must_use]
+    pub fn waiting_gate(&self) -> Option<GateId> {
+        self.pending_gate
+            .as_ref()
+            .map(|gate| GateId::new(&gate.trace, &gate.task))
+    }
+
+    /// An answer that names the gate it decides (ADR-133): refused as
+    /// stale when another gate waits, as already consumed when that gate
+    /// was answered, as the wrong state when none waits. The same gate
+    /// answers once.
+    pub fn answer_gate_for(&mut self, id: &GateId, line: &str) -> TurnOutcome {
+        match self.waiting_gate() {
+            Some(waiting) if waiting != *id => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::StaleRevision,
+                format!("the gate {id} is not the one waiting ({waiting})"),
+            )),
+            Some(_) => self.answer_gate(line),
+            None if self.answered.as_ref() == Some(id) => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::AlreadyConsumed,
+                format!("the gate {id} was answered once — a decided gate stays decided"),
+            )),
+            None => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                format!(
+                    "no run is waiting for an answer — the gate {id} is neither waiting nor the last answered"
+                ),
+            )),
+        }
+    }
+
+    /// The refusal for an answer with no gate: the last one was answered,
+    /// or no run ever paused.
+    fn no_gate_waiting(&self) -> Refusal {
+        match &self.answered {
+            Some(id) => Refusal::new(
+                RefusalClass::AlreadyConsumed,
+                format!("the gate {id} was answered once — no run is waiting for an answer"),
+            ),
+            None => Refusal::new(RefusalClass::WrongState, "no run is waiting for an answer"),
+        }
+    }
+
     /// What the door observed of the run it started for the human: the
     /// exit code's meaning and the trace, remembered as a fact of this
     /// session — never re-run, never re-authorized (attaching is
@@ -432,8 +572,12 @@ impl SessionRuntime {
             && let Some(gate) = PendingGate::from_trace(&workflow, trace)
         {
             let question = gate.question();
+            let id = GateId::new(&gate.trace, &gate.task);
             self.pending_gate = Some(gate);
-            return TurnOutcome::GateAsk(format!("{line}\n{question}"));
+            return TurnOutcome::GateAsk {
+                id,
+                question: format!("{line}\n{question}"),
+            };
         }
         TurnOutcome::Facts(line)
     }
@@ -442,14 +586,16 @@ impl SessionRuntime {
     /// Nothing answers for the human; an empty line is not an answer.
     pub fn answer_gate(&mut self, line: &str) -> TurnOutcome {
         let Some(gate) = self.pending_gate.take() else {
-            return TurnOutcome::Refusal("no run is waiting for an answer".to_owned());
+            return TurnOutcome::Refusal(self.no_gate_waiting());
         };
         if line.trim().is_empty() {
             self.pending_gate = Some(gate);
-            return TurnOutcome::Refusal(
-                "the gate needs an answer — nothing answers for you".to_owned(),
-            );
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::EmptyAnswer,
+                "the gate needs an answer — nothing answers for you",
+            ));
         }
+        self.answered = Some(GateId::new(&gate.trace, &gate.task));
         let answer = gate.answer_arg(line);
         self.remember("(gate)", &format!("{} answered: {answer}", gate.task));
         TurnOutcome::ResumeRequested {
@@ -818,7 +964,7 @@ mod tests {
             matches!(s.turn("which builtins exist?"), TurnOutcome::Facts(ref t) if t.contains("nika:read"))
         );
         assert!(
-            matches!(s.turn("write a haiku"), TurnOutcome::Refusal(ref t) if t.contains("no conversational intelligence"))
+            matches!(s.turn("write a haiku"), TurnOutcome::Refusal(ref r) if r.text.contains("no conversational intelligence"))
         );
         assert!(matches!(s.turn("/quit"), TurnOutcome::Quit));
         assert!(s.banner().contains("no conversational AI"));
@@ -860,7 +1006,8 @@ mod tests {
     fn a_proposal_lands_only_on_consent() {
         let dir = tree();
         let mut s = ready_with(dir.path(), vec![PROPOSED, PROPOSED, PROPOSED]);
-        let TurnOutcome::Proposal(preview) = s.turn("write me a daily digest workflow") else {
+        let TurnOutcome::Proposal { preview, .. } = s.turn("write me a daily digest workflow")
+        else {
             panic!("a proposal");
         };
         assert!(
@@ -889,9 +1036,12 @@ mod tests {
             "no means nothing"
         );
         assert!(
-            matches!(s.consent("yes"), TurnOutcome::Refusal(ref t) if t.contains("nothing is pending"))
+            matches!(s.consent("yes"), TurnOutcome::Refusal(ref r) if r.text.contains("nothing is pending"))
         );
-        assert!(matches!(s.turn("again please"), TurnOutcome::Proposal(_)));
+        assert!(matches!(
+            s.turn("again please"),
+            TurnOutcome::Proposal { .. }
+        ));
         assert!(
             matches!(s.turn("what workflows are here?"), TurnOutcome::Facts(_)),
             "a new turn"
@@ -900,7 +1050,7 @@ mod tests {
             matches!(s.consent("yes"), TurnOutcome::Refusal(_)),
             "the new turn discarded the proposal"
         );
-        assert!(matches!(s.turn("once more"), TurnOutcome::Proposal(_)));
+        assert!(matches!(s.turn("once more"), TurnOutcome::Proposal { .. }));
         let TurnOutcome::Facts(report) = s.consent("yes") else {
             panic!("applied");
         };
@@ -930,13 +1080,14 @@ mod tests {
         let mut s = ready_with(dir.path(), vec![PROPOSED]);
         assert!(matches!(
             s.turn("write me a daily digest"),
-            TurnOutcome::Proposal(_)
+            TurnOutcome::Proposal { .. }
         ));
-        let TurnOutcome::Held(text) = s.consent("what is permits?") else {
+        let TurnOutcome::Held { preview: text, .. } = s.consent("what is permits?") else {
             panic!("held");
         };
         assert!(text.contains("boundary"), "{text}");
-        let TurnOutcome::Held(text) = s.consent("what will this read and write when it runs?")
+        let TurnOutcome::Held { preview: text, .. } =
+            s.consent("what will this read and write when it runs?")
         else {
             panic!("held");
         };
@@ -944,7 +1095,7 @@ mod tests {
             text.contains("when it runs:") && text.contains("model mock/echo"),
             "the set's own effects: {text}"
         );
-        let TurnOutcome::Held(text) = s.consent("hmm") else {
+        let TurnOutcome::Held { preview: text, .. } = s.consent("hmm") else {
             panic!("held");
         };
         assert!(
@@ -985,7 +1136,7 @@ mod tests {
         let dirty = "```yaml path=bad.nika.yaml\nnika: bad\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
         let mut s = ready_with(dir.path(), vec![PROPOSED, dirty]);
         assert!(
-            matches!(s.turn("create a digest and run it once"), TurnOutcome::Proposal(ref p) if p.contains("run `daily.nika.yaml` once"))
+            matches!(s.turn("create a digest and run it once"), TurnOutcome::Proposal { ref preview, .. } if preview.contains("run `daily.nika.yaml` once"))
         );
         let TurnOutcome::RunRequested { report, run } = s.consent("yes") else {
             panic!("a clean check requests the run");
@@ -1017,7 +1168,7 @@ mod tests {
         );
         assert!(matches!(
             s.turn("make a curl one and run it"),
-            TurnOutcome::Proposal(_)
+            TurnOutcome::Proposal { .. }
         ));
         let TurnOutcome::Facts(report) = s.consent("yes") else {
             panic!("findings stop the run");
@@ -1040,7 +1191,7 @@ mod tests {
         let mut s = ready_with(dir.path(), vec![PROPOSED]);
         assert!(matches!(
             s.turn("create a digest and run it"),
-            TurnOutcome::Proposal(_)
+            TurnOutcome::Proposal { .. }
         ));
         assert!(matches!(s.consent("yes"), TurnOutcome::RunRequested { .. }));
         let store = dir.path().join(".nika").join("traces");
@@ -1051,7 +1202,7 @@ mod tests {
             "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"gate\"},{\"key\":\"mode\",\"value\":\"confirm\"},{\"key\":\"message\",\"value\":\"Ship it?\"}]}\n",
         )
         .expect("trace");
-        let TurnOutcome::GateAsk(question) = s.observe_run(4, Some(&trace)) else {
+        let TurnOutcome::GateAsk { question, .. } = s.observe_run(4, Some(&trace)) else {
             panic!("the gate is asked");
         };
         assert!(
@@ -1059,7 +1210,7 @@ mod tests {
             "{question}"
         );
         assert!(
-            matches!(s.answer_gate(""), TurnOutcome::Refusal(ref t) if t.contains("nothing answers for you"))
+            matches!(s.answer_gate(""), TurnOutcome::Refusal(ref r) if r.text.contains("nothing answers for you"))
         );
         let TurnOutcome::ResumeRequested {
             workflow,
@@ -1092,7 +1243,7 @@ mod tests {
         let mut s = ready_with(dir.path(), vec![dirty, repaired]);
         assert!(matches!(
             s.turn("make a curl one"),
-            TurnOutcome::Proposal(_)
+            TurnOutcome::Proposal { .. }
         ));
         let TurnOutcome::Facts(report) = s.consent("yes") else {
             panic!("applied");
@@ -1101,7 +1252,7 @@ mod tests {
             report.contains("findings ✖") && report.contains("NIKA-AUTH-006"),
             "{report}"
         );
-        let TurnOutcome::Proposal(preview) = s.turn("fix it") else {
+        let TurnOutcome::Proposal { preview, .. } = s.turn("fix it") else {
             panic!("a repair proposal");
         };
         assert!(
@@ -1129,7 +1280,7 @@ mod tests {
         let evil = "```yaml path=../evil.nika.yaml\nnika: evil\n```\n";
         let mut s = ready_with(dir.path(), vec![evil]);
         assert!(
-            matches!(s.turn("write one"), TurnOutcome::Refusal(ref t) if t.contains("not a path inside the project root"))
+            matches!(s.turn("write one"), TurnOutcome::Refusal(ref r) if r.text.contains("not a path inside the project root"))
         );
         assert!(
             matches!(s.consent("yes"), TurnOutcome::Refusal(_)),
@@ -1166,7 +1317,7 @@ mod tests {
         };
         assert!(screen.contains("Choose which AI"), "{screen}");
         assert!(
-            matches!(s.choose("2"), TurnOutcome::Refusal(ref t) if t.contains("previous choice stands"))
+            matches!(s.choose("2"), TurnOutcome::Refusal(ref r) if r.text.contains("previous choice stands"))
         );
         assert!(
             matches!(s.turn("hello"), TurnOutcome::Refusal(_)),
@@ -1210,11 +1361,65 @@ mod tests {
             s.banner()
         );
         assert!(
-            matches!(s.turn("hello"), TurnOutcome::Refusal(ref t) if t.contains("not installed"))
+            matches!(s.turn("hello"), TurnOutcome::Refusal(ref r) if r.text.contains("not installed"))
         );
         assert!(matches!(
             s.turn("what workflows are here?"),
             TurnOutcome::Facts(_)
         ));
+    }
+
+    /// A remote host judges by identity (ADR-133): a consent naming a
+    /// proposal that is not the one waiting is stale and applies nothing;
+    /// the same proposal consents once; the same gate answers once.
+    #[test]
+    fn a_remote_host_drives_the_machine_by_identity() {
+        let dir = tree();
+        let mut s = ready_with(dir.path(), vec![PROPOSED, PROPOSED]);
+        let TurnOutcome::Proposal { id, .. } = s.turn("write me a daily digest workflow") else {
+            panic!("a proposal");
+        };
+        assert_eq!(s.pending_proposal().as_ref(), Some(&id));
+        let other = ProposalId::of("another preview");
+        let TurnOutcome::Refusal(stale) = s.consent_to(&other, "yes") else {
+            panic!("stale");
+        };
+        assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
+        assert_eq!(
+            s.pending_proposal().as_ref(),
+            Some(&id),
+            "a stale consent leaves the proposal waiting"
+        );
+        assert!(
+            !dir.path().join("daily.nika.yaml").exists(),
+            "nothing was applied"
+        );
+        assert!(matches!(
+            s.consent_to(&id, "yes"),
+            TurnOutcome::Facts(_) | TurnOutcome::RunRequested { .. }
+        ));
+        let TurnOutcome::Refusal(again) = s.consent_to(&id, "yes") else {
+            panic!("consumed");
+        };
+        assert_eq!(again.class, RefusalClass::AlreadyConsumed, "{again}");
+        assert!(s.pending_proposal().is_none());
+        let TurnOutcome::Refusal(none) = s.consent("yes") else {
+            panic!("nothing pending");
+        };
+        assert!(none.text.contains("nothing is pending"), "{none}");
+        let TurnOutcome::Refusal(foreign) = s.consent_to(&other, "yes") else {
+            panic!("wrong state");
+        };
+        assert_eq!(foreign.class, RefusalClass::WrongState, "{foreign}");
+        assert!(
+            foreign.text.contains(&other.to_string()) && !foreign.text.contains(&id.to_string()),
+            "the refusal names the caller's id, never the last decided one: {foreign}"
+        );
+        assert!(s.waiting_gate().is_none());
+        let gate = GateId::new(Path::new("never.ndjson"), "gate");
+        let TurnOutcome::Refusal(no_gate) = s.answer_gate_for(&gate, "yes") else {
+            panic!("no gate");
+        };
+        assert_eq!(no_gate.class, RefusalClass::WrongState, "{no_gate}");
     }
 }
