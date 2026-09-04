@@ -41,8 +41,12 @@ pub struct ProjectSnapshot {
     pub ceiling: Option<f64>,
     /// The workflows the ONE walker listed under the root.
     pub workflows: Vec<WorkflowSeen>,
-    /// The walker stopped at its budget: the list is a prefix.
+    /// The inventory's workflow row cap omitted entries from the emitted list.
     pub truncated: bool,
+    /// The bounded filesystem walk left entries unvisited or unreadable.
+    /// The inventory is incomplete even when no workflows were observed;
+    /// `false` still retains the walker's depth and directory exclusions.
+    pub walk_truncated: bool,
 }
 
 impl ProjectSnapshot {
@@ -57,7 +61,7 @@ impl ProjectSnapshot {
             Ok(Some((path, project))) => (Some(path), project.ceiling),
             _ => (None, None),
         };
-        let (facts, truncated, _, _) = nika_dap::inventory::collect_workflows(&root);
+        let (facts, truncated, _, walk_truncated) = nika_dap::inventory::collect_workflows(&root);
         let workflows = facts
             .into_iter()
             .map(|f| WorkflowSeen {
@@ -76,6 +80,7 @@ impl ProjectSnapshot {
             ceiling,
             workflows,
             truncated,
+            walk_truncated,
         }
     }
 
@@ -97,17 +102,12 @@ impl ProjectSnapshot {
             None => lines.push("project file: none (nika init founds one)".to_owned()),
         }
         if self.workflows.is_empty() {
-            lines.push("workflows: none under the root".to_owned());
+            lines.push("workflows: none observed in the bounded scan".to_owned());
         } else {
             let clean = self.workflows.iter().filter(|w| w.clean).count();
             lines.push(format!(
-                "workflows: {} under the root · {clean} clean{}",
+                "workflows: {} observed in the bounded scan · {clean} clean",
                 self.workflows.len(),
-                if self.truncated {
-                    " · the list is truncated"
-                } else {
-                    ""
-                }
             ));
             for w in self.workflows.iter().take(12) {
                 lines.push(format!(
@@ -122,6 +122,15 @@ impl ProjectSnapshot {
                     }
                 ));
             }
+        }
+        if self.truncated {
+            lines.push(
+                "workflow inventory incomplete: workflow list capped; counts are lower bounds"
+                    .to_owned(),
+            );
+        }
+        if self.walk_truncated {
+            lines.push("workflow inventory incomplete: walk truncated; counts are lower bounds and more workflows may exist".to_owned());
         }
         lines
     }
@@ -167,6 +176,94 @@ mod tests {
         dir
     }
 
+    fn inventory_projections(snapshot: &ProjectSnapshot) -> [String; 3] {
+        let broker = crate::broker::ContextBroker::new(snapshot.root.clone());
+        let bundle = broker.bundle(snapshot, None, &[], "local");
+        [
+            snapshot.facts_lines().join("\n"),
+            crate::facts::answer("which workflows are here?", snapshot, &snapshot.root)
+                .expect("inventory answer"),
+            crate::broker::ContextBroker::prompt(&bundle, &[], "which workflows are here?"),
+        ]
+    }
+
+    /// A root that disappeared is deterministically unreadable, even when
+    /// tests run with elevated filesystem permissions. The real walker must
+    /// report unknown inventory, not a fabricated complete empty scan.
+    #[test]
+    fn an_unreadable_walk_stays_incomplete_in_facts_and_prompts() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let missing = dir.path().join("removed-root");
+        std::fs::create_dir(&missing).expect("root");
+        std::fs::remove_dir(&missing).expect("remove root");
+        let snapshot = ProjectSnapshot::observe(&missing);
+        assert!(snapshot.workflows.is_empty());
+        assert!(
+            !snapshot.truncated,
+            "the emitted workflow list was not capped"
+        );
+        assert!(
+            snapshot.walk_truncated,
+            "the walker could not inspect its root"
+        );
+        for projection in inventory_projections(&snapshot) {
+            assert!(
+                projection.contains("none observed in the bounded scan"),
+                "{projection}"
+            );
+            assert!(projection.contains("walk truncated"), "{projection}");
+            assert!(projection.contains("inventory incomplete"), "{projection}");
+            assert!(!projection.contains("none under the root"), "{projection}");
+        }
+    }
+
+    /// The workflow row cap and the walk's completeness are distinct facts.
+    /// A real capped inventory discloses its lower-bound counts everywhere.
+    #[test]
+    fn a_capped_inventory_stays_incomplete_in_facts_and_prompts() {
+        let dir = tempfile::tempdir().expect("tmp");
+        for index in 0..=nika_dap::inventory::MAX_WORKFLOWS {
+            std::fs::write(
+                dir.path().join(format!("{index:03}.nika.yaml")),
+                "nika: capped\n",
+            )
+            .expect("workflow");
+        }
+        let snapshot = ProjectSnapshot::observe(dir.path());
+        assert_eq!(snapshot.workflows.len(), nika_dap::inventory::MAX_WORKFLOWS);
+        assert!(snapshot.truncated);
+        assert!(
+            !snapshot.walk_truncated,
+            "the walk itself completed within its bounds"
+        );
+        for projection in inventory_projections(&snapshot) {
+            assert!(projection.contains("workflow list capped"), "{projection}");
+            assert!(projection.contains("inventory incomplete"), "{projection}");
+            assert!(
+                projection.contains("counts are lower bounds"),
+                "{projection}"
+            );
+            assert!(!projection.contains("walk truncated"), "{projection}");
+        }
+    }
+
+    /// Even a completed walk only speaks for the installed walker's scope.
+    #[test]
+    fn an_empty_completed_scan_names_its_bounds() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let snapshot = ProjectSnapshot::observe(dir.path());
+        assert!(snapshot.workflows.is_empty());
+        assert!(!snapshot.truncated);
+        assert!(!snapshot.walk_truncated);
+        for projection in inventory_projections(&snapshot) {
+            assert!(
+                projection.contains("none observed in the bounded scan"),
+                "{projection}"
+            );
+            assert!(!projection.contains("inventory incomplete"), "{projection}");
+        }
+    }
+
     /// The snapshot sees the two workflows with the checker's verdicts, the
     /// project file with its ceiling, and no git root outside a repo.
     #[test]
@@ -189,7 +286,7 @@ mod tests {
         assert!(
             facts
                 .iter()
-                .any(|l| l.contains("workflows: 2 under the root · 1 clean")),
+                .any(|l| l.contains("workflows: 2 observed in the bounded scan · 1 clean")),
             "{facts:?}"
         );
     }

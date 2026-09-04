@@ -220,10 +220,6 @@ impl KnownWorld {
             "arm",
             "serve",
             "list",
-            "graph",
-            "tools",
-            "fix",
-            "version",
             "help",
         ]
         .into_iter()
@@ -493,6 +489,39 @@ mod tests {
 
     fn world() -> KnownWorld {
         KnownWorld::installed(Path::new("/nonexistent-root"))
+    }
+
+    /// Retired command spellings cannot be grounded as installed commands.
+    #[test]
+    fn retired_commands_are_not_grounded() {
+        let reply = "Use `nika graph`, `nika tools`, `nika fix`, and `nika version`.";
+        let findings = world().audit(reply);
+        assert_eq!(
+            findings,
+            vec![
+                Finding::Verb("graph".to_owned()),
+                Finding::Verb("tools".to_owned()),
+                Finding::Verb("fix".to_owned()),
+                Finding::Verb("version".to_owned()),
+            ]
+        );
+        let shown = KnownWorld::correct(reply, &findings);
+        for verb in ["graph", "tools", "fix", "version"] {
+            assert!(shown.contains(&format!("`nika {verb}` is not a command")));
+        }
+    }
+
+    /// The active replacement forms and distinct protocol/host doors remain
+    /// grounded, including commands intentionally hidden from the short help.
+    #[test]
+    fn unique_command_capabilities_stay_grounded() {
+        let reply = "Use `nika inspect flow.nika.yaml --format mermaid`, \
+            `nika catalog --tools`, and `nika check flow.nika.yaml --fix`; \
+            `nika list`, `nika guard`, `nika dap`, `nika lsp`, `nika mcp`, \
+            `nika arm`, and `nika serve` are installed too.";
+        let findings = world().audit(reply);
+        assert!(findings.is_empty(), "{findings:?}");
+        assert_eq!(KnownWorld::correct(reply, &findings), reply);
     }
 
     /// The adversarial corpus of the pack: an invented builtin, model,
