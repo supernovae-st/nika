@@ -194,11 +194,24 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
         Err(error) => return error.into_response(),
     };
     let digest = RequestDigest::from_bytes(Sha256::digest(&body).into());
+    // ADR-132 · the freeze audit: a key already bound replays its job
+    // BEFORE the resident touches the registry or the body again — a
+    // lost-response retry finds its job even after the workflow changed,
+    // vanished or went red, and never executes changed bytes.
+    match state
+        .coordinator
+        .replay_manual(key.clone(), digest.clone())
+        .await
+    {
+        Ok(Some(admission)) => return admission_response(admission),
+        Ok(None) => {}
+        Err(error) => return admission_error(&error),
+    }
     // ADR-131 · two forms, one admission: a NAME from the served registry
     // (the resident captures the world — the one owner of the snapshot and
     // its digest domain) or the snapshot `nika check <file> --json
     // --sdk-snapshot` prints (digests optional: computed when absent,
-    // attested when present).
+    // checked when present).
     if let Some(name) = by_name(&body) {
         let admitted = match admit_by_name(&name, &state).await {
             Ok(admitted) => admitted,
@@ -445,22 +458,19 @@ async fn admit_job(
     workflow: String,
     world: String,
 ) -> Response<ResponseBody> {
-    let admission = match state
+    match state
         .coordinator
         .admit_manual(key, digest, workflow, world)
         .await
     {
-        Ok(admission) => admission,
-        Err(super::ServerError::JobStore(crate::JobStoreError::CapacityExceeded)) => {
-            return job_capacity();
-        }
-        Err(
-            super::ServerError::JobStore(crate::JobStoreError::Busy)
-            | super::ServerError::StoreQueueFull,
-        ) => return store_busy(),
-        Err(super::ServerError::ExecutionQueueFull) => return queue_full(),
-        Err(_) => return internal_error(),
-    };
+        Ok(admission) => admission_response(admission),
+        Err(error) => admission_error(&error),
+    }
+}
+
+/// The admission's own words on the wire: created (202), replayed (200), a
+/// key already bound to other bytes (409).
+fn admission_response(admission: Admission) -> Response<ResponseBody> {
     match admission {
         Admission::Conflict(_) => ApiError::new(
             StatusCode::CONFLICT,
@@ -472,6 +482,18 @@ async fn admit_job(
             json_response(StatusCode::ACCEPTED, &JobResponse::from(&record))
         }
         Admission::Existing(record) => json_response(StatusCode::OK, &JobResponse::from(&record)),
+    }
+}
+
+/// The admission refusals the resident types (capacity · a busy store · a
+/// full queue); the rest is an internal error.
+fn admission_error(error: &super::ServerError) -> Response<ResponseBody> {
+    match error {
+        super::ServerError::JobStore(crate::JobStoreError::CapacityExceeded) => job_capacity(),
+        super::ServerError::JobStore(crate::JobStoreError::Busy)
+        | super::ServerError::StoreQueueFull => store_busy(),
+        super::ServerError::ExecutionQueueFull => queue_full(),
+        _ => internal_error(),
     }
 }
 
@@ -754,7 +776,20 @@ fn idempotency_key(headers: &hyper::HeaderMap) -> Result<IdempotencyKey, ApiErro
         return Err(invalid_idempotency_key());
     }
     let value = value.to_str().map_err(|_| invalid_idempotency_key())?;
+    // The resident's own namespace (a scheduled slot's key): a manual caller
+    // can neither replay nor conflict with a slot it never fired.
+    if value.starts_with(super::coordinator::SCHEDULE_KEY_PREFIX) {
+        return Err(reserved_idempotency_key());
+    }
     IdempotencyKey::new(value).map_err(|_| invalid_idempotency_key())
+}
+
+fn reserved_idempotency_key() -> ApiError {
+    ApiError::new(
+        StatusCode::BAD_REQUEST,
+        "invalid_idempotency_key",
+        "the `schedule:` key namespace is the resident's own (a scheduled slot's key) · choose another key",
+    )
 }
 
 fn invalid_idempotency_key() -> ApiError {

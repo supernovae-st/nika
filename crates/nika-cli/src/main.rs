@@ -1178,14 +1178,16 @@ mod tests {
     }
 
     #[test]
-    fn sdk_snapshot_is_a_hidden_check_adapter_not_a_new_verb() {
+    fn sdk_snapshot_is_a_public_check_adapter_not_a_new_verb() {
         let mut command = Cli::command();
         let check = command.find_subcommand_mut("check").expect("check");
         let adapter = check
             .get_arguments()
             .find(|argument| argument.get_long() == Some("sdk-snapshot"))
-            .expect("hidden sdk snapshot adapter");
-        assert!(adapter.is_hide_set());
+            .expect("the sdk snapshot adapter");
+        // ADR-131 · the producer is public: the OpenAPI, the listen banner
+        // and the resident's refusals name it, so `--help` names it too.
+        assert!(!adapter.is_hide_set());
         assert!(
             Cli::try_parse_from([
                 "nika",

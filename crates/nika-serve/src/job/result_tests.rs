@@ -472,3 +472,38 @@ fn result_data_is_terminal_only_and_preserves_failed_identity() {
         Err(JobStoreError::Corrupt(_))
     ));
 }
+
+/// ADR-130 · ONE mapping, the words equal by construction: every run
+/// state's wire word is the job status it projects to, and back; the
+/// job's own words (`queued` · `running` · `interrupted`) are never a run
+/// state.
+#[test]
+fn the_job_status_words_are_the_settlements() {
+    use nika_event::settlement::RunState;
+    for state in [
+        RunState::Succeeded,
+        RunState::Failed,
+        RunState::Paused,
+        RunState::Cancelled,
+    ] {
+        let status = crate::JobStatus::from(state);
+        let word = serde_json::to_value(state).expect("a state serializes");
+        assert_eq!(
+            serde_json::Value::String(status.to_string()),
+            word,
+            "{status}"
+        );
+        assert_eq!(status.run_state(), Some(state), "{status}");
+    }
+    for own in [
+        crate::JobStatus::Queued,
+        crate::JobStatus::Running,
+        crate::JobStatus::Interrupted,
+    ] {
+        assert_eq!(
+            own.run_state(),
+            None,
+            "{own} is the job's own word, never a run state"
+        );
+    }
+}

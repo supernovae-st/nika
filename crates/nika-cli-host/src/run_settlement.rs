@@ -127,10 +127,55 @@ pub fn local_receipt_binding(
     })
 }
 
+/// What the run left behind as evidence on the local door (ADR-129 · the
+/// freeze audit): run state ≠ evidence state, and the evidence is SAID on
+/// the settlement, never implied by an absent receipt.
+#[derive(Debug, Clone, Copy)]
+pub enum LocalEvidence<'a> {
+    /// The journal at `path`, with its proof (sealed or not).
+    Journal {
+        /// The journal's path, as the receipt names it.
+        path: &'a Path,
+        /// The chain head, its length, whether the seal landed.
+        proof: &'a TraceProof,
+    },
+    /// A journal was opened and its writer lane died after the run's
+    /// effects: the run settled, the evidence is incomplete.
+    Lost,
+    /// No journal: the run opted out of the trace.
+    None,
+}
+
+impl<'a> LocalEvidence<'a> {
+    /// From the trace surface the run left: a path with its proof is the
+    /// journal; a lane that died, or a path with no proof, is lost; nothing
+    /// is none.
+    #[must_use]
+    pub const fn of(path: Option<&'a Path>, proof: Option<&'a TraceProof>, lost: bool) -> Self {
+        match (path, proof) {
+            (Some(path), Some(proof)) if !lost => Self::Journal { path, proof },
+            (None, None) if !lost => Self::None,
+            _ => Self::Lost,
+        }
+    }
+
+    /// The word on the wire: `sealed` · `unsealed` · `lost` · `none`.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Journal { proof, .. } if proof.sealed => "sealed",
+            Self::Journal { .. } => "unsealed",
+            Self::Lost => "lost",
+            Self::None => "none",
+        }
+    }
+}
+
 /// The `run_settled` envelope: the settlement flattened (`status` · `cause`
 /// · `elapsed_ms` · `tasks` · `spend` · `error`), then the locators the
-/// runtime does not know — the execution identity, the receipt, the lanes
-/// that served (One Door · wave 2b · the ONE lane-row shape).
+/// runtime does not know — the execution identity, the evidence word, the
+/// receipt, the lanes that served (One Door · wave 2b · the ONE lane-row
+/// shape).
 #[derive(Serialize)]
 struct RunSettledFrame<'a, T> {
     kind: &'static str,
@@ -138,6 +183,10 @@ struct RunSettledFrame<'a, T> {
     settlement: &'a RunSettlement,
     #[serde(skip_serializing_if = "Option::is_none")]
     execution: Option<nika_types::id::ExecutionId>,
+    /// ADR-129 · what the run left as evidence (`sealed` · `unsealed` ·
+    /// `lost` · `none`) — said, never implied by an absent receipt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    evidence: Option<&'static str>,
     outputs: &'a T,
     #[serde(skip_serializing_if = "Option::is_none")]
     receipt: Option<LocalRunReceipt<'a>>,
@@ -162,6 +211,7 @@ pub fn write_run_settlement<T: Serialize>(
             kind: "run_settled",
             settlement,
             execution: None,
+            evidence: None,
             outputs,
             receipt,
             access_plan: None,
@@ -182,13 +232,16 @@ pub fn write_local_run_settlement<T: Serialize, W: Write>(
     outputs: &T,
     execution: nika_types::id::ExecutionId,
     snapshot_digest: &str,
-    trace: Option<(&Path, &TraceProof)>,
+    evidence: LocalEvidence<'_>,
     access_plan: Option<&[serde_json::Value]>,
 ) -> std::io::Result<()> {
     let execution_id = execution.to_string();
     let trace_id = nika_types::id::TraceId::from(execution).to_string();
-    let trace_path = trace.map(|(path, _)| path.to_string_lossy());
-    let receipt = trace.zip(trace_path.as_deref()).map(|((_, proof), path)| {
+    let journal = match evidence {
+        LocalEvidence::Journal { path, proof } => Some((path.to_string_lossy(), proof)),
+        LocalEvidence::Lost | LocalEvidence::None => None,
+    };
+    let receipt = journal.as_ref().map(|(path, proof)| {
         LocalRunReceipt::new(
             &execution_id,
             &trace_id,
@@ -203,6 +256,7 @@ pub fn write_local_run_settlement<T: Serialize, W: Write>(
         kind: "run_settled",
         settlement,
         execution: Some(execution),
+        evidence: Some(evidence.word()),
         outputs,
         receipt,
         access_plan,
@@ -313,7 +367,7 @@ mod tests {
                 &json!({}),
                 execution,
                 "snapshot",
-                None,
+                LocalEvidence::None,
                 None,
             )
             .expect("settlement writes");
@@ -324,6 +378,48 @@ mod tests {
             serde_json::to_value(execution).expect("execution serializes")
         );
         assert!(value.get("receipt").is_none());
+        assert_eq!(value["evidence"], "none", "the opt-out is said");
+    }
+
+    /// ADR-129 · the freeze audit · a journal whose writer lane died after
+    /// the run's effects: the run settled (its own state), the evidence is
+    /// LOST — said on the frame, never implied by the absent receipt.
+    #[test]
+    fn a_lost_journal_is_said_never_implied() {
+        let mut out = Vec::new();
+        let execution = nika_types::id::ExecutionId::nil();
+        let settlement = RunSettlement::new(RunState::Succeeded, RunCause::Normal);
+        {
+            let mut writer = nika_dap::journal::JsonSink::new(&mut out);
+            write_local_run_settlement(
+                &mut writer,
+                &settlement,
+                &json!({}),
+                execution,
+                "snapshot",
+                LocalEvidence::of(Some(Path::new(".nika/traces/torn.ndjson")), None, true),
+                None,
+            )
+            .expect("settlement writes");
+        }
+        let value: serde_json::Value = serde_json::from_slice(&out).expect("valid JSON");
+        assert_eq!(value["status"], "succeeded", "the run's own state");
+        assert_eq!(value["evidence"], "lost", "{value}");
+        assert!(
+            value.get("receipt").is_none(),
+            "no receipt for lost evidence"
+        );
+        let proof = TraceProof {
+            head: "head".to_owned(),
+            len: 1,
+            sealed: false,
+        };
+        assert_eq!(
+            LocalEvidence::of(Some(Path::new("j")), Some(&proof), false).word(),
+            "unsealed"
+        );
+        assert_eq!(LocalEvidence::of(None, None, false).word(), "none");
+        assert_eq!(LocalEvidence::of(None, None, true).word(), "lost");
     }
 
     #[test]
@@ -344,7 +440,10 @@ mod tests {
                 &json!({}),
                 execution,
                 "snapshot",
-                Some((Path::new(".nika/traces/exact.ndjson"), &proof)),
+                LocalEvidence::Journal {
+                    path: Path::new(".nika/traces/exact.ndjson"),
+                    proof: &proof,
+                },
                 None,
             )
             .expect("settlement writes");
@@ -355,6 +454,7 @@ mod tests {
             serde_json::to_value(execution).expect("execution serializes")
         );
         assert_eq!(value["receipt"]["execution_id"], execution.to_string());
+        assert_eq!(value["evidence"], "sealed", "{value}");
     }
 
     #[test]

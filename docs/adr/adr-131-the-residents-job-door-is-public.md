@@ -1,6 +1,6 @@
 ---
 id: ADR-131
-title: "The resident's job door is public: admission by served name, digests as optional attestations, the engine as the one producer"
+title: "The resident's job door is public: admission by served name, digests as optional integrity assertions, the engine as the one producer"
 status: accepted
 date: "2026-09-04"
 phase: "pre-1.0 · one door"
@@ -49,12 +49,14 @@ filesystem, Rust or hidden-endpoint knowledge.
    admit`, exactly as a schedule fires — the one owner of the snapshot
    and of its digest domain. The snapshot form stays for a remote world;
    it is the body `nika check <file> --json --sdk-snapshot` prints.
-2. **Digests are attestations, optional.** On the wire, `digest` and the
+2. **Digests are integrity assertions, optional.** On the wire, `digest` and the
    unit digests may be absent: the engine computes them (`decode`
    verifies a present one, computes an absent one; the stored world is
    the engine's canonical encoding, digests present from admission on).
    A present digest that mismatches is refused as `snapshot_tampered`
-   with the honest words: an attestation that failed, the producer named.
+   with the honest words: a caller-supplied integrity digest that failed,
+   the producer named (never a signature: the bearer authenticates the
+   caller, the digest asserts the content).
 3. **The producer is named everywhere.** The OpenAPI (`JobByName` ·
    `ExecutionSnapshot` · the unit `kind` legend · the jobs and check
    summaries), the listen banner, `serve --workflows`'s help.
@@ -79,3 +81,12 @@ filesystem, Rust or hidden-endpoint knowledge.
 - A `nika snapshot <file>` verb: rejected — the producer exists as a
   hidden `check` adapter; a verb for it would grow the surface the
   consumer program is about to prune.
+
+## Amendment · 2026-09-04 (the freeze audit)
+
+« Attestation » was a word above the proof: nothing signs the digest a
+caller sends; it is a SHA-256 the engine verifies against the bytes it
+received — a content assertion. The OpenAPI, the refusal text, `nika
+explain` and this ADR now say « caller-supplied integrity digest ». The
+wire code `snapshot_tampered` stays (a stable word since 0.116); its
+words changed.

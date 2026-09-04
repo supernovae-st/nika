@@ -70,6 +70,21 @@ fn refuse(door: &str, why: impl std::fmt::Display) -> String {
     escape_for_embedding(&serde_json::json!({ "error": format!("{door} · {why}") }).to_string())
 }
 
+/// A reader refuses a format it does not speak (the engine's own law for
+/// `nika inspect --format json`): the numbers are named, never a silent
+/// misread of a cleanup unit as a task.
+fn spoken_format(g: &GraphDoc) -> Result<(), String> {
+    if g.graph_format == ingress::GRAPH_FORMAT {
+        Ok(())
+    } else {
+        Err(format!(
+            "graph_format {} is not {} — a reader refuses a format it does not speak",
+            g.graph_format,
+            ingress::GRAPH_FORMAT
+        ))
+    }
+}
+
 /// The pre-flight every door runs first.
 fn admit(door: &str, inputs: &[&str]) -> Result<(), String> {
     for input in inputs {
@@ -174,6 +189,9 @@ pub fn board_first(graph_json: &str) -> String {
         Ok(g) => g,
         Err(e) => return refuse("board_first · graph", e),
     };
+    if let Err(e) = spoken_format(&g) {
+        return refuse("board_first · graph", e);
+    }
     serde_json::to_string(&plan::seat_first(&g)).map_or_else(
         |e| refuse("board_first · emit", e),
         |s| escape_for_embedding(&s),
@@ -196,6 +214,9 @@ pub fn board_next(board_json: &str, graph_json: &str) -> String {
         Ok(g) => g,
         Err(e) => return refuse("board_next · graph", e),
     };
+    if let Err(e) = spoken_format(&g) {
+        return refuse("board_next · graph", e);
+    }
     serde_json::to_string(&plan::seat_next(&prev, &g)).map_or_else(
         |e| refuse("board_next · emit", e),
         |s| escape_for_embedding(&s),

@@ -432,7 +432,9 @@ impl JobStatus {
         }
     }
 
-    /// Whether this status is a durable terminal settlement.
+    /// Whether this status ends the job's lifecycle: the four settlement
+    /// states and `interrupted` (an evidence state · ownership lost, never a
+    /// run state · ADR-129).
     #[must_use]
     pub const fn is_settled(self) -> bool {
         matches!(

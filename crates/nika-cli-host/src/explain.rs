@@ -243,9 +243,10 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
         // ladder alone sent seated operators to a vendor signup).
         "NIKA-INFER-001" => Some(
             "set the key the witness names (custody is the process env: \
-             `export <VAR>=…`), or run through a signed-in seat: \
+             `export <VAR>=…`), or run through a seat present on this machine: \
              `nika run <file> --access claude-code` — any agentic CLI you're \
-             signed into serves (`nika doctor` lists them)",
+             signed into serves (its login is judged when the run starts · \
+             `nika doctor` lists them)",
         ),
         // F4: the unresolved-vars class is fixable from the CLI.
         "NIKA-VAR-001" => Some(
@@ -413,7 +414,9 @@ mod tests {
         let text = "body".to_owned();
         let with = crate::probe::with_seat_tail(
             "NIKA-INFER-001",
-            Some("or use a signed-in seat: `--access claude-code`"),
+            Some(
+                "or use a seat present on this machine: `--access claude-code` (its login is judged at run)",
+            ),
             text.clone(),
         );
         assert!(with.contains("--access claude-code"), "{with}");

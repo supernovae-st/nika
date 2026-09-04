@@ -1258,14 +1258,14 @@ async fn snapshot_wire_refusals_have_stable_typed_codes_and_never_execute() {
         assert_eq!(response.json()["error"]["code"], code, "{key}");
         assert!(response.json().get("id").is_none(), "{key}");
         if code == "snapshot_tampered" {
-            // ADR-131 · an attestation that failed, the producer named —
-            // never an accusation.
+            // ADR-131 · a caller-supplied integrity digest that failed, the
+            // producer named — never an accusation, never a signature.
             let message = response.json()["error"]["message"]
                 .as_str()
                 .unwrap_or_default()
                 .to_owned();
             assert!(
-                message.contains("attests") && message.contains("--sdk-snapshot"),
+                message.contains("integrity digest") && message.contains("--sdk-snapshot"),
                 "{key}: {message}"
             );
         }

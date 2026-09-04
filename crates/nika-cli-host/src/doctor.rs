@@ -1234,7 +1234,7 @@ fn harness_finding_from_parts(
             level: Level::Ok,
             label: "runtime".to_owned(),
             detail: format!(
-                "{id} — {display} · detected (v{major}.{minor}) · authenticated (its own login) · `--access {id}`"
+                "{id} — {display} · detected (v{major}.{minor}) · its login command reports signed in · `--access {id}`"
             ),
             fix: None,
         },

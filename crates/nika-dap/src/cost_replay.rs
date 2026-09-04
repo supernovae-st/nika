@@ -233,6 +233,7 @@ pub fn cost_replay_leg(raw: &str, local: &PricingPin) -> CostReplayLeg {
     let mut priced_frames = 0_usize;
     let mut end = RunEnd::None;
     let mut journaled_total: Option<f64> = None;
+    let mut journaled_qualifier: Option<String> = None;
     for line in raw.lines().filter(|l| !l.trim().is_empty()) {
         let Ok(frame) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
@@ -246,6 +247,9 @@ pub fn cost_replay_leg(raw: &str, local: &PricingPin) -> CostReplayLeg {
             Some("workflow_completed") => {
                 end = RunEnd::Completed;
                 journaled_total = num_field(&frame, "total_cost_usd");
+                journaled_qualifier = field(&frame, "cost_qualifier")
+                    .and_then(|q| q.as_str())
+                    .map(str::to_owned);
             }
             Some("workflow_failed") => {
                 let aborted = field(&frame, "detail")
@@ -257,10 +261,16 @@ pub fn cost_replay_leg(raw: &str, local: &PricingPin) -> CostReplayLeg {
                     RunEnd::FailedOther
                 };
                 journaled_total = num_field(&frame, "total_cost_usd");
+                journaled_qualifier = field(&frame, "cost_qualifier")
+                    .and_then(|q| q.as_str())
+                    .map(str::to_owned);
             }
             Some("workflow_paused" | "workflow_cancelled") => {
                 end = RunEnd::MidFlight;
                 journaled_total = num_field(&frame, "total_cost_usd");
+                journaled_qualifier = field(&frame, "cost_qualifier")
+                    .and_then(|q| q.as_str())
+                    .map(str::to_owned);
             }
             _ => {}
         }
@@ -291,6 +301,7 @@ pub fn cost_replay_leg(raw: &str, local: &PricingPin) -> CostReplayLeg {
         priced_frames,
         end,
         journaled_total,
+        journaled_qualifier.as_deref(),
     )
 }
 
@@ -339,6 +350,7 @@ fn rejudged(
     priced_frames: usize,
     end: RunEnd,
     journaled_total: Option<f64>,
+    journaled_qualifier: Option<&str>,
 ) -> CostReplayLeg {
     let mut lines = vec![format!(
         "COST-REPLAY — the pinned pricing table is this engine's ({})\n  the budget verdict re-judged from the journaled dollars (re-pricing from the\n  token split is the v2 owe — the journal carries no input/output usage split)",
@@ -347,25 +359,13 @@ fn rejudged(
     lines.push(format!(
         "  re-summed ${spent_usd:.6} across {priced_frames} priced frame(s)"
     ));
-    // Totals-consistency: the re-sum against the terminal frame's own
-    // journaled total (the ledger folded the same values at the same
-    // grain — a rewrite that moved dollars between frames shows here).
-    let totals = journaled_total.map(|total| {
-        let agreement = if micro_usd(spent_usd) == micro_usd(total) {
-            Agreement::Agrees
-        } else {
-            Agreement::Diverges
-        };
-        match agreement {
-            Agreement::Agrees => lines.push(format!(
-                "  totals: agrees with the journaled total_cost_usd (${total:.6})"
-            )),
-            Agreement::Diverges => lines.push(format!(
-                "  totals: DIVERGES — re-summed ${spent_usd:.6} vs journaled ${total:.6} (the journal's cost story does not re-judge)"
-            )),
-        }
-        agreement
-    });
+    let totals = totals_line(
+        &mut lines,
+        spent_usd,
+        end,
+        journaled_total,
+        journaled_qualifier,
+    );
     // The budget verdict — only a run that REACHED a final budget
     // verdict can be re-judged on it (a mid-flight run has none yet).
     let budget_verdict = budget.and_then(|budget_usd| {
@@ -426,6 +426,46 @@ fn rejudged(
         }),
         lines,
     }
+}
+
+/// Totals-consistency: the re-sum against the terminal frame's own
+/// journaled total (the ledger folded the same values at the same grain —
+/// a rewrite that moved dollars between frames shows here). A run that
+/// metered nothing carries no total and says so with the journal's own
+/// qualifier (ADR-128), never re-summed to a zero.
+fn totals_line(
+    lines: &mut Vec<String>,
+    spent_usd: f64,
+    end: RunEnd,
+    journaled_total: Option<f64>,
+    journaled_qualifier: Option<&str>,
+) -> Option<Agreement> {
+    let totals = journaled_total.map(|total| {
+        let agreement = if micro_usd(spent_usd) == micro_usd(total) {
+            Agreement::Agrees
+        } else {
+            Agreement::Diverges
+        };
+        match agreement {
+            Agreement::Agrees => lines.push(format!(
+                "  totals: agrees with the journaled total_cost_usd (${total:.6} · {})",
+                journaled_qualifier.unwrap_or("qualifier unrecorded · an older journal")
+            )),
+            Agreement::Diverges => lines.push(format!(
+                "  totals: DIVERGES — re-summed ${spent_usd:.6} vs journaled ${total:.6} (the journal's cost story does not re-judge)"
+            )),
+        }
+        agreement
+    });
+    if journaled_total.is_none()
+        && let Some(qualifier) = journaled_qualifier
+        && !matches!(end, RunEnd::None | RunEnd::MidFlight)
+    {
+        lines.push(format!(
+            "  totals: nothing metered — the journal says `{qualifier}` (no total_cost_usd, never a zero)"
+        ));
+    }
+    totals
 }
 
 /// `{schema} · as_of {date} · sha256_16 {hex}` — the identity render

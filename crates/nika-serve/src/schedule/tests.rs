@@ -63,12 +63,15 @@ fn due_once(definition: &nika_cadence::ScheduleDefinition) -> nika_cadence::Sche
     .expect("due once slot")
 }
 
-/// ADR-132 · #1352 · the schedule store carries the writer's stamp and
-/// refuses a newer protocol's state.
+/// ADR-132 · #1352 · the schedule store carries the writer's stamp once
+/// the resident holds its lease, and refuses a newer protocol's state.
 #[test]
 fn the_schedule_store_is_stamped_and_refuses_a_newer_writer() {
     let root = tempfile::tempdir().expect("root");
-    drop(ScheduleStore::open(root.path()).expect("store"));
+    ScheduleStore::open(root.path())
+        .expect("store")
+        .stamp_writer_as_resident()
+        .expect("the resident stamps");
     let path = root.path().join("schedules/state.json");
     let mut state: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&path).expect("read")).expect("json");

@@ -5121,6 +5121,7 @@ name = "nika-tui-core"
 version = "0.117.1"
 dependencies = [
  "nika-event",
+ "nika-graph",
  "proptest",
  "serde",
  "serde_json",

@@ -502,11 +502,27 @@ impl ProjectChangeSet {
     }
 }
 
-/// The real check of a workflow as it now sits on disk (after apply).
+/// The real check of a workflow as it now sits on disk (after apply) —
+/// the SAME judgment `nika check` makes (the freeze audit): the composed
+/// lane resolves a child the workflow invokes against the file itself, the
+/// skills lane against its directory. The preview stays child-blind on
+/// purpose: a proposal may create the child in the same set.
 #[must_use]
 pub fn check_on_disk(root: &Path, path: &Path) -> WorkflowAudit {
-    match std::fs::read_to_string(root.join(path)) {
-        Ok(source) => audit_bytes(path, &source),
+    let on_disk = root.join(path);
+    match std::fs::read_to_string(&on_disk) {
+        Ok(source) => {
+            let base = on_disk.parent().map(Path::to_path_buf);
+            let mut read = |p: &str| std::fs::read_to_string(p).map_err(|e| e.to_string());
+            let judged = audit_source(
+                &source,
+                &on_disk.display().to_string(),
+                Some(&mut read),
+                base.as_deref(),
+                AuditOptions::default(),
+            );
+            fold_audit(path, judged)
+        }
         Err(e) => WorkflowAudit {
             path: path.to_path_buf(),
             clean: false,
@@ -517,10 +533,22 @@ pub fn check_on_disk(root: &Path, path: &Path) -> WorkflowAudit {
     }
 }
 
-/// The facade's audit of exact bytes, folded to the preview's rows.
+/// The facade's audit of exact bytes (the preview · child-blind), folded to
+/// the preview's rows.
 fn audit_bytes(path: &Path, source: &str) -> WorkflowAudit {
     let logical = path.display().to_string();
-    match audit_source(source, &logical, None, None, AuditOptions::default()) {
+    fold_audit(
+        path,
+        audit_source(source, &logical, None, None, AuditOptions::default()),
+    )
+}
+
+/// The ONE fold of the facade's verdict to the preview's rows.
+fn fold_audit<E: std::fmt::Display>(
+    path: &Path,
+    judged: Result<nika_cli_host::oracle::Audit, E>,
+) -> WorkflowAudit {
+    match judged {
         Ok(audit) => {
             let findings = audit
                 .report
@@ -829,6 +857,30 @@ mod tests {
             assert_eq!(mode, 0o644, "a project file, not private state");
         }
         assert!(check_on_disk(dir.path(), Path::new("daily.nika.yaml")).clean);
+    }
+
+    /// The freeze audit · the check after apply is the one `nika check`
+    /// makes: a child the workflow invokes is judged (composed lane), so a
+    /// missing child stops the run here as it stops it at the terminal —
+    /// and the same child, present, reads clean.
+    #[test]
+    fn the_check_after_apply_judges_the_composed_world() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let parent = "nika: parent\nmodel: mock/echo\npermits: {}\ntasks:\n  child:\n    invoke: { workflow: ./child.nika.yaml }\noutputs:\n  out: ${{ tasks.child.output }}\n";
+        std::fs::write(dir.path().join("parent.nika.yaml"), parent).expect("seed");
+        let missing = check_on_disk(dir.path(), Path::new("parent.nika.yaml"));
+        assert!(
+            !missing.clean,
+            "a missing child is a finding here as at the terminal: {:?}",
+            missing.findings
+        );
+        std::fs::write(
+            dir.path().join("child.nika.yaml"),
+            "nika: child\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\noutputs:\n  said: ${{ tasks.t.output }}\n",
+        )
+        .expect("the child");
+        let present = check_on_disk(dir.path(), Path::new("parent.nika.yaml"));
+        assert!(present.clean, "{:?}", present.findings);
     }
 
     /// An update is witnessed: the bytes the preview was built over must

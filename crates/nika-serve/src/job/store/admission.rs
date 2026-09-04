@@ -9,6 +9,37 @@ use super::{
 };
 
 impl JobStore {
+    /// The admission already bound to this key, without creating one
+    /// (ADR-132 · the freeze audit): a lost-response retry finds its job
+    /// BEFORE the resident touches the registry or the body again, so a
+    /// workflow that changed, vanished or went red since the first request
+    /// can neither re-run nor lose the job. `None` when the key is unbound.
+    ///
+    /// # Errors
+    /// Returns an error when locking, loading or validation fails.
+    pub fn replay(
+        &self,
+        key: &IdempotencyKey,
+        digest: &RequestDigest,
+    ) -> Result<Option<Admission>, JobStoreError> {
+        key.validate()?;
+        digest.validate()?;
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let state = self.load_state()?;
+        Ok(state
+            .jobs
+            .iter()
+            .find(|job| job.record.idempotency_key == *key)
+            .map(|existing| {
+                if existing.record.request_digest == *digest {
+                    Admission::Existing(existing.record.clone())
+                } else {
+                    Admission::Conflict(existing.record.clone())
+                }
+            }))
+    }
+
     /// Atomically create one scheduled run already claimed as `running`.
     ///
     /// The caller has reserved the shared queue before entering this method.

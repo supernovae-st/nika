@@ -233,8 +233,14 @@ fn render_session(wf: &model::Workflow, run: &model::Run, theme: Theme) -> Strin
     // The spend, by verb. A verb that cost nothing is not printed: an
     // absent verb on screen is noise (the crate's `verbs_used` rule,
     // applied to money).
-    let total = derive::total_cost(run);
-    let mut spend = format!("  {} spent", fmt_cost_usd(total));
+    // A run nobody metered (a rehearsal · a local path) says so — never
+    // « $0.00 spent » (ADR-128 · unknown cost is not zero).
+    let metered = run.steps.iter().any(|s| s.cost.is_some());
+    let mut spend = if metered {
+        format!("  {} spent", fmt_cost_usd(derive::total_cost(run)))
+    } else {
+        "  no spend metered (unmetered · a rehearsal or a local path)".to_owned()
+    };
     for (verb, amount) in derive::cost_by_verb(wf, run) {
         if amount > 0.0 {
             let _ = write!(spend, " · {verb} {}", fmt_cost_usd(amount));
@@ -388,6 +394,26 @@ mod tests {
         assert!(text.contains("$0.42 spent"), "the total: {text}");
         assert!(text.contains("exec $0.42"), "the spend by verb: {text}");
         assert!(text.contains("7.0s wall"), "the wall: {text}");
+    }
+
+    /// ADR-128 · a run nobody metered never reads « $0.00 spent »: the
+    /// digest says no spend was metered.
+    #[test]
+    fn an_unmetered_run_says_so_never_a_zero() {
+        let (wf, _) = checked(YAML_DIAMOND);
+        let model_wf = workflow_of(&wf, "t.nika.yaml");
+        let run = run_of(vec![
+            step("a", 0.0, 1.0, None),
+            step("b", 1.0, 1.0, None),
+            step("b2", 1.0, 5.0, None),
+            step("c", 6.0, 1.0, None),
+        ]);
+        let text = render_session(&model_wf, &run, PLAIN);
+        assert!(text.contains("no spend metered"), "{text}");
+        assert!(
+            !text.contains("$0.00 spent"),
+            "a zero nobody metered: {text}"
+        );
     }
 
     /// ⭐ A bottleneck that costs nothing ISN'T one. Two near-equal steps:

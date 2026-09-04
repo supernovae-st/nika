@@ -135,11 +135,10 @@ fn parse_cursor(value: &str) -> Result<u64, ApiError> {
     value.parse().map_err(|_| ApiError::invalid_cursor())
 }
 
+/// ADR-130 · one terminal set, the record's own (`JobStatus::is_settled`),
+/// never a second hand-typed copy of the four words.
 fn is_terminal(status: JobStatus) -> bool {
-    matches!(
-        status,
-        JobStatus::Succeeded | JobStatus::Failed | JobStatus::Interrupted | JobStatus::Cancelled
-    )
+    status.is_settled()
 }
 
 #[derive(Debug, Serialize)]
@@ -155,6 +154,9 @@ struct ProjectedEvent<'a> {
     outputs: Option<&'a BTreeMap<String, Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     receipt: Option<&'a JobReceipt>,
+    /// ADR-128 · the runtime's settlement, whole, on the terminal frame.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    settlement: Option<&'a Value>,
 }
 
 fn projected<'a>(
@@ -171,6 +173,7 @@ fn projected<'a>(
         message: string_field(event.payload(), "message"),
         outputs: if terminal { record.outputs() } else { None },
         receipt: if terminal { record.receipt() } else { None },
+        settlement: event.payload().get("settlement"),
     }
 }
 
@@ -454,6 +457,7 @@ mod tests {
             message: string_field(payload, "message"),
             outputs: None,
             receipt: None,
+            settlement: None,
         }
     }
 

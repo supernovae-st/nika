@@ -454,7 +454,7 @@ pub fn lookup(wire: &str) -> Option<NikaCode> {
 pub fn resident_help(code: &str) -> Option<String> {
     let (meaning, fix) = match code {
         "snapshot_tampered" => (
-            "the digest the request attests does not match the bytes it carries — an attestation that failed, not an accusation",
+            "the digest the request carries does not match its bytes — a caller-supplied integrity digest that failed, not an accusation (and never a signature)",
             "send the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer), or omit the digests and the resident computes them",
         ),
         "malformed_snapshot" => (
@@ -462,7 +462,7 @@ pub fn resident_help(code: &str) -> Option<String> {
             "post `{\"workflow\": \"<name>\"}` for a workflow the resident serves, or the snapshot `nika check <file> --json --sdk-snapshot` prints",
         ),
         "malformed_snapshot_digest" => (
-            "an attested digest is not canonical lowercase SHA-256 (64 hex characters)",
+            "a caller-supplied digest is not canonical lowercase SHA-256 (64 hex characters)",
             "omit the digests (the resident computes them) or send the engine's own",
         ),
         "malformed_snapshot_hex" => (

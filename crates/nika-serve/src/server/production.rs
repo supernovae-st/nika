@@ -153,6 +153,9 @@ fn run_admitted_resident_job(
                         _ => ExecutionDisposition::Failed,
                     };
                     let mut mapped = ExecutionOutcome::from(disposition);
+                    if let Some(settlement) = outcome.settlement() {
+                        mapped = mapped.with_settlement(settlement.clone());
+                    }
                     if !outcome.outputs().is_empty() {
                         mapped = mapped.with_outputs(outcome.outputs().clone());
                     }

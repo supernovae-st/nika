@@ -152,14 +152,27 @@ impl JobStore {
             let _local = store.local_guard()?;
             let _lease = store.kernel_lease()?;
             store.initialize_or_load()?;
-            store.stamp_writer()?;
         }
         Ok(store)
     }
 
-    /// ADR-132 · this engine becomes the store's writer at open (a store an
-    /// older engine wrote is re-stamped; the newer-writer refusal already
-    /// fired in `validate`). Held under the caller's lease.
+    /// ADR-132 · the RESIDENT becomes the store's writer once it holds the
+    /// server lease (the freeze audit moved the stamp after the lease: a
+    /// second start that loses the lease never rewrites the live
+    /// resident's writer, and a newer protocol's stamp never lands beside
+    /// an older resident still serving). The newer-writer refusal fires
+    /// at every load (`validate`), open included.
+    ///
+    /// # Errors
+    /// Returns an error when locking, loading or writing fails.
+    pub(crate) fn stamp_writer_as_resident(&self) -> Result<(), JobStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        self.stamp_writer()
+    }
+
+    /// The stamp itself (a store an older engine wrote is re-stamped; an
+    /// unstamped one is stamped). Held under the caller's lease.
     fn stamp_writer(&self) -> Result<(), JobStoreError> {
         let mut state = self.load_state()?;
         let mine = crate::writer::WriterStamp::this_engine();

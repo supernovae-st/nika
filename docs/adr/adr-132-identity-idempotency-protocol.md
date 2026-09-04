@@ -37,7 +37,7 @@ nothing said so). This ADR records the audit of what is already law on
 
 | action | identity | a duplicate yields | where |
 |---|---|---|---|
-| a gate answer on `--resume` | the approval ticket (`content_hash` · `run_nonce` · `step` · `minted_at_ms` · `ttl_seconds`) journaled on the pause frame, its digest claimed once under `.nika/approval-claims` | a settled gate: « this gate already settled · a decided gate stays decided » (ENV) · an expired ticket: the gate re-mints and asks again · a cross-run replay: refused `NIKA-SEC-010` · a consumed ticket: `approval.replayed` `NIKA-SEC-010` | `nika-dap::resume` · `nika-runtime::approval` · `resume_setup.rs` (the durable claim root) |
+| a gate answer on `--resume` | the approval ticket (`content_hash` · `run_nonce` · `step` · `minted_at_ms` · `ttl_seconds`) journaled on the pause frame, its digest claimed once under `$HOME/.nika/approval-claims` (per user, across projects; the digest carries the run nonce) | a settled gate: « this gate already settled · a decided gate stays decided » (ENV) · an expired ticket: the gate re-mints and asks again · a cross-run replay: refused `NIKA-SEC-010` · a consumed ticket: `approval.replayed` `NIKA-SEC-010` | `nika-dap::resume` · `nika-runtime::approval` · `resume_setup.rs` (the durable claim root) |
 | a session consent | the change set's witnesses (the bytes previewed) | after the file changed on disk: « changed since this preview — nothing was applied » · twice: « nothing is pending » | `nika-session::change` · `runtime::consent` |
 | a session gate answer | the pending gate | twice: « no run is waiting for an answer » | `runtime::answer_gate` |
 | a job cancel | the job's status transition | on a settled job: the record, unchanged (200) · a lost race: the current record | `nika-serve` `route::cancel_job` |
@@ -55,10 +55,12 @@ twice.
 
 1. **The writer's stamp.** Both resident stores (`jobs/state.json` ·
    `schedules/state.json`) carry `writer: {engine_version,
-   machine_protocol_version}`. A store is stamped at creation and
-   re-stamped at every open by a different engine (`WriterStamp` ·
-   `nika-serve::writer`). A store from before the stamp carries none and
-   is served, then stamped.
+   machine_protocol_version}`. The RESIDENT stamps them once it holds
+   the server lease (`WriterStamp` · `nika-serve::writer`); opening a
+   store never stamps it (the freeze audit of 2026-09-04 moved the stamp
+   after the lease: a second start that loses the lease never rewrites
+   the live resident's writer). A store from before the stamp carries
+   none and is served, then stamped by the next resident.
 2. **Fail closed on a newer protocol.** A store last written by an engine
    speaking a NEWER machine protocol refuses to open
    (`WrittenByNewerEngine`, naming both engines): its state is not ours
@@ -77,8 +79,13 @@ twice.
 - Positive: a resident-vs-binary skew is a doctor line, not a silent
   drift; a newer engine's state is never reinterpreted; every duplicate
   human action already yields a semantic reply on every door.
-- Negative: two additive fields on the stores' wire; one more doctor
-  line when a store exists.
+- Negative: two fields on the stores' wire, additive for a 0.118 reader;
+  a 0.117 binary refuses a stamped store as unreadable
+  (`deny_unknown_fields` · « state is not valid JSON ») and cannot name
+  the newer writer, so a downgrade is a hard stop said as corruption; one
+  more doctor line when a store exists. The stamp is the WIRE clock
+  (`machine_protocol_version`); the stores' own format is `version`
+  inside each file (jobs 3 · schedules 1), judged separately.
 - Follow-ups: the session's replies as typed outcomes (ADR-133).
 
 ## Alternatives considered

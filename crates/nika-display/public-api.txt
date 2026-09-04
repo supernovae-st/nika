@@ -620,6 +620,7 @@ pub nika_display::state::RunView::elapsed_ms: u64
 pub nika_display::state::RunView::external_map: bool
 pub nika_display::state::RunView::paused_task: core::option::Option<alloc::string::String>
 pub nika_display::state::RunView::permits: core::option::Option<alloc::string::String>
+pub nika_display::state::RunView::priced_calls: u64
 pub nika_display::state::RunView::retries: u32
 pub nika_display::state::RunView::token_samples: alloc::vec::Vec<u64>
 pub nika_display::state::RunView::unpriced_calls: u64

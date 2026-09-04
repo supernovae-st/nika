@@ -67,10 +67,10 @@
       },
       "ExecutionSnapshot": {
         "additionalProperties": false,
-        "description": "Immutable byte-owned execution world — the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer; a client never hashes). Unit bytes are canonical lowercase hexadecimal. `digest` and every unit `digest` are OPTIONAL attestations (canonical lowercase SHA-256): absent, the resident computes them and the receipt carries the result; present, they must match the bytes or the request is refused as `snapshot_tampered`. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
+        "description": "Immutable byte-owned execution world — the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer; a client never hashes). Unit bytes are canonical lowercase hexadecimal. `digest` and every unit `digest` are OPTIONAL caller-supplied integrity digests (canonical lowercase SHA-256 · a content assertion, never a signature): absent, the resident computes them and the receipt carries the result; present, they must match the bytes or the request is refused as `snapshot_tampered`. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
         "properties": {
           "digest": {
-            "description": "Optional attestation of the world's digest",
+            "description": "Optional caller-supplied integrity digest of the world (never a signature)",
             "pattern": "^[0-9a-f]{64}$",
             "type": "string"
           },
@@ -92,7 +92,7 @@
                   "type": "string"
                 },
                 "digest": {
-                  "description": "Optional attestation of the unit's digest",
+                  "description": "Optional caller-supplied integrity digest of the unit (never a signature)",
                   "pattern": "^[0-9a-f]{64}$",
                   "type": "string"
                 },
@@ -300,6 +300,9 @@
             "minimum": 1,
             "type": "integer"
           },
+          "settlement": {
+            "$ref": "#/components/schemas/RunSettlement"
+          },
           "status": {
             "anyOf": [
               {
@@ -455,6 +458,150 @@
         },
         "required": [
           "status"
+        ],
+        "type": "object"
+      },
+      "RunSettlement": {
+        "additionalProperties": false,
+        "description": "The run's settlement (ADR-128), built once by the runtime and projected whole: the state word every door speaks, why, the elapsed time on the kernel clock, the task tally, the spend with its qualifier, the failure named. Unknown cost is never zero: `total_cost_usd` is absent when nothing was metered. Present on the terminal event of a job whose runtime settled; absent when the resident lost the execution (interrupted) or refused it before any task.",
+        "properties": {
+          "cause": {
+            "enum": [
+              "normal",
+              "human_gate",
+              "task_failed",
+              "output_contract",
+              "budget",
+              "operator",
+              "refused"
+            ],
+            "type": "string"
+          },
+          "elapsed_ms": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "task": {
+                "description": "The task that failed · absent for a run-level cause",
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "spend": {
+            "additionalProperties": false,
+            "properties": {
+              "by_source": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              "priced_calls": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "pricing_as_of": {
+                "type": "string"
+              },
+              "qualifier": {
+                "enum": [
+                  "priced",
+                  "partially_priced",
+                  "unpriced",
+                  "unmetered"
+                ],
+                "type": "string"
+              },
+              "total_cost_usd": {
+                "description": "Present only when at least one leaf metered real spend",
+                "minimum": 0,
+                "type": "number"
+              },
+              "unpriced_calls": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "priced_calls",
+              "unpriced_calls",
+              "qualifier"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "paused",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "tasks": {
+            "additionalProperties": false,
+            "properties": {
+              "cancelled": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "failed": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "never_started": {
+                "description": "Cancelled at the boundary without ever starting (counted in `cancelled` too)",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "ok": {
+                "description": "A recovered task IS a success (counted here too)",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "recovered": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "skipped": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "ok",
+              "failed",
+              "recovered",
+              "skipped",
+              "cancelled",
+              "never_started"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "status",
+          "cause",
+          "spend"
         ],
         "type": "object"
       },
@@ -797,7 +944,7 @@
     },
     "/v1/jobs": {
       "post": {
-        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional attestations. The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
+        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional caller-supplied integrity digests (a content assertion, never a signature). The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"

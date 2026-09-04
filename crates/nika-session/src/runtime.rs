@@ -415,11 +415,14 @@ impl SessionRuntime {
                 ),
             };
         }
-        self.decided = Some(id);
         let applied = match set.apply() {
             Ok(applied) => applied,
+            // Nothing was applied: the proposal is neither pending nor
+            // decided, so a retry by identity reads `wrong_state` — never a
+            // false `already_consumed` (« its effect happened once »).
             Err(e) => return TurnOutcome::Refusal(Refusal::from_change(&e)),
         };
+        self.decided = Some(id);
         let written: Vec<String> = applied
             .written
             .iter()
@@ -1367,6 +1370,38 @@ mod tests {
             s.turn("what workflows are here?"),
             TurnOutcome::Facts(_)
         ));
+    }
+
+    /// The freeze audit · a stale apply (the file appeared on disk after the
+    /// preview) leaves the proposal UNDECIDED: nothing was written, and a
+    /// retry by identity reads `wrong_state`, never `already_consumed` —
+    /// « its effect happened once » would be a lie.
+    #[test]
+    fn a_stale_apply_leaves_the_proposal_undecided() {
+        let dir = tree();
+        let mut s = ready_with(dir.path(), vec![PROPOSED]);
+        let TurnOutcome::Proposal { id, .. } = s.turn("write me a daily digest workflow") else {
+            panic!("a proposal");
+        };
+        std::fs::write(dir.path().join("daily.nika.yaml"), "nika: raced\n").expect("the race");
+        let TurnOutcome::Refusal(stale) = s.consent_to(&id, "yes") else {
+            panic!("stale");
+        };
+        assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("daily.nika.yaml")).expect("still there"),
+            "nika: raced\n",
+            "nothing was applied"
+        );
+        let TurnOutcome::Refusal(again) = s.consent_to(&id, "yes") else {
+            panic!("wrong state");
+        };
+        assert_eq!(
+            again.class,
+            RefusalClass::WrongState,
+            "undecided, never consumed: {again}"
+        );
+        assert!(s.pending_proposal().is_none());
     }
 
     /// A remote host judges by identity (ADR-133): a consent naming a

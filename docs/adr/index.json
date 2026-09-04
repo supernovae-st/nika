@@ -1460,7 +1460,7 @@
     ,
     {
       "id": "ADR-131",
-      "title": "The resident's job door is public: admission by served name, digests as optional attestations, the engine as the one producer",
+      "title": "The resident's job door is public: admission by served name, digests as optional integrity assertions, the engine as the one producer",
       "status": "accepted",
       "date": "2026-09-04",
       "filename": "adr-131-the-residents-job-door-is-public.md",

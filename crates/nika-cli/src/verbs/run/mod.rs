@@ -1096,7 +1096,14 @@ async fn execute_json_lane(
         eprintln!("nika run: stream write failed: {e}");
         return RunVerdict::renderer_failed(trace_path, e.kind());
     }
-    let trace_proof = surface.path.as_deref().zip(surface.proof.as_ref());
+    // ADR-129 · the freeze audit — the evidence the run left is SAID on
+    // the settlement (`sealed` · `unsealed` · `lost` · `none`), never
+    // implied by an absent receipt.
+    let evidence = nika_cli_host::run_settlement::LocalEvidence::of(
+        surface.path.as_deref(),
+        surface.proof.as_ref(),
+        surface.lost,
+    );
     // #1403 · ADR-128 — the terminal envelope IS the runtime's settlement
     // (status · cause · tally · spend · the failure named): the last line
     // a CI reader parses is the whole verdict, never a refold.
@@ -1111,7 +1118,7 @@ async fn execute_json_lane(
         &outcome.outputs,
         identity.0,
         identity.1,
-        trace_proof,
+        evidence,
         lanes.as_deref(),
     ) {
         eprintln!("nika run: settlement write failed: {e}");

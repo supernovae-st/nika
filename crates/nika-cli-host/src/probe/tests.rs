@@ -268,7 +268,9 @@ fn the_seat_rung_is_earned_by_the_census_never_recomputed() {
     assert_eq!(adoption_state(&seated_only), AdoptionState::SeatReady);
     assert_eq!(
         seated_only.census.seat_escape().as_deref(),
-        Some("or use a signed-in seat: `--access claude-code`")
+        Some(
+            "or use a seat present on this machine: `--access claude-code` (its login is judged at run)"
+        )
     );
     // The seat OUTRANKS a configured cloud key.
     let mut both = seated_only.clone();
@@ -283,7 +285,7 @@ fn the_seat_rung_is_earned_by_the_census_never_recomputed() {
     // The metric names the seat; the line owns its rung.
     let metric = AdoptionState::SeatReady.metric(&seated_only);
     assert!(
-        metric.contains("claude-code") && metric.contains("signed in"),
+        metric.contains("claude-code") && metric.contains("present"),
         "{metric}"
     );
 }
