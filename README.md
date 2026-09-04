@@ -9,14 +9,18 @@
 
 # Nika
 
-### AI workflows you can understand before they run.
+### Intent as Code.
 
 [![Release](https://img.shields.io/github/v/release/supernovae-st/nika?label=release)](https://github.com/supernovae-st/nika/releases/latest)
 [![CI](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main)](https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml)
 [![Open spec](https://img.shields.io/badge/spec-open-brightgreen.svg)](https://github.com/supernovae-st/nika-spec)
 
-Nika turns an AI task into one small `.nika.yaml` file. Check it, run it on
-the model you choose, and keep a receipt of what happened.
+Write what should happen. Nika puts that intent in one `.nika.yaml` file you
+can check before it runs, run on any model, and verify afterwards.
+
+<p align="center">
+  <img src="media/gifs/intent-to-proof.optimized.gif" alt="An intent becomes one Nika workflow, then a checked plan, a run, and a verifiable receipt" width="960">
+</p>
 
 ## Start here
 
@@ -27,19 +31,6 @@ nika try 01-hello
 
 **Done.** Your first workflow ran locally. No account, API key, or model server
 was needed.
-
-## The whole idea
-
-```mermaid
-flowchart LR
-    A["✍️ One .nika.yaml file"] --> B["🔎 nika check"]
-    B --> C["▶️ nika run"]
-    C --> D["✅ Result"]
-    C --> E["🧾 Receipt"]
-```
-
-One file is the source of truth. `check` finds problems before a model call.
-`run` executes the same file locally, in CI, or from another program.
 
 ## Your first workflow
 
