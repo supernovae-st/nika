@@ -807,6 +807,16 @@ fn append_cancelled_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme)
 /// part of the run carried no meterable price (a partial total must
 /// never read as complete).
 fn spend_meter(view: &RunView) -> String {
+    // Nothing metered is a WORD, never a zero nobody metered (ADR-128 ·
+    // unknown cost is not zero): `unmetered` for a rehearsal or a local
+    // path, `unpriced` when calls ran without a meterable price.
+    if !metered(view) {
+        let word = unmetered_word(view);
+        return match view.ceiling_usd {
+            Some(c) => format!("{word} · ≤{}", fmt_cost_usd(c)),
+            None => word,
+        };
+    }
     let base = match view.ceiling_usd {
         Some(c) => format!("{} of ≤{}", fmt_cost_usd(view.cost_usd), fmt_cost_usd(c)),
         None => fmt_cost_usd(view.cost_usd),
@@ -815,6 +825,24 @@ fn spend_meter(view: &RunView) -> String {
         format!("≥ {base} ({} unpriced)", view.unpriced_calls)
     } else {
         base
+    }
+}
+
+/// Whether any spend was metered: a priced call folded live, or a total
+/// the terminal frame carried (a billed attempt whose task settled failed
+/// rides only there).
+pub(crate) fn metered(view: &RunView) -> bool {
+    view.priced_calls > 0 || view.cost_usd > 0.0
+}
+
+/// The word for a run nobody metered: `unpriced (N calls)` when calls ran
+/// without a meterable price, `unmetered` otherwise.
+pub(crate) fn unmetered_word(view: &RunView) -> String {
+    if view.unpriced_calls > 0 {
+        let s = if view.unpriced_calls == 1 { "" } else { "s" };
+        format!("unpriced ({} call{s})", view.unpriced_calls)
+    } else {
+        "unmetered".to_owned()
     }
 }
 

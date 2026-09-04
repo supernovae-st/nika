@@ -143,6 +143,11 @@ pub struct RunView {
     /// fields, then OVERWRITTEN by the terminal frame's authoritative
     /// `unpriced_calls` (leaf-level: a fan-out counts its iterations).
     pub unpriced_calls: u64,
+    /// Calls whose spend IS in `cost_usd` — folded live from per-task
+    /// `cost_usd` fields, then OVERWRITTEN by the terminal frame's
+    /// `priced_calls`. Zero, with no total, means nothing was metered: the
+    /// card says the word, never a `$0.00` nobody metered (ADR-128).
+    pub priced_calls: u64,
     /// Token-arrival samples for the sparkline.
     pub token_samples: Vec<u64>,
     /// Terminal verdict: `Some(true)` completed · `Some(false)` failed.
@@ -395,6 +400,7 @@ impl RunView {
         }
         if let Some(usd) = usd {
             self.cost_usd += usd;
+            self.priced_calls = self.priced_calls.saturating_add(1);
         }
         if let Some(tokens) = int_field(event, "tokens") {
             self.token_samples.push(u64::try_from(tokens).unwrap_or(0));
@@ -411,6 +417,9 @@ impl RunView {
     fn absorb_terminal_cost(&mut self, event: &Event) {
         if let Some(n) = int_field(event, "unpriced_calls") {
             self.unpriced_calls = u64::try_from(n).unwrap_or(self.unpriced_calls);
+        }
+        if let Some(n) = int_field(event, "priced_calls") {
+            self.priced_calls = u64::try_from(n).unwrap_or(self.priced_calls);
         }
         if let Some(total) = float_field(event, "total_cost_usd") {
             self.cost_usd = total;
