@@ -857,6 +857,10 @@ pub enum JobStoreError {
     /// disclose the operator's durable root.
     #[error("job store I/O failed: {0}")]
     Io(io::ErrorKind),
+    /// The store was last written by an engine speaking a NEWER machine
+    /// protocol than this one (ADR-132 · #1352): refused, never reinterpreted.
+    #[error("{0}")]
+    WrittenByNewerEngine(String),
     /// An idempotency key violated its bounded wire contract.
     #[error("idempotency key must contain 1 to 255 visible ASCII bytes")]
     InvalidIdempotencyKey,

@@ -61,8 +61,20 @@ impl ScheduleStore {
             let _local = store.local_guard()?;
             let _lease = store.kernel_lease()?;
             store.initialize_or_load()?;
+            store.stamp_writer()?;
         }
         Ok(store)
+    }
+
+    /// ADR-132 · this engine becomes the store's writer at open.
+    fn stamp_writer(&self) -> Result<(), ScheduleStoreError> {
+        let mut state = self.load_state()?;
+        let mine = crate::writer::WriterStamp::this_engine();
+        if state.writer.as_ref() != Some(&mine) {
+            state.writer = Some(mine);
+            self.persist(&state)?;
+        }
+        Ok(())
     }
 
     /// Declaratively create or update one normalized API schedule.
@@ -394,6 +406,9 @@ struct PersistedState {
     schedules: Vec<PersistedSchedule>,
     #[serde(default)]
     decisions: Vec<PersistedDecision>,
+    /// The engine that last wrote this store (ADR-132 · #1352).
+    #[serde(default)]
+    writer: Option<crate::writer::WriterStamp>,
 }
 
 impl PersistedState {
@@ -402,6 +417,7 @@ impl PersistedState {
             version: STATE_VERSION,
             schedules: Vec::new(),
             decisions: Vec::new(),
+            writer: Some(crate::writer::WriterStamp::this_engine()),
         }
     }
 
@@ -410,6 +426,14 @@ impl PersistedState {
             return Err(ScheduleStoreError::Corrupt(
                 "state version is unsupported".to_owned(),
             ));
+        }
+        // ADR-132 · #1352 · a newer writer's state is not ours to reinterpret.
+        if let Some(reason) = self
+            .writer
+            .as_ref()
+            .and_then(crate::writer::WriterStamp::newer_than_this_engine)
+        {
+            return Err(ScheduleStoreError::WrittenByNewerEngine(reason));
         }
         if self.schedules.len() > MAX_API_SCHEDULES {
             return Err(ScheduleStoreError::Corrupt(

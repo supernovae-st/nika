@@ -7,10 +7,14 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod job;
+pub mod resident;
 pub mod schedule;
 pub mod server;
+pub mod writer;
 
 pub use nika_cadence::ScheduleDecision;
+pub use resident::{ResidentReport, inspect as inspect_resident};
+pub use writer::WriterStamp;
 
 pub use job::{
     Admission, ApprovalHistory, ApprovalHistoryError, EventPageLimit, IdempotencyKey, JobEvent,

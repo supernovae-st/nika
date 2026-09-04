@@ -10,7 +10,7 @@ affects_crates: ["nika-execution", "nika-serve", "nika-error", "nika-cli-host", 
 affects_layers: ["L2", "L4"]
 supersedes: []
 superseded_by: []
-related: ["ADR-122", "ADR-128"]
+related: ["ADR-122", "ADR-128", "ADR-132"]
 requires: ["ADR-122"]
 enables: []
 amends: []

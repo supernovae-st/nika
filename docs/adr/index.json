@@ -1389,7 +1389,7 @@
       "affects_layers": ["L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-124","ADR-125","ADR-113"],
+      "related": ["ADR-124","ADR-125","ADR-113","ADR-132"],
       "requires": ["ADR-125"],
       "enables": []
     }
@@ -1437,7 +1437,7 @@
       "affects_layers": ["L3","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-099","ADR-100","ADR-128","ADR-130"],
+      "related": ["ADR-099","ADR-100","ADR-128","ADR-130","ADR-132"],
       "requires": ["ADR-128"],
       "enables": []
     }
@@ -1469,8 +1469,24 @@
       "affects_layers": ["L2","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-122","ADR-128"],
+      "related": ["ADR-122","ADR-128","ADR-132"],
       "requires": ["ADR-122"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-132",
+      "title": "Identity, idempotency and protocol: what a duplicate human action yields, and the resident's writer stamp",
+      "status": "accepted",
+      "date": "2026-09-04",
+      "filename": "adr-132-identity-idempotency-protocol.md",
+      "tags": ["architecture","one-door","idempotency","protocol","serve"],
+      "affects_crates": ["nika-serve","nika-cli-host","nika-cli"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-099","ADR-117","ADR-126","ADR-128","ADR-129","ADR-131"],
+      "requires": ["ADR-129"],
       "enables": []
     }
   ]

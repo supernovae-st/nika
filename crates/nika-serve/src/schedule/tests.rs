@@ -63,6 +63,30 @@ fn due_once(definition: &nika_cadence::ScheduleDefinition) -> nika_cadence::Sche
     .expect("due once slot")
 }
 
+/// ADR-132 · #1352 · the schedule store carries the writer's stamp and
+/// refuses a newer protocol's state.
+#[test]
+fn the_schedule_store_is_stamped_and_refuses_a_newer_writer() {
+    let root = tempfile::tempdir().expect("root");
+    drop(ScheduleStore::open(root.path()).expect("store"));
+    let path = root.path().join("schedules/state.json");
+    let mut state: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).expect("read")).expect("json");
+    let mine = crate::writer::WriterStamp::this_engine();
+    assert_eq!(
+        state["writer"]["engine_version"], mine.engine_version,
+        "{state}"
+    );
+    state["writer"]["machine_protocol_version"] =
+        serde_json::json!(mine.machine_protocol_version + 1);
+    std::fs::write(&path, format!("{state}\n")).expect("write newer");
+    let refused = ScheduleStore::open(root.path()).expect_err("refused");
+    assert!(
+        matches!(refused, ScheduleStoreError::WrittenByNewerEngine(_)),
+        "{refused}"
+    );
+}
+
 #[test]
 fn same_create_apply_twice_is_unchanged() {
     let root = tempfile::tempdir().expect("root");

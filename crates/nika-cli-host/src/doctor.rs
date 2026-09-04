@@ -1122,8 +1122,23 @@ pub fn redact_userinfo(url: &str) -> String {
 /// machine's advisory notes (B-8b — the human lane defaults to calm).
 #[must_use]
 pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
+    run_with(ping, json, verbose, theme, Vec::new())
+}
+
+/// [`run`] with findings the CALLER observed — the resident's line rides
+/// here from `nika-cli` (which holds the serve crate this host does not
+/// depend on · ADR-132): the host renders, the binary observes.
+#[must_use]
+pub fn run_with(
+    ping: bool,
+    json: bool,
+    verbose: bool,
+    theme: Theme,
+    extra: Vec<Finding>,
+) -> VerbOutput {
     let probe = crate::probe::collect(ping);
-    let findings = diagnose(&probe);
+    let mut findings = diagnose(&probe);
+    findings.extend(extra);
     // P3 B6 · every shipped agentic CLI runtime (always listed · label
     // `runtime`, never the MCP-wire `agent` column).
     #[cfg(feature = "access-harness")]

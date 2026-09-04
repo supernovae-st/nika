@@ -38,6 +38,8 @@ fn stamp_execution(store: &JobStore, id: &JobId, byte: u8) {
 
 fn downgrade_state_to_v2(state: &mut serde_json::Value) {
     state["version"] = json!(2);
+    // a v2 store predates the writer stamp (ADR-132)
+    state.as_object_mut().expect("state").remove("writer");
     for job in state["jobs"].as_array_mut().expect("jobs") {
         let stored = job.as_object_mut().expect("stored job");
         stored.remove("terminal_sequence");
@@ -183,6 +185,45 @@ fn admitted_record(admission: Admission) -> JobRecord {
             record
         }
     }
+}
+
+/// ADR-132 · #1352 · a store an older engine wrote is re-stamped at open;
+/// one a NEWER protocol wrote refuses to open, naming both engines.
+#[test]
+fn the_writer_stamp_is_refreshed_at_open_and_a_newer_protocol_refuses() {
+    let root = tempfile::tempdir().expect("root");
+    drop(JobStore::open(root.path()).expect("store"));
+    let path = root.path().join("jobs/state.json");
+    let mut state: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).expect("read state")).expect("json");
+    let mine = crate::writer::WriterStamp::this_engine();
+    assert_eq!(
+        state["writer"]["engine_version"], mine.engine_version,
+        "{state}"
+    );
+    // an older engine wrote it → re-stamped
+    state["writer"]["engine_version"] = json!("0.1.0");
+    std::fs::write(&path, format!("{state}\n")).expect("write older");
+    drop(JobStore::open(root.path()).expect("an older writer is served"));
+    let restamped: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).expect("read")).expect("json");
+    assert_eq!(restamped["writer"]["engine_version"], mine.engine_version);
+    // a newer protocol wrote it → refused, both engines named
+    state["writer"]["engine_version"] = json!("99.0.0");
+    state["writer"]["machine_protocol_version"] = json!(mine.machine_protocol_version + 1);
+    std::fs::write(&path, format!("{state}\n")).expect("write newer");
+    let refused = JobStore::open(root.path()).expect_err("a newer writer refuses");
+    assert!(
+        matches!(&refused, JobStoreError::WrittenByNewerEngine(reason) if reason.contains("99.0.0") && reason.contains(&mine.engine_version)),
+        "{refused}"
+    );
+    // a store from before the stamp (no `writer`) is served and stamped
+    state.as_object_mut().expect("object").remove("writer");
+    std::fs::write(&path, format!("{state}\n")).expect("write unstamped");
+    drop(JobStore::open(root.path()).expect("an unstamped store is served"));
+    let stamped: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).expect("read")).expect("json");
+    assert_eq!(stamped["writer"]["engine_version"], mine.engine_version);
 }
 
 #[test]

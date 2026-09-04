@@ -595,6 +595,12 @@ fn store_error_response(error: &ScheduleStoreError) -> Response<ResponseBody> {
                 "durable schedule state failed integrity validation",
             )
         }
+        // ADR-132 · #1352 · a newer engine's state is not ours to reinterpret.
+        ScheduleStoreError::WrittenByNewerEngine(_) => json_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "schedule_store_newer_engine",
+            "durable schedule state was last written by a newer engine; this resident refuses to serve it",
+        ),
     }
 }
 

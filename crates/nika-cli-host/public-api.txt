@@ -294,6 +294,7 @@ pub fn nika_cli_host::doctor::redact_userinfo(url: &str) -> alloc::string::Strin
 pub fn nika_cli_host::doctor::render(findings: &[nika_cli_host::doctor::Finding], verbose: bool, theme: nika_display::theme::Theme) -> alloc::string::String
 pub fn nika_cli_host::doctor::render_json(findings: &[nika_cli_host::doctor::Finding], state: nika_cli_host::probe::AdoptionState, receipts: &[nika_cli_host::probe::HostCapabilityReceipt], census: &nika_providers::census::AccessCensus) -> alloc::string::String
 pub fn nika_cli_host::doctor::run(ping: bool, json: bool, verbose: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli_host::doctor::run_with(ping: bool, json: bool, verbose: bool, theme: nika_display::theme::Theme, extra: alloc::vec::Vec<nika_cli_host::doctor::Finding>) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::door
 pub enum nika_cli_host::door::DoorId
 pub nika_cli_host::door::DoorId::Create
@@ -2802,7 +2803,7 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::run_settlement::Trace
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::run_settlement::TraceProof
 impl<T> typenum::type_operators::Same for nika_cli_host::run_settlement::TraceProof
 pub type nika_cli_host::run_settlement::TraceProof::Output = T
-pub fn nika_cli_host::run_settlement::first_failure(outcome: &nika_runtime::RunOutcome) -> core::option::Option<nika_runtime_laws::compat_record::TaskErrorRecord>
+pub fn nika_cli_host::run_settlement::first_failure(outcome: &nika_runtime::RunOutcome) -> core::option::Option<nika_dataflow::record::TaskErrorRecord>
 pub fn nika_cli_host::run_settlement::local_receipt_binding(execution: nika_types::id::ExecutionId, snapshot_digest: &str) -> serde_json::value::Value
 pub fn nika_cli_host::run_settlement::plan_waves(workflow: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>
 pub fn nika_cli_host::run_settlement::refusal_settlement(err: &nika_runtime_laws::errors::RuntimeError) -> nika_event::settlement::RunSettlement
