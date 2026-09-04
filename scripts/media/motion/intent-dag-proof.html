@@ -114,15 +114,15 @@
     transform-origin: 50% 50%;
   }
   #intent {
-    --ix: 420px;
-    --iy: 285px;
-    --iw: 760px;
-    --ih: 245px;
+    --intent-x: 420px;
+    --intent-y: 285px;
+    --intent-width: 760px;
+    --intent-height: 245px;
     position: absolute;
-    left: var(--ix);
-    top: var(--iy);
-    width: var(--iw);
-    height: var(--ih);
+    left: var(--intent-x);
+    top: var(--intent-y);
+    width: var(--intent-width);
+    height: var(--intent-height);
     overflow: hidden;
     background: rgba(14, 16, 21, .96);
     border: 1px solid var(--border);
@@ -413,10 +413,10 @@
 
   // The intent becomes the first node of the checked graph.
   S.fade("#intent .full", { at: 2750, dur: 320, from: 1, to: 0 });
-  S.style("#intent", "--ix", { at: 2920, dur: 760, from: 420, to: 90, unit: "px", ease: "inout" });
-  S.style("#intent", "--iy", { at: 2920, dur: 760, from: 285, to: 380, unit: "px", ease: "inout" });
-  S.style("#intent", "--iw", { at: 2920, dur: 760, from: 760, to: 230, unit: "px", ease: "inout" });
-  S.style("#intent", "--ih", { at: 2920, dur: 760, from: 245, to: 110, unit: "px", ease: "inout" });
+  S.style("#intent", "--intent-x", { at: 2920, dur: 760, from: 420, to: 90, unit: "px", ease: "inout" });
+  S.style("#intent", "--intent-y", { at: 2920, dur: 760, from: 285, to: 380, unit: "px", ease: "inout" });
+  S.style("#intent", "--intent-width", { at: 2920, dur: 760, from: 760, to: 230, unit: "px", ease: "inout" });
+  S.style("#intent", "--intent-height", { at: 2920, dur: 760, from: 245, to: 110, unit: "px", ease: "inout" });
   S.cls("#intent", { at: 3380, add: ["morphed"] });
   S.fade("#intent .compact", { at: 3480, dur: 360, y: 8 });
   S.cls("#p-intent", { at: 3000, add: ["done"], remove: ["active"] });
