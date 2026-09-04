@@ -1764,6 +1764,8 @@ pub fn nika_dap::journal::TraceFileSink::into_error(self) -> core::option::Optio
 pub fn nika_dap::journal::TraceFileSink::is_disabled(&self) -> bool
 pub fn nika_dap::journal::TraceFileSink::new(dir: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn nika_dap::journal::TraceFileSink::path(&self) -> core::option::Option<&std::path::Path>
+impl core::ops::drop::Drop for nika_dap::journal::TraceFileSink
+pub fn nika_dap::journal::TraceFileSink::drop(&mut self)
 impl nika_event::stamp::EventSink for nika_dap::journal::TraceFileSink
 pub fn nika_dap::journal::TraceFileSink::emit(&mut self, event: nika_event::event::Event)
 impl<D> owo_colors::OwoColorize for nika_dap::journal::TraceFileSink
