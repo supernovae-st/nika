@@ -12,7 +12,13 @@ use nika_event::settlement::{
     RunCause, RunSettlement, RunState, SettlementError, Spend, TaskTally,
 };
 
+use nika_schema::raw::RawWorkflow;
+use nika_schema::types::OutputDecl;
+use serde_json::Value;
+
 use super::ledger::LedgerSnapshot;
+use super::{EventSink, Stamper, emit_terminal, json_type_name, s};
+use nika_schema::types::type_expr_display;
 
 /// Fold the records and the ledger's terminal snapshot into the run's
 /// settlement.
@@ -90,6 +96,110 @@ pub(crate) fn first_failure(
                 SettlementError::new(e.code.clone(), e.message.clone(), Some(task.clone()))
             })
         })
+}
+
+/// Resolve the run's verdict over the typed `outputs:` and emit the terminal
+/// frame. Returns the final `ok` (false if a typed output broke its declared
+/// `type:` · spec 01 rule 6 · NIKA-VAR-009). The reason rides the
+/// `WorkflowFailed` frame as a WORKFLOW-level `detail` (not a phantom
+/// `task_failed`) — the event model stays consistent (no orphan task event, no
+/// spurious row) and `--json`/journal consumers see a valid terminal with the
+/// code. Split out of `run()` to keep that function within its line budget.
+#[allow(clippy::too_many_arguments)] // the terminal frame's parts
+pub(crate) fn finalize_outputs(
+    wf: &RawWorkflow,
+    outputs: &BTreeMap<String, Value>,
+    records: &BTreeMap<String, DataflowTaskRecord>,
+    workflow_name: &str,
+    mut ok: bool,
+    snapshot: &LedgerSnapshot,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) -> (bool, RunSettlement) {
+    // A typed output is checked only when every task otherwise settled (a task
+    // failure is already the verdict · the output reference is then omitted).
+    let violation = if ok {
+        first_output_type_violation(wf, outputs)
+    } else {
+        None
+    };
+    if violation.is_some() {
+        ok = false;
+    }
+    let mut fields = vec![("workflow", s(workflow_name))];
+    // The settlement (ADR-128): the state, WHY, and the failure named —
+    // built here, once, for every door downstream.
+    let (state, cause, error) = if let Some(v) = &violation {
+        let detail = format!(
+            "NIKA-VAR-009 · output `{}` is {}, declared type: {}",
+            v.name, v.actual, v.expected
+        );
+        fields.push(("detail", s(&detail)));
+        (
+            RunState::Failed,
+            RunCause::OutputContract,
+            Some(SettlementError::new("NIKA-VAR-009", detail, None)),
+        )
+    } else if ok {
+        (RunState::Succeeded, RunCause::Normal, None)
+    } else {
+        (
+            RunState::Failed,
+            RunCause::TaskFailed,
+            first_failure(records),
+        )
+    };
+    let settlement = settle_run(records, snapshot, state, cause, error);
+    emit_terminal(stamper, sink, &fields, &settlement);
+    (ok, settlement)
+}
+
+/// One typed-`outputs:` contract violation (spec 01 rule 6 · NIKA-VAR-009).
+pub(crate) struct OutputTypeViolation {
+    pub(crate) name: String,
+    pub(crate) expected: String,
+    pub(crate) actual: &'static str,
+}
+
+/// The FIRST typed `outputs:` value whose resolved JSON value does not
+/// inhabit its declared `type:` (spec 01 §engine-MUST rule 6 · NIKA-VAR-009
+/// · the output half of the callable contract). Post-R3b the declared
+/// type speaks the full `TypeExpr` and the judgment is the ONE type core's
+/// `fits` (lenient exactly where the core is: a whole float like `42.0`
+/// inhabits `integer` · a genuine cross-type mismatch refuses). An output
+/// whose `${{ }}` reference no longer resolves is OMITTED by
+/// [`resolve_outputs`] (spec §3 · not a type error); a `type:` that does
+/// not parse is the check's refusal (`NIKA-TYPE-001` · audit-before-run
+/// keeps it out of the run), never the run's. `None` ⇒ every typed output
+/// honours its declared type.
+pub(crate) fn first_output_type_violation(
+    wf: &RawWorkflow,
+    resolved: &BTreeMap<String, Value>,
+) -> Option<OutputTypeViolation> {
+    let named = std::collections::BTreeMap::new();
+    let type_names = std::collections::BTreeSet::new();
+    for (key, decl) in &wf.outputs {
+        let OutputDecl::Typed {
+            r#type: Some(ty), ..
+        } = decl
+        else {
+            continue; // untyped output OR no declared type → nothing to check
+        };
+        let Some(value) = resolved.get(key.value.as_str()) else {
+            continue; // unresolved → omitted upstream, not a type error
+        };
+        let Ok(declared) = nika_types::types::parse_type(&ty.value, &type_names, "outputs") else {
+            continue; // the check owns this refusal (NIKA-TYPE-001)
+        };
+        if !nika_types::types::fits(value, &declared, &named) {
+            return Some(OutputTypeViolation {
+                name: key.value.clone(),
+                expected: type_expr_display(&ty.value),
+                actual: json_type_name(value),
+            });
+        }
+    }
+    None
 }
 
 #[cfg(test)]
