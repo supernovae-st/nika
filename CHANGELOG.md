@@ -16,6 +16,21 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.118.1](https://github.com/supernovae-st/nika/compare/v0.118.0..v0.118.1) - 2026-09-04
+
+### Fixed
+
+- **The release train starts again (`v0.118.0` died at its own draft).**
+  `prepare-draft-release.sh` created the draft, then looked it up through the
+  by-tag endpoint, which returns published releases only: a fresh draft
+  answers `gh: Not Found (HTTP 404)` there, and the train stopped with four
+  green builds, an empty draft and no assets (a dead tag, never reused). The
+  lookup now reads the release list, which carries drafts, matches the tag
+  exactly, treats only an empty list as absence and any failed answer as the
+  barrier; `scripts/release/tests/draft-release.test.sh` proves it against a
+  fake `gh` that hides drafts the way GitHub does, and its by-tag mutant reads
+  RED. The 0.118.0 changelog section stays as the record of what that tag
+  carried; this train ships it as 0.118.1.
 ## [0.118.0](https://github.com/supernovae-st/nika/compare/v0.117.1..v0.118.0) - 2026-09-04
 
 ### Added

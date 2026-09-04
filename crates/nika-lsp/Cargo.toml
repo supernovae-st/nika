@@ -11,12 +11,12 @@ homepage.workspace     = true
 publish                = false  # Internal L4 interface crate (driven by the `nika lsp` subcommand).
 
 [dependencies]
-nika-graph = { path = "../nika-graph", version = "0.118.0" }  # the canonical projection (nika/semanticDocument serves it verbatim)
-nika-catalog = { path = "../nika-catalog", version = "0.118.0", features = ["builtins-transforms", "providers"] } # the tool/model vocabulary completions derive from (born-stale law: never hand-tabled)
-nika-types   = { path = "../nika-types", version = "0.118.0" }  # ExtractMode::ALL — the mode: lane derives from the L0 vocabulary
-nika-schema = { path = "../nika-schema", version = "0.118.0" }  # parse + RawWorkflow (the analysis source)
-nika-vocab  = { path = "../nika-vocab", version = "0.118.0" }   # TASK_KEYS — the one task-shape list the parser refuses by and the editor offers by
-nika-check  = { path = "../nika-check", version = "0.118.0" }  # the ADR-092 check ladder the diagnostics surface
+nika-graph = { path = "../nika-graph", version = "0.118.1" }  # the canonical projection (nika/semanticDocument serves it verbatim)
+nika-catalog = { path = "../nika-catalog", version = "0.118.1", features = ["builtins-transforms", "providers"] } # the tool/model vocabulary completions derive from (born-stale law: never hand-tabled)
+nika-types   = { path = "../nika-types", version = "0.118.1" }  # ExtractMode::ALL — the mode: lane derives from the L0 vocabulary
+nika-schema = { path = "../nika-schema", version = "0.118.1" }  # parse + RawWorkflow (the analysis source)
+nika-vocab  = { path = "../nika-vocab", version = "0.118.1" }   # TASK_KEYS — the one task-shape list the parser refuses by and the editor offers by
+nika-check  = { path = "../nika-check", version = "0.118.1" }  # the ADR-092 check ladder the diagnostics surface
 lsp-server  = { workspace = true }                             # sync stdio JSON-RPC message loop
 lsp-types   = { workspace = true }                             # LSP 3.17 protocol types
 serde       = { workspace = true }                             # DeserializeOwned/Serialize bounds for the request dispatch
@@ -29,7 +29,7 @@ nix = { workspace = true }   # kill(pid, 0) — the safe parent-existence probe 
 [dev-dependencies]
 proptest = { workspace = true }   # Gate 6 — position round-trip + apply_change ≡ full replace
 tempfile = { workspace = true }   # skills lane — workspace-walk fixtures on a real tempdir
-nika-pack = { path = "../nika-pack", version = "0.118.0" }   # providers-order parity vs the vendored design tokens
+nika-pack = { path = "../nika-pack", version = "0.118.1" }   # providers-order parity vs the vendored design tokens
 
 [lib]
 name = "nika_lsp"

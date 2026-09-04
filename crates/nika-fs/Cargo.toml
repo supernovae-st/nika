@@ -11,7 +11,7 @@ homepage.workspace     = true
 publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.118.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.118.1" }
 bytes       = { workspace = true }  # FsRead::read zero-copy payload (kernel trait surface)
 globset     = { workspace = true }  # FsList::glob matcher · literal_separator(true) semantics
 nix         = { workspace = true, features = ["fs", "dir"] } # descriptor-rooted owned directories (openat + nofollow)
