@@ -262,11 +262,11 @@ fn render_ls(traces: &[TraceMeta], dir: &Path, now: SystemTime, theme: Theme) ->
 fn state_cell(trace: &store::TraceMeta, theme: Theme) -> String {
     // B23 / issue 1275: a recovered run must never render as a clean
     // `completed`. 100% recovered for_each is the measured case.
-    if trace.state == TraceState::Completed && trace_has_recovered(&trace.path) {
+    if trace.state == TraceState::Succeeded && trace_has_recovered(&trace.path) {
         return theme.paint(Role::Warn, "recovered");
     }
     let role = match trace.state {
-        TraceState::Completed => Role::Good,
+        TraceState::Succeeded => Role::Good,
         TraceState::Failed => Role::Bad,
         TraceState::Paused => Role::Warn,
         TraceState::Running => Role::Accent,
@@ -563,7 +563,7 @@ mod tests {
         assert_eq!(traces.len(), 2, "{doc}");
         let states: Vec<&str> = traces.iter().filter_map(|t| t["state"].as_str()).collect();
         assert!(
-            states.contains(&"paused") && states.contains(&"completed"),
+            states.contains(&"paused") && states.contains(&"succeeded"),
             "{doc}"
         );
         for trace in traces {
@@ -608,7 +608,7 @@ mod tests {
         assert!(text.contains("trace") && text.contains("state"), "{text}");
         assert!(text.contains("gate.ndjson"), "{text}");
         assert!(text.contains("paused"), "the obligation is visible: {text}");
-        assert!(text.contains("completed"), "{text}");
+        assert!(text.contains("succeeded"), "{text}");
         assert!(text.contains("2h") && text.contains("1m"), "ages: {text}");
         assert!(text.contains("2 trace(s)"), "{text}");
         assert!(text.contains("1 paused"), "totals count it: {text}");
@@ -652,7 +652,7 @@ mod tests {
             "recovered must be the state word: {row}"
         );
         assert!(
-            !row.contains("completed"),
+            !row.contains("succeeded"),
             "must not collapse into completed: {row}"
         );
         let _ = std::fs::remove_dir_all(dir);

@@ -25,6 +25,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use nika_event::Event;
+use nika_event::settlement::RunState;
 use nika_event::source_id::{lf_normal_form, sha256_hex};
 use nika_execution::{ExecutionContext, ExecutionSnapshot};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
@@ -945,12 +946,18 @@ impl ServiceExecutionResult {
                 ServiceExecutionStatus::Refused,
                 Some((error.spec_code(), error.wire_message())),
             ),
-            Ok(outcome) if outcome.paused.is_some() => (ServiceExecutionStatus::Paused, None),
-            Ok(outcome) if outcome.cancelled => (ServiceExecutionStatus::Cancelled, None),
-            Ok(outcome) if outcome.ok && !outcome.budget_exceeded => {
-                (ServiceExecutionStatus::Succeeded, None)
-            }
-            Ok(outcome) => (ServiceExecutionStatus::Failed, Some(first_failure(outcome))),
+            // ADR-128 · the runtime's settlement IS the status; the service
+            // boundary projects it, it never refolds the records.
+            Ok(outcome) => match outcome.settlement.state {
+                RunState::Paused => (ServiceExecutionStatus::Paused, None),
+                RunState::Cancelled => (ServiceExecutionStatus::Cancelled, None),
+                RunState::Succeeded => (ServiceExecutionStatus::Succeeded, None),
+                // `#[non_exhaustive]`: a state this crate does not know fails
+                // closed as a failure with its named cause.
+                RunState::Failed | _ => {
+                    (ServiceExecutionStatus::Failed, Some(first_failure(outcome)))
+                }
+            },
         };
         let mut result = Self::new(status, events);
         if let Ok(outcome) = outcome {
@@ -1081,9 +1088,14 @@ type ChildRunParts = (
 fn child_run_parts(run: &Result<RunOutcome, RuntimeError>) -> ChildRunParts {
     match run {
         Ok(outcome) => {
-            let ok = outcome.ok && outcome.paused.is_none() && !outcome.budget_exceeded;
+            let ok = outcome.settlement.state == RunState::Succeeded;
             let failure = (!ok).then(|| first_failure(outcome));
-            (ok, outcome.outputs.clone(), outcome.total_cost_usd, failure)
+            (
+                ok,
+                outcome.outputs.clone(),
+                outcome.settlement.spend.total_cost_usd,
+                failure,
+            )
         }
         Err(error) => (
             false,
@@ -1179,21 +1191,16 @@ fn redact_service_message(raw: &str) -> String {
     out
 }
 
+/// The failure the run settled with (ADR-128 · named once by the runtime:
+/// the first failed task, or a run-level cause such as the inherited
+/// budget — spec 14 law 6 · min(parent remaining, child declared)).
 fn first_failure(outcome: &RunOutcome) -> (String, String) {
-    for (id, record) in &outcome.records {
-        if let Some(error) = &record.error {
-            return (
-                error.code.clone(),
-                format!("task `{id}`: {}", error.message),
-            );
-        }
-    }
-    if outcome.budget_exceeded {
-        return (
-            "NIKA-1704".to_owned(),
-            "the inherited cost budget was exceeded (spec 14 law 6 · min(parent remaining, child declared))"
-                .to_owned(),
-        );
+    if let Some(error) = &outcome.settlement.error {
+        let message = match &error.task {
+            Some(id) => format!("task `{id}`: {}", error.message),
+            None => error.message.clone(),
+        };
+        return (error.code.clone(), message);
     }
     (
         "NIKA-COMP-001".to_owned(),

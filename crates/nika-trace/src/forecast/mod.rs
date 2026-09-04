@@ -214,7 +214,7 @@ pub fn compute(id: &WorkflowIdentity, gathered: &Gathered) -> ForecastReport {
             ShaMatch::Unknown => runs.unknown_hash += 1,
         }
         match sample.state {
-            TraceState::Completed => {
+            TraceState::Succeeded => {
                 runs.completed += 1;
                 #[allow(clippy::cast_precision_loss)] // wall ms ≪ 2^52
                 run_durations.push(sample.elapsed_ms as f64);

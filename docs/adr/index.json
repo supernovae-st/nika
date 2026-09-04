@@ -1373,7 +1373,7 @@
       "affects_layers": ["L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-122","ADR-123","ADR-124","ADR-003"],
+      "related": ["ADR-003","ADR-122","ADR-123","ADR-124","ADR-126","ADR-127","ADR-128"],
       "requires": ["ADR-124"],
       "enables": []
     }
@@ -1405,8 +1405,24 @@
       "affects_layers": ["L3"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-110","ADR-022","ADR-024","ADR-125","ADR-126"],
+      "related": ["ADR-022","ADR-024","ADR-110","ADR-125","ADR-126","ADR-128"],
       "requires": ["ADR-110"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-128",
+      "title": "The run's settlement is built once by the runtime and projected by every door",
+      "status": "accepted",
+      "date": "2026-09-04",
+      "filename": "adr-128-one-run-settlement.md",
+      "tags": ["architecture","runtime","events","one-door","settlement"],
+      "affects_crates": ["nika-event","nika-runtime","nika-cli-host","nika-cli","nika-service-execution","nika-trace","nika-dap"],
+      "affects_layers": ["L0","L3","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-099","ADR-122","ADR-123","ADR-125","ADR-127"],
+      "requires": ["ADR-127"],
       "enables": []
     }
   ]
