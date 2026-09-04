@@ -38,7 +38,7 @@ fn expected() -> MachineTruth {
 /// and we strip ANSI defensively so a themed future cannot rot the
 /// parse silently.
 fn surface(scratch: &std::path::Path, args: &[&str]) -> String {
-    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_nika"))
         .args(args)
         .env_clear()
         .env("HOME", scratch)

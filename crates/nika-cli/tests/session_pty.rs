@@ -20,7 +20,7 @@ use expectrl::{Eof, Expect};
 type LoggedSession = Session<UnixProcess, LogStream<PtyStream, std::io::Stderr>>;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_nika-cli")
+    env!("CARGO_BIN_EXE_nika")
 }
 
 fn exit_code(session: &mut LoggedSession) -> i32 {

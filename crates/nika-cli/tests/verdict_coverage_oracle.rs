@@ -285,7 +285,7 @@ fn probe(workflow: &Path, vars: &[(String, String)], envs: &[(String, String)]) 
     let local = root.join("w.nika.yaml");
     std::fs::copy(workflow, &local).expect("stage workflow");
 
-    let mut check = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    let mut check = Command::new(env!("CARGO_BIN_EXE_nika"));
     check
         .arg("check")
         .arg("--model")
@@ -295,7 +295,7 @@ fn probe(workflow: &Path, vars: &[(String, String)], envs: &[(String, String)]) 
     let (check_ok, check_text) =
         output_with_timeout(check, root, RUN_TIMEOUT_SECS).unwrap_or((false, String::new()));
 
-    let mut run = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    let mut run = Command::new(env!("CARGO_BIN_EXE_nika"));
     run.arg("run")
         .arg("--model")
         .arg("mock/echo")

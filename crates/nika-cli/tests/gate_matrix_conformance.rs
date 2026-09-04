@@ -41,7 +41,7 @@ fn spec_dir() -> PathBuf {
 /// stream — the same projection reference/differential.py reads) plus
 /// the run's verdict bit.
 fn run_observed(workflow: &Path) -> (std::collections::BTreeMap<String, String>, bool) {
-    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_nika"))
         .arg("run")
         .arg(workflow)
         .arg("--json")

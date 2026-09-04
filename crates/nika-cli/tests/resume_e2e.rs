@@ -40,7 +40,7 @@ fn bin() -> Command {
         .join("nika-resume-e2e")
         .join(format!("home-{}", std::process::id()));
     std::fs::create_dir_all(&home).expect("isolated home");
-    let mut command = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nika"));
     command.env("HOME", home);
     command
 }

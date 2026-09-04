@@ -42,7 +42,7 @@ fn check(yaml: &str) -> (i32, String) {
     let path = dir.join("wf.nika.yaml");
     let mut f = std::fs::File::create(&path).expect("fixture file");
     f.write_all(yaml.as_bytes()).expect("fixture body");
-    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_nika"))
         .current_dir(&dir)
         .args(["check", path.to_str().expect("utf8")])
         .output()

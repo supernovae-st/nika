@@ -34,7 +34,7 @@ use std::time::{Duration, Instant};
 const DEADLINE: Duration = Duration::from_secs(30);
 
 fn nika() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    Command::new(env!("CARGO_BIN_EXE_nika"))
 }
 
 /// A process that will sit still until somebody kills it — the stand-in

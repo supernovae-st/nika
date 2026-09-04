@@ -33,7 +33,7 @@ use expectrl::{ControlCode, Eof, Expect};
 type LoggedSession = Session<UnixProcess, LogStream<PtyStream, std::io::Stderr>>;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_nika-cli")
+    env!("CARGO_BIN_EXE_nika")
 }
 
 /// RAII scenario dir (panic-safe cleanup — the `wizard_pty` precedent).

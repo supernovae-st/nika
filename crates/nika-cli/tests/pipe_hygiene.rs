@@ -42,7 +42,7 @@ fn a_closed_pipe_dies_clean_with_the_unix_code() {
         .write_all(yaml.as_bytes())
         .expect("fixture body");
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_nika"))
         .arg("run")
         .arg(&wf)
         .args(["--model", "mock/echo"])

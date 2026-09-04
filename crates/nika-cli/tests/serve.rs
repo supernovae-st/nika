@@ -16,7 +16,7 @@ use std::io::Write as _;
 use std::process::Command;
 
 fn bin() -> Command {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
     // A pause must PARK, never ask (the arm_fire.rs precedent).
     cmd.stdin(std::process::Stdio::null());
     cmd

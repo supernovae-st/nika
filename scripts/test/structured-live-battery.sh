@@ -32,19 +32,24 @@ IDS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --quick) QUICK=1 ;;
-    --nika) shift; NIKA="$1" ;;
+    --nika)
+      shift
+      NIKA="$1"
+      ;;
     *) IDS+=("$1") ;;
   esac
   shift
 done
 if [ -z "$NIKA" ]; then
-  # the workspace bin target is `nika-cli` (the `nika` name is the reserved
-  # L5 composition root); brew installs it AS `nika`.
-  if [ -x "$HERE/../../target/release/nika-cli" ]; then NIKA="$HERE/../../target/release/nika-cli"
-  elif [ -x "$HERE/../../target/release/nika" ]; then NIKA="$HERE/../../target/release/nika"
+  # the bin target IS the public name `nika` (ADR-135); brew installs the same.
+  if [ -x "$HERE/../../target/release/nika" ]; then
+    NIKA="$HERE/../../target/release/nika"
   else NIKA="$(command -v nika || true)"; fi
 fi
-[ -x "${NIKA:-/nonexistent}" ] || { echo "no nika binary (build release or --nika)"; exit 2; }
+[ -x "${NIKA:-/nonexistent}" ] || {
+  echo "no nika binary (build release or --nika)"
+  exit 2
+}
 echo "binary under test: $NIKA ($("$NIKA" --version 2>/dev/null))"
 
 SCENARIOS=(s1-nested s2-grammar-blind s3-underspecified s5-truncation)
@@ -52,9 +57,9 @@ SCENARIOS=(s1-nested s2-grammar-blind s3-underspecified s5-truncation)
 
 probe_local() { # id → 0 if the local server answers
   case "$1" in
-    ollama)   curl -s -m 3 http://localhost:11434/v1/models >/dev/null 2>&1 ;;
-    llamacpp) curl -s -m 3 http://localhost:8080/v1/models  >/dev/null 2>&1 ;;
-    localai)  curl -s -m 3 http://localhost:8081/v1/models  >/dev/null 2>&1 ;;
+    ollama) curl -s -m 3 http://localhost:11434/v1/models >/dev/null 2>&1 ;;
+    llamacpp) curl -s -m 3 http://localhost:8080/v1/models >/dev/null 2>&1 ;;
+    localai) curl -s -m 3 http://localhost:8081/v1/models >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
@@ -65,7 +70,7 @@ for s in "${SCENARIOS[@]}"; do printf '%-20s' "$s"; done
 echo
 
 while IFS=$'\t' read -r id model key_env base_url_env _notes; do
-  case "$id" in \#*|"") continue ;; esac
+  case "$id" in \#* | "") continue ;; esac
   if [ "${#IDS[@]}" -gt 0 ]; then
     printf '%s\n' "${IDS[@]}" | grep -qx "$id" || continue
   fi
@@ -91,13 +96,15 @@ while IFS=$'\t' read -r id model key_env base_url_env _notes; do
   for s in "${SCENARIOS[@]}"; do
     wf="$BATTERY/$s.nika.yaml"
     t0=$(date +%s)
-    out="$( { timeout 240 "$NIKA" run "$wf" --model "$model" --color never --json; } 2>&1 )"; rc=$?
+    out="$({ timeout 240 "$NIKA" run "$wf" --model "$model" --color never --json; } 2>&1)"
+    rc=$?
     # one retry ONLY on transport-class failures (5xx/timeout/connect) — never on assertion failures
     if [ $rc -ne 0 ] && echo "$out" | grep -qiE 'HTTP 5[0-9][0-9]|timed? ?out|connection|temporary|temporarily'; then
       sleep 3
-      out="$( { timeout 240 "$NIKA" run "$wf" --model "$model" --color never --json; } 2>&1 )"; rc=$?
+      out="$({ timeout 240 "$NIKA" run "$wf" --model "$model" --color never --json; } 2>&1)"
+      rc=$?
     fi
-    ms=$(( ($(date +%s) - t0) ))s
+    ms=$(($(date +%s) - t0))s
     if [ $rc -ne 0 ] && echo "$out" | grep -qiE 'credit balance is too low|insufficient credit'; then
       # key present but unfunded — an honest SKIP, never a ✖ (the #264 class)
       v="SKIP(no credits)"
@@ -107,7 +114,8 @@ while IFS=$'\t' read -r id model key_env base_url_env _notes; do
         v="✔ fast-fail"
         echo "$out" | grep -qE 'after 1 attempt|attempts[": ]+1' || v="✔ (attempts?)"
       else
-        v="✖(rc=$rc)"; fails=$((fails+1))
+        v="✖(rc=$rc)"
+        fails=$((fails + 1))
       fi
     else
       # structural: exit 0 + a nonzero token count in the trace — the NDJSON
@@ -115,15 +123,17 @@ while IFS=$'\t' read -r id model key_env base_url_env _notes; do
       if [ $rc -eq 0 ] && echo "$out" | grep -qE '"key":"tokens","value":[1-9]'; then
         v="✔"
       elif [ $rc -eq 0 ]; then
-        v="✖(no-usage)"; fails=$((fails+1))
+        v="✖(no-usage)"
+        fails=$((fails + 1))
       else
-        v="✖(rc=$rc)"; fails=$((fails+1))
+        v="✖(rc=$rc)"
+        fails=$((fails + 1))
       fi
     fi
     printf '%-20s' "$v $ms"
   done
   echo
-done < "$MANIFEST"
+done <"$MANIFEST"
 
 echo "────────────────────────────────────────────────"
 if [ "$fails" -gt 0 ]; then

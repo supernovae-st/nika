@@ -82,7 +82,7 @@ impl Rig {
     /// that no server will ever accept, aimed at a closed loopback port.
     fn nika(&self, args: &[&str], dead_key: bool) -> std::process::Output {
         let path = format!("{}:/usr/bin:/bin", self.root.join("bin").display());
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
         cmd.args(args)
             .env_clear()
             .env("PATH", path)

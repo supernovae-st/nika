@@ -117,7 +117,7 @@ Before modifying any crate, know these:
 - **L2** domain crates: `verb-*`, service crates, memory stubs.
 - **L3** orchestration: runtime + daemon.
 - **L4** interfaces: cli, lsp, serve, sdk, init, lints.
-- **L5** binary: `nika` (≤ 500 LOC composition root).
+- **L5** binary: `nika` (≤ 500 LOC composition root · the `nika` bin target is already born in L4's `nika-cli`; L5 will own it, never rename it · ADR-135).
 
 Strict **downward** dependencies only. No upward imports.
 Enforced by `scripts/ci/check-layering.sh` + `cargo-deny`.

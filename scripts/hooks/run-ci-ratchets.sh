@@ -39,6 +39,9 @@ readonly RATCHETS=(
   # `## [Unreleased]` — the shared append target that collided four PRs on
   # 2026-08-24 with zero source overlap between them.
   'changelog-fragments'
+  # One executable identity (ADR-135): the bin target, the release line, the
+  # flake and the tests all say `nika`, and the gate proves itself first.
+  'public-binary'
 )
 
 # Four of the ratchets above (unwrap · expect · dead-code, plus hygiene's

@@ -63,7 +63,7 @@ impl Rig {
 
     fn command(&self, args: &[&str]) -> Command {
         let path = format!("{}:/usr/bin:/bin", self.root.join("bin").display());
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
         cmd.args(args)
             .env_clear()
             .env("PATH", path)

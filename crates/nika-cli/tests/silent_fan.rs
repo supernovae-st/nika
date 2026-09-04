@@ -65,7 +65,7 @@ fn a_repaired_iteration_lands_on_the_fan_row() {
     write_file(&dir, "items/a.txt", "A\n");
     write_file(&dir, "items/c.txt", "C\n");
 
-    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_nika"))
         .arg("run")
         .arg(&wf)
         .arg("--no-progress")
@@ -103,7 +103,7 @@ fn a_healthy_fan_keeps_its_historical_row() {
     write_file(&dir, "items/GHOST.txt", "G\n");
     write_file(&dir, "items/c.txt", "C\n");
 
-    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_nika"))
         .arg("run")
         .arg(&wf)
         .arg("--no-progress")

@@ -208,13 +208,14 @@ fn leg_b_the_wasm_rows_equal_the_cli_rows_on_the_shared_legs() {
 
         // the SAME TREE's CLI — never the release binary, whose code may
         // legitimately postdate or predate this branch. The cargo bin
-        // target is `nika-cli`; only packaging renames it `nika`.
+        // target is `nika` (ADR-135): the name the packaging ships, born
+        // in the `nika-cli` package.
         let out = std::process::Command::new("cargo")
-            .args(["run", "-q", "-p", "nika-cli", "--bin", "nika-cli", "--"])
+            .args(["run", "-q", "-p", "nika-cli", "--bin", "nika", "--"])
             .args(["check", "--json", "--"])
             .arg(input)
             .output()
-            .expect("cargo run nika-cli");
+            .expect("cargo run -p nika-cli --bin nika");
         let stdout = String::from_utf8_lossy(&out.stdout);
         let cli: serde_json::Value = serde_json::from_str(stdout.trim())
             .unwrap_or_else(|_| panic!("CLI emitted no JSON at {}", input.display()));

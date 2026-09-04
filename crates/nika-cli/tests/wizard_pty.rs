@@ -38,7 +38,7 @@ use expectrl::{ControlCode, Eof, Expect};
 type LoggedSession = Session<UnixProcess, LogStream<PtyStream, std::io::Stderr>>;
 
 fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_nika-cli")
+    env!("CARGO_BIN_EXE_nika")
 }
 
 /// RAII scenario dir — cleans itself even when an assertion PANICS

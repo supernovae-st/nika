@@ -349,7 +349,7 @@ fn mcp_roundtrip(request: &serde_json::Value) -> serde_json::Value {
     // Same carve-out as lsp_transport.rs: driving the shipped binary IS the
     // contract under test.
     #[allow(clippy::disallowed_types)]
-    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_nika"))
         .arg("mcp")
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())

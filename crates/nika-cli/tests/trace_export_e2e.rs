@@ -31,7 +31,7 @@ tasks:
     )
     .expect("write workflow");
 
-    let run = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let run = Command::new(env!("CARGO_BIN_EXE_nika"))
         .args(["run", "w.nika.yaml", "--json", "--color", "never"])
         .current_dir(dir)
         .output()
@@ -50,7 +50,7 @@ tasks:
         .find(|p| p.extension().is_some_and(|x| x == "ndjson"))
         .expect("one journal");
 
-    let export = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let export = Command::new(env!("CARGO_BIN_EXE_nika"))
         .args(["trace", "export"])
         .arg(&journal)
         .current_dir(dir)
@@ -140,7 +140,7 @@ fn a_failed_run_prints_its_autopsy_a_clean_run_does_not() {
         "nika: fail-ux\npermits: { exec: [\"false\"] }\ntasks:\n  boom:\n    exec:\n      command: [\"false\"]\n",
     )
     .expect("write");
-    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_nika"))
         .args(["run", "fail.nika.yaml", "--no-progress"])
         .current_dir(dir.path())
         .output()
@@ -160,7 +160,7 @@ fn a_failed_run_prints_its_autopsy_a_clean_run_does_not() {
         "nika: ok-ux\npermits: { exec: [\"true\"] }\ntasks:\n  fine:\n    exec:\n      command: [\"true\"]\n",
     )
     .expect("write");
-    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_nika"))
         .args(["run", "ok.nika.yaml", "--no-progress"])
         .current_dir(dir.path())
         .output()

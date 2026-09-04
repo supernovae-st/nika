@@ -44,7 +44,7 @@ impl Rig {
     /// The binary on a fresh machine: cleared env, a scratch HOME, the
     /// project as cwd.
     fn command(&self, args: &[&str]) -> Command {
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
         cmd.args(args)
             .env_clear()
             .env("PATH", "/usr/bin:/bin")
