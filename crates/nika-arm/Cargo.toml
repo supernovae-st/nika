@@ -14,9 +14,9 @@ publish                = false
 test-support = []
 
 [dependencies]
-nika-cadence = { path = "../nika-cadence", version = "0.117.1" }
-nika-fs      = { path = "../nika-fs", version = "0.117.1" }
-nika-execution = { path = "../nika-execution", version = "0.117.1" }
+nika-cadence = { path = "../nika-cadence", version = "0.118.0" }
+nika-fs      = { path = "../nika-fs", version = "0.118.0" }
+nika-execution = { path = "../nika-execution", version = "0.118.0" }
 jiff         = { workspace = true }
 nix          = { workspace = true }
 serde_json   = { workspace = true }

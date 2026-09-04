@@ -1,1 +1,0 @@
-- **A task fed by a recovered fallback says so in prose (wave 7 · #1444).** `nika trace outputs`, `nika trace peek` and the storyboard note read « input from recovered <task> » on a task whose input came from an upstream `on_error: recover` fallback · the lineage the JSON already carried (`integrity_source`) · and `trace outputs --json` names the source.

@@ -46,5 +46,5 @@ workspace = true
 
 [dev-dependencies]
 proptest = { workspace = true }   # Gate 6 · the derivation invariants under arbitrary shapes
-nika-event = { path = "../nika-event", version = "0.117.1" }   # the spellings this crate copies are pinned to their owner (ADR-130 · tests/wire_pins.rs)
-nika-graph = { path = "../nika-graph", version = "0.117.1" }   # the graph format this crate reads is pinned to its owner (format 3 · tests/wire_pins.rs)
+nika-event = { path = "../nika-event", version = "0.118.0" }   # the spellings this crate copies are pinned to their owner (ADR-130 · tests/wire_pins.rs)
+nika-graph = { path = "../nika-graph", version = "0.118.0" }   # the graph format this crate reads is pinned to its owner (format 3 · tests/wire_pins.rs)

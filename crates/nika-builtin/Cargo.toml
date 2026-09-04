@@ -11,11 +11,11 @@ homepage.workspace     = true
 publish                = false  # Internal L1.5 tool layer.
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.117.1" }   # the 3 tool seams + fs/http/clock/event effect seams
-nika-extract = { path = "../nika-extract", version = "0.117.1" }  # nika:fetch — the extract modes + page digest (L1.5→L1.5 same-layer)
-nika-fx      = { path = "../nika-fx", version = "0.117.1" }  # nika:image_fx — deterministic artistic effects (L1 pure-algo · zero-dep)
-nika-types   = { path = "../nika-types", version = "0.117.1" }    # fetch traverse bound — ONE definition with the static checker
-nika-chart   = { path = "../nika-chart", version = "0.117.1" }    # nika:chart — deterministic artifacts (zero-dep · byte-identical SVG · sha256 → trace chain)
+nika-kernel = { path = "../nika-kernel", version = "0.118.0" }   # the 3 tool seams + fs/http/clock/event effect seams
+nika-extract = { path = "../nika-extract", version = "0.118.0" }  # nika:fetch — the extract modes + page digest (L1.5→L1.5 same-layer)
+nika-fx      = { path = "../nika-fx", version = "0.118.0" }  # nika:image_fx — deterministic artistic effects (L1 pure-algo · zero-dep)
+nika-types   = { path = "../nika-types", version = "0.118.0" }    # fetch traverse bound — ONE definition with the static checker
+nika-chart   = { path = "../nika-chart", version = "0.118.0" }    # nika:chart — deterministic artifacts (zero-dep · byte-identical SVG · sha256 → trace chain)
 url           = { workspace = true }   # traverse — same-origin math + normalization (the WHATWG parse the transport uses)
 # data wave
 jaq-core      = { workspace = true }   # nika:jq — THE data language
@@ -44,21 +44,21 @@ tokio         = { workspace = true }   # spawn_blocking — jq's sync CPU eval o
 # required) — the SAME vocabulary the in-test drift guards pin to the
 # ToolDef schemas (one source, no drift). Minimal features: the builtin
 # catalog only, no provider/pricing data. L1.5→L0 downward (layering-clean).
-nika-catalog  = { path = "../nika-catalog", version = "0.117.1", default-features = false, features = ["builtins-transforms"] }
+nika-catalog  = { path = "../nika-catalog", version = "0.118.0", default-features = false, features = ["builtins-transforms"] }
 # THE fs boundary predicate (`fit::glob_admits`), shared with the static check
 # so the two verdicts cannot drift. Was dev-only, backing a differential test
 # between "two independent implementations" — they drifted, in the permissive
 # direction, and the differential was scoped away from the forms that broke.
 # One implementation, like `nika_types::net` already is for hosts.
-nika-cap = { path = "../nika-cap", version = "0.117.1" }
+nika-cap = { path = "../nika-cap", version = "0.118.0" }
 
 [dev-dependencies]
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.117.1" }
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.118.0" }
 # test-only: the REAL filesystem (TokioFs) — the permits.fs boundary tests
 # need a true `canonicalize` (resolves `..` + symlinks) against a /tmp scratch
 # dir; MockFs::canonicalize is a no-op, so the escape cases can only be proven
 # against the production impl. dev-only · L1.5→L1 downward (layering-clean).
-nika-fs          = { path = "../nika-fs", version = "0.117.1" }
+nika-fs          = { path = "../nika-fs", version = "0.118.0" }
 # test-only: an INDEPENDENT PNG decoder proving the mock image provider's
 # hand-rolled stored-deflate encoder emits spec-valid files (not just bytes
 # our own sniffer accepts).
