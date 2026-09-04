@@ -154,11 +154,15 @@ fn render_outputs(view: &RunView, trace: &str, theme: Theme) -> String {
     );
     let _ = writeln!(out, "{}", theme.paint(Role::Dim, &head));
     for (row, c) in rows.iter().zip(&cells) {
-        let preview = if row.recovered {
+        let mut preview = if row.recovered {
             format!("{} · recovered", preview_cell(row, theme))
         } else {
             preview_cell(row, theme)
         };
+        // #1444 · the lineage the JSON already carried, said in prose.
+        if let Some(source) = row.integrity_source.as_deref() {
+            let _ = write!(preview, " · input from recovered {source}");
+        }
         let _ = writeln!(
             out,
             "  {:<w0$}  {}  {}  {:>w3$}  {}",
@@ -301,6 +305,7 @@ pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::V
                 "status": status,
                 "error_code": recovered,
                 "recovered_from": recovered,
+                "integrity_source": row.integrity_source,
                 "items": items,
             })
         })
@@ -537,6 +542,10 @@ fn render_peek(row: &TaskRow, text: &str, recovered_from: Option<&str>, theme: T
         if let Some(code) = recovered_from {
             let _ = write!(meta, " from {code}");
         }
+    }
+    // #1444 · a value that came from a recovered fallback upstream.
+    if let Some(source) = row.integrity_source.as_deref() {
+        let _ = write!(meta, " · input from recovered {source}");
     }
     let _ = writeln!(out, "  {}", theme.paint(Role::Dim, &meta));
     if let (Some(def), Some(input)) = (row.def_hash.as_deref(), row.input_hash.as_deref()) {
@@ -1232,6 +1241,73 @@ mod tests {
             summary[0].contains("1 ok · 1 failed · 1 never started"),
             "the tally: {}",
             summary[0]
+        );
+    }
+
+    /// #1444 · a task fed by a recovered fallback says so on `outputs`, on
+    /// `peek` and in the JSON · the 3 am reader no longer mistakes it for a
+    /// clean success.
+    #[test]
+    fn a_task_fed_by_a_recovered_fallback_names_its_source_on_every_surface() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let task = |name: &str| KeyValue::new("task", Value::String(name.into()));
+        let events = vec![
+            demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(task("b"))
+                .with_field(KeyValue::new("note", Value::String("exec · false".into()))),
+            demo::bare_event(EventKind::TaskRecovered, 1)
+                .with_field(task("b"))
+                .with_field(KeyValue::new("code", Value::String("NIKA-EXEC-001".into()))),
+            demo::bare_event(EventKind::TaskCompleted, 2)
+                .with_field(task("b"))
+                .with_field(KeyValue::new(
+                    "output",
+                    Value::String("\"FALLBACK-DATA\"".into()),
+                )),
+            demo::bare_event(EventKind::TaskStarted, 3)
+                .with_field(task("c"))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("invoke · nika:jq".into()),
+                )),
+            demo::bare_event(EventKind::TaskCompleted, 4)
+                .with_field(task("c"))
+                .with_field(KeyValue::new(
+                    "output",
+                    Value::String("\"FALLBACK-DATA\"".into()),
+                ))
+                .with_field(KeyValue::new(
+                    "integrity",
+                    Value::String("untrusted".into()),
+                ))
+                .with_field(KeyValue::new("integrity_source", Value::String("b".into()))),
+            demo::bare_event(EventKind::WorkflowCompleted, 5),
+        ];
+        let path = stage("lineage.ndjson", &events);
+        let table = outputs(&path.to_string_lossy(), plain());
+        assert_eq!(table.code, exit::OK);
+        let c_row = table
+            .text
+            .lines()
+            .find(|l| l.trim_start().starts_with("c "))
+            .expect("c's row");
+        assert!(
+            c_row.contains("input from recovered b"),
+            "outputs names the lineage: {c_row}"
+        );
+        let peeked = peek(&path.to_string_lossy(), "c", false, plain());
+        assert!(
+            peeked.text.contains("input from recovered b"),
+            "peek names the lineage: {}",
+            peeked.text
+        );
+        let (view, events) = load_view_and_events(&path.to_string_lossy()).expect("loads");
+        let json = tasks_json(&view, &events);
+        assert_eq!(json["tasks"][1]["integrity_source"], "b");
+        assert!(
+            json["tasks"][0]["integrity_source"].is_null(),
+            "b itself has no source"
         );
     }
 }

@@ -1208,8 +1208,8 @@ fn harness_finding_from_parts(
             level: Level::Warn,
             label: "runtime".to_owned(),
             detail: format!(
-                "{id} — {display} · infer-grade direct path detected (login judged at run) · \
-                 agent ACP speaker missing · `--access {id}`"
+                "{id} — {display} · usable for `infer:` now (its own login is judged when a run \
+                 starts) · `agent:` needs the ACP speaker · `--access {id}`"
             ),
             fix: Some(format!("install: {package} (only required for agent:)")),
         };

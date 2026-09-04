@@ -48,17 +48,17 @@ fn codex_without_acp_still_names_the_direct_infer_path() {
     let finding = super::harness_finding_from_parts("codex", None, None, "codex-acp package", true);
 
     assert!(
-        finding.detail.contains("infer-grade direct path detected"),
+        finding.detail.contains("usable for `infer:` now"),
         "{}",
         finding.detail
     );
     assert!(
-        finding.detail.contains("login judged at run"),
+        finding.detail.contains("judged when a run starts"),
         "{}",
         finding.detail
     );
     assert!(
-        finding.detail.contains("agent ACP speaker missing"),
+        finding.detail.contains("needs the ACP speaker"),
         "{}",
         finding.detail
     );
