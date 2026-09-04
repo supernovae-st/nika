@@ -82,8 +82,7 @@ pub(super) fn abort_unran(
         &settlement,
     );
 
-    let mut outcome =
-        RunOutcome::from_dataflow(false, records, BTreeMap::new()).with_settlement(settlement);
+    let mut outcome = RunOutcome::new(false, records, BTreeMap::new()).with_settlement(settlement);
     outcome.cache_hits = cache_hits;
     outcome
 }

@@ -80,6 +80,19 @@ pub struct ExecutionOutcome {
     chain_head: Option<String>,
 }
 
+/// The disposition IS a run state (ADR-130 · the resident's word for the
+/// four settlement states; refusals never reach a disposition).
+impl From<ExecutionDisposition> for nika_event::settlement::RunState {
+    fn from(disposition: ExecutionDisposition) -> Self {
+        match disposition {
+            ExecutionDisposition::Succeeded => Self::Succeeded,
+            ExecutionDisposition::Paused => Self::Paused,
+            ExecutionDisposition::Failed => Self::Failed,
+            ExecutionDisposition::Cancelled => Self::Cancelled,
+        }
+    }
+}
+
 impl From<ExecutionDisposition> for ExecutionOutcome {
     fn from(disposition: ExecutionDisposition) -> Self {
         Self {
@@ -1013,12 +1026,9 @@ async fn settle_disposition(
         outcome
     };
     let verdict = session.complete(outcome.disposition());
-    let status = match *verdict.outcome() {
-        ExecutionDisposition::Succeeded => JobStatus::Succeeded,
-        ExecutionDisposition::Paused => JobStatus::Paused,
-        ExecutionDisposition::Failed => JobStatus::Failed,
-        ExecutionDisposition::Cancelled => JobStatus::Cancelled,
-    };
+    // ADR-130 · the job's status is the settlement's state, projected
+    // through ONE mapping (the words are the settlement's).
+    let status = JobStatus::from(nika_event::settlement::RunState::from(*verdict.outcome()));
     // One cancellation terminal (#1350): a cancelled disposition settles as
     // `execution.cancelled` here as it does on the cancel route, so the race
     // between the two writers changes the author, never the kind. A failure

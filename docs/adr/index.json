@@ -1405,7 +1405,7 @@
       "affects_layers": ["L3"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-022","ADR-024","ADR-110","ADR-125","ADR-126","ADR-128"],
+      "related": ["ADR-022","ADR-024","ADR-110","ADR-125","ADR-126","ADR-128","ADR-130"],
       "requires": ["ADR-110"],
       "enables": []
     }
@@ -1421,7 +1421,7 @@
       "affects_layers": ["L0","L3","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-099","ADR-122","ADR-123","ADR-125","ADR-127","ADR-129"],
+      "related": ["ADR-099","ADR-122","ADR-123","ADR-125","ADR-127","ADR-129","ADR-130"],
       "requires": ["ADR-127"],
       "enables": []
     }
@@ -1437,7 +1437,23 @@
       "affects_layers": ["L3","L4"],
       "supersedes": [],
       "superseded_by": [],
-      "related": ["ADR-099","ADR-100","ADR-128"],
+      "related": ["ADR-099","ADR-100","ADR-128","ADR-130"],
+      "requires": ["ADR-128"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-130",
+      "title": "One vocabulary, one owner: the task-record twin dies, the resident's status projects the settlement, copied spellings are pinned",
+      "status": "accepted",
+      "date": "2026-09-04",
+      "filename": "adr-130-one-vocabulary-one-owner.md",
+      "tags": ["architecture","events","one-door","vocabulary"],
+      "affects_crates": ["nika-runtime-laws","nika-runtime","nika-serve","nika-tui-core"],
+      "affects_layers": ["L2","L3","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-127","ADR-128","ADR-129"],
       "requires": ["ADR-128"],
       "enables": []
     }

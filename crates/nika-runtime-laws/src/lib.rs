@@ -14,7 +14,6 @@
 #[cfg(test)]
 #[path = "../../nika-runtime/build_support.rs"]
 mod build_support;
-pub mod compat_record;
 pub mod contract;
 pub mod errors;
 pub mod identity;
