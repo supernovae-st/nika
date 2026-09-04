@@ -1489,5 +1489,37 @@
       "requires": ["ADR-129"],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-133",
+      "title": "The session machine is portable: typed outcomes, proposal and gate identities, hosts that judge by identity",
+      "status": "accepted",
+      "date": "2026-09-04",
+      "filename": "adr-133-the-session-machine-is-portable.md",
+      "tags": ["architecture","session","one-door","idempotency"],
+      "affects_crates": ["nika-session","nika-cli"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": [],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-134",
+      "title": "Trust is a rung, never a word: declared · discovered · observed on every access lane",
+      "status": "accepted",
+      "date": "2026-09-04",
+      "filename": "adr-134-trust-is-a-rung-never-a-word.md",
+      "tags": ["architecture","access","trust","one-door"],
+      "affects_crates": ["nika-types","nika-providers","nika-service-execution","nika-cli-host","nika-cli"],
+      "affects_layers": ["L0","L2","L3","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": [],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

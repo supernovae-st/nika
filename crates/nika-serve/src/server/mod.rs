@@ -1151,6 +1151,8 @@ fn execution_result(
 }
 
 #[cfg(test)]
+mod admission_tests;
+#[cfg(test)]
 mod coordinator_tests;
 #[cfg(test)]
 mod credential_tests;
