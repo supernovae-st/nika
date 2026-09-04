@@ -79,9 +79,13 @@ printf 'fn main() {}\n// %s\n' 'env!("CARGO_BIN_EXE_nika-cli")' >"$work/m7/crate
 expect "mutant · a test still reads the nika-cli target" 1 "$work/m7"
 mkdir -p "$work/m8"
 expect "no crates/ under the root cannot be judged" 2 "$work/m8"
+fixture "$work/m9" nika "$DEFAULT" nika 0 0 0
+mkdir -p "$work/m9/crates/nika-cli/tests"
+printf '// a differential test that runs the same tree'"'"'s CLI\nlet _ = ["run", "-p", "nika-cli", "--bin", "nika-cli", "--"];\n' >"$work/m9/crates/nika-cli/tests/differential.rs"
+expect "mutant · a Rust test hands cargo run the argv-array --bin nika-cli" 1 "$work/m9"
 
 if [ "$failures" -eq 0 ]; then
-  printf '[public-binary self-test] GREEN · 1 clean + 7 mutants + 1 unjudgeable behave\n'
+  printf '[public-binary self-test] GREEN · 1 clean + 8 mutants + 1 unjudgeable behave\n'
   exit 0
 fi
 printf '[public-binary self-test] RED · %s case(s) misjudged\n' "$failures"

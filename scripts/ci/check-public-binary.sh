@@ -96,7 +96,10 @@ fi
 # 4 · no build, package, install or test path still spells the old name
 #     (the README's install lines included: a teaching surface that tells a
 #     stranger to symlink nika-cli is the same split identity in prose).
-stale="$(grep -rnE -- '--bin nika-cli|/(release|debug)/nika-cli|bin/nika-cli|CARGO_BIN_EXE_nika-cli' \
+#     Both spellings of a build line are read: the shell form `--bin nika-cli`
+#     and the argv-array form `"--bin", "nika-cli"` a Rust test hands to
+#     `cargo run` (the wasm differential test carried the second one).
+stale="$(grep -rnE -- '--bin nika-cli|"--bin", *"nika-cli"|/(release|debug)/nika-cli|bin/nika-cli|CARGO_BIN_EXE_nika-cli' \
   "$ROOT/.github" "$ROOT/scripts" "$ROOT/crates" "$ROOT/.agents" "$ROOT/flake.nix" "$ROOT/Dockerfile" "$ROOT/README.md" 2>/dev/null \
   | grep -vE '/target/|check-public-binary\.sh:|test-public-binary\.sh:' || true)"
 if [ -n "$stale" ]; then
