@@ -211,7 +211,7 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
     // (the resident captures the world — the one owner of the snapshot and
     // its digest domain) or the snapshot `nika check <file> --json
     // --sdk-snapshot` prints (digests optional: computed when absent,
-    // attested when present).
+    // checked when present).
     if let Some(name) = by_name(&body) {
         let admitted = match admit_by_name(&name, &state).await {
             Ok(admitted) => admitted,

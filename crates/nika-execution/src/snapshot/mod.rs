@@ -512,7 +512,7 @@ impl ExecutionSnapshot {
             let kind = SnapshotUnitKind::from_tag(unit.kind)?;
             let bytes = decode_preflighted_hex_bytes(&unit.bytes_hex)?;
             let captured = CapturedUnit::new(unit.path.into_owned(), kind, bytes);
-            // An attested unit digest must match the bytes; an absent one is
+            // A caller-supplied unit digest must match the bytes; an absent one is
             // computed (the engine is the one owner of the digest domain).
             if unit
                 .digest
@@ -993,7 +993,7 @@ struct BorrowedWireSnapshot<'a> {
     format_version: u32,
     #[serde(borrow)]
     root: Cow<'a, str>,
-    /// The caller's attestation of the world's digest — optional (ADR-131):
+    /// The caller's integrity digest of the world — optional (ADR-131):
     /// absent, the engine computes it; present, it must match.
     #[serde(borrow, default)]
     digest: Option<Cow<'a, str>>,
@@ -1006,7 +1006,7 @@ struct BorrowedWireUnit<'a> {
     #[serde(borrow)]
     path: Cow<'a, str>,
     kind: u8,
-    /// The caller's attestation of the unit's digest — optional (ADR-131).
+    /// The caller's integrity digest of the unit — optional (ADR-131).
     #[serde(borrow, default)]
     digest: Option<Cow<'a, str>>,
     #[serde(borrow)]

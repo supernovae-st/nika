@@ -110,12 +110,12 @@ fn schemas() -> Value {
             "ExecutionSnapshot": {
                 "type": "object",
                 "additionalProperties": false,
-                "description": "Immutable byte-owned execution world — the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer; a client never hashes). Unit bytes are canonical lowercase hexadecimal. `digest` and every unit `digest` are OPTIONAL attestations (canonical lowercase SHA-256): absent, the resident computes them and the receipt carries the result; present, they must match the bytes or the request is refused as `snapshot_tampered`. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
+                "description": "Immutable byte-owned execution world — the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer; a client never hashes). Unit bytes are canonical lowercase hexadecimal. `digest` and every unit `digest` are OPTIONAL caller-supplied integrity digests (canonical lowercase SHA-256 · a content assertion, never a signature): absent, the resident computes them and the receipt carries the result; present, they must match the bytes or the request is refused as `snapshot_tampered`. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
                 "required": ["format_version", "root", "units"],
                 "properties": {
                     "format_version": {"type": "integer", "const": 1},
                     "root": {"type": "string", "minLength": 1, "maxLength": 4096},
-                    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional attestation of the world's digest"},
+                    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional caller-supplied integrity digest of the world (never a signature)"},
                     "units": {
                         "type": "array",
                         "maxItems": 256,
@@ -126,7 +126,7 @@ fn schemas() -> Value {
                             "properties": {
                                 "path": {"type": "string", "minLength": 1, "maxLength": 4096},
                                 "kind": {"type": "integer", "minimum": 0, "maximum": 3, "description": "0 root (the admitted workflow) · 1 child (a transitively invoked workflow) · 2 skill (an Agent Skill document) · 3 import (an opaque import the caller supplied)"},
-                                "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional attestation of the unit's digest"},
+                                "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional caller-supplied integrity digest of the unit (never a signature)"},
                                 "bytes_hex": {"type": "string", "pattern": "^(?:[0-9a-f]{2})*$"}
                             }
                         }
@@ -478,7 +478,7 @@ fn job_by_name_schema() -> Value {
 fn jobs_path() -> Value {
     json!({"post": {
         "summary": "Admit a workflow as a durable job — by served name, or as immutable snapshot bytes",
-        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional attestations. The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
+        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional caller-supplied integrity digests (a content assertion, never a signature). The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
         "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}],
         "requestBody": snapshot_request_body(),
         "responses": {

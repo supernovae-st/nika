@@ -83,7 +83,9 @@ pub struct ExecutionOutcome {
 }
 
 /// The disposition IS a run state (ADR-130 · the resident's word for the
-/// four settlement states; refusals never reach a disposition).
+/// four settlement states); a refusal before any task settles the job
+/// `failed` with the refusal's code and no settlement (the runtime reached
+/// none).
 impl From<ExecutionDisposition> for nika_event::settlement::RunState {
     fn from(disposition: ExecutionDisposition) -> Self {
         match disposition {

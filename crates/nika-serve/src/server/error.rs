@@ -217,7 +217,7 @@ fn snapshot_api_error(error: &nika_execution::ExecutionError) -> Option<ApiError
             ApiError::new(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "snapshot_tampered",
-                "the digest this request attests does not match the bytes it carries — send the body `nika check <file> --json --sdk-snapshot` prints, or omit the digests and the resident computes them (ADR-131)",
+                "the digest this request carries does not match its bytes (a caller-supplied integrity digest, never a signature) — send the body `nika check <file> --json --sdk-snapshot` prints, or omit the digests and the resident computes them (ADR-131)",
             )
         }
         ExecutionError::SnapshotStructureMismatch => ApiError::new(
