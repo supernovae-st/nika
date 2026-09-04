@@ -200,7 +200,7 @@ impl AccessCensus {
     pub fn seat_escape(&self) -> Option<String> {
         self.seats_ready
             .first()
-            .map(|seat| format!("or use a signed-in seat: `--access {seat}`"))
+            .map(|seat| format!("or use a seat present on this machine: `--access {seat}` (its login is judged at run)"))
     }
 }
 
@@ -329,7 +329,9 @@ mod tests {
         assert_eq!(best.class, AccessClass::Harness);
         assert_eq!(
             census.seat_escape().as_deref(),
-            Some("or use a signed-in seat: `--access claude-code`")
+            Some(
+                "or use a seat present on this machine: `--access claude-code` (its login is judged at run)"
+            )
         );
     }
 

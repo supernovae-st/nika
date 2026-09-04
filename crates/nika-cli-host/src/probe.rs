@@ -946,7 +946,7 @@ impl AdoptionState {
                     .seats_ready
                     .first()
                     .map_or("a seat", String::as_str);
-                format!("seat ready · {seat} signed in")
+                format!("seat ready · {seat} present (its login is judged at run)")
             }
             Self::RealReady => {
                 let path = if probe
@@ -954,7 +954,7 @@ impl AdoptionState {
                     .iter()
                     .any(|(_, _, s)| matches!(s, PingState::Reachable(_)))
                 {
-                    "endpoint verified"
+                    "endpoint answered"
                 } else if probe.census.seats_ready.is_empty() {
                     "path configured"
                 } else {
