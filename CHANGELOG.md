@@ -16,6 +16,17 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.118.3](https://github.com/supernovae-st/nika/compare/v0.118.2..v0.118.3) - 2026-09-05
+
+### Fixed
+
+- **Draft reads stay with the release owner.** Keep Docker and SLSA verification read-only, route the initial digest and replay statement through the existing draft preparer, and independently reject marker drift in the finalizer before publication.
+- **Audit all Rust lock families.** Update the Linux event-listener path and fuzz anyhow pin to their RustSec fixes, reject unsoundness as well as vulnerabilities, and scan workspace, fuzz and excluded-crate locks without hiding tool errors behind a second scan.
+- **Git push gates receive every ref proposal.** Tag-only and unchanged-tree
+  pushes now reach the ref-aware gate and protected-branch guard; only the
+  gate's explicit deletion-only decision can skip its checks. Real
+  Lefthook/local-remote regressions cover refusal and stdin delivery.
+
 ## [0.118.2](https://github.com/supernovae-st/nika/compare/v0.118.1..v0.118.2) - 2026-09-05
 
 ### Fixed

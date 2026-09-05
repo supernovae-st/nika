@@ -12,7 +12,7 @@ homepage.workspace     = true
 publish                = false
 
 [dependencies]
-nika-schema = { path = "../nika-schema", version = "0.118.2" }
+nika-schema = { path = "../nika-schema", version = "0.118.3" }
 serde_json  = { workspace = true }
 
 [package.metadata.lore]
