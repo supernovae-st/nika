@@ -1,1 +1,0 @@
-- **Hash arguments agree across check and execution.** Literal null content and invalid algorithm or encoding choices are refused before execution; omitted options keep their defaults, and accepted content keeps its original digest. Tool schemas expose the same closed choices. Gemini tool declarations carry the canonical JSON Schema through `parametersJsonSchema`.
