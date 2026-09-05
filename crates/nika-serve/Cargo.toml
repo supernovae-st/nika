@@ -17,17 +17,17 @@ hyper      = { workspace = true }
 hyper-util = { workspace = true }
 jiff       = { workspace = true }
 miette     = { workspace = true, features = ["fancy-no-backtrace"] }
-nika-cadence = { path = "../nika-cadence", version = "0.118.4" }
-nika-dap     = { path = "../nika-dap", version = "0.118.4" }      # TraceFileSink — the journal a resident job leaves on disk (#1381)
-nika-arm     = { path = "../nika-arm", version = "0.118.4" }      # the ONE ledger both firers write (ADR-116 · wave 6 · one slot, one firer)
-nika-error  = { path = "../nika-error", version = "0.118.4" }
-nika-execution = { path = "../nika-execution", version = "0.118.4" }
-nika-service-execution = { path = "../nika-service-execution", version = "0.118.4" }
-nika-event             = { path = "../nika-event", version = "0.118.4" }   # the settlement's RunState — JobStatus is its projection (ADR-130)
-nika-fs    = { path = "../nika-fs", version = "0.118.4" }
-nika-runtime = { path = "../nika-runtime", version = "0.118.4" }
-nika-types = { path = "../nika-types", version = "0.118.4" }
-nika-vocab = { path = "../nika-vocab", version = "0.118.4" }
+nika-cadence = { path = "../nika-cadence", version = "0.118.5" }
+nika-dap     = { path = "../nika-dap", version = "0.118.5" }      # TraceFileSink — the journal a resident job leaves on disk (#1381)
+nika-arm     = { path = "../nika-arm", version = "0.118.5" }      # the ONE ledger both firers write (ADR-116 · wave 6 · one slot, one firer)
+nika-error  = { path = "../nika-error", version = "0.118.5" }
+nika-execution = { path = "../nika-execution", version = "0.118.5" }
+nika-service-execution = { path = "../nika-service-execution", version = "0.118.5" }
+nika-event             = { path = "../nika-event", version = "0.118.5" }   # the settlement's RunState — JobStatus is its projection (ADR-130)
+nika-fs    = { path = "../nika-fs", version = "0.118.5" }
+nika-runtime = { path = "../nika-runtime", version = "0.118.5" }
+nika-types = { path = "../nika-types", version = "0.118.5" }
+nika-vocab = { path = "../nika-vocab", version = "0.118.5" }
 nix        = { workspace = true, features = ["fs"] }
 serde      = { workspace = true }
 serde_json = { workspace = true }
@@ -39,7 +39,7 @@ uuid       = { workspace = true }
 zeroize    = { workspace = true }
 
 [dev-dependencies]
-nika-arm = { path = "../nika-arm", version = "0.118.4", features = ["test-support"] }  # the ledger fixtures the one-firer tests write
+nika-arm = { path = "../nika-arm", version = "0.118.5", features = ["test-support"] }  # the ledger fixtures the one-firer tests write
 tempfile = { workspace = true }
 
 [lints]

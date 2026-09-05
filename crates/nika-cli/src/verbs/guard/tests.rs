@@ -660,14 +660,9 @@ fn infrastructure_failure_is_a_visible_guard_unavailable() {
     // Malformed JSON: the dialect is still sniffed from the raw
     // bytes (a Claude payload breaks into the Claude shape).
     //
-    // The payloads here NAME a run, and that is now load-bearing: a
-    // broken payload that never says `nika` is not ours to refuse, or
-    // wiring a host we cannot parse costs it every shell command
-    // (2026-08-02 · the shim's own fixed bug, one layer down). What
-    // this test pins is the other half — when the bytes COULD have
-    // carried a run and we cannot read them, the degradation is loud.
-    //
-    // A truncated payload cannot dodge that scope: the oversize path
+    // No scope claim is possible before command decoding. The shim uses
+    // blocking exit 2 for an unavailable judge, not this guessed dialect.
+    // A truncated payload cannot dodge the guard: the oversize path
     // refuses before `parse_payload` is ever called.
     let input = parse_payload("{not json} nika run x");
     assert!(input.is_err(), "malformed refuses to parse");
@@ -737,13 +732,13 @@ const SHIM: &str = include_str!(concat!(
 ));
 
 /// Run the real shim under bash with a controlled PATH; returns
-/// (stdout, exit code).
+/// (stdout, stderr, exit code).
 // disallowed_types: `std::process::Command` — the ShellExecutor seam
 // governs the ENGINE's effects; a --lib artifact gate that spawns
 // `bash` on the real shim bytes is exactly the tests/ integration
 // precedent (bin_smoke · resume_e2e allow the same).
 #[allow(clippy::disallowed_types)]
-fn run_shim(dir: &Path, payload: &str, extra_env: &[(&str, &str)]) -> (String, i32) {
+fn run_shim(dir: &Path, payload: &str, extra_env: &[(&str, &str)]) -> (String, String, i32) {
     use std::io::Write as _;
     use std::os::unix::fs::PermissionsExt as _;
     let shim = dir.join("guard-run.sh");
@@ -754,20 +749,23 @@ fn run_shim(dir: &Path, payload: &str, extra_env: &[(&str, &str)]) -> (String, i
     cmd.arg(&shim)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null());
+        .stderr(std::process::Stdio::piped());
     for (k, v) in extra_env {
         cmd.env(k, v);
     }
     let mut child = cmd.spawn().expect("shim spawns");
-    child
+    let written = child
         .stdin
         .as_mut()
         .expect("stdin")
-        .write_all(payload.as_bytes())
-        .expect("payload written");
+        .write_all(payload.as_bytes());
+    if let Err(error) = written {
+        assert_eq!(error.kind(), std::io::ErrorKind::BrokenPipe);
+    }
     let out = child.wait_with_output().expect("shim completes");
     (
         String::from_utf8(out.stdout).expect("utf8 stdout"),
+        String::from_utf8(out.stderr).expect("utf8 stderr"),
         out.status.code().unwrap_or(-1),
     )
 }
@@ -796,7 +794,7 @@ fn shim_pipes_the_payload_and_returns_the_verdict() {
     let capture = dir.path().join("capture.json");
     let payload = r#"{"command":"nika run x.nika.yaml","cwd":"/tmp"}"#;
     let path = format!("{}:/bin:/usr/bin", bin.display());
-    let (stdout, rc) = run_shim(
+    let (stdout, stderr, rc) = run_shim(
         dir.path(),
         payload,
         &[
@@ -807,6 +805,7 @@ fn shim_pipes_the_payload_and_returns_the_verdict() {
         ],
     );
     assert_eq!(rc, 0, "{stdout}");
+    assert!(stderr.is_empty(), "{stderr}");
     assert_eq!(stdout.trim(), r#"{"permission":"allow"}"#);
     let piped = std::fs::read_to_string(&capture).expect("capture");
     assert_eq!(piped, payload, "the payload rides verbatim");
@@ -818,38 +817,22 @@ fn shim_pipes_the_payload_and_returns_the_verdict() {
 fn shim_absent_binary_is_a_visible_guard_unavailable() {
     let dir = tempfile::tempdir().expect("dir");
     let path = "/bin:/usr/bin".to_owned();
-    // Cursor dialect.
-    let (stdout, rc) = run_shim(
-        dir.path(),
+    for payload in [
         r#"{"command":"nika run x.nika.yaml","cwd":"/tmp"}"#,
-        &[("PATH", &path)],
-    );
-    assert_eq!(rc, 0, "{stdout}");
-    let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("json");
-    assert_eq!(v["permission"], "deny", "{stdout}");
-    assert!(
-        v["agent_message"]
-            .as_str()
-            .expect("msg")
-            .contains("guard_unavailable"),
-        "{stdout}"
-    );
-    // Claude Code dialect.
-    let (stdout, rc) = run_shim(
-        dir.path(),
         r#"{"hook_event_name":"PreToolUse","tool_input":{"command":"nika run x.nika.yaml"},"cwd":"/tmp"}"#,
-        &[("PATH", &path)],
-    );
-    assert_eq!(rc, 0, "{stdout}");
-    let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("json");
-    let reason = v["hookSpecificOutput"]["permissionDecisionReason"]
-        .as_str()
-        .expect("reason");
-    assert!(reason.contains("guard_unavailable"), "{stdout}");
+        r#"{"command":"n\u0069ka run x.yaml","cwd":"/tmp"}"#,
+        r#"{"command":"n'ik'a run x.yaml","cwd":"/tmp"}"#,
+        r#"{"command":"ls","cwd":"/tmp"}"#,
+        r#"{"command":"echo hook_event_name; n'ik'a run x.yaml","cwd":"/tmp"}"#,
+    ] {
+        let (stdout, stderr, rc) = run_shim(dir.path(), payload, &[("PATH", &path)]);
+        assert_eq!(rc, 2, "{payload}: {stdout} {stderr}");
+        assert!(stdout.is_empty(), "no guessed dialect: {stdout}");
+        assert!(stderr.contains("guard_unavailable"), "{stderr}");
+    }
 }
 
-/// A hostile or broken host cannot hang or OOM the judge (audit
-/// 2026-07-31): the payload read is capped at 4 MiB — over it, the
+/// Payload bytes are capped at 4 MiB (audit 2026-07-31) — over it, the
 /// answer is a deterministic `guard_unavailable`, deny-shaped in
 /// BOTH dialects.
 #[test]
@@ -893,7 +876,7 @@ fn shim_broken_binary_is_a_visible_guard_unavailable() {
     let bin = stub_nika(dir.path());
     let capture = dir.path().join("capture.json");
     let path = format!("{}:/bin:/usr/bin", bin.display());
-    let (stdout, rc) = run_shim(
+    let (stdout, stderr, rc) = run_shim(
         dir.path(),
         r#"{"command":"nika run x.nika.yaml","cwd":"/tmp"}"#,
         &[
@@ -903,35 +886,27 @@ fn shim_broken_binary_is_a_visible_guard_unavailable() {
             ("STUB_RC", "1"),
         ],
     );
-    assert_eq!(rc, 0, "{stdout}");
-    assert!(stdout.contains("guard_unavailable"), "{stdout}");
-    assert!(stdout.contains(r#""permission":"deny""#), "{stdout}");
+    assert_eq!(rc, 2, "{stdout} {stderr}");
+    assert!(stdout.is_empty(), "{stdout}");
+    assert!(stderr.contains("guard_unavailable"), "{stderr}");
 }
 
-/// A host whose payload shape we do not parse must not lose its shell.
-///
-/// Wiring a new client is exactly when nobody is watching, and the
-/// binary denied EVERY command on an unread payload — `ls` came back
-/// « nika run blocked » (2026-08-02). That is the shim's fixed bug one
-/// layer down. The scope law is the same and just as exact: the judge
-/// only ever claims a command whose word is `nika` or `nika-cli`, both
-/// of which contain that substring, so bytes without it hold no run for
-/// us to miss.
+/// No-opinion requires a parsed command, not absence of a raw substring.
 #[test]
-fn an_unreadable_payload_is_only_ours_when_it_could_have_carried_a_run() {
-    // Shapes other hosts plausibly send — none of them ours.
+fn an_unreadable_payload_never_grants_no_opinion() {
     for payload in [
         r#"{"shell_command":"ls -la","working_directory":"/tmp"}"#,
         r#"{"tool":{"name":"terminal","input":{"command":"git status"}}}"#,
         r#"{"arguments":{"cmd":["rm","-rf","/tmp/x"]}}"#,
         "{}",
         "not json at all",
+        r#"{"shell_command":"n\u0069ka run x.yaml"}"#,
+        r#"{"shell_command":"n'ik'a run x.yaml"}"#,
     ] {
         let verdict = parse_payload(payload).expect_err("no command to judge");
-        assert_eq!(
-            verdict,
-            Verdict::NotOurs,
-            "a payload that never says nika is not ours to refuse: {payload}"
+        assert!(
+            matches!(verdict, Verdict::Unavailable(_)),
+            "unparsed commands have no scope proof: {payload} → {verdict:?}"
         );
     }
 

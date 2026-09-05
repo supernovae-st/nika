@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
-# guard-run.test.sh — the shim's scope, both directions.
+# guard-run.test.sh — missing-judge refusals in both host dialects.
 #
 # The shim is the only part of the guard that runs when the judge does
-# NOT. Its whole job in that moment is to degrade visibly for a run —
-# and to stay out of the way for everything else. It got the second half
-# wrong: with the binary off PATH it denied every shell command in the
-# session, and told the user « nika run blocked » about `ls`. The
-# README's own macOS bullet says a GUI-launched Cursor missing the shell
-# PATH is ordinary, so that was not a corner (2026-08-02).
+# NOT. It cannot prove that an encoded or quoted command is unrelated.
+# Exit 2 is the hosts' shared blocking protocol, independent of payload
+# substrings or a guessed JSON dialect. No command below is executed.
 #
-# Both directions are pinned here. Run with the binary genuinely absent
+# Run with the binary genuinely absent
 # — a PATH with a shell and nothing else.
 set -uo pipefail
 
@@ -18,38 +15,38 @@ SHIM="$HERE/../guard-run.sh"
 BARE_PATH="/usr/bin:/bin"
 fails=0
 
-# ask <name> <payload> <want: silent|deny>
+# ask <name> <payload>
 ask() {
-  local name="$1" payload="$2" want="$3" out
-  out="$(printf '%s' "$payload" | env PATH="$BARE_PATH" /bin/bash "$SHIM" 2>/dev/null)"
-  local got="deny"
-  [ "$(printf '%s' "$out" | tr -d '[:space:]')" = "{}" ] && got="silent"
-  case "$out" in *'"permission":"deny"'* | *'"permissionDecision":"deny"'*) got="deny" ;; esac
-  if [ "$got" != "$want" ]; then
-    printf 'FAIL  %s — want %s, got %s\n      %s\n' "$name" "$want" "$got" "$out" >&2
+  local name="$1" payload="$2" out rc=0
+  out="$(printf '%s' "$payload" | env -i PATH="$BARE_PATH" /bin/bash "$SHIM" 2>&1)" || rc=$?
+  if [ "$rc" -ne 2 ] || [[ "$out" != *guard_unavailable* ]]; then
+    printf 'FAIL  %s — want exit 2 with guard_unavailable, got %s\n      %s\n' "$name" "$rc" "$out" >&2
     fails=$((fails + 1))
   else
-    printf 'ok    %s (%s)\n' "$name" "$got"
+    printf 'ok    %s (blocked)\n' "$name"
   fi
 }
 
-# --- not ours: the shim was never in the picture --------------------------
-ask 'a plain command' '{"command":"ls -la","cwd":"/tmp"}' silent
-ask 'a destructive command' '{"command":"rm -rf /","cwd":"/tmp"}' silent
-ask 'a git push' '{"command":"git push --force","cwd":"/tmp"}' silent
-ask 'the claude dialect too' '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"cwd":"/tmp"}' silent
+# No healthy judge exists to prove NotOurs, even for ordinary commands.
+ask 'a plain command' '{"command":"ls -la","cwd":"/tmp"}'
+ask 'a git inspection' '{"command":"git status","cwd":"/tmp"}'
+ask 'the claude dialect too' '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"cwd":"/tmp"}'
 
 # --- ours, and unjudgeable: deny, visibly ---------------------------------
-ask 'a bare run' '{"command":"nika run x.nika.yaml","cwd":"/tmp"}' deny
-ask 'an absolute-path run' '{"command":"/opt/nika/bin/nika run x","cwd":"/tmp"}' deny
-ask 'a wrapped run' '{"command":"sh -c \"nika run x\"","cwd":"/tmp"}' deny
-ask 'the cargo target name' '{"command":"nika-cli run x","cwd":"/tmp"}' deny
-ask 'a chained run' '{"command":"echo hi && nika run x","cwd":"/tmp"}' deny
-ask 'the claude dialect run' '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"nika run x"},"cwd":"/tmp"}' deny
+ask 'a bare run' '{"command":"nika run x.nika.yaml","cwd":"/tmp"}'
+ask 'an absolute-path run' '{"command":"/opt/nika/bin/nika run x","cwd":"/tmp"}'
+ask 'a wrapped run' '{"command":"sh -c \"nika run x\"","cwd":"/tmp"}'
+ask 'the cargo target name' '{"command":"nika-cli run x","cwd":"/tmp"}'
+ask 'a chained run' '{"command":"echo hi && nika run x","cwd":"/tmp"}'
+ask 'the claude dialect run' '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"nika run x"},"cwd":"/tmp"}'
+ask 'JSON-escaped run' '{"command":"n\u0069ka run x.yaml","cwd":"/tmp"}'
+ask 'shell-escaped run' '{"command":"n\\ika run x.yaml","cwd":"/tmp"}'
+ask 'a dialect marker in command text' '{"command":"echo hook_event_name; n\\ika run x.yaml","cwd":"/tmp"}'
+ask 'an escaped Claude key' '{"hook_event_\u006eame":"PreToolUse","tool_input":{"command":"n\\ika run x.yaml"},"cwd":"/tmp"}'
 
 if [ "$fails" -gt 0 ]; then
   printf '\nFAIL  %d guard-run scope case(s)\n' "$fails" >&2
   exit 1
 fi
 
-echo "OK  the shim degrades for runs and stays out of the way otherwise"
+echo "OK  missing-judge actions block without a second scope or dialect parser"

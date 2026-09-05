@@ -39,6 +39,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Resolve children through the same index judge as the coordinate barrier.
+# Classic Docker stores cannot load two architectures under one parent digest
+# (moby/moby#43188); child digests preserve identity without deleting daemon
+# references or depending on the containerd image-store configuration.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+docker buildx imagetools inspect "${image}@${digest}" --raw >"$scratch/index.json"
+jq -s -e -f "$script_dir/verify-oci-index.jq" "$scratch/index.json" >/dev/null || {
+  echo "oci payload: refused invalid parent release index" >&2
+  exit 73
+}
+
 for platform in linux/amd64 linux/arm64; do
   case "$platform" in
     linux/amd64) archive_arch=x64 ;;
@@ -52,8 +63,13 @@ for platform in linux/amd64 linux/arm64; do
   mkdir "$scratch/$archive_arch"
   tar -xzf "$archive" -C "$scratch/$archive_arch" nika
   local_hash="$(sha256sum "$scratch/$archive_arch/nika" | awk '{print $1}')"
-  docker pull --platform "$platform" "${image}@${digest}" >/dev/null
-  container="$(docker create --platform "$platform" "${image}@${digest}")"
+  platform_digest="$(jq -r --arg platform "$platform" \
+    '.manifests[] | select((.platform.os + "/" + .platform.architecture) == $platform) | .digest' \
+    "$scratch/index.json")"
+  platform_ref="${image}@${platform_digest}"
+  echo "oci payload: verifying ${platform} at ${platform_digest}" >&2
+  docker pull --platform "$platform" "$platform_ref" >/dev/null
+  container="$(docker create --pull=never --platform "$platform" "$platform_ref")"
   [[ "$container" =~ ^[0-9a-f]{12,64}$ ]] || {
     echo "oci payload: malformed stopped-container id for ${platform}" >&2
     exit 73

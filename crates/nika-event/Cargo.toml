@@ -11,8 +11,8 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-022.
 
 [dependencies]
-nika-types = { path = "../nika-types", version = "0.118.4" }
-nika-error = { path = "../nika-error", version = "0.118.4" }
+nika-types = { path = "../nika-types", version = "0.118.5" }
+nika-error = { path = "../nika-error", version = "0.118.5" }
 thiserror  = { workspace = true }
 miette     = { workspace = true, features = ["fancy-no-backtrace"] }
 sha2       = { workspace = true }   # source_id — the journal's workflow_sha256/def_hash primitive (pure hash · zero I/O)

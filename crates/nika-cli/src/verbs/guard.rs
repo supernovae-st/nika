@@ -1032,14 +1032,8 @@ fn payload_dialect(raw: &str) -> Dialect {
 /// `guard_unavailable` — VISIBLE, never a silent pass.
 fn parse_payload(raw: &str) -> Result<Input, Verdict> {
     let v: serde_json::Value = serde_json::from_str(raw).map_err(|e| {
-        // Same scope law as the missing-command arm below: bytes that
-        // never say `nika` cannot hold a run this judge would claim, so
-        // an unreadable payload about somebody else's command is not
-        // ours to refuse. A host speaking a format we do not parse must
-        // not lose its whole shell to us.
-        if !raw.to_ascii_lowercase().contains("nika") {
-            return Verdict::NotOurs;
-        }
+        // Scope requires decoding the command. Raw substring absence is
+        // not a proof: JSON escaping and shell quoting can hide the name.
         Verdict::Unavailable(format!(
             "the hook payload is not JSON ({e}) — the host sent something the guard cannot read"
         ))
@@ -1050,20 +1044,9 @@ fn parse_payload(raw: &str) -> Result<Input, Verdict> {
             .and_then(|c| c.as_str())
     });
     let Some(command) = command else {
-        // SCOPE BEFORE DEGRADATION. A shape we cannot read is only OURS
-        // to refuse if it could have carried a run: the judge never
-        // claims a command whose word is not `nika` or `nika-cli`, and
-        // both contain that substring, so raw bytes without it can hold
-        // no run for us to miss.
-        //
-        // Without this, wiring a host whose payload shape we do not
-        // parse denied EVERY command in the session — `ls` came back
-        // « nika run blocked » (2026-08-02). That is the shim's fixed
-        // bug one layer down, and it bites the moment a new host is
-        // wired, which is exactly when nobody is looking for it.
-        if !raw.to_ascii_lowercase().contains("nika") {
-            return Err(Verdict::NotOurs);
-        }
+        // An unsupported host shape is an integration failure, not an
+        // unrelated command. Valid parsed unrelated commands still reach
+        // judge_line and return NotOurs without changing host permissions.
         return Err(Verdict::Unavailable(
             "the hook payload carries no command — nothing to judge".to_owned(),
         ));

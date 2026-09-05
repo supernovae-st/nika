@@ -32,7 +32,7 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 | `/nika:doctor` | diagnose this machine's Nika surface — binary · installed plugin kits (train drift, per-client fix) · providers · wiring — advisory by design, never breaks automation |
 | session-context hook | a workspace with workflows greets the agent with the full nika map at session start (surfaces · laws · where traces live) — Cursor **and** Claude Code dialects |
 | check-on-edit hook | every agent edit to a `*.nika.yaml` is audited immediately (findings in the hook log; never blocks the edit) |
-| guard-run hook | `nika run` on a file that fails `nika check` is denied with the findings — the audit-before-run law, structurally unskippable (Cursor `beforeShellExecution` · Claude Code `PreToolUse`) |
+| guard-run hook | pre-run judgment with findings on refusal (Cursor `beforeShellExecution` · Claude Code `PreToolUse`); installation and availability boundaries below |
 | MCP oracle (9 tools) | `nika_check` · `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` · `nika_canon` · `nika_catalog` · `nika_tools` · `nika_inspect` — read-only, by design |
 
 <p align="center">
@@ -61,17 +61,21 @@ callable is a tool under `invoke:`, and the engine ships its own
 - **Two hook classes, two failure laws.** The *comfort* hooks (session
   context, check-on-edit) degrade quietly: a missing binary or an
   unreadable file means no context and no verdict, never a bricked
-  editor. The *run guard* is the opposite — fail-visible: a `nika run`
-  the judge cannot judge (binary missing, oracle broken) is DENIED
-  with `guard_unavailable` and the exact repair, because an unjudged
-  run never gets its allow. The other deny is a run on a file with
+  editor. The *run guard* is the opposite — fail-visible: if its sole
+  judge is unavailable (binary missing, broken judge, unreadable payload),
+  the hook blocks the action with exit 2 and `guard_unavailable` on stderr.
+  This also blocks ordinary shell actions until the editor PATH or judge
+  failure is repaired: the shim cannot prove a command unrelated without
+  the engine's JSON and shell decoding. It streams stdin directly into
+  the engine's bounded reader and never guesses scope or host dialect.
+  The other deny is a run on a file with
   live check findings — the denial carries the findings, so the agent
   repairs and re-checks by itself.
-- **The guard speaks only about `nika run`.** Every other shell command
+- **A healthy guard speaks only about `nika run`.** Every other parsed shell command
   the agent proposes passes through untouched — the hook returns no
   decision at all, so your host's own permission flow decides exactly
-  as it would without the kit installed. Installing this must not change
-  how your editor treats `rm -rf` or anything else that is not a run.
+  as it would without the kit installed. An unavailable judge cannot
+  return that no-opinion verdict; the degradation rule above applies.
   An affirmative « proceed » is only ever earned by a run the ladder
   just saw clean.
 - **Windows**: the hooks are bash scripts; without a bash on PATH the
