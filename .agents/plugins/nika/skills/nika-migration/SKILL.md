@@ -5,9 +5,9 @@ description: Convert existing automation — shell scripts, Python glue, Makefil
 
 # Migrating existing automation to Nika
 
-A script runs; a workflow is **audited before it runs, bounded while
-it runs, and proven after it runs**. Migration is not translation —
-it is re-declaring the intent so the checker can see it.
+A workflow makes its inputs, effects and execution evidence inspectable.
+Migration re-declares the intent so the checker can see it; a clean check
+does not authorize effects or prove that the migrated behavior is correct.
 
 ## When to migrate (and when not to)
 
@@ -68,13 +68,21 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
    paste it in. The script trusted its author; the workflow trusts
    nobody by default (a pure-compute port still declares
    `permits: {}`).
-6. **Prove parity once**: run the old script and
-   `nika run <file> --model mock/echo` (or a local model) side by
-   side on the same input; compare the artifacts. Then pin:
-   `nika test <file> --update` writes the golden.
-7. **Hand off honestly**: the workflow file + the golden + the run
-   line (`nika run <file> --var … --max-cost-usd <n>`). The human
-   decides when the old script retires — never delete it yourself.
+6. **Prove the intended parity** on controlled inputs and authorized
+   destinations. Inspect the old script's effects before running it too.
+   `nika run <file> --model mock/echo` changes only the envelope model.
+   Per-task model pins are unchanged; tools, subprocesses, writes and
+   secret sources remain real. Compare expected artifacts in isolated fixtures;
+   do not rerun a production publish or send merely to compare behavior.
+   For a workflow requiring no network, subprocess or write effect,
+   `nika test <file> --update` can pin its outputs in a golden. That
+   simulated plane refuses those effects: an effecting port needs artifact
+   assertions and trace inspection, not a promised golden it cannot produce.
+7. **Hand off honestly**: the workflow, the parity checks that actually
+   passed, a golden only where applicable, and the run line
+   (`nika run <file> --var … --max-cost-usd <n>`). Retire the old script
+   only when parity covers its intended behavior and the user authorizes
+   that removal; preserve any remaining callers until migrated.
 
 ## Porting a pre-0.106 workflow file
 

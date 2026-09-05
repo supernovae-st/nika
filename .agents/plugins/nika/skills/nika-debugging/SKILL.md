@@ -25,8 +25,9 @@ scroll; a receipt alone does not prove a sealed journal exists.
    the run live (replay = re-render, NEVER re-execute).
 3. **Find the failing task**: `nika trace outputs <trace>` — verb ·
    duration · tokens · a bounded preview per task (full value:
-   `nika trace peek`). The first red task is the root; everything
-   downstream is fallout.
+   `nika trace peek`). Follow its recorded dependencies and diagnostics;
+   concurrent tasks can fail independently, so display order alone does
+   not identify a root cause.
 4. **Decode the finding**: `nika explain NIKA-XXXX` teaches the cause ·
    category · fix-form of any code the trace carries.
 5. **Re-audit the file**: `nika check <file>` — a run that failed often
@@ -35,7 +36,7 @@ scroll; a receipt alone does not prove a sealed journal exists.
 6. **Fix minimally, rerun surgically** (below). Re-check before any
    rerun.
 
-## Prompts and confirm gates (paused OR failed — same answer line)
+## Prompts and confirm gates
 
 At a terminal, `nika:prompt` asks the human directly and the run
 continues. Headless — which is where an agent lives — a prompt
@@ -48,6 +49,10 @@ nika run <file> --answer <task>=<value>                    # pre-answer at launc
 nika run <file> --resume <trace> --answer <task>=<value>   # resume the pause
 args: { …, default: <value> }                              # unattended default
 ```
+
+Use only answers or defaults the user supplied or authorized. A paused run
+does not authorize choosing its answer. Adding a default changes the
+workflow's approval policy; it is not a mechanical repair for a pause.
 
 Confirm gates take booleans (`--answer approve=true`); every task the
 journal already proved is skipped as a visible cache hit, so only the
@@ -66,7 +71,11 @@ exact failing task.
 - `nika run <file> --task <task-id>` — rerun exactly one task.
 - After an intentional behavior change, refresh the pin:
   `nika test <file> --update` rewrites the golden from an offline mock
-  run — never hand-edit a `.golden.json` to make red green.
+  run only when the workflow fits the simulated plane (no network,
+  subprocess or write effects). Otherwise use an authorized isolated
+  rehearsal and artifact assertions; `--model mock/echo` does not disable
+  tools or per-task model pins. Never hand-edit a `.golden.json` to make
+  red green, or repeat irreversible effects merely to obtain a green run.
 
 ## Common root causes (check these before anything exotic)
 
