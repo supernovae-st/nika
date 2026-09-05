@@ -89,6 +89,7 @@ impl Default for CancelCtx {
 }
 
 #[cfg(test)]
+#[cfg(not(loom))]
 mod tests {
     use super::*;
 
@@ -144,3 +145,7 @@ mod tests {
         _assert_send_sync::<CancelCtx>();
     }
 }
+
+#[cfg(test)]
+#[cfg(loom)]
+mod loom_cancel;

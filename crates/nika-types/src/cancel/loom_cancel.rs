@@ -12,25 +12,21 @@
 //! These tests run ONLY under `RUSTFLAGS="--cfg loom"`:
 //!
 //! ```bash
-//! RUSTFLAGS="--cfg loom" cargo test -p nika-types --test loom_cancel
+//! RUSTFLAGS="--cfg loom" cargo test --locked -p nika-types --lib loom_cancel
 //! ```
 //!
-//! A normal `cargo test` compiles this file as a no-op so keychain
-//! popups, IDE watchers, and CI ratchets remain silent.
+//! Only the cancellation primitive and the separate payload are instrumented.
+//! This model does not prove scheduler progress, process shutdown or effects.
 
-#![cfg(loom)]
+use crate::cancel::CancelCtx;
+use loom::{
+    sync::Arc,
+    sync::atomic::{AtomicUsize, Ordering},
+    thread,
+};
 
-use loom::thread;
-use nika_types::cancel::CancelCtx;
-
-/// Two-writer / two-reader race: producer writes state + flips cancel;
-/// consumer observes cancel == true and MUST see the producer's final
-/// state (Acquire/Release happens-before invariant of CancelCtx).
-///
-/// Loom explores every interleaving of loads/stores between the two
-/// threads. If the atomic orderings were wrong (e.g. Relaxed), some
-/// interleaving would observe `flag = true` without seeing the
-/// producer's state write — loom catches that on the offending run.
+/// A clone's cancellation is visible after its thread is joined. The join
+/// synchronizes this assertion; it does not test publication by the flag.
 #[test]
 fn cancel_propagates_to_clone_under_all_interleavings() {
     loom::model(|| {
@@ -52,9 +48,7 @@ fn cancel_propagates_to_clone_under_all_interleavings() {
     });
 }
 
-/// Three-way fan-out: one parent, three children; any child can cancel
-/// and all others observe it. Verifies the Acquire ordering holds
-/// across the three-clone keyspace.
+/// Three clones share cancellation state after the writer is joined.
 #[test]
 fn cancel_propagates_across_three_clones() {
     loom::model(|| {
@@ -71,5 +65,33 @@ fn cancel_propagates_across_three_clones() {
         let _observed = t_observe.join().unwrap();
 
         assert!(root.is_cancelled());
+    });
+}
+
+/// Observing cancellation publishes a preceding relaxed payload write.
+/// The assertion races with the writer, before join can synchronize it.
+/// Weakening either `CancelCtx` ordering to Relaxed must fail this model.
+#[test]
+fn cancellation_publishes_preceding_payload() {
+    loom::model(|| {
+        let ctx = CancelCtx::new();
+        let writer_ctx = ctx.clone();
+        let payload = Arc::new(AtomicUsize::new(0));
+        let writer_payload = payload.clone();
+
+        let writer = thread::spawn(move || {
+            writer_payload.store(1, Ordering::Relaxed);
+            writer_ctx.cancel();
+        });
+
+        if ctx.is_cancelled() {
+            assert_eq!(
+                payload.load(Ordering::Relaxed),
+                1,
+                "observed cancellation before its preceding payload"
+            );
+        }
+
+        writer.join().unwrap();
     });
 }

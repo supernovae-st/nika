@@ -44,10 +44,16 @@ working so the WASM seam stays open.
 Concurrency-sensitive types ship Loom interleaving tests. Run with :
 
 ```
-RUSTFLAGS="--cfg loom" cargo test -p nika-types --test loom_cancel
+RUSTFLAGS="--cfg loom" cargo test --locked -p nika-types --lib loom_cancel
 ```
 
 `loom` is a `cfg(loom)` dep only — invisible to the normal workflow.
+
+Diamond CI's tests leg also runs `bash scripts/ci/check-loom-cancel.sh`,
+which refuses an absent payload model. The model checks visibility of a
+separate relaxed payload before joining the cancelling thread; weakening
+either cancellation ordering to Relaxed fails it. This proves the modeled
+publication edge, not scheduler progress or external-effect cancellation.
 
 ## MSRV
 
