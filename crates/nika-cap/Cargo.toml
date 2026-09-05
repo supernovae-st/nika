@@ -11,7 +11,7 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-022.
 
 [dependencies]
-nika-types = { path = "../nika-types", version = "0.118.3" }  # host_glob_matches — the same matcher nika-http enforces at runtime (zero drift)
+nika-types = { path = "../nika-types", version = "0.118.4" }  # host_glob_matches — the same matcher nika-http enforces at runtime (zero drift)
 serde_json = { workspace = true }   # builtin arg-shape rules — pure data over Value (extracted 2026-07-07)
 serde      = { workspace = true }
 

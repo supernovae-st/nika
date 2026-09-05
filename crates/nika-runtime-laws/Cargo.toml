@@ -11,18 +11,18 @@ homepage.workspace     = true
 publish                = false  # A member of the nika-runtime unit, never a crate of its own.
 
 [dependencies]
-nika-types       = { path = "../nika-types", version = "0.118.3" }
-nika-error       = { path = "../nika-error", version = "0.118.3" }
-nika-event       = { path = "../nika-event", version = "0.118.3" }
-nika-schema      = { path = "../nika-schema", version = "0.118.3" }
-nika-secret      = { path = "../nika-secret", version = "0.118.3" }
-nika-dataflow    = { path = "../nika-dataflow", version = "0.118.3" }
-nika-check       = { path = "../nika-check", version = "0.118.3" }
-nika-cap         = { path = "../nika-cap", version = "0.118.3" }
-nika-cel         = { path = "../nika-cel", version = "0.118.3" }
-nika-kernel      = { path = "../nika-kernel", version = "0.118.3" }
-nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.118.3" }
-nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.118.3" }
+nika-types       = { path = "../nika-types", version = "0.118.4" }
+nika-error       = { path = "../nika-error", version = "0.118.4" }
+nika-event       = { path = "../nika-event", version = "0.118.4" }
+nika-schema      = { path = "../nika-schema", version = "0.118.4" }
+nika-secret      = { path = "../nika-secret", version = "0.118.4" }
+nika-dataflow    = { path = "../nika-dataflow", version = "0.118.4" }
+nika-check       = { path = "../nika-check", version = "0.118.4" }
+nika-cap         = { path = "../nika-cap", version = "0.118.4" }
+nika-cel         = { path = "../nika-cel", version = "0.118.4" }
+nika-kernel      = { path = "../nika-kernel", version = "0.118.4" }
+nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.118.4" }
+nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.118.4" }
 serde            = { workspace = true }
 serde_json       = { workspace = true }
 thiserror        = { workspace = true }
@@ -30,8 +30,8 @@ miette           = { workspace = true }
 
 [dev-dependencies]
 uuid          = { workspace = true }
-nika-dataflow = { path = "../nika-dataflow", version = "0.118.3", features = ["testing"] }
-nika-pack     = { path = "../nika-pack", version = "0.118.3" }
+nika-dataflow = { path = "../nika-dataflow", version = "0.118.4", features = ["testing"] }
+nika-pack     = { path = "../nika-pack", version = "0.118.4" }
 proptest      = { workspace = true }
 
 [lints]
