@@ -1,0 +1,1 @@
+- **Audit all Rust lock families.** Update the Linux event-listener path and fuzz anyhow pin to their RustSec fixes, reject unsoundness as well as vulnerabilities, and scan workspace, fuzz and excluded-crate locks without hiding tool errors behind a second scan.

@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4859
+  classified_files: 4861
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 1879
+    authored: 1881
     authored-pin: 2
     generated: 127
     pinned-copy: 146
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: b831a8d29b4cd0b1309f6b3ebfa9e18ac3b9f2f1e031d184f66031ec5892dfc1
+  sha256: d0ca4e95dd5af3ba297b6ae3a57a2e5e30da65597cd4f8e12d99f306651fc343
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 8005b94328a9359ca159fb37657561ff4c30475e11e1b07b36e0d2e702b2a422
+  sha256: 0ece7eecd0cb3377356622a24fe342c3a1a9ef8de84bfb47350ef08113e65038
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -187,8 +187,8 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 200
-  aggregate_sha256: ae3364b5b61ef1b4848d9b210405a8346a4ea716b41e5184c9a2610318538432
+  match_count: 201
+  aggregate_sha256: aa2b9a1b7c8d52de5cbf9cedb000380fbe27028cc48428f49be089dce0fd908a
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -242,8 +242,8 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 3
-  aggregate_sha256: 282d7c80c550af256ce6399478f70739a5e2686dd224df3ff21d2f0fcc76f94d
+  match_count: 4
+  aggregate_sha256: 38857c5ab9f4efb5b64ea271b96042e7230b8fd6c8687b5d0dcc8f1c0849963e
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
