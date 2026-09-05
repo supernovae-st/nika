@@ -17,8 +17,8 @@ ignored = ["insta"]  # dev-dep used in #[cfg(test)] blocks
 workspace = true
 
 [dependencies]
-nika-error       = { path = "../nika-error", version = "0.118.5" }
-nika-kernel-core = { path = "../nika-kernel-core", version = "0.118.5" }
+nika-error       = { path = "../nika-error", version = "0.118.6" }
+nika-kernel-core = { path = "../nika-kernel-core", version = "0.118.6" }
 trait-variant = { workspace = true }
 thiserror     = { workspace = true }
 miette        = { workspace = true }

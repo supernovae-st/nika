@@ -11,7 +11,7 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See feedback_publish_false_foundation_strategy.md + ADR-017.
 
 [dependencies]
-nika-types = { path = "../nika-types", version = "0.118.5" }
+nika-types = { path = "../nika-types", version = "0.118.6" }
 thiserror  = { workspace = true }
 miette     = { workspace = true, features = ["fancy-no-backtrace"] }
 serde      = { workspace = true, optional = true }
