@@ -383,7 +383,7 @@ p384          = { version = "0.14", default-features = false, features = ["ecdsa
 strsim   = "0.11"   # nika-error Phase C suggest() — Levenshtein for "did you mean"
 smallvec = "1.13"   # SmallVec adoption per RUST_2026_BEST_PRACTICES (hot-path vecs)
 tracing  = "0.1"    # L1+ effect crates (fs/http/process/...) structured logging
-ocrs     = "0.12"   # nika-ocr L1 (M2.2) — pure-Rust OCR engine (rten runtime · no C dep · keeps unsafe forbid)
+ocrs     = "0.13"   # nika-ocr L1 (M2.2) — pure-Rust OCR engine (rten runtime · no C dep · keeps unsafe forbid)
 rten     = "0.24"   # nika-ocr L1 — Model::load_file for .rten weights (ocrs ^0.24 normal dep · pinned aligned)
 accessibility = "0.2"   # nika-a11y L1 (M2.3 · macOS-gated) — safe AXUIElement API (TreeWalker · encapsulated ApplicationServices unsafe · keeps unsafe forbid)
 core-foundation = "0.10" # nika-a11y L1 (M2.3 · macOS-gated) — CFString/CFType for AXAttribute generic reads (value · subrole)
