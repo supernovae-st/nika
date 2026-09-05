@@ -192,8 +192,14 @@ without an explicit operator decision.
    exact GHCR digest is durably recorded in a single release-body marker only
    after both digest-addressed Linux container binaries, copied from stopped
    containers without executing image content, hash identically to their
-   matching native tarballs. The proof job has read-only contents/packages;
-   the marker job has contents-write only and performs no Docker operation.
+   matching native tarballs. The proof job has read-only contents/packages.
+   The OCI index must contain exactly the two Linux runnable images plus one
+   BuildKit attestation descriptor bound to each image digest. Those
+   `unknown/unknown` metadata entries are not runnable platforms. Unknown
+   entries, missing or duplicate subjects, and duplicate platform or manifest
+   digests refuse; provenance generation stays enabled. This index census
+   proves structure and binding, not the authenticity of attestation contents.
+   The marker job has contents-write only and performs no Docker operation.
    Only then may `image:<version>` be created.
    If the marker survives but that tag is absent, replay heals it from the
    exact `image@digest`; if the marker is absent, an occupied version tag is

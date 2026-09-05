@@ -695,6 +695,8 @@ bash "$ROOT/scripts/release/tests/finalize-release.test.sh" >/dev/null \
   || fail 'the write-only finalizer barrier regression failed'
 python3 "$ROOT/scripts/release/tests/test-draft-authority.py" \
   || fail 'draft access escaped its owner or replay input admission failed'
+python3 "$ROOT/scripts/release/tests/test-oci-index.py" \
+  || fail 'OCI runnable platforms or attestation bindings were not judged'
 bash "$ROOT/scripts/release/tests/next-tag-estate.test.sh" >/dev/null \
   || fail 'the pre-tag estate question regression failed'
 grep -q 'TAP_DEPLOY_KEY' "$ROOT/docs/RELEASING.md" \

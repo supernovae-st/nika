@@ -20,6 +20,7 @@ esac
 
 scratch="$(mktemp -d)"
 trap 'rm -r "$scratch"' EXIT
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 inspect_raw() {
   docker buildx imagetools inspect "$1" --raw
@@ -49,9 +50,8 @@ verify_identity() {
   local ref="$1"
   local raw="$2"
   inspect_raw "$ref" >"$raw"
-  platforms="$(jq -c '[.manifests[].platform | "\(.os)/\(.architecture)"] | sort' "$raw")"
-  [ "$platforms" = '["linux/amd64","linux/arm64"]' ] || {
-    echo "oci barrier: expected exactly one linux/amd64 and one linux/arm64" >&2
+  jq -s -e -f "$script_dir/verify-oci-index.jq" "$raw" >/dev/null || {
+    echo "oci barrier: expected two Linux platforms and their two bound BuildKit attestations" >&2
     return 73
   }
   for platform in linux/amd64 linux/arm64; do

@@ -399,8 +399,8 @@ if PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI
 fi
 [ "$(wc -l <"$NPM_LOG" | tr -d ' ')" = 2 ] || fail 'mixed npm lookup reached publish'
 
-# OCI: absent/equal/divergent and label drift. The fake exposes exactly two
-# platforms and mutates only the version coordinate on imagetools create.
+# OCI: absent/equal/divergent and label drift. The fake exposes two runnable
+# platforms plus their BuildKit attestations, like the real release index.
 cat >"$BIN/docker" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -468,7 +468,17 @@ if [[ "$ref" == *:9.9.9 ]] && [ "$state" = mixed ]; then
   exit 1
 fi
 if [ "${5:-}" = --raw ]; then
-  printf '%s\n' '{"manifests":[{"platform":{"os":"linux","architecture":"amd64"}},{"platform":{"os":"linux","architecture":"arm64"}}]}'
+  jq -n '
+    def digest($n): "sha256:" + ([range(64) | $n] | join(""));
+    def descriptor($n; $os; $arch):
+      {mediaType:"application/vnd.oci.image.manifest.v1+json",digest:digest($n),size:675,
+       platform:{os:$os,architecture:$arch}};
+    {schemaVersion:2,mediaType:"application/vnd.oci.image.index.v1+json",manifests:[
+      descriptor("1";"linux";"amd64"), descriptor("2";"linux";"arm64"),
+      (descriptor("3";"unknown";"unknown") + {annotations:{
+        "vnd.docker.reference.type":"attestation-manifest","vnd.docker.reference.digest":digest("1")}}),
+      (descriptor("4";"unknown";"unknown") + {annotations:{
+        "vnd.docker.reference.type":"attestation-manifest","vnd.docker.reference.digest":digest("2")}})]}'
   exit 0
 fi
 if printf '%s\n' "$*" | grep -Fq '.Manifest.Digest'; then
