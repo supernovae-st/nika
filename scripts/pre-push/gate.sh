@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pre-push gate — the four heavy legs behind ONE stdin-aware door.
+# pre-push gate — the four heavy legs behind ONE stdin-aware script job.
 #
 # git hands pre-push a line per ref on stdin:
 #   <local ref> <local sha> <remote ref> <remote sha>
@@ -49,8 +49,8 @@ fi
 # waits on a lease it does not need.
 if [ "${NIKA_GATE_NO_LOCK:-}" != "1" ]; then
   # shellcheck source-path=SCRIPTDIR
-  # shellcheck source=./_gate-lock.sh
-  . "$(cd "$(dirname "$0")" && pwd)/_gate-lock.sh"
+  # shellcheck source=../hooks/_gate-lock.sh
+  . "$(cd "$(dirname "$0")" && pwd)/../hooks/_gate-lock.sh"
   trap gate_lock_release EXIT INT TERM
   gate_lock_acquire "${NIKA_GATE_LOCK_WAIT:-2700}" || exit 1
 fi

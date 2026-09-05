@@ -3,12 +3,11 @@
 #
 # Refuses force-pushes to protected branches unless FORCE_PUSH_OVERRIDE=1.
 #
-# NOTE: Lefthook v2 does not forward git's native pre-push stdin refspec
-# to hooks, so we can't rely on the standard
+# The Lefthook script job forwards git's native pre-push stdin refspec via
+# use_stdin, so the actual proposed refs take precedence over local state:
 #     <local-ref> <local-sha> <remote-ref> <remote-sha>
-# protocol. Instead we read from stdin when it IS a pipe (direct git hook)
-# AND fall back to computing state from the current branch's remote ref
-# when stdin is /dev/null (lefthook-invoked).
+# Direct invocation without refs falls back to the current branch's remote
+# ref only; that narrower fallback cannot judge another branch's proposal.
 #
 # Protected branches: nika-diamond, main
 # Override: FORCE_PUSH_OVERRIDE=1 git push --force

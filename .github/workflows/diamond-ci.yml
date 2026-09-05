@@ -99,6 +99,11 @@ jobs:
       CHECK: ${{ matrix.check }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the tested Lefthook dispatcher
+        if: matrix.check == 'gate-lock'
+        run: |
+          timeout 300 go install github.com/evilmartians/lefthook/v2@v2.1.9
+          go env GOPATH | sed 's|$|/bin|' >> "$GITHUB_PATH"
       - name: Run ratchet
         run: ./scripts/ci/check-"$CHECK".sh
 

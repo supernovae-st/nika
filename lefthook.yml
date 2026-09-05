@@ -12,6 +12,10 @@
 #   No duplication with root: root hooks fire on monorepo commits;
 #   engine hooks fire on commits made inside nika/engine/.
 
+# Ref-aware pre-push jobs are scripts under scripts/pre-push/. Unlike command
+# jobs, Lefthook does not discard them when its pushed-file diff is empty.
+source_dir: scripts
+
 prepare-commit-msg:
   commands:
     inject-coauthor:
@@ -105,7 +109,12 @@ pre-commit:
 pre-push:
   parallel: false
 
-  commands:
+  jobs:
+    - name: force-push-guard
+      script: force-push-guard.sh
+      runner: bash
+      use_stdin: true
+
     # The four heavy legs (workspace tests · clippy · 15 hygiene vectors ·
     # 9 CI ratchets) live behind ONE stdin-aware door: a deletion-only push
     # (`git push origin --delete X` · local sha = the zero sha) sends
@@ -113,28 +122,21 @@ pre-push:
     # running the full suite for a ref removal. Fail-safe: no stdin refs →
     # the gate RUNS (a silent skip is impossible). Same contracts as the
     # four old inline legs — hygiene YELLOW passes, only RED blocks.
-    gate:
+    - name: gate
       use_stdin: true
-      run: bash scripts/hooks/pre-push-gate.sh
+      script: gate.sh
+      runner: bash
       fail_text: 'pre-push gate failed (tests · clippy · hygiene · ratchets — see output).'
 
-    cargo-deny:
+    - name: cargo-deny
       glob: 'Cargo.*'
       run: cargo deny check
       fail_text: 'cargo deny: security advisory or license violation.'
 
-    cargo-machete:
+    - name: cargo-machete
       glob: 'Cargo.*'
       run: cargo machete --with-metadata
       fail_text: 'cargo machete: unused dependencies detected.'
-
-    force-push-guard:
-      # Forward git's pre-push refspec (<local-ref> <local-sha> <remote-ref>
-      # <remote-sha>) to the hook. The key IS `use_stdin` — `stdin` is not a
-      # lefthook key and gets dropped silently, leaving the guard to judge
-      # from repo state alone instead of from the refs actually being pushed.
-      use_stdin: true
-      run: bash scripts/hooks/force-push-guard.sh
 
 post-commit:
   commands:

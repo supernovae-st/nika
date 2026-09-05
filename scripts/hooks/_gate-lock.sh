@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # _gate-lock.sh — ONE pre-push gate at a time, per machine (#1064).
 #
-# Sourced by pre-push-gate.sh. Not executable on its own.
+# Sourced by scripts/pre-push/gate.sh. Not executable on its own.
 #
 # ## Why
 #
