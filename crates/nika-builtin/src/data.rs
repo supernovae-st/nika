@@ -11,7 +11,7 @@
 use jaq_core::load::{Arena, Error as JqLoadError, File, Loader};
 use jaq_core::{Compiler, Ctx, Vars, data as jaq_data};
 use jaq_json::{Val, read};
-use nika_cap::JqClock;
+use nika_cap::{HashAlgorithm, HashEncoding, JqClock};
 use sha2::Digest;
 
 use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str, strict_bool};
@@ -605,32 +605,75 @@ fn content_bytes(args: &Args, code: &'static str) -> Result<String, BuiltinFailu
     }
 }
 
+const HASH_CODE: &str = "NIKA-BUILTIN-HASH-001";
+
+struct HashArgs {
+    content: String,
+    algorithm: HashAlgorithm,
+    encoding: HashEncoding,
+}
+
+impl HashArgs {
+    fn parse(args: &Args) -> Result<Self, BuiltinFailure> {
+        let content = content_bytes(args, HASH_CODE)?;
+        // Preserve type-error precedence and absence versus null. Serde's
+        // Option<T> would silently treat explicit null as the default.
+        let algo = opt_str(args, "algo", HASH_CODE)?;
+        let encoding = opt_str(args, "encoding", HASH_CODE)?;
+        let algorithm = match algo {
+            Some(value) => {
+                HashAlgorithm::parse(value).ok_or_else(|| unsupported_hash_algo(value))?
+            }
+            None => HashAlgorithm::default(),
+        };
+        let encoding = match encoding {
+            Some(value) => {
+                HashEncoding::parse(value).ok_or_else(|| unsupported_hash_encoding(value))?
+            }
+            None => HashEncoding::default(),
+        };
+        Ok(Self {
+            content,
+            algorithm,
+            encoding,
+        })
+    }
+}
+
+fn unsupported_hash_algo(value: &str) -> BuiltinFailure {
+    BuiltinFailure::new(
+        HASH_CODE,
+        format!("unsupported algo `{value}` (blake3|sha256|sha512 · md5/sha1 are broken)"),
+    )
+}
+
+fn unsupported_hash_encoding(value: &str) -> BuiltinFailure {
+    BuiltinFailure::new(
+        HASH_CODE,
+        format!("`encoding:` must be hex|base64, got {value}"),
+    )
+}
+
 /// Hash `content:` (blake3 default · sha256/sha512). md5/sha1 refused.
 pub(crate) fn hash(args: &Args) -> BuiltinOutcome {
-    const C: &str = "NIKA-BUILTIN-HASH-001";
-    let content = content_bytes(args, C)?;
-    let algo = opt_str(args, "algo", C)?.unwrap_or("blake3");
-    let encoding = opt_str(args, "encoding", C)?.unwrap_or("hex");
-
-    let digest: Vec<u8> = match algo {
-        "blake3" => blake3::hash(content.as_bytes()).as_bytes().to_vec(),
-        "sha256" => sha2::Sha256::digest(content.as_bytes()).to_vec(),
-        "sha512" => sha2::Sha512::digest(content.as_bytes()).to_vec(),
+    let HashArgs {
+        content,
+        algorithm,
+        encoding,
+    } = HashArgs::parse(args)?;
+    let digest: Vec<u8> = match algorithm {
+        HashAlgorithm::Blake3 => blake3::hash(content.as_bytes()).as_bytes().to_vec(),
+        HashAlgorithm::Sha256 => sha2::Sha256::digest(content.as_bytes()).to_vec(),
+        HashAlgorithm::Sha512 => sha2::Sha512::digest(content.as_bytes()).to_vec(),
         other => {
-            return Err(BuiltinFailure::new(
-                C,
-                format!("unsupported algo `{other}` (blake3|sha256|sha512 · md5/sha1 are broken)"),
-            ));
+            return Err(unsupported_hash_algo(other.as_str()));
         }
     };
     let encoded = match encoding {
-        "hex" => hex_encode(&digest),
-        "base64" => base64_encode(&digest),
+        HashEncoding::Hex => hex_encode(&digest),
+        HashEncoding::Base64 => base64_encode(&digest),
         other => {
-            return Err(BuiltinFailure::new(
-                C,
-                format!("`encoding:` must be hex|base64, got {other}"),
-            ));
+            return Err(unsupported_hash_encoding(other.as_str()));
         }
     };
     Ok(serde_json::Value::String(encoded))

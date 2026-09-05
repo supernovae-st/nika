@@ -7,6 +7,7 @@
 //! only guide to WHEN to reach for each tool, so they read like the spec's
 //! one-line summaries (stdlib §each builtin · cited, condensed).
 
+use nika_cap::{HashAlgorithm, HashEncoding};
 use nika_kernel::ai::provider::ToolDef;
 
 /// A small JSON-Schema object builder — keeps the defs declarative.
@@ -210,6 +211,33 @@ fn file_defs() -> Vec<ToolDef> {
     ]
 }
 
+fn hash_def() -> ToolDef {
+    def(
+        "hash",
+        "Content hashing · blake3 (default) | sha256 | sha512 · hex (default) or base64.",
+        serde_json::json!({
+            // Not `type: string`. Runtime hashes a string as-is and any
+            // other JSON value as compact JSON — a string-only schema
+            // taught authors to `| tojson` a roster (2026-08-19).
+            "content": {
+                "not": { "type": "null" },
+                "description": "bytes to hash — a string is hashed as-is; any other JSON value (object · array · number · bool) is compact JSON. Do not pre-pipe | tojson."
+            },
+            "algo": {
+                "type": "string",
+                "enum": HashAlgorithm::ALL.map(HashAlgorithm::as_str),
+                "default": HashAlgorithm::default().as_str()
+            },
+            "encoding": {
+                "type": "string",
+                "enum": HashEncoding::ALL.map(HashEncoding::as_str),
+                "default": HashEncoding::default().as_str()
+            }
+        }),
+        &["content"],
+    )
+}
+
 fn data_defs() -> Vec<ToolDef> {
     vec![
         def(
@@ -283,21 +311,7 @@ fn data_defs() -> Vec<ToolDef> {
             }),
             &["op"],
         ),
-        def(
-            "hash",
-            "Content hashing · blake3 (default) | sha256 | sha512 · hex (default) or base64.",
-            serde_json::json!({
-                // Not `type: string`. Runtime hashes a string as-is and any
-                // other JSON value as compact JSON — a string-only schema
-                // taught authors to `| tojson` a roster (2026-08-19).
-                "content": {
-                    "description": "bytes to hash — a string is hashed as-is; any other JSON value (object · array · number · bool) is compact JSON. Do not pre-pipe | tojson."
-                },
-                "algo": s("blake3 | sha256 | sha512"),
-                "encoding": s("hex | base64")
-            }),
-            &["content"],
-        ),
+        hash_def(),
         def(
             "decide",
             "Deterministic decision kernel (spec 11) · evaluates a portable Decision Bundle against an EvidenceSnapshot · returns the full receipt (outcome · term-by-term contributions · intervals · conflicts+witnesses · determination provenance). The LLM never decides — collect facts first, then apply the rubric here.",

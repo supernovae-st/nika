@@ -71,6 +71,8 @@ pub mod proof {
     };
     pub mod ir;
 }
+#[cfg(test)]
+mod hash_projection_tests;
 mod recover;
 pub mod resume;
 mod retry;
