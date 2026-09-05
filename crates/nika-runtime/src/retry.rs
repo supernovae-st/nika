@@ -176,10 +176,16 @@ where
         // consumes the dispatch (a divergence is never transient).
         let evidence = failed.evidence.clone();
         let access = failed.access.clone();
+        let retry_forbidden = failed.retry_forbidden;
         // Debits PER ATTEMPT — a retry storm is never invisible.
         let error = failed.debit_and_fold(ledger, failed_cost, failed_unpriced);
-        // Retry iff attempts remain AND the policy admits (spec 05).
-        let Some(delay) = self.retry_delay(task, &error, attempt, max_attempts, jitter_key) else {
+        // An effect replay veto wins over `on_codes`, after the attempt is debited.
+        let delay = if retry_forbidden {
+            None
+        } else {
+            self.retry_delay(task, &error, attempt, max_attempts, jitter_key)
+        };
+        let Some(delay) = delay else {
             return Err(
                 FailedOutcome::new(error, *failed_cost, *failed_unpriced, evidence)
                     .with_access(access),

@@ -54,6 +54,8 @@ pub(crate) struct Dispatched {
 /// `--max-cost-usd` gate sees it — Cost Intelligence follow-up).
 pub(crate) struct FailedDispatch {
     pub record: TaskErrorRecord,
+    /// The resolved call forbids replay even when `on_codes` matches.
+    pub retry_forbidden: bool,
     /// Metered spend of the attempt that failed (absent = nothing billed).
     pub cost_usd: Option<f64>,
     /// The by-source attribution key for the ledger.
@@ -76,6 +78,7 @@ impl FailedDispatch {
     fn unspent(record: TaskErrorRecord) -> Self {
         Self {
             record,
+            retry_forbidden: false,
             cost_usd: None,
             cost_source: None,
             cost_unpriced: None,
@@ -244,6 +247,7 @@ impl Dispatched {
             note,
             result: Err(FailedDispatch {
                 record: TaskErrorRecord::new(err.spec_code(), err.to_string(), err.is_transient()),
+                retry_forbidden: false,
                 cost_usd,
                 cost_source,
                 cost_unpriced,
@@ -251,6 +255,14 @@ impl Dispatched {
                 access: None,
             }),
         }
+    }
+
+    /// Carry a resolved replay veto without changing the error or its evidence.
+    fn with_retry_forbidden(mut self, retry_forbidden: bool) -> Self {
+        if let Err(failed) = &mut self.result {
+            failed.retry_forbidden = retry_forbidden;
+        }
+        self
     }
 
     /// The lane a FAILED dispatch rode (wave 2b): the terminal frame
