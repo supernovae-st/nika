@@ -136,10 +136,15 @@ fn a_dead_writer_reads_dead_and_verify_exits_incomplete() {
     assert_eq!(row["path"], trace, "{row}");
     assert_eq!(row["state"], "dead", "{row}");
     assert_eq!(row["liveness"], "dead", "{row}");
-    // Door 3 · verify names the dead writer and still exits INCOMPLETE.
+    // Door 3 · verify observes the released lease and still exits INCOMPLETE.
+    // The lease alone cannot establish the process or runtime outcome.
     let (code, text, doc) = rig.verify(&trace);
     assert_eq!(code, 5, "{text}");
-    assert!(text.contains("the writer is dead"), "{text}");
+    assert!(
+        text.contains("the writer lease is no longer held"),
+        "{text}"
+    );
+    assert!(text.contains("runtime outcome is unattested"), "{text}");
     assert_eq!(doc["chain"]["liveness"], "dead", "{doc}");
     assert_eq!(doc["exit"], 5, "{doc}");
     // Never a verdict on the run: no terminal frame was invented. The store
