@@ -16,6 +16,35 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.118.4](https://github.com/supernovae-st/nika/compare/v0.118.3..v0.118.4) - 2026-09-05
+
+This version carries the One Door engine work recorded in the preceding
+0.117 and 0.118 sections: one captured admission world, runtime-owned
+settlement across CLI and resident, by-name HTTP admission, opt-in SDK
+snapshots, canonical `nika` executable, and the custody and cancellation
+corrections. Those tags did not produce a complete public GitHub release;
+0.118.2 and 0.118.3 did publish their WASM npm packages before failing.
+The full history remains in this changelog; existing tags and registry bytes
+are never rewritten. Companion SDK and editor publication has its own gates.
+
+One Door is not a claim of unlimited evidence or fully durable sessions:
+[large fan-out evidence](https://github.com/supernovae-st/nika/issues/1458)
+and [durable session state](https://github.com/supernovae-st/nika/issues/1464)
+remain explicit follow-ups.
+
+### Fixed
+
+- **OCI release images keep their bound BuildKit attestations.** The release
+  barrier distinguishes its two Linux images from their two metadata
+  descriptors. It retains provenance and refuses foreign or duplicate
+  subjects, missing metadata, extra platforms,
+  malformed descriptors and multiple JSON documents before publication.
+- **Release assets rejoin the successful provenance lane explicitly.** The
+  deliberately skipped alternative no longer suppresses asset convergence
+  or stable-pointer jobs through GitHub's transitive skip rule. Every direct
+  prerequisite must still succeed; failed or skipped proofs never authorize
+  publication, and prereleases never update stable pointers.
+
 ## [0.118.3](https://github.com/supernovae-st/nika/compare/v0.118.2..v0.118.3) - 2026-09-05
 
 ### Fixed

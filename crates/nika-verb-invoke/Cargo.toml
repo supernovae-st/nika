@@ -13,12 +13,12 @@ homepage.workspace     = true
 publish                = false  # Internal L2 verb crate.
 
 [dependencies]
-nika-error  = { path = "../nika-error", version = "0.118.3" }
-nika-kernel = { path = "../nika-kernel", version = "0.118.3" }
+nika-error  = { path = "../nika-error", version = "0.118.4" }
+nika-kernel = { path = "../nika-kernel", version = "0.118.4" }
 # L0 · the tool-id grammar, shared with the checker. Two readers judged the
 # same string with two rule sets and disagreed in BOTH directions; the
 # grammar now lives once, below both.
-nika-vocab  = { path = "../nika-vocab", version = "0.118.3" }
+nika-vocab  = { path = "../nika-vocab", version = "0.118.4" }
 miette      = { workspace = true }
 serde_json  = { workspace = true }
 thiserror   = { workspace = true }

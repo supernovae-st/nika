@@ -621,7 +621,7 @@ jobs:
   bump-formula:
     name: bump homebrew tap
     needs: finalize
-    if: ${{ !contains(needs.finalize.outputs.version, '-') }}
+    if: ${{ always() && needs.finalize.result == 'success' && !contains(needs.finalize.outputs.version, '-') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1056,6 +1056,10 @@ jobs:
     # deploy key shares its contents-write authority.
     name: converge exact github release assets
     needs: [release-draft, provenance-result, npm-wasm-pack]
+    # The event selector deliberately skips one provenance ancestor. GitHub
+    # propagates that skip through the dependency chain unless this rejoin has
+    # a status function. A successful selector is required, never a skip waiver.
+    if: ${{ always() && needs.release-draft.result == 'success' && needs.provenance-result.result == 'success' && needs.npm-wasm-pack.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -1324,7 +1328,7 @@ jobs:
   move-latest:
     name: move ghcr latest after publication
     needs: finalize
-    if: ${{ !contains(needs.finalize.outputs.version, '-') }}
+    if: ${{ always() && needs.finalize.result == 'success' && !contains(needs.finalize.outputs.version, '-') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
