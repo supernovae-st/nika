@@ -19,20 +19,16 @@ fails=0
 checks=0
 
 judge() {
-  local dialect="$1" code="$2" payload="$3" supplied="$4" expected="$5" out
+  local dialect="$1" code="$2" payload="$3" supplied="$4" expected="$5" out rc=0
   checks=$((checks + 1))
   out="$(printf '%s' "$payload" | env -i PATH="$judge_root:/usr/bin:/bin" \
-    GUARD_TEST_OUTPUT="$supplied" GUARD_TEST_EXIT="$code" /bin/bash "$SHIM")"
+    GUARD_TEST_OUTPUT="$supplied" GUARD_TEST_EXIT="$code" /bin/bash "$SHIM" 2>&1)" || rc=$?
   if [ "$expected" = unavailable ]; then
-    if printf '%s' "$out" | jq -e --arg dialect "$dialect" '
-      (if $dialect == "cursor" then .permission == "deny"
-       else .hookSpecificOutput.permissionDecision == "deny" end) and
-      ((.agent_message // .hookSpecificOutput.permissionDecisionReason // "")
-        | contains("guard_unavailable"))' >/dev/null; then
+    if [ "$rc" -eq 2 ] && [[ "$out" == *guard_unavailable* ]]; then
       printf 'ok    %s exit %s refuses\n' "$dialect" "$code"
       return
     fi
-  elif [ "$out" = "$expected" ]; then
+  elif [ "$rc" -eq 0 ] && [ "$out" = "$expected" ]; then
     printf 'ok    %s exit %s preserves verdict\n' "$dialect" "$code"
     return
   fi
@@ -54,16 +50,23 @@ for dialect in cursor claude; do
     deny='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"fixture judge refused"}}'
   fi
   judge "$dialect" 0 "$payload" "$allow" "$allow"
-  for code in 2 3; do
-    judge "$dialect" "$code" "$payload" "$deny" "$deny"
-  done
+  judge "$dialect" 2 "$payload" "$deny" "$deny"
+  judge "$dialect" 3 "$payload" "$deny" unavailable
   for code in 1 4 127 255; do
     judge "$dialect" "$code" "$payload" "$allow" unavailable
   done
   for code in 0 2 3; do
     judge "$dialect" "$code" "$payload" '' unavailable
   done
-  judge "$dialect" 1 "$unrelated" "$allow" '{}'
+  judge "$dialect" 0 "$unrelated" '{}' '{}'
+  judge "$dialect" 1 "$unrelated" "$allow" unavailable
+  # Encode the payload through a real JSON writer; never execute the command.
+  for command in "n'ik'a run x.yaml" 'n\ika run x.yaml' 'echo hook_event_name; ls'; do
+    opaque="$(jq -nc --arg dialect "$dialect" --arg command "$command" '
+      if $dialect == "cursor" then {command:$command,cwd:"/tmp"}
+      else {hook_event_name:"PreToolUse",tool_name:"Bash",tool_input:{command:$command},cwd:"/tmp"} end')"
+    judge "$dialect" 1 "$opaque" "$allow" unavailable
+  done
 done
 
 if [ "$fails" -ne 0 ]; then
