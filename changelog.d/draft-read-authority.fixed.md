@@ -1,0 +1,1 @@
+- **Draft reads stay with the release owner.** Keep Docker and SLSA verification read-only, route the initial digest and replay statement through the existing draft preparer, and independently reject marker drift in the finalizer before publication.

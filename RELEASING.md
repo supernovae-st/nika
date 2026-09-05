@@ -173,14 +173,22 @@ without an explicit operator decision.
    need to contain future release tooling. SLSA provenance is created only by
    the original tag-push context and exposed as a verified run artifact; the
    isolated asset-convergence writer then attaches it with the other seven
-   exact assets, so a later run can recover it. Manual replay
-   requires exactly one existing statement asset and refuses branch-context
-   regeneration. Every push and replay provenance lane, plus the read-only
+   exact assets, so a later run can recover it. Draft release reads require
+   push access even in a public repository. The existing draft preparer alone
+   reads the initial OCI marker and, on manual replay, downloads exactly one
+   existing statement by immutable asset ID. It supplies the marker decision
+   as job outputs and the unverified statement as a run artifact, without
+   executing a Docker or SLSA verifier. A statement download is not proof.
+   Manual replay refuses branch-context regeneration. Every push and replay
+   provenance lane, plus the read-only
    final proof, runs the pinned `slsa-verifier` against the four native subjects,
    repository, and exact source tag before proceeding. `workflow_dispatch`
    cannot generate missing
    tag-context provenance: if the statement was never staged, rerun the
-   original tag-push run while that run and its artifacts are retained. The
+   original tag-push run while that run and its artifacts are retained, provided
+   its immutable workflow can complete. A defect in that historical workflow
+   cannot be repaired by rerunning it; fix and test the ceremony on main and
+   use a new version rather than moving the old tag. The
    exact GHCR digest is durably recorded in a single release-body marker only
    after both digest-addressed Linux container binaries, copied from stopped
    containers without executing image content, hash identically to their
@@ -201,7 +209,7 @@ without an explicit operator decision.
    is refused by the post-write read. The final proof has
    contents/attestations/packages
    read only and verifies the checksum manifest, native attestations, tag-bound
-   SLSA, npm SRI, persisted digest, OCI identity, and stopped-container payload
+   SLSA, npm SRI, the marker owner's digest, OCI identity, and stopped-container payload
    bytes. Finally, the contents/discussions writer downloads the exact artifacts
    again and independently compares all eight current GitHub assets byte-for-byte,
    checks the checksum manifest, and re-reads release identity, state, and marker
