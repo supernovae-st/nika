@@ -60,7 +60,11 @@ command -v nika >/dev/null 2>&1 || unavailable "the nika binary is not on PATH"
 # 0 allow · 2 deny · 3 guard_unavailable all carry the verdict JSON on
 # stdout; anything else (a crash, silence) means the judge itself broke.
 out="$(printf '%s' "$input" | nika guard --stdin 2>/dev/null)" && rc=0 || rc=$?
-if [ -z "$out" ] || [ "$rc" -gt 3 ]; then
+case "$rc" in
+  0 | 2 | 3) ;;
+  *) unavailable "nika guard failed (exit $rc)" ;;
+esac
+if [ -z "$out" ]; then
   unavailable "nika guard failed (exit $rc)"
 fi
 
