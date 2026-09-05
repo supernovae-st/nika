@@ -347,8 +347,9 @@ fi
 release_job="$(sed -n '/^  release-draft:/,/^  native-attest:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$release_job" | grep -q 'prepare-draft-release.sh' \
-  || fail 'the GitHub release is not prepared through the 404-only draft guard'
-if grep -q 'target_commitish' "$ROOT/scripts/release/prepare-draft-release.sh"; then
+  || fail 'the GitHub release is not prepared through the immutable-id draft guard'
+if grep -q 'target_commitish' "$ROOT/scripts/release/read-release-state.sh" \
+  "$ROOT/scripts/release/resolve-release-tag.sh"; then
   fail 'existing release identity still trusts target_commitish'
 fi
 native_attest_job="$(sed -n '/^  native-attest:/,/^  provenance:/p' \

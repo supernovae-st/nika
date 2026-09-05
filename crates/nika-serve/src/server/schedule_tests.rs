@@ -810,6 +810,9 @@ async fn a_broken_project_edit_retains_the_last_good_registry() {
             .is_some_and(|d| d.contains("retained")),
         "{finding}"
     );
+    // The scheduler's next sleep proves dispatch, not that the separately
+    // owned queue worker has entered the backend. Observe that boundary too.
+    backend.wait_for_call().await;
     assert!(backend.calls() >= 1, "the retained beat keeps firing");
     write_daily_beat(&world);
     clock.advance_to("2026-09-01T08:02:01Z[UTC]");

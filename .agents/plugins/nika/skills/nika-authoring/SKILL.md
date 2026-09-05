@@ -9,6 +9,22 @@ Nika turns repeatable AI work into files: one `.nika.yaml`, four verbs,
 audited **before** it runs. You author the file; `nika check` is the
 oracle; the human runs it.
 
+## The oracle is evidence, not permission
+
+Use the installed engine's `nika check --json` report, not a second
+checker assembled from this prose. Keep its engine/spec identity with the
+result. Judge `clean` and `native_strict_clean` separately from `paid_ready`:
+a file can be paid-ready and still fail a permits finding. For composition,
+inspect `judged` and the children's findings; a report that did not resolve
+children cannot certify the tree.
+
+Check readiness never authorizes execution, spend, a wider permit, or a
+publication. `--model mock/echo` changes the envelope model, not per-task
+model pins, subprocesses, network tools, file writes, or secret sources.
+Before an authorized rehearsal, review those effects and use an isolated
+workspace with the intended boundary. In an editor, workspace trust is a
+separate host decision; an offline model does not bypass it.
+
 ## Read the workspace, then two examples before you write
 
 **This file is the map. The examples are the territory.** A map this
@@ -190,35 +206,24 @@ A permit bound is always a literal, never an interpolation
 wildcard hands the boundary to the zone operator; name exact hosts
 (`NIKA-AUTH-010`).
 
-**Two places check goes quiet and the run does not. Declare the
-boundary anyway.** Measured against `nika 0.106.0` on 2026-07-28:
+**Static coverage and runtime boundaries are different claims.**
 
-- **An interpolated effect argument hides the effect from the static
-  gate.** `url: "https://api.github.com/…"` under an absent `permits:`
-  refuses `NIKA-AUTH-006` at check, as advertised. The same fetch
-  written `url: "${{ const.api_url }}"` passes `--native-strict` with
-  `PERMITS zero authority · pure compute · nothing escapes`, then dies
-  at run with `NIKA-SEC-004 · no permits: block declared`. The shipped
-  `05-fetch-chain` sits on the quiet side, so the example does not
-  correct the impression either. Never read a green PERMITS line as
-  proof a body has no effects; read the body.
+- **Constant interpolation is not a blanket static blind spot.** The
+  checker resolves statically known values: a fetch through
+  `${{ const.api_url }}` with no permits is refused before execution.
+  Genuinely runtime-dependent values still require runtime re-gating.
+  Read `permits.notes` and `permits.partial` in the report; a deferred
+  path or host is not proof of zero effects.
 - **A host permit does not cover the host it redirects to.**
   `net: { http: ["www.rust-lang.org"] }` is green at check and refused
   at run: `NIKA-SEC-004 · rust-lang.org resolves outside the declared
   net.http boundary`. The redirect target is not knowable statically.
   Declare both hosts, or point at the final one.
-- **A dynamic path is the same hole, and a shipped example falls in
-  it.** `localization-factory` declares `tools:` with no `fs:` block
-  and reads through `path: "${{ item }}"`. It passes `--native-strict`
-  with `PERMITS body fits the declared boundary`, then dies on its FIRST
-  task at run: `NIKA-SEC-004 · ./docs resolves outside the declared
-  permits.fs.read boundary`. Copy its SHAPE, never its `permits:`.
-  `--infer-permits` is honest about this and prints the gap as a review
-  note (`task texts uses a dynamic path · fs cannot express 'any path' ·
-  add the resolved path(s) before running`), so **the block it prints is
-  a starting point, not a finished boundary** whenever a path is
-  interpolated. Adding `fs: { read: ["./docs/**/*.md", "./docs"],
-  write: ["./i18n/**"] }` is what turns that example green end to end.
+- **An unresolved path needs a reviewed finite boundary.** Inferred
+  permits and their review notes are a starting point, not permission
+  to invent an unrestricted path. Declare only the directories/files
+  the job needs, and test both an allowed value and an out-of-bound
+  value in scratch. Do not widen the boundary merely to silence a refusal.
 - **The axes are conjunctive, and `fs` bounds take globs while hosts do
   not.** `tools: ["nika:write"]` with no `fs.write` authorizes nothing:
   the write refuses on the `fs` axis at check and at run. You need the
@@ -361,8 +366,9 @@ replays every item. After `. as $c` in jq, write `($c | map(...))`
 
 `nika check --native-strict` green means the file is *legal*. It does
 not mean it is the cheapest, most native, or most honest file.
-`.paid_ready` is the boolean for "may this file leave mock?". The
-next handoff to a human is refused until that field is true. Each
+`.paid_ready` reports the paid-infer blockers the checker knows about,
+not execution consent or a complete safety proof. A runnable handoff
+also needs a clean native-strict check and the intended authority. Each
 question has a command or a file. Do not reason from memory.
 
 Zhang, Kraska, Khattab 2026 (arXiv:2512.24601, Recursive Language
@@ -374,8 +380,8 @@ or `for_each:` over items — never one giant infer. Verification is
 
 0. **Is `.paid_ready` true?** `nika check --json <file> | jq .paid_ready`.
    `false` → repair `.next` (kind · task · advice) first, then the rest
-   of `.paid_blockers[]`. `.compiled` is false only when the law is
-   unproven. Do not swap off `mock/`.
+   of `.paid_blockers[]`; also inspect `.compiled` and the findings.
+   Do not swap off `mock/` while a paid blocker remains.
 1. **Did I read two examples first?** `nika try` then `nika new <slug>`
    twice. Skipping this is the measured 7.5-round tax.
 2. **Is every `exec:` a real tool?** `nika check --native-strict`. A
@@ -530,23 +536,18 @@ properties: … }` (that spelling is `NIKA-TYPE-001` too, on the
 constructor). `schema:` on an `infer:` IS JSON Schema. Two type
 languages in one file, and only one of them takes `type:`.
 
-**What does NOT cross the boundary.** Measured gaps to plan around:
+**What crosses the boundary, and what the claim covers.**
 
-- **The spend cap does not reach the child.** A child that alone refuses
-  to start under `--max-cost-usd` (`refusing to start: the workflow's
-  unavoidable cost floor $0.001120 exceeds --max-cost-usd $0.000100`)
-  is dispatched all the way to the provider call when a parent invokes
-  it with the same flag. Verified 2026-07-28 against `nika 0.106.0`;
-  reported separately as an engine defect. **Cap the child where the
-  child runs**, and never present a parent's `--max-cost-usd` to a human
-  as a bound on the whole tree.
-- **The parent's cost ceiling excludes its children, on every surface a
-  human reads.** A child that alone reports
-  `≤ $0.0011 worst case` reports, through its parent, `no inference
-  tasks · $0 model spend` in BOTH `nika check` and `nika explain`. The
-  handoff line the skill sends you to is the line that under-reports.
-  Read the child's own `nika check`, and quote the child's envelope to
-  the human alongside the parent's.
+- The composed checker folds children's output-token estimates into
+  the parent's `cost.composed` and totals, including calling-task
+  multipliers. Verify `judged.composition` and `judged.children`, not
+  only the parent's direct inference-task count. The reader-less Rust
+  checker is not a substitute for the resolved CLI check.
+- The child receives the parent's remaining metered budget at call
+  time. This is not an atomic reservation across concurrent children:
+  already-admitted calls can overshoot, and static estimates still
+  exclude input-token cost. Tighten concurrency and per-call limits;
+  never call the parent's cap a hard invoice ceiling.
 - The child writes **its own trace file**. A parent run leaves two
   chains in `.nika/traces/`; the parent's failure line names the child's
   trace id, and that is the one to `nika trace show`.
@@ -770,24 +771,12 @@ checkmark on it; a green run that emits well-formed JSON full of wrong
 values is the same failure wearing a better disguise, and `json.loads`
 cannot see it.
 
-**`nika:jq` diverges from stock jq on `scan`, silently.** Measured
-2026-07-28 on `"one two three"`, one workflow, four expressions:
-
-```
-[.s | scan("\\S+")]          →  ["one"]                    ✗ first match only
-[.s | splits(" ")]           →  ["one","two","three"]      ✓
-[.s | match("\\S+";"g")|.string] →  ["one","two","three"]  ✓
-(.s / " ")                   →  ["one","two","three"]      ✓
-```
-
-So the idiomatic word count `[$s | scan("\\S+")] | length` is `1` for
-every input: check green, run green, artifact well-formed, every number
-wrong. `scan` is the one that lies; `splits`, a global `match` and the
-`/` split operator all stream correctly and are the fix. The general
-lesson outranks the specific bug: **prove any `nika:jq` expression
-against an input whose answer you already know**, because this is the
-"builtin that returns a plausible, wrong answer" trigger below and it
-is live.
+**Prove `nika:jq` against known answers.** The engine corrects its
+upstream `scan` implementation to collect every match, so
+`[.s | scan("\\S+")]` on `{"s":"one two three"}` yields all three
+words. Do not preserve a workaround for the retired first-match bug.
+Keep the actual invariant: assert the expected values, not only valid
+JSON or a green exit, including empty input and regex flags where used.
 
 ## When the language pushes back, that is a finding
 
@@ -813,8 +802,8 @@ with no trace that you were here.
 1. **Reproduce** it small. Never "I think it does X" — the exact file and
    the exact command.
 2. **Locate** it: a `file:line` in the engine, or a `§` in the spec.
-3. **Write it down** where it survives the session — an issue, or a plan
-   entry if it is a class rather than a point.
+3. **Write it down** where it survives the session — a local finding
+   or plan entry; post an issue only when external reporting is in scope.
 4. **Fix at the source.** The spec repo, not a vendored copy of it: a
    mirror is re-vendored and your fix disappears.
 5. **Leave a ratchet** — a test, a hint, a gate. Without one the class

@@ -10,6 +10,52 @@ use super::*;
 type StateEdit = (&'static str, fn(&mut serde_json::Value));
 
 #[test]
+fn queued_refusal_and_run_claim_preserve_the_first_transition_in_both_orders() {
+    for claim_first in [true, false] {
+        let root = tempfile::tempdir().expect("root");
+        let store = JobStore::open(root.path()).expect("store");
+        let created = admitted_record(
+            store
+                .create_or_replay(key("claim-refusal"), digest(88))
+                .expect("create"),
+        );
+        let claim = || {
+            store.start_queued_execution(
+                created.id(),
+                "execution-88".into(),
+                "trace-88".into(),
+                digest(89).as_str().to_owned(),
+                &[json!({"kind": "execution.started"})],
+            )
+        };
+        let refusal_event = json!({
+            "kind": "execution.refused", "status": "failed", "code": "admission_refused",
+        });
+        let refuse = || store.refuse_queued(created.id(), &refusal_event);
+        let first = if claim_first { claim() } else { refuse() }.expect("first transition");
+        let before =
+            std::fs::read(root.path().join("jobs/state.json")).expect("state before loser");
+        let second = if claim_first { refuse() } else { claim() };
+        assert!(matches!(
+            second,
+            Err(JobStoreError::IllegalTransition { .. })
+        ));
+        assert_eq!(
+            std::fs::read(root.path().join("jobs/state.json")).expect("state after loser"),
+            before
+        );
+        assert_eq!(
+            first.record().status(),
+            if claim_first {
+                JobStatus::Running
+            } else {
+                JobStatus::Failed
+            }
+        );
+    }
+}
+
+#[test]
 fn settlement_is_a_terminal_event_projection_across_reopen_and_later_events() {
     for status in [
         JobStatus::Succeeded,
@@ -124,6 +170,24 @@ fn paused_leg_projects_its_result_then_clears_it_on_resume() {
             .expect("job")
             .settlement(),
         Some(&settlement)
+    );
+    let before_replay = std::fs::read(root.path().join("jobs/state.json")).expect("paused state");
+    assert!(matches!(
+        store.start_queued_execution(
+            created.id(),
+            "stale-leg".into(),
+            "stale-trace".into(),
+            snapshot.clone(),
+            &[json!({"kind": "execution.started"})],
+        ),
+        Err(JobStoreError::IllegalTransition {
+            from: JobStatus::Paused,
+            to: JobStatus::Running
+        })
+    ));
+    assert_eq!(
+        std::fs::read(root.path().join("jobs/state.json")).expect("unchanged pause"),
+        before_replay
     );
     let resumed = store
         .start_execution(

@@ -18,7 +18,7 @@
 
 use nika_source::Spanned;
 
-/// The `on_error:` action — exactly one of the three modes.
+/// The `on_error:` action — exactly one recovery behavior is chosen.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum OnErrorAction {

@@ -4,12 +4,185 @@
 use std::sync::Arc;
 
 use serde_json::Value;
+use sha2::{Digest as _, Sha256};
 
 use super::tests::{
     TestBackend, TestWorld, WORKFLOW, auth_header, check_request, events_request, get_request,
     limits, parse_sse_data, post_request, snapshot_body, wait_for_status,
 };
 use super::{ExecutionBackend, ExecutionDisposition, ExecutionOutcome};
+
+/// A queued idempotent replay may outlive the original execution. Once the
+/// job is terminal, discarding that stale entry must not readmit its world
+/// or replace its durable result, even when the world sidecar is gone.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_settled_queue_duplicate_does_not_reopen_its_world() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let mut authority = super::ResidentAuthority::open(
+        super::ResidentConfig::new(&world.state).with_limits(limits()),
+        backend.clone(),
+    )
+    .await
+    .expect("authority");
+    let encoded = snapshot_body(WORKFLOW);
+    authority
+        .coordinator
+        .admit_manual(
+            crate::IdempotencyKey::new("stale-queue-entry".to_owned()).expect("key"),
+            crate::RequestDigest::from_bytes(Sha256::digest(encoded.as_bytes()).into()),
+            "root.nika.yaml".to_owned(),
+            encoded,
+        )
+        .await
+        .expect("admission");
+    let task = authority.jobs.recv().await.expect("original queue entry");
+    let id = task.id.clone();
+    Box::pin(super::run_job(Arc::clone(&authority.state), task))
+        .await
+        .expect("original settles");
+    let before = authority.state.store.get(id.clone()).await.expect("record");
+    assert_eq!(
+        before.as_ref().expect("job").status(),
+        crate::JobStatus::Succeeded
+    );
+    std::fs::remove_file(
+        world
+            .state
+            .join("jobs")
+            .join(format!("{}.world", id.as_str())),
+    )
+    .expect("remove only this test's settled sidecar");
+
+    Box::pin(super::run_job(
+        Arc::clone(&authority.state),
+        super::ExecutionTask::new(id.clone(), None),
+    ))
+    .await
+    .expect("stale queue entry is inert without its sidecar");
+    let after = authority
+        .state
+        .store
+        .get(id)
+        .await
+        .expect("record after replay");
+    assert_eq!(
+        serde_json::to_value(before).expect("before"),
+        serde_json::to_value(after).expect("after")
+    );
+    assert_eq!(backend.calls(), 1, "stale entry never enters the backend");
+    authority.serve_until(async {}).await.expect("clean stop");
+}
+
+#[derive(Debug)]
+struct HeldBackend {
+    entered: tokio::sync::Semaphore,
+    release: tokio::sync::Semaphore,
+}
+
+impl ExecutionBackend for HeldBackend {
+    fn execute<'a>(
+        &'a self,
+        _context: nika_execution::ExecutionContext<'a>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ExecutionOutcome> + Send + 'a>> {
+        Box::pin(async move {
+            self.entered.add_permits(1);
+            self.release.acquire().await.expect("release gate").forget();
+            ExecutionDisposition::Succeeded.into()
+        })
+    }
+}
+
+/// The duplicate's cleanup must not retire the running owner's cancel token.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_running_queue_duplicate_keeps_the_owners_cancellation_registration() {
+    use std::time::Duration;
+    let world = TestWorld::new();
+    let backend = Arc::new(HeldBackend {
+        entered: tokio::sync::Semaphore::new(0),
+        release: tokio::sync::Semaphore::new(0),
+    });
+    let limits = super::ServerLimits::new(
+        1024,
+        Duration::from_secs(2),
+        Duration::from_secs(30),
+        Duration::from_millis(200),
+        4,
+        16,
+        64,
+        32,
+    );
+    let mut authority = super::ResidentAuthority::open(
+        super::ResidentConfig::new(&world.state).with_limits(limits),
+        backend.clone(),
+    )
+    .await
+    .expect("authority");
+    let encoded = snapshot_body(WORKFLOW);
+    authority
+        .coordinator
+        .admit_manual(
+            crate::IdempotencyKey::new("running-queue-entry".to_owned()).expect("key"),
+            crate::RequestDigest::from_bytes(Sha256::digest(encoded.as_bytes()).into()),
+            "root.nika.yaml".to_owned(),
+            encoded,
+        )
+        .await
+        .expect("admission");
+    let task = authority.jobs.recv().await.expect("original queue entry");
+    let id = task.id.clone();
+    let original = tokio::spawn(super::run_job(Arc::clone(&authority.state), task));
+    tokio::time::timeout(Duration::from_secs(10), backend.entered.acquire())
+        .await
+        .expect("owner enters backend")
+        .expect("entered gate")
+        .forget();
+    let owner_token = authority.state.cancellations.register(&id);
+    Box::pin(super::run_job(
+        Arc::clone(&authority.state),
+        super::ExecutionTask::new(id.clone(), None),
+    ))
+    .await
+    .expect("duplicate does not execute");
+    std::fs::remove_file(
+        world
+            .state
+            .join("jobs")
+            .join(format!("{}.world", id.as_str())),
+    )
+    .expect("remove only this test's active sidecar");
+    Box::pin(super::run_job(
+        Arc::clone(&authority.state),
+        super::ExecutionTask::new(id.clone(), None),
+    ))
+    .await
+    .expect("a failed duplicate admission cannot settle the owner");
+    assert_eq!(
+        authority
+            .state
+            .store
+            .get(id.clone())
+            .await
+            .expect("record")
+            .expect("job")
+            .status(),
+        crate::JobStatus::Running
+    );
+    authority.state.cancellations.cancel(&id);
+    let still_linked = owner_token.is_cancelled();
+    backend.release.add_permits(1);
+    original.await.expect("owner join").expect("owner settles");
+    authority.serve_until(async {}).await.expect("clean stop");
+    assert!(
+        still_linked,
+        "the duplicate retired another execution's cancellation token"
+    );
+    assert_eq!(
+        backend.entered.available_permits(),
+        0,
+        "only one backend call"
+    );
+}
 
 /// ADR-131 · #1441 · a workflow the served registry lists is admitted by
 /// NAME: the resident captures the world itself (the one owner), the job

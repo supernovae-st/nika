@@ -44,8 +44,8 @@ EOF
 chmod +x "$BIN/git"
 
 # The fake `gh`, shaped like GitHub: the by-tag endpoint sees PUBLISHED
-# releases only; the list sees drafts too; `release create --draft` records a
-# draft; a release read by id answers its own state.
+# releases only; the list can lag a committed draft; POST returns its id;
+# a release read by id answers its own stored state, not the requested id.
 cat >"$BIN/gh" <<EOF
 #!/usr/bin/env bash
 state="\$(cat "$STATE" 2>/dev/null || echo absent)"
@@ -59,19 +59,24 @@ if [ "\$1" = api ]; then
       if [ "\$kind" = published ]; then printf '%s\n' "\$id"; exit 0; fi
       echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
     repos/$REPO/releases)
+      case " \$* " in
+        *" --method POST "*)
+          if [ -n "\${GH_CREATE_FAIL:-}" ]; then echo "gh: create unavailable (HTTP 503)" >&2; exit 1; fi
+          printf 'draft:%s\n' "\${GH_NEW_ID:-777}" >"$STATE"
+          printf '%s\n' "\${GH_CREATE_RESPONSE_ID-\${GH_NEW_ID:-777}}"
+          exit 0 ;;
+      esac
       if [ -n "\${GH_LIST_FAIL:-}" ]; then echo "gh: Unauthorized (HTTP 401)" >&2; exit 1; fi
+      if [ -n "\${GH_HIDE_DRAFT_IN_LIST:-}" ] && [ "\$kind" = draft ]; then exit 0; fi
       if [ "\$kind" != absent ]; then printf '%s\n' "\$id"; fi
       exit 0 ;;
     repos/$REPO/releases/[0-9]*)
       rid="\${path##*/}"
+      if [ "\$rid" != "\$id" ] || [ "\$kind" = absent ]; then echo "gh: Not Found (HTTP 404)" >&2; exit 1; fi
       draft=false; [ "\$kind" = draft ] && draft=true
       printf '%s\t%s\t%s\tfalse\n' "\$rid" "$TAG" "\$draft"; exit 0 ;;
     *) echo "fake gh: unexpected api \$path" >&2; exit 97 ;;
   esac
-fi
-if [ "\$1" = release ] && [ "\$2" = create ]; then
-  printf 'draft:%s\n' "\${GH_NEW_ID:-777}" >"$STATE"
-  exit 0
 fi
 echo "fake gh: unexpected \$*" >&2; exit 97
 EOF
@@ -82,15 +87,43 @@ run_script() {
     "$TAG" "$REPO" "$NOTES" "$SHA"
 }
 
-# 1 · nothing exists: the draft is created, then FOUND through the list
-#     (the by-tag endpoint would have hidden it — the v0.118.0 death).
+# 1 · nothing exists: the draft is created and its response id is retained.
 printf 'absent\n' >"$STATE"
 : >"$LOG"
 out="$(GH_NEW_ID=4242 run_script)" || fail "create path exited $?"
 grep -qx 'created=true' <<<"$out" || fail "create path did not report created=true: $out"
 grep -qx 'id=4242' <<<"$out" || fail "create path did not find the draft it created: $out"
 grep -qx 'draft=true' <<<"$out" || fail "create path did not read the draft state: $out"
-grep -q '^release create ' "$LOG" || fail "create path never created the draft"
+grep -q -- '--method POST' "$LOG" || fail "create path never created the draft"
+grep -q -- '--field draft=true' "$LOG" || fail "creation is not draft-only"
+grep -q -- '--field generate_release_notes=true' "$LOG" || fail "generated notes were lost"
+grep -Fq -- "--raw-field target_commitish=$SHA" "$LOG" || fail "creation routing was not pinned"
+grep -Fq -- "--field body=@$NOTES" "$LOG" || fail "curated notes were lost"
+
+# A create has committed, but the list still hides the new draft. The POST
+# response's immutable id, not immediate list visibility, owns the next read.
+printf 'absent\n' >"$STATE"
+: >"$LOG"
+out="$(GH_NEW_ID=4243 GH_HIDE_DRAFT_IN_LIST=1 run_script)" || fail "a committed draft depended on immediate list visibility"
+grep -qx 'id=4243' <<<"$out" || fail "create response identity was not retained"
+grep -qx 'created=true' <<<"$out" || fail "committed draft was not named as created"
+[ "$(grep -c -- '--paginate' "$LOG")" = 1 ] || fail "a post-create list read is still required"
+
+# Malformed or foreign create ids do not become a published/reusable object.
+for response in '' null 0 wrong 999; do
+  printf 'absent\n' >"$STATE"
+  : >"$LOG"
+  if GH_NEW_ID=4243 GH_CREATE_RESPONSE_ID="$response" run_script >"$TEST_ROOT/out" 2>"$TEST_ROOT/err"; then
+    fail "invalid create response id was accepted: $response"
+  fi
+  [ "$(grep -c -- '--method POST' "$LOG")" = 1 ] || fail "invalid response retried creation"
+done
+printf 'absent\n' >"$STATE"
+: >"$LOG"
+if GH_CREATE_FAIL=1 run_script >"$TEST_ROOT/out" 2>"$TEST_ROOT/err"; then
+  fail "a failed create was accepted"
+fi
+grep -qx 'absent' "$STATE" || fail "a failed create mutated the fixture"
 
 # 2 · a DRAFT already carries the tag (a replay after a dead train): reused,
 #     never created twice.
@@ -100,7 +133,7 @@ out="$(run_script)" || fail "draft reuse exited $?"
 grep -qx 'created=false' <<<"$out" || fail "draft reuse reported a creation: $out"
 grep -qx 'id=555' <<<"$out" || fail "draft reuse did not carry the draft's id: $out"
 grep -qx 'draft=true' <<<"$out" || fail "draft reuse did not read draft=true: $out"
-if grep -q '^release create ' "$LOG"; then fail "draft reuse created a second draft"; fi
+if grep -q -- '--method POST' "$LOG"; then fail "draft reuse created a second draft"; fi
 
 # 3 · a PUBLISHED release carries the tag (a validation-only replay): reused.
 printf 'published:31\n' >"$STATE"
@@ -116,7 +149,7 @@ if GH_LIST_FAIL=1 run_script >/dev/null 2>"$TEST_ROOT/err"; then
   fail "a failed list answer was read as an absence"
 fi
 grep -q 'release barrier' "$TEST_ROOT/err" || fail "the list failure did not name the barrier"
-if grep -q '^release create ' "$LOG"; then fail "the barrier created a draft on a failed lookup"; fi
+if grep -q -- '--method POST' "$LOG"; then fail "the barrier created a draft on a failed lookup"; fi
 
 # 5 · the mutation: a lookup through the by-tag endpoint cannot see the draft it
 #     just created — the shape that killed v0.118.0 must read RED here.
@@ -133,4 +166,15 @@ if PATH="$BIN:$PATH" GH_TOKEN=test GH_NEW_ID=4242 bash "$TEST_ROOT/prepare-draft
   fail "the by-tag lookup mutant passed: the fake GitHub does not hide drafts"
 fi
 
-echo "draft-release.test: PASS · create · draft reuse · published reuse · barrier · the by-tag mutant reads RED"
+# Reintroducing an immediate list lookup after POST must also read RED.
+sed '/^state="$(bash/i\
+release_id="$(lookup_release_id)"\
+' "$ROOT/scripts/release/prepare-draft-release.sh" >"$TEST_ROOT/prepare-draft-release.sh"
+printf 'absent\n' >"$STATE"
+if PATH="$BIN:$PATH" GH_TOKEN=test GH_NEW_ID=4243 GH_HIDE_DRAFT_IN_LIST=1 \
+  bash "$TEST_ROOT/prepare-draft-release.sh" "$TAG" "$REPO" "$NOTES" "$SHA" \
+  >/dev/null 2>&1; then
+  fail "the immediate-list-after-create mutant passed"
+fi
+
+echo "draft-release.test: PASS · committed POST identity · delayed list · malformed/foreign ids · create failure · reuse · lookup barrier · two lookup mutants read RED"

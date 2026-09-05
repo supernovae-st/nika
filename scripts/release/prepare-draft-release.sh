@@ -10,6 +10,8 @@
 # The release LIST carries drafts for a token with push access, so the lookup
 # reads the list and matches the tag exactly. An empty list answer is the
 # only absence; any failure of the list call is a barrier, never an absence.
+# Creation retains the POST response's immutable id: list visibility can lag
+# the committed draft (v0.118.1), and is not a read-after-write guarantee.
 set -euo pipefail
 
 if [ "$#" -ne 4 ]; then
@@ -59,23 +61,18 @@ prerelease=false
 case "$version" in
   *-*) prerelease=true ;;
 esac
-create_args=(
-  release create "$tag" --repo "$repo" --title "$tag"
-  --notes-file "$notes" --generate-notes --verify-tag --draft
-  --target "$expected_sha"
-)
-if [ "$prerelease" = true ]; then
-  create_args+=(--prerelease)
-fi
-gh "${create_args[@]}" >/dev/null
-if ! release_id="$(lookup_release_id)"; then
-  echo "release barrier: the release list did not answer after the draft was created" >&2
+# The tag was resolved before the mutation and read-release-state proves it
+# again afterwards. Creation routing is pinned, but never used as the existing
+# release's identity. Preserve gh's notes-prepending behavior through the API.
+if ! release_id="$(gh api "repos/${repo}/releases" --method POST \
+  --raw-field "tag_name=$tag" --raw-field "name=$tag" \
+  --raw-field "target_commitish=$expected_sha" \
+  --field draft=true --field "prerelease=$prerelease" \
+  --field generate_release_notes=true --field "body=@$notes" \
+  --jq '.id' 2>"$scratch/error")"; then
+  echo "release barrier: draft creation failed; inspect committed state before retrying" >&2
   cat "$scratch/error" >&2
   exit 69
-fi
-if [ -z "$release_id" ]; then
-  echo "release barrier: the draft just created is not in the release list" >&2
-  exit 73
 fi
 state="$(bash "$here/read-release-state.sh" \
   "$repo" "$release_id" "$tag" "$expected_sha")"

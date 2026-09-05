@@ -11,8 +11,8 @@ homepage.workspace     = true
 publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
 
 [dependencies]
-nika-kernel  = { path = "../nika-kernel", version = "0.118.1" }
-nika-types   = { path = "../nika-types", version = "0.118.1" }   # net::host_in_allowlist — the SHARED permits.net.http glob matcher (no check↔runtime drift)
+nika-kernel  = { path = "../nika-kernel", version = "0.118.2" }
+nika-types   = { path = "../nika-types", version = "0.118.2" }   # net::host_in_allowlist — the SHARED permits.net.http glob matcher (no check↔runtime drift)
 bytes        = { workspace = true }   # kernel body payloads
 futures-core = { workspace = true }   # HttpStreamResponse body stream
 reqwest      = { workspace = true, features = ["stream"] }   # the HTTP backend (rustls · no default features) · `stream` powers send_streaming

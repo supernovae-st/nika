@@ -19,6 +19,7 @@ kinds of evidence.
 | What can be replayed? | Hash-bound stored event and receipt | Resume observation by sequence; never re-execute a completed admission to recover its answer |
 | What does a trace prove? | Trace verifier and writer-liveness checks | Report the proof tier; never infer a sealed trace from a receipt alone |
 | What does the budget bound? | Admission floor and runtime spend ledger | Distinguish output estimates, recorded spend, in-flight exposure and unpriced work; never promise an invoice ceiling |
+| Which custody bytes may be public? | Decoded public-key projection in `nika-dap::seal` | Show or retire only reconstructed public-key material, not arbitrary text from a public-named slot |
 
 Zero legacy means removing a replaced decision path and migrating its owned
 callers. It does not mean deleting unique operator capabilities because
@@ -70,6 +71,14 @@ overwrite a successful result with a cancellation request.
   owned bytes. A fixed clock or deleted pathname must not alias journals.
 - Serialize queued cancellation and execution claim under the same lease.
   Once a runtime owns the job, preserve its returned result.
+- A queued replay is neither execution ownership nor resume consent. Claim
+  and admission refusal both require `Queued` under the store lease; an old
+  queue entry cannot reopen a paused leg. Only a successful claim arms the
+  interruption guard and owns cancellation registration. A read-side check
+  avoids reopening known stale worlds but is not the transition authority.
+  This lifecycle observation uses the reserved store control lane, so a full
+  HTTP ingress queue cannot turn that optimization into a fatal execution.
+  The explicit paused-leg store transition remains available and tested.
 - Distinguish a pause observation boundary from a final job transition.
   Generic event append must not create or replace an authoritative pause.
 - Recover the same settlement through live SSE, a consumed terminal cursor,
@@ -88,9 +97,59 @@ overwrite a successful result with a cancellation request.
 - Keep agent teaching aligned with the spend ledger: crossing the measured
   budget stops new admissions, not already-started calls. Unpriced work and
   input costs omitted by an output-only estimate are not proved free or capped.
+- Keep readiness and authority separate in agent teaching. `paid_ready` can
+  remain true on a report with a permits error: it is not a replacement for
+  `clean`, native-strict findings, resolved-child coverage or execution consent.
+  A mock envelope does not replace per-task model pins or disable real tools.
+- Retire teaching workarounds when their source defect is fixed. The composed
+  cost tests in `nika-check` and global-scan tests in `nika-builtin` own those
+  behaviors; authoring instructions must not describe the historical defects
+  as current. A rehearsal compares concrete values and negative outcomes,
+  not only a successful exit or well-formed JSON.
+- Treat a public-key storage slot as untrusted input. A minisign box wrapper
+  is not validation: decode the key and reconstruct its public representation
+  before trust output or retirement. Discard untrusted comments and trailing
+  payloads; normal engine-generated boxes retain their bytes and fingerprint.
+  Refuse unknown public-key algorithms. Before signing, compare the public
+  projection to the public key derived from the opened secret, including the
+  minisign key number; library key equality alone omits that number.
+- Distinguish invalid custody from absent custody. Partial explicit file
+  configuration refuses; a broken explicit pair never selects another signing
+  identity. Non-forced initialization must preserve existing file entries,
+  including corrupt or orphaned material, and exclusive creation must catch a
+  concurrent file writer after the initial presence check.
+- Reject known aliases between explicit private and public file slots before
+  initialization, including resolved parent aliases and existing Unix hard
+  links. Distinct path spellings do not establish distinct custody slots.
+- Parse verification ledgers through one public-box decoder, keeping their
+  two-line records whole. Workflow signatures, trace seals and evidence packs
+  use the same fingerprint function; a retired key remains a candidate after
+  rotation. Historical comments retain their recorded fingerprint and are
+  not copied into new live trust output.
+- Route native keyring construction through one guarded function, including
+  verifier and public-only readers. A source inventory must recurse into
+  submodules and must not stop at the first test-only item: production code can
+  follow that item.
+
+The custody corrections do not make a two-file key pair or the OS keychain a
+transaction. A failed second file write can leave a new private half; its
+presence blocks non-forced retries. File creation refuses a concurrent winner,
+but the keychain has no compare-and-set guarantee here. Path-alias checks do
+not lock directories against later replacement. Verification surfaces still
+select their existing enrolment sources; this does not unify that authority
+policy. Historical verification
+still reads its recorded key boxes; these changes do not rewrite old evidence.
+Reconstructed live boxes no longer incorporate custom comment bytes into new
+fingerprints. An imported key whose older seals bind a custom comment needs
+its original public enrollment record to verify those seals: canonical
+retirement cannot preserve that old fingerprint by copying arbitrary metadata.
+Engine-generated public boxes are unchanged. This is a public-data boundary,
+not proof of complete secret custody or global effect exactly-once execution.
+Key-pair correspondence is checked at signing load; public-only trust reads
+do not decrypt the secret and therefore do not prove that correspondence.
 
 The focused Rust regressions are in `nika-execution`,
-`nika-service-execution`, `nika-serve` and the CLI answered-leg tests.
+`nika-service-execution`, `nika-serve`, `nika-dap` and the CLI answered-leg tests.
 The client SDK owns transport-shape and installed-package differential
 tests. CI owns platform-specific executable tests. Each verification report
 must name which of those actually ran; no single green substitutes for the
