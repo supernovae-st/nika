@@ -17,11 +17,11 @@ publish                = false  # Internal L1 effect crate (not a standalone cra
 adr = ["ADR-003", "ADR-081", "ADR-083"]
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.118.2" }
+nika-kernel = { path = "../nika-kernel", version = "0.118.3" }
 # The canonical SSRF IP-range oracle (`net::ip_is_blocked`) — the SAME predicate
 # nika-http gates on, so a literal private/loopback/metadata IP is refused
 # BEFORE any CDP navigate (the browser's own network stack bypasses nika-http).
-nika-types  = { path = "../nika-types", version = "0.118.2" }
+nika-types  = { path = "../nika-types", version = "0.118.3" }
 # BrowserError + DTOs live in nika-kernel-core (Pattern A · FCI-023bis) —
 # nika-browser re-exports the error; no thiserror/miette dep here.
 # tokio `rt` for the per-session CDP Handler task (B.3 · chromiumoxide is

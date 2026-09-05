@@ -334,6 +334,14 @@ grep -q -- '--ref main' "$ROOT/RELEASING.md" \
   || fail 'the canonical replay ceremony does not select current guards'
 grep -q -- '--ref main' "$ROOT/docs/RELEASING.md" \
   || fail 'the public replay guide does not select current guards'
+grep -Fq '[RELEASING.md at the repository root](../RELEASING.md)' "$ROOT/docs/RELEASING.md" \
+  || fail 'the secondary release page must point to the canonical ceremony'
+grep -Fq 'not a second executable release recipe' "$ROOT/docs/RELEASING.md" \
+  || fail 'the secondary release page must identify its index-only authority'
+if grep -Eq 'git tag --sort|release renames the seed|git subtree split|npm publish --access' \
+  "$ROOT/docs/RELEASING.md"; then
+  fail 'the release index revives a retired identity or publication recipe'
+fi
 for label in \
   org.opencontainers.image.revision \
   org.opencontainers.image.version \
@@ -472,7 +480,6 @@ for proof in \
   verify-release-attestations.sh \
   verify-slsa-provenance.sh \
   npm-publish-immutable.sh \
-  release-digest-marker.sh \
   oci-coordinate-immutable.sh \
   verify-oci-payload.sh; do
   printf '%s\n' "$final_proof_job" | grep -q "$proof" \
@@ -593,8 +600,8 @@ printf '%s\n' "$latest_job" | grep -q 'GH_TOKEN:.*github.token' \
   || fail 'GHCR latest first-party gh calls lack GH_TOKEN'
 docker_job="$(sed -n '/^  docker:/,/^  oci-proof:/p' \
   "$ROOT/.github/workflows/release.yml")"
-printf '%s\n' "$docker_job" | grep -q 'release-digest-marker.sh' \
-  || fail 'the digest builder cannot read an already-durable marker'
+printf '%s\n' "$docker_job" | grep -q 'needs.release-draft.outputs.oci-digest' \
+  || fail 'the digest builder does not consume the draft owner marker input'
 printf '%s\n' "$docker_job" | grep -q '^      contents: read' \
   || fail 'the digest builder lacks contents read authority'
 printf '%s\n' "$docker_job" | grep -q '^      packages: write' \
@@ -686,6 +693,8 @@ bash "$ROOT/scripts/release/tests/publication-barrier.test.sh" >/dev/null \
   || fail 'the cross-registry publication barrier regression failed'
 bash "$ROOT/scripts/release/tests/finalize-release.test.sh" >/dev/null \
   || fail 'the write-only finalizer barrier regression failed'
+python3 "$ROOT/scripts/release/tests/test-draft-authority.py" \
+  || fail 'draft access escaped its owner or replay input admission failed'
 bash "$ROOT/scripts/release/tests/next-tag-estate.test.sh" >/dev/null \
   || fail 'the pre-tag estate question regression failed'
 grep -q 'TAP_DEPLOY_KEY' "$ROOT/docs/RELEASING.md" \

@@ -11,15 +11,15 @@ homepage.workspace     = true
 publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
 
 [dependencies]
-nika-event  = { path = "../nika-event", version = "0.118.2" }   # the journal taxonomy the replayer walks
-nika-schema = { path = "../nika-schema", version = "0.118.2" }  # parse the workflow for breakpoint line-mapping
-nika-check  = { path = "../nika-check", version = "0.118.2" }  # the check ladder the evidence pack + inventory/drift scans fold
-nika-types  = { path = "../nika-types", version = "0.118.2" }   # field values on replayed frames
-nika-cap    = { path = "../nika-cap", version = "0.118.2" }     # BuiltinEffect — the drift scan's permit taxonomy
-nika-vocab  = { path = "../nika-vocab", version = "0.118.2" }   # the project file (traces.keep — the retention ladder's file rung · D-2026-08-11-N5)
-nika-runtime = { path = "../nika-runtime", version = "0.118.2" }  # the proof layer (preimage · receipt · semantic hash) — seal canonicalization + the evidence pack's fold
-nika-kernel = { path = "../nika-kernel", version = "0.118.2" }   # the HttpPostDyn seam the anchor's submit rides
-nika-store  = { path = "../nika-store", version = "0.118.2" }    # F-P8 signed memory — the teardown's `covers["memory"]` fold substrate (memory::attend)
+nika-event  = { path = "../nika-event", version = "0.118.3" }   # the journal taxonomy the replayer walks
+nika-schema = { path = "../nika-schema", version = "0.118.3" }  # parse the workflow for breakpoint line-mapping
+nika-check  = { path = "../nika-check", version = "0.118.3" }  # the check ladder the evidence pack + inventory/drift scans fold
+nika-types  = { path = "../nika-types", version = "0.118.3" }   # field values on replayed frames
+nika-cap    = { path = "../nika-cap", version = "0.118.3" }     # BuiltinEffect — the drift scan's permit taxonomy
+nika-vocab  = { path = "../nika-vocab", version = "0.118.3" }   # the project file (traces.keep — the retention ladder's file rung · D-2026-08-11-N5)
+nika-runtime = { path = "../nika-runtime", version = "0.118.3" }  # the proof layer (preimage · receipt · semantic hash) — seal canonicalization + the evidence pack's fold
+nika-kernel = { path = "../nika-kernel", version = "0.118.3" }   # the HttpPostDyn seam the anchor's submit rides
+nika-store  = { path = "../nika-store", version = "0.118.3" }    # F-P8 signed memory — the teardown's `covers["memory"]` fold substrate (memory::attend)
 sha2        = { workspace = true }                              # the chain primitive + source identity (one voice)
 # The trust plane (descended from nika-cli 2026-07-21 · the 15k wall —
 # compute descends, render stays): seal custody · workflow signing.
@@ -44,8 +44,8 @@ nix            = { workspace = true, features = ["fs", "hostname"] }   # the wri
 [dev-dependencies]
 tempfile = { workspace = true }   # replay fixtures on disk
 proptest = { workspace = true }   # stats totality (quantile_h7 over arbitrary finite samples)
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.118.2" }   # the anchor submit path's MockHttp seam
-nika-display = { path = "../nika-display", version = "0.118.2" }   # the journal tests' demo event fixtures (test-only)
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.118.3" }   # the anchor submit path's MockHttp seam
+nika-display = { path = "../nika-display", version = "0.118.3" }   # the journal tests' demo event fixtures (test-only)
 tokio    = { workspace = true }   # the submit path's test runtime (current-thread block_on)
 
 [package.metadata.lore]
