@@ -22,6 +22,8 @@
 use nika_types::extract::{EXTRACT_MODE_NAMES, ExtractMode};
 use nika_types::net::MAX_TRAVERSE_PAGES;
 
+use crate::{HashAlgorithm, HashEncoding};
+
 /// Every statically-checkable arg-shape finding for one `invoke:` of
 /// `tool` with `args` — empty when the shape holds (or when the tool
 /// carries no shape rules). Task identity/spans are the CALLER's
@@ -64,9 +66,44 @@ pub fn builtin_shape_findings(tool: &str, args: Option<&serde_json::Value>) -> V
         "nika:image_fx" => check_image_fx_shape(args, &mut out),
         "nika:tts_generate" => check_tts_generate_shape(args, &mut out),
         "nika:decide" => check_decide_shape(args, &mut out),
+        "nika:hash" => check_hash_shape(args, &mut out),
         _ => {}
     }
     out
+}
+
+/// Judge literal choices independently: one templated argument does not
+/// hide an invalid literal sibling. Resolved values are re-vetted at runtime.
+fn check_hash_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>) {
+    let Some(map) = args.and_then(serde_json::Value::as_object) else {
+        return;
+    };
+    if map.get("content").is_some_and(serde_json::Value::is_null) {
+        out.push(
+            "`content:` must be a non-null JSON value (builtins-v0.1.md §nika:hash)".to_owned(),
+        );
+    }
+    for key in ["algo", "encoding"] {
+        let Some(value) = map.get(key) else { continue };
+        let Some(text) = value.as_str() else {
+            out.push(format!(
+                "`{key}:` must be a string (builtins-v0.1.md §nika:hash)"
+            ));
+            continue;
+        };
+        if text.contains("${{") {
+            continue;
+        }
+        let valid = match key {
+            "algo" => HashAlgorithm::parse(text).is_some(),
+            _ => HashEncoding::parse(text).is_some(),
+        };
+        if !valid {
+            out.push(format!(
+                "unsupported hash `{key}: {text}` (builtins-v0.1.md §nika:hash)"
+            ));
+        }
+    }
 }
 
 /// `nika:decide` static contracts (spec 11 §nika:decide): `bundle:` is a

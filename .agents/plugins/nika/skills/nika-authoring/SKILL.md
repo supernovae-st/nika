@@ -6,8 +6,8 @@ description: Author, check and repair Nika workflows (.nika.yaml files — the w
 # Authoring Nika workflows
 
 Nika turns repeatable AI work into files: one `.nika.yaml`, four verbs,
-audited **before** it runs. You author the file; `nika check` is the
-oracle; the human runs it.
+audited **before** it runs. You author the file; `nika check` supplies
+the evidence for an authorized run.
 
 ## The oracle is evidence, not permission
 
@@ -19,17 +19,17 @@ inspect `judged` and the children's findings; a report that did not resolve
 children cannot certify the tree.
 
 Check readiness never authorizes execution, spend, a wider permit, or a
-publication. `--model mock/echo` changes the envelope model, not per-task
+publication. Carry out execution already authorized by the user without
+asking again; preserve its scope and the engine and host gates. If a
+business decision or human-gate answer is still missing, ask for that
+answer rather than inferring it from permission to run.
+`--model mock/echo` changes the envelope model, not per-task
 model pins, subprocesses, network tools, file writes, or secret sources.
 Before an authorized rehearsal, review those effects and use an isolated
 workspace with the intended boundary. In an editor, workspace trust is a
 separate host decision; an offline model does not bypass it.
 
-## Read the workspace, then two examples before you write
-
-**This file is the map. The examples are the territory.** A map this
-detailed is exactly why authors skip the ground, and the ground is where
-the shapes live. Nothing below replaces reading two real files.
+## Read the workspace and resolve unfamiliar shapes
 
 Join the workspace before adding to it. A local workflow may already own
 the job, its conventions and its permits boundary:
@@ -43,27 +43,14 @@ nika check <candidate>          # the oracle: clean or an exact repair
 
 `nika list` lists candidates; it does not certify them. Reuse or extend a
 matching local file only after `nika check` is clean. If nothing local fits,
-continue to the embedded shelf; even when one does, the two canonical reads
-below remain the cheapest shape check before a structural edit.
-
-The cost of skipping it was measured on 2026-07-28. Six authors each
-wrote one workflow from a real intention with this skill loaded and
-nothing else. **None reached a green check one-shot: 45 check→fix rounds
-between them, 7.5 on average, 11 at worst.** One of those authors spent
-**eight** rounds on their file, then read two example files, and wrote their NEXT workflow **one-shot green. Zero
-rounds.**
-
-Eight to zero, and the delta was two reads; the measured alternative
-is 7.5 check→fix rounds. Reading
-them is not diligence, it is the cheapest move on the board.
-
-**The order, every time. Never write first and look second:**
+continue to the embedded shelf. Read an example when its shape resolves an
+uncertainty in the task; read a second only for a gap the first leaves.
+A small edit to a known workflow does not require creating example files.
 
 ```
 nika try                        # the shelf · the path, then the jobs
 nika new <slug>                 # take the one matching your intent (table below) — read it
-nika new <second-slug>          # take the one covering what the first did not — read it
-                                # only now open your file
+nika new <second-slug>          # optional: a different shape still needed
 ```
 
 Read for SHAPE, not for prose. Four things, in this order: which verb
@@ -104,11 +91,10 @@ with or without its `showcase/` prefix and with or without the
 
 ## The loop (always)
 
-1. **Start from the example you just read**, never from a blank file.
-   The section above is not advice, it is step zero: `nika try` ·
-   `nika new <slug>` (take the lesson — the file is the read) ·
-   `nika new <template> <file>.nika.yaml`. An author who writes
-   first and reads second pays the measured 7.5 rounds.
+1. **Reuse the relevant workflow or example.** For a new structure,
+   inspect the shelf with `nika try` and read a matching `nika new <slug>`.
+   For a small repair, keep the existing file and change only what the
+   task and diagnostics require.
 2. **Write the file.** The envelope is `nika: <id>` (kebab-case — the
    workflow id lives ON the tag since 2026-08-12; that one key carries
    BOTH the mark and the name, and `description:` died with the
@@ -129,8 +115,11 @@ with or without its `showcase/` prefix and with or without the
    with a note, never guessed) and re-audits; repair what remains from
    the diagnostics — they name the exact task, reference and fix.
    Unknown code? `nika explain NIKA-XXXX`.
-5. Repeat 3–4 until clean. **Never hand a file to the human that does
-   not pass `nika check --native-strict` AND `paid_ready: true`.**
+5. Repeat 3–4 until clean, or report the concrete unresolved dependency
+   or decision with the checked file and its diagnostics. An incomplete
+   handoff is not a runnable result. For an execution-ready handoff,
+   require a clean `nika check --native-strict`; for paid inference,
+   also inspect `paid_ready` and its blockers.
    `--native-strict` is the run-gate bar (an `exec:` a builtin covers).
    `.paid_ready` is the paid-infer bar
    (`nika check --json <file> | jq .paid_ready`).
@@ -142,8 +131,8 @@ with or without its `showcase/` prefix and with or without the
    fails with a complete ledger) — it documents intent for a reviewer.
    What passes is an `exec:` of a real tool (`git`, `docker`); what
    fails is an `exec:` of a `.py`/`.mjs`/`.sh` wrapper, ledger or not.
-6. The human (or CI) runs it: `nika run <file>`. Preview offline with
-   `--model mock/echo`; run locally with `--model ollama/<model>` —
+6. When execution is authorized, run it: `nika run <file>`. Preview offline
+   with `--model mock/echo`; run locally with `--model ollama/<model>` —
    or fully in-binary: `nika model pull <owner/repo-GGUF>` then
    `nika model serve --model <id>` (qwen3-family GGUFs today; the
    serve banner prints the exact env + `model:` line workflows use).
@@ -296,10 +285,9 @@ then `beta at 1`. An example that only checks is half an example.
 Every authoring decision has a default. Take it unless the job forces
 otherwise, in this order:
 
-1. **Shape before content.** Two example reads (take them:
-   `nika new <slug>`), then the file (§Read two examples · measured 8 rounds → 0). Never a blank
-   file. The outer shape decides the task graph before a single prompt
-   is written, and copying a shape is free where guessing it is not.
+1. **Shape before content.** Resolve unfamiliar graph, binding and
+   permit shapes from a relevant example before extending them. Preserve
+   a working structure when the task only needs a small edit.
 2. **One job, one task, one verb.** If a task needs an "and then", it is
    two tasks. The verb IS the key.
 3. **Pick the verb by execution model, not convenience.** `invoke:` when
@@ -336,7 +324,7 @@ otherwise, in this order:
    cleanup lane. Swallowing an error is never the plan.
 10. **Prove it before handing it over.** `nika check` clean, then
     `--native-strict`, then a golden pin if the workflow is hermetic.
-    Only then does the human get the run line.
+    Report those checks and the run line, or execute it when authorized.
 
 ## Paid infer (the order that is cheaper than tokens)
 
@@ -374,19 +362,17 @@ not execution consent or a complete safety proof. A runnable handoff
 also needs a clean native-strict check and the intended authority. Each
 question has a command or a file. Do not reason from memory.
 
-Zhang, Kraska, Khattab 2026 (arXiv:2512.24601, Recursive Language
-Models): the prompt is an *environment* you inspect and decompose,
-not a blob you swallow. In Nika that environment is the file + two
-examples + `nika catalog --tools`. Recursion is `invoke: { workflow: }`
-or `for_each:` over items — never one giant infer. Verification is
-`nika:jq` / `nika:decide`, never a second infer that names the verdict.
+Inspect the workflow, relevant examples and `nika catalog --tools` as
+needed. Use `invoke.workflow` for child workflows and `for_each` for
+collections. Test deterministic rules with known answers; a schema or
+an anchor substring check does not establish that extracted facts are true.
 
 0. **Is `.paid_ready` true?** `nika check --json <file> | jq .paid_ready`.
    `false` → repair `.next` (kind · task · advice) first, then the rest
    of `.paid_blockers[]`; also inspect `.compiled` and the findings.
    Do not swap off `mock/` while a paid blocker remains.
-1. **Did I read two examples first?** `nika try` then `nika new <slug>`
-   twice. Skipping this is the measured 7.5-round tax.
+1. **Is an unfamiliar shape still unresolved?** Read the relevant
+   `nika try` / `nika new <slug>` example, then check the actual file.
 2. **Is every `exec:` a real tool?** `nika check --native-strict`. A
    `.py`/`.sh` wrapper is not a tool.
 3. **Does any infer name the verdict?** Hint `infer-as-law`. Extract
@@ -406,10 +392,11 @@ or `for_each:` over items — never one giant infer. Verification is
 9. **Is the law proven on known answers?** Hint `unproven-law`. A
    jq/decide that scores an infer needs a const-fixture `nika:assert`.
 
-A green check with `paid_ready: false` is not a handoff. Repair the
-blocker. Re-run 0–8 until findings are empty and `paid_ready` is true,
-or every remaining *non-paid* hint has a one-line reason in the file
-header (the honest red class, CONVENTIONS §10).
+Before paid execution, resolve the paid blockers as well as the findings.
+If a dependency or decision is unavailable, hand over the checked artifact
+with its exact blocker and remaining action; do not call it ready or run it.
+Explain remaining non-paid hints without treating that explanation as an
+exemption from native-first admission (CONVENTIONS §10).
 
 ## Cost honesty (never hide unknown spend)
 
@@ -547,9 +534,9 @@ languages in one file, and only one of them takes `type:`.
   already-admitted calls can overshoot, and static estimates still
   exclude input-token cost. Tighten concurrency and per-call limits;
   never call the parent's cap a hard invoice ceiling.
-- The child writes **its own trace file**. A parent run leaves two
-  chains in `.nika/traces/`; the parent's failure line names the child's
-  trace id, and that is the one to `nika trace show`.
+- An executed child has its own trace when recording is enabled and
+  delivery succeeds. Follow the child's trace id when the parent reports
+  one; disabled or failed recording does not guarantee a second file.
 
 Reach for composition when a workflow has two audiences (a reusable
 audit any project can call) or when one file stops fitting in a

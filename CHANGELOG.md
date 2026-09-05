@@ -16,6 +16,23 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.118.7](https://github.com/supernovae-st/nika/compare/v0.118.6..v0.118.7) - 2026-09-05
+
+### Fixed
+
+- **File journals refuse bytes beyond the verifier's existing bounds.**
+  Check final encoded lines and cumulative bytes, including newlines,
+  before writing. A refusal stops that journal and reports lost evidence
+  while preserving the primary output and runtime settlement. This does
+  not provide complete proofs for oversized runs or resolve #1458.
+- **Hash arguments agree across check and execution.** Literal null content and invalid algorithm or encoding choices are refused before execution; omitted options keep their defaults, and accepted content keeps its original digest. Tool schemas expose the same closed choices. Gemini tool declarations carry the canonical JSON Schema through `parametersJsonSchema`.
+- **Incomplete trace diagnostics describe evidence, not runtime failure.**
+  A missing terminal frame and an unheld writer lease no longer claim a
+  crash or an unsettled run. An invalid final line also does not exclude
+  intentional modification. A file journal can stop while the primary
+  run still succeeds; verification tiers and exit codes are unchanged.
+- **Agent guidance reflects readiness and effect evidence.** The four skills preserve existing execution authorization and distinguish missing decisions from check readiness. Authoring uses examples for unfamiliar structures; debugging explains resume eligibility, uncertain remote effects and the upstream tasks included by `--task`. Operating guidance preserves secret host boundaries and separates definition pins from trust in a server. Plugin descriptions now state the limits of metered budgets and trace delivery.
+
 ## [0.118.6](https://github.com/supernovae-st/nika/compare/v0.118.5..v0.118.6) - 2026-09-05
 
 This version includes the One Door source changes recorded in the preceding

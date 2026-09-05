@@ -12,23 +12,23 @@ publish                = false  # Internal L4 interface crate (the binary ships,
 default-run            = "nika" # the one public executable (ADR-135) · `cargo run` and `--bin` know no other name
 
 [dependencies]
-nika-event  = { path = "../nika-event", version = "0.118.6" }  # the REAL event taxonomy (the fold input)
-nika-cli-host = { path = "../nika-cli-host", version = "0.118.6" } # the host-integration member (the 15k wall · ADR-110 · one unit, two members)
-nika-session = { path = "../nika-session", version = "0.118.6", default-features = false }  # the native session (bare `nika` on a terminal · ADR-125)
-nika-types  = { path = "../nika-types", version = "0.118.6" }  # Timestamp · KeyValue · ids
-nika-schema = { path = "../nika-schema", version = "0.118.6" } # parse (check · inspect · graph · run)
-nika-vocab  = { path = "../nika-vocab", version = "0.118.6" }
-nika-cadence = { path = "../nika-cadence", version = "0.118.6" }  # the arm: grammar + the pure next-slot calculator (L4→L0)
-nika-arm     = { path = "../nika-arm", version = "0.118.6" }      # descriptor-rooted ARM custody + the one firer (L4→L4)
-nika-fs      = { path = "../nika-fs", version = "0.118.6" }       # descriptor-rooted sidecar ownership (L4→L1)
-nika-execution = { path = "../nika-execution", version = "0.118.6" } # shared owned-byte admission/execution boundary (L4→L3)
-nika-service-execution = { path = "../nika-service-execution", version = "0.118.6" } # the ONE shared production execution driver over an admitted world (L4→L3)
-nika-serve   = { path = "../nika-serve", version = "0.118.6" }      # loopback HTTP mode of `nika serve` (W06)
+nika-event  = { path = "../nika-event", version = "0.118.7" }  # the REAL event taxonomy (the fold input)
+nika-cli-host = { path = "../nika-cli-host", version = "0.118.7" } # the host-integration member (the 15k wall · ADR-110 · one unit, two members)
+nika-session = { path = "../nika-session", version = "0.118.7", default-features = false }  # the native session (bare `nika` on a terminal · ADR-125)
+nika-types  = { path = "../nika-types", version = "0.118.7" }  # Timestamp · KeyValue · ids
+nika-schema = { path = "../nika-schema", version = "0.118.7" } # parse (check · inspect · graph · run)
+nika-vocab  = { path = "../nika-vocab", version = "0.118.7" }
+nika-cadence = { path = "../nika-cadence", version = "0.118.7" }  # the arm: grammar + the pure next-slot calculator (L4→L0)
+nika-arm     = { path = "../nika-arm", version = "0.118.7" }      # descriptor-rooted ARM custody + the one firer (L4→L4)
+nika-fs      = { path = "../nika-fs", version = "0.118.7" }       # descriptor-rooted sidecar ownership (L4→L1)
+nika-execution = { path = "../nika-execution", version = "0.118.7" } # shared owned-byte admission/execution boundary (L4→L3)
+nika-service-execution = { path = "../nika-service-execution", version = "0.118.7" } # the ONE shared production execution driver over an admitted world (L4→L3)
+nika-serve   = { path = "../nika-serve", version = "0.118.7" }      # loopback HTTP mode of `nika serve` (W06)
 jiff        = { workspace = true }  # the CLOCK — nika-cadence is pure and takes a Zoned; reading one is an L4 act  # the project file (ceiling — the --max-cost-usd flag's default rung · D-2026-08-11-N5)
-nika-check  = { path = "../nika-check", version = "0.118.6" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
-nika-graph = { path = "../nika-graph", version = "0.118.6" }   # the canonical projection (inspect --format json renders it)
-nika-error  = { path = "../nika-error", version = "0.118.6" }  # the code registry (`nika explain`)
-nika-pack   = { path = "../nika-pack", version = "0.118.6" }   # the embedded language pack (`nika spec|schema|examples|new`)
+nika-check  = { path = "../nika-check", version = "0.118.7" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
+nika-graph = { path = "../nika-graph", version = "0.118.7" }   # the canonical projection (inspect --format json renders it)
+nika-error  = { path = "../nika-error", version = "0.118.7" }  # the code registry (`nika explain`)
+nika-pack   = { path = "../nika-pack", version = "0.118.7" }   # the embedded language pack (`nika spec|schema|examples|new`)
 # nika-cap + url moved out with the drift compute (nika-dap hosts both now).
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
@@ -41,22 +41,22 @@ nix         = { workspace = true, features = ["fs"] }          # kernel advisory
 # the L3 executor + its composer, the registry resolve half, the provider
 # probe/explain ladders, the builtin tool list (tools · welcome), and the
 # registry/anchor http clients.
-nika-kernel      = { path = "../nika-kernel", version = "0.118.6" }        # ProviderInferDyn · Secret · the seam traits
-nika-runtime     = { path = "../nika-runtime", version = "0.118.6" }       # the L3 executor + the descended production composer (compose · admit · SystemStamper)
-nika-registry-client = { path = "../nika-registry-client", version = "0.118.6" }  # the L2 resolve/verify/cache half (this crate composes http + executor around it)
-nika-providers   = { path = "../nika-providers", version = "0.118.6" }     # ProviderRegistry — the probe/explain ladders
-nika-builtin     = { path = "../nika-builtin", version = "0.118.6" }       # tool_defs/tools_json — the tools + welcome surfaces
-nika-http        = { path = "../nika-http", version = "0.118.6" }          # ReqwestHttp — the registry + trace-anchor clients (notify descended to nika-cli-host · ADR-111)
+nika-kernel      = { path = "../nika-kernel", version = "0.118.7" }        # ProviderInferDyn · Secret · the seam traits
+nika-runtime     = { path = "../nika-runtime", version = "0.118.7" }       # the L3 executor + the descended production composer (compose · admit · SystemStamper)
+nika-registry-client = { path = "../nika-registry-client", version = "0.118.7" }  # the L2 resolve/verify/cache half (this crate composes http + executor around it)
+nika-providers   = { path = "../nika-providers", version = "0.118.7" }     # ProviderRegistry — the probe/explain ladders
+nika-builtin     = { path = "../nika-builtin", version = "0.118.7" }       # tool_defs/tools_json — the tools + welcome surfaces
+nika-http        = { path = "../nika-http", version = "0.118.7" }          # ReqwestHttp — the registry + trace-anchor clients (notify descended to nika-cli-host · ADR-111)
 # keyring + minisign moved out with the trust plane (nika-dap::seal/sign host the custody + primitives now).
-nika-catalog     = { path = "../nika-catalog", version = "0.118.6", features = ["providers", "pricing"] }  # env_var ladder + the rates the preflight shows
-nika-lsp         = { path = "../nika-lsp", version = "0.118.6" }           # `nika lsp` — the language server (stdio · drives the editor extension)
-nika-display     = { path = "../nika-display", version = "0.118.6" } # the run-comprehension surface (descended 2026-07-10 · re-exported at display::)
-nika-onboard     = { path = "../nika-onboard", version = "0.118.6" } # the founding wizard + guided first workflow (descended 2026-07-12 · adapters at verbs/{init,new}.rs)
-nika-dap         = { path = "../nika-dap", version = "0.118.6" }           # `nika dap` + the trace-forensics plane (chain · recover · otel · reproduce · store · retention — re-exported at the old verb paths)
-nika-trace       = { path = "../nika-trace", version = "0.118.6" }         # the flight-recorder reader (trace verbs · evidence · receipt · forecast · the bin's trace arm — descended 2026-08-11 · re-exported at the old verb paths)
-nika-mcp         = { path = "../nika-mcp", version = "0.118.6" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
-nika-models      = { path = "../nika-models", version = "0.118.6" }        # `nika model` — the local-models unit (ONE dir · Hub pull · serve glue · descended 2026-07-12)
-nika-migrate     = { path = "../nika-migrate", version = "0.118.6" }       # the .nika.yaml envelope migrations (W1 map · W2 flow) — the fix verb's repairs (descended 2026-07-15 · size-cap · pure std)
+nika-catalog     = { path = "../nika-catalog", version = "0.118.7", features = ["providers", "pricing"] }  # env_var ladder + the rates the preflight shows
+nika-lsp         = { path = "../nika-lsp", version = "0.118.7" }           # `nika lsp` — the language server (stdio · drives the editor extension)
+nika-display     = { path = "../nika-display", version = "0.118.7" } # the run-comprehension surface (descended 2026-07-10 · re-exported at display::)
+nika-onboard     = { path = "../nika-onboard", version = "0.118.7" } # the founding wizard + guided first workflow (descended 2026-07-12 · adapters at verbs/{init,new}.rs)
+nika-dap         = { path = "../nika-dap", version = "0.118.7" }           # `nika dap` + the trace-forensics plane (chain · recover · otel · reproduce · store · retention — re-exported at the old verb paths)
+nika-trace       = { path = "../nika-trace", version = "0.118.7" }         # the flight-recorder reader (trace verbs · evidence · receipt · forecast · the bin's trace arm — descended 2026-08-11 · re-exported at the old verb paths)
+nika-mcp         = { path = "../nika-mcp", version = "0.118.7" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
+nika-models      = { path = "../nika-models", version = "0.118.7" }        # `nika model` — the local-models unit (ONE dir · Hub pull · serve glue · descended 2026-07-12)
+nika-migrate     = { path = "../nika-migrate", version = "0.118.7" }       # the .nika.yaml envelope migrations (W1 map · W2 flow) — the fix verb's repairs (descended 2026-07-15 · size-cap · pure std)
 tokio            = { workspace = true }                                   # the bin's async entry (block the run on the executor)
 
 [features]
@@ -88,23 +88,23 @@ name = "nika"
 path = "src/main.rs"
 
 [dev-dependencies]
-nika-arm = { path = "../nika-arm", version = "0.118.6", features = ["test-support"] }
+nika-arm = { path = "../nika-arm", version = "0.118.7", features = ["test-support"] }
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
 tempfile       = { workspace = true }                              # isolated filesystem fixtures across the CLI test estate
 minisign       = { workspace = true }                              # the tier tests' keypair fixtures + the memory-fold teardown test (custody lives in nika-dap)
 blake3         = { workspace = true }                              # the memory e2e's independent set-digest recompute (H13 fold shape)
 sha2           = { workspace = true }                              # integration fixtures independently recompute composition/resume digests
-nika-store       = { path = "../nika-store", version = "0.118.6" }  # F-P8 signed memory — the teardown fold test + the e2e's seeded store
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.118.6" }
-nika-cap         = { path = "../nika-cap", version = "0.118.6" }           # the teardown memory-fold test's Integrity label (F-P8)
+nika-store       = { path = "../nika-store", version = "0.118.7" }  # F-P8 signed memory — the teardown fold test + the e2e's seeded store
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.118.7" }
+nika-cap         = { path = "../nika-cap", version = "0.118.7" }           # the teardown memory-fold test's Integrity label (F-P8)
 # The e2e rehearsals (tests/e2e_pipeline.rs · forecast_e2e.rs ·
 # composition_e2e.rs) compose their OWN mock-seamed runtimes — the verb
 # crates + the journal hash ride dev-only since the production composer
 # descended to nika-runtime (2026-07-22).
-nika-verb-infer  = { path = "../nika-verb-infer", version = "0.118.6" }
-nika-verb-exec   = { path = "../nika-verb-exec", version = "0.118.6" }
-nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.118.6" }
-nika-verb-agent  = { path = "../nika-verb-agent", version = "0.118.6" }
+nika-verb-infer  = { path = "../nika-verb-infer", version = "0.118.7" }
+nika-verb-exec   = { path = "../nika-verb-exec", version = "0.118.7" }
+nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.118.7" }
+nika-verb-agent  = { path = "../nika-verb-agent", version = "0.118.7" }
 proptest = { workspace = true }   # Gate 6 · the fold's order-independence property (tests/fold_property.rs)
 insta    = { workspace = true }   # the arm report's snapshot (PROUVÉ · DÉCLARÉ · orphelins)
 uuid     = { workspace = true }   # test fixtures mint EventIds (the last prod use descended with the journal writer)

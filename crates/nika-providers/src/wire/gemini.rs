@@ -162,7 +162,9 @@ fn request_body(req: &InferRequest, wire_model: &str) -> Result<Value, ProviderE
                 json!({
                     "name": t.name,
                     "description": t.description,
-                    "parameters": t.parameters,
+                    // ToolDef carries JSON Schema, not Gemini's OpenAPI
+                    // Schema message (which cannot represent `not`).
+                    "parametersJsonSchema": t.parameters,
                 })
             })
             .collect();
@@ -670,6 +672,15 @@ mod tests {
         let b4 = request_body(&r2, "gemini-2.5-flash").expect("body");
         assert_eq!(b4["toolConfig"]["functionCallingConfig"]["mode"], "AUTO");
         assert_eq!(body["tools"][0]["functionDeclarations"][0]["name"], "add");
+        assert_eq!(
+            body["tools"][0]["functionDeclarations"][0]["parametersJsonSchema"],
+            r.tools[0].parameters
+        );
+        assert!(
+            body["tools"][0]["functionDeclarations"][0]
+                .get("parameters")
+                .is_none()
+        );
         assert_eq!(body["toolConfig"]["functionCallingConfig"]["mode"], "ANY");
         assert_eq!(
             body["toolConfig"]["functionCallingConfig"]["allowedFunctionNames"][0],

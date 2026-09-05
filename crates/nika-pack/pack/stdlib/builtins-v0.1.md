@@ -294,6 +294,8 @@ invoke: { tool: "nika:hash", args: { op: verify, content: "${{ with.manifest }}"
 ```
 Content hashing · default **blake3** (fastest modern cryptographic hash · parallel · secure) · or `sha256`/`sha512`. md5/sha1 NOT supported (cryptographically broken · `NIKA-BUILTIN-HASH-001` `validation_error` on an unsupported algo). `encoding:` `hex` (default) | `base64`. Use cases · cache keys · content addressing · provenance. `content:` accepts a string **or** a structured value (an object/array is hashed as compact JSON — do not pre-pipe `| tojson`).
 
+**Digest arguments (`op` omitted or `op: hash`).** `content` MUST be present and non-null. Strings are hashed verbatim; every other non-null JSON value (object, array, number or boolean) is hashed as compact JSON. An empty string, `0`, `false`, an empty object or array, and null members inside an object or array are valid content. `algo` and `encoding` use their defaults only when absent. When present, each MUST be a string in its listed closed set; null, another JSON type, an empty string or an unsupported value is a validation error (`NIKA-BUILTIN-HASH-001`). Statically known invalid literals MUST be refused before execution. A valid substitution expression whose result is not yet known is checked after resolution; it does not exempt other, independently decidable arguments from validation.
+
 **`op:` · `hash` (default) · `sign` · `verify` (normative · v0.1 surface).**
 The engine already signs and verifies Ed25519 — the run seal is one Ed25519
 signature over the journal, minted by `nika key init` and checked by the

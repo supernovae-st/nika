@@ -28,6 +28,16 @@ and has no keyword. The engine-side kit gate
 (`the_kit_never_teaches_a_form_the_engine_refuses`) now holds those
 spellings, proven by mutation.
 
+## 0.118.7 — 2026-09-05
+
+Lockstep on the engine wave.
+
+The four skills distinguish existing execution authorization from missing
+decisions, check readiness and resume eligibility. Examples address unfamiliar
+structures without a fixed reading quota. Debugging documents the dependencies
+included by `--task`; operating preserves secret host boundaries and qualifies
+definition pins. Public descriptions reflect metered budget and trace limits.
+
 ## 0.118.6 — 2026-09-05
 
 Lockstep on the engine wave. Authoring distinguishes draft checking from

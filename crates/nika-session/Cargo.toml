@@ -11,22 +11,22 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-022.
 
 [dependencies]
-nika-cli-host = { path = "../nika-cli-host", version = "0.118.6", default-features = false }  # the ONE probe/census · the oracle facade · the git-root walk (lateral L4→L4 · ADR-124 precedent)
-nika-providers = { path = "../nika-providers", version = "0.118.6", default-features = false }  # AccessClass · the resolver law (the guard's model check) · ProviderRegistry (the API/local reasoner)
-nika-verb-infer = { path = "../nika-verb-infer", version = "0.118.6", default-features = false }  # ONE inference call, no workflow (the API/local reasoner)
-nika-http     = { path = "../nika-http", version = "0.118.6" }        # ReqwestHttp — the API reasoner's wire
-nika-runtime  = { path = "../nika-runtime", version = "0.118.6" }     # compose::config_from_env — the ONE env boundary · engine_identity
-nika-dap      = { path = "../nika-dap", version = "0.118.6" }         # inventory::collect_workflows — the ONE workspace walker
-nika-vocab    = { path = "../nika-vocab", version = "0.118.6" }       # project::discover — the project file
-nika-pack     = { path = "../nika-pack", version = "0.118.6" }        # the embedded facts (canon · schema · examples · templates · codes)
-nika-builtin  = { path = "../nika-builtin", version = "0.118.6" }     # tools_json — the builtin names the guard trusts
-nika-error    = { path = "../nika-error", version = "0.118.6" }       # codes::lookup — the numeric registry the guard trusts
-nika-types    = { path = "../nika-types", version = "0.118.6" }       # AccessClass — the census reads the probe rows by class
-nika-onboard  = { path = "../nika-onboard", version = "0.118.6" }     # routing::route_query — the ONE intent router
-nika-harness  = { path = "../nika-harness", version = "0.118.6", optional = true }  # the infer-grade seat (the harness reasoner)
-nika-check    = { path = "../nika-check", version = "0.118.6" }       # CheckReport — the preview's effect rows read the report's own permits and requirements
-nika-cap      = { path = "../nika-cap", version = "0.118.6" }         # ExecPermit — the exec grant's shape in the effect rows
-nika-fs       = { path = "../nika-fs", version = "0.118.6" }          # OwnedDir::write_atomic — a change lands by temp + rename below the root's descriptor
+nika-cli-host = { path = "../nika-cli-host", version = "0.118.7", default-features = false }  # the ONE probe/census · the oracle facade · the git-root walk (lateral L4→L4 · ADR-124 precedent)
+nika-providers = { path = "../nika-providers", version = "0.118.7", default-features = false }  # AccessClass · the resolver law (the guard's model check) · ProviderRegistry (the API/local reasoner)
+nika-verb-infer = { path = "../nika-verb-infer", version = "0.118.7", default-features = false }  # ONE inference call, no workflow (the API/local reasoner)
+nika-http     = { path = "../nika-http", version = "0.118.7" }        # ReqwestHttp — the API reasoner's wire
+nika-runtime  = { path = "../nika-runtime", version = "0.118.7" }     # compose::config_from_env — the ONE env boundary · engine_identity
+nika-dap      = { path = "../nika-dap", version = "0.118.7" }         # inventory::collect_workflows — the ONE workspace walker
+nika-vocab    = { path = "../nika-vocab", version = "0.118.7" }       # project::discover — the project file
+nika-pack     = { path = "../nika-pack", version = "0.118.7" }        # the embedded facts (canon · schema · examples · templates · codes)
+nika-builtin  = { path = "../nika-builtin", version = "0.118.7" }     # tools_json — the builtin names the guard trusts
+nika-error    = { path = "../nika-error", version = "0.118.7" }       # codes::lookup — the numeric registry the guard trusts
+nika-types    = { path = "../nika-types", version = "0.118.7" }       # AccessClass — the census reads the probe rows by class
+nika-onboard  = { path = "../nika-onboard", version = "0.118.7" }     # routing::route_query — the ONE intent router
+nika-harness  = { path = "../nika-harness", version = "0.118.7", optional = true }  # the infer-grade seat (the harness reasoner)
+nika-check    = { path = "../nika-check", version = "0.118.7" }       # CheckReport — the preview's effect rows read the report's own permits and requirements
+nika-cap      = { path = "../nika-cap", version = "0.118.7" }         # ExecPermit — the exec grant's shape in the effect rows
+nika-fs       = { path = "../nika-fs", version = "0.118.7" }          # OwnedDir::write_atomic — a change lands by temp + rename below the root's descriptor
 
 blake3      = { workspace = true }   # the witness of the bytes a preview was built over
 serde       = { workspace = true }

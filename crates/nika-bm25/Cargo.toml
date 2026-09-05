@@ -41,9 +41,9 @@ _gate-3-green-phase = []
 # Pure-algo core uses ZERO nika-* deps · maison tokenizer (std::char) · BTreeMap (std) · f64 (std)
 
 # Kernel adapter deps · gated behind `kernel` feature
-nika-types     = { path = "../nika-types", version = "0.118.6", optional = true }
-nika-error     = { path = "../nika-error", version = "0.118.6", optional = true }
-nika-kernel    = { path = "../nika-kernel", version = "0.118.6", optional = true }
+nika-types     = { path = "../nika-types", version = "0.118.7", optional = true }
+nika-error     = { path = "../nika-error", version = "0.118.7", optional = true }
+nika-kernel    = { path = "../nika-kernel", version = "0.118.7", optional = true }
 thiserror      = { workspace = true, optional = true }
 tokio          = { workspace = true, features = ["rt"], optional = true }
 trait-variant  = { workspace = true, optional = true }
