@@ -71,6 +71,14 @@ overwrite a successful result with a cancellation request.
   owned bytes. A fixed clock or deleted pathname must not alias journals.
 - Serialize queued cancellation and execution claim under the same lease.
   Once a runtime owns the job, preserve its returned result.
+- A queued replay is neither execution ownership nor resume consent. Claim
+  and admission refusal both require `Queued` under the store lease; an old
+  queue entry cannot reopen a paused leg. Only a successful claim arms the
+  interruption guard and owns cancellation registration. A read-side check
+  avoids reopening known stale worlds but is not the transition authority.
+  This lifecycle observation uses the reserved store control lane, so a full
+  HTTP ingress queue cannot turn that optimization into a fatal execution.
+  The explicit paused-leg store transition remains available and tested.
 - Distinguish a pause observation boundary from a final job transition.
   Generic event append must not create or replace an authoritative pause.
 - Recover the same settlement through live SSE, a consumed terminal cursor,

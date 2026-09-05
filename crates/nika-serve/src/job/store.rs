@@ -395,61 +395,6 @@ impl JobStore {
         self.stamp_identity_inner(id, execution_id, trace_id, Some(snapshot_digest))
     }
 
-    /// Atomically stamp one readmitted execution identity and claim its run.
-    ///
-    /// A queued replay may prepare another in-memory admission, but only one
-    /// caller can persist the identity plus `Running` transition. No durable
-    /// state can therefore expose `Running` without the identity required to
-    /// mint an interruption receipt after restart.
-    ///
-    /// # Errors
-    /// Returns a typed identity, transition, event, contention, or storage
-    /// failure without mutating the durable record.
-    pub fn start_execution(
-        &self,
-        id: &JobId,
-        execution_id: String,
-        trace_id: String,
-        snapshot_digest: String,
-        payloads: &[Value],
-    ) -> Result<JobMutation, JobStoreError> {
-        if execution_id.is_empty()
-            || trace_id.is_empty()
-            || validate_snapshot_digest(&snapshot_digest).is_err()
-        {
-            return Err(JobStoreError::InvalidReceipt);
-        }
-        let batch = ValidatedEventBatch::for_transition(payloads)?;
-        let _local = self.local_guard()?;
-        let _lease = self.kernel_lease()?;
-        let mut state = self.load_state()?;
-        ensure_approval_claims_unused(&state, &batch)?;
-        let job = state
-            .jobs
-            .iter_mut()
-            .find(|job| job.record.id == *id)
-            .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
-        let current = job.record.status;
-        if !current.allows(JobStatus::Running) {
-            return Err(JobStoreError::IllegalTransition {
-                from: current,
-                to: JobStatus::Running,
-            });
-        }
-        job.record.execution_id = execution_id;
-        job.record.trace_id = trace_id;
-        job.record.snapshot_digest = snapshot_digest;
-        job.record.status = JobStatus::Running;
-        job.record.outputs = None;
-        job.record.receipt = None;
-        job.identity_digest = Some(hash_execution_identity(&job.record)?);
-        job.terminal_sequence = None;
-        let events = job.append_payloads(&batch)?;
-        let record = job.record.clone();
-        self.persist_event_mutation(&state, &batch)?;
-        Ok(JobMutation { record, events })
-    }
-
     fn stamp_identity_inner(
         &self,
         id: &JobId,
@@ -542,7 +487,7 @@ impl JobStore {
         next: JobStatus,
         payloads: &[Value],
     ) -> Result<JobMutation, JobStoreError> {
-        self.transition_inner(id, next, payloads, None, None)
+        self.transition_inner(id, next, payloads, None, None, None)
     }
 
     /// Atomically settle a job with declared outputs, receipt, and events.
@@ -566,7 +511,7 @@ impl JobStore {
         if !next.is_settled() {
             return Err(JobStoreError::InvalidReceipt);
         }
-        self.transition_inner(id, next, payloads, outputs, receipt)
+        self.transition_inner(id, next, payloads, outputs, receipt, None)
     }
 
     fn transition_inner(
@@ -576,6 +521,7 @@ impl JobStore {
         payloads: &[Value],
         outputs: Option<BTreeMap<String, Value>>,
         receipt: Option<JobReceipt>,
+        expected: Option<JobStatus>,
     ) -> Result<JobMutation, JobStoreError> {
         let batch = ValidatedEventBatch::for_transition(payloads)?;
         let _local = self.local_guard()?;
@@ -588,7 +534,7 @@ impl JobStore {
             .find(|job| job.record.id == *id)
             .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
         let current = job.record.status;
-        if !current.allows(next) {
+        if expected.is_some_and(|status| current != status) || !current.allows(next) {
             return Err(JobStoreError::IllegalTransition {
                 from: current,
                 to: next,

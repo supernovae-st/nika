@@ -917,9 +917,22 @@ async fn serve_connection(stream: TcpStream, state: Arc<AppState>) {
 }
 
 async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<(), ServerError> {
-    let (_registration, cancel) =
-        CancellationRegistration::new(Arc::clone(&state.cancellations), task.id.clone());
-    let mut guard = RunningGuard::new(state.store.clone(), task.id.clone());
+    // Replays can leave duplicate queue entries after the owner settles.
+    // This is only a read-avoidance optimization: the durable claim and
+    // queued-only refusal below still arbitrate concurrent transitions.
+    let expected = if task.prestarted {
+        JobStatus::Running
+    } else {
+        JobStatus::Queued
+    };
+    if state
+        .store
+        .execution_status(task.id.clone())
+        .await?
+        .is_some_and(|status| status != expected)
+    {
+        return Ok(());
+    }
     let admitted = match admit_task(&state, &mut task).await {
         Ok(admitted) => admitted,
         Err(error) => {
@@ -930,9 +943,10 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
                     "workflow world could not be readmitted".to_owned(),
                 ),
             };
-            guard
-                .settle(
-                    JobStatus::Failed,
+            let refused = state
+                .store
+                .refuse_queued(
+                    task.id.clone(),
                     json!({
                         "kind": "execution.refused",
                         "status": "failed",
@@ -940,13 +954,25 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
                         "message": message
                     }),
                 )
-                .await?;
-            return Ok(());
+                .await;
+            return match refused {
+                Ok(_) => Ok(()),
+                Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition {
+                    from,
+                    ..
+                })) if from != JobStatus::Queued => Ok(()),
+                Err(error) => Err(error),
+            };
         }
     };
+    let mut guard = RunningGuard::new(state.store.clone(), task.id.clone(), task.prestarted);
     if !task.prestarted && !start_running(&mut guard, &admitted).await? {
         return Ok(());
     }
+    // Only the claimed execution may retire its cancellation registration
+    // or interrupt its job on drop. A duplicate owns neither resource.
+    let (_registration, cancel) =
+        CancellationRegistration::new(Arc::clone(&state.cancellations), task.id.clone());
     settle_disposition(
         &state,
         &mut guard,
@@ -983,7 +1009,10 @@ async fn start_running(
         )
         .await
     {
-        Ok(_) => Ok(true),
+        Ok(_) => {
+            guard.armed = true;
+            Ok(true)
+        }
         Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) => {
             guard.disarm();
             Ok(false)
@@ -1116,28 +1145,12 @@ struct RunningGuard {
 }
 
 impl RunningGuard {
-    fn new(store: StoreHandle, id: JobId) -> Self {
-        Self {
-            store,
-            id,
-            armed: true,
-        }
+    fn new(store: StoreHandle, id: JobId, armed: bool) -> Self {
+        Self { store, id, armed }
     }
 
     fn disarm(&mut self) {
         self.armed = false;
-    }
-
-    async fn settle(
-        &mut self,
-        status: JobStatus,
-        event: serde_json::Value,
-    ) -> Result<(), ServerError> {
-        self.store
-            .transition_with_events(self.id.clone(), status, event)
-            .await?;
-        self.disarm();
-        Ok(())
     }
 
     async fn settle_result(

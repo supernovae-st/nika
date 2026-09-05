@@ -10,6 +10,108 @@ use super::{
 };
 
 impl JobStore {
+    /// Atomically stamp a readmitted identity and claim a legal running leg.
+    ///
+    /// This explicit transition also supports resuming a paused leg. Queue
+    /// workers use a queued-only claim: a stale replay is not resume consent.
+    /// Identity and `Running` become durable together, so interruption after
+    /// restart can retain the execution's receipt.
+    ///
+    /// # Errors
+    /// Returns a typed identity, transition, event, contention, or storage
+    /// failure without mutating the durable record.
+    pub fn start_execution(
+        &self,
+        id: &JobId,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        payloads: &[Value],
+    ) -> Result<JobMutation, JobStoreError> {
+        self.claim_execution(id, execution_id, trace_id, snapshot_digest, payloads, None)
+    }
+
+    pub(crate) fn start_queued_execution(
+        &self,
+        id: &JobId,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        payloads: &[Value],
+    ) -> Result<JobMutation, JobStoreError> {
+        self.claim_execution(
+            id,
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            payloads,
+            Some(JobStatus::Queued),
+        )
+    }
+
+    fn claim_execution(
+        &self,
+        id: &JobId,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        payloads: &[Value],
+        expected: Option<JobStatus>,
+    ) -> Result<JobMutation, JobStoreError> {
+        if execution_id.is_empty()
+            || trace_id.is_empty()
+            || validate_snapshot_digest(&snapshot_digest).is_err()
+        {
+            return Err(JobStoreError::InvalidReceipt);
+        }
+        let batch = ValidatedEventBatch::for_transition(payloads)?;
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let mut state = self.load_state()?;
+        super::ensure_approval_claims_unused(&state, &batch)?;
+        let job = state
+            .jobs
+            .iter_mut()
+            .find(|job| job.record.id == *id)
+            .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
+        let current = job.record.status;
+        if expected.is_some_and(|status| current != status) || !current.allows(JobStatus::Running) {
+            return Err(JobStoreError::IllegalTransition {
+                from: current,
+                to: JobStatus::Running,
+            });
+        }
+        job.record.execution_id = execution_id;
+        job.record.trace_id = trace_id;
+        job.record.snapshot_digest = snapshot_digest;
+        job.record.status = JobStatus::Running;
+        job.record.outputs = None;
+        job.record.receipt = None;
+        job.identity_digest = Some(hash_execution_identity(&job.record)?);
+        job.terminal_sequence = None;
+        let events = job.append_payloads(&batch)?;
+        let record = job.record.clone();
+        self.persist_event_mutation(&state, &batch)?;
+        Ok(JobMutation { record, events })
+    }
+
+    /// Reject only an unclaimed admission under the same lease as the run
+    /// claim. A failed duplicate may not settle another execution's job.
+    pub(crate) fn refuse_queued(
+        &self,
+        id: &JobId,
+        event: &Value,
+    ) -> Result<JobMutation, JobStoreError> {
+        self.transition_inner(
+            id,
+            JobStatus::Failed,
+            std::slice::from_ref(event),
+            None,
+            None,
+            Some(JobStatus::Queued),
+        )
+    }
+
     /// Cancel an unclaimed job without taking ownership from a running engine.
     /// Identity, receipt and cancellation become durable under the same lease
     /// that excludes `start_execution`; a stale queued read grants no authority.
