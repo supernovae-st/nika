@@ -65,6 +65,13 @@ endpoint="$1"
 shift
 if [ "$method" = PATCH ]; then
   printf '%s\n' "$*" >>"$PATCH_LOG"
+  # Body/state-only updates can orphan a draft. The real 0.118.5 run
+  # supplies the counterexample; explicitly bound writes preserve the tag.
+  patched_tag=untagged-fixture
+  for arg in "$@"; do
+    case "$arg" in tag_name=*) patched_tag="${arg#tag_name=}" ;; esac
+  done
+  printf '%s\n' "${POST_PATCH_TAG:-$patched_tag}" >"${RELEASE_BODY}.tag"
   printf 'false\n' >"$RELEASE_DRAFT"
   [ "${FINALIZE_COMMIT_THEN_ERROR:-0}" != 1 ] || exit 1
   exit 0
@@ -74,8 +81,10 @@ if [[ "$endpoint" == */releases/123 ]]; then
   if printf '%s\n' "$*" | grep -Fq '.body'; then
     cat "$RELEASE_BODY"
   else
+    actual_tag="$RELEASE_TAG"
+    [ ! -f "${RELEASE_BODY}.tag" ] || actual_tag="$(cat "${RELEASE_BODY}.tag")"
     printf '123\t%s\t%s\t%s\n' \
-      "$RELEASE_TAG" "$(cat "$RELEASE_DRAFT")" "$RELEASE_PRERELEASE"
+      "$actual_tag" "$(cat "$RELEASE_DRAFT")" "$RELEASE_PRERELEASE"
   fi
   exit 0
 fi
@@ -111,11 +120,13 @@ chmod +x "$BIN"/*
 run_finalizer() {
   local asset_mode="$1"
   local tap_ready="$2"
+  printf '%s\n' "$RELEASE_TAG" >"${RELEASE_BODY}.tag"
   env PATH="$BIN:$PATH" REMOTE="$REMOTE" PATCH_LOG="$PATCH_LOG" \
     RELEASE_BODY="$RELEASE_BODY" RELEASE_DRAFT="$RELEASE_DRAFT" \
     RELEASE_TAG="$RELEASE_TAG" RELEASE_PRERELEASE="$RELEASE_PRERELEASE" \
     RELEASE_SHA="$SHA" ASSET_MODE="$asset_mode" \
     STATE_MODE="${STATE_MODE:-ok}" \
+    POST_PATCH_TAG="${POST_PATCH_TAG:-}" \
     FINALIZE_COMMIT_THEN_ERROR="${FINALIZE_COMMIT_THEN_ERROR:-0}" \
     bash "$ROOT/scripts/release/finalize-release.sh" \
     supernovae-st/nika 123 "$RELEASE_TAG" "$SHA" "$DIGEST" \
@@ -214,8 +225,23 @@ export FINALIZE_COMMIT_THEN_ERROR
 result="$(run_finalizer full true)"
 unset FINALIZE_COMMIT_THEN_ERROR
 [ "$result" = 'transitioned=true' ] || fail 'fully proven stable draft did not publish'
-grep -Fqx -- '-F draft=false -f discussion_category_name=Announcements -f make_latest=legacy' \
+grep -Fqx -- "-f tag_name=$RELEASE_TAG -f target_commitish=$SHA -F draft=false -f discussion_category_name=Announcements -f make_latest=legacy" \
   "$PATCH_LOG" || fail 'stable finalizer PATCH arguments drifted'
+
+# A successful write response is not permission to accept a different tag.
+printf 'true\n' >"$RELEASE_DRAFT"
+: >"$PATCH_LOG"
+POST_PATCH_TAG=v9.9.8
+if run_finalizer full true >"$TEST_ROOT/post-patch-drift.out" 2>&1; then
+  fail 'finalizer accepted post-write release identity drift'
+fi
+unset POST_PATCH_TAG
+[ "$(wc -l <"$PATCH_LOG" | tr -d ' ')" = 1 ] \
+  || fail 'finalizer retried an observed identity drift'
+grep -Fq 'REFUSED tag v9.9.8' "$TEST_ROOT/post-patch-drift.out" \
+  || fail 'finalizer did not identify post-write tag drift'
+! grep -q '^transitioned=' "$TEST_ROOT/post-patch-drift.out" \
+  || fail 'finalizer claimed publication after tag drift'
 
 # Prerelease publication explicitly refuses Latest selection.
 make_assets 9.9.9-rc.1
@@ -226,7 +252,7 @@ printf 'true\n' >"$RELEASE_DRAFT"
 : >"$PATCH_LOG"
 result="$(run_finalizer full false)"
 [ "$result" = 'transitioned=true' ] || fail 'fully proven prerelease draft did not publish'
-grep -Fqx -- '-F draft=false -f discussion_category_name=Announcements -f make_latest=false' \
+grep -Fqx -- "-f tag_name=$RELEASE_TAG -f target_commitish=$SHA -F draft=false -f discussion_category_name=Announcements -f make_latest=false" \
   "$PATCH_LOG" || fail 'prerelease finalizer PATCH arguments drifted'
 
 echo 'finalize-release.test: PASS'

@@ -638,6 +638,8 @@ fi
 
 # Release body digest persistence and finalization share one fake GitHub API.
 # It models manual drift, stale release metadata, and commit-then-error writes.
+# The 0.118.5 body-only PATCH orphaned the draft despite returning success.
+# Omitted tag_name must not be modeled as an identity-preserving write.
 cat >"$BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -649,6 +651,13 @@ if [ "${1:-}" = --method ]; then method="$2"; shift 2; fi
 endpoint="$1"
 shift
 if [ "$method" = PATCH ]; then
+  printf 'PATCH\n' >>"$MARKER_PATCH_LOG"
+  printf '%s\n' "$@" >>"$MARKER_PATCH_LOG"
+  patched_tag=untagged-fixture
+  for arg in "$@"; do
+    case "$arg" in tag_name=*) patched_tag="${arg#tag_name=}" ;; esac
+  done
+  printf '%s\n' "${POST_PATCH_TAG:-$patched_tag}" >"${RELEASE_BODY}.tag"
   if printf '%s\n' "$*" | grep -Fq 'draft=false'; then
     printf '%s\n' "$*" >"$FINALIZE_LOG"
     printf 'false\n' >"$RELEASE_DRAFT"
@@ -658,7 +667,10 @@ if [ "$method" = PATCH ]; then
   body_arg=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      -f) body_arg="$2"; shift 2 ;;
+      -f)
+        case "$2" in body=*) body_arg="$2" ;; esac
+        shift 2
+        ;;
       *) shift ;;
     esac
   done
@@ -678,7 +690,9 @@ if [[ "$endpoint" == */releases/123 ]]; then
       echo 'gh: state read failed (HTTP 500)' >&2
       exit 1
     fi
-    printf '123\t%s\t%s\t%s\n' "$RELEASE_TAG" "$(cat "$RELEASE_DRAFT")" "$RELEASE_PRERELEASE"
+    actual_tag="$RELEASE_TAG"
+    [ ! -f "${RELEASE_BODY}.tag" ] || actual_tag="$(cat "${RELEASE_BODY}.tag")"
+    printf '123\t%s\t%s\t%s\n' "$actual_tag" "$(cat "$RELEASE_DRAFT")" "$RELEASE_PRERELEASE"
   fi
   exit 0
 fi
@@ -694,6 +708,8 @@ RELEASE_BODY="$TEST_ROOT/release-body"
 RELEASE_DRAFT="$TEST_ROOT/release-draft"
 RELEASE_LIST="$TEST_ROOT/release-list"
 FINALIZE_LOG="$TEST_ROOT/finalize-log"
+MARKER_PATCH_LOG="$TEST_ROOT/marker-patch-log"
+: >"$MARKER_PATCH_LOG"
 printf 'curated release body\n' >"$RELEASE_BODY"
 : >"$FINALIZE_LOG"
 printf 'true\n' >"$RELEASE_DRAFT"
@@ -707,6 +723,7 @@ release_env=(
   RELEASE_DRAFT="$RELEASE_DRAFT"
   RELEASE_LIST="$RELEASE_LIST"
   FINALIZE_LOG="$FINALIZE_LOG"
+  MARKER_PATCH_LOG="$MARKER_PATCH_LOG"
   RELEASE_TAG="$TAG"
   RELEASE_PRERELEASE=false
 )
@@ -717,6 +734,33 @@ env "${release_env[@]}" MARKER_COMMIT_THEN_ERROR=1 \
 grep -Fqx 'curated release body' "$RELEASE_BODY" \
   || fail 'digest staging replaced the existing release body'
 cp "$RELEASE_BODY" "$TEST_ROOT/valid-release-body"
+grep -Fqx "tag_name=$TAG" "$MARKER_PATCH_LOG" || fail 'marker PATCH omitted its tag'
+grep -Fqx "target_commitish=$RELEASE_SHA" "$MARKER_PATCH_LOG" \
+  || fail 'marker PATCH omitted its proven SHA'
+
+# Explicit coordinate fields do not waive post-write identity verification.
+# An observed divergent tag is refused, not repaired by a second PATCH.
+printf 'curated release body\n' >"$RELEASE_BODY"
+: >"$MARKER_PATCH_LOG"
+if env "${release_env[@]}" POST_PATCH_TAG=v9.9.8 \
+  bash "$ROOT/scripts/release/release-digest-marker.sh" stage \
+  supernovae-st/nika 123 "$TAG" "$RELEASE_SHA" "$DIGEST" \
+  >"$TEST_ROOT/post-patch-drift.out" 2>&1; then
+  fail 'marker stage accepted post-write release identity drift'
+fi
+[ "$(grep -c '^PATCH$' "$MARKER_PATCH_LOG")" = 1 ] \
+  || fail 'marker stage retried an observed identity drift'
+grep -Fq 'REFUSED tag v9.9.8' "$TEST_ROOT/post-patch-drift.out" \
+  || fail 'post-write refusal did not identify the tag drift'
+: >"$MARKER_PATCH_LOG"
+if env "${release_env[@]}" \
+  bash "$ROOT/scripts/release/release-digest-marker.sh" stage \
+  supernovae-st/nika 123 "$TAG" "$RELEASE_SHA" "$DIGEST" >/dev/null 2>&1; then
+  fail 'marker stage accepted pre-existing release identity drift'
+fi
+[ ! -s "$MARKER_PATCH_LOG" ] || fail 'marker stage overwrote a mismatched release tag'
+printf '%s\n' "$TAG" >"${RELEASE_BODY}.tag"
+cp "$TEST_ROOT/valid-release-body" "$RELEASE_BODY"
 if env "${release_env[@]}" RELEASE_STATE_GET_ERROR=1 \
   bash "$ROOT/scripts/release/release-digest-marker.sh" read \
   supernovae-st/nika 123 "$TAG" \
@@ -766,11 +810,13 @@ if env "${release_env[@]}" \
   2222222222222222222222222222222222222222 "$OTHER_DIGEST" >/dev/null 2>&1; then
   fail 'digest marker drift passed'
 fi
-if env "${release_env[@]}" RELEASE_TAG=v9.9.8 \
+printf 'v9.9.8\n' >"${RELEASE_BODY}.tag"
+if env "${release_env[@]}" \
   bash "$ROOT/scripts/release/read-release-state.sh" supernovae-st/nika 123 \
   "$TAG" 2222222222222222222222222222222222222222 >/dev/null 2>&1; then
   fail 'stale release tag state passed'
 fi
+printf '%s\n' "$TAG" >"${RELEASE_BODY}.tag"
 
 # The finalizer's complete proof and exact PATCH decision table have their own
 # executable regression; the pointer checks below model an already-public tag.

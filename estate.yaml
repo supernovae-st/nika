@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4861
+  classified_files: 4862
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 1881
+    authored: 1882
     authored-pin: 2
     generated: 127
     pinned-copy: 146
@@ -188,7 +188,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 203
-  aggregate_sha256: 429646a163afcf0a142a7e9422a72fb314e848155b3d52d43fd450ec76165f7f
+  aggregate_sha256: 03db63c7906b2bba92f639f07a1a89177f0d5053082ca37cfa385fe56f8c040b
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -242,14 +242,14 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 1
-  aggregate_sha256: 6b53a86aaa149c6719b91ac3e4afb6b688f06035aacf5a34608e8ea089deff36
+  match_count: 2
+  aggregate_sha256: 8f2b1595c4dc9f21d231cb2799fa3223ce0294a77a36b3dba9ee7f0ac3d4ae26
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: 6a711b2c5468784c786ef1abda399e324bec2c94618e35bf8108fcafce996812
+  aggregate_sha256: efcde8d4c0f5232fb7eebe41def4a64ac2073a7ac239e026858063828530c83b
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
