@@ -334,6 +334,14 @@ grep -q -- '--ref main' "$ROOT/RELEASING.md" \
   || fail 'the canonical replay ceremony does not select current guards'
 grep -q -- '--ref main' "$ROOT/docs/RELEASING.md" \
   || fail 'the public replay guide does not select current guards'
+grep -Fq '[RELEASING.md at the repository root](../RELEASING.md)' "$ROOT/docs/RELEASING.md" \
+  || fail 'the secondary release page must point to the canonical ceremony'
+grep -Fq 'not a second executable release recipe' "$ROOT/docs/RELEASING.md" \
+  || fail 'the secondary release page must identify its index-only authority'
+if grep -Eq 'git tag --sort|release renames the seed|git subtree split|npm publish --access' \
+  "$ROOT/docs/RELEASING.md"; then
+  fail 'the release index revives a retired identity or publication recipe'
+fi
 for label in \
   org.opencontainers.image.revision \
   org.opencontainers.image.version \
