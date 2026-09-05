@@ -26,6 +26,12 @@ rewritten; companion SDK, editor and release-record gates remain separate.
 
 ### Fixed
 
+- **Authoring guidance follows composition and cleanup contracts.**
+  Compose checks a draft; child execution uses normal admission. Unwind
+  cleanup applies to started producers, and predicate names have one table.
+- **Cancellation publication has a discriminating model test.** A separate
+  payload is checked before joining its writer. Diamond CI runs the library
+  model and refuses an absent test; weakening either ordering is detected.
 - **Preserve the release coordinate in metadata writes.** The OCI marker and
   final publication PATCHes explicitly carry their already-verified tag and
   target SHA, avoiding the body-only update that orphaned the 0.118.5 draft.
