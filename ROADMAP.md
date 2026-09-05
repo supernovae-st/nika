@@ -105,8 +105,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `d805e182d` (`d805e182d885f652025634b0aed23343b9085f83`)             |
-| workspace        | v0.118.4                                  |
+| HEAD             | `ee954df91` (`ee954df91286f309c4d06cd5f0e95770c32c9820`)             |
+| workspace        | v0.118.5                                  |
 | crates (workspace)| 73                                              |
 | crates (admitted)| 64                                             |
 | crates (WIP)     | 9 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session                                  |

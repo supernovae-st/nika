@@ -16,6 +16,39 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.118.5](https://github.com/supernovae-st/nika/compare/v0.118.4..v0.118.5) - 2026-09-05
+
+This version includes the One Door engine work recorded in the preceding
+0.117 and 0.118 sections. The 0.118.4 train built and attested all four native
+archives, staged its eight GitHub assets and published WASM npm, but its
+OCI payload check failed on the runner's classic Docker image store.
+Its GitHub release remained a draft; existing tags and registry bytes are
+not rewritten. Companion SDK, editor and release-record gates remain separate.
+
+### Fixed
+
+- **The editor hook refuses an unexpected guard exit.** Permission-looking
+  stdout from exit 1 no longer reaches a host as an allow. The shim accepts
+  only the engine's three verdict codes. Judged responses are preserved;
+  an unavailable judge uses the hosts' blocking exit 2, never a guessed
+  scope or JSON dialect. Healthy unrelated commands still receive no opinion.
+- **The guard has one scope judge.** The shell shim no longer guesses
+  command ownership or hook dialect from raw substrings, which escaped
+  commands and decoy markers could defeat. Missing, broken or unavailable
+  judges block the hook action, including ordinary commands until repaired;
+  unsupported payload shapes are integration errors rather than no opinion.
+  Stdin reaches the engine's bounded reader without a shell-side copy.
+- **OCI payloads use their bound child digests.** Release verification pulls
+  each platform by the child digest selected from the validated OCI index.
+  This avoids classic Docker's
+  multi-platform parent-digest collision without changing daemon storage,
+  deleting image references, executing image content, or weakening either
+  native binary hash comparison. Invalid parent indexes refuse before pulls.
+- **Migration and debugging skills distinguish simulation from effects.**
+  Effecting ports use authorized isolated rehearsals and artifact assertions,
+  not a golden the simulated plane refuses. Paused runs do not authorize an
+  agent to choose an answer, and concurrent failure order is not causality.
+
 ## [0.118.4](https://github.com/supernovae-st/nika/compare/v0.118.3..v0.118.4) - 2026-09-05
 
 This version carries the One Door engine work recorded in the preceding
