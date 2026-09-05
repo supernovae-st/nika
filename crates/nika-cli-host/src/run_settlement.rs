@@ -423,6 +423,65 @@ mod tests {
     }
 
     #[test]
+    fn journal_size_refusal_keeps_exact_outputs_and_successful_settlement() {
+        use nika_dap::journal::{JsonSink, Tee, TraceFileSink};
+        use nika_runtime::EventSink;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let outputs = json!({"answer": "🦋".repeat(nika_dap::chain::MAX_LINE_BYTES / 4 + 1)});
+        let output_text = serde_json::to_string(&outputs).expect("output JSON");
+        let event = nika_event::Event::new(
+            nika_types::id::EventId::nil(),
+            nika_types::timestamp::Timestamp::from_unix_ms(0),
+            nika_event::EventKind::WorkflowCompleted,
+        )
+        .with_field(nika_types::resource::KeyValue::new(
+            "output",
+            nika_types::resource::Value::string(&output_text),
+        ));
+        let mut expected_primary = Vec::new();
+        JsonSink::new(&mut expected_primary).emit(event.clone());
+        let mut out = Vec::new();
+        let mut tee = Tee::new(JsonSink::new(&mut out), TraceFileSink::new(tmp.path()));
+        tee.emit(event.clone());
+        let (mut primary, mut trace) = tee.into_parts();
+        trace.finalize();
+        let path = trace.path().expect("file was opened").to_path_buf();
+        let failed = trace.into_error().is_some();
+        assert!(failed, "the file journal refused the oversized event");
+        assert_eq!(std::fs::metadata(&path).expect("journal").len(), 0);
+        assert!(primary.error().is_none(), "the primary lane continues");
+        let settlement = RunSettlement::new(RunState::Succeeded, RunCause::Normal);
+        write_local_run_settlement(
+            &mut primary,
+            &settlement,
+            &outputs,
+            nika_types::id::ExecutionId::nil(),
+            "snapshot",
+            LocalEvidence::of(Some(&path), None, failed),
+            None,
+        )
+        .expect("settlement still writes");
+        assert!(primary.into_error().is_none());
+        assert!(
+            out.starts_with(&expected_primary),
+            "the primary event is byte-identical"
+        );
+        let raw = std::str::from_utf8(&out).expect("UTF-8");
+        let lines: Vec<&str> = raw.lines().collect();
+        assert_eq!(lines.len(), 2, "one event and one settlement");
+        let recovered: nika_event::Event = serde_json::from_str(lines[0]).expect("event");
+        assert_eq!(recovered, event, "the output event is complete");
+        let frame: serde_json::Value = serde_json::from_str(lines[1]).expect("settlement");
+        assert_eq!(frame["kind"], "run_settled");
+        assert_eq!(frame["status"], "succeeded");
+        assert_eq!(frame["cause"], "normal");
+        assert_eq!(frame["outputs"], outputs, "the exact result survives");
+        assert_eq!(frame["evidence"], "lost");
+        assert!(frame.get("receipt").is_none());
+    }
+
+    #[test]
     fn local_settlement_projects_the_same_execution_with_a_trace() {
         let mut out = Vec::new();
         let execution = nika_types::id::ExecutionId::nil();
