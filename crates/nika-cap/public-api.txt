@@ -173,6 +173,87 @@ impl<T> core::clone::CloneToUninit for nika_cap::HarnessGate where T: core::clon
 pub unsafe fn nika_cap::HarnessGate::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::HarnessGate
 pub fn nika_cap::HarnessGate::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cap::HashAlgorithm
+pub nika_cap::HashAlgorithm::Blake3
+pub nika_cap::HashAlgorithm::Sha256
+pub nika_cap::HashAlgorithm::Sha512
+impl nika_cap::HashAlgorithm
+pub const nika_cap::HashAlgorithm::ALL: [Self; 3]
+pub const fn nika_cap::HashAlgorithm::as_str(self) -> &'static str
+pub fn nika_cap::HashAlgorithm::parse(value: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_cap::HashAlgorithm
+pub fn nika_cap::HashAlgorithm::clone(&self) -> nika_cap::HashAlgorithm
+impl core::cmp::Eq for nika_cap::HashAlgorithm
+impl core::cmp::PartialEq for nika_cap::HashAlgorithm
+pub fn nika_cap::HashAlgorithm::eq(&self, other: &nika_cap::HashAlgorithm) -> bool
+impl core::default::Default for nika_cap::HashAlgorithm
+pub fn nika_cap::HashAlgorithm::default() -> nika_cap::HashAlgorithm
+impl core::fmt::Debug for nika_cap::HashAlgorithm
+pub fn nika_cap::HashAlgorithm::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::HashAlgorithm
+impl core::marker::StructuralPartialEq for nika_cap::HashAlgorithm
+impl<T, U> core::convert::Into<U> for nika_cap::HashAlgorithm where U: core::convert::From<T>
+pub fn nika_cap::HashAlgorithm::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::HashAlgorithm where U: core::convert::Into<T>
+pub type nika_cap::HashAlgorithm::Error = core::convert::Infallible
+pub fn nika_cap::HashAlgorithm::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::HashAlgorithm where U: core::convert::TryFrom<T>
+pub type nika_cap::HashAlgorithm::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::HashAlgorithm::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::HashAlgorithm where T: core::clone::Clone
+pub type nika_cap::HashAlgorithm::Owned = T
+pub fn nika_cap::HashAlgorithm::clone_into(&self, target: &mut T)
+pub fn nika_cap::HashAlgorithm::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::HashAlgorithm where T: 'static + ?core::marker::Sized
+pub fn nika_cap::HashAlgorithm::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::HashAlgorithm where T: ?core::marker::Sized
+pub fn nika_cap::HashAlgorithm::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::HashAlgorithm where T: ?core::marker::Sized
+pub fn nika_cap::HashAlgorithm::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::HashAlgorithm where T: core::clone::Clone
+pub unsafe fn nika_cap::HashAlgorithm::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::HashAlgorithm
+pub fn nika_cap::HashAlgorithm::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cap::HashEncoding
+pub nika_cap::HashEncoding::Base64
+pub nika_cap::HashEncoding::Hex
+impl nika_cap::HashEncoding
+pub const nika_cap::HashEncoding::ALL: [Self; 2]
+pub const fn nika_cap::HashEncoding::as_str(self) -> &'static str
+pub fn nika_cap::HashEncoding::parse(value: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_cap::HashEncoding
+pub fn nika_cap::HashEncoding::clone(&self) -> nika_cap::HashEncoding
+impl core::cmp::Eq for nika_cap::HashEncoding
+impl core::cmp::PartialEq for nika_cap::HashEncoding
+pub fn nika_cap::HashEncoding::eq(&self, other: &nika_cap::HashEncoding) -> bool
+impl core::default::Default for nika_cap::HashEncoding
+pub fn nika_cap::HashEncoding::default() -> nika_cap::HashEncoding
+impl core::fmt::Debug for nika_cap::HashEncoding
+pub fn nika_cap::HashEncoding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::HashEncoding
+impl core::marker::StructuralPartialEq for nika_cap::HashEncoding
+impl<T, U> core::convert::Into<U> for nika_cap::HashEncoding where U: core::convert::From<T>
+pub fn nika_cap::HashEncoding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::HashEncoding where U: core::convert::Into<T>
+pub type nika_cap::HashEncoding::Error = core::convert::Infallible
+pub fn nika_cap::HashEncoding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::HashEncoding where U: core::convert::TryFrom<T>
+pub type nika_cap::HashEncoding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::HashEncoding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::HashEncoding where T: core::clone::Clone
+pub type nika_cap::HashEncoding::Owned = T
+pub fn nika_cap::HashEncoding::clone_into(&self, target: &mut T)
+pub fn nika_cap::HashEncoding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::HashEncoding where T: 'static + ?core::marker::Sized
+pub fn nika_cap::HashEncoding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::HashEncoding where T: ?core::marker::Sized
+pub fn nika_cap::HashEncoding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::HashEncoding where T: ?core::marker::Sized
+pub fn nika_cap::HashEncoding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::HashEncoding where T: core::clone::Clone
+pub unsafe fn nika_cap::HashEncoding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::HashEncoding
+pub fn nika_cap::HashEncoding::from(t: T) -> T
 pub enum nika_cap::Integrity
 pub nika_cap::Integrity::Trusted
 pub nika_cap::Integrity::Untrusted
