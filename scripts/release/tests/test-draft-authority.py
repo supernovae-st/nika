@@ -74,6 +74,28 @@ class DraftAuthority(unittest.TestCase):
         self.assertIn("REFUSED persisted digest drift", finalizer)
 
 
+class ReleaseRouting(unittest.TestCase):
+    """Pin explicit rejoin policy; the release run proves GitHub scheduling."""
+
+    def condition(self, name):
+        match = re.search(r"(?m)^    if: \$\{\{ (.+) \}\}$", job(name))
+        self.assertIsNotNone(match, f"{name} needs an explicit job condition")
+        return match.group(1)
+
+    def test_assets_rejoin_selected_provenance_only_after_all_direct_needs_pass(self):
+        self.assertEqual(self.condition("release-assets-converge"),
+                         "always() && needs.release-draft.result == 'success' && "
+                         "needs.provenance-result.result == 'success' && "
+                         "needs.npm-wasm-pack.result == 'success'")
+
+    def test_stable_pointers_rejoin_only_after_successful_publication(self):
+        for name in ("bump-formula", "move-latest"):
+            with self.subTest(job=name):
+                self.assertEqual(self.condition(name),
+                                 "always() && needs.finalize.result == 'success' && "
+                                 "!contains(needs.finalize.outputs.version, '-')")
+
+
 class ReplayInput(unittest.TestCase):
     def setUp(self):
         self.scratch = tempfile.TemporaryDirectory(prefix="release-input-")
