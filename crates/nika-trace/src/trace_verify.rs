@@ -10,11 +10,11 @@
 //! - **OK** — the chain is intact (tamper-evident, not tamper-proof:
 //!   with no external trust root, an attacker can rewrite the whole
 //!   chain; compare the head against the one the run printed).
-//! - **INCOMPLETE** (F-P2) — the chain is intact but the run never
-//!   reached a lifecycle-terminal frame (kill -9 · crash between
-//!   writes): the finding rides the verifier — the dying run writes
-//!   nothing. The exit stays OK (the journal is honestly what it is);
-//!   the ladder below still climbs over the complete prefix.
+//! - **INCOMPLETE** (F-P2) — the chain is intact but the journal has no
+//!   lifecycle-terminal frame. The runtime outcome is unattested: a
+//!   failed file lane can leave this prefix even when the run succeeds.
+//!   The ladder still judges the prefix; an otherwise-OK result exits
+//!   INCOMPLETE (5), never a claim that the runtime failed.
 //! - **SEALED** — the terminal `run_sealed` event's ed25519 signature
 //!   verifies against a custody-resolved key (`--key` ·
 //!   `~/.nika/keys/run-signing.pub` · the `retired.pub` ledger),
@@ -42,7 +42,7 @@
 //!   is stated as not attempted, never faked.
 //!
 //! Two scoped stated verdicts ride beside the ladder — they never move
-//! the tier nor the exit code (the F-P2 INCOMPLETE posture): the
+//! the tier nor the exit code: the
 //! NEP-0007 permit-witness **FINDING**, and the F-P18 **COST-REPLAY**
 //! leg (NEP-0017 · the boot pin's pricing table against this engine's:
 //! `unrecorded` on a pre-law journal · **REFUSED** on an unknown table
@@ -53,7 +53,7 @@
 //! 2 (FILE) = broken chain · forged seal · forged anchor · replay
 //! divergence · 3 (ENV) = unchained (a pre-chain journal — stated,
 //! never guessed) · missing input · `--anchored` with no sidecar ·
-//! `--sealed` with no seal.
+//! `--sealed` with no seal · 5 = incomplete lifecycle evidence.
 
 use std::path::PathBuf;
 
@@ -199,21 +199,20 @@ pub fn verify_with(trace: &str, opts: &VerifyOptions) -> VerbOutput {
 
 /// The chain-intact headline the verify surface prints (F-P2): the same
 /// words the pre-tier surface printed for `Intact`; `Torn` and
-/// `Incomplete` name the crash signature the journal carries.
+/// `Incomplete` name the journal's shape, not the runtime's outcome.
 fn headline_prose(headline: ChainHeadline, events: usize, head: &str) -> String {
     match headline {
         ChainHeadline::Torn => format!(
-            "OK — {events} events · chain intact · head {head}\n  the final line is TORN (a crash mid-write, not tampering) — the chain\n  covers every complete line"
+            "OK — {events} events · chain intact · head {head}\n  the final line is invalid (TORN) — its cause is unattested;\n  the chain covers every complete line, not the invalid tail"
         ),
         ChainHeadline::Intact => format!(
             "OK — {events} events · chain intact · head {head}\n  internally consistent (tamper-evident, not tamper-proof) — compare the head\n  against the one the run printed to close the loop"
         ),
-        // F-P2 · the killed run: the chain attests every complete line —
-        // the lifecycle end is absent, said out loud, a FINDING the
-        // VERIFIER carries (the dying run writes nothing); ADR-129 makes
-        // the exit say it too.
+        // F-P2 · the chain attests the prefix; the absent lifecycle end
+        // cannot distinguish a failed journal lane from a failed run.
+        // ADR-129 makes the exit carry this evidence gap too.
         ChainHeadline::Incomplete => format!(
-            "INCOMPLETE — {events} events · chain intact · head {head}\n  the journal never reached a terminal frame (no workflow_completed · workflow_failed ·\n  workflow_paused · workflow_cancelled · run_sealed) — the run was killed or crashed:\n  the chain attests every complete line; the lifecycle end is unattested, a finding\n  the verifier carries (the dying run can attest nothing)"
+            "INCOMPLETE — {events} events · chain intact · head {head}\n  the journal never reached a terminal frame (no workflow_completed · workflow_failed ·\n  workflow_paused · workflow_cancelled · run_sealed). The chain attests every complete\n  line; the runtime outcome is unattested by this journal. A failed journal lane can\n  leave this prefix even when the run succeeds"
         ),
     }
 }
@@ -250,7 +249,7 @@ fn liveness_line(liveness: nika_dap::liveness::Liveness) -> String {
             "the writer is alive (pid {pid} on this host) — a run in flight: verify again once it settles"
         ),
         Liveness::Dead { pid } => format!(
-            "the writer is dead (pid {pid} on this host · killed or crashed) — the evidence is incomplete; the run never settled"
+            "the writer lease is no longer held (recorded pid {pid} on this host) — the evidence is incomplete; the runtime outcome is unattested by this journal"
         ),
         _ => "no liveness record (an older engine's journal, or another host) — this reader cannot say whether the writer lives".to_owned(),
     }
@@ -329,18 +328,17 @@ pub fn verify_many_with(traces: &[std::path::PathBuf], opts: &VerifyOptions) -> 
     }
 }
 
-/// The chain-intact headline the verify surface prints (the lifecycle
-/// truth the walk attested, F-P2). `Intact`'s OK line stays byte-
-/// identical to the pre-tier surface; `Torn` and `Incomplete` name the
-/// crash signature the journal carries.
+/// The chain-intact headline the verify surface prints (the journal
+/// evidence, F-P2). `Intact`'s OK line stays byte-identical to the pre-tier
+/// surface; `Torn` and `Incomplete` describe the journal, not its cause.
 #[derive(Clone, Copy)]
 enum ChainHeadline {
-    /// Chain intact AND the run reached a lifecycle-terminal frame.
+    /// Chain intact AND the journal contains a lifecycle-terminal frame.
     Intact,
-    /// Chain intact — the final line is torn (a crash mid-write).
+    /// Chain intact — the final line is invalid; its cause is unattested.
     Torn,
-    /// Chain intact — the run never reached a terminal frame (kill -9 ·
-    /// crash between writes): a finding, never a silence.
+    /// Chain intact — the journal has no terminal frame; the runtime
+    /// outcome is unattested by this journal.
     Incomplete,
 }
 
@@ -538,6 +536,8 @@ mod tests {
     use nika_dap::chain::CHAIN_GENESIS;
     use nika_event::source_id::sha256_hex;
 
+    mod evidence;
+
     /// Build a chained journal the way the sink does (the nika-dap
     /// chain-test idiom).
     fn chained(kinds: &[&str]) -> String {
@@ -699,10 +699,9 @@ mod tests {
     }
 
     /// (F-P2 · ADR-129) A journal that never reached a terminal frame
-    /// verifies INCOMPLETE — the finding is the VERIFIER's (the dying run
-    /// writes nothing) and the exit says so (#1442: a monitor wired on the
-    /// code must never green a dead run); with no lease the writer's
-    /// liveness is honestly unknown.
+    /// verifies INCOMPLETE — the finding is about the journal, not the
+    /// runtime outcome, and the exit says so (#1442). With no lease the
+    /// writer's liveness is unknown.
     #[test]
     fn a_terminal_less_journal_verifies_incomplete() {
         let trace = stage(
