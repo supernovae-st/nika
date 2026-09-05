@@ -11,8 +11,8 @@ homepage.workspace     = true
 publish                = false  # Internal L2 service crate (size-cap descent from nika-cli · D-2026-07-09-N1).
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.118.5" }   # HttpGetDyn seam — the ONE injected effect
-nika-vocab  = { path = "../nika-vocab", version = "0.118.5" }    # the project file (registry.floor — the NEP-0016 gate's project rung, max-composed · D-2026-08-11-N5)
+nika-kernel = { path = "../nika-kernel", version = "0.118.6" }   # HttpGetDyn seam — the ONE injected effect
+nika-vocab  = { path = "../nika-vocab", version = "0.118.6" }    # the project file (registry.floor — the NEP-0016 gate's project rung, max-composed · D-2026-08-11-N5)
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 sha2        = { workspace = true }   # the digest verify (index-pinned sha256 · hard refuse on mismatch)
@@ -20,7 +20,7 @@ minisign    = { version = "0.9", default-features = false }   # the v0.2 signatu
 toml_edit   = { workspace = true }   # the local pin records (pins.toml — bare refs never float · ADR-106)
 
 [dev-dependencies]
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.118.5" }  # MockHttp — the injected seam under test
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.118.6" }  # MockHttp — the injected seam under test
 tempfile         = { workspace = true }
 tokio            = { workspace = true }   # the tests park their own current-thread executor
 

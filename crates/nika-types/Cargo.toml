@@ -40,7 +40,7 @@ proptest   = { workspace = true }
 # when `RUSTFLAGS="--cfg loom"` is set; for the normal workflow
 # (`cargo test --workspace --lib`, `cargo build`) it doesn't compile.
 # Invoke explicitly:
-#   RUSTFLAGS="--cfg loom" cargo test -p nika-types --test loom_cancel
+#   RUSTFLAGS="--cfg loom" cargo test --locked -p nika-types --lib loom_cancel
 [target.'cfg(loom)'.dependencies]
 loom = "0.7"
 

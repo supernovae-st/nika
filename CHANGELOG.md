@@ -16,6 +16,28 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.118.6](https://github.com/supernovae-st/nika/compare/v0.118.5..v0.118.6) - 2026-09-05
+
+This version includes the One Door source changes recorded in the preceding
+0.117 and 0.118 sections. The 0.118.5 train passed native, SLSA and OCI payload
+checks and published WASM npm, but its release-body update orphaned the
+GitHub draft before asset staging. Earlier tags and registry bytes are not
+rewritten; companion SDK, editor and release-record gates remain separate.
+
+### Fixed
+
+- **Authoring guidance follows composition and cleanup contracts.**
+  Compose checks a draft; child execution uses normal admission. Unwind
+  cleanup applies to started producers, and predicate names have one table.
+- **Cancellation publication has a discriminating model test.** A separate
+  payload is checked before joining its writer. Diamond CI runs the library
+  model and refuses an absent test; weakening either ordering is detected.
+- **Preserve the release coordinate in metadata writes.** The OCI marker and
+  final publication PATCHes explicitly carry their already-verified tag and
+  target SHA, avoiding the body-only update that orphaned the 0.118.5 draft.
+  Post-write identity drift still refuses without rebinding or retrying;
+  ambiguous writes no longer claim that nothing committed.
+
 ## [0.118.5](https://github.com/supernovae-st/nika/compare/v0.118.4..v0.118.5) - 2026-09-05
 
 This version includes the One Door engine work recorded in the preceding

@@ -9,19 +9,19 @@ description = "nika's onboarding surface — the founding wizard (init) and the 
 repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]
-nika-pack    = { path = "../nika-pack", version = "0.118.5" }    # templates · examples (the scaffold corpus)
-nika-vocab   = { path = "../nika-vocab", version = "0.118.5" }   # the project file — the wizard's starter nika.yaml rides its STARTER const (zero drift · D-2026-08-11-N5)
-nika-bm25    = { path = "../nika-bm25", version = "0.118.5" }    # intent→template routing (the deterministic floor)
-nika-display = { path = "../nika-display", version = "0.118.5" } # theme + chrome (rail · panel · banner)
-nika-catalog = { path = "../nika-catalog", version = "0.118.5", features = ["providers"] } # the model menu (local first)
+nika-pack    = { path = "../nika-pack", version = "0.118.6" }    # templates · examples (the scaffold corpus)
+nika-vocab   = { path = "../nika-vocab", version = "0.118.6" }   # the project file — the wizard's starter nika.yaml rides its STARTER const (zero drift · D-2026-08-11-N5)
+nika-bm25    = { path = "../nika-bm25", version = "0.118.6" }    # intent→template routing (the deterministic floor)
+nika-display = { path = "../nika-display", version = "0.118.6" } # theme + chrome (rail · panel · banner)
+nika-catalog = { path = "../nika-catalog", version = "0.118.6", features = ["providers"] } # the model menu (local first)
 serde_json   = { workspace = true }                              # the canvas stamp (parse + re-emit settings.json)
 
 [dev-dependencies]
 # The own-corpus ratchet: every recipe scaffold must parse AND check
 # clean — proven against the REAL ladder, test-side only (the runtime
 # audit arrives injected from the composition root).
-nika-schema = { path = "../nika-schema", version = "0.118.5" }  # parse the scaffolded workflow
-nika-check  = { path = "../nika-check", version = "0.118.5" }  # the is_clean gate the guided loop judges against
+nika-schema = { path = "../nika-schema", version = "0.118.6" }  # parse the scaffolded workflow
+nika-check  = { path = "../nika-check", version = "0.118.6" }  # the is_clean gate the guided loop judges against
 
 [package.metadata.lore]
 daemon        = "forgeron"

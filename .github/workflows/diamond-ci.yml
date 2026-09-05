@@ -188,6 +188,13 @@ jobs:
           NIKA_SPEC_DIR: ${{ github.workspace }}/nika-spec
         run: ./scripts/ci/check-"$JOB".sh
 
+      - name: Prove CancelCtx payload publication with Loom
+        if: matrix.job == 'tests'
+        timeout-minutes: 5
+        run: |
+          python3 scripts/ci/test-loom-cancel.py
+          bash scripts/ci/check-loom-cancel.sh
+
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest

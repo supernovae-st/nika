@@ -20,7 +20,7 @@ adr = ["ADR-003", "ADR-095"]
 # The trait + ShellCommand + SandboxSpec. NO heavy deps: this crate only
 # builds an SBPL profile string and wraps the command argv for the OS-shipped
 # `sandbox-exec` launcher (the wrapper model · no unsafe · no FFI).
-nika-kernel = { path = "../nika-kernel", version = "0.118.5" }
+nika-kernel = { path = "../nika-kernel", version = "0.118.6" }
 
 [package.metadata.lore]
 daemon        = "sentinelle"

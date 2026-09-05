@@ -85,4 +85,12 @@ Rejected — it is 2026 and we are building a workflow engine. Inexcusable.
 
 ## Notes
 
+The `nika-types` cancellation model runs in Diamond CI's existing tests leg
+through `scripts/ci/check-loom-cancel.sh`. Its small state space is suitable
+for each PR; broader models still follow the scheduling budget above. The
+gate refuses a missing payload test, and uses library targets locally and
+in CI. The model checks a separate relaxed payload before joining its
+writer; independently weakening Acquire or Release makes the assertion fail.
+It covers that publication edge only, not the runtime scheduler or shutdown.
+
 If weekly Loom run takes > 30 minutes, switch the Loom job to nightly-only and Shuttle per-PR. Both tools pay their keep at this tier of quality.

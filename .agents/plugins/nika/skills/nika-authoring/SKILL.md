@@ -328,9 +328,12 @@ otherwise, in this order:
    working, not a mistake to patch around. Read the review notes the
    inference prints and supply the paths it says it cannot compute.
 9. **Fail on purpose.** Transient failure → `retry:` · expected absence
-   → `on_error: on_codes + recover:` · cleanup that must always happen →
+   → `on_error: on_codes + recover:` · cleanup for a producer that started →
    an ordinary task you name, declaring `after: { producer: unwind }`.
-   Swallowing an error is never the plan.
+   This includes cancellation and timeout; a producer that never started
+   unwinds nothing. Cleanup is best-effort, and process death can prevent it.
+   `terminal` is a settled-state dependency, not a substitute for this
+   cleanup lane. Swallowing an error is never the plan.
 10. **Prove it before handing it over.** `nika check` clean, then
     `--native-strict`, then a golden pin if the workflow is hermetic.
     Only then does the human get the run line.
@@ -483,19 +486,15 @@ tasks:
         url: "${{ inputs.target }}"
 ```
 
-**The decoy, and it is live.** `nika:compose` exists as a builtin, so
-`tool: compose` is the move an author reaches for. Both spellings fail,
-and both diagnostics point AWAY from the answer. Measured 2026-07-28:
+An agent drafting a workflow uses `nika:compose` through its `tools:`
+whitelist and supplies `workflow_yaml`. This checks the draft without
+executing it. The standalone builtin refuses the call; a parent calls
+a child through `invoke: { workflow: … }`, as shown above.
 
-| You write | You get | Why it misleads |
-|---|---|---|
-| `tool: compose` | `NIKA-PARSE-019` · "expected `nika:<path>` or `mcp:<server>/<tool>`" | reads as "prefix it" · which lands you on the decoy |
-| `tool: "nika:compose"` | `NIKA-BUILTIN-001` · compose is the agent-loop sub-workflow spawner, valid ONLY inside an `agent:` tools whitelist | correct refusal, and it never names `invoke: { workflow: … }` |
-| the same, again | `ARGS` · "no `workflow` arg · did you mean `workflow_yaml`?" | a second wrong turn · toward inlining a whole YAML string |
-
-Neither diagnostic teaches the right form today. That is why this
-section exists: `nika:compose` is for an AGENT to check a draft it
-wrote, not for a parent to call a child.
+Its `valid` field reports Core conformance, not execution admission.
+The draft remains a proposal: check the actual file and its children with
+`nika check --json <file>`. Any authorized run still passes through the
+engine's normal admission; a compose result cannot grant or bypass it.
 
 **Four laws, all judged at check.**
 
@@ -696,9 +695,9 @@ the human at handoff, not to expect a green.
 - A task that reads another task's output binds it in `with:` —
   `with: { alias: "${{ tasks.<id>.output }}" }` — and the body reads
   `${{ with.alias }}` (the binding IS the edge; `tasks.*` anywhere
-  else is NIKA-VAR-021). Pure ordering is `after: { <id>: success }`,
-  and the predicate set is closed: `success` · `failure` · `skipped` ·
-  `terminal` (`NIKA-DAG-005`).
+  else is NIKA-VAR-021). Pure ordering is `after: { <id>: success }`.
+  Use the predicates in the task-modifier table above; `nika spec --schema`
+  and `nika check` own the accepted spellings (`NIKA-DAG-005` otherwise).
 - Models are `provider/name` (`ollama/llama3.2:3b` local-first ·
   `mock/echo` offline preview).
 - Timeouts are quoted Go-durations (`timeout: "7m"`) — give local

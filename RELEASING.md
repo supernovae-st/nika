@@ -211,6 +211,15 @@ without an explicit operator decision.
    Container creation cannot implicitly pull a replacement; no image content
    is executed, and both native binary hashes must still match.
    The marker job has contents-write only and performs no Docker operation.
+   Both release metadata PATCHes (marker and final publication) explicitly
+   carry the tag and target SHA just verified by the shared release-state
+   reader. Omitting these fields is not an identity-preservation guarantee:
+   the 0.118.5 marker write returned success but left an `untagged-*` draft.
+   Its Git tag remained intact and the marker was written, so this was a
+   partial mutation, not a rollback. Post-write reads still refuse drift;
+   they never repair an observed mismatched tag or retry a publication by
+   blindly rebinding it. GitHub exposes no conditional release PATCH, so
+   these checks cannot eliminate an administrator's concurrent-write window.
    Only then may `image:<version>` be created.
    If the marker survives but that tag is absent, replay heals it from the
    exact `image@digest`; if the marker is absent, an occupied version tag is
