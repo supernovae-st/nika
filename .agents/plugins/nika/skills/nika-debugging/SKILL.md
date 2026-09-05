@@ -54,9 +54,11 @@ Use only answers or defaults the user supplied or authorized. A paused run
 does not authorize choosing its answer. Adding a default changes the
 workflow's approval policy; it is not a mechanical repair for a pause.
 
-Confirm gates take booleans (`--answer approve=true`); every task the
-journal already proved is skipped as a visible cache hit, so only the
-prompt and its downstream run. Removing a paused trace refuses
+Confirm gates take booleans (`--answer approve=true`). A recorded success
+is reused only when the runtime's resume eligibility and identity checks
+match; changed definitions or resolved inputs can require execution again.
+Inspect the reported cache hits rather than predicting them from a success
+line alone. Removing a paused trace refuses
 without `--force` and names the prompt it would destroy — that
 refusal is protecting an answer, not being difficult.
 
@@ -64,11 +66,22 @@ A failed run's card prints its own forensics line (`autopsy:
 nika trace peek <trace> <task>`) — start there, it points at the
 exact failing task.
 
-## Surgical reruns (never restart what already worked)
+## Surgical reruns and uncertain effects
 
-- `nika run <file> --from <task-id>` — rerun from one task onward,
-  keeping upstream results.
-- `nika run <file> --task <task-id>` — rerun exactly one task.
+Preserve prior results when the runtime admits their reuse. Before a rerun,
+check the intended changes, resolved inputs, available evidence and effects
+already observed. A lost response can follow a successful remote write:
+reconcile it with the destination before resubmission. If its state remains
+unknown, report that uncertainty; a retry or resume key alone does not prove
+deduplication. Keep the existing execution authorization and ask only for a
+missing decision or gate answer.
+
+- `nika run <file> --resume <trace> --from <task-id>` forces that task
+  and its transitive downstream to rerun; upstream reuse still depends on
+  eligibility. Review effects before choosing this override.
+- `nika run <file> --task <task-id>` includes that task and its transitive
+  upstream dependencies. It can execute their effects too; it does not
+  mean exactly one task runs.
 - After an intentional behavior change, refresh the pin:
   `nika test <file> --update` rewrites the golden from an offline mock
   run only when the workflow fits the simulated plane (no network,
@@ -87,8 +100,9 @@ exact failing task.
   task, the shell shows the variable. `nika doctor` audits the machine
   side. Non-sensitive settings ride an `inputs:` entry with
   `required: false` and a `default:`.
-- **Timeout too tight**: local providers need `timeout: "300s"` or
-  more — thinking models routinely think past 30s.
+- **Timeout too tight**: compare observed latency with the task's timeout,
+  model and workload. Change the limit within the admitted budget; a longer
+  timeout is not a general repair for a stalled or uncertain effect.
 - **Permits violation**: the run was blocked by its own declared
   boundary — read the finding, then either the task is wrong or the
   boundary is (widen it consciously, never delete it). Read the recorded

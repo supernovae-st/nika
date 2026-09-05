@@ -5,13 +5,14 @@ description: Operate Nika workflows day-2 — spend caps, permits boundaries, se
 
 # Operating Nika workflows
 
-Authoring makes a file pass `nika check`. Operating makes it safe to
-run unattended: bounded spend, a declared blast radius, masked
-credentials, a model you chose, and a journal you can export.
+Operating prepares a workflow for unattended use: review spend exposure,
+declared effects, secret destinations, model choice and available traces.
 
 The check reports readiness; it does not authorize unattended execution.
-Keep the user's intended effects and spending authority explicit. Judge
-`clean`, `native_strict_clean`, `paid_ready` and resolved-child coverage
+Carry out execution already authorized by the user within its effects and
+spending scope, through the normal engine and host gates. Ask only for a
+decision still missing; permission to run does not supply a human-gate answer.
+Judge `clean`, `native_strict_clean`, `paid_ready` and resolved-child coverage
 separately, with the engine/spec identity that produced the report.
 
 ## Spend (the envelope is part of the contract)
@@ -82,10 +83,13 @@ that leaned on an ambient variable must now name it.
 
   The checker names the exact chain when one is missing
   (`secrets.X → tasks.A.output → tasks.B.output`).
-- A `host:`-scoped egress cannot be proven against an interpolated
-  URL (`${{ inputs.repo }}` in the address) — the checker refuses
-  conservatively. Pin the URL, or drop the `host:` scope and keep
-  the tool-level sink.
+- For a `host:`-scoped egress finding, use the checker's actual diagnostic.
+  A literal host can remain provable when the path or query is interpolated.
+  If the authorized destination is known, express it with that host fixed
+  and re-check; if it is unknown, request the destination, not the secret.
+  Never remove or widen `host:` merely to pass a check. A broader destination
+  policy requires explicit authorization for that change. Preserve secret
+  egress, `permits:` and runtime re-gating; an unresolved refusal still blocks.
 - Use the declared secret source at run time; CI can inject an environment
   source. Never put a credential literal in YAML. Public redaction is not
   journal confidentiality: raw task outputs can contain sensitive data,
@@ -125,7 +129,7 @@ that leaned on an ambient variable must now name it.
   systemd timer): the engine is a binary, the workflow is a file, and
   `--var key=value` carries the `inputs:` the file declares.
 
-## MCP servers (the pin IS the trust)
+## MCP servers and definition drift
 
 A configured MCP server that changes its tool definitions after you
 approved them is the rug pull. Nika pins every tool on first contact
@@ -134,6 +138,11 @@ contact enrolls loudly, a match proceeds silently, ANY drift fails
 closed with a diff naming the CHANGED field and returns no tools. A
 hand-edited lockfile is `NIKA-MCP-004`, never a silent re-TOFU.
 Re-pin after human review: `nika mcp approve <server>`.
+
+A pin detects changes relative to the enrolled definitions. It does not
+prove those descriptions are truthful, the server is harmless, or an effect
+was delivered. Keep the intended permissions and review the actual result;
+re-pinning is a review decision, not an automatic fix for drift.
 
 ## Observability (the journal is exportable, not captive)
 

@@ -42,7 +42,7 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 | `API_KEY=…` literals | `${{ secrets.X }}` + `secrets:` block with its `egress:` sink |
 | step B reads step A's output | `with: { a: "${{ tasks.A.output }}" }` on B — the binding IS the edge — then `${{ with.a }}` in the body |
 | step B only waits for step A (no data) | `after: { A: success }` (predicates: `success` · `failure` · `skipped` · `terminal`) |
-| the irreversible step (deploy, send, publish) | a confirm gate before it (`nika:prompt`) — human answers at run time |
+| the irreversible step (deploy, send, publish) | preserve its authorization and any required gate; use `nika:prompt` for a decision still needed at run time, not to re-request authorization already given |
 | what no builtin/MCP covers (git, build tools) | `exec:` with `command:` as ARGV (`["git", "log", "-1"]`) + a row in the exec ledger |
 | a pipe, redirect or glob inside the command | `shell:` explicitly — `command:` has no implicit shell |
 
@@ -78,11 +78,14 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
    `nika test <file> --update` can pin its outputs in a golden. That
    simulated plane refuses those effects: an effecting port needs artifact
    assertions and trace inspection, not a promised golden it cannot produce.
-7. **Hand off honestly**: the workflow, the parity checks that actually
-   passed, a golden only where applicable, and the run line
-   (`nika run <file> --var … --max-cost-usd <n>`). Retire the old script
-   only when parity covers its intended behavior and the user authorizes
-   that removal; preserve any remaining callers until migrated.
+7. **Deliver within the authorized scope**: report the workflow, the parity
+   checks that actually passed, and a golden only where applicable. Provide
+   the run line (`nika run <file> --var … --max-cost-usd <n>`) or execute it
+   when already authorized, through the normal engine and host gates.
+   Retire the old script once parity covers its intended behavior, its
+   callers are migrated and removal is authorized; do not ask again for
+   that same authorization. An unknown business decision or human-gate
+   answer still needs the user's answer.
 
 ## Porting a pre-0.106 workflow file
 

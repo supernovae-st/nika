@@ -5,6 +5,12 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+The four skills distinguish existing execution authorization from missing
+decisions, check readiness and resume eligibility. Examples address unfamiliar
+structures without a fixed reading quota. Debugging documents the dependencies
+included by `--task`; operating preserves secret host boundaries and qualifies
+definition pins. Public descriptions reflect metered budget and trace limits.
+
 Authoring now reads the workspace before creating another file:
 `nika list` discovers local candidates, then `explain` · `inspect` · `check`
 establish what each one does and whether it is clean. The skill states the
