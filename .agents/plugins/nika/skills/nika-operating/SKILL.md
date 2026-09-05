@@ -9,6 +9,11 @@ Authoring makes a file pass `nika check`. Operating makes it safe to
 run unattended: bounded spend, a declared blast radius, masked
 credentials, a model you chose, and a journal you can export.
 
+The check reports readiness; it does not authorize unattended execution.
+Keep the user's intended effects and spending authority explicit. Judge
+`clean`, `native_strict_clean`, `paid_ready` and resolved-child coverage
+separately, with the engine/spec identity that produced the report.
+
 ## Spend (the envelope is part of the contract)
 
 - `nika check <file>` estimates output-token cost BEFORE any token: `≤ $X`
@@ -92,7 +97,9 @@ that leaned on an ambient variable must now name it.
 - Models are `provider/name`. `nika catalog` is the embedded registry:
   providers · models · capabilities · which env var each needs.
 - Shape with `mock/echo` (offline, deterministic, zero keys). Prove
-  structure first, spend later.
+  structure first, spend later. The CLI override changes the envelope
+  model only: inspect per-task model pins before calling a rehearsal
+  offline. Tools, writes, subprocesses and secret sources remain real.
 - Sovereignty path: `--model ollama/<model>` runs local — same file,
   same check, same trace. Give local providers `timeout: "300s"`+.
 - The file does not hardcode a vendor: swapping cloud↔local is a
@@ -163,7 +170,9 @@ Re-pin after human review: `nika mcp approve <server>`.
 3. `permits:` declared — absent is ZERO authority, not a floor; a
    pure-compute body still says `permits: {}`.
 4. Secrets in `secrets:` with sinks — env-injected, never literal.
-5. Golden pinned (`nika test <file> --update`, committed).
+5. Hermetic workflow: golden pinned (`nika test <file> --update`,
+   committed). Effecting workflow: isolated authorized rehearsal and
+   artifact assertions instead; the simulated golden plane refuses effects.
 6. Spend cap on the run line (`--max-cost-usd`).
 7. Trace store known (`.nika/traces/`) — export wired if anyone
    watches dashboards.

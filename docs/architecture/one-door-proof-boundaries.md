@@ -89,6 +89,15 @@ overwrite a successful result with a cancellation request.
 - Keep agent teaching aligned with the spend ledger: crossing the measured
   budget stops new admissions, not already-started calls. Unpriced work and
   input costs omitted by an output-only estimate are not proved free or capped.
+- Keep readiness and authority separate in agent teaching. `paid_ready` can
+  remain true on a report with a permits error: it is not a replacement for
+  `clean`, native-strict findings, resolved-child coverage or execution consent.
+  A mock envelope does not replace per-task model pins or disable real tools.
+- Retire teaching workarounds when their source defect is fixed. The composed
+  cost tests in `nika-check` and global-scan tests in `nika-builtin` own those
+  behaviors; authoring instructions must not describe the historical defects
+  as current. A rehearsal compares concrete values and negative outcomes,
+  not only a successful exit or well-formed JSON.
 - Treat a public-key storage slot as untrusted input. A minisign box wrapper
   is not validation: decode the key and reconstruct its public representation
   before trust output or retirement. Discard untrusted comments and trailing
