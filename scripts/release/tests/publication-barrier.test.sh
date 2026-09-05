@@ -454,7 +454,8 @@ if [ "$3" = create ]; then
   exit 0
 fi
 ref="$4"
-state="$(cat "$OCI_STATE")"
+state=equal
+[ -z "${OCI_STATE:-}" ] || state="$(cat "$OCI_STATE")"
 if [[ "$ref" == *:9.9.9 ]] && [ "$state" = absent ]; then
   echo 'manifest unknown' >&2
   exit 1

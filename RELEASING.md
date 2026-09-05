@@ -204,6 +204,12 @@ without an explicit operator decision.
    entries, missing or duplicate subjects, and duplicate platform or manifest
    digests refuse; provenance generation stays enabled. This index census
    proves structure and binding, not the authenticity of attestation contents.
+   Payload extraction resolves each Linux child's digest from that same
+   validated parent index, then pulls and creates a stopped container by the
+   child digest. It never loads two architectures under one parent digest or
+   deletes daemon references to work around a classic Docker image store.
+   Container creation cannot implicitly pull a replacement; no image content
+   is executed, and both native binary hashes must still match.
    The marker job has contents-write only and performs no Docker operation.
    Only then may `image:<version>` be created.
    If the marker survives but that tag is absent, replay heals it from the
