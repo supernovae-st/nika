@@ -273,6 +273,45 @@ mod tests {
     // `blocks::boilerpipe_content`) drives the observable output.
     const NON_ABSOLUTE_BASE: Option<&str> = Some("not-an-absolute-url");
 
+    /// PR 1503 (2026-09-06) — readability broke candidate score TIES by its hash
+    /// map's per-process iteration order: the same page yielded two
+    /// different articles from one process to the next (WCXB dev 0545 ·
+    /// 40 runs → 30/10 through the public 0.118.7 door · dev 0847 three
+    /// variants). The pinned `dom_smoothie` rev keeps candidates in their
+    /// first-scored order (readability.js parity), so two equal-score
+    /// candidates settle on the FIRST one in document order, in every
+    /// process. Two blocks of identical shape under different parents
+    /// (plain `<div>` wrappers, which readability never scores on their
+    /// own, each beside a heading so the only-child climb never lifts the
+    /// candidate): only the first may own the article. Without the pin
+    /// this assertion is a coin flip; with it, it holds in every process.
+    #[test]
+    fn stage2_equal_score_candidates_settle_on_the_first_in_document_order() {
+        let block = |marker: &str| {
+            let sentence = "words that carry a comma, a second comma, and enough running text \
+                            to clear every threshold readability applies before it scores";
+            format!(
+                "<div><p>{marker} {sentence} {sentence}.</p><p>{marker} {sentence} {sentence}.</p></div>"
+            )
+        };
+        let body = format!(
+            "<html><head><title>t</title></head><body>\
+             <div><h2>One</h2>{}</div><div><h2>Two</h2>{}</div></body></html>",
+            block("ALPHABLOCK"),
+            block("OMEGABLOCK")
+        );
+        let out = readability(&body, Some("https://example.com/")).expect("readability extracts");
+        let md = out.as_str().expect("readability returns a Markdown string");
+        assert!(
+            md.contains("ALPHABLOCK"),
+            "the first block owns the article: {md}"
+        );
+        assert!(
+            !md.contains("OMEGABLOCK"),
+            "the equal-score second block never displaces the first: {md}"
+        );
+    }
+
     /// Stage 1 — a real `<article>` body returns the rule-cascade markdown
     /// without ever consulting readability/boilerpipe. Anchors the happy
     /// path: the prose survives end-to-end as a Markdown string.
