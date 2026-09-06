@@ -22,7 +22,7 @@ use super::model::{
     HealthResponse, JobResponse, JobStatusResponse, SnapshotValidationAck,
     TraceVerificationResponse, WorkflowListResponse, WorkflowMetadataResponse,
 };
-use super::registry::{list_workflows, valid_workflow_name, workflow_exists};
+use super::registry::{list_workflows_under, valid_workflow_name, within_scope, workflow_exists};
 use super::sse;
 
 const IDEMPOTENCY_KEY: &str = "idempotency-key";
@@ -32,7 +32,8 @@ const UNIT_COUNT_PROBE_MARKER: &str = "nika snapshot wire unit count exceeded";
 #[derive(serde::Deserialize)]
 struct SnapshotWireProbe<'a> {
     root: &'a str,
-    digest: &'a str,
+    #[serde(default)]
+    digest: Option<&'a str>,
     #[serde(borrow)]
     units: BoundedWireUnits<'a>,
 }
@@ -42,8 +43,20 @@ struct BoundedWireUnits<'a>(Vec<SnapshotWireUnit<'a>>);
 #[derive(serde::Deserialize)]
 struct SnapshotWireUnit<'a> {
     path: &'a str,
-    digest: &'a str,
+    #[serde(default)]
+    digest: Option<&'a str>,
     bytes_hex: &'a str,
+}
+
+/// The by-name form of the job door (ADR-131 · #1441): the world lives in
+/// the served registry and the resident captures it — the one owner.
+#[derive(serde::Deserialize)]
+struct JobByName {
+    /// Owned, not borrowed: a name with an escape (`nested\\root`) must
+    /// still reach the name judge, which refuses it as not served.
+    workflow: String,
+    #[serde(default)]
+    units: Option<serde::de::IgnoredAny>,
 }
 
 impl<'de: 'a, 'a> serde::Deserialize<'de> for BoundedWireUnits<'a> {
@@ -180,16 +193,91 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
         Ok(body) => body,
         Err(error) => return error.into_response(),
     };
+    let digest = RequestDigest::from_bytes(Sha256::digest(&body).into());
+    // ADR-132 · the freeze audit: a key already bound replays its job
+    // BEFORE the resident touches the registry or the body again — a
+    // lost-response retry finds its job even after the workflow changed,
+    // vanished or went red, and never executes changed bytes.
+    match state
+        .coordinator
+        .replay_manual(key.clone(), digest.clone())
+        .await
+    {
+        Ok(Some(admission)) => return admission_response(admission),
+        Ok(None) => {}
+        Err(error) => return admission_error(&error),
+    }
+    // ADR-131 · two forms, one admission: a NAME from the served registry
+    // (the resident captures the world — the one owner of the snapshot and
+    // its digest domain) or the snapshot `nika check <file> --json
+    // --sdk-snapshot` prints (digests optional: computed when absent,
+    // checked when present).
+    if let Some(name) = by_name(&body) {
+        let admitted = match admit_by_name(&name, &state).await {
+            Ok(admitted) => admitted,
+            Err(response) => return response,
+        };
+        let Ok(world) = admitted.snapshot().encode() else {
+            return admission_refused().into_response();
+        };
+        return admit_job(state, key, digest, name, world).await;
+    }
     let admitted = match readmit_body(&body, &state).await {
         Ok(admitted) => admitted,
         Err(response) => return response,
     };
-    let digest = RequestDigest::from_bytes(Sha256::digest(&body).into());
     let workflow = admitted.snapshot().root().to_owned();
-    let Ok(world) = String::from_utf8(body.to_vec()) else {
-        return malformed_snapshot_encoding().into_response();
+    // The stored world is the engine's canonical encoding: digests the
+    // caller omitted are present from here on.
+    let Ok(world) = admitted.snapshot().encode() else {
+        return admission_refused().into_response();
     };
     admit_job(state, key, digest, workflow, world).await
+}
+
+/// The by-name form, when the body is one (`{"workflow": "<name>"}` with no
+/// `units`); `None` for a snapshot body.
+fn by_name(body: &[u8]) -> Option<String> {
+    let probe: JobByName = serde_json::from_slice(body).ok()?;
+    probe.units.is_none().then_some(probe.workflow)
+}
+
+/// Capture and admit a workflow the served registry names (ADR-131): the
+/// name must be one `GET /v1/workflows` lists — valid, inside the scope,
+/// present — then the resident captures its world exactly as a schedule
+/// does, through the one `ExecutionService`.
+async fn admit_by_name(
+    name: &str,
+    state: &AppState,
+) -> Result<nika_execution::AdmittedExecution, Response<ResponseBody>> {
+    if !valid_workflow_name(name) || !within_scope(state.registry_scope.as_deref(), name) {
+        return Err(unknown_workflow(name).into_response());
+    }
+    let project = Arc::clone(&state.project);
+    let service = state.service;
+    let lookup = name.to_owned();
+    let admitted = tokio::task::spawn_blocking(move || {
+        if !workflow_exists(&project, &lookup) {
+            return Err(None);
+        }
+        service
+            .admit(&project, std::path::Path::new(&lookup))
+            .map_err(Some)
+    })
+    .await
+    .map_err(|_| admission_refused().into_response())?;
+    admitted.map_err(|error| match error {
+        None => unknown_workflow(name).into_response(),
+        Some(error) => capture_refused(&error),
+    })
+}
+
+fn unknown_workflow(_name: &str) -> ApiError {
+    ApiError::new(
+        StatusCode::NOT_FOUND,
+        "not_found",
+        "no workflow by that name under the served registry — GET /v1/workflows lists the names this resident admits",
+    )
 }
 
 async fn check_snapshot(
@@ -203,7 +291,13 @@ async fn check_snapshot(
         Ok(body) => body,
         Err(error) => return error.into_response(),
     };
-    match readmit_body(&body, &state).await {
+    // The check door admits by name too (ADR-131): the same two forms, the
+    // same admission, the compact acknowledgement.
+    let admitted = match by_name(&body) {
+        Some(name) => admit_by_name(&name, &state).await,
+        None => readmit_body(&body, &state).await,
+    };
+    match admitted {
         Ok(admitted) => json_response(
             StatusCode::OK,
             &SnapshotValidationAck::accepted(admitted.snapshot()),
@@ -296,12 +390,12 @@ fn validate_wire_envelope(encoded: &str) -> Result<(), ApiError> {
             "snapshot logical path exceeds the encoded metadata limit",
         ));
     }
-    if !canonical_digest(probe.digest)
+    if probe.digest.is_some_and(|digest| !canonical_digest(digest))
         || probe
             .units
             .0
             .iter()
-            .any(|unit| !canonical_digest(unit.digest))
+            .any(|unit| unit.digest.is_some_and(|digest| !canonical_digest(digest)))
     {
         return Err(ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -364,22 +458,19 @@ async fn admit_job(
     workflow: String,
     world: String,
 ) -> Response<ResponseBody> {
-    let admission = match state
+    match state
         .coordinator
         .admit_manual(key, digest, workflow, world)
         .await
     {
-        Ok(admission) => admission,
-        Err(super::ServerError::JobStore(crate::JobStoreError::CapacityExceeded)) => {
-            return job_capacity();
-        }
-        Err(
-            super::ServerError::JobStore(crate::JobStoreError::Busy)
-            | super::ServerError::StoreQueueFull,
-        ) => return store_busy(),
-        Err(super::ServerError::ExecutionQueueFull) => return queue_full(),
-        Err(_) => return internal_error(),
-    };
+        Ok(admission) => admission_response(admission),
+        Err(error) => admission_error(&error),
+    }
+}
+
+/// The admission's own words on the wire: created (202), replayed (200), a
+/// key already bound to other bytes (409).
+fn admission_response(admission: Admission) -> Response<ResponseBody> {
     match admission {
         Admission::Conflict(_) => ApiError::new(
             StatusCode::CONFLICT,
@@ -394,10 +485,28 @@ async fn admit_job(
     }
 }
 
+/// The admission refusals the resident types (capacity · a busy store · a
+/// full queue); the rest is an internal error.
+fn admission_error(error: &super::ServerError) -> Response<ResponseBody> {
+    match error {
+        super::ServerError::JobStore(crate::JobStoreError::CapacityExceeded) => job_capacity(),
+        super::ServerError::JobStore(crate::JobStoreError::Busy)
+        | super::ServerError::StoreQueueFull => store_busy(),
+        super::ServerError::ExecutionQueueFull => queue_full(),
+        _ => internal_error(),
+    }
+}
+
 async fn list_registry(state: &AppState) -> Response<ResponseBody> {
-    let project = Arc::clone(&state.project);
+    // The served registry (#1369): walked from `--workflows`, named from the
+    // project root; the whole project only when the two roots coincide.
+    let (dir, prefix) = match &state.registry_scope {
+        Some(prefix) => (Arc::clone(&state.registry), prefix.clone()),
+        None => (Arc::clone(&state.project), String::new()),
+    };
     let limits = state.snapshot_limits;
-    let listed = tokio::task::spawn_blocking(move || list_workflows(&project, limits)).await;
+    let listed =
+        tokio::task::spawn_blocking(move || list_workflows_under(&dir, &prefix, limits)).await;
     match listed {
         Ok(Ok(workflows)) => json_response(StatusCode::OK, &WorkflowListResponse::new(workflows)),
         Ok(Err(
@@ -413,7 +522,10 @@ async fn workflow_metadata(path: &str, state: &AppState) -> Response<ResponseBod
         return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
             .into_response();
     };
-    if name.is_empty() || !valid_workflow_name(name) {
+    if name.is_empty()
+        || !valid_workflow_name(name)
+        || !within_scope(state.registry_scope.as_deref(), name)
+    {
         return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
             .into_response();
     }
@@ -460,70 +572,33 @@ async fn cancel_job(path: &str, state: &AppState) -> Response<ResponseBody> {
     let Ok(id) = JobId::parse(raw_id) else {
         return job_not_found();
     };
-    state.cancellations.cancel(&id);
     let record = match state.store.get(id.clone()).await {
         Ok(Some(record)) => record,
-        Ok(None) => {
-            state.cancellations.retire(&id);
-            return job_not_found();
-        }
+        Ok(None) => return job_not_found(),
         Err(
             super::ServerError::JobStore(crate::JobStoreError::Busy)
             | super::ServerError::StoreQueueFull,
         ) => return store_busy(),
         Err(_) => return internal_error(),
     };
-    if record.status().is_settled() {
+    if record.status().is_settled() || record.status() == crate::JobStatus::Paused {
         state.cancellations.retire(&id);
         return json_response(StatusCode::OK, &JobResponse::from(&record));
     }
-    let record = match ensure_cancel_identity(state, id.clone(), record).await {
-        Ok(record) => record,
-        Err(response) => return response,
-    };
-    if record.status().is_settled() {
-        state.cancellations.retire(&id);
-        return json_response(StatusCode::OK, &JobResponse::from(&record));
+    if record.status() == crate::JobStatus::Running {
+        state.cancellations.cancel(&id);
+        return current_job(state, id).await;
     }
-    let receipt = cancellation_receipt(&record);
-    let event = serde_json::json!({
-        "kind": "execution.cancelled",
-        "status": "cancelled"
-    });
-    match state
-        .store
-        .settle_with_result(
-            id.clone(),
-            crate::JobStatus::Cancelled,
-            event,
-            None,
-            receipt,
-        )
-        .await
-    {
-        Ok(cancelled) => {
-            state.cancellations.retire(&id);
-            json_response(StatusCode::OK, &JobResponse::from(&cancelled))
-        }
-        Err(super::ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) => {
-            current_job(state, id).await
-        }
-        Err(
-            super::ServerError::JobStore(crate::JobStoreError::Busy)
-            | super::ServerError::StoreQueueFull,
-        ) => store_busy(),
-        Err(_) => internal_error(),
+    match cancel_queued_job(state, id, record).await {
+        Ok(response) | Err(response) => response,
     }
 }
 
-async fn ensure_cancel_identity(
+async fn cancel_queued_job(
     state: &AppState,
     id: JobId,
     record: crate::JobRecord,
-) -> Result<crate::JobRecord, Response<ResponseBody>> {
-    if record.execution_id().is_some() {
-        return Ok(record);
-    }
+) -> Result<Response<ResponseBody>, Response<ResponseBody>> {
     let encoded = state.store.load_world(id.clone()).await.map_err(|error| {
         if matches!(
             error,
@@ -544,24 +619,42 @@ async fn ensure_cancel_identity(
     .await
     .map_err(|_| internal_error())?
     .map_err(|_| internal_error())?;
+    let execution_id = admitted.execution_id().to_string();
+    let trace_id = admitted.trace_id().to_string();
+    let snapshot_digest = admitted.snapshot().digest().to_owned();
+    let receipt = crate::JobReceipt::with_origin(
+        id.clone(),
+        execution_id.clone(),
+        trace_id.clone(),
+        snapshot_digest.clone(),
+        None,
+        record.origin().clone(),
+    )
+    .map_err(|_| internal_error())?;
     match state
         .store
-        .start_execution(
+        .cancel_queued(
             id.clone(),
-            admitted.execution_id().to_string(),
-            admitted.trace_id().to_string(),
-            admitted.snapshot().digest().to_owned(),
-            serde_json::json!({"kind": "execution.started", "status": "running"}),
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            serde_json::json!({"kind": "execution.cancelled", "status": "cancelled"}),
+            receipt,
         )
         .await
     {
-        Ok(started) => Ok(started),
+        Ok(cancelled) => {
+            state.cancellations.retire(&id);
+            Ok(json_response(
+                StatusCode::OK,
+                &JobResponse::from(&cancelled),
+            ))
+        }
         Err(super::ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) => {
-            match state.store.get(id).await {
-                Ok(Some(current)) => Ok(current),
-                Ok(None) => Err(job_not_found()),
-                Err(_) => Err(store_busy()),
-            }
+            // A worker may have started while admission was reconstructed.
+            // Only its execution owner may persist the resulting settlement.
+            state.cancellations.cancel(&id);
+            Ok(current_job(state, id).await)
         }
         Err(
             super::ServerError::JobStore(crate::JobStoreError::Busy)
@@ -571,25 +664,17 @@ async fn ensure_cancel_identity(
     }
 }
 
-fn cancellation_receipt(record: &crate::JobRecord) -> Option<crate::JobReceipt> {
-    crate::JobReceipt::with_origin(
-        record.id().clone(),
-        record.execution_id()?,
-        record.trace_id()?,
-        record.snapshot_digest()?,
-        None,
-        record.origin().clone(),
-    )
-    .ok()
-}
-
 async fn current_job(state: &AppState, id: JobId) -> Response<ResponseBody> {
     match state.store.get(id.clone()).await {
         Ok(Some(record)) => {
-            if record.status().is_settled() {
-                state.cancellations.retire(&id);
-            }
-            json_response(StatusCode::OK, &JobResponse::from(&record))
+            let status =
+                if record.status().is_settled() || record.status() == crate::JobStatus::Paused {
+                    state.cancellations.retire(&id);
+                    StatusCode::OK
+                } else {
+                    StatusCode::ACCEPTED
+                };
+            json_response(status, &JobResponse::from(&record))
         }
         Ok(None) => job_not_found(),
         Err(_) => store_busy(),
@@ -664,7 +749,20 @@ fn idempotency_key(headers: &hyper::HeaderMap) -> Result<IdempotencyKey, ApiErro
         return Err(invalid_idempotency_key());
     }
     let value = value.to_str().map_err(|_| invalid_idempotency_key())?;
+    // The resident's own namespace (a scheduled slot's key): a manual caller
+    // can neither replay nor conflict with a slot it never fired.
+    if value.starts_with(super::coordinator::SCHEDULE_KEY_PREFIX) {
+        return Err(reserved_idempotency_key());
+    }
     IdempotencyKey::new(value).map_err(|_| invalid_idempotency_key())
+}
+
+fn reserved_idempotency_key() -> ApiError {
+    ApiError::new(
+        StatusCode::BAD_REQUEST,
+        "invalid_idempotency_key",
+        "the `schedule:` key namespace is the resident's own (a scheduled slot's key) · choose another key",
+    )
 }
 
 fn invalid_idempotency_key() -> ApiError {

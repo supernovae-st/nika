@@ -213,7 +213,9 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
 
     // Failure card (only on a failed verdict · derives the explain hint) —
     // the SAME card the compact `--quiet` surface renders (shared helper).
-    if view.verdict == Some(false) {
+    if view.cancelled {
+        append_cancelled_card(&mut lines, view, theme);
+    } else if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
     } else if view.paused_task.is_some() {
         append_paused_card(&mut lines, view, theme);
@@ -379,7 +381,9 @@ pub fn stream_summary(view: &RunView, theme: &Theme, notes: &[String]) -> Vec<St
     if let Some(note) = crate::fruit::rehearsal_note(view) {
         lines.push(format!("    {}", theme.paint(Role::Dim, note)));
     }
-    if view.verdict == Some(false) {
+    if view.cancelled {
+        append_cancelled_card(&mut lines, view, theme);
+    } else if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
     } else if view.paused_task.is_some() {
         append_paused_card(&mut lines, view, theme);
@@ -463,7 +467,12 @@ fn display_note(row: &TaskRow, view: &RunView) -> String {
                     .to_owned(),
             }
         }
-        _ => row.note.clone(),
+        // #1444 · a task that consumed a recovered fallback is not a
+        // clean success: the storyboard names the upstream it drank from.
+        _ => match row.integrity_source.as_deref() {
+            Some(source) => format!("{} · input from recovered {source}", row.note),
+            None => row.note.clone(),
+        },
     }
 }
 
@@ -639,6 +648,9 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
             theme.paint(Role::Warn, if theme.ascii { "! " } else { "⚠ " })
         }
         Some(true) => theme.glyph(TaskState::Ok, 0),
+        // #1438 · a cancelled run is a decision: the dim blocked glyph,
+        // never the red cross.
+        Some(false) if view.cancelled => theme.glyph(TaskState::Cancelled, 0),
         Some(false) => theme.glyph(TaskState::Failed, 0),
         None => theme.glyph(TaskState::Pending, 0),
     };
@@ -655,7 +667,9 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
 
     // Errors always (spec §3.5) — the same failure card the full frame emits,
     // appended so a quiet run still surfaces WHY it failed + the explain hint.
-    if view.verdict == Some(false) {
+    if view.cancelled {
+        append_cancelled_card(&mut lines, view, theme);
+    } else if view.verdict == Some(false) {
         append_failure_card(&mut lines, view, theme);
     } else if view.paused_task.is_some() {
         append_paused_card(&mut lines, view, theme);
@@ -768,6 +782,24 @@ fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
     }
 }
 
+/// The cancelled card (#1438): the operator's cancellation is a decision,
+/// never a defect · dim, no explain hint, the terminal's detail names what
+/// completed and what never started.
+// `&Theme` to match the frame borrows that thread it here.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn append_cancelled_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
+    let detail = view
+        .workflow_detail
+        .as_deref()
+        .unwrap_or("cancelled by the operator");
+    lines.push(String::new());
+    lines.push(format!(
+        "  {}{}",
+        theme.glyph(TaskState::Cancelled, 0),
+        theme.paint(Role::Strong, detail),
+    ));
+}
+
 /// Extend a meter line with rule dashes to a stable width.
 /// The run-level spend string — the ONE composition both the footer
 /// meter and the verdict card speak: `X of ≤Y` against a static
@@ -775,6 +807,16 @@ fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
 /// part of the run carried no meterable price (a partial total must
 /// never read as complete).
 fn spend_meter(view: &RunView) -> String {
+    // Nothing metered is a WORD, never a zero nobody metered (ADR-128 ·
+    // unknown cost is not zero): `unmetered` for a rehearsal or a local
+    // path, `unpriced` when calls ran without a meterable price.
+    if !metered(view) {
+        let word = unmetered_word(view);
+        return match view.ceiling_usd {
+            Some(c) => format!("{word} · ≤{}", fmt_cost_usd(c)),
+            None => word,
+        };
+    }
     let base = match view.ceiling_usd {
         Some(c) => format!("{} of ≤{}", fmt_cost_usd(view.cost_usd), fmt_cost_usd(c)),
         None => fmt_cost_usd(view.cost_usd),
@@ -783,6 +825,24 @@ fn spend_meter(view: &RunView) -> String {
         format!("≥ {base} ({} unpriced)", view.unpriced_calls)
     } else {
         base
+    }
+}
+
+/// Whether any spend was metered: a priced call folded live, or a total
+/// the terminal frame carried (a billed attempt whose task settled failed
+/// rides only there).
+pub(crate) fn metered(view: &RunView) -> bool {
+    view.priced_calls > 0 || view.cost_usd > 0.0
+}
+
+/// The word for a run nobody metered: `unpriced (N calls)` when calls ran
+/// without a meterable price, `unmetered` otherwise.
+pub(crate) fn unmetered_word(view: &RunView) -> String {
+    if view.unpriced_calls > 0 {
+        let s = if view.unpriced_calls == 1 { "" } else { "s" };
+        format!("unpriced ({} call{s})", view.unpriced_calls)
+    } else {
+        "unmetered".to_owned()
     }
 }
 

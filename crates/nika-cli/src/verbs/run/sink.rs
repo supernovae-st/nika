@@ -745,6 +745,9 @@ pub(super) struct TraceSurface {
     pub(super) path: Option<std::path::PathBuf>,
     pub(super) proof: Option<nika_cli_host::run_settlement::TraceProof>,
     pub(super) note_error: Option<std::io::Error>,
+    /// The writer lane died after the run's effects (ADR-129 · the freeze
+    /// audit): the evidence is LOST, and the settlement says so.
+    pub(super) lost: bool,
 }
 
 impl TraceSurface {
@@ -753,6 +756,7 @@ impl TraceSurface {
             path,
             proof: None,
             note_error: note.err(),
+            lost: true,
         }
     }
 }
@@ -812,6 +816,7 @@ pub(super) fn surface_trace(
             sealed,
         }),
         note_error: written.err(),
+        lost: false,
     }
 }
 

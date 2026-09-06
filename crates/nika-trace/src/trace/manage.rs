@@ -151,6 +151,48 @@ pub fn ls(theme: Theme) -> VerbOutput {
     ls_in(Path::new(store::TRACE_DIR), theme)
 }
 
+/// `nika trace ls --json` — the store's facts as one JSON document
+/// (#1247): every trace with its name, path, workflow, terminal state, the
+/// awaiting task when paused, size, mtime, and whether it is the newest of
+/// its workflow (the resume candidate the retention never collects).
+#[must_use]
+pub fn ls_json() -> VerbOutput {
+    ls_json_in(Path::new(store::TRACE_DIR))
+}
+
+/// The dir-injected core of [`ls_json`].
+pub(crate) fn ls_json_in(dir: &Path) -> VerbOutput {
+    let traces = store::scan(dir);
+    let newest = retention::newest_per_workflow(&traces);
+    let rows: Vec<serde_json::Value> = traces
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            let modified = t
+                .modified
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
+            serde_json::json!({
+                "name": t.name,
+                "path": t.path.to_string_lossy(),
+                "workflow": t.workflow,
+                "state": t.state_word(),
+                "liveness": t.liveness.map(nika_dap::liveness::Liveness::as_str),
+                "paused_task": t.paused_task,
+                "bytes": t.bytes,
+                "modified_unix": modified,
+                "newest": newest.contains(&i),
+            })
+        })
+        .collect();
+    let document = serde_json::json!({
+        "ls_version": 1,
+        "dir": dir.to_string_lossy(),
+        "traces": rows,
+    });
+    VerbOutput::ok(serde_json::to_string_pretty(&document).unwrap_or_default())
+}
+
 /// The dir-injected core (tests point it at a staged store).
 pub(crate) fn ls_in(dir: &Path, theme: Theme) -> VerbOutput {
     let traces = store::scan(dir);
@@ -221,20 +263,25 @@ fn render_ls(traces: &[TraceMeta], dir: &Path, now: SystemTime, theme: Theme) ->
 fn state_cell(trace: &store::TraceMeta, theme: Theme) -> String {
     // B23 / issue 1275: a recovered run must never render as a clean
     // `completed`. 100% recovered for_each is the measured case.
-    if trace.state == TraceState::Completed && trace_has_recovered(&trace.path) {
+    if trace.state == TraceState::Succeeded && trace_has_recovered(&trace.path) {
         return theme.paint(Role::Warn, "recovered");
     }
-    let role = match trace.state {
-        TraceState::Completed => Role::Good,
-        TraceState::Failed => Role::Bad,
-        TraceState::Paused => Role::Warn,
-        TraceState::Running => Role::Accent,
+    let role = match (trace.state, trace.liveness) {
+        (TraceState::Succeeded, _) => Role::Good,
+        // ADR-129 · a running trace whose writer died reads `dead` (the
+        // evidence is incomplete · never a verdict on the run) in the failure
+        // register; a live writer, or one this host cannot judge, reads
+        // `running`.
+        (TraceState::Failed, _)
+        | (TraceState::Running, Some(nika_dap::liveness::Liveness::Dead { .. })) => Role::Bad,
+        (TraceState::Paused, _) => Role::Warn,
+        (TraceState::Running, _) => Role::Accent,
         // A cancelled run reads calm — and `#[non_exhaustive]` future
         // states fold here too: the forensics crate names the word
         // (`as_str`), this CLI just keeps the cell quiet.
         _ => Role::Dim,
     };
-    theme.paint(role, trace.state.as_str())
+    theme.paint(role, trace.state_word())
 }
 
 /// Whether the journal recorded an `on_error.recover` repair.
@@ -358,7 +405,11 @@ fn rm_one(dir: &Path, handle: &str, force: bool) -> VerbOutput {
         return VerbOutput::env(paused_refusal(meta));
     }
     let bytes = meta.as_ref().map_or(0, |m| m.bytes);
-    match std::fs::remove_file(&path) {
+    let removal = std::fs::remove_file(&path);
+    if removal.is_ok() {
+        nika_dap::liveness::remove_lease(&path);
+    }
+    match removal {
         Ok(()) => VerbOutput::ok(format!(
             "removed {} · {}",
             path.display(),
@@ -395,6 +446,7 @@ fn rm_bulk(dir: &Path, cutoff: Option<Duration>, force: bool, theme: Theme) -> V
             continue;
         }
         if std::fs::remove_file(&trace.path).is_ok() {
+            nika_dap::liveness::remove_lease(&trace.path);
             removed += 1;
             freed += trace.bytes;
         }
@@ -497,6 +549,78 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    /// ADR-129 · a running trace whose writer died prints `dead` on both
+    /// faces and names its liveness on the machine one.
+    #[cfg(unix)]
+    #[test]
+    fn a_dead_writer_reads_dead_on_both_faces() {
+        let dir = temp_store("ls-dead");
+        let path = stage_trace(
+            &dir,
+            "dead.ndjson",
+            &ndjson(&run_events("w", None)),
+            Duration::from_secs(60),
+        );
+        std::fs::write(
+            nika_dap::liveness::lease_path(&path),
+            format!(
+                "{{\"pid\":1,\"host\":\"{}\"}}\n",
+                nika_dap::liveness::host_name()
+            ),
+        )
+        .expect("a lease nobody holds");
+        let text = ls_in(&dir, plain()).text;
+        assert!(text.contains("dead"), "{text}");
+        let doc: serde_json::Value = serde_json::from_str(&ls_json_in(&dir).text).expect("json");
+        assert_eq!(doc["traces"][0]["state"], "dead", "{doc}");
+        assert_eq!(doc["traces"][0]["liveness"], "dead", "{doc}");
+    }
+
+    /// `ls --json` (#1247): one document, one object per trace with the
+    /// store's facts — state, the newest-of-its-workflow marker, size, mtime.
+    #[test]
+    fn ls_json_lists_the_stores_facts() {
+        let dir = temp_store("ls-json");
+        stage_trace(
+            &dir,
+            "gate.ndjson",
+            &ndjson(&run_events("gatey", Some(EventKind::WorkflowPaused))),
+            Duration::from_secs(2 * 3_600),
+        );
+        stage_trace(
+            &dir,
+            "ok.ndjson",
+            &ndjson(&run_events("veille", Some(EventKind::WorkflowCompleted))),
+            Duration::from_secs(60),
+        );
+        let out = ls_json_in(&dir);
+        assert_eq!(out.code, exit::OK);
+        let doc: serde_json::Value = serde_json::from_str(&out.text).expect("one JSON document");
+        assert_eq!(doc["ls_version"], 1);
+        let traces = doc["traces"].as_array().expect("the rows");
+        assert_eq!(traces.len(), 2, "{doc}");
+        let states: Vec<&str> = traces.iter().filter_map(|t| t["state"].as_str()).collect();
+        assert!(
+            states.contains(&"paused") && states.contains(&"succeeded"),
+            "{doc}"
+        );
+        for trace in traces {
+            assert!(
+                trace["name"]
+                    .as_str()
+                    .is_some_and(|n| n.ends_with(".ndjson")),
+                "{trace}"
+            );
+            assert!(trace["bytes"].as_u64().is_some_and(|b| b > 0), "{trace}");
+            assert!(
+                trace["modified_unix"].as_u64().is_some_and(|m| m > 0),
+                "{trace}"
+            );
+            assert_eq!(trace["newest"], true, "one trace per workflow: {trace}");
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     /// The ls table: one row per trace (newest first) · age · size ·
     /// workflow · state — the paused trace says `paused` (ADR-100
     /// fixture 1's surface half) and the totals line counts the
@@ -522,7 +646,7 @@ mod tests {
         assert!(text.contains("trace") && text.contains("state"), "{text}");
         assert!(text.contains("gate.ndjson"), "{text}");
         assert!(text.contains("paused"), "the obligation is visible: {text}");
-        assert!(text.contains("completed"), "{text}");
+        assert!(text.contains("succeeded"), "{text}");
         assert!(text.contains("2h") && text.contains("1m"), "ages: {text}");
         assert!(text.contains("2 trace(s)"), "{text}");
         assert!(text.contains("1 paused"), "totals count it: {text}");
@@ -566,7 +690,7 @@ mod tests {
             "recovered must be the state word: {row}"
         );
         assert!(
-            !row.contains("completed"),
+            !row.contains("succeeded"),
             "must not collapse into completed: {row}"
         );
         let _ = std::fs::remove_dir_all(dir);

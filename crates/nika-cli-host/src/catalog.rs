@@ -100,8 +100,8 @@ fn listing_header(theme: Theme, truth: MachineTruth, models: usize) -> String {
     let facets = theme.paint(
         Role::Dim,
         &format!(
-            "  {wired} wired in this build · {slots} take a key — nika doctor shows their state",
-            wired = truth.wired,
+            "  {facet} · {slots} take a key — nika doctor shows their state",
+            facet = truth.wired_facet(),
             slots = truth.cloud_key_slots,
         ),
     );
@@ -403,6 +403,7 @@ mod tests {
             catalog_entries: export.providers.len(),
             wired: 7,
             cloud_key_slots: 3,
+            local: 4,
         }
     }
 
@@ -421,8 +422,8 @@ mod tests {
             "the header states the model count",
         );
         assert!(
-            text.contains("7 wired in this build"),
-            "the wired facet is named under the header:\n{text}",
+            text.contains("7 wired in this build (4 local · 3 cloud · plus mock)"),
+            "the wired facet is named under the header, split included:\n{text}",
         );
         assert!(
             text.contains("3 take a key"),

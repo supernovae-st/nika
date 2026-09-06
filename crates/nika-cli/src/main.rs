@@ -13,11 +13,13 @@
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
+mod arms;
 mod init_args;
 mod lazy;
 mod model_args;
 mod pipe_hygiene;
 mod registry_args;
+mod resident;
 mod try_args;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
@@ -26,9 +28,11 @@ use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled
 use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
 use nika_cli::verbs::{self, VerbOutput};
 
+use arms::{check_arm, inspect_arm, test_arm};
 use init_args::{InitArgs, init_verb};
-use lazy::{check_lazy, resolve_lazy_target, run_lazy};
+use lazy::run_lazy;
 pub(crate) use nika_cli_host::help_card;
+use resident::resident_finding;
 
 #[derive(Parser)]
 // The PUBLIC binary name is `nika` (the release renames the nika-cli artifact +
@@ -140,7 +144,7 @@ enum Command {
     Run(RunArgs),
     /// Golden test: run under the MOCK provider (offline · deterministic)
     /// and compare the typed `outputs:` against `<file>.golden.json`.
-    #[command(hide = true, display_order = 21)]
+    #[command(hide = true, display_order = 21, after_help = help_card::TEST_EXITS)]
     Test {
         /// Workflow file (`*.nika.yaml`).
         file: Option<String>,
@@ -151,6 +155,14 @@ enum Command {
         /// headless default (repeatable `TASK=VALUE`).
         #[arg(long, value_name = "TASK=VALUE", action = clap::ArgAction::Append)]
         answer: Vec<String>,
+        /// Bind an input for THIS case (repeatable `KEY=VALUE` · the same
+        /// door as `run --var`); needs `--case` so the golden has a name.
+        #[arg(long, value_name = "KEY=VALUE", action = clap::ArgAction::Append)]
+        var: Vec<String>,
+        /// Name the case: the golden pins as `<file>.<NAME>.golden.json`,
+        /// so one workflow carries a whole rule table (#1400).
+        #[arg(long, value_name = "NAME")]
+        case: Option<String>,
     },
     /// Static anatomy: tasks · verbs · wave groups · cost · permits —
     /// and the ONE graph projector (`--format json|mermaid|dot` for the
@@ -210,7 +222,8 @@ enum Command {
     /// Found a repo (`.vscode` schema wiring · `AGENTS.md` · Cursor rule + MCP ·
     /// `.agents/skills` authoring skill · optional workflow set). Bare on
     /// a terminal the founding wizard runs; flags are the scriptable
-    /// twin. Existing files are skipped — `--force` overwrites.
+    /// twin. Existing files are skipped (`.gitignore` is the one file updated in
+    /// place: the traces line is added) — `--force` overwrites.
     #[command(hide = true, display_order = 10)]
     Init(InitArgs),
     /// Wire Nika into editor/agent MCP clients (explicit, idempotent).
@@ -250,6 +263,10 @@ enum Command {
         /// `schema` verb, one roof).
         #[arg(long, conflicts_with = "canon")]
         schema: bool,
+        /// With `--schema`: the project file's schema (`nika.yaml`) instead
+        /// of the workflow's.
+        #[arg(long, requires = "schema")]
+        project: bool,
     },
     /// The embedded provider/model catalog (models · capabilities · env vars).
     #[command(hide = true, display_order = 52)]
@@ -402,6 +419,7 @@ struct DoctorArgs {
 }
 
 #[derive(Args)]
+#[command(after_help = help_card::RUN_EXITS)]
 // Six independent CLI flags ARE six bools — the clap-surface idiom
 // (same as TraceArgs), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
@@ -469,7 +487,11 @@ struct RunArgs {
     /// trusted: a broken chain refuses (exit 2), naming `nika trace
     /// verify` and the `--resume-unverified` opt-out. The trace's
     /// recorded engine version is JUDGED (F-P21): a resume under a
-    /// different engine refuses, naming both versions.
+    /// different engine refuses, naming both versions. The trace's recorded
+    /// project is JUDGED first: a trace written by another project refuses
+    /// (exit 3 · a trace is not a bearer artifact — resume it from the
+    /// project that wrote it). Under `--resume-unverified` that binding is
+    /// unverified too, and every recorded human decision re-asks.
     #[arg(long, value_name = "TRACE", conflicts_with = "dry_run")]
     resume: Option<PathBuf>,
     /// Declare a cross-version resume compatible (F-P21 · NEP-0014 law
@@ -608,11 +630,12 @@ fn mirror_verb(json: bool, deep: bool, theme: Theme) -> u8 {
 /// precedent) — `--verbose` unfolds the healthy machine's advisory
 /// notes (B-8b · the human lane defaults to calm).
 fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
-    emit(&verbs::doctor::run(
+    emit(&verbs::doctor::run_with(
         args.ping,
         args.json,
         args.verbose,
         theme,
+        resident_finding(),
     ))
 }
 
@@ -620,7 +643,9 @@ fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
 /// Findings + successes go to stdout (they ARE the product); only
 /// environment errors go to stderr.
 fn emit(out: &VerbOutput) -> u8 {
-    if out.code == verbs::exit::ENV {
+    // W3-F10 · a machine refusal (`--json` on a missing file) is ONE JSON
+    // object on stdout, never prose behind a `nika:` prefix on stderr.
+    if out.code == verbs::exit::ENV && !out.text.trim_start().starts_with('{') {
         eprintln!("nika: {}", out.text);
     } else if !out.text.is_empty() {
         println!("{}", out.text.trim_end());
@@ -663,7 +688,7 @@ fn sdk_identity() -> std::process::ExitCode {
     }
 }
 
-/// Bare `nika`, `nika --json`, `nika version`, `nika thread` — decided
+/// Bare `nika` (the session on a terminal · the concierge on a pipe), `nika --json`, `nika version` — decided
 /// before clap so a missing subcommand never clap-fails the front door.
 fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     let mut json = false;
@@ -711,7 +736,13 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     match first {
         None => {
             let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
-            Some(if json {
+            // ADR-125 · bare `nika` on an interactive terminal is the native
+            // session; a pipe keeps the deterministic concierge (exit 0).
+            let interactive =
+                !json && std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+            Some(if interactive {
+                std::process::ExitCode::from(verbs::session::run(interactive_theme(theme)))
+            } else if json {
                 concierge_json(theme)
             } else {
                 concierge(theme)
@@ -722,12 +753,6 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             Some(std::process::ExitCode::SUCCESS)
         }
         Some("--sdk-identity") if positional.len() == 1 => Some(sdk_identity()),
-        Some("thread") if positional.len() == 1 => {
-            let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
-            Some(std::process::ExitCode::from(verbs::session::run(
-                interactive_theme(theme),
-            )))
-        }
         _ => None,
     }
 }
@@ -808,65 +833,6 @@ fn real_main() -> std::process::ExitCode {
     std::process::ExitCode::from(code)
 }
 
-/// The check arm's plumbing — folded out of the dispatch so the seam
-/// stays one line per verb.
-#[allow(
-    clippy::fn_params_excessive_bools,
-    clippy::too_many_arguments,
-    clippy::needless_pass_by_value
-)]
-/// The `test` arm — resolve the lazy target, then run the goldens.
-fn test_arm(file: Option<String>, update: bool, answer: &[String], plain_theme: Theme) -> u8 {
-    match resolve_lazy_target(file, "test") {
-        Ok(file) => verbs::test::run_with_answers(&file, update, answer, plain_theme),
-        Err(code) => code,
-    }
-}
-
-/// The `inspect` arm — the one graph projector behind `--format`.
-fn inspect_arm(file: &str, format: Option<verbs::graph::GraphFormatArg>, plain_theme: Theme) -> u8 {
-    match format {
-        Some(f) => emit(&verbs::graph::run(file, f.into(), plain_theme)),
-        None => emit(&verbs::inspect::run(file, plain_theme)),
-    }
-}
-
-fn check_arm(args: verbs::check::CheckArgs, plain_theme: Theme) -> u8 {
-    if args.sdk_snapshot {
-        let output = match args.files.as_slice() {
-            [file]
-                if args.json
-                    && !args.fix
-                    && !args.infer_permits
-                    && !args.native_strict
-                    && args.profile == verbs::check::Profile::Advisory
-                    && args.model.is_none() =>
-            {
-                verbs::check::run_snapshot_export(file, interactive_theme(plain_theme))
-            }
-            _ => verbs::VerbOutput {
-                text: "check: --sdk-snapshot requires exactly one file and --json, with no other check overrides\n"
-                    .to_owned(),
-                code: verbs::exit::ENV,
-            },
-        };
-        return emit(&output);
-    }
-    let flags = verbs::check::CheckFlags {
-        json: args.json,
-        infer_permits: args.infer_permits,
-        native_strict: args.native_strict,
-        profile: args.profile,
-    };
-    check_lazy(
-        args.files,
-        &flags,
-        args.fix,
-        args.model.as_deref(),
-        interactive_theme(plain_theme),
-    )
-}
-
 /// One arm per subcommand — the dispatch seam `main` hands to.
 fn dispatch_verb(
     command: Command,
@@ -884,7 +850,9 @@ fn dispatch_verb(
             file,
             update,
             answer,
-        } => test_arm(file, update, &answer, plain_theme),
+            var,
+            case,
+        } => test_arm(file, update, &answer, (&var, case.as_deref()), plain_theme),
         Command::Inspect { file, format } => inspect_arm(&file, format, plain_theme),
         Command::Welcome { json, deep } => mirror_verb(json, deep, plain_theme),
         Command::Explain {
@@ -905,9 +873,11 @@ fn dispatch_verb(
             yes,
         } => wire_verb(target, &dir, dry_run, yes),
         Command::Model { action } => model_args::model_verb(action),
-        Command::Spec { canon, schema } => {
-            emit(&verbs::pack_surface::spec_or_schema(canon, schema))
-        }
+        Command::Spec {
+            canon,
+            schema,
+            project,
+        } => emit(&verbs::pack_surface::spec_or_schema(canon, schema, project)),
         Command::Catalog { json, tools } => {
             if tools {
                 emit(&verbs::tools::run(json, plain_theme))
@@ -1208,14 +1178,16 @@ mod tests {
     }
 
     #[test]
-    fn sdk_snapshot_is_a_hidden_check_adapter_not_a_new_verb() {
+    fn sdk_snapshot_is_a_public_check_adapter_not_a_new_verb() {
         let mut command = Cli::command();
         let check = command.find_subcommand_mut("check").expect("check");
         let adapter = check
             .get_arguments()
             .find(|argument| argument.get_long() == Some("sdk-snapshot"))
-            .expect("hidden sdk snapshot adapter");
-        assert!(adapter.is_hide_set());
+            .expect("the sdk snapshot adapter");
+        // ADR-131 · the producer is public: the OpenAPI, the listen banner
+        // and the resident's refusals name it, so `--help` names it too.
+        assert!(!adapter.is_hide_set());
         assert!(
             Cli::try_parse_from([
                 "nika",

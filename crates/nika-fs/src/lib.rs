@@ -36,7 +36,7 @@
 //! in the destination directory, then a single `rename` makes them
 //! visible (POSIX guarantees rename atomicity within one filesystem).
 //! Readers never observe a half-written file. A future dropped between
-//! the temp write and the rename may leave a stale `.nika-tmp.*` file —
+//! the temp write and the rename may leave a stale `.nika-tmp.*` or `..nika-tmp.*` file —
 //! exactly the failure mode the kernel trait documents — and the error
 //! path cleans its temp file best-effort. Durability (`fsync`) is
 //! intentionally NOT provided at this layer; callers needing
@@ -72,6 +72,10 @@ use nika_kernel::fs::{FileMetadata, FsError, FsListDyn, FsMetaDyn, FsReadDyn, Fs
 
 mod owned_dir;
 pub use owned_dir::OwnedDir;
+mod write_new;
+
+#[cfg(test)]
+mod write_new_tests;
 
 /// Monotonic discriminator for temp-file names: two concurrent writes to
 /// the same destination must never collide on the same temp path.
@@ -128,6 +132,22 @@ impl FsReadDyn for TokioFs {
 }
 
 impl FsWriteDyn for TokioFs {
+    /// Publish a completed sibling file with an exclusive hard link.
+    /// No fsync is added. The owned blocking operation can finish after its
+    /// future is dropped; cleanup of the temporary name is best-effort.
+    async fn write_new(&self, path: &Path, contents: &[u8]) -> Result<(), FsError> {
+        let path = path.to_path_buf();
+        let contents = contents.to_vec();
+        tokio::task::spawn_blocking(move || {
+            let staged = write_new::StagedFile::create(&path, &contents)?;
+            staged.publish(&path)
+        })
+        .await
+        .map_err(|error| FsError::Io {
+            reason: format!("exclusive write worker failed: {error}"),
+        })?
+    }
+
     /// Write contents to a file atomically (creates or overwrites).
     ///
     /// Parent directories are created automatically (brouillon parity).
@@ -145,7 +165,7 @@ impl FsWriteDyn for TokioFs {
     ///
     /// CANCEL SAFETY: `tokio::fs` operations detach (not abort) on drop —
     /// a cancelled write may still complete in the background, either
-    /// leaving a stale `.nika-tmp.*` file or fully publishing the
+    /// leaving a stale `.nika-tmp.*` or `..nika-tmp.*` file or fully publishing the
     /// destination, but NEVER a partial destination (the
     /// kernel-documented trade).
     async fn write(&self, path: &Path, contents: &[u8]) -> Result<(), FsError> {
@@ -274,12 +294,20 @@ impl FsListDyn for TokioFs {
 fn tmp_sibling(path: &Path) -> (Option<&Path>, PathBuf) {
     let parent = path.parent().filter(|p| !p.as_os_str().is_empty());
     let dir = parent.unwrap_or_else(|| Path::new("."));
-    // Purely discriminator-derived temp name: embedding the file name
+    // Discriminator-derived temp name: embedding the file name
     // would risk ENAMETOOLONG near the 255-byte limit and lossy
     // collisions on non-UTF-8 names — pid+counter alone guarantees
     // in-process uniqueness (review swarm P2 · 2026-06-10).
+    // A destination may itself look like a temporary name. Distinguish it
+    // with punctuation, so case folding cannot alias staging to destination.
+    let name = path.file_name().map(std::ffi::OsStr::as_encoded_bytes);
+    let prefix = if name.is_some_and(|name| name.starts_with(b".") && !name.starts_with(b"..")) {
+        "..nika-tmp"
+    } else {
+        ".nika-tmp"
+    };
     let tmp = dir.join(format!(
-        ".nika-tmp.{}.{}",
+        "{prefix}.{}.{}",
         std::process::id(),
         TMP_COUNTER.fetch_add(1, Ordering::Relaxed),
     ));

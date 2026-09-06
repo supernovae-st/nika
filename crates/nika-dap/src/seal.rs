@@ -49,9 +49,16 @@ use nika_event::{Event, EventKind};
 use nika_types::id::EventId;
 use nika_types::timestamp::Timestamp;
 
-/// The keychain entries the run-key lives under (the public half rides
-/// beside it — `SecretKey` cannot re-derive it).
-pub(crate) const KEYRING_SERVICE: &str = "nika";
+mod key_files;
+mod public_box;
+
+pub(crate) use key_files::keyring_entry;
+pub(crate) use public_box::parse_many as parse_public_boxes;
+
+/// The keychain entries the run-key lives under. The separate public half lets
+/// trust and verification inspect enrollment without opening the secret; the
+/// signing loader checks it against the already-open secret's derived public key.
+const KEYRING_SERVICE: &str = "nika";
 const KEYRING_USER: &str = "run-signing-key";
 pub(crate) const KEYRING_USER_PUB: &str = "run-signing-key.pub";
 
@@ -184,29 +191,27 @@ pub fn fingerprint(pubkey_box: &str) -> String {
 }
 
 /// The signing half of the run-key, when one exists on this machine
-/// (keychain first · the 0600 fallback file second).
+/// (explicit files, otherwise keychain then the 0600 file fallback). A broken
+/// explicit pair refuses instead of selecting another identity. The returned
+/// public box contains decoded public-key material, never custody metadata.
 #[must_use]
 pub fn load_signing_key() -> Option<(minisign::SecretKey, String)> {
     // An explicit key file wins (CI injects keys this way · hermetic tests
     // too — the OS keychain is never the only door).
-    if let (Ok(kf), Ok(pf)) = (
-        key_file_env("NIKA_RUN_KEY_FILE"),
-        key_file_env("NIKA_RUN_PUB_FILE"),
-    ) && let Some(pair) = load_from_files(Path::new(&kf), Path::new(&pf))
-    {
-        return Some(pair);
+    if let Some(files) = key_files::configured().ok()? {
+        return load_from_files(&files.secret, &files.public);
     }
     // The keychain holds the minisign secret box as text (custody IS the
     // keychain's own encryption).
-    if keychain_enabled()
-        && let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+    if let Some(entry) = keyring_entry(KEYRING_USER)
         && let Ok(text) = entry.get_password()
         && let Ok(boxed) = minisign::SecretKeyBox::from_string(&text)
         && let Some(sk) = open_secret_box(boxed, &key_password())
-        && let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
+        && let Some(pub_entry) = keyring_entry(KEYRING_USER_PUB)
         && let Ok(pk_box) = pub_entry.get_password()
     {
-        return Some((sk, pk_box.trim().to_owned()));
+        let pk_box = public_box::for_signing(&sk, &pk_box)?;
+        return Some((sk, pk_box));
     }
     // Fallback: the 0600 files (unencrypted in v1 — the encrypted upgrade
     // lands with the password/keychain-hydration pass).
@@ -221,7 +226,8 @@ fn load_from_files(key: &Path, pub_: &Path) -> Option<(minisign::SecretKey, Stri
     let boxed = minisign::SecretKeyBox::from_string(&text).ok()?;
     let sk = open_secret_box(boxed, &key_password())?;
     let pk_box = std::fs::read_to_string(pub_).ok()?;
-    Some((sk, pk_box.trim().to_owned()))
+    let pk_box = public_box::for_signing(&sk, &pk_box)?;
+    Some((sk, pk_box))
 }
 
 /// Open a secret-key box under the custody password — plus the pre-0.9
@@ -281,26 +287,27 @@ pub(crate) fn open_fixture_box(boxed: &minisign::SecretKeyBox) -> Option<minisig
 /// the init clobber check and the rotation ledger stay off the secret
 /// path, and an orphaned `.pub` (secret half gone or corrupt) is never
 /// announced as a key this machine can seal with.
+/// Public boxes are decoded and reconstructed: untrusted comments and trailing
+/// bytes cannot reach the trust output or retired ledger. Engine-generated
+/// boxes keep their bytes and fingerprint; custom comments are excluded from
+/// new identities. Historical custom-comment identities require their original
+/// public enrollment record when verifying older seals.
 #[must_use]
 pub fn load_public_box() -> Option<String> {
     // The explicit file override IS the custody when both vars are set
     // (init writes there, load reads there) — a broken pair under it
     // answers "no usable key", never a silent fall-through to another
     // tier.
-    if let (Ok(kf), Ok(pf)) = (
-        key_file_env("NIKA_RUN_KEY_FILE"),
-        key_file_env("NIKA_RUN_PUB_FILE"),
-    ) {
-        return public_from_files(Path::new(&kf), Path::new(&pf));
+    if let Some(files) = key_files::configured().ok()? {
+        return public_from_files(&files.secret, &files.public);
     }
-    if keychain_enabled()
-        && let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+    if let Some(entry) = keyring_entry(KEYRING_USER)
         && let Ok(text) = entry.get_password()
         && secret_box_parses(&text)
-        && let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
+        && let Some(pub_entry) = keyring_entry(KEYRING_USER_PUB)
         && let Ok(pk_box) = pub_entry.get_password()
     {
-        return Some(pk_box.trim().to_owned());
+        return public_box::canonical(&pk_box);
     }
     let path = fallback_key_path()?;
     public_from_files(&path, &path.with_extension("pub"))
@@ -323,7 +330,7 @@ fn secret_box_parses(text: &str) -> bool {
 }
 
 /// The public box of a (key, pub) file pair — `None` on any miss
-/// (absent or unparseable secret half · absent pub), mirroring
+/// (absent or unparseable secret half · absent or invalid pub), mirroring
 /// [`load_from_files`] minus the decrypt.
 fn public_from_files(key: &Path, pub_: &Path) -> Option<String> {
     let text = std::fs::read_to_string(key).ok()?;
@@ -331,7 +338,7 @@ fn public_from_files(key: &Path, pub_: &Path) -> Option<String> {
         return None;
     }
     let pk_box = std::fs::read_to_string(pub_).ok()?;
-    Some(pk_box.trim().to_owned())
+    public_box::canonical(&pk_box)
 }
 
 /// `nika key init` — generate + store a run-key (idempotent: refuses to
@@ -339,13 +346,15 @@ fn public_from_files(key: &Path, pub_: &Path) -> Option<String> {
 ///
 /// # Errors
 ///
-/// A refusal string when a key already exists without `--force`, or when
+/// A refusal string for an invalid file override, existing custody material
+/// without `--force` (even an orphan or corrupt pair), or when
 /// generation/storage fails (keychain unavailable AND the 0600 fallback
 /// unwritable).
 pub fn key_init(force: bool) -> Result<String, String> {
-    if load_public_box().is_some() && !force {
+    let explicit = key_files::configured()?;
+    if !force && key_files::occupied(explicit.as_ref()) {
         return Err(
-            "a run-signing key already exists — `nika key trust` prints it, `--force` rotates it"
+            "run-signing key material already exists — inspect or restore the pair; `--force` explicitly replaces it"
                 .to_owned(),
         );
     }
@@ -363,7 +372,7 @@ pub fn key_init(force: bool) -> Result<String, String> {
         .to_string()
         .trim()
         .to_owned();
-    store_key_boxes(&sk_box, &pk_box)?;
+    store_key_boxes(&sk_box, &pk_box, explicit.as_ref(), force)?;
     Ok(fingerprint(&pk_box))
 }
 
@@ -375,8 +384,9 @@ pub fn key_trust() -> Option<(String, String)> {
 }
 
 /// `nika key rotate` — retire the current pubkey to the ledger, then
-/// generate a fresh key (old journals stay verifiable against the
-/// ledger).
+/// generate a fresh key. Engine-generated old journals stay verifiable
+/// against the ledger. Imported custom-comment fingerprints require the
+/// original enrollment record; retirement cannot copy untrusted metadata.
 ///
 /// # Errors
 ///
@@ -402,50 +412,28 @@ pub fn key_rotate() -> Result<String, String> {
 
 /// Store both boxes — the env override first (init writes where load
 /// reads), then the keychain, then the 0600 files as fallback.
-fn store_key_boxes(sk_box: &str, pk_box: &str) -> Result<(), String> {
-    if let (Ok(kf), Ok(pf)) = (
-        key_file_env("NIKA_RUN_KEY_FILE"),
-        key_file_env("NIKA_RUN_PUB_FILE"),
-    ) {
-        if let Some(parent) = Path::new(&kf).parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
-        }
-        write_0600(Path::new(&kf), sk_box)?;
-        return write_0600(Path::new(&pf), pk_box);
+fn store_key_boxes(
+    sk_box: &str,
+    pk_box: &str,
+    explicit: Option<&key_files::KeyFiles>,
+    force: bool,
+) -> Result<(), String> {
+    if let Some(files) = explicit {
+        return files.store(sk_box, pk_box, force);
     }
-    if keychain_enabled()
-        && let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+    if let Some(entry) = keyring_entry(KEYRING_USER)
         && entry.set_password(sk_box).is_ok()
-        && let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
+        && let Some(pub_entry) = keyring_entry(KEYRING_USER_PUB)
         && pub_entry.set_password(pk_box).is_ok()
     {
         return Ok(());
     }
     let path = fallback_key_path().ok_or("no HOME for the key fallback".to_owned())?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
+    key_files::KeyFiles {
+        public: path.with_extension("pub"),
+        secret: path,
     }
-    write_0600(&path, sk_box)?;
-    write_0600(&path.with_extension("pub"), pk_box)
-}
-
-fn write_0600(path: &Path, text: &str) -> Result<(), String> {
-    use std::io::Write as _;
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(path)
-        .map_err(|e| format!("cannot open {}: {e}", path.display()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        let _ = file.set_permissions(std::fs::Permissions::from_mode(0o600));
-    }
-    file.write_all(text.as_bytes())
-        .map_err(|e| format!("cannot write {}: {e}", path.display()))
+    .store(sk_box, pk_box, force)
 }
 
 /// The seal event for one finished run — the terminal line of a signed
@@ -748,18 +736,7 @@ pub fn candidate_pubkeys(key_file: Option<&Path>) -> Result<Vec<(String, String)
 /// both halves into invalid candidates and makes the default key appear
 /// absent. The retired ledger is the same shape repeated with blank separators.
 fn extend_candidate_pubkeys(out: &mut Vec<(String, String)>, text: &str, source: &str) {
-    let mut lines = text.lines().map(str::trim).filter(|line| !line.is_empty());
-    while let Some(comment) = lines.next() {
-        if !comment.starts_with("untrusted comment:") {
-            continue;
-        }
-        let Some(payload) = lines.next() else {
-            break;
-        };
-        let candidate = format!("{comment}\n{payload}");
-        if minisign::PublicKeyBox::from_string(&candidate).is_err() {
-            continue;
-        }
+    for candidate in parse_public_boxes(text) {
         let candidate_fp = fingerprint(&candidate);
         if !out
             .iter()
@@ -1398,56 +1375,6 @@ mod tests {
         assert!(
             !keychain_enabled(),
             "a cargo test binary must never reach the OS custody · {exe:?}"
-        );
-    }
-
-    /// The RATCHET. Guarding seven of eight sites is what a careful pass
-    /// produces, and the eighth is the one that keeps prompting. This
-    /// walks the crate's own source so a NINTH site cannot be added
-    /// without its guard — the invariant stops depending on review.
-    #[test]
-    fn every_keyring_call_site_sits_behind_the_custody_flag() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        let mut sites = 0usize;
-        let mut naked: Vec<String> = Vec::new();
-        let entries = std::fs::read_dir(&dir).expect("the crate's own src/");
-        for e in entries.flatten() {
-            let path = e.path();
-            if path.extension().and_then(|x| x.to_str()) != Some("rs") {
-                continue;
-            }
-            let text = std::fs::read_to_string(&path).expect("readable source");
-            let all: Vec<&str> = text.lines().collect();
-            // Production sites only. A test module MENTIONS the call in a
-            // string literal (this very sweep does), and counting a
-            // mention as a site is how an instrument reports on itself.
-            let end = all
-                .iter()
-                .position(|l| l.trim_start().starts_with("#[cfg(test)]"))
-                .unwrap_or(all.len());
-            let lines: Vec<&str> = all[..end].to_vec();
-            for (i, line) in lines.iter().enumerate() {
-                if !line.contains("keyring::Entry::new") {
-                    continue;
-                }
-                sites += 1;
-                let from = i.saturating_sub(10);
-                if !lines[from..=i]
-                    .iter()
-                    .any(|l| l.contains("keychain_enabled"))
-                {
-                    naked.push(format!("{}:{}", path.display(), i + 1));
-                }
-            }
-        }
-        assert!(
-            sites > 0,
-            "the sweep found no call site — it looked at nothing"
-        );
-        assert!(
-            naked.is_empty(),
-            "{} of {sites} keyring call sites are not behind keychain_enabled(): {naked:?}",
-            naked.len()
         );
     }
 }

@@ -151,7 +151,6 @@ pub fn example(
         // workspace's trace store is not this invocation's to collect.
         true,
         false, // examples are engine-staged content — unsigned-tolerant
-        false, // examples are one-shot runs, not the outer TTY thread
         None,
     );
     // The example's own envelope model — what we suggest overriding when a
@@ -384,8 +383,6 @@ mod tests {
             code: exit::WORKFLOW,
             failure: Some(nika_runtime::TaskErrorRecord::new(code, message, false)),
             paused: None,
-            outputs: std::collections::BTreeMap::new(),
-            interrupted: false,
             trace: None,
         }
     }

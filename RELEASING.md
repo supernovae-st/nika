@@ -98,6 +98,13 @@ without an explicit operator decision.
    the same shape as the version-match guard above, and for the same
    reason.
 
+   The manifest goes into the **last** commit before the tag. `v0.117.1`
+   regenerated it in the prep commit, then one more commit moved a tracked
+   file, and all four build legs refused the tag. Step 4 now asks this
+   question too (`next-tag-project.sh --check` counts a stale manifest as
+   a claim without proof), so a tag cut after a red step 4 is the only way
+   to meet the guard again.
+
 4. **Project the next tag (the anti-08-08 question).** Before the tag
    exists, ask what it would actually contain and what it would claim
    without proof. The command reads `release.yml`, `wiring.yaml`, the
@@ -166,19 +173,53 @@ without an explicit operator decision.
    need to contain future release tooling. SLSA provenance is created only by
    the original tag-push context and exposed as a verified run artifact; the
    isolated asset-convergence writer then attaches it with the other seven
-   exact assets, so a later run can recover it. Manual replay
-   requires exactly one existing statement asset and refuses branch-context
-   regeneration. Every push and replay provenance lane, plus the read-only
+   exact assets, so a later run can recover it. Draft release reads require
+   push access even in a public repository. The existing draft preparer alone
+   reads the initial OCI marker and, on manual replay, downloads exactly one
+   existing statement by immutable asset ID. It supplies the marker decision
+   as job outputs and the unverified statement as a run artifact, without
+   executing a Docker or SLSA verifier. A statement download is not proof.
+   The event selector accepts only the selected provenance lane's success and
+   the other lane's intentional skip. Asset convergence explicitly rejoins that
+   result: GitHub's transitive skip cannot suppress it, but any failed,
+   cancelled or skipped direct prerequisite still refuses the writer. Stable
+   pointers likewise require successful finalization before their rejoin.
+   Manual replay refuses branch-context regeneration. Every push and replay
+   provenance lane, plus the read-only
    final proof, runs the pinned `slsa-verifier` against the four native subjects,
    repository, and exact source tag before proceeding. `workflow_dispatch`
    cannot generate missing
    tag-context provenance: if the statement was never staged, rerun the
-   original tag-push run while that run and its artifacts are retained. The
+   original tag-push run while that run and its artifacts are retained, provided
+   its immutable workflow can complete. A defect in that historical workflow
+   cannot be repaired by rerunning it; fix and test the ceremony on main and
+   use a new version rather than moving the old tag. The
    exact GHCR digest is durably recorded in a single release-body marker only
    after both digest-addressed Linux container binaries, copied from stopped
    containers without executing image content, hash identically to their
-   matching native tarballs. The proof job has read-only contents/packages;
-   the marker job has contents-write only and performs no Docker operation.
+   matching native tarballs. The proof job has read-only contents/packages.
+   The OCI index must contain exactly the two Linux runnable images plus one
+   BuildKit attestation descriptor bound to each image digest. Those
+   `unknown/unknown` metadata entries are not runnable platforms. Unknown
+   entries, missing or duplicate subjects, and duplicate platform or manifest
+   digests refuse; provenance generation stays enabled. This index census
+   proves structure and binding, not the authenticity of attestation contents.
+   Payload extraction resolves each Linux child's digest from that same
+   validated parent index, then pulls and creates a stopped container by the
+   child digest. It never loads two architectures under one parent digest or
+   deletes daemon references to work around a classic Docker image store.
+   Container creation cannot implicitly pull a replacement; no image content
+   is executed, and both native binary hashes must still match.
+   The marker job has contents-write only and performs no Docker operation.
+   Both release metadata PATCHes (marker and final publication) explicitly
+   carry the tag and target SHA just verified by the shared release-state
+   reader. Omitting these fields is not an identity-preservation guarantee:
+   the 0.118.5 marker write returned success but left an `untagged-*` draft.
+   Its Git tag remained intact and the marker was written, so this was a
+   partial mutation, not a rollback. Post-write reads still refuse drift;
+   they never repair an observed mismatched tag or retry a publication by
+   blindly rebinding it. GitHub exposes no conditional release PATCH, so
+   these checks cannot eliminate an administrator's concurrent-write window.
    Only then may `image:<version>` be created.
    If the marker survives but that tag is absent, replay heals it from the
    exact `image@digest`; if the marker is absent, an occupied version tag is
@@ -194,7 +235,7 @@ without an explicit operator decision.
    is refused by the post-write read. The final proof has
    contents/attestations/packages
    read only and verifies the checksum manifest, native attestations, tag-bound
-   SLSA, npm SRI, persisted digest, OCI identity, and stopped-container payload
+   SLSA, npm SRI, the marker owner's digest, OCI identity, and stopped-container payload
    bytes. Finally, the contents/discussions writer downloads the exact artifacts
    again and independently compares all eight current GitHub assets byte-for-byte,
    checks the checksum manifest, and re-reads release identity, state, and marker

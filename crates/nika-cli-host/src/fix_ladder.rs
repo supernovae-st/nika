@@ -26,7 +26,7 @@ use nika_schema::SchemaError;
 use nika_display::theme::{Role, Theme};
 
 /// One applied (or skipped) repair, for the summary.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Repair {
     /// The dead form the repair replaces (the summary's left side).
     pub old: String,
@@ -54,7 +54,7 @@ impl Repair {
 }
 
 /// Equivalence-or-stop diagnostics (W2 · D1) — rendered verbatim.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StopNotes(pub Vec<String>);
 
 /// A round the loop REFUSED to commit: the transformed text no longer
@@ -525,6 +525,202 @@ pub fn splice(
     applied
 }
 
+/// C13 · B14: wrap a bare `exec:` scalar and rewrite a simple `needs:`
+/// list, or STOP with why. Runs once before the ladder so parse can see
+/// a mapping / an `after:` edge — on BOTH doors (`nika check --fix` and
+/// the oracle's `fix: true` · ADR-124: one ladder, two doors).
+pub fn apply_prepass(source: &mut String, repairs: &mut Vec<Repair>, stop_notes: &mut StopNotes) {
+    if let Some(next) = wrap_bare_exec(source) {
+        *source = next;
+        repairs.push(Repair::applied(
+            "bare exec: string",
+            "command: argv or shell: mapping",
+            "bare-exec",
+        ));
+    } else if has_bare_exec(source) {
+        stop_notes.0.push(
+            "bare `exec:` string must be a YAML mapping — write `command: [\"prog\", …]` \
+             or `shell: \"…\"`"
+                .to_owned(),
+        );
+    }
+    if let Some(next) = rewrite_needs(source) {
+        *source = next;
+        repairs.push(Repair::applied(
+            "needs:",
+            "after: { id: success }",
+            "needs-after",
+        ));
+    }
+    if has_needs_key(source) {
+        stop_notes.0.push(
+            "`needs:` is a foreign dialect key — --fix will not guess `with:` data \
+             vs `after:` order; rewrite to `after: { task: success }` for order, \
+             or a `with:` binding for data"
+                .to_owned(),
+        );
+    }
+}
+
+fn indent_of(line: &str) -> &str {
+    line.split_at(line.len() - line.trim_start().len()).0
+}
+
+fn wrap_bare_exec(source: &str) -> Option<String> {
+    let mut changed = false;
+    let mut out = String::new();
+    for line in source.lines() {
+        if let Some(wrapped) = wrap_one_bare_exec(line) {
+            out.push_str(&wrapped);
+            changed = true;
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    if !source.ends_with('\n') && out.ends_with('\n') {
+        out.pop();
+    }
+    changed.then_some(out)
+}
+
+fn wrap_one_bare_exec(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    let rest = trimmed.strip_prefix("exec:")?.trim();
+    if rest.is_empty()
+        || rest.starts_with('{')
+        || rest.starts_with('[')
+        || rest.starts_with('|')
+        || rest.starts_with('>')
+        || rest == "true"
+        || rest == "false"
+    {
+        return None;
+    }
+    let indent = indent_of(line);
+    let unquoted = rest.trim().trim_matches(|c| c == '"' || c == '\'');
+    if unquoted.is_empty() {
+        return None;
+    }
+    // Live dialect: argv for inert tokens, `shell:` for metacharacters.
+    // Writing both `command:` and `shell: true` is the 0.102 form and
+    // PARSE-019s (P08 · C13).
+    if unquoted
+        .chars()
+        .any(|c| matches!(c, '|' | ';' | '&' | '<' | '>' | '`' | '$' | '(' | ')'))
+    {
+        let escaped = unquoted.replace('\\', "\\\\").replace('"', "\\\"");
+        return Some(format!("{indent}exec:\n{indent}  shell: \"{escaped}\""));
+    }
+    let args: Vec<String> = unquoted
+        .split_whitespace()
+        .map(|w| format!("\"{w}\""))
+        .collect();
+    Some(format!(
+        "{indent}exec:\n{indent}  command: [{}]",
+        args.join(", ")
+    ))
+}
+
+fn has_bare_exec(source: &str) -> bool {
+    source.lines().any(|line| {
+        let t = line.trim_start();
+        t.strip_prefix("exec:").is_some_and(|rest| {
+            let rest = rest.trim();
+            !rest.is_empty()
+                && !rest.starts_with('{')
+                && !rest.starts_with('[')
+                && rest != "true"
+                && rest != "false"
+        })
+    })
+}
+
+fn rewrite_needs(source: &str) -> Option<String> {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut changed = false;
+    let mut out = String::new();
+    for (i, line) in lines.iter().enumerate() {
+        if let Some(rewritten) = rewrite_one_needs(line) {
+            if sibling_has_after(&lines, i) {
+                out.push_str(line);
+            } else {
+                out.push_str(&rewritten);
+                changed = true;
+            }
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    if !source.ends_with('\n') && out.ends_with('\n') {
+        out.pop();
+    }
+    changed.then_some(out)
+}
+
+fn rewrite_one_needs(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    let rest = trimmed.strip_prefix("needs:")?.trim();
+    let rest = rest.split('#').next().unwrap_or(rest).trim();
+    let inner = rest.strip_prefix('[')?.strip_suffix(']')?.trim();
+    if inner.is_empty() {
+        return None;
+    }
+    let mut ids = Vec::new();
+    for raw in inner.split(',') {
+        let id = raw.trim().trim_matches('"').trim_matches('\'').trim();
+        if id.is_empty()
+            || !id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return None;
+        }
+        ids.push(id);
+    }
+    if ids.is_empty() {
+        return None;
+    }
+    let map = ids
+        .iter()
+        .map(|id| format!("{id}: success"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let indent = indent_of(line);
+    Some(format!("{indent}after: {{ {map} }}"))
+}
+
+fn sibling_has_after(lines: &[&str], idx: usize) -> bool {
+    let indent = indent_of(lines[idx]);
+    let same_key = |line: &str| {
+        let t = line.trim_start();
+        indent_of(line) == indent && t.starts_with("after:")
+    };
+    lines[..idx]
+        .iter()
+        .rev()
+        .take_while(|l| {
+            let t = l.trim();
+            t.is_empty() || t.starts_with('#') || indent_of(l).len() >= indent.len()
+        })
+        .any(|l| same_key(l))
+        || lines[idx + 1..]
+            .iter()
+            .take_while(|l| {
+                let t = l.trim();
+                t.is_empty() || t.starts_with('#') || indent_of(l).len() >= indent.len()
+            })
+            .any(|l| same_key(l))
+}
+
+fn has_needs_key(source: &str) -> bool {
+    source.lines().any(|line| {
+        let t = line.trim_start();
+        t.starts_with("needs:") && !t.starts_with("needs: #")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -565,5 +761,64 @@ mod tests {
             judge_round(broken, "also: [broken\n", vec!["x → y".to_owned()]).is_none(),
             "the loop cannot repair what it cannot read"
         );
+    }
+
+    /// The prepass (ADR-124 · one ladder, two doors): a bare `exec:`
+    /// scalar becomes the argv mapping.
+    #[test]
+    fn the_prepass_wraps_a_bare_exec_scalar_into_argv() {
+        let mut source = "nika: w\ntasks:\n  t:\n    exec: echo hi\n".to_owned();
+        let mut repairs = Vec::new();
+        let mut stops = StopNotes(Vec::new());
+        apply_prepass(&mut source, &mut repairs, &mut stops);
+        assert_eq!(
+            source,
+            "nika: w\ntasks:\n  t:\n    exec:\n      command: [\"echo\", \"hi\"]\n"
+        );
+        assert_eq!(repairs.len(), 1, "{repairs:?}");
+        assert!(
+            repairs[0].applied && repairs[0].kind == "bare-exec",
+            "{repairs:?}"
+        );
+        assert!(stops.0.is_empty(), "{stops:?}");
+    }
+
+    /// A metacharacter line takes the explicit `shell:` door, never argv.
+    #[test]
+    fn the_prepass_routes_a_metacharacter_line_to_shell() {
+        let mut source = "nika: w\ntasks:\n  t:\n    exec: ls | wc -l\n".to_owned();
+        let mut repairs = Vec::new();
+        let mut stops = StopNotes(Vec::new());
+        apply_prepass(&mut source, &mut repairs, &mut stops);
+        assert!(source.contains("shell: \"ls | wc -l\""), "{source}");
+        assert!(stops.0.is_empty(), "{stops:?}");
+    }
+
+    /// A simple `needs:` list becomes the `after:` control edge.
+    #[test]
+    fn the_prepass_rewrites_a_simple_needs_list_into_after() {
+        let mut source = "nika: w\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    needs: [a]\n    exec: { command: [\"true\"] }\n".to_owned();
+        let mut repairs = Vec::new();
+        let mut stops = StopNotes(Vec::new());
+        apply_prepass(&mut source, &mut repairs, &mut stops);
+        assert!(source.contains("after: { a: success }"), "{source}");
+        assert!(!source.contains("needs:"), "{source}");
+        assert_eq!(repairs.len(), 1, "{repairs:?}");
+        assert!(repairs[0].kind == "needs-after", "{repairs:?}");
+        assert!(stops.0.is_empty(), "{stops:?}");
+    }
+
+    /// A `needs:` form the prepass will not guess STOPS with why — no
+    /// repair row, one note.
+    #[test]
+    fn the_prepass_stops_on_a_needs_form_it_will_not_guess() {
+        let mut source =
+            "nika: w\ntasks:\n  b:\n    needs: a\n    exec: { command: [\"true\"] }\n".to_owned();
+        let mut repairs = Vec::new();
+        let mut stops = StopNotes(Vec::new());
+        apply_prepass(&mut source, &mut repairs, &mut stops);
+        assert!(repairs.is_empty(), "{repairs:?}");
+        assert_eq!(stops.0.len(), 1, "{stops:?}");
+        assert!(stops.0[0].contains("needs:"), "{stops:?}");
     }
 }

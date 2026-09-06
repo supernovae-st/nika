@@ -10,11 +10,11 @@
 //! - **OK** — the chain is intact (tamper-evident, not tamper-proof:
 //!   with no external trust root, an attacker can rewrite the whole
 //!   chain; compare the head against the one the run printed).
-//! - **INCOMPLETE** (F-P2) — the chain is intact but the run never
-//!   reached a lifecycle-terminal frame (kill -9 · crash between
-//!   writes): the finding rides the verifier — the dying run writes
-//!   nothing. The exit stays OK (the journal is honestly what it is);
-//!   the ladder below still climbs over the complete prefix.
+//! - **INCOMPLETE** (F-P2) — the chain is intact but the journal has no
+//!   lifecycle-terminal frame. The runtime outcome is unattested: a
+//!   failed file lane can leave this prefix even when the run succeeds.
+//!   The ladder still judges the prefix; an otherwise-OK result exits
+//!   INCOMPLETE (5), never a claim that the runtime failed.
 //! - **SEALED** — the terminal `run_sealed` event's ed25519 signature
 //!   verifies against a custody-resolved key (`--key` ·
 //!   `~/.nika/keys/run-signing.pub` · the `retired.pub` ledger),
@@ -42,7 +42,7 @@
 //!   is stated as not attempted, never faked.
 //!
 //! Two scoped stated verdicts ride beside the ladder — they never move
-//! the tier nor the exit code (the F-P2 INCOMPLETE posture): the
+//! the tier nor the exit code: the
 //! NEP-0007 permit-witness **FINDING**, and the F-P18 **COST-REPLAY**
 //! leg (NEP-0017 · the boot pin's pricing table against this engine's:
 //! `unrecorded` on a pre-law journal · **REFUSED** on an unknown table
@@ -53,13 +53,17 @@
 //! 2 (FILE) = broken chain · forged seal · forged anchor · replay
 //! divergence · 3 (ENV) = unchained (a pre-chain journal — stated,
 //! never guessed) · missing input · `--anchored` with no sidecar ·
-//! `--sealed` with no seal.
+//! `--sealed` with no seal · 5 = incomplete lifecycle evidence.
 
 use std::path::PathBuf;
 
 use nika_dap::anchor::tier;
 
 use super::VerbOutput;
+
+mod json;
+pub use json::VERIFY_VERSION;
+use json::{finish, ladder_doc};
 
 /// The verify surface's knobs — the tier ladder's explicit asks.
 #[derive(Clone, Debug, Default)]
@@ -76,6 +80,11 @@ pub struct VerifyOptions {
     pub sealed: bool,
     /// A fresh journal of the same workflow for the REPLAYED tier.
     pub replay: Option<PathBuf>,
+    /// One JSON document instead of the prose ladder (#1405 · `--json`):
+    /// the attained tier, the exit class, the chain facts, one object
+    /// per leg, and the ladder lines — so a CI gate on « at least
+    /// SEALED » is a field read, never a grep on prose.
+    pub json: bool,
 }
 
 /// `nika trace verify <trace>` — today's byte-stable surface: the
@@ -91,23 +100,11 @@ pub fn verify(trace: &str) -> VerbOutput {
 pub fn verify_with(trace: &str, opts: &VerifyOptions) -> VerbOutput {
     let candidates = match crate::seal::candidate_pubkeys(opts.key.as_deref()) {
         Ok(candidates) => candidates,
-        Err(e) => return VerbOutput::env(e),
+        Err(e) => return finish(opts, trace, "refused", VerbOutput::env(e)),
     };
-    // NEP-0012 law 1 · the journal is untrusted input: bound the total
-    // read BEFORE it happens (the per-line cap rides `chain.rs` · this
-    // is the whole-file half).
-    if let Ok(meta) = std::fs::metadata(trace)
-        && meta.len() > nika_dap::bounded::MAX_JOURNAL_BYTES as u64
-    {
-        return VerbOutput::env(format!(
-            "{trace}: {} bytes — over the journal bound ({} bytes · NEP-0012 law 1 · a file beyond it is not a run this engine produced)",
-            meta.len(),
-            nika_dap::bounded::MAX_JOURNAL_BYTES
-        ));
-    }
-    let raw = match std::fs::read_to_string(trace) {
+    let raw = match read_journal(trace, opts) {
         Ok(raw) => raw,
-        Err(e) => return VerbOutput::env(format!("cannot read {trace}: {e}")),
+        Err(refusal) => return refusal,
     };
     match walk(&raw) {
         Verdict::Intact { events, head, .. } => tiered(
@@ -142,32 +139,149 @@ pub fn verify_with(trace: &str, opts: &VerifyOptions) -> VerbOutput {
             recorded,
             computed,
             ..
-        } => VerbOutput::file(format!(
-            "BROKEN at line {line} — recorded chain {} · computed {}\n  every line from here on is unverified (edited, inserted, dropped or reordered)",
-            short(&recorded),
-            short(&computed),
-        )),
+        } => finish(
+            opts,
+            trace,
+            "broken",
+            VerbOutput::file(format!(
+                "BROKEN at line {line} — recorded chain {} · computed {}\n  every line from here on is unverified (edited, inserted, dropped or reordered)",
+                short(&recorded),
+                short(&computed),
+            )),
+        ),
         // F-P1 · the fortress line bound: beyond the verifier's bounds
         // is a FILE refusal (a 100 MB line is a DoS vector, never a
         // journal line — recognized, never partially read).
-        Verdict::LineOverLong { line, got, .. } => VerbOutput::file(format!(
-            "line {line} is {got} bytes — beyond the verifier's line bound ({} bytes)\n  a journal line is small (the seal's covers included); an oversized line is\n  the DoS class, refused before any parse (F-P1)",
-            nika_dap::chain::MAX_LINE_BYTES,
-        )),
-        Verdict::Unchained => VerbOutput::env(format!(
-            "unchained — {trace} predates the chain (pre-0.96 journal): nothing to verify, nothing to distrust"
-        )),
-        Verdict::Empty => VerbOutput::env(format!("{trace}: no events")),
-        Verdict::Unreadable { line, .. } => VerbOutput::env(format!(
-            "{trace}:{line}: not a journal — the line is not valid JSON"
-        )),
+        Verdict::LineOverLong { line, got, .. } => finish(
+            opts,
+            trace,
+            "line-over-long",
+            VerbOutput::file(format!(
+                "line {line} is {got} bytes — beyond the verifier's line bound ({} bytes)\n  a journal line is small (the seal's covers included); an oversized line is\n  the DoS class, refused before any parse (F-P1)",
+                nika_dap::chain::MAX_LINE_BYTES,
+            )),
+        ),
+        Verdict::Unchained => finish(
+            opts,
+            trace,
+            "unchained",
+            VerbOutput::env(format!(
+                "unchained — {trace} predates the chain (pre-0.96 journal): nothing to verify, nothing to distrust"
+            )),
+        ),
+        Verdict::Empty => finish(
+            opts,
+            trace,
+            "empty",
+            VerbOutput::env(format!("{trace}: no events")),
+        ),
+        Verdict::Unreadable { line, .. } => finish(
+            opts,
+            trace,
+            "unreadable",
+            VerbOutput::env(format!(
+                "{trace}:{line}: not a journal — the line is not valid JSON"
+            )),
+        ),
         // The verdict is #[non_exhaustive]: a NEWER forensics crate may
         // learn classes this CLI cannot render — refuse honestly,
         // never mis-render one.
-        _ => VerbOutput::env(format!(
-            "{trace}: unknown verdict class — the forensics library is newer than this CLI"
-        )),
+        _ => finish(
+            opts,
+            trace,
+            "unknown",
+            VerbOutput::env(format!(
+                "{trace}: unknown verdict class — the forensics library is newer than this CLI"
+            )),
+        ),
     }
+}
+
+/// The chain-intact headline the verify surface prints (F-P2): the same
+/// words the pre-tier surface printed for `Intact`; `Torn` and
+/// `Incomplete` name the journal's shape, not the runtime's outcome.
+fn headline_prose(headline: ChainHeadline, events: usize, head: &str) -> String {
+    match headline {
+        ChainHeadline::Torn => format!(
+            "OK — {events} events · chain intact · head {head}\n  the final line is invalid (TORN) — its cause is unattested;\n  the chain covers every complete line, not the invalid tail"
+        ),
+        ChainHeadline::Intact => format!(
+            "OK — {events} events · chain intact · head {head}\n  internally consistent (tamper-evident, not tamper-proof) — compare the head\n  against the one the run printed to close the loop"
+        ),
+        // F-P2 · the chain attests the prefix; the absent lifecycle end
+        // cannot distinguish a failed journal lane from a failed run.
+        // ADR-129 makes the exit carry this evidence gap too.
+        ChainHeadline::Incomplete => format!(
+            "INCOMPLETE — {events} events · chain intact · head {head}\n  the journal never reached a terminal frame (no workflow_completed · workflow_failed ·\n  workflow_paused · workflow_cancelled · run_sealed). The chain attests every complete\n  line; the runtime outcome is unattested by this journal. A failed journal lane can\n  leave this prefix even when the run succeeds"
+        ),
+    }
+}
+
+/// Every ladder line, collected once: the prose appends them, the JSON
+/// projection carries them under `lines` — the tier report's own, the
+/// permit-witness finding, then the F-P18 cost-replay leg (NEP-0017 · a
+/// SCOPED STATED VERDICT that never moves the chain verdict nor the exit
+/// code; the judge is pure, the LOCAL identity is this binary's
+/// compile-time catalog, injected here).
+fn ladder_lines(raw: &str, report: &tier::TierReport) -> Vec<String> {
+    let mut lines: Vec<String> = report.lines.clone();
+    if let Some(finding) = witness_finding(raw) {
+        lines.push(finding.to_owned());
+    }
+    let snapshot = nika_catalog::pricing_snapshot();
+    let leg = nika_dap::cost_replay::cost_replay_leg(
+        raw,
+        &nika_dap::cost_replay::PricingPin::new(
+            nika_catalog::PRICING_SCHEMA,
+            snapshot.as_of,
+            snapshot.source_sha256_16,
+        ),
+    );
+    lines.extend(leg.lines.iter().cloned());
+    lines
+}
+
+/// What the lease says about an INCOMPLETE journal's writer (ADR-129).
+fn liveness_line(liveness: nika_dap::liveness::Liveness) -> String {
+    use nika_dap::liveness::Liveness;
+    match liveness {
+        Liveness::Alive { pid } => format!(
+            "the writer is alive (pid {pid} on this host) — a run in flight: verify again once it settles"
+        ),
+        Liveness::Dead { pid } => format!(
+            "the writer lease is no longer held (recorded pid {pid} on this host) — the evidence is incomplete; the runtime outcome is unattested by this journal"
+        ),
+        _ => "no liveness record (an older engine's journal, or another host) — this reader cannot say whether the writer lives".to_owned(),
+    }
+}
+
+/// The bounded read of one journal. NEP-0012 law 1 · the journal is
+/// untrusted input: bound the total read BEFORE it happens (the per-line
+/// cap rides `chain.rs` · this is the whole-file half). A refusal is
+/// already the verb's output (the `--json` envelope included).
+fn read_journal(trace: &str, opts: &VerifyOptions) -> Result<String, VerbOutput> {
+    if let Ok(meta) = std::fs::metadata(trace)
+        && meta.len() > nika_dap::bounded::MAX_JOURNAL_BYTES as u64
+    {
+        return Err(finish(
+            opts,
+            trace,
+            "refused",
+            VerbOutput::env(format!(
+                "{trace}: {} bytes — over the journal bound ({} bytes · NEP-0012 law 1 · a file beyond it is not a run this engine produced)",
+                meta.len(),
+                nika_dap::bounded::MAX_JOURNAL_BYTES
+            )),
+        ));
+    }
+    std::fs::read_to_string(trace).map_err(|e| {
+        finish(
+            opts,
+            trace,
+            "unreadable",
+            VerbOutput::env(format!("cannot read {trace}: {e}")),
+        )
+    })
 }
 
 /// The variadic form (`nika trace verify .nika/traces/*.ndjson` — the
@@ -189,6 +303,13 @@ pub fn verify_many_with(traces: &[std::path::PathBuf], opts: &VerifyOptions) -> 
     for path in traces {
         let resolved = super::trace::manage::resolve_store_handle(path);
         let out = verify_with(&resolved.to_string_lossy(), opts);
+        worst = worst.max(out.code);
+        // `--json`: one document per trace, one per line (NDJSON) — each
+        // already names its `trace`, so no prose header rides above it.
+        if opts.json {
+            blocks.push(format!("{}\n", out.text.trim_end()));
+            continue;
+        }
         let mut block = format!("{}\n", resolved.display());
         for line in out.text.lines() {
             block.push_str("  ");
@@ -196,26 +317,28 @@ pub fn verify_many_with(traces: &[std::path::PathBuf], opts: &VerifyOptions) -> 
             block.push('\n');
         }
         blocks.push(block);
-        worst = worst.max(out.code);
     }
     VerbOutput {
-        text: blocks.join("\n"),
+        text: if opts.json {
+            blocks.concat()
+        } else {
+            blocks.join("\n")
+        },
         code: worst,
     }
 }
 
-/// The chain-intact headline the verify surface prints (the lifecycle
-/// truth the walk attested, F-P2). `Intact`'s OK line stays byte-
-/// identical to the pre-tier surface; `Torn` and `Incomplete` name the
-/// crash signature the journal carries.
+/// The chain-intact headline the verify surface prints (the journal
+/// evidence, F-P2). `Intact`'s OK line stays byte-identical to the pre-tier
+/// surface; `Torn` and `Incomplete` describe the journal, not its cause.
 #[derive(Clone, Copy)]
 enum ChainHeadline {
-    /// Chain intact AND the run reached a lifecycle-terminal frame.
+    /// Chain intact AND the journal contains a lifecycle-terminal frame.
     Intact,
-    /// Chain intact — the final line is torn (a crash mid-write).
+    /// Chain intact — the final line is invalid; its cause is unattested.
     Torn,
-    /// Chain intact — the run never reached a terminal frame (kill -9 ·
-    /// crash between writes): a finding, never a silence.
+    /// Chain intact — the journal has no terminal frame; the runtime
+    /// outcome is unattested by this journal.
     Incomplete,
 }
 
@@ -291,51 +414,15 @@ fn tiered(
     // a plain « OK · chain intact ». Both readings pointed away from the
     // tampering; the class states itself here (the ladder lines carry why).
     if let tier::SealTier::Buried { .. } = report.seal {
-        return tampered_verdict(events, head, &report.lines);
+        return finish(
+            opts,
+            trace,
+            "buried-seal",
+            tampered_verdict(events, head, &report.lines),
+        );
     }
-    let mut out = match headline {
-        ChainHeadline::Torn => format!(
-            "OK — {events} events · chain intact · head {head}\n  the final line is TORN (a crash mid-write, not tampering) — the chain\n  covers every complete line"
-        ),
-        ChainHeadline::Intact => format!(
-            "OK — {events} events · chain intact · head {head}\n  internally consistent (tamper-evident, not tamper-proof) — compare the head\n  against the one the run printed to close the loop"
-        ),
-        // F-P2 · the killed run: the chain attests every complete line —
-        // the lifecycle end is absent, said out loud. A FINDING (the
-        // exit stays OK: the journal is honestly what it is), never the
-        // `unknown` silence a truncated fold used to answer. The
-        // attestation rides the VERIFIER — the dying run writes nothing.
-        ChainHeadline::Incomplete => format!(
-            "INCOMPLETE — {events} events · chain intact · head {head}\n  the journal never reached a terminal frame (no workflow_completed · workflow_failed ·\n  workflow_paused · workflow_cancelled · run_sealed) — the run was killed or crashed:\n  the chain attests every complete line; the lifecycle end is unattested, a finding\n  the verifier carries (the dying run can attest nothing)"
-        ),
-    };
-    for line in &report.lines {
-        use std::fmt::Write as _;
-        let _ = write!(out, "\n{line}");
-    }
-    if let Some(finding) = witness_finding(raw) {
-        use std::fmt::Write as _;
-        let _ = write!(out, "\n{finding}");
-    }
-    // F-P18 · the cost-replay leg (NEP-0017 · la table de prix DANS le
-    // pin): a SCOPED STATED VERDICT — it rides after the ladder and the
-    // witness finding and never moves the chain verdict nor the exit
-    // code (the F-P2 `Incomplete` posture). The judge is pure; the
-    // LOCAL identity is this binary's compile-time catalog, injected
-    // here (the leg reads no catalog itself).
-    let snapshot = nika_catalog::pricing_snapshot();
-    let leg = nika_dap::cost_replay::cost_replay_leg(
-        raw,
-        &nika_dap::cost_replay::PricingPin::new(
-            nika_catalog::PRICING_SCHEMA,
-            snapshot.as_of,
-            snapshot.source_sha256_16,
-        ),
-    );
-    for line in &leg.lines {
-        use std::fmt::Write as _;
-        let _ = write!(out, "\n{line}");
-    }
+    let mut out = headline_prose(headline, events, head);
+    let mut lines = ladder_lines(raw, &report);
     let code = match report.exit {
         tier::TierExit::Ok => super::exit::OK,
         tier::TierExit::File => super::exit::FILE,
@@ -343,6 +430,44 @@ fn tiered(
         // an era answer (ENV), never a guessed forgery.
         _ => super::exit::ENV,
     };
+    // ADR-129 · #1442 · a journal that never reached a terminal frame is
+    // INCOMPLETE evidence: the chain holds, the lifecycle end is unattested,
+    // and the exit says so — a monitor wired on the code must never green a
+    // dead run. The writer's lease tells a run in flight from a dead one.
+    let liveness = if matches!(headline, ChainHeadline::Incomplete) {
+        let l = nika_dap::liveness::probe(std::path::Path::new(trace));
+        lines.push(liveness_line(l));
+        Some(l)
+    } else {
+        None
+    };
+    let code = if liveness.is_some() && code == super::exit::OK {
+        super::exit::INCOMPLETE
+    } else {
+        code
+    };
+    if opts.json {
+        return VerbOutput {
+            text: format!(
+                "{}\n",
+                ladder_doc(
+                    trace,
+                    events,
+                    head,
+                    headline,
+                    &report,
+                    code,
+                    &lines,
+                    liveness.map(nika_dap::liveness::Liveness::as_str),
+                )
+            ),
+            code,
+        };
+    }
+    for line in &lines {
+        use std::fmt::Write as _;
+        let _ = write!(out, "\n{line}");
+    }
     VerbOutput { text: out, code }
 }
 
@@ -410,6 +535,8 @@ mod tests {
     use super::*;
     use nika_dap::chain::CHAIN_GENESIS;
     use nika_event::source_id::sha256_hex;
+
+    mod evidence;
 
     /// Build a chained journal the way the sink does (the nika-dap
     /// chain-test idiom).
@@ -531,6 +658,7 @@ mod tests {
 
     fn opts_with_key(key: std::path::PathBuf) -> VerifyOptions {
         VerifyOptions {
+            json: false,
             key: Some(key),
             ..VerifyOptions::default()
         }
@@ -570,10 +698,10 @@ mod tests {
         let _ = std::fs::remove_file(key);
     }
 
-    /// (F-P2) A journal that never reached a terminal frame verifies
-    /// INCOMPLETE — the finding is the VERIFIER's (the dying run writes
-    /// nothing) and the exit stays OK: the journal is honestly what it
-    /// is, the tier ladder still speaks.
+    /// (F-P2 · ADR-129) A journal that never reached a terminal frame
+    /// verifies INCOMPLETE — the finding is about the journal, not the
+    /// runtime outcome, and the exit says so (#1442). With no lease the
+    /// writer's liveness is unknown.
     #[test]
     fn a_terminal_less_journal_verifies_incomplete() {
         let trace = stage(
@@ -581,8 +709,9 @@ mod tests {
             &chained(&["workflow_started", "task_completed"]),
         );
         let out = verify_with(&trace.to_string_lossy(), &VerifyOptions::default());
-        assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
+        assert_eq!(out.code, super::super::exit::INCOMPLETE, "{}", out.text);
         assert!(out.text.contains("INCOMPLETE — 2 events"), "{}", out.text);
+        assert!(out.text.contains("no liveness record"), "{}", out.text);
         assert!(
             out.text.contains("never reached a terminal frame"),
             "{}",
@@ -823,6 +952,86 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// #1405 — `--json` projects the ladder the prose prints: the
+    /// attained tier as a field, the exit class, one object per leg, and
+    /// the lines. A CI gate on « at least SEALED » reads `tier`.
+    #[test]
+    fn verify_json_projects_the_ladder_of_the_frozen_fixture() {
+        let dir = std::env::temp_dir().join(format!("nika-a4-json-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let trace = dir.join("fixture.ndjson");
+        std::fs::write(&trace, FIXTURE_JOURNAL).expect("journal");
+        std::fs::write(
+            crate::anchor::sidecar_path(&trace.to_string_lossy()),
+            FIXTURE_SIDECAR,
+        )
+        .expect("sidecar");
+        let key = dir.join("run.pub");
+        std::fs::write(&key, FIXTURE_PUBLIC_BOX).expect("key");
+        let mut opts = opts_with_key(key);
+        opts.json = true;
+
+        let out = verify_with(&trace.to_string_lossy(), &opts);
+        assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
+        let doc: serde_json::Value = serde_json::from_str(out.text.trim()).expect("one document");
+        assert_eq!(doc["verify_version"], 1);
+        assert_eq!(doc["tier"], "anchored", "{doc}");
+        assert_eq!(doc["exit"], 0);
+        assert_eq!(doc["chain"]["headline"], "intact");
+        assert_eq!(doc["seal"]["tier"], "sealed");
+        assert_eq!(doc["seal"]["key_id"], "1e772a7b922d7be3");
+        assert_eq!(doc["anchor"]["tier"], "anchored");
+        assert_eq!(doc["anchor"]["log_index"], "34612959");
+        assert_eq!(doc["replay"]["tier"], "not-asked");
+        assert!(
+            doc["lines"].as_array().is_some_and(|l| l
+                .iter()
+                .any(|x| { x.as_str().is_some_and(|s| s.starts_with("SEALED")) })),
+            "the prose ladder rides `lines`: {doc}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// #1405 — the non-ladder verdicts project too: a broken chain is
+    /// `tier: broken` at the FILE exit, and several traces are NDJSON.
+    #[test]
+    fn verify_json_names_a_broken_chain_and_streams_many() {
+        let intact = stage(
+            "json-intact.ndjson",
+            &chained(&["workflow_started", "workflow_completed"]),
+        );
+        let mut tampered_raw =
+            chained(&["workflow_started", "task_completed", "workflow_completed"]);
+        tampered_raw = tampered_raw.replacen("task_completed", "task_failedxx", 1);
+        let tampered = stage("json-tampered.ndjson", &tampered_raw);
+        let opts = VerifyOptions {
+            json: true,
+            ..VerifyOptions::default()
+        };
+        let one = verify_with(&tampered.to_string_lossy(), &opts);
+        assert_eq!(one.code, super::super::exit::FILE);
+        let doc: serde_json::Value = serde_json::from_str(one.text.trim()).expect("document");
+        assert_eq!(doc["tier"], "broken", "{doc}");
+        assert_eq!(doc["exit"], 2);
+        assert!(
+            doc["lines"][0]
+                .as_str()
+                .is_some_and(|s| s.starts_with("BROKEN at line")),
+            "{doc}"
+        );
+
+        let many = verify_many_with(&[intact, tampered], &opts);
+        assert_eq!(many.code, super::super::exit::FILE);
+        let docs: Vec<serde_json::Value> = many
+            .text
+            .lines()
+            .map(|l| serde_json::from_str(l).expect("each line is a document"))
+            .collect();
+        assert_eq!(docs.len(), 2, "one document per trace: {}", many.text);
+        assert_eq!(docs[0]["tier"], "ok");
+        assert_eq!(docs[1]["tier"], "broken");
+    }
+
     /// Tier demotion honesty: a forged anchor over a GOOD seal reports
     /// SEALED, never ANCHORED — and is the FILE (forgery) class.
     #[test]
@@ -857,6 +1066,7 @@ mod tests {
         let trace = stage("required.ndjson", &journal);
         let key = stage_key("required.pub", &pk_box);
         let opts = VerifyOptions {
+            json: false,
             key: Some(key.clone()),
             anchored: true,
             sealed: false,
@@ -879,6 +1089,7 @@ mod tests {
         let journal = chained_with(&[("workflow_completed", &[])]);
         let trace = stage("unsealed-required.ndjson", &journal);
         let opts = VerifyOptions {
+            json: false,
             key: None,
             anchored: true,
             sealed: false,
@@ -902,6 +1113,7 @@ mod tests {
         let key = dir.join("run.pub");
         std::fs::write(&key, FIXTURE_PUBLIC_BOX).expect("key");
         let opts = VerifyOptions {
+            json: false,
             key: Some(key),
             anchored: false,
             sealed: false,
@@ -990,6 +1202,9 @@ mod tests {
                 &[("plane", "exec"), ("decision", "allow")],
             ),
             ("task_completed", &[("task", "stamp")]),
+            // ADR-129 · the journal reaches its terminal: the witness rule is
+            // judged on a COMPLETE run (an incomplete one exits its own class).
+            ("workflow_completed", &[]),
         ]);
         let path = stage("witness-present", &witnessed);
         let out = verify(&path.to_string_lossy());
@@ -1006,6 +1221,9 @@ mod tests {
                 &[("task", "think"), ("note", "infer · mock/echo")],
             ),
             ("task_completed", &[("task", "think")]),
+            // ADR-129 · the journal reaches its terminal: the witness rule is
+            // judged on a COMPLETE run (an incomplete one exits its own class).
+            ("workflow_completed", &[]),
         ]);
         let path = stage("witness-infer-only", &infer_only);
         let out = verify(&path.to_string_lossy());
@@ -1229,6 +1447,7 @@ mod tests {
         let journal = chained_with(&[("workflow_completed", &[])]);
         let trace = stage("unsealed-seal-required.ndjson", &journal);
         let opts = VerifyOptions {
+            json: false,
             key: None,
             anchored: false,
             sealed: true,
@@ -1250,6 +1469,7 @@ mod tests {
         let trace = stage("sealed-required.ndjson", &journal);
         let key = stage_key("sealed-required.pub", &pk_box);
         let opts = VerifyOptions {
+            json: false,
             key: Some(key.clone()),
             anchored: false,
             sealed: true,

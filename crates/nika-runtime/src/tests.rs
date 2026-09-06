@@ -717,16 +717,16 @@ outputs:
     .expect("parses");
     // A number where `string` is declared → NIKA-VAR-009.
     let bad = BTreeMap::from([("n".to_owned(), serde_json::json!(42))]);
-    let v =
-        first_output_type_violation(&wf, &bad).expect("number vs declared string is a violation");
+    let v = super::settlement::first_output_type_violation(&wf, &bad)
+        .expect("number vs declared string is a violation");
     assert_eq!(v.name, "n");
     assert_eq!(v.expected, "string");
     assert_eq!(v.actual, "number");
     // The declared type → no violation.
     let good = BTreeMap::from([("n".to_owned(), serde_json::json!("hello"))]);
-    assert!(first_output_type_violation(&wf, &good).is_none());
+    assert!(super::settlement::first_output_type_violation(&wf, &good).is_none());
     // An unresolved output (omitted upstream) is NOT a type error.
-    assert!(first_output_type_violation(&wf, &BTreeMap::new()).is_none());
+    assert!(super::settlement::first_output_type_violation(&wf, &BTreeMap::new()).is_none());
 }
 
 #[test]
@@ -774,6 +774,7 @@ fn recovered_success_emits_task_recovered_before_completed() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::Number(99.into()),
             tokens: None,
@@ -787,6 +788,7 @@ fn recovered_success_emits_task_recovered_before_completed() {
             cost_usd: None,
             cost_unpriced: None,
             model: None,
+            access: None,
         },
     };
     let mut ok = true;
@@ -838,6 +840,7 @@ fn obs_e_warning_rides_task_completed() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::String(String::new()),
             tokens: Some(84),
@@ -847,6 +850,7 @@ fn obs_e_warning_rides_task_completed() {
             cost_usd: Some(0.0125),
             cost_unpriced: None,
             model: None,
+            access: None,
         },
     };
     let mut ok = true;
@@ -902,6 +906,7 @@ fn no_warning_field_on_a_clean_success() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::String("ok".to_owned()),
             tokens: None,
@@ -911,6 +916,7 @@ fn no_warning_field_on_a_clean_success() {
             cost_usd: None,
             cost_unpriced: None,
             model: None,
+            access: None,
         },
     };
     let mut ok = true;
@@ -967,6 +973,7 @@ fn access_facts_ride_the_infer_terminal() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::String("hi".to_owned()),
             tokens: Some(3),
@@ -976,6 +983,7 @@ fn access_facts_ride_the_infer_terminal() {
             cost_usd: None,
             cost_unpriced: Some(nika_types::cost::UnpricedReason::MockProvider),
             model: Some("mock/echo".to_owned()),
+            access: None,
         },
     };
     let mut ok = true;
@@ -1031,6 +1039,7 @@ fn cost_unpriced_reason_rides_task_completed() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::String("bonjour".to_owned()),
             tokens: Some(12),
@@ -1040,6 +1049,7 @@ fn cost_unpriced_reason_rides_task_completed() {
             cost_usd: None,
             cost_unpriced: Some(nika_types::cost::UnpricedReason::LocalModel),
             model: Some("ollama/llama3.2".to_owned()),
+            access: None,
         },
     };
     let mut ok = true;

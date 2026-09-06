@@ -4,7 +4,8 @@
 //! The engine ingress — the two doors the session law reads through:
 //!
 //! - [`GraphDoc`], the engine's canonical projection (`nika inspect
-//!   --format json` · `graph_format: 2`). Deserialized, never remodeled —
+//!   --format json` · `graph_format: 3` · pinned to the engine's own
+//!   number by `tests/wire_pins.rs`). Deserialized, never remodeled —
 //!   a hand-typed graph type drifts from the binary that emits it (the
 //!   2026-08-10 divergence, twice paid).
 //! - [`run_from_journal`], the flight recorder's NDJSON folded into the
@@ -19,11 +20,17 @@ use serde::Deserialize;
 
 use crate::model::{Failure, Run, Step, Verb};
 
-/// The versioned projection envelope (`graph_format: 2`).
+/// The graph format this crate reads — the engine's (`nika-graph`
+/// `GRAPH_FORMAT`), pinned by `tests/wire_pins.rs` so a bump on either
+/// side fails there first (ADR-130 · a copied number is pinned, never
+/// hand-maintained).
+pub const GRAPH_FORMAT: u32 = 3;
+
+/// The versioned projection envelope (`graph_format: 3`).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct GraphDoc {
-    /// Envelope version — additive evolution only within 2.
+    /// Envelope version — additive evolution only within 3.
     pub graph_format: u32,
     /// Workflow id (kebab-case).
     pub workflow: String,
@@ -62,6 +69,12 @@ impl GraphDoc {
             edges: self.edges.clone(),
         }
     }
+
+    /// The TASKS — a cleanup unit (`kind: "finally"` · format 3) is a node
+    /// the engine projects for the map, never a slot on the board.
+    pub fn tasks(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.iter().filter(|n| n.kind != "finally")
+    }
 }
 
 /// One task node — the engine's static facts, mirrored.
@@ -70,6 +83,12 @@ impl GraphDoc {
 pub struct Node {
     /// Task id.
     pub id: String,
+    /// `"task"` · `"finally"` — the population this node belongs to
+    /// (format 3: a cleanup unit is a node, never a task; a reader that did
+    /// not know `kind` counted it in a wave). Absent on an older document:
+    /// a task.
+    #[serde(default = "task_kind")]
+    pub kind: String,
     /// The verb.
     pub verb: Verb,
     /// `invoke:` tool id, when the verb is invoke.
@@ -132,6 +151,7 @@ impl Node {
     pub fn new(id: String, verb: Verb) -> Self {
         Self {
             id,
+            kind: task_kind(),
             verb,
             tool: None,
             model: None,
@@ -387,4 +407,9 @@ pub fn run_from_journal(bytes: &str) -> Result<Run, IngressError> {
         output: String::new(),
         steps,
     })
+}
+
+/// The population an older document did not name: a task.
+fn task_kind() -> String {
+    "task".to_owned()
 }

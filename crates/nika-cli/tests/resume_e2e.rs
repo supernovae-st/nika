@@ -40,7 +40,7 @@ fn bin() -> Command {
         .join("nika-resume-e2e")
         .join(format!("home-{}", std::process::id()));
     std::fs::create_dir_all(&home).expect("isolated home");
-    let mut command = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nika"));
     command.env("HOME", home);
     command
 }
@@ -956,10 +956,16 @@ fn a_cross_version_resume_refuses_naming_both_versions() {
         stderr.contains("--resume-compat 0.0.0-test"),
         "the exact teaching: {stderr}"
     );
+    // The refusal reaches the `--json` stream as one typed line (#1439)
+    // and no run ever starts.
+    let stream = String::from_utf8_lossy(&refused.stdout);
     assert!(
-        refused.stdout.is_empty(),
-        "a judged resume never starts:\n{}",
-        String::from_utf8_lossy(&refused.stdout)
+        stream.contains("\"error\""),
+        "the refusal reaches the stream:\n{stream}"
+    );
+    assert!(
+        !stream.contains("\"kind\":\"workflow_started\""),
+        "a judged resume never starts:\n{stream}"
     );
 
     // A WRONG token is its own named refusal.
@@ -1191,6 +1197,7 @@ fn a_tampered_trace_is_refused_naming_the_opt_out() {
             "--color",
             "never",
         ])
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stderr = String::from_utf8(refused.stderr).expect("utf8");
@@ -1207,10 +1214,16 @@ fn a_tampered_trace_is_refused_naming_the_opt_out() {
         stderr.contains("--resume-unverified"),
         "the opt-out is named: {stderr}"
     );
+    // The refusal reaches the `--json` stream as one typed line (#1439)
+    // and no run ever starts.
+    let stream = String::from_utf8_lossy(&refused.stdout);
     assert!(
-        refused.stdout.is_empty(),
-        "a refused resume never starts:\n{}",
-        String::from_utf8_lossy(&refused.stdout)
+        stream.contains("\"error\""),
+        "the refusal reaches the stream:\n{stream}"
+    );
+    assert!(
+        !stream.contains("\"kind\":\"workflow_started\""),
+        "a judged resume never starts:\n{stream}"
     );
     assert_eq!(
         trace_count(&wf),
@@ -1271,6 +1284,9 @@ fn a_stripped_trace_proceeds_but_attests_the_unchained_trust() {
             "--color",
             "never",
         ])
+        // #1367 · the staged run wrote the trace from its directory: resume
+        // from there (another cwd is another project and refuses).
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(resumed.stdout).expect("utf8");
@@ -1318,6 +1334,7 @@ fn the_named_opt_out_proceeds_loudly_and_attests() {
             "--color",
             "never",
         ])
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(opted.stdout).expect("utf8");
@@ -1352,6 +1369,7 @@ fn the_named_opt_out_proceeds_loudly_and_attests() {
             "--color",
             "never",
         ])
+        .current_dir(wf.parent().expect("the staged project directory"))
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(control.stdout).expect("utf8");
@@ -1425,6 +1443,9 @@ fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
             "--color",
             "never",
         ])
+        // #1367 · a trace resumes from the project that wrote it (the run's
+        // cwd is its root); another cwd is another project and refuses.
+        .current_dir(&dir)
         .output()
         .expect("binary runs");
     let stdout = String::from_utf8(resumed.stdout).expect("utf8");
@@ -1462,6 +1483,7 @@ fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
             "--color",
             "never",
         ])
+        .current_dir(&dir)
         .output()
         .expect("binary runs");
     let stderr = String::from_utf8(refused.stderr).expect("utf8");

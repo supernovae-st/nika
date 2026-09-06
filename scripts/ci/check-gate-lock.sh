@@ -41,4 +41,10 @@ if ! bash "$SELFTEST"; then
   exit 1
 fi
 
-echo "OK  the pre-push lease holds its four properties"
+echo "OK  the pre-push lease passes its exclusion and ownership checks"
+
+# A correct reader is useless if the dispatcher skips it before it sees refs.
+# This uses real installed Lefthook hooks and disposable local Git remotes;
+# Cargo is a deliberately failing fixture, not a substitute Rust verdict.
+python3 "$ROOT/hooks/test-pre-push-dispatch.py" || exit 1
+echo "OK  tag, empty-input, deletion, mixed and protected-ref dispatch hold"

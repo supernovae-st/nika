@@ -15,6 +15,7 @@ use sha2::{Digest as _, Sha256};
 mod admission;
 mod binding;
 mod migration;
+mod stored_job;
 
 use binding::{
     attach_interrupted_receipt, ensure_receipt_matches, has_complete_execution_identity,
@@ -156,6 +157,33 @@ impl JobStore {
         Ok(store)
     }
 
+    /// ADR-132 · the RESIDENT becomes the store's writer once it holds the
+    /// server lease (the freeze audit moved the stamp after the lease: a
+    /// second start that loses the lease never rewrites the live
+    /// resident's writer, and a newer protocol's stamp never lands beside
+    /// an older resident still serving). The newer-writer refusal fires
+    /// at every load (`validate`), open included.
+    ///
+    /// # Errors
+    /// Returns an error when locking, loading or writing fails.
+    pub(crate) fn stamp_writer_as_resident(&self) -> Result<(), JobStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        self.stamp_writer()
+    }
+
+    /// The stamp itself (a store an older engine wrote is re-stamped; an
+    /// unstamped one is stamped). Held under the caller's lease.
+    fn stamp_writer(&self) -> Result<(), JobStoreError> {
+        let mut state = self.load_state()?;
+        let mine = crate::writer::WriterStamp::this_engine();
+        if state.writer.as_ref() != Some(&mine) {
+            state.writer = Some(mine);
+            self.persist(&state)?;
+        }
+        Ok(())
+    }
+
     /// Create a job or replay the record already bound to this key.
     ///
     /// Reusing a key with another digest yields [`Admission::Conflict`] and
@@ -277,6 +305,9 @@ impl JobStore {
             error_message: String::new(),
             outputs: None,
             receipt: None,
+            settlement: None,
+            paused_outputs: None,
+            paused_receipt: None,
         };
         if let Some(world) = world {
             self.dir.write_atomic(&world_file(&record.id), world)?;
@@ -362,61 +393,6 @@ impl JobStore {
             return Err(JobStoreError::InvalidReceipt);
         }
         self.stamp_identity_inner(id, execution_id, trace_id, Some(snapshot_digest))
-    }
-
-    /// Atomically stamp one readmitted execution identity and claim its run.
-    ///
-    /// A queued replay may prepare another in-memory admission, but only one
-    /// caller can persist the identity plus `Running` transition. No durable
-    /// state can therefore expose `Running` without the identity required to
-    /// mint an interruption receipt after restart.
-    ///
-    /// # Errors
-    /// Returns a typed identity, transition, event, contention, or storage
-    /// failure without mutating the durable record.
-    pub fn start_execution(
-        &self,
-        id: &JobId,
-        execution_id: String,
-        trace_id: String,
-        snapshot_digest: String,
-        payloads: &[Value],
-    ) -> Result<JobMutation, JobStoreError> {
-        if execution_id.is_empty()
-            || trace_id.is_empty()
-            || validate_snapshot_digest(&snapshot_digest).is_err()
-        {
-            return Err(JobStoreError::InvalidReceipt);
-        }
-        let batch = ValidatedEventBatch::for_transition(payloads)?;
-        let _local = self.local_guard()?;
-        let _lease = self.kernel_lease()?;
-        let mut state = self.load_state()?;
-        ensure_approval_claims_unused(&state, &batch)?;
-        let job = state
-            .jobs
-            .iter_mut()
-            .find(|job| job.record.id == *id)
-            .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
-        let current = job.record.status;
-        if !current.allows(JobStatus::Running) {
-            return Err(JobStoreError::IllegalTransition {
-                from: current,
-                to: JobStatus::Running,
-            });
-        }
-        job.record.execution_id = execution_id;
-        job.record.trace_id = trace_id;
-        job.record.snapshot_digest = snapshot_digest;
-        job.record.status = JobStatus::Running;
-        job.record.outputs = None;
-        job.record.receipt = None;
-        job.identity_digest = Some(hash_execution_identity(&job.record)?);
-        job.terminal_sequence = None;
-        let events = job.append_payloads(&batch)?;
-        let record = job.record.clone();
-        self.persist_event_mutation(&state, &batch)?;
-        Ok(JobMutation { record, events })
     }
 
     fn stamp_identity_inner(
@@ -511,7 +487,7 @@ impl JobStore {
         next: JobStatus,
         payloads: &[Value],
     ) -> Result<JobMutation, JobStoreError> {
-        self.transition_inner(id, next, payloads, None, None)
+        self.transition_inner(id, next, payloads, None, None, None)
     }
 
     /// Atomically settle a job with declared outputs, receipt, and events.
@@ -535,7 +511,7 @@ impl JobStore {
         if !next.is_settled() {
             return Err(JobStoreError::InvalidReceipt);
         }
-        self.transition_inner(id, next, payloads, outputs, receipt)
+        self.transition_inner(id, next, payloads, outputs, receipt, None)
     }
 
     fn transition_inner(
@@ -545,6 +521,7 @@ impl JobStore {
         payloads: &[Value],
         outputs: Option<BTreeMap<String, Value>>,
         receipt: Option<JobReceipt>,
+        expected: Option<JobStatus>,
     ) -> Result<JobMutation, JobStoreError> {
         let batch = ValidatedEventBatch::for_transition(payloads)?;
         let _local = self.local_guard()?;
@@ -557,7 +534,7 @@ impl JobStore {
             .find(|job| job.record.id == *id)
             .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
         let current = job.record.status;
-        if !current.allows(next) {
+        if expected.is_some_and(|status| current != status) || !current.allows(next) {
             return Err(JobStoreError::IllegalTransition {
                 from: current,
                 to: next,
@@ -897,8 +874,11 @@ impl JobStore {
         let text = self
             .read_state_optional()?
             .ok_or_else(missing_state_error)?;
-        let state = decode_state(&text)?.state;
+        let mut state = decode_state(&text)?.state;
         self.verify_approval_history(&state)?;
+        for job in &mut state.jobs {
+            job.project_settlement()?;
+        }
         Ok(state)
     }
 
@@ -987,6 +967,10 @@ pub(super) struct PersistedState {
     version: u32,
     incarnation: IncarnationLedger,
     pub(super) jobs: Vec<StoredJob>,
+    /// The engine that last wrote this store (ADR-132 · #1352) — absent on
+    /// a store written before the stamp existed.
+    #[serde(default)]
+    writer: Option<crate::writer::WriterStamp>,
 }
 
 impl PersistedState {
@@ -995,6 +979,7 @@ impl PersistedState {
             version: STATE_VERSION,
             incarnation: IncarnationLedger::new(),
             jobs: Vec::new(),
+            writer: Some(crate::writer::WriterStamp::this_engine()),
         }
     }
 
@@ -1003,6 +988,15 @@ impl PersistedState {
             return Err(JobStoreError::Corrupt(
                 "state version is unsupported".to_owned(),
             ));
+        }
+        // ADR-132 · #1352 · a store last written by a NEWER protocol is not
+        // ours to reinterpret: fail closed, name both engines.
+        if let Some(reason) = self
+            .writer
+            .as_ref()
+            .and_then(crate::writer::WriterStamp::newer_than_this_engine)
+        {
+            return Err(JobStoreError::WrittenByNewerEngine(reason));
         }
         self.incarnation.validate()?;
         let mut ids = BTreeSet::new();
@@ -1094,55 +1088,6 @@ pub(super) struct StoredJob {
     terminal_sequence: Option<u64>,
 }
 
-impl StoredJob {
-    fn final_sequence_after(&self, batch: &ValidatedEventBatch<'_>) -> Result<u64, JobStoreError> {
-        let appended = u64::try_from(batch.len())
-            .map_err(|_| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
-        self.event_count
-            .checked_add(appended)
-            .ok_or_else(|| JobStoreError::SequenceExhausted(self.record.id.clone()))
-    }
-
-    fn append_payloads(
-        &mut self,
-        batch: &ValidatedEventBatch<'_>,
-    ) -> Result<Vec<JobEvent>, JobStoreError> {
-        let mut next = self
-            .events
-            .last()
-            .map_or(Ok(1), |event| event.sequence.checked_add(1).ok_or(()))
-            .map_err(|()| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
-        let mut appended = Vec::with_capacity(batch.len());
-        for payload in batch.payloads() {
-            let previous_hash = self.event_head.clone();
-            let hash = hash_event(
-                &self.record,
-                self.terminal_sequence,
-                next,
-                previous_hash.as_ref(),
-                payload,
-            )?;
-            let event = JobEvent {
-                sequence: next,
-                payload: payload.clone(),
-                previous_hash,
-                hash,
-            };
-            next = next
-                .checked_add(1)
-                .ok_or_else(|| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
-            self.events.push(event.clone());
-            self.event_count = self
-                .event_count
-                .checked_add(1)
-                .ok_or_else(|| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
-            self.event_head = Some(event.hash.clone());
-            appended.push(event);
-        }
-        Ok(appended)
-    }
-}
-
 fn world_file(id: &JobId) -> String {
     format!("{}.world", id.as_str())
 }
@@ -1190,6 +1135,7 @@ fn validate_events(job: &StoredJob) -> Result<(), JobStoreError> {
             ));
         }
         event.hash.validate()?;
+        stored_job::validate_pause_payload(&event.payload, &job.record.id)?;
         if event.previous_hash.as_ref() != previous {
             return Err(JobStoreError::Corrupt(
                 "event chain predecessor does not match".to_owned(),
@@ -1269,6 +1215,7 @@ fn missing_state_error() -> JobStoreError {
 
 struct ValidatedEventBatch<'a> {
     payloads: &'a [Value],
+    transition: bool,
 }
 
 impl<'a> ValidatedEventBatch<'a> {
@@ -1281,23 +1228,39 @@ impl<'a> ValidatedEventBatch<'a> {
         }
         for (index, payload) in payloads.iter().enumerate() {
             let bytes = encoded_payload_len(payload)?;
-            if bytes > MAX_EVENT_PAYLOAD_BYTES {
+            // A paused result lives in its immutable event, whereas a final
+            // result lives in the record. Both obey the whole-store bound;
+            // moving the result must not shrink outputs to an ordinary event.
+            let maximum = if payload["kind"] == "execution.settled"
+                && payload["status"] == "paused"
+                && payload.get("outputs").is_some()
+            {
+                MAX_JOB_SNAPSHOT_BYTES
+            } else {
+                MAX_EVENT_PAYLOAD_BYTES
+            };
+            if bytes > maximum {
                 return Err(JobStoreError::EventPayloadTooLarge {
                     index,
                     bytes,
-                    maximum: MAX_EVENT_PAYLOAD_BYTES,
+                    maximum,
                 });
             }
             validate_approval_event(payload)?;
         }
-        Ok(Self { payloads })
+        Ok(Self {
+            payloads,
+            transition: false,
+        })
     }
 
     fn for_transition(payloads: &'a [Value]) -> Result<Self, JobStoreError> {
         if payloads.is_empty() {
             return Err(JobStoreError::TransitionEventRequired);
         }
-        Self::new(payloads)
+        let mut batch = Self::new(payloads)?;
+        batch.transition = true;
+        Ok(batch)
     }
 
     fn payloads(&self) -> &'a [Value] {

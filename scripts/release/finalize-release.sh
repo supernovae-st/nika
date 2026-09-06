@@ -93,7 +93,10 @@ if [ "$prerelease" = false ]; then
 fi
 
 publish_failed=false
+# Omitted metadata is not proof of preservation: a body-only draft PATCH
+# orphaned 0.118.5. Bind this transition to the tag and SHA just re-proved.
 if ! gh api --method PATCH "repos/${repo}/releases/${release_id}" \
+  -f "tag_name=$tag" -f "target_commitish=$sha" \
   -F draft=false -f discussion_category_name=Announcements \
   -f "make_latest=${make_latest}" >/dev/null; then
   publish_failed=true

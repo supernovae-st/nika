@@ -35,7 +35,11 @@ pub struct ServeArgs {
     /// Bind an authenticated HTTP listener. Requires `--workflows` and `--token-file`.
     #[arg(long, value_name = "ADDR")]
     pub bind: Option<String>,
-    /// Held registry root of `.nika.yaml` workflows. Requires `--bind`.
+    /// The served registry: the listener lists, schedules and ADMITS BY NAME
+    /// (`POST /v1/jobs {"workflow": "<name>"}`) only the `.nika.yaml` workflows
+    /// under this directory, named from the project root. A remote world
+    /// rides the snapshot `nika check <file> --json --sdk-snapshot` prints.
+    /// Requires `--bind`.
     #[arg(long, value_name = "DIR")]
     pub workflows: Option<PathBuf>,
     /// Acknowledge a non-loopback `--bind`. Authentication is unchanged.
@@ -562,6 +566,49 @@ mod tests {
         assert_eq!(
             outcome.outputs().expect("declared outputs")["answer"],
             serde_json::json!(42)
+        );
+    }
+
+    /// A job the resident executes leaves the same journal on disk a
+    /// `nika run` leaves — under the project's `.nika/traces/`, opened by
+    /// `workflow_started`, named by the trace the receipt names (#1381).
+    #[tokio::test]
+    async fn production_resident_backend_leaves_the_trace_journal_on_disk() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let source = "nika: journaled\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  value:\n    invoke: { tool: nika:jq, args: { input: 7, expression: \".\" } }\n";
+        std::fs::write(directory.path().join("flow.nika.yaml"), source).expect("workflow");
+        let project = nika_fs::OwnedDir::open(directory.path()).expect("owned project");
+        let service = nika_execution::ExecutionService::default();
+        let admitted = service
+            .admit(&project, Path::new("flow.nika.yaml"))
+            .expect("admitted");
+        let session = service.begin(admitted);
+        let trace_id = session.context().trace_id().to_string();
+
+        let backend = nika_serve::ResidentExecutionBackend::new(directory.path());
+        let outcome = nika_serve::ExecutionBackend::execute(&backend, session.context()).await;
+        assert_eq!(
+            outcome.disposition(),
+            nika_serve::ExecutionDisposition::Succeeded
+        );
+
+        let traces = directory.path().join(".nika").join("traces");
+        let journals: Vec<PathBuf> = std::fs::read_dir(&traces)
+            .expect("the journal directory exists")
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|x| x == "ndjson"))
+            .collect();
+        assert_eq!(journals.len(), 1, "one journal for one job: {journals:?}");
+        let text = std::fs::read_to_string(&journals[0]).expect("journal");
+        assert!(text.contains("\"kind\":\"workflow_started\""), "{text}");
+        let tail = &trace_id[trace_id.len().saturating_sub(4)..];
+        assert!(
+            journals[0]
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.contains(tail)),
+            "the journal is named by the trace the receipt names: {journals:?} · {trace_id}"
         );
     }
 

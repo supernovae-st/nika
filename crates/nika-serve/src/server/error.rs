@@ -85,6 +85,12 @@ pub enum ServerError {
     /// A scheduled snapshot or provenance binding was not canonical.
     #[error("scheduled execution admission was refused")]
     ScheduledAdmission,
+    /// A project beat's slot is answered or held by the other firer in the
+    /// ONE ledger (`nika arm fire`): not the resident's to fire (#1377).
+    #[error(
+        "serve · the slot is answered or held by the CLI edge in the ARM ledger — one slot, one firer"
+    )]
+    SlotOwnedElsewhere,
     /// A slot replay resolved to different immutable snapshot bytes.
     #[error("scheduled execution idempotency key conflicts with another snapshot")]
     ScheduledIdempotencyConflict,
@@ -211,7 +217,7 @@ fn snapshot_api_error(error: &nika_execution::ExecutionError) -> Option<ApiError
             ApiError::new(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "snapshot_tampered",
-                "snapshot bytes do not match their immutable digest",
+                "the digest this request carries does not match its bytes (a caller-supplied integrity digest, never a signature) — send the body `nika check <file> --json --sdk-snapshot` prints, or omit the digests and the resident computes them (ADR-131)",
             )
         }
         ExecutionError::SnapshotStructureMismatch => ApiError::new(

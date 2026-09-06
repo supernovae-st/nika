@@ -119,4 +119,5 @@ impl<T> core::convert::From<T> for nika_extract::ExtractOptions<'a>
 pub fn nika_extract::ExtractOptions<'a>::from(t: T) -> T
 pub fn nika_extract::extract(body: &str, mode: nika_types::extract::ExtractMode, opts: &nika_extract::ExtractOptions<'_>) -> core::result::Result<serde_json::value::Value, nika_extract::ExtractError>
 pub fn nika_extract::feed_from_bytes(body: &[u8]) -> core::result::Result<serde_json::value::Value, nika_extract::ExtractError>
-pub fn nika_extract::page_digest(body: &str, base: core::option::Option<&str>) -> serde_json::value::Value
+pub fn nika_extract::page_digest(body: &str, base: core::option::Option<&str>) -> core::result::Result<serde_json::value::Value, nika_extract::ExtractError>
+pub fn nika_extract::page_digest_discovering(body: &str, base: core::option::Option<&str>) -> core::result::Result<(serde_json::value::Value, alloc::vec::Vec<alloc::string::String>), nika_extract::ExtractError>

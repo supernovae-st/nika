@@ -50,6 +50,7 @@ fn resolved(value: Value) -> crate::task::SettleAs {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: crate::task::RunResult::Success {
             value,
             tokens: None,
@@ -59,6 +60,7 @@ fn resolved(value: Value) -> crate::task::SettleAs {
             cost_usd: None,
             cost_unpriced: None,
             model: None,
+            access: None,
         },
     }))
 }

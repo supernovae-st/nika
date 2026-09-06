@@ -363,6 +363,7 @@ impl<T> zvariant::optional::NoneValue for nika_cli::verbs::check::Profile where 
 pub type nika_cli::verbs::check::Profile::NoneType = T
 pub fn nika_cli::verbs::check::Profile::null_value() -> T
 pub struct nika_cli::verbs::check::CheckArgs
+pub nika_cli::verbs::check::CheckArgs::access: core::option::Option<alloc::string::String>
 pub nika_cli::verbs::check::CheckArgs::files: alloc::vec::Vec<alloc::string::String>
 pub nika_cli::verbs::check::CheckArgs::fix: bool
 pub nika_cli::verbs::check::CheckArgs::infer_permits: bool
@@ -479,13 +480,13 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::check::CheckTarget
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::check::CheckTarget
 impl<T> typenum::type_operators::Same for nika_cli::verbs::check::CheckTarget
 pub type nika_cli::verbs::check::CheckTarget::Output = T
-pub fn nika_cli::verbs::check::dispatch(files: &[alloc::string::String], flags: &nika_cli::verbs::check::CheckFlags, fix: bool, model: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
-pub fn nika_cli::verbs::check::dispatch_targets(targets: &[nika_cli::verbs::check::CheckTarget], flags: &nika_cli::verbs::check::CheckFlags, fix: bool, model: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::check::dispatch(files: &[alloc::string::String], flags: &nika_cli::verbs::check::CheckFlags, fix: bool, (model, access): (core::option::Option<&str>, core::option::Option<&str>), theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::check::dispatch_targets(targets: &[nika_cli::verbs::check::CheckTarget], flags: &nika_cli::verbs::check::CheckFlags, fix: bool, (model, access): (core::option::Option<&str>, core::option::Option<&str>), theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::check::run(path: &str, json: bool, native_strict: bool, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::check::run_many(paths: &[alloc::string::String], native_strict: bool, profile: nika_cli::verbs::check::Profile, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::check::run_snapshot_export(path: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
-pub fn nika_cli::verbs::check::run_with_profile(path: &str, json: bool, native_strict: bool, profile: nika_cli::verbs::check::Profile, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::check::run_with_profile(path: &str, json: bool, native_strict: bool, profile: nika_cli::verbs::check::Profile, overrides: (core::option::Option<&str>, core::option::Option<&str>), theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::context
 pub fn nika_cli::verbs::context::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::examples
@@ -865,9 +866,10 @@ pub mod nika_cli::verbs::new
 pub fn nika_cli::verbs::new::dispatch(from: core::option::Option<&str>, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::new::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::pack_surface
+pub fn nika_cli::verbs::pack_surface::project_schema() -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::pack_surface::schema() -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::pack_surface::spec(canon: bool) -> nika_cli_host::output::VerbOutput
-pub fn nika_cli::verbs::pack_surface::spec_or_schema(canon: bool, want_schema: bool) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::pack_surface::spec_or_schema(canon: bool, want_schema: bool, project: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::run
 pub use nika_cli::verbs::run::RecoveredTrace
 pub use nika_cli::verbs::run::recover_events
@@ -1070,6 +1072,7 @@ pub type nika_cli::verbs::sign::SignArgs::Output = T
 pub fn nika_cli::verbs::sign::run(args: &nika_cli::verbs::sign::SignArgs) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::test
 pub fn nika_cli::verbs::test::run(file: &str, update: bool, theme: nika_display::theme::Theme) -> u8
+pub fn nika_cli::verbs::test::run_case(file: &str, update: bool, answer: &[alloc::string::String], (vars, case): (&[alloc::string::String], core::option::Option<&str>), theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::test::run_with_answers(file: &str, update: bool, answer: &[alloc::string::String], theme: nika_display::theme::Theme) -> u8
 pub mod nika_cli::verbs::tools
 pub fn nika_cli::verbs::tools::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput

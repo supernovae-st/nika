@@ -104,6 +104,8 @@ struct Parked {
     retries: Vec<RetryStamp>,
     agent_events: Vec<crate::agent_events::StampedAgentEvent>,
     duration_ms: u64,
+    /// The fan-out's item table (#1276), carried to resolution.
+    items: Option<String>,
     resume: Option<crate::resume::ResumeStamp>,
     /// The dispatch boundary's permit decisions recorded before the park
     /// (NEP-0007) — they ride to resolution like the declassify events.
@@ -256,6 +258,7 @@ fn try_park(
         decisions,
         evidence,
         duration_ms,
+        items,
         result,
     } = *ran;
     let pending = match result {
@@ -268,6 +271,7 @@ fn try_park(
                 decisions,
                 evidence,
                 duration_ms,
+                items,
                 result: other,
             };
             let settle = SettleAs::Ran(Box::new(ran));
@@ -287,6 +291,7 @@ fn try_park(
                 retries,
                 agent_events,
                 duration_ms,
+                items,
                 resume,
                 decisions,
                 declassified,
@@ -311,22 +316,17 @@ fn try_park(
         // F-P6 · the parked failure's evidence rides back out.
         evidence: failed.evidence,
         duration_ms,
+        items,
         result: RunResult::Failed {
             error: render_error,
             cost_usd: failed.cost_usd,
             cost_unpriced: failed.cost_unpriced,
+            access: failed.access,
         },
     };
     let settle = SettleAs::Ran(Box::new(ran));
-    Some(finish_with(
-        id,
-        settle,
-        named,
-        resume,
-        integrity,
-        declassified,
-        approval,
-    ))
+    let done = finish_with(id, settle, named, resume, integrity, declassified, approval);
+    Some(done)
 }
 
 /// Resolve + settle every park the spine's terminal truth covers, to a
@@ -456,6 +456,7 @@ fn resolve_parked(
         agent_events,
         decisions,
         duration_ms,
+        items,
         resume,
         declassified,
         pending,
@@ -471,6 +472,7 @@ fn resolve_parked(
         cost_usd,
         cost_unpriced,
         evidence,
+        access,
     } = failed;
     let result = match recover_template(scope.wf, task_index) {
         Some(template) => {
@@ -489,6 +491,7 @@ fn resolve_parked(
                     error: runtime_error_record(&RuntimeError::from(err)),
                     cost_usd,
                     cost_unpriced,
+                    access: access.clone(),
                 },
             }
         }
@@ -498,6 +501,7 @@ fn resolve_parked(
             error: render_error,
             cost_usd,
             cost_unpriced,
+            access: access.clone(),
         },
     };
     let mut settled_as = SettleAs::Ran(Box::new(RanTask {
@@ -508,6 +512,7 @@ fn resolve_parked(
         // F-P6 · the parked failure's evidence rides back out.
         evidence,
         duration_ms,
+        items,
         result,
     }));
     let named = match scope.wf.tasks.get(task_index) {

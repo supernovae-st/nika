@@ -264,7 +264,12 @@ async fn traversal_extension_confusion_and_oversize_never_execute() {
                 &auth_header(),
             ))
             .await;
-        assert_eq!(response.status, 422, "{workflow}: {}", response.body);
+        // ADR-131 · the by-name door: a traversal, a wrong extension, a
+        // separator confusion or a ghost is NOT a served name — the 404 that
+        // teaches where the names are, and never an execution.
+        assert_eq!(response.status, 404, "{workflow}: {}", response.body);
+        assert_eq!(response.json()["error"]["code"], "not_found", "{workflow}");
+        assert!(response.json().get("id").is_none(), "{workflow}");
     }
     let oversized = "x".repeat(1100);
     let response = server
@@ -361,8 +366,11 @@ async fn symlinked_workflow_refuses_before_backend_execution() {
             &auth_header(),
         ))
         .await;
-    assert_eq!(response.status, 422, "{}", response.body);
-    assert_eq!(response.json()["error"]["code"], "malformed_snapshot");
+    // ADR-131 · a symlink out of the served registry is not a served name:
+    // the descriptor-relative open refuses it, the door says not found, and
+    // nothing executes.
+    assert_eq!(response.status, 404, "{}", response.body);
+    assert_eq!(response.json()["error"]["code"], "not_found");
     assert!(response.json().get("id").is_none());
     assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");

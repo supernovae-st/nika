@@ -27,8 +27,8 @@ fi
 # Same feature set as release.yml:99. A funnel that builds a thinner
 # binary than the tarball is the 2026-08-08 ACCESS lie (E2E receipt on
 # a local-only shape). metal stays off (tombstone in wiring.yaml).
-cargo build -p nika-cli --bin nika-cli --features local-infer,access-harness
-bin="${CARGO_TARGET_DIR:-target}/debug/nika-cli"
+cargo build -p nika-cli --bin nika --features local-infer,access-harness
+bin="${CARGO_TARGET_DIR:-target}/debug/nika"
 # Both tag-time gates, in the order release.yml plays them: the stranger's
 # first path, then the operator's trust path (resume · reproduce · chain
 # verify · tamper/drop · OTLP export) — v0.106.0 died on the battery the

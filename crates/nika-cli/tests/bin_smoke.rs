@@ -3,12 +3,12 @@
 #![allow(clippy::expect_used, clippy::panic)]
 // The workspace bans std::process::Command (production spawns ride the
 // kernel ShellExecutor seam). This test's WHOLE JOB is to execute the
-// real `nika-cli` binary (CARGO_BIN_EXE) — routing through the kernel
+// real `nika` binary (CARGO_BIN_EXE) — routing through the kernel
 // seam would test the lib, not the binary contract. The one legitimate
 // carve-out class (same exemption as a future assert_cmd harness).
 #![allow(clippy::disallowed_types)]
 
-//! Binary smoke — the REAL `nika-cli` executable through its locked
+//! Binary smoke — the REAL `nika` executable through its locked
 //! exit-code contract (spec §4 · `0` ok · `2` file findings · `3`
 //! environment error) + the `--json` purity law (never coloured ·
 //! machine-parseable even under failure).
@@ -21,7 +21,7 @@ use std::io::Write as _;
 use std::process::Command;
 
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    Command::new(env!("CARGO_BIN_EXE_nika"))
 }
 
 fn write_fixture(dir: &std::path::Path, name: &str, yaml: &str) -> std::path::PathBuf {

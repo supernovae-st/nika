@@ -16,7 +16,7 @@ fn node(id: &str, tool: Option<&str>) -> Node {
 
 fn graph(ids: &[&str]) -> GraphDoc {
     GraphDoc::new(
-        2,
+        nika_tui_core::ingress::GRAPH_FORMAT,
         "test".to_owned(),
         ids.iter().map(|id| node(id, None)).collect(),
         Vec::new(),
@@ -107,7 +107,7 @@ fn a_calm_revision_marks_nothing() {
 fn a_field_the_engine_adds_tomorrow_still_flips_the_print() {
     let with_sandbox = |v: &str| {
         let doc = serde_json::json!({
-            "graph_format": 2,
+            "graph_format": 3,
             "workflow": "test",
             "nodes": [{
                 "id": "a", "verb": "exec", "permits": [], "outputs": [],

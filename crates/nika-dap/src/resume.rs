@@ -93,6 +93,42 @@ pub enum ResumeVersion {
 /// The trace's recorded engine version — the `workflow_started` boot
 /// manifest's `engine_version` field (`None` on a pre-A5 journal).
 #[must_use]
+/// The project root fingerprint the trace's opening frame recorded, when
+/// the engine that wrote it knew one (#1367).
+pub fn trace_project_root(events: &[Event]) -> Option<String> {
+    let started = events
+        .iter()
+        .find(|e| matches!(e.kind, EventKind::WorkflowStarted))?;
+    str_field(started, "project_root_fingerprint").map(str::to_owned)
+}
+
+/// Whether `--resume` runs in the project that wrote the trace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ProjectVerdict {
+    /// The trace names no project (an older engine wrote it): no claim.
+    Unbound,
+    /// The trace names this project.
+    Proceed,
+    /// The trace names another project: refused, with the teaching.
+    Refuse(String),
+}
+
+/// Judge the trace's project against the current one: a trace is not a
+/// bearer artifact — a copy resumed from another project would replay the
+/// first project's outputs under the second's name (#1367).
+#[must_use]
+pub fn judge_project(events: &[Event], current: Option<&str>) -> ProjectVerdict {
+    match (trace_project_root(events), current) {
+        (None, _) => ProjectVerdict::Unbound,
+        (Some(recorded), Some(here)) if recorded == here => ProjectVerdict::Proceed,
+        (Some(_), _) => ProjectVerdict::Refuse(
+            "this trace was written by another project (its root fingerprint differs) — a trace is not a bearer artifact: resume it from the project that wrote it, or run the workflow afresh here".to_owned(),
+        ),
+    }
+}
+
+#[must_use]
 pub fn trace_engine_version(events: &[Event]) -> Option<String> {
     let started = events
         .iter()
@@ -237,6 +273,119 @@ pub fn judge_model(recorded: Option<&str>, declared: Option<&str>) -> ModelVerdi
              explicitly"
         )),
     }
+}
+
+/// One lane as a resume carries it: the access id that served (`codex` ·
+/// `openai` · `mock`) and the `--access` FLAG that pins exactly that
+/// path (a seat pins by its id, a provider path by its class).
+pub type LaneCarry = (String, String);
+
+/// The `--access` flag that pins `access`: a subscription seat by its
+/// own id (`codex`), any other path by its class (`api` · `local` ·
+/// `mock` · `oauth`). `chosen` is the recorded class when the manifest
+/// carries one; an older manifest without it falls back on the seat
+/// registry, then on `api` (`mock` stays `mock`).
+#[must_use]
+pub fn pin_flag(access: &str, chosen: Option<&str>) -> String {
+    if nika_types::access::HarnessRuntime::lookup(access).is_some() {
+        return access.to_owned();
+    }
+    match chosen {
+        Some("harness") => access.to_owned(),
+        Some(class) => class.to_owned(),
+        None if access == "mock" => "mock".to_owned(),
+        None => "api".to_owned(),
+    }
+}
+
+/// The lanes the recorded run RODE, from its boot manifest (`access_plan`
+/// · `model → {access, chosen, billing}`): `model → (access id, flag)`.
+/// `None` when the trace predates the plan (no claim, never a guess).
+#[must_use]
+pub fn trace_access_lanes(events: &[Event]) -> Option<BTreeMap<String, LaneCarry>> {
+    let started = events
+        .iter()
+        .find(|e| matches!(e.kind, EventKind::WorkflowStarted))?;
+    let raw = str_field(started, "access_plan")?;
+    let rows: serde_json::Value = serde_json::from_str(raw).ok()?;
+    let carry = |model: &str, row: &serde_json::Value| {
+        let access = row.get("access")?.as_str()?;
+        let chosen = row.get("chosen").and_then(serde_json::Value::as_str);
+        Some((
+            model.to_owned(),
+            (access.to_owned(), pin_flag(access, chosen)),
+        ))
+    };
+    // Wave 2 writes the ONE lane-row shape (an array with `model` on
+    // each row); the 0.117 manifests carried a map keyed by model.
+    if let Some(list) = rows.as_array() {
+        return Some(
+            list.iter()
+                .filter_map(|row| carry(row.get("model")?.as_str()?, row))
+                .collect(),
+        );
+    }
+    Some(
+        rows.as_object()?
+            .iter()
+            .filter_map(|(model, row)| carry(model, row))
+            .collect(),
+    )
+}
+
+/// The resume's access verdict (One Door · wave 1b · the pack's law:
+/// « resume cannot switch access silently »).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AccessVerdict {
+    /// The resume proceeds — `changed` lists `(model, recorded, live)`
+    /// for every lane an explicit `--access` moved (noticed, never
+    /// silent).
+    Proceed {
+        /// The lanes the explicit pin moved, `(model, recorded, live)`.
+        changed: Vec<(String, String, String)>,
+    },
+    /// The resume refuses — a lane would move without a flag (the
+    /// message names both paths and the two explicit flags).
+    Refuse(String),
+}
+
+/// Judge a resume's access carry: the recorded lanes against the LIVE
+/// plan's admitted lanes. An explicit `--access` names the change and
+/// proceeds; silence over a moved lane refuses. A trace with no recorded
+/// lanes (an older engine) carries no claim — nothing to judge.
+#[must_use]
+pub fn judge_access(
+    recorded: Option<&BTreeMap<String, LaneCarry>>,
+    live: &BTreeMap<String, LaneCarry>,
+    declared_pin: Option<&str>,
+) -> AccessVerdict {
+    let Some(recorded) = recorded else {
+        return AccessVerdict::Proceed {
+            changed: Vec::new(),
+        };
+    };
+    let moved: Vec<(String, LaneCarry, LaneCarry)> = recorded
+        .iter()
+        .filter_map(|(model, was)| {
+            let now = live.get(model)?;
+            (now.0 != was.0).then(|| (model.clone(), was.clone(), now.clone()))
+        })
+        .collect();
+    if moved.is_empty() || declared_pin.is_some() {
+        return AccessVerdict::Proceed {
+            changed: moved
+                .into_iter()
+                .map(|(model, was, now)| (model, was.0, now.0))
+                .collect(),
+        };
+    }
+    let (model, (was, keep), (now, name)) = &moved[0];
+    AccessVerdict::Refuse(format!(
+        "the trace ran `{model}` on `{was}` · this machine now resolves `{now}` — an access \
+         change is judged, never assumed: resume with `--access {keep}` to keep the recorded \
+         path, or `--access {name}` to name the change explicitly"
+    ))
 }
 
 /// Whether the CURRENT source differs IN CONTENT from the bytes the
@@ -593,6 +742,26 @@ pub fn apply_from(plan: &mut ResumePlan, wf: &RawWorkflow, from: &str) -> Result
     Ok(())
 }
 
+/// Drop every recorded `nika:prompt` decision from the plan (the wave-7
+/// gauntlet · `--resume-unverified`): a recorded human decision is a
+/// credential, and a chain the operator waived no longer binds it to this
+/// run — it re-asks. Returns the task ids that will ask again.
+pub fn strip_gate_records(plan: &mut ResumePlan, wf: &RawWorkflow) -> Vec<String> {
+    let mut asked = Vec::new();
+    for task in &wf.tasks {
+        let id = &task.value.id.value;
+        let is_prompt = matches!(
+            &task.value.action,
+            nika_schema::raw::RawAction::Invoke(invoke)
+                if invoke.tool().map(|t| t.value.as_str()) == Some("nika:prompt")
+        );
+        if is_prompt && plan.remove(id).is_some() {
+            asked.push(id.clone());
+        }
+    }
+    asked
+}
+
 /// The post-run summary line (`--resume` only): what skipped, what ran.
 #[must_use]
 pub fn summary_line(cache_hits: usize, ran_live: usize) -> String {
@@ -697,6 +866,7 @@ mod tests {
             );
         }
         apply_from(&mut plan, &wf, "a").expect("known id");
+        // (the gate stripper's test lives below · same fixture shape)
         // a forced · b (after a) · c (with: binding on b) — solo stays.
         assert!(!plan.contains_key("a"));
         assert!(!plan.contains_key("b"), "control edge walked");
@@ -934,6 +1104,38 @@ mod tests {
         e
     }
 
+    fn started_in_project(root: Option<&str>) -> Event {
+        let mut e = started(Some("0.117.1"));
+        if let Some(r) = root {
+            e = e.with_field(KeyValue::new(
+                "project_root_fingerprint",
+                FieldValue::String(r.to_owned()),
+            ));
+        }
+        e
+    }
+
+    /// A trace names the project that wrote it; another project refuses to
+    /// resume it; an older trace with no project is no claim (#1367).
+    #[test]
+    fn a_trace_is_bound_to_the_project_that_wrote_it() {
+        let here = vec![started_in_project(Some("aaaa"))];
+        assert_eq!(judge_project(&here, Some("aaaa")), ProjectVerdict::Proceed);
+        assert!(matches!(
+            judge_project(&here, Some("bbbb")),
+            ProjectVerdict::Refuse(ref t) if t.contains("another project") && t.contains("not a bearer artifact")
+        ));
+        assert!(
+            matches!(judge_project(&here, None), ProjectVerdict::Refuse(_)),
+            "no current fingerprint cannot match a bound trace"
+        );
+        assert_eq!(
+            judge_project(&[started_in_project(None)], Some("aaaa")),
+            ProjectVerdict::Unbound
+        );
+        assert_eq!(trace_project_root(&here).as_deref(), Some("aaaa"));
+    }
+
     #[test]
     fn the_model_reader_finds_the_override_and_absence_is_no_claim() {
         let events = vec![started_with_model(Some("mock/override"))];
@@ -1063,5 +1265,152 @@ mod tests {
         answers.insert("human".to_owned(), serde_json::json!(true));
         refuse_reopened_settled_gates(&plan, &answers)
             .expect("the human gate is not in the plan, so it has not settled");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod access_tests {
+    use std::collections::BTreeMap;
+
+    use nika_event::{Event, EventKind};
+    use nika_types::id::EventId;
+    use nika_types::resource::{KeyValue, Value as FieldValue};
+    use nika_types::timestamp::Timestamp;
+
+    use super::{AccessVerdict, LaneCarry, judge_access, pin_flag, trace_access_lanes};
+
+    fn lanes(pairs: &[(&str, &str, &str)]) -> BTreeMap<String, LaneCarry> {
+        pairs
+            .iter()
+            .map(|(m, a, f)| ((*m).to_owned(), ((*a).to_owned(), (*f).to_owned())))
+            .collect()
+    }
+
+    /// A seat pins by its id, a provider path by its class; an older
+    /// manifest without `chosen` still pins a seat by id and a provider
+    /// by `api` (`mock` stays `mock`).
+    #[test]
+    fn the_flag_pins_a_seat_by_id_and_a_path_by_class() {
+        assert_eq!(pin_flag("codex", Some("harness")), "codex");
+        assert_eq!(pin_flag("codex", None), "codex");
+        assert_eq!(pin_flag("openai", Some("api")), "api");
+        assert_eq!(pin_flag("ollama", Some("local")), "local");
+        assert_eq!(pin_flag("mock", Some("mock")), "mock");
+        assert_eq!(pin_flag("mock", None), "mock");
+        assert_eq!(pin_flag("openai", None), "api");
+    }
+
+    /// The boot manifest's `access_plan` JSON folds to `model → access`;
+    /// a trace without the field carries no claim.
+    #[test]
+    fn the_recorded_lanes_come_from_the_boot_manifest() {
+        let started = Event::new(
+            EventId::nil(),
+            Timestamp::from_unix_ms(0),
+            EventKind::WorkflowStarted,
+        )
+        .with_field(KeyValue::new(
+            "access_plan",
+            FieldValue::string(
+                r#"{"openai/gpt-5.2":{"access":"codex","billing":"unknown"},"mock/echo":{"access":"mock","billing":"local"}}"#,
+            ),
+        ));
+        let recorded = trace_access_lanes(&[started]).expect("a claim");
+        assert_eq!(
+            recorded.get("openai/gpt-5.2"),
+            Some(&("codex".to_owned(), "codex".to_owned()))
+        );
+        assert_eq!(
+            recorded.get("mock/echo"),
+            Some(&("mock".to_owned(), "mock".to_owned()))
+        );
+        let bare = Event::new(
+            EventId::nil(),
+            Timestamp::from_unix_ms(0),
+            EventKind::WorkflowStarted,
+        );
+        assert!(trace_access_lanes(&[bare]).is_none(), "no field, no claim");
+    }
+
+    /// The four shapes: no claim · same lanes · a moved lane unpinned
+    /// (refuse, both paths and both flags named) · a moved lane pinned
+    /// (proceed with the change listed).
+    #[test]
+    fn a_moved_lane_refuses_unless_the_pin_names_it() {
+        let live = lanes(&[
+            ("openai/gpt-5.2", "openai", "api"),
+            ("mock/echo", "mock", "mock"),
+        ]);
+        assert_eq!(
+            judge_access(None, &live, None),
+            AccessVerdict::Proceed {
+                changed: Vec::new()
+            }
+        );
+        let same = lanes(&[("openai/gpt-5.2", "openai", "api")]);
+        assert_eq!(
+            judge_access(Some(&same), &live, None),
+            AccessVerdict::Proceed {
+                changed: Vec::new()
+            }
+        );
+        let seated = lanes(&[("openai/gpt-5.2", "codex", "codex")]);
+        let AccessVerdict::Refuse(message) = judge_access(Some(&seated), &live, None) else {
+            panic!("a silent switch refuses");
+        };
+        for term in [
+            "on `codex`",
+            "resolves `openai`",
+            "--access codex",
+            "--access api",
+        ] {
+            assert!(message.contains(term), "missing {term}: {message}");
+        }
+        assert_eq!(
+            judge_access(Some(&seated), &live, Some("api")),
+            AccessVerdict::Proceed {
+                changed: vec![(
+                    "openai/gpt-5.2".to_owned(),
+                    "codex".to_owned(),
+                    "openai".to_owned()
+                )]
+            }
+        );
+        // A model the live plan no longer carries is not a move.
+        let gone = lanes(&[("mistral/mistral-small-latest", "mistral", "api")]);
+        assert_eq!(
+            judge_access(Some(&gone), &live, None),
+            AccessVerdict::Proceed {
+                changed: Vec::new()
+            }
+        );
+    }
+
+    /// Under `--resume-unverified` the recorded human decisions re-ask: the
+    /// prompt's record leaves the plan, the computed tasks' records stay.
+    #[test]
+    fn strip_gate_records_drops_only_the_prompt_decisions() {
+        let wf = nika_schema::parse(
+            "nika: gated\npermits: { tools: [\"nika:jq\", \"nika:prompt\"] }\ntasks:\n  step:\n    invoke: { tool: \"nika:jq\", args: { input: 1, expression: \".\" } }\n  gate:\n    invoke: { tool: \"nika:prompt\", args: { message: \"ship?\", default: \"yes\" } }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("parses");
+        let mut plan = super::ResumePlan::new();
+        for id in ["step", "gate"] {
+            plan.insert(
+                id.to_owned(),
+                super::PriorSuccess::new("d".repeat(64), "i".repeat(64), serde_json::json!(true)),
+            );
+        }
+        let asked = super::strip_gate_records(&mut plan, &wf);
+        assert_eq!(asked, vec!["gate".to_owned()]);
+        assert!(plan.contains_key("step"), "a computed record stays");
+        assert!(!plan.contains_key("gate"), "the decision re-asks");
+        assert!(
+            super::strip_gate_records(&mut plan, &wf).is_empty(),
+            "idempotent"
+        );
     }
 }

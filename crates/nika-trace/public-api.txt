@@ -493,7 +493,9 @@ pub nika_trace::trace::action::TraceAction::Flow
 pub nika_trace::trace::action::TraceAction::Flow::trace: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::action::TraceAction::Flow::workflow: core::option::Option<alloc::string::String>
 pub nika_trace::trace::action::TraceAction::Ls
+pub nika_trace::trace::action::TraceAction::Ls::json: bool
 pub nika_trace::trace::action::TraceAction::Outputs
+pub nika_trace::trace::action::TraceAction::Outputs::json: bool
 pub nika_trace::trace::action::TraceAction::Outputs::trace: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::action::TraceAction::Peek
 pub nika_trace::trace::action::TraceAction::Peek::raw: bool
@@ -516,6 +518,7 @@ pub nika_trace::trace::action::TraceAction::Session::workflow: alloc::string::St
 pub nika_trace::trace::action::TraceAction::Show(nika_trace::trace::action::TraceArgs)
 pub nika_trace::trace::action::TraceAction::Verify
 pub nika_trace::trace::action::TraceAction::Verify::anchored: bool
+pub nika_trace::trace::action::TraceAction::Verify::json: bool
 pub nika_trace::trace::action::TraceAction::Verify::key: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::action::TraceAction::Verify::replay: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::action::TraceAction::Verify::sealed: bool
@@ -645,6 +648,7 @@ pub fn nika_trace::trace::manage::flow_verb(trace: core::option::Option<std::pat
 pub fn nika_trace::trace::manage::latest() -> core::option::Option<std::path::PathBuf>
 pub fn nika_trace::trace::manage::load_events(args: &nika_trace::trace::action::TraceArgs) -> core::result::Result<alloc::vec::Vec<nika_event::event::Event>, alloc::string::String>
 pub fn nika_trace::trace::manage::ls(theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace::manage::ls_json() -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace::manage::resolve_store_handle(handle: &std::path::Path) -> std::path::PathBuf
 pub fn nika_trace::trace::manage::resolve_trace(given: core::option::Option<std::path::PathBuf>) -> core::result::Result<std::path::PathBuf, u8>
 pub fn nika_trace::trace::manage::rm(target: &nika_trace::trace::manage::RmTarget, force: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
@@ -665,7 +669,9 @@ pub nika_trace::trace::TraceAction::Flow
 pub nika_trace::trace::TraceAction::Flow::trace: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::TraceAction::Flow::workflow: core::option::Option<alloc::string::String>
 pub nika_trace::trace::TraceAction::Ls
+pub nika_trace::trace::TraceAction::Ls::json: bool
 pub nika_trace::trace::TraceAction::Outputs
+pub nika_trace::trace::TraceAction::Outputs::json: bool
 pub nika_trace::trace::TraceAction::Outputs::trace: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::TraceAction::Peek
 pub nika_trace::trace::TraceAction::Peek::raw: bool
@@ -688,6 +694,7 @@ pub nika_trace::trace::TraceAction::Session::workflow: alloc::string::String
 pub nika_trace::trace::TraceAction::Show(nika_trace::trace::action::TraceArgs)
 pub nika_trace::trace::TraceAction::Verify
 pub nika_trace::trace::TraceAction::Verify::anchored: bool
+pub nika_trace::trace::TraceAction::Verify::json: bool
 pub nika_trace::trace::TraceAction::Verify::key: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::TraceAction::Verify::replay: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace::TraceAction::Verify::sealed: bool
@@ -769,7 +776,9 @@ impl<T> tracing::instrument::WithSubscriber for nika_trace::trace::action::Trace
 impl<T> typenum::type_operators::Same for nika_trace::trace::action::TraceArgs
 pub type nika_trace::trace::action::TraceArgs::Output = T
 pub fn nika_trace::trace::flow(trace: &str, workflow: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace::item_summary_lines(view: &nika_display::state::RunView, trace: &str, theme: nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_trace::trace::outputs(trace: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace::outputs_json(trace: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace::peek(trace: &str, task: &str, raw: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace::tasks_json(view: &nika_display::state::RunView, events: &[nika_event::event::Event]) -> serde_json::value::Value
 pub mod nika_trace::trace_anchor
@@ -781,6 +790,7 @@ pub fn nika_trace::trace_reproduce::reproduce(recorded: &str, fresh: &str) -> ni
 pub mod nika_trace::trace_verify
 pub struct nika_trace::trace_verify::VerifyOptions
 pub nika_trace::trace_verify::VerifyOptions::anchored: bool
+pub nika_trace::trace_verify::VerifyOptions::json: bool
 pub nika_trace::trace_verify::VerifyOptions::key: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace_verify::VerifyOptions::replay: core::option::Option<std::path::PathBuf>
 pub nika_trace::trace_verify::VerifyOptions::sealed: bool
@@ -827,6 +837,7 @@ pub type nika_trace::trace_verify::VerifyOptions::Output = T
 impl<T> zvariant::optional::NoneValue for nika_trace::trace_verify::VerifyOptions where T: core::default::Default
 pub type nika_trace::trace_verify::VerifyOptions::NoneType = T
 pub fn nika_trace::trace_verify::VerifyOptions::null_value() -> T
+pub const nika_trace::trace_verify::VERIFY_VERSION: u32
 pub fn nika_trace::trace_verify::verify(trace: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_many_with(traces: &[std::path::PathBuf], opts: &nika_trace::trace_verify::VerifyOptions) -> nika_cli_host::output::VerbOutput

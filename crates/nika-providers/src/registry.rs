@@ -351,9 +351,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn profiles_view_exposes_the_canonical_fourteen() {
+    async fn profiles_view_exposes_the_canonical_seventeen() {
         let reg = ProviderRegistry::new(Arc::new(NoHttp), hermetic());
-        assert_eq!(reg.profiles().len(), 16);
+        assert_eq!(reg.profiles().len(), 17);
     }
 
     #[test]

@@ -18,6 +18,7 @@ fn seated_infer_receipt_exposes_no_numeric_or_responder_identity() {
         agent_events: Vec::new(),
         evidence: None,
         duration_ms: 0,
+        items: None,
         result: task::RunResult::Success {
             value: Value::String("hi".to_owned()),
             tokens: None,
@@ -27,6 +28,7 @@ fn seated_infer_receipt_exposes_no_numeric_or_responder_identity() {
             cost_usd: None,
             cost_unpriced: Some(nika_types::cost::UnpricedReason::SubscriptionQuota),
             model: None,
+            access: None,
         },
     };
     let mut ok = true;

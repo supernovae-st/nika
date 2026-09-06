@@ -363,6 +363,7 @@ pub fn collect(dir: &Path, cfg: &RetentionConfig, now: SystemTime) -> Option<GcR
     let mut removed: BTreeMap<usize, Reason> = BTreeMap::new();
     for (i, reason) in marked {
         if std::fs::remove_file(&traces[i].path).is_ok() {
+            crate::liveness::remove_lease(&traces[i].path);
             removed.insert(i, reason);
         }
     }
@@ -429,14 +430,14 @@ mod tests {
             meta(
                 "done.ndjson",
                 "gatey",
-                TraceState::Completed,
+                TraceState::Succeeded,
                 5_000,
                 80 * DAY,
             ),
             meta(
                 "newer.ndjson",
                 "gatey",
-                TraceState::Completed,
+                TraceState::Succeeded,
                 5_000,
                 70 * DAY,
             ),
@@ -461,7 +462,7 @@ mod tests {
         let traces = vec![meta(
             "only.ndjson",
             "veille",
-            TraceState::Completed,
+            TraceState::Succeeded,
             999_999,
             60 * DAY,
         )];
@@ -516,7 +517,7 @@ mod tests {
     fn age_cap_fires_under_n() {
         let cfg = RetentionConfig::default();
         let traces = vec![
-            meta("new.ndjson", "w", TraceState::Completed, 100, 3_600),
+            meta("new.ndjson", "w", TraceState::Succeeded, 100, 3_600),
             meta("stale.ndjson", "w", TraceState::Failed, 100, 45 * DAY),
         ];
         let marked = plan(&traces, &cfg, now());
@@ -529,10 +530,10 @@ mod tests {
     fn budget_removes_oldest_first_until_it_fits() {
         let cfg = RetentionConfig::new(10, Duration::from_secs(365 * DAY), 250);
         let traces = vec![
-            meta("a-new.ndjson", "a", TraceState::Completed, 100, DAY),
-            meta("b-new.ndjson", "b", TraceState::Completed, 100, 2 * DAY),
-            meta("a-old.ndjson", "a", TraceState::Completed, 100, 9 * DAY),
-            meta("b-old.ndjson", "b", TraceState::Completed, 100, 8 * DAY),
+            meta("a-new.ndjson", "a", TraceState::Succeeded, 100, DAY),
+            meta("b-new.ndjson", "b", TraceState::Succeeded, 100, 2 * DAY),
+            meta("a-old.ndjson", "a", TraceState::Succeeded, 100, 9 * DAY),
+            meta("b-old.ndjson", "b", TraceState::Succeeded, 100, 8 * DAY),
         ];
         let marked = plan(&traces, &cfg, now());
         // 400 total → remove oldest eligible (a-old · 9d) → 300 → then
@@ -556,13 +557,13 @@ mod tests {
                 meta(
                     &format!("a-{i}.ndjson"),
                     "a",
-                    TraceState::Completed,
+                    TraceState::Succeeded,
                     10,
                     i * 3_600,
                 )
             })
             .collect();
-        traces.push(meta("b-0.ndjson", "b", TraceState::Completed, 10, 9 * DAY));
+        traces.push(meta("b-0.ndjson", "b", TraceState::Succeeded, 10, 9 * DAY));
         let marked = plan(&traces, &cfg, now());
         assert_eq!(
             marked,
@@ -580,7 +581,7 @@ mod tests {
             ..RetentionConfig::default()
         };
         let traces = vec![
-            meta("head.ndjson", "w", TraceState::Completed, 10, 600),
+            meta("head.ndjson", "w", TraceState::Succeeded, 10, 600),
             meta("live.ndjson", "w", TraceState::Running, 10, 1_200),
             meta("torn.ndjson", "w", TraceState::Running, 10, 90 * DAY),
         ];

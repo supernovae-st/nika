@@ -82,7 +82,11 @@ pub fn trace_verb(
         trace::TraceAction::Evidence { args } => evidence_run(args),
         trace::TraceAction::Receipt { action } => emit(&receipt::run(action)),
         trace::TraceAction::Show(args) => trace_render(&args, false, color, link_when, theme.ascii),
-        trace::TraceAction::Ls {} => emit(&trace::manage::ls(theme)),
+        trace::TraceAction::Ls { json } => emit(&if json {
+            trace::manage::ls_json()
+        } else {
+            trace::manage::ls(theme)
+        }),
         trace::TraceAction::Rm {
             trace,
             older_than,
@@ -92,11 +96,14 @@ pub fn trace_verb(
             Ok(target) => emit(&trace::manage::rm(&target, force, theme)),
             Err(code) => code,
         },
-        trace::TraceAction::Outputs { trace } => {
+        trace::TraceAction::Outputs { trace, json } => {
             let trace = match trace::manage::resolve_trace(trace) {
                 Ok(path) => path,
                 Err(code) => return code,
             };
+            if json {
+                return emit(&trace::outputs_json(&trace.to_string_lossy()));
+            }
             let mut theme = theme;
             // The dur column's bracket accents: TTY comfort only.
             theme.accents = std::io::stdout().is_terminal();
@@ -108,6 +115,7 @@ pub fn trace_verb(
             anchored,
             sealed,
             replay,
+            json,
         } => verify_verb(
             traces,
             &trace_verify::VerifyOptions {
@@ -115,6 +123,7 @@ pub fn trace_verb(
                 anchored,
                 sealed,
                 replay,
+                json,
             },
         ),
         trace::TraceAction::Anchor {
@@ -238,6 +247,15 @@ fn trace_render(
             frame(&view, &theme, 0)
         };
         print_lines(&lines);
+        // #1397 · a fan-out's items, tallied · the whole table is one peek away.
+        let shown = args.trace.as_deref().map_or_else(
+            || {
+                trace::manage::latest()
+                    .map_or_else(|| "<trace>".to_owned(), |p| p.display().to_string())
+            },
+            |p| p.display().to_string(),
+        );
+        print_lines(&trace::item_summary_lines(&view, &shown, theme));
     }
     // The trace surface owns the run overlays (replay = re-render, never
     // re-execute): the waterfall + the verdict card close the read, from

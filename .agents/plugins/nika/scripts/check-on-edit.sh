@@ -60,8 +60,8 @@ esac
 NIKA="${NIKA_BIN:-}"
 if [ -z "$NIKA" ]; then
   root="$(git -C "$(dirname "$file")" rev-parse --show-toplevel 2>/dev/null || true)"
-  if [ -n "$root" ] && [ -x "$root/target/debug/nika-cli" ]; then
-    NIKA="$root/target/debug/nika-cli"
+  if [ -n "$root" ] && [ -x "$root/target/debug/nika" ]; then
+    NIKA="$root/target/debug/nika"
   else
     NIKA="nika"
   fi
@@ -104,7 +104,7 @@ set -e
 oracle="$(command -v "$NIKA" 2>/dev/null || printf '%s' "$NIKA")"
 # The PATH is the identity. The version string is a TAG, and a tag does not
 # order builds by what they contain: measured 2026-07-29, this tree's
-# target/debug/nika-cli reports 0.106.0 and carries the fs-permit FIX, while
+# target/debug/nika reports 0.106.0 and carries the fs-permit FIX, while
 # the PATH's brew build reports 0.106.1 and carries the FAIL-OPEN. A debug
 # build's version tracks the last tag, not the tree, so the higher patch
 # number was the vulnerable one. Printing the version first inverted the

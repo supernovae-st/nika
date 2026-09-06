@@ -25,13 +25,11 @@
 
 mod ask;
 mod child_runner;
-mod inputs;
+pub(crate) mod inputs;
 mod sink;
-mod thread;
 
 pub use nika_dap::recover::{RecoveredTrace, recover_events};
 pub use sink::{FoldSink, RenderMode};
-pub(crate) use thread::run_in_thread;
 
 mod example;
 pub use example::example;
@@ -49,9 +47,11 @@ pub use provenance::run_with_repair_target;
 mod heartbeat;
 mod resume_setup;
 mod teardown;
+mod thread;
 // ADR-111 · the outbound pause delivery lives in the host member
 // (ADR-110 precedent — compute descends, render stays).
 use nika_cli_host::notify;
+use nika_cli_host::run_settlement::RunState;
 use nika_cli_host::run_settlement::{first_failure, plan_waves, sensitive_journey};
 pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
 use resume_setup::{ResumeSetup, resume_setup};
@@ -100,8 +100,6 @@ pub(crate) struct RunVerdict {
     pub(crate) code: u8,
     failure: Option<nika_runtime::TaskErrorRecord>,
     paused: Option<PausedLeg>,
-    outputs: BTreeMap<String, serde_json::Value>,
-    interrupted: bool,
     pub(crate) trace: Option<std::path::PathBuf>,
 }
 
@@ -118,19 +116,6 @@ impl RunVerdict {
             code,
             failure: None,
             paused: None,
-            outputs: BTreeMap::new(),
-            interrupted: false,
-            trace: None,
-        }
-    }
-
-    fn interrupted() -> Self {
-        Self {
-            code: exit::WORKFLOW,
-            failure: None,
-            paused: None,
-            outputs: BTreeMap::new(),
-            interrupted: true,
             trace: None,
         }
     }
@@ -205,7 +190,6 @@ pub fn run(
         max_cost_usd,
         no_gc,
         require_signature,
-        false,
         None,
     )
     .code
@@ -252,7 +236,6 @@ fn run_verdict(
     max_cost_usd: Option<f64>,
     no_gc: bool,
     require_signature: bool,
-    interruptible: bool,
     repair_target: Option<nika_display::check_render::RepairTarget>,
 ) -> RunVerdict {
     let (output_json, max_cost_usd) = match preflight(output, max_cost_usd, no_gc, dry_run) {
@@ -260,7 +243,7 @@ fn run_verdict(
         Err(verdict) => return *verdict,
     };
     let (source, wf, report) =
-        match provenance::capture_checked_source(file, repair_target, output_json) {
+        match provenance::capture_checked_source(file, repair_target, (output_json, json)) {
             Ok(checked) => checked,
             Err(verdict) => return *verdict,
         };
@@ -269,11 +252,18 @@ fn run_verdict(
     if require_signature && let Err(code) = require_signature_gate(&source, output_json) {
         return RunVerdict::bare(code);
     }
-    let (_wf, _report, _skills) =
-        match scoped_clean_gate(wf, report, task_filter, &source, json, theme, output_json) {
-            Ok(triple) => triple,
-            Err(code) => return RunVerdict::bare(code),
-        };
+    let (_wf, _report, _skills) = match scoped_clean_gate(
+        wf,
+        report,
+        task_filter,
+        &source,
+        json,
+        theme,
+        (output_json, model_override),
+    ) {
+        Ok(triple) => triple,
+        Err(code) => return RunVerdict::bare(code),
+    };
     run_admitted(
         file,
         &source,
@@ -289,51 +279,57 @@ fn run_verdict(
         task_filter,
         no_outputs,
         max_cost_usd,
-        interruptible,
     )
 }
 
-/// The access announce (D-2026-08-04-N1 · P2.6 + R-4): a pinned path is
-/// a behavior the operator chose — said on the human surfaces before the
-/// first frame. And when more than one access CAN serve a model, the
-/// CHOSEN path is announced with its billing class (R-4 · the rich
-/// announce: the choice is a fact worth hearing, never a silent pick).
-/// Machine lanes stay silent (the trace carries the fields).
-fn announce_access_pin(
-    access_pin: Option<&str>,
+/// The access announce (D-2026-08-04-N1 · P2.6 + R-4), PROJECTED from
+/// the frozen plan the run executes (One Door · wave 1 — the announce
+/// can no longer disagree with the run, because it no longer resolves
+/// anything): a pinned path is a behavior the operator chose — said on
+/// the human surfaces before the first frame. And when more than one
+/// access CAN serve a model, the CHOSEN path is announced with its
+/// billing class (R-4 · the rich announce: the choice is a fact worth
+/// hearing, never a silent pick). Machine lanes stay silent (the trace
+/// carries the fields).
+fn announce_access(
+    plan: &nika_providers::ExecutionAccessPlan,
     (json, output_json): (bool, bool),
     mode: RenderMode,
-    report: &CheckReport,
 ) {
     if json || output_json || mode == RenderMode::Quiet {
         return;
     }
-    if let Some(pin) = access_pin {
+    if let Some(pin) = &plan.pin {
         eprintln!("access: pinned `{pin}` — unsatisfied refuses, never substitutes");
     }
+    // #1445 · the rehearsal explains itself BEFORE the run, not on the
+    // closing card: a mock lane echoes the prompt, and here are the two
+    // doors to a real answer.
+    if plan
+        .admitted()
+        .any(|(_, lane)| matches!(lane.plan.chosen, nika_types::access::AccessClass::Mock))
+    {
+        eprintln!(
+            "rehearsal: mock/echo answers by echoing the prompt — not a real answer · \
+             a real one: `--model <provider/model>` with its key, or `--access <seat>` \
+             (nika doctor lists them)"
+        );
+    }
     // R-4 · the rich announce: only when a real choice existed (>1
-    // candidate). Feature-off the vec carries provider rows only, so
+    // candidate row). Feature-off the rows carry providers only, so
     // this stays silent exactly as before (one candidate per provider).
-    let probes = nika_cli_host::probe::access_probes_with_harness();
-    for m in &report.requirements.models {
-        let model = m.model.as_str();
-        if model.contains("${{") {
+    for (model, lane) in plan.admitted() {
+        if lane.candidates < 2 {
             continue;
         }
-        let candidates =
-            nika_providers::candidates_for(&probes, nika_providers::provider_of(model));
-        if candidates.len() < 2 {
-            continue;
-        }
-        if let Ok(plan) = nika_providers::resolve_access(model, &candidates, None, access_pin) {
-            eprintln!(
-                "access: {model} → {} ({} · {}) — chosen over {} other path(s)",
-                plan.access,
-                plan.chosen.as_str(),
-                plan.billing.as_str(),
-                candidates.len() - 1
-            );
-        }
+        eprintln!(
+            "access: {model} → {} ({} · {} · {}) — chosen over {} other path(s)",
+            lane.plan.access,
+            lane.plan.chosen.as_str(),
+            lane.plan.billing.as_str(),
+            lane.plan.trust.as_str(),
+            lane.candidates - 1
+        );
     }
 }
 
@@ -348,7 +344,7 @@ fn announce_access_pin(
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn execute_and_ask(
     runtime: &AuthorizedRuntime,
-    (file, source): (&str, &str),
+    file: &str,
     (wf, report): (&RawWorkflow, &CheckReport),
     resumed: bool,
     vars: &[String],
@@ -358,7 +354,7 @@ fn execute_and_ask(
     theme: Theme,
     mode: RenderMode,
     (json, output_json, no_trace_file, no_outputs): (bool, bool, bool, bool),
-    interruptible: bool,
+    cancel: &nika_types::cancel::CancelCtx,
     world: &AdmittedWorld,
 ) -> RunVerdict {
     let rt = match executor(output_json) {
@@ -384,7 +380,7 @@ fn execute_and_ask(
         model_override,
         &carry,
     );
-    let mut verdict = thread::block_on_run(&rt, future, interruptible);
+    let mut verdict = thread::block_on_run(&rt, future, cancel);
     let mut legs = 0usize;
     while verdict.code == exit::PAUSED && !json && !output_json && legs <= wf.tasks.len() {
         let Some(leg) = verdict.paused.take() else {
@@ -408,8 +404,7 @@ fn execute_and_ask(
             allow_unverified: false,
         };
         verdict = answered_leg(
-            (file, source),
-            (wf, report),
+            file,
             &request,
             vars,
             model_override,
@@ -419,6 +414,7 @@ fn execute_and_ask(
             mode,
             (json, output_json, no_trace_file, !no_outputs),
             &rt,
+            cancel,
             world,
         );
     }
@@ -426,14 +422,14 @@ fn execute_and_ask(
 }
 
 /// One answered continuation of a paused run — re-validate the vars,
-/// fold the paused trace (plan + F-P4 ticket), recompose, re-drive.
+/// readmit the captured world with a fresh engine identity, fold the previous
+/// leg's trace (plan + F-P4 ticket), recompose, re-drive.
 /// Exactly what a manual `--resume <trace> --answer <task>=<value>`
 /// invocation does, minus the process boundary: upstream work
 /// cache-hits visibly, the gate binds the attested answer.
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn answered_leg(
-    (file, source): (&str, &str),
-    (wf, report): (&RawWorkflow, &CheckReport),
+    file: &str,
     request: &ResumeRequest,
     vars: &[String],
     model_override: Option<&str>,
@@ -443,30 +439,54 @@ fn answered_leg(
     mode: RenderMode,
     (json, output_json, no_trace_file, outputs): (bool, bool, bool, bool),
     rt: &tokio::runtime::Runtime,
-    world: &AdmittedWorld,
+    cancel: &nika_types::cancel::CancelCtx,
+    previous_world: &AdmittedWorld,
 ) -> RunVerdict {
+    let (session, world) = match previous_world.readmit_leg(model_override, output_json) {
+        Ok(leg) => leg,
+        Err(verdict) => return *verdict,
+    };
+    let wf = world.driver.workflow();
+    let report = world.driver.report();
+    let source = world.driver.root_source();
     let inputs = match inputs::validated_var_overrides(vars, wf, output_json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
-    let setup = match resume_setup(Some(request), wf, source, model_override, output_json) {
+    // The new leg resolves access over the captured program with the same
+    // pin and override, then judges it against the previous leg's recorded
+    // lanes and validates that leg's approval ticket like any manual resume.
+    let plan = world.driver.resolve_access_plan(model_override, access_pin);
+    // A refusal reaches BOTH machine faces: the `--output json` envelope
+    // and the `--json` stream (the wave-7 gauntlet measured 0 bytes there).
+    let setup = match resume_setup(
+        Some(request),
+        wf,
+        source,
+        model_override,
+        (&plan, access_pin),
+        output_json || json,
+    ) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
     let runtime = match composed_runtime(
         model_override,
-        access_pin,
+        &plan,
         inputs,
         setup,
         max_cost_usd,
         (no_trace_file, output_json),
-        world,
+        &world,
     ) {
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
     };
+    // #1438 · the continuation listens like the first leg: the same
+    // cancel, observed at the runtime's wave boundary.
+    let runtime = runtime.with_cancel(cancel.clone());
     let carry = epilogue::resume_carry(vars, model_override);
-    rt.block_on(execute(
+    let future = execute(
         &runtime,
         (file, wf),
         report,
@@ -480,7 +500,10 @@ fn answered_leg(
         outputs,
         model_override,
         &carry,
-    ))
+    );
+    session
+        .complete(thread::block_on_run(rt, future, cancel))
+        .into_outcome()
 }
 
 /// Build the current-thread executor the run blocks on — an executor
@@ -579,7 +602,7 @@ fn output_mode(output: Option<&str>) -> Result<bool, u8> {
 #[allow(clippy::too_many_arguments)]
 fn composed_runtime(
     model_override: Option<&str>,
-    access_pin: Option<&str>,
+    plan: &nika_providers::ExecutionAccessPlan,
     inputs: inputs::ValidatedInputs,
     setup: ResumeSetup,
     max_cost_usd: Option<f64>,
@@ -598,11 +621,11 @@ fn composed_runtime(
         origins,
     } = inputs;
     let wf = world.driver.workflow();
-    let report = world.driver.report();
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
-    // R-2 · the boot-manifest access stamps, composer-computed (P3 B5).
-    let boot_access = crate::verbs::check::models_rung::boot_access_fields(report, access_pin);
+    // R-2 · the boot-manifest access stamps, PROJECTED from the frozen
+    // plan (P3 B5 · One Door wave 1).
+    let boot_access = crate::verbs::check::models_rung::boot_access_fields(plan);
     // F-P3 · the run: declaration rides the SAME composition path (clock ·
     // jitter seed — the stamper half is picked at the drive site). The driver
     // already owns the exact workflow/report/skills admitted with its bytes.
@@ -633,11 +656,12 @@ fn composed_runtime(
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
                 // D-2026-08-04-N1 · the `--access` pin: unsatisfied refuses BEFORE the prologue.
-                .with_access_pin(access_pin.map(ToOwned::to_owned))
-                .with_boot_access_fields(boot_access)
-                .with_access_probes(nika_cli_host::probe::access_probes_with_harness());
-            #[cfg(feature = "access-harness")]
-            let rt = match rt.with_harness_from_pin(access_pin) {
+                .with_access_pin(plan.pin.clone())
+                .with_boot_access_fields(boot_access);
+            // One Door · wave 1: the runtime EXECUTES the frozen plan —
+            // the seat comes from it (never from the pin's spelling), the
+            // admission belt judges it, every lane routes by it.
+            let rt = match rt.with_access_plan(plan.clone()) {
                 Ok(rt) => rt,
                 Err(e) => {
                     return Err(epilogue::env_refusal(
@@ -646,8 +670,6 @@ fn composed_runtime(
                     ));
                 }
             };
-            #[cfg(not(feature = "access-harness"))]
-            let rt = rt;
             Ok(match resume_plan {
                 Some(plan) => rt.with_resume_plan(plan),
                 None => rt,
@@ -680,7 +702,17 @@ pub(crate) fn capture_mock_outputs(
     skills: BTreeMap<String, String>,
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
-    capture_mock_outputs_with_answers(wf, report, skills, BTreeMap::new(), theme)
+    capture_mock_outputs_with_answers(
+        wf,
+        report,
+        skills,
+        BTreeMap::new(),
+        inputs::ValidatedInputs {
+            values: BTreeMap::new(),
+            origins: BTreeMap::new(),
+        },
+        theme,
+    )
 }
 
 /// `capture_mock_outputs` with operator-bound prompt decisions for
@@ -690,6 +722,7 @@ pub(crate) fn capture_mock_outputs_with_answers(
     _report: &CheckReport,
     skills: BTreeMap<String, String>,
     answers: BTreeMap<String, Value>,
+    inputs: inputs::ValidatedInputs,
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
     let mock_wf = force_mock_models(wf);
@@ -698,7 +731,13 @@ pub(crate) fn capture_mock_outputs_with_answers(
     let caps = capabilities_of(&mock_wf);
     let runtime = simulated_runtime("mock/echo", caps, mock_wf.run.as_ref().map(|s| &s.value))
         .map_err(|e| e.to_string())?;
-    let runtime = runtime.with_skills(skills).with_prompt_answers(answers);
+    // #1400 — a case binds its inputs through the same door `run --var`
+    // uses, so a golden test and a run read one value the same way.
+    let runtime = runtime
+        .with_skills(skills)
+        .with_prompt_answers(answers)
+        .with_var_overrides(inputs.values)
+        .with_input_origins(inputs.origins);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -763,7 +802,7 @@ fn scoped_clean_gate(
     source: &crate::verbs::RunSource,
     json: bool,
     theme: Theme,
-    output_json: bool,
+    (output_json, model_override): (bool, Option<&str>),
 ) -> Result<(RawWorkflow, CheckReport, BTreeMap<String, String>), u8> {
     let refuse = || {
         let out = crate::verbs::check::run_source_with_profile(
@@ -771,13 +810,34 @@ fn scoped_clean_gate(
             json,
             false,
             crate::verbs::check::Profile::Advisory,
-            None,
+            (model_override, None),
             theme,
         );
         epilogue::emit_diagnostic(&out.text, output_json);
         out.code
     };
     if !report.is_clean() {
+        return Err(refuse());
+    }
+    // Wave 2 · the MODELS rung's judgments (resolution · thinking ·
+    // capacity) refuse HERE too — `check` said red, the run used to run
+    // (the W1 rig measured it on a reasoning seat under a tiny cap).
+    // Judged on the EFFECTIVE model (`--model` applied), like `check`.
+    let judged = model_override.map_or_else(
+        || wf.clone(),
+        |model| crate::verbs::with_model_override(&wf, model),
+    );
+    let judged_report = if model_override.is_some() {
+        nika_check::check(&judged)
+    } else {
+        report.clone()
+    };
+    if !crate::verbs::check::models_rung::unresolvable_models(&judged_report, &judged)
+        .findings
+        .is_empty()
+        || !nika_check::thinking_findings(&judged).is_empty()
+        || !nika_check::capacity_findings(&judged).is_empty()
+    {
         return Err(refuse());
     }
     let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;
@@ -989,8 +1049,6 @@ async fn execute_output_json_lane(
         code,
         failure: first_failure(&outcome),
         paused: None,
-        outputs: outcome.outputs.clone(),
-        interrupted: false,
         trace: trace_path,
     }
 }
@@ -1045,14 +1103,30 @@ async fn execute_json_lane(
         eprintln!("nika run: stream write failed: {e}");
         return RunVerdict::renderer_failed(trace_path, e.kind());
     }
-    let trace_proof = surface.path.as_deref().zip(surface.proof.as_ref());
+    // ADR-129 · the freeze audit — the evidence the run left is SAID on
+    // the settlement (`sealed` · `unsealed` · `lost` · `none`), never
+    // implied by an absent receipt.
+    let evidence = nika_cli_host::run_settlement::LocalEvidence::of(
+        surface.path.as_deref(),
+        surface.proof.as_ref(),
+        surface.lost,
+    );
+    // #1403 · ADR-128 — the terminal envelope IS the runtime's settlement
+    // (status · cause · tally · spend · the failure named): the last line
+    // a CI reader parses is the whole verdict, never a refold.
+    // Wave 2b · the verdict frame names the lanes that served (the ONE
+    // lane-row shape) — CI asserts the path on the last line.
+    let lanes = runtime
+        .access_plan()
+        .map(nika_service_execution::access::lane_rows);
     if let Err(e) = nika_cli_host::run_settlement::write_local_run_settlement(
         &mut sink,
-        (outcome.ok, outcome.paused.is_some()),
+        &outcome.settlement,
         &outcome.outputs,
         identity.0,
         identity.1,
-        trace_proof,
+        evidence,
+        lanes.as_deref(),
     ) {
         eprintln!("nika run: settlement write failed: {e}");
         return RunVerdict::renderer_failed(trace_path, e.kind());
@@ -1062,8 +1136,6 @@ async fn execute_json_lane(
         code,
         failure: first_failure(&outcome),
         paused: None,
-        outputs: outcome.outputs.clone(),
-        interrupted: false,
         trace: trace_path,
     }
 }
@@ -1122,10 +1194,15 @@ async fn execute_fold_lane(
         let label = notify::workflow_label(wf);
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
+    // Wave 2b · « wrote .nika/traces » only when a trace exists (a run
+    // refused before its prologue writes none · the W1 gauntlet read
+    // the line over an empty directory).
+    let trace_recorded = trace_recorded && trace.path().is_some_and(std::path::Path::exists);
     let Ok(mut sink) = fold.lock() else {
         eprintln!("nika run: render state poisoned");
         return RunVerdict::bare(exit::ENV);
     };
+    sink.set_trace_recorded(trace_recorded);
     if mode != RenderMode::Live {
         sink.print_final();
     }
@@ -1225,8 +1302,6 @@ fn fold_lane_verdict(
         code,
         failure: first_failure(outcome),
         paused,
-        outputs: outcome.outputs.clone(),
-        interrupted: false,
         trace: trace_path,
     }
 }
@@ -1293,23 +1368,34 @@ async fn drive(
     map_run_result(runtime.run(stamper, sink).await)
 }
 
+/// The runtime's verdict mapped to the exit code and the outcome — a launch
+/// refusal settles the outcome as `failed` · `refused` with its cause, so
+/// `run_settled` names its `error` on EVERY failed frame (wave 2b ·
+/// ADR-128).
 fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) {
     match result {
         Ok(outcome) => {
             // Paused wins the mapping (ADR-099 rider): non-zero on purpose
             // (`&& next` must not proceed past an unanswered human gate),
             // never the WORKFLOW failure code (a pause is not a defect).
-            let code = if outcome.paused.is_some() {
-                exit::PAUSED
-            } else if outcome.ok {
-                exit::OK
-            } else {
-                exit::WORKFLOW
+            // ADR-128 · the exit code is the settlement's state: a pause
+            // (non-zero on purpose · `&& next` must not proceed past an
+            // unanswered human gate · never the WORKFLOW code: not a
+            // defect), the operator's cancellation (#1438 · a decision, the
+            // terminal says so), the verdict.
+            let code = match outcome.settlement.state {
+                RunState::Paused => exit::PAUSED,
+                RunState::Cancelled => exit::CANCELLED,
+                RunState::Succeeded => exit::OK,
+                // `#[non_exhaustive]`: a state this binary does not know fails
+                // closed as the WORKFLOW code.
+                RunState::Failed | _ => exit::WORKFLOW,
             };
             (code, outcome)
         }
         Err(err) => {
             use nika_error::traits::NikaErrorCode as _;
+            let settlement = nika_cli_host::run_settlement::refusal_settlement(&err);
             let mut stderr = std::io::stderr().lock();
             if matches!(
                 err,
@@ -1339,7 +1425,8 @@ fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) 
                 let _ = writeln!(stderr, "nika run: {err}");
                 return (
                     exit::FILE,
-                    RunOutcome::new(false, BTreeMap::new(), BTreeMap::new()),
+                    RunOutcome::new(false, BTreeMap::new(), BTreeMap::new())
+                        .with_settlement(settlement),
                 );
             } else {
                 let _ = writeln!(
@@ -1352,7 +1439,8 @@ fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) 
             }
             (
                 exit::ENV,
-                RunOutcome::new(false, BTreeMap::new(), BTreeMap::new()),
+                RunOutcome::new(false, BTreeMap::new(), BTreeMap::new())
+                    .with_settlement(settlement),
             )
         }
     }

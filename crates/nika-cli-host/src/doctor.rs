@@ -973,12 +973,12 @@ fn provider_finding_auth(p: &ProviderProbe, auth: KeyAuth) -> Finding {
             // a structured workflow wants that fact on the health surface.
             let detail = if p.structured_native {
                 format!(
-                    "{} — {access} · recognized · configured (key present){locus_note}",
+                    "{} — {access} · recognized · configured (key present · not validated){locus_note}",
                     p.id
                 )
             } else {
                 format!(
-                    "{} — {access} · recognized · configured (key present) · structured output via instruction + local validation \
+                    "{} — {access} · recognized · configured (key present · not validated) · structured output via instruction + local validation \
                      (no native json_schema){locus_note}",
                     p.id
                 )
@@ -1122,8 +1122,23 @@ pub fn redact_userinfo(url: &str) -> String {
 /// machine's advisory notes (B-8b — the human lane defaults to calm).
 #[must_use]
 pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
+    run_with(ping, json, verbose, theme, Vec::new())
+}
+
+/// [`run`] with findings the CALLER observed — the resident's line rides
+/// here from `nika-cli` (which holds the serve crate this host does not
+/// depend on · ADR-132): the host renders, the binary observes.
+#[must_use]
+pub fn run_with(
+    ping: bool,
+    json: bool,
+    verbose: bool,
+    theme: Theme,
+    extra: Vec<Finding>,
+) -> VerbOutput {
     let probe = crate::probe::collect(ping);
-    let findings = diagnose(&probe);
+    let mut findings = diagnose(&probe);
+    findings.extend(extra);
     // P3 B6 · every shipped agentic CLI runtime (always listed · label
     // `runtime`, never the MCP-wire `agent` column).
     #[cfg(feature = "access-harness")]
@@ -1208,8 +1223,8 @@ fn harness_finding_from_parts(
             level: Level::Warn,
             label: "runtime".to_owned(),
             detail: format!(
-                "{id} — {display} · infer-grade direct path detected (login judged at run) · \
-                 agent ACP speaker missing · `--access {id}`"
+                "{id} — {display} · usable for `infer:` now (its own login is judged when a run \
+                 starts) · `agent:` needs the ACP speaker · `--access {id}`"
             ),
             fix: Some(format!("install: {package} (only required for agent:)")),
         };
@@ -1219,7 +1234,7 @@ fn harness_finding_from_parts(
             level: Level::Ok,
             label: "runtime".to_owned(),
             detail: format!(
-                "{id} — {display} · detected (v{major}.{minor}) · authenticated (its own login) · `--access {id}`"
+                "{id} — {display} · detected (v{major}.{minor}) · its login command reports signed in · `--access {id}`"
             ),
             fix: None,
         },

@@ -3,12 +3,197 @@ use serde_json::Value;
 use crate::JobOrigin;
 
 use super::{
-    Admission, EventHash, IdempotencyKey, JobRecord, JobStatus, JobStore, JobStoreError,
-    MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES, RequestDigest, StoredJob, ValidatedEventBatch,
-    hash_execution_identity, unique_job_id, world_file,
+    Admission, EventHash, IdempotencyKey, JobId, JobMutation, JobReceipt, JobRecord, JobStatus,
+    JobStore, JobStoreError, MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES, RequestDigest, StoredJob,
+    ValidatedEventBatch, ensure_receipt_matches, hash_execution_identity, unique_job_id,
+    validate_snapshot_digest, world_file,
 };
 
 impl JobStore {
+    /// Atomically stamp a readmitted identity and claim a legal running leg.
+    ///
+    /// This explicit transition also supports resuming a paused leg. Queue
+    /// workers use a queued-only claim: a stale replay is not resume consent.
+    /// Identity and `Running` become durable together, so interruption after
+    /// restart can retain the execution's receipt.
+    ///
+    /// # Errors
+    /// Returns a typed identity, transition, event, contention, or storage
+    /// failure without mutating the durable record.
+    pub fn start_execution(
+        &self,
+        id: &JobId,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        payloads: &[Value],
+    ) -> Result<JobMutation, JobStoreError> {
+        self.claim_execution(id, execution_id, trace_id, snapshot_digest, payloads, None)
+    }
+
+    pub(crate) fn start_queued_execution(
+        &self,
+        id: &JobId,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        payloads: &[Value],
+    ) -> Result<JobMutation, JobStoreError> {
+        self.claim_execution(
+            id,
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            payloads,
+            Some(JobStatus::Queued),
+        )
+    }
+
+    fn claim_execution(
+        &self,
+        id: &JobId,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        payloads: &[Value],
+        expected: Option<JobStatus>,
+    ) -> Result<JobMutation, JobStoreError> {
+        if execution_id.is_empty()
+            || trace_id.is_empty()
+            || validate_snapshot_digest(&snapshot_digest).is_err()
+        {
+            return Err(JobStoreError::InvalidReceipt);
+        }
+        let batch = ValidatedEventBatch::for_transition(payloads)?;
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let mut state = self.load_state()?;
+        super::ensure_approval_claims_unused(&state, &batch)?;
+        let job = state
+            .jobs
+            .iter_mut()
+            .find(|job| job.record.id == *id)
+            .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
+        let current = job.record.status;
+        if expected.is_some_and(|status| current != status) || !current.allows(JobStatus::Running) {
+            return Err(JobStoreError::IllegalTransition {
+                from: current,
+                to: JobStatus::Running,
+            });
+        }
+        job.record.execution_id = execution_id;
+        job.record.trace_id = trace_id;
+        job.record.snapshot_digest = snapshot_digest;
+        job.record.status = JobStatus::Running;
+        job.record.outputs = None;
+        job.record.receipt = None;
+        job.identity_digest = Some(hash_execution_identity(&job.record)?);
+        job.terminal_sequence = None;
+        let events = job.append_payloads(&batch)?;
+        let record = job.record.clone();
+        self.persist_event_mutation(&state, &batch)?;
+        Ok(JobMutation { record, events })
+    }
+
+    /// Reject only an unclaimed admission under the same lease as the run
+    /// claim. A failed duplicate may not settle another execution's job.
+    pub(crate) fn refuse_queued(
+        &self,
+        id: &JobId,
+        event: &Value,
+    ) -> Result<JobMutation, JobStoreError> {
+        self.transition_inner(
+            id,
+            JobStatus::Failed,
+            std::slice::from_ref(event),
+            None,
+            None,
+            Some(JobStatus::Queued),
+        )
+    }
+
+    /// Cancel an unclaimed job without taking ownership from a running engine.
+    /// Identity, receipt and cancellation become durable under the same lease
+    /// that excludes `start_execution`; a stale queued read grants no authority.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn cancel_queued(
+        &self,
+        id: &JobId,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        event: &Value,
+        receipt: JobReceipt,
+    ) -> Result<JobMutation, JobStoreError> {
+        if execution_id.is_empty()
+            || trace_id.is_empty()
+            || validate_snapshot_digest(&snapshot_digest).is_err()
+        {
+            return Err(JobStoreError::InvalidReceipt);
+        }
+        receipt.validate()?;
+        let batch = ValidatedEventBatch::for_transition(std::slice::from_ref(event))?;
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let mut state = self.load_state()?;
+        super::ensure_approval_claims_unused(&state, &batch)?;
+        let job = state
+            .jobs
+            .iter_mut()
+            .find(|job| job.record.id == *id)
+            .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
+        if job.record.status != JobStatus::Queued {
+            return Err(JobStoreError::IllegalTransition {
+                from: job.record.status,
+                to: JobStatus::Cancelled,
+            });
+        }
+        job.record.execution_id = execution_id;
+        job.record.trace_id = trace_id;
+        job.record.snapshot_digest = snapshot_digest;
+        ensure_receipt_matches(&job.record, &receipt)?;
+        job.record.status = JobStatus::Cancelled;
+        job.record.outputs = None;
+        job.record.receipt = Some(receipt);
+        job.identity_digest = Some(hash_execution_identity(&job.record)?);
+        job.terminal_sequence = Some(job.final_sequence_after(&batch)?);
+        let events = job.append_payloads(&batch)?;
+        let record = job.record.clone();
+        self.persist_event_mutation(&state, &batch)?;
+        Ok(JobMutation { record, events })
+    }
+
+    /// The admission already bound to this key, without creating one
+    /// (ADR-132 · the freeze audit): a lost-response retry finds its job
+    /// BEFORE the resident touches the registry or the body again, so a
+    /// workflow that changed, vanished or went red since the first request
+    /// can neither re-run nor lose the job. `None` when the key is unbound.
+    ///
+    /// # Errors
+    /// Returns an error when locking, loading or validation fails.
+    pub fn replay(
+        &self,
+        key: &IdempotencyKey,
+        digest: &RequestDigest,
+    ) -> Result<Option<Admission>, JobStoreError> {
+        key.validate()?;
+        digest.validate()?;
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let state = self.load_state()?;
+        Ok(state
+            .jobs
+            .iter()
+            .find(|job| job.record.idempotency_key == *key)
+            .map(|existing| {
+                if existing.record.request_digest == *digest {
+                    Admission::Existing(existing.record.clone())
+                } else {
+                    Admission::Conflict(existing.record.clone())
+                }
+            }))
+    }
+
     /// Atomically create one scheduled run already claimed as `running`.
     ///
     /// The caller has reserved the shared queue before entering this method.
@@ -78,6 +263,9 @@ impl JobStore {
             error_message: String::new(),
             outputs: None,
             receipt: None,
+            settlement: None,
+            paused_outputs: None,
+            paused_receipt: None,
         };
         let identity_digest = Some(hash_execution_identity(&record)?);
         let mut stored = StoredJob {

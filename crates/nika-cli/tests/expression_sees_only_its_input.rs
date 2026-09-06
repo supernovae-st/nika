@@ -57,7 +57,7 @@ fn write(dir: &Path, name: &str, body: &str) -> std::path::PathBuf {
 }
 
 fn invoke(sub: &str, workflow: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    Command::new(env!("CARGO_BIN_EXE_nika"))
         .arg(sub)
         .arg(workflow)
         .env(CANARY_NAME, CANARY_VALUE)

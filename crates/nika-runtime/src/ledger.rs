@@ -37,6 +37,9 @@ use std::sync::Mutex;
 /// leaf debits race; a Mutex over the tiny fold is the whole story).
 pub(crate) struct RunLedger {
     budget: Option<f64>,
+    /// The run's start on the kernel clock (#1247): the terminal frame's
+    /// `elapsed_ms`.
+    started: Option<std::time::Instant>,
     inner: Mutex<LedgerInner>,
 }
 
@@ -59,18 +62,36 @@ pub(crate) struct LedgerSnapshot {
     pub any_priced: bool,
     pub priced_calls: u32,
     pub unpriced_calls: u32,
-    pub tripped: bool,
     pub budget: Option<f64>,
     /// Spend per attribution key (`provider/model` · tool id).
     pub by_source: BTreeMap<String, f64>,
+    /// The run's elapsed time when known (#1247 · [`RunLedger::snapshot_at`]).
+    pub elapsed: Option<std::time::Duration>,
 }
 
 impl RunLedger {
     pub(crate) fn new(budget: Option<f64>) -> Self {
         Self {
             budget,
+            started: None,
             inner: Mutex::new(LedgerInner::default()),
         }
+    }
+
+    /// The run's start on the kernel clock.
+    #[must_use]
+    pub(crate) fn started_at(mut self, now: std::time::Instant) -> Self {
+        self.started = Some(now);
+        self
+    }
+
+    /// [`Self::snapshot`] with the run's elapsed time at `now`.
+    pub(crate) fn snapshot_at(&self, now: std::time::Instant) -> LedgerSnapshot {
+        let mut snapshot = self.snapshot();
+        snapshot.elapsed = self
+            .started
+            .map(|started| now.saturating_duration_since(started));
+        snapshot
     }
 
     /// Fold ONE leaf outcome. `cost` = metered spend (absent stays
@@ -154,9 +175,9 @@ impl RunLedger {
             any_priced: inner.any_priced,
             priced_calls: inner.priced_calls,
             unpriced_calls: inner.unpriced_calls,
-            tripped: inner.tripped,
             budget: self.budget,
             by_source: inner.by_source.clone(),
+            elapsed: None,
         }
     }
 }
@@ -187,7 +208,7 @@ mod tests {
         assert!(!snap.any_priced, "no priced call happened");
         assert!((snap.spent_usd - 0.0).abs() < f64::EPSILON);
         assert_eq!(snap.unpriced_calls, 1);
-        assert!(!snap.tripped, "unmetered spend cannot cross a budget");
+        assert!(!ledger.tripped(), "unmetered spend cannot cross a budget");
     }
 
     #[test]
@@ -201,7 +222,7 @@ mod tests {
         assert_eq!(snap.priced_calls, 3);
         assert!((snap.by_source["openai/gpt-4o-mini"] - 0.03).abs() < 1e-12);
         assert!((snap.by_source["nika:image_generate"] - 0.04).abs() < 1e-12);
-        assert!(!snap.tripped, "no budget → never trips");
+        assert!(!ledger.tripped(), "no budget → never trips");
     }
 
     #[test]
@@ -212,7 +233,7 @@ mod tests {
         ledger.debit(Some("m"), Some(0.0001), false);
         assert!(ledger.tripped(), "crossing trips");
         let snap = ledger.snapshot();
-        assert!(snap.tripped);
+        assert!(ledger.tripped());
         assert_eq!(snap.budget, Some(0.05));
     }
 }

@@ -1,4 +1,7 @@
 use super::*;
+use nika_cli_host::models_rung::pricing_section;
+
+mod project_context;
 
 /// `run_many`: every file audits even after an earlier failure (the
 /// broken file sits in the MIDDLE), each report keeps its own header,
@@ -416,7 +419,7 @@ pub(crate) fn checked_output_profile(
         false,
         native_strict,
         profile,
-        None,
+        (None, None),
         theme,
     )
 }
@@ -550,7 +553,7 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
         true,
         false,
         Profile::Operational,
-        None,
+        (None, None),
         Theme::new(false, true, false),
     );
     assert_eq!(out.code, 2, "the machine surface agrees: {}", out.text);
@@ -810,3 +813,25 @@ fn models_rung_makes_no_claim_over_a_defaultless_run_time_model() {
 /// the exit code must agree (the review-swarm untested-branch gap).
 #[cfg(test)]
 mod verdict_profiles;
+
+/// #1404 — `check --help` carries its exit contract: CI branches on the
+/// code alone, and the FILE/ENVIRONMENT split is spoken (a missing file
+/// is 3, a grammar refusal or findings are 2).
+#[test]
+fn the_check_help_carries_the_exit_contract() {
+    use clap::Args as _;
+    let help = CheckArgs::augment_args(clap::Command::new("check"))
+        .render_long_help()
+        .to_string();
+    assert!(help.contains("exit codes"), "{help}");
+    assert!(
+        help.contains("0 the report holds")
+            && help.contains("2 the FILE")
+            && help.contains("3 the ENVIRONMENT"),
+        "the three classes check can exit with: {help}"
+    );
+    assert!(
+        help.contains("never 1 or 4"),
+        "the run-only classes are named as such: {help}"
+    );
+}

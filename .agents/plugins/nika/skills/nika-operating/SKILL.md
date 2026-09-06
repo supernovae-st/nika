@@ -5,18 +5,28 @@ description: Operate Nika workflows day-2 — spend caps, permits boundaries, se
 
 # Operating Nika workflows
 
-Authoring makes a file pass `nika check`. Operating makes it safe to
-run unattended: bounded spend, a declared blast radius, masked
-credentials, a model you chose, and a journal you can export.
+Operating prepares a workflow for unattended use: review spend exposure,
+declared effects, secret destinations, model choice and available traces.
+
+The check reports readiness; it does not authorize unattended execution.
+Carry out execution already authorized by the user within its effects and
+spending scope, through the normal engine and host gates. Ask only for a
+decision still missing; permission to run does not supply a human-gate answer.
+Judge `clean`, `native_strict_clean`, `paid_ready` and resolved-child coverage
+separately, with the engine/spec identity that produced the report.
 
 ## Spend (the envelope is part of the contract)
 
-- `nika check <file>` prints the cost BEFORE any token: `≤ $X` is a
-  ceiling · `≥ $X FLOOR` means at least one task is unbounded — fix
+- `nika check <file>` estimates output-token cost BEFORE any token: `≤ $X`
+  bounds that output estimate, not prompt/input cost or the entire invoice.
+  `≥ $X FLOOR` means at least one task is unbounded — fix
   the reason (a missing `max_tokens`, an uncataloged model, an
   expression fan-out), never ship a floor to production.
-- Cap the run: `nika run <file> --max-cost-usd <n>` blocks BEFORE the
-  call that would cross the cap.
+- Cap the run: `nika run <file> --max-cost-usd <n>` refuses a known
+  over-budget floor before execution. Crossing the metered budget during
+  execution stops new admissions; already-started calls finish and count.
+  A concurrent wave can overshoot, and unpriced work has no measured USD
+  bound. Choose concurrency and model limits with that exposure in mind.
 - A local model is **unpriced compute, not free** — say "unpriced",
   never "$0".
 
@@ -50,6 +60,16 @@ composed from a cleared slate — the runner floor ∪ the names in
 `permits: { env: [NAME] }` ∪ the task's own `env:` map. A workflow
 that leaned on an ambient variable must now name it.
 
+## File creation and uncertain results
+
+Use `nika:write` with `overwrite: false` to preserve an occupied destination,
+including one created concurrently before publication. An existing destination
+returns `NIKA-BUILTIN-WRITE-002`; a backend unable to publish exclusively refuses
+instead of falling back to replacement. Keep the required filesystem permits.
+After a lost response or cancellation, inspect the file and trace before retry:
+publication may already have completed. Atomic visibility does not promise
+fsync durability or that a detached write has stopped.
+
 ## Secrets (masked, declared, sunk)
 
 - Every credential rides `${{ secrets.X }}`, declared in the
@@ -73,12 +93,17 @@ that leaned on an ambient variable must now name it.
 
   The checker names the exact chain when one is missing
   (`secrets.X → tasks.A.output → tasks.B.output`).
-- A `host:`-scoped egress cannot be proven against an interpolated
-  URL (`${{ inputs.repo }}` in the address) — the checker refuses
-  conservatively. Pin the URL, or drop the `host:` scope and keep
-  the tool-level sink.
-- Values come from the environment at run time; CI injects them the
-  same way a shell does. Never a literal in YAML, never in a trace.
+- For a `host:`-scoped egress finding, use the checker's actual diagnostic.
+  A literal host can remain provable when the path or query is interpolated.
+  If the authorized destination is known, express it with that host fixed
+  and re-check; if it is unknown, request the destination, not the secret.
+  Never remove or widen `host:` merely to pass a check. A broader destination
+  policy requires explicit authorization for that change. Preserve secret
+  egress, `permits:` and runtime re-gating; an unresolved refusal still blocks.
+- Use the declared secret source at run time; CI can inject an environment
+  source. Never put a credential literal in YAML. Public redaction is not
+  journal confidentiality: raw task outputs can contain sensitive data,
+  so protect trace storage and review evidence before sharing it.
 - `nika doctor` audits the machine: binary, PATH, provider env vars.
 
 ## Models (a one-line swap, both directions)
@@ -86,7 +111,9 @@ that leaned on an ambient variable must now name it.
 - Models are `provider/name`. `nika catalog` is the embedded registry:
   providers · models · capabilities · which env var each needs.
 - Shape with `mock/echo` (offline, deterministic, zero keys). Prove
-  structure first, spend later.
+  structure first, spend later. The CLI override changes the envelope
+  model only: inspect per-task model pins before calling a rehearsal
+  offline. Tools, writes, subprocesses and secret sources remain real.
 - Sovereignty path: `--model ollama/<model>` runs local — same file,
   same check, same trace. Give local providers `timeout: "300s"`+.
 - The file does not hardcode a vendor: swapping cloud↔local is a
@@ -100,11 +127,11 @@ that leaned on an ambient variable must now name it.
 - Pin behavior: `nika test <file> --update` writes
   `<file>.golden.json` from a mock run; `nika test <file>` replays
   and compares — deterministic, zero model keys, CI-safe.
-- **Mock mocks the MODEL, not the tools**: a live `nika:fetch` still
-  rides the network under `nika test`, and a `secrets:` entry still
-  resolves from the environment (export a dummy in CI). Golden the
-  hermetic workflows (read · jq · write · infer); a workflow whose
-  truth lives on the network is proven by its TRACE, not a golden.
+- `nika test` uses the simulated plane and refuses network, subprocess
+  and write effects. Golden only workflows that fit that plane. For an
+  effecting rehearsal, use `nika run <file> --model mock/echo` in scratch:
+  that flag mocks the model, not the tools, so declared effects and secret
+  sources remain real. Inspect those artifacts and the trace separately.
 - `--native-strict` in CI keeps `exec:` honest: any shell task an
   embedded builtin covers fails the gate (the exec ledger documents
   the survivors).
@@ -112,7 +139,7 @@ that leaned on an ambient variable must now name it.
   systemd timer): the engine is a binary, the workflow is a file, and
   `--var key=value` carries the `inputs:` the file declares.
 
-## MCP servers (the pin IS the trust)
+## MCP servers and definition drift
 
 A configured MCP server that changes its tool definitions after you
 approved them is the rug pull. Nika pins every tool on first contact
@@ -121,6 +148,11 @@ contact enrolls loudly, a match proceeds silently, ANY drift fails
 closed with a diff naming the CHANGED field and returns no tools. A
 hand-edited lockfile is `NIKA-MCP-004`, never a silent re-TOFU.
 Re-pin after human review: `nika mcp approve <server>`.
+
+A pin detects changes relative to the enrolled definitions. It does not
+prove those descriptions are truthful, the server is harmless, or an effect
+was delivered. Keep the intended permissions and review the actual result;
+re-pinning is a review decision, not an automatic fix for drift.
 
 ## Observability (the journal is exportable, not captive)
 
@@ -157,7 +189,9 @@ Re-pin after human review: `nika mcp approve <server>`.
 3. `permits:` declared — absent is ZERO authority, not a floor; a
    pure-compute body still says `permits: {}`.
 4. Secrets in `secrets:` with sinks — env-injected, never literal.
-5. Golden pinned (`nika test <file> --update`, committed).
+5. Hermetic workflow: golden pinned (`nika test <file> --update`,
+   committed). Effecting workflow: isolated authorized rehearsal and
+   artifact assertions instead; the simulated golden plane refuses effects.
 6. Spend cap on the run line (`--max-cost-usd`).
 7. Trace store known (`.nika/traces/`) — export wired if anyone
    watches dashboards.

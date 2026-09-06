@@ -499,6 +499,8 @@ pub const nika_error::codes::NIKA_1805: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1805: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1806: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1806: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1807: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1807: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_234: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_234: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_430: nika_error::codes::NikaCode
@@ -571,6 +573,8 @@ pub fn nika_error::codes::lookup(wire: &str) -> core::option::Option<nika_error:
 pub fn nika_error::codes::lookup(wire: &str) -> core::option::Option<nika_error::codes::NikaCode>
 pub fn nika_error::codes::namespace_help(code: &str, docs: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_error::codes::namespace_help(code: &str, docs: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_error::codes::resident_help(code: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_error::codes::resident_help(code: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_error::codes::spec_contract_help(code: &str) -> core::option::Option<&'static str>
 pub fn nika_error::codes::spec_contract_help(code: &str) -> core::option::Option<&'static str>
 pub mod nika_error::core_error
@@ -908,6 +912,7 @@ pub const nika_error::prelude::codes::NIKA_1803: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1804: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1805: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1806: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1807: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_234: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_430: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_431: nika_error::codes::NikaCode
@@ -944,6 +949,7 @@ pub const nika_error::prelude::codes::NIKA_999: nika_error::codes::NikaCode
 pub fn nika_error::prelude::codes::code_help(code: nika_error::codes::NikaCode) -> &'static str
 pub fn nika_error::prelude::codes::lookup(wire: &str) -> core::option::Option<nika_error::codes::NikaCode>
 pub fn nika_error::prelude::codes::namespace_help(code: &str, docs: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_error::prelude::codes::resident_help(code: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_error::prelude::codes::spec_contract_help(code: &str) -> core::option::Option<&'static str>
 #[non_exhaustive] pub enum nika_error::prelude::Category
 pub nika_error::prelude::Category::A11y

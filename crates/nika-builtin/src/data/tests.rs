@@ -673,6 +673,155 @@ fn hash_blake3_default_and_rejects_broken() {
 }
 
 #[test]
+fn hash_literal_acceptance_matches_schema_and_check() {
+    let definition = crate::defs::tool_defs()
+        .into_iter()
+        .find(|tool| tool.name == "nika:hash")
+        .expect("hash definition");
+    let schema = jsonschema::validator_for(&definition.parameters).expect("schema");
+    for (input, accepted) in [
+        (serde_json::json!({"content": ""}), true),
+        (serde_json::json!({"content": {}}), true),
+        (serde_json::json!({"content": []}), true),
+        (serde_json::json!({"content": false}), true),
+        (serde_json::json!({"content": 0}), true),
+        (serde_json::json!({"content": null}), false),
+        (serde_json::json!({"content": "", "algo": "md5"}), false),
+        (serde_json::json!({"content": "", "algo": null}), false),
+        (serde_json::json!({"content": "", "algo": 256}), false),
+        (
+            serde_json::json!({"content": "", "encoding": "rot13"}),
+            false,
+        ),
+        (serde_json::json!({"content": "", "encoding": null}), false),
+        (serde_json::json!({"content": "", "encoding": false}), false),
+    ] {
+        assert_eq!(
+            hash(&args(input.clone())).is_ok(),
+            accepted,
+            "runtime: {input}"
+        );
+        assert_eq!(schema.is_valid(&input), accepted, "schema: {input}");
+        assert_eq!(
+            nika_cap::builtin_shape_findings("nika:hash", Some(&input)).is_empty(),
+            accepted,
+            "check: {input}"
+        );
+    }
+    assert!(!schema.is_valid(&serde_json::json!({})));
+    assert!(hash(&args(serde_json::json!({}))).is_err());
+    // Dispatch/model schemas historically accept extra args; authoring check
+    // owns rejecting them. This change must not silently close that boundary.
+    let extra = serde_json::json!({"content": "", "unrelated": true});
+    assert!(schema.is_valid(&extra));
+    assert!(hash(&args(extra)).is_ok());
+}
+
+#[test]
+fn hash_preserves_null_errors_and_optional_type_precedence() {
+    for (input, message) in [
+        (
+            serde_json::json!({"content": null, "algo": null}),
+            "`content:` is required",
+        ),
+        (
+            serde_json::json!({"content": "", "algo": null}),
+            "`algo:` must be a string when present",
+        ),
+        (
+            serde_json::json!({"content": "", "algo": "md5", "encoding": null}),
+            "`encoding:` must be a string when present",
+        ),
+        (
+            serde_json::json!({"content": "", "algo": "md5", "encoding": "rot13"}),
+            "unsupported algo `md5` (blake3|sha256|sha512 · md5/sha1 are broken)",
+        ),
+    ] {
+        let err = hash(&args(input)).expect_err("invalid args");
+        assert_eq!(err.code, "NIKA-BUILTIN-HASH-001");
+        assert_eq!(err.message, message);
+    }
+}
+
+#[test]
+fn hash_preserves_verbatim_text_and_compact_json_bytes() {
+    // Fixed SHA-256 values from Python hashlib, with ensure_ascii=False and
+    // compact separators for JSON; no use of the implementation's serializer.
+    for (content, expected) in [
+        (
+            serde_json::json!("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        ),
+        (
+            serde_json::json!("a\r\nbé"),
+            "33c464fa9324fd7f06d95d8451abd71bc323735401b9d4b50d8ca82e4dea7aef",
+        ),
+        (
+            serde_json::json!(3),
+            "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+        ),
+        (
+            serde_json::json!(false),
+            "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa",
+        ),
+        (
+            serde_json::json!([1, null, "é"]),
+            "e39a71fdaf04f5e69ebf9284cbdb692d3d279d190545c796d8f9cd7549b4c2d3",
+        ),
+    ] {
+        let output = hash(&args(
+            serde_json::json!({"content": content, "algo": "sha256"}),
+        ))
+        .expect("digest");
+        assert_eq!(output, serde_json::json!(expected));
+    }
+}
+
+#[test]
+fn hash_empty_digest_vectors_cover_every_algorithm_and_encoding() {
+    // BLAKE3 1.8.7 test_vectors.json, input_len=0, first 32 bytes:
+    // https://github.com/BLAKE3-team/BLAKE3/blob/1.8.7/test_vectors/test_vectors.json
+    // SHA vectors independently produced with Python hashlib/OpenSSL.
+    let vectors = [
+        (
+            "blake3",
+            "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",
+            "rxNJufX5oaagQE3qNtzJSZvLJcmtwRK3zJqTyuQfMmI=",
+        ),
+        (
+            "sha256",
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+        ),
+        (
+            "sha512",
+            "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+            "z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcg/SpIdNs6c5H0NE8XYXysP+DGNKHfuwvY7kxvUdBeoGlODJ6+SfaPg==",
+        ),
+    ];
+    let definition = crate::defs::tool_defs()
+        .into_iter()
+        .find(|tool| tool.name == "nika:hash")
+        .expect("hash definition");
+    let schema = jsonschema::validator_for(&definition.parameters).expect("schema");
+    assert_eq!(vectors.len(), HashAlgorithm::ALL.len());
+    for (algo, expected, expected_base64) in vectors {
+        for encoding in HashEncoding::ALL {
+            let input =
+                serde_json::json!({"content": "", "algo": algo, "encoding": encoding.as_str()});
+            assert!(schema.is_valid(&input));
+            let output = hash(&args(input)).expect("digest");
+            let text = output.as_str().expect("digest string");
+            if encoding == HashEncoding::Hex {
+                assert_eq!(text, expected);
+            } else {
+                assert_eq!(text, expected_base64);
+            }
+        }
+    }
+}
+
+#[test]
 fn hash_accepts_structured_content_without_a_tojson_prepass() {
     // Empirical 2026-08-19: interpolating a roster object into
     // `content:` used to refuse HASH-001 "`content:` (string) is required".

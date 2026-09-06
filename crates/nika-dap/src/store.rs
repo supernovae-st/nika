@@ -21,6 +21,8 @@ use std::time::SystemTime;
 
 use nika_event::{Event, EventKind};
 
+use crate::liveness::Liveness;
+
 use crate::recover::recover_events;
 
 /// Where run journals live, relative to the run's CWD (the workspace
@@ -41,8 +43,9 @@ pub const QUARANTINE_DIR: &str = ".nika/quarantine";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TraceState {
-    /// `workflow_completed` — a finished, successful run.
-    Completed,
+    /// `workflow_completed` — a finished, successful run (the settlement's
+    /// `succeeded` · ADR-128: a kind is not a state word).
+    Succeeded,
     /// `workflow_failed` — a finished, failed run.
     Failed,
     /// `workflow_cancelled` — a finished run stopped by decision.
@@ -60,7 +63,7 @@ impl TraceState {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Completed => "completed",
+            Self::Succeeded => "succeeded",
             Self::Failed => "failed",
             Self::Cancelled => "cancelled",
             Self::Paused => "paused",
@@ -73,7 +76,7 @@ impl TraceState {
     /// traces"). Paused runs are obligations; running ones aren't done.
     #[must_use]
     pub const fn is_finished(self) -> bool {
-        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+        matches!(self, Self::Succeeded | Self::Failed | Self::Cancelled)
     }
 }
 
@@ -99,6 +102,10 @@ pub struct TraceMeta {
     /// Last modification time (the age clock — a trace's mtime is its
     /// run's last write).
     pub modified: SystemTime,
+    /// The writer's liveness, read from its lease (ADR-129): `Some` only
+    /// while the trace is `Running` — alive, dead, or unknown when this
+    /// host cannot say.
+    pub liveness: Option<Liveness>,
 }
 
 impl TraceMeta {
@@ -123,6 +130,26 @@ impl TraceMeta {
             paused_task,
             bytes,
             modified,
+            liveness: None,
+        }
+    }
+
+    /// Attach the writer's liveness (a running trace only).
+    #[must_use]
+    pub const fn with_liveness(mut self, liveness: Liveness) -> Self {
+        self.liveness = Some(liveness);
+        self
+    }
+
+    /// The state word every door prints: the settlement's word for a run
+    /// that settled, `running` for a live writer (or one this host cannot
+    /// judge), `dead` for a writer that died — the evidence is incomplete,
+    /// the run never settled (ADR-129: never a verdict on the run).
+    #[must_use]
+    pub const fn state_word(&self) -> &'static str {
+        match (self.state, self.liveness) {
+            (TraceState::Running, Some(Liveness::Dead { .. })) => "dead",
+            (state, _) => state.as_str(),
         }
     }
 }
@@ -164,7 +191,7 @@ fn read_meta(path: &Path) -> Option<TraceMeta> {
     // not a trace we can reason about — skipped, never collected.
     let recovered = recover_events(&raw, &name).ok()?;
     let (workflow, state, paused_task) = fold_facts(&recovered.events);
-    Some(TraceMeta::new(
+    let mut facts = TraceMeta::new(
         path.to_path_buf(),
         name,
         workflow,
@@ -172,7 +199,12 @@ fn read_meta(path: &Path) -> Option<TraceMeta> {
         paused_task,
         meta.len(),
         modified,
-    ))
+    );
+    // A running trace asks its lease (ADR-129): alive · dead · unknown.
+    if state == TraceState::Running {
+        facts = facts.with_liveness(crate::liveness::probe(path));
+    }
+    Some(facts)
 }
 
 /// Fold recovered events into (workflow name · terminal state · the
@@ -194,7 +226,7 @@ pub fn fold_facts(events: &[Event]) -> (String, TraceState, Option<String>) {
             continue;
         }
         state = match event.kind {
-            EventKind::WorkflowCompleted => TraceState::Completed,
+            EventKind::WorkflowCompleted => TraceState::Succeeded,
             EventKind::WorkflowFailed => TraceState::Failed,
             EventKind::WorkflowCancelled => TraceState::Cancelled,
             EventKind::WorkflowPaused => TraceState::Paused,
@@ -359,7 +391,7 @@ pub(crate) mod tests {
         assert_eq!(traces.len(), 2);
         assert_eq!(traces[0].name, "new-fail.ndjson", "newest first");
         assert_eq!(traces[0].state, TraceState::Failed);
-        assert_eq!(traces[1].state, TraceState::Completed);
+        assert_eq!(traces[1].state, TraceState::Succeeded);
         assert!(traces.iter().all(|t| t.workflow == "veille"));
         assert!(traces.iter().all(|t| t.bytes > 0), "real sizes");
         let _ = std::fs::remove_dir_all(dir);
@@ -394,7 +426,7 @@ pub(crate) mod tests {
             .iter()
             .find(|t| t.name == "answered.ndjson")
             .expect("scanned");
-        assert_eq!(answered.state, TraceState::Completed, "last wins");
+        assert_eq!(answered.state, TraceState::Succeeded, "last wins");
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -420,6 +452,43 @@ pub(crate) mod tests {
 
     /// A trace with no terminal event reads `running` (in flight · or
     /// torn — rotation exempts it, age still bounds it).
+    /// ADR-129 · a running trace whose lease nobody holds reads `dead` on
+    /// this host; one with no lease reads `unknown` — never a guess.
+    #[cfg(unix)]
+    #[test]
+    fn a_running_trace_asks_its_lease_before_speaking() {
+        let dir = temp_store("lease");
+        let path = stage_trace(
+            &dir,
+            "dead.ndjson",
+            &ndjson(&run_events("w", None)),
+            Duration::from_secs(60),
+        );
+        let traces = scan(&dir);
+        assert_eq!(
+            traces[0].liveness,
+            Some(Liveness::Unknown),
+            "no lease → unknown"
+        );
+        assert_eq!(traces[0].state_word(), "running");
+        std::fs::write(
+            crate::liveness::lease_path(&path),
+            format!(
+                "{{\"pid\":1,\"host\":\"{}\"}}\n",
+                crate::liveness::host_name()
+            ),
+        )
+        .expect("a lease nobody holds");
+        let traces = scan(&dir);
+        assert_eq!(traces[0].liveness, Some(Liveness::Dead { pid: 1 }));
+        assert_eq!(traces[0].state_word(), "dead");
+        assert_eq!(
+            traces[0].state,
+            TraceState::Running,
+            "never a verdict on the run"
+        );
+    }
+
     #[test]
     fn no_terminal_event_reads_running() {
         let dir = temp_store("running");
@@ -439,7 +508,7 @@ pub(crate) mod tests {
     /// running trace is never part of the observability window.
     #[test]
     fn finished_covers_both_verdicts_and_cancellation_only() {
-        assert!(TraceState::Completed.is_finished());
+        assert!(TraceState::Succeeded.is_finished());
         assert!(TraceState::Failed.is_finished());
         assert!(TraceState::Cancelled.is_finished());
         assert!(!TraceState::Paused.is_finished());

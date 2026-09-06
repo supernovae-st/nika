@@ -1399,3 +1399,48 @@ tasks:
         );
     }
 }
+
+/// #1393 — a literal authority closed by a delimiter names its host
+/// whatever the query carries; an authority the template can still reach
+/// stays derived, because `@evil.example/` in the value would move the host.
+#[test]
+fn templated_url_host_names_a_closed_literal_authority_only() {
+    use super::templated_url_host as host;
+    assert_eq!(
+        host("https://attacker.example.com/collect?k=${{ with.k }}").as_deref(),
+        Some("attacker.example.com")
+    );
+    assert_eq!(
+        host("https://h.example/?q=${{ x }}").as_deref(),
+        Some("h.example")
+    );
+    assert_eq!(
+        host("https://h.example/#${{ x }}").as_deref(),
+        Some("h.example")
+    );
+    assert_eq!(
+        host("https://api.${{ x }}.com/v1").as_deref(),
+        None,
+        "partial authority"
+    );
+    assert_eq!(
+        host("https://h.example${{ p }}").as_deref(),
+        None,
+        "open authority"
+    );
+    assert_eq!(
+        host("https://h.example:${{ port }}/").as_deref(),
+        None,
+        "open port"
+    );
+    assert_eq!(
+        host("https://${{ with.host }}/x").as_deref(),
+        None,
+        "derived host"
+    );
+    assert_eq!(
+        host("https://h.example/plain").as_deref(),
+        None,
+        "no island: not this door"
+    );
+}

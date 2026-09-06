@@ -240,12 +240,13 @@ async fn thinking_budget_reaches_the_anthropic_wire() {
 #[cfg(feature = "access-harness")]
 #[test]
 fn seated_infer_records_quota_without_any_numeric_meter_or_responder_claim() {
-    let dispatched = super::dispatched_harness_infer(
+    let dispatched = super::verb_outcome::harness_infer_success(
         "codex",
         nika_verb_infer::HarnessInferOutput::new(
             serde_json::Value::String("answer".to_owned()),
             "anthropic/claude-sonnet-4-6",
         ),
+        None,
     );
     assert!(dispatched.note.contains("seat codex"));
     assert!(

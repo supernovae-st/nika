@@ -187,15 +187,17 @@ enum Lane {
 /// read this file back — it exists so EVERY run leaves a journal, not
 /// only the ones piped through `--json`.
 ///
-/// Three constraints shape it:
+/// Four constraints shape it:
 /// - **Lazy open** — file creation waits for the FIRST emit: the name uses
 ///   the bound typed trace ID (legacy callers fall back to event identity)
 ///   plus the event timestamp, and a run that never starts (audit refusal ·
 ///   composition failure) must not litter an empty file.
-/// - **Infallible** (the [`EventSink`] contract) — an fs error (read-only
-///   checkout · disk full) is buffered, never panics, never changes the
-///   run's verdict or its primary bytes; the caller surfaces it AFTER
-///   the run as a stderr note.
+/// - **Reader bounds** — final encoded lines and cumulative file bytes
+///   must fit the verifier's existing bounds. Refusal stops this journal
+///   before writing that line; the retained prefix is not complete evidence.
+/// - **Infallible** (the [`EventSink`] contract) — an admission or fs error
+///   is buffered, never panics, never changes the run's verdict or its
+///   primary bytes; the caller surfaces lost evidence AFTER the run.
 /// - **Rider, never a surface** — it tees BESIDE the chosen primary lane
 ///   (via [`Tee`]); with the sink disabled or broken, the primary lane's
 ///   output stays byte-identical.
@@ -214,7 +216,7 @@ pub struct TraceFileSink {
     /// The opened file's path (`None` until the lazy open · stays `None`
     /// when disabled or when the open itself failed).
     path: Option<PathBuf>,
-    /// The first fs error, buffered (the sink contract is infallible
+    /// The first admission or fs error, buffered (the sink is infallible
     /// w.r.t. the run · the caller surfaces this after the run).
     error: Option<std::io::Error>,
     /// The tamper-evidence chain, shared with the stream lane — after
@@ -222,6 +224,18 @@ pub struct TraceFileSink {
     chain: ChainState,
     /// Lines actually written (the anchor trio's count).
     written: usize,
+    /// Committed file bytes, including each line's trailing newline.
+    written_bytes: usize,
+    /// The liveness lease held for the journal's lifetime (ADR-129 ·
+    /// `<trace>.lock`): `None` when disabled, when the open failed, or
+    /// when the lease could not be taken (fail-open: the store then reads
+    /// `unknown`, never a guess).
+    lease: Option<crate::liveness::Lease>,
+    /// Whether a terminal frame was written: a sink that reached its
+    /// terminal removes its lease on drop (a clean run leaves no sidecar);
+    /// one that did not keeps the file, and the kernel releases the lock —
+    /// the reader says `dead`.
+    saw_terminal: bool,
 }
 
 impl TraceFileSink {
@@ -236,6 +250,9 @@ impl TraceFileSink {
             error: None,
             chain: ChainState::genesis(),
             written: 0,
+            written_bytes: 0,
+            lease: None,
+            saw_terminal: false,
         }
     }
 
@@ -252,6 +269,9 @@ impl TraceFileSink {
             error: None,
             chain: ChainState::genesis(),
             written: 0,
+            written_bytes: 0,
+            lease: None,
+            saw_terminal: false,
         }
     }
 
@@ -284,10 +304,11 @@ impl TraceFileSink {
         matches!(self.lane, Lane::Disabled)
     }
 
-    /// The buffered fs error, if journaling ever failed.
+    /// The buffered admission or fs error, if journaling ever failed.
     #[must_use]
-    pub fn into_error(self) -> Option<std::io::Error> {
-        self.error
+    pub fn into_error(mut self) -> Option<std::io::Error> {
+        // `take`, not a move: the sink implements `Drop` (the lease).
+        self.error.take()
     }
 
     /// The chain HEAD — sha256 of the last written line's exact bytes.
@@ -365,9 +386,29 @@ impl TraceFileSink {
             }
             Err(e) => return Err(e),
         };
+        // The liveness lease (ADR-129): held until this sink drops — the
+        // kernel releases it when the process ends, however it ends. A
+        // lease that cannot be taken leaves the reader honest (`unknown`).
+        self.lease = crate::liveness::hold(&path).ok();
         self.lane = Lane::Open(BufWriter::new(file));
         self.path = Some(path);
         Ok(())
+    }
+}
+
+/// ADR-129 · the lease outlives the writer iff the writer died before its
+/// terminal frame. A sink dropped after its terminal removes the sidecar
+/// (the lock first, then the file); one dropped without a terminal keeps
+/// it — the kernel releases the lock, the store reads `dead`.
+impl Drop for TraceFileSink {
+    fn drop(&mut self) {
+        if !self.saw_terminal {
+            return;
+        }
+        self.lease = None;
+        if let Some(path) = &self.path {
+            crate::liveness::remove_lease(path);
+        }
     }
 }
 
@@ -376,6 +417,33 @@ fn journal_identity(first: &Event) -> Uuid {
         || first.run.map_or(first.id.uuid, |run| run.uuid),
         |id| id.uuid,
     )
+}
+
+/// Admit the final serialized line against the existing reader bounds.
+/// The line walker excludes newlines; the whole-file reader includes them.
+fn admitted_journal_bytes(written: usize, line: usize) -> std::io::Result<usize> {
+    if line > crate::chain::MAX_LINE_BYTES {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "journal line is {line} bytes; maximum is {}",
+                crate::chain::MAX_LINE_BYTES
+            ),
+        ));
+    }
+    written
+        .checked_add(line)
+        .and_then(|bytes| bytes.checked_add(1))
+        .filter(|bytes| *bytes <= crate::bounded::MAX_JOURNAL_BYTES)
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "journal would exceed {} bytes including newlines",
+                    crate::bounded::MAX_JOURNAL_BYTES
+                ),
+            )
+        })
 }
 
 impl EventSink for TraceFileSink {
@@ -401,18 +469,23 @@ impl EventSink for TraceFileSink {
         // for liveness). The line shape (event + `chain` field · hash of
         // the written bytes) lives in ChainState — one law, both lanes.
         let result = self.chain.line(&event).and_then(|(line, next)| {
+            let bytes = admitted_journal_bytes(self.written_bytes, line.len())?;
             writer.write_all(line.as_bytes())?;
             writer.write_all(b"\n")?;
             writer.flush()?;
-            Ok(next)
+            Ok((next, bytes))
         });
         // Chain state commits only AFTER the bytes landed: a failed
         // write must never advance the head (a later "N events · chain
         // X" note would otherwise describe bytes no file holds).
         match result {
-            Ok(next) => {
+            Ok((next, bytes)) => {
                 self.chain.commit(next);
                 self.written += 1;
+                self.written_bytes = bytes;
+                if event.kind.is_terminal() {
+                    self.saw_terminal = true;
+                }
             }
             Err(e) => {
                 self.error = Some(e);
@@ -536,7 +609,7 @@ pub fn seal_journal_with(
         )
     {
         trace.emit(ev);
-        sealed = true;
+        sealed = trace.error.is_none();
     }
     sealed
 }
@@ -554,6 +627,59 @@ pub(crate) fn now_millis() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    /// ADR-129 · a sink that reached its terminal leaves no lease; one that
+    /// did not leaves the file, unlocked — the reader says `dead`.
+    #[cfg(unix)]
+    #[test]
+    fn the_lease_outlives_the_writer_only_when_it_died_before_its_terminal() {
+        use super::*;
+        use nika_event::EventKind;
+        use nika_types::id::EventId;
+        use nika_types::timestamp::Timestamp;
+        let dir = std::env::temp_dir().join(format!("nika-lease-drop-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let frame = |kind: EventKind, ms: u64| {
+            Event::new(
+                EventId::new(Uuid::from_u128(u128::from(ms))),
+                Timestamp::from_unix_ms(ms),
+                kind,
+            )
+        };
+        // clean: started + terminal, then drop → no sidecar
+        let clean = {
+            let mut sink = TraceFileSink::new(dir.join("clean"));
+            sink.emit(frame(EventKind::WorkflowStarted, 1));
+            sink.emit(frame(EventKind::WorkflowCompleted, 2));
+            sink.path()
+                .map(std::path::Path::to_path_buf)
+                .expect("opened")
+        };
+        assert!(clean.exists(), "the journal stays");
+        assert!(
+            !crate::liveness::lease_path(&clean).exists(),
+            "a clean run leaves no lease"
+        );
+        // dead: started only, then drop → the lease file stays, unlocked
+        let dead = {
+            let mut sink = TraceFileSink::new(dir.join("dead"));
+            sink.emit(frame(EventKind::WorkflowStarted, 1));
+            sink.path()
+                .map(std::path::Path::to_path_buf)
+                .expect("opened")
+        };
+        assert!(
+            crate::liveness::lease_path(&dead).exists(),
+            "the lease stays"
+        );
+        assert!(
+            matches!(
+                crate::liveness::probe(&dead),
+                crate::liveness::Liveness::Dead { .. }
+            ),
+            "nobody holds it: the writer is gone"
+        );
+    }
+
     use super::*;
     use nika_display::demo;
     use nika_types::id::{ExecutionId, RunId};
@@ -663,6 +789,202 @@ mod tests {
     }
 
     // ───────────────────────── run journal (TraceFileSink · Tee) ─────
+
+    fn bounds_event(kind: nika_event::EventKind, output: &str) -> Event {
+        Event::new(EventId::new(Uuid::nil()), Timestamp::from_unix_ms(0), kind).with_field(
+            nika_types::resource::KeyValue::new(
+                "output",
+                nika_types::resource::Value::string(output),
+            ),
+        )
+    }
+
+    fn bounds_stream(event: &Event) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let mut primary = JsonSink::new(&mut bytes);
+        primary.emit(event.clone());
+        assert!(primary.into_error().is_none());
+        bytes
+    }
+
+    /// Measure with the production primary serializer, then fill the
+    /// remaining bytes with ASCII. The payload includes multibyte UTF-8
+    /// and JSON escapes, so neither character count nor raw output size
+    /// is the journal's final encoded length.
+    fn bounds_sized_event(bytes: usize, kind: nika_event::EventKind) -> Event {
+        let execution = ExecutionId::from_bytes([0x3a; 16]);
+        let mut output = "é🦋\n\t\"\\\0".repeat(64);
+        let envelope = bounds_event(kind, &output).with_execution(execution);
+        let measured = bounds_stream(&envelope).len() - 1;
+        output.push_str(&"x".repeat(bytes.checked_sub(measured).expect("fixture fits")));
+        let event = bounds_event(kind, &output).with_execution(execution);
+        assert_eq!(bounds_stream(&event).len(), bytes + 1);
+        event
+    }
+
+    #[test]
+    fn journal_line_bound_admits_the_final_encoded_boundary() {
+        use nika_event::EventKind;
+        for bytes in [
+            crate::chain::MAX_LINE_BYTES - 1,
+            crate::chain::MAX_LINE_BYTES,
+        ] {
+            let tmp = tempfile::tempdir().expect("tempdir");
+            let expected_event = bounds_sized_event(bytes, EventKind::WorkflowCompleted);
+            let execution = expected_event.execution.expect("bound identity");
+            let mut event = expected_event.clone();
+            event.execution = None; // The file sink adds this before admission.
+            let expected = bounds_stream(&expected_event);
+            let mut sink =
+                TraceFileSink::new(tmp.path()).for_execution(execution, TraceId::from(execution));
+            sink.emit(event);
+            sink.finalize();
+            let path = sink.path().expect("journal").to_path_buf();
+            assert_eq!(sink.chain_len(), 1);
+            assert_eq!(sink.written_bytes, bytes + 1);
+            assert!(sink.into_error().is_none(), "the boundary is inclusive");
+            let raw = std::fs::read_to_string(&path).expect("journal bytes");
+            assert_eq!(raw.as_bytes(), expected);
+            assert!(matches!(
+                crate::chain::walk(&raw),
+                crate::chain::Verdict::Intact { events: 1, .. }
+            ));
+            let recovered = crate::recover::recover_events(&raw, "boundary")
+                .expect("the admitted bytes recover");
+            assert_eq!(recovered.events, vec![expected_event]);
+        }
+    }
+
+    #[test]
+    fn journal_line_refusal_preserves_the_prefix_and_stops_later_frames() {
+        use nika_event::EventKind;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let too_large =
+            bounds_sized_event(crate::chain::MAX_LINE_BYTES + 1, EventKind::TaskCompleted);
+        // Before chain insertion this same event fits the line bound.
+        assert!(
+            serde_json::to_vec(&too_large).expect("event").len() <= crate::chain::MAX_LINE_BYTES
+        );
+        let execution = too_large.execution.expect("bound identity");
+        let mut sink =
+            TraceFileSink::new(tmp.path()).for_execution(execution, TraceId::from(execution));
+        sink.emit(bounds_event(EventKind::WorkflowStarted, "started"));
+        let path = sink.path().expect("journal").to_path_buf();
+        let before = std::fs::read(&path).expect("prefix");
+        let head = sink.chain_head().to_owned();
+        let mut unstamped = too_large;
+        unstamped.execution = None;
+        sink.emit(unstamped);
+        let error = sink.error.as_ref().expect("admission refused").to_string();
+        assert_eq!(
+            sink.error.as_ref().map(std::io::Error::kind),
+            Some(std::io::ErrorKind::InvalidData)
+        );
+        assert!(sink.is_disabled());
+        sink.emit(bounds_event(EventKind::WorkflowCompleted, "finished"));
+        sink.emit(bounds_event(EventKind::RunSealed, "later seal"));
+        sink.finalize();
+        assert_eq!(sink.chain_head(), head);
+        assert_eq!(sink.chain_len(), 1);
+        assert_eq!(sink.written_bytes, before.len());
+        assert!(
+            !sink.saw_terminal,
+            "a refused lane never acquires a terminal"
+        );
+        assert_eq!(
+            sink.into_error().expect("first error retained").to_string(),
+            error
+        );
+        let after = std::fs::read_to_string(path).expect("retained prefix");
+        assert_eq!(after.as_bytes(), before);
+        assert!(matches!(
+            crate::chain::walk(&after),
+            crate::chain::Verdict::Incomplete { events: 1, .. }
+        ));
+    }
+
+    #[test]
+    fn journal_total_bound_counts_the_last_newline_before_writing() {
+        use nika_event::EventKind;
+        let event = bounds_event(EventKind::WorkflowCompleted, "é\n");
+        let encoded_bytes = bounds_stream(&event).len();
+        for remaining in [encoded_bytes + 1, encoded_bytes, encoded_bytes - 1] {
+            let tmp = tempfile::tempdir().expect("tempdir");
+            let mut sink = TraceFileSink::new(tmp.path());
+            sink.emit(bounds_event(EventKind::WorkflowStarted, "started"));
+            let path = sink.path().expect("journal").to_path_buf();
+            let prefix = std::fs::read(&path).expect("prefix");
+            assert_eq!(sink.written_bytes, prefix.len());
+            let head = sink.chain_head().to_owned();
+            // Place the production byte counter near its cap without
+            // writing 256 MiB per case. Real writes above/below this
+            // injected history still exercise emit, not a guard replica.
+            let before = crate::bounded::MAX_JOURNAL_BYTES - remaining;
+            sink.written_bytes = before;
+            sink.emit(event.clone());
+            if remaining >= encoded_bytes {
+                assert!(sink.error.is_none());
+                assert_eq!(sink.written_bytes, before + encoded_bytes);
+                assert_eq!(sink.chain_len(), 2);
+                assert_eq!(
+                    std::fs::metadata(&path).expect("journal").len(),
+                    (prefix.len() + encoded_bytes) as u64
+                );
+                let completed = std::fs::read(&path).expect("completed prefix");
+                let completed_head = sink.chain_head().to_owned();
+                let key = minisign::KeyPair::generate_unencrypted_keypair().expect("test key");
+                let public = key.pk.to_box().expect("public box").to_string();
+                let seal = crate::seal::seal_event_with(
+                    EventId::new(Uuid::nil()),
+                    Timestamp::from_unix_ms(0),
+                    &completed_head,
+                    sink.chain_len(),
+                    "workflow",
+                    env!("CARGO_PKG_VERSION"),
+                    None,
+                    &key.sk,
+                    &public,
+                )
+                .expect("seal from an in-memory test key");
+                sink.emit(seal);
+                sink.finalize();
+                assert!(sink.error.is_some(), "the seal obeys the same total bound");
+                assert!(sink.is_disabled());
+                assert_eq!(sink.written_bytes, before + encoded_bytes);
+                assert_eq!(sink.chain_len(), 2);
+                assert_eq!(sink.chain_head(), completed_head);
+                assert_eq!(std::fs::read(&path).expect("journal"), completed);
+            } else {
+                assert!(sink.error.is_some());
+                assert!(sink.is_disabled());
+                assert_eq!(sink.written_bytes, before);
+                assert_eq!(sink.chain_head(), head);
+                assert_eq!(sink.chain_len(), 1);
+                assert_eq!(std::fs::read(&path).expect("journal"), prefix);
+            }
+        }
+    }
+
+    #[test]
+    fn journal_total_overflow_refuses_without_advancing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mut sink = TraceFileSink::new(tmp.path());
+        sink.written_bytes = usize::MAX;
+        let head = sink.chain_head().to_owned();
+        sink.emit(bounds_event(
+            nika_event::EventKind::WorkflowCompleted,
+            "done",
+        ));
+        let path = sink.path().expect("journal").to_path_buf();
+        assert_eq!(sink.written_bytes, usize::MAX);
+        assert_eq!(sink.chain_len(), 0);
+        assert_eq!(sink.chain_head(), head);
+        assert_eq!(std::fs::metadata(path).expect("journal").len(), 0);
+        assert_eq!(
+            sink.into_error().expect("overflow refused").kind(),
+            std::io::ErrorKind::InvalidData
+        );
+    }
 
     /// The spec §3.3 name form: `<ISO-compact>-<short>.ndjson` — second
     /// precision, `:` → `-`, the short id = the LAST 4 hex of the uuid.

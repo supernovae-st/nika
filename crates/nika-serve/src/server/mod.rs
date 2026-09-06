@@ -20,7 +20,7 @@ mod store;
 use std::collections::{BTreeMap, VecDeque};
 use std::future::Future;
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 
@@ -70,14 +70,31 @@ pub enum ExecutionDisposition {
 }
 
 /// Adapter result: disposition plus optional redacted diagnosis, declared
-/// workflow outputs, and trace chain head.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// workflow outputs, trace chain head and the runtime's settlement
+/// (ADR-128 · projected whole on the terminal event).
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExecutionOutcome {
     disposition: ExecutionDisposition,
     error_code: Option<String>,
     error_message: Option<String>,
     outputs: Option<BTreeMap<String, serde_json::Value>>,
     chain_head: Option<String>,
+    settlement: Option<Box<nika_event::settlement::RunSettlement>>,
+}
+
+/// The disposition IS a run state (ADR-130 · the resident's word for the
+/// four settlement states); a refusal before any task settles the job
+/// `failed` with the refusal's code and no settlement (the runtime reached
+/// none).
+impl From<ExecutionDisposition> for nika_event::settlement::RunState {
+    fn from(disposition: ExecutionDisposition) -> Self {
+        match disposition {
+            ExecutionDisposition::Succeeded => Self::Succeeded,
+            ExecutionDisposition::Paused => Self::Paused,
+            ExecutionDisposition::Failed => Self::Failed,
+            ExecutionDisposition::Cancelled => Self::Cancelled,
+        }
+    }
 }
 
 impl From<ExecutionDisposition> for ExecutionOutcome {
@@ -88,6 +105,7 @@ impl From<ExecutionDisposition> for ExecutionOutcome {
             error_message: None,
             outputs: None,
             chain_head: None,
+            settlement: None,
         }
     }
 }
@@ -102,6 +120,7 @@ impl ExecutionOutcome {
             error_message: Some(message.into()),
             outputs: None,
             chain_head: None,
+            settlement: None,
         }
     }
 
@@ -132,6 +151,21 @@ impl ExecutionOutcome {
     pub fn with_chain_head(mut self, chain_head: impl Into<String>) -> Self {
         self.chain_head = Some(chain_head.into());
         self
+    }
+
+    /// Attach the runtime's settlement (ADR-128): the resident projects it
+    /// whole on its terminal event, so the SDK's HTTP door reads the same
+    /// cause, tally and spend the CLI's `run_settled` carries.
+    #[must_use]
+    pub fn with_settlement(mut self, settlement: nika_event::settlement::RunSettlement) -> Self {
+        self.settlement = Some(Box::new(settlement));
+        self
+    }
+
+    /// The runtime's settlement, when the backend carried one.
+    #[must_use]
+    pub fn settlement(&self) -> Option<&nika_event::settlement::RunSettlement> {
+        self.settlement.as_deref()
     }
 
     /// Declared workflow outputs supplied by the execution adapter.
@@ -185,8 +219,8 @@ pub trait ExecutionBackend: Send + Sync + 'static {
     /// Execute with a run-scoped cooperative cancellation token.
     ///
     /// The default preserves existing adapters; the resident owner also drops
-    /// this future when the token fires, so an adapter cannot make HTTP
-    /// cancellation depend on polling the token itself.
+    /// this future if cancellation grace expires. An adapter returns its
+    /// actual settlement during grace; the resident never invents one.
     fn execute_with_cancel<'a>(
         &'a self,
         context: ExecutionContext<'a>,
@@ -201,6 +235,10 @@ struct AppState {
     token: BearerToken,
     store: StoreHandle,
     project: Arc<OwnedDir>,
+    /// The served registry (`--workflows`) and its project-relative scope
+    /// (#1369): what this listener exposes and schedules.
+    registry: Arc<OwnedDir>,
+    registry_scope: Option<String>,
     service: ExecutionService,
     coordinator: ResidentExecutionCoordinator,
     limits: ServerLimits,
@@ -210,6 +248,9 @@ struct AppState {
     schedules: Arc<ScheduleStore>,
     schedule_wake: Arc<Notify>,
     project_refusals: scheduler::ProjectRefusals,
+    last_good_project: scheduler::LastGoodProject,
+    project_load_finding: scheduler::ProjectLoadFinding,
+    fire_refusals: scheduler::FireRefusals,
     clock: Arc<dyn ResidentClock>,
     cancellations: Arc<ActiveCancellations>,
 }
@@ -221,9 +262,16 @@ struct AuthorityState {
     limits: ServerLimits,
     snapshot_limits: SnapshotLimits,
     project: Arc<OnceLock<Arc<OwnedDir>>>,
+    /// The project root as a path: the ARM ledger the resident writes its
+    /// project fires into lives under it (`.nika/arm` · one ledger for both
+    /// firers).
+    workflow_root: Arc<OnceLock<PathBuf>>,
     schedules: Arc<ScheduleStore>,
     schedule_wake: Arc<Notify>,
     project_refusals: scheduler::ProjectRefusals,
+    last_good_project: scheduler::LastGoodProject,
+    project_load_finding: scheduler::ProjectLoadFinding,
+    fire_refusals: scheduler::FireRefusals,
     coordinator: ResidentExecutionCoordinator,
     clock: Arc<dyn ResidentClock>,
     cancellations: Arc<ActiveCancellations>,
@@ -320,9 +368,19 @@ impl ResidentAuthority {
             limits: config.limits(),
             snapshot_limits: config.snapshot_limits(),
             project,
+            workflow_root: {
+                let root = Arc::new(OnceLock::new());
+                if let Some(path) = config.workflow_root() {
+                    let _set = root.set(path.to_owned());
+                }
+                root
+            },
             schedules,
             schedule_wake,
             project_refusals,
+            last_good_project: scheduler::LastGoodProject::default(),
+            project_load_finding: scheduler::ProjectLoadFinding::default(),
+            fire_refusals: scheduler::FireRefusals::default(),
             coordinator: coordinator.clone(),
             clock: Arc::clone(config.clock()),
             cancellations,
@@ -403,8 +461,16 @@ impl BoundServer {
             Arc::clone(project)
         } else {
             let _set = authority.state.project.set(Arc::clone(&prepared.project));
+            let _root = authority
+                .state
+                .workflow_root
+                .set(prepared.workflow_root.clone());
             Arc::clone(&prepared.project)
         };
+        let registry_scope = registry::registry_scope(
+            authority.state.workflow_root.get().map(PathBuf::as_path),
+            config.workflow_root(),
+        );
         let listener = TcpListener::bind(config.bind())
             .await
             .map_err(|error| ServerError::Listener(error.kind()))?;
@@ -412,6 +478,8 @@ impl BoundServer {
             token: prepared.token,
             store: authority.state.store.clone(),
             project,
+            registry: Arc::clone(&prepared.project),
+            registry_scope,
             service: authority.state.service,
             coordinator: authority.coordinator.clone(),
             limits: authority.state.limits,
@@ -421,6 +489,9 @@ impl BoundServer {
             schedules: Arc::clone(&authority.state.schedules),
             schedule_wake: Arc::clone(&authority.state.schedule_wake),
             project_refusals: Arc::clone(&authority.state.project_refusals),
+            last_good_project: Arc::clone(&authority.state.last_good_project),
+            project_load_finding: Arc::clone(&authority.state.project_load_finding),
+            fire_refusals: Arc::clone(&authority.state.fire_refusals),
             clock: Arc::clone(&authority.state.clock),
             cancellations: Arc::clone(&authority.state.cancellations),
         });
@@ -485,6 +556,7 @@ struct PreparedAuthority {
 
 struct PreparedHttp {
     token: BearerToken,
+    workflow_root: PathBuf,
     project: Arc<OwnedDir>,
 }
 
@@ -503,6 +575,14 @@ async fn prepare_authority(config: &ResidentConfig) -> Result<PreparedAuthority,
             })
             .transpose()?;
         let incarnation = store.claim_server_incarnation()?;
+        // ADR-132 · the freeze audit: the stamps are written AFTER the
+        // server lease is held — a second start that loses the lease never
+        // rewrites the live resident's writer, and a newer protocol's stamp
+        // never lands beside an older resident still serving.
+        store.stamp_writer_as_resident()?;
+        schedules
+            .stamp_writer_as_resident()
+            .map_err(ServerError::ScheduleStore)?;
         store.settle_interrupted_jobs(&incarnation)?;
         Ok(PreparedAuthority {
             store,
@@ -524,7 +604,11 @@ async fn prepare_http(config: &ServerConfig) -> Result<PreparedHttp, ServerError
             OwnedDir::open(&workflow_root)
                 .map_err(|error| ServerError::WorkflowRoot(error.kind()))?,
         );
-        Ok(PreparedHttp { token, project })
+        Ok(PreparedHttp {
+            token,
+            workflow_root,
+            project,
+        })
     })
     .await
     .map_err(|_| ServerError::BlockingTask)?
@@ -833,9 +917,22 @@ async fn serve_connection(stream: TcpStream, state: Arc<AppState>) {
 }
 
 async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<(), ServerError> {
-    let (_registration, cancel) =
-        CancellationRegistration::new(Arc::clone(&state.cancellations), task.id.clone());
-    let mut guard = RunningGuard::new(state.store.clone(), task.id.clone());
+    // Replays can leave duplicate queue entries after the owner settles.
+    // This is only a read-avoidance optimization: the durable claim and
+    // queued-only refusal below still arbitrate concurrent transitions.
+    let expected = if task.prestarted {
+        JobStatus::Running
+    } else {
+        JobStatus::Queued
+    };
+    if state
+        .store
+        .execution_status(task.id.clone())
+        .await?
+        .is_some_and(|status| status != expected)
+    {
+        return Ok(());
+    }
     let admitted = match admit_task(&state, &mut task).await {
         Ok(admitted) => admitted,
         Err(error) => {
@@ -846,9 +943,10 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
                     "workflow world could not be readmitted".to_owned(),
                 ),
             };
-            guard
-                .settle(
-                    JobStatus::Failed,
+            let refused = state
+                .store
+                .refuse_queued(
+                    task.id.clone(),
                     json!({
                         "kind": "execution.refused",
                         "status": "failed",
@@ -856,13 +954,25 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
                         "message": message
                     }),
                 )
-                .await?;
-            return Ok(());
+                .await;
+            return match refused {
+                Ok(_) => Ok(()),
+                Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition {
+                    from,
+                    ..
+                })) if from != JobStatus::Queued => Ok(()),
+                Err(error) => Err(error),
+            };
         }
     };
+    let mut guard = RunningGuard::new(state.store.clone(), task.id.clone(), task.prestarted);
     if !task.prestarted && !start_running(&mut guard, &admitted).await? {
         return Ok(());
     }
+    // Only the claimed execution may retire its cancellation registration
+    // or interrupt its job on drop. A duplicate owns neither resource.
+    let (_registration, cancel) =
+        CancellationRegistration::new(Arc::clone(&state.cancellations), task.id.clone());
     settle_disposition(
         &state,
         &mut guard,
@@ -899,7 +1009,10 @@ async fn start_running(
         )
         .await
     {
-        Ok(_) => Ok(true),
+        Ok(_) => {
+            guard.armed = true;
+            Ok(true)
+        }
         Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) => {
             guard.disarm();
             Ok(false)
@@ -928,6 +1041,10 @@ async fn admit_workflow(
     admission.map_err(Some)
 }
 
+/// How long a cancelled run may take to reach its wave boundary and settle
+/// with terminal frames before the resident drops it (#1353).
+const CANCEL_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
 async fn settle_disposition(
     state: &AuthorityState,
     guard: &mut RunningGuard,
@@ -941,36 +1058,54 @@ async fn settle_disposition(
         state
             .backend
             .execute_with_cancel(session.context(), max_cost_usd, cancel.clone());
+    // A cancel signal gives the runtime a grace to reach its next wave
+    // boundary and return its result. A signal requests action; only the
+    // execution owner can settle it. No returned result means interruption.
     let outcome = tokio::time::timeout(state.limits.execution_timeout(), async {
+        tokio::pin!(execute);
         tokio::select! {
-            outcome = execute => outcome,
-            () = cancel::cancelled(cancel.clone()) => ExecutionDisposition::Cancelled.into(),
+            outcome = &mut execute => Some(outcome),
+            () = cancel::cancelled(cancel.clone()) => {
+                tokio::time::timeout(CANCEL_GRACE, &mut execute).await.ok()
+            }
         }
     })
     .await;
-    let Ok(outcome) = outcome else {
+    let Ok(Some(outcome)) = outcome else {
         guard.interrupt().await?;
         return Ok(());
     };
-    let outcome = if cancel.is_cancelled() {
-        ExecutionDisposition::Cancelled.into()
-    } else {
-        outcome
-    };
     let verdict = session.complete(outcome.disposition());
-    let status = match *verdict.outcome() {
-        ExecutionDisposition::Succeeded => JobStatus::Succeeded,
-        ExecutionDisposition::Paused => JobStatus::Paused,
-        ExecutionDisposition::Failed => JobStatus::Failed,
-        ExecutionDisposition::Cancelled => JobStatus::Cancelled,
+    // ADR-130 · the job's status is the settlement's state, projected
+    // through ONE mapping (the words are the settlement's): the runtime's
+    // own settlement when the backend carried it, the disposition's run
+    // state otherwise.
+    let status = JobStatus::from(outcome.settlement().map_or_else(
+        || nika_event::settlement::RunState::from(*verdict.outcome()),
+        |settlement| settlement.state,
+    ));
+    // Preserve the runtime's actual status, including success or failure
+    // racing cancellation. The route never writes an active run's result.
+    let kind = if status == JobStatus::Cancelled {
+        "execution.cancelled"
+    } else {
+        "execution.settled"
     };
-    let mut event = json!({"kind": "execution.settled", "status": status});
+    let mut event = json!({"kind": kind, "status": status});
+    // ADR-128 · the settlement rides the terminal event whole (status ·
+    // cause · elapsed · tasks · spend · error): the SDK's HTTP door reads
+    // it as the CLI's `run_settled` is read, never a refold.
+    if let Some(settlement) = outcome.settlement()
+        && let Ok(value) = serde_json::to_value(settlement)
+    {
+        event["settlement"] = value;
+    }
     if let Some((code, message)) = outcome.error() {
         event["code"] = json!(code);
         event["message"] = json!(message);
     }
-    let receipt = status
-        .is_settled()
+    let observation_ended = status.is_settled() || status == JobStatus::Paused;
+    let receipt = observation_ended
         .then(|| {
             JobReceipt::with_origin(
                 guard.id.clone(),
@@ -982,12 +1117,24 @@ async fn settle_disposition(
             )
         })
         .transpose()?;
-    let outputs = if status.is_settled() {
+    let outputs = if observation_ended {
         outcome.outputs.clone()
     } else {
         None
     };
-    guard.settle_result(status, event, outputs, receipt).await?;
+    if status == JobStatus::Paused {
+        // A pause ends this observation leg, but the job may resume. Bind
+        // its evidence to the event so later record changes preserve hashes.
+        if let Some(outputs) = outputs {
+            event["outputs"] = json!(outputs);
+        }
+        if let Some(receipt) = receipt {
+            event["receipt"] = json!(receipt);
+        }
+        guard.settle_result(status, event, None, None).await?;
+    } else {
+        guard.settle_result(status, event, outputs, receipt).await?;
+    }
     Ok(())
 }
 
@@ -998,28 +1145,12 @@ struct RunningGuard {
 }
 
 impl RunningGuard {
-    fn new(store: StoreHandle, id: JobId) -> Self {
-        Self {
-            store,
-            id,
-            armed: true,
-        }
+    fn new(store: StoreHandle, id: JobId, armed: bool) -> Self {
+        Self { store, id, armed }
     }
 
     fn disarm(&mut self) {
         self.armed = false;
-    }
-
-    async fn settle(
-        &mut self,
-        status: JobStatus,
-        event: serde_json::Value,
-    ) -> Result<(), ServerError> {
-        self.store
-            .transition_with_events(self.id.clone(), status, event)
-            .await?;
-        self.disarm();
-        Ok(())
     }
 
     async fn settle_result(
@@ -1029,23 +1160,9 @@ impl RunningGuard {
         outputs: Option<BTreeMap<String, serde_json::Value>>,
         receipt: Option<JobReceipt>,
     ) -> Result<(), ServerError> {
-        let result = self
-            .store
+        self.store
             .settle_with_result_reliable(self.id.clone(), status, event, outputs, receipt)
-            .await;
-        if let Err(ServerError::JobStore(crate::JobStoreError::IllegalTransition { .. })) = &result
-        {
-            let already_cancelled = self
-                .store
-                .get(self.id.clone())
-                .await?
-                .is_some_and(|record| record.status() == JobStatus::Cancelled);
-            if already_cancelled {
-                self.disarm();
-                return Ok(());
-            }
-        }
-        result?;
+            .await?;
         self.disarm();
         Ok(())
     }
@@ -1076,11 +1193,15 @@ fn execution_result(
 }
 
 #[cfg(test)]
+mod admission_tests;
+#[cfg(test)]
 mod coordinator_tests;
 #[cfg(test)]
 mod credential_tests;
 #[cfg(test)]
 mod failure_tests;
+#[cfg(test)]
+mod registry_tests;
 #[cfg(test)]
 mod result_tests;
 #[cfg(test)]

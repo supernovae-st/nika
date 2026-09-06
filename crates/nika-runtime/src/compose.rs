@@ -862,6 +862,7 @@ fn production_runtime_with_emitter(
         ),
         seams.clock,
         RuntimeConfig::new(None, seams.jitter_seed)
+            .with_project_root(&sandbox_root)
             .with_sandbox_root(sandbox_root)
             .with_sandbox_backend(sandbox_backend)
             .with_sandbox_policy(policy.as_str())

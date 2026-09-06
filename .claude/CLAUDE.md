@@ -131,19 +131,19 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `d1756f3b7` (`d1756f3b7541aa599147b5403e991d24e4901ad9`)             |
-| workspace        | v0.116.2                                  |
-| crates (workspace)| 71                                              |
-| crates (admitted)| 63                                             |
-| crates (WIP)     | 8 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve                                  |
+| HEAD             | `f5f8de3b3` (`f5f8de3b39b3b454db3de454b0079c6dee12c914`)             |
+| workspace        | v0.118.7                                  |
+| crates (workspace)| 73                                              |
+| crates (admitted)| 64                                             |
+| crates (WIP)     | 9 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session                                  |
 | L0               | 22                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
-| L3               | 3                                              |
-| L4               | 14                                              |
-| lib tests        | 6932 passed, 0 failed                              |
+| L3               | 4                                              |
+| L4               | 15                                              |
+| lib tests        | 7230 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):

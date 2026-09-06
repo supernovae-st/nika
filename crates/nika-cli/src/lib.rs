@@ -11,9 +11,10 @@
 //! `--json`, SSE and the DAG webview are four views of one truth.
 //!
 //! Status: ADMITTED — all 12 gates (crate-spec §11). The crate is `nika-cli`
-//! but the binary's public name is `nika` (clap `#[command(name = "nika")]`);
-//! the release renames the artifact to `nika`. The L5 composition root will
-//! later own that name as a <500-LOC wrapper over this surface.
+//! (its layer name); its bin target is `nika`, the one public executable
+//! identity (ADR-135): `cargo build --bin nika`, the release tarball, the
+//! tap and the flake all carry the name the binary is born with. A future
+//! L5 composition root takes that target by moving it, never by renaming.
 
 #![forbid(unsafe_code)]
 #![cfg_attr(

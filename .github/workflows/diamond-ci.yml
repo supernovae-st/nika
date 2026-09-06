@@ -90,10 +90,20 @@ jobs:
           # precisely that, a close whose proof does not exist. This is the
           # proof it was asking for.
           - gate-lock
+          # The public executable is born `nika` (ADR-135): one bin target with
+          # the public name, no packaging rename, no second executable. This is
+          # the packaging half, judged without cargo; cargo's own reading is
+          # crates/nika-cli/tests/public_binary_identity.rs on the tests leg.
+          - public-binary
     env:
       CHECK: ${{ matrix.check }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the tested Lefthook dispatcher
+        if: matrix.check == 'gate-lock'
+        run: |
+          timeout 300 go install github.com/evilmartians/lefthook/v2@v2.1.9
+          go env GOPATH | sed 's|$|/bin|' >> "$GITHUB_PATH"
       - name: Run ratchet
         run: ./scripts/ci/check-"$CHECK".sh
 
@@ -124,7 +134,7 @@ jobs:
           shared-key: diamond
       - name: Install cargo-nextest (tests leg)
         if: matrix.job == 'tests'
-        uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2
+        uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2
         with:
           tool: cargo-nextest
       - name: Install bubblewrap (tests + funnel legs · the landlock jail proof RUNS · the funnel's consent leg runs a permits workflow)
@@ -178,6 +188,13 @@ jobs:
           NIKA_SPEC_DIR: ${{ github.workspace }}/nika-spec
         run: ./scripts/ci/check-"$JOB".sh
 
+      - name: Prove CancelCtx payload publication with Loom
+        if: matrix.job == 'tests'
+        timeout-minutes: 5
+        run: |
+          python3 scripts/ci/test-loom-cancel.py
+          bash scripts/ci/check-loom-cancel.sh
+
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest
@@ -192,7 +209,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           toolchain: stable
-      - uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # cargo-deny
+      - uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # cargo-deny
         with:
           tool: cargo-deny
       - run: cargo deny --all-features check
@@ -220,7 +237,7 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           shared-key: diamond
-      - uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # cargo-hack
+      - uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # cargo-hack
         with:
           tool: cargo-hack
       - name: check feature powerset (no dev deps)
@@ -289,6 +306,19 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           shared-key: diamond-access-harness
+      # Same runner as the tests leg: one PROCESS per test. `cargo test` runs a
+      # crate's tests as threads of one process, and the process's current
+      # directory is one global — a test that enters a temp project (the
+      # check/project_context fixtures) moves the ground under every test that
+      # reads the cwd, whichever lock the writer holds. Measured 2026-09-06 on
+      # PR #1494: 6 verbs::check tests red under `cargo test`, green under the
+      # tests leg's nextest on byte-identical source. The isolation is the
+      # runner's to own; a production mutex to pass a test would be the wrong
+      # owner, and `--test-threads=1` would serialize 1039 tests to hide one.
+      - name: Install cargo-nextest (the process-per-test runner)
+        uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2
+        with:
+          tool: cargo-nextest
       # Same install as the rust tests/funnel legs. This job runs nika-cli
       # --lib, which includes permits+exec workflows (measured 2026-08-23 on
       # PR #1157: answer_without_resume_preseeds_the_gate → NIKA-1710 exit 3
@@ -304,7 +334,7 @@ jobs:
         env:
           NIKA_KEYCHAIN: "off"
         run: >
-          cargo test --lib
+          cargo nextest run --lib
           -p nika-cli -p nika-cli-host -p nika-runtime -p nika-verb-agent
           --features access-harness
 
@@ -347,7 +377,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # cargo-machete
+      - uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # cargo-machete
         with:
           tool: cargo-machete
       - name: check for unused dependencies
@@ -380,7 +410,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: crate-ci/typos@1a51d4b5a03bb97576af186c813af67e9137ba7c # master
+      - uses: crate-ci/typos@d43b6c087ac471e2ea7b8af622ff15f05c0c365b # master
 
   # The declared rust-version is a public contract (consumers pin against
   # it), so it gets its own named gate: the workspace must build with

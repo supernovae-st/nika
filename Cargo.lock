@@ -1042,7 +1042,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -2048,7 +2048,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2059,11 +2059,10 @@ checksum = "d817e038c30374a4bcb22f94d0a8a0e216958d4c3dcde369b1439fec4bdda6e6"
 
 [[package]]
 name = "event-listener"
-version = "5.4.1"
+version = "5.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e13b66accf52311f30a0db42147dadea9850cb48cd070028831ae5f5d4b856ab"
+checksum = "5a23add41df1562121a9393cb065eab5146a1242410f23a644851e90cfd669d2"
 dependencies = [
- "concurrent-queue",
  "parking",
  "pin-project-lite",
 ]
@@ -2373,7 +2372,7 @@ checksum = "9fb9654ba8355388abeb8dcb4fc62f511300867002afc858860463bdd9fe0c44"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -2553,7 +2552,7 @@ dependencies = [
  "raw-cpuid",
  "rayon",
  "seq-macro",
- "sysctl",
+ "sysctl 0.6.0",
 ]
 
 [[package]]
@@ -2574,7 +2573,7 @@ dependencies = [
  "raw-cpuid",
  "rayon",
  "seq-macro",
- "sysctl",
+ "sysctl 0.6.0",
 ]
 
 [[package]]
@@ -2684,7 +2683,7 @@ dependencies = [
  "libc",
  "log",
  "rustversion",
- "windows-link 0.1.3",
+ "windows-link 0.2.1",
  "windows-result 0.4.1",
 ]
 
@@ -3057,9 +3056,9 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "1.11.0"
+version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d22053281f852e11534f5198498373cbb59295120a20771d90f7ed1897490a72"
+checksum = "27b501faa50e7a26c3d3560ca625132f4078a17771f4810baf70475ae48cbe43"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -3376,9 +3375,9 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jaq-core"
-version = "3.1.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7561783b20275a6c9cb576e39208b0c635f34ef14357f1f05a2927a774f3adec"
+checksum = "f72ba7158fe9fc1bc4baace1b71e6d0d3d27c6839dd87dc1f233dd408f5dd85b"
 dependencies = [
  "dyn-clone",
  "once_cell",
@@ -3387,9 +3386,9 @@ dependencies = [
 
 [[package]]
 name = "jaq-json"
-version = "2.0.2"
+version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48d801b0b57f10064c4e9f5a4f6c97d0ccf62649b179ff8ac23cd494a3120ee9"
+checksum = "4be2f53207ffb1313a2d2ad819cfa8bfaa7936cb85a110eda10fd5da822cec94"
 dependencies = [
  "bstr",
  "bytes",
@@ -3407,9 +3406,9 @@ dependencies = [
 
 [[package]]
 name = "jaq-std"
-version = "3.0.2"
+version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7941c8de9c591052050550f228c62ef80d3ecbd84c330f5c454bc8ebb7a04089"
+checksum = "9f90e485abfd3189510c996e77be55056a51038b0fa5805e6c97b5dcf0d9ab55"
 dependencies = [
  "aho-corasick",
  "base64 0.22.1",
@@ -4017,7 +4016,7 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
 name = "nika-a11y"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "accessibility",
  "atspi",
@@ -4030,7 +4029,7 @@ dependencies = [
 
 [[package]]
 name = "nika-arm"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "jiff",
  "nika-cadence",
@@ -4044,7 +4043,7 @@ dependencies = [
 
 [[package]]
 name = "nika-blob"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "blake3",
  "bytes",
@@ -4056,7 +4055,7 @@ dependencies = [
 
 [[package]]
 name = "nika-bm25"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "criterion",
  "insta",
@@ -4072,7 +4071,7 @@ dependencies = [
 
 [[package]]
 name = "nika-browser"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "chromiumoxide",
@@ -4088,7 +4087,7 @@ dependencies = [
 
 [[package]]
 name = "nika-builtin"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "blake3",
  "bytes",
@@ -4124,7 +4123,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cadence"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "insta",
  "jiff",
@@ -4141,7 +4140,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cap"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-types",
  "proptest",
@@ -4151,7 +4150,7 @@ dependencies = [
 
 [[package]]
 name = "nika-catalog"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "criterion",
  "insta",
@@ -4170,13 +4169,13 @@ dependencies = [
 
 [[package]]
 name = "nika-catalog-codegen"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "phf_codegen 0.14.0",
  "phf_shared 0.14.0",
  "proptest",
  "serde",
- "syn 3.0.3",
+ "syn 3.0.4",
  "thiserror 2.0.20",
  "toml",
  "unicase",
@@ -4184,7 +4183,7 @@ dependencies = [
 
 [[package]]
 name = "nika-catalog-verify"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "clap",
  "futures",
@@ -4200,7 +4199,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cel"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "proptest",
  "serde_json",
@@ -4209,11 +4208,11 @@ dependencies = [
 
 [[package]]
 name = "nika-chart"
-version = "0.116.2"
+version = "0.118.7"
 
 [[package]]
 name = "nika-check"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "criterion",
  "nika-cap",
@@ -4233,7 +4232,7 @@ dependencies = [
 
 [[package]]
 name = "nika-check-analyzer"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "jaq-core",
  "jaq-json",
@@ -4249,7 +4248,7 @@ dependencies = [
 
 [[package]]
 name = "nika-check-wasm"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "getrandom 0.2.17",
  "getrandom 0.3.4",
@@ -4263,7 +4262,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cli"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "blake3",
  "clap",
@@ -4289,7 +4288,6 @@ dependencies = [
  "nika-http",
  "nika-kernel",
  "nika-kernel-mock",
- "nika-lints",
  "nika-lsp",
  "nika-mcp",
  "nika-migrate",
@@ -4302,6 +4300,7 @@ dependencies = [
  "nika-schema",
  "nika-serve",
  "nika-service-execution",
+ "nika-session",
  "nika-store",
  "nika-trace",
  "nika-types",
@@ -4323,7 +4322,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cli-host"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -4340,6 +4339,7 @@ dependencies = [
  "nika-harness",
  "nika-http",
  "nika-kernel",
+ "nika-lints",
  "nika-migrate",
  "nika-models",
  "nika-pack",
@@ -4347,13 +4347,14 @@ dependencies = [
  "nika-registry-client",
  "nika-runtime",
  "nika-schema",
+ "nika-service-execution",
  "nika-types",
  "nix 0.31.3",
  "serde",
  "serde_json",
  "serde_yaml_bw",
  "sha2 0.10.9",
- "sysctl",
+ "sysctl 0.7.1",
  "tempfile",
  "toml_edit",
  "url",
@@ -4361,7 +4362,7 @@ dependencies = [
 
 [[package]]
 name = "nika-clock"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-kernel",
  "tokio",
@@ -4369,7 +4370,7 @@ dependencies = [
 
 [[package]]
 name = "nika-dap"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -4390,6 +4391,7 @@ dependencies = [
  "nika-store",
  "nika-types",
  "nika-vocab",
+ "nix 0.31.3",
  "p384",
  "proptest",
  "serde",
@@ -4404,7 +4406,7 @@ dependencies = [
 
 [[package]]
 name = "nika-dataflow"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "jaq-core",
  "jaq-json",
@@ -4423,7 +4425,7 @@ dependencies = [
 
 [[package]]
 name = "nika-display"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "annotate-snippets 0.12.16",
  "anstyle",
@@ -4440,7 +4442,7 @@ dependencies = [
 
 [[package]]
 name = "nika-error"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "expect-test",
  "insta",
@@ -4455,7 +4457,7 @@ dependencies = [
 
 [[package]]
 name = "nika-event"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "insta",
  "miette",
@@ -4472,7 +4474,7 @@ dependencies = [
 
 [[package]]
 name = "nika-exec-runner"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-cap",
  "nika-check",
@@ -4486,10 +4488,11 @@ dependencies = [
 
 [[package]]
 name = "nika-execution"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-check",
  "nika-fs",
+ "nika-providers",
  "nika-schema",
  "nika-types",
  "proptest",
@@ -4501,7 +4504,7 @@ dependencies = [
 
 [[package]]
 name = "nika-extract"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "dom_smoothie",
  "ego-tree",
@@ -4522,7 +4525,7 @@ dependencies = [
 
 [[package]]
 name = "nika-fs"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "globset",
@@ -4535,11 +4538,11 @@ dependencies = [
 
 [[package]]
 name = "nika-fx"
-version = "0.116.2"
+version = "0.118.7"
 
 [[package]]
 name = "nika-graph"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-check",
  "nika-schema",
@@ -4548,7 +4551,7 @@ dependencies = [
 
 [[package]]
 name = "nika-harness"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "futures-core",
  "miette",
@@ -4564,7 +4567,7 @@ dependencies = [
 
 [[package]]
 name = "nika-http"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4578,7 +4581,7 @@ dependencies = [
 
 [[package]]
 name = "nika-infer-local"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "candle-core",
  "candle-transformers",
@@ -4595,7 +4598,7 @@ dependencies = [
 
 [[package]]
 name = "nika-input"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "enigo",
  "nika-kernel",
@@ -4605,7 +4608,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-error",
  "nika-kernel-ai",
@@ -4617,7 +4620,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-ai"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4635,7 +4638,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-core"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4653,7 +4656,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-mock"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4669,7 +4672,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-plugin"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "insta",
  "miette",
@@ -4681,7 +4684,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-runtime"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "miette",
  "nika-error",
@@ -4693,7 +4696,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lints"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-check",
  "nika-schema",
@@ -4703,7 +4706,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "lsp-server",
  "lsp-types",
@@ -4724,14 +4727,13 @@ dependencies = [
 
 [[package]]
 name = "nika-mcp"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "blake3",
  "nika-builtin",
  "nika-catalog",
  "nika-check",
  "nika-cli-host",
- "nika-error",
  "nika-graph",
  "nika-kernel",
  "nika-migrate",
@@ -4750,11 +4752,11 @@ dependencies = [
 
 [[package]]
 name = "nika-migrate"
-version = "0.116.2"
+version = "0.118.7"
 
 [[package]]
 name = "nika-models"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4769,7 +4771,7 @@ dependencies = [
 
 [[package]]
 name = "nika-ocr"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "nika-kernel",
@@ -4782,7 +4784,7 @@ dependencies = [
 
 [[package]]
 name = "nika-onboard"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-bm25",
  "nika-catalog",
@@ -4796,7 +4798,7 @@ dependencies = [
 
 [[package]]
 name = "nika-pack"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "include_dir",
  "nika-catalog",
@@ -4807,7 +4809,7 @@ dependencies = [
 
 [[package]]
 name = "nika-pck-manifest"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "proptest",
  "serde",
@@ -4818,7 +4820,7 @@ dependencies = [
 
 [[package]]
 name = "nika-proof"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "blake3",
  "nika-check",
@@ -4827,7 +4829,7 @@ dependencies = [
 
 [[package]]
 name = "nika-providers"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4843,7 +4845,7 @@ dependencies = [
 
 [[package]]
 name = "nika-registry-client"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "minisign",
  "nika-kernel",
@@ -4859,17 +4861,15 @@ dependencies = [
 
 [[package]]
 name = "nika-runtime"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "blake3",
  "bytes",
  "futures-util",
  "insta",
- "miette",
  "nika-builtin",
  "nika-cap",
  "nika-catalog",
- "nika-cel",
  "nika-check",
  "nika-clock",
  "nika-dataflow",
@@ -4884,6 +4884,7 @@ dependencies = [
  "nika-pack",
  "nika-proof",
  "nika-providers",
+ "nika-runtime-laws",
  "nika-sandbox-landlock",
  "nika-sandbox-seatbelt",
  "nika-schema",
@@ -4898,29 +4899,52 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
- "thiserror 2.0.20",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "nika-runtime-laws"
+version = "0.118.7"
+dependencies = [
+ "miette",
+ "nika-cap",
+ "nika-cel",
+ "nika-check",
+ "nika-dataflow",
+ "nika-error",
+ "nika-event",
+ "nika-kernel",
+ "nika-pack",
+ "nika-sandbox-landlock",
+ "nika-sandbox-seatbelt",
+ "nika-schema",
+ "nika-secret",
+ "nika-types",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
  "uuid",
 ]
 
 [[package]]
 name = "nika-sandbox-landlock"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-kernel",
 ]
 
 [[package]]
 name = "nika-sandbox-seatbelt"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-kernel",
 ]
 
 [[package]]
 name = "nika-schema"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "criterion",
  "marked-yaml",
@@ -4940,7 +4964,7 @@ dependencies = [
 
 [[package]]
 name = "nika-screen"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "futures-core",
@@ -4952,7 +4976,7 @@ dependencies = [
 
 [[package]]
 name = "nika-secret"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-schema",
  "serde_json",
@@ -4960,7 +4984,7 @@ dependencies = [
 
 [[package]]
 name = "nika-serve"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "http-body-util",
@@ -4968,8 +4992,11 @@ dependencies = [
  "hyper-util",
  "jiff",
  "miette",
+ "nika-arm",
  "nika-cadence",
+ "nika-dap",
  "nika-error",
+ "nika-event",
  "nika-execution",
  "nika-fs",
  "nika-runtime",
@@ -4990,7 +5017,7 @@ dependencies = [
 
 [[package]]
 name = "nika-service-execution"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "nika-check",
  "nika-event",
@@ -5007,15 +5034,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-session"
+version = "0.118.7"
+dependencies = [
+ "blake3",
+ "nika-builtin",
+ "nika-cap",
+ "nika-check",
+ "nika-cli-host",
+ "nika-dap",
+ "nika-error",
+ "nika-fs",
+ "nika-harness",
+ "nika-http",
+ "nika-onboard",
+ "nika-pack",
+ "nika-providers",
+ "nika-runtime",
+ "nika-types",
+ "nika-verb-infer",
+ "nika-vocab",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
 name = "nika-source"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "nika-store"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "blake3",
  "miette",
@@ -5033,14 +5088,14 @@ dependencies = [
 
 [[package]]
 name = "nika-tmpl"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "proptest",
 ]
 
 [[package]]
 name = "nika-trace"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "clap",
  "minisign",
@@ -5063,8 +5118,10 @@ dependencies = [
 
 [[package]]
 name = "nika-tui-core"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
+ "nika-event",
+ "nika-graph",
  "proptest",
  "serde",
  "serde_json",
@@ -5074,7 +5131,7 @@ dependencies = [
 
 [[package]]
 name = "nika-types"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "loom",
  "proptest",
@@ -5086,7 +5143,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-agent"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "futures-core",
@@ -5111,7 +5168,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-exec"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "miette",
  "nika-error",
@@ -5127,7 +5184,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-infer"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "bytes",
  "jsonschema",
@@ -5146,7 +5203,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-invoke"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "miette",
  "nika-error",
@@ -5160,7 +5217,7 @@ dependencies = [
 
 [[package]]
 name = "nika-vocab"
-version = "0.116.2"
+version = "0.118.7"
 dependencies = [
  "marked-yaml",
  "nika-cap",
@@ -5227,7 +5284,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6761,7 +6818,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7381,9 +7438,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "3.0.3"
+version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
+checksum = "e6275cddf4610d1775e6d1fe9469b2e77d0f39fd98fb7450901b821e0c53649f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7425,6 +7482,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sysctl"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cca424247104946a59dacd27eaad296223b7feec3d168a6dd04585183091eb0b"
+dependencies = [
+ "bitflags 2.11.0",
+ "byteorder",
+ "enum-as-inner",
+ "libc",
+ "thiserror 2.0.20",
+ "walkdir",
+]
+
+[[package]]
 name = "system-deps"
 version = "7.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7450,10 +7521,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7473,7 +7544,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
  "rustix 1.1.4",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7523,7 +7594,7 @@ checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -7569,9 +7640,9 @@ dependencies = [
 
 [[package]]
 name = "tinyvec"
-version = "1.11.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e61e67053d25a4e82c844e8424039d9745781b3fc4f32b8d55ed50f5f667ef3"
+checksum = "bb4ebadaa0af04fab11ae01eb5f9fdb5f9c5b875506e210e71c07873528baa7f"
 dependencies = [
  "tinyvec_macros",
 ]
@@ -8100,9 +8171,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.25.0"
+version = "1.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f053576934f05a761a402421fbbe3d425d9366f75f978806a037b3ca481abecc"
+checksum = "b5772d71c9be8a8a6ac2117d949c5b224c1b72241bb611d9a3012edcf8af7812"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
@@ -8464,7 +8535,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8952,13 +9023,14 @@ dependencies = [
 
 [[package]]
 name = "wnaf"
-version = "0.14.0"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab12e7090f27e2ffd9322651492942d50c2926094af30601e1964337db39daf1"
+checksum = "795ca18b3fdb5e62bf982199278341ddcf7ebf7d32e25e212ad05d496e95f6fa"
 dependencies = [
  "ff",
  "group",
  "hybrid-array",
+ "primefield",
 ]
 
 [[package]]
@@ -9207,7 +9279,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.4",
  "zbus_names",
  "zvariant",
  "zvariant_utils",
@@ -9367,7 +9439,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 3.0.4",
  "zvariant_utils",
 ]
 
@@ -9380,6 +9452,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde",
- "syn 3.0.3",
+ "syn 3.0.4",
  "winnow",
 ]

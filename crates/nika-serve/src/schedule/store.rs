@@ -65,6 +65,29 @@ impl ScheduleStore {
         Ok(store)
     }
 
+    /// ADR-132 · the RESIDENT becomes the store's writer once it holds the
+    /// server lease (never at open: a start that loses the lease must not
+    /// rewrite the live resident's stamp).
+    ///
+    /// # Errors
+    /// Returns an error when locking, loading or writing fails.
+    pub(crate) fn stamp_writer_as_resident(&self) -> Result<(), ScheduleStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        self.stamp_writer()
+    }
+
+    /// The stamp itself. Held under the caller's lease.
+    fn stamp_writer(&self) -> Result<(), ScheduleStoreError> {
+        let mut state = self.load_state()?;
+        let mine = crate::writer::WriterStamp::this_engine();
+        if state.writer.as_ref() != Some(&mine) {
+            state.writer = Some(mine);
+            self.persist(&state)?;
+        }
+        Ok(())
+    }
+
     /// Declaratively create or update one normalized API schedule.
     ///
     /// Equality is judged by [`ScheduleRevision`], after the canonical model
@@ -394,6 +417,9 @@ struct PersistedState {
     schedules: Vec<PersistedSchedule>,
     #[serde(default)]
     decisions: Vec<PersistedDecision>,
+    /// The engine that last wrote this store (ADR-132 · #1352).
+    #[serde(default)]
+    writer: Option<crate::writer::WriterStamp>,
 }
 
 impl PersistedState {
@@ -402,6 +428,7 @@ impl PersistedState {
             version: STATE_VERSION,
             schedules: Vec::new(),
             decisions: Vec::new(),
+            writer: Some(crate::writer::WriterStamp::this_engine()),
         }
     }
 
@@ -410,6 +437,14 @@ impl PersistedState {
             return Err(ScheduleStoreError::Corrupt(
                 "state version is unsupported".to_owned(),
             ));
+        }
+        // ADR-132 · #1352 · a newer writer's state is not ours to reinterpret.
+        if let Some(reason) = self
+            .writer
+            .as_ref()
+            .and_then(crate::writer::WriterStamp::newer_than_this_engine)
+        {
+            return Err(ScheduleStoreError::WrittenByNewerEngine(reason));
         }
         if self.schedules.len() > MAX_API_SCHEDULES {
             return Err(ScheduleStoreError::Corrupt(

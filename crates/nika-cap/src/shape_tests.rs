@@ -43,6 +43,57 @@ fn loop_only_builtins_refuse_a_standalone_invoke() {
 }
 
 #[test]
+fn hash_rejects_literal_null_types_and_unknown_choices() {
+    for (args, key) in [
+        (json!({"content": null}), "content"),
+        (json!({"content": "", "algo": null}), "algo"),
+        (json!({"content": "", "algo": 256}), "algo"),
+        (json!({"content": "", "algo": "md5"}), "algo"),
+        (json!({"content": "", "algo": "SHA256"}), "algo"),
+        (json!({"content": "", "encoding": null}), "encoding"),
+        (json!({"content": "", "encoding": true}), "encoding"),
+        (json!({"content": "", "encoding": "rot13"}), "encoding"),
+    ] {
+        assert!(only("nika:hash", &args).contains(key));
+    }
+}
+
+#[test]
+fn hash_accepts_json_and_defers_only_the_templated_choice() {
+    for content in [json!(""), json!(false), json!(0), json!([]), json!({})] {
+        silent("nika:hash", &json!({"content": content}));
+    }
+    for algo in ["blake3", "sha256", "sha512"] {
+        for encoding in ["hex", "base64"] {
+            silent(
+                "nika:hash",
+                &json!({"content": "", "algo": algo, "encoding": encoding}),
+            );
+        }
+    }
+    silent(
+        "nika:hash",
+        &json!({"content": "${{ inputs.value }}", "algo": "${{ inputs.algo }}"}),
+    );
+    assert!(
+        only(
+            "nika:hash",
+            &json!({"content": "", "algo": "${{ inputs.algo }}", "encoding": "rot13"})
+        )
+        .contains("encoding")
+    );
+    assert!(
+        only(
+            "nika:hash",
+            &json!({"content": "", "algo": "md5", "encoding": "${{ inputs.encoding }}"})
+        )
+        .contains("algo")
+    );
+    // Required/unknown keys belong to the catalogue checker, not this rule.
+    silent("nika:hash", &json!({"unrelated": true}));
+}
+
+#[test]
 fn wait_takes_duration_xor_until() {
     // Neither and both are the two failures; exactly one is the contract.
     assert!(only("nika:wait", &json!({})).contains("XOR"));

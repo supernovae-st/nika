@@ -126,8 +126,7 @@ fn var_resolved_unpriced_cloud_plus_cap_refuses_to_start() {
         &canary_override(),
         Some(0.20),
         None,
-        None,
-        &[],
+        (None, &[], None),
     )
     .expect_err("resolved gemini canary + $0.20 must NIKA-1709");
     assert_eq!(err.spec_code(), "NIKA-1709");
@@ -136,7 +135,15 @@ fn var_resolved_unpriced_cloud_plus_cap_refuses_to_start() {
     assert!(msg.contains("nika-b20-unpriced-canary"));
     assert!(msg.contains("0.200000"), "cap must ride");
     assert!(
-        gates(&wf, &report, &canary_override(), None, None, None, &[]).is_ok(),
+        gates(
+            &wf,
+            &report,
+            &canary_override(),
+            None,
+            None,
+            (None, &[], None)
+        )
+        .is_ok(),
         "no cap → unpriced cloud may still start"
     );
 }
@@ -162,8 +169,15 @@ fn priced_envelope_cel_overridden_to_unpriced_cloud_refuses() {
         "seat".to_owned(),
         Value::String("gemini/nika-b20-unpriced-canary".to_owned()),
     )]);
-    let err = gates(&wf, &report, &overrides, Some(0.20), None, None, &[])
-        .expect_err("live --var seat is the unpriced canary");
+    let err = gates(
+        &wf,
+        &report,
+        &overrides,
+        Some(0.20),
+        None,
+        (None, &[], None),
+    )
+    .expect_err("live --var seat is the unpriced canary");
     assert_eq!(err.spec_code(), "NIKA-1709");
     assert!(err.to_string().contains("nika-b20-unpriced-canary"));
 }
@@ -214,7 +228,15 @@ fn var_resolved_mock_plus_cap_still_admits() {
     let report = nika_check::check(&wf);
     let overrides = BTreeMap::from([("model".to_owned(), Value::String("mock/echo".to_owned()))]);
     assert!(
-        gates(&wf, &report, &overrides, Some(0.20), None, None, &[]).is_ok(),
+        gates(
+            &wf,
+            &report,
+            &overrides,
+            Some(0.20),
+            None,
+            (None, &[], None)
+        )
+        .is_ok(),
         "mock is a proven zero — a cap must not refuse the rehearsal"
     );
 }
@@ -245,8 +267,7 @@ fn cel_index_unpriced_cloud_plus_cap_refuses_to_start() {
         &canary_override(),
         Some(0.20),
         None,
-        None,
-        &[],
+        (None, &[], None),
     )
     .expect_err("inputs['model'] canary + $0.20 must NIKA-1709");
     assert_eq!(err.spec_code(), "NIKA-1709");
@@ -266,8 +287,7 @@ fn with_alias_unpriced_cloud_plus_cap_refuses_to_start() {
         &canary_override(),
         Some(0.20),
         None,
-        None,
-        &[],
+        (None, &[], None),
     )
     .expect_err("with.model alias + $0.20 must NIKA-1709");
     assert_eq!(err.spec_code(), "NIKA-1709");
@@ -288,8 +308,15 @@ fn concat_provider_name_unpriced_cloud_plus_cap_refuses_to_start() {
             Value::String("nika-b20-unpriced-canary".to_owned()),
         ),
     ]);
-    let err = gates(&wf, &report, &overrides, Some(0.20), None, None, &[])
-        .expect_err("concat seat + $0.20 must NIKA-1709");
+    let err = gates(
+        &wf,
+        &report,
+        &overrides,
+        Some(0.20),
+        None,
+        (None, &[], None),
+    )
+    .expect_err("concat seat + $0.20 must NIKA-1709");
     assert_eq!(err.spec_code(), "NIKA-1709");
     assert!(err.to_string().contains("nika-b20-unpriced-canary"));
 }
@@ -303,7 +330,15 @@ fn cel_index_mock_plus_cap_still_admits() {
     let report = nika_check::check(&wf);
     let overrides = BTreeMap::from([("model".to_owned(), Value::String("mock/echo".to_owned()))]);
     assert!(
-        gates(&wf, &report, &overrides, Some(0.20), None, None, &[]).is_ok(),
+        gates(
+            &wf,
+            &report,
+            &overrides,
+            Some(0.20),
+            None,
+            (None, &[], None)
+        )
+        .is_ok(),
         "mock through the index form is still a proven zero"
     );
 }
@@ -336,8 +371,15 @@ fn uncataloged_dot_variant_plus_cap_refuses_to_start() {
         report.is_clean(),
         "the MODELS rung is a CLI ladder — the nika-check report stays clean"
     );
-    let err = gates(&wf, &report, &BTreeMap::new(), Some(0.02), None, None, &[])
-        .expect_err("an uncataloged id must not pass an armed cap by metering $0");
+    let err = gates(
+        &wf,
+        &report,
+        &BTreeMap::new(),
+        Some(0.02),
+        None,
+        (None, &[], None),
+    )
+    .expect_err("an uncataloged id must not pass an armed cap by metering $0");
     assert_eq!(err.spec_code(), "NIKA-1709");
     let msg = err.to_string();
     assert!(msg.contains("claude-opus-4.1"), "names the seat");
@@ -358,8 +400,15 @@ fn cataloged_prefixed_twin_keeps_the_1709_floor_refusal() {
     let wf = parse(&gauntlet_wf("anthropic/claude-opus-4-1"));
     let report = nika_check::check(&wf);
     assert!(report.is_clean());
-    let err = gates(&wf, &report, &BTreeMap::new(), Some(0.02), None, None, &[])
-        .expect_err("the priced floor refuses the tiny cap");
+    let err = gates(
+        &wf,
+        &report,
+        &BTreeMap::new(),
+        Some(0.02),
+        None,
+        (None, &[], None),
+    )
+    .expect_err("the priced floor refuses the tiny cap");
     assert_eq!(err.spec_code(), "NIKA-1709");
     let msg = err.to_string();
     assert!(
@@ -377,8 +426,15 @@ fn bare_cataloged_dash_under_a_generous_cap_refuses_at_admission() {
     let wf = parse(&gauntlet_wf("claude-opus-4-1"));
     let report = nika_check::check(&wf);
     assert!(report.is_clean());
-    let err = gates(&wf, &report, &BTreeMap::new(), Some(1.00), None, None, &[])
-        .expect_err("a bare id — priced or not — cannot be bounded by a cap");
+    let err = gates(
+        &wf,
+        &report,
+        &BTreeMap::new(),
+        Some(1.00),
+        None,
+        (None, &[], None),
+    )
+    .expect_err("a bare id — priced or not — cannot be bounded by a cap");
     assert_eq!(err.spec_code(), "NIKA-1709");
     let msg = err.to_string();
     assert!(msg.contains("claude-opus-4-1"), "names the seat");
@@ -395,8 +451,15 @@ fn bare_cataloged_dash_under_a_generous_cap_refuses_at_admission() {
 fn unknown_provider_prefix_plus_cap_refuses_to_start() {
     let wf = parse(&gauntlet_wf("not-a-provider/gpt-4"));
     let report = nika_check::check(&wf);
-    let err = gates(&wf, &report, &BTreeMap::new(), Some(0.02), None, None, &[])
-        .expect_err("an unresolvable prefix must not pass an armed cap");
+    let err = gates(
+        &wf,
+        &report,
+        &BTreeMap::new(),
+        Some(0.02),
+        None,
+        (None, &[], None),
+    )
+    .expect_err("an unresolvable prefix must not pass an armed cap");
     assert_eq!(err.spec_code(), "NIKA-1709");
     let msg = err.to_string();
     assert!(msg.contains("not-a-provider"), "names the prefix");
@@ -411,8 +474,15 @@ fn task_level_dot_variant_plus_cap_refuses_to_start() {
     );
     let report = nika_check::check(&wf);
     assert!(report.is_clean());
-    let err = gates(&wf, &report, &BTreeMap::new(), Some(0.02), None, None, &[])
-        .expect_err("the task-pinned dot variant refuses too");
+    let err = gates(
+        &wf,
+        &report,
+        &BTreeMap::new(),
+        Some(0.02),
+        None,
+        (None, &[], None),
+    )
+    .expect_err("the task-pinned dot variant refuses too");
     assert_eq!(err.spec_code(), "NIKA-1709");
     assert!(err.to_string().contains("claude-opus-4.1"));
 }
@@ -426,8 +496,15 @@ fn var_resolved_dot_variant_plus_cap_refuses_to_start() {
         "model".to_owned(),
         Value::String("claude-opus-4.1".to_owned()),
     )]);
-    let err = gates(&wf, &report, &overrides, Some(0.02), None, None, &[])
-        .expect_err("a var-resolved dot variant refuses under a cap");
+    let err = gates(
+        &wf,
+        &report,
+        &overrides,
+        Some(0.02),
+        None,
+        (None, &[], None),
+    )
+    .expect_err("a var-resolved dot variant refuses under a cap");
     assert_eq!(err.spec_code(), "NIKA-1709");
     assert!(err.to_string().contains("claude-opus-4.1"));
 }
@@ -444,8 +521,7 @@ fn cli_model_override_to_a_dot_variant_refuses() {
         &BTreeMap::new(),
         Some(0.02),
         Some("claude-opus-4.1"),
-        None,
-        &[],
+        (None, &[], None),
     )
     .expect_err("the override is the run's real seat");
     assert_eq!(err.spec_code(), "NIKA-1709");
@@ -469,7 +545,15 @@ fn local_and_mock_seats_still_admit_under_a_cap() {
         let wf = parse(&gauntlet_wf(model));
         let report = nika_check::check(&wf);
         assert!(
-            gates(&wf, &report, &BTreeMap::new(), Some(0.02), None, None, &[]).is_ok(),
+            gates(
+                &wf,
+                &report,
+                &BTreeMap::new(),
+                Some(0.02),
+                None,
+                (None, &[], None)
+            )
+            .is_ok(),
             "{model} is free by construction — a cap must keep admitting it"
         );
     }
@@ -485,7 +569,15 @@ fn without_a_cap_the_gate_makes_no_budget_claim() {
     let wf = parse(&gauntlet_wf("claude-opus-4.1"));
     let report = nika_check::check(&wf);
     assert!(
-        gates(&wf, &report, &BTreeMap::new(), None, None, None, &[]).is_ok(),
+        gates(
+            &wf,
+            &report,
+            &BTreeMap::new(),
+            None,
+            None,
+            (None, &[], None)
+        )
+        .is_ok(),
         "no budget armed → no budget-floor claim (dispatch owns the FORM refusal)"
     );
 }

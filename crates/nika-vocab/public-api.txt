@@ -851,6 +851,7 @@ pub unsafe fn nika_vocab::project::TracesPolicy::clone_to_uninit(&self, dest: *m
 impl<T> core::convert::From<T> for nika_vocab::project::TracesPolicy
 pub fn nika_vocab::project::TracesPolicy::from(t: T) -> T
 pub const nika_vocab::project::FILE_NAME: &str
+pub const nika_vocab::project::PROJECT_SCHEMA_JSON: &str
 pub const nika_vocab::project::STARTER: &str
 pub const nika_vocab::project::TOP_LEVEL_KEYS: &[&str]
 pub fn nika_vocab::project::discover(start: &std::path::Path) -> core::result::Result<core::option::Option<(std::path::PathBuf, nika_vocab::project::Project)>, nika_vocab::project::ProjectError>

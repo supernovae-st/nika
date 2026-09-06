@@ -160,7 +160,7 @@ jobs:
             ~/.cargo/git
             target
           key: release-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
-      - name: Build nika-cli (release · locked · sovereign lane whole)
+      - name: Build nika (release · locked · sovereign lane whole)
         # `local-infer` on every target (#518 ruling · option A-CPU): the
         # shipped binary pulls AND serves — measured +2.4 MB. CPU on
         # purpose, darwin included: candle 0.10's quantized rms-norm Metal
@@ -170,7 +170,7 @@ jobs:
         # main, API-frozen, since 2026-08-08, and was never in this line.
         # A downloadable binary that cannot `--access` a seat is a lie
         # the wiring gate now catches. metal stays off (tombstone).
-        run: cargo build --release --locked --bin nika-cli --target ${{ matrix.target }} --features local-infer,access-harness
+        run: cargo build --release --locked --bin nika --target ${{ matrix.target }} --features local-infer,access-harness
       - name: Sign + notarize (macOS)
         # Gatekeeper-trust the binary so browser-downloads do not show
         # "unidentified developer". SAFETY: continue-on-error is MANDATORY —
@@ -218,7 +218,7 @@ jobs:
           echo "Signing with identity: $IDENTITY"
 
           # ── 3. Sign the binary (hardened runtime + secure timestamp) ──
-          BINARY="target/$TARGET/release/nika-cli"
+          BINARY="target/$TARGET/release/nika"
           codesign --force --options runtime --timestamp \
             --sign "$IDENTITY" "$BINARY"
           codesign --verify --strict --verbose=2 "$BINARY"
@@ -245,10 +245,10 @@ jobs:
           set -euo pipefail
           version="${REF_NAME#v}"
           stage="$(mktemp -d)"
-          # The PUBLIC binary is `nika` (the formula does `bin.install "nika"`).
-          # nika-cli is the seed surface until the L5 `nika` composition root
-          # ships; the release renames it to its public name.
-          cp "target/${TARGET}/release/nika-cli" "${stage}/nika"
+          # The PUBLIC binary is `nika` (the formula does `bin.install "nika"`)
+          # and it is BORN `nika`: the bin target carries the name (ADR-135),
+          # so this is a staging copy, never a rename.
+          cp "target/${TARGET}/release/nika" "${stage}/nika"
           chmod +x "${stage}/nika"
           # Pre-generated shell completions ride the tarball (#487) so distro
           # packages (AUR nika-bin · future nixpkgs/apk) can `install -Dm644`
@@ -326,6 +326,8 @@ jobs:
       release-id: ${{ steps.release.outputs.id }}
       draft: ${{ steps.release.outputs.draft }}
       prerelease: ${{ steps.release.outputs.prerelease }}
+      oci-build: ${{ steps.oci.outputs.build }}
+      oci-digest: ${{ steps.oci.outputs.digest }}
     steps:
       # The checkout this job never had. The front-page step below runs
       # scripts/release/render-notes.sh FROM THE REPO, and this job started
@@ -351,6 +353,8 @@ jobs:
             scripts/release/check-release-tag.sh
             scripts/release/prepare-draft-release.sh
             scripts/release/read-release-state.sh
+            scripts/release/read-release-provenance.sh
+            scripts/release/release-digest-marker.sh
             scripts/release/resolve-release-tag.sh
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -394,6 +398,49 @@ jobs:
           bash .release-tooling/scripts/release/prepare-draft-release.sh \
             "$REF_NAME" "$REPO" "$RUNNER_TEMP/release-notes.md" "$RELEASE_SHA" \
             >> "$GITHUB_OUTPUT"
+      # Draft GETs require push access, even for a public repository. Keep
+      # those reads with the existing owner; never elevate a Docker/SLSA job.
+      - name: Read the durable OCI input with draft authority
+        id: oci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+          RELEASE_SHA: ${{ needs.coordinate.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.coordinate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          state=0
+          digest="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
+            read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")" || state=$?
+          if [ "$state" -eq 0 ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$state" -eq 44 ] || exit "$state"
+          echo "build=true" >> "$GITHUB_OUTPUT"
+          echo "digest=" >> "$GITHUB_OUTPUT"
+      - name: Fetch the existing replay statement without verifier authority
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+          RELEASE_SHA: ${{ needs.coordinate.outputs.sha }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.coordinate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir replay-provenance
+          bash .release-tooling/scripts/release/read-release-provenance.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" \
+            replay-provenance/multiple.intoto.jsonl
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: release-provenance-source
+          path: replay-provenance/multiple.intoto.jsonl
+          if-no-files-found: error
   native-attest:
     # Native attestation generation is tag-context-only and deliberately has no
     # release-write token. A manual replay verifies existing attestations in the
@@ -438,7 +485,14 @@ jobs:
     permissions:
       actions: read # read the workflow run for provenance
       id-token: write # sign the provenance (Sigstore OIDC)
-      contents: read # bind the generated statement to this repository
+      # `contents: write`, not `read` (#1419 · v0.117.0 died at startup):
+      # the generator's nested `upload-assets` job declares `contents:
+      # write` unconditionally and GitHub validates that declaration when
+      # the reusable workflow is CALLED, before `upload-assets: false`
+      # skips the job. The caller must grant what the callee declares; the
+      # authority never runs — the isolated release-assets-converge job
+      # below owns every release upload.
+      contents: write
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
       base64-subjects: ${{ needs.release-draft.outputs.hashes }}
@@ -482,18 +536,18 @@ jobs:
           test -s artifacts/multiple.intoto.jsonl
       - name: Verify push provenance before exposing its run artifact
         env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
         run: |
           set -euo pipefail
+          bash .release-tooling/scripts/release/resolve-release-tag.sh \
+            "$TAG" "$REPO" "$RELEASE_SHA" >/dev/null
           native=(artifacts/nika-*.tar.gz)
           bash .release-tooling/scripts/release/verify-slsa-provenance.sh \
             "$TAG" "$REPO" artifacts/multiple.intoto.jsonl "${native[@]}"
-          bash .release-tooling/scripts/release/read-release-state.sh \
-            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
+          bash .release-tooling/scripts/release/resolve-release-tag.sh \
+            "$TAG" "$REPO" "$RELEASE_SHA" >/dev/null
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-provenance
@@ -521,30 +575,24 @@ jobs:
           path: artifacts
           merge-multiple: true
       - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
-      - name: Download exactly one existing statement
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-provenance-source
+          path: artifacts
+      - name: Verify the existing statement without draft authority
         env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
         run: |
           set -euo pipefail
-          bash .release-tooling/scripts/release/read-release-state.sh \
-            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
-          matches="$(gh api "repos/${REPO}/releases/${RELEASE_ID}" \
-            --jq '[.assets[] | select(.name == "multiple.intoto.jsonl")] | length')"
-          if [ "$matches" != "1" ]; then
-            echo "::error::workflow_dispatch cannot regenerate tag-context SLSA provenance; rerun the original tag-push run while it is retained"
-            exit 73
-          fi
-          gh release download "$TAG" --repo "$REPO" \
-            --pattern multiple.intoto.jsonl --dir artifacts
+          bash .release-tooling/scripts/release/resolve-release-tag.sh \
+            "$TAG" "$REPO" "$RELEASE_SHA" >/dev/null
           native=(artifacts/nika-*.tar.gz)
           bash .release-tooling/scripts/release/verify-slsa-provenance.sh \
             "$TAG" "$REPO" artifacts/multiple.intoto.jsonl "${native[@]}"
-          bash .release-tooling/scripts/release/read-release-state.sh \
-            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" >/dev/null
+          bash .release-tooling/scripts/release/resolve-release-tag.sh \
+            "$TAG" "$REPO" "$RELEASE_SHA" >/dev/null
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-provenance
@@ -573,7 +621,7 @@ jobs:
   bump-formula:
     name: bump homebrew tap
     needs: finalize
-    if: ${{ !contains(needs.finalize.outputs.version, '-') }}
+    if: ${{ always() && needs.finalize.result == 'success' && !contains(needs.finalize.outputs.version, '-') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -818,31 +866,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Reuse only a durable marker, otherwise require a digest build
-        id: coordinate
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
-          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.release-draft.outputs.tag }}
-        run: |
-          set -euo pipefail
-          state=0
-          digest="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
-            read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")" || state=$?
-          if [ "$state" -eq 0 ]; then
-            echo "build=false" >> "$GITHUB_OUTPUT"
-            echo "digest=$digest" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          [ "$state" -eq 44 ] || exit "$state"
-          # An occupied image:version without this marker is not authority.
-          # Build from the release tarballs and bind the resulting digest.
-          echo "build=true" >> "$GITHUB_OUTPUT"
-          echo "digest=" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.coordinate.outputs.build == 'true'
+        if: needs.release-draft.outputs.oci-build == 'true'
         with:
           ref: ${{ needs.release-draft.outputs.sha }}
           path: .release-source
@@ -852,7 +877,7 @@ jobs:
           path: artifacts
           merge-multiple: true
       - name: Stage per-arch binaries into the build context
-        if: steps.coordinate.outputs.build == 'true'
+        if: needs.release-draft.outputs.oci-build == 'true'
         # Docker arch names (amd64 · arm64) ≠ release tarball arch names
         # (x64 · arm64) — the mapping happens HERE, once; the Dockerfile
         # just COPYs dist/linux/${TARGETARCH}/nika.
@@ -866,7 +891,7 @@ jobs:
       - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
       - name: Build + push by digest (linux/amd64 · linux/arm64)
         id: image
-        if: steps.coordinate.outputs.build == 'true'
+        if: needs.release-draft.outputs.oci-build == 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .release-source
@@ -885,7 +910,7 @@ jobs:
         id: digest
         env:
           CANDIDATE: ${{ steps.image.outputs.digest }}
-          MARKER_DIGEST: ${{ steps.coordinate.outputs.digest }}
+          MARKER_DIGEST: ${{ needs.release-draft.outputs.oci-digest }}
           IMAGE: ghcr.io/${{ github.repository }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
@@ -1031,6 +1056,10 @@ jobs:
     # deploy key shares its contents-write authority.
     name: converge exact github release assets
     needs: [release-draft, provenance-result, npm-wasm-pack]
+    # The event selector deliberately skips one provenance ancestor. GitHub
+    # propagates that skip through the dependency chain unless this rejoin has
+    # a status function. A successful selector is required, never a skip waiver.
+    if: ${{ always() && needs.release-draft.result == 'success' && needs.provenance-result.result == 'success' && needs.npm-wasm-pack.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -1163,13 +1192,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Prove checksums, provenance, npm, marker, and ghcr payload
+      - name: Prove checksums, provenance, npm, and the durable digest payload
         id: proof
         env:
           GH_TOKEN: ${{ github.token }}
           IMAGE: ghcr.io/${{ github.repository }}
           PROVEN_DIGEST: ${{ needs.oci-version.outputs.digest }}
-          RELEASE_ID: ${{ needs.release-draft.outputs.release-id }}
           RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.release-draft.outputs.tag }}
@@ -1198,13 +1226,13 @@ jobs:
             "@supernovae-st/nika-check-wasm@${VERSION}" \
             "artifacts/supernovae-st-nika-check-wasm-${VERSION}.tgz" \
             "artifacts/supernovae-st-nika-check-wasm-${VERSION}.tgz.sha256"
-          persisted="$(bash .release-tooling/scripts/release/release-digest-marker.sh \
-            read "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA")"
-          [ "$persisted" = "$PROVEN_DIGEST" ]
+          # The marker owner supplied this digest before version convergence.
+          # Its fresh draft-state equality belongs to the isolated finalizer,
+          # which rejects drift before publishing; this judge stays read-only.
           digest="$(bash .release-tooling/scripts/release/oci-coordinate-immutable.sh \
-            verify "$IMAGE" "$VERSION" "$persisted" "$RELEASE_SHA" \
+            verify "$IMAGE" "$VERSION" "$PROVEN_DIGEST" "$RELEASE_SHA" \
             "https://github.com/${REPO}")"
-          [ "$digest" = "$persisted" ]
+          [ "$digest" = "$PROVEN_DIGEST" ]
           bash .release-tooling/scripts/release/verify-oci-payload.sh \
             "$IMAGE" "$digest" "$VERSION" artifacts
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
@@ -1300,7 +1328,7 @@ jobs:
   move-latest:
     name: move ghcr latest after publication
     needs: finalize
-    if: ${{ !contains(needs.finalize.outputs.version, '-') }}
+    if: ${{ always() && needs.finalize.result == 'success' && !contains(needs.finalize.outputs.version, '-') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read

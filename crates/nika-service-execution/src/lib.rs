@@ -25,6 +25,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use nika_event::Event;
+use nika_event::settlement::{RunSettlement, RunState};
 use nika_event::source_id::{lf_normal_form, sha256_hex};
 use nika_execution::{ExecutionContext, ExecutionSnapshot};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
@@ -42,6 +43,10 @@ use nika_runtime::compose::{
     net_boundary_of_permits, production_runtime, service_runtime,
 };
 use nika_runtime::{EventSink, InputOrigin, RunOutcome, RunSeams, RuntimeError, Stamper};
+
+pub mod access;
+
+pub use nika_providers::ExecutionAccessPlan;
 
 /// Metadata a child trace lane commits into its parent's trace-forest row.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -147,6 +152,8 @@ pub struct ServiceExecutionDriver {
     display_root: PathBuf,
     child_traces: Arc<dyn ChildTraceFactory>,
     surface: DriverSurface,
+    child_access_pin: Option<String>,
+    access_probes: Vec<nika_providers::probe::ProviderProbe>,
 }
 
 impl std::fmt::Debug for ServiceExecutionDriver {
@@ -172,6 +179,8 @@ impl Clone for ServiceExecutionDriver {
             display_root: self.display_root.clone(),
             child_traces: Arc::clone(&self.child_traces),
             surface: self.surface,
+            child_access_pin: self.child_access_pin.clone(),
+            access_probes: self.access_probes.clone(),
         }
     }
 }
@@ -224,6 +233,8 @@ impl ServiceExecutionDriver {
             display_root,
             child_traces: Arc::new(SilentChildTraceFactory),
             surface,
+            child_access_pin: None,
+            access_probes: access::access_probes_env(),
         })
     }
 
@@ -285,6 +296,12 @@ impl ServiceExecutionDriver {
 
     /// Compose the real production runtime plus snapshot-backed child runner.
     ///
+    /// Before calling [`AuthorizedRuntime::run`], attach a frozen plan with
+    /// [`AuthorizedRuntime::with_access_plan`], resolved for the same effective
+    /// model override and access pin via [`Self::resolve_access_plan`]. Even a
+    /// workflow with no model needs an attached plan (its lane map is empty).
+    /// [`Self::execute`] supplies this step when the caller omits a plan.
+    ///
     /// # Errors
     ///
     /// Returns [`ComposeError`] when the production HTTP or sandbox seams
@@ -316,6 +333,7 @@ impl ServiceExecutionDriver {
             runtime,
             self.workflow.clone(),
             self.report.clone(),
+            self.clone(),
         ))
     }
 
@@ -333,7 +351,36 @@ impl ServiceExecutionDriver {
         }
     }
 
+    /// The frozen access plan for one execution attempt of the admitted
+    /// pair (One Door · wave 1b): the effective models with their verbs
+    /// under `model_override`, this machine's probe rows, the `pin`.
+    /// Every door resolves here and hands the value to
+    /// [`ServiceExecutionOptions::with_access_plan`].
+    #[must_use]
+    pub fn resolve_access_plan(
+        &self,
+        model_override: Option<&str>,
+        pin: Option<&str>,
+    ) -> ExecutionAccessPlan {
+        self.resolve_access_plan_over(model_override, pin, &self.access_probes)
+    }
+
+    /// [`Self::resolve_access_plan`] over INJECTED probe rows (tests).
+    #[must_use]
+    pub fn resolve_access_plan_over(
+        &self,
+        model_override: Option<&str>,
+        pin: Option<&str>,
+        probes: &[nika_providers::probe::ProviderProbe],
+    ) -> ExecutionAccessPlan {
+        access::resolve_plan_over(&self.workflow, &self.report, model_override, pin, probes)
+    }
+
     /// Execute through the service-safe composition and metadata projection.
+    ///
+    /// A supplied access plan is executed as resolved. Otherwise, resolve one
+    /// plan from this driver's captured probe rows and the effective model
+    /// override, with no access pin, before attaching it to the runtime.
     ///
     /// A runtime refusal is projected to the result's redacted `Refused`
     /// status, while construction failures return [`ComposeError`] before any
@@ -346,6 +393,10 @@ impl ServiceExecutionDriver {
         &self,
         options: ServiceExecutionOptions,
     ) -> Result<ServiceExecutionResult, ComposeError> {
+        let plan = match options.access_plan {
+            Some(plan) => plan,
+            None => self.resolve_access_plan(options.model_override.as_deref(), None),
+        };
         let envelope_model = self
             .workflow
             .model
@@ -359,9 +410,25 @@ impl ServiceExecutionDriver {
             .with_max_cost_usd(options.max_cost_usd)
             .with_prompt_pause(true)
             .with_model_override(options.model_override);
+        // Both convenience and explicit composition execute a frozen plan;
+        // neither may enter the substrate's planless embedder fallback.
+        let runtime = runtime.with_access_plan(plan)?;
+        let runtime = match options.cancel {
+            Some(cancel) => runtime.with_cancel(cancel),
+            None => runtime,
+        };
         let mut stamper = RunSeams::of(self.workflow.run.as_ref().map(|run| &run.value)).stamper();
         let mut sink = ServiceEventSink::new(Some(self.execution_id));
-        let outcome = runtime.run(stamper.as_mut(), &mut sink).await;
+        let outcome = match options.mirror {
+            Some(factory) => {
+                let mut tee = MirroredSink {
+                    primary: &mut sink,
+                    mirror: factory(),
+                };
+                runtime.run(stamper.as_mut(), &mut tee).await
+            }
+            None => runtime.run(stamper.as_mut(), &mut sink).await,
+        };
         Ok(ServiceExecutionResult::from_runtime(
             &outcome,
             sink.into_events(),
@@ -418,6 +485,20 @@ impl ServiceExecutionDriver {
         }
         Ok((logical, source, workflow, report))
     }
+
+    fn child_access_plan(
+        &self,
+        workflow: &RawWorkflow,
+        report: &nika_check::CheckReport,
+    ) -> ExecutionAccessPlan {
+        access::resolve_plan_over(
+            workflow,
+            report,
+            None,
+            self.child_access_pin.as_deref(),
+            &self.access_probes,
+        )
+    }
 }
 
 /// Production runtime whose workflow and report are sealed to one readmitted
@@ -432,6 +513,8 @@ pub struct AuthorizedRuntime {
     runtime: ProdRuntime,
     workflow: RawWorkflow,
     report: nika_check::CheckReport,
+    child_driver: ServiceExecutionDriver,
+    model_override: Option<String>,
 }
 
 impl std::fmt::Debug for AuthorizedRuntime {
@@ -444,24 +527,52 @@ impl std::fmt::Debug for AuthorizedRuntime {
 }
 
 impl AuthorizedRuntime {
-    fn new(runtime: ProdRuntime, workflow: RawWorkflow, report: nika_check::CheckReport) -> Self {
+    fn new(
+        runtime: ProdRuntime,
+        workflow: RawWorkflow,
+        report: nika_check::CheckReport,
+        child_driver: ServiceExecutionDriver,
+    ) -> Self {
         Self {
             runtime,
             workflow,
             report,
+            child_driver,
+            model_override: None,
         }
     }
 
     /// Execute the internally bound workflow/report pair.
     ///
+    /// Requires an attached frozen plan, including for workflows whose plan
+    /// has no model lanes. A missing plan refuses before the prologue or any
+    /// task; it never selects the raw runtime's planless embedder behavior.
+    ///
     /// # Errors
     ///
-    /// Returns the runtime's typed admission or execution refusal.
+    /// Returns [`RuntimeError::AccessNoPath`] when no frozen plan is attached,
+    /// or the runtime's typed admission or execution refusal. Admission
+    /// refusals produce no runtime events or settlement.
     pub async fn run(
         &self,
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<RunOutcome, RuntimeError> {
+        if self.runtime.access_plan().is_none() {
+            return Err(RuntimeError::AccessNoPath {
+                message: "authorized execution requires a frozen access plan; attach one with \
+                    AuthorizedRuntime::with_access_plan before running"
+                    .to_owned(),
+            });
+        }
+        // A structurally clean captured report cannot waive the MODELS
+        // judgments under the actual override chosen by CLI, ARM or Serve.
+        // This gate precedes even the runtime prologue (zero events/effects).
+        if !nika_execution::model_admission_findings(&self.workflow, self.model_override.as_deref())
+            .is_empty()
+        {
+            return Err(RuntimeError::DirtyReport);
+        }
         self.runtime
             .run(&self.workflow, &self.report, stamper, sink)
             .await
@@ -492,6 +603,14 @@ impl AuthorizedRuntime {
     #[must_use]
     pub fn with_prompt_pause(mut self, pause: bool) -> Self {
         self.runtime = self.runtime.with_prompt_pause(pause);
+        self
+    }
+
+    /// The operator's cancellation the runtime reads at every wave boundary
+    /// (#1353).
+    #[must_use]
+    pub fn with_cancel(mut self, cancel: nika_types::cancel::CancelCtx) -> Self {
+        self.runtime = self.runtime.with_cancel(cancel);
         self
     }
 
@@ -532,6 +651,7 @@ impl AuthorizedRuntime {
     /// Attach the effective model override.
     #[must_use]
     pub fn with_model_override(mut self, model: Option<String>) -> Self {
+        self.model_override.clone_from(&model);
         self.runtime = self.runtime.with_model_override(model);
         self
     }
@@ -539,6 +659,14 @@ impl AuthorizedRuntime {
     /// Attach the operator's access-path pin.
     #[must_use]
     pub fn with_access_pin(mut self, pin: Option<String>) -> Self {
+        // Once attached, the frozen plan is authoritative for root and child
+        // alike, even if a legacy caller also sets the separate pin field.
+        self.child_driver
+            .child_access_pin
+            .clone_from(self.runtime.access_plan().map_or(&pin, |plan| &plan.pin));
+        self.runtime = self
+            .runtime
+            .with_child_runner(Arc::new(self.child_driver.clone()));
         self.runtime = self.runtime.with_access_pin(pin);
         self
     }
@@ -546,6 +674,10 @@ impl AuthorizedRuntime {
     /// Attach the access candidates judged by the run gate.
     #[must_use]
     pub fn with_access_probes(mut self, probes: Vec<nika_providers::probe::ProviderProbe>) -> Self {
+        self.child_driver.access_probes.clone_from(&probes);
+        self.runtime = self
+            .runtime
+            .with_child_runner(Arc::new(self.child_driver.clone()));
         self.runtime = self.runtime.with_access_probes(probes);
         self
     }
@@ -560,24 +692,48 @@ impl AuthorizedRuntime {
         self
     }
 
-    /// Seat an agentic CLI from `--access` (pin wins over env).
+    /// Attach the FROZEN execution-access plan (One Door · wave 1) and
+    /// seat the adapter it admits — the plan is the ONE decision the
+    /// runtime executes: its seat is spawned, its lanes route every
+    /// task, and nothing downstream re-selects.
     ///
     /// # Errors
     ///
-    /// The registry row cannot be built.
-    pub fn with_harness_from_pin(
+    /// The admitted seat's registry row cannot be built.
+    pub fn with_access_plan(
         mut self,
-        pin: Option<&str>,
+        plan: nika_providers::ExecutionAccessPlan,
     ) -> Result<Self, nika_runtime::compose::ComposeError> {
-        let ready = nika_providers::first_ready_infer_harness(self.runtime.access_probes())
-            .or_else(|| nika_providers::first_ready_harness(self.runtime.access_probes()));
-        let Some((backend, id)) =
-            nika_harness::seat_from_pin(pin, ready).map_err(nika_harness::seat_http_err)?
-        else {
-            return Ok(self);
-        };
-        self.runtime = self.runtime.with_harness_backend(Arc::new(backend), id)?;
+        // A child owns different model needs. Carry the explicit constraint,
+        // never the parent's lane map, into its captured-world composition.
+        self.child_driver.child_access_pin.clone_from(&plan.pin);
+        self.runtime = self
+            .runtime
+            .with_child_runner(Arc::new(self.child_driver.clone()));
+        if let Some(id) = plan.seat.clone() {
+            let Some(backend) =
+                nika_harness::seat_from_id(&id).map_err(nika_harness::seat_http_err)?
+            else {
+                return Err(nika_runtime::compose::ComposeError::Http(
+                    nika_harness::seat_http_err(format!(
+                        "the plan admitted seat `{id}` but no registry row builds it"
+                    )),
+                ));
+            };
+            self.runtime = self.runtime.with_harness_backend(Arc::new(backend), id)?;
+        }
+        self.runtime = self
+            .runtime
+            .with_boot_access_fields(access::boot_access_fields(&plan))
+            .with_access_plan(plan);
         Ok(self)
+    }
+
+    /// The frozen access plan this runtime executes (wave 2b · the
+    /// settlement frame projects its lanes).
+    #[must_use]
+    pub fn access_plan(&self) -> Option<&ExecutionAccessPlan> {
+        self.runtime.access_plan()
     }
 
     /// Attach the verified resume plan.
@@ -601,7 +757,19 @@ pub struct ServiceExecutionOptions {
     input_origins: BTreeMap<String, InputOrigin>,
     model_override: Option<String>,
     max_cost_usd: Option<f64>,
+    access_plan: Option<ExecutionAccessPlan>,
+    /// A factory for a second sink every event is mirrored into (the
+    /// resident's trace journal on disk · #1381): one lane per run, built
+    /// when the run starts. The service sink stays the primary.
+    mirror: Option<MirrorFactory>,
+    /// The operator's cancellation the runtime observes at every wave
+    /// boundary (#1353).
+    cancel: Option<nika_types::cancel::CancelCtx>,
 }
+
+/// Builds the mirror sink for one run (a lane per run, the child-trace
+/// precedent): the caller decides where the journal lands.
+pub type MirrorFactory = Arc<dyn Fn() -> Box<dyn EventSink + Send> + Send + Sync>;
 
 impl std::fmt::Debug for ServiceExecutionOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -610,6 +778,9 @@ impl std::fmt::Debug for ServiceExecutionOptions {
             .field("origin_count", &self.input_origins.len())
             .field("model_override", &self.model_override)
             .field("max_cost_usd", &self.max_cost_usd)
+            .field("access_plan", &self.access_plan.is_some())
+            .field("mirror", &self.mirror.is_some())
+            .field("cancel", &self.cancel.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -642,10 +813,46 @@ impl ServiceExecutionOptions {
         self
     }
 
+    #[must_use]
+    /// Mirror every event of the run into the sink `factory` builds as well
+    /// (the resident's journal on disk: the same NDJSON a `nika run` leaves,
+    /// so the trace a receipt names exists and `nika trace verify` can seal
+    /// it · #1381).
+    pub fn with_mirror(mut self, factory: MirrorFactory) -> Self {
+        self.mirror = Some(factory);
+        self
+    }
+
+    /// The operator's cancellation: the runtime reads it at every wave
+    /// boundary and ends the run with terminal frames (#1353).
+    #[must_use]
+    pub fn with_cancel(mut self, cancel: nika_types::cancel::CancelCtx) -> Self {
+        self.cancel = Some(cancel);
+        self
+    }
+
+    /// [`Self::with_cancel`] when the caller may have none.
+    #[must_use]
+    pub fn with_cancel_option(mut self, cancel: Option<nika_types::cancel::CancelCtx>) -> Self {
+        self.cancel = cancel;
+        self
+    }
+
     /// Apply the service admission's spend ceiling.
     #[must_use]
     pub fn with_max_cost_usd(mut self, max_cost_usd: Option<f64>) -> Self {
         self.max_cost_usd = max_cost_usd;
+        self
+    }
+
+    /// Hand in the frozen access plan the door resolved
+    /// ([`ServiceExecutionDriver::resolve_access_plan`]) — the runtime
+    /// executes it: the seat, the admission belt, every lane.
+    /// When omitted, [`ServiceExecutionDriver::execute`] resolves one from
+    /// its captured probe rows and the effective model override, without a pin.
+    #[must_use]
+    pub fn with_access_plan(mut self, plan: ExecutionAccessPlan) -> Self {
+        self.access_plan = Some(plan);
         self
     }
 }
@@ -730,6 +937,21 @@ struct ServiceEventSink {
     events: Vec<ServiceEvent>,
 }
 
+/// The service sink first (the receipt's own record), the mirror second
+/// (the journal on disk); a mirror that cannot write never touches the
+/// primary (#1381).
+struct MirroredSink<'a> {
+    primary: &'a mut ServiceEventSink,
+    mirror: Box<dyn EventSink + Send>,
+}
+
+impl EventSink for MirroredSink<'_> {
+    fn emit(&mut self, event: Event) {
+        self.primary.emit(event.clone());
+        self.mirror.emit(event);
+    }
+}
+
 impl ServiceEventSink {
     fn new(execution: Option<ExecutionId>) -> Self {
         Self {
@@ -764,6 +986,8 @@ pub enum ServiceExecutionStatus {
     Succeeded,
     /// The workflow settled unsuccessfully without exposing task failures.
     Failed,
+    /// The operator cancelled the run; it ended with terminal frames (#1353).
+    Cancelled,
     /// The workflow paused without exposing the pause payload.
     Paused,
     /// The runtime refused execution without exposing its typed error.
@@ -778,6 +1002,7 @@ pub struct ServiceExecutionResult {
     outputs: BTreeMap<String, Value>,
     error_code: Option<String>,
     error_message: Option<String>,
+    settlement: Option<RunSettlement>,
 }
 
 impl std::fmt::Debug for ServiceExecutionResult {
@@ -799,6 +1024,7 @@ impl ServiceExecutionResult {
             outputs: BTreeMap::new(),
             error_code: None,
             error_message: None,
+            settlement: None,
         }
     }
 
@@ -808,15 +1034,30 @@ impl ServiceExecutionResult {
                 ServiceExecutionStatus::Refused,
                 Some((error.spec_code(), error.wire_message())),
             ),
-            Ok(outcome) if outcome.paused.is_some() => (ServiceExecutionStatus::Paused, None),
-            Ok(outcome) if outcome.ok && !outcome.budget_exceeded => {
-                (ServiceExecutionStatus::Succeeded, None)
-            }
-            Ok(outcome) => (ServiceExecutionStatus::Failed, Some(first_failure(outcome))),
+            // ADR-128 · the runtime's settlement IS the status; the service
+            // boundary projects it, it never refolds the records.
+            Ok(outcome) => match outcome.settlement.state {
+                RunState::Paused => (ServiceExecutionStatus::Paused, None),
+                RunState::Cancelled => (ServiceExecutionStatus::Cancelled, None),
+                RunState::Succeeded => (ServiceExecutionStatus::Succeeded, None),
+                // `#[non_exhaustive]`: a state this crate does not know fails
+                // closed as a failure with its named cause.
+                RunState::Failed | _ => {
+                    (ServiceExecutionStatus::Failed, Some(first_failure(outcome)))
+                }
+            },
         };
         let mut result = Self::new(status, events);
         if let Ok(outcome) = outcome {
             result.outputs.clone_from(&outcome.outputs);
+            // Preserve runtime facts and the local forensic outcome. Only
+            // diagnostic text crosses the same public redaction boundary as
+            // the top-level error; the nested copy must not bypass it.
+            let mut settlement = outcome.settlement.clone();
+            if let Some(error) = &mut settlement.error {
+                error.message = redact_service_message(&error.message);
+            }
+            result.settlement = Some(settlement);
         }
         if let Some((code, message)) = error {
             result.error_code = Some(code);
@@ -849,6 +1090,14 @@ impl ServiceExecutionResult {
         Some((self.error_code.as_deref()?, self.error_message.as_deref()?))
     }
 
+    /// The runtime's settlement (ADR-128), with public diagnostic text
+    /// redacted. A refusal before any task carries none; state, cause, tally
+    /// and spend remain exactly the runtime's facts.
+    #[must_use]
+    pub fn settlement(&self) -> Option<&RunSettlement> {
+        self.settlement.as_ref()
+    }
+
     /// Consume the result into its redacted status and event projection.
     #[must_use]
     pub fn into_parts(self) -> (ServiceExecutionStatus, Vec<ServiceEvent>) {
@@ -863,6 +1112,12 @@ impl ChildRunner for ServiceExecutionDriver {
     ) -> Pin<Box<dyn Future<Output = Result<ChildOutcome, ChildRunRefusal>> + 'a>> {
         Box::pin(async move {
             let (logical, source, workflow, report) = self.load_child(&call)?;
+            let plan = self.child_access_plan(&workflow, &report);
+            if let Some(error) = nika_runtime::plan_refusal(&plan)
+                .or_else(|| nika_runtime::modelless_refusal(&workflow, &plan))
+            {
+                return Err(refusal(&error.spec_code(), error.wire_message()));
+            }
             let child_permits = effective_permits(
                 workflow.permits.as_ref().map(|permits| &permits.value),
                 call.parent_permits.as_ref(),
@@ -897,20 +1152,24 @@ impl ChildRunner for ServiceExecutionDriver {
             let mut child_driver = self.clone();
             child_driver.root_logical.clone_from(&logical);
             child_driver.root_source.clone_from(&source);
+            child_driver.workflow.clone_from(&workflow);
+            child_driver.report.clone_from(&report);
+            child_driver.skills = nika_schema::resolve_skills(&workflow, &mut reader);
             let runtime = runtime
-                .with_skills(nika_schema::resolve_skills(&workflow, &mut reader).texts)
-                .with_child_runner(Arc::new(child_driver))
+                .with_skills(child_driver.skills.texts.clone())
+                .with_child_runner(Arc::new(child_driver.clone()))
                 .with_child_closures(admitted_closure_digests(
                     &workflow,
                     &self.snapshot,
                     &logical,
                 ));
+            let runtime = AuthorizedRuntime::new(runtime, workflow.clone(), report, child_driver)
+                .with_access_plan(plan)
+                .map_err(|error| refusal("NIKA-COMP-001", format!("child access: {error}")))?;
             let mut trace = self.child_traces.create();
             let def_hash = sha256_hex(source.as_bytes());
             let mut stamper = RunSeams::of(workflow.run.as_ref().map(|run| &run.value)).stamper();
-            let run = runtime
-                .run(&workflow, &report, stamper.as_mut(), trace.sink())
-                .await;
+            let run = runtime.run(stamper.as_mut(), trace.sink()).await;
             let (ok, outputs, cost, failure) = child_run_parts(&run);
             let metadata = trace.metadata();
             let trace = Some(ChildRunSummary::new(
@@ -943,9 +1202,14 @@ type ChildRunParts = (
 fn child_run_parts(run: &Result<RunOutcome, RuntimeError>) -> ChildRunParts {
     match run {
         Ok(outcome) => {
-            let ok = outcome.ok && outcome.paused.is_none() && !outcome.budget_exceeded;
+            let ok = outcome.settlement.state == RunState::Succeeded;
             let failure = (!ok).then(|| first_failure(outcome));
-            (ok, outcome.outputs.clone(), outcome.total_cost_usd, failure)
+            (
+                ok,
+                outcome.outputs.clone(),
+                outcome.settlement.spend.total_cost_usd,
+                failure,
+            )
         }
         Err(error) => (
             false,
@@ -1034,28 +1298,27 @@ fn redact_service_message(raw: &str) -> String {
         }
         out.push_str(token);
         if out.len() >= 240 {
-            out.truncate(240);
+            let mut end = 240;
+            while !out.is_char_boundary(end) {
+                end -= 1;
+            }
+            out.truncate(end);
             break;
         }
     }
     out
 }
 
+/// The failure the run settled with (ADR-128 · named once by the runtime:
+/// the first failed task, or a run-level cause such as the inherited
+/// budget — spec 14 law 6 · min(parent remaining, child declared)).
 fn first_failure(outcome: &RunOutcome) -> (String, String) {
-    for (id, record) in &outcome.records {
-        if let Some(error) = &record.error {
-            return (
-                error.code.clone(),
-                format!("task `{id}`: {}", error.message),
-            );
-        }
-    }
-    if outcome.budget_exceeded {
-        return (
-            "NIKA-1704".to_owned(),
-            "the inherited cost budget was exceeded (spec 14 law 6 · min(parent remaining, child declared))"
-                .to_owned(),
-        );
+    if let Some(error) = &outcome.settlement.error {
+        let message = match &error.task {
+            Some(id) => format!("task `{id}`: {}", error.message),
+            None => error.message.clone(),
+        };
+        return (error.code.clone(), message);
     }
     (
         "NIKA-COMP-001".to_owned(),

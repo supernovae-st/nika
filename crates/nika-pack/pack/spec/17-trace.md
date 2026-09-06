@@ -125,6 +125,23 @@ Per-task terminal frames carry the task's witness fields (the observed
 `task_completed`: `task` · `note` · `duration_ms` · `def_hash` ·
 `input_hash` · `output` · `outcome` · the outcome record serialized).
 
+A `for_each` task's terminal frame (`task_completed` · `task_failed`)
+additionally carries **`items`** (additive · reference engine 0.118): ONE
+JSON array text · one row per item in input order · `index` · `item` (the
+item's identity, bounded) · `status` ∈ `ok` · `recovered` · `failed` ·
+`never_started` · `code` and `message` when an error was recorded. Failures
+2..N reach the journal with their own codes; the items a stopped batch
+never started are named as such.
+
+The workflow terminal frames (`workflow_completed` · `workflow_failed` ·
+`workflow_cancelled`) additionally carry the run's **summary** (additive ·
+reference engine 0.118) beside the cost fields (`total_cost_usd` ·
+`unpriced_calls` · `cost_by_source` · `pricing_as_of`): `status` ·
+`elapsed_ms` (the run clock, read through the engine's clock seam) ·
+`tasks_total` · `tasks_ok` · `tasks_failed` · `tasks_recovered` ·
+`tasks_skipped` · `tasks_cancelled` · what a human card computes, so a
+machine reader never re-derives it from the task frames.
+
 ## The permit witness (normative · REQUIRED · NEP-0007)
 
 Every permit decision taken at the dispatch boundary is a
@@ -188,7 +205,9 @@ the only party guaranteed to exist at reading time — carries the name.
 `incomplete` is **never** success and **never** silently equal to
 failure or to forgery: the chain still binds, so the journal is
 honestly what it is — a run whose end is unknown. Before it had a
-name, « no verdict » was routinely read as « fine ».
+name, « no verdict » was routinely read as « fine ». The verifier's
+exit says it too: `incomplete` exits on its own class (5), never on
+the ladder a finished walk climbs (0) and never as forgery (2).
 
 **3 · Judged ≠ booted is a refusal.** A check report stamped with the
 semantic hash of the workflow it judged must match the workflow the run

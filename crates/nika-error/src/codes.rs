@@ -378,6 +378,9 @@ fn access_code_help(num: u16) -> &'static str {
         1806 => {
             "The harness asked for an action the workflow's `permits:` grants do not cover, so the run PAUSED for a human answer (a gate question is never auto-answered). Resume with `nika run --resume <trace> --answer <task>=true` to grant it once, `=false` to deny — or widen the permits block."
         }
+        1807 => {
+            "The resume's access moved: the trace rode one path for a model and this machine now resolves another. Resume with `--access <recorded>` to keep the recorded path (the refusal names it), or `--access <new>` to name the change explicitly — a silent switch never happens."
+        }
         _ => {
             "Execution access resolution failed. `model:` picks the intelligence; access picks the path — read the plan's witnesses via `nika explain`, then fix the path the witness names."
         }
@@ -443,6 +446,55 @@ pub fn lookup(wire: &str) -> Option<NikaCode> {
 /// teaches what the namespace IS instead of 404-ing — one voice, one text.
 /// `docs` is the caller's rendering of the error-docs reference (a themed
 /// OSC-8 link on a TTY · plain text over MCP).
+#[must_use]
+/// The resident's wire codes (`nika serve` · the JSON `error.code` an HTTP
+/// caller reads), taught with the same voice as the engine's (#1441 ·
+/// ADR-131): `nika explain snapshot_tampered` answers, and so does the
+/// MCP `nika_explain` tool.
+pub fn resident_help(code: &str) -> Option<String> {
+    let (meaning, fix) = match code {
+        "snapshot_tampered" => (
+            "the digest the request carries does not match its bytes — a caller-supplied integrity digest that failed, not an accusation (and never a signature)",
+            "send the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer), or omit the digests and the resident computes them",
+        ),
+        "malformed_snapshot" => (
+            "the request body is not an execution snapshot (UTF-8 JSON · format_version 1 · root · units[])",
+            "post `{\"workflow\": \"<name>\"}` for a workflow the resident serves, or the snapshot `nika check <file> --json --sdk-snapshot` prints",
+        ),
+        "malformed_snapshot_digest" => (
+            "a caller-supplied digest is not canonical lowercase SHA-256 (64 hex characters)",
+            "omit the digests (the resident computes them) or send the engine's own",
+        ),
+        "malformed_snapshot_hex" => (
+            "a unit's `bytes_hex` is not even-length lowercase hexadecimal",
+            "send the body `nika check <file> --json --sdk-snapshot` prints",
+        ),
+        "unsupported_snapshot_version" => (
+            "the snapshot's `format_version` is not the one this resident speaks",
+            "produce the snapshot with the same engine version the resident runs (`nika --version` · GET /health · engine_version)",
+        ),
+        "snapshot_unit_count_limit"
+        | "snapshot_unit_size_limit"
+        | "snapshot_total_size_limit"
+        | "snapshot_path_limit" => (
+            "the world exceeds a resource ceiling the resident enforces before admission (unit count · unit bytes · decoded total · logical path length)",
+            "split the world (fewer or smaller units) or raise the resident's snapshot limits",
+        ),
+        "admission_refused" => (
+            "the resident could not capture or readmit the world (a check finding, a missing unit, a skill or child that no longer validates)",
+            "run `nika check <file>` where the world lives and read the finding; the resident admits only a clean check",
+        ),
+        "not_found" => (
+            "no route, job or served workflow by that name",
+            "GET /v1/workflows lists the names this resident admits (project-root-relative · `.nika.yaml`)",
+        ),
+        _ => return None,
+    };
+    Some(format!(
+        "{code} · resident · a `nika serve` HTTP refusal\n\n  {meaning}.\n  fix: {fix}.\n"
+    ))
+}
+
 #[must_use]
 pub fn namespace_help(code: &str, docs: &str) -> Option<String> {
     if let Some((name, num)) = builtin_code_name(code) {
@@ -1202,6 +1254,33 @@ mod tests {
             }
         }
 
+        /// ADR-131 · #1441 · every resident wire code the job door emits is
+        /// taught, with a meaning and a fix; a word that is no code is not.
+        #[test]
+        fn resident_codes_are_taught_with_a_fix() {
+            for code in [
+                "snapshot_tampered",
+                "malformed_snapshot",
+                "malformed_snapshot_digest",
+                "malformed_snapshot_hex",
+                "unsupported_snapshot_version",
+                "snapshot_unit_count_limit",
+                "admission_refused",
+                "not_found",
+            ] {
+                let text = super::resident_help(code);
+                assert!(text.is_some(), "{code} is taught");
+                let text = text.unwrap_or_default();
+                assert!(text.starts_with(code) && text.contains("fix:"), "{text}");
+            }
+            assert!(
+                super::resident_help("snapshot_tampered")
+                    .is_some_and(|t| t.contains("--sdk-snapshot"))
+            );
+            assert!(super::resident_help("NIKA-1709").is_none());
+            assert!(super::resident_help("banana").is_none());
+        }
+
         #[test]
         fn memory_codes_lookup_roundtrip() {
             for code in [
@@ -1229,6 +1308,7 @@ mod tests {
                 super::NIKA_1804,
                 super::NIKA_1805,
                 super::NIKA_1806,
+                super::NIKA_1807,
             ] {
                 assert_eq!(
                     code.category,

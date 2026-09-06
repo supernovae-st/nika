@@ -7,11 +7,11 @@
   </a>
 </p>
 
-<h1 align="center">Intent as Code.</h1>
+<h1 align="center">Repeat useful AI work. Keep the plan.</h1>
 
 <p align="center">
-  Describe the outcome once. Nika turns it into a visible workflow,<br>
-  checks the plan, runs it on your model, and keeps proof of what happened.
+  Nika turns repeatable AI work into files you can inspect, run and share.<br>
+  Your instructions, tools and rules stay in a readable <code>.nika.yaml</code> file.
 </p>
 
 <p align="center">
@@ -20,115 +20,169 @@
   <a href="https://github.com/supernovae-st/nika-spec"><img src="https://img.shields.io/badge/spec-open-8b8cf8.svg" alt="Open specification"></a>
 </p>
 
+## See the idea in one minute
+
+“Help more customers finish checkout. Read our feedback and sales data, compare
+three competitors, propose an improvement, then ask me before sharing it.”
+
+The plan gathers CSV, Markdown and Linear context, processes three competitors
+in parallel, and waits for approval. The result is a saved brief, a GitHub issue,
+Telegram and Slack updates, and an updated Linear issue.
+
 <p align="center">
-  <img src="media/gifs/intent-dag-proof.optimized.gif" alt="An intent becomes a checked workflow graph, runs, produces action items, and records tamper-evident proof" width="960">
+  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-impact.mp4">
+    <img src="media/gifs/intent-to-impact.optimized.gif" alt="One intention becomes reviewable YAML, a checked graph, a bounded parallel run and five concrete results after approval" width="960">
+  </a>
 </p>
 
-## Intent → Check → Run → Proof
+[Watch or download the 60-second MP4](https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-impact.mp4).
 
-Install Nika:
+*Illustrative product film, not a recording of the CLI. Fictional data and
+integrations are shown; no live messages are sent. The current starting point
+is a terminal and a workflow file, not a visual drag-and-drop editor.*
+
+## Start here
+
+**Turn your meeting notes into action items with owners and deadlines.**
+Use the AI access you already have. Get a real file you can review and import,
+not an echo or a simulated answer.
+
+**1. Install Nika** on macOS or Linux:
 
 ```sh
 curl -LsSf https://nika.sh/install.sh | sh
 ```
 
-Open an empty folder and follow one path:
+**2. Take the ready-to-use meeting workflow:**
 
 ```sh
-nika new           # Intent — say what result you want
-nika check         # Check  — see the plan before it runs
-nika run           # Run    — execute the plan and get the result
-nika trace verify  # Proof  — verify the run record
+mkdir meeting-follow-up
+cd meeting-follow-up
+nika new meeting-actions
 ```
 
-| Step | Command | What you get |
-|---|---|---|
-| **Intent** | `nika new` | Answer three questions. Nika creates one readable workflow file. |
-| **Check** | `nika check` | See every step and everything it can access. Nothing runs yet. |
-| **Run** | `nika run` | Watch the steps execute. Get the text, data, or file you asked for. |
-| **Proof** | `nika trace verify` | Check that the recorded run has not been altered. |
+**3. Give it your notes.** Open `examples/fixtures/meeting-transcript.txt` in
+your editor and replace the sample with your meeting transcript. Keeping that
+filename means the workflow's read permission already matches. You do not need
+to learn YAML before getting a result.
 
-That is the whole loop. With one workflow in the folder, no filenames or flags
-are required. Nika also verifies the latest run by default.
-
-## One workflow. One file.
-
-`nika new` creates a `.nika.yaml` file you can open, edit, review, and commit.
-Its tasks are the DAG nodes. References connect them. Permissions state exactly
-what the workflow may touch. `nika check` shows all of it before execution.
-
-## Bring your model
-
-Keep the workflow. Change only the model when you run it:
+**4. Check and run with your existing OpenAI API access:**
 
 ```sh
-nika run --model ollama/qwen3.5:4b
+nika check --model openai/gpt-4.1-mini
+nika run --model openai/gpt-4.1-mini --access api
 ```
 
-Not sure what is ready on your machine?
+This uses `OPENAI_API_KEY` from your terminal environment. It makes a real,
+billable model call and sends the transcript to your selected provider. Use
+notes you are allowed to process there. No credentials go in the workflow.
 
-```sh
-nika doctor
-```
+**Your result is `out/action-items.json`:** one entry per commitment, with an
+owner, a task and a deadline when one was stated. Open that file. Review the
+extraction before acting on it; a valid JSON shape does not guarantee accuracy.
 
-Nika can use local models, API providers, and supported agentic CLIs without
-changing the workflow itself.
+Next meeting: replace the transcript and run the same command again. The
+workflow stays yours; no prompt chain to rebuild and no manual copy-and-paste
+between the model's answer and the output file.
 
 <details>
-<summary><strong>Learn the four building blocks</strong></summary>
+<summary><strong>Already signed into Codex instead of using an API key?</strong></summary>
 
-| Verb | Plain meaning |
+Keep the same workflow and transcript. Use a model available on your Codex seat:
+
+```sh
+nika check --model openai/gpt-5.2
+nika run --model openai/gpt-5.2 --access codex
+```
+
+The run uses the installed, signed-in Codex CLI and its subscription quota.
+It does not require an OpenAI API key. If this model is unavailable on your
+account, select one your seat supports in both commands.
+
+`nika doctor` reports detected access and setup guidance. Detection does not
+prove that a login is valid; the run checks that. Harness support is task-specific:
+this structured `infer` example uses the Codex adapter, not an interchangeable
+promise for every agent CLI. A refused access path never silently becomes a mock.
+
+</details>
+
+## Make it yours
+
+Open `meeting-actions.nika.yaml` when you want to change what gets extracted.
+Its four steps read the transcript, ask the model for structured action items,
+save the JSON and report the output path. Review a diff, keep a history in Git,
+or send a teammate the file.
+
+Other API providers and local models use the same workflow with a different
+`--model`. See the [model setup documentation](https://docs.nika.sh).
+
+For a new job, run `nika new` in a terminal and follow the guided questions.
+It selects a starting example or template; it does not magically implement
+every arbitrary request. Review the file, fill any marked slots, configure
+the needed tools, then follow its printed check and run commands.
+
+## Why keep the plan in a file?
+
+- **Understand it before running it.** Task references define the dependency
+  graph, also called a DAG. Independent steps can run in parallel.
+- **Keep AI inside explicit boundaries.** Declare allowed access, output shapes,
+  concurrency and approval gates. Checks report what they cover and what must
+  be decided at runtime; a green check does not guarantee that AI content is true.
+- **Improve it with your team.** Share the procedure, review changes and run a
+  version again. The plan can stay the same while external data or AI answers change.
+- **Keep a record.** Runs leave a journal under `.nika/traces/`. Verification
+  checks record integrity, not the truth of an AI answer.
+
+This is **Intent as Code**: the contract is the plan, not a disposable chat.
+
+<details>
+<summary><strong>The four building blocks</strong></summary>
+
+| Verb | What it does |
 |---|---|
-| `infer` | Ask a model |
+| `infer` | Ask a model to produce an answer |
+| `invoke` | Call a native tool, MCP tool or another workflow |
 | `exec` | Run a command |
-| `invoke` | Call a tool or another workflow |
-| `agent` | Let a model use allowed tools for a limited number of turns |
+| `agent` | Let a model use allowed tools for a bounded number of turns |
 
-Most first workflows only need `infer`. Independent tasks run in parallel;
-`${{ ... }}` references connect them when one needs another's result.
-
-</details>
-
-<details>
-<summary><strong>Install another way</strong></summary>
-
-```sh
-# Homebrew
-brew install supernovae-st/tap/nika
-
-# Cargo
-cargo binstall --git https://github.com/supernovae-st/nika nika-cli
-
-# Nix
-nix run github:supernovae-st/nika
-```
-
-Or use the [latest release archive](https://github.com/supernovae-st/nika/releases/latest).
-Windows binaries are not shipped yet; use WSL2 or build from source.
+A workflow only needs the verbs its job requires. The film uses `invoke`
+and `infer`; it does not add a shell or an agent loop just to fill the diagram.
 
 </details>
 
 <details>
-<summary><strong>About run data</strong></summary>
+<summary><strong>Other installation options</strong></summary>
 
-Nika writes journals under `.nika/traces/`. Add that directory to `.gitignore`
-unless you deliberately want to publish the runs.
+With Homebrew: `brew install supernovae-st/tap/nika`.
 
-`.nika/traces/` inherits the sensitivity of whatever the workflow read; on a
-shared or CI machine, treat it as a data-at-rest surface.
-
-`nika trace verify` checks the latest run. A trace proves what Nika recorded
-and whether that record changed; it does not claim that an AI answer is true.
+See the [install guide](https://nika.sh/install) or download a
+[release archive](https://github.com/supernovae-st/nika/releases/latest).
+Windows users can use WSL2; native Windows binaries are not shipped yet.
 
 </details>
 
-## Next
+<details>
+<summary><strong>Before sharing a workflow or a run</strong></summary>
+
+Share the workflow, not credentials or private data. Review file paths and
+tool access. Keep secrets out of source control.
+
+Run journals can contain the data and outputs the workflow processed.
+Exclude `.nika/traces/` from Git unless you deliberately intend to publish
+those records. Treat them with the same care as their source data.
+
+After a run, `nika trace verify` verifies the latest journal. Compare its head
+with the one printed by the run. This checks the record, not the AI's judgement.
+
+</details>
+
+## Go further
 
 [Examples](examples/README.md) ·
-[Install guide](https://nika.sh/install) ·
+[Documentation](https://docs.nika.sh) ·
 [Editor extension](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang) ·
 [Open specification](https://github.com/supernovae-st/nika-spec) ·
 [Roadmap](https://github.com/orgs/supernovae-st/projects/3)
 
-Nika is usable today and intentionally pre-1.0. The engine is
+Nika is usable today and pre-1.0. The engine is
 [AGPL-3.0-or-later](LICENSE); the specification is Apache-2.0.

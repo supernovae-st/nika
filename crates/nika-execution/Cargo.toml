@@ -11,10 +11,11 @@ homepage.workspace     = true
 publish                = false
 
 [dependencies]
-nika-types  = { path = "../nika-types", version = "0.116.2" }
-nika-fs     = { path = "../nika-fs", version = "0.116.2" }
-nika-schema = { path = "../nika-schema", version = "0.116.2" }
-nika-check  = { path = "../nika-check", version = "0.116.2" }
+nika-types  = { path = "../nika-types", version = "0.118.7" }
+nika-fs     = { path = "../nika-fs", version = "0.118.7" }
+nika-schema = { path = "../nika-schema", version = "0.118.7" }
+nika-check  = { path = "../nika-check", version = "0.118.7" }
+nika-providers = { path = "../nika-providers", version = "0.118.7" } # shared pure model-resolution judgment
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 sha2        = { workspace = true }

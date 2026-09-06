@@ -42,6 +42,7 @@
 pub mod census;
 #[cfg(test)]
 mod parity_tests;
+pub mod plan;
 pub mod probe;
 pub mod profile;
 pub mod registry;
@@ -52,12 +53,18 @@ mod test_support;
 pub mod wire;
 
 pub use census::{AccessCensus, AccessPath, SeatFact};
+pub use plan::{
+    ExecutionAccessPlan, LaneVerdict, ModelNeed, ResolvedLane, resolve_execution_plan,
+    resolve_execution_plan_for,
+};
 pub use probe::{KeyAuth, classify_http_status, classify_key_value};
 pub use profile::{
     CANONICAL_IDS, PREFIX_REFUSAL_CODE, Profile, ResolveRefusal, WireFormat, canonical_provider,
-    catalog_warning, resolve_refusal, seed, server_backed_local,
+    catalog_warning, resolve_refusal, seed, server_backed_local, wired_facet,
+    wired_facet_of_this_build,
 };
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};
+pub use resolve_access::VerbNeeds;
 #[cfg(feature = "access-harness")]
 pub use resolve_access::first_ready_infer_harness;
 pub use resolve_access::{

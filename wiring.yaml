@@ -58,7 +58,7 @@ capabilities:
     issue: 1200
   - id: access.harness
     kind: cargo-feature
-    declared_at: crates/nika-cli/Cargo.toml:72
+    declared_at: crates/nika-cli/Cargo.toml:77
     shipped_when: "--features access-harness"
     reachable_by: "nika run F --access <seat>"
     proven_by: access-harness

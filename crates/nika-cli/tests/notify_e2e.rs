@@ -31,7 +31,7 @@ use std::net::TcpListener;
 use std::process::Command;
 
 fn bin() -> Command {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    let mut c = Command::new(env!("CARGO_BIN_EXE_nika"));
     // Env hygiene: the suite controls the notify surface explicitly —
     // an operator's real config must never leak into a verdict.
     c.env_remove("NIKA_NOTIFY_URL");

@@ -133,6 +133,64 @@ pub(super) fn foreign(key: &str) -> Option<&'static str> {
              is `invoke: { tool: nika:fetch, args: { url: \"https://example.com\" } }` \
              (spec 03 §invoke)",
         ),
+        // Airflow's task vocabulary (#1402 · the rival-tool persona renamed
+        // its way through every refusal that named a replacement and
+        // stopped at the five that did not).
+        "on_failure_callback" | "on_success_callback" | "on_retry_callback" => Some(
+            "a callback is a TASK that runs on the outcome — declare it with \
+             `after: { <task>: failure }` (or `success` · `terminal` · `unwind`) \
+             on the task that should react, never as a field of the task it watches",
+        ),
+        "trigger_rule" => Some(
+            "the outcome a task waits for rides `after:` — `after: { x: terminal }` \
+             runs whatever `x` did (Airflow `all_done`) · `failure` only after a \
+             failed `x` · `unwind` on the failure path · `success` (the default) \
+             only after a green `x`",
+        ),
+        "retries" | "retry_delay" | "retry_exponential_backoff" => Some(
+            "retries ride one `retry:` mapping — `retry: { max_attempts: 3, \
+             backoff_ms: 1000, backoff_strategy: exponential, jitter: true }` \
+             (`on_codes:` narrows it to named refusals)",
+        ),
+        "execution_timeout" | "timeout_minutes" | "timeout-minutes" => Some(
+            "a hard kill rides `timeout:` as a Go duration — `timeout: \"30s\"` \
+             (`\"5m\"` · `\"2h\"` · at most `24h`)",
+        ),
+        "if" => Some(
+            "a condition rides `when:` as a CEL boolean — `when: \"${{ inputs.ship }}\"` \
+             (a `tasks.*` read is hoisted into `with:` first)",
+        ),
+        "continue-on-error" | "continue_on_error" => Some(
+            "a failure the run may survive rides `on_error:` — `on_error: { skip: true }` \
+             skips the task, `on_error: { recover: <value> }` substitutes a value",
+        ),
+        _ => None,
+    }
+}
+
+/// An ENVELOPE key from another dialect (#1402 · Airflow · GitHub
+/// Actions). The concept exists; it lives in another file or under
+/// another word, and the refusal says which.
+pub(super) fn foreign_envelope(key: &str) -> Option<&'static str> {
+    match key {
+        "schedule_interval" | "schedule" | "cron" | "on" | "catchup" => Some(
+            "a cadence is not a workflow field — the file proposes, the machine \
+             disposes: the beat is declared in the project file (`nika.yaml` → `arm:`) \
+             and `nika arm` reads what is armed and when each beat next fires",
+        ),
+        "default_args" => Some(
+            "there are no task defaults — each task declares its own `retry:` · \
+             `timeout:` · `model:`; a deployment knob is an `inputs:` entry with \
+             `required: false` and a `default:`, read as `${{ inputs.<name> }}`",
+        ),
+        "dag_id" | "workflow_id" => Some(
+            "the file's name is `nika: <kebab-id>` — the mark AND the name, never a \
+             version",
+        ),
+        "jobs" | "steps" => Some(
+            "the work lives under `tasks:` — a map keyed by task id (snake_case), \
+             each task exactly one verb (`infer:` · `exec:` · `invoke:` · `agent:`)",
+        ),
         _ => None,
     }
 }
@@ -156,6 +214,65 @@ pub(super) fn envelope_key_at_task_level(key: &str) -> Option<&'static str> {
 mod tests {
     use crate::parser::{ParseMode, parse};
     use crate::source::FileId;
+
+    /// #1402 — the five Airflow / GitHub Actions terms that reached the
+    /// generic field list with no replacement anywhere in the CLI. Each
+    /// now names the mechanism it maps to; the assertions name
+    /// MECHANISMS, never whole sentences.
+    #[test]
+    fn foreign_envelope_and_task_terms_name_their_mechanism() {
+        let envelope = |line: &str| {
+            let yaml =
+                format!("nika: w\n{line}\ntasks:\n  t:\n    exec: {{ command: [\"true\"] }}\n");
+            parse(&yaml, FileId::new(0), ParseMode::Strict)
+                .expect_err("an unknown envelope key refuses")
+                .to_string()
+        };
+        let cadence = envelope("schedule_interval: \"@daily\"");
+        assert!(
+            cadence.contains("`arm:`")
+                && cadence.contains("nika.yaml")
+                && cadence.contains("nika arm"),
+            "a cadence routes to the project file and the arm verb · {cadence}"
+        );
+        let defaults = envelope("default_args: { retries: 2 }");
+        assert!(
+            defaults.contains("`inputs:`") && defaults.contains("`retry:`"),
+            "task defaults route to per-task fields and inputs knobs · {defaults}"
+        );
+        let dag = envelope("dag_id: etl");
+        assert!(
+            dag.contains("`nika: <kebab-id>`"),
+            "dag_id routes to the mark · {dag}"
+        );
+        let jobs = envelope("jobs: {}");
+        assert!(jobs.contains("`tasks:`") && jobs.contains("verb"), "{jobs}");
+
+        let task = |body: &str| {
+            let yaml =
+                format!("nika: w\ntasks:\n  t:\n{body}    exec: {{ command: [\"true\"] }}\n");
+            parse(&yaml, FileId::new(0), ParseMode::Strict)
+                .expect_err("an unknown task key refuses")
+                .to_string()
+        };
+        let callback = task("    on_failure_callback: notify\n");
+        assert!(
+            callback.contains("after:") && callback.contains("failure"),
+            "a callback routes to `after: {{ x: failure }}` · {callback}"
+        );
+        let rule = task("    trigger_rule: all_done\n");
+        assert!(
+            rule.contains("terminal") && rule.contains("all_done"),
+            "`trigger_rule` routes to the `after:` outcomes · {rule}"
+        );
+        let retries = task("    retries: 3\n");
+        assert!(
+            retries.contains("max_attempts") && retries.contains("backoff_ms"),
+            "`retries` names the retry mapping's fields · {retries}"
+        );
+        let cond = task("    if: true\n");
+        assert!(cond.contains("`when:`"), "`if` routes to `when:` · {cond}");
+    }
 
     /// A key from another dialect, and our own key at the wrong depth,
     /// both TEACH — because in neither case is the author confused about

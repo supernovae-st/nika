@@ -12,6 +12,9 @@ use nika_kernel::io::fs::{FsError, FsListDyn, FsReadDyn, FsWriteDyn};
 use crate::permits::{FsAccess, FsBoundary};
 use crate::{Args, BuiltinFailure, BuiltinOutcome, req_str, strict_bool, strict_u64};
 
+#[cfg(test)]
+mod write_tests;
+
 /// `nika:read` — text (default) or binary. Returns the file content.
 pub(crate) async fn read<F: FsReadDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     const C1: &str = "NIKA-BUILTIN-READ-001";
@@ -99,9 +102,17 @@ pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Bui
             ));
         }
     }
-    fs.write(Path::new(path), &content)
-        .await
-        .map_err(|e| BuiltinFailure::new(C1, format!("write failed: {e}")))?;
+    let written = if overwrite {
+        fs.write(Path::new(path), &content).await
+    } else {
+        fs.write_new(Path::new(path), &content).await
+    };
+    written.map_err(|e| match e {
+        FsError::AlreadyExists { .. } if !overwrite => {
+            BuiltinFailure::new(C2, format!("`{path}` exists and overwrite: false"))
+        }
+        other => BuiltinFailure::new(C1, format!("write failed: {other}")),
+    })?;
     Ok(serde_json::Value::String(path.to_owned()))
 }
 

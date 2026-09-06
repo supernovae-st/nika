@@ -21,6 +21,8 @@
 //!   path, reachable over MCP) and picks REAL providers/models/tools from
 //!   the versioned projections instead of remembered ids.
 
+use std::fmt::Write as _;
+
 use serde_json::{Value, json};
 
 /// The tool catalog (`tools/list`): name · description · `inputSchema`
@@ -115,6 +117,17 @@ fn validate_tools() -> Value {
                                         consults before handing a file to a human, and \
                                         the gate in front of `nika run` uses the same \
                                         posture. Pass false to see the advisory verdict."
+                    },
+                    "verbose": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Return the full verdict object even when clean — the \
+                                        same keys a dirty answer carries: `clean` · \
+                                        `verdicts.{valid,access_ready,capacity_fit,run_ready}` · \
+                                        `judged.{composition,skills,children}` (this oracle \
+                                        reads no files: children and skills are never judged \
+                                        here) · `model_findings[]` · `access_plan[]` · \
+                                        `risk_grade` · `hints[]` · `next_actions[]`."
                     },
                     "workflow": {
                         "type": "string",
@@ -358,44 +371,6 @@ fn paid_ready_verdict(
     ))
 }
 
-/// The MODELS cross-check rows for both laws (resolver refusals ·
-/// catalog warnings) — one `model`/`tasks`/`why` shape on every machine
-/// lane (this oracle and the CLI `--json` twin must not disagree). The
-/// catalog cross-check is the two-strike class (audit UX 2026-07-31): a
-/// model that RESOLVES but matches nothing the snapshot prices for its
-/// provider must be relayed BEFORE the human buys a key — advisory on
-/// both lanes, `clean` untouched.
-fn model_crosscheck(report: &nika_check::CheckReport) -> (Vec<Value>, Vec<Value>) {
-    let findings = report
-        .requirements
-        .models
-        .iter()
-        .filter_map(|m| {
-            nika_providers::resolve_refusal(&m.model).map(|refusal| {
-                let mut row = serde_json::json!({
-                    "model": m.model,
-                    "tasks": m.tasks,
-                    "why": refusal.why,
-                });
-                if let Some(code) = refusal.code {
-                    row["code"] = serde_json::json!(code);
-                }
-                row
-            })
-        })
-        .collect();
-    let warnings = report
-        .requirements
-        .models
-        .iter()
-        .filter_map(|m| {
-            nika_providers::catalog_warning(&m.model)
-                .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
-        })
-        .collect();
-    (findings, warnings)
-}
-
 /// The AFFIRMATIVE contract, rendered on a GREEN check.
 ///
 /// `permits` carries this in its own doc comment: consumers should
@@ -478,7 +453,7 @@ fn clean_verdict(
 /// Derive the repair hand-offs from the report's serialized finding surface.
 /// A sorted set gives stable order and one action per code even when several
 /// findings share a class (for example both missing envelope fields).
-fn finding_next_actions(payload: &Value) -> Value {
+fn finding_next_actions(payload: &serde_json::Map<String, Value>) -> Value {
     let codes = payload
         .get("findings")
         .and_then(Value::as_array)
@@ -489,7 +464,7 @@ fn finding_next_actions(payload: &Value) -> Value {
     Value::Array(
         codes
             .into_iter()
-            .map(|code| Value::String(format!("nika explain {code}")))
+            .map(|code| Value::String(format!("nika_explain {code}")))
             .collect(),
     )
 }
@@ -512,62 +487,85 @@ fn check(args: &Value) -> Result<String, String> {
     if args.get("fix").and_then(Value::as_bool).unwrap_or(false) {
         return crate::repair::check_fix(yaml, native_strict);
     }
-    audit(yaml, native_strict)
+    let verbose = args
+        .get("verbose")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    audit_with(yaml, native_strict, verbose)
 }
 
-/// The plain audit: parse + the static check ladder over the supplied
-/// YAML, the SAME answer whether the text came from the caller or from
-/// the repair ladder (`--fix` is check plus a pen, never a different audit).
+/// The plain audit — the ONE facade (`nika_cli_host::oracle` · ADR-124):
+/// the SAME judgment `nika check` renders, over the supplied YAML,
+/// whether the text came from the caller or from the repair ladder
+/// (`fix: true` is check plus a pen, never a different audit). Source
+/// only: composition and skills are unjudged here, and the verdict
+/// object says so (`judged`).
 pub(crate) fn audit(yaml: &str, native_strict: bool) -> Result<String, String> {
-    let wf = nika_schema::parse(
+    audit_with(yaml, native_strict, false)
+}
+
+/// [`audit`] with `verbose`: a clean answer carries the verdict object too
+/// (W3-F8 · the same keys a dirty answer carries).
+fn audit_with(yaml: &str, native_strict: bool, verbose: bool) -> Result<String, String> {
+    let audit = nika_cli_host::oracle::audit_source(
         yaml,
-        nika_schema::FileId::new(0),
-        nika_schema::ParseMode::Strict,
+        "-",
+        None,
+        None,
+        nika_cli_host::oracle::AuditOptions::default(),
     )
     .map_err(|e| format!("PARSE ✗ {}", e.diagnostic()))?;
-    let report = nika_check::check(&wf);
-    // The grade rides EVERY verdict (the CLI card's law, P0-11): « clean »
-    // alone never names how much rope the file has. A pure projection of
-    // the report — zero new scan.
-    let grade = nika_check::risk_grade(&report);
-    // The MODELS rung, MCP lane (#320 repro 3): the schema ladder alone
-    // audited a hallucinated model green — cross every requirement against
-    // the RESOLVER law shared with the CLI rung (nika-providers), plus its
-    // sister catalog law (advisory — `clean` is untouched).
-    let (mut model_findings, catalog_warnings) = model_crosscheck(&report);
-    // The `infer.thinking` laws ride the SAME findings rail as the resolver
-    // refusals (the CLI twin's fold at `check/mod.rs` — one verdict, both
-    // machine lanes): without it a self-defeating thinking budget read "clean".
-    model_findings.extend(nika_check::thinking_findings(&wf).into_iter().map(|f| {
-        serde_json::json!({
-            "model": f.model,
-            "tasks": [f.task],
-            "why": f.why,
-        })
-    }));
+    let lanes = nika_cli_host::oracle::Lanes::new(native_strict, false);
     // The is_clean mirror law, applied to the native-first lane. `hints`
-    // are NOT part of `is_clean()`: a workflow whose real work sits in
+    // are NOT part of `clean`: a workflow whose real work sits in
     // `exec python3 helper.py` reads "✔ clean" here while `nika check
     // --native-strict` refuses it — an oracle laxer than the gate it
     // feeds is worse than none, so strict is the DEFAULT on this lane
     // (`native_strict` arrives resolved from the `check` dispatcher).
-    let native: Vec<&str> = report
+    let native: Vec<&str> = audit
+        .report
         .hints
         .iter()
         .filter(|h| h.kind == "native-first")
         .map(|h| h.advice.as_str())
         .collect();
-    let paid = nika_check::paid_blockers(&report.hints);
-    if report.is_clean() && model_findings.is_empty() {
-        let verdict = clean_verdict(&native, &paid, native_strict, grade, &catalog_warnings)?;
-        return Ok(format!("{verdict}\n{}", affirmative_contract(&report)));
+    let paid = nika_check::paid_blockers(&audit.report.hints);
+    if audit.verdict.clean {
+        let warnings =
+            nika_cli_host::oracle::model_finding_rows(&audit.verdict.models.catalog_warnings);
+        let verdict = clean_verdict(
+            &native,
+            &paid,
+            native_strict,
+            audit.verdict.grade,
+            &warnings,
+        )?;
+        let mut text = format!("{verdict}\n{}", affirmative_contract(&audit.report));
+        // W3-F2 · this oracle reads no files: a composed workflow's clean
+        // answer SAYS its children went unjudged, on the prose lane too.
+        if !audit.verdict.judged.composition && !audit.verdict.children.is_empty() {
+            let _ = write!(
+                text,
+                "\n⚠ composition unjudged · {} child reference(s): {} — this oracle reads no files: audit each child by its own source, and the parent on disk with `nika check`",
+                audit.verdict.children.len(),
+                audit.verdict.children.join(" · ")
+            );
+        }
+        if verbose {
+            let obj = nika_cli_host::oracle::audit_json(
+                &audit.wf,
+                &audit.report,
+                &audit.skills,
+                &audit.verdict,
+                lanes,
+            )?;
+            let detail = serde_json::to_string_pretty(&obj)
+                .map_err(|e| format!("check report serialization failed: {e}"))?;
+            let _ = write!(text, "\n{detail}");
+        }
+        return Ok(text);
     }
-    Err(dirty_payload(
-        &report,
-        model_findings,
-        catalog_warnings,
-        grade,
-    ))
+    Err(dirty_payload(&audit, lanes))
 }
 
 /// The DIRTY render, out of `check` under the 100-line fn cap: the FULL
@@ -575,43 +573,21 @@ pub(crate) fn audit(yaml: &str, native_strict: bool) -> Result<String, String> {
 /// `Err` text, so the dispatcher flags `isError: true` and the harness
 /// repairs — the CLI's exit-2-on-dirty, mirrored (the `is_clean` law).
 fn dirty_payload(
-    report: &nika_check::CheckReport,
-    model_findings: Vec<Value>,
-    catalog_warnings: Vec<Value>,
-    grade: nika_check::RiskGrade,
+    audit: &nika_cli_host::oracle::Audit,
+    lanes: nika_cli_host::oracle::Lanes,
 ) -> String {
-    let mut payload = match serde_json::to_value(report) {
-        Ok(p) => p,
+    let mut payload = match nika_cli_host::oracle::audit_json(
+        &audit.wf,
+        &audit.report,
+        &audit.skills,
+        &audit.verdict,
+        lanes,
+    ) {
+        Ok(obj) => obj,
         Err(e) => return format!("check report serialization failed: {e}"),
     };
     let next_actions = finding_next_actions(&payload);
-    if let Some(obj) = payload.as_object_mut() {
-        // The same keys the CLI --json lane carries — the two machine
-        // lanes must not disagree (the is_clean mirror law).
-        obj.insert(
-            "models_resolve".to_owned(),
-            Value::Bool(model_findings.is_empty()),
-        );
-        // The same key the CLI `--json` lane stamps (lowercase wire word)
-        // — the two machine lanes must not disagree on the one verdict.
-        obj.insert(
-            "risk_grade".to_owned(),
-            Value::String(grade.as_str().to_owned()),
-        );
-        if !model_findings.is_empty() {
-            obj.insert("model_findings".to_owned(), Value::Array(model_findings));
-        }
-        // Presence-gated like the CLI twin (`models_catalog_warnings`) —
-        // the same key on both machine surfaces, one voice.
-        if !catalog_warnings.is_empty() {
-            obj.insert(
-                "models_catalog_warnings".to_owned(),
-                Value::Array(catalog_warnings),
-            );
-        }
-        nika_check::stamp_paid_ready(obj, &report.hints);
-        obj.insert("next_actions".to_owned(), next_actions);
-    }
+    payload.insert("next_actions".to_owned(), next_actions);
     match serde_json::to_string_pretty(&payload) {
         Ok(detail) => {
             format!("✖ findings — the workflow is not clean · the full check report:\n{detail}")
@@ -679,51 +655,20 @@ fn explain(args: &Value) -> Result<String, String> {
     // Same slot as the CLI (#1038): a HINT row prints `jq-as-map` /
     // `native-first/006` where a finding prints `NIKA-PARSE-019`.
     // Resolve before wrapping `NIKA-`.
-    if let Some(help) = nika_check::hint_help(code) {
-        return Ok(format!("{code} · hint\n\n  {help}"));
-    }
-    let normalized = if code.starts_with("NIKA-") {
-        code.to_owned()
+    // ADR-124 · one ladder, two doors: the host's four-rung explain
+    // (a hint kind · the registry · the spec rows · the namespaces),
+    // worded for THIS door — the fix an oracle-only agent can reach is
+    // `nika_check` with `fix: true`, never a shell (#1270).
+    let out = nika_cli_host::explain::run_for(
+        code,
+        nika_cli_host::Theme::new(false, true, false),
+        nika_cli_host::explain::Door::Oracle,
+    );
+    if out.code == 0 {
+        Ok(out.text)
     } else {
-        format!("NIKA-{code}")
-    };
-    // 1 · the numeric crate registry (`NIKA-440` · engine codes · code_help).
-    if let Some(c) = nika_error::codes::lookup(&normalized) {
-        return Ok(nika_error::codes::code_help(c).to_owned());
+        Err(out.text)
     }
-    // 2 · the spec conformance codes (`NIKA-VAR-*` · `NIKA-DAG-*` · what `nika
-    //     check` emits) from the embedded canon — the SSOT row, no network.
-    if let Some(row) = nika_pack::error_codes()
-        .into_iter()
-        .find(|r| r.code == normalized)
-    {
-        // The contract lesson rides here too (one voice with the CLI's
-        // canon row · gauntlet 2026-07-31: the CLI taught the SEC-004
-        // grant grammar while this tool answered a category and a URL).
-        let lesson = nika_error::codes::spec_contract_help(&normalized)
-            .map(|l| format!("\n\n{l}"))
-            .unwrap_or_default();
-        return Ok(format!(
-            "{normalized} · {} · transient: {}\n\n  {}{lesson}",
-            row.category, row.transient, row.failure
-        ));
-    }
-    // 3 · the runtime namespaces (per-builtin `NIKA-BUILTIN-<NAME>-<NNN>` ·
-    //     per-provider `NIKA-PROVIDER-<NNN>`) — valid in `on_codes:` and
-    //     emitted by failed runs, so the agent debugging a trace over MCP
-    //     gets the SAME teaching the CLI gives (one voice · shared text in
-    //     `nika-error::codes`). Gauntlet 2026-07-12: the CLI taught
-    //     NIKA-BUILTIN-PROMPT-001 while this tool said "unknown code".
-    if let Some(text) = nika_error::codes::namespace_help(&normalized, "docs.nika.sh/errors") {
-        return Ok(text);
-    }
-    Err(format!(
-        "unknown code `{code}` — the registry knows NIKA-001..9999, the spec \
-         codes (NIKA-VAR-* · NIKA-DAG-* · …), per-builtin \
-         NIKA-BUILTIN-<NAME>-NNN and per-provider NIKA-PROVIDER-NNN codes, \
-         and the hint kinds `nika check` prints in [brackets]; \
-         see docs.nika.sh/errors"
-    ))
 }
 
 #[cfg(test)]
@@ -1077,7 +1022,7 @@ mod tests {
         let (_, payload) = dirty_payload("");
         assert_eq!(
             payload["next_actions"],
-            json!(["nika explain NIKA-PARSE-002"]),
+            json!(["nika_explain NIKA-PARSE-002"]),
             "{payload:#}"
         );
         // Two PARSE-002 rows (missing `nika` · missing `tasks`) share one
@@ -1118,7 +1063,7 @@ mod tests {
         codes.dedup();
         let expected = codes
             .iter()
-            .map(|code| format!("nika explain {code}"))
+            .map(|code| format!("nika_explain {code}"))
             .collect::<Vec<_>>();
 
         assert!(
@@ -1442,6 +1387,75 @@ mod tests {
         assert!(
             out.contains("verbs") && out.contains("builtins"),
             "the canon SSOT covers verbs + builtins: {out}"
+        );
+    }
+
+    /// W3-F2 · this oracle reads no files: a composed workflow's CLEAN
+    /// answer says its children went unjudged, and names them.
+    #[test]
+    fn a_composed_workflows_clean_answer_names_its_unjudged_children() {
+        let parent =
+            "nika: parent\ntasks:\n  child:\n    invoke: { workflow: ./child.nika.yaml }\n";
+        let ok = execute(
+            "nika_check",
+            &json!({ "workflow": parent, "native_strict": false }),
+        )
+        .unwrap_or_else(|e| panic!("clean on the source: {e}"));
+        assert!(ok.contains("✔ clean"), "{ok}");
+        assert!(
+            ok.contains("composition unjudged") && ok.contains("./child.nika.yaml"),
+            "the clean answer names what it did not read: {ok}"
+        );
+        let verbose = execute(
+            "nika_check",
+            &json!({ "workflow": parent, "native_strict": false, "verbose": true }),
+        )
+        .expect("clean");
+        let start = verbose
+            .find('{')
+            .expect("the object rides the verbose answer");
+        let obj: Value = serde_json::from_str(&verbose[start..]).expect("valid JSON");
+        assert_eq!(obj["judged"]["composition"], false, "{obj:#}");
+        assert_eq!(
+            obj["judged"]["children"],
+            json!(["./child.nika.yaml"]),
+            "{obj:#}"
+        );
+    }
+
+    /// W3-F8 · `verbose: true` returns the verdict object on a clean answer
+    /// — the same keys a dirty answer carries; without it the answer stays
+    /// the prose line.
+    #[test]
+    fn verbose_returns_the_verdict_object_on_a_clean_answer() {
+        let yaml = "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+        let terse = execute("nika_check", &json!({ "workflow": yaml })).expect("clean");
+        assert!(!terse.contains("\"verdicts\""), "terse by default: {terse}");
+        let verbose =
+            execute("nika_check", &json!({ "workflow": yaml, "verbose": true })).expect("clean");
+        let start = verbose.find('{').expect("object");
+        let obj: Value = serde_json::from_str(&verbose[start..]).expect("valid JSON");
+        assert_eq!(obj["clean"], true, "{obj:#}");
+        assert_eq!(obj["verdicts"]["valid"], true, "{obj:#}");
+        assert!(
+            obj.get("risk_grade").is_some() && obj.get("judged").is_some(),
+            "{obj:#}"
+        );
+    }
+
+    /// W3-F7 · the oracle's next actions name the door an agent without a
+    /// shell can open.
+    #[test]
+    fn next_actions_name_the_oracles_own_door() {
+        let (_, payload) =
+            dirty_payload("nika: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n");
+        let actions = payload["next_actions"].as_array().expect("actions");
+        assert!(!actions.is_empty(), "{payload:#}");
+        assert!(
+            actions
+                .iter()
+                .all(|a| a.as_str().is_some_and(|s| s.starts_with("nika_explain "))),
+            "{actions:?}"
         );
     }
 }

@@ -107,6 +107,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::access::BillingClass wh
 #[non_exhaustive] pub enum nika_types::access::RejectionDimension
 pub nika_types::access::RejectionDimension::NotConfigured
 pub nika_types::access::RejectionDimension::NotLive
+pub nika_types::access::RejectionDimension::Outranked
 pub nika_types::access::RejectionDimension::PinUnsatisfied
 pub nika_types::access::RejectionDimension::ProviderNotAllowed
 impl nika_types::access::RejectionDimension
@@ -202,16 +203,69 @@ pub unsafe fn nika_types::access::RejectionLayer::clone_to_uninit(&self, dest: *
 impl<T> core::convert::From<T> for nika_types::access::RejectionLayer
 pub fn nika_types::access::RejectionLayer::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::RejectionLayer where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::access::Trust
+pub nika_types::access::Trust::Declared
+pub nika_types::access::Trust::Discovered
+pub nika_types::access::Trust::Observed
+impl nika_types::access::Trust
+pub const fn nika_types::access::Trust::as_str(self) -> &'static str
+pub const fn nika_types::access::Trust::from_evidence(class: nika_types::access::AccessClass, configured: bool, reachable: core::option::Option<bool>) -> Self
+impl core::clone::Clone for nika_types::access::Trust
+pub fn nika_types::access::Trust::clone(&self) -> nika_types::access::Trust
+impl core::cmp::Eq for nika_types::access::Trust
+impl core::cmp::Ord for nika_types::access::Trust
+pub fn nika_types::access::Trust::cmp(&self, other: &nika_types::access::Trust) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::access::Trust
+pub fn nika_types::access::Trust::eq(&self, other: &nika_types::access::Trust) -> bool
+impl core::cmp::PartialOrd for nika_types::access::Trust
+pub fn nika_types::access::Trust::partial_cmp(&self, other: &nika_types::access::Trust) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::access::Trust
+pub fn nika_types::access::Trust::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::Trust
+pub fn nika_types::access::Trust::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::Trust
+impl core::marker::StructuralPartialEq for nika_types::access::Trust
+impl serde_core::ser::Serialize for nika_types::access::Trust
+pub fn nika_types::access::Trust::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::Trust
+pub fn nika_types::access::Trust::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::Trust where U: core::convert::From<T>
+pub fn nika_types::access::Trust::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::Trust where U: core::convert::Into<T>
+pub type nika_types::access::Trust::Error = core::convert::Infallible
+pub fn nika_types::access::Trust::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::Trust where U: core::convert::TryFrom<T>
+pub type nika_types::access::Trust::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::Trust::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::Trust where T: core::clone::Clone
+pub type nika_types::access::Trust::Owned = T
+pub fn nika_types::access::Trust::clone_into(&self, target: &mut T)
+pub fn nika_types::access::Trust::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::Trust where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::Trust::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::Trust where T: ?core::marker::Sized
+pub fn nika_types::access::Trust::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::Trust where T: ?core::marker::Sized
+pub fn nika_types::access::Trust::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::Trust where T: core::clone::Clone
+pub unsafe fn nika_types::access::Trust::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::Trust
+pub fn nika_types::access::Trust::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::Trust where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::access::AccessPlan
 pub nika_types::access::AccessPlan::access: alloc::string::String
 pub nika_types::access::AccessPlan::billing: nika_types::access::BillingClass
 pub nika_types::access::AccessPlan::chosen: nika_types::access::AccessClass
 pub nika_types::access::AccessPlan::model: alloc::string::String
+pub nika_types::access::AccessPlan::outranked: alloc::vec::Vec<nika_types::access::AccessRejection>
 pub nika_types::access::AccessPlan::pinned: bool
 pub nika_types::access::AccessPlan::provider: alloc::string::String
 pub nika_types::access::AccessPlan::rejected: alloc::vec::Vec<nika_types::access::AccessRejection>
+pub nika_types::access::AccessPlan::trust: nika_types::access::Trust
 impl nika_types::access::AccessPlan
 pub fn nika_types::access::AccessPlan::new(model: impl core::convert::Into<alloc::string::String>, provider: impl core::convert::Into<alloc::string::String>, access: impl core::convert::Into<alloc::string::String>, chosen: nika_types::access::AccessClass, billing: nika_types::access::BillingClass, pinned: bool, rejected: alloc::vec::Vec<nika_types::access::AccessRejection>) -> Self
+pub fn nika_types::access::AccessPlan::with_outranked(self, outranked: alloc::vec::Vec<nika_types::access::AccessRejection>) -> Self
+pub const fn nika_types::access::AccessPlan::with_trust(self, trust: nika_types::access::Trust) -> Self
 impl core::clone::Clone for nika_types::access::AccessPlan
 pub fn nika_types::access::AccessPlan::clone(&self) -> nika_types::access::AccessPlan
 impl core::cmp::Eq for nika_types::access::AccessPlan

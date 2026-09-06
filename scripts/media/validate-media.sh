@@ -51,6 +51,11 @@ done
 
 # ── existence ───────────────────────────────────────────────────────────
 required=(
+  media/gifs/intent-to-impact.optimized.gif
+  media/videos/intent-to-impact.mp4
+  media/posters/intent-to-impact.png
+  media/storyboards/intent-to-impact.png
+  scripts/media/motion/intent-to-impact/README.md
   media/brand/nika-logomark.svg
   media/gifs/intent-dag-proof.optimized.gif
   media/gifs/full-loop.optimized.gif
@@ -91,6 +96,20 @@ for f in "${required[@]}"; do
     fail=1
   fi
 done
+
+# Product-film claims are tested as an illustration, not as a live workflow.
+if node --test scripts/media/motion/intent-to-impact/commerce-model.test.js; then
+  say "✔ product film topology, approval ordering and one-minute edit"
+else
+  fail=1
+fi
+if command -v ffprobe >/dev/null 2>&1 && \
+   [ "$(ffprobe -v error -show_entries format=duration -of csv=p=0 media/videos/intent-to-impact.mp4)" = "60.000000" ]; then
+  say "✔ product film MP4 is exactly 60 seconds"
+else
+  say "✖ product film duration must be 60 seconds (ffprobe required)"
+  fail=1
+fi
 
 # ── drawn-YAML honesty (the scenes may not speak a dead grammar) ────────
 # The motion scenes hand-draw YAML in span markup; this is where media

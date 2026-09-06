@@ -303,7 +303,8 @@ fn normalize_roots(roots: &[PathBuf]) -> Vec<PathBuf> {
 /// Walk the ancestors for `.git` — a DIR is a plain repo, a FILE is a
 /// worktree/submodule (`gitdir: <path>`); the gitdir target rides as
 /// the worktree identity. No shell out: the walk is the truth.
-fn find_git_root(start: &Path) -> Option<(PathBuf, Option<String>)> {
+#[must_use]
+pub fn find_git_root(start: &Path) -> Option<(PathBuf, Option<String>)> {
     for ancestor in start.ancestors() {
         let dot = ancestor.join(".git");
         if dot.is_dir() {

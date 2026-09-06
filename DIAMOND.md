@@ -84,7 +84,7 @@ minors), hard cap 100 ever — the count is projected
 Strict downward-only layering (L0 → L5):
 
 ```
-L5   nika                         binary, <500 LOC composition root
+L5   nika                         binary, <500 LOC composition root (the `nika` bin target already lives in nika-cli · ADR-135)
 L4   cli · daemon · serve · mcp-server · lsp · sdk · init · catalog-verify
 L3   runtime · shield · wasm-host · sandbox-{linux,macos,windows}
 L2   verb-{exec,invoke,infer,agent} · connectome (the Connectome

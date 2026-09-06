@@ -257,10 +257,12 @@ mod tests {
                 agent_events: Vec::new(),
                 evidence: None,
                 duration_ms: 0,
+                items: None,
                 result: RunResult::Failed {
                     error: TaskErrorRecord::new(code, message, false),
                     cost_usd: None,
                     cost_unpriced: None,
+                    access: None,
                 },
             })),
             named: BTreeMap::new(),

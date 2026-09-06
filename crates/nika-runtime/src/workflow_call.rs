@@ -136,6 +136,7 @@ where
                 return Dispatched::template_err(note, &err);
             }
             let mut ok = DispatchOk {
+                access: None,
                 value,
                 tokens: None,
                 warning: None,
@@ -186,11 +187,13 @@ where
                     format!("child workflow `{target}` failed: {message}{trace_note}"),
                     false,
                 ),
+                retry_forbidden: false,
                 cost_usd: out.cost_usd,
                 cost_source,
                 cost_unpriced: None,
                 // F-P6 · the child's own trace attests its steps.
                 evidence: None,
+                access: None,
             }),
         }
     }

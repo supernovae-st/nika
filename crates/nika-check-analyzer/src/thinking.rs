@@ -165,7 +165,10 @@ fn judged_seat(wf: &RawWorkflow, action: &RawInferAction) -> Option<String> {
 /// The catalog POSITIVELY knows this exact seat: a provider row (the
 /// binary's own teaching — nicknames + wire ids) or an EXACT pricing
 /// pattern. See the module doc for why fuzzy matches never count.
-fn catalog_knows(provider: &str, name: &str, judged: &str) -> bool {
+/// Shared by the thinking laws, the capacity laws and the hints: a
+/// seat the catalog never heard of gets NO claim from any of them.
+#[must_use]
+pub fn catalog_knows(provider: &str, name: &str, judged: &str) -> bool {
     let row_knows = nika_catalog::find_provider(provider)
         .is_some_and(|row| row.models.iter().any(|m| m.id == name || m.model == name));
     row_knows

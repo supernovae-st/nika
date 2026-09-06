@@ -983,9 +983,10 @@ mod tests {
     /// state (create · discover · continue), never three engine
     /// capabilities of equal weight (UX audit 2026-07-30 · three-door CTA
     /// spec). Create is the primary door and the first CTA in the chat —
-    /// the platform's Try now is a system CTA and is never duplicated —
-    /// and « Nothing runs automatically. » is persistent copy, not a
-    /// tooltip. Validation and trace diagnosis stay available BEHIND the
+    /// the platform's Try now is a system CTA and is never duplicated.
+    /// These entry prompts request previews or read-only inspection;
+    /// existing authorization is evaluated for the current user request.
+    /// Validation and trace diagnosis stay available BEHIND the
     /// Continue door; they no longer compete with first value.
     #[test]
     fn the_codex_manifest_opens_with_the_three_doors() {
@@ -1002,10 +1003,6 @@ mod tests {
         assert!(
             pos(create) < pos(discover) && pos(discover) < pos(cont),
             "create is the primary door — first in chat order"
-        );
-        assert!(
-            KIT_CODEX_MANIFEST.contains("Nothing runs automatically."),
-            "the safety line is persistent copy, not a tooltip"
         );
         // The retired capability trio (audit 2026-07-30): three internal
         // capabilities presented as equals. They moved behind Continue.

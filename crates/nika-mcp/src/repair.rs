@@ -23,8 +23,8 @@
 //! never text `check` could not read.
 
 use nika_cli_host::fix_ladder::{
-    MAX_ROUNDS, Refusal, Repair, StopNotes, apply_dead_form_arm, collect_typed_renames,
-    judge_round, splice, try_w2_hoist,
+    MAX_ROUNDS, Refusal, Repair, StopNotes, apply_dead_form_arm, apply_prepass,
+    collect_typed_renames, judge_round, splice, try_w2_hoist,
 };
 use serde_json::{Value, json};
 
@@ -67,6 +67,10 @@ pub(crate) fn repair(original: &str) -> Outcome {
         stop_notes: StopNotes(Vec::new()),
     };
     let mut refusals = Vec::new();
+    // ADR-124 · one ladder, two doors: the CLI's prepass (a bare `exec:`
+    // scalar · a `needs:` list) runs here too, so « the same ladder as
+    // `nika check --fix` » is true on this door.
+    apply_prepass(&mut round.source, &mut round.repairs, &mut round.stop_notes);
     for _ in 0..MAX_ROUNDS {
         let savepoint = round.clone();
         let progressed = one_round(&mut round);
@@ -383,6 +387,34 @@ mod tests {
     }
 
     /// `fix: false` (or absent) IS the plain audit — one answer, one voice.
+    /// ADR-124 · one ladder, two doors: the oracle's `fix: true` runs the
+    /// CLI's prepass — a bare `exec:` scalar (the foreign form the parser
+    /// refuses) becomes the argv mapping and the re-audit is green.
+    #[test]
+    fn fix_runs_the_prepass_the_cli_runs() {
+        let broken = "nika: w\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: echo hi\n";
+        let payload = |text: String| -> Value {
+            let start = text.find('{').expect("the fix answer is a JSON object");
+            serde_json::from_str(&text[start..]).expect("valid fix JSON")
+        };
+        let out = execute(
+            "nika_check",
+            &json!({ "workflow": broken, "fix": true, "native_strict": false }),
+        )
+        .map(payload)
+        .map_err(payload)
+        .expect("the re-audit is green");
+        assert_eq!(out["clean"], true, "{out:#}");
+        let healed = out["workflow"].as_str().expect("the repaired source");
+        assert!(healed.contains("command: [\"echo\", \"hi\"]"), "{healed}");
+        let rows = out["repairs"].as_array().expect("repair rows");
+        assert!(
+            rows.iter()
+                .any(|r| r["kind"] == "bare-exec" && r["applied"] == true),
+            "{out:#}"
+        );
+    }
+
     #[test]
     fn fix_false_is_the_plain_audit() {
         let wf = "nika: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";

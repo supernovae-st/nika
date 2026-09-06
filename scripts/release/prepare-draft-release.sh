@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
-# Reuse an exact existing release (including validation-only public replay),
-# and create a new draft only on an explicit 404.
+# Reuse an exact existing release (draft or published, including a
+# validation-only public replay), and create a new draft only when the
+# release list carries no release for the tag.
+#
+# GitHub's by-tag endpoint (`releases/tags/<tag>`) returns PUBLISHED releases
+# only: a draft that carries the tag answers 404 there. v0.118.0 died on
+# exactly that (2026-09-04): this script created its draft, looked it up by
+# tag, read 404, and the train stopped with four green builds and no assets.
+# The release LIST carries drafts for a token with push access, so the lookup
+# reads the list and matches the tag exactly. An empty list answer is the
+# only absence; any failure of the list call is a barrier, never an absence.
+# Creation retains the POST response's immutable id: list visibility can lag
+# the committed draft (v0.118.1), and is not a read-after-write guarantee.
 set -euo pipefail
 
 if [ "$#" -ne 4 ]; then
@@ -19,9 +30,23 @@ bash "$here/resolve-release-tag.sh" "$tag" "$repo" "$expected_sha" >/dev/null
 
 scratch="$(mktemp -d)"
 trap 'rm -r "$scratch"' EXIT
-if gh api "repos/${repo}/releases/tags/${tag}" --jq '.id' \
-  >"$scratch/release" 2>"$scratch/error"; then
-  release_id="$(tr -d '\r\n' <"$scratch/release")"
+
+# The id of the one release (draft or published) carrying the tag, or nothing.
+# The list is read whole (`--paginate`, the house shape of every list read
+# here) and answered by one jq expression per page: no pager, no `head`,
+# nothing that could turn a SIGPIPE into a verdict.
+lookup_release_id() {
+  gh api "repos/${repo}/releases" --paginate \
+    --jq "[.[] | select(.tag_name == \"${tag}\")] | map(.id) | first // empty" \
+    2>"$scratch/error"
+}
+
+if ! release_id="$(lookup_release_id)"; then
+  echo "release barrier: release lookup failed (the release list did not answer)" >&2
+  cat "$scratch/error" >&2
+  exit 69
+fi
+if [ -n "$release_id" ]; then
   state="$(bash "$here/read-release-state.sh" \
     "$repo" "$release_id" "$tag" "$expected_sha")"
   draft="$(printf '%s\n' "$state" | sed -n 's/^draft=//p')"
@@ -31,37 +56,24 @@ if gh api "repos/${repo}/releases/tags/${tag}" --jq '.id' \
   exit 0
 fi
 
-explicit_release_absence() {
-  local error_file="$1"
-  local statuses
-  statuses="$(grep -Eo '\(HTTP [0-9]{3}\)' "$error_file" || true)"
-  printf '%s\n' "$statuses" | grep -Fqx '(HTTP 404)' \
-    && ! printf '%s\n' "$statuses" | grep -Fvx '(HTTP 404)' | grep -q . \
-    && ! grep -Eqi 'unauthori[sz]ed|forbidden|authentication required|access denied' \
-      "$error_file"
-}
-
-if ! explicit_release_absence "$scratch/error"; then
-  echo "release barrier: release lookup failed (not an explicit HTTP 404)" >&2
-  cat "$scratch/error" >&2
-  exit 69
-fi
-
 version="${tag#v}"
 prerelease=false
 case "$version" in
   *-*) prerelease=true ;;
 esac
-create_args=(
-  release create "$tag" --repo "$repo" --title "$tag"
-  --notes-file "$notes" --generate-notes --verify-tag --draft
-  --target "$expected_sha"
-)
-if [ "$prerelease" = true ]; then
-  create_args+=(--prerelease)
+# The tag was resolved before the mutation and read-release-state proves it
+# again afterwards. Creation routing is pinned, but never used as the existing
+# release's identity. Preserve gh's notes-prepending behavior through the API.
+if ! release_id="$(gh api "repos/${repo}/releases" --method POST \
+  --raw-field "tag_name=$tag" --raw-field "name=$tag" \
+  --raw-field "target_commitish=$expected_sha" \
+  --field draft=true --field "prerelease=$prerelease" \
+  --field generate_release_notes=true --field "body=@$notes" \
+  --jq '.id' 2>"$scratch/error")"; then
+  echo "release barrier: draft creation failed; inspect committed state before retrying" >&2
+  cat "$scratch/error" >&2
+  exit 69
 fi
-gh "${create_args[@]}" >/dev/null
-release_id="$(gh api "repos/${repo}/releases/tags/${tag}" --jq '.id')"
 state="$(bash "$here/read-release-state.sh" \
   "$repo" "$release_id" "$tag" "$expected_sha")"
 [ "$(printf '%s\n' "$state" | sed -n 's/^draft=//p')" = true ] || {

@@ -87,7 +87,10 @@ if [ -s "$scratch/updated" ]; then
 fi
 printf '%s%s -->\n' "$marker_prefix" "$candidate" >>"$scratch/updated"
 patch_failed=false
+# A body-only PATCH orphaned the 0.118.5 draft on GitHub. Carry the already
+# proven coordinate explicitly; the post-write read still refuses any drift.
 if ! gh api --method PATCH "repos/${repo}/releases/${release_id}" \
+  -f "tag_name=$tag" -f "target_commitish=$sha" \
   -f "body=$(cat "$scratch/updated")" >/dev/null; then
   patch_failed=true
 fi
@@ -96,8 +99,8 @@ state=0
 committed="$(read_marker "$scratch/committed")" || state=$?
 [ "$state" -eq 0 ] || {
   [ "$patch_failed" = false ] \
-    && echo "release digest: marker write returned success but did not commit" >&2 \
-    || echo "release digest: marker write failed and did not commit" >&2
+    && echo "release digest: marker write returned success but committed identity/marker could not be verified" >&2 \
+    || echo "release digest: marker write failed and committed identity/marker could not be verified" >&2
   exit 69
 }
 [ "$committed" = "$candidate" ] || {

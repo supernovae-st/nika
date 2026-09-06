@@ -662,7 +662,8 @@ fn read_json(path: &Path) -> Option<Value> {
 /// (the raw `var_os` is lint-denied crate-wide) — every surface that
 /// needs `~` comes through here.
 #[allow(clippy::disallowed_methods)]
-pub(crate) fn home_dir() -> Option<PathBuf> {
+#[must_use]
+pub fn home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
@@ -945,7 +946,7 @@ impl AdoptionState {
                     .seats_ready
                     .first()
                     .map_or("a seat", String::as_str);
-                format!("seat ready · {seat} signed in")
+                format!("seat ready · {seat} present (its login is judged at run)")
             }
             Self::RealReady => {
                 let path = if probe
@@ -953,7 +954,7 @@ impl AdoptionState {
                     .iter()
                     .any(|(_, _, s)| matches!(s, PingState::Reachable(_)))
                 {
-                    "endpoint verified"
+                    "endpoint answered"
                 } else if probe.census.seats_ready.is_empty() {
                     "path configured"
                 } else {

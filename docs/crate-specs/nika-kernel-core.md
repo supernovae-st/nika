@@ -40,3 +40,31 @@ keep importing through the `nika-kernel` facade.
 - NO dependency on any other kernel sibling (the base of the DAG).
 - `#[non_exhaustive]` ratchet + sealed-trait contract unchanged.
 - New io/infra traits land HERE (never in the hub).
+
+## 4. Filesystem backend migration
+
+`FsWrite::write_new(path, contents)` is a provided method, also present on
+the generated `FsWriteDyn` Send companion. It requests publication of complete
+bytes at an unoccupied destination. It is distinct from `write`, which keeps
+its existing create-or-replace contract. No workflow argument or result type
+is introduced by this Rust interface addition.
+
+The default returns `FsError::Io` without invoking `write`, `create_dir_all`,
+or `remove_file`. Backends implementing only those original three methods
+remain source-compatible. They refuse `nika:write` with `overwrite:false`
+until they implement the exclusive operation; they must never simulate it
+with a separate `exists` check and a replacing write. Backend wrappers must
+forward the new method, or they retain the unsupported default even when
+their inner backend implements it.
+
+Implementations report `FsError::AlreadyExists` for an occupied destination
+without changing that entry. A successful exclusive publication does not by
+itself promise `fsync`, cancellation quiescence, or a multi-file transaction.
+A caller abandoning the future cannot infer absence of effects from that
+action alone. Each implementation documents its commit and cleanup behavior.
+
+`io/fs/legacy_write_tests.rs` defines separate base and Send backends with
+only the original three methods. Immediate polling checks that both refuse
+without touching operation counters, including the Send backend's generated
+base implementation. These are interface/default checks, not real IO or
+runtime cancellation tests.

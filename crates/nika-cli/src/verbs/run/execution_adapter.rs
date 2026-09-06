@@ -12,6 +12,10 @@ pub(super) struct AdmittedWorld {
     pub(super) execution_id: nika_types::id::ExecutionId,
     pub(super) trace_id: nika_types::id::TraceId,
     pub(super) snapshot_digest: String,
+    snapshot: nika_execution::ExecutionSnapshot,
+    display_root: std::path::PathBuf,
+    task_scope: Option<String>,
+    trace: bool,
 }
 
 impl AdmittedWorld {
@@ -23,9 +27,10 @@ impl AdmittedWorld {
         let execution_id = context.execution_id();
         let trace_id = context.trace_id();
         let snapshot_digest = context.snapshot().digest().to_owned();
+        let snapshot = context.snapshot().clone();
         let driver = nika_service_execution::ServiceExecutionDriver::for_local_interface(
             context,
-            display_root,
+            display_root.clone(),
         )?
         .with_child_trace_factory(std::sync::Arc::new(
             child_runner::CliChildTraceFactory::new(trace),
@@ -35,7 +40,43 @@ impl AdmittedWorld {
             execution_id,
             trace_id,
             snapshot_digest,
+            snapshot,
+            display_root,
+            task_scope: None,
+            trace,
         })
+    }
+
+    fn with_task_scope(
+        mut self,
+        scope: Option<&str>,
+        output_json: bool,
+    ) -> Result<Self, Box<RunVerdict>> {
+        self.driver = self.driver.with_task_scope(scope).map_err(|message| {
+            epilogue::emit_diagnostic(&message, output_json);
+            Box::new(RunVerdict::bare(exit::ENV))
+        })?;
+        self.task_scope = scope.map(ToOwned::to_owned);
+        Ok(self)
+    }
+
+    /// A gate answer starts a new execution leg over the captured world.
+    /// Only the engine admission service mints its execution/trace identity;
+    /// the CLI keeps the same bytes, scope and trace policy across legs.
+    pub(super) fn readmit_leg(
+        &self,
+        model_override: Option<&str>,
+        output_json: bool,
+    ) -> Result<(nika_execution::ExecutionSession, Self), Box<RunVerdict>> {
+        let service = nika_execution::ExecutionService::default();
+        let admitted = service
+            .readmit_snapshot_with_model_override(self.snapshot.clone(), model_override)
+            .map_err(|error| Box::new(admission_refusal(&error, output_json)))?;
+        let session = service.begin(admitted);
+        let world = Self::from_context(session.context(), self.display_root.clone(), self.trace)
+            .ok_or_else(|| Box::new(admitted_root_refusal(output_json)))?
+            .with_task_scope(self.task_scope.as_deref(), output_json)?;
+        Ok((session, world))
     }
 }
 
@@ -56,7 +97,6 @@ struct CliExecutionRequest<'a> {
     task_filter: Option<&'a str>,
     no_outputs: bool,
     max_cost_usd: Option<f64>,
-    interruptible: bool,
 }
 
 /// ARM's in-process adapter over exact service-admitted bytes; it never reopens
@@ -84,7 +124,6 @@ pub(crate) fn run_arm_context(
         task_filter: None,
         no_outputs: false,
         max_cost_usd: Some(max_cost_usd),
-        interruptible: false,
     };
     run_admitted_context(context, &request, display_root)
 }
@@ -105,7 +144,6 @@ pub(super) fn run_admitted(
     task_filter: Option<&str>,
     no_outputs: bool,
     max_cost_usd: Option<f64>,
-    interruptible: bool,
 ) -> RunVerdict {
     let (project, root, display_root) = match execution_project(file) {
         Ok(parts) => parts,
@@ -115,7 +153,7 @@ pub(super) fn run_admitted(
         }
     };
     let service = nika_execution::ExecutionService::default();
-    let admitted = match admit_source(&service, &project, &root, preview) {
+    let admitted = match admit_source(&service, &project, &root, preview, model_override) {
         Ok(admitted) => admitted,
         Err(error) => return admission_refusal(&error, output_json),
     };
@@ -142,7 +180,6 @@ pub(super) fn run_admitted(
         task_filter,
         no_outputs,
         max_cost_usd,
-        interruptible,
     };
     let session = service.begin(admitted);
     let outcome = run_admitted_context(session.context(), &request, display_root);
@@ -155,11 +192,17 @@ pub(super) fn admit_source(
     project: &nika_fs::OwnedDir,
     root: &std::path::Path,
     source: &crate::verbs::RunSource,
+    model_override: Option<&str>,
 ) -> Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError> {
     if source.logical_path() == "-" {
-        service.admit_root_bytes(project, root, source.source().as_bytes())
+        service.admit_root_bytes_with_model_override(
+            project,
+            root,
+            source.source().as_bytes(),
+            model_override,
+        )
     } else {
-        service.admit(project, root)
+        service.admit_with_model_override(project, root, model_override)
     }
 }
 
@@ -172,7 +215,7 @@ fn run_admitted_context(
     else {
         return admitted_root_refusal(request.output_json);
     };
-    let world = match admitted_program(world, request) {
+    let world = match world.with_task_scope(request.task_filter, request.output_json) {
         Ok(world) => world,
         Err(verdict) => return *verdict,
     };
@@ -183,6 +226,12 @@ fn run_admitted_context(
         Err(code) => return RunVerdict::bare(code),
     };
     let source = world.driver.root_source();
+    // One Door · wave 1: the access plan is resolved ONCE per attempt —
+    // the dry-run preview, the composer, the announce, the resume
+    // judgment and the admission belt all PROJECT this value.
+    let plan = world
+        .driver
+        .resolve_access_plan(request.model_override, request.access_pin);
     if request.dry_run {
         return dry_run::lane(
             request.file,
@@ -192,7 +241,7 @@ fn run_admitted_context(
             world.driver.skills(),
             request.repair_target,
             request.model_override,
-            request.access_pin,
+            &plan,
             request.json,
             request.theme,
             request.output_json,
@@ -212,32 +261,30 @@ fn run_admitted_context(
         &wf,
         source,
         request.model_override,
-        request.output_json,
+        (&plan, request.access_pin),
+        request.output_json || request.json,
     ) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
+    let cancel = nika_types::cancel::CancelCtx::new();
     let runtime = match composed_runtime(
         request.model_override,
-        request.access_pin,
+        &plan,
         inputs,
         setup,
         request.max_cost_usd,
         (request.no_trace_file, request.output_json),
         &world,
     ) {
-        Ok(runtime) => runtime,
+        // #1438 · ONE cancel context: the driver flips it on the first signal.
+        Ok(runtime) => runtime.with_cancel(cancel.clone()),
         Err(code) => return RunVerdict::bare(code),
     };
-    announce_access_pin(
-        request.access_pin,
-        (request.json, request.output_json),
-        request.mode,
-        &report,
-    );
+    announce_access(&plan, (request.json, request.output_json), request.mode);
     execute_and_ask(
         &runtime,
-        (request.file, source),
+        request.file,
         (&wf, &report),
         request.resume.is_some_and(|resume| resume.trace.is_some()),
         request.vars,
@@ -252,23 +299,9 @@ fn run_admitted_context(
             request.no_trace_file,
             request.no_outputs,
         ),
-        request.interruptible,
+        &cancel,
         &world,
     )
-}
-
-fn admitted_program(
-    mut world: AdmittedWorld,
-    request: &CliExecutionRequest<'_>,
-) -> Result<AdmittedWorld, Box<RunVerdict>> {
-    world.driver = world
-        .driver
-        .with_task_scope(request.task_filter)
-        .map_err(|message| {
-            epilogue::emit_diagnostic(&message, request.output_json);
-            Box::new(RunVerdict::bare(exit::ENV))
-        })?;
-    Ok(world)
 }
 
 fn admitted_root_refusal(output_json: bool) -> RunVerdict {
@@ -343,6 +376,83 @@ mod tests {
     use super::*;
 
     #[test]
+    fn model_override_reaches_file_and_stdin_admission() {
+        let directory = tempfile::tempdir().expect("execution project");
+        let bytes = b"nika: override\nmodel: openai/gpt-5.2\npermits: {}\ntasks:\n  answer:\n    infer: { prompt: hi, max_tokens: 32 }\n";
+        let project = nika_fs::OwnedDir::open(directory.path()).expect("held project");
+        let service = nika_execution::ExecutionService::default();
+        for logical in ["root.nika.yaml", "-"] {
+            if logical != "-" {
+                std::fs::write(directory.path().join(logical), bytes).expect("root bytes");
+            }
+            let source =
+                crate::verbs::RunSource::from_bytes(logical, bytes.to_vec()).expect("UTF-8 source");
+            let root = std::path::Path::new(logical);
+            assert!(admit_source(&service, &project, root, &source, None).is_err());
+            let admitted = admit_source(&service, &project, root, &source, Some("mock/echo"))
+                .expect("effective override admits the tiny cap");
+            assert_eq!(admitted.snapshot().bytes(logical), Some(bytes.as_slice()));
+        }
+        assert!(!directory.path().join("-").exists());
+    }
+
+    #[test]
+    fn answered_worlds_readmit_captured_bytes_and_task_scope_with_fresh_identities() {
+        let directory = tempfile::tempdir().expect("execution project");
+        let root = directory.path().join("root.nika.yaml");
+        let source = "nika: root\nmodel: openai/gpt-5.2\npermits: {}\ntasks:\n  chosen:\n    infer: { prompt: captured, max_tokens: 32 }\n  unrelated:\n    infer: { prompt: excluded }\n";
+        std::fs::write(&root, source).expect("original workflow");
+        let project = nika_fs::OwnedDir::open(directory.path()).expect("held project");
+        let service = nika_execution::ExecutionService::default();
+        let admitted = service
+            .admit_with_model_override(
+                &project,
+                std::path::Path::new("root.nika.yaml"),
+                Some("mock/echo"),
+            )
+            .expect("original world admits");
+        let session = service.begin(admitted);
+        let world =
+            AdmittedWorld::from_context(session.context(), directory.path().to_path_buf(), true)
+                .expect("root world")
+                .with_task_scope(Some("chosen"), false)
+                .ok()
+                .expect("chosen task scopes");
+        std::fs::remove_file(&root).expect("remove visible workflow");
+        assert!(
+            world.readmit_leg(None, false).is_err(),
+            "dropping the override refuses the tiny model cap"
+        );
+        let mut executions = vec![world.execution_id];
+        let mut traces = vec![world.trace_id];
+        for _ in 0..2 {
+            let (leg, answered) = world
+                .readmit_leg(Some("mock/echo"), false)
+                .ok()
+                .expect("captured world readmits without a pathname");
+            assert!(!executions.contains(&answered.execution_id));
+            assert!(!traces.contains(&answered.trace_id));
+            executions.push(answered.execution_id);
+            traces.push(answered.trace_id);
+            assert_eq!(answered.execution_id, leg.context().execution_id());
+            assert_eq!(
+                answered.trace_id,
+                nika_types::id::TraceId::from(answered.execution_id)
+            );
+            assert_eq!(answered.driver.execution_id(), answered.execution_id);
+            assert_eq!(answered.snapshot_digest, world.snapshot_digest);
+            assert_eq!(answered.driver.root_source(), source);
+            assert_eq!(answered.driver.workflow().tasks.len(), 1);
+            assert_eq!(answered.driver.workflow().tasks[0].value.id.value, "chosen");
+            let verdict = leg.complete(());
+            assert_eq!(verdict.execution_id(), answered.execution_id);
+            assert_eq!(verdict.trace_id(), answered.trace_id);
+        }
+        assert_eq!(executions.len(), 3);
+        assert_eq!(traces.len(), 3);
+    }
+
+    #[test]
     fn invalid_dry_run_override_does_not_reopen_root() {
         let directory = tempfile::tempdir().expect("execution project");
         let root = directory.path().join("root.nika.yaml");
@@ -376,7 +486,6 @@ mod tests {
             task_filter: None,
             no_outputs: false,
             max_cost_usd: None,
-            interruptible: false,
         };
         let session = service.begin(admitted);
         let outcome =

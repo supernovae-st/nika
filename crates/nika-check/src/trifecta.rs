@@ -271,11 +271,11 @@ mod tests {
         assert_eq!(r.trifecta_findings.len(), 1, "{:?}", r.trifecta_findings);
         let d = &r.trifecta_findings[0].detail;
         assert!(
-            d.contains("the blocking gate `approve` does not dominate it"),
+            d.contains("the blocking gate `approve` does not dominate `leak`"),
             "the existing gate is NAMED: {d}"
         );
         assert!(
-            d.contains("the edge from `fetch_page` reaches `leak` without crossing the gate"),
+            d.contains("its parent `fetch_page` reaches it without crossing the gate"),
             "the bypassing edge is named: {d}"
         );
         assert!(
@@ -283,7 +283,7 @@ mod tests {
             "the rule itself is spoken: {d}"
         );
         assert!(
-            d.contains("fix: place the blocking `invoke: nika:prompt` upstream of `fetch_page`"),
+            d.contains("place it upstream of `fetch_page`"),
             "the placement that works is taught — upstream of the ingress: {d}"
         );
         // And the gate placed THERE goes clean (the taught fix, applied,
@@ -313,6 +313,71 @@ mod tests {
         assert!(
             !d.contains("gate the egress path"),
             "the defeated placement is no longer taught: {d}"
+        );
+    }
+
+    /// #1394 — the gauntlet's shape: a private read AND an untrusted
+    /// fetch both feed the egress through `with:`. The old first refusal
+    /// said « upstream of `fetch_untrusted` »; a gate placed exactly there
+    /// still lost to the data edge from `read_secret`. The judge names
+    /// EVERY entry the gate must precede, and the applied placement is
+    /// clean.
+    #[test]
+    fn the_first_refusal_names_every_entry_the_gate_must_precede() {
+        let y = "nika: t\npermits:\n  fs: { read: [\"./secrets/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:read\", \"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  read_secret:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"./secrets/key.txt\" }\n  fetch_untrusted:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/page\" }\n  write_both:\n    with: { a: \"${{ tasks.read_secret.output }}\", b: \"${{ tasks.fetch_untrusted.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/both.txt\", content: \"${{ with.a }} ${{ with.b }}\" }\n";
+        let r = report(y);
+        assert_eq!(r.trifecta_findings.len(), 1, "{:?}", r.trifecta_findings);
+        let d = &r.trifecta_findings[0].detail;
+        assert!(
+            d.contains("must dominate EVERY path to `write_both`, data edges (`with:`) included"),
+            "the dominance rule is stated in full on the FIRST refusal: {d}"
+        );
+        assert!(
+            d.contains("upstream of `read_secret` and `fetch_untrusted`"),
+            "every entry the gate must precede is named: {d}"
+        );
+        assert!(
+            d.contains("`permits.tools`") && d.contains("`when:`") && d.contains("`with:`"),
+            "the whole repair shape is one sentence: {d}"
+        );
+        // The taught placement, applied: a gate both entries wait on.
+        let gated = y.replace(
+            "tasks:\n  read_secret:\n",
+            "tasks:\n  approve:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"read and fetch?\" }\n  read_secret:\n    after: { approve: success }\n",
+        ).replace(
+            "  fetch_untrusted:\n    invoke:",
+            "  fetch_untrusted:\n    after: { approve: success }\n    invoke:",
+        );
+        assert!(
+            report(&gated).trifecta_findings.is_empty(),
+            "a gate upstream of every entry dominates: {:?}",
+            report(&gated).trifecta_findings
+        );
+    }
+
+    /// #1399 — a purely local shell pipeline trips the trifecta because an
+    /// exec output is untrusted ingress and an exec grant is external
+    /// egress. The finding SAYS so, and the bypass sentence names a
+    /// PARENT, never a second « source » that reads as a contradiction.
+    #[test]
+    fn a_local_shell_pipeline_names_its_legs_and_speaks_of_a_parent() {
+        let y = "nika: etl\npermits:\n  fs: { read: [\"./data/**\"], write: [\"./out/**\"] }\n  exec: true\n  tools: [\"nika:prompt\"]\ntasks:\n  extract:\n    exec: { command: [\"cat\", \"./data/in.csv\"] }\n  gate:\n    after: { extract: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"load?\" }\n  transform:\n    after: { gate: success }\n    with: { rows: \"${{ tasks.extract.output }}\" }\n    exec: { command: [\"sort\"], stdin: \"${{ with.rows }}\" }\n";
+        let r = report(y);
+        assert_eq!(r.trifecta_findings.len(), 1, "{:?}", r.trifecta_findings);
+        let d = &r.trifecta_findings[0].detail;
+        assert!(
+            d.contains("legs here:")
+                && d.contains("`permits.exec` (an exec output is untrusted content)")
+                && d.contains("`permits.exec` (a program reaches anywhere)"),
+            "why the three legs are legs HERE is spoken: {d}"
+        );
+        assert!(
+            d.contains("its parent `extract` reaches it without crossing the gate"),
+            "the bypass names a PARENT, not a second source: {d}"
+        );
+        assert!(
+            !d.contains("the edge from"),
+            "the contradictory phrasing is gone: {d}"
         );
     }
 

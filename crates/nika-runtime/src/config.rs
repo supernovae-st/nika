@@ -45,6 +45,25 @@ pub struct RuntimeConfig {
     /// on `workflow_started` so a sealed trace SHOWS the operator chose
     /// it. `false` in every other posture (nothing was waived).
     pub sandbox_waived: bool,
+    /// The fingerprint of the project root this run belongs to (blake3 of
+    /// the canonical root path · [`project_root_fingerprint`]): stamped on
+    /// the opening frame so a trace can only be resumed from the project
+    /// that wrote it (#1367).
+    pub project_root_fingerprint: Option<String>,
+}
+
+/// The ONE fingerprint of a project root — blake3 of its canonical path —
+/// computed by the composition root when it stamps a run and by the resume
+/// door when it judges a trace. A root that cannot be canonicalized has no
+/// fingerprint (an older trace's case: no claim, no refusal).
+#[must_use]
+pub fn project_root_fingerprint(root: &std::path::Path) -> Option<String> {
+    let canonical = std::fs::canonicalize(root).ok()?; // seam-bypass-ok: the root's identity, read once at composition — the same path the CLI canonicalizes to judge a resume (#1367); no effect, no clock, no entropy
+    Some(
+        blake3::hash(canonical.to_string_lossy().as_bytes())
+            .to_hex()
+            .to_string(),
+    )
 }
 
 impl RuntimeConfig {
@@ -59,7 +78,15 @@ impl RuntimeConfig {
             sandbox_backend: None,
             sandbox_policy: None,
             sandbox_waived: false,
+            project_root_fingerprint: None,
         }
+    }
+
+    /// Bind the run to `root` (the project the sandbox admits).
+    #[must_use]
+    pub fn with_project_root(mut self, root: &std::path::Path) -> Self {
+        self.project_root_fingerprint = project_root_fingerprint(root);
+        self
     }
 
     /// Attach an operator run budget (builder — `new()` stays stable).

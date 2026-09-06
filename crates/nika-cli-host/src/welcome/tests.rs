@@ -563,7 +563,7 @@ fn the_mirror_greets_each_adoption_rung_with_its_own_cta() {
     let seat = render_human(&seated, glance, counts(), plain());
     assert!(
         seat.contains(
-            "state      seat ready · claude-code signed in — runs on the plan you pay for"
+            "state      seat ready · claude-code present (its login is judged at run) — runs on the plan you pay for"
         ),
         "SeatReady names the seat and the plan:\n{seat}"
     );

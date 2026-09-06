@@ -334,6 +334,14 @@ grep -q -- '--ref main' "$ROOT/RELEASING.md" \
   || fail 'the canonical replay ceremony does not select current guards'
 grep -q -- '--ref main' "$ROOT/docs/RELEASING.md" \
   || fail 'the public replay guide does not select current guards'
+grep -Fq '[RELEASING.md at the repository root](../RELEASING.md)' "$ROOT/docs/RELEASING.md" \
+  || fail 'the secondary release page must point to the canonical ceremony'
+grep -Fq 'not a second executable release recipe' "$ROOT/docs/RELEASING.md" \
+  || fail 'the secondary release page must identify its index-only authority'
+if grep -Eq 'git tag --sort|release renames the seed|git subtree split|npm publish --access' \
+  "$ROOT/docs/RELEASING.md"; then
+  fail 'the release index revives a retired identity or publication recipe'
+fi
 for label in \
   org.opencontainers.image.revision \
   org.opencontainers.image.version \
@@ -347,8 +355,9 @@ fi
 release_job="$(sed -n '/^  release-draft:/,/^  native-attest:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$release_job" | grep -q 'prepare-draft-release.sh' \
-  || fail 'the GitHub release is not prepared through the 404-only draft guard'
-if grep -q 'target_commitish' "$ROOT/scripts/release/prepare-draft-release.sh"; then
+  || fail 'the GitHub release is not prepared through the immutable-id draft guard'
+if grep -q 'target_commitish' "$ROOT/scripts/release/read-release-state.sh" \
+  "$ROOT/scripts/release/resolve-release-tag.sh"; then
   fail 'existing release identity still trusts target_commitish'
 fi
 native_attest_job="$(sed -n '/^  native-attest:/,/^  provenance:/p' \
@@ -381,10 +390,16 @@ provenance_job="$(sed -n '/^  provenance:/,/^  provenance-publish:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$provenance_job" | grep -q 'upload-assets: false' \
   || fail 'the upstream SLSA uploader can delete and replace occupied provenance'
-printf '%s\n' "$provenance_job" | grep -q '^      contents: read' \
-  || fail 'the SLSA generator lacks read-only repository identity access'
-if printf '%s\n' "$provenance_job" | grep -q '^      contents: write'; then
-  fail 'the SLSA generator retains unnecessary release write authority'
+# GitHub validates a reusable workflow's nested job permissions when the
+# workflow is CALLED, before `upload-assets: false` skips the uploader: the
+# generator declares `contents: write` on that job, so the caller must grant
+# it — v0.117.0 died at startup on `contents: read` (#1419). The authority
+# stays idle by construction (the uploader never runs) and the isolated
+# converge job owns every release upload.
+printf '%s\n' "$provenance_job" | grep -q '^      contents: write' \
+  || fail 'the SLSA generator call grants less than its nested upload-assets job declares (startup_failure · #1419)'
+if printf '%s\n' "$provenance_job" | grep -q '^      contents: read'; then
+  fail 'a read-only grant on the SLSA generator call fails at startup (#1419)'
 fi
 printf '%s\n' "$provenance_job" | grep -q "if: github.event_name == 'push'" \
   || fail 'manual replay can generate branch-context provenance for an old tag'
@@ -465,7 +480,6 @@ for proof in \
   verify-release-attestations.sh \
   verify-slsa-provenance.sh \
   npm-publish-immutable.sh \
-  release-digest-marker.sh \
   oci-coordinate-immutable.sh \
   verify-oci-payload.sh; do
   printf '%s\n' "$final_proof_job" | grep -q "$proof" \
@@ -586,8 +600,8 @@ printf '%s\n' "$latest_job" | grep -q 'GH_TOKEN:.*github.token' \
   || fail 'GHCR latest first-party gh calls lack GH_TOKEN'
 docker_job="$(sed -n '/^  docker:/,/^  oci-proof:/p' \
   "$ROOT/.github/workflows/release.yml")"
-printf '%s\n' "$docker_job" | grep -q 'release-digest-marker.sh' \
-  || fail 'the digest builder cannot read an already-durable marker'
+printf '%s\n' "$docker_job" | grep -q 'needs.release-draft.outputs.oci-digest' \
+  || fail 'the digest builder does not consume the draft owner marker input'
 printf '%s\n' "$docker_job" | grep -q '^      contents: read' \
   || fail 'the digest builder lacks contents read authority'
 printf '%s\n' "$docker_job" | grep -q '^      packages: write' \
@@ -637,7 +651,10 @@ contents_write_jobs="$(awk '
   }
   /^      contents: write/ { print job }
 ' "$ROOT/.github/workflows/release.yml")"
-[ "$contents_write_jobs" = $'release-draft\noci-marker\nrelease-assets-converge\nfinalize' ] \
+# `provenance` holds the write the SLSA generator's nested uploader
+# declares (#1419 · validated by GitHub when the reusable workflow is
+# called); `upload-assets: false` keeps that authority idle by construction.
+[ "$contents_write_jobs" = $'release-draft\nprovenance\noci-marker\nrelease-assets-converge\nfinalize' ] \
   || fail 'the contents-write job allowlist changed without authority review'
 for write_job in "$release_job" "$marker_job" "$assets_job" "$finalizer"; do
   if printf '%s\n' "$write_job" | grep -q \
@@ -676,6 +693,12 @@ bash "$ROOT/scripts/release/tests/publication-barrier.test.sh" >/dev/null \
   || fail 'the cross-registry publication barrier regression failed'
 bash "$ROOT/scripts/release/tests/finalize-release.test.sh" >/dev/null \
   || fail 'the write-only finalizer barrier regression failed'
+python3 "$ROOT/scripts/release/tests/test-draft-authority.py" \
+  || fail 'draft access escaped its owner or replay input admission failed'
+python3 "$ROOT/scripts/release/tests/test-oci-index.py" \
+  || fail 'OCI runnable platforms or attestation bindings were not judged'
+bash "$ROOT/scripts/release/tests/next-tag-estate.test.sh" >/dev/null \
+  || fail 'the pre-tag estate question regression failed'
 grep -q 'TAP_DEPLOY_KEY' "$ROOT/docs/RELEASING.md" \
   || fail 'the operator guide does not name the release workflow deploy key'
 if grep -q 'HOMEBREW_TAP_TOKEN' "$ROOT/docs/RELEASING.md"; then

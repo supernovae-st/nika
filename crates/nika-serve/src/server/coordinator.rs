@@ -13,6 +13,9 @@ use super::{ExecutionTask, ServerError, ServerLimits, StoreHandle};
 
 const OBSERVATION_POLL: Duration = Duration::from_millis(5);
 const SCHEDULE_KEY_DOMAIN: &[u8] = b"nika/resident-schedule-idempotency@1\0";
+/// The resident's own idempotency namespace (a scheduled slot's key):
+/// `schedule:<namespace>:<sha256>`. A manual caller may not enter it.
+pub(super) const SCHEDULE_KEY_PREFIX: &str = "schedule:";
 
 /// One resident admission, queue, concurrency, and observation authority.
 ///
@@ -46,6 +49,33 @@ impl ResidentExecutionCoordinator {
             jobs,
             limits,
         }
+    }
+
+    /// The job already bound to this key, without capturing anything
+    /// (ADR-132 · the freeze audit): a retry replays its record, and a
+    /// queued replay is re-enqueued exactly as `admit_manual` does.
+    pub(super) async fn replay_manual(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+    ) -> Result<Option<Admission>, ServerError> {
+        let Some(admission) = self.store.replay(key, digest).await? else {
+            return Ok(None);
+        };
+        if let Admission::Existing(record) = &admission
+            && record.status() == JobStatus::Queued
+        {
+            let permit = self
+                .jobs
+                .clone()
+                .try_reserve_owned()
+                .map_err(|_| ServerError::ExecutionQueueFull)?;
+            permit.send(ExecutionTask::new(
+                record.id().clone(),
+                self.limits.default_max_cost_usd(),
+            ));
+        }
+        Ok(Some(admission))
     }
 
     pub(super) async fn admit_manual(
@@ -333,6 +363,9 @@ fn scheduled_key(origin: &JobOrigin) -> Result<IdempotencyKey, ServerError> {
     hasher.update(schedule_id.as_bytes());
     hasher.update([0]);
     hasher.update(slot_id.as_bytes());
-    IdempotencyKey::new(format!("schedule:{namespace}:{:x}", hasher.finalize()))
-        .map_err(ServerError::JobStore)
+    IdempotencyKey::new(format!(
+        "{SCHEDULE_KEY_PREFIX}{namespace}:{:x}",
+        hasher.finalize()
+    ))
+    .map_err(ServerError::JobStore)
 }

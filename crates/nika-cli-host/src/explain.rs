@@ -29,8 +29,38 @@ const DOCS_ERRORS_TEXT: &str = "docs.nika.sh/errors";
 /// The `nika explain <code>` verb. Accepts `NIKA-440`, `NIKA-DAG-002`,
 /// or the bare forms (`440` · `DAG-002`). On a TTY the doc-site
 /// reference rides an OSC-8 hyperlink; a piped explain keeps its bytes.
+/// The door the teaching is worded for (ADR-124 · one ladder, two
+/// doors): the CLI names `nika check --fix`; the oracle names the fix
+/// an agent without a shell can reach — `nika_check` with `fix: true`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Door {
+    /// The operator's terminal.
+    #[default]
+    Cli,
+    /// The MCP oracle (read-only · source in, verdict out).
+    Oracle,
+}
+
+impl Door {
+    fn reword(self, hint: &str) -> String {
+        match self {
+            Self::Cli => hint.to_owned(),
+            Self::Oracle => hint.replace("`nika check --fix`", "`nika_check` with `fix: true`"),
+        }
+    }
+}
+
+/// The CLI door of [`run_for`].
 #[must_use]
 pub fn run(wire: &str, theme: Theme) -> VerbOutput {
+    run_for(wire, theme, Door::Cli)
+}
+
+/// The four-rung ladder — a hint kind · the registry · the spec rows ·
+/// the namespaces — worded for `door`.
+#[must_use]
+pub fn run_for(wire: &str, theme: Theme, door: Door) -> VerbOutput {
     // The seam (`Theme::link` → `format::osc8`): text unchanged, escapes
     // only when the links capability resolved on.
     let docs = theme.link(DOCS_ERRORS_URL, DOCS_ERRORS_TEXT);
@@ -39,6 +69,11 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
     // wrapping `NIKA-` — `jq-as-map` is not `NIKA-jq-as-map` (#1038).
     if let Some(help) = nika_check::hint_help(wire) {
         return VerbOutput::ok(format!("{wire} · hint\n\n  {help}\n"));
+    }
+    // The resident's wire codes (`nika serve` · #1441 · ADR-131): the same
+    // voice as the engine's, from the same table the MCP tool reads.
+    if let Some(text) = nika_error::codes::resident_help(wire) {
+        return VerbOutput::ok(text);
     }
     let normalized = if wire.starts_with("NIKA-") {
         wire.to_owned()
@@ -49,7 +84,7 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
         // Not a numeric registry code — the spec conformance codes
         // (NIKA-DAG-002 …) live in the embedded canon's error_codes
         // table. Same binary, same single source of truth.
-        if let Some(text) = canon_row(&normalized) {
+        if let Some(text) = canon_row(&normalized, door) {
             return VerbOutput::ok(with_seat_tail(
                 &normalized,
                 seat_escape_tail().as_deref(),
@@ -98,7 +133,7 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
 /// through THE one typed parser ([`nika_pack::error_codes`] · its
 /// anchoring, malformed-row tolerance and escape-free invariant are
 /// pinned at the nika-pack seam, not re-rolled here).
-fn canon_row(code: &str) -> Option<String> {
+fn canon_row(code: &str, door: Door) -> Option<String> {
     let row = nika_pack::error_codes()
         .into_iter()
         .find(|r| r.code == code)?;
@@ -108,7 +143,7 @@ fn canon_row(code: &str) -> Option<String> {
         .map(|l| format!("\n{l}"))
         .unwrap_or_default();
     let fix = cli_fix_hint(code)
-        .map(|h| format!("  fix: {h}\n\n"))
+        .map(|h| format!("  fix: {}\n\n", door.reword(h)))
         .unwrap_or_default();
     Some(format!(
         "{code} · {category} · transient: {transient}\n\n  {failure}\n{lesson}\n{fix}\
@@ -153,6 +188,14 @@ fn closer_line(code: &str) -> &'static str {
             "`nika check` catches a literal argv before a run (the same \
              floor predicate the run judges with); a templated command — \
              a `${{ }}` island — is judged at RUN."
+        }
+        // #1396: check's own EXEC row says « a templated argv is the
+        // RUN's verdict », and an exit status can never be a check-time
+        // finding — the blanket closer contradicted the card it explained.
+        "NIKA-EXEC-001" => {
+            "`nika check` refuses a LITERAL argv the exec floor would refuse; a \
+             templated program name and a non-zero exit status are the RUN's \
+             verdict — an exit status can never be a check-time finding."
         }
         _ => "`nika check` catches this before a run ever starts.",
     }
@@ -200,9 +243,10 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
         // ladder alone sent seated operators to a vendor signup).
         "NIKA-INFER-001" => Some(
             "set the key the witness names (custody is the process env: \
-             `export <VAR>=…`), or run through a signed-in seat: \
+             `export <VAR>=…`), or run through a seat present on this machine: \
              `nika run <file> --access claude-code` — any agentic CLI you're \
-             signed into serves (`nika doctor` lists them)",
+             signed into serves (its login is judged when the run starts · \
+             `nika doctor` lists them)",
         ),
         // F4: the unresolved-vars class is fixable from the CLI.
         "NIKA-VAR-001" => Some(
@@ -370,7 +414,9 @@ mod tests {
         let text = "body".to_owned();
         let with = crate::probe::with_seat_tail(
             "NIKA-INFER-001",
-            Some("or use a signed-in seat: `--access claude-code`"),
+            Some(
+                "or use a seat present on this machine: `--access claude-code` (its login is judged at run)",
+            ),
             text.clone(),
         );
         assert!(with.contains("--access claude-code"), "{with}");
@@ -397,6 +443,25 @@ mod tests {
         let out = run("NIKA-440");
         assert_eq!(out.code, exit::OK);
         assert!(out.text.contains("NIKA-440"));
+    }
+
+    /// #1396 — `explain NIKA-EXEC-001` promised what check's own EXEC
+    /// row disowns. The closer now draws the literal/run line and says
+    /// an exit status is never check's.
+    #[test]
+    fn the_exec_closer_hands_the_exit_status_to_the_run() {
+        let exec = run("NIKA-EXEC-001");
+        assert_eq!(exec.code, exit::OK);
+        assert!(
+            !exec.text.contains("catches this before a run ever starts"),
+            "no blanket promise over a run-judged class:\n{}",
+            exec.text
+        );
+        assert!(
+            exec.text.contains("exit status") && exec.text.contains("RUN's verdict"),
+            "the honest split is taught:\n{}",
+            exec.text
+        );
     }
 
     /// V7-2 (wave-3 · 4 personas · Priya BLOCKER): the closing claim is

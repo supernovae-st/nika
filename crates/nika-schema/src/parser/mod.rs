@@ -401,7 +401,9 @@ fn retired_key_teaching(key: &str, location: &str) -> Option<&'static str> {
     // in the 2026-08-11/13 sweep — the envelope and the task body — and
     // each arm fires in ITS scope only.
     if location.contains("envelope") {
-        return retired::envelope(key);
+        // A RETIRED envelope key was ours and moved; a FOREIGN one is
+        // another tool's word for a concept we spell elsewhere (#1402).
+        return retired::envelope(key).or_else(|| retired::foreign_envelope(key));
     }
     if location.starts_with("task `") {
         // Three tables, one scope, tried in order of how much the author

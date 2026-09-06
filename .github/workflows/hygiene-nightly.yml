@@ -25,7 +25,7 @@ jobs:
       # drift-issue spam (2026-06; vector 15 was the last holdout, the
       # standing YELLOW in the #240 drift table).
       - name: Install supply-chain tools (cargo-deny + cargo-machete + cargo-audit)
-        uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2
+        uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2
         with:
           tool: cargo-deny,cargo-machete,cargo-audit
 
@@ -36,7 +36,7 @@ jobs:
       # vector shipped). The build IS the vector's input. No workflow
       # input is interpolated here: the command is a constant.
       - name: Build the CLI (vector 45 renders the real surfaces)
-        run: cargo build -p nika-cli --bin nika-cli
+        run: cargo build -p nika-cli --bin nika
 
       - name: Run hygiene dashboard
         id: hygiene

@@ -15,11 +15,11 @@ pub(crate) fn check_verb(
     files: &[String],
     flags: &CheckFlags,
     fix: bool,
-    model: Option<&str>,
+    overrides: (Option<&str>, Option<&str>),
     theme: nika_cli::Theme,
 ) -> u8 {
     match resolve_registry_args(files, fix) {
-        Ok(files) => emit(&check_dispatch(&files, flags, fix, model, theme)),
+        Ok(files) => emit(&check_dispatch(&files, flags, fix, overrides, theme)),
         Err(out) => emit(&out),
     }
 }

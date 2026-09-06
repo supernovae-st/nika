@@ -372,6 +372,8 @@ pub(crate) fn settle_ran(
     // F-P6 · the settling dispatch's binding evidence (lifted before
     // `run.result` moves — EVERY terminal shape can carry it).
     let evidence = run.evidence;
+    // #1276 · #1397 · a fan-out's per-item table rides its terminal frame.
+    let items = run.items;
     let mut record = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
     record.started_at = Some(started_at);
     record.duration_ms = Some(run.duration_ms);
@@ -388,16 +390,17 @@ pub(crate) fn settle_ran(
             cost_usd,
             cost_unpriced,
             model,
+            access,
         } => settle_success_terminal(
             id,
             &run.note,
             duration,
             (value, tokens, recovered_from, warning),
             child.as_deref(),
-            (cost_usd, cost_unpriced, model),
+            (cost_usd, cost_unpriced, model, access),
             attempts,
             resume,
-            evidence.as_ref(),
+            (evidence.as_ref(), items.as_deref()),
             &mut record,
             stamper,
             sink,
@@ -419,14 +422,15 @@ pub(crate) fn settle_ran(
             error,
             cost_usd,
             cost_unpriced,
+            access,
         } => settle_failed_terminal(
             id,
             &run.note,
             duration,
             error,
-            (cost_usd, cost_unpriced),
+            (cost_usd, cost_unpriced, access.as_deref()),
             attempts,
-            evidence.as_ref(),
+            (evidence.as_ref(), items.as_deref()),
             &mut record,
             ok,
             stamper,
@@ -499,9 +503,13 @@ fn settle_pending_backstop(
         note,
         duration,
         pending.render_error,
-        (pending.failed.cost_usd, pending.failed.cost_unpriced),
+        (
+            pending.failed.cost_usd,
+            pending.failed.cost_unpriced,
+            pending.failed.access.as_deref(),
+        ),
         attempts,
-        evidence,
+        (evidence, None),
         record,
         ok,
         stamper,
@@ -532,14 +540,18 @@ fn settle_success_terminal(
         Option<String>,
     ),
     child: Option<&child::ChildRunSummary>,
-    (cost_usd, cost_unpriced, model): (
+    (cost_usd, cost_unpriced, model, access): (
         Option<f64>,
         Option<nika_types::cost::UnpricedReason>,
         Option<String>,
+        Option<Box<nika_types::access::AccessPlan>>,
     ),
     attempts: u32,
     resume: Option<&resume::ResumeStamp>,
-    evidence: Option<&crate::dispatch::commit::CommitEvidence>,
+    (evidence, items): (
+        Option<&crate::dispatch::commit::CommitEvidence>,
+        Option<&str>,
+    ),
     record: &mut TaskRecord,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -565,11 +577,11 @@ fn settle_success_terminal(
         tokens,
         cost_usd,
         cost_unpriced,
-        model.as_deref(),
+        (model.as_deref(), access.as_deref()),
         warning.as_deref(),
         child,
         resume,
-        evidence,
+        (evidence, items),
         record,
         stamper,
         sink,
@@ -585,9 +597,16 @@ fn settle_failed_terminal(
     note: &str,
     duration: i64,
     error: TaskErrorRecord,
-    spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+    spend: (
+        Option<f64>,
+        Option<nika_types::cost::UnpricedReason>,
+        Option<&nika_types::access::AccessPlan>,
+    ),
     attempts: u32,
-    evidence: Option<&crate::dispatch::commit::CommitEvidence>,
+    (evidence, items): (
+        Option<&crate::dispatch::commit::CommitEvidence>,
+        Option<&str>,
+    ),
     record: &mut TaskRecord,
     ok: &mut bool,
     stamper: &mut dyn Stamper,
@@ -607,9 +626,17 @@ fn settle_failed_terminal(
         ("duration_ms", i(duration)),
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
+    // Wave 2b · the lane that FAILED stamps the terminal like a success
+    // (`model` · `provider` · `access` · `access_id` · `billing`) — a
+    // sealed trace must say which path was allowed to bill.
+    emit_task::push_access_fields(&mut fields, None, spend.2, spend.1);
     // F-P6 · a divergence refusal carries its finding HERE (never a warn);
     // a post-gate verb failure attests the fired ≡ judged digests.
     push_commit_fields(&mut fields, evidence);
+    // #1276 · #1397 · a hard-failed fan-out names every item's terminal.
+    if let Some(items) = items {
+        fields.push(("items", s(items)));
+    }
     fields.push(("outcome", s(&record::outcome_json(record))));
     emit_task::push_integrity_fields(&mut fields, record);
     let ended = emit(stamper, sink, EventKind::TaskFailed, &fields);

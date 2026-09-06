@@ -38,7 +38,7 @@ fn expected() -> MachineTruth {
 /// and we strip ANSI defensively so a themed future cannot rot the
 /// parse silently.
 fn surface(scratch: &std::path::Path, args: &[&str]) -> String {
-    let out = Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let out = Command::new(env!("CARGO_BIN_EXE_nika"))
         .args(args)
         .env_clear()
         .env("HOME", scratch)
@@ -109,6 +109,36 @@ fn welcome_speaks_the_wired_facet() {
         Some(expected().wired),
         "welcome's bare provider count IS the wired facet — the number \
          a first-run user compares against catalog's header. Line: {stats}"
+    );
+}
+
+/// #1398 — the check refusal for a cataloged-but-unwired provider spoke
+/// its own count (« 16 runnable ») while the card said 15 and the canon
+/// 17. It now speaks the wired facet, the same number as the card and
+/// the catalog header, split the same way.
+#[test]
+fn check_refusal_speaks_the_wired_facet() {
+    let scratch = scratch_dir("mt-check");
+    let file = scratch.join("azure.nika.yaml");
+    std::fs::write(
+        &file,
+        "nika: azure-seat\nmodel: azure/gpt-4o\npermits: {}\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 5 }\n",
+    )
+    .expect("plant");
+    let text = surface(&scratch, &["check", "azure.nika.yaml"]);
+    let line = text
+        .lines()
+        .find(|l| l.contains("wired in this build"))
+        .expect("the refusal speaks the wired facet");
+    let facet = line
+        .split("wired in this build")
+        .next()
+        .and_then(|head| head.trim_end().rsplit(|c: char| !c.is_ascii_digit()).next())
+        .and_then(|digits| digits.parse::<usize>().ok());
+    assert_eq!(
+        facet,
+        Some(expected().wired),
+        "the refusal's number IS the wired facet the card prints. Line: {line}"
     );
 }
 

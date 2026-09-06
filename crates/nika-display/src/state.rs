@@ -99,6 +99,15 @@ pub struct TaskRow {
     /// the task succeeded, but the console must say what the trace
     /// knows, or a green run silently feeds "" downstream.
     pub warning: Option<String>,
+    /// A `for_each` fan-out's per-item terminals (#1276 · #1397): the
+    /// `items` JSON array text the terminal frame carried · index · item ·
+    /// status · code · message. `None` for every other row.
+    pub items_json: Option<String>,
+    /// The task consumed RECOVERED data (#1444 · the lineage leg of #1275):
+    /// the upstream task whose fallback fed this one, from the terminal
+    /// frame's `integrity_source` (present only when `integrity` reads
+    /// `untrusted`). A clean success renders as one; this one must not.
+    pub integrity_source: Option<String>,
 }
 
 impl TaskRow {
@@ -134,10 +143,19 @@ pub struct RunView {
     /// fields, then OVERWRITTEN by the terminal frame's authoritative
     /// `unpriced_calls` (leaf-level: a fan-out counts its iterations).
     pub unpriced_calls: u64,
+    /// Calls whose spend IS in `cost_usd` — folded live from per-task
+    /// `cost_usd` fields, then OVERWRITTEN by the terminal frame's
+    /// `priced_calls`. Zero, with no total, means nothing was metered: the
+    /// card says the word, never a `$0.00` nobody metered (ADR-128).
+    pub priced_calls: u64,
     /// Token-arrival samples for the sparkline.
     pub token_samples: Vec<u64>,
     /// Terminal verdict: `Some(true)` completed · `Some(false)` failed.
     pub verdict: Option<bool>,
+    /// The run ended on `workflow_cancelled` (#1438): the operator's
+    /// cancellation at a wave boundary · a verdict of its own (the card
+    /// says so, never the failure card).
+    pub cancelled: bool,
     /// The task a `workflow_paused` frame named (ADR-099 rider) — the
     /// run ended AWAITING, neither verdict applies (the paused card's
     /// key · `None` on every other run).
@@ -320,6 +338,7 @@ impl RunView {
                 self.verdict = Some(true);
                 self.absorb_terminal_cost(event);
             }
+            EventKind::WorkflowCancelled => self.apply_workflow_cancelled(event),
             EventKind::WorkflowFailed => {
                 self.verdict = Some(false);
                 // A workflow-level reason (run-end NIKA-VAR-009) rides the
@@ -344,6 +363,16 @@ impl RunView {
             // nothing rather than lying.
             _ => {}
         }
+    }
+
+    /// The operator's cancellation at a wave boundary (#1438): a decision,
+    /// never a defect · the detail says what completed and what never
+    /// started, the cost summary rides like every terminal.
+    fn apply_workflow_cancelled(&mut self, event: &Event) {
+        self.verdict = Some(false);
+        self.cancelled = true;
+        self.workflow_detail = str_field(event, "detail").map(str::to_owned);
+        self.absorb_terminal_cost(event);
     }
 
     /// One `task_completed` frame — row terminal stamp · output · tokens
@@ -371,6 +400,7 @@ impl RunView {
         }
         if let Some(usd) = usd {
             self.cost_usd += usd;
+            self.priced_calls = self.priced_calls.saturating_add(1);
         }
         if let Some(tokens) = int_field(event, "tokens") {
             self.token_samples.push(u64::try_from(tokens).unwrap_or(0));
@@ -387,6 +417,9 @@ impl RunView {
     fn absorb_terminal_cost(&mut self, event: &Event) {
         if let Some(n) = int_field(event, "unpriced_calls") {
             self.unpriced_calls = u64::try_from(n).unwrap_or(self.unpriced_calls);
+        }
+        if let Some(n) = int_field(event, "priced_calls") {
+            self.priced_calls = u64::try_from(n).unwrap_or(self.priced_calls);
         }
         if let Some(total) = float_field(event, "total_cost_usd") {
             self.cost_usd = total;
@@ -411,6 +444,17 @@ impl RunView {
         // dead-on-the-wire class). Non-failed frames carry no detail.
         if let Some(d) = str_field(event, "detail") {
             d.clone_into(&mut row.detail);
+        }
+        // #1276 · #1397 · a fan-out's item table survives to the readers.
+        if let Some(items) = str_field(event, "items") {
+            row.items_json = Some(items.to_owned());
+        }
+        // #1444 · a task fed by a recovered fallback says so on every
+        // prose surface, not only in the JSON.
+        if str_field(event, "integrity") == Some("untrusted")
+            && let Some(source) = str_field(event, "integrity_source")
+        {
+            row.integrity_source = Some(source.to_owned());
         }
     }
 
@@ -481,6 +525,8 @@ impl RunView {
                 cached: false,
                 recovered: false,
                 warning: None,
+                items_json: None,
+                integrity_source: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);
@@ -877,5 +923,59 @@ mod tests {
         assert_eq!(view.retries, 1);
         let fresh = RunView::new();
         assert_eq!(fresh.retries, 0);
+    }
+
+    /// #1438 · `workflow_cancelled` is a verdict of its own: the view says
+    /// cancelled (never a bare failure), keeps the terminal's detail and
+    /// absorbs its cost summary like the other terminals.
+    #[test]
+    fn workflow_cancelled_folds_to_a_cancelled_verdict() {
+        use nika_types::resource::{KeyValue, Value};
+        let mut view = RunView::new();
+        view.apply(
+            &demo::bare_event(EventKind::WorkflowCancelled, 10)
+                .with_field(KeyValue::new(
+                    "detail",
+                    Value::String("cancelled by the operator".to_owned()),
+                ))
+                .with_field(KeyValue::new("unpriced_calls", Value::Int(2))),
+        );
+        assert!(view.cancelled, "the fold names the cancellation");
+        assert_eq!(view.verdict, Some(false), "not a success");
+        assert_eq!(
+            view.workflow_detail.as_deref(),
+            Some("cancelled by the operator")
+        );
+        assert_eq!(view.unpriced_calls, 2, "the terminal's summary rides");
+    }
+
+    /// #1444 · the fold keeps the lineage a terminal frame carries: the
+    /// upstream whose recovered fallback fed this task.
+    #[test]
+    fn a_task_fed_by_a_recovered_fallback_keeps_its_source() {
+        use nika_types::resource::{KeyValue, Value};
+        let mut view = RunView::new();
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 10)
+                .with_field(KeyValue::new("task", Value::String("c".to_owned())))
+                .with_field(KeyValue::new(
+                    "integrity",
+                    Value::String("untrusted".to_owned()),
+                ))
+                .with_field(KeyValue::new(
+                    "integrity_source",
+                    Value::String("b".to_owned()),
+                )),
+        );
+        assert_eq!(view.rows()[0].integrity_source.as_deref(), Some("b"));
+        let mut clean = RunView::new();
+        clean.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 10)
+                .with_field(KeyValue::new("task", Value::String("c".to_owned()))),
+        );
+        assert!(
+            clean.rows()[0].integrity_source.is_none(),
+            "a clean row has no source"
+        );
     }
 }

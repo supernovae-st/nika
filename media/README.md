@@ -2,15 +2,38 @@
 
 Official visual assets for the README, docs, website and social surfaces.
 
+## Current README film
+
+**From intent to impact:** [60-second MP4](videos/intent-to-impact.mp4),
+[full-length GIF](gifs/intent-to-impact.optimized.gif),
+[poster](posters/intent-to-impact.png) and
+[contact sheet](storyboards/intent-to-impact.png).
+
+The film demonstrates checkout research, a reviewable YAML file, preflight,
+bounded parallel work, approval and concrete results. Telegram and Slack both
+receive an update; Linear is updated too. Source review and folding are brief,
+while the final deliverables stay on screen long enough to read.
+
+This is an **illustrative product film**, with fictional data and no live
+integrations. It is not a recording of a shipping graphical editor. Its focused
+YAML excerpts are not a complete runnable workflow. The source, timing tests,
+font prerequisites and regeneration steps are in
+[the film README](../scripts/media/motion/intent-to-impact/README.md).
+
+The older `intent-dag-proof` film remains an archived alternative; it is no
+longer the README hero.
+
 ## Rules
 
 - **No fake commands.** Every command shown in an asset exists in the CLI.
 - **No fake output.** Terminal text is captured from the real binary
   (`scripts/media/capture-transcripts.sh` → `media/raw/*.txt`). The
   chat-to-workflow run is a real local inference (`ollama/llama3.2:3b`).
-- **Every workflow shown passes `nika check`** — except the deliberately
+- **Every complete runnable workflow shown passes `nika check`** — except the deliberately
   broken fixture in the static-check-fix asset, whose failure is the point.
   `scripts/media/validate-media.sh` enforces both directions.
+- **Illustrations say so.** The product film labels fictional data and folded
+  source excerpts. It must never be described as a successful real integration.
 - **Budgets** · README GIF ≤ 8 MB · poster PNG ≤ 1 MB.
 - **Never edit exports by hand.** Edit the motion scene or fixture, then
   regenerate.

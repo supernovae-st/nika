@@ -20,6 +20,7 @@ impl crate::task::RunResult {
         cost_unpriced: Option<nika_types::cost::UnpricedReason>,
     ) -> Self {
         Self::Success {
+            access: None,
             value,
             tokens: None,
             recovered_from: Some(original),
@@ -42,6 +43,8 @@ pub(crate) struct FailedOutcome {
     /// F-P6 · the commit gate's binding evidence (`Fired` — a verb error
     /// after a passed gate · `Refused` — the finding; never transient).
     pub evidence: Option<crate::dispatch::commit::CommitEvidence>,
+    /// The admitted lane the failed dispatch rode (wave 2b).
+    pub access: Option<Box<nika_types::access::AccessPlan>>,
 }
 
 impl FailedOutcome {
@@ -56,6 +59,16 @@ impl FailedOutcome {
             cost_usd,
             cost_unpriced,
             evidence,
+            access: None,
         }
+    }
+
+    /// Attach the lane the failed dispatch rode (wave 2b).
+    pub(crate) fn with_access(
+        mut self,
+        access: Option<Box<nika_types::access::AccessPlan>>,
+    ) -> Self {
+        self.access = access;
+        self
     }
 }

@@ -169,10 +169,12 @@ impl super::Dispatched {
                     ),
                     false,
                 ),
+                retry_forbidden: false,
                 cost_usd: None,
                 cost_source: None,
                 cost_unpriced: None,
                 evidence: Some(CommitEvidence::Refused(Box::new(divergence))),
+                access: None,
             }),
         }
     }
@@ -206,45 +208,49 @@ where
         #[cfg(test)]
         test_tamper::invoke(&mut input);
         match gate(&preview, &invoke_request(&input)) {
-            Some(CommitGate::Fire(attestation)) => match self.invoke.run_at(input, run_start).await
-            {
-                // A tool's typed value (builtins · MCP `structuredContent`)
-                // flows to tasks.X.output AS ITSELF (spec 04 §tasks.X.output);
-                // a text-only tool stays a String — never JSON-coerced.
-                Ok(out) => {
-                    let mut value = match out.structured {
-                        Some(value) => value,
-                        None => Value::String(out.content),
-                    };
-                    // C08 · a mock image/tts settle must not look like a
-                    // real render: stamp the JSON `warnings` array AND
-                    // the TaskCompleted `warning` field so the card and
-                    // the machine output both say rehearsal.
-                    let warning = stamp_mock_media_rehearsal(&note, &mut value);
-                    // A tool's self-reported REAL spend (top-level numeric
-                    // `cost_usd` in its structured output) is metered into
-                    // the run ledger — absent/invalid → unmetered, never a
-                    // guess (the honest-absence channel).
-                    let cost_usd = value
-                        .get("cost_usd")
-                        .and_then(Value::as_f64)
-                        .filter(|c| c.is_finite() && *c >= 0.0);
-                    let cost_source = cost_usd
-                        .is_some()
-                        .then(|| note.trim_start_matches("invoke · ").to_owned());
-                    super::Dispatched::ok_metered(
-                        note,
-                        value,
-                        None,
-                        warning,
-                        cost_usd,
-                        cost_source,
-                        None,
-                    )
-                    .with_commit(attestation)
+            Some(CommitGate::Fire(attestation)) => {
+                let retry_forbidden = fetch_retry_forbidden(&input);
+                match self.invoke.run_at(input, run_start).await {
+                    // A tool's typed value (builtins · MCP `structuredContent`)
+                    // flows to tasks.X.output AS ITSELF (spec 04 §tasks.X.output);
+                    // a text-only tool stays a String — never JSON-coerced.
+                    Ok(out) => {
+                        let mut value = match out.structured {
+                            Some(value) => value,
+                            None => Value::String(out.content),
+                        };
+                        // C08 · a mock image/tts settle must not look like a
+                        // real render: stamp the JSON `warnings` array AND
+                        // the TaskCompleted `warning` field so the card and
+                        // the machine output both say rehearsal.
+                        let warning = stamp_mock_media_rehearsal(&note, &mut value);
+                        // A tool's self-reported REAL spend (top-level numeric
+                        // `cost_usd` in its structured output) is metered into
+                        // the run ledger — absent/invalid → unmetered, never a
+                        // guess (the honest-absence channel).
+                        let cost_usd = value
+                            .get("cost_usd")
+                            .and_then(Value::as_f64)
+                            .filter(|c| c.is_finite() && *c >= 0.0);
+                        let cost_source = cost_usd
+                            .is_some()
+                            .then(|| note.trim_start_matches("invoke · ").to_owned());
+                        super::Dispatched::ok_metered(
+                            note,
+                            value,
+                            None,
+                            warning,
+                            cost_usd,
+                            cost_source,
+                            None,
+                        )
+                        .with_commit(attestation)
+                    }
+                    Err(err) => super::Dispatched::verb_err(note, &err)
+                        .with_commit(attestation)
+                        .with_retry_forbidden(retry_forbidden),
                 }
-                Err(err) => super::Dispatched::verb_err(note, &err).with_commit(attestation),
-            },
+            }
             Some(CommitGate::Divergence(divergence)) => {
                 super::Dispatched::divergence_refusal(&note, divergence)
             }
@@ -333,6 +339,29 @@ pub(crate) fn invoke_request(input: &InvokeInput) -> Value {
             "args": input.args.clone(),
         },
     })
+}
+
+/// Judge the already-resolved fetch with the same law as its prepared request.
+/// Argument validation stays at the builtin; only header names affect this law.
+fn fetch_retry_forbidden(input: &InvokeInput) -> bool {
+    if input.tool != "nika:fetch" {
+        return false;
+    }
+    let method = match input.args.get("method") {
+        None => "GET",
+        Some(Value::String(method)) => method,
+        Some(_) => return false,
+    };
+    // Fetch normalizes with Unicode uppercase before choosing its HTTP method.
+    // Apply that same normalization here (`poſt` also becomes `POST`).
+    let method = method.to_uppercase();
+    let headers = input.args.get("headers").and_then(Value::as_object);
+    !nika_types::net::retry_is_effect_safe(
+        &method,
+        headers
+            .into_iter()
+            .flat_map(|headers| headers.keys().map(String::as_str)),
+    )
 }
 
 /// blake3 hex over the request's canonical bytes — the receipt family's

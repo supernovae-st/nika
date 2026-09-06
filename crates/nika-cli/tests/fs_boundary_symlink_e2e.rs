@@ -19,7 +19,7 @@
 use std::process::Command;
 
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    Command::new(env!("CARGO_BIN_EXE_nika"))
 }
 
 /// The preserved probe's shape: an exact read grant + a log of what was

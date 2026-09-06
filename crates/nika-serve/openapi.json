@@ -1,0 +1,1621 @@
+{
+  "components": {
+    "parameters": {
+      "IdempotencyKey": {
+        "in": "header",
+        "name": "Idempotency-Key",
+        "required": true,
+        "schema": {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "IfMatch": {
+        "in": "header",
+        "name": "If-Match",
+        "required": false,
+        "schema": {
+          "maxLength": 96,
+          "type": "string"
+        }
+      },
+      "IfNoneMatch": {
+        "in": "header",
+        "name": "If-None-Match",
+        "required": false,
+        "schema": {
+          "const": "*",
+          "type": "string"
+        }
+      },
+      "LastEventId": {
+        "in": "header",
+        "name": "Last-Event-ID",
+        "required": false,
+        "schema": {
+          "pattern": "^(0|[1-9][0-9]*)$",
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "ExecutionSnapshot": {
+        "additionalProperties": false,
+        "description": "Immutable byte-owned execution world — the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer; a client never hashes). Unit bytes are canonical lowercase hexadecimal. `digest` and every unit `digest` are OPTIONAL caller-supplied integrity digests (canonical lowercase SHA-256 · a content assertion, never a signature): absent, the resident computes them and the receipt carries the result; present, they must match the bytes or the request is refused as `snapshot_tampered`. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
+        "properties": {
+          "digest": {
+            "description": "Optional caller-supplied integrity digest of the world (never a signature)",
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "format_version": {
+            "const": 1,
+            "type": "integer"
+          },
+          "root": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "units": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "bytes_hex": {
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "type": "string"
+                },
+                "digest": {
+                  "description": "Optional caller-supplied integrity digest of the unit (never a signature)",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "kind": {
+                  "description": "0 root (the admitted workflow) · 1 child (a transitively invoked workflow) · 2 skill (an Agent Skill document) · 3 import (an opaque import the caller supplied)",
+                  "maximum": 3,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "path": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "kind",
+                "bytes_hex"
+              ],
+              "type": "object"
+            },
+            "maxItems": 256,
+            "type": "array"
+          }
+        },
+        "required": [
+          "format_version",
+          "root",
+          "units"
+        ],
+        "type": "object"
+      },
+      "Health": {
+        "additionalProperties": false,
+        "properties": {
+          "api_version": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "buildSha": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "build_sha": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "checkReportVersion": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "engineVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "engine_version": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "eventFormatVersion": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "machineProtocolVersion": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "service": {
+            "const": "nika-serve",
+            "type": "string"
+          },
+          "snapshotFormatVersion": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "specSha": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "spec_sha": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "const": "ok",
+            "type": "string"
+          },
+          "supportedCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "traceFormatVersion": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "service",
+          "engine_version",
+          "build_sha",
+          "spec_sha",
+          "api_version",
+          "engineVersion",
+          "buildSha",
+          "specSha",
+          "machineProtocolVersion",
+          "snapshotFormatVersion",
+          "checkReportVersion",
+          "eventFormatVersion",
+          "traceFormatVersion",
+          "supportedCapabilities"
+        ],
+        "type": "object"
+      },
+      "Job": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "execution_id": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "outputs": {
+            "additionalProperties": true,
+            "description": "Declared workflow outputs; present only after settlement when supplied by the execution adapter",
+            "type": "object"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/JobReceipt"
+          },
+          "settlement": {
+            "$ref": "#/components/schemas/RunSettlement"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "trace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "JobByName": {
+        "additionalProperties": false,
+        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes.",
+        "properties": {
+          "workflow": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow"
+        ],
+        "type": "object"
+      },
+      "JobEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "outputs": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/JobReceipt"
+          },
+          "sequence": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "settlement": {
+            "$ref": "#/components/schemas/RunSettlement"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sequence",
+          "kind",
+          "status"
+        ],
+        "type": "object"
+      },
+      "JobOrigin": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "manual",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "arm_generation": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "decision": {
+                "enum": [
+                  "scheduled",
+                  "catch_up"
+                ],
+                "type": "string"
+              },
+              "fired_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "kind": {
+                "const": "schedule",
+                "type": "string"
+              },
+              "schedule_id": {
+                "description": "Origin-local identifier, bounded to 255 UTF-8 bytes by the server",
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              "schedule_origin": {
+                "enum": [
+                  "project",
+                  "api"
+                ],
+                "type": "string"
+              },
+              "schedule_revision": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "scheduled_for": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "slot_id": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "schedule_origin",
+              "schedule_id",
+              "schedule_revision",
+              "slot_id",
+              "decision",
+              "scheduled_for",
+              "fired_at",
+              "arm_generation"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "JobReceipt": {
+        "additionalProperties": false,
+        "description": "Terminal binding to the exact immutable admitted execution",
+        "properties": {
+          "chain_head": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "execution_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "job_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/JobOrigin"
+          },
+          "snapshot_digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "trace_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "execution_id",
+          "trace_id",
+          "snapshot_digest"
+        ],
+        "type": "object"
+      },
+      "JobStatus": {
+        "description": "queued and running: the resident owns the execution. interrupted: execution ownership was lost and effect settlement is unknown — an EVIDENCE state (the journal is INCOMPLETE), never a run state (ADR-129). paused, succeeded, failed and cancelled: the run's own settlement, the words its terminal frame carries (ADR-128).",
+        "enum": [
+          "queued",
+          "running",
+          "interrupted",
+          "paused",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ],
+        "type": "string"
+      },
+      "JobStatusOnly": {
+        "additionalProperties": false,
+        "description": "Status only. Redacted diagnosis lives on GET /v1/jobs/{id} and SSE, never here.",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "RunSettlement": {
+        "additionalProperties": false,
+        "description": "The run's settlement (ADR-128), built once by the runtime and projected whole: the state word every door speaks, why, the elapsed time on the kernel clock, the task tally, the spend with its qualifier, the failure named. Unknown cost is never zero: `total_cost_usd` is absent when nothing was metered. Present on the terminal event and durable job response of a job whose runtime settled; absent when the resident lost the execution (interrupted) or refused it before any task. Reattachment and idempotent admission replay project the same hash-bound terminal event, never a new settlement.",
+        "properties": {
+          "cause": {
+            "enum": [
+              "normal",
+              "human_gate",
+              "task_failed",
+              "output_contract",
+              "budget",
+              "operator",
+              "refused"
+            ],
+            "type": "string"
+          },
+          "elapsed_ms": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "task": {
+                "description": "The task that failed · absent for a run-level cause",
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "spend": {
+            "additionalProperties": false,
+            "properties": {
+              "by_source": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              "priced_calls": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "pricing_as_of": {
+                "type": "string"
+              },
+              "qualifier": {
+                "enum": [
+                  "priced",
+                  "partially_priced",
+                  "unpriced",
+                  "unmetered"
+                ],
+                "type": "string"
+              },
+              "total_cost_usd": {
+                "description": "Present only when at least one leaf metered real spend",
+                "minimum": 0,
+                "type": "number"
+              },
+              "unpriced_calls": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "priced_calls",
+              "unpriced_calls",
+              "qualifier"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed",
+              "paused",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "tasks": {
+            "additionalProperties": false,
+            "properties": {
+              "cancelled": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "failed": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "never_started": {
+                "description": "Cancelled at the boundary without ever starting (counted in `cancelled` too)",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "ok": {
+                "description": "A recovered task IS a success (counted here too)",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "recovered": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "skipped": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "ok",
+              "failed",
+              "recovered",
+              "skipped",
+              "cancelled",
+              "never_started"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "status",
+          "cause",
+          "spend"
+        ],
+        "type": "object"
+      },
+      "ScheduleApply": {
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "const": true,
+            "type": "boolean"
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScheduleStatus"
+          }
+        },
+        "required": [
+          "applied",
+          "changed",
+          "status"
+        ],
+        "type": "object"
+      },
+      "SchedulePut": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "afterSkip": {
+            "enum": [
+              "next_slot",
+              "on_completion"
+            ],
+            "type": "string"
+          },
+          "jitter": {
+            "enum": [
+              "hash"
+            ],
+            "type": "string"
+          },
+          "maxCostUsd": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "maxLatenessSeconds": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "missed": {
+            "enum": [
+              "catch-up",
+              "catch-up-once",
+              "skip"
+            ],
+            "type": "string"
+          },
+          "overlap": {
+            "enum": [
+              "skip",
+              "queue",
+              "replace"
+            ],
+            "type": "string"
+          },
+          "pauseReason": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "pauseUntil": {
+            "format": "date",
+            "type": "string"
+          },
+          "tolerance": {
+            "type": "string"
+          },
+          "when": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "kind": {
+                    "const": "once"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "at"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "expression": {
+                    "maxLength": 4096,
+                    "type": "string"
+                  },
+                  "kind": {
+                    "const": "cadence"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "expression"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "workflow": {
+            "maxLength": 1024,
+            "pattern": "^[^/].*\\.nika\\.yaml$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow",
+          "when",
+          "maxCostUsd",
+          "missed"
+        ],
+        "type": "object"
+      },
+      "ScheduleStatus": {
+        "additionalProperties": true,
+        "description": "Normalized definition, origin, distinct schedule revision, active/pause state, due verdict, bounded next slots with shift evidence, earliest wake hint, and last durable decision.",
+        "type": "object"
+      },
+      "SnapshotValidationAck": {
+        "additionalProperties": false,
+        "description": "Compact remote acknowledgement that the exact snapshot was revalidated. This is not the engine's public full check report; SDK callers retain the engine-owned report captured with the snapshot and return it only after this acknowledgement succeeds.",
+        "properties": {
+          "root": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "snapshot_digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "status": {
+            "const": "accepted",
+            "type": "string"
+          },
+          "units": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "snapshot_digest",
+          "root",
+          "units"
+        ],
+        "type": "object"
+      },
+      "TraceVerification": {
+        "additionalProperties": false,
+        "description": "Run-scoped typed verdict. Unavailable is an honest refusal: this server has no remote trace-journal authority and never scans or returns filesystem paths.",
+        "properties": {
+          "reason": {
+            "enum": [
+              "run_not_terminal",
+              "trace_journal_unavailable"
+            ],
+            "type": "string"
+          },
+          "trace_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "WorkflowList": {
+        "additionalProperties": false,
+        "properties": {
+          "workflows": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "workflows"
+        ],
+        "type": "object"
+      },
+      "WorkflowMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "workflow": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "description": "Exactly one Authorization: Bearer value from the token file",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Authenticated loopback remote execution and declarative schedules. Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent.",
+    "title": "nika serve",
+    "version": "0.118.1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Engine identity only"
+          }
+        },
+        "security": [],
+        "summary": "Public process liveness"
+      }
+    },
+    "/v1/check": {
+      "post": {
+        "description": "Runs the same admission as POST /v1/jobs (ADR-131 · both forms) over the exact request body, and creates nothing.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/JobByName"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ExecutionSnapshot"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotValidationAck"
+                }
+              }
+            },
+            "description": "Compact snapshot validation acknowledgement, not the full engine check report"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request deadline"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Encoded body or decoded snapshot resource limit"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Content-Type or Content-Encoding refused"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed, unsupported, tampered, or semantically refused snapshot"
+          }
+        },
+        "summary": "Judge a workflow without creating a job — by served name, or as immutable snapshot bytes"
+      }
+    },
+    "/v1/jobs": {
+      "post": {
+        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional caller-supplied integrity digests (a content assertion, never a signature). The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/JobByName"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ExecutionSnapshot"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Idempotent replay"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid idempotency key"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request deadline"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Idempotency key already bound to another request"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Encoded body or decoded snapshot resource limit"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Content-Type or Content-Encoding refused"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed, unsupported, tampered, or semantically refused snapshot"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Execution queue or durable store unavailable"
+          },
+          "507": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Durable job capacity exhausted"
+          }
+        },
+        "summary": "Admit a workflow as a durable job — by served name, or as immutable snapshot bytes"
+      }
+    },
+    "/v1/jobs/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Job"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          }
+        },
+        "summary": "Job identity and status"
+      }
+    },
+    "/v1/jobs/{id}/cancel": {
+      "post": {
+        "description": "A queued job cancels atomically before execution claims it. An active job receives the run-scoped cancellation signal and returns 202 until its execution owner settles: the result may be success, failure or cancellation; expired grace means interrupted, never an invented cancellation. A paused or final observation returns its existing result unchanged.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Cancelled before execution, or already ended observation"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Cancellation requested; execution has not yet settled"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          }
+        },
+        "summary": "Request cancellation or replay an ended observation"
+      }
+    },
+    "/v1/jobs/{id}/events": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/LastEventId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "x-nika-event-schema": {
+                  "$ref": "#/components/schemas/JobEvent"
+                }
+              }
+            },
+            "description": "text/event-stream; sends bounded retry guidance and cursor-neutral heartbeat comments; Last-Event-ID replays only persisted events after that sequence; terminal data adds declared outputs and receipt when available; failures add redacted {code,message}"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          }
+        },
+        "summary": "Job event SSE"
+      }
+    },
+    "/v1/jobs/{id}/status": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusOnly"
+                }
+              }
+            },
+            "description": "Status"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          }
+        },
+        "summary": "Status only; diagnosis lives on GET /v1/jobs/{id} and SSE"
+      }
+    },
+    "/v1/jobs/{id}/trace/verify": {
+      "get": {
+        "description": "Returns a typed honest refusal while no remote trace-journal authority exists. It never scans a trace directory or exposes a filesystem path.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceVerification"
+                }
+              }
+            },
+            "description": "Typed trace verdict"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          }
+        },
+        "summary": "Return the run-scoped trace verification verdict"
+      }
+    },
+    "/v1/openapi.json": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1"
+          },
+          "401": {
+            "description": "Bearer required"
+          }
+        },
+        "summary": "This document"
+      }
+    },
+    "/v1/schedules/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleStatus"
+                }
+              }
+            },
+            "description": "Fresh planned status",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          }
+        },
+        "summary": "Read one declarative resident schedule"
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "description": "Create requires If-None-Match: *. Update requires the exact ETag in If-Match. Identical lost-response retries are unchanged and retain the revision.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchedulePut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleApply"
+                }
+              }
+            },
+            "description": "Applied or unchanged",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          }
+        },
+        "summary": "Create or revision-conditionally update one resident schedule"
+      }
+    },
+    "/v1/workflows": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowList"
+                }
+              }
+            },
+            "description": "Project-relative .nika.yaml names under the served registry (--workflows)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          }
+        },
+        "summary": "Contained workflow names"
+      }
+    },
+    "/v1/workflows/{name}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowMetadata"
+                }
+              }
+            },
+            "description": "Contained name"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          }
+        },
+        "summary": "Workflow metadata without source bytes"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "http://127.0.0.1"
+    }
+  ]
+}

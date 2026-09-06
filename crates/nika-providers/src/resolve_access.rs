@@ -15,7 +15,7 @@
 
 use nika_types::access::{
     AccessClass, AccessPlan, AccessRejection, BillingClass, HarnessRuntime, RejectionDimension,
-    RejectionLayer,
+    RejectionLayer, Trust,
 };
 
 use crate::probe::ProviderProbe;
@@ -38,6 +38,9 @@ pub struct AccessCandidate {
     /// The economic lane — the class's honest default until a probe
     /// reports better evidence (subscription ≠ free · unknown ≠ $0).
     pub billing: BillingClass,
+    /// How far this path's identity is proven (ADR-134) — the floor the
+    /// probe's evidence earns, raised only by [`Self::with_trust`].
+    pub trust: Trust,
 }
 
 impl AccessCandidate {
@@ -50,7 +53,15 @@ impl AccessCandidate {
             configured,
             fix_var: None,
             billing: class.default_billing(),
+            trust: Trust::from_evidence(class, configured, None),
         }
+    }
+
+    /// The rung the probe's evidence earned (ADR-134).
+    #[must_use]
+    pub const fn with_trust(mut self, trust: Trust) -> Self {
+        self.trust = trust;
+        self
     }
 
     /// Name the credential env var an unconfigured refusal teaches.
@@ -243,11 +254,27 @@ pub fn resolve_access(
     ordered.sort_by(|a, b| order_key(a).cmp(&order_key(b)));
 
     let mut rejected = Vec::new();
+    let mut outranked = Vec::new();
     let mut chosen: Option<&AccessCandidate> = None;
     for candidate in ordered {
         if let Some(rejection) = judge(candidate, provider, allow_providers, pin) {
             rejected.push(rejection);
-        } else if chosen.is_none() {
+        } else if let Some(winner) = chosen {
+            // W3-F3 · a ready path that lost the ranking stays available to
+            // a pin (never rejected) and the machine row names it — « chosen
+            // over N other path(s) » in JSON too.
+            outranked.push(nika_types::access::AccessRejection::new(
+                candidate.access.clone(),
+                nika_types::access::RejectionDimension::Outranked,
+                nika_types::access::RejectionLayer::Access,
+                format!(
+                    "ready · ranked below `{}` ({} outranks {})",
+                    winner.access,
+                    winner.class.as_str(),
+                    candidate.class.as_str()
+                ),
+            ));
+        } else {
             chosen = Some(candidate);
         }
     }
@@ -260,7 +287,9 @@ pub fn resolve_access(
             c.billing,
             pin.is_some(),
             rejected,
-        )),
+        )
+        .with_outranked(outranked)
+        .with_trust(c.trust)),
         None => Err(AccessRefusal::new(model, provider, rejected)),
     }
 }
@@ -310,6 +339,17 @@ pub fn refuse_pin<'m>(
     probes: &[ProviderProbe],
     pin: &str,
 ) -> Option<PinRefusal> {
+    refuse_pin_with(models, probes, pin, VerbNeeds::default())
+}
+
+/// [`refuse_pin`] judged for the verbs the workflow carries (W3-F1).
+#[must_use]
+pub fn refuse_pin_with<'m>(
+    models: impl IntoIterator<Item = &'m str>,
+    probes: &[ProviderProbe],
+    pin: &str,
+    verbs: VerbNeeds,
+) -> Option<PinRefusal> {
     if let Some(retired) = HarnessRuntime::retired_alias(pin) {
         return Some(PinRefusal::UnknownToken {
             message: format!(
@@ -322,7 +362,7 @@ pub fn refuse_pin<'m>(
         });
     }
     if let Some(rt) = HarnessRuntime::lookup(pin) {
-        return refuse_named_runtime(rt, probes);
+        return refuse_named_runtime(rt, probes, verbs);
     }
     if pin == AccessClass::Harness.as_str() {
         return refuse_harness_class(probes);
@@ -377,7 +417,12 @@ pub fn refuse_pin_for_verbs<'m>(
         && first_ready_infer_harness(probes).is_some();
     if !direct
         && !generic
-        && let Some(refusal) = refuse_pin(models.iter().copied(), probes, pin)
+        && let Some(refusal) = refuse_pin_with(
+            models.iter().copied(),
+            probes,
+            pin,
+            VerbNeeds::new(has_infer, has_agent),
+        )
     {
         return Some(refusal);
     }
@@ -404,10 +449,10 @@ pub fn refuse_pin_for_verbs<'m>(
     models: impl IntoIterator<Item = &'m str>,
     probes: &[ProviderProbe],
     pin: &str,
-    _has_infer: bool,
-    _has_agent: bool,
+    has_infer: bool,
+    has_agent: bool,
 ) -> Option<PinRefusal> {
-    refuse_pin(models, probes, pin)
+    refuse_pin_with(models, probes, pin, VerbNeeds::new(has_infer, has_agent))
 }
 
 fn pin_vocabulary() -> String {
@@ -436,7 +481,32 @@ fn adapters_not_compiled_in() -> PinRefusal {
 const NO_RUNTIME_INSTALLED: &str = "No agentic CLI runtime is installed. Install \
      Claude Code, Codex, Gemini CLI, Kimi Code or Qwen Code, or pick Nika local / Nika Cloud.";
 
-fn refuse_named_runtime(rt: HarnessRuntime, probes: &[ProviderProbe]) -> Option<PinRefusal> {
+/// The verbs a pinned seat must serve — decides WHICH binary presence the
+/// pin needs: an infer-grade seat spawns the PRODUCT (`codex`), an
+/// agent-grade seat speaks ACP (`codex-acp`). Unknown verbs (no
+/// `infer:`/`agent:` task at all) accept either (W3-F1).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct VerbNeeds {
+    /// An `infer:` task rides the seat.
+    pub infer: bool,
+    /// An `agent:` task rides the seat.
+    pub agent: bool,
+}
+
+impl VerbNeeds {
+    /// Both halves, explicit.
+    #[must_use]
+    pub fn new(infer: bool, agent: bool) -> Self {
+        Self { infer, agent }
+    }
+}
+
+fn refuse_named_runtime(
+    rt: HarnessRuntime,
+    probes: &[ProviderProbe],
+    verbs: VerbNeeds,
+) -> Option<PinRefusal> {
     if !any_harness_row(probes) {
         return Some(adapters_not_compiled_in());
     }
@@ -445,7 +515,24 @@ fn refuse_named_runtime(rt: HarnessRuntime, probes: &[ProviderProbe]) -> Option<
             message: rt.not_installed.to_owned(),
         });
     };
-    if !row.key_present {
+    // W3-F1 · the seat is TWO binaries: the product an infer-grade seat
+    // spawns and the ACP speaker an agent-grade seat talks to. A pin is
+    // judged for the verbs the workflow carries — `doctor` and the dry-run
+    // must not disagree on « present ».
+    if verbs.infer && !row.product_present {
+        return Some(PinRefusal::Unavailable {
+            message: rt.not_installed.to_owned(),
+        });
+    }
+    if verbs.agent && !row.key_present {
+        let message = if row.fix_var.is_empty() {
+            rt.acp_missing()
+        } else {
+            row.fix_var.clone()
+        };
+        return Some(PinRefusal::Unavailable { message });
+    }
+    if !row.key_present && !row.product_present {
         let message = if row.fix_var.is_empty() {
             rt.not_installed.to_owned()
         } else {
@@ -527,17 +614,23 @@ pub fn first_ready_infer_harness(probes: &[ProviderProbe]) -> Option<&str> {
 }
 
 #[cfg(feature = "access-harness")]
-fn named_infer_grade_ready(rt: HarnessRuntime, probes: &[ProviderProbe]) -> bool {
+pub(crate) fn named_infer_grade_ready(rt: HarnessRuntime, probes: &[ProviderProbe]) -> bool {
+    // W3-F1 · the infer-grade seat spawns the PRODUCT binary: its presence
+    // is the readiness, never the ACP speaker's.
     probes.iter().any(|probe| {
         probe.id == rt.id
             && probe.readiness.configured
+            && probe.product_present
             && nika_harness::meet_infer_grade(rt.id, nika_harness::StructuredOutputGrade::Text)
                 .is_ok()
     })
 }
 
 #[cfg(not(feature = "access-harness"))]
-const fn named_infer_grade_ready(_rt: HarnessRuntime, _probes: &[ProviderProbe]) -> bool {
+pub(crate) const fn named_infer_grade_ready(
+    _rt: HarnessRuntime,
+    _probes: &[ProviderProbe],
+) -> bool {
     false
 }
 
@@ -623,7 +716,12 @@ pub fn candidates_for(probes: &[ProviderProbe], provider: &str) -> Vec<AccessCan
 /// and key state, the conventional env var named when a required key
 /// is absent.
 fn profile_candidate(p: &ProviderProbe) -> AccessCandidate {
-    let candidate = AccessCandidate::new(p.id.clone(), p.readiness.access, p.readiness.configured);
+    let candidate = AccessCandidate::new(p.id.clone(), p.readiness.access, p.readiness.configured)
+        .with_trust(Trust::from_evidence(
+            p.readiness.access,
+            p.readiness.configured,
+            p.readiness.reachable,
+        ));
     if p.requires_key {
         candidate.with_fix_var(p.fix_var.clone())
     } else {
@@ -671,7 +769,8 @@ pub fn access_plan_map(
         }
         if let Some(rt) = HarnessRuntime::lookup(pin) {
             let infer_grade_ready = named_infer_grade_ready(rt, probes);
-            if infer_grade_ready || refuse_named_runtime(rt, probes).is_none() {
+            if infer_grade_ready || refuse_named_runtime(rt, probes, VerbNeeds::default()).is_none()
+            {
                 return stamp_harness_plans(models, rt.id);
             }
             return std::collections::BTreeMap::new();
@@ -715,726 +814,24 @@ fn stamp_harness_plans(
                     provider_of(model),
                     access,
                     AccessClass::Harness,
-                    BillingClass::IncludedQuota,
+                    // The lane is never priced from here: a subscription
+                    // is not free and its quota is not observable, so the
+                    // plan says `unknown` — the same word the task
+                    // terminal stamps (never a guessed `included_quota`).
+                    BillingClass::Unknown,
                     true,
                     Vec::new(),
-                ),
+                )
+                // A pinned seat was found on PATH (the pin refuses when it is
+                // absent) — discovered, never observed: nothing dialed it
+                // (#1253's trust half · ADR-134).
+                .with_trust(Trust::Discovered),
             )
         })
         .collect()
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn local(id: &str, configured: bool) -> AccessCandidate {
-        AccessCandidate::new(id, AccessClass::Local, configured)
-    }
-
-    fn api(id: &str, configured: bool, fix: &str) -> AccessCandidate {
-        AccessCandidate::new(id, AccessClass::Api, configured).with_fix_var(fix)
-    }
-
-    /// B18 / issue 1306: `grok/grok-3` is the xAI seat for doctor/access.
-    /// B18 / issue 1306: `grok/grok-3` is the xAI seat for doctor/access.
-    #[test]
-    fn grok_alias_provider_of_is_xai() {
-        assert_eq!(provider_of("grok/grok-3"), "xai");
-        assert_eq!(provider_of("xai/grok-3"), "xai");
-    }
-
-    #[test]
-    fn a_single_configured_api_candidate_is_the_plan() {
-        let plan = resolve_access(
-            "mistral/mistral-small-latest",
-            &[api("mistral", true, "MISTRAL_API_KEY")],
-            None,
-            None,
-        )
-        .expect("one configured candidate must resolve");
-        assert_eq!(plan.model, "mistral/mistral-small-latest");
-        assert_eq!(plan.provider, "mistral");
-        assert_eq!(plan.access, "mistral");
-        assert_eq!(plan.chosen, AccessClass::Api);
-        assert_eq!(plan.billing, BillingClass::ApiMetered);
-        assert!(!plan.pinned);
-        assert!(plan.rejected.is_empty());
-    }
-
-    // ── P3 B6 · harness adapters ride the probe vec (R-5c) ────────
-
-    /// A harness-class probe row as the composer hands it over once the
-    /// adapter is detected on this machine: `serves` names the providers
-    /// it fronts, `configured` carries the auth surface's verdict.
-    fn harness_probe(id: &str, serves: &[&str], authenticated: bool) -> ProviderProbe {
-        ProviderProbe::new(
-            id,
-            false,
-            true,
-            "",
-            false,
-            crate::probe::ProviderReadiness::new(
-                true,
-                authenticated,
-                None,
-                None,
-                false,
-                crate::probe::ExecutionLocus::Cloud,
-                AccessClass::Harness,
-            ),
-            "",
-        )
-        .with_serves(serves.iter().map(|s| (*s).to_owned()).collect())
-    }
-
-    #[test]
-    fn a_detected_authenticated_adapter_row_becomes_a_harness_candidate() {
-        let probes = vec![harness_probe("codex", &["openai"], true)];
-        let candidates = candidates_for(&probes, "openai");
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].access, "codex");
-        assert_eq!(candidates[0].class, AccessClass::Harness);
-        assert!(candidates[0].configured);
-    }
-
-    #[test]
-    fn a_harness_row_offers_nothing_to_a_provider_it_does_not_serve() {
-        let probes = vec![harness_probe("codex", &["openai"], true)];
-        assert!(candidates_for(&probes, "anthropic").is_empty());
-    }
-
-    #[test]
-    fn an_unauthenticated_adapter_row_is_a_candidate_marked_unconfigured() {
-        let probes = vec![harness_probe("codex", &["openai"], false)];
-        let candidates = candidates_for(&probes, "openai");
-        assert_eq!(
-            candidates.len(),
-            1,
-            "the refusal must NAME the harness's sign-in"
-        );
-        assert!(!candidates[0].configured);
-        let refusal = resolve_access("openai/gpt-5", &candidates, None, None)
-            .expect_err("unauthenticated never resolves");
-        let witness = &refusal.rejected[0].witness;
-        assert!(
-            witness.contains("sign in to `codex` itself"),
-            "the harness fix line rides verbatim, never `unset`: {witness}"
-        );
-        assert!(!witness.contains("unset"), "{witness}");
-    }
-
-    #[test]
-    fn the_harness_row_outranks_the_metered_api_when_both_serve() {
-        // The sovereign order (local < mock < harness < oauth < api):
-        // an authenticated harness wins over the metered key — the
-        // access doctrine's whole point (the operator's own plan first).
-        let api_row = ProviderProbe::new(
-            "anthropic",
-            true,
-            true,
-            "ANTHROPIC_API_KEY",
-            true,
-            crate::probe::ProviderReadiness::new(
-                true,
-                true,
-                None,
-                None,
-                true,
-                crate::probe::ExecutionLocus::Cloud,
-                AccessClass::Api,
-            ),
-            "https://api.anthropic.com",
-        );
-        let harness_row = harness_probe("claude-code", &["anthropic"], true);
-        let plan = resolve_access(
-            "anthropic/claude-sonnet-4-5",
-            &candidates_for(&[api_row, harness_row], "anthropic"),
-            None,
-            None,
-        )
-        .expect("both paths configured → a plan");
-        assert_eq!(plan.access, "claude-code");
-        assert_eq!(plan.chosen, AccessClass::Harness);
-        assert_eq!(
-            plan.rejected.len(),
-            0,
-            "the api row is outranked, NOT rejected (dispo au pin): {:?}",
-            plan.rejected
-        );
-    }
-
-    #[test]
-    fn a_pin_names_an_adapter_id_once_its_row_rides_the_probes() {
-        let probes = vec![harness_probe("codex", &["openai"], true)];
-        assert!(
-            refuse_pin(["openai/gpt-5"], &probes, "codex").is_none(),
-            "a detected adapter id is a legal pin"
-        );
-        assert!(
-            matches!(
-                refuse_pin(["openai/gpt-5"], &[], "codex"),
-                Some(PinRefusal::Unavailable { .. })
-            ),
-            "known token + no harness rows → 1803, never 1802"
-        );
-    }
-
-    #[test]
-    fn a_known_cli_token_is_never_1802() {
-        for id in [
-            "claude-code",
-            "codex",
-            "gemini-cli",
-            "kimi-code",
-            "qwen-code",
-        ] {
-            match refuse_pin(["ollama/qwen3.5:4b"], &[], id) {
-                Some(PinRefusal::Unavailable { message }) => {
-                    assert!(
-                        !message.contains("NIKA-1802") && !message.contains("neither"),
-                        "{id}: {message}"
-                    );
-                }
-                other => panic!("{id} must be a known token, got {other:?}"),
-            }
-        }
-    }
-
-    #[test]
-    fn a_missing_cli_teaches_the_dummy_install_line() {
-        let rt = nika_types::access::HarnessRuntime::CLAUDE_CODE;
-        let probes = vec![harness_probe_absent(rt.id, rt.not_installed)];
-        match refuse_pin(["ollama/qwen3.5:4b"], &probes, "claude-code") {
-            Some(PinRefusal::Unavailable { message }) => {
-                assert!(
-                    message.contains("Claude Code is not installed"),
-                    "{message}"
-                );
-                assert!(message.contains("Nika local / Nika Cloud"), "{message}");
-            }
-            other => panic!("expected 1803 Unavailable, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn a_retired_alias_teaches_the_live_token() {
-        match refuse_pin(["openai/gpt-5"], &[], "claude-agent-acp") {
-            Some(PinRefusal::UnknownToken { message }) => {
-                assert!(message.contains("retired"), "{message}");
-                assert!(message.contains("--access claude-code"), "{message}");
-            }
-            other => panic!("retired alias must be 1802, got {other:?}"),
-        }
-        match refuse_pin(["openai/gpt-5"], &[], "codex-acp") {
-            Some(PinRefusal::UnknownToken { message }) => {
-                assert!(message.contains("--access codex"), "{message}");
-            }
-            other => panic!("retired alias must be 1802, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn access_harness_class_with_no_runtime_is_1803_not_api_keys() {
-        let api_row = ProviderProbe::new(
-            "anthropic",
-            true,
-            false,
-            "ANTHROPIC_API_KEY",
-            true,
-            crate::probe::ProviderReadiness::new(
-                true,
-                false,
-                None,
-                None,
-                true,
-                crate::probe::ExecutionLocus::Cloud,
-                AccessClass::Api,
-            ),
-            "https://api.anthropic.com",
-        );
-        match refuse_pin(["anthropic/claude-sonnet-4-5"], &[api_row], "harness") {
-            Some(PinRefusal::Unavailable { message }) => {
-                assert!(
-                    message.contains("No agentic CLI runtime is installed"),
-                    "{message}"
-                );
-                assert!(!message.contains("ANTHROPIC_API_KEY"), "{message}");
-                assert!(!message.contains("GEMINI_API_KEY"), "{message}");
-            }
-            other => panic!("--access harness must not walk API keys, got {other:?}"),
-        }
-    }
-
-    fn harness_probe_absent(id: &str, message: &str) -> ProviderProbe {
-        ProviderProbe::new(
-            id,
-            false,
-            false,
-            message,
-            false,
-            crate::probe::ProviderReadiness::new(
-                true,
-                false,
-                None,
-                None,
-                false,
-                crate::probe::ExecutionLocus::Cloud,
-                AccessClass::Harness,
-            ),
-            "",
-        )
-    }
-
-    #[test]
-    fn an_unconfigured_candidate_is_rejected_with_its_fix_var() {
-        let plan = resolve_access(
-            "openai/gpt-5",
-            &[
-                api("openai", false, "OPENAI_API_KEY"),
-                local("lmstudio", true),
-            ],
-            None,
-            None,
-        )
-        .expect("the local path must survive");
-        assert_eq!(plan.access, "lmstudio");
-        assert_eq!(plan.chosen, AccessClass::Local);
-        assert_eq!(plan.rejected.len(), 1);
-        let r = &plan.rejected[0];
-        assert_eq!(r.access, "openai");
-        assert_eq!(r.dimension, RejectionDimension::NotConfigured);
-        assert_eq!(r.layer, RejectionLayer::Access);
-        assert!(r.witness.contains("OPENAI_API_KEY unset"), "{}", r.witness);
-    }
-
-    #[test]
-    fn sovereign_order_prefers_local_over_metered_api() {
-        let plan = resolve_access(
-            "qwen/qwen3",
-            &[
-                api("qwen", true, "DASHSCOPE_API_KEY"),
-                local("ollama", true),
-            ],
-            None,
-            None,
-        )
-        .expect("both admissible");
-        assert_eq!(plan.access, "ollama");
-        assert_eq!(plan.chosen, AccessClass::Local);
-        // The outranked api path FAILED nothing — it stays available,
-        // silently (a pin can still name it), never a fake witness.
-        assert!(plan.rejected.is_empty());
-    }
-
-    /// `order_key`'s configured-first leg (the `!` is load-bearing):
-    /// twin candidates differing only in key state resolve to the
-    /// CONFIGURED one, whichever order they arrive in.
-    #[test]
-    fn the_configured_twin_wins_either_order() {
-        for pair in [
-            vec![
-                api("mistral", false, "MISTRAL_API_KEY"),
-                api("mistral", true, "MISTRAL_API_KEY"),
-            ],
-            vec![
-                api("mistral", true, "MISTRAL_API_KEY"),
-                api("mistral", false, "MISTRAL_API_KEY"),
-            ],
-        ] {
-            let plan = resolve_access("mistral/mistral-large", &pair, None, None)
-                .expect("the configured twin resolves");
-            assert_eq!(plan.access, "mistral");
-            assert_eq!(plan.rejected.len(), 1, "the unconfigured twin is rejected");
-            assert!(
-                plan.rejected[0].witness.contains("MISTRAL_API_KEY unset"),
-                "with its witness: {}",
-                plan.rejected[0].witness
-            );
-        }
-    }
-
-    /// The FULL sovereign chain, pinned pairwise (mutation-killers for
-    /// every `sovereign_rank` arm — a deleted arm must flip a winner).
-    #[test]
-    fn the_sovereign_chain_is_total_local_mock_harness_oauth_api() {
-        let all = [
-            AccessCandidate::new("the-local", AccessClass::Local, true),
-            AccessCandidate::new("the-mock", AccessClass::Mock, true),
-            AccessCandidate::new("the-harness", AccessClass::Harness, true),
-            AccessCandidate::new("the-oauth", AccessClass::Oauth, true),
-            AccessCandidate::new("the-api", AccessClass::Api, true),
-        ];
-        for (winner, loser_rank) in [
-            ("the-local", 0),
-            ("the-mock", 1),
-            ("the-harness", 2),
-            ("the-oauth", 3),
-        ] {
-            let _ = loser_rank;
-            let idx = all
-                .iter()
-                .position(|c| c.access == winner)
-                .expect("present");
-            let mut subset = all[idx..].to_vec();
-            subset.reverse(); // enumeration order must never matter
-            let plan = resolve_access("p/m", &subset, None, None).expect("configured");
-            assert_eq!(
-                plan.access, winner,
-                "against every lower-ranked class, {winner} wins"
-            );
-        }
-    }
-
-    /// `classify_pin_refusal` (NIKA-1800 vs 1801): the pin-layer-only
-    /// refusal reads 1801; a candidate failing EARLIER (not configured)
-    /// reads 1800 with its access-layer witness.
-    #[test]
-    fn the_pin_refusal_classification_reads_the_failing_layer() {
-        // Every rejection at the PIN layer → PinUnsatisfied (1801).
-        let pin_refusal = resolve_access(
-            "openai/gpt-5",
-            &[
-                api("openai", true, "OPENAI_API_KEY"),
-                AccessCandidate::new("codex", AccessClass::Harness, true),
-            ],
-            None,
-            Some("local"),
-        )
-        .expect_err("nothing matches the pin");
-        assert!(matches!(
-            classify_pin_refusal("openai/gpt-5", "local", &pin_refusal),
-            PinRefusal::PinUnsatisfied { .. }
-        ));
-        // The api row unconfigured → it fails at the ACCESS layer first
-        // → NoPath (1800) naming that witness.
-        let access_refusal = resolve_access(
-            "openai/gpt-5",
-            &[api("openai", false, "OPENAI_API_KEY")],
-            None,
-            Some("codex"),
-        )
-        .expect_err("unconfigured fails before the pin");
-        assert!(matches!(
-            classify_pin_refusal("openai/gpt-5", "codex", &access_refusal),
-            PinRefusal::NoPath { .. }
-        ));
-    }
-
-    /// `access_plan_map`: a templated model is not a static fact — it
-    /// never appears in the map (the `!contains` filter, mutation-pinned).
-    #[test]
-    fn the_plan_map_skips_templated_models() {
-        let map = access_plan_map(
-            &["mock/echo".to_owned(), "${{ inputs.model }}".to_owned()],
-            &[],
-            None,
-        );
-        assert!(map.contains_key("mock/echo"));
-        assert_eq!(map.len(), 1, "the templated row is absent, never guessed");
-    }
-
-    #[test]
-    fn a_ready_harness_pin_stamps_every_static_model() {
-        let probes = vec![harness_probe("claude-code", &["anthropic"], true)];
-        let map = access_plan_map(
-            &[
-                "ollama/qwen3.5:4b".to_owned(),
-                "anthropic/claude-sonnet-4-5".to_owned(),
-            ],
-            &probes,
-            Some("claude-code"),
-        );
-        assert_eq!(map.len(), 2);
-        for plan in map.values() {
-            assert_eq!(plan.access, "claude-code");
-            assert_eq!(plan.chosen, AccessClass::Harness);
-            assert_eq!(plan.billing, BillingClass::IncludedQuota);
-            assert!(plan.pinned);
-        }
-        assert_eq!(first_ready_harness(&probes), Some("claude-code"));
-    }
-
-    #[test]
-    fn a_codex_pin_stamps_requested_model_and_subscription_quota_without_a_price() {
-        let probes = vec![harness_probe("codex", &["anthropic"], true)];
-        let map = access_plan_map(
-            &["anthropic/claude-sonnet-4-6".to_owned()],
-            &probes,
-            Some("codex"),
-        );
-        let plan = map
-            .get("anthropic/claude-sonnet-4-6")
-            .expect("the requested model is receipt evidence");
-        assert_eq!(plan.model, "anthropic/claude-sonnet-4-6");
-        assert_eq!(plan.access, "codex");
-        assert_eq!(plan.billing, BillingClass::IncludedQuota);
-        assert!(!plan.billing.is_usd_metered());
-    }
-
-    #[test]
-    fn a_pin_by_class_forces_the_outranked_path() {
-        let plan = resolve_access(
-            "qwen/qwen3",
-            &[
-                local("ollama", true),
-                api("qwen", true, "DASHSCOPE_API_KEY"),
-            ],
-            None,
-            Some("api"),
-        )
-        .expect("the pinned api path is admissible");
-        assert_eq!(plan.access, "qwen");
-        assert_eq!(plan.chosen, AccessClass::Api);
-        assert!(plan.pinned);
-        assert_eq!(plan.rejected.len(), 1);
-        assert_eq!(
-            plan.rejected[0].dimension,
-            RejectionDimension::PinUnsatisfied
-        );
-        assert_eq!(plan.rejected[0].layer, RejectionLayer::Pin);
-    }
-
-    #[test]
-    fn a_pin_by_id_matches_the_candidate_id() {
-        let plan = resolve_access(
-            "ollama/llama3.2",
-            &[local("ollama", true)],
-            None,
-            Some("ollama"),
-        )
-        .expect("pin names the only candidate");
-        assert_eq!(plan.access, "ollama");
-        assert!(plan.pinned);
-    }
-
-    #[test]
-    fn an_unsatisfied_pin_refuses_and_never_substitutes() {
-        // A-4: both paths are admissible, the pin names neither — the
-        // resolver must refuse, never quietly hand back a survivor.
-        let refusal = resolve_access(
-            "qwen/qwen3",
-            &[
-                local("ollama", true),
-                api("qwen", true, "DASHSCOPE_API_KEY"),
-            ],
-            None,
-            Some("harness"),
-        )
-        .expect_err("an unsatisfied pin is a refusal");
-        assert_eq!(refusal.provider, "qwen");
-        assert_eq!(refusal.rejected.len(), 2);
-        for r in &refusal.rejected {
-            assert_eq!(r.dimension, RejectionDimension::PinUnsatisfied);
-            assert!(r.witness.contains("--access harness"), "{}", r.witness);
-        }
-    }
-
-    #[test]
-    fn policy_allowlist_rejects_the_provider_with_a_witness() {
-        let allowed = vec![String::from("ollama"), String::from("mistral")];
-        let refusal = resolve_access(
-            "openai/gpt-5",
-            &[api("openai", true, "OPENAI_API_KEY")],
-            Some(&allowed),
-            None,
-        )
-        .expect_err("provider outside the allowlist");
-        assert_eq!(refusal.rejected.len(), 1);
-        let r = &refusal.rejected[0];
-        assert_eq!(r.dimension, RejectionDimension::ProviderNotAllowed);
-        assert_eq!(r.layer, RejectionLayer::Policy);
-        assert!(r.witness.contains("openai"), "{}", r.witness);
-    }
-
-    #[test]
-    fn the_access_step_wins_the_witness_over_policy_and_pin() {
-        // Steps 4→5→6: an unconfigured candidate under a forbidding
-        // policy AND a foreign pin still teaches the credential first.
-        let allowed = vec![String::from("nobody")];
-        let refusal = resolve_access(
-            "openai/gpt-5",
-            &[api("openai", false, "OPENAI_API_KEY")],
-            Some(&allowed),
-            Some("harness"),
-        )
-        .expect_err("nothing survives");
-        assert_eq!(refusal.rejected.len(), 1);
-        assert_eq!(
-            refusal.rejected[0].dimension,
-            RejectionDimension::NotConfigured
-        );
-    }
-
-    #[test]
-    fn no_candidates_refuses_with_the_parsed_provider() {
-        let refusal = resolve_access("mistral/mistral-small-latest", &[], None, None)
-            .expect_err("nothing to choose from");
-        assert_eq!(refusal.model, "mistral/mistral-small-latest");
-        assert_eq!(refusal.provider, "mistral");
-        assert!(refusal.rejected.is_empty());
-    }
-
-    #[test]
-    fn same_class_ties_break_on_codepoint_id_order() {
-        let plan = resolve_access(
-            "prov/m",
-            &[local("bbb", true), local("aaa", true)],
-            None,
-            None,
-        )
-        .expect("both admissible");
-        assert_eq!(plan.access, "aaa");
-    }
-
-    #[test]
-    fn billing_evidence_override_reaches_the_plan() {
-        let candidate = AccessCandidate::new("anthropic", AccessClass::Api, true)
-            .with_billing(BillingClass::CreditMetered);
-        let plan = resolve_access("anthropic/claude-sonnet-4-6", &[candidate], None, None)
-            .expect("admissible");
-        assert_eq!(plan.billing, BillingClass::CreditMetered);
-    }
-
-    #[test]
-    fn candidates_bridge_reads_the_probe_truth() {
-        use crate::registry::{ProviderRegistry, ProvidersConfig};
-        let registry = ProviderRegistry::without_http(ProvidersConfig::new());
-        let probes = crate::probe::collect_provider_probes(&registry);
-        let candidates = candidates_for(&probes, "ollama");
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].access, "ollama");
-        assert_eq!(candidates[0].class, AccessClass::Local);
-        // Keyless local: no fix var to teach.
-        assert!(candidates[0].fix_var.is_none());
-        let candidates = candidates_for(&probes, "mistral");
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].class, AccessClass::Api);
-        assert!(candidates[0].fix_var.is_some());
-    }
-}
-
+mod prop_tests;
 #[cfg(test)]
-mod prop_tests {
-    use super::*;
-    use proptest::prelude::*;
-
-    fn class_strategy() -> impl Strategy<Value = AccessClass> {
-        prop_oneof![
-            Just(AccessClass::Local),
-            Just(AccessClass::Api),
-            Just(AccessClass::Harness),
-            Just(AccessClass::Oauth),
-            Just(AccessClass::Mock),
-        ]
-    }
-
-    /// Pins draw from BOTH grammars the flag accepts: candidate-id
-    /// shaped tokens AND the class wire strings (the review's blind
-    /// spot: `[a-e]{1,6}` can never spell `local`).
-    fn pin_strategy() -> impl Strategy<Value = Option<String>> {
-        proptest::option::of(prop_oneof![
-            "[a-e]{1,6}".prop_map(String::from),
-            class_strategy().prop_map(|c| c.as_str().to_owned()),
-        ])
-    }
-
-    prop_compose! {
-        fn candidate_strategy()(
-            id in "[a-e]{1,6}",
-            class in class_strategy(),
-            configured in any::<bool>(),
-            fix in proptest::option::of("[A-Z_]{0,12}"),
-        ) -> AccessCandidate {
-            let candidate = AccessCandidate::new(id, class, configured);
-            match fix {
-                Some(var) => candidate.with_fix_var(var),
-                None => candidate,
-            }
-        }
-    }
-
-    /// A deterministic Fisher-Yates from a seed — the shuffle itself
-    /// must not depend on ambient randomness (instrument law).
-    fn shuffle(mut v: Vec<AccessCandidate>, seed: u64) -> Vec<AccessCandidate> {
-        let mut state = seed | 1;
-        for i in (1..v.len()).rev() {
-            // Numerical Recipes LCG — cheap, deterministic, test-only.
-            state = state
-                .wrapping_mul(6_364_136_223_846_793_005)
-                .wrapping_add(1_442_695_040_888_963_407);
-            #[allow(clippy::cast_possible_truncation)]
-            let j = (state % (i as u64 + 1)) as usize;
-            v.swap(i, j);
-        }
-        v
-    }
-
-    proptest! {
-        /// THE determinism law: enumeration order never matters — the
-        /// resolver totally orders candidates internally.
-        #[test]
-        fn permutation_never_changes_the_outcome(
-            candidates in proptest::collection::vec(candidate_strategy(), 0..8),
-            pin in pin_strategy(),
-            provider in "[a-e]{1,3}",
-            allow in proptest::option::of(proptest::collection::vec("[a-e]{1,3}", 0..3)),
-            seed in any::<u64>(),
-        ) {
-            let model = format!("{provider}/m");
-            let first = resolve_access(&model, &candidates, allow.as_deref(), pin.as_deref());
-            let shuffled = shuffle(candidates, seed);
-            let second = resolve_access(&model, &shuffled, allow.as_deref(), pin.as_deref());
-            prop_assert_eq!(first, second);
-        }
-
-        /// Witness totality: every rejection names an input candidate
-        /// and carries a non-empty witness; a chosen path is genuinely
-        /// admissible; a refusal accounts for EVERY candidate.
-        #[test]
-        fn witnesses_are_total_and_the_chosen_is_admissible(
-            candidates in proptest::collection::vec(candidate_strategy(), 0..8),
-            pin in pin_strategy(),
-            provider in "[a-e]{1,3}",
-            allow in proptest::option::of(proptest::collection::vec("[a-e]{1,3}", 0..3)),
-        ) {
-            let model = format!("{provider}/m");
-            let ids: Vec<&str> = candidates.iter().map(|c| c.access.as_str()).collect();
-            match resolve_access(&model, &candidates, allow.as_deref(), pin.as_deref()) {
-                Ok(plan) => {
-                    prop_assert!(ids.contains(&plan.access.as_str()));
-                    prop_assert!(plan.rejected.len() < candidates.len());
-                    for r in &plan.rejected {
-                        prop_assert!(ids.contains(&r.access.as_str()));
-                        prop_assert!(!r.witness.is_empty());
-                    }
-                    // (id · class) does not single out a row when twin
-                    // ids ride the input (the shrunk regression case:
-                    // one configured, one not — the resolver picks the
-                    // configured twin). The honest predicate: SOME
-                    // configured input carries the chosen (id · class).
-                    prop_assert!(
-                        candidates.iter().any(|c| c.access == plan.access
-                            && c.class == plan.chosen
-                            && c.configured),
-                        "the chosen path must name a configured input row"
-                    );
-                    if let Some(list) = allow.as_deref() {
-                        prop_assert!(list.iter().any(|p| p == &provider));
-                    }
-                    if let Some(p) = pin.as_deref() {
-                        prop_assert!(plan.pinned);
-                        prop_assert!(p == plan.access || p == plan.chosen.as_str());
-                    }
-                }
-                Err(refusal) => {
-                    prop_assert_eq!(refusal.rejected.len(), candidates.len());
-                    for r in &refusal.rejected {
-                        prop_assert!(ids.contains(&r.access.as_str()));
-                        prop_assert!(!r.witness.is_empty());
-                    }
-                }
-            }
-        }
-    }
-}
+mod tests;

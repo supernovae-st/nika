@@ -38,7 +38,7 @@ mod page_type;
 mod sitemap;
 mod zones;
 
-pub use digest::page_digest;
+pub use digest::{page_digest, page_digest_discovering};
 pub use feed::feed_from_bytes;
 pub use nika_types::extract::{EXTRACT_MODE_NAMES, ExtractMode, UnknownExtractMode};
 

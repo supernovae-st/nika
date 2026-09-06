@@ -403,7 +403,10 @@ fn totals_row(view: &RunView) -> String {
     // Partial totals never read as complete: `≥` + the unpriced count
     // when some calls carried no meterable price (local · mock ·
     // uncataloged · provider silent) — never silently sum nulls as zero.
-    if view.unpriced_calls > 0 {
+    if !crate::render::metered(view) {
+        // Nothing metered yet is a word, never `$0.00` (ADR-128).
+        let _ = write!(row, " · {}", crate::render::unmetered_word(view));
+    } else if view.unpriced_calls > 0 {
         let _ = write!(
             row,
             " · ≥ {} ({} unpriced)",

@@ -1,0 +1,1 @@
+- **`nika trace export` admits a journal before reading it.** A file past the writer's 256 MiB journal bound or a non-regular path is refused by size or shape, never read whole into memory; the export is published by rename so an interrupted write cannot leave a half-written file claiming to be complete.

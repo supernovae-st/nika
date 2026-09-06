@@ -153,6 +153,11 @@ enum RequestCommand {
         world: String,
         reply: Reply<Admission>,
     },
+    Replay {
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        reply: Reply<Option<Admission>>,
+    },
     PrepareScheduled {
         key: IdempotencyKey,
         digest: RequestDigest,
@@ -186,6 +191,24 @@ enum RequestCommand {
 }
 
 enum ControlCommand {
+    ExecutionStatus {
+        id: JobId,
+        reply: Reply<Option<JobStatus>>,
+    },
+    RefuseQueued {
+        id: JobId,
+        event: Value,
+        reply: Reply<JobRecord>,
+    },
+    CancelQueued {
+        id: JobId,
+        execution_id: String,
+        trace_id: String,
+        snapshot_digest: String,
+        event: Value,
+        receipt: Box<JobReceipt>,
+        reply: Reply<JobRecord>,
+    },
     Transition {
         id: JobId,
         status: JobStatus,
@@ -245,6 +268,17 @@ impl StoreHandle {
         receive(answer).await
     }
 
+    /// The job already bound to this key, without creating one (ADR-132).
+    pub(super) async fn replay(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+    ) -> Result<Option<Admission>, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_request(RequestCommand::Replay { key, digest, reply })?;
+        receive(answer).await
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn prepare_scheduled_blocking(
         &self,
@@ -282,21 +316,24 @@ impl StoreHandle {
         receive(answer).await
     }
 
-    pub(super) async fn start_execution(
+    #[allow(clippy::too_many_arguments)]
+    pub(super) async fn cancel_queued(
         &self,
         id: JobId,
         execution_id: String,
         trace_id: String,
         snapshot_digest: String,
         event: Value,
+        receipt: JobReceipt,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control(ControlCommand::StartExecution {
+        self.send_control(ControlCommand::CancelQueued {
             id,
             execution_id,
             trace_id,
             snapshot_digest,
             event,
+            receipt: Box::new(receipt),
             reply,
         })?;
         receive(answer).await
@@ -334,6 +371,17 @@ impl StoreHandle {
         receive(answer).await
     }
 
+    /// Lifecycle reads share the reserved control lane with their mutations.
+    /// A full HTTP request queue cannot turn a stale replay into a fatal run.
+    pub(super) async fn execution_status(
+        &self,
+        id: JobId,
+    ) -> Result<Option<JobStatus>, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_control_blocking(ControlCommand::ExecutionStatus { id, reply })?;
+        receive(answer).await
+    }
+
     pub(super) fn get_blocking(&self, id: JobId) -> Result<Option<JobRecord>, ServerError> {
         #[cfg(test)]
         self.shutdown_probe.hold_observation();
@@ -367,47 +415,14 @@ impl StoreHandle {
         Arc::clone(&self.shutdown_probe)
     }
 
-    pub(super) async fn transition_with_events(
+    pub(super) async fn refuse_queued(
         &self,
         id: JobId,
-        status: JobStatus,
         event: Value,
     ) -> Result<JobRecord, ServerError> {
         let (reply, answer) = oneshot::channel();
-        self.send_control_blocking(ControlCommand::Transition {
-            id,
-            status,
-            event,
-            outputs: None,
-            receipt: None,
-            reply,
-        })?;
+        self.send_control_blocking(ControlCommand::RefuseQueued { id, event, reply })?;
         receive(answer).await
-    }
-
-    pub(super) async fn settle_with_result(
-        &self,
-        id: JobId,
-        status: JobStatus,
-        event: Value,
-        outputs: Option<BTreeMap<String, Value>>,
-        receipt: Option<JobReceipt>,
-    ) -> Result<JobRecord, ServerError> {
-        let (reply, answer) = oneshot::channel();
-        self.send_control(ControlCommand::Transition {
-            id,
-            status,
-            event,
-            outputs,
-            receipt: receipt.map(Box::new),
-            reply,
-        })?;
-        let result = receive(answer).await;
-        #[cfg(test)]
-        if result.is_ok() {
-            self.shutdown_probe.mark_terminal_settled();
-        }
-        result
     }
 
     pub(super) async fn settle_with_result_reliable(
@@ -639,6 +654,10 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             let result = store.create_or_replay_captured(key, digest, max_jobs, workflow, &world);
             let _result = reply.send(result);
         }
+        RequestCommand::Replay { key, digest, reply } => {
+            let result = store.replay(&key, &digest);
+            let _result = reply.send(result);
+        }
         RequestCommand::PrepareScheduled {
             key,
             digest,
@@ -707,6 +726,41 @@ fn serve_control(
     events: &Notify,
 ) -> bool {
     match command {
+        ControlCommand::ExecutionStatus { id, reply } => {
+            let result = store
+                .get(&id)
+                .map(|record| record.map(|record| record.status()));
+            let _result = reply.send(result);
+        }
+        ControlCommand::RefuseQueued { id, event, reply } => {
+            let result = store
+                .refuse_queued(&id, &event)
+                .map(|mutation| mutation.record().clone());
+            notify_persisted(&result, events);
+            let _result = reply.send(result);
+        }
+        ControlCommand::CancelQueued {
+            id,
+            execution_id,
+            trace_id,
+            snapshot_digest,
+            event,
+            receipt,
+            reply,
+        } => {
+            let result = store
+                .cancel_queued(
+                    &id,
+                    execution_id,
+                    trace_id,
+                    snapshot_digest,
+                    &event,
+                    *receipt,
+                )
+                .map(|mutation| mutation.record().clone());
+            notify_persisted(&result, events);
+            let _result = reply.send(result);
+        }
         ControlCommand::Transition {
             id,
             status,
@@ -715,18 +769,7 @@ fn serve_control(
             receipt,
             reply,
         } => {
-            let result = if outputs.is_some() || receipt.is_some() {
-                store.settle_with_events(
-                    &id,
-                    status,
-                    std::slice::from_ref(&event),
-                    outputs,
-                    receipt.map(|receipt| *receipt),
-                )
-            } else {
-                store.transition_with_events(&id, status, std::slice::from_ref(&event))
-            }
-            .map(|mutation| mutation.record().clone());
+            let result = transition_job(store, &id, status, &event, outputs, receipt);
             notify_persisted(&result, events);
             let _result = reply.send(result);
         }
@@ -739,7 +782,7 @@ fn serve_control(
             reply,
         } => {
             let result = store
-                .start_execution(
+                .start_queued_execution(
                     &id,
                     execution_id,
                     trace_id,
@@ -772,4 +815,77 @@ fn serve_control(
         }
     }
     true
+}
+
+fn transition_job(
+    store: &JobStore,
+    id: &JobId,
+    status: JobStatus,
+    event: &Value,
+    outputs: Option<BTreeMap<String, Value>>,
+    receipt: Option<Box<JobReceipt>>,
+) -> Result<JobRecord, JobStoreError> {
+    let payloads = std::slice::from_ref(event);
+    let mutation = if outputs.is_some() || receipt.is_some() {
+        store.settle_with_events(
+            id,
+            status,
+            payloads,
+            outputs,
+            receipt.map(|receipt| *receipt),
+        )
+    } else {
+        store.transition_with_events(id, status, payloads)
+    }?;
+    Ok(mutation.record().clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::future::{Future, poll_fn};
+    use std::task::Poll;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn execution_status_does_not_compete_with_a_full_request_queue() {
+        let (requests, request_receiver) = std::sync::mpsc::sync_channel(1);
+        let (controls, control_receiver) = std::sync::mpsc::sync_channel(1);
+        let handle = StoreHandle {
+            requests,
+            controls,
+            events: Arc::new(Notify::new()),
+            shutdown_probe: Arc::new(ShutdownTestProbe::default()),
+        };
+        let (reply, _answer) = oneshot::channel();
+        assert!(
+            handle
+                .send_request(RequestCommand::Queued { reply })
+                .is_ok()
+        );
+        let id = JobId::random();
+        let status = handle.execution_status(id.clone());
+        tokio::pin!(status);
+        assert!(
+            poll_fn(|cx| Poll::Ready(status.as_mut().poll(cx)))
+                .await
+                .is_pending(),
+            "lifecycle observation must await the store, not fail at HTTP ingress"
+        );
+        let (observed, reply) = match control_receiver.try_recv().expect("reserved control lane") {
+            ControlCommand::ExecutionStatus { id, reply } => Some((id, reply)),
+            _ => None,
+        }
+        .expect("an execution status read");
+        assert_eq!(observed, id);
+        reply
+            .send(Ok(Some(JobStatus::Succeeded)))
+            .expect("observer");
+        assert_eq!(status.await.expect("status"), Some(JobStatus::Succeeded));
+        assert!(matches!(
+            request_receiver.try_recv(),
+            Ok(RequestCommand::Queued { .. })
+        ));
+        assert!(request_receiver.try_recv().is_err());
+    }
 }

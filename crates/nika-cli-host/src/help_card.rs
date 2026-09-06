@@ -11,6 +11,20 @@ use std::path::Path;
 /// Clap `--help --all` footer · issue 1274: the only non-mock path.
 pub const AFTER_HELP: &str = "a REAL answer needs exactly one of { an API key · a signed-in harness seat (`--access`) · the Gear One pull (`nika model pull`) } — everything else is a mock rehearsal (the run says so out loud) · nika --help --all  the rest of the surface";
 
+/// `nika check --help` footer (#1404): the base exit contract, so CI
+/// can branch on the code alone. The house taxonomy (spec §4 · LOCKED):
+/// 0 the report holds · 1 a workflow ran and failed (`run` only) · 2 the
+/// FILE · 3 the ENVIRONMENT · 4 paused on a human gate (`run` only).
+pub const CHECK_EXITS: &str = "exit codes · 0 the report holds (clean) · 2 the FILE: a grammar refusal or findings (`--json` carries `kind` to tell them apart) · or a mistyped flag (the parser's own usage error) · 3 the ENVIRONMENT: the file is missing or unreadable, a registry is unreachable · never 1 or 4 (those are `run`'s: a failed workflow · a paused gate) · `--profile operational` folds risk ≥ High and an unready access lane into 2 · the layers line: VALID (grammar · DAG · permits · types · the resolver knows every model) · ACCESS READY (a path on this machine · presence, never a dial) · CAPACITY FIT (the seat's limits vs the declaration) · RUN READY (the three, and no known blocker) · `--json` gate keys: `clean` · `verdicts.{valid,access_ready,capacity_fit,run_ready,blockers}` · `model_findings[]` · `access_plan[]` · `risk_grade` · `judged.{composition,skills}`";
+
+/// `nika run --help` footer (One Door · wave 2b · the W1 gauntlet found
+/// `run`'s codes documented only inside `check`'s help): the run's
+/// exit ladder, so CI can branch on the code alone.
+pub const RUN_EXITS: &str = "exit codes · 0 the run settled (or `--dry-run` previewed) · 1 the WORKFLOW: a task failed and the run settled failed · 2 the FILE: findings (the same audit `check` prints) or a cost floor above `--max-cost-usd` (NIKA-1709) · 3 the ENVIRONMENT: no ready access path (NIKA-1800), an unsatisfied `--access` (NIKA-1801 · NIKA-1803), a resume that would switch access (NIKA-1807), an unreadable file · 4 PAUSED on a human gate (resume with `--resume <trace> --answer <task>=<value>`) · 130 CANCELLED by the operator (Ctrl-C · SIGTERM: in-flight work completed and was counted, unstarted tasks were cancelled, the trace sealed with `workflow_cancelled` · a second Ctrl-C aborts mid-flight and leaves the trace incomplete)";
+
+/// `nika test --help` footer (#1404): the golden test's exit ladder.
+pub const TEST_EXITS: &str = "exit codes · 0 the golden matches · 1 the mock run failed or the outputs drifted from the golden · 2 the FILE has findings (`check` dirty) · 3 no golden yet (`--update` writes one), the file is missing, or `--var` without `--case` · a rule table: `--case <name>` pins `<file>.<name>.golden.json`, `--var KEY=VALUE` binds the case";
+
 /// Human default help · B67 postcard, now naming the two first-run doors
 /// (`try` · `new`), glossing `permits`, and documenting isolation.
 #[must_use]

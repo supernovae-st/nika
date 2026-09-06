@@ -25,7 +25,9 @@ fn started_fields_with_origins(
     sandbox: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
 ) -> Vec<(String, String)> {
-    started_fields_full(yaml, sandbox, None, false, origins, None, None, None, None)
+    started_fields_full(
+        yaml, sandbox, None, false, None, origins, None, None, None, None,
+    )
 }
 
 /// The full knob set (origins · the F-P21 declared compat · the ADR-099
@@ -37,6 +39,7 @@ fn started_fields_full(
     sandbox: Option<&str>,
     sandbox_policy: Option<&str>,
     sandbox_waived: bool,
+    project_root_fingerprint: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
     resume_unverified: Option<&crate::resume::ResumeUnverified>,
@@ -61,6 +64,7 @@ fn started_fields_full(
         sandbox,
         sandbox_policy,
         sandbox_waived,
+        project_root_fingerprint,
         origins,
         resume_compat,
         resume_unverified,
@@ -141,6 +145,38 @@ fn prologue_omits_absent_boundary_and_backend() {
 /// ride the opening frame when the run proceeds unconfined with
 /// `permits:` declared under `NIKA_SANDBOX=off`; every other posture
 /// leaves them absent (never an invented claim).
+/// The opening frame names the project that wrote the trace (#1367): the
+/// fingerprint when the composition root knows it, nothing otherwise.
+#[test]
+fn the_project_root_fingerprint_rides_the_opening_frame() {
+    let yaml = "nika: pay\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 4 }\n";
+    let origins = BTreeMap::new();
+    let bound = started_fields_full(
+        yaml,
+        None,
+        None,
+        false,
+        Some("abc123"),
+        &origins,
+        None,
+        None,
+        None,
+        None,
+    );
+    assert_eq!(get(&bound, "project_root_fingerprint"), Some("abc123"));
+    let unbound = started_fields_full(
+        yaml, None, None, false, None, &origins, None, None, None, None,
+    );
+    assert_eq!(get(&unbound, "project_root_fingerprint"), None);
+    let here =
+        crate::project_root_fingerprint(std::path::Path::new(".")).expect("the cwd canonicalizes");
+    assert_eq!(here.len(), 64, "a blake3 hex");
+    assert_eq!(
+        crate::project_root_fingerprint(std::path::Path::new("/definitely/not/here")),
+        None
+    );
+}
+
 #[test]
 fn the_waiver_is_attested_on_the_opening_frame() {
     let yaml = "nika: pay\npermits:\n  fs: { read: [\"./in/**\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
@@ -149,6 +185,7 @@ fn the_waiver_is_attested_on_the_opening_frame() {
         Some("noop"),
         Some("off"),
         true,
+        None,
         &BTreeMap::new(),
         None,
         None,
@@ -208,6 +245,7 @@ fn prologue_attests_the_declared_cross_version_compat() {
         None,
         None,
         false,
+        None,
         &BTreeMap::new(),
         Some("0.105.0"),
         None,
@@ -236,6 +274,7 @@ fn prologue_attests_the_resume_unverified_opt_out() {
         None,
         None,
         false,
+        None,
         &BTreeMap::new(),
         None,
         Some(&crate::resume::ResumeUnverified::Declared(
@@ -272,6 +311,7 @@ fn prologue_attests_the_unchained_resume_compat() {
         None,
         None,
         false,
+        None,
         &BTreeMap::new(),
         None,
         Some(&crate::resume::ResumeUnverified::Unchained(
@@ -329,6 +369,7 @@ fn prologue_journals_the_budget_only_when_bounded() {
         None,
         None,
         false,
+        None,
         &BTreeMap::new(),
         None,
         None,
@@ -358,6 +399,7 @@ fn prologue_journals_the_budget_only_when_bounded() {
         None,
         None,
         false,
+        None,
         &BTreeMap::new(),
         None,
         None,
@@ -379,6 +421,7 @@ fn prologue_journals_the_model_override_only_when_declared() {
         None,
         None,
         false,
+        None,
         &BTreeMap::new(),
         None,
         None,

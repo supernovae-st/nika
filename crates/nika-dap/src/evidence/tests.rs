@@ -24,6 +24,32 @@ fn keypair() -> (String, minisign::SecretKey) {
     (pair.pk.to_box().expect("pk box").to_string(), pair.sk)
 }
 
+#[test]
+fn enrollment_decodes_whole_boxes_and_rejects_non_public_material() {
+    let (first, secret) = keypair();
+    let (second, _) = keypair();
+    let misplaced = secret
+        .to_box(None)
+        .expect("synthetic secret box")
+        .to_string();
+    let ledger = format!("{first}\n{second}\n{misplaced}\n{first}");
+    let mut candidates = Vec::new();
+    push_unique_pubkey(&mut candidates, &ledger);
+    assert_eq!(
+        candidates.len(),
+        2,
+        "two real public keys, neither duplicates nor private material"
+    );
+    assert_eq!(
+        candidates[0],
+        (fingerprint(first.trim()), first.trim().to_owned())
+    );
+    assert_eq!(
+        candidates[1],
+        (fingerprint(second.trim()), second.trim().to_owned())
+    );
+}
+
 fn parsed_wf() -> nika_schema::raw::RawWorkflow {
     nika_schema::parse(
         WF_YAML,
@@ -702,7 +728,9 @@ fn the_manifest_attests_the_original_and_names_the_class() {
     let fields = pack["redaction"]["fields"]
         .as_array()
         .expect("the key list");
-    for key in ["output", "outcome", "detail", "delta", "message", "choices"] {
+    for key in [
+        "output", "outcome", "detail", "delta", "message", "choices", "items", "warning",
+    ] {
         assert!(fields.contains(&json!(key)), "the policy names {key}");
     }
     assert!(

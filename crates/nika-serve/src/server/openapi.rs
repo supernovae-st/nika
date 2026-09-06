@@ -63,6 +63,7 @@ fn schemas() -> Value {
             "WorkflowMetadata": workflow_metadata_schema(),
             "JobStatus": {
                 "type": "string",
+                "description": "queued and running: the resident owns the execution. interrupted: execution ownership was lost and effect settlement is unknown — an EVIDENCE state (the journal is INCOMPLETE), never a run state (ADR-129). paused, succeeded, failed and cancelled: the run's own settlement, the words its terminal frame carries (ADR-128).",
                 "enum": ["queued", "running", "interrupted", "paused", "succeeded", "failed", "cancelled"]
             },
             "Job": {
@@ -80,6 +81,7 @@ fn schemas() -> Value {
                         "additionalProperties": true
                     },
                     "receipt": {"$ref": "#/components/schemas/JobReceipt"},
+                    "settlement": {"$ref": "#/components/schemas/RunSettlement"},
                     "error": {
                         "type": "object",
                         "additionalProperties": false,
@@ -94,6 +96,7 @@ fn schemas() -> Value {
             "JobOrigin": job_origin_schema(),
             "JobReceipt": job_receipt_schema(),
             "JobEvent": job_event_schema(),
+            "RunSettlement": run_settlement_schema(),
             "TraceVerification": trace_verification_schema(),
             "JobStatusOnly": {
                 "type": "object",
@@ -104,26 +107,27 @@ fn schemas() -> Value {
                     "status": {"$ref": "#/components/schemas/JobStatus"}
                 }
             },
+            "JobByName": job_by_name_schema(),
             "ExecutionSnapshot": {
                 "type": "object",
                 "additionalProperties": false,
-                "description": "Immutable byte-owned execution world. Unit bytes are canonical lowercase hexadecimal and digests are canonical lowercase SHA-256. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
-                "required": ["format_version", "root", "digest", "units"],
+                "description": "Immutable byte-owned execution world — the body `nika check <file> --json --sdk-snapshot` prints (the engine is the one producer; a client never hashes). Unit bytes are canonical lowercase hexadecimal. `digest` and every unit `digest` are OPTIONAL caller-supplied integrity digests (canonical lowercase SHA-256 · a content assertion, never a signature): absent, the resident computes them and the receipt carries the result; present, they must match the bytes or the request is refused as `snapshot_tampered`. The decoded unit aggregate is limited to 16 MiB and the complete encoded request to 33 MiB. This object is the request body itself, not a path-bearing wrapper.",
+                "required": ["format_version", "root", "units"],
                 "properties": {
                     "format_version": {"type": "integer", "const": 1},
                     "root": {"type": "string", "minLength": 1, "maxLength": 4096},
-                    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional caller-supplied integrity digest of the world (never a signature)"},
                     "units": {
                         "type": "array",
                         "maxItems": 256,
                         "items": {
                             "type": "object",
                             "additionalProperties": false,
-                            "required": ["path", "kind", "digest", "bytes_hex"],
+                            "required": ["path", "kind", "bytes_hex"],
                             "properties": {
                                 "path": {"type": "string", "minLength": 1, "maxLength": 4096},
-                                "kind": {"type": "integer", "minimum": 0, "maximum": 3},
-                                "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                                "kind": {"type": "integer", "minimum": 0, "maximum": 3, "description": "0 root (the admitted workflow) · 1 child (a transitively invoked workflow) · 2 skill (an Agent Skill document) · 3 import (an opaque import the caller supplied)"},
+                                "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional caller-supplied integrity digest of the unit (never a signature)"},
                                 "bytes_hex": {"type": "string", "pattern": "^(?:[0-9a-f]{2})*$"}
                             }
                         }
@@ -204,7 +208,62 @@ fn job_event_schema() -> Value {
             "code": {"type": "string"},
             "message": {"type": "string"},
             "outputs": {"type": "object", "additionalProperties": true},
-            "receipt": {"$ref": "#/components/schemas/JobReceipt"}
+            "receipt": {"$ref": "#/components/schemas/JobReceipt"},
+            "settlement": {"$ref": "#/components/schemas/RunSettlement"}
+        }
+    })
+}
+
+/// ADR-128 · the run's settlement, built once by the runtime and projected
+/// here whole on the terminal event (`execution.settled` ·
+/// `execution.cancelled`): the same object the CLI's `run_settled` flattens.
+fn run_settlement_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The run's settlement (ADR-128), built once by the runtime and projected whole: the state word every door speaks, why, the elapsed time on the kernel clock, the task tally, the spend with its qualifier, the failure named. Unknown cost is never zero: `total_cost_usd` is absent when nothing was metered. Present on the terminal event and durable job response of a job whose runtime settled; absent when the resident lost the execution (interrupted) or refused it before any task. Reattachment and idempotent admission replay project the same hash-bound terminal event, never a new settlement.",
+        "required": ["status", "cause", "spend"],
+        "properties": {
+            "status": {"type": "string", "enum": ["succeeded", "failed", "paused", "cancelled"]},
+            "cause": {"type": "string", "enum": ["normal", "human_gate", "task_failed", "output_contract", "budget", "operator", "refused"]},
+            "elapsed_ms": {"type": "integer", "minimum": 0},
+            "tasks": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["total", "ok", "failed", "recovered", "skipped", "cancelled", "never_started"],
+                "properties": {
+                    "total": {"type": "integer", "minimum": 0},
+                    "ok": {"type": "integer", "minimum": 0, "description": "A recovered task IS a success (counted here too)"},
+                    "failed": {"type": "integer", "minimum": 0},
+                    "recovered": {"type": "integer", "minimum": 0},
+                    "skipped": {"type": "integer", "minimum": 0},
+                    "cancelled": {"type": "integer", "minimum": 0},
+                    "never_started": {"type": "integer", "minimum": 0, "description": "Cancelled at the boundary without ever starting (counted in `cancelled` too)"}
+                }
+            },
+            "spend": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["priced_calls", "unpriced_calls", "qualifier"],
+                "properties": {
+                    "total_cost_usd": {"type": "number", "minimum": 0, "description": "Present only when at least one leaf metered real spend"},
+                    "priced_calls": {"type": "integer", "minimum": 0},
+                    "unpriced_calls": {"type": "integer", "minimum": 0},
+                    "qualifier": {"type": "string", "enum": ["priced", "partially_priced", "unpriced", "unmetered"]},
+                    "pricing_as_of": {"type": "string"},
+                    "by_source": {"type": "object", "additionalProperties": {"type": "number"}}
+                }
+            },
+            "error": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["code", "message"],
+                "properties": {
+                    "code": {"type": "string"},
+                    "message": {"type": "string"},
+                    "task": {"type": "string", "description": "The task that failed · absent for a run-level cause"}
+                }
+            }
         }
     })
 }
@@ -392,7 +451,7 @@ fn openapi_path() -> Value {
 fn workflow_list_path() -> Value {
     json!({"get": {
         "summary": "Contained workflow names",
-        "responses": {"200": {"description": "Relative .nika.yaml names", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowList"}}}}, "401": error_ref()}
+        "responses": {"200": {"description": "Project-relative .nika.yaml names under the served registry (--workflows)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowList"}}}}, "401": error_ref()}
     }})
 }
 
@@ -404,10 +463,23 @@ fn workflow_metadata_path() -> Value {
     }})
 }
 
+/// The by-name form of the job door (ADR-131).
+fn job_by_name_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes.",
+        "required": ["workflow"],
+        "properties": {
+            "workflow": {"type": "string", "minLength": 1, "maxLength": 4096}
+        }
+    })
+}
+
 fn jobs_path() -> Value {
     json!({"post": {
-        "summary": "Admit immutable snapshot bytes as a durable job",
-        "description": "The server decodes and readmits this exact body through ExecutionService and never interprets a caller filesystem path. Idempotency binds to the exact snapshot payload bytes.",
+        "summary": "Admit a workflow as a durable job — by served name, or as immutable snapshot bytes",
+        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional caller-supplied integrity digests (a content assertion, never a signature). The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
         "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}],
         "requestBody": snapshot_request_body(),
         "responses": {
@@ -427,8 +499,8 @@ fn jobs_path() -> Value {
 
 fn check_path() -> Value {
     json!({"post": {
-        "summary": "Judge immutable snapshot bytes without creating a job",
-        "description": "Runs the same decode and ExecutionService readmission as POST /v1/jobs over the exact request body.",
+        "summary": "Judge a workflow without creating a job — by served name, or as immutable snapshot bytes",
+        "description": "Runs the same admission as POST /v1/jobs (ADR-131 · both forms) over the exact request body, and creates nothing.",
         "requestBody": snapshot_request_body(),
         "responses": {
             "200": {"description": "Compact snapshot validation acknowledgement, not the full engine check report", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SnapshotValidationAck"}}}},
@@ -471,10 +543,10 @@ fn job_events_path() -> Value {
 
 fn job_cancel_path() -> Value {
     json!({"post": {
-        "summary": "Idempotently cancel a queued, running, or paused job",
-        "description": "Cancellation signals the run-scoped engine token before durable terminal settlement. A terminal replay returns the existing result unchanged.",
+        "summary": "Request cancellation or replay an ended observation",
+        "description": "A queued job cancels atomically before execution claims it. An active job receives the run-scoped cancellation signal and returns 202 until its execution owner settles: the result may be success, failure or cancellation; expired grace means interrupted, never an invented cancellation. A paused or final observation returns its existing result unchanged.",
         "parameters": [job_id_param()],
-        "responses": {"200": {"description": "Cancelled or already terminal job", "content": json_job()}, "401": error_ref(), "404": error_ref(), "503": error_ref()}
+        "responses": {"200": {"description": "Cancelled before execution, or already ended observation", "content": json_job()}, "202": {"description": "Cancellation requested; execution has not yet settled", "content": json_job()}, "401": error_ref(), "404": error_ref(), "503": error_ref()}
     }})
 }
 
@@ -488,10 +560,10 @@ fn job_trace_verify_path() -> Value {
 }
 
 fn snapshot_request_body() -> Value {
-    json!({
-        "required": true,
-        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ExecutionSnapshot"}}}
-    })
+    json!({"required": true, "content": {"application/json": {"schema": {"oneOf": [
+        {"$ref": "#/components/schemas/JobByName"},
+        {"$ref": "#/components/schemas/ExecutionSnapshot"}
+    ]}}}})
 }
 
 fn job_id_param() -> Value {
@@ -717,5 +789,51 @@ mod tests {
                 "serialized origin omitted {field}"
             );
         }
+    }
+}
+
+/// The document is COMMITTED beside the crate (`crates/nika-serve/openapi.json`)
+/// so the docs site can publish the real contract instead of a starter
+/// template (#1364): `docs.nika.sh/api-reference/openapi.json` served the
+/// Mintlify « plants » sample. The version field follows the workspace at
+/// every bump, so the comparison ignores it; everything else must match,
+/// and a drift names the one command that re-pins the file.
+#[cfg(test)]
+mod snapshot {
+    use serde_json::Value;
+
+    const PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/openapi.json");
+
+    fn without_version(mut doc: Value) -> Value {
+        if let Some(info) = doc.get_mut("info").and_then(Value::as_object_mut) {
+            info.remove("version");
+        }
+        doc
+    }
+
+    #[test]
+    fn the_committed_document_is_the_live_one() {
+        let live = super::document();
+        let rendered = format!(
+            "{}\n",
+            serde_json::to_string_pretty(&live).expect("serializes")
+        );
+        // The sanctioned env edge: the re-pin switch is the test's own
+        // operator gesture, never a secret and never a runtime read.
+        #[allow(clippy::disallowed_methods)]
+        let update = std::env::var_os("NIKA_UPDATE_OPENAPI").is_some();
+        if update {
+            std::fs::write(PATH, rendered).expect("the snapshot writes");
+            return;
+        }
+        let committed = std::fs::read_to_string(PATH)
+            .expect("crates/nika-serve/openapi.json is committed beside the crate");
+        let committed: Value = serde_json::from_str(&committed).expect("the snapshot is JSON");
+        assert_eq!(
+            without_version(committed),
+            without_version(live),
+            "the committed OpenAPI document drifted from the live one — re-pin it: \
+             NIKA_UPDATE_OPENAPI=1 cargo test -p nika-serve snapshot"
+        );
     }
 }

@@ -2,10 +2,10 @@
 # Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #
 # `nix run github:supernovae-st/nika` — the zero-gatekeeper install path
-# (#388). Builds the same binary the release ships: `--bin nika-cli`,
-# `--locked`, renamed to its public name `nika` (release.yml does the same
-# rename at packaging — the seed-crate bin name is reserved for the L5
-# composition root).
+# (#388). Builds the same binary the release ships: the `nika` bin target
+# of `crates/nika-cli`, `--locked`. The executable is BORN `nika`
+# (ADR-135) — no rename here and none at packaging (release.yml stages
+# the same file under the same name).
 #
 # Tests do NOT run here (`doCheck = false`): the full battery gates every
 # merge in diamond-ci; the flake is an INSTALL path, not a second CI. The
@@ -47,10 +47,6 @@
           buildAndTestSubdir = "crates/nika-cli";
 
           doCheck = false;
-
-          postInstall = ''
-            mv $out/bin/nika-cli $out/bin/nika
-          '';
 
           meta = {
             description = "The sovereign workflow engine for AI";

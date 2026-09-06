@@ -39,7 +39,19 @@ impl ExecutionBackend for ResidentExecutionBackend {
         context: nika_execution::ExecutionContext<'a>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         let display_root = self.display_root.clone();
-        Box::pin(async move { drive_resident_execution(display_root, context, None).await })
+        Box::pin(async move { drive_resident_execution(display_root, context, None, None).await })
+    }
+
+    fn execute_with_cancel<'a>(
+        &'a self,
+        context: nika_execution::ExecutionContext<'a>,
+        max_cost_usd: Option<f64>,
+        cancel: nika_types::cancel::CancelCtx,
+    ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        let display_root = self.display_root.clone();
+        Box::pin(async move {
+            drive_resident_execution(display_root, context, max_cost_usd, Some(cancel)).await
+        })
     }
 
     fn execute_with_max_cost<'a>(
@@ -48,7 +60,9 @@ impl ExecutionBackend for ResidentExecutionBackend {
         max_cost_usd: Option<f64>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         let display_root = self.display_root.clone();
-        Box::pin(async move { drive_resident_execution(display_root, context, max_cost_usd).await })
+        Box::pin(async move {
+            drive_resident_execution(display_root, context, max_cost_usd, None).await
+        })
     }
 }
 
@@ -67,17 +81,40 @@ async fn drive_resident_execution(
     display_root: PathBuf,
     context: nika_execution::ExecutionContext<'_>,
     max_cost_usd: Option<f64>,
+    operator_cancel: Option<nika_types::cancel::CancelCtx>,
 ) -> ExecutionOutcome {
+    // The journal a `nika run` would leave, under the project the resident
+    // serves: the trace the receipt names exists on disk (#1381). A lane per
+    // run — the factory builds the sink inside the worker.
+    let journal_dir = display_root.join(nika_dap::store::TRACE_DIR);
+    let (execution_id, trace_id) = (context.execution_id(), context.trace_id());
+    let journal: nika_service_execution::MirrorFactory = std::sync::Arc::new(move || {
+        Box::new(
+            nika_dap::journal::TraceFileSink::new(journal_dir.clone())
+                .for_execution(execution_id, trace_id),
+        )
+    });
     let Some(driver) = ServiceExecutionDriver::new(context, display_root) else {
         return ExecutionOutcome::failed(
             "admission_refused",
             "workflow world could not be composed",
         );
     };
+    // One Door · wave 1b: the resident resolves the SAME frozen plan the
+    // CLI door does (no pin, no override on a resident job) and executes
+    // it — a job with no ready path refuses before its first task.
+    let plan = driver.resolve_access_plan(None, None);
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     let _cancel = CancelOnDrop(Some(cancel_tx));
     match tokio::task::spawn_blocking(move || {
-        run_admitted_resident_job(driver, cancel_rx, max_cost_usd)
+        run_admitted_resident_job(
+            driver,
+            cancel_rx,
+            max_cost_usd,
+            plan,
+            journal,
+            operator_cancel,
+        )
     })
     .await
     {
@@ -90,6 +127,9 @@ fn run_admitted_resident_job(
     driver: ServiceExecutionDriver,
     cancel: tokio::sync::oneshot::Receiver<()>,
     max_cost_usd: Option<f64>,
+    plan: nika_service_execution::ExecutionAccessPlan,
+    journal: nika_service_execution::MirrorFactory,
+    operator_cancel: Option<nika_types::cancel::CancelCtx>,
 ) -> ExecutionOutcome {
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -97,16 +137,25 @@ fn run_admitted_resident_job(
     else {
         return ExecutionOutcome::failed("NIKA-COMP-001", "execution runtime could not start");
     };
+    let options = ServiceExecutionOptions::new()
+        .with_max_cost_usd(max_cost_usd)
+        .with_access_plan(plan)
+        .with_mirror(journal)
+        .with_cancel_option(operator_cancel);
     rt.block_on(async move {
         tokio::select! {
-            result = driver.execute(ServiceExecutionOptions::new().with_max_cost_usd(max_cost_usd)) => match result {
+            result = driver.execute(options) => match result {
                 Ok(outcome) => {
                     let disposition = match outcome.status() {
                         ServiceExecutionStatus::Succeeded => ExecutionDisposition::Succeeded,
                         ServiceExecutionStatus::Paused => ExecutionDisposition::Paused,
+                        ServiceExecutionStatus::Cancelled => ExecutionDisposition::Cancelled,
                         _ => ExecutionDisposition::Failed,
                     };
                     let mut mapped = ExecutionOutcome::from(disposition);
+                    if let Some(settlement) = outcome.settlement() {
+                        mapped = mapped.with_settlement(settlement.clone());
+                    }
                     if !outcome.outputs().is_empty() {
                         mapped = mapped.with_outputs(outcome.outputs().clone());
                     }

@@ -46,27 +46,19 @@
 
 #![forbid(unsafe_code)]
 
+mod abort;
 mod admit;
 #[cfg(test)]
 mod admit_resolved_tests;
 mod agent_events;
 pub mod approval;
-#[cfg(test)]
-#[path = "../build_support.rs"]
-mod build_support;
 pub mod child;
-mod compat_record;
 pub mod compose;
 pub mod config;
-mod contract;
 mod dispatch;
 mod emit_task;
-mod errors;
 pub(crate) mod harness_seat;
-pub mod identity;
-mod integrity;
 mod ledger;
-mod origins;
 mod pause;
 /// The proof layer (spec 15) — re-exported whole from the standalone
 /// `nika-proof` crate (L0 · the 15k crate-size split), so every
@@ -79,6 +71,8 @@ pub mod proof {
     };
     pub mod ir;
 }
+#[cfg(test)]
+mod hash_projection_tests;
 mod recover;
 pub mod resume;
 mod retry;
@@ -88,17 +82,14 @@ mod retry_safety_tests;
 mod run_clock_tests;
 /// The ONE OS-sandbox selection (ADR-095 Layer 6 · #888) — `pub` because
 /// `nika-mcp`'s spawn confinement rides the same decision (L4→L3).
-pub mod sandbox_select;
-mod secret;
 mod settle;
+mod settlement;
 /// The effects-simulated seams (the `nika test` plane · P0-16) — `pub`
 /// because [`SimRuntime`](compose::SimRuntime) names them in its spelling
 /// (the `compose::StderrEmitter` precedent).
 pub mod simulated;
-mod stamp;
 mod task;
 mod trust;
-pub(crate) mod witness;
 mod workflow_call;
 
 use std::collections::BTreeMap;
@@ -107,6 +98,7 @@ use std::sync::Arc;
 
 use futures_util::StreamExt;
 use nika_check::CheckReport;
+use nika_event::settlement::{RunCause, RunSettlement, RunState};
 use nika_event::{Event, EventKind};
 use nika_kernel::ai::provider::{ProviderInferDyn, ProviderMeta};
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
@@ -115,7 +107,8 @@ use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::RawWorkflow;
-use nika_schema::types::{OutputDecl, VarDecl, type_expr_display};
+use nika_schema::types::{OutputDecl, VarDecl};
+use nika_types::cancel::CancelCtx;
 use nika_types::resource::{KeyValue, Value as FieldValue};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
@@ -123,15 +116,28 @@ use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
+// ADR-127 · the run's laws live in the member crate; every historical
+// path holds through these re-exports.
+pub(crate) use nika_runtime_laws::{contract, errors, integrity, origins, secret, stamp, witness};
+pub use nika_runtime_laws::{identity, sandbox_select};
+
+/// The three read-only value namespaces the run's close reads (inputs ·
+/// consts · secrets) — the `task` module's own alias, spelled once here.
+type ValueBags<'a> = (
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+    &'a BTreeMap<String, Value>,
+);
+
 pub use admit::{
-    access_pin_refusal, budget_floor_refusal, floor_refusal, required_inputs_refusal,
-    scope_to_task, unbounded_breakdown,
+    access_pin_refusal, budget_floor_refusal, first_modelless_task, floor_refusal,
+    modelless_refusal, plan_refusal, required_inputs_refusal, scope_to_task, unbounded_breakdown,
 };
 pub use compose::{
     ProdRuntime, RunSeams, RuntimeCapabilities, SimRuntime, capabilities_of, production_runtime,
     simulated_runtime,
 };
-pub use config::RuntimeConfig;
+pub use config::{RuntimeConfig, project_root_fingerprint};
 pub use errors::RuntimeError;
 pub use identity::{
     EngineIdentity, MACHINE_PROTOCOL_VERSION, MACHINE_SNAPSHOT_FORMAT_VERSION, engine_identity,
@@ -142,9 +148,11 @@ pub use pause::WorkflowPause;
 // modules keep their historical `crate::{expr,jq,record}` names so every
 // call site inside this crate reads exactly as it did before the move; the
 // public types keep their `nika_runtime::…` paths below.
-pub use compat_record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
+// ADR-130 · the task vocabulary has ONE owner (nika-dataflow); the historical
+// `nika_runtime::…` paths are re-exports of it, never a twin.
 pub use nika_dataflow::DataflowError;
 use nika_dataflow::TaskRecord as DataflowTaskRecord;
+pub use nika_dataflow::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
 pub(crate) use nika_dataflow::{expr, jq, record};
 // The shared execution driver (`ServiceExecutionDriver` + `AuthorizedRuntime`
 // + the `ChildTrace*`/`Service*` family) descended to `nika-service-execution`
@@ -188,6 +196,13 @@ pub struct RunOutcome {
     pub unpriced_calls: u32,
     /// Whether the run stopped on `--max-cost-usd` (NIKA-1704).
     pub budget_exceeded: bool,
+    /// Whether the operator cancelled the run at a wave boundary (#1353).
+    pub cancelled: bool,
+    /// The run's settlement — built ONCE at the boundary that ended the
+    /// run (ADR-128); `ok` · `cancelled` · `budget_exceeded` and the cost
+    /// fields above are its projections, set together by
+    /// [`Self::with_settlement`]. Every door reads THIS.
+    pub settlement: RunSettlement,
 }
 
 impl RunOutcome {
@@ -208,31 +223,28 @@ impl RunOutcome {
             priced_calls: 0,
             unpriced_calls: 0,
             budget_exceeded: false,
+            cancelled: false,
+            settlement: if ok {
+                RunSettlement::new(RunState::Succeeded, RunCause::Normal)
+            } else {
+                RunSettlement::new(RunState::Failed, RunCause::TaskFailed)
+            },
         }
     }
 
-    fn from_dataflow(
-        ok: bool,
-        records: BTreeMap<String, DataflowTaskRecord>,
-        outputs: BTreeMap<String, Value>,
-    ) -> Self {
-        Self::new(
-            ok,
-            records
-                .into_iter()
-                .map(|(id, record)| (id, record.into()))
-                .collect(),
-            outputs,
-        )
-    }
-
-    /// Fold the run ledger's terminal snapshot onto the outcome (one
-    /// site — normal · paused · budget-abort all flow through).
-    fn with_ledger(mut self, snap: &ledger::LedgerSnapshot) -> Self {
-        self.total_cost_usd = snap.any_priced.then_some(snap.spent_usd);
-        self.priced_calls = snap.priced_calls;
-        self.unpriced_calls = snap.unpriced_calls;
-        self.budget_exceeded = snap.tripped;
+    /// Carry the run's settlement (ADR-128 · ONE site — normal · paused ·
+    /// cancelled · budget all flow through) and set its projections: the
+    /// verdict (a pause keeps `ok`: a decision point, never a failure), the
+    /// cancellation, the budget stop, the metered spend.
+    #[must_use]
+    pub fn with_settlement(mut self, settlement: RunSettlement) -> Self {
+        self.ok = matches!(settlement.state, RunState::Succeeded | RunState::Paused);
+        self.cancelled = settlement.state == RunState::Cancelled;
+        self.budget_exceeded = settlement.cause == RunCause::Budget;
+        self.total_cost_usd = settlement.spend.total_cost_usd;
+        self.priced_calls = settlement.spend.priced_calls;
+        self.unpriced_calls = settlement.spend.unpriced_calls;
+        self.settlement = settlement;
         self
     }
 }
@@ -294,6 +306,12 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// `harness_seat` so the trace names the execution override beside
     /// the resolver's plan. `None` without a declaration.
     harness_seat_id: Option<String>,
+    cancel: Option<CancelCtx>,
+    /// The FROZEN execution-access plan (One Door · wave 1): resolved
+    /// once by the composer, consumed here — the admission belt, the
+    /// per-lane seat routing, the task terminal's access stamp. `None`
+    /// = a bare embedder (the env-declared seat + the pin gate stand).
+    access_plan: Option<nika_providers::ExecutionAccessPlan>,
     /// Live `nika:inspect` cell (ADR-088). Shared with the dispatcher.
     inspect: Option<Arc<nika_builtin::LiveInspect>>,
     /// The run's SOURCE identity — sha256 hex over the exact bytes the
@@ -405,6 +423,8 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             access_probes: Vec::new(),
             boot_access_fields: Vec::new(),
             harness_seat_id: None,
+            cancel: None,
+            access_plan: None,
             inspect: None,
         }
     }
@@ -512,6 +532,47 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     pub fn with_harness_seat_id(mut self, id: Option<String>) -> Self {
         self.harness_seat_id = id;
         self
+    }
+
+    /// The operator's cancellation (#1353), read at every wave boundary.
+    #[must_use]
+    pub fn with_cancel(mut self, cancel: CancelCtx) -> Self {
+        self.cancel = Some(cancel);
+        self
+    }
+
+    /// Attach the FROZEN execution-access plan (One Door · wave 1) —
+    /// the runtime executes exactly this plan or refuses at admission;
+    /// nothing downstream re-resolves.
+    #[must_use]
+    pub fn with_access_plan(mut self, plan: nika_providers::ExecutionAccessPlan) -> Self {
+        self.access_plan = Some(plan);
+        self
+    }
+
+    /// The attached plan, when the composer froze one.
+    #[must_use]
+    pub fn access_plan(&self) -> Option<&nika_providers::ExecutionAccessPlan> {
+        self.access_plan.as_ref()
+    }
+
+    /// The seat that serves `model` — the plan's lane when a plan is
+    /// attached (a pinned seat serves every model · a resolved seat only
+    /// its own lanes), else the env-declared seat (the bare embedder).
+    pub(crate) fn seat_for(&self, model: &str) -> Option<&str> {
+        match &self.access_plan {
+            Some(plan) => plan.seat_for(model),
+            None => self.harness_seat_id.as_deref(),
+        }
+    }
+
+    /// The admitted lane's plan for `model` — the access stamp a task
+    /// terminal carries (what actually served, never a prefix guess).
+    pub(crate) fn lane_plan(&self, model: &str) -> Option<nika_types::access::AccessPlan> {
+        self.access_plan
+            .as_ref()
+            .and_then(|plan| plan.lane(model))
+            .map(|lane| lane.plan.clone())
     }
 
     /// Inject the workflow `secrets:` resolver (MINOR-B · the composer's
@@ -691,6 +752,25 @@ pub(crate) fn emit(
     ts
 }
 
+/// Emit a terminal frame (ADR-128): the site's own fields, then the
+/// settlement's — its kind IS the settlement's state.
+pub(crate) fn emit_terminal(
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+    fields: &[(&str, FieldValue)],
+    settlement: &RunSettlement,
+) {
+    let (id, ts) = stamper.next();
+    let mut event = Event::new(id, ts, settlement.terminal_kind());
+    for (key, value) in fields {
+        event = event.with_field(KeyValue::new(*key, value.clone()));
+    }
+    for field in settlement.fields() {
+        event = event.with_field(field);
+    }
+    sink.emit(event);
+}
+
 pub(crate) fn s(v: &str) -> FieldValue {
     FieldValue::String(v.to_owned())
 }
@@ -779,6 +859,20 @@ where
     D: ToolDefinitionProviderDyn,
     C: ClockDyn + Sync,
 {
+    /// The admitted lane per model of the frozen plan (`model → access
+    /// id`) — the resume identity's chosen-access half (wave 1b). Empty
+    /// for a planless embedder.
+    fn lane_access(&self) -> BTreeMap<String, String> {
+        self.access_plan
+            .as_ref()
+            .map(|plan| {
+                plan.admitted()
+                    .map(|(model, lane)| (model.to_owned(), lane.plan.access.clone()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// This run's resume identity context (ADR-099 · spec 14 law 10 at the
     /// `def_hash` tier) — the secret markers + leak-guard set + the
     /// composer-injected skill texts and child-closure digests, folded once
@@ -795,6 +889,7 @@ where
             &self.skills,
             &self.child_closures,
             self.access_pin.as_deref(),
+            &self.lane_access(),
         )
     }
 
@@ -816,6 +911,7 @@ where
             self.config.sandbox_backend.as_deref(),
             self.config.sandbox_policy.as_deref(),
             self.config.sandbox_waived,
+            self.config.project_root_fingerprint.as_deref(),
             &self.input_origins,
             self.resume_compat.as_deref(),
             self.resume_unverified.as_ref(),
@@ -863,8 +959,11 @@ where
             &self.var_overrides,
             self.config.max_cost_usd,
             self.model_override.as_deref(),
-            self.access_pin.as_deref(),
-            &self.access_probes,
+            (
+                self.access_pin.as_deref(),
+                &self.access_probes,
+                self.access_plan.as_ref(),
+            ),
         )?;
         let EnvelopeValues {
             inputs,
@@ -892,7 +991,8 @@ where
         let mut ok = true;
         let mut cache_hits: Vec<String> = Vec::new();
         // The spend ledger carries leaf debits and the run cost gate.
-        let run_ledger = ledger::RunLedger::new(self.config.max_cost_usd);
+        let run_ledger =
+            ledger::RunLedger::new(self.config.max_cost_usd).started_at(self.clock.now());
         let (mut parked, resolve_scope) = parked_scope(
             wf,
             &inputs,
@@ -932,16 +1032,48 @@ where
             sink,
         );
 
-        // Resolve outputs before the terminal frame so type failures fail the run.
-        let mut outputs = resolve_outputs(wf, &records, &inputs, &consts, &secrets);
-        // The output map bypasses the event sink, so scrub it explicitly.
-        crate::secret::scrub_outputs(&mut outputs, &secrets);
-        let snapshot = run_ledger.snapshot();
-        let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, &snapshot, stamper, sink);
+        Ok(self.close_run(
+            wf,
+            (records, ok, cache_hits),
+            (&inputs, &consts, &secrets),
+            &workflow_name,
+            &run_ledger,
+            stamper,
+            sink,
+        ))
+    }
 
-        let mut outcome = RunOutcome::from_dataflow(ok, records, outputs).with_ledger(&snapshot);
+    /// The run's close (split out of `run` at the 100-line ratchet): resolve
+    /// `outputs:` before the terminal frame so a type failure fails the run,
+    /// scrub the map (it bypasses the event sink), stamp the terminal with
+    /// the ledger's snapshot on the kernel clock (#1247).
+    #[allow(clippy::too_many_arguments)] // the run's close carries the run's parts
+    fn close_run(
+        &self,
+        wf: &RawWorkflow,
+        (records, ok, cache_hits): (BTreeMap<String, DataflowTaskRecord>, bool, Vec<String>),
+        (inputs, consts, secrets): ValueBags<'_>,
+        workflow_name: &str,
+        run_ledger: &ledger::RunLedger,
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) -> RunOutcome {
+        let mut outputs = resolve_outputs(wf, &records, inputs, consts, secrets);
+        crate::secret::scrub_outputs(&mut outputs, secrets);
+        let snapshot = run_ledger.snapshot_at(self.clock.now());
+        let (ok, settlement) = settlement::finalize_outputs(
+            wf,
+            &outputs,
+            &records,
+            workflow_name,
+            ok,
+            &snapshot,
+            stamper,
+            sink,
+        );
+        let mut outcome = RunOutcome::new(ok, records, outputs).with_settlement(settlement);
         outcome.cache_hits = cache_hits;
-        Ok(outcome)
+        outcome
     }
 
     /// One wave through the spine: dispatch + streamed settle, then the
@@ -1002,17 +1134,17 @@ where
         self.publish_inspect(records, run_ledger);
 
         if let Some(p) = paused {
-            emit_paused(workflow_name, &p, stamper, sink);
-            let mut outcome =
-                RunOutcome::from_dataflow(true, std::mem::take(records), BTreeMap::new());
+            let snapshot = run_ledger.snapshot_at(self.clock.now());
+            let settlement = emit_paused(workflow_name, &p, records, &snapshot, stamper, sink);
+            let mut outcome = RunOutcome::new(true, std::mem::take(records), BTreeMap::new());
             outcome.cache_hits = std::mem::take(cache_hits);
             outcome.paused = Some(p);
-            return Ok(Some(outcome.with_ledger(&run_ledger.snapshot())));
+            return Ok(Some(outcome.with_settlement(settlement)));
         }
 
-        // The budget boundary: settle what ran, cancel what never
-        // started, fail the run with spent-vs-budget (NIKA-1704).
-        if run_ledger.tripped() {
+        // The budget's boundary and the operator's (#1353): the run's terminal.
+        let cancelled = self.cancel.as_ref().is_some_and(CancelCtx::is_cancelled);
+        if run_ledger.tripped() || cancelled {
             // Parked recoveries resolve against what RAN before the
             // abort cancels the rest — no task is left frameless.
             recover::resolve_at_end(
@@ -1024,12 +1156,13 @@ where
                 stamper,
                 sink,
             );
-            let outcome = abort_on_budget(
+            let outcome = abort::abort_unran(
                 wf,
                 workflow_name,
                 std::mem::take(records),
                 std::mem::take(cache_hits),
-                &run_ledger.snapshot(),
+                &run_ledger.snapshot_at(self.clock.now()),
+                cancelled,
                 stamper,
                 sink,
             );
@@ -1167,9 +1300,11 @@ where
 fn emit_paused(
     workflow_name: &str,
     pause: &WorkflowPause,
+    records: &BTreeMap<String, DataflowTaskRecord>,
+    snapshot: &ledger::LedgerSnapshot,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
-) {
+) -> RunSettlement {
     let mut fields = vec![
         ("workflow", s(workflow_name)),
         ("task", s(&pause.task)),
@@ -1198,7 +1333,17 @@ fn emit_paused(
         fields.push(("approval_minted_at_ms", i(ticket.minted_at_ms)));
         fields.push(("approval_ttl_seconds", i(i64::from(ticket.ttl_seconds))));
     }
-    emit(stamper, sink, EventKind::WorkflowPaused, &fields);
+    // The settlement so far rides the pause too (ADR-128): the tally and
+    // the spend of what ran before the gate, the state `paused`.
+    let settlement = settlement::settle_run(
+        records,
+        snapshot,
+        RunState::Paused,
+        RunCause::HumanGate,
+        None,
+    );
+    emit_terminal(stamper, sink, &fields, &settlement);
+    settlement
 }
 
 /// Resolve workflow `outputs:` from the final records · an output whose
@@ -1224,183 +1369,6 @@ fn resolve_outputs(
             Some((key.value.clone(), rendered))
         })
         .collect()
-}
-
-/// Resolve the run's verdict over the typed `outputs:` and emit the terminal
-/// frame. Returns the final `ok` (false if a typed output broke its declared
-/// `type:` · spec 01 rule 6 · NIKA-VAR-009). The reason rides the
-/// `WorkflowFailed` frame as a WORKFLOW-level `detail` (not a phantom
-/// `task_failed`) — the event model stays consistent (no orphan task event, no
-/// spurious row) and `--json`/journal consumers see a valid terminal with the
-/// code. Split out of `run()` to keep that function within its line budget.
-fn finalize_outputs(
-    wf: &RawWorkflow,
-    outputs: &BTreeMap<String, Value>,
-    workflow_name: &str,
-    mut ok: bool,
-    snapshot: &ledger::LedgerSnapshot,
-    stamper: &mut dyn Stamper,
-    sink: &mut dyn EventSink,
-) -> bool {
-    // A typed output is checked only when every task otherwise settled (a task
-    // failure is already the verdict · the output reference is then omitted).
-    let violation = if ok {
-        first_output_type_violation(wf, outputs)
-    } else {
-        None
-    };
-    if violation.is_some() {
-        ok = false;
-    }
-    let kind = if ok {
-        EventKind::WorkflowCompleted
-    } else {
-        EventKind::WorkflowFailed
-    };
-    let mut fields = vec![("workflow", s(workflow_name))];
-    if let Some(v) = &violation {
-        fields.push((
-            "detail",
-            s(&format!(
-                "NIKA-VAR-009 · output `{}` is {}, declared type: {}",
-                v.name, v.actual, v.expected
-            )),
-        ));
-    }
-    fields.extend(terminal_cost_fields(snapshot));
-    emit(stamper, sink, kind, &fields);
-    ok
-}
-
-/// The run-level cost summary the terminal frame carries — ONLY when
-/// there is something honest to say: totals ride iff at least one leaf
-/// METERED real spend (a mock/local run stays field-free — a
-/// `total_cost_usd: 0.0` nobody metered would be the fake zero at the
-/// run level); the unpriced count rides independently so `≥ $X` renders
-/// can say what the total does NOT cover.
-fn terminal_cost_fields(snap: &ledger::LedgerSnapshot) -> Vec<(&'static str, FieldValue)> {
-    let mut fields = Vec::new();
-    if snap.any_priced {
-        fields.push(("total_cost_usd", FieldValue::Float(snap.spent_usd)));
-        fields.push(("priced_calls", i(i64::from(snap.priced_calls))));
-        // The snapshot identity the total was priced against — the
-        // point-in-time honesty stamp (prices move; the trace says
-        // WHICH prices billed this run).
-        fields.push(("pricing_as_of", s(nika_catalog::pricing_snapshot().as_of)));
-        // Micro-USD rounding at the serialization edge: consumers must
-        // never see f64 accumulation dust (`0.030000000000000002`).
-        let by_source: std::collections::BTreeMap<&String, f64> = snap
-            .by_source
-            .iter()
-            .map(|(k, v)| (k, (v * 1e6).round() / 1e6))
-            .collect();
-        if let Ok(json) = serde_json::to_string(&by_source) {
-            fields.push(("cost_by_source", s(&json)));
-        }
-    }
-    if snap.unpriced_calls > 0 {
-        fields.push(("unpriced_calls", i(i64::from(snap.unpriced_calls))));
-    }
-    fields
-}
-
-/// The `--max-cost-usd` stop: settle-what-ran is already done (the wave
-/// settled before the check); every task that never STARTED cancels
-/// with the budget note, then the run fails with spent-vs-budget — the
-/// LiteLLM-shaped error message (both numbers, always).
-fn abort_on_budget(
-    wf: &RawWorkflow,
-    workflow_name: &str,
-    mut records: BTreeMap<String, DataflowTaskRecord>,
-    cache_hits: Vec<String>,
-    snapshot: &ledger::LedgerSnapshot,
-    stamper: &mut dyn Stamper,
-    sink: &mut dyn EventSink,
-) -> RunOutcome {
-    for task in &wf.tasks {
-        let id = &task.value.id.value;
-        if !records.contains_key(id) {
-            // Spec 13 · cancelled/budget: this task was UNSTARTED when
-            // the cap hit (in-flight work completed and was counted).
-            let record = DataflowTaskRecord::unran(
-                nika_dataflow::TaskStatus::Cancelled,
-                nika_dataflow::TerminalCause::Budget,
-            );
-            emit(
-                stamper,
-                sink,
-                EventKind::TaskCancelled,
-                &[
-                    ("task", s(id)),
-                    ("note", s("budget · --max-cost-usd reached")),
-                    ("outcome", s(&record::outcome_json(&record))),
-                ],
-            );
-            records.insert(id.clone(), record);
-        }
-    }
-    let detail = format!(
-        "NIKA-1704 · run budget exceeded — spent ${:.6} of ${:.6} (--max-cost-usd) · \
-         in-flight work completed and was counted · unstarted tasks were cancelled",
-        snapshot.spent_usd,
-        snapshot.budget.unwrap_or(0.0),
-    );
-    let mut fields = vec![("workflow", s(workflow_name)), ("detail", s(&detail))];
-    fields.extend(terminal_cost_fields(snapshot));
-    emit(stamper, sink, EventKind::WorkflowFailed, &fields);
-
-    let mut outcome =
-        RunOutcome::from_dataflow(false, records, BTreeMap::new()).with_ledger(snapshot);
-    outcome.cache_hits = cache_hits;
-    outcome
-}
-
-/// One typed-`outputs:` contract violation (spec 01 rule 6 · NIKA-VAR-009).
-struct OutputTypeViolation {
-    name: String,
-    expected: String,
-    actual: &'static str,
-}
-
-/// The FIRST typed `outputs:` value whose resolved JSON value does not
-/// inhabit its declared `type:` (spec 01 §engine-MUST rule 6 · NIKA-VAR-009
-/// · the output half of the callable contract). Post-R3b the declared
-/// type speaks the full `TypeExpr` and the judgment is the ONE type core's
-/// `fits` (lenient exactly where the core is: a whole float like `42.0`
-/// inhabits `integer` · a genuine cross-type mismatch refuses). An output
-/// whose `${{ }}` reference no longer resolves is OMITTED by
-/// [`resolve_outputs`] (spec §3 · not a type error); a `type:` that does
-/// not parse is the check's refusal (`NIKA-TYPE-001` · audit-before-run
-/// keeps it out of the run), never the run's. `None` ⇒ every typed output
-/// honours its declared type.
-fn first_output_type_violation(
-    wf: &RawWorkflow,
-    resolved: &BTreeMap<String, Value>,
-) -> Option<OutputTypeViolation> {
-    let named = std::collections::BTreeMap::new();
-    let type_names = std::collections::BTreeSet::new();
-    for (key, decl) in &wf.outputs {
-        let OutputDecl::Typed {
-            r#type: Some(ty), ..
-        } = decl
-        else {
-            continue; // untyped output OR no declared type → nothing to check
-        };
-        let Some(value) = resolved.get(key.value.as_str()) else {
-            continue; // unresolved → omitted upstream, not a type error
-        };
-        let Ok(declared) = nika_types::types::parse_type(&ty.value, &type_names, "outputs") else {
-            continue; // the check owns this refusal (NIKA-TYPE-001)
-        };
-        if !nika_types::types::fits(value, &declared, &named) {
-            return Some(OutputTypeViolation {
-                name: key.value.clone(),
-                expected: type_expr_display(&ty.value),
-                actual: json_type_name(value),
-            });
-        }
-    }
-    None
 }
 
 /// The JSON type name for a NIKA-VAR-009 diagnostic.
