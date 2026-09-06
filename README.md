@@ -168,8 +168,9 @@ Share the workflow, not credentials or private data. Review file paths and
 tool access. Keep secrets out of source control.
 
 Run journals can contain the data and outputs the workflow processed.
-Exclude `.nika/traces/` from Git unless you deliberately intend to publish
-those records. Treat them with the same care as their source data.
+The `.nika/traces/` directory is a data-at-rest surface: it inherits the sensitivity
+of everything the run read. Exclude it from Git unless you deliberately intend
+to publish those records. Treat them with the same care as their source data.
 
 After a run, `nika trace verify` verifies the latest journal. Compare its head
 with the one printed by the run. This checks the record, not the AI's judgement.
