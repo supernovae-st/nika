@@ -274,7 +274,15 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              binding (the binding IS the edge · the body reads \
              `${{ with.<name> }}`), a pure ordering becomes `after: \
              {<task>: success}` (or `terminal` for the always-pattern); \
-             `nika check --fix` migrates the provable cases",
+             `nika check --fix` reads a `depends_on:` whose entries are all \
+             bare task ids (`[a, b]`, `[\"a\"]` or a `-` list — an empty \
+             list declares no edge, so the dead line just drops) — a \
+             scalar, a map entry or any other string is yours to rewrite, \
+             and the finding says which shape it saw. The readable shape is \
+             not a guarantee: `--fix` still stops the whole file when a \
+             producer may SKIP (`when:` · `for_each:` · `on_error.skip`), \
+             when a dep is backed only by a status read, or when a hoist \
+             would leave `on_error:` armor — each stop names its case",
         ),
         "NIKA-DAG-005" => Some(
             "the `after:` predicate set is closed — pick one of `success` · \

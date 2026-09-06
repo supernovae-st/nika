@@ -583,8 +583,11 @@ mod tests {
 "
         );
         let err = parse(&yaml, FileId::new(0), ParseMode::Strict).expect_err("dead form");
+        // `[a]` is the shape the W2 scanner reads — the finding says so
+        // (`provable`), and the fixer agrees (nika-cli-host pins the
+        // agreement shape by shape).
         assert!(
-            matches!(&err, SchemaError::W2DependsOnField { task, task_hint, .. }
+            matches!(&err, SchemaError::W2DependsOnField { task, task_hint, provable: true, .. }
                 if task == "b" && task_hint == "a"),
             "{err:?}"
         );
