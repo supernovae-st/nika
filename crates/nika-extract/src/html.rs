@@ -168,6 +168,24 @@ fn best_srcset(srcset: Option<&str>) -> Option<String> {
     best.map(|(_, url)| url)
 }
 
+/// The tag name the fast path looks for, as bytes.
+const NOSCRIPT_TAG: &[u8] = b"noscript";
+
+/// Whether `body` mentions `noscript` AT ALL — one allocation-free,
+/// case-insensitive pass (html5ever lowercases tag names, the source
+/// need not: `<NOSCRIPT>` is legal markup).
+///
+/// [`noscript_source`] runs on every article whose primary extraction
+/// came back thin, and its `Html::parse_document` is a SECOND full parse
+/// of the document — tens of milliseconds on a real page. The
+/// overwhelming majority of thin pages carry no `<noscript>` at all, and
+/// this scan settles those before the parser is ever built.
+fn mentions_noscript(body: &str) -> bool {
+    body.as_bytes()
+        .windows(NOSCRIPT_TAG.len())
+        .any(|window| window.eq_ignore_ascii_case(NOSCRIPT_TAG))
+}
+
 /// Below this many characters of markup, a `<noscript>` block is the
 /// standard "enable JavaScript" notice, not a page. The server-rendered
 /// fallbacks that matter (a forum thread, a product sheet) ship tens of
@@ -184,6 +202,9 @@ const NOSCRIPT_MIN_SOURCE: usize = 1024;
 /// caller re-parse it as the markup it is. Returns `None` when no block
 /// clears the floor or none looks like markup.
 pub(crate) fn noscript_source(body: &str) -> Option<String> {
+    if !mentions_noscript(body) {
+        return None;
+    }
     let doc = Html::parse_document(body);
     let selector = Selector::parse("noscript").ok()?;
     doc.select(&selector)
@@ -306,7 +327,7 @@ pub(crate) fn selector(body: &str, sel: &str) -> Result<serde_json::Value, Extra
 
 #[cfg(test)]
 mod tests {
-    use super::{best_srcset, selector, tidy_text};
+    use super::{best_srcset, mentions_noscript, noscript_source, selector, tidy_text};
 
     // The single-pass rewrite's contract: intra-line whitespace collapses,
     // blank-line RUNS collapse to at most one, leading/trailing blanks are
@@ -336,6 +357,61 @@ mod tests {
             Ok(serde_json::Value::String(s)) => s,
             other => panic!("markdown() returned non-string / err: {other:?}"),
         }
+    }
+
+    // ── noscript_source · the fast path ──────────────────────────────
+    //
+    // The helper decides whether the SECOND full parse happens at all, so
+    // it is pinned in both directions: a page with no noscript must never
+    // reach the parser, and a page that spells the tag in capitals must.
+
+    #[test]
+    fn mentions_noscript_is_false_without_the_tag() {
+        assert!(!mentions_noscript(
+            "<html><body><article><p>a real page with a script tag \
+             and a nosc typo and nothing else</p></article></body></html>"
+        ));
+        assert!(!mentions_noscript(""));
+        // Shorter than the needle — `windows` must not be handed a slice
+        // it cannot fill.
+        assert!(!mentions_noscript("<p>hi"));
+    }
+
+    #[test]
+    fn mentions_noscript_is_case_insensitive() {
+        assert!(mentions_noscript("<body><noscript>x</noscript></body>"));
+        assert!(mentions_noscript("<body><NOSCRIPT>x</NOSCRIPT></body>"));
+        assert!(mentions_noscript("<body><NoScript>x</NoScript></body>"));
+    }
+
+    #[test]
+    fn noscript_source_returns_none_on_the_fast_path() {
+        // No noscript anywhere: the helper is false, so `noscript_source`
+        // returns without parsing.
+        let page = format!(
+            "<html><body><div>{}</div></body></html>",
+            "<p>filler paragraph with enough text to clear any floor</p>".repeat(40)
+        );
+        assert!(!mentions_noscript(&page), "the fixture carries no noscript");
+        assert!(noscript_source(&page).is_none());
+    }
+
+    #[test]
+    fn noscript_source_still_reads_an_uppercase_tag() {
+        // The fast path must not cost the capitalised form its rescue —
+        // a plain `body.contains("noscript")` pre-check would.
+        // The prose must not itself spell the tag: a case-SENSITIVE
+        // pre-check would then pass for the wrong reason (it did, first
+        // draft of this test).
+        let payload = "<p>the server rendered fallback carries the entire \
+             article inside this hidden block</p>"
+            .repeat(20);
+        let page = format!("<html><body><NOSCRIPT>{payload}</NOSCRIPT></body></html>");
+        let found = noscript_source(&page).expect("the uppercase block is still found");
+        assert!(
+            found.contains("server rendered fallback"),
+            "the block's source must come back, got: {found}"
+        );
     }
 
     // ───────────────────────────────────────────────────────────────────
