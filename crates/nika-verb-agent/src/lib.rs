@@ -40,24 +40,34 @@
 //!
 //! When the task declares `schema:`, the engine makes the FINAL answer
 //! conform — the same guarantee `infer`+schema gives, with no author
-//! hand-instruction. The loop is two-phase by necessity:
+//! hand-instruction. The contract reaches the seat on the FIRST request:
+//! the loop-owned `nika:done` definition carries the declared schema on
+//! its `result` parameter (`intrinsic::done_def`), so a model choosing
+//! how to finish can read the exact shape it must produce instead of
+//! guessing it from the prompt. That binding is wire-universal — a tool's
+//! parameter schema is sent verbatim by every wire, including the seats
+//! whose API has no structured mode at all.
 //!
-//! - the **tool-calling turns** run UNCONSTRAINED (tools on, no schema);
-//! - the **final answer** is the only thing the schema binds. A
-//!   deliberate `nika:done` `result:` is validated directly (the model
-//!   committed to that shape); a free-text answer (natural completion ·
-//!   result-less `done`) is validated, and if it does not yet conform the
-//!   loop RE-ASKS the provider WITH the schema wired (native
-//!   `response_format` when supported · an instruction otherwise),
-//!   bounded by [`DEFAULT_SCHEMA_RETRY_BUDGET`].
+//! `response_format` is a different mechanism and stays OFF the
+//! tool-calling turns: it constrains the assistant's MESSAGE CONTENT, and
+//! a grammar over the message fights the very turns it would ride on (the
+//! model must stay free to call tools first). It rides ONE request — the
+//! tools-OFF re-ask below — where nothing competes with it.
 //!
-//! The schema NEVER rides a tool-calling turn — tool-calling and
-//! structured-output do not reliably coexist in one request across
-//! providers (the anthropic wire rejects `response_format` outright;
-//! openai/gemini are fragile combining the two), so the re-ask is a
-//! tools-OFF turn and the conflict is sidestepped by construction. The
-//! post-hoc validation remains the safety net (a malformed answer that
-//! exhausts the budget is the NIKA-464 verdict).
+//! Two things can miss the schema, and BOTH repair, drawing on the one
+//! allowance [`DEFAULT_SCHEMA_RETRY_BUDGET`]:
+//!
+//! - a **`nika:done` `result:`** that does not validate — the errors go
+//!   back as that call's tool result (`is_error: true`, the agentic
+//!   convention) and the model finishes again;
+//! - a **free-text answer** (natural completion · result-less `done`) —
+//!   the loop RE-ASKS the provider on a tools-OFF turn WITH the schema
+//!   wired (native `response_format` when supported · an instruction
+//!   otherwise).
+//!
+//! Post-hoc validation remains the safety net: an answer that exhausts
+//! the allowance is the NIKA-464 verdict, and it SAYS how many repairs
+//! were tried.
 //!
 //! ## The intelligence layer (ADR-096 · engine-internal, zero YAML)
 //!
@@ -130,15 +140,17 @@ pub use whitelist::Whitelist;
 /// Default turn budget (spec §1 · `max_turns` default 10).
 pub const DEFAULT_MAX_TURNS: u32 = 10;
 
-/// Default schema-validation retry budget for the FINAL free-text answer
+/// Default schema-repair budget for the FINAL answer of a typed task
 /// (BUG#11 · parity with `nika_verb_infer::DEFAULT_SCHEMA_RETRY_BUDGET`).
 ///
-/// When a `schema:` task's final answer arrives as prose (not yet a
-/// conforming object), the loop re-asks it WITH the schema constrained to
-/// the provider, up to this many extra provider round-trips before the
-/// NIKA-464 verdict. `0` makes the final answer single-shot (validate the
-/// text as-is, no re-ask). Spec-sanctioned: « MAY auto-retry validation
-/// before emitting the schema-validation error ».
+/// ONE allowance covers BOTH ways a final answer can miss the `schema:` —
+/// a `nika:done` `result:` that does not validate (the errors ride back as
+/// that call's tool result and the model finishes again) and a free-text
+/// answer re-asked on a tools-OFF turn with the schema wired. A run that
+/// spends a repair on one path has that much less for the other, so a
+/// wandering model can never buy two budgets. `0` makes the final answer
+/// single-shot (validate as-is, no repair). Spec-sanctioned: « MAY
+/// auto-retry validation before emitting the schema-validation error ».
 pub const DEFAULT_SCHEMA_RETRY_BUDGET: u8 = 2;
 
 /// The sentinel tool the model calls to finish explicitly (spec §2).
@@ -409,91 +421,86 @@ where
     ) -> Result<AgentOutput, VerbAgentError> {
         let (whitelist, defs, model, budget) = armed;
         let (mut router, mut guard) = self.arm_loop(observer, model, defs);
-
-        let mut messages = opening_messages(&input);
-        let mut turns: u32 = 0;
-        let mut total_tokens: u64 = 0;
-        let mut last_text = String::new();
-        let mut last_observations = String::new();
+        let mut st = turn::LoopState::new(opening_messages(&input));
         // `loop`, not `while turns < max_turns`: the Dispatch arm is the
         // SOLE max_turns authority (fires BEFORE spending the final batch)
         // — a trailing `while` exit would be dead code (J2 review fold).
         loop {
-            turns += 1;
-            observer.on_event(&AgentEvent::TurnStarted { turn: turns });
+            st.turns += 1;
+            observer.on_event(&AgentEvent::TurnStarted { turn: st.turns });
 
             // Per-turn routing: rank the universe against the LIVE task
             // context (prompt + last words + last observations · budgeted).
-            let query = routing_query(&input.prompt, &last_text, &last_observations);
-            let offered = route_turn(observer, &router, defs, &query, turns);
+            let query = routing_query(&input.prompt, &st.last_text, &st.last_observations);
+            let offered = route_turn(observer, &router, defs, &query, st.turns);
 
-            let request = build_request(model, messages.clone(), &input, offered);
+            let request = build_request(model, st.messages.clone(), &input, offered);
             let response = self
                 .infer_turn(
                     observer,
-                    turns,
+                    st.turns,
                     request,
-                    &mut total_tokens,
+                    &mut st.total_tokens,
                     usage_total,
                     &input,
                 )
                 .await?;
             let text = joined_text(&response.content);
             if !text.is_empty() {
-                last_text.clone_from(&text);
+                st.last_text.clone_from(&text);
             }
 
             // Decide this turn — the ONE exit-conditions site (spec §2).
             let ctx = TurnCtx {
                 input: &input,
                 whitelist,
-                turns,
-                total_tokens,
-                last_text: &last_text,
+                turns: st.turns,
+                total_tokens: st.total_tokens,
+                last_text: &st.last_text,
+                repairs: st.repair_budget(self.schema_retry_budget),
             };
             // Terminals return one output (FinalText shapes to `schema:` ·
-            // BUG#11); Dispatch feeds back and iterates. One exit point.
+            // BUG#11); Dispatch and RepairDone feed back and iterate. One
+            // exit point.
             let output = match classify_turn(&response, &text, &ctx)? {
                 TurnVerdict::Done(output) => *output,
                 TurnVerdict::FinalText { text, stop_reason } => {
                     self.finalize_schema(
                         observer,
-                        &mut messages,
                         model,
                         text,
                         &response,
                         stop_reason,
                         &input,
-                        &mut total_tokens,
+                        &mut st,
                         usage_total,
-                        turns,
                     )
                     .await?
                 }
+                TurnVerdict::RepairDone(repair) => {
+                    st.repairs = st.repairs.saturating_add(1);
+                    feed_done_repair(&mut st.messages, response, &repair);
+                    continue;
+                }
                 TurnVerdict::Dispatch(tool_uses) => {
-                    let (digest, batch_cost) = self
+                    *tools_cost_usd += self
                         .dispatch_and_feed(
                             observer,
-                            turns,
                             budget,
                             tool_uses,
                             response,
-                            &mut router,
-                            &mut guard,
-                            &mut messages,
-                            &last_text,
+                            (&mut router, &mut guard),
+                            &mut st,
                             run_start,
                         )
                         .await?;
-                    *tools_cost_usd += batch_cost;
-                    last_observations = digest;
                     continue;
                 }
             };
             return Ok(finished(
                 observer,
                 output,
-                (turns, total_tokens),
+                (st.turns, st.total_tokens),
                 (usage_total.clone(), model.to_owned(), *tools_cost_usd),
             ));
         }
@@ -502,41 +509,51 @@ where
     /// One Dispatch turn within the loop: stop at the turn budget (the SOLE
     /// `max_turns` exit · BEFORE spending the batch, mirroring the token
     /// gate's "no wasted side effects"), else append the assistant turn and
-    /// feed the tool batch back. Returns the observations digest for the
-    /// next routing query; the stall and security stops surface as the
-    /// verb's own errors (NIKA-467 · NIKA-468). The budget carries its
-    /// F-P22 blame decided at arm time — the stop names the faulty
-    /// contract when the DEFAULT tripped.
+    /// feed the tool batch back. The observations digest lands in the
+    /// ledger for the next routing query and the batch's tool cost is
+    /// returned; the stall and security stops surface as the verb's own
+    /// errors (NIKA-467 · NIKA-468). The budget carries its F-P22 blame
+    /// decided at arm time — the stop names the faulty contract when the
+    /// DEFAULT tripped.
     #[allow(clippy::too_many_arguments)] // the loop's owned state threaded
     // once into the dispatch step; splitting only relocates the args.
     async fn dispatch_and_feed(
         &self,
         observer: &dyn AgentObserver,
-        turns: u32,
         budget: TurnBudget,
         tool_uses: Vec<ToolUse>,
         response: InferResponse,
-        router: &mut ToolRouter,
-        guard: &mut Guard,
-        messages: &mut Vec<Message>,
-        last_text: &str,
+        intelligence: (&mut ToolRouter, &mut Guard),
+        st: &mut turn::LoopState,
         run_start: Option<ToolRunStart>,
-    ) -> Result<(String, f64), VerbAgentError> {
-        if turns >= budget.max_turns {
+    ) -> Result<f64, VerbAgentError> {
+        let (router, guard) = intelligence;
+        if st.turns >= budget.max_turns {
             return Err(VerbAgentError::MaxTurns {
-                turns,
-                partial_output: last_text.to_owned(),
+                turns: st.turns,
+                partial_output: st.last_text.clone(),
                 blame: budget.blame,
                 blame_source: budget.blame_source,
                 spend: Box::default(), // decorated at the return seam
             });
         }
         // All-whitelisted, non-sentinel tools · feed results back.
-        messages.push(Message::new(Role::Assistant, response.content));
-        self.dispatch_turn(
-            observer, turns, tool_uses, router, guard, messages, last_text, run_start,
-        )
-        .await
+        st.messages
+            .push(Message::new(Role::Assistant, response.content));
+        let (digest, batch_cost) = self
+            .dispatch_turn(
+                observer,
+                st.turns,
+                tool_uses,
+                router,
+                guard,
+                &mut st.messages,
+                &st.last_text,
+                run_start,
+            )
+            .await?;
+        st.last_observations = digest;
+        Ok(batch_cost)
     }
 
     /// Validate + resolve one run's fixed parameters (params · whitelist ·
@@ -556,7 +573,9 @@ where
             let _ = shape::compile(schema)?;
         }
         let whitelist = Whitelist::new(&input.tools);
-        let defs = self.whitelisted_defs(&whitelist).await?;
+        let defs = self
+            .whitelisted_defs(&whitelist, input.schema.as_ref())
+            .await?;
         let model = input
             .model
             .clone()
@@ -654,25 +673,25 @@ where
     ///
     /// Zero re-asks when the answer already conforms (a well-behaved model
     /// · the common path). Otherwise the assistant's prose turn is appended
-    /// and the provider is re-asked WITH the schema constrained, up to the
-    /// retry budget. The tool loop never carries the schema — the re-ask is
-    /// a tools-OFF turn, so the tools-vs-structured-output provider conflict
-    /// (anthropic rejects `response_format` outright · openai/gemini are
-    /// fragile combining the two) is sidestepped by construction.
+    /// and the provider is re-asked WITH the schema constrained, drawing on
+    /// the run's ONE repair allowance (`repairs` — already partly spent if
+    /// a `nika:done` result was repaired earlier this run). The tool loop
+    /// never carries `response_format` — the re-ask is a tools-OFF turn, so
+    /// the tools-vs-structured-output provider conflict (grammar-constrained
+    /// message content fights the tool turns) is sidestepped by construction;
+    /// the sentinel's own parameter schema is what binds during the loop.
     #[allow(clippy::too_many_arguments)] // a terminal-path helper threading
     // the loop's owned state once; splitting it would only relocate the args.
     async fn finalize_schema(
         &self,
         observer: &dyn AgentObserver,
-        messages: &mut Vec<Message>,
         model: &str,
         answer: String,
         final_response: &InferResponse,
         stop_reason: AgentStopReason,
         input: &AgentInput,
-        total_tokens: &mut u64,
+        st: &mut turn::LoopState,
         usage_acc: &mut TokenUsage,
-        turn: u32,
     ) -> Result<AgentOutput, VerbAgentError> {
         // `FinalText` is only produced under a TYPED task (`schema:` or a
         // `returns:` lowered onto the same lane · spec 09); if the schema
@@ -682,8 +701,8 @@ where
             return Ok(AgentOutput::new(
                 AgentValue::Text(answer),
                 stop_reason,
-                turn,
-                *total_tokens,
+                st.turns,
+                st.total_tokens,
             ));
         };
         let validator = shape::compile(schema)?;
@@ -693,7 +712,7 @@ where
         // structured agent tasks single-round-trip when the model complies).
         let mut detail = match shape::validate_text(&answer, &validator) {
             Ok(value) => {
-                return Ok(shaped(value, stop_reason, turn, *total_tokens));
+                return Ok(shaped(value, stop_reason, st.turns, st.total_tokens));
             }
             Err(detail) => detail,
         };
@@ -717,31 +736,42 @@ where
             .cloned()
             .collect();
         if !final_prose.is_empty() {
-            messages.push(Message::new(Role::Assistant, final_prose));
+            st.messages.push(Message::new(Role::Assistant, final_prose));
         }
         let native = self.provider.supports_response_format();
-        for _ in 0..self.schema_retry_budget {
-            messages.push(Message::text(
+        while st.repairs < self.schema_retry_budget {
+            st.repairs = st.repairs.saturating_add(1);
+            st.messages.push(Message::text(
                 Role::User,
                 shape::reask_message(Some(&detail), schema),
             ));
-            let request = schema_request(model, messages.clone(), input, schema, native);
+            let request = schema_request(model, st.messages.clone(), input, schema, native);
             let response = self
-                .infer_turn(observer, turn, request, total_tokens, usage_acc, input)
+                .infer_turn(
+                    observer,
+                    st.turns,
+                    request,
+                    &mut st.total_tokens,
+                    usage_acc,
+                    input,
+                )
                 .await?;
             let text = joined_text(&response.content);
             match shape::validate_text(&text, &validator) {
                 Ok(value) => {
-                    return Ok(shaped(value, stop_reason, turn, *total_tokens));
+                    return Ok(shaped(value, stop_reason, st.turns, st.total_tokens));
                 }
                 Err(d) => {
                     detail = d;
-                    messages.push(Message::new(Role::Assistant, response.content));
+                    st.messages
+                        .push(Message::new(Role::Assistant, response.content));
                 }
             }
         }
         Err(VerbAgentError::SchemaValidation {
-            detail,
+            detail: st
+                .repair_budget(self.schema_retry_budget)
+                .exhausted_detail(&detail),
             spend: Box::default(), // decorated at the return seam
         })
     }
@@ -985,10 +1015,13 @@ where
         }
     }
 
-    /// The whitelisted tool universe + the synthesized sentinel def.
+    /// The whitelisted tool universe + the synthesized sentinel def
+    /// (which CARRIES the task `schema:` on its `result` parameter —
+    /// the contract reaches the seat on the very first request).
     async fn whitelisted_defs(
         &self,
         whitelist: &Whitelist,
+        schema: Option<&serde_json::Value>,
     ) -> Result<Vec<ToolDef>, VerbAgentError> {
         if whitelist.is_empty() {
             return Ok(Vec::new()); // pure conversation · skip the seam
@@ -1011,7 +1044,7 @@ where
                     && is_clean_tool_name(&def.name)
             })
             .collect();
-        defs.extend(intrinsic::synthesized_defs(whitelist));
+        defs.extend(intrinsic::synthesized_defs(whitelist, schema));
         // The AUTHOR's `tools:` order is the request's order (stable sort ·
         // catalog order breaks ties). The order is inert to a real model —
         // a whitelist has no ranking semantics — but the offline rehearsal
@@ -1180,6 +1213,8 @@ struct TurnCtx<'a> {
     turns: u32,
     total_tokens: u64,
     last_text: &'a str,
+    /// The run's one schema-repair allowance, as of this turn.
+    repairs: turn::RepairBudget,
 }
 
 /// One model-emitted tool call, named (two adjacent `String`s in a raw
@@ -1189,6 +1224,16 @@ struct ToolUse {
     id: String,
     name: String,
     args: serde_json::Value,
+}
+
+/// A `nika:done` `result:` that missed the task `schema:` while repair
+/// budget remained — the miss the loop feeds back (named for the same
+/// reason as `ToolUse`: two `String`s in a tuple invite a swap).
+struct DoneRepair {
+    /// The `nika:done` call the feedback answers.
+    tool_use_id: String,
+    /// The validator's failure, verbatim.
+    detail: String,
 }
 
 /// What the loop does after one model response.
@@ -1210,6 +1255,39 @@ enum TurnVerdict {
     },
     /// Continue: dispatch these (validated, non-sentinel) tool calls.
     Dispatch(Vec<ToolUse>),
+    /// Continue: a `nika:done` `result:` missed the task `schema:` and
+    /// the run still has repair budget — the errors go back as THAT
+    /// call's tool result and the model finishes again.
+    RepairDone(DoneRepair),
+}
+
+/// Feed a non-conforming `nika:done` `result:` back as THAT call's tool
+/// result (`is_error: true`) — the same agentic convention every failing
+/// tool already uses (spec §2: models recover from a typed observation).
+///
+/// The assistant turn must ride along or the tool result is an orphan;
+/// its SIBLING tool calls must not, because Terminal 2 already decided
+/// they never run — an unanswered `tool_use` on the transcript is a 400
+/// on a strict wire ("`tool_call_ids` did not have response messages"),
+/// the same trap `finalize_schema` documents.
+fn feed_done_repair(messages: &mut Vec<Message>, response: InferResponse, repair: &DoneRepair) {
+    let turn: Vec<ContentBlock> = response
+        .content
+        .into_iter()
+        .filter(|block| match block {
+            ContentBlock::ToolUse { id, .. } => *id == repair.tool_use_id,
+            _ => true,
+        })
+        .collect();
+    messages.push(Message::new(Role::Assistant, turn));
+    messages.push(Message::new(
+        Role::User,
+        vec![ContentBlock::ToolResult {
+            tool_use_id: repair.tool_use_id.clone(),
+            content: shape::done_repair_message(&repair.detail),
+            is_error: true,
+        }],
+    ));
 }
 
 /// Decide one turn — the ONE place the loop's exit conditions live, in
@@ -1271,13 +1349,17 @@ fn classify_turn(
             done.args.get("result"),
             ctx.last_text,
             ctx.input.schema.as_ref(),
-            ctx.turns,
-            ctx.total_tokens,
+            (ctx.turns, ctx.total_tokens),
+            ctx.repairs,
         )? {
             turn::ExplicitDone::Output(output) => Ok(TurnVerdict::Done(output)),
             turn::ExplicitDone::FinalText { text, stop_reason } => {
                 Ok(final_text_verdict(text, stop_reason, ctx))
             }
+            turn::ExplicitDone::Repair { detail } => Ok(TurnVerdict::RepairDone(DoneRepair {
+                tool_use_id: done.id.clone(),
+                detail,
+            })),
         };
     }
 
@@ -1389,5 +1471,7 @@ fn is_clean_tool_name(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_schema;
 #[cfg(test)]
 mod tests_spill;

@@ -152,6 +152,23 @@ pub(crate) fn reask_message(detail: Option<&str>, schema: &serde_json::Value) ->
     }
 }
 
+/// The feedback a NON-CONFORMING `nika:done` `result:` sends back — as
+/// that call's tool result, `is_error: true` (the agentic convention the
+/// loop already uses for every failing tool: models repair from a typed
+/// observation). No schema is re-rendered here: under a typed task the
+/// sentinel's own definition CARRIES the schema on every request, so
+/// repeating it would be pure token cost. That is the difference from
+/// [`reask_message`], which rides a tools-OFF turn where no definition
+/// carries anything.
+pub(crate) fn done_repair_message(detail: &str) -> String {
+    format!(
+        "The `result` did not satisfy the required output schema. \
+         Validation failed with: {detail}. Call this tool again with a \
+         `result` that conforms to the schema declared for it — do not \
+         answer in prose."
+    )
+}
+
 /// Pull the first JSON value out of model text: a bare parse, else the
 /// first balanced `{…}`/`[…]` span (tolerates code fences + prose).
 /// String-aware so a brace inside a string literal never miscounts depth.
