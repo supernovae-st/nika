@@ -53,8 +53,10 @@ impl ModelNeed {
 }
 
 /// One admitted lane — the plan for one static model plus how many
-/// paths competed for it (the announce's « chosen over N other path(s) »
-/// is a projection of this count, never a second enumeration).
+/// paths competed for it. The announce's « chosen over … » tail NAMES
+/// the outranked paths from `plan.outranked`; this count is its
+/// fallback when no outranked row was recorded — never a second
+/// enumeration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ResolvedLane {
