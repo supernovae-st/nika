@@ -7,7 +7,7 @@
 use std::borrow::Cow;
 use std::path::Path;
 
-use nika_kernel::io::fs::{FsError, FsListDyn, FsReadDyn, FsWriteDyn};
+use nika_kernel::io::fs::{FsError, FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
 
 use crate::permits::{FsAccess, FsBoundary};
 use crate::{Args, BuiltinFailure, BuiltinOutcome, req_str, strict_bool, strict_u64};
@@ -63,13 +63,40 @@ fn read_failure(e: FsError, path: &str) -> BuiltinFailure {
 /// (`nika:read binary: true` → `{ bytes_base64, len }`) — is written
 /// as-is (builtins-v0.1.md:130 · the value carries its own type), so
 /// read→write round-trips bytes without a decoder step in the workflow.
-pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
+/// `path:` names a FILE, never a directory · a directory-shaped path is a
+/// coded refusal that teaches the file-inside form (see `directory_refusal`).
+pub(crate) async fn write<F: FsReadDyn + FsWriteDyn + FsMetaDyn>(
+    fs: &F,
+    args: &Args,
+) -> BuiltinOutcome {
     const C1: &str = "NIKA-BUILTIN-WRITE-001";
     const C2: &str = "NIKA-BUILTIN-WRITE-002";
     let path = req_str(args, "path", C1)?;
     let content = write_content(args, C1)?;
     let overwrite = strict_bool(args, "overwrite", true, C1)?;
     let create_dirs = strict_bool(args, "create_dirs", false, C1)?;
+
+    // `nika:write` writes FILES. A path that NAMES a directory — a trailing
+    // separator (`out/replies/`), a `.`/`..` last component, or a name that
+    // already IS a directory — used to reach the seam and come back as
+    // `path not found` then `Is a directory (os error 21)`: neither says what
+    // to do. Measured on Harness-Bench 005 (0.118.7 · gpt-4o-mini): 8 failed
+    // writes over 6 of the agent's 11 turns. Refuse BEFORE any effect and
+    // teach the file-inside form · the refusal never creates the directory
+    // (no new effect class), it only names the one the author meant.
+    if names_a_directory(path) || is_existing_dir(fs, path).await {
+        return Err(directory_refusal(C1, path));
+    }
+    // The `Not a directory (os error 20)` half: a FILE stands where a parent
+    // directory is needed. Measured on Harness-Bench 005 with the two teaches
+    // above in place (gpt-4o-mini): the model "pre-created" `out/replies`
+    // with an empty `nika:write`, then every `out/replies/<name>` write died
+    // `path already exists: out/replies` — the seam's parent creation, not
+    // the cause — for the rest of the run. Name the file, its size, and the
+    // fact that nothing here deletes it.
+    if let Some((blocker, len)) = file_in_the_way(fs, path).await {
+        return Err(file_in_the_way_refusal(C1, path, &blocker, len));
+    }
 
     if !overwrite && fs.exists(Path::new(path)).await {
         return Err(BuiltinFailure::new(
@@ -114,6 +141,83 @@ pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Bui
         other => BuiltinFailure::new(C1, format!("write failed: {other}")),
     })?;
     Ok(serde_json::Value::String(path.to_owned()))
+}
+
+/// A path whose last component names a DIRECTORY, not a file. `Path`
+/// normalizes a trailing separator away (`Path::new("a/b/").file_name()` is
+/// `Some("b")`), so the raw string is the only witness of `out/replies/`;
+/// `file_name() == None` catches the rest (`.` · `..` · `/` · `a/..`). An
+/// empty path is left to the seam — it is not this teach's shape.
+fn names_a_directory(path: &str) -> bool {
+    let Some(last) = path.chars().next_back() else {
+        return false;
+    };
+    last == '/' || last == std::path::MAIN_SEPARATOR || Path::new(path).file_name().is_none()
+}
+
+/// The `Is a directory (os error 21)` half: the NAME already exists and is a
+/// directory. Any other verdict (absent · a regular file · an unreadable
+/// stat) falls through, so the write's own error keeps its meaning.
+async fn is_existing_dir<F: FsMetaDyn>(fs: &F, path: &str) -> bool {
+    matches!(fs.metadata(Path::new(path)).await, Ok(meta) if meta.is_dir)
+}
+
+/// The nearest EXISTING ancestor of `path` that is not a directory — a
+/// regular file (or anything else that is not a directory) standing where
+/// the parent chain needs a directory. Walks upward from the immediate
+/// parent; the first ancestor that exists decides: a directory means the
+/// chain is sound (`None`), anything else is the blocker. Absent ancestors
+/// are skipped (they are `create_dirs:`' business); an empty parent (a bare
+/// filename → cwd) is never a candidate.
+async fn file_in_the_way<F: FsMetaDyn>(fs: &F, path: &str) -> Option<(String, u64)> {
+    let ancestors = Path::new(path)
+        .ancestors()
+        .skip(1)
+        .filter(|p| !p.as_os_str().is_empty());
+    for ancestor in ancestors {
+        match fs.metadata(ancestor).await {
+            Ok(meta) if meta.is_dir => return None,
+            Ok(meta) => return Some((ancestor.display().to_string(), meta.len)),
+            Err(_) => {}
+        }
+    }
+    None
+}
+
+/// The refusal for a file in the parent chain · it names the blocker, its
+/// size, the fact that `nika:write` never deletes, and the mistake that
+/// usually put it there (an empty write meant as a `mkdir`).
+fn file_in_the_way_refusal(
+    code: &'static str,
+    path: &str,
+    blocker: &str,
+    len: u64,
+) -> BuiltinFailure {
+    BuiltinFailure::new(
+        code,
+        format!(
+            "`{blocker}` is a file ({len} bytes), not a directory — `{path}` cannot be \
+             created beneath it, and `nika:write` never deletes: write the file under \
+             another directory, or have the workflow's author remove `{blocker}` first. \
+             (An empty `nika:write` at a directory's path creates a FILE there, never \
+             the directory — write the first file inside it with `create_dirs: true` \
+             instead.)"
+        ),
+    )
+}
+
+/// The teaching refusal · it names the path, the shape, and the exact call
+/// that works (an agent reads this and its next turn is the right one).
+fn directory_refusal(code: &'static str, path: &str) -> BuiltinFailure {
+    let inside = path.trim_end_matches(['/', std::path::MAIN_SEPARATOR]);
+    BuiltinFailure::new(
+        code,
+        format!(
+            "`{path}` names a directory, not a file — `nika:write` writes files. \
+             Write the file inside it (`{inside}/<name>`) with `create_dirs: true` \
+             and the directory is created."
+        ),
+    )
 }
 
 /// Resolve `content:` to bytes — a string is written VERBATIM; the binary
@@ -680,6 +784,181 @@ mod tests {
         )
         .await
         .expect("bare filename writes to cwd");
+    }
+
+    #[tokio::test]
+    async fn write_refuses_a_path_that_names_a_directory() {
+        // Harness-Bench 005 (0.118.7 · gpt-4o-mini · proxy trace kept): the
+        // model asked for the DIRECTORY — `nika:write { path: "out/replies/",
+        // content: "", create_dirs: true }` — and got `path not found`. The
+        // refusal now NAMES the shape and the call that works.
+        let fs = MockFs::new();
+        let trailing = write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "out/replies/", "content": "", "create_dirs": true
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&trailing, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("out/replies/")
+                && f.message.contains("names a directory")
+                && f.message.contains("create_dirs: true")),
+            "a trailing slash is taught, never `path not found`: {trailing:?}"
+        );
+        // The teach VERBATIM — this string IS the fix (an agent reads it and
+        // its next turn is the right one), so it is pinned, not sampled.
+        assert_eq!(
+            trailing.as_ref().err().map(|f| f.message.as_str()),
+            Some(
+                "`out/replies/` names a directory, not a file — `nika:write` writes files. \
+                 Write the file inside it (`out/replies/<name>`) with `create_dirs: true` \
+                 and the directory is created."
+            )
+        );
+        // …and NOTHING was created — a refusal carries no effect.
+        assert!(
+            fs.file_paths().is_empty(),
+            "the refusal wrote nothing: {:?}",
+            fs.file_paths()
+        );
+        // `.` and `..` are the same shape (`Path::file_name()` → None).
+        let dotdot = write(
+            &fs,
+            &args(serde_json::json!({ "path": "..", "content": "x" })),
+        )
+        .await;
+        assert!(
+            matches!(&dotdot, Err(f) if f.message.contains("names a directory")),
+            "`..` names a directory too: {dotdot:?}"
+        );
+        // …while a bare filename (empty parent = cwd) is untouched by the gate.
+        write(
+            &fs,
+            &args(serde_json::json!({ "path": "bare.txt", "content": "hi" })),
+        )
+        .await
+        .expect("a bare filename still writes");
+    }
+
+    #[tokio::test]
+    async fn write_refuses_an_existing_directory_target() {
+        // The `Is a directory (os error 21)` half — what the same model got
+        // once a sibling call had created `out/replies`. Refused before the
+        // seam, with the same teach, and the taught form still writes.
+        let fs = MockFs::new().with_file("out/replies/001.txt", "first");
+        let refused = write(
+            &fs,
+            &args(serde_json::json!({ "path": "out/replies", "content": "" })),
+        )
+        .await;
+        assert!(
+            matches!(&refused, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("out/replies")
+                && f.message.contains("names a directory")
+                && f.message.contains("create_dirs: true")),
+            "an existing directory target is taught: {refused:?}"
+        );
+        let ok = write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "out/replies/002.txt", "content": "second", "create_dirs": true
+            })),
+        )
+        .await
+        .expect("the taught form writes");
+        assert_eq!(
+            ok,
+            serde_json::Value::String("out/replies/002.txt".to_owned())
+        );
+        assert_eq!(
+            fs.read_to_string(Path::new("out/replies/002.txt"))
+                .await
+                .expect("landed"),
+            "second"
+        );
+        // …and the sibling the directory already held is untouched.
+        assert_eq!(
+            fs.read_to_string(Path::new("out/replies/001.txt"))
+                .await
+                .expect("intact"),
+            "first"
+        );
+    }
+
+    #[tokio::test]
+    async fn write_beneath_a_file_names_the_file_in_the_way() {
+        // Harness-Bench 005 again, on the binary that carries the two teaches
+        // above (gpt-4o-mini): the model "pre-created" `out/replies` with an
+        // EMPTY write (a file), then every `out/replies/<name>` write died
+        // `path already exists: out/replies` — with and without `create_dirs`
+        // — for the rest of the run. The refusal now names the blocker.
+        let fs = MockFs::new().with_file("out/replies", "");
+        let with_dirs = write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "out/replies/002.txt", "content": "hi", "create_dirs": true
+            })),
+        )
+        .await;
+        assert_eq!(
+            with_dirs
+                .as_ref()
+                .err()
+                .map(|f| (f.code, f.message.as_str())),
+            Some((
+                "NIKA-BUILTIN-WRITE-001",
+                "`out/replies` is a file (0 bytes), not a directory — `out/replies/002.txt` \
+                 cannot be created beneath it, and `nika:write` never deletes: write the \
+                 file under another directory, or have the workflow's author remove \
+                 `out/replies` first. (An empty `nika:write` at a directory's path creates \
+                 a FILE there, never the directory — write the first file inside it with \
+                 `create_dirs: true` instead.)"
+            ))
+        );
+        // Without `create_dirs` the same blocker is named (the old path went
+        // through the seam and came back `path already exists`).
+        let plain = write(
+            &fs,
+            &args(serde_json::json!({ "path": "out/replies/002.txt", "content": "hi" })),
+        )
+        .await;
+        assert!(
+            matches!(&plain, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("`out/replies` is a file (0 bytes)")),
+            "the blocker is named without create_dirs too: {plain:?}"
+        );
+        // A deeper target names the SAME blocker (the nearest existing
+        // ancestor decides), and its size is the file's.
+        let fs = MockFs::new().with_file("out/replies", "marker");
+        let deep = write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "out/replies/2026/002.txt", "content": "hi", "create_dirs": true
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&deep, Err(f) if f.message.contains("`out/replies` is a file (6 bytes)")
+                && f.message.contains("`out/replies/2026/002.txt` cannot be created")),
+            "the nearest existing ancestor is the blocker: {deep:?}"
+        );
+        // …and nothing was written anywhere by the refusals.
+        assert_eq!(
+            fs.file_paths(),
+            vec![Path::new("out/replies").to_path_buf()]
+        );
+        // A directory parent is not in the way: the taught form still writes.
+        let fs = MockFs::new().with_file("out/replies/001.txt", "first");
+        write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "out/replies/002.txt", "content": "second", "create_dirs": true
+            })),
+        )
+        .await
+        .expect("a directory parent is sound");
     }
 
     #[tokio::test]
