@@ -53,3 +53,9 @@ doc = false
 bench = false
 
 [workspace]
+
+[patch.crates-io]
+# The same pin as the root workspace: dom_smoothie 0.18.0 breaks candidate score ties by
+# its hash map's per-process order; the fork revision keeps first-scored order (nika PR 1503).
+# It drops the day upstream releases it. Tag 0.18.0-nika.1 on the fork names this rev.
+dom_smoothie = { git = "https://github.com/supernovae-st/dom_smoothie", rev = "fd6db004615af3c14d20f90bfb43ca514db4e57d" }

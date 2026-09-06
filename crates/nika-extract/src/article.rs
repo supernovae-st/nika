@@ -174,7 +174,7 @@ mod tests {
     // `blocks::boilerpipe_content`) drives the observable output.
     const NON_ABSOLUTE_BASE: Option<&str> = Some("not-an-absolute-url");
 
-    /// D2 (2026-09-06) — readability broke candidate score TIES by its hash
+    /// PR 1503 (2026-09-06) — readability broke candidate score TIES by its hash
     /// map's per-process iteration order: the same page yielded two
     /// different articles from one process to the next (WCXB dev 0545 ·
     /// 40 runs → 30/10 through the public 0.118.7 door · dev 0847 three
