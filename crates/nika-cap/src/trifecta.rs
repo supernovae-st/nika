@@ -518,13 +518,6 @@ fn bypass_note(
 mod tests {
     use super::*;
 
-    /// The credit half, in isolation: a cleared trifecta must NAME the
-    /// gate that cleared it, and a trifecta with a missing leg must
-    /// credit nothing.
-    ///
-    /// Both used to return the same empty vec, which is how a card could
-    /// print the same tick for "safe by construction" and "safe if this
-    /// prompt is real" without being able to tell them apart.
     /// A `nika:prompt` with a `default:` is the one shape an author reaches
     /// after obeying the headless-prompt hint; the generic « no blocking gate
     /// dominates » told them to add the gate they had just added (wave 3 ·
@@ -551,6 +544,13 @@ mod tests {
         assert!(defaulted_gate_note(&bare).is_none());
     }
 
+    /// The credit half, in isolation: a cleared trifecta must NAME the
+    /// gate that cleared it, and a trifecta with a missing leg must
+    /// credit nothing.
+    ///
+    /// Both used to return the same empty vec, which is how a card could
+    /// print the same tick for "safe by construction" and "safe if this
+    /// prompt is real" without being able to tell them apart.
     #[test]
     fn a_cleared_trifecta_names_the_gate_that_cleared_it() {
         // gate → ingress → egress · every path crosses the gate

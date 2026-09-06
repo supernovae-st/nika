@@ -234,11 +234,61 @@ const ROWS: &[(&str, &str)] = &[
         "a red `nika:assert` quarantines writes to \
          `.nika/quarantine/<trace>/` — authors hunt an empty `out/` otherwise",
     ),
+    (
+        "silent-literal",
+        "a value that LOOKS like a reference and is not one — the mustache \
+         island `{{ x }}` and the shell sigil `$name` pass through as literal \
+         text; the one reference form is `${{ … }}`",
+    ),
+    (
+        "documentation-host",
+        "a literal `nika:fetch`/`nika:notify` target on a documentation host \
+         (`example.com` · `.test` · `.invalid` · RFC 2606/6761): the transport \
+         never dials it, so that request fails once the boundary admits it — \
+         point the task at a real host, or own the failure with `on_error:`",
+    ),
 ];
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every identity `hints.rs` can print — `hint("<kind>", …)` and the
+    /// struct-literal `kind: "<kind>"` form — has a row here, so `nika
+    /// explain <kind>` never 404s on a slot `check` just printed (#1038 · the
+    /// `documentation-host` and `silent-literal` kinds shipped without one).
+    #[test]
+    fn every_hint_kind_the_scanner_prints_has_a_row() {
+        let source = include_str!("../hints.rs");
+        let mut kinds: Vec<String> = Vec::new();
+        for marker in ["hint(", "kind: "] {
+            let mut rest = source;
+            while let Some(at) = rest.find(marker) {
+                let after = rest[at + marker.len()..].trim_start();
+                if let Some(literal) = after.strip_prefix('"')
+                    && let Some(end) = literal.find('"')
+                {
+                    kinds.push(literal[..end].to_owned());
+                }
+                rest = &rest[at + marker.len()..];
+            }
+        }
+        kinds.sort();
+        kinds.dedup();
+        assert!(
+            kinds.len() >= 15,
+            "the scan found the hint kinds: {kinds:?}"
+        );
+        let missing: Vec<&String> = kinds
+            .iter()
+            .filter(|k| k.chars().all(|c| c.is_ascii_lowercase() || c == '-'))
+            .filter(|k| hint_help(k).is_none())
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "printed hint kinds without a catalog row: {missing:?}"
+        );
+    }
 
     #[test]
     fn the_printed_jq_as_map_slot_has_a_teaching() {

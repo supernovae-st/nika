@@ -285,7 +285,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                 push_exec_json_capture_hint(&mut hints, t, exec);
             }
             RawAction::Invoke(a) => {
-                push_documentation_host_hint(&mut hints, id, a, &consts);
+                push_documentation_host_hint(&mut hints, id, a, &consts, t.on_error.is_some());
                 push_headless_prompt_hint(&mut hints, id, a, gates_an_effect);
                 push_fail_open_consent_hint(&mut hints, id, a, gates_an_effect);
                 push_glob_readme_hint(&mut hints, id, a);
@@ -1349,10 +1349,6 @@ fn value_mentions_tasks(v: &serde_json::Value, ids: &BTreeSet<&str>) -> bool {
         .any(|id| ids.contains(id.as_str()))
 }
 
-/// #1395 — a value that LOOKS like a reference and is not one: the
-/// mustache island and the shell sigil, each named with its one reference
-/// form. The scan lives in the analysis substrate (its own budget); this
-/// is the wrap into the ladder's hint.
 /// The trifecta's credited gates rewrite their own `headless-prompt`
 /// hint. That hint's close clause recommends `default: false` over an
 /// effect, and a defaulted prompt is exactly what the trifecta judge
@@ -1376,23 +1372,32 @@ pub(crate) fn credit_gates(hints: &mut [Hint], mitigations: &[nika_cap::Trifecta
     }
 }
 
-/// A literal `nika:fetch` URL whose host is a documentation name
-/// (`example.com` · `.test` · `.invalid` · RFC 2606/6761): the transport
-/// never dials it, so the run fails `NIKA-BUILTIN-FETCH-001` on a fact the
-/// file already shows. Advisory, not a security refusal: the boundary is
-/// not at stake, only the run's outcome (wave 3 · persona 04 · `check`
-/// previewed a reach the engine will never make). The grant itself stays:
-/// `--infer-permits` writes the host like any boundary member, because the
-/// PERMITS rung and the runtime allowlist judge it BEFORE the transport
-/// declines to dial it — withholding it made the inference unsound against
-/// its own checker (E-diff). This hint is the one place the never-dialed
-/// fact is said.
+/// A literal `nika:fetch`/`nika:notify` target whose host is a documentation
+/// name (`example.com` · `.test` · `.invalid` · RFC 2606/6761): the
+/// transport never dials it, so that REQUEST fails (`NIKA-BUILTIN-FETCH-001`
+/// · `NIKA-BUILTIN-NOTIFY-002`) on a fact the file already shows. Advisory,
+/// not a security refusal: the boundary is not at stake, only the request's
+/// outcome (wave 3 · persona 04 · `check` previewed a reach the engine will
+/// never make). The grant itself stays: `--infer-permits` writes the host
+/// like any boundary member, because the PERMITS rung and the runtime
+/// allowlist judge it BEFORE the transport declines to dial it — withholding
+/// it made the inference unsound against its own checker (E-diff). This hint
+/// is the one place the never-dialed fact is said.
+///
+/// Silent when the task declares `on_error:`: the author already owns that
+/// failure (`05-fetch-chain` recovers a documentation host by design, and
+/// « the run fails » would be false there). The model seat never governs the
+/// builtin plane, so a `mock/echo` rehearsal is no remedy and is not offered.
 fn push_documentation_host_hint(
     hints: &mut Vec<Hint>,
     id: &str,
     a: &nika_schema::raw::RawInvokeAction,
     consts: &crate::permits_fit::ConstStrings,
+    failure_owned: bool,
 ) {
+    if failure_owned {
+        return;
+    }
     let Some(crate::permits_fit::BuiltinEffect::Net { url_arg }) =
         crate::permits_fit::builtin_effect(a)
     else {
@@ -1407,17 +1412,26 @@ fn push_documentation_host_hint(
     if !nika_types::net::is_documentation_host(&host) {
         return;
     }
+    let (verb, code) = if a.tool().is_some_and(|t| t.value == "nika:notify") {
+        ("notifies", "NIKA-BUILTIN-NOTIFY-002")
+    } else {
+        ("fetches", "NIKA-BUILTIN-FETCH-001")
+    };
     hints.push(hint(
         "documentation-host",
         id,
         format!(
-            "task `{id}` fetches `{host}` — a documentation host (RFC 2606/6761) the transport \
-             never dials, so the run fails NIKA-BUILTIN-FETCH-001 at that request whatever \
-             `permits:` says; point the task at a real host, or rehearse it behind `mock/echo`"
+            "task `{id}` {verb} `{host}` — a documentation host (RFC 2606/6761) the transport \
+             never dials, so that request fails {code} once the boundary admits it; point \
+             the task at a real host, or own the failure with `on_error: {{ recover: … }}`"
         ),
     ));
 }
 
+/// #1395 — a value that LOOKS like a reference and is not one: the
+/// mustache island and the shell sigil, each named with its one reference
+/// form. The scan lives in the analysis substrate (its own budget); this
+/// is the wrap into the ladder's hint.
 fn push_silent_literal_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
     for (task, advice) in nika_check_analyzer::silent_literal::scan(wf) {
         hints.push(hint("silent-literal", &task, advice));

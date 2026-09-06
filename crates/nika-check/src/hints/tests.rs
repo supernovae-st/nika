@@ -1302,13 +1302,43 @@ fn a_literal_documentation_host_is_named_before_the_run_dials_it() {
         .find(|h| h.kind == "documentation-host")
         .expect("a documentation host is named before the run dials it");
     assert_eq!(hit.task, "page");
-    for lesson in ["`example.com`", "NIKA-BUILTIN-FETCH-001", "mock/echo"] {
+    for lesson in ["`example.com`", "NIKA-BUILTIN-FETCH-001", "on_error"] {
         assert!(
             hit.advice.contains(lesson),
             "the hint teaches `{lesson}`: {}",
             hit.advice
         );
     }
+    assert!(
+        !hit.advice.contains("mock/echo"),
+        "the model seat never governs the builtin plane, so no rehearsal clause: {}",
+        hit.advice
+    );
+
+    // The author who already owns the failure hears nothing (05-fetch-chain
+    // recovers a documentation host by design).
+    let owned = hints_of(
+        "nika: w\npermits:\n  tools: [\"nika:fetch\"]\n  net: { http: [\"example.com\"] }\ntasks:\n  page:\n    on_error: { recover: \"[]\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/x\", mode: text }\n",
+    );
+    assert!(
+        !owned.iter().any(|h| h.kind == "documentation-host"),
+        "an owned failure is not previewed: {owned:?}"
+    );
+
+    // `nika:notify` shares the net effect and fails with its own code.
+    let notify = hints_of(
+        "nika: w\npermits:\n  tools: [\"nika:notify\"]\n  net: { http: [\"hooks.example.com\"] }\ntasks:\n  ping:\n    invoke:\n      tool: \"nika:notify\"\n      args: { channel: webhook, target: \"https://hooks.example.com/x\", message: \"hi\" }\n",
+    );
+    let hook = notify
+        .iter()
+        .find(|h| h.kind == "documentation-host")
+        .expect("a webhook to a documentation host is named");
+    assert!(hook.advice.contains("notifies"), "{}", hook.advice);
+    assert!(
+        hook.advice.contains("NIKA-BUILTIN-NOTIFY-002"),
+        "{}",
+        hook.advice
+    );
 
     // A real host is the run's business, not the check's.
     let real = hints_of(
