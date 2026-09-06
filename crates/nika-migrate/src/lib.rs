@@ -630,7 +630,11 @@ fn scan_task_fields(lines: &[&str], start: usize, end: usize) -> TaskFieldScan {
 /// The alphabet a W2 splice can write into `after:` — a bare task id
 /// (`[a-z0-9_]+`). THE shape predicate: `nika-schema`'s parser mirrors it
 /// (`is_bare_task_id`, `parser/tasks.rs`) to decide what the PARSE-024
-/// finding may promise, so the finding and this scanner never disagree.
+/// finding may promise, so the finding and this scanner agree on every
+/// shape the agreement test pins (`nika-cli-host` `fix_ladder`). Shapes
+/// outside that table are known gaps, not promises: a multi-line flow list
+/// and a block list at the key's own indent are read here as malformed or
+/// dropped while the parser sees a sequence (re-review 2026-09-06).
 fn is_bare_task_id(entry: &str) -> bool {
     !entry.is_empty()
         && entry
