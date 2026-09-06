@@ -462,4 +462,46 @@ mod tests {
         assert_eq!(layers.access_ready, None);
         assert!(layers.blockers.is_empty());
     }
+
+    /// Wave 3 · persona 12 · « chosen over 1 other path(s) » named
+    /// nobody. The tail NAMES every outranked ready path with its
+    /// witness, ` · `-joined; the bare count survives only where the
+    /// plan recorded no outranked row (an older plan · a JSON that
+    /// predates the field), and no tail at all when nothing competed.
+    /// A mutant that always returns the count fails the last two cases.
+    #[test]
+    fn chosen_over_names_every_outranked_seat() {
+        let outranked = |access: &str, witness: &str| {
+            nika_types::access::AccessRejection::new(
+                access,
+                nika_types::access::RejectionDimension::Outranked,
+                nika_types::access::RejectionLayer::Access,
+                witness,
+            )
+        };
+        assert_eq!(chosen_over(1, &[]), "", "a lone path beat nobody");
+        assert_eq!(
+            chosen_over(2, &[]),
+            " · chosen over 1 other path(s)",
+            "no outranked row recorded → the honest count, never a name"
+        );
+        let one = [outranked(
+            "api",
+            "ready · ranked below `codex` (harness outranks api)",
+        )];
+        assert_eq!(
+            chosen_over(2, &one),
+            " · chosen over api (ready · ranked below `codex` (harness outranks api))",
+            "one loser · named with the witness the plan built"
+        );
+        let several = [
+            outranked("api", "key present"),
+            outranked("oauth", "token present"),
+        ];
+        assert_eq!(
+            chosen_over(3, &several),
+            " · chosen over api (key present) · oauth (token present)",
+            "several losers · one separator, in plan order"
+        );
+    }
 }
