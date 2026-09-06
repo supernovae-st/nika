@@ -60,6 +60,16 @@ composed from a cleared slate — the runner floor ∪ the names in
 `permits: { env: [NAME] }` ∪ the task's own `env:` map. A workflow
 that leaned on an ambient variable must now name it.
 
+## File creation and uncertain results
+
+Use `nika:write` with `overwrite: false` to preserve an occupied destination,
+including one created concurrently before publication. An existing destination
+returns `NIKA-BUILTIN-WRITE-002`; a backend unable to publish exclusively refuses
+instead of falling back to replacement. Keep the required filesystem permits.
+After a lost response or cancellation, inspect the file and trace before retry:
+publication may already have completed. Atomic visibility does not promise
+fsync durability or that a detached write has stopped.
+
 ## Secrets (masked, declared, sunk)
 
 - Every credential rides `${{ secrets.X }}`, declared in the

@@ -1,0 +1,1 @@
+- **Preserve concurrently created files.** `nika:write` with `overwrite: false` now refuses a destination created after its initial absence check. Existing filesystem adapters compile with a refusing default and can implement exclusive publication; ordinary replacement writes retain their behavior.

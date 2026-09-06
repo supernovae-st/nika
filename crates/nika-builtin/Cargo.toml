@@ -64,7 +64,7 @@ nika-fs          = { path = "../nika-fs", version = "0.118.7" }
 # our own sniffer accepts).
 png              = { workspace = true }
 proptest         = { workspace = true }
-tokio            = { workspace = true }
+tokio            = { workspace = true, features = ["sync"] }
 
 [package.metadata.lore]
 daemon        = "forgeron"
