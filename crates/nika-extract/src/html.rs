@@ -30,7 +30,7 @@ const SKIP_TAGS: &[&str] = &["script", "style", "noscript", "template"];
 /// nesting (a full parse of 50 000-deep hangs), so a "parse then
 /// measure" guard trades the crash for a hang. The byte-scan below
 /// never parses — it early-exits in O(cap), not O(input).
-const MAX_HTML_DEPTH: usize = 2048;
+pub(crate) const MAX_HTML_DEPTH: usize = 2048;
 
 /// HTML void elements (HTML5 §12.1.2) — they take no close tag, so they
 /// never open a nesting level. A page of 50 000 `<br>` is FLAT, not deep.

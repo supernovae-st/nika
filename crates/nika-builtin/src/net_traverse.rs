@@ -16,25 +16,36 @@
 //! Semantics (all bounds are hard):
 //!
 //! - **Same-origin BFS from `url:`** — links come from each page's
-//!   digest ([`nika_extract::page_digest`]), only the ROOT's origin is
-//!   enqueued, fragments are stripped for dedup, and the frontier caps
-//!   at `max_pages × 8` (a link farm cannot balloon the queue).
+//!   DISCOVERY list ([`nika_extract::page_digest_discovering`] · every
+//!   link the page carries, never the digest's ≤30 preview — T9-F08),
+//!   only the ROOT's origin is enqueued, fragments are stripped for
+//!   dedup, and the frontier caps at `max_pages × 8` (a link farm cannot
+//!   balloon the queue).
 //! - **`max_pages` (1..=[`MAX_TRAVERSE_PAGES`])** bounds page REQUESTS —
 //!   the effect certificate counts exactly `max_pages` page calls
 //!   (+1 robots probe unless `respect_robots: false`), one definition
 //!   with `nika-schema`'s certificate via `nika_types::net`.
 //! - **`respect_robots` (default `true`)** — one GET of
 //!   `{origin}/robots.txt`; `User-agent: *` `Disallow:` prefixes are
-//!   honored (a fetch error or non-2xx = no robots = allow-all, the
-//!   crawler-standard fallback). A disallowed ROOT is a loud failure;
-//!   disallowed descendants are silently not enqueued.
+//!   honored. The probe's outcome follows RFC 9309 §2.3.1: a 4xx
+//!   (*unavailable*) is allow-all; a 5xx or a transport failure
+//!   (*unreachable*) is a COMPLETE DISALLOW — the crawl refuses loudly
+//!   before a page is spent (it used to read every non-2xx as
+//!   allow-all · T9-F10). A root that LANDS on another origin
+//!   (apex→www) re-reads THAT origin's robots before any descendant is
+//!   enqueued — the seed's rules never govern the landed host. A
+//!   disallowed ROOT is a loud failure; disallowed descendants are
+//!   silently not enqueued.
 //! - **Per-page SSRF re-vetting** — every hop goes through the SAME
 //!   injected guarded client as a single fetch (the L1 3-layer
 //!   defense); this module never re-implements the guard.
 //! - **Failures degrade per page** — the root failing is the builtin
 //!   failing (nothing was crawled · loud beats empty, the single-fetch
 //!   contract); a descendant failing becomes an honest
-//!   `{url, status|error}` page entry and the crawl continues.
+//!   `{url, status|error}` page entry and the crawl continues. The
+//!   digest passes the same depth admission every HTML mode passes
+//!   (T9-F07): a depth-bomb root refuses loudly, a depth-bomb descendant
+//!   is recorded `{url, status, error}` — never a parser teardown.
 //!
 //! Output (the fixed crawl shape · stdlib §fetch):
 //!
@@ -46,7 +57,7 @@
 
 use std::collections::VecDeque;
 
-use nika_extract::page_digest;
+use nika_extract::page_digest_discovering;
 use nika_kernel::io::http::{HttpGetDyn, HttpRequest};
 use nika_types::net::MAX_TRAVERSE_PAGES;
 
@@ -97,7 +108,7 @@ pub(crate) async fn traverse<H: HttpGetDyn>(http: &H, root: &str, args: &Args) -
     // vetted by the L1 guard on the redirect hop.
     let mut origin = root_url.origin();
 
-    let disallows = root_disallows(http, &root_url, &spec).await?;
+    let mut disallows = robots_for(http, &root_url, &spec, "the root").await?;
 
     let mut queue: VecDeque<String> = VecDeque::new();
     let mut visited: Vec<String> = Vec::new();
@@ -136,17 +147,55 @@ pub(crate) async fn traverse<H: HttpGetDyn>(http: &H, root: &str, args: &Args) -
         // Re-pin the same-origin filter to where the ROOT landed, so
         // apex→www / http→https canonicalization does not empty the
         // frontier (descendants still match the landed origin).
-        if is_root && let Ok(landed) = url::Url::parse(&base) {
+        if is_root
+            && let Ok(landed) = url::Url::parse(&base)
+            && landed.origin() != origin
+        {
             origin = landed.origin();
+            // The seed's robots never govern the landed host: re-read
+            // the rules where the root LANDED before any descendant is
+            // enqueued (RFC 9309 rules are per origin). The root's bytes
+            // were already received (the redirect is the transport's);
+            // a landed root its own robots forbids stops the crawl here.
+            disallows = robots_for(http, &landed, &spec, "the landed root").await?;
         }
         let status = response.status;
         // CPU-heavy DOM parse rides the blocking pool (the single-fetch
         // extraction precedent — same bounded-orphan cancel contract).
-        let digest = tokio::task::spawn_blocking(move || page_digest(&text, Some(&base)))
-            .await
-            .map_err(|e| BuiltinFailure::new(C, format!("extraction task failed: {e}")))?;
+        let digested =
+            tokio::task::spawn_blocking(move || page_digest_discovering(&text, Some(&base)))
+                .await
+                .map_err(|e| BuiltinFailure::new(C, format!("extraction task failed: {e}")))?;
+        let (digest, discovered) = match digested {
+            Ok(pair) => pair,
+            // The depth admission refused the body before any parser
+            // saw it. The ROOT refusing is the single-fetch contract
+            // failing (loud beats empty); a descendant becomes the
+            // honest `{url, status, error}` entry and the crawl continues.
+            Err(refusal) => {
+                if is_root {
+                    return Err(BuiltinFailure::new(
+                        C,
+                        format!("root page refused before parsing: {refusal}"),
+                    ));
+                }
+                pages.push(serde_json::json!({
+                    "url": crate::wire::redact_url(&page_url),
+                    "status": status,
+                    "error": format!("page refused before parsing: {refusal}"),
+                }));
+                continue;
+            }
+        };
 
-        enqueue_links(&digest, &origin, &disallows, &visited, &mut queue, &spec);
+        enqueue_links(
+            &discovered,
+            &origin,
+            &disallows,
+            &visited,
+            &mut queue,
+            &spec,
+        );
         collect_assets(&digest, &mut asset_images, &mut asset_colors);
         pages.push(page_entry(&page_url, status, digest));
     }
@@ -159,16 +208,19 @@ pub(crate) async fn traverse<H: HttpGetDyn>(http: &H, root: &str, args: &Args) -
     }))
 }
 
-/// The robots gate for the whole crawl: fetch + parse the disallow
-/// prefixes (empty when `respect_robots: false`), and refuse a
-/// disallowed ROOT loudly — nothing was crawled, loud beats empty.
-async fn root_disallows<H: HttpGetDyn>(
+/// The robots gate for one origin: fetch + parse the disallow prefixes
+/// (empty when `respect_robots: false`), refuse an UNREACHABLE robots
+/// (RFC 9309 §2.3.1.4 · complete disallow), and refuse a disallowed
+/// root loudly — nothing was crawled, loud beats empty. `which` names
+/// the root in the message (the seed · the landed root).
+async fn robots_for<H: HttpGetDyn>(
     http: &H,
     root_url: &url::Url,
     spec: &TraverseSpec,
+    which: &str,
 ) -> Result<Vec<String>, BuiltinFailure> {
     let disallows = if spec.respect_robots {
-        fetch_robots_disallows(http, root_url).await
+        fetch_robots_disallows(http, root_url).await?
     } else {
         Vec::new()
     };
@@ -176,8 +228,9 @@ async fn root_disallows<H: HttpGetDyn>(
         return Err(BuiltinFailure::new(
             C,
             format!(
-                "robots.txt disallows the root `{root_url}` — nothing to crawl \
-                 (set `respect_robots: false` only if you own the site)"
+                "robots.txt disallows {which} `{}` — nothing to crawl \
+                 (set `respect_robots: false` only if you own the site)",
+                crate::wire::redact_url(root_url.as_str())
             ),
         ));
     }
@@ -328,20 +381,17 @@ fn parse_traverse_args(args: &Args) -> Result<TraverseSpec, BuiltinFailure> {
 /// Push a successful page's same-origin links onto the frontier —
 /// normalized, robots-filtered, dedup'd, frontier-capped.
 fn enqueue_links(
-    digest: &serde_json::Value,
+    discovered: &[String],
     origin: &url::Origin,
     disallows: &[String],
     visited: &[String],
     queue: &mut VecDeque<String>,
     spec: &TraverseSpec,
 ) {
-    let Some(links) = digest.get("links").and_then(serde_json::Value::as_array) else {
-        return;
-    };
     // max_pages ≤ 25 and the multiplier is 8 — the product fits every
     // pointer width (belt: saturate, never truncate).
     let frontier_cap = usize::try_from(spec.max_pages * FRONTIER_PER_PAGE).unwrap_or(usize::MAX);
-    for link in links.iter().filter_map(serde_json::Value::as_str) {
+    for link in discovered.iter().map(String::as_str) {
         if queue.len() >= frontier_cap {
             break;
         }
@@ -397,21 +447,64 @@ fn normalize(mut parsed: url::Url) -> String {
     parsed.to_string()
 }
 
-/// GET `{origin}/robots.txt` — errors and non-2xx mean "no robots"
-/// (allow-all · the crawler-standard fallback, never a crawl failure).
-async fn fetch_robots_disallows<H: HttpGetDyn>(http: &H, root: &url::Url) -> Vec<String> {
+/// GET `{origin}/robots.txt` and read its outcome the way RFC 9309
+/// §2.3.1 does: 2xx → the rules · 4xx (*unavailable*) → allow-all · 5xx
+/// or a transport failure (*unreachable*) → complete disallow. It used
+/// to read EVERY non-2xx and every error as allow-all, so an origin
+/// whose robots was down for a minute was crawled as if it had none
+/// (T9-F10). Robots never replaces the permits boundary — it only ever
+/// narrows what an admitted crawl touches.
+///
+/// # Errors
+///
+/// The unreachable refusal (transient when the transport may recover).
+async fn fetch_robots_disallows<H: HttpGetDyn>(
+    http: &H,
+    root: &url::Url,
+) -> Result<Vec<String>, BuiltinFailure> {
     let Ok(robots_url) = root.join("/robots.txt") else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
+    let origin = root.origin().ascii_serialization();
     match http.get(HttpRequest::get(robots_url.as_str())).await {
         Ok(response) if (200..300).contains(&response.status) => {
             // Parse only the first MAX_ROBOTS_BYTES — a real robots.txt is
             // KiB; anything past that is amplification fuel, not policy.
             let cap = response.body.len().min(MAX_ROBOTS_BYTES);
-            robots_disallows(&String::from_utf8_lossy(&response.body[..cap]))
+            Ok(robots_disallows(&String::from_utf8_lossy(
+                &response.body[..cap],
+            )))
         }
-        _ => Vec::new(),
+        // §2.3.1.3 · unavailable: the crawler MAY access any resource.
+        Ok(response) if (400..500).contains(&response.status) => Ok(Vec::new()),
+        // §2.3.1.4 · unreachable: the crawler MUST assume complete disallow.
+        Ok(response) => Err(robots_unreachable(
+            &origin,
+            &format!("HTTP {}", response.status),
+            crate::net::is_transient_status(response.status),
+        )),
+        Err(error) => {
+            let transient = matches!(
+                error,
+                nika_kernel::io::http::HttpError::Timeout { .. }
+                    | nika_kernel::io::http::HttpError::Connection { .. }
+            );
+            Err(robots_unreachable(&origin, &error.to_string(), transient))
+        }
     }
+}
+
+/// The complete-disallow refusal — teaching, never silent.
+fn robots_unreachable(origin: &str, why: &str, transient: bool) -> BuiltinFailure {
+    BuiltinFailure::new(
+        C,
+        format!(
+            "robots.txt for `{origin}` is unreachable ({why}) — RFC 9309 §2.3.1.4 makes \
+             that a complete disallow, so nothing is crawled; retry later, or set \
+             `respect_robots: false` only if you own the site"
+        ),
+    )
+    .with_transient(transient)
 }
 
 /// `User-agent: *` group `Disallow:` path prefixes (the 1994 de-facto
@@ -786,6 +879,219 @@ mod tests {
                 "wanted `{needle}` in {fail:?}"
             );
         }
+    }
+
+    /// T9-F10 · RFC 9309 §2.3.1.4: a robots.txt the server cannot serve
+    /// (5xx) is UNREACHABLE, and unreachable is a complete disallow — the
+    /// crawl refuses before a page is spent, transient (the server may
+    /// recover), with the rule named. It used to read 503 as allow-all.
+    #[tokio::test]
+    async fn robots_5xx_is_a_complete_disallow() {
+        let http = MockHttp::new().enqueue_ok(503, Vec::new());
+        let fail = traverse(
+            &http,
+            "https://acme.test/",
+            &args(serde_json::json!({
+                "url": "https://acme.test/", "traverse": { "max_pages": 5 }
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&fail, Err(f) if f.code == C && f.transient && f.message.contains("9309")),
+            "{fail:?}"
+        );
+        assert_eq!(http.sent_requests().len(), 1, "no page was spent");
+    }
+
+    /// T9-F10 · a transport failure on the probe is unreachable too.
+    #[tokio::test]
+    async fn robots_transport_error_is_a_complete_disallow() {
+        let http = MockHttp::new().enqueue_err(nika_kernel::io::http::HttpError::Connection {
+            reason: "refused".to_owned(),
+        });
+        let fail = traverse(
+            &http,
+            "https://acme.test/",
+            &args(serde_json::json!({
+                "url": "https://acme.test/", "traverse": { "max_pages": 5 }
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&fail, Err(f) if f.code == C && f.transient && f.message.contains("unreachable")),
+            "{fail:?}"
+        );
+        assert_eq!(http.sent_requests().len(), 1);
+    }
+
+    /// RFC 9309 §2.3.1.3: an UNAVAILABLE robots (any 4xx, not only 404)
+    /// lets the crawler access any resource.
+    #[tokio::test]
+    async fn robots_4xx_is_allow_all() {
+        let http = MockHttp::new()
+            .enqueue_ok(403, Vec::new())
+            .enqueue_ok(200, page("root", &[]));
+        let out = traverse(
+            &http,
+            "https://acme.test/",
+            &args(serde_json::json!({
+                "url": "https://acme.test/", "traverse": { "max_pages": 2 }
+            })),
+        )
+        .await
+        .expect("403 robots is allow-all");
+        assert_eq!(out["page_count"], 1);
+    }
+
+    /// T9-F10 · rules are per ORIGIN: a root that lands on www must obey
+    /// www's robots, not the apex's. The seed's probe said allow-all; the
+    /// landed host forbids /private — and /private is never requested.
+    #[tokio::test]
+    async fn a_cross_origin_root_redirect_re_reads_robots_where_it_landed() {
+        let http = MockHttp::new()
+            .enqueue_ok(404, Vec::new()) // apex robots · unavailable
+            .enqueue_ok_final_url(
+                200,
+                page("home", &["/private/x", "/ok"]),
+                "https://www.acme.test/",
+            )
+            .enqueue_ok(200, b"User-agent: *\nDisallow: /private\n".to_vec()) // www robots
+            .enqueue_ok(200, page("ok", &[]));
+        let out = traverse(
+            &http,
+            "https://acme.test/",
+            &args(serde_json::json!({
+                "url": "https://acme.test/", "traverse": { "max_pages": 5 }
+            })),
+        )
+        .await
+        .expect("crawl succeeds");
+        let sent: Vec<String> = http.sent_requests().into_iter().map(|r| r.url).collect();
+        assert_eq!(
+            sent,
+            vec![
+                "https://acme.test/robots.txt",
+                "https://acme.test/",
+                "https://www.acme.test/robots.txt",
+                "https://www.acme.test/ok",
+            ],
+            "the landed origin's robots is read before any descendant"
+        );
+        assert_eq!(out["page_count"], 2, "{out}");
+    }
+
+    /// T9-F10 · the landed host's own robots forbidding the landed root
+    /// stops the crawl loudly (the root's bytes were the transport's
+    /// redirect; nothing further is spent).
+    #[tokio::test]
+    async fn a_landed_root_its_own_robots_forbids_is_loud() {
+        let http = MockHttp::new()
+            .enqueue_ok(404, Vec::new())
+            .enqueue_ok_final_url(200, page("home", &["/a"]), "https://www.acme.test/")
+            .enqueue_ok(200, b"User-agent: *\nDisallow: /\n".to_vec());
+        let fail = traverse(
+            &http,
+            "https://acme.test/",
+            &args(serde_json::json!({
+                "url": "https://acme.test/", "traverse": { "max_pages": 5 }
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&fail, Err(f) if f.code == C && f.message.contains("landed root")),
+            "{fail:?}"
+        );
+        assert_eq!(http.sent_requests().len(), 3, "no descendant was spent");
+    }
+
+    fn depth_bomb() -> Vec<u8> {
+        // Past the extract crate's nesting cap (2048) — refused by the
+        // byte-scan admission before any parser runs.
+        "<div>".repeat(2100).into_bytes()
+    }
+
+    /// T9-F07 · a depth-bomb DESCENDANT is recorded `{url, status,
+    /// error}` and the crawl continues — the same admission every HTML
+    /// mode passes now guards the one path a crawl takes.
+    #[tokio::test]
+    async fn a_depth_bomb_descendant_is_recorded_not_fatal() {
+        let http = MockHttp::new()
+            .enqueue_ok(404, Vec::new())
+            .enqueue_ok(200, page("root", &["/bomb", "/ok"]))
+            .enqueue_ok(200, depth_bomb())
+            .enqueue_ok(200, page("ok", &[]));
+        let out = traverse(
+            &http,
+            "https://acme.test/",
+            &args(serde_json::json!({
+                "url": "https://acme.test/", "traverse": { "max_pages": 5 }
+            })),
+        )
+        .await
+        .expect("crawl survives a depth bomb");
+        let pages = out["pages"].as_array().expect("pages");
+        assert_eq!(pages.len(), 3, "{out}");
+        assert_eq!(pages[1]["status"], 200);
+        assert!(
+            pages[1]["error"]
+                .as_str()
+                .is_some_and(|e| e.contains("refused before parsing")),
+            "the refusal is named: {}",
+            pages[1]
+        );
+        assert!(pages[1].get("title").is_none(), "no digest on a refusal");
+        assert_eq!(pages[2]["title"], "ok", "crawl continued");
+    }
+
+    /// T9-F07 · a depth-bomb ROOT is the single-fetch contract failing.
+    #[tokio::test]
+    async fn a_depth_bomb_root_fails_loudly() {
+        let http = MockHttp::new()
+            .enqueue_ok(404, Vec::new())
+            .enqueue_ok(200, depth_bomb());
+        let fail = traverse(
+            &http,
+            "https://acme.test/",
+            &args(serde_json::json!({
+                "url": "https://acme.test/", "traverse": { "max_pages": 3 }
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&fail, Err(f) if f.code == C && f.message.contains("refused before parsing")),
+            "{fail:?}"
+        );
+    }
+
+    /// T9-F08 · discovery is not the preview: the 31st link on a page is
+    /// crawled even though the digest shows only 30. Thirty decoys the
+    /// robots forbid come first; the one allowed link is the 31st.
+    #[tokio::test]
+    async fn the_thirty_first_link_is_discovered() {
+        let decoys: Vec<String> = (0..30).map(|i| format!("/a{i:02}")).collect();
+        let mut links: Vec<&str> = decoys.iter().map(String::as_str).collect();
+        links.push("/z");
+        let http = MockHttp::new()
+            .enqueue_ok(200, b"User-agent: *\nDisallow: /a\n".to_vec())
+            .enqueue_ok(200, page("root", &links))
+            .enqueue_ok(200, page("z", &[]));
+        let out = traverse(
+            &http,
+            "https://acme.test/",
+            &args(serde_json::json!({
+                "url": "https://acme.test/", "traverse": { "max_pages": 5 }
+            })),
+        )
+        .await
+        .expect("crawl succeeds");
+        assert_eq!(out["page_count"], 2, "the 31st link was crawled: {out}");
+        assert_eq!(out["pages"][1]["title"], "z");
+        assert_eq!(
+            out["pages"][0]["links"].as_array().expect("preview").len(),
+            30,
+            "the digest keeps its spec preview cap"
+        );
+        assert_eq!(http.sent_requests().len(), 3, "robots + root + /z");
     }
 
     #[test]
