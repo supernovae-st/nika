@@ -53,7 +53,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT" || exit 2
 
 # The shared production-region filter (and its source-time self-test).
-# shellcheck source=../ci/_lib.sh
+# shellcheck source=scripts/ci/_lib.sh
 . "$REPO_ROOT/scripts/ci/_lib.sh"
 
 # Direct-OS constructs that MUST go through a seam in the composing
@@ -84,6 +84,23 @@ if [ "${#SCANNED_CRATES[@]}" -eq 0 ]; then
   echo "WARN: no L1.5/L2/L3 crates found in [workspace.metadata.diamond] — vector skipped"
   exit 1
 fi
+
+# The house list of files whose MODULE is declared under `#[cfg(test)]`
+# (`rs_test_only_files` · scripts/ci/_lib.sh · the same list `rs_prod_files`
+# subtracts), computed once. Measured 2026-09-06: a test module carved out of
+# `lib.rs` into its own file (`#[cfg(test)] mod x;` beside `x.rs`) read as 24
+# unmarked `std::fs::` bypasses — a RED on a file the compiler never builds
+# outside a test profile, because this vector excluded only the `tests.rs`
+# basename half of the rule. Both halves now.
+test_only_files="$(rs_test_only_files)"
+drop_test_only_files() {
+  # `grep -vxF ''` would drop EVERY line — an empty list must drop nothing.
+  if [ -n "$test_only_files" ]; then
+    grep -vxF "$test_only_files" || true
+  else
+    cat
+  fi
+}
 
 violations=0
 violation_log=""
@@ -137,10 +154,11 @@ for crate in "${SCANNED_CRATES[@]}"; do
         violation_log+="$(echo "$hits" | head -3 | sed 's/^/    /')\n"
       fi
     done
-    # `tests.rs` is excluded by basename, mirroring `rs_prod_files` — the
-    # same rule clippy's own scoping uses, and the same one the four sibling
-    # ratchets apply.
-  done < <(find "$src_dir" -name '*.rs' 2>/dev/null | grep -vE '(^|/)tests\.rs$')
+    # `tests.rs` is excluded by basename and a `#[cfg(test)]`-declared module
+    # file by declaration, mirroring `rs_prod_files` — the same rule clippy's
+    # own scoping uses, and the same one the four sibling ratchets apply.
+  done < <(find "$src_dir" -name '*.rs' 2>/dev/null \
+    | grep -vE '(^|/)tests\.rs$' | drop_test_only_files)
 done
 
 if [ "$violations" -gt 0 ]; then
