@@ -1,0 +1,1 @@
+- **Respect resolved fetch retry safety.** Direct `nika:fetch` failures now respect the resolved HTTP method and idempotency header names when applying task retries. A templated mutating request without an idempotency key stops after its first failed attempt even when `retry.on_codes` matches, preserving the error, metered spend and commit evidence.

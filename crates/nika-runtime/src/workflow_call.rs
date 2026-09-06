@@ -187,6 +187,7 @@ where
                     format!("child workflow `{target}` failed: {message}{trace_note}"),
                     false,
                 ),
+                retry_forbidden: false,
                 cost_usd: out.cost_usd,
                 cost_source,
                 cost_unpriced: None,

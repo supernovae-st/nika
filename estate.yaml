@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4866
+  classified_files: 4867
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 1886
+    authored: 1887
     authored-pin: 2
     generated: 127
     pinned-copy: 146
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 966
-  aggregate_sha256: dd9451a6e639933735379e3868921b1e56721856e3f9f62fa97bd8ba174990c1
+  aggregate_sha256: b3d2cb65b362b767709078d668fa4aea6edc7bb16a0cede721ecb56869e93d83
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -183,7 +183,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 123
-  aggregate_sha256: 7b6e2bbc7bba60d0bfa64855b4bf95154bd71aafb27b2c845d4cebfcddf2e389
+  aggregate_sha256: 66a06d01c479bb999579b6d86b148c0d553a5960537ac3484be5fb99943fc086
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
@@ -242,8 +242,8 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 1
-  aggregate_sha256: 6b53a86aaa149c6719b91ac3e4afb6b688f06035aacf5a34608e8ea089deff36
+  match_count: 2
+  aggregate_sha256: 8c568ac4a0e925842d19f7199d9bc0c07372d9059ae4992f6e68473543a35f2f
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
