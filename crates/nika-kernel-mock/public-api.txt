@@ -302,6 +302,7 @@ impl nika_kernel_core::io::fs::FsWriteDyn for nika_kernel_mock::filesystem::Mock
 pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, _path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::filesystem::MockFs
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::filesystem::MockFs where U: core::convert::From<T>
 pub fn nika_kernel_mock::filesystem::MockFs::into(self) -> U
@@ -342,6 +343,7 @@ impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_kernel_
 pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub fn nika_kernel_mock::filesystem::MockFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub mod nika_kernel_mock::http
 #[non_exhaustive] pub struct nika_kernel_mock::http::MockHttp
 impl nika_kernel_mock::http::MockHttp
@@ -1141,6 +1143,7 @@ impl nika_kernel_core::io::fs::FsWriteDyn for nika_kernel_mock::filesystem::Mock
 pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, _path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_kernel_mock::filesystem::MockFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 impl<D> owo_colors::OwoColorize for nika_kernel_mock::filesystem::MockFs
 impl<T, U> core::convert::Into<U> for nika_kernel_mock::filesystem::MockFs where U: core::convert::From<T>
 pub fn nika_kernel_mock::filesystem::MockFs::into(self) -> U
@@ -1181,6 +1184,7 @@ impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_kernel_
 pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub fn nika_kernel_mock::filesystem::MockFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 #[non_exhaustive] pub struct nika_kernel_mock::MockHttp
 impl nika_kernel_mock::http::MockHttp
 pub fn nika_kernel_mock::http::MockHttp::enqueue_err(self, error: nika_kernel_core::io::http::HttpError) -> Self

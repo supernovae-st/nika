@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 967
-  aggregate_sha256: db1c8bbbc7ddab8f3acfa5b5de6c3f52a54a175715d5efa4dd0079755898fb45
+  match_count: 970
+  aggregate_sha256: 0a37f8c51732a0e7a898077f34b72784e1134cd197391f3af48dd67738b66256
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 148
-  aggregate_sha256: 4c4364fb076c7c79d5b85d896385e7d5c275f9daae0913a5078f89316d72f676
+  aggregate_sha256: 890634a72513db06545760d14fe23dca2a4aefd540f125d5b2ebd9ef754a3281
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
@@ -183,12 +183,12 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 123
-  aggregate_sha256: c517314ffab71b0789188d1f9e5177bcad7fca9fb06e1ecf4645be527bf5feba
+  aggregate_sha256: a0a1ccd11c5984a1d88de9c28b113acc3cf9b99b28cb803eb99947b739dd9d7e
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
   match_count: 205
-  aggregate_sha256: 45c4675c8fdd39a31f4adc5a3e2e3ea093b9c2cf8f521944a82f4032e35a3219
+  aggregate_sha256: a635039e86e27e2b83933a331a30e37f14cdbe3153a7091be9647d7cfade6cf3
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -203,7 +203,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 33
-  aggregate_sha256: 0cb9b4b6bcd6730ee84e3a88ed5cdff581007611d189ac481104f4c8c00c58f4
+  aggregate_sha256: 99ecfac15272afa6b621721b743665d00669115f6a3b54c6303047e06f537b02
   evidence: "the engine-owned portable release kit; wave-sweep advances its manifests with the engine and nika-plugins mirrors these bytes only from immutable engine release tags via resync-mirror.py"
   note: "direction is engine tag → nika-plugins mirror; clients-resync owns only clients.registry.yaml and must never overwrite this tree from a moving downstream main branch"
 - glob: ".claude/**"
@@ -242,8 +242,8 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 6
-  aggregate_sha256: 116001639977c07671c4a3f529fa5f978ba85f2320b38fb8248e21b288367c4a
+  match_count: 3
+  aggregate_sha256: 2864d80d1e7c3b32522332a1addf0e62bbb6bbae13ae42b7977ce413ed6e964f
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
