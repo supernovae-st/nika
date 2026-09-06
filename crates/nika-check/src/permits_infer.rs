@@ -350,17 +350,17 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
                     c.partial.net = true;
                     c.notes.push(note);
                 }
-                // A documentation host (RFC 2606/6761) is never dialed by the
-                // transport: a grant would only make a guaranteed refusal
-                // look admitted (wave 3 · persona 04 · the inference wrote
-                // `example.com` into the boundary the run then refused).
-                Some(host) if nika_types::net::is_documentation_host(&host) => {
-                    c.partial.net = true;
-                    c.notes.push(format!(
-                        "task `{id}` fetches `{host}` — a documentation host (RFC 2606/6761) the \
-                         transport never dials; not inferred (point the task at a real host)"
-                    ));
-                }
+                // A documentation host (RFC 2606/6761) is granted like any
+                // other boundary member. The runtime allowlist judges the
+                // host BEFORE the transport declines to dial it (`nika-http`
+                // · `check_net_allowlist`, then `guarded_lookup`), and the
+                // PERMITS rung reads that same boundary — so withholding the
+                // grant made the inference UNSOUND against its own checker
+                // (E-diff `inferred_permits_are_sound_and_tight` refused
+                // `Fetch("api.example.com")` at once) and refused the mock
+                // rehearsal the hint recommends. The never-dialed fact is the
+                // `documentation-host` hint's sentence (wave 3 · persona 04),
+                // not a hole in the block.
                 Some(host) => {
                     c.hosts.insert(host);
                 }
@@ -1030,17 +1030,44 @@ tasks:
     }
 
     #[test]
-    fn a_documentation_host_is_never_inferred_into_the_grants() {
-        // RFC 2606/6761 names are never dialed by the transport (wave 3 ·
-        // persona 04): a grant would only make a guaranteed refusal look
-        // admitted, so the inference notes it and writes nothing.
-        let r = infer_of(
-            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/x\" } }\n",
+    fn a_documentation_host_is_granted_and_the_block_re_checks_clean() {
+        // The first draft of this change withheld RFC 2606/6761 hosts from
+        // the grants; the E-diff soundness property refused it at once
+        // (`Fetch("api.example.com")` — the PERMITS rung still read the
+        // host as outside `permits.net.http`). The boundary is uniform: the
+        // runtime allowlist judges the host before the transport declines
+        // to dial it, so the inference grants it, marks nothing partial,
+        // and the round trip stays clean. The never-dialed fact rides the
+        // `documentation-host` hint of the very same check (wave 3 ·
+        // persona 04).
+        const TASKS: &str = "tasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/x\" } }\n";
+        let r = infer_of(&format!("nika: w\n{TASKS}"));
+        let net = r
+            .permits
+            .net
+            .as_ref()
+            .expect("a documentation host is granted like any boundary member");
+        assert_eq!(net.http, vec!["example.com".to_owned()]);
+        assert!(!r.partial.net, "the block is complete: {:?}", r.partial);
+        assert!(r.notes.is_empty(), "{:?}", r.notes);
+
+        let round_trip = format!("nika: w\n{}{TASKS}", r.to_yaml());
+        let report = crate::check(
+            &parse(&round_trip, FileId::new(0), ParseMode::Strict).expect("round trip parses"),
         );
-        assert!(r.permits.net.is_none(), "{:?}", r.permits.net);
-        assert_eq!(r.notes.len(), 1, "{:?}", r.notes);
-        assert!(r.notes[0].contains("documentation host"), "{}", r.notes[0]);
-        assert!(r.notes[0].contains("`example.com`"), "{}", r.notes[0]);
+        assert!(
+            report.capability_escapes.iter().all(|e| e.floor),
+            "the inferred block re-checks clean: {:?}",
+            report.capability_escapes
+        );
+        assert!(
+            report
+                .hints
+                .iter()
+                .any(|h| h.kind == "documentation-host" && h.task == "a"),
+            "the hint names the host the run will not dial: {:?}",
+            report.hints
+        );
     }
 
     #[test]

@@ -1381,8 +1381,12 @@ pub(crate) fn credit_gates(hints: &mut [Hint], mitigations: &[nika_cap::Trifecta
 /// never dials it, so the run fails `NIKA-BUILTIN-FETCH-001` on a fact the
 /// file already shows. Advisory, not a security refusal: the boundary is
 /// not at stake, only the run's outcome (wave 3 · persona 04 · `check`
-/// previewed a reach the engine will never make, and `--infer-permits`
-/// recommended the grant).
+/// previewed a reach the engine will never make). The grant itself stays:
+/// `--infer-permits` writes the host like any boundary member, because the
+/// PERMITS rung and the runtime allowlist judge it BEFORE the transport
+/// declines to dial it — withholding it made the inference unsound against
+/// its own checker (E-diff). This hint is the one place the never-dialed
+/// fact is said.
 fn push_documentation_host_hint(
     hints: &mut Vec<Hint>,
     id: &str,
