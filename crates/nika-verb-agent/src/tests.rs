@@ -7,7 +7,7 @@
 
 use super::*;
 use nika_error::traits::NikaErrorCode;
-use nika_kernel::ai::provider::{InferResponse, StopReason, TokenUsage};
+use nika_kernel::ai::provider::{InferResponse, ResponseFormat, StopReason, TokenUsage};
 use nika_kernel::runtime::tool_executor::ToolResult;
 use nika_kernel_mock::{MockProvider, MockToolDefinitionProvider, MockToolExecutor};
 
