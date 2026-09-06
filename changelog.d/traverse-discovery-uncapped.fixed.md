@@ -1,0 +1,1 @@
+- **Crawl discovery is no longer capped by the digest preview.** The frontier reads every link a page carries; the per-page `links` facet stays the ≤30 preview the spec fixes. The 31st link on a page used to be unreachable.
