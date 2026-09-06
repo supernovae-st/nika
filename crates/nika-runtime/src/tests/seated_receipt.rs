@@ -12,6 +12,7 @@ use super::*;
 fn seated_infer_receipt_exposes_no_numeric_or_responder_identity() {
     const NOTE: &str = "infer · seat codex · requested anthropic/claude-sonnet-4-6";
     let ran = task::RanTask {
+        usage: None,
         decisions: Vec::new(),
         note: NOTE.to_owned(),
         retries: Vec::new(),

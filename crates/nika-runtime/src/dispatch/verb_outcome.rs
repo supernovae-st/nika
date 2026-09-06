@@ -15,6 +15,7 @@ use nika_verb_infer::{InferOutput, InferValue};
 use serde_json::Value;
 
 use super::{Dispatched, spend_for_model};
+use crate::usage::UsageSplit;
 
 /// A one-shot `infer:` that answered — the resolved model prices the
 /// usage through the SAME resolver as the check-time floor.
@@ -47,6 +48,16 @@ pub(super) fn infer_success(out: InferOutput, access: Option<AccessPlan>) -> Dis
     // mock · uncataloged · provider silent).
     let (cost_usd, cost_unpriced) = spend_for_model(&out.model_resolved, &out.usage);
     let cost_source = Some(out.model_resolved.clone());
+    // Q01 · the split that PRICED the call rides the frame beside the
+    // number, with the responder's own identity (`gen_ai.response.model`
+    // / `.id` — captured at the wire since ADR-112's precondition was
+    // met, dropped at this seam until now).
+    let split = UsageSplit::of(&out.usage)
+        .served_by(
+            out.response.gen_ai.response_model.clone(),
+            out.response.gen_ai.response_id.clone(),
+        )
+        .carried();
     Dispatched::ok_metered(
         note,
         value,
@@ -56,6 +67,7 @@ pub(super) fn infer_success(out: InferOutput, access: Option<AccessPlan>) -> Dis
         cost_source,
         cost_unpriced,
     )
+    .with_usage(split)
     .with_access(access)
 }
 
@@ -110,6 +122,9 @@ pub(super) fn agent_success(out: AgentOutput, access: Option<AccessPlan>) -> Dis
         (None, None) => None,
         (llm, tools) => Some(llm.unwrap_or(0.0) + tools.unwrap_or(0.0)),
     };
+    // Q01 · the loop's ABSORBED split (every turn summed, like the
+    // `tokens` it rides beside). No response id: a loop has many.
+    let split = UsageSplit::of(&out.usage).carried();
     Dispatched::ok_metered(
         note,
         value,
@@ -119,5 +134,6 @@ pub(super) fn agent_success(out: AgentOutput, access: Option<AccessPlan>) -> Dis
         out.model_resolved.clone(),
         llm_unpriced,
     )
+    .with_usage(split)
     .with_access(access)
 }
