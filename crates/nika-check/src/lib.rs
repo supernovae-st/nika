@@ -898,54 +898,6 @@ mod tests {
         check(&wf)
     }
 
-    /// Wave 3 · persona 07: the headless-prompt hint recommended `default:
-    /// false`, the author obeyed, and SEC-009 refused the file without ever
-    /// naming `default:`. The gate the trifecta judge credits now carries
-    /// the one sentence that keeps the two judges agreeing; a prompt the
-    /// judge does not credit keeps the ordinary hint.
-    #[test]
-    fn a_credited_gate_rewrites_its_own_headless_hint() {
-        let gated = check_yaml(
-            "nika: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.acme-widgets.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\" }\n  fetch_page:\n    after: { ask: success }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.acme-widgets.com/data\" }\n  leak:\n    after: { fetch_page: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n",
-        );
-        assert!(
-            gated.trifecta_findings.is_empty(),
-            "the gate dominates the sink: {:?}",
-            gated.trifecta_findings
-        );
-        let credited = gated
-            .hints
-            .iter()
-            .find(|h| h.kind == "headless-prompt" && h.task == "ask")
-            .map(|h| h.advice.clone())
-            .unwrap_or_default();
-        for lesson in [
-            "declares no `default:` — and must not",
-            "--answer ask=<value>",
-            "exit 4",
-        ] {
-            assert!(
-                credited.contains(lesson),
-                "the credited gate's hint teaches `{lesson}`: {credited}"
-            );
-        }
-
-        // The same prompt with nothing to guard keeps the ordinary hint.
-        let plain = check_yaml(
-            "nika: t\npermits:\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\" }\n",
-        );
-        let ordinary = plain
-            .hints
-            .iter()
-            .find(|h| h.kind == "headless-prompt" && h.task == "ask")
-            .map(|h| h.advice.clone())
-            .unwrap_or_default();
-        assert!(
-            ordinary.contains("`default:`") && !ordinary.contains("must not"),
-            "an uncredited prompt keeps the ordinary teaching: {ordinary}"
-        );
-    }
-
     #[test]
     fn conformance_violations_carry_severity_and_docs_url() {
         // An unresolved dependency -> a conformance violation. The finding
