@@ -2113,6 +2113,7 @@ dependencies = [
  "nika-types",
  "nika-vocab",
  "serde_json",
+ "url",
 ]
 
 [[package]]
