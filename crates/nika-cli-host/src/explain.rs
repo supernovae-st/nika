@@ -274,7 +274,10 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              binding (the binding IS the edge · the body reads \
              `${{ with.<name> }}`), a pure ordering becomes `after: \
              {<task>: success}` (or `terminal` for the always-pattern); \
-             `nika check --fix` migrates the provable cases",
+             `nika check --fix` migrates a `depends_on:` whose entries are \
+             all bare task ids (`[a, b]` or a `-` list) — a scalar, a map \
+             entry or any other string is yours to rewrite, and the finding \
+             says which shape it saw",
         ),
         "NIKA-DAG-005" => Some(
             "the `after:` predicate set is closed — pick one of `success` · \

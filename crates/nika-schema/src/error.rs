@@ -179,14 +179,20 @@ pub enum SchemaError {
     /// Data crosses through `with:` (the binding IS the edge) · pure
     /// control through `after:` predicates (spec `03-dag.md`
     /// §`depends_on` · `check --fix` migrates the provable cases).
-    #[error(
-        "task `{task}` carries `depends_on:` — dead since W2; data → `with:` bindings (the binding IS the edge) · control → `after: {{{task_hint}: success}}` (`nika check --fix` migrates the provable cases)"
-    )]
+    #[error("{}", w2_depends_on_message(.task, .task_hint, *.provable))]
     W2DependsOnField {
         /// The task (named by its map key).
         task: String,
-        /// The first dep name (for the teaching's `after:` example).
+        /// The first dep name (for the teaching's `after:` example) — the
+        /// placeholder `producer` when the first entry is not a task id.
         task_hint: String,
+        /// Whether `nika check --fix` can migrate this exact shape: a
+        /// sequence whose every entry is a bare task id (`[a-z0-9_]+`), the
+        /// same predicate the migrator's W2 pass applies. The message
+        /// promises the repair ONLY when this holds (wave 3 · persona 02 ·
+        /// the promise fired on a scalar, then `--fix` answered « rewrite
+        /// by hand »).
+        provable: bool,
         /// Span of the dead `depends_on:` node.
         span: Option<Span>,
     },
@@ -1127,6 +1133,7 @@ fn analysis_level_variants() -> Vec<SchemaError> {
         SchemaError::W2DependsOnField {
             task: String::new(),
             task_hint: String::new(),
+            provable: false,
             span: None,
         },
         SchemaError::UnknownAfterPredicate {
@@ -1215,6 +1222,22 @@ fn type_level_variants() -> Vec<SchemaError> {
             span: None,
         },
     ]
+}
+
+/// The W2 teaching, honest per shape: the `--fix` promise is spoken only
+/// for the shape the migrator proves (every entry a bare task id); any
+/// other shape is named as the author's to rewrite, so the finding and
+/// the fixer never contradict each other on one screen.
+fn w2_depends_on_message(task: &str, task_hint: &str, provable: bool) -> String {
+    if provable {
+        format!(
+            "task `{task}` carries `depends_on:` — dead since W2; data → `with:` bindings (the binding IS the edge) · control → `after: {{{task_hint}: success}}` (`nika check --fix` migrates this shape — every entry is a bare task id)"
+        )
+    } else {
+        format!(
+            "task `{task}` carries `depends_on:` — dead since W2; data → `with:` bindings (the binding IS the edge) · control → `after: {{{task_hint}: success}}` (`nika check --fix` leaves this shape to you — an entry is not a bare task id; write the `after:` map by hand)"
+        )
+    }
 }
 
 #[cfg(test)]

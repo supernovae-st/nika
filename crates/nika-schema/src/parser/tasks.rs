@@ -115,6 +115,15 @@ pub(super) fn parse_tasks(
     Ok(tasks)
 }
 
+/// A `depends_on:` entry the W2 migrator can splice into `after:` — the
+/// bare task-id alphabet (`[a-z0-9_]+`), the migrator's exact predicate.
+fn is_bare_task_id(entry: &str) -> bool {
+    !entry.is_empty()
+        && entry
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
 /// Parse one task mapping (identity = the map key, passed in).
 fn parse_task(
     cx: &Cx<'_>,
@@ -133,14 +142,32 @@ fn parse_task(
     // teaching (data → with: · control → after:) before the generic
     // unknown-field check. The first dep seeds the teaching's example.
     if let Some(node) = mapping.get_node("depends_on") {
-        let task_hint = node
+        // The shape decides what the teaching may promise: `--fix`
+        // migrates a sequence of bare task ids and nothing else (the
+        // migrator's own W2 predicate) — so the example names the first
+        // entry only when it IS an id, and the promise is spoken only
+        // when every entry is one.
+        let entries: Vec<String> = node
             .as_sequence()
-            .and_then(|seq| seq.iter().next())
-            .and_then(marked_yaml::Node::as_scalar)
-            .map_or_else(|| "producer".to_owned(), |s| s.as_str().to_owned());
+            .map(|seq| {
+                seq.iter()
+                    .map(|n| {
+                        n.as_scalar()
+                            .map_or_else(String::new, |s| s.as_str().to_owned())
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let provable = !entries.is_empty() && entries.iter().all(|e| is_bare_task_id(e));
+        let task_hint = entries
+            .first()
+            .filter(|e| is_bare_task_id(e))
+            .cloned()
+            .unwrap_or_else(|| "producer".to_owned());
         return Err(SchemaError::W2DependsOnField {
             task: id.value.clone(),
             task_hint,
+            provable,
             span: cx.span(node.span()),
         });
     }
@@ -720,6 +747,54 @@ tasks:
             panic!("expected Infer");
         };
         assert_eq!(action.prompt.value, "Say hello");
+    }
+
+    /// W2 · NIKA-PARSE-024: the `--fix` promise is spoken only for the
+    /// shape the migrator proves (every entry a bare task id). A scalar, a
+    /// map entry or any other string names itself as the author's to
+    /// rewrite, and the `after:` example never splices a non-id (wave 3 ·
+    /// persona 02 · the promise fired, then `--fix` said « rewrite by
+    /// hand » on the same screen).
+    #[test]
+    fn depends_on_promises_fix_only_for_the_shape_it_proves() {
+        let ids = parse_strict(
+            "tasks:\n  a:\n    exec: { command: [ls] }\n  b:\n    depends_on: [a]\n    exec: { command: [ls] }\n",
+        )
+        .expect_err("dead form");
+        assert!(
+            matches!(&ids, SchemaError::W2DependsOnField { task, task_hint, provable: true, .. }
+                if task == "b" && task_hint == "a"),
+            "{ids:?}"
+        );
+        let text = ids.to_string();
+        assert!(text.contains("`after: {a: success}`"), "{text}");
+        assert!(text.contains("migrates this shape"), "{text}");
+        assert!(!text.contains("leaves this shape"), "{text}");
+
+        for (shape, yaml) in [
+            ("scalar", "    depends_on: a\n"),
+            ("map entry", "    depends_on: [{ task: a }]\n"),
+            ("arrow string", "    depends_on: [\"a >> b\"]\n"),
+            ("empty list", "    depends_on: []\n"),
+        ] {
+            let err = parse_strict(&format!(
+                "tasks:\n  a:\n    exec: {{ command: [ls] }}\n  b:\n{yaml}    exec: {{ command: [ls] }}\n"
+            ))
+            .expect_err(shape);
+            assert!(
+                matches!(&err, SchemaError::W2DependsOnField { task, task_hint, provable: false, .. }
+                    if task == "b" && task_hint == "producer"),
+                "{shape}: {err:?}"
+            );
+            let text = err.to_string();
+            assert!(text.contains("leaves this shape to you"), "{shape}: {text}");
+            assert!(!text.contains("migrates this shape"), "{shape}: {text}");
+            assert!(
+                text.contains("`after: {producer: success}`"),
+                "{shape}: {text}"
+            );
+            assert_eq!(err.spec_code().to_string(), "NIKA-PARSE-024", "{shape}");
+        }
     }
 
     #[test]
