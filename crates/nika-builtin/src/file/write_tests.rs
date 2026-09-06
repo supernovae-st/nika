@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
 use nika_fs::TokioFs;
-use nika_kernel::fs::{FsError, FsReadDyn, FsWriteDyn};
+use nika_kernel::fs::{FileMetadata, FsError, FsMetaDyn, FsReadDyn, FsWriteDyn};
 use tokio::sync::Barrier;
 
 struct ObservedAbsence {
@@ -53,6 +53,12 @@ impl FsWriteDyn for ObservedAbsence {
 
     async fn remove_file(&self, path: &Path) -> Result<(), FsError> {
         TokioFs.remove_file(path).await
+    }
+}
+
+impl FsMetaDyn for ObservedAbsence {
+    async fn metadata(&self, path: &Path) -> Result<FileMetadata, FsError> {
+        TokioFs.metadata(path).await
     }
 }
 

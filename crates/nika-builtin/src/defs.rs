@@ -163,7 +163,7 @@ fn file_defs() -> Vec<ToolDef> {
         ),
         def(
             "write",
-            "Write a file · returns the path. overwrite defaults true · create_dirs defaults false.",
+            "Write a FILE · returns the path. path names a file, never a directory; create_dirs (default false) creates its missing parent directories; overwrite defaults true.",
             serde_json::json!({
                 "path": s("destination path"),
                 "content": s("the content to write"),
