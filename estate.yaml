@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: 94772be1146c780ba9c0e183ad9b906425c0c029d91a3d223bab594886f095f0
+  sha256: f4f60b65c7a59e72999a0b8906be5a14e57b32ef74536f6ee8d4244b4b6b5525
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 145
-  aggregate_sha256: 1d37f99bfb57d8f188a6c61791a1788c08b98be7ab460988620bf53228b93964
+  aggregate_sha256: 858a346e8719c39b7261259494ace0435b3e278540a64d9b4b44c0c1fed9b03d
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout at SPEC_PIN> — spec-pin-heal.yml advances the pin and pack together, and Diamond CI refuses any pack differing from spec@SPEC_PIN"
