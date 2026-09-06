@@ -246,7 +246,9 @@ pub struct TaskTally {
     pub ok: u32,
     /// Settled as a failure.
     pub failed: u32,
-    /// Succeeded through `on_error: recover` (counted in `ok` too).
+    /// REPAIRS an `on_error` recovery made (the recovered rows are
+    /// counted in `ok` too). A `for_each` row counts one per recovered
+    /// ITEM, never one per row — the number a human card prints.
     pub recovered: u32,
     /// Skipped by a gate or `on_error: skip`.
     pub skipped: u32,
