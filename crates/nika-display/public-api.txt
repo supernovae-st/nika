@@ -690,8 +690,14 @@ pub nika_display::state::TaskRow::started_ms: core::option::Option<i64>
 pub nika_display::state::TaskRow::started_note: core::option::Option<alloc::string::String>
 pub nika_display::state::TaskRow::state: nika_display::state::TaskState
 pub nika_display::state::TaskRow::tokens: core::option::Option<u64>
+pub nika_display::state::TaskRow::tokens_cache_read: core::option::Option<u64>
+pub nika_display::state::TaskRow::tokens_cache_write: core::option::Option<u64>
+pub nika_display::state::TaskRow::tokens_in: core::option::Option<u64>
+pub nika_display::state::TaskRow::tokens_out: core::option::Option<u64>
+pub nika_display::state::TaskRow::tokens_reasoning: core::option::Option<u64>
 pub nika_display::state::TaskRow::warning: core::option::Option<alloc::string::String>
 impl nika_display::state::TaskRow
+pub fn nika_display::state::TaskRow::meters(&self) -> alloc::vec::Vec<(&'static str, u64)>
 pub fn nika_display::state::TaskRow::wall_ms(&self) -> core::option::Option<u64>
 impl core::clone::Clone for nika_display::state::TaskRow
 pub fn nika_display::state::TaskRow::clone(&self) -> nika_display::state::TaskRow
