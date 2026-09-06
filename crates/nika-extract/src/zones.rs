@@ -239,6 +239,27 @@ pub(crate) fn rule_content(body: &str, page_type: PageType) -> Option<String> {
     (text_len >= MIN_EXTRACTED && carries_the_page).then(|| container.html())
 }
 
+/// The visible text the served markup rendered INSIDE a semantic content
+/// zone — the question `article.rs` asks before letting a `<noscript>`
+/// fallback replace an extraction. Same prune + zone target as
+/// [`rule_content`], WITHOUT its thin and share gates: the question here
+/// is not "is this a good extraction" but "did the server render body
+/// text at all". `0` means the page shipped a shell — a header, a
+/// loading shim, an empty mount point — and nothing that reads as a body.
+pub(crate) fn served_zone_text_len(body: &str, page_type: PageType) -> usize {
+    let mut doc = Html::parse_document(body);
+    let total_text = body_text_len(&doc);
+    let discard = discard_ids(&doc, page_type, total_text);
+    detach_all(&mut doc, &discard);
+    let Some(container_id) = find_zone(&doc, page_type) else {
+        return 0;
+    };
+    doc.tree
+        .get(container_id)
+        .and_then(scraper::ElementRef::wrap)
+        .map_or(0, |el| visible_text_len(&el.text().collect::<String>()))
+}
+
 /// Collect the node-ids to discard: tag-chrome + the class/id denylist
 /// (discussion tokens excluded on forums). Applies the `with_backup`
 /// over-prune guard — if the matched zones carry >6/7 of the page text the

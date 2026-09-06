@@ -51,7 +51,12 @@ pub(crate) fn article(body: &str, base: Option<&str>) -> Result<serde_json::Valu
     if let Some(inner) = crate::html::noscript_source(body)
         && let Ok(rescued) = cascade(&inner, base, page_type)
         && !is_thin(&rescued)
-        && rescue_may_replace(primary_text, rescued.as_str().unwrap_or_default())
+        && rescue_may_replace(
+            body,
+            page_type,
+            primary_text,
+            rescued.as_str().unwrap_or_default(),
+        )
     {
         return Ok(rescued);
     }
@@ -68,23 +73,39 @@ pub(crate) fn article(body: &str, base: Option<&str>) -> Result<serde_json::Valu
 /// therefore DELETED prose the server really sent (regression pinned by
 /// `noscript_never_replaces_a_short_but_real_primary`).
 ///
-/// So the rescue fires only when nothing of the served page is lost:
+/// So the rescue fires only when nothing of the served page is lost —
+/// three arms, in cost order:
 ///
-/// * `None` — every stage errored, or returned a non-string: the primary
-///   carries no prose at all, so there is nothing to overwrite.
-/// * empty text — same, after trimming.
+/// * `None` / empty — every stage errored, returned a non-string, or
+///   produced only whitespace: there is nothing to overwrite.
 /// * the rescued text CONTAINS the primary's — the fallback is the same
-///   page rendered whole (the JS shell that serves its first paragraph,
-///   or nothing, and the full article inside `<noscript>`).
+///   page rendered whole (the shell that serves its first paragraph, and
+///   the full article inside `<noscript>`).
+/// * the served markup rendered NO text inside a semantic content zone
+///   ([`crate::zones::served_zone_text_len`] is 0) — the page is a shell,
+///   and whatever the cascade scraped out of it (a title bar, a logo alt,
+///   a tagline) is furniture, not a body. This is the shape every WCXB
+///   forum shell has: 12 pages of the dev split extract as
+///   `"<topic> - <category> - <site>"` and nothing else, with the whole
+///   thread inside `<noscript>`.
 ///
 /// Anything else keeps the primary: a short-but-real body beside an
-/// unrelated `<noscript>` block stays the answer.
-fn rescue_may_replace(primary: Option<&str>, rescued: &str) -> bool {
+/// unrelated `<noscript>` block stays the answer. The cost of the third
+/// arm is one more parse of the served markup, on the rescue path only.
+fn rescue_may_replace(
+    body: &str,
+    page_type: crate::page_type::PageType,
+    primary: Option<&str>,
+    rescued: &str,
+) -> bool {
     let Some(text) = primary else {
         return true;
     };
     let served = prose_signature(text);
-    served.is_empty() || prose_signature(rescued).contains(&served)
+    if served.is_empty() || prose_signature(rescued).contains(&served) {
+        return true;
+    }
+    crate::zones::served_zone_text_len(body, page_type) == 0
 }
 
 /// The alphanumeric words of `s`, lowercased and single-spaced — the
@@ -456,30 +477,102 @@ mod tests {
         );
     }
 
-    /// The rule itself, arm by arm (the end-to-end tests above exercise
-    /// two of the four).
+    /// The rule itself, arm by arm (the end-to-end tests exercise two of
+    /// the four).
     #[test]
     fn rescue_may_replace_only_adds() {
+        // A page that DID render a body: only the additive arms can fire.
+        let served = "<html><body><article><p>the metro line four closed \
+             for ninety minutes this morning after a signalling fault near \
+             odeon station</p></article></body></html>";
+        let art = crate::page_type::PageType::Article;
+        assert!(
+            crate::zones::served_zone_text_len(served, art) > 0,
+            "the fixture must carry served zone text, else it proves nothing"
+        );
+
         // No primary at all (every stage errored) → nothing to lose.
-        assert!(rescue_may_replace(None, "any rescued prose at all"));
+        assert!(rescue_may_replace(served, art, None, "any rescued prose"));
         // A blank primary trims to nothing → same.
-        assert!(rescue_may_replace(Some("   \n  "), "any rescued prose"));
+        assert!(rescue_may_replace(
+            served,
+            art,
+            Some("   \n  "),
+            "any rescued prose"
+        ));
         // Contained → the fallback is the same page, rendered whole.
         assert!(rescue_may_replace(
+            served,
+            art,
             Some("the council voted"),
             "before the council voted the mayor spoke"
         ));
         // Markdown decoration must not defeat the containment: the two
         // renders escape differently, the prose is the same.
         assert!(rescue_may_replace(
+            served,
+            art,
             Some("**The Council** voted \\- twice!"),
             "the council voted twice in a single session"
         ));
-        // Unrelated → the served prose would be DELETED. Refuse.
+        // Unrelated, on a page that served real body text → the prose
+        // would be DELETED. Refuse.
         assert!(!rescue_may_replace(
+            served,
+            art,
             Some("the metro line four closed this morning"),
             "this site needs javascript enabled to work correctly"
         ));
+    }
+
+    /// The third arm: a SHELL renders no text in any content zone, so the
+    /// chrome the cascade scraped out of it (here a title bar) is not
+    /// prose worth keeping — the fallback may replace it even though it
+    /// does not contain it.
+    #[test]
+    fn rescue_may_replace_on_a_shell_that_served_no_zone_text() {
+        let shell = "<html><body><header><h1>Docker Community Forums</h1></header>\
+             <div id=\"main-outlet\"></div></body></html>";
+        let forum = crate::page_type::PageType::Forum;
+        assert_eq!(
+            crate::zones::served_zone_text_len(shell, forum),
+            0,
+            "the shell renders no body text — that is the whole signal"
+        );
+        assert!(rescue_may_replace(
+            shell,
+            forum,
+            Some("Docker Community Forums - Share and learn"),
+            "an unrelated thread that the fallback carries in full"
+        ));
+    }
+
+    /// The WCXB forum shape, end to end (12 dev-split pages look exactly
+    /// like this): a Discourse shell whose served DOM is a title bar and
+    /// an empty mount point, with the whole thread inside `<noscript>`.
+    /// The primary is thin AND not contained in the fallback, so only the
+    /// shell arm can rescue it.
+    #[test]
+    fn noscript_rescue_fires_on_a_title_only_forum_shell() {
+        let posts = "<p>the upgrade left the daemon stuck on starting and \
+             rolling back to the previous release fixed it for me after a \
+             full restart of the host machine</p>"
+            .repeat(12);
+        let body = format!(
+            "<html><head><title>stuck on starting - Docker Community Forums</title></head>\
+             <body><header><h1>Docker Community Forums</h1>\
+             <p>Share and learn in the Docker community.</p></header>\
+             <div id=\"main-outlet\"></div>\
+             <noscript><div id=\"topic\">{posts}</div></noscript></body></html>"
+        );
+
+        let out = article(&body, Some("https://forums.docker.com/t/stuck/1234"));
+        let md = out.expect("the fallback carries the thread");
+        let md = md.as_str().unwrap_or("");
+        assert!(
+            md.contains("rolling back to the previous release"),
+            "the thread inside noscript must win over the title bar, got: {md}"
+        );
     }
 
     /// All-thin terminus — an empty body: Stage 1 abstains, Stage 2 errors
