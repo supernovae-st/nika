@@ -51,6 +51,13 @@ done
 
 # ── existence ───────────────────────────────────────────────────────────
 required=(
+  media/gifs/intent-to-impact.optimized.gif
+  media/videos/intent-to-impact.mp4
+  media/posters/intent-to-impact.png
+  media/storyboards/intent-to-impact.png
+  scripts/media/motion/intent-to-impact/README.md
+  media/brand/nika-logomark.svg
+  media/gifs/intent-dag-proof.optimized.gif
   media/gifs/full-loop.optimized.gif
   media/gifs/static-check-fix.optimized.gif
   media/gifs/chat-to-workflow.optimized.gif
@@ -70,13 +77,18 @@ required=(
   media/videos/editor-diagnostics.webm
   media/videos/permits-audit.webm
   media/videos/on-error-recover.webm
+  media/videos/intent-dag-proof.mp4
+  media/videos/intent-dag-proof.webm
+  media/posters/intent-dag-proof.png
   media/posters/static-check-fix.png
   media/posters/chat-to-workflow.png
   media/posters/dag-execution.png
   media/posters/editor-diagnostics.png
   media/posters/permits-audit.png
   media/posters/on-error-recover.png
+  media/storyboards/intent-dag-proof.png
   media/raw/transcripts.json
+  scripts/media/motion/intent-dag-proof.storyboard.md
 )
 for f in "${required[@]}"; do
   if [ -f "$f" ]; then say "✔ $f"; else
@@ -84,6 +96,20 @@ for f in "${required[@]}"; do
     fail=1
   fi
 done
+
+# Product-film claims are tested as an illustration, not as a live workflow.
+if node --test scripts/media/motion/intent-to-impact/commerce-model.test.js; then
+  say "✔ product film topology, approval ordering and one-minute edit"
+else
+  fail=1
+fi
+if command -v ffprobe >/dev/null 2>&1 && \
+   [ "$(ffprobe -v error -show_entries format=duration -of csv=p=0 media/videos/intent-to-impact.mp4)" = "60.000000" ]; then
+  say "✔ product film MP4 is exactly 60 seconds"
+else
+  say "✖ product film duration must be 60 seconds (ffprobe required)"
+  fail=1
+fi
 
 # ── drawn-YAML honesty (the scenes may not speak a dead grammar) ────────
 # The motion scenes hand-draw YAML in span markup; this is where media
@@ -160,20 +186,19 @@ for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
             print(f" x {p.name}: teaches slug {slug!r} the released binary refuses")
             bad = 1
 
-# The README teaches slugs too (the pick-a-workflow table) — same law,
-# same executioner: a row the released binary refuses is a dead lesson.
+# The README front door is the real ownership loop. `try` is deliberately not
+# taught here: it is a showroom, while the README must teach the four verbs a
+# user keeps after the first minute. Pin presence AND order so another rewrite
+# cannot put proof before the run or silently bring the showroom back.
 readme = pathlib.Path("README.md").read_text(encoding="utf-8")
-taught = sorted(set(re.findall(r"nika try\s+([a-z0-9/_-]+)", readme)))
-# A silent zero is how this gate spent its rename passing over nothing:
-# it hunted a grammar the tree had dropped, matched none, and reported
-# clean. The register must never be empty here.
-if not taught:
-    print(" x README.md: teaches no showroom slug — the gate would pass over nothing")
+front_door = ["nika new", "nika check", "nika run", "nika trace verify"]
+positions = [readme.find(command) for command in front_door]
+if any(position < 0 for position in positions) or positions != sorted(positions):
+    print(" x README.md: front door must teach new → check → run → trace verify")
     bad = 1
-for slug in taught:
-    if not shows(slug):
-        print(f" x README.md: teaches slug {slug!r} the released binary refuses")
-        bad = 1
+if re.search(r"\bnika try\b", readme):
+    print(" x README.md: showroom `nika try` leaked into the ownership path")
+    bad = 1
 
 # The gallery's count claims derive from the released pack, never typed
 # free-hand: "N ... business jobs" must equal the showcase family count.
