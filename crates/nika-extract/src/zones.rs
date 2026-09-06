@@ -24,6 +24,8 @@
 //!    A SEMANTIC container winning is the precision signal; if none match
 //!    the rule cascade abstains (returns `None`) and the caller falls
 //!    through to readability (whose scoring handles markup-poor pages).
+//!    A container that matches but carries a SLIVER of the pruned page's
+//!    text abstains too: a teaser `main` is not a body.
 //! 3. **LINK-DENSITY finish** — detach the link-dense block remnants
 //!    (`link chars > 0.8 · block chars` in a short block) that survive
 //!    inside the container (menus, tag lists). Trafilatura's
@@ -35,6 +37,10 @@ use ego_tree::NodeId;
 use scraper::{Html, Selector};
 
 use crate::page_type::PageType;
+
+/// Minimum share (percent) of the pruned page's visible text the winning
+/// zone must carry to be believed as the body.
+const ZONE_MIN_SHARE_PERCENT: usize = 5;
 
 /// Below this many chars of extracted text the rule result is THIN — the
 /// caller falls through to readability. Trafilatura's `MIN_EXTRACTED_SIZE`.
@@ -214,6 +220,7 @@ pub(crate) fn rule_content(body: &str, page_type: PageType) -> Option<String> {
     let dense = link_dense_ids(&doc, container_id);
     detach_all(&mut doc, &dense);
 
+    let remaining_text = body_text_len(&doc);
     let container = doc
         .tree
         .get(container_id)
@@ -221,7 +228,15 @@ pub(crate) fn rule_content(body: &str, page_type: PageType) -> Option<String> {
     // THIN gate on the TEXT content (not the serialized markup) — a
     // container that survived to near-empty is not a win.
     let text_len = visible_text_len(&container.text().collect::<String>());
-    (text_len >= MIN_EXTRACTED).then(|| container.html())
+    // SHARE gate — a zone holding a sliver of what the pruned page still
+    // carries is a decorative container that happened to match (a teaser
+    // `main`, a byline `article`), not the body. Absolute length cannot
+    // see that: 300 characters clear MIN_EXTRACTED on a page carrying
+    // 30,000. Abstaining hands the page to readability, which scores the
+    // whole tree instead of trusting one selector.
+    let carries_the_page =
+        text_len.saturating_mul(100) >= remaining_text.saturating_mul(ZONE_MIN_SHARE_PERCENT);
+    (text_len >= MIN_EXTRACTED && carries_the_page).then(|| container.html())
 }
 
 /// Collect the node-ids to discard: tag-chrome + the class/id denylist
@@ -381,8 +396,8 @@ fn body_text_len(doc: &Html) -> usize {
 mod tests {
     use super::{
         ARTICLE_CASCADE, BROAD_CASCADE, DISCARD_TAGS, DISCARD_TOKENS, DISCUSSION_TOKENS,
-        FORUM_CASCADE, PageType, cascade_for, discard_ids, is_link_dense, link_dense_ids,
-        rule_content,
+        FORUM_CASCADE, PageType, ZONE_MIN_SHARE_PERCENT, cascade_for, discard_ids, is_link_dense,
+        link_dense_ids, rule_content,
     };
     use scraper::{Html, Selector};
 
@@ -548,6 +563,41 @@ mod tests {
         </main></body></html>"#;
         let html = rule_content(body, PageType::Article).expect("guard kept the content");
         assert!(html.contains("entire real article body"), "{html}");
+    }
+
+    #[test]
+    fn a_sliver_zone_abstains_even_when_it_clears_the_thin_floor() {
+        // A decorative `<main>` teaser clears MIN_EXTRACTED on its own
+        // (300 chars) while the page's real body, 10,000 chars of prose,
+        // sits outside it. Absolute length alone cannot tell a body from a
+        // teaser; the SHARE gate can, and abstaining hands the page to
+        // readability rather than serving 3% of it.
+        let teaser = "T".repeat(300);
+        let body_prose = "B".repeat(10_000);
+        let page = format!(
+            "<html><body><main><p>{teaser}</p></main>\
+             <div><p>{body_prose}</p></div></body></html>"
+        );
+        assert!(
+            rule_content(&page, PageType::Article).is_none(),
+            "a zone carrying under {ZONE_MIN_SHARE_PERCENT}% of the page is not the body"
+        );
+    }
+
+    #[test]
+    fn a_zone_carrying_the_page_still_wins() {
+        // The same shape with the proportions reversed: `<main>` holds the
+        // prose and the rest of the page is a scrap. The share gate must
+        // not touch it (the companion that keeps the gate from becoming a
+        // blanket abstention).
+        let body_prose = "B".repeat(10_000);
+        let scrap = "S".repeat(50);
+        let page = format!(
+            "<html><body><main><p>{body_prose}</p></main>\
+             <div><p>{scrap}</p></div></body></html>"
+        );
+        let html = rule_content(&page, PageType::Article).expect("the body zone wins");
+        assert!(html.contains(&body_prose), "the prose zone is returned");
     }
 
     #[test]
