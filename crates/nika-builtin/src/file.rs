@@ -5,9 +5,11 @@
 //! Each composes the injected kernel `Fs*Dyn` seams.
 
 use std::borrow::Cow;
-use std::path::Path;
+use std::collections::BTreeSet;
+use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
 
-use nika_kernel::io::fs::{FsError, FsListDyn, FsReadDyn, FsWriteDyn};
+use nika_kernel::io::fs::{FsError, FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
 
 use crate::permits::{FsAccess, FsBoundary};
 use crate::{Args, BuiltinFailure, BuiltinOutcome, req_str, strict_bool, strict_u64};
@@ -195,8 +197,20 @@ pub(crate) async fn edit<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Buil
     Ok(serde_json::Value::String(path.to_owned()))
 }
 
-/// `nika:glob` — sorted-lexicographically match (stdlib §glob).
-pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
+/// A `nika:glob` result: the file list (the value a consumer receives —
+/// unchanged, forever) beside the OBS-E `warning` naming the directory
+/// matches the walk left out, when there were any.
+pub(crate) struct Globbed {
+    pub(crate) paths: serde_json::Value,
+    pub(crate) warning: Option<String>,
+}
+
+/// `nika:glob` — sorted-lexicographically match (stdlib §glob), with the
+/// report of what the match set does NOT carry ([`dropped_directories`]).
+pub(crate) async fn glob_reported<F: FsListDyn + FsMetaDyn>(
+    fs: &F,
+    args: &Args,
+) -> Result<Globbed, BuiltinFailure> {
     const C: &str = "NIKA-BUILTIN-GLOB-001";
     let pattern = req_str(args, "pattern", C)?;
     // The kernel `glob(root, pattern)` matches `pattern` against the
@@ -208,7 +222,8 @@ pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     // named (`hiring/inbox/*.md` walks `./hiring/inbox`, not the whole cwd:
     // a scoped `permits.fs.read` boundary must accept a scoped glob).
     let (root, rel_pattern) = split_pattern_root(pattern);
-    let matches = match fs.glob(Path::new(root.as_ref()), rel_pattern).await {
+    let root = Path::new(root.as_ref());
+    let matches = match fs.glob(root, rel_pattern).await {
         Ok(matches) => matches,
         // A missing walk root means the match set is empty, not an error —
         // the historical cwd-walk contract (`[]` for `gone-dir/*.md`), now
@@ -217,14 +232,124 @@ pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
         Err(e) => return Err(BuiltinFailure::new(C, format!("invalid pattern: {e}"))),
     };
     let excludes = exclude_patterns(args);
-    let mut paths: Vec<String> = matches
+    let silenced = |p: &String| excludes.iter().any(|ex| simple_glob(ex, p));
+    let walked: Vec<String> = matches
         .into_iter()
         .map(|p| p.to_string_lossy().into_owned())
-        .filter(|p| !excludes.iter().any(|ex| simple_glob(ex, p)))
         .collect();
+    // The report reads the walker's RAW set (an excluded file is still a
+    // file the walker returned), and an author's `exclude:` silences the
+    // directories it names — that drop is the author's own.
+    let dropped: Vec<String> = dropped_directories(fs, root, rel_pattern, &walked)
+        .await
+        .into_iter()
+        .filter(|p| !silenced(p))
+        .collect();
+    let mut paths: Vec<String> = walked.into_iter().filter(|p| !silenced(p)).collect();
     paths.sort();
-    Ok(serde_json::Value::Array(
-        paths.into_iter().map(serde_json::Value::String).collect(),
+    Ok(Globbed {
+        paths: serde_json::Value::Array(paths.into_iter().map(serde_json::Value::String).collect()),
+        warning: dropped_warning(pattern, &dropped),
+    })
+}
+
+/// The directories under `root` that match `pattern` — the entries the
+/// kernel walk never returns (`FsListDyn::glob` yields non-directory
+/// entries only), named so a `*.md` that also matched a folder called
+/// `item-07.md` cannot settle as a bare success (V9 wave 3 · p10: a
+/// 12-candidate batch fanned over 11 and the trace read `succeeded`).
+/// The grammar is the walker's own (`globset` · `literal_separator`) —
+/// a second spelling would drift.
+///
+/// A single-segment pattern (`*.md`) needs neither descent nor stat: the
+/// walker returned EVERY matching non-directory child of the root, so a
+/// matching child it did not return is a directory by construction. A
+/// pattern with a `/` or a `**` descends the way the walker does (hidden
+/// directories are not entered · a symlink is a leaf) and asks
+/// `metadata` which children are directories. Advisory by design: a
+/// listing that fails names nothing — the value has already settled;
+/// this only decides what the frame SAYS.
+async fn dropped_directories<F: FsListDyn + FsMetaDyn>(
+    fs: &F,
+    root: &Path,
+    pattern: &str,
+    returned: &[String],
+) -> Vec<String> {
+    let Ok(matcher) = globset::GlobBuilder::new(pattern)
+        .literal_separator(true)
+        .build()
+        .map(|glob| glob.compile_matcher())
+    else {
+        return Vec::new();
+    };
+    let returned: BTreeSet<&str> = returned.iter().map(String::as_str).collect();
+    let descend = pattern.contains('/') || pattern.contains("**");
+    let mut dropped = Vec::new();
+    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(children) = fs.list_dir(&dir).await else {
+            continue;
+        };
+        for child in children {
+            let text = child.to_string_lossy().into_owned();
+            if returned.contains(text.as_str()) {
+                continue; // a non-directory the walker returned
+            }
+            let Ok(rel) = child.strip_prefix(root) else {
+                continue;
+            };
+            let hit = matcher.is_match(rel);
+            if !descend {
+                if hit {
+                    dropped.push(text);
+                }
+                continue;
+            }
+            let Ok(meta) = fs.metadata(&child).await else {
+                continue;
+            };
+            if !meta.is_dir {
+                continue;
+            }
+            if hit {
+                dropped.push(text);
+            }
+            let hidden = child
+                .file_name()
+                .is_some_and(|name| name.as_encoded_bytes().first() == Some(&b'.'));
+            if !hidden {
+                stack.push(child);
+            }
+        }
+    }
+    dropped.sort();
+    dropped
+}
+
+/// The OBS-E sentence for the directories a glob left out — the first
+/// five named, the rest counted (a warning is a line, not a listing).
+fn dropped_warning(pattern: &str, dropped: &[String]) -> Option<String> {
+    const NAMED: usize = 5;
+    let n = dropped.len();
+    if n == 0 {
+        return None;
+    }
+    let (noun, verb) = if n == 1 {
+        ("directory", "was")
+    } else {
+        ("directories", "were")
+    };
+    let mut names = dropped
+        .iter()
+        .take(NAMED)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if n > NAMED {
+        let _ = write!(names, " (+{} more)", n - NAMED);
+    }
+    Some(format!(
+        "nika:glob returns files only · {n} {noun} also matched `{pattern}` and {verb} left out: {names}"
     ))
 }
 
@@ -464,6 +589,12 @@ fn is_not_a_directory(e: &FsError) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The value-only door the glob tests read (the report is pinned
+    /// through the dispatcher, on a real tree).
+    async fn glob<F: FsListDyn + FsMetaDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
+        glob_reported(fs, args).await.map(|globbed| globbed.paths)
+    }
     use nika_kernel_mock::MockFs;
 
     fn args(v: serde_json::Value) -> Args {
@@ -761,6 +892,27 @@ mod tests {
         )
         .await;
         assert!(matches!(bad, Err(f) if f.code == "NIKA-BUILTIN-GREP-001"));
+    }
+
+    #[test]
+    fn dropped_warning_names_five_and_counts_the_rest() {
+        assert!(
+            dropped_warning("*.md", &[]).is_none(),
+            "nothing left out, nothing said"
+        );
+        let one = dropped_warning("./items/*.md", &["./items/item-07.md".to_owned()])
+            .expect("one directory");
+        assert_eq!(
+            one,
+            "nika:glob returns files only · 1 directory also matched `./items/*.md` and was left out: ./items/item-07.md"
+        );
+        let many: Vec<String> = (1..=7).map(|i| format!("./d/{i}.md")).collect();
+        let seven = dropped_warning("./d/*.md", &many).expect("seven directories");
+        assert!(seven.starts_with("nika:glob returns files only · 7 directories also matched `./d/*.md` and were left out: ./d/1.md, ./d/2.md, ./d/3.md, ./d/4.md, ./d/5.md (+2 more)"), "{seven}");
+        assert!(
+            !seven.contains("./d/6.md"),
+            "the sixth is counted, not named: {seven}"
+        );
     }
 
     #[tokio::test]

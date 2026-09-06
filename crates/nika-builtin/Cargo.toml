@@ -34,6 +34,7 @@ sha2          = { workspace = true }   # nika:hash sha256/sha512
 uuid          = { workspace = true }   # nika:uuid v7/v4
 # file wave
 regex         = { workspace = true }   # nika:grep (RE2-class · the portable subset)
+globset       = { workspace = true }   # nika:glob — the left-out-directory report matches with the kernel walker's OWN grammar (literal_separator · one matcher, never a second spelling)
 encoding_rs   = { workspace = true }   # nika:fetch — charset-aware decode for extraction modes
 # media wave — nika:image_generate reuses jiff (created_at) + sha2 (asset
 # hashes) + the in-crate base64/hex helpers; ZERO new runtime deps.
