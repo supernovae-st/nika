@@ -45,10 +45,16 @@ const VOID_ELEMENTS: &[&str] = &[
 /// never fully parsed.
 ///
 /// SOUND against the nesting attack: every start tag of a NON-void
-/// element opens a level (close tags pop). It does NOT honor `/>`
-/// self-closing — `<div/>` is NOT self-closing in HTML5 (html5ever
-/// nests it; only void + true foreign-content elements self-close), so
+/// element opens a level (close tags pop). `/>` is honored ONLY inside
+/// SVG/MathML, where the parser acknowledges the self-closing flag —
+/// `<div/>` is NOT self-closing in HTML5 (html5ever nests it), so
 /// counting `<div/>`×N as N levels matches the tree the parser builds.
+/// Two shapes the parser closes for the author are honored too, both in
+/// HTML context only: the OPTIONAL end tags (`<li>` closed by the next
+/// `<li>`, `<p>` by a following block) and the implied end tags a close
+/// tag generates (`</ul>` closing the items under it). Each is a strict
+/// subset of the parser's own unwinding, so the scan can only ever count
+/// MORE depth than the real tree.
 ///
 /// The soundness HINGES on not mis-skipping content html5ever parses as
 /// real markup — skip too much and the scan UNDER-counts and the crash
@@ -102,6 +108,22 @@ pub(crate) fn guard_depth(body: &str, mode: ExtractMode) -> Result<(), ExtractEr
             // Close tag: strict-LIFO pop (the matched top only).
             Some(b'/') => {
                 let (name, j) = scan_name(bytes, body, i + 2);
+                // "Generate implied end tags" before the match: a `</ul>`
+                // closes the `<li>`s left open under it. Only the
+                // optional-end elements are popped through — a strict
+                // subset of the parser's own unwinding, so the count can
+                // never fall below the real tree's depth.
+                if in_html_context(&context) && stack.last().is_none_or(|top| *top != name) {
+                    let implied = stack
+                        .iter()
+                        .rev()
+                        .take_while(|open| OPTIONAL_END_TAGS.contains(&open.as_str()))
+                        .count();
+                    let below = stack.len().saturating_sub(implied);
+                    if implied > 0 && below > 0 && stack[below - 1] == name {
+                        stack.truncate(below);
+                    }
+                }
                 if stack.last().is_some_and(|top| *top == name) {
                     stack.pop();
                     if is_context_marker(&name) {
@@ -127,9 +149,15 @@ pub(crate) fn guard_depth(body: &str, mode: ExtractMode) -> Result<(), ExtractEr
                 if VOID_ELEMENTS.contains(&name.as_str()) {
                     // Void elements take no close tag — they never nest.
                     i = after_open;
-                } else if context.last().copied().unwrap_or(true)
-                    && RAWTEXT_ELEMENTS.contains(&name.as_str())
-                {
+                } else if !in_html_context(&context) && is_self_closing(bytes, j, after_open) {
+                    // `<path … />` inside SVG/MathML: the parser
+                    // acknowledges the self-closing flag in foreign
+                    // content, so the element opens and closes at once.
+                    // Counting it as still-open is how a page of syntax
+                    // diagrams (thousands of `<path/>`) reads as thousands
+                    // of nesting levels and gets refused whole.
+                    i = after_open;
+                } else if in_html_context(&context) && RAWTEXT_ELEMENTS.contains(&name.as_str()) {
                     // HTML-context RAWTEXT/RCDATA/SCRIPT_DATA/PLAINTEXT: the
                     // body is TEXT, so an internal `</div>` never nests —
                     // count one level transiently for the cap, then jump to
@@ -142,6 +170,19 @@ pub(crate) fn guard_depth(body: &str, mode: ExtractMode) -> Result<(), ExtractEr
                     }
                     i = skip_to_close(bytes, name.as_bytes(), after_open);
                 } else {
+                    // An element whose end tag the author may omit is
+                    // closed by its successor — pop it before pushing, or
+                    // a list of N items reads as N levels. HTML context
+                    // only: in SVG/MathML these names are foreign elements
+                    // with no implied-end rule.
+                    if in_html_context(&context) {
+                        while stack
+                            .last()
+                            .is_some_and(|top| closes_implicitly(&name, top))
+                        {
+                            stack.pop();
+                        }
+                    }
                     // A real nesting element: push it (and its foreign
                     // context marker, if it carries one).
                     let kind = context_kind(&name);
@@ -204,6 +245,110 @@ const INTEGRATION_POINTS: &[&str] = &[
     "ms",
     "mtext",
 ];
+
+/// Elements whose END TAG IS OPTIONAL (HTML §13.1.2.4): the parser closes
+/// them implicitly, at the next sibling of the same kind or at the parent's
+/// end tag. A scan that waits for a `</li>` that the author never wrote
+/// counts one level per item — which is how a plain menu, or a page written
+/// the way sqlite.org writes its documentation, reads as thousands of
+/// nesting levels and gets refused whole. None of these names is a
+/// foreign-context marker, so popping them never disturbs `context`.
+const OPTIONAL_END_TAGS: &[&str] = &[
+    "dd", "dt", "li", "optgroup", "option", "p", "rp", "rt", "tbody", "td", "tfoot", "th", "thead",
+    "tr",
+];
+
+/// Block-level start tags that close an open `<p>` ("in body", the
+/// `p`-in-button-scope rule). The list is the spec's, minus the elements
+/// that cannot appear in a paragraph anyway.
+const CLOSES_PARAGRAPH: &[&str] = &[
+    "address",
+    "article",
+    "aside",
+    "blockquote",
+    "details",
+    "div",
+    "dl",
+    "fieldset",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "header",
+    "hgroup",
+    "hr",
+    "main",
+    "menu",
+    "nav",
+    "ol",
+    "p",
+    "pre",
+    "search",
+    "section",
+    "table",
+    "ul",
+];
+
+/// Whether an opening `name` implicitly closes the element currently on
+/// top of the stack. Deliberately a STRICT SUBSET of what the parser
+/// closes (only the same-kind sibling, the cell/row pairs, and the
+/// block-closes-paragraph rule), so the scan can only ever count MORE
+/// depth than the real tree — never less.
+/// Whether the start tag ending just before `after_open` carried the XML
+/// self-closing marker (`<path … />`). The slash must sit where a marker
+/// can sit — right after the tag name, after whitespace, or after a QUOTED
+/// attribute value. A slash that ends an UNQUOTED attribute value
+/// (`<g a=b/>`) is part of that value, not a marker, and is deliberately
+/// not honoured: reading it as self-closing would UNDER-count the tree and
+/// reopen the very depth bypass this guard exists to close.
+///
+/// Only meaningful in FOREIGN content: html5ever acknowledges the
+/// self-closing flag in SVG/MathML, and ignores it on ordinary HTML
+/// elements (`<div/>` opens a div).
+fn is_self_closing(bytes: &[u8], name_end: usize, after_open: usize) -> bool {
+    let Some(gt) = after_open.checked_sub(1) else {
+        return false;
+    };
+    if bytes.get(gt) != Some(&b'>') {
+        return false; // unterminated tag: ran to EOF, no marker
+    }
+    let Some(slash) = gt.checked_sub(1) else {
+        return false;
+    };
+    if bytes.get(slash) != Some(&b'/') || slash < name_end {
+        return false;
+    }
+    slash == name_end
+        || bytes
+            .get(slash - 1)
+            .is_some_and(|b| b.is_ascii_whitespace() || *b == b'"' || *b == b'\'')
+}
+
+/// Whether the scan is in HTML parsing context (the `context` stack's top,
+/// defaulting to HTML at the document root) — the implied-end-tag rules
+/// belong to HTML, never to SVG/MathML foreign content.
+fn in_html_context(context: &[bool]) -> bool {
+    context.last().copied().unwrap_or(true)
+}
+
+fn closes_implicitly(name: &str, top: &str) -> bool {
+    match name {
+        "li" => top == "li",
+        "dd" | "dt" => matches!(top, "dd" | "dt"),
+        "option" => matches!(top, "option" | "optgroup"),
+        "optgroup" => matches!(top, "option" | "optgroup"),
+        "tr" => matches!(top, "td" | "th" | "tr"),
+        "td" | "th" => matches!(top, "td" | "th"),
+        "tbody" | "tfoot" | "thead" => matches!(top, "td" | "th" | "tr" | "tbody" | "tfoot"),
+        _ => top == "p" && CLOSES_PARAGRAPH.contains(&name),
+    }
+}
 
 /// The foreign-context marker for `name`: `Some(false)` for a foreign root
 /// (entering foreign content · rawtext skip OFF), `Some(true)` for an
@@ -594,6 +739,8 @@ pub(crate) fn selector(body: &str, sel: &str) -> Result<serde_json::Value, Extra
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write as _;
+
     use super::{
         ExtractMode, MAX_HTML_DEPTH, advance_past, best_srcset, context_kind, guard_depth,
         is_context_marker, scan_name, selector, skip_comment, skip_to_close, tidy_text,
@@ -902,6 +1049,99 @@ mod tests {
         assert!(
             guard_depth(&body, ExtractMode::Markdown).is_err(),
             "genuinely nested `<div>`s past the cap must be refused"
+        );
+    }
+
+    // A long list whose `</li>` are omitted is SHALLOW, not deep: HTML makes
+    // that end tag optional and the parser closes each item at the next one.
+    // A scan that never closes them counts one level per item, so a menu or a
+    // documentation page (sqlite.org writes markup exactly this way) reads as
+    // thousands of levels and the whole page is refused — for every mode.
+    #[test]
+    fn guard_depth_omitted_list_item_close_is_shallow() {
+        let mut body = String::from("<html><body><ul>");
+        for i in 0..(MAX_HTML_DEPTH + 50) {
+            let _ = write!(body, "<li><a href=\"/{i}\">item {i}</a>");
+        }
+        body.push_str("</ul></body></html>");
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "sibling list items with omitted end tags nest one level, not N"
+        );
+    }
+
+    // The same for `<p>`: a block-level start tag closes an open paragraph,
+    // so a page written as `<p>text<p>text…` is two levels deep, not N.
+    #[test]
+    fn guard_depth_omitted_paragraph_close_is_shallow() {
+        let mut body = String::from("<html><body>");
+        for i in 0..(MAX_HTML_DEPTH + 50) {
+            let _ = write!(body, "<p>paragraph number {i} with some running words");
+        }
+        body.push_str("</body></html>");
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "consecutive paragraphs with omitted end tags nest one level, not N"
+        );
+    }
+
+    // The close tag pops through the items an end tag implies: `</ul>` with
+    // open `<li>`s above it closes them, so a page made of many such lists
+    // stays flat instead of accumulating a level per list.
+    #[test]
+    fn guard_depth_close_tag_pops_through_implied_end_tags() {
+        let mut body = String::from("<html><body>");
+        for i in 0..(MAX_HTML_DEPTH + 50) {
+            let _ = write!(body, "<ul><li>only item of list {i}</ul>");
+        }
+        body.push_str("</body></html>");
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "`</ul>` closes the `<li>` it implies, so the lists do not stack"
+        );
+    }
+
+    // A page of SVG syntax diagrams is thousands of `<path … />` SIBLINGS,
+    // not thousands of levels: foreign content acknowledges the XML
+    // self-closing marker. Refusing such a page loses it for every mode.
+    #[test]
+    fn guard_depth_self_closing_svg_shapes_are_flat() {
+        let mut body = String::from("<html><body><svg viewBox=\"0 0 10 10\">");
+        for i in 0..(MAX_HTML_DEPTH + 50) {
+            let _ = write!(body, "<path d=\"M{i} 0 L{i} 9\"/><circle r=\"1\" />");
+        }
+        body.push_str("</svg></body></html>");
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "self-closed SVG shapes are siblings, not nesting"
+        );
+    }
+
+    // The marker is honoured ONLY in foreign content: `<div/>` opens a div
+    // in HTML, exactly as html5ever reads it, so a flood of them is deep
+    // and must still be refused.
+    #[test]
+    fn guard_depth_html_self_closing_syntax_still_nests() {
+        let body = "<div/>".repeat(MAX_HTML_DEPTH + 5);
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_err(),
+            "`<div/>` is not self-closing in HTML — the flood stays deep"
+        );
+    }
+
+    // A slash that ENDS AN UNQUOTED ATTRIBUTE VALUE is part of the value,
+    // not a self-closing marker. Reading it as one would under-count the
+    // tree and hand an attacker a depth-guard bypass inside `<svg>`.
+    #[test]
+    fn guard_depth_unquoted_value_slash_is_not_a_marker() {
+        let mut body = String::from("<html><body><svg>");
+        for _ in 0..(MAX_HTML_DEPTH + 5) {
+            body.push_str("<g a=b/>");
+        }
+        body.push_str("</svg></body></html>");
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_err(),
+            "`<g a=b/>` opens a g — the slash belongs to the attribute value"
         );
     }
 
