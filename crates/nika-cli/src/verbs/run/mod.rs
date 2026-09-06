@@ -323,12 +323,12 @@ fn announce_access(
             continue;
         }
         eprintln!(
-            "access: {model} → {} ({} · {} · {}) — chosen over {} other path(s)",
+            "access: {model} → {} ({} · {} · {}){}",
             lane.plan.access,
             lane.plan.chosen.as_str(),
             lane.plan.billing.as_str(),
             lane.plan.trust.as_str(),
-            lane.candidates - 1
+            nika_cli_host::models_rung::chosen_over(lane.candidates, &lane.plan.outranked)
         );
     }
 }

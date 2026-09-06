@@ -1,0 +1,1 @@
+- **« chosen over … » names the seat it beat.** The `nika check` ACCESS rung and the `nika run` announce list the outranked ready paths with the witness the plan built (``chosen over api (ready · ranked below `codex` (harness outranks api))``) instead of a bare count, so a user learns which seat lost — and why — without opening the JSON.
