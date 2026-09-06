@@ -28,7 +28,7 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 | `curl` / `wget` / `fetch()` helper | `invoke:` `tool: "nika:fetch"` — **for an API, set `mode: raw` or `mode: jq`** (the default `markdown` mode is for pages and escapes JSON bodies) |
 | `curl … \| jq` in one breath | ONE fetch task: `mode: jq` + `jq: '<expression>'` — the shape rides the fetch |
 | `jq` / `sed` on JSON | `nika:jq` (arg name is `expression`), or an `extract:` binding |
-| `cat` / `cp` / `mkdir` / `tee` | `nika:read` / `nika:write` (`create_dirs: true`) |
+| `cat` / `cp` / `mkdir` / `tee` | `nika:read` / `nika:write` — a directory is made by writing its FIRST file inside it with `create_dirs: true`, never by an empty write at the directory's path (that creates a FILE there, and nothing deletes it) |
 | in-place file edits | `nika:edit` |
 | the LLM call (SDK, `curl` to an API) | `infer:` with `prompt`, `schema?`, `max_tokens` |
 | an agent loop (retry-until-good) | `agent:` with `tools` allowlist + `max_turns` |
