@@ -116,7 +116,9 @@ pub(super) fn parse_tasks(
 }
 
 /// A `depends_on:` entry the W2 migrator can splice into `after:` — the
-/// bare task-id alphabet (`[a-z0-9_]+`), the migrator's exact predicate.
+/// bare task-id alphabet (`[a-z0-9_]+`), mirroring `is_bare_task_id` in
+/// `nika-migrate` (that scanner dequotes first, so `["a"]` reads as `a`
+/// here and there alike).
 fn is_bare_task_id(entry: &str) -> bool {
     !entry.is_empty()
         && entry
@@ -142,25 +144,27 @@ fn parse_task(
     // teaching (data → with: · control → after:) before the generic
     // unknown-field check. The first dep seeds the teaching's example.
     if let Some(node) = mapping.get_node("depends_on") {
-        // The shape decides what the teaching may promise: `--fix`
-        // migrates a sequence of bare task ids and nothing else (the
-        // migrator's own W2 predicate) — so the example names the first
-        // entry only when it IS an id, and the promise is spoken only
-        // when every entry is one.
-        let entries: Vec<String> = node
-            .as_sequence()
-            .map(|seq| {
-                seq.iter()
-                    .map(|n| {
-                        n.as_scalar()
-                            .map_or_else(String::new, |s| s.as_str().to_owned())
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        let provable = !entries.is_empty() && entries.iter().all(|e| is_bare_task_id(e));
+        // The shape decides what the teaching may promise: the migrator's
+        // scanner reads a SEQUENCE whose every entry is a bare task id and
+        // nothing else — an EMPTY sequence declares no edge, so the dead
+        // line simply drops (vacuously every entry is an id). Anything
+        // that is not a sequence (a scalar · a map) it calls malformed.
+        // So the example names the first entry only when it IS an id, and
+        // the promise is spoken only for a sequence the scanner accepts.
+        let entries: Option<Vec<String>> = node.as_sequence().map(|seq| {
+            seq.iter()
+                .map(|n| {
+                    n.as_scalar()
+                        .map_or_else(String::new, |s| s.as_str().to_owned())
+                })
+                .collect()
+        });
+        let provable = entries
+            .as_ref()
+            .is_some_and(|e| e.iter().all(|e| is_bare_task_id(e)));
         let task_hint = entries
-            .first()
+            .as_ref()
+            .and_then(|e| e.first())
             .filter(|e| is_bare_task_id(e))
             .cloned()
             .unwrap_or_else(|| "producer".to_owned());
@@ -715,6 +719,11 @@ fn parse_extract_bindings(
     Ok(out)
 }
 
+/// The W2 `depends_on:` shape table (`NIKA-PARSE-024` · what the finding
+/// may promise per shape) — its own file at the 1500-line cap.
+#[cfg(test)]
+mod w2_tests;
+
 #[cfg(test)]
 pub(crate) mod tests {
     use std::time::Duration;
@@ -747,54 +756,6 @@ tasks:
             panic!("expected Infer");
         };
         assert_eq!(action.prompt.value, "Say hello");
-    }
-
-    /// W2 · NIKA-PARSE-024: the `--fix` promise is spoken only for the
-    /// shape the migrator proves (every entry a bare task id). A scalar, a
-    /// map entry or any other string names itself as the author's to
-    /// rewrite, and the `after:` example never splices a non-id (wave 3 ·
-    /// persona 02 · the promise fired, then `--fix` said « rewrite by
-    /// hand » on the same screen).
-    #[test]
-    fn depends_on_promises_fix_only_for_the_shape_it_proves() {
-        let ids = parse_strict(
-            "tasks:\n  a:\n    exec: { command: [ls] }\n  b:\n    depends_on: [a]\n    exec: { command: [ls] }\n",
-        )
-        .expect_err("dead form");
-        assert!(
-            matches!(&ids, SchemaError::W2DependsOnField { task, task_hint, provable: true, .. }
-                if task == "b" && task_hint == "a"),
-            "{ids:?}"
-        );
-        let text = ids.to_string();
-        assert!(text.contains("`after: {a: success}`"), "{text}");
-        assert!(text.contains("migrates this shape"), "{text}");
-        assert!(!text.contains("leaves this shape"), "{text}");
-
-        for (shape, yaml) in [
-            ("scalar", "    depends_on: a\n"),
-            ("map entry", "    depends_on: [{ task: a }]\n"),
-            ("arrow string", "    depends_on: [\"a >> b\"]\n"),
-            ("empty list", "    depends_on: []\n"),
-        ] {
-            let err = parse_strict(&format!(
-                "tasks:\n  a:\n    exec: {{ command: [ls] }}\n  b:\n{yaml}    exec: {{ command: [ls] }}\n"
-            ))
-            .expect_err(shape);
-            assert!(
-                matches!(&err, SchemaError::W2DependsOnField { task, task_hint, provable: false, .. }
-                    if task == "b" && task_hint == "producer"),
-                "{shape}: {err:?}"
-            );
-            let text = err.to_string();
-            assert!(text.contains("leaves this shape to you"), "{shape}: {text}");
-            assert!(!text.contains("migrates this shape"), "{shape}: {text}");
-            assert!(
-                text.contains("`after: {producer: success}`"),
-                "{shape}: {text}"
-            );
-            assert_eq!(err.spec_code().to_string(), "NIKA-PARSE-024", "{shape}");
-        }
     }
 
     #[test]
