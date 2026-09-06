@@ -18,7 +18,13 @@
 //!
 //! Content policy (Rule 1): recorded outputs ride ONLY under
 //! `include_content` — the default projection carries structure,
-//! timing, spend and identity, never payloads.
+//! timing, spend and identity, never payloads. That gate covers every
+//! field whose VALUE can carry run text, not only `output`: the failure
+//! `detail` (the status message keeps the error CODE alone), the
+//! success frame's `warning`. The T9-F04 sensitivity pass (2026-09-06)
+//! found both riding the content-free projection. `note` stays: it is
+//! the engine's own stage wording (`invoke · nika:fetch` · `cache hit`
+//! · `when: gate closed`), never a payload.
 //!
 //! Descended from `nika-cli`'s `trace_otel` verb (2026-07-09 · the W0
 //! trace descent); the CLI keeps the file plumbing and the operator's
@@ -271,8 +277,16 @@ fn one_task_span(
     match terminal.kind {
         EventKind::TaskCompleted => status = serde_json::json!({ "code": 1 }),
         EventKind::TaskFailed => {
+            // `detail` is `<code> · <message>`: the message half can quote
+            // a path, a payload, a model answer. Content-free keeps the
+            // code — the ONE part that is vocabulary, not content.
             let detail = field_str(terminal, "detail").unwrap_or("task failed");
-            status = serde_json::json!({ "code": 2, "message": detail });
+            let message = if include_content {
+                detail
+            } else {
+                failure_code(detail)
+            };
+            status = serde_json::json!({ "code": 2, "message": message });
         }
         EventKind::TaskSkipped => {
             attributes.push(kv_bool("nika.task.skipped", true));
@@ -295,8 +309,10 @@ fn one_task_span(
     if include_content && let Some(output) = field_str(terminal, "output") {
         attributes.push(kv_str("nika.task.output", output));
     }
-    // OBS-E non-fatal diagnostics ride the success frame — surface them.
-    if let Some(warning) = field_str(terminal, "warning") {
+    // OBS-E non-fatal diagnostics ride the success frame — surface them
+    // WITH the content gate: a warning quotes what went wrong (a blank
+    // model answer · a path), which is content.
+    if include_content && let Some(warning) = field_str(terminal, "warning") {
         attributes.push(kv_str("nika.task.warning", warning));
     }
 
@@ -388,6 +404,18 @@ fn unfinished_task_span(
 /// Span id = the LOW 8 bytes of the event's `UUIDv7` — the random half.
 /// The high half is a millisecond timestamp: two events born in the
 /// same ms would collide there.
+/// The error CODE a `detail` opens with (`NIKA-…` up to the first
+/// ` · `), or the generic wording when the detail carries no code —
+/// never the message half.
+fn failure_code(detail: &str) -> &str {
+    let head = detail.split(" · ").next().unwrap_or(detail).trim();
+    if head.starts_with("NIKA-") && !head.contains(char::is_whitespace) {
+        head
+    } else {
+        "task failed"
+    }
+}
+
 fn span_id_of(event: &Event) -> String {
     let id = hex_bytes(&event.id.uuid.as_bytes()[8..16]);
     // The docstring's own law, enforced: an all-zero id (nil-uuid line
@@ -696,6 +724,135 @@ mod tests {
         );
     }
 
+    /// T9-F04 · the content-free projection carries NO payload text:
+    /// not the failure detail's message half (the status keeps the
+    /// code), not a success warning. Canaries in every content-bearing
+    /// field; the gated projection must not contain one of them, the
+    /// content projection carries them all.
+    #[test]
+    fn content_free_projection_carries_no_payload_canary() {
+        let mut events = run_fixture();
+        events.insert(
+            8,
+            ev(
+                10,
+                2_350,
+                EventKind::TaskFailed,
+                &[
+                    ("task", s("broken")),
+                    ("note", s("invoke · nika:write")),
+                    (
+                        "detail",
+                        s("NIKA-BUILTIN-WRITE-002 · CANARY-detail /home/op/secret.txt exists"),
+                    ),
+                    ("duration_ms", FieldValue::Int(3)),
+                    ("items", s("[{\"index\":0,\"message\":\"CANARY-items\"}]")),
+                ],
+            ),
+        );
+        if let Some(done) = events
+            .iter_mut()
+            .find(|e| e.kind == EventKind::TaskCompleted)
+        {
+            *done = done
+                .clone()
+                .with_field(KeyValue::new("warning", s("CANARY-warning blank answer")));
+        }
+        let gated = project_bare(&events, false).expect("projects");
+        assert!(
+            !gated.contains("CANARY"),
+            "a content-free projection carries no payload text: {gated}"
+        );
+        let broken = spans_of(&gated)
+            .into_iter()
+            .find(|sp| sp["name"] == "broken")
+            .expect("the failed span");
+        assert_eq!(
+            broken["status"]["message"], "NIKA-BUILTIN-WRITE-002",
+            "the status keeps the CODE, the one part that is vocabulary"
+        );
+        assert!(
+            attr(&broken, "nika.task.note").is_some(),
+            "the stage wording stays"
+        );
+
+        let with_content = project_bare(&events, true).expect("projects");
+        for canary in ["CANARY-detail", "CANARY-warning"] {
+            assert!(
+                with_content.contains(canary),
+                "{canary} rides under include_content"
+            );
+        }
+    }
+
+    #[test]
+    fn a_detail_without_a_code_projects_the_generic_wording() {
+        assert_eq!(failure_code("NIKA-X-001 · the message"), "NIKA-X-001");
+        assert_eq!(failure_code("NIKA-X-001"), "NIKA-X-001");
+        assert_eq!(failure_code("just a message · with a dot"), "task failed");
+        assert_eq!(failure_code("NIKA-X 001 · spaced"), "task failed");
+        assert_eq!(failure_code(""), "task failed");
+    }
+
+    /// T9-F03 · admission before allocation: a file past the writer's
+    /// journal bound is refused by its SIZE, before a byte is read (a
+    /// sparse file makes the point without writing 256 MiB), and no
+    /// export is left behind. A non-regular path is refused by shape.
+    #[test]
+    fn export_refuses_a_journal_beyond_the_bound_before_reading() {
+        let dir = tempfile::tempdir().expect("dir");
+        let trace = dir.path().join("huge.ndjson");
+        let file = std::fs::File::create(&trace).expect("create");
+        file.set_len((crate::bounded::MAX_JOURNAL_BYTES as u64) + 1)
+            .expect("sparse");
+        drop(file);
+        let trace_str = trace.to_str().expect("utf8");
+        let err = export_journal(trace_str, None, false, "test").expect_err("refused");
+        assert!(err.contains("journal bound"), "{err}");
+        assert!(
+            !std::path::Path::new(&default_out_path(trace_str)).exists(),
+            "no export claims to exist"
+        );
+        let dir_str = dir.path().to_str().expect("utf8");
+        let err = export_journal(dir_str, None, false, "test").expect_err("refused");
+        assert!(err.contains("not a regular file"), "{err}");
+    }
+
+    /// The export is published by rename: the target appears whole and
+    /// no temp sibling survives.
+    #[test]
+    fn export_publishes_whole_and_leaves_no_temp() {
+        let dir = tempfile::tempdir().expect("dir");
+        let trace = dir.path().join("run.ndjson");
+        // A pre-chain journal in the sink's line shape (one event per
+        // line) — the recovery path the export reads.
+        let mut raw = String::new();
+        for event in run_fixture() {
+            raw.push_str(&serde_json::to_string(&event).expect("event json"));
+            raw.push('\n');
+        }
+        std::fs::write(&trace, raw).expect("journal");
+        let trace_str = trace.to_str().expect("utf8");
+        let outcome = export_journal(trace_str, None, false, "test").expect("exports");
+        assert!(outcome.target.ends_with("run.otlp.jsonl"));
+        let line = std::fs::read_to_string(&outcome.target).expect("export");
+        assert!(line.ends_with('\n') && line.contains("resourceSpans"));
+        let leftovers: Vec<_> = std::fs::read_dir(dir.path())
+            .expect("dir")
+            .filter_map(Result::ok)
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| {
+                std::path::Path::new(n)
+                    .extension()
+                    .is_some_and(|x| x.eq_ignore_ascii_case("tmp"))
+            })
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "no temp sibling survives: {leftovers:?}"
+        );
+    }
+
     #[test]
     fn a_journal_without_a_start_is_refused() {
         let orphan = vec![ev(9, 1, EventKind::TaskCompleted, &[("task", s("x"))])];
@@ -979,6 +1136,24 @@ pub fn export_journal(
     include_content: bool,
     engine: &str,
 ) -> Result<ExportOutcome, String> {
+    // Admission BEFORE allocation (T9-F03): the writer refuses a journal
+    // past `MAX_JOURNAL_BYTES`, so a larger file was never written by
+    // this engine — reading it whole would only prove that by running
+    // out of memory. A non-regular path (a FIFO · a device) would hang
+    // `read_to_string` forever; it is refused by shape, not by waiting.
+    let meta = std::fs::metadata(trace) // seam-bypass-ok: L4 verb reading the journal it exports
+        .map_err(|e| format!("cannot read {trace}: {e}"))?;
+    if !meta.is_file() {
+        return Err(format!("cannot read {trace}: not a regular file"));
+    }
+    let bound = crate::bounded::MAX_JOURNAL_BYTES;
+    if meta.len() > bound as u64 {
+        return Err(format!(
+            "refusing to read {trace}: {} bytes exceed the journal bound of {bound} bytes — \
+             no journal this engine wrote is larger, so the file is not one of its journals",
+            meta.len()
+        ));
+    }
     let raw = std::fs::read_to_string(trace) // seam-bypass-ok: L4 verb reading the journal it exports
         .map_err(|e| format!("cannot read {trace}: {e}"))?;
     let recovered = crate::recover::recover_events(&raw, trace).map_err(|e| e.to_string())?;
@@ -989,7 +1164,34 @@ pub fn export_journal(
     };
     let line = project(&recovered.events, include_content, Some(&verdict), engine)?;
     let target = out.map_or_else(|| default_out_path(trace), ToOwned::to_owned);
-    std::fs::write(&target, format!("{line}\n")) // seam-bypass-ok: L4 verb writing the export beside the journal
-        .map_err(|e| format!("cannot write {target}: {e}"))?;
+    write_whole(&target, &format!("{line}\n"))?;
     Ok(ExportOutcome { target, broken_at })
+}
+
+/// Publish the export ATOMICALLY: a sibling temp file, then a rename —
+/// a reader never sees a half-written export claiming to be complete
+/// (an interrupted `fs::write` left exactly that). The temp name is
+/// per-process so two exports of one journal cannot share it.
+fn write_whole(target: &str, contents: &str) -> Result<(), String> {
+    let path = std::path::Path::new(target);
+    let dir = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map_or_else(
+            || std::path::PathBuf::from("."),
+            std::path::Path::to_path_buf,
+        );
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| format!("cannot write {target}: no file name"))?;
+    let tmp = dir.join(format!(".{name}.{}.tmp", std::process::id()));
+    std::fs::write(&tmp, contents) // seam-bypass-ok: L4 verb writing the export beside the journal
+        .map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        // seam-bypass-ok: L4 verb publishing the export beside the journal
+        let _ = std::fs::remove_file(&tmp); // seam-bypass-ok: cleanup of our own temp
+        return Err(format!("cannot write {target}: {e}"));
+    }
+    Ok(())
 }
