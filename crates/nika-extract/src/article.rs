@@ -44,15 +44,66 @@ pub(crate) fn article(body: &str, base: Option<&str>) -> Result<serde_json::Valu
     // `html::noscript_source`) — re-run the cascade on that source, with
     // the page type classified on the OUTER document (the URL and the
     // head are the classification signals, and the fallback has neither).
-    // Gated on a THIN primary: a page that extracted cleanly is never
-    // overridden by its own "enable JavaScript" notice.
+    // Gated TWICE: on a thin primary, and on `rescue_may_replace` — the
+    // rescue may only ever ADD (see its doc), never overwrite prose the
+    // server really sent.
+    let primary_text = primary.as_ref().ok().and_then(serde_json::Value::as_str);
     if let Some(inner) = crate::html::noscript_source(body)
         && let Ok(rescued) = cascade(&inner, base, page_type)
         && !is_thin(&rescued)
+        && rescue_may_replace(primary_text, rescued.as_str().unwrap_or_default())
     {
         return Ok(rescued);
     }
     primary
+}
+
+/// Whether the `<noscript>` rescue may hand back `rescued` INSTEAD of the
+/// primary extraction. The rule: **the rescue only ever adds**.
+///
+/// A thin primary is not evidence of a JS shell. A legitimate news brief
+/// is thin too, and a large `<noscript>` block is not necessarily the
+/// page — an "enable JavaScript" notice repeated across a template
+/// clears the 250-char floor on its own. Firing on thinness alone
+/// therefore DELETED prose the server really sent (regression pinned by
+/// `noscript_never_replaces_a_short_but_real_primary`).
+///
+/// So the rescue fires only when nothing of the served page is lost:
+///
+/// * `None` — every stage errored, or returned a non-string: the primary
+///   carries no prose at all, so there is nothing to overwrite.
+/// * empty text — same, after trimming.
+/// * the rescued text CONTAINS the primary's — the fallback is the same
+///   page rendered whole (the JS shell that serves its first paragraph,
+///   or nothing, and the full article inside `<noscript>`).
+///
+/// Anything else keeps the primary: a short-but-real body beside an
+/// unrelated `<noscript>` block stays the answer.
+fn rescue_may_replace(primary: Option<&str>, rescued: &str) -> bool {
+    let Some(text) = primary else {
+        return true;
+    };
+    let served = prose_signature(text);
+    served.is_empty() || prose_signature(rescued).contains(&served)
+}
+
+/// The alphanumeric words of `s`, lowercased and single-spaced — the
+/// comparable PROSE of a render. Two passes of the same cascade over two
+/// pieces of markup escape Markdown differently (`*`, `\`, `#`, link
+/// syntax, entity decoding), so a raw `contains` would miss a containment
+/// that is real; stripping to words and case-folding compares what a
+/// reader would read.
+fn prose_signature(s: &str) -> String {
+    s.split_whitespace()
+        .map(|word| {
+            word.chars()
+                .filter(|c| c.is_alphanumeric())
+                .flat_map(char::to_lowercase)
+                .collect::<String>()
+        })
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// The three-stage cascade over one piece of markup.
@@ -338,6 +389,97 @@ mod tests {
             !md.contains("enable javascript"),
             "the noscript notice must not leak into a rich result, got: {md}"
         );
+    }
+
+    /// A SHORT-but-real page — a news brief under the 250-char floor —
+    /// sitting beside a large `<noscript>` block that is NOT the page.
+    /// The primary is THIN, which is what makes this the dangerous case:
+    /// thinness alone is not evidence of a JS shell (a legitimate brief
+    /// is thin too), so a rescue that fires on thinness alone DELETES
+    /// real prose the server actually sent.
+    #[test]
+    fn noscript_never_replaces_a_short_but_real_primary() {
+        let brief = "paris the metro line four closed for ninety minutes \
+             this morning after a signalling fault near odeon station and \
+             the operator says that service resumed just before nine";
+        let notice = "<p>this site needs javascript enabled to work \
+             correctly so please turn it on in your browser settings and \
+             then reload this page to continue reading</p>"
+            .repeat(12);
+        let body = format!(
+            "<html><body><article><p>{brief}</p></article>\
+             <noscript><div id=\"content\">{notice}</div></noscript>\
+             </body></html>"
+        );
+
+        let out = article(&body, Some("https://example.com/news/metro-line-four"));
+        let md = out
+            .expect("the brief extracts")
+            .as_str()
+            .unwrap_or("")
+            .to_owned();
+        assert!(
+            md.contains("metro line four"),
+            "the real brief must survive the rescue, got: {md}"
+        );
+        assert!(
+            !md.contains("needs javascript enabled"),
+            "the noscript block must not replace real prose, got: {md}"
+        );
+    }
+
+    /// The ADD direction of the same rule: a shell that server-renders
+    /// only its opening line, with the whole article inside `<noscript>`.
+    /// The primary is thin AND contained, so the rescue must still fire —
+    /// the guard added above may not turn into a blanket refusal.
+    #[test]
+    fn noscript_rescue_fires_when_the_fallback_contains_the_teaser() {
+        let teaser = "the council voted on the budget last night";
+        let full = format!(
+            "<p>{teaser}</p>{}",
+            "<p>the debate ran for four hours and the amendment on \
+             transport spending passed by a single vote after the mayor \
+             broke the tie in front of a full public gallery</p>"
+                .repeat(6)
+        );
+        let body = format!(
+            "<html><body><div id=\"root\"><p>{teaser}</p></div>\
+             <noscript><article>{full}</article></noscript></body></html>"
+        );
+
+        let out = article(&body, Some("https://example.com/news/budget"));
+        let md = out.expect("the fallback carries the page");
+        let md = md.as_str().unwrap_or("");
+        assert!(
+            md.contains("broke the tie"),
+            "the fallback is the same page rendered whole — it must win, got: {md}"
+        );
+    }
+
+    /// The rule itself, arm by arm (the end-to-end tests above exercise
+    /// two of the four).
+    #[test]
+    fn rescue_may_replace_only_adds() {
+        // No primary at all (every stage errored) → nothing to lose.
+        assert!(rescue_may_replace(None, "any rescued prose at all"));
+        // A blank primary trims to nothing → same.
+        assert!(rescue_may_replace(Some("   \n  "), "any rescued prose"));
+        // Contained → the fallback is the same page, rendered whole.
+        assert!(rescue_may_replace(
+            Some("the council voted"),
+            "before the council voted the mayor spoke"
+        ));
+        // Markdown decoration must not defeat the containment: the two
+        // renders escape differently, the prose is the same.
+        assert!(rescue_may_replace(
+            Some("**The Council** voted \\- twice!"),
+            "the council voted twice in a single session"
+        ));
+        // Unrelated → the served prose would be DELETED. Refuse.
+        assert!(!rescue_may_replace(
+            Some("the metro line four closed this morning"),
+            "this site needs javascript enabled to work correctly"
+        ));
     }
 
     /// All-thin terminus — an empty body: Stage 1 abstains, Stage 2 errors
