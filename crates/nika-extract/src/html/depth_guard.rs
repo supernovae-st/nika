@@ -298,11 +298,6 @@ const CLOSES_PARAGRAPH: &[&str] = &[
     "ul",
 ];
 
-/// Whether an opening `name` implicitly closes the element currently on
-/// top of the stack. Deliberately a STRICT SUBSET of what the parser
-/// closes (only the same-kind sibling, the cell/row pairs, and the
-/// block-closes-paragraph rule), so the scan can only ever count MORE
-/// depth than the real tree — never less.
 /// Whether the start tag ending just before `after_open` carried the XML
 /// self-closing marker (`<path … />`). The slash must sit where a marker
 /// can sit — right after the tag name, after whitespace, or after a QUOTED
@@ -340,15 +335,44 @@ fn in_html_context(context: &[bool]) -> bool {
     context.last().copied().unwrap_or(true)
 }
 
+/// Whether an opening `name` implicitly closes the element currently on
+/// top of the stack. Deliberately a STRICT SUBSET of what the parser
+/// closes (only the same-kind sibling, the cell/row pairs, and the
+/// block-closes-paragraph rule), so the scan can only ever count MORE
+/// depth than the real tree — never less.
+///
+/// The subset is the INTERSECTION over insertion modes: the scan has no
+/// notion of "in select" or "in table", so an arm may pop only what the
+/// pinned parser pops in EVERY context. Measured against html5ever
+/// 0.39.0 (the version `scraper` 0.27 wires in), not recalled:
+///
+/// * `<option>` pops an open `option`, NEVER an `optgroup`
+///   (`tree_builder/rules.rs:915-923` — in select scope
+///   `generate_implied_end_except(optgroup)`, outside it a pop only when
+///   the current node is an `option`).
+/// * `<optgroup>` pops an open `optgroup` ONLY with a `select` in scope
+///   (`rules.rs:930-941` → `generate_implied_end_tags(cursory_implied_end)`,
+///   the set `dd dt li option optgroup p rb rp rt rtc` ·
+///   `tag_sets.rs:70-71`). Outside a select it pops only an `option`, so
+///   `<optgroup>`×N NESTS N levels — popping it here unconditionally
+///   under-counted that flood and reopened the very bypass this guard
+///   exists to close. The price is a knowing OVER-count inside a real
+///   `<select>` (2048 sibling `<optgroup>`s would now read as deep) —
+///   the safe direction, and the shape does not exist in the wild.
+/// * the table arm pops `thead` too (a `<tbody>` after an open `<thead>`
+///   clears the stack back to a table context). Outside a table these
+///   start tags create NO node at all (`rules.rs:982-985` — parse error,
+///   token ignored), so popping them can never fall below the real tree.
 fn closes_implicitly(name: &str, top: &str) -> bool {
     match name {
         "li" => top == "li",
         "dd" | "dt" => matches!(top, "dd" | "dt"),
-        "option" => matches!(top, "option" | "optgroup"),
-        "optgroup" => matches!(top, "option" | "optgroup"),
+        "option" | "optgroup" => top == "option",
         "tr" => matches!(top, "td" | "th" | "tr"),
         "td" | "th" => matches!(top, "td" | "th"),
-        "tbody" | "tfoot" | "thead" => matches!(top, "td" | "th" | "tr" | "tbody" | "tfoot"),
+        "tbody" | "tfoot" | "thead" => {
+            matches!(top, "td" | "th" | "tr" | "tbody" | "tfoot" | "thead")
+        }
         _ => top == "p" && CLOSES_PARAGRAPH.contains(&name),
     }
 }
@@ -462,6 +486,8 @@ fn skip_to_close(bytes: &[u8], name: &[u8], from: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use std::fmt::Write as _;
+
+    use scraper::Html;
 
     use super::{
         ExtractMode, MAX_HTML_DEPTH, advance_past, context_kind, guard_depth, is_context_marker,
@@ -916,6 +942,172 @@ mod tests {
             "comments (incl. abrupt forms) are flat — one real <div> only"
         );
     }
+    // ── closes_implicitly · one test per remaining arm ────────────────
+    //
+    // The `li` and `p` arms are pinned above. These pin `option`,
+    // `optgroup`, `tr`, `td`/`th` and the table-section trio, each in the
+    // shape a real page writes PLUS the exact-cap boundary where the arm
+    // decides the verdict — so a revert of either spec fix fails here.
+
+    // A `<select>` whose `</option>` are omitted (every CMS writes it that
+    // way) is ONE level under its optgroup, not one per choice.
+    #[test]
+    fn guard_depth_omitted_option_close_is_shallow() {
+        let mut body = String::from("<html><body><select><optgroup label=\"g\">");
+        for i in 0..(MAX_HTML_DEPTH + 50) {
+            let _ = write!(body, "<option value=\"{i}\">choice number {i}");
+        }
+        body.push_str("</select></body></html>");
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "sibling options with omitted end tags nest one level, not N"
+        );
+    }
+
+    // `<option>` closes an open `option` and NOTHING ELSE: an option
+    // inside an optgroup is a level DEEPER, and at the cap that level is
+    // the verdict. The pre-fix arm (`matches!(top, "option" | "optgroup")`)
+    // popped the optgroup, read this document one level shallower, and
+    // wrongly ACCEPTED it — an under-count is the bypass direction.
+    #[test]
+    fn guard_depth_option_does_not_close_its_optgroup() {
+        let over = "<div>".repeat(MAX_HTML_DEPTH - 2) + "<select><optgroup><option>choice";
+        assert!(
+            guard_depth(&over, ExtractMode::Markdown).is_err(),
+            "select+optgroup+option is 3 levels over 2046 wrappers — past the cap"
+        );
+        // One wrapper fewer lands EXACTLY on the cap and is accepted, so
+        // the rejection above is that one option level, not a blanket no.
+        let at_cap = "<div>".repeat(MAX_HTML_DEPTH - 3) + "<select><optgroup><option>choice";
+        assert!(
+            guard_depth(&at_cap, ExtractMode::Markdown).is_ok(),
+            "the same document one level shallower sits exactly at the cap"
+        );
+    }
+
+    // `<optgroup>` outside a `<select>` NESTS in html5ever (only an open
+    // `option` is popped there · rules.rs:930-941), so a flood of them is
+    // genuinely deep and must be REFUSED. The pre-fix arm popped
+    // optgroup-on-optgroup unconditionally, held this flood flat at depth
+    // 1, and handed the crash class back a bypass.
+    #[test]
+    fn guard_depth_optgroup_flood_outside_a_select_is_deep() {
+        let body = "<optgroup>".repeat(MAX_HTML_DEPTH + 5);
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_err(),
+            "optgroups outside a select nest — the flood must be refused"
+        );
+    }
+
+    // The parser contract the test above rests on — MEASURED, not
+    // recalled: html5ever nests `<optgroup>` in body context and flattens
+    // it inside a `<select>`, which is exactly why the scan may pop only
+    // the `option` case.
+    #[test]
+    fn html5ever_nests_optgroup_outside_a_select_only() {
+        let loose = Html::parse_document(&"<optgroup>".repeat(20));
+        let loose_depth = tree_depth(&loose);
+        assert!(
+            loose_depth >= 20,
+            "20 loose optgroups must nest ~20 deep, measured {loose_depth}"
+        );
+        let selected =
+            Html::parse_document(&format!("<select>{}</select>", "<optgroup>".repeat(20)));
+        let selected_depth = tree_depth(&selected);
+        assert!(
+            selected_depth < loose_depth,
+            "inside a select the parser pops each optgroup: {selected_depth} vs {loose_depth}"
+        );
+    }
+
+    // Deepest ancestor chain in a parsed document — the empirical answer
+    // to "does this shape nest?", used by the parser-contract pins.
+    fn tree_depth(doc: &Html) -> usize {
+        doc.tree
+            .nodes()
+            .map(|node| node.ancestors().count())
+            .max()
+            .unwrap_or(0)
+    }
+
+    // A table written as `<tr>` after `<tr>` with the end tags omitted is
+    // one level under the table, not one per row.
+    #[test]
+    fn guard_depth_omitted_row_close_is_shallow() {
+        let body = String::from("<html><body><table>")
+            + &"<tr>".repeat(MAX_HTML_DEPTH + 50)
+            + "</table></body></html>";
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "a `<tr>` closes the row above it — rows are siblings, not levels"
+        );
+    }
+
+    // The same for cells: `<td>`/`<th>` close each other, so a row of
+    // thousands of cells with omitted end tags stays flat.
+    #[test]
+    fn guard_depth_omitted_cell_close_is_shallow() {
+        let mut body = String::from("<html><body><table><tr>");
+        for i in 0..(MAX_HTML_DEPTH + 50) {
+            let _ = write!(body, "<td>cell {i}<th>header {i}");
+        }
+        body.push_str("</tr></table></body></html>");
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "a cell start tag closes the cell above it — cells are siblings"
+        );
+    }
+
+    // The table-section arm must count `thead` among the tops it closes:
+    // a `<tbody>` after an open `<thead>` clears the stack back to the
+    // table. Omitting `thead` from the matched set left a phantom level
+    // open, and at the cap that phantom is the verdict — this document
+    // was wrongly REFUSED before the fix.
+    #[test]
+    fn guard_depth_tbody_closes_an_open_thead() {
+        let body = "<div>".repeat(MAX_HTML_DEPTH - 2) + "<table><thead><tbody>";
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "`<tbody>` closes the `<thead>` above it — the table is at the cap, not over it"
+        );
+    }
+
+    // And the running shape: head/body/foot sections with every end tag
+    // omitted, thousands of times, stay flat. Also dies on a revert of the
+    // `thead` fix (the sections would stack one level per group).
+    #[test]
+    fn guard_depth_omitted_table_section_closes_are_shallow() {
+        let mut body = String::from("<html><body><table>");
+        for i in 0..(MAX_HTML_DEPTH + 50) {
+            let _ = write!(
+                body,
+                "<thead><tr><td>head {i}<tbody><tr><td>body {i}<tfoot><tr><td>foot {i}"
+            );
+        }
+        body.push_str("</table></body></html>");
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_ok(),
+            "table sections close one another — they are siblings, not levels"
+        );
+    }
+
+    // The arms are not a blanket flattening of table markup: a table
+    // nested inside its own cell is GENUINELY deep (html5ever nests it
+    // too), so the flood must still be refused. Pins that the cap itself
+    // is unchanged by the two spec fixes.
+    #[test]
+    fn guard_depth_nested_tables_through_cells_are_still_refused() {
+        assert_eq!(
+            MAX_HTML_DEPTH, 2048,
+            "the cap is unchanged by the implied-end fixes"
+        );
+        let body = "<table><tr><td>".repeat(MAX_HTML_DEPTH / 3 + 5);
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_err(),
+            "each nested table adds three real levels — the flood is deep"
+        );
+    }
+
     // advance_past underpins advance_past_gt / skip_comment / skip_to_close —
     // pin its needle arithmetic so a returned index is always JUST PAST the
     // needle, and EOF when absent.
