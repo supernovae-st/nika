@@ -1,0 +1,1 @@
+- **The `N recovered` banner counts repaired items, not rows.** A fan-out that recovered two of twelve items now says `2 recovered` in the meter and the verdict card, the same number its task line prints; it said `1` before.

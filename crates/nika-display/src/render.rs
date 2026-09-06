@@ -467,10 +467,13 @@ fn display_note(row: &TaskRow, view: &RunView) -> String {
                     .to_owned(),
             }
         }
-        // #1444 · a task that consumed a recovered fallback is not a
-        // clean success: the storyboard names the upstream it drank from.
+        // F-O1 · a task whose value is UNTRUSTED is not a clean success
+        // to a reader: the storyboard names where the taint was born (an
+        // ingress task · `inputs.<name>`). Never « recovered »: that word
+        // belongs to the `task_recovered` frame, and a wave of personas
+        // read it as a repair on runs that repaired nothing.
         _ => match row.integrity_source.as_deref() {
-            Some(source) => format!("{} · input from recovered {source}", row.note),
+            Some(source) => format!("{} · untrusted input from {source}", row.note),
             None => row.note.clone(),
         },
     }

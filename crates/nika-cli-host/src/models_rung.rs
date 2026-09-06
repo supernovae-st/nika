@@ -89,12 +89,7 @@ pub fn verdict_layers_for(
             nika_types::access::AccessClass::Mock => "mock · never dials · nothing to judge",
             _ => "present · liveness judged at run",
         };
-        let others = lane.candidates.saturating_sub(1);
-        let tail = if others == 0 {
-            String::new()
-        } else {
-            format!(" · chosen over {others} other path(s)")
-        };
+        let tail = chosen_over(lane.candidates, &lane.plan.outranked);
         lines.push(format!(
             "{model} → {} ({} · {} · {}) · {note}{tail}",
             lane.plan.access,
@@ -302,6 +297,26 @@ fn pin_message(refusal: &nika_providers::resolve_access::PinRefusal) -> &str {
         | PinRefusal::Unavailable { message } => message,
         _ => "refused",
     }
+}
+
+/// The « chosen over … » tail: the outranked READY paths by name and
+/// witness, so a reader learns which seat lost and why without opening
+/// the JSON (wave 3 · persona 12: « chosen over 1 other path(s) » named
+/// nobody). A count alone only when the plan recorded no outranked row.
+#[must_use]
+pub fn chosen_over(candidates: usize, outranked: &[nika_types::access::AccessRejection]) -> String {
+    let others = candidates.saturating_sub(1);
+    if others == 0 {
+        return String::new();
+    }
+    if outranked.is_empty() {
+        return format!(" · chosen over {others} other path(s)");
+    }
+    let named: Vec<String> = outranked
+        .iter()
+        .map(|r| format!("{} ({})", r.access, r.witness))
+        .collect();
+    format!(" · chosen over {}", named.join(" · "))
 }
 
 #[cfg(test)]
