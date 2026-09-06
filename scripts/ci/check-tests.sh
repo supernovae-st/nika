@@ -43,9 +43,12 @@ if command -v cargo-nextest >/dev/null 2>&1; then
   exec cargo nextest run --workspace --lib
 fi
 
-# Local, no nextest: the fallback stays, but it says what it is NOT running.
+# Local, no nextest: the fallback serializes tests within each process.
+# CLI fixtures borrow the process-global cwd; readers cannot safely run beside
+# a test that enters an invalid project. Nextest isolates these by process.
 # A reduced scope that announces itself is a choice; one that does not is a
 # false green.
-echo "WARN  cargo-nextest absent — running 'cargo test --workspace --lib'." >&2
+echo "WARN  cargo-nextest absent — running 'cargo test --workspace --lib -- --test-threads=1'." >&2
 echo "      LIB TARGETS ONLY: the tests/ integration suites are NOT executed." >&2
-exec cargo test --workspace --lib
+echo "      SERIAL TESTS: isolate process-global cwd fixtures from concurrent readers." >&2
+exec cargo test --workspace --lib -- --test-threads=1

@@ -306,6 +306,19 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           shared-key: diamond-access-harness
+      # Same runner as the tests leg: one PROCESS per test. `cargo test` runs a
+      # crate's tests as threads of one process, and the process's current
+      # directory is one global — a test that enters a temp project (the
+      # check/project_context fixtures) moves the ground under every test that
+      # reads the cwd, whichever lock the writer holds. Measured 2026-09-06 on
+      # PR #1494: 6 verbs::check tests red under `cargo test`, green under the
+      # tests leg's nextest on byte-identical source. The isolation is the
+      # runner's to own; a production mutex to pass a test would be the wrong
+      # owner, and `--test-threads=1` would serialize 1039 tests to hide one.
+      - name: Install cargo-nextest (the process-per-test runner)
+        uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2
+        with:
+          tool: cargo-nextest
       # Same install as the rust tests/funnel legs. This job runs nika-cli
       # --lib, which includes permits+exec workflows (measured 2026-08-23 on
       # PR #1157: answer_without_resume_preseeds_the_gate → NIKA-1710 exit 3
@@ -321,7 +334,7 @@ jobs:
         env:
           NIKA_KEYCHAIN: "off"
         run: >
-          cargo test --lib
+          cargo nextest run --lib
           -p nika-cli -p nika-cli-host -p nika-runtime -p nika-verb-agent
           --features access-harness
 

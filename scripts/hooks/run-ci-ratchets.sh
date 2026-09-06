@@ -11,9 +11,8 @@
 # never named `credential-headers`, which is. A prose list beside the real
 # one is a claim nothing checks.
 #
-# Note: check-tests.sh is deliberately not in that array (cargo test runs
-# separately at pre-push to keep the --lib flag and avoid --test, which
-# triggers the keychain popup on macOS).
+# Note: check-tests.sh is deliberately not in that array: pre-push invokes
+# it as a separate local-only leg, preserving --lib and process isolation.
 #
 # Exit: 0 = all pass | 1 = one or more failed
 #
