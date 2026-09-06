@@ -426,7 +426,7 @@ fn run_source_with_profile_and_slots(
         && thinking_findings(&wf).is_empty()
         && capacity_findings(&wf).is_empty()
         && skills.findings.is_empty();
-    let out = render_checked_with_profile(
+    let out = match render_checked_with_profile(
         source.source(),
         path,
         source.repair_target(),
@@ -438,7 +438,10 @@ fn run_source_with_profile_and_slots(
         profile,
         access_pin,
         theme,
-    );
+    ) {
+        Ok(out) => out,
+        Err(err) => return project::ambient_refusal(&err, json),
+    };
     if slot_only {
         VerbOutput::ok(out.text)
     } else {
@@ -460,7 +463,7 @@ pub(crate) fn run_admitted_pair(
     json: bool,
     theme: Theme,
 ) -> VerbOutput {
-    render_checked_with_profile(
+    match render_checked_with_profile(
         source,
         path,
         repair_target,
@@ -472,7 +475,10 @@ pub(crate) fn run_admitted_pair(
         Profile::Advisory,
         None,
         theme,
-    )
+    ) {
+        Ok(out) => out,
+        Err(err) => project::ambient_refusal(&err, json),
+    }
 }
 
 /// Emit the normal machine check report plus its exact execution snapshot.
@@ -530,6 +536,9 @@ pub fn run_snapshot_export(path: &str, theme: Theme) -> VerbOutput {
         true,
         theme,
     );
+    if out.code == crate::verbs::exit::ENV {
+        return out;
+    }
     attach_execution_snapshot(out, encoded)
 }
 
@@ -701,7 +710,8 @@ fn render_checked_with_profile(
     profile: Profile,
     access_pin: Option<&str>,
     theme: Theme,
-) -> VerbOutput {
+) -> Result<VerbOutput, nika_vocab::project::ProjectError> {
+    let ceiling = budget::from_cwd()?;
     let native_hints = nika_cli_host::oracle::native_hints(report);
     let lanes = nika_cli_host::oracle::Lanes::new(native_strict, profile == Profile::Operational);
     let verdict = fold_verdicts(wf, report, skills, access_pin);
@@ -718,7 +728,14 @@ fn render_checked_with_profile(
     }
 
     if json {
-        return json_verdict(wf, report, skills, &verdict, lanes);
+        return Ok(json_verdict(
+            wf,
+            report,
+            skills,
+            &verdict,
+            lanes,
+            ceiling.as_ref(),
+        ));
     }
 
     let mut text = render(
@@ -751,12 +768,12 @@ fn render_checked_with_profile(
         verdict.grade,
     );
     naming_note(&mut text, theme, path, wf);
-    budget::footnote(&mut text, theme);
-    if strict_clean {
+    budget::footnote(&mut text, theme, ceiling.as_ref());
+    Ok(if strict_clean {
         VerbOutput::ok(nika_display::vocab::sober(theme, &text))
     } else {
         VerbOutput::file(nika_display::vocab::sober(theme, &text))
-    }
+    })
 }
 
 fn naming_note(text: &mut String, theme: Theme, path: &str, wf: &nika_schema::raw::RawWorkflow) {
@@ -835,12 +852,13 @@ fn json_verdict(
     skills: &nika_schema::ResolvedSkills,
     verdict: &nika_cli_host::oracle::Verdict,
     lanes: nika_cli_host::oracle::Lanes,
+    ceiling: Option<&budget::AmbientCeiling>,
 ) -> VerbOutput {
     let mut obj = match nika_cli_host::oracle::audit_json(wf, report, skills, verdict, lanes) {
         Ok(obj) => obj,
         Err(why) => return VerbOutput::env(why),
     };
-    budget::stamp_json(&mut obj);
+    budget::stamp_json(&mut obj, ceiling);
     let text = format!("{:#}", serde_json::Value::Object(obj));
     if verdict.strict_clean(report, lanes) {
         VerbOutput::ok(text)

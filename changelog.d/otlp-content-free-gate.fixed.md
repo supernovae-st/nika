@@ -1,0 +1,1 @@
+- **The content-free OTLP projection carries no payload text.** Without `include_content`, a failed span's status keeps the error code alone (the `detail` message half stayed before), a success warning no longer rides, and the redacted evidence pack now masks a fan-out's `items` and the `warning` field like the other payload keys.

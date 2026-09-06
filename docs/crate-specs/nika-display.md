@@ -61,3 +61,8 @@ pub mod demo     { deterministic §3.3 storyboard streams (success · failure ·
   ride the meter).
 - **One-voice rendering** — the surface formats upstream codes and never
   mints its own.
+
+The project verdict renderer accepts primitive fields from its caller. Its
+machine envelope uses JSON string escaping for paths, names and diagnostics,
+including control characters, while preserving the compact field order.
+It does not parse projects or choose the caller's exit code.

@@ -46,9 +46,15 @@ use nika_event::source_id::sha256_hex;
 /// display contract's streamed `delta` (`infer_chunk`) and the pause
 /// frame's shown content (`message` · `choices` — the prompt's
 /// templates resolve task output; only secrets are marker-masked).
-/// Sorted: the manifest's `redaction.fields` lists them verbatim.
-pub(crate) const PAYLOAD_KEYS: [&str; 6] =
-    ["choices", "delta", "detail", "message", "outcome", "output"];
+/// Two more since the V9 sensitivity pass (T9-F04): a fan-out
+/// terminal's `items` (every item's `message` · the same failure text
+/// `detail` carries, one row per item) and the success frame's
+/// `warning` (a diagnostic that can quote the model's blank answer or
+/// a path). Sorted: the manifest's `redaction.fields` lists them
+/// verbatim.
+pub(crate) const PAYLOAD_KEYS: [&str; 8] = [
+    "choices", "delta", "detail", "items", "message", "outcome", "output", "warning",
+];
 
 /// The marker key naming an unparseable tail line in the projection —
 /// NOT `kind`: the line is not an event, it never parsed.
@@ -81,6 +87,12 @@ fn reason_for(key: &str) -> &'static str {
         }
         "message" | "choices" => {
             "redacted — the shown prompt can embed resolved task output; it stays with the operator's own journal (VERIFY.md §3)"
+        }
+        "items" => {
+            "redacted — a fan-out's per-item terminals carry each item's failure text; they stay with the operator's own journal (VERIFY.md §3)"
+        }
+        "warning" => {
+            "redacted — a non-fatal diagnostic can quote model output or a path; it stays with the operator's own journal (VERIFY.md §3)"
         }
         _ => "redacted — this payload field stays with the operator's own journal (VERIFY.md §3)",
     }
