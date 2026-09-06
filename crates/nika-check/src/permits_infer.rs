@@ -350,6 +350,17 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
                     c.partial.net = true;
                     c.notes.push(note);
                 }
+                // A documentation host (RFC 2606/6761) is never dialed by the
+                // transport: a grant would only make a guaranteed refusal
+                // look admitted (wave 3 · persona 04 · the inference wrote
+                // `example.com` into the boundary the run then refused).
+                Some(host) if nika_types::net::is_documentation_host(&host) => {
+                    c.partial.net = true;
+                    c.notes.push(format!(
+                        "task `{id}` fetches `{host}` — a documentation host (RFC 2606/6761) the \
+                         transport never dials; not inferred (point the task at a real host)"
+                    ));
+                }
                 Some(host) => {
                     c.hosts.insert(host);
                 }
@@ -676,7 +687,7 @@ tasks:
     invoke:
       tool: nika:fetch
       args:
-        url: https://api.example.org/items
+        url: https://api.acme-widgets.org/items
   writer:
     invoke:
       tool: \"nika:write\"
@@ -715,7 +726,7 @@ tasks:
 
         assert_eq!(
             by_id("fetcher"),
-            vec!["net.http: api.example.org", "tool: nika:fetch"],
+            vec!["net.http: api.acme-widgets.org", "tool: nika:fetch"],
         );
         assert_eq!(
             by_id("writer"),
@@ -1019,6 +1030,20 @@ tasks:
     }
 
     #[test]
+    fn a_documentation_host_is_never_inferred_into_the_grants() {
+        // RFC 2606/6761 names are never dialed by the transport (wave 3 ·
+        // persona 04): a grant would only make a guaranteed refusal look
+        // admitted, so the inference notes it and writes nothing.
+        let r = infer_of(
+            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/x\" } }\n",
+        );
+        assert!(r.permits.net.is_none(), "{:?}", r.permits.net);
+        assert_eq!(r.notes.len(), 1, "{:?}", r.notes);
+        assert!(r.notes[0].contains("documentation host"), "{}", r.notes[0]);
+        assert!(r.notes[0].contains("`example.com`"), "{}", r.notes[0]);
+    }
+
+    #[test]
     fn floor_blocked_host_is_never_inferred_into_the_grants() {
         // A loopback fetch must NOT synthesize `net.http: ["127.0.0.1"]`
         // — even though the exact literal WOULD declassify the floor
@@ -1026,10 +1051,10 @@ tasks:
         // inference keeps its hands off and the note TEACHES the opt-in.
         // Public hosts still infer.
         let r = infer_of(
-            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:9/x\" } }\n  b:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:9/x\" } }\n  b:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.acme-widgets.com/x\" } }\n",
         );
         let net = r.permits.net.as_ref().expect("public host infers net");
-        assert_eq!(net.http, vec!["api.example.com".to_owned()]);
+        assert_eq!(net.http, vec!["api.acme-widgets.com".to_owned()]);
         assert_eq!(r.notes.len(), 1, "{:?}", r.notes);
         assert!(r.notes[0].contains("SSRF floor"), "{}", r.notes[0]);
         assert!(r.notes[0].contains("`127.0.0.1`"), "{}", r.notes[0]);

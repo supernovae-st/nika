@@ -1287,3 +1287,35 @@ fn the_shells_own_sigils_and_prose_braces_stay_silent() {
         "argv `$HOME` is the shell's business and `{{ not a ref }}` is prose: {hints:#?}"
     );
 }
+
+#[test]
+fn a_literal_documentation_host_is_named_before_the_run_dials_it() {
+    // Wave 3 · persona 04: `check` passed a literal `example.com` fetch the
+    // transport refuses categorically (RFC 2606/6761), and `--infer-permits`
+    // recommended the grant. The hint names the host and the code the run
+    // would fail on, so the reader learns it from the file, not from the run.
+    let hints = hints_of(
+        "nika: w\npermits:\n  tools: [\"nika:fetch\"]\n  net: { http: [\"example.com\"] }\ntasks:\n  page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/x\", mode: text }\n",
+    );
+    let hit = hints
+        .iter()
+        .find(|h| h.kind == "documentation-host")
+        .expect("a documentation host is named before the run dials it");
+    assert_eq!(hit.task, "page");
+    for lesson in ["`example.com`", "NIKA-BUILTIN-FETCH-001", "mock/echo"] {
+        assert!(
+            hit.advice.contains(lesson),
+            "the hint teaches `{lesson}`: {}",
+            hit.advice
+        );
+    }
+
+    // A real host is the run's business, not the check's.
+    let real = hints_of(
+        "nika: w\npermits:\n  tools: [\"nika:fetch\"]\n  net: { http: [\"api.acme-widgets.com\"] }\ntasks:\n  page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.acme-widgets.com/x\", mode: text }\n",
+    );
+    assert!(
+        !real.iter().any(|h| h.kind == "documentation-host"),
+        "a real host says nothing: {real:?}"
+    );
+}

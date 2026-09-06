@@ -738,6 +738,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     let (trifecta, mut consent_scan, order_findings) =
         gated_scans(wf, conforms, &edges, &topo_waves);
     hints.extend(std::mem::take(&mut consent_scan.hints));
+    hints::credit_gates(&mut hints, &trifecta.mitigations);
     let capability_escapes = permits_fit::scan_escapes(wf);
     let effective = boundary_offer::lane(wf, capability_escapes.is_empty(), conforms, &mut hints);
     let cost = cost::ceiling(wf);
@@ -895,6 +896,54 @@ mod tests {
     fn check_yaml(yaml: &str) -> CheckReport {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         check(&wf)
+    }
+
+    /// Wave 3 · persona 07: the headless-prompt hint recommended `default:
+    /// false`, the author obeyed, and SEC-009 refused the file without ever
+    /// naming `default:`. The gate the trifecta judge credits now carries
+    /// the one sentence that keeps the two judges agreeing; a prompt the
+    /// judge does not credit keeps the ordinary hint.
+    #[test]
+    fn a_credited_gate_rewrites_its_own_headless_hint() {
+        let gated = check_yaml(
+            "nika: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.acme-widgets.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\" }\n  fetch_page:\n    after: { ask: success }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.acme-widgets.com/data\" }\n  leak:\n    after: { fetch_page: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n",
+        );
+        assert!(
+            gated.trifecta_findings.is_empty(),
+            "the gate dominates the sink: {:?}",
+            gated.trifecta_findings
+        );
+        let credited = gated
+            .hints
+            .iter()
+            .find(|h| h.kind == "headless-prompt" && h.task == "ask")
+            .map(|h| h.advice.clone())
+            .unwrap_or_default();
+        for lesson in [
+            "declares no `default:` — and must not",
+            "--answer ask=<value>",
+            "exit 4",
+        ] {
+            assert!(
+                credited.contains(lesson),
+                "the credited gate's hint teaches `{lesson}`: {credited}"
+            );
+        }
+
+        // The same prompt with nothing to guard keeps the ordinary hint.
+        let plain = check_yaml(
+            "nika: t\npermits:\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\" }\n",
+        );
+        let ordinary = plain
+            .hints
+            .iter()
+            .find(|h| h.kind == "headless-prompt" && h.task == "ask")
+            .map(|h| h.advice.clone())
+            .unwrap_or_default();
+        assert!(
+            ordinary.contains("`default:`") && !ordinary.contains("must not"),
+            "an uncredited prompt keeps the ordinary teaching: {ordinary}"
+        );
     }
 
     #[test]

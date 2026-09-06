@@ -125,7 +125,7 @@ pub struct Hint {
     /// · `analysis` · `consent` · `digit-string-enum`
     /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
     /// · `fail-open-consent`
-    /// · `unproven-law` · `silent-literal`
+    /// · `unproven-law` · `silent-literal` · `documentation-host`
     /// (additive · agents route on it; the module doc describes each).
     /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
     /// reads — never `is_clean`.
@@ -224,6 +224,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     let deep_referenced = deeply_referenced(wf);
     let envelope_bound = envelope_bound_outputs(wf);
     let envelope_ids: BTreeSet<&str> = envelope_bound.iter().map(|(_, id)| id.as_str()).collect();
+    let consts = crate::permits_fit::ConstStrings::of(wf);
     let mut hints = Vec::new();
     for (name, id) in &envelope_bound {
         hints.push(Hint {
@@ -284,6 +285,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                 push_exec_json_capture_hint(&mut hints, t, exec);
             }
             RawAction::Invoke(a) => {
+                push_documentation_host_hint(&mut hints, id, a, &consts);
                 push_headless_prompt_hint(&mut hints, id, a, gates_an_effect);
                 push_fail_open_consent_hint(&mut hints, id, a, gates_an_effect);
                 push_glob_readme_hint(&mut hints, id, a);
@@ -1351,6 +1353,67 @@ fn value_mentions_tasks(v: &serde_json::Value, ids: &BTreeSet<&str>) -> bool {
 /// mustache island and the shell sigil, each named with its one reference
 /// form. The scan lives in the analysis substrate (its own budget); this
 /// is the wrap into the ladder's hint.
+/// The trifecta's credited gates rewrite their own `headless-prompt`
+/// hint. That hint's close clause recommends `default: false` over an
+/// effect, and a defaulted prompt is exactly what the trifecta judge
+/// refuses to credit: following the hint broke the gate and SEC-009
+/// answered with a fix that never named `default:` (wave 3 · persona 07 ·
+/// the two judges contradicting each other on one file). The gate's hint
+/// now says the one thing that keeps both judges agreeing.
+pub(crate) fn credit_gates(hints: &mut [Hint], mitigations: &[nika_cap::TrifectaMitigation]) {
+    for h in hints.iter_mut() {
+        if h.kind != "headless-prompt" || !mitigations.iter().any(|m| m.gate == h.task) {
+            continue;
+        }
+        h.advice = format!(
+            "`nika:prompt` on `{id}` declares no `default:` — and must not: it is the blocking \
+             human gate the lethal-trifecta judge credits, and a defaulted prompt answers itself \
+             unattended (spec 06) and stops being a gate. Unattended (CI, or an agent handing it \
+             over) the run pauses here awaiting a human (exit 4 · the resume line taught on the \
+             frame); answer it in one pass with `nika run <file> --answer {id}=<value>`",
+            id = h.task
+        );
+    }
+}
+
+/// A literal `nika:fetch` URL whose host is a documentation name
+/// (`example.com` · `.test` · `.invalid` · RFC 2606/6761): the transport
+/// never dials it, so the run fails `NIKA-BUILTIN-FETCH-001` on a fact the
+/// file already shows. Advisory, not a security refusal: the boundary is
+/// not at stake, only the run's outcome (wave 3 · persona 04 · `check`
+/// previewed a reach the engine will never make, and `--infer-permits`
+/// recommended the grant).
+fn push_documentation_host_hint(
+    hints: &mut Vec<Hint>,
+    id: &str,
+    a: &nika_schema::raw::RawInvokeAction,
+    consts: &crate::permits_fit::ConstStrings,
+) {
+    let Some(crate::permits_fit::BuiltinEffect::Net { url_arg }) =
+        crate::permits_fit::builtin_effect(a)
+    else {
+        return;
+    };
+    let Some(host) = crate::permits_fit::judgeable_arg(consts, a, url_arg)
+        .as_deref()
+        .and_then(crate::permits_fit::url_host)
+    else {
+        return;
+    };
+    if !nika_types::net::is_documentation_host(&host) {
+        return;
+    }
+    hints.push(hint(
+        "documentation-host",
+        id,
+        format!(
+            "task `{id}` fetches `{host}` — a documentation host (RFC 2606/6761) the transport \
+             never dials, so the run fails NIKA-BUILTIN-FETCH-001 at that request whatever \
+             `permits:` says; point the task at a real host, or rehearse it behind `mock/echo`"
+        ),
+    ));
+}
+
 fn push_silent_literal_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
     for (task, advice) in nika_check_analyzer::silent_literal::scan(wf) {
         hints.push(hint("silent-literal", &task, advice));

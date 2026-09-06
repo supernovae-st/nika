@@ -1,0 +1,1 @@
+- **`nika check` names a documentation host before the run refuses it.** A literal `nika:fetch` to `example.com` or a `.test`/`.invalid` name (RFC 2606/6761) carries a `documentation-host` hint at check, and `--infer-permits` no longer writes such a host into `permits.net.http`; the transport never dials it.

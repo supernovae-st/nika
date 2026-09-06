@@ -51,6 +51,10 @@ use crate::fit::lexically_normalize;
 /// egress fed untrusted data through `with:` is exactly the threat).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "four independent facts the projection asserts and the judge reads (egress-capable · blocking gate · defaulted gate · untrusted ingress); an enum for the gate pair would change the public surface every consumer builds by `new` and the builders"
+)]
 pub struct TrifectaSubject {
     /// The task id (the witness a violation names).
     pub id: String,
@@ -65,6 +69,12 @@ pub struct TrifectaSubject {
     /// Whether the task is a BLOCKING human gate (an `invoke:` of
     /// [`crate::HUMAN_GATE_TOOL`] with no `default:` arg).
     pub human_gate: bool,
+    /// Whether the task is a `nika:prompt` that CARRIES a `default:` · a
+    /// prompt that answers itself unattended, so never a blocking gate.
+    /// The judge credits nothing to it; a violation names it so the fix
+    /// reads « remove `default:` », not « add a gate » to an author who
+    /// just added one on the hint's own advice (wave 3 · persona 07).
+    pub defaulted_gate: bool,
     /// Whether the task is a REALIZED untrusted-content source (v2.0): an
     /// invoked `nika:fetch` · an invoked `mcp:*` whose catalog mark is not
     /// `trusted` (absent/unknown = untrusted, fail-closed) · an `agent:`
@@ -86,9 +96,18 @@ impl TrifectaSubject {
             id,
             egress_capable,
             human_gate,
+            defaulted_gate: false,
             ingress_source: false,
             parents: Vec::new(),
         }
+    }
+
+    /// Mark the subject a DEFAULTED prompt (the projection sets it; the
+    /// judge's wording reads it).
+    #[must_use]
+    pub fn with_defaulted_gate(mut self, defaulted_gate: bool) -> Self {
+        self.defaulted_gate = defaulted_gate;
+        self
     }
 
     /// Mark the subject an untrusted-content source (v2.0 builder — the
@@ -380,12 +399,14 @@ pub fn trifecta_verdict(
             // cannot dominate it — the data edges feeding the sink from
             // pre-gate tasks are paths too. Upstream of the ingress,
             // EVERY path (order and data alike) crosses the gate.
-            let why = bypass_note(&dom, subjects, i).unwrap_or_else(|| {
-                format!(
-                    "no blocking `invoke: {}` dominates every path to it",
-                    crate::HUMAN_GATE_TOOL
-                )
-            });
+            let why = bypass_note(&dom, subjects, i)
+                .or_else(|| defaulted_gate_note(subjects))
+                .unwrap_or_else(|| {
+                    format!(
+                        "no blocking `invoke: {}` dominates every path to it",
+                        crate::HUMAN_GATE_TOOL
+                    )
+                });
             let legs = leg_reasons(permits, subjects);
             let entries = join_names(&entry_ancestors(subjects, i));
             out.push(TrifectaViolation {
@@ -451,6 +472,27 @@ fn dominators(subjects: &[TrifectaSubject], topo_order: &[usize]) -> Vec<BTreeSe
 /// edge (`with: ${{ tasks.X.output }}`) feeding the sink from a
 /// pre-gate task. `None` when the workflow has no gate at all (the
 /// generic clause reads better than a vacuous explanation).
+/// When NO blocking gate exists but a `nika:prompt` with a `default:`
+/// does, the reader must hear that the default is what disqualifies it:
+/// the generic « no blocking gate dominates » reads as « add a gate » to
+/// someone who just added one, and the headless-prompt hint had told
+/// them to declare `default: false` (wave 3 · persona 07 · the tool's own
+/// advice looped through SEC-009 without ever naming `default:`).
+fn defaulted_gate_note(subjects: &[TrifectaSubject]) -> Option<String> {
+    if subjects.iter().any(|t| t.human_gate) {
+        return None;
+    }
+    let defaulted = subjects.iter().find(|t| t.defaulted_gate)?;
+    Some(format!(
+        "the only `{}` (`{}`) carries `default:` — a defaulted prompt answers itself \
+         unattended and is not a blocking gate; remove `default:` and answer at launch \
+         with `--answer {}=<value>`",
+        crate::HUMAN_GATE_TOOL,
+        defaulted.id,
+        defaulted.id,
+    ))
+}
+
 fn bypass_note(
     dom: &[BTreeSet<usize>],
     subjects: &[TrifectaSubject],
@@ -483,6 +525,32 @@ mod tests {
     /// Both used to return the same empty vec, which is how a card could
     /// print the same tick for "safe by construction" and "safe if this
     /// prompt is real" without being able to tell them apart.
+    /// A `nika:prompt` with a `default:` is the one shape an author reaches
+    /// after obeying the headless-prompt hint; the generic « no blocking gate
+    /// dominates » told them to add the gate they had just added (wave 3 ·
+    /// persona 07). The note names the default as the disqualifier.
+    #[test]
+    fn a_defaulted_gate_is_named_as_the_reason_it_does_not_count() {
+        let defaulted = vec![
+            TrifectaSubject::new("ask".to_owned(), false, false).with_defaulted_gate(true),
+            TrifectaSubject::new("leak".to_owned(), true, false),
+        ];
+        let note = defaulted_gate_note(&defaulted).unwrap_or_default();
+        assert!(!note.is_empty(), "a defaulted prompt is named");
+        for lesson in ["`ask`", "carries `default:`", "--answer ask=<value>"] {
+            assert!(note.contains(lesson), "the note teaches `{lesson}`: {note}");
+        }
+        // A real blocking gate anywhere: the bypass note owns the sentence.
+        let real = vec![
+            TrifectaSubject::new("ask".to_owned(), false, true),
+            TrifectaSubject::new("late".to_owned(), false, false).with_defaulted_gate(true),
+        ];
+        assert!(defaulted_gate_note(&real).is_none());
+        // No prompt at all: the generic clause.
+        let bare = vec![TrifectaSubject::new("leak".to_owned(), true, false)];
+        assert!(defaulted_gate_note(&bare).is_none());
+    }
+
     #[test]
     fn a_cleared_trifecta_names_the_gate_that_cleared_it() {
         // gate → ingress → egress · every path crosses the gate
