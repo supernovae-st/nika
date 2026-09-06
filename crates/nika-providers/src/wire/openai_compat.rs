@@ -378,23 +378,7 @@ fn parse_response(
         });
     }
 
-    let mut usage = TokenUsage::new(
-        v.pointer("/usage/prompt_tokens")
-            .and_then(Value::as_u64)
-            .unwrap_or_default(),
-        v.pointer("/usage/completion_tokens")
-            .and_then(Value::as_u64)
-            .unwrap_or_default(),
-    );
-    // OTel `gen_ai` semantics hold by construction here: OpenAI's
-    // `prompt_tokens` already INCLUDES `cached_tokens` (a details
-    // subset), so `input_tokens` needs no fold — only the meter rides.
-    usage.cache_read_tokens = v
-        .pointer("/usage/prompt_tokens_details/cached_tokens")
-        .and_then(Value::as_u64);
-    usage.reasoning_tokens = v
-        .pointer("/usage/completion_tokens_details/reasoning_tokens")
-        .and_then(Value::as_u64);
+    let usage = v.pointer("/usage").map(usage_from).unwrap_or_default();
 
     let raw_finish = v
         .pointer("/choices/0/finish_reason")
@@ -419,6 +403,35 @@ fn parse_response(
         .and_then(Value::as_str)
         .map(ToOwned::to_owned);
     Ok(resp)
+}
+
+/// The ONE OpenAI-compatible usage parse — the non-stream door and the
+/// stream translator read the same `usage` object through it (B19: the
+/// stream used to build a bare `TokenUsage::new(prompt, completion)` and
+/// drop both details subsets, so a streamed cached prompt would price at
+/// the full input rate).
+///
+/// `OTel` `gen_ai` semantics hold by construction: `prompt_tokens`
+/// already INCLUDES the cached subset, so `input_tokens` needs no fold —
+/// only the meter rides. Missing meters stay `None` ("not reported",
+/// never a zero the budgets would trust).
+///
+/// `DeepSeek` reports its prompt cache at the TOP of the usage object
+/// (`prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`) instead of
+/// under `prompt_tokens_details`; both spellings land in
+/// `cache_read_tokens`, so `usd_for_split` prices the hit portion at the
+/// catalog's cache-read rate instead of the full input rate.
+fn usage_from(u: &Value) -> TokenUsage {
+    let at = |key: &str| u.pointer(key).and_then(Value::as_u64);
+    let mut usage = TokenUsage::new(
+        at("/prompt_tokens").unwrap_or_default(),
+        at("/completion_tokens").unwrap_or_default(),
+    );
+    usage.cache_read_tokens =
+        at("/prompt_tokens_details/cached_tokens").or_else(|| at("/prompt_cache_hit_tokens"));
+    usage.reasoning_tokens = at("/completion_tokens_details/reasoning_tokens");
+    usage.total_tokens = at("/total_tokens");
+    usage
 }
 
 fn map_finish(raw: Option<&str>) -> StopReason {
@@ -529,14 +542,11 @@ impl EventMapper for CompatMapper {
         if let Some(u) = v.pointer("/usage")
             && !u.is_null()
         {
-            out.push(Ok(InferEvent::Usage(TokenUsage::new(
-                u.pointer("/prompt_tokens")
-                    .and_then(Value::as_u64)
-                    .unwrap_or_default(),
-                u.pointer("/completion_tokens")
-                    .and_then(Value::as_u64)
-                    .unwrap_or_default(),
-            ))));
+            // The SAME parse as the non-stream door (B19): a streamed
+            // cached prompt must not price at the full input rate the
+            // day a verb streams. `stream_options.include_usage` is
+            // already requested above.
+            out.push(Ok(InferEvent::Usage(usage_from(u))));
         }
         out
     }

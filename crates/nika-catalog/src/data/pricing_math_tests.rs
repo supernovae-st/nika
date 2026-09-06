@@ -168,3 +168,23 @@ mod cache_aware {
         }
     }
 }
+
+/// The reasoning-rate ratchet (Q01 · lot 1). `reasoning_tokens_per_million`
+/// is DECLARED on `ModelPricing` and read by nothing: today reasoning
+/// prices at the output rate, which is exact as long as no row discloses a
+/// different one. When one does, this test fires — and `usd_for_split`
+/// grows the arm in the same commit, so the number and the doc never drift
+/// apart. It must never be "fixed" by deleting the assertion.
+#[test]
+#[cfg(feature = "pricing")]
+fn no_row_declares_a_reasoning_rate_yet() {
+    let declared: Vec<&str> = ALL_PRICING
+        .iter()
+        .filter(|p| p.reasoning_tokens_per_million.is_some())
+        .map(|p| p.model_pattern)
+        .collect();
+    assert!(
+        declared.is_empty(),
+        "these rows disclose a reasoning rate usd_for_split does not price yet: {declared:?}"
+    );
+}

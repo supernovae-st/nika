@@ -184,6 +184,11 @@ pub fn find_pricing_for(model: &str) -> Option<&'static ModelPricing> {
 /// back to the input rate when the catalog does not disclose them (the
 /// pre-@1.1 approximation — documented, and rare now that the snapshot
 /// carries upstream cache rates).
+///
+/// Reasoning is a subset of `output_tokens` and prices at the OUTPUT rate:
+/// `reasoning_tokens_per_million` is declared but NO shipped row sets it
+/// (`no_row_declares_a_reasoning_rate_yet` pins that) — an arm would be
+/// unreachable; the day a row discloses one, that test fires with it.
 #[cfg(feature = "pricing")]
 // REASON: casting `u64` token counts to `f64` for the rate multiplication.
 // Token counts cap at provider context windows (≤ 10 M = 2²³), well below
