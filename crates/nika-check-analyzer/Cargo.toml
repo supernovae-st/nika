@@ -26,6 +26,7 @@ nika-cap    = { path = "../nika-cap", version = "0.118.7" }    # the withheld jq
 nika-vocab  = { path = "../nika-vocab", version = "0.118.7" }  # the dead-form teaching texts the scan surfaces
 nika-catalog = { path = "../nika-catalog", version = "0.118.7" } # the seat law's reasoning + known-model facts (thinking.rs)
 
+url        = { workspace = true }   # the SAME WHATWG host parse the runtime http effect connects with (static_args)
 serde_json = { workspace = true }
 # JSON Schema META-check (static · L0-legal: pure/sync · default-features=false
 # compiles out the http/file retrievers, so no I/O) — the SAME jsonschema crate
