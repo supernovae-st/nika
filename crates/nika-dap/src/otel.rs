@@ -273,39 +273,7 @@ fn one_task_span(
         attributes.push(kv_double(COST_ATTR, *usd));
         attributes.push(kv_double("nika.cost.usd", *usd));
     }
-    let mut status = serde_json::json!({});
-    match terminal.kind {
-        EventKind::TaskCompleted => status = serde_json::json!({ "code": 1 }),
-        EventKind::TaskFailed => {
-            // `detail` is `<code> · <message>`: the message half can quote
-            // a path, a payload, a model answer. Content-free keeps the
-            // code — the ONE part that is vocabulary, not content.
-            let detail = field_str(terminal, "detail").unwrap_or("task failed");
-            let message = if include_content {
-                detail
-            } else {
-                failure_code(detail)
-            };
-            status = serde_json::json!({ "code": 2, "message": message });
-        }
-        EventKind::TaskSkipped => {
-            attributes.push(kv_bool("nika.task.skipped", true));
-            if let Some(when) = field_str(terminal, "when") {
-                attributes.push(kv_str("nika.task.when", when));
-            }
-        }
-        EventKind::TaskCancelled => {
-            attributes.push(kv_bool("nika.task.cancelled", true));
-            if let Some(culprit) = field_str(terminal, "blocked_by") {
-                attributes.push(kv_str("nika.task.blocked_by", culprit));
-            }
-        }
-        EventKind::TaskCacheHit => {
-            attributes.push(kv_bool("nika.cache.hit", true));
-            status = serde_json::json!({ "code": 1 });
-        }
-        _ => {}
-    }
+    let status = terminal_status(terminal, include_content, &mut attributes);
     if include_content && let Some(output) = field_str(terminal, "output") {
         attributes.push(kv_str("nika.task.output", output));
     }
@@ -334,6 +302,49 @@ fn one_task_span(
         "events": span_events,
         "status": status,
     }))
+}
+
+/// The span status the terminal kind dictates, plus the kind's own
+/// attributes (skipped · cancelled · cache hit). A failed span's message
+/// is the whole `detail` only with the content; otherwise the error CODE
+/// alone — `detail` is `<code> · <message>` and the message half can
+/// quote a path, a payload, a model answer.
+fn terminal_status(
+    terminal: &Event,
+    include_content: bool,
+    attributes: &mut Vec<serde_json::Value>,
+) -> serde_json::Value {
+    match terminal.kind {
+        EventKind::TaskCompleted => serde_json::json!({ "code": 1 }),
+        EventKind::TaskFailed => {
+            let detail = field_str(terminal, "detail").unwrap_or("task failed");
+            let message = if include_content {
+                detail
+            } else {
+                failure_code(detail)
+            };
+            serde_json::json!({ "code": 2, "message": message })
+        }
+        EventKind::TaskSkipped => {
+            attributes.push(kv_bool("nika.task.skipped", true));
+            if let Some(when) = field_str(terminal, "when") {
+                attributes.push(kv_str("nika.task.when", when));
+            }
+            serde_json::json!({})
+        }
+        EventKind::TaskCancelled => {
+            attributes.push(kv_bool("nika.task.cancelled", true));
+            if let Some(culprit) = field_str(terminal, "blocked_by") {
+                attributes.push(kv_str("nika.task.blocked_by", culprit));
+            }
+            serde_json::json!({})
+        }
+        EventKind::TaskCacheHit => {
+            attributes.push(kv_bool("nika.cache.hit", true));
+            serde_json::json!({ "code": 1 })
+        }
+        _ => serde_json::json!({}),
+    }
 }
 
 /// The in-span story: retry frames (`attempt`/`max_attempts`/`delay_ms`)
