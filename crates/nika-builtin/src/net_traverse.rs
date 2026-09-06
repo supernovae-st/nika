@@ -144,48 +144,14 @@ pub(crate) async fn traverse<H: HttpGetDyn>(http: &H, root: &str, args: &Args) -
         // userinfo-stripped so a crawled asset never carries the crawl's
         // own basic-auth into the digest.
         let base = resolution_base(&page_url, &response.final_url);
-        // Re-pin the same-origin filter to where the ROOT landed, so
-        // apex→www / http→https canonicalization does not empty the
-        // frontier (descendants still match the landed origin).
-        if is_root
-            && let Ok(landed) = url::Url::parse(&base)
-            && landed.origin() != origin
-        {
-            origin = landed.origin();
-            // The seed's robots never govern the landed host: re-read
-            // the rules where the root LANDED before any descendant is
-            // enqueued (RFC 9309 rules are per origin). The root's bytes
-            // were already received (the redirect is the transport's);
-            // a landed root its own robots forbids stops the crawl here.
-            disallows = robots_for(http, &landed, &spec, "the landed root").await?;
+        if is_root {
+            repin_landed(http, &base, &mut origin, &mut disallows, &spec).await?;
         }
         let status = response.status;
-        // CPU-heavy DOM parse rides the blocking pool (the single-fetch
-        // extraction precedent — same bounded-orphan cancel contract).
-        let digested =
-            tokio::task::spawn_blocking(move || page_digest_discovering(&text, Some(&base)))
-                .await
-                .map_err(|e| BuiltinFailure::new(C, format!("extraction task failed: {e}")))?;
-        let (digest, discovered) = match digested {
-            Ok(pair) => pair,
-            // The depth admission refused the body before any parser
-            // saw it. The ROOT refusing is the single-fetch contract
-            // failing (loud beats empty); a descendant becomes the
-            // honest `{url, status, error}` entry and the crawl continues.
-            Err(refusal) => {
-                if is_root {
-                    return Err(BuiltinFailure::new(
-                        C,
-                        format!("root page refused before parsing: {refusal}"),
-                    ));
-                }
-                pages.push(serde_json::json!({
-                    "url": crate::wire::redact_url(&page_url),
-                    "status": status,
-                    "error": format!("page refused before parsing: {refusal}"),
-                }));
-                continue;
-            }
+        let Some((digest, discovered)) =
+            digest_page(text, base, is_root, &page_url, status, &mut pages).await?
+        else {
+            continue;
         };
 
         enqueue_links(
@@ -206,6 +172,64 @@ pub(crate) async fn traverse<H: HttpGetDyn>(http: &H, root: &str, args: &Args) -
         "pages": pages,
         "assets": { "images": asset_images, "colors": asset_colors },
     }))
+}
+
+/// Re-pin the same-origin filter to where the ROOT landed, so apex→www /
+/// http→https canonicalization does not empty the frontier (descendants
+/// still match the landed origin). The seed's robots never govern the
+/// landed host: the rules are re-read where the root LANDED before any
+/// descendant is enqueued (RFC 9309 rules are per origin). The root's
+/// bytes were already received (the redirect is the transport's); a
+/// landed root its own robots forbids stops the crawl here.
+async fn repin_landed<H: HttpGetDyn>(
+    http: &H,
+    base: &str,
+    origin: &mut url::Origin,
+    disallows: &mut Vec<String>,
+    spec: &TraverseSpec,
+) -> Result<(), BuiltinFailure> {
+    if let Ok(landed) = url::Url::parse(base)
+        && landed.origin() != *origin
+    {
+        *origin = landed.origin();
+        *disallows = robots_for(http, &landed, spec, "the landed root").await?;
+    }
+    Ok(())
+}
+
+/// One page's digest, admitted before any parser sees it (the CPU-heavy
+/// DOM parse rides the blocking pool — the single-fetch extraction
+/// precedent, same bounded-orphan cancel contract). `Ok(Some(pair))` on a
+/// digest; when the depth admission refuses the body, the ROOT refusing
+/// is the single-fetch contract failing (loud beats empty · `Err`), a
+/// descendant becomes the honest `{url, status, error}` entry on `pages`
+/// and the crawl continues (`Ok(None)`).
+async fn digest_page(
+    text: String,
+    base: String,
+    is_root: bool,
+    page_url: &str,
+    status: u16,
+    pages: &mut Vec<serde_json::Value>,
+) -> Result<Option<(serde_json::Value, Vec<String>)>, BuiltinFailure> {
+    let digested = tokio::task::spawn_blocking(move || page_digest_discovering(&text, Some(&base)))
+        .await
+        .map_err(|e| BuiltinFailure::new(C, format!("extraction task failed: {e}")))?;
+    match digested {
+        Ok(pair) => Ok(Some(pair)),
+        Err(refusal) if is_root => Err(BuiltinFailure::new(
+            C,
+            format!("root page refused before parsing: {refusal}"),
+        )),
+        Err(refusal) => {
+            pages.push(serde_json::json!({
+                "url": crate::wire::redact_url(page_url),
+                "status": status,
+                "error": format!("page refused before parsing: {refusal}"),
+            }));
+            Ok(None)
+        }
+    }
 }
 
 /// The robots gate for one origin: fetch + parse the disallow prefixes
