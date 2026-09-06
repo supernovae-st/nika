@@ -585,6 +585,36 @@ mod tests {
     }
 
     #[test]
+    fn a_zone_at_exactly_the_share_boundary_is_kept() {
+        // EXACTLY 5%: 500 characters of zone text against 10,000 of page
+        // text. The gate is `text_len * 100 >= remaining * 5`, i.e.
+        // 50_000 >= 50_000 — a `>=` turned `>` refuses this page, so this
+        // case is the one that kills that mutant.
+        let zone = "T".repeat(500);
+        let rest = "B".repeat(9_500);
+        let page = format!(
+            "<html><body><main><p>{zone}</p></main>\
+             <div><p>{rest}</p></div></body></html>"
+        );
+        let html = rule_content(&page, PageType::Article)
+            .expect("a zone carrying exactly the minimum share is kept");
+        assert!(html.contains(&zone), "the boundary zone is returned");
+
+        // One character under the boundary abstains: 499 * 100 = 49_900
+        // against 9_999 * 5 = 49_995. Pins that the acceptance above is
+        // the boundary itself, not a blanket accept.
+        let thinner = "T".repeat(499);
+        let under = format!(
+            "<html><body><main><p>{thinner}</p></main>\
+             <div><p>{rest}</p></div></body></html>"
+        );
+        assert!(
+            rule_content(&under, PageType::Article).is_none(),
+            "one character under {ZONE_MIN_SHARE_PERCENT}% is a sliver, not the body"
+        );
+    }
+
+    #[test]
     fn a_zone_carrying_the_page_still_wins() {
         // The same shape with the proportions reversed: `<main>` holds the
         // prose and the rest of the page is a scrap. The share gate must

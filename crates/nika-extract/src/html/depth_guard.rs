@@ -213,9 +213,21 @@ fn open_tag(
 /// runs to EOF, exactly the parser's behavior). Their bodies hold text
 /// that may LOOK like tags but never nests, so the scan jumps over them.
 ///
-/// `noscript` is deliberately EXCLUDED: html5ever parses with scripting
-/// DISABLED, so `<noscript>` content IS real nested markup — skipping it
-/// would UNDER-count and reopen the crash.
+/// `noscript` is deliberately EXCLUDED — but NOT for the reason this
+/// comment gave until 2026-09-06. Scripting is ENABLED on our parse
+/// (`scraper::Html::parse_document` hands html5ever `ParseOpts::default()`
+/// · scraper-0.27.0 `src/html/mod.rs:80-83` → `TreeBuilderOpts`'s
+/// `scripting_enabled: true` · html5ever-0.39.0 `src/tree_builder/mod.rs:75`
+/// → the in-body arm at `rules.rs:990` takes `parse_raw_data`), so a
+/// `<noscript>` body IS rawtext to the parser and skipping it would be
+/// sound for THAT tree.
+///
+/// It is not sound for OURS: [`super::noscript_source`] hands the block's
+/// source back and `article.rs` re-parses it as the markup it is —
+/// without a second `guard_depth` pass. Counting the block's nesting in
+/// this outer scan is the only thing standing between a depth bomb hidden
+/// inside `<noscript>` and htmd's recursive `Drop`
+/// (`guard_depth_noscript_body_is_counted_not_skipped`).
 const RAWTEXT_ELEMENTS: &[&str] = &[
     "script",
     "style",
@@ -1105,6 +1117,22 @@ mod tests {
         assert!(
             guard_depth(&body, ExtractMode::Markdown).is_err(),
             "each nested table adds three real levels — the flood is deep"
+        );
+    }
+
+    // A depth bomb hidden inside `<noscript>` — the shape the exclusion
+    // of `noscript` from RAWTEXT_ELEMENTS exists for. The parser reads
+    // that block as rawtext, but `noscript_source` + `article.rs`
+    // re-parse it as markup with NO second guard pass, so this outer scan
+    // is the only place it can be caught.
+    #[test]
+    fn guard_depth_noscript_body_is_counted_not_skipped() {
+        let body = String::from("<html><body><noscript>")
+            + &"<div>".repeat(MAX_HTML_DEPTH + 5)
+            + "</noscript></body></html>";
+        assert!(
+            guard_depth(&body, ExtractMode::Markdown).is_err(),
+            "a bomb inside <noscript> is re-parsed by the rescue — it must be counted here"
         );
     }
 

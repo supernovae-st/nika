@@ -195,12 +195,23 @@ const NOSCRIPT_MIN_SOURCE: usize = 1024;
 /// The largest `<noscript>` payload, as SOURCE, when it is substantial
 /// markup rather than a notice.
 ///
-/// With scripting ENABLED (html5ever's default · what the page itself is
-/// told) the parser keeps a `<noscript>` subtree as RAW TEXT: a
-/// server-rendered no-JS fallback is therefore invisible to every
+/// With scripting ENABLED the parser keeps a `<noscript>` subtree as RAW
+/// TEXT: a server-rendered no-JS fallback is therefore invisible to every
 /// DOM-walking extractor, however good. Handing that source back lets a
 /// caller re-parse it as the markup it is. Returns `None` when no block
 /// clears the floor or none looks like markup.
+///
+/// Scripting IS enabled on this parse, and the whole function rests on
+/// it: `scraper::Html::parse_document` hands html5ever
+/// `ParseOpts::default()` (scraper-0.27.0 `src/html/mod.rs:80-83`), whose
+/// `TreeBuilderOpts::default()` sets `scripting_enabled: true`
+/// (html5ever-0.39.0 `src/tree_builder/mod.rs:75`); the in-body arm at
+/// `rules.rs:990` then takes `parse_raw_data`. Were that default to flip
+/// on a dependency bump, the block would parse as a normal subtree, the
+/// `contains('<')` filter below would stop matching and the rescue would
+/// silently die — `html5ever_keeps_a_noscript_body_as_raw_text` is the
+/// test that would fail first. See also `depth_guard::RAWTEXT_ELEMENTS`,
+/// which excludes `noscript` because THIS function re-parses it.
 pub(crate) fn noscript_source(body: &str) -> Option<String> {
     if !mentions_noscript(body) {
         return None;
@@ -327,6 +338,8 @@ pub(crate) fn selector(body: &str, sel: &str) -> Result<serde_json::Value, Extra
 
 #[cfg(test)]
 mod tests {
+    use scraper::{Html, Selector};
+
     use super::{best_srcset, mentions_noscript, noscript_source, selector, tidy_text};
 
     // The single-pass rewrite's contract: intra-line whitespace collapses,
@@ -411,6 +424,37 @@ mod tests {
         assert!(
             found.contains("server rendered fallback"),
             "the block's source must come back, got: {found}"
+        );
+    }
+
+    // The parser contract `noscript_source` rests on, measured on the
+    // pinned scraper/html5ever rather than recalled: with scripting
+    // enabled a `<noscript>` body is a single TEXT node holding its own
+    // markup as literal characters. A dependency bump that flips the
+    // default fails here first, loudly, instead of silently killing the
+    // no-JS rescue.
+    #[test]
+    fn html5ever_keeps_a_noscript_body_as_raw_text() {
+        let doc = Html::parse_document(
+            "<html><body><noscript><div id=\"f\">hi</div></noscript></body></html>",
+        );
+        let sel = Selector::parse("noscript").expect("static selector");
+        let block = doc.select(&sel).next().expect("the noscript element");
+        assert_eq!(
+            block.child_elements().count(),
+            0,
+            "scripting enabled: the block holds no element children"
+        );
+        let text = block.text().collect::<String>();
+        assert!(
+            text.contains("<div id=\"f\">"),
+            "the block's own markup comes back as literal text, got: {text}"
+        );
+        // And the div is nowhere in the DOM — it was never parsed.
+        let div = Selector::parse("div#f").expect("static selector");
+        assert!(
+            doc.select(&div).next().is_none(),
+            "a rawtext body contributes no elements to the tree"
         );
     }
 
