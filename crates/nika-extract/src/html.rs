@@ -108,28 +108,7 @@ pub(crate) fn guard_depth(body: &str, mode: ExtractMode) -> Result<(), ExtractEr
             // Close tag: strict-LIFO pop (the matched top only).
             Some(b'/') => {
                 let (name, j) = scan_name(bytes, body, i + 2);
-                // "Generate implied end tags" before the match: a `</ul>`
-                // closes the `<li>`s left open under it. Only the
-                // optional-end elements are popped through — a strict
-                // subset of the parser's own unwinding, so the count can
-                // never fall below the real tree's depth.
-                if in_html_context(&context) && stack.last().is_none_or(|top| *top != name) {
-                    let implied = stack
-                        .iter()
-                        .rev()
-                        .take_while(|open| OPTIONAL_END_TAGS.contains(&open.as_str()))
-                        .count();
-                    let below = stack.len().saturating_sub(implied);
-                    if implied > 0 && below > 0 && stack[below - 1] == name {
-                        stack.truncate(below);
-                    }
-                }
-                if stack.last().is_some_and(|top| *top == name) {
-                    stack.pop();
-                    if is_context_marker(&name) {
-                        context.pop();
-                    }
-                }
+                pop_close_tag(&mut stack, &mut context, &name);
                 i = advance_past_gt(bytes, j);
             }
             // `<!--` comment → skip to its terminator. MUST honor the
@@ -145,62 +124,88 @@ pub(crate) fn guard_depth(body: &str, mode: ExtractMode) -> Result<(), ExtractEr
             // Open tag.
             Some(&c) if c.is_ascii_alphabetic() => {
                 let (name, j) = scan_name(bytes, body, i + 1);
-                let after_open = advance_past_gt(bytes, j);
-                if VOID_ELEMENTS.contains(&name.as_str()) {
-                    // Void elements take no close tag — they never nest.
-                    i = after_open;
-                } else if !in_html_context(&context) && is_self_closing(bytes, j, after_open) {
-                    // `<path … />` inside SVG/MathML: the parser
-                    // acknowledges the self-closing flag in foreign
-                    // content, so the element opens and closes at once.
-                    // Counting it as still-open is how a page of syntax
-                    // diagrams (thousands of `<path/>`) reads as thousands
-                    // of nesting levels and gets refused whole.
-                    i = after_open;
-                } else if in_html_context(&context) && RAWTEXT_ELEMENTS.contains(&name.as_str()) {
-                    // HTML-context RAWTEXT/RCDATA/SCRIPT_DATA/PLAINTEXT: the
-                    // body is TEXT, so an internal `</div>` never nests —
-                    // count one level transiently for the cap, then jump to
-                    // the matching close. In FOREIGN content this branch is
-                    // skipped (the gate above is false), so the same names
-                    // fall through to real counting below — that is the
-                    // SVG/MathML soundness fix.
-                    if stack.len() + 1 > MAX_HTML_DEPTH {
-                        return Err(too_deep(mode));
-                    }
-                    i = skip_to_close(bytes, name.as_bytes(), after_open);
-                } else {
-                    // An element whose end tag the author may omit is
-                    // closed by its successor — pop it before pushing, or
-                    // a list of N items reads as N levels. HTML context
-                    // only: in SVG/MathML these names are foreign elements
-                    // with no implied-end rule.
-                    if in_html_context(&context) {
-                        while stack
-                            .last()
-                            .is_some_and(|top| closes_implicitly(&name, top))
-                        {
-                            stack.pop();
-                        }
-                    }
-                    // A real nesting element: push it (and its foreign
-                    // context marker, if it carries one).
-                    let kind = context_kind(&name);
-                    stack.push(name);
-                    if stack.len() > MAX_HTML_DEPTH {
-                        return Err(too_deep(mode));
-                    }
-                    if let Some(html) = kind {
-                        context.push(html);
-                    }
-                    i = after_open;
-                }
+                i = open_tag(bytes, name, j, &mut stack, &mut context, mode)?;
             }
             // A bare `<` not starting a tag — ordinary text.
             _ => i += 1,
         }
     }
     Ok(())
+}
+
+/// A close tag against the open-element stack: "generate implied end
+/// tags" first — a `</ul>` closes the `<li>`s left open under it, and only
+/// the optional-end elements are popped through, a strict subset of the
+/// parser's own unwinding, so the count can never fall below the real
+/// tree's depth — then the strict-LIFO pop of the matched top only.
+fn pop_close_tag(stack: &mut Vec<String>, context: &mut Vec<bool>, name: &str) {
+    if in_html_context(context) && stack.last().is_none_or(|top| *top != name) {
+        let implied = stack
+            .iter()
+            .rev()
+            .take_while(|open| OPTIONAL_END_TAGS.contains(&open.as_str()))
+            .count();
+        let below = stack.len().saturating_sub(implied);
+        if implied > 0 && below > 0 && stack[below - 1] == name {
+            stack.truncate(below);
+        }
+    }
+    if stack.last().is_some_and(|top| *top == name) {
+        stack.pop();
+        if is_context_marker(name) {
+            context.pop();
+        }
+    }
+}
+
+/// An open tag: void elements never nest; a self-closed element in foreign
+/// content opens and closes at once (a page of syntax diagrams holds
+/// thousands of `<path/>` — counting them open reads as thousands of
+/// levels and refuses the page whole); an HTML-context RAWTEXT body is
+/// TEXT, so it counts one transient level and jumps to its close (in
+/// foreign content the same names fall through to real counting — the
+/// SVG/MathML soundness fix); an element whose end tag the author may omit
+/// is closed by its successor before the push (HTML context only), and a
+/// real nesting element pushes itself and its context marker. Returns the
+/// index to continue scanning from.
+fn open_tag(
+    bytes: &[u8],
+    name: String,
+    j: usize,
+    stack: &mut Vec<String>,
+    context: &mut Vec<bool>,
+    mode: ExtractMode,
+) -> Result<usize, ExtractError> {
+    let after_open = advance_past_gt(bytes, j);
+    if VOID_ELEMENTS.contains(&name.as_str()) {
+        return Ok(after_open);
+    }
+    if !in_html_context(context) && is_self_closing(bytes, j, after_open) {
+        return Ok(after_open);
+    }
+    if in_html_context(context) && RAWTEXT_ELEMENTS.contains(&name.as_str()) {
+        if stack.len() + 1 > MAX_HTML_DEPTH {
+            return Err(too_deep(mode));
+        }
+        return Ok(skip_to_close(bytes, name.as_bytes(), after_open));
+    }
+    if in_html_context(context) {
+        while stack
+            .last()
+            .is_some_and(|top| closes_implicitly(&name, top))
+        {
+            stack.pop();
+        }
+    }
+    let kind = context_kind(&name);
+    stack.push(name);
+    if stack.len() > MAX_HTML_DEPTH {
+        return Err(too_deep(mode));
+    }
+    if let Some(html) = kind {
+        context.push(html);
+    }
+    Ok(after_open)
 }
 
 /// Elements whose content html5ever does NOT parse as markup — RAWTEXT
