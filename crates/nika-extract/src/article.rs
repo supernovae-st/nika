@@ -33,8 +33,35 @@ const ARTICLE_SKIP_TAGS: &[&str] = &["script", "style", "noscript", "template"];
 const THIN_THRESHOLD: usize = 250;
 
 pub(crate) fn article(body: &str, base: Option<&str>) -> Result<serde_json::Value, ExtractError> {
-    // Stage 1 — the rule cascade (page-type aware). The precise primary.
     let page_type = crate::page_type::classify(body, base);
+    let primary = cascade(body, base, page_type);
+    if primary.as_ref().is_ok_and(|value| !is_thin(value)) {
+        return primary;
+    }
+    // Every stage starved on the served markup. A JS-rendered shell can
+    // still carry its whole page in a server-rendered `<noscript>`
+    // fallback, which the HTML parser keeps as RAW TEXT (see
+    // `html::noscript_source`) — re-run the cascade on that source, with
+    // the page type classified on the OUTER document (the URL and the
+    // head are the classification signals, and the fallback has neither).
+    // Gated on a THIN primary: a page that extracted cleanly is never
+    // overridden by its own "enable JavaScript" notice.
+    if let Some(inner) = crate::html::noscript_source(body)
+        && let Ok(rescued) = cascade(&inner, base, page_type)
+        && !is_thin(&rescued)
+    {
+        return Ok(rescued);
+    }
+    primary
+}
+
+/// The three-stage cascade over one piece of markup.
+fn cascade(
+    body: &str,
+    base: Option<&str>,
+    page_type: crate::page_type::PageType,
+) -> Result<serde_json::Value, ExtractError> {
+    // Stage 1 — the rule cascade (page-type aware). The precise primary.
     if let Some(zone_html) = crate::zones::rule_content(body, page_type)
         && let Ok(md) =
             crate::html::convert_markdown(&zone_html, ExtractMode::Article, ARTICLE_SKIP_TAGS)
@@ -253,6 +280,63 @@ mod tests {
         assert!(
             md.trim().len() < THIN_THRESHOLD,
             "this fallback is intentionally THIN"
+        );
+    }
+
+    /// The `<noscript>` rescue — a JS-rendered shell whose server-side
+    /// fallback carries the whole page. With scripting enabled (the HTML
+    /// parser's default) the `<noscript>` subtree is RAW TEXT, so all
+    /// three stages starve on the shell; the rescue re-parses that source
+    /// and returns the prose. Without it the page extracts to nothing.
+    #[test]
+    fn noscript_fallback_rescues_a_starved_shell() {
+        let prose = "the server rendered fallback carries the entire \
+             discussion thread inside a noscript block because the page \
+             itself is an empty javascript shell that renders nothing at \
+             all for a parser and every dom walking extractor starves on \
+             it unless the noscript source is parsed as the markup it is";
+        let posts = format!("<p>{prose}</p>").repeat(4);
+        let body = format!(
+            "<html><body><div id=\"main-outlet\"></div>\
+             <noscript><div id=\"content\">{posts}</div></noscript>\
+             </body></html>"
+        );
+
+        let out = article(&body, Some("https://example.com/t/thread/1"))
+            .expect("the noscript fallback carries the page");
+        let md = out.as_str().expect("rescue returns a Markdown string");
+        assert!(
+            md.contains("server rendered fallback carries"),
+            "the noscript source must be extracted, got: {md}"
+        );
+    }
+
+    /// The rescue is GATED on a starved primary: a page with a real body
+    /// AND a boilerplate `<noscript>` notice keeps its body. Pins that the
+    /// rescue can never overwrite a rich extraction.
+    #[test]
+    fn noscript_never_overrides_a_rich_primary() {
+        let prose = "this genuine article body is long enough to clear the \
+             thin floor on its own so the cascade returns it directly and \
+             the noscript notice underneath must never replace it no \
+             matter how much markup that notice happens to carry with it \
+             and the extra running words here exist only to put the body \
+             comfortably over the two hundred and fifty character floor";
+        let filler = "<p>enable javascript to view this site correctly</p>".repeat(40);
+        let body = format!(
+            "<html><body><article><p>{prose}</p></article>\
+             <noscript><div>{filler}</div></noscript></body></html>"
+        );
+
+        let out = article(&body, Some("https://example.com/")).expect("rich article extracts");
+        let md = out.as_str().expect("article returns a Markdown string");
+        assert!(
+            md.contains("genuine article body"),
+            "the rich primary must survive, got: {md}"
+        );
+        assert!(
+            !md.contains("enable javascript"),
+            "the noscript notice must not leak into a rich result, got: {md}"
         );
     }
 

@@ -456,6 +456,30 @@ fn best_srcset(srcset: Option<&str>) -> Option<String> {
     best.map(|(_, url)| url)
 }
 
+/// Below this many characters of markup, a `<noscript>` block is the
+/// standard "enable JavaScript" notice, not a page. The server-rendered
+/// fallbacks that matter (a forum thread, a product sheet) ship tens of
+/// kilobytes; the notices in the wild ship a couple of hundred bytes.
+const NOSCRIPT_MIN_SOURCE: usize = 1024;
+
+/// The largest `<noscript>` payload, as SOURCE, when it is substantial
+/// markup rather than a notice.
+///
+/// With scripting ENABLED (html5ever's default · what the page itself is
+/// told) the parser keeps a `<noscript>` subtree as RAW TEXT: a
+/// server-rendered no-JS fallback is therefore invisible to every
+/// DOM-walking extractor, however good. Handing that source back lets a
+/// caller re-parse it as the markup it is. Returns `None` when no block
+/// clears the floor or none looks like markup.
+pub(crate) fn noscript_source(body: &str) -> Option<String> {
+    let doc = Html::parse_document(body);
+    let selector = Selector::parse("noscript").ok()?;
+    doc.select(&selector)
+        .map(|el| el.text().collect::<String>())
+        .filter(|raw| raw.len() >= NOSCRIPT_MIN_SOURCE && raw.contains('<'))
+        .max_by_key(String::len)
+}
+
 /// `mode: text` — tags stripped, text preserved with block-level line
 /// breaks. Iterative tree walk (parser-hostile depth must never become
 /// stack depth); script/style subtrees skipped via a depth counter.
