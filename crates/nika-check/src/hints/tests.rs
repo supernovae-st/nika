@@ -1287,3 +1287,117 @@ fn the_shells_own_sigils_and_prose_braces_stay_silent() {
         "argv `$HOME` is the shell's business and `{{ not a ref }}` is prose: {hints:#?}"
     );
 }
+
+#[test]
+fn a_literal_documentation_host_is_named_before_the_run_dials_it() {
+    // Wave 3 · persona 04: `check` passed a literal `example.com` fetch the
+    // transport refuses categorically (RFC 2606/6761), and `--infer-permits`
+    // recommended the grant. The hint names the host and the code the run
+    // would fail on, so the reader learns it from the file, not from the run.
+    let hints = hints_of(
+        "nika: w\npermits:\n  tools: [\"nika:fetch\"]\n  net: { http: [\"example.com\"] }\ntasks:\n  page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/x\", mode: text }\n",
+    );
+    let hit = hints
+        .iter()
+        .find(|h| h.kind == "documentation-host")
+        .expect("a documentation host is named before the run dials it");
+    assert_eq!(hit.task, "page");
+    for lesson in ["`example.com`", "NIKA-BUILTIN-FETCH-001", "on_error"] {
+        assert!(
+            hit.advice.contains(lesson),
+            "the hint teaches `{lesson}`: {}",
+            hit.advice
+        );
+    }
+    assert!(
+        !hit.advice.contains("mock/echo"),
+        "the model seat never governs the builtin plane, so no rehearsal clause: {}",
+        hit.advice
+    );
+
+    // The author who already owns the failure hears nothing (05-fetch-chain
+    // recovers a documentation host by design).
+    let owned = hints_of(
+        "nika: w\npermits:\n  tools: [\"nika:fetch\"]\n  net: { http: [\"example.com\"] }\ntasks:\n  page:\n    on_error: { recover: \"[]\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/x\", mode: text }\n",
+    );
+    assert!(
+        !owned.iter().any(|h| h.kind == "documentation-host"),
+        "an owned failure is not previewed: {owned:?}"
+    );
+
+    // `nika:notify` shares the net effect and fails with its own code.
+    let notify = hints_of(
+        "nika: w\npermits:\n  tools: [\"nika:notify\"]\n  net: { http: [\"hooks.example.com\"] }\ntasks:\n  ping:\n    invoke:\n      tool: \"nika:notify\"\n      args: { channel: webhook, target: \"https://hooks.example.com/x\", message: \"hi\" }\n",
+    );
+    let hook = notify
+        .iter()
+        .find(|h| h.kind == "documentation-host")
+        .expect("a webhook to a documentation host is named");
+    assert!(hook.advice.contains("notifies"), "{}", hook.advice);
+    assert!(
+        hook.advice.contains("NIKA-BUILTIN-NOTIFY-002"),
+        "{}",
+        hook.advice
+    );
+
+    // A real host is the run's business, not the check's.
+    let real = hints_of(
+        "nika: w\npermits:\n  tools: [\"nika:fetch\"]\n  net: { http: [\"api.acme-widgets.com\"] }\ntasks:\n  page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.acme-widgets.com/x\", mode: text }\n",
+    );
+    assert!(
+        !real.iter().any(|h| h.kind == "documentation-host"),
+        "a real host says nothing: {real:?}"
+    );
+}
+
+fn check_of(yaml: &str) -> crate::CheckReport {
+    crate::check(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+}
+
+/// Wave 3 · persona 07: the headless-prompt hint recommended `default:
+/// false`, the author obeyed, and SEC-009 refused the file without ever
+/// naming `default:`. The gate the trifecta judge credits now carries
+/// the one sentence that keeps the two judges agreeing; a prompt the
+/// judge does not credit keeps the ordinary hint.
+#[test]
+fn a_credited_gate_rewrites_its_own_headless_hint() {
+    let gated = check_of(
+        "nika: t\npermits:\n  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }\n  net: { http: [\"api.acme-widgets.com\"] }\n  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\" }\n  fetch_page:\n    after: { ask: success }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.acme-widgets.com/data\" }\n  leak:\n    after: { fetch_page: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }\n",
+    );
+    assert!(
+        gated.trifecta_findings.is_empty(),
+        "the gate dominates the sink: {:?}",
+        gated.trifecta_findings
+    );
+    let credited = gated
+        .hints
+        .iter()
+        .find(|h| h.kind == "headless-prompt" && h.task == "ask")
+        .map(|h| h.advice.clone())
+        .unwrap_or_default();
+    for lesson in [
+        "declares no `default:` — and must not",
+        "--answer ask=<value>",
+        "exit 4",
+    ] {
+        assert!(
+            credited.contains(lesson),
+            "the credited gate's hint teaches `{lesson}`: {credited}"
+        );
+    }
+
+    // The same prompt with nothing to guard keeps the ordinary hint.
+    let plain = check_of(
+        "nika: t\npermits:\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\" }\n",
+    );
+    let ordinary = plain
+        .hints
+        .iter()
+        .find(|h| h.kind == "headless-prompt" && h.task == "ask")
+        .map(|h| h.advice.clone())
+        .unwrap_or_default();
+    assert!(
+        ordinary.contains("`default:`") && !ordinary.contains("must not"),
+        "an uncredited prompt keeps the ordinary teaching: {ordinary}"
+    );
+}

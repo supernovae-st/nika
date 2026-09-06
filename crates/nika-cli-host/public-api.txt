@@ -1818,6 +1818,7 @@ pub mod nika_cli_host::models_rung
 pub fn nika_cli_host::models_rung::access_decisions(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<(alloc::string::String, core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>)>
 pub fn nika_cli_host::models_rung::boot_access_fields(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<(&'static str, nika_types::resource::Value)>
 pub fn nika_cli_host::models_rung::capacity_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_display::check_models::ModelFinding>
+pub fn nika_cli_host::models_rung::chosen_over(candidates: usize, outranked: &[nika_types::access::AccessRejection]) -> alloc::string::String
 pub fn nika_cli_host::models_rung::pricing_section(report: &nika_check::CheckReport, model_findings: &[nika_display::check_models::ModelFinding]) -> serde_json::value::Value
 pub fn nika_cli_host::models_rung::thinking_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_display::check_models::ModelFinding>
 pub fn nika_cli_host::models_rung::unresolvable_models(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_display::check_models::ModelsAudit

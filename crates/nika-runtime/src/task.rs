@@ -209,12 +209,37 @@ pub(crate) struct RanTask {
     /// determinism contract is "deterministic seams in · deterministic
     /// stream out", and the clock is a seam).
     pub duration_ms: u64,
-    /// A `for_each` fan-out's per-item terminals (#1276 · #1397): one
-    /// compact JSON array text · index · item · status · code · message ·
-    /// rides the terminal frame as `items`. `None` for every other lane.
-    pub items: Option<String>,
+    /// A `for_each` fan-out's per-item terminals (#1276 · #1397) plus
+    /// how many of them were repairs. `None` for every other lane.
+    pub items: Option<FanItems>,
     /// The terminal result after `retry:` + `on_error:`.
     pub result: RunResult,
+}
+
+/// A fan-out's item table and its repair count, carried TOGETHER so the
+/// two never disagree: the table rides the terminal frame as `items`
+/// (what a human reads), the count rides the task record (what the
+/// settlement tally sums). Deriving the second from the first a second
+/// time is exactly the drift this pairs away — the banner counted ROWS
+/// while the task line counted ITEMS (wave 3 · persona 10 · 2026-09-06).
+pub(crate) struct FanItems {
+    /// One compact JSON array text · index · item · status · code ·
+    /// message (spec 17 §`items`).
+    pub json: String,
+    /// How many items settled `recovered` — an `on_error` repair per
+    /// item, never a row count.
+    pub recovered: u32,
+}
+
+impl FanItems {
+    /// The table and its repair count, the saturating conversion done
+    /// once at the ONE site that knows both.
+    pub(crate) fn new(json: String, recovered: usize) -> Self {
+        Self {
+            json,
+            recovered: u32::try_from(recovered).unwrap_or(u32::MAX),
+        }
+    }
 }
 
 impl RanTask {
@@ -698,7 +723,7 @@ where
             decisions: acc.decisions,
             evidence: None,
             duration_ms: 0,
-            items: Some(item_terminals),
+            items: Some(FanItems::new(item_terminals, acc.recovered)),
             result,
         };
         let finally_scope =

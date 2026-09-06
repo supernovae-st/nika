@@ -163,9 +163,9 @@ fn render_outputs(view: &RunView, trace: &str, theme: Theme) -> String {
         } else {
             preview_cell(row, theme)
         };
-        // #1444 · the lineage the JSON already carried, said in prose.
+        // F-O1 · the born origin of an untrusted value, said in prose.
         if let Some(source) = row.integrity_source.as_deref() {
-            let _ = write!(preview, " · input from recovered {source}");
+            let _ = write!(preview, " · untrusted input from {source}");
         }
         let _ = writeln!(
             out,
@@ -606,9 +606,9 @@ fn render_peek(row: &TaskRow, text: &str, recovered_from: Option<&str>, theme: T
             let _ = write!(meta, " from {code}");
         }
     }
-    // #1444 · a value that came from a recovered fallback upstream.
+    // F-O1 · the born origin of an untrusted value.
     if let Some(source) = row.integrity_source.as_deref() {
-        let _ = write!(meta, " · input from recovered {source}");
+        let _ = write!(meta, " · untrusted input from {source}");
     }
     let _ = writeln!(out, "  {}", theme.paint(Role::Dim, &meta));
     if let (Some(def), Some(input)) = (row.def_hash.as_deref(), row.input_hash.as_deref()) {
@@ -1420,12 +1420,12 @@ mod tests {
             .find(|l| l.trim_start().starts_with("c "))
             .expect("c's row");
         assert!(
-            c_row.contains("input from recovered b"),
+            c_row.contains("untrusted input from b"),
             "outputs names the lineage: {c_row}"
         );
         let peeked = peek(&path.to_string_lossy(), "c", false, plain());
         assert!(
-            peeked.text.contains("input from recovered b"),
+            peeked.text.contains("untrusted input from b"),
             "peek names the lineage: {}",
             peeked.text
         );

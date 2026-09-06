@@ -372,7 +372,7 @@ pub(crate) fn settle_ran(
     // F-P6 · the settling dispatch's binding evidence (lifted before
     // `run.result` moves — EVERY terminal shape can carry it).
     let evidence = run.evidence;
-    // #1276 · #1397 · a fan-out's per-item table rides its terminal frame.
+    // #1276 · #1397 · the item table rides the frame, its repair count the record.
     let items = run.items;
     let mut record = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
     record.started_at = Some(started_at);
@@ -400,7 +400,7 @@ pub(crate) fn settle_ran(
             (cost_usd, cost_unpriced, model, access),
             attempts,
             resume,
-            (evidence.as_ref(), items.as_deref()),
+            (evidence.as_ref(), items.as_ref()),
             &mut record,
             stamper,
             sink,
@@ -430,7 +430,7 @@ pub(crate) fn settle_ran(
             error,
             (cost_usd, cost_unpriced, access.as_deref()),
             attempts,
-            (evidence.as_ref(), items.as_deref()),
+            (evidence.as_ref(), items.as_ref()),
             &mut record,
             ok,
             stamper,
@@ -550,7 +550,7 @@ fn settle_success_terminal(
     resume: Option<&resume::ResumeStamp>,
     (evidence, items): (
         Option<&crate::dispatch::commit::CommitEvidence>,
-        Option<&str>,
+        Option<&task::FanItems>,
     ),
     record: &mut TaskRecord,
     stamper: &mut dyn Stamper,
@@ -563,6 +563,14 @@ fn settle_success_terminal(
         TerminalCause::Recovered
     } else {
         TerminalCause::Normal
+    };
+    // How many REPAIRS this ONE record stands for: a fan-out repaired as
+    // many items as its table records, a plain task exactly one. The
+    // settlement tally sums THIS — never the rows (#1498 review B1).
+    record.recovered_items = match (&recovered_from, items) {
+        (Some(_), Some(fan)) => fan.recovered,
+        (Some(_), None) => 1,
+        (None, _) => 0,
     };
     record.attempts = Some(attempts);
     if record.error.is_none() {
@@ -581,7 +589,7 @@ fn settle_success_terminal(
         warning.as_deref(),
         child,
         resume,
-        (evidence, items),
+        (evidence, items.map(|fan| fan.json.as_str())),
         record,
         stamper,
         sink,
@@ -605,7 +613,7 @@ fn settle_failed_terminal(
     attempts: u32,
     (evidence, items): (
         Option<&crate::dispatch::commit::CommitEvidence>,
-        Option<&str>,
+        Option<&task::FanItems>,
     ),
     record: &mut TaskRecord,
     ok: &mut bool,
@@ -634,8 +642,8 @@ fn settle_failed_terminal(
     // a post-gate verb failure attests the fired ≡ judged digests.
     push_commit_fields(&mut fields, evidence);
     // #1276 · #1397 · a hard-failed fan-out names every item's terminal.
-    if let Some(items) = items {
-        fields.push(("items", s(items)));
+    if let Some(fan) = items {
+        fields.push(("items", s(&fan.json)));
     }
     fields.push(("outcome", s(&record::outcome_json(record))));
     emit_task::push_integrity_fields(&mut fields, record);

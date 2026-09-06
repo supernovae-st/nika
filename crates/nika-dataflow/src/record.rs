@@ -233,6 +233,17 @@ pub struct TaskRecord {
     /// The ORIGINAL error an `on_error: recover` repaired — present iff
     /// `cause == Recovered` (spec 13 §payload · `recovered_from`).
     pub recovered_from: Option<TaskErrorRecord>,
+    /// How many REPAIRS this record stands for: `1` for a plain
+    /// recovered task, the number of recovered ITEMS for a `for_each`
+    /// fan-out (one row can repair many items), `0` when the record is
+    /// not a recovery. ADDITIVE and internal to the count: it is NOT a
+    /// `tasks.<id>` field (the closed set in [`Self::field`] is
+    /// unchanged) and it is NOT in the outcome payload — its ONE reader
+    /// is the run settlement's tally, so `tasks_recovered` on the wire
+    /// says the same number the human card prints (a fan-out that
+    /// repaired two of twelve items said `1` while its own task line
+    /// said `2` · wave 3 · persona 10 · 2026-09-06).
+    pub recovered_items: u32,
     /// The `TaskStarted` stamp (None when the task never ran).
     pub started_at: Option<Timestamp>,
     /// The terminal-event stamp (None when the task never ran).
@@ -270,6 +281,7 @@ impl TaskRecord {
             error: None,
             attempts: None,
             recovered_from: None,
+            recovered_items: 0,
             started_at: None,
             ended_at: None,
             duration_ms: None,

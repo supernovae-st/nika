@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta
+      name="description"
+      content="Nika: one intent, one inspectable plan, a concrete result. A continuous GSAP product film."
+    />
+    <title>Nika: From intent to impact</title>
+    <link rel="icon" href="/assets/nika-logomark.svg" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/contract-styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="player" aria-label="Nika product motion">
+        <div class="viewport" id="viewport">
+          <div class="stage" id="stage">
+            <div class="ambient-grid" aria-hidden="true"></div>
+            <div class="ambient-light light-a" aria-hidden="true"></div>
+            <div class="ambient-light light-b" aria-hidden="true"></div>
+
+            <header class="brand-corner">
+              <img src="/assets/nika-logomark.svg" alt="" />
+              <span>NIKA</span>
+            </header>
+
+            <div class="chapter-rail" aria-hidden="true">
+              <span class="rail-step is-active">Intent</span>
+              <i></i>
+              <span class="rail-step">Check</span>
+              <i></i>
+              <span class="rail-step">Run</span>
+              <i></i>
+              <span class="rail-step">Result</span>
+            </div>
+
+            <div class="guide-mark" id="guide-mark" aria-hidden="true">
+              <span class="guide-halo"></span>
+              <img src="/assets/nika-logomark.svg" alt="" />
+            </div>
+
+            <section class="scene scene-intents" data-scene="intents" aria-label="Intent">
+              <p class="eyebrow intro-eyebrow">START WITH THE OUTCOME</p>
+              <h1 class="intro-title">What should happen?</h1>
+
+              <article class="intent-card intent-secondary intent-deploy">
+                <div class="mini-icons" aria-hidden="true">
+                  <span><img class="icon-mono" src="/assets/github.svg" alt="" /></span><span>CI</span><span>↗</span>
+                </div>
+                <p>Ship the API when every check passes.</p>
+                <small><b>exec</b><b>invoke</b></small>
+              </article>
+
+              <article class="intent-card intent-hero">
+                <div class="intent-context">
+                  <div class="people-stack" aria-label="Customer, engineer and approver">
+                    <img src="/assets/avatar-support.png" alt="Customer" />
+                    <img src="/assets/avatar-engineer.png" alt="Engineer" />
+                    <img src="/assets/avatar-approver.png" alt="Approver" />
+                  </div>
+                  <span>customer · product team · you</span>
+                  <b>human in the loop</b>
+                </div>
+                <div class="intent-transform-fx" aria-hidden="true">
+                  <span class="intent-glass-scan"></span>
+                  <span class="intent-dither-trail"></span>
+                </div>
+                <svg class="intent-relations" aria-hidden="true">
+                  <defs>
+                    <marker id="relation-end" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto">
+                      <circle cx="4" cy="4" r="1.8" fill="context-stroke" />
+                    </marker>
+                  </defs>
+                  <path pathLength="1" class="intent-relation relation-mcp relation-blue" data-from=".word-app" data-to=".source-github"></path>
+                  <path pathLength="1" class="intent-relation relation-mcp relation-blue" data-from=".word-notify" data-to=".source-notify"></path>
+                  <path pathLength="1" class="intent-relation relation-mcp relation-blue" data-from=".word-notify" data-to=".source-slack"></path>
+                  <path pathLength="1" class="intent-relation relation-mcp relation-violet" data-from=".word-update" data-to=".source-linear"></path>
+                  <path pathLength="1" class="intent-relation relation-builtin relation-green" data-from=".word-gather" data-to=".native-validate"></path>
+                  <path pathLength="1" class="intent-relation relation-builtin relation-amber" data-from=".word-ask" data-to=".native-prompt"></path>
+                  <path pathLength="1" class="intent-relation relation-verb relation-blue" data-from=".source-icons" data-to=".verb-invoke" data-route="capability"></path>
+                  <path pathLength="1" class="intent-relation relation-verb relation-violet" data-from=".word-signal" data-to=".verb-infer" data-route="verb"></path>
+                  </svg>
+                <div class="intent-input">
+                  <span class="prompt-mark">›</span>
+                  <span class="intent-rich">
+                    <span class="word word-quiet">Help more</span>
+                    <span class="word word-human">customers</span>
+                    <span class="word word-quiet">finish</span>
+                    <span class="word word-signal">checkout.</span>
+                    <span class="word word-quiet">Read our</span>
+                    <span class="word word-action word-gather word-with-icon"><img class="intent-word-icon" src="/assets/file-context.svg" alt="" /><span>feedback,</span></span>
+                    <span class="word word-action">sales CSV</span>
+                    <span class="word word-quiet">and product notes.</span>
+                    <span class="word word-quiet">Compare</span>
+                    <span class="word word-context word-with-icon"><img class="intent-word-icon" src="/assets/web.svg" alt="" /><span>3 competitors,</span></span>
+                    <span class="word word-action">draft an improvement,</span>
+                    <span class="word word-quiet">then</span>
+                    <span class="word word-guard word-ask word-with-icon"><img class="intent-word-icon intent-word-hand" src="/assets/hand.svg" alt="" /><span>ask me</span></span>
+                    <span class="word word-quiet">before</span>
+                    <span class="word word-guard word-change">you publish</span>
+                    <span class="word word-quiet">to</span>
+                    <span class="word word-app"><img class="inline-app-icon icon-mono" src="/assets/github.svg" alt="" /><span>GitHub,</span></span>
+                    <span class="word word-action word-with-icon word-update"><img class="intent-word-icon icon-mono" src="/assets/linear.svg" alt="" /><span>update Linear</span></span>
+                    <span class="word word-quiet">and</span>
+                    <span class="word word-action word-notify word-with-icon"><img class="intent-word-icon icon-telegram" src="/assets/telegram.svg" alt="" /><img class="intent-word-icon" src="/assets/slack.svg" alt="" /><span>notify</span></span>
+                    <span class="word word-human">the team.</span>
+                  </span>
+                </div>
+                <div class="intent-meta">
+                  <div class="resolved-tools">
+                    <div class="tool-family mcp-family" aria-label="Resolved MCP tools">
+                      <span class="tool-family-label">MCP TOOLS</span>
+                      <div class="source-icons">
+                        <span class="source app-source source-github"><img class="icon-mono" src="/assets/github.svg" alt="GitHub" /><b data-scramble="GitHub">GitHub</b><small>issue</small></span>
+                        <span class="source app-source source-notify"><img class="icon-telegram" src="/assets/telegram.svg" alt="Telegram" /><b data-scramble="Telegram">Telegram</b><small>notify</small></span>
+                        <span class="source app-source source-context source-slack"><img src="/assets/slack.svg" alt="Slack" /><b data-scramble="Slack">Slack</b><small>notify</small></span>
+                        <span class="source app-source source-context source-linear"><img class="icon-mono" src="/assets/linear.svg" alt="Linear" /><b data-scramble="Linear">Linear</b><small>context</small></span>
+                      </div>
+                    </div>
+                    <div class="tool-divider"></div>
+                    <div class="tool-family builtin-family" aria-label="Resolved Nika builtins">
+                      <span class="tool-family-label">NIKA BUILTINS</span>
+                      <div class="native-tools">
+                        <span class="native-tool native-validate"><i>{ }</i><b data-scramble="convert">convert</b></span>
+                        <span class="native-tool native-prompt"><i>?</i><b data-scramble="prompt">prompt</b></span>
+                        <span class="native-tool native-hash"><i>↗</i><b data-scramble="fetch">fetch</b></span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="verb-row">
+                    <span class="tool-family-label">4 VERBS · USE WHAT YOU NEED</span>
+                    <div class="verb-pills" aria-label="The four Nika verbs">
+                      <span class="verb-pill verb-invoke">
+                        <svg class="verb-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 21 12 12 21 3 12Z" fill="currentColor" /></svg>
+                        <b data-scramble="invoke">invoke</b><small>tools</small>
+                      </span>
+                      <span class="verb-pill verb-infer">
+                        <svg class="verb-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 21 12 12 21 3 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+                        <b data-scramble="infer">infer</b><small>AI</small>
+                      </span>
+                      <span class="verb-pill verb-exec">
+                        <svg class="verb-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 4 13 8-13 8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+                        <b data-scramble="exec">exec</b><small>process</small>
+                      </span>
+                      <span class="verb-pill verb-agent">
+                        <svg class="verb-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c.7 5.9 4.1 9.3 10 10-5.9.7-9.3 4.1-10 10-.7-5.9-4.1-9.3-10-10 5.9-.7 9.3-4.1 10-10Z" fill="currentColor" /></svg>
+                        <b data-scramble="agent">agent</b><small>bounded loop</small>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="contract-source-layout" aria-label="Captured source intent">
+                  <header>
+                    <span class="source-intent-mark"><img src="/assets/nika-logomark.svg" alt="" /></span>
+                    <div>
+                      <small>SOURCE INTENT</small>
+                      <strong>Meaning kept in view</strong>
+                    </div>
+                    <b>captured</b>
+                  </header>
+                  <div class="contract-intent-body">
+                    <p>
+                      Help more <span class="source-human">customers</span> finish checkout.
+                      Read our <span class="source-action">feedback, CSV</span> and product notes.
+                      Compare <span class="source-context"><img src="/assets/web.svg" alt="" />3 competitors</span>, draft an improvement, then
+                      <span class="source-guard"><img src="/assets/hand.svg" alt="" />ask me</span> before publishing to
+                      <span class="source-app"><img class="icon-mono" src="/assets/github.svg" alt="" />GitHub</span>, updating Linear and
+                      <span class="source-action"><img class="icon-telegram" src="/assets/telegram.svg" alt="" /><img src="/assets/slack.svg" alt="" />notifying</span> the team.
+                    </p>
+                    <div class="source-transfer-grid" aria-label="Meaning resolved into contract fields">
+                      <span class="source-fragment source-fragment-intent"><i></i><small>intent</small><b>better checkout</b></span>
+                      <span class="source-fragment source-fragment-permits"><small>permits · tools + files</small><b><img class="icon-mono" src="/assets/linear.svg" alt="Linear" /><img src="/assets/slack.svg" alt="Slack" /><img class="icon-mono" src="/assets/github.svg" alt="GitHub" /><img class="icon-telegram" src="/assets/telegram.svg" alt="Telegram" /></b></span>
+                      <span class="source-fragment source-fragment-tasks"><small>tasks · bounded parallelism</small><b><i class="mini-invoke">invoke</i><i class="mini-infer">infer</i><i>for_each</i></b></span>
+                      <span class="source-fragment source-fragment-output"><i></i><small>output</small><b>brief + issue + updates</b></span>
+                    </div>
+                  </div>
+                  <footer>
+                    <span>Human intent stays visible</span>
+                    <b><img src="/assets/hand.svg" alt="" /> approval required</b>
+                  </footer>
+                </div>
+              </article>
+
+              <div class="intent-capture-status" aria-hidden="true">
+                <i></i>
+                <span class="capture-label">INTENT CAPTURED</span>
+                <b class="capture-detail">structuring meaning</b>
+              </div>
+
+              <article class="intent-card intent-secondary intent-release">
+                <div class="mini-icons" aria-hidden="true">
+                  <span><img class="icon-telegram" src="/assets/telegram.svg" alt="" /></span><span><img src="/assets/slack.svg" alt="" /></span><span>AI</span>
+                </div>
+                <p>Turn urgent reports into owned incidents.</p>
+                <small><b>infer</b><b>exec</b></small>
+              </article>
+
+            </section>
+
+            <section class="scene scene-contract" data-scene="contract" aria-label="Contract">
+              <div class="contract-copy">
+                <p class="eyebrow">NIKA MAKES IT EXPLICIT</p>
+                <h2>The contract<br /><em>is the plan.</em></h2>
+                <p class="scene-caption">Readable. Reviewable. Committable.</p>
+              </div>
+
+              <div class="compile-axis" aria-hidden="true">
+                <span class="compile-link"></span>
+                <div class="compile-core">
+                  <img src="/assets/nika-logomark.svg" alt="" />
+                  <span class="compile-editor-lines"><i></i><i></i><i></i></span>
+                  <b class="compile-caret"></b>
+                </div>
+                <span class="compile-link"></span>
+              </div>
+
+              <div class="flight-token flight-intent"><i></i>better checkout</div>
+              <div class="flight-token flight-permits"><img class="icon-mono" src="/assets/linear.svg" alt="" />
+                <img src="/assets/slack.svg" alt="" />
+                <img class="icon-mono" src="/assets/github.svg" alt="" />
+                <img class="icon-telegram" src="/assets/telegram.svg" alt="" />
+              </div>
+              <div class="flight-token flight-tasks"><span class="mini-verb mini-invoke">invoke</span><span class="mini-verb mini-infer">infer</span><span>for_each</span></div>
+              <div class="flight-token flight-output"><i></i>brief + issue + updates</div>
+
+              <article class="yaml-window">
+                <header>
+                  <span class="file-dot"></span>
+                  <strong>checkout.nika.yaml</strong>
+                  <span class="valid-pill">authored</span>
+                </header>
+                <div class="yaml-code" aria-label="Nika YAML contract">
+                  <div class="code-line yaml-intent"><span>nika:</span><b> improve-checkout</b></div>
+                  <div class="code-line yaml-permits"><span>permits:</span><b> tools + files + 3 hosts</b></div>
+                  <div class="code-line yaml-tasks"><span>tasks:</span><b><i class="code-invoke"> invoke</i><i class="code-infer"> infer</i> · for_each</b></div>
+                  <div class="code-line yaml-output"><span>outputs:</span><b> brief + issue + updates</b></div>
+                </div>
+                <div class="contract-seal">
+                  <img src="/assets/nika-logomark.svg" alt="" />
+                  <span>ready to inspect</span>
+                </div>
+              </article>
+            </section>
+
+            <section class="scene scene-end" data-scene="end" aria-label="Nika">
+              <div class="end-lockup">
+                <div class="end-mark"><img src="/assets/nika-logomark.svg" alt="Nika" /></div>
+                <h2>Nika</h2>
+                <p>Your intent. <span>→</span> Your plan. <span>→</span> Your result.</p>
+                <small>Readable workflows. Controlled actions. Inspectable runs.</small>
+              </div>
+            </section>
+
+            <div class="film-grain" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="controls" aria-label="Playback controls">
+          <button class="play-button" id="play-button" type="button" aria-label="Pause animation">
+            <span class="pause-icon">Ⅱ</span><span class="play-icon">▶</span>
+          </button>
+          <button class="replay-button" id="replay-button" type="button">Replay</button>
+          <input id="scrubber" type="range" min="0" max="1000" value="0" aria-label="Animation timeline" />
+          <output id="timecode">00:00 / 01:36</output>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/motion.js"></script>
+  </body>
+</html>

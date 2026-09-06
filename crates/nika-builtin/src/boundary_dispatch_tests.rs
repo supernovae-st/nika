@@ -452,3 +452,38 @@ async fn glob_descends_for_a_deep_pattern_and_honours_exclude() {
     assert!(warning.contains("1 directory also matched"), "{warning}");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[tokio::test]
+async fn write_to_an_existing_directory_is_taught_not_os_error_21() {
+    // The measured half that reached the seam (Harness-Bench 005 ·
+    // 0.118.7): the name exists AND is a directory. Through the REAL
+    // dispatcher on a real tree, under a declared write permit — the
+    // verdict teaches the file-inside form instead of the kernel's
+    // `Is a directory (os error 21)`, and the directory is untouched.
+    let root = scratch();
+    let boundary = FsBoundary::declared(vec![], vec![format!("{}/allowed/**", root.display())]);
+    let dispatcher = dispatcher_with(boundary);
+    let target = root.join("allowed/replies");
+    std::fs::create_dir(&target).unwrap();
+    let result = dispatcher
+        .execute(ToolCall::new(
+            "t",
+            "nika:write",
+            serde_json::json!({ "path": target.to_string_lossy(), "content": "x" }),
+        ))
+        .await
+        .expect("dispatches");
+    assert!(
+        result.is_error && result.content.starts_with("NIKA-BUILTIN-WRITE-001"),
+        "a directory target refuses: {}",
+        result.content
+    );
+    assert!(
+        result.content.contains("names a directory")
+            && result.content.contains("create_dirs: true"),
+        "the teach reaches the model: {}",
+        result.content
+    );
+    assert!(target.is_dir(), "the directory is untouched");
+    let _ = std::fs::remove_dir_all(&root);
+}

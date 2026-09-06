@@ -627,11 +627,49 @@ fn scan_task_fields(lines: &[&str], start: usize, end: usize) -> TaskFieldScan {
     }
 }
 
+/// The alphabet a W2 splice can write into `after:` — a bare task id
+/// (`[a-z0-9_]+`). THE shape predicate: `nika-schema`'s parser mirrors it
+/// (`is_bare_task_id`, `parser/tasks.rs`) to decide what the PARSE-024
+/// finding may promise, so the finding and this scanner agree on every
+/// shape the agreement test pins (`nika-cli-host` `fix_ladder`). Shapes
+/// outside that table are known gaps, not promises: a multi-line flow list
+/// and a block list at the key's own indent are read here as malformed or
+/// dropped while the parser sees a sequence (re-review 2026-09-06).
+fn is_bare_task_id(entry: &str) -> bool {
+    !entry.is_empty()
+        && entry
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// One raw entry as the PARSER sees it — YAML dequotes a scalar, so the
+/// line scanner strips a matching quote pair before it judges the
+/// alphabet. `["a"]` IS `[a]` to everything that parses; the two
+/// disagreed until 2026-09-06 (the finding promised `--fix` on the quoted
+/// form · this scanner called it malformed · the author read both on one
+/// screen). An unbalanced quote survives verbatim and fails the check.
+fn dequote(entry: &str) -> &str {
+    let mut chars = entry.chars();
+    match (chars.next(), chars.next_back()) {
+        (Some(open), Some(close)) if open == close && (open == '"' || open == '\'') => {
+            chars.as_str()
+        }
+        _ => entry,
+    }
+}
+
 /// Parse one `depends_on:` line (inline flow list · block list below) into
 /// the task's `DepsBlock`.
 fn scan_deps_entries(lines: &[&str], i: usize, end: usize, rest: &str, block: &mut DepsBlock) {
     block.lines.push(i);
     let rest = rest.trim();
+    // a trailing `# …` belongs to no entry (the parser never sees it) —
+    // reading it as one made `[a] # note` malformed while the finding
+    // promised the repair. The block form already strips its comments.
+    let rest = match rest.find(" #") {
+        Some(cut) if rest.starts_with('[') => rest[..cut].trim_end(),
+        _ => rest,
+    };
     if let Some(inner) = rest.strip_prefix('[') {
         let Some(inner) = inner.strip_suffix(']') else {
             block.malformed = true;
@@ -640,11 +678,10 @@ fn scan_deps_entries(lines: &[&str], i: usize, end: usize, rest: &str, block: &m
         for d in inner.split(',') {
             let d = d.trim();
             if d.is_empty() {
-                continue;
+                continue; // `[]` declares no edge — the dead line just drops
             }
-            if d.chars()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
-            {
+            let d = dequote(d);
+            if is_bare_task_id(d) {
                 block.deps.push(d.to_owned());
             } else {
                 block.malformed = true;
@@ -661,11 +698,8 @@ fn scan_deps_entries(lines: &[&str], i: usize, end: usize, rest: &str, block: &m
             }
             let d = jl.trim_start_matches('-').trim();
             let d = d.split('#').next().unwrap_or("").trim();
-            if !d.is_empty()
-                && d.chars()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
-            {
-                block.deps.push(d.to_owned());
+            if is_bare_task_id(dequote(d)) {
+                block.deps.push(dequote(d).to_owned());
             } else {
                 block.malformed = true;
             }
