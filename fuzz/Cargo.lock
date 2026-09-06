@@ -2302,6 +2302,7 @@ dependencies = [
  "bytes",
  "csv",
  "encoding_rs",
+ "globset",
  "jaq-core",
  "jaq-json",
  "jaq-std",
