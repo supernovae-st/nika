@@ -69,7 +69,9 @@ set -e
 # Measured 2026-07-27: a whole run at 0.4s of cargo CPU was healthy, and
 # every test binary was stalled pre-main in _dyld_start waiting on
 # Gatekeeper to scan it. That is a machine setting, not a bug in here.
-cargo test --workspace --lib --quiet </dev/null
+# Share the runner's nextest isolation and serial fallback. Pre-push is the
+# local lane even when its caller exports CI: keep its absolute --lib scope.
+CI='' bash scripts/ci/check-tests.sh </dev/null
 # `--lib` is a house absolute (a `--test` run pops the macOS Keychain), so
 # this leg CANNOT see the integration tier. It is a real platform limit,
 # not a bug — but a gate that stays silent about what it did not look at

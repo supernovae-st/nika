@@ -1,6 +1,8 @@
 use super::*;
 use nika_cli_host::models_rung::pricing_section;
 
+mod project_context;
+
 /// `run_many`: every file audits even after an earlier failure (the
 /// broken file sits in the MIDDLE), each report keeps its own header,
 /// and the worst spec-§4 exit survives.

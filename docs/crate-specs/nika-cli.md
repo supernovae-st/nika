@@ -33,7 +33,7 @@ without a temporary file or a world-less compatibility path.
 | Verb | Does | Exit codes |
 |---|---|---|
 | `nika run <file>` | execute a workflow · live render (§3) | 0 ok · 1 workflow failed · 2 file findings · 3 env · 4 paused (ADR-099) |
-| `nika check <file>` | the ADR-092 static ladder (schema→DAG→CEL→effects→permits→cost) | 0 clean · 2 findings |
+| `nika check <file>` | the ADR-092 static ladder (schema→DAG→CEL→effects→permits→cost) | 0 clean · 2 file findings · 3 invalid ambient project |
 | `nika init` | scaffold a repo (.vscode schema wiring · AGENTS.md templates) · bare on a terminal it then OFFERS the guided first workflow (`--yes`/pipe/CI = the classic non-interactive shape byte-for-byte · prompts never appear off-terminal) | 0 · 3 env |
 | `nika inspect <file>` | static anatomy: tasks · verbs · DAG (ASCII §6) · permits · cost interval | 0 · 2 |
 | `nika inspect <file> --format json\|mermaid\|dot\|ascii` | the ONE graph projector (§6) | 0 · 2 |
@@ -44,6 +44,13 @@ without a temporary file or a world-less compatibility path.
 | `nika spec` (`--schema` prints the JSON Schema) / `nika try [slug]` | the embedded self-contained surface — bare = the showroom list · a slug runs it offline by default (`--model` opts into a real seat · V5) | 0 |
 | `nika lsp` | the in-binary language server (stdio) | — |
 | `nika mcp` | the in-binary MCP server | — |
+
+A workflow check resolves its ambient project once. An invalid nearest
+project is an ENV refusal, including JSON, scaffold and snapshot-export
+routes; it cannot become a clean verdict or inherit an ancestor ceiling.
+A direct check of an invalid project document remains a FILE refusal.
+Valid project budgets retain their existing provenance, and a valid project
+without a ceiling stops the ancestor walk without adding a budget.
 
 ### v0.82 wave-2 (proposed 2026-06-11 · additive)
 

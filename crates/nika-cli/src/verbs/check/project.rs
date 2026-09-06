@@ -35,25 +35,27 @@ pub(super) fn judge(path: &str, yaml: &str, json: bool) -> VerbOutput {
             );
             VerbOutput::ok(nika_display::project_render::verdict(path, name, &governs))
         }
-        Err(err) => {
-            let slug = err.kind().spec_code();
-            if json {
-                let text =
-                    nika_display::project_render::json(path, false, None, slug, err.detail());
-                return VerbOutput {
-                    text,
-                    code: nika_cli_host::output::exit::FILE,
-                };
-            }
-            VerbOutput::file(nika_display::project_render::refusal(
-                path,
-                err.line(),
-                slug,
-                err.detail(),
-                err.remedy(),
-            ))
-        }
+        Err(err) => VerbOutput::file(refusal(path, &err, json, err.detail())),
     }
+}
+
+/// A workflow cannot be judged under an invalid ambient project.
+#[must_use]
+pub(super) fn ambient_refusal(err: &project::ProjectError, json: bool) -> VerbOutput {
+    let path = err
+        .path()
+        .unwrap_or_else(|| std::path::Path::new(project::FILE_NAME))
+        .display()
+        .to_string();
+    VerbOutput::env(refusal(&path, err, json, &err.to_string()))
+}
+
+fn refusal(path: &str, err: &project::ProjectError, json: bool, message: &str) -> String {
+    let slug = err.kind().spec_code();
+    if json {
+        return nika_display::project_render::json(path, false, None, slug, message);
+    }
+    nika_display::project_render::refusal(path, err.line(), slug, err.detail(), err.remedy())
 }
 
 #[cfg(test)]
