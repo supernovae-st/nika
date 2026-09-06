@@ -243,6 +243,18 @@ pub fn peek(trace: &str, task: &str, raw: bool, theme: Theme) -> VerbOutput {
             out.push_str(&item_table(row, theme));
             return VerbOutput::ok(out);
         }
+        // A fan-out whose aggregate value was never checkpointed still
+        // recorded its item table on the terminal frame (#1276 · #1397):
+        // the per-item codes and messages ARE what an on-call reader came
+        // for, and this refusal was hiding them (wave 3 · persona 10 · « no
+        // error code anywhere » — it was on the frame, behind « recorded
+        // no output »). `--raw` keeps its jq contract: no value, no pipe.
+        if !raw && row.items_json.is_some() {
+            let mut out =
+                render_unrecorded_peek(row, recovered_from(&events, task).as_deref(), theme);
+            out.push_str(&item_table(row, theme));
+            return VerbOutput::ok(out);
+        }
         return VerbOutput::env(no_output_message(&view, row));
     };
     if raw {
@@ -481,6 +493,14 @@ fn no_output_message(view: &RunView, row: &TaskRow) -> String {
         TaskState::Skipped => message.push_str(" — a guarded skip never runs, so never records"),
         TaskState::Cancelled => message.push_str(" — the path died upstream before it ran"),
         TaskState::Failed => message.push_str(" — the run settled before it produced a value"),
+        // ADR-099 · only a task that earned a resume stamp checkpoints its
+        // value; one that did not (inputs not replayable from the file)
+        // succeeded without the journal ever carrying the value. A row
+        // that recorded its item table is a NEW engine's row, whatever the
+        // rest of the trace carries.
+        TaskState::Ok if row.items_json.is_some() || !with_outputs.is_empty() => message.push_str(
+            " — the value was not checkpointed: this task earned no resume stamp (its inputs are not replayable from the file), so the journal never carried it",
+        ),
         _ if with_outputs.is_empty() => {
             message.push_str(" — no task in this trace carries one (an older engine's trace?)");
         }
@@ -523,6 +543,42 @@ fn render_failure_peek(row: &TaskRow, theme: Theme) -> String {
             theme.paint(Role::Dim, &format!("fix: nika explain {code}"))
         );
     }
+    out
+}
+
+/// The peek of a succeeded task whose value was never checkpointed but
+/// whose item table was recorded: the same identity block as a value
+/// peek, then the one honest line about the absent value — the table
+/// follows from the caller.
+fn render_unrecorded_peek(row: &TaskRow, recovered_from: Option<&str>, theme: Theme) -> String {
+    let mut out = String::new();
+    let title = match row.started_note.as_deref() {
+        Some(note) => format!("{} · {note}", row.id),
+        None => row.id.clone(),
+    };
+    let _ = writeln!(out, "  {}", theme.paint(Role::Strong, &title));
+    let mut meta = row
+        .wall_ms()
+        .map_or_else(|| dash(theme).to_owned(), fmt_wall_ms);
+    if let Some(tok) = row.tokens {
+        let _ = write!(meta, " · {tok} tok");
+    }
+    if row.recovered {
+        let _ = write!(meta, " · recovered");
+        if let Some(code) = recovered_from {
+            let _ = write!(meta, " from {code}");
+        }
+    }
+    let _ = writeln!(out, "  {}", theme.paint(Role::Dim, &meta));
+    let _ = writeln!(out);
+    let _ = writeln!(
+        out,
+        "  {}",
+        theme.paint(
+            Role::Dim,
+            "value not checkpointed — this task earned no resume stamp (its inputs are not replayable from the file); the item table below is the recorded truth"
+        )
+    );
     out
 }
 
@@ -1149,6 +1205,67 @@ mod tests {
                 && skipped.text.contains("outputs recorded for: audit"),
             "{}",
             skipped.text
+        );
+    }
+
+    /// Wave 3 · persona 10: a fan-out over a runtime collection earns no
+    /// resume stamp, so its aggregate value is never checkpointed — but its
+    /// item table (index · item · status · code · message) IS on the
+    /// terminal frame. `peek` must deliver the table instead of refusing
+    /// with « recorded no output (ok) »; `--raw` still has no value to pipe.
+    #[test]
+    fn peek_delivers_the_item_table_when_the_value_was_not_checkpointed() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let items = r#"[{"index":0,"item":"./items/a.md","status":"ok"},{"index":1,"item":"./items/b.md","status":"ok"},{"index":2,"item":"./items/c.md","status":"recovered","code":"NIKA-BUILTIN-READ-001","message":"file not found: ./items/c.md"}]"#;
+        let events = vec![
+            demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(KeyValue::new("task", Value::String("read".into())))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("for_each · nika:read".into()),
+                )),
+            demo::bare_event(EventKind::TaskRecovered, 20)
+                .with_field(KeyValue::new("task", Value::String("read".into())))
+                .with_field(KeyValue::new(
+                    "code",
+                    Value::String("NIKA-BUILTIN-READ-001".into()),
+                )),
+            demo::bare_event(EventKind::TaskCompleted, 40)
+                .with_field(KeyValue::new("task", Value::String("read".into())))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("for_each · 2/3 ok · 1 recovered: ./items/c.md".into()),
+                ))
+                .with_field(KeyValue::new("duration_ms", Value::Int(4)))
+                .with_field(KeyValue::new("items", Value::String(items.into()))),
+            demo::bare_event(EventKind::WorkflowCompleted, 50),
+        ];
+        let path = stage("unstamped-fan.ndjson", &events);
+        let trace = path.to_string_lossy();
+
+        let out = peek(&trace, "read", false, plain());
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        for needle in [
+            "items · 3",
+            "NIKA-BUILTIN-READ-001",
+            "file not found: ./items/c.md",
+            "recovered from NIKA-BUILTIN-READ-001",
+            "value not checkpointed",
+        ] {
+            assert!(
+                out.text.contains(needle),
+                "peek carries `{needle}`:\n{}",
+                out.text
+            );
+        }
+
+        let raw = peek(&trace, "read", true, plain());
+        assert_eq!(raw.code, exit::ENV, "no value, no pipe: {}", raw.text);
+        assert!(
+            raw.text.contains("not checkpointed") && raw.text.contains("no resume stamp"),
+            "the refusal says why the value is absent: {}",
+            raw.text
         );
     }
 
