@@ -26,6 +26,7 @@ nika-service-execution = { path = "../nika-service-execution", version = "0.118.
 nika-event             = { path = "../nika-event", version = "0.118.7" }   # the settlement's RunState — JobStatus is its projection (ADR-130)
 nika-fs    = { path = "../nika-fs", version = "0.118.7" }
 nika-runtime = { path = "../nika-runtime", version = "0.118.7" }
+nika-trace   = { path = "../nika-trace", version = "0.118.7" }    # the ONE verifier `nika trace verify` runs — the verify route projects its machine document (lateral L4→L4 · the nika-mcp → nika-cli-host precedent)
 nika-types = { path = "../nika-types", version = "0.118.7" }
 nika-vocab = { path = "../nika-vocab", version = "0.118.7" }
 nix        = { workspace = true, features = ["fs"] }
@@ -39,6 +40,7 @@ uuid       = { workspace = true }
 zeroize    = { workspace = true }
 
 [dev-dependencies]
+minisign = { workspace = true }  # the in-memory run key the seal-point test signs with (custody stays out of the test)
 nika-arm = { path = "../nika-arm", version = "0.118.7", features = ["test-support"] }  # the ledger fixtures the one-firer tests write
 tempfile = { workspace = true }
 

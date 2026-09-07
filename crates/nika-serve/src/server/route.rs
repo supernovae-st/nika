@@ -688,16 +688,35 @@ async fn verify_trace(path: &str, state: &AppState) -> Response<ResponseBody> {
     let Ok(id) = JobId::parse(raw_id) else {
         return job_not_found();
     };
-    match state.store.get(id).await {
-        Ok(Some(record)) => json_response(
-            StatusCode::OK,
-            &TraceVerificationResponse::unavailable(&record),
-        ),
-        Ok(None) => job_not_found(),
+    let record = match state.store.get(id).await {
+        Ok(Some(record)) => record,
+        Ok(None) => return job_not_found(),
         Err(
             super::ServerError::JobStore(crate::JobStoreError::Busy)
             | super::ServerError::StoreQueueFull,
-        ) => store_busy(),
+        ) => return store_busy(),
+        Err(_) => return internal_error(),
+    };
+    // The journal the resident wrote for this job, under the backend's own
+    // journal directory, verified through the ONE verifier `nika trace
+    // verify` runs; `unavailable` only when no journal exists (a job refused
+    // before its first event · a queued job · a backend keeping none).
+    let Some(key) = state
+        .journal_dir
+        .as_deref()
+        .and_then(|dir| super::trace_verdict::JournalKey::of(dir, &record))
+    else {
+        return json_response(
+            StatusCode::OK,
+            &TraceVerificationResponse::unavailable(&record),
+        );
+    };
+    match tokio::task::spawn_blocking(move || key.verify()).await {
+        Ok(Some(verdict)) => json_response(StatusCode::OK, &verdict),
+        Ok(None) => json_response(
+            StatusCode::OK,
+            &TraceVerificationResponse::unavailable(&record),
+        ),
         Err(_) => internal_error(),
     }
 }

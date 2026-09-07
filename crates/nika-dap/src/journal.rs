@@ -311,6 +311,14 @@ impl TraceFileSink {
         self.error.take()
     }
 
+    /// Borrow the buffered error without consuming the sink — the door that
+    /// settles the journal IN PLACE (seal · fsync) and then reads its head
+    /// asks this before trusting the head (the `JsonSink::error` twin).
+    #[must_use]
+    pub fn error(&self) -> Option<&std::io::Error> {
+        self.error.as_ref()
+    }
+
     /// The chain HEAD — sha256 of the last written line's exact bytes.
     /// Printing it (CI logs · scrollback) is the free external anchor
     /// that upgrades tamper-EVIDENT toward attributable.
@@ -446,6 +454,87 @@ fn admitted_journal_bytes(written: usize, line: usize) -> std::io::Result<usize>
         })
 }
 
+impl TraceFileSink {
+    /// Append one chained line to the OPEN lane — the ONE write path both
+    /// `emit` and [`Self::write_record`] take. One JSON document per line +
+    /// flush per line (the watcher tails for liveness); the line shape
+    /// (record + `chain` field · hash of the written bytes) lives in
+    /// `ChainState` — one law, both lanes. A lifecycle-terminal line flips
+    /// the lease's fate (ADR-129).
+    fn append_line<T: serde::Serialize>(&mut self, record: &T, terminal: bool) {
+        let Lane::Open(writer) = &mut self.lane else {
+            return; // Disabled — a deliberate no-op
+        };
+        let result = self.chain.line(record).and_then(|(line, next)| {
+            let bytes = admitted_journal_bytes(self.written_bytes, line.len())?;
+            writer.write_all(line.as_bytes())?;
+            writer.write_all(b"\n")?;
+            writer.flush()?;
+            Ok((next, bytes))
+        });
+        // Chain state commits only AFTER the bytes landed: a failed
+        // write must never advance the head (a later "N events · chain
+        // X" note would otherwise describe bytes no file holds).
+        match result {
+            Ok((next, bytes)) => {
+                self.chain.commit(next);
+                self.written += 1;
+                self.written_bytes = bytes;
+                if terminal {
+                    self.saw_terminal = true;
+                }
+            }
+            Err(e) => {
+                self.error = Some(e);
+                // L4: retire the lane NOW — BufWriter's Drop re-flushes
+                // ignoring errors, and a recovered fs would complete the
+                // torn line AFTER the error was reported (the file's
+                // post-error content must not depend on the environment).
+                self.lane = Lane::Disabled;
+            }
+        }
+    }
+
+    /// Append one arbitrary JSON object under the same chain as the events
+    /// — the file lane's twin of [`JsonSink::write_record`]. Its purpose is
+    /// the terminal settlement envelope (`run_settled`) a run that never
+    /// reached its own terminal frame still leaves (the resident's
+    /// interrupted job): the chain walk reads that kind as a lifecycle end
+    /// (spec 17 §the end of the run), so the lease sidecar leaves with the
+    /// sink (ADR-129). A record cannot OPEN the journal (the first event
+    /// names it): a lane that never opened refuses; a disabled lane is the
+    /// usual no-op.
+    ///
+    /// # Errors
+    /// The buffered lane error, a serialization error, or the write error —
+    /// on a write failure the lane retires exactly as `emit` does.
+    pub fn write_record<T: serde::Serialize>(&mut self, record: &T) -> std::io::Result<()> {
+        if let Some(error) = self.error.as_ref() {
+            return Err(std::io::Error::new(error.kind(), error.to_string()));
+        }
+        match self.lane {
+            Lane::Disabled => return Ok(()),
+            Lane::Pending => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "journal not open: a record cannot name the journal (the first event does)",
+                ));
+            }
+            Lane::Open(_) => {}
+        }
+        let value = serde_json::to_value(record).map_err(std::io::Error::from)?;
+        let terminal = value
+            .get("kind")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(crate::chain::is_lifecycle_terminal);
+        self.append_line(&value, terminal);
+        match self.error.as_ref() {
+            Some(error) => Err(std::io::Error::new(error.kind(), error.to_string())),
+            None => Ok(()),
+        }
+    }
+}
+
 impl EventSink for TraceFileSink {
     fn emit(&mut self, mut event: Event) {
         if let Some(execution) = self.execution {
@@ -462,40 +551,8 @@ impl EventSink for TraceFileSink {
             self.error = Some(e);
             return;
         }
-        let Lane::Open(writer) = &mut self.lane else {
-            return; // Disabled — a deliberate no-op
-        };
-        // One JSON document per line + flush per event (the watcher tails
-        // for liveness). The line shape (event + `chain` field · hash of
-        // the written bytes) lives in ChainState — one law, both lanes.
-        let result = self.chain.line(&event).and_then(|(line, next)| {
-            let bytes = admitted_journal_bytes(self.written_bytes, line.len())?;
-            writer.write_all(line.as_bytes())?;
-            writer.write_all(b"\n")?;
-            writer.flush()?;
-            Ok((next, bytes))
-        });
-        // Chain state commits only AFTER the bytes landed: a failed
-        // write must never advance the head (a later "N events · chain
-        // X" note would otherwise describe bytes no file holds).
-        match result {
-            Ok((next, bytes)) => {
-                self.chain.commit(next);
-                self.written += 1;
-                self.written_bytes = bytes;
-                if event.kind.is_terminal() {
-                    self.saw_terminal = true;
-                }
-            }
-            Err(e) => {
-                self.error = Some(e);
-                // L4: retire the lane NOW — BufWriter's Drop re-flushes
-                // ignoring errors, and a recovered fs would complete the
-                // torn line AFTER the error was reported (the file's
-                // post-error content must not depend on the environment).
-                self.lane = Lane::Disabled;
-            }
-        }
+        let terminal = event.kind.is_terminal();
+        self.append_line(&event, terminal);
     }
 }
 
@@ -581,6 +638,29 @@ pub fn seal_journal_with(
     workflow_hash: Option<&str>,
     teardown: Option<&crate::seal::SealTeardown>,
 ) -> bool {
+    seal_journal_with_key(
+        trace,
+        workflow_hash,
+        teardown,
+        crate::seal::load_signing_key,
+    )
+}
+
+/// [`seal_journal_with`] over an INJECTED key source — the custody seam
+/// made a parameter, so a door proves its seal point with an in-memory key
+/// while production routes [`crate::seal::load_signing_key`] (the resident's
+/// settlement · the CLI's `surface_trace`). The source is consulted only
+/// when a workflow hash exists (an absent hash never opens the keychain),
+/// AFTER the memory rejections landed — the custody form's order, byte
+/// for byte. The public box it hands over is projected to its canonical
+/// form first (the custody loaders' pair honesty), so the seal's `key_id`
+/// is the one a verifier's candidates carry.
+pub fn seal_journal_with_key(
+    trace: &mut TraceFileSink,
+    workflow_hash: Option<&str>,
+    teardown: Option<&crate::seal::SealTeardown>,
+    key: impl FnOnce() -> Option<(minisign::SecretKey, String)>,
+) -> bool {
     // A disabled journal (`nika try` · `--no-trace-file`) has nothing to
     // sign. Consulting the keychain anyway is a hang after a green card.
     if trace.is_disabled() {
@@ -595,7 +675,8 @@ pub fn seal_journal_with(
     }
     let mut sealed = false;
     if let Some(hash) = workflow_hash
-        && let Some((sk, pk_box)) = crate::seal::load_signing_key()
+        && let Some((sk, pk_box)) = key()
+        && let Some(pk_box) = crate::seal::canonical_public_box(&sk, &pk_box)
         && let Some(ev) = crate::seal::seal_event_with(
             EventId::generate(),
             Timestamp::from_unix_ms(now_millis()),
@@ -1260,5 +1341,98 @@ mod tests {
             std::fs::read(&p1).expect("first journal"),
             std::fs::read(&p2).expect("second journal")
         );
+    }
+
+    fn lifecycle_frame(kind: nika_event::EventKind, ms: u64) -> Event {
+        Event::new(
+            EventId::new(Uuid::from_u128(u128::from(ms))),
+            Timestamp::from_unix_ms(ms),
+            kind,
+        )
+    }
+
+    /// A `run_settled` record closes the lifecycle exactly like a terminal
+    /// event (the walk's own set): the journal reads INTACT and the lease
+    /// leaves with the sink (ADR-129 · the resident's interrupted job). A
+    /// record that closes nothing leaves the lease's fate alone, and a lane
+    /// that never opened refuses a record (the first EVENT names the file).
+    #[cfg(unix)]
+    #[test]
+    fn a_settlement_record_closes_the_lifecycle_and_releases_the_lease() {
+        use nika_event::EventKind;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let settled = {
+            let mut sink = TraceFileSink::new(tmp.path().join("settled"));
+            sink.emit(lifecycle_frame(EventKind::WorkflowStarted, 1));
+            sink.write_record(&serde_json::json!({
+                "kind": "run_settled", "status": "interrupted", "cause": "operator"
+            }))
+            .expect("the record lands on the open lane");
+            assert!(sink.saw_terminal, "run_settled closes the lifecycle");
+            sink.finalize();
+            assert!(sink.error().is_none());
+            sink.path().expect("opened").to_path_buf()
+        };
+        let raw = std::fs::read_to_string(&settled).expect("journal");
+        assert!(
+            matches!(
+                crate::chain::walk(&raw),
+                crate::chain::Verdict::Intact { events: 2, .. }
+            ),
+            "the walk reads the record as a lifecycle end: {raw}"
+        );
+        assert!(
+            !crate::liveness::lease_path(&settled).exists(),
+            "a closed journal leaves no lease"
+        );
+        let mut noted = TraceFileSink::new(tmp.path().join("noted"));
+        noted.emit(lifecycle_frame(EventKind::WorkflowStarted, 1));
+        noted
+            .write_record(&serde_json::json!({"kind": "note"}))
+            .expect("a plain record lands too");
+        assert!(!noted.saw_terminal, "a note closes nothing");
+        let mut pending = TraceFileSink::new(tmp.path().join("pending"));
+        assert_eq!(
+            pending
+                .write_record(&serde_json::json!({"kind": "run_settled"}))
+                .map_err(|error| error.kind()),
+            Err(std::io::ErrorKind::NotFound),
+            "a record cannot open the journal"
+        );
+        assert!(pending.path().is_none(), "…and leaves no file behind");
+    }
+
+    /// The injected-key form seals exactly as custody would — the last line
+    /// is the `run_sealed` frame — and never consults the source without a
+    /// workflow hash (an absent hash must not open a keychain).
+    #[test]
+    fn seal_journal_with_key_seals_with_the_injected_key_only_under_a_hash() {
+        use nika_event::EventKind;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mut sink = TraceFileSink::new(tmp.path());
+        sink.emit(lifecycle_frame(EventKind::WorkflowStarted, 1));
+        sink.emit(lifecycle_frame(EventKind::WorkflowCompleted, 2));
+        let key = minisign::KeyPair::generate_unencrypted_keypair().expect("test key");
+        let public = key.pk.to_box().expect("public box").to_string();
+        let secret = key.sk;
+        assert!(
+            seal_journal_with_key(&mut sink, Some("cafe"), None, move || Some((
+                secret, public
+            ))),
+            "the injected key seals"
+        );
+        assert_eq!(sink.chain_len(), 3, "started · completed · the seal");
+        let raw = std::fs::read_to_string(sink.path().expect("opened")).expect("journal");
+        let last: serde_json::Value =
+            serde_json::from_str(raw.lines().last().expect("a last line")).expect("json");
+        assert_eq!(last["kind"], "run_sealed");
+        let consulted = std::cell::Cell::new(false);
+        let mut unhashed = TraceFileSink::new(tmp.path().join("unhashed"));
+        unhashed.emit(lifecycle_frame(EventKind::WorkflowStarted, 1));
+        assert!(!seal_journal_with_key(&mut unhashed, None, None, || {
+            consulted.set(true);
+            None
+        }));
+        assert!(!consulted.get(), "no hash → the key source is never asked");
     }
 }
