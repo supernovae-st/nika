@@ -235,11 +235,18 @@ fn overridden(
 /// hints sit above it) when the report is otherwise clean, one
 /// operational line per failed gate (grade · access) when the verdict
 /// is otherwise clean — a dirty report already explains its red.
+/// `handle` is the audited line's own cause clause
+/// ([`nika_display::check_render::risk_handle`]): the footer used to
+/// blame « glob/wildcard authority and uncapped autonomy » on every
+/// Unbounded file — a persona wave: a file with one exact host, one
+/// named program, zero agents and a `./out/**` write grant was told
+/// both, and never WHICH grant to narrow.
 fn strict_footers(
     text: &mut String,
     theme: Theme,
     (report_clean, verdict_clean): (bool, bool),
     rows: &[LaneFinding],
+    handle: &str,
 ) {
     let native = rows.iter().filter(|f| f.lane == Lane::NativeStrict).count();
     if report_clean && native > 0 {
@@ -260,11 +267,22 @@ fn strict_footers(
         return;
     }
     for finding in rows.iter().filter(|f| f.lane == Lane::Operational) {
-        // The grade names WHY; the fix direction mirrors the COST/hint
-        // lanes (cap the spend · narrow the grant). An access row carries
-        // the blocker and no remedy the plan did not name.
+        // The grade names WHY; the handle names WHICH grant or spend
+        // (Unbounded). At High the handle is empty and the lanes above
+        // carry the cause (a glob grant · an unconsumed gate · an
+        // unpinned secret egress), so the fix direction mirrors the
+        // COST/hint lanes (cap the spend · narrow the grant). An access
+        // row carries the blocker and no remedy the plan did not name.
         let line = match &finding.fix {
-            Some(fix) => format!("✖ operational · {} — {fix}", finding.detail),
+            Some(_) if !handle.is_empty() => format!(
+                "✖ operational · {}{handle} · blocks readiness under --profile operational \
+                 (advisory by default)",
+                finding.detail
+            ),
+            Some(fix) => format!(
+                "✖ operational · {} — {fix} under --profile operational (advisory by default)",
+                finding.detail
+            ),
             None => format!("✖ operational · {}", finding.detail),
         };
         let _ = writeln!(text, " {}", theme.paint(Role::Bad, &line));
@@ -737,7 +755,13 @@ fn render_checked_with_profile(
         verdict.clean,
         &verdict.layers,
     );
-    strict_footers(&mut text, theme, (report.is_clean(), verdict.clean), &lane);
+    strict_footers(
+        &mut text,
+        theme,
+        (report.is_clean(), verdict.clean),
+        &lane,
+        &nika_display::check_render::risk_handle(report, verdict.grade),
+    );
     access_footer(
         &mut text,
         theme,

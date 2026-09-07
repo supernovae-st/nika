@@ -17,7 +17,7 @@
 //! determine admission (the reference model `reference/semantics.py` is
 //! the oracle · differential-tested).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use nika_schema::expression::{NamespaceRef, expr_refs, scan_templates};
 use nika_schema::raw::RawTask;
@@ -97,6 +97,23 @@ impl EdgeKind {
         }
     }
 
+    /// Whether crossing this edge hands the PRODUCER'S OWN CONTENT to
+    /// the consumer's scope.
+    ///
+    /// `true` for a value edge (the binding reads `.output`) and for a
+    /// fan-in fold (« one array of member records » · spec 03 §group —
+    /// each member's output is inside it). `false` for an `after:` entry,
+    /// which carries ORDER, and for an observation, which carries the
+    /// record fields the ENGINE authors (status · error · timings) and
+    /// never the bytes the producer returned.
+    ///
+    /// One predicate, so a judge that walks the graph and a sentence that
+    /// describes the walk cannot disagree about what a hop carried.
+    #[must_use]
+    pub const fn carries_value(self) -> bool {
+        matches!(self, Self::Value | Self::FanIn)
+    }
+
     /// Whether this edge belongs to `G_p`, the PRECEDENCE graph.
     ///
     /// `false` for `unwind` alone: an `E_f` attachment does not schedule,
@@ -143,6 +160,106 @@ pub struct Edge {
     pub binding: Option<String>,
     /// The declaration site (the binding value · the `after:` entry).
     pub span: Span,
+}
+
+/// One reachable node with a WITNESS route to it — the hops in order,
+/// and the kind of each edge crossed.
+///
+/// `kinds[i]` is the edge from `hops[i]` to `hops[i + 1]`, so a judge
+/// that refuses over reachability can still say WHAT the route was made
+/// of: every hop a value edge and the producer's bytes really do land in
+/// the consumer; a single `after:` control hop and the route proves
+/// order, not flow.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Route {
+    /// The node reached (an index into the analyzed task list).
+    pub sink: usize,
+    /// `[source, …, sink]` — every hop, source first.
+    pub hops: Vec<usize>,
+    /// One kind per hop taken · `hops.len() - 1` entries.
+    pub kinds: Vec<EdgeKind>,
+}
+
+/// Every node reachable from `source`, each with the route that supports
+/// the STRONGEST claim about it: one whose every hop carries the value
+/// when such a route exists, otherwise the shortest route overall.
+///
+/// The preference is the whole point. A judge that refuses over
+/// reachability describes the route it walked, and the SHORTEST route to
+/// a sink can be one `after:` hop while a longer `with:` chain hands the
+/// same sink the producer's bytes. Describing the short one would trade
+/// an over-claim for an under-claim — « order only » said of a flow that
+/// really flows. Preferring the value route makes the negative safe: no
+/// value route came back means the graph holds no `with:` chain from
+/// `source` to that sink, which is exactly what a reader may act on.
+///
+/// `nodes` is the task count (the index space of `Edge::from` /
+/// `Edge::to`); an out-of-range endpoint is skipped rather than trusted.
+#[must_use]
+pub fn witness_routes(edges: &[Edge], nodes: usize, source: usize) -> Vec<Route> {
+    let mut best: BTreeMap<usize, Route> =
+        shortest_routes(edges, nodes, source, &|k: EdgeKind| k.carries_value())
+            .into_iter()
+            .map(|r| (r.sink, r))
+            .collect();
+    for r in shortest_routes(edges, nodes, source, &|_| true) {
+        best.entry(r.sink).or_insert(r);
+    }
+    best.into_values().collect()
+}
+
+/// Every node reachable from `source` over the edges `keep` admits, each
+/// with its shortest such route.
+///
+/// BFS — the first path found IS the shortest, and a shortest witness is
+/// the one an author can read.
+fn shortest_routes(
+    edges: &[Edge],
+    nodes: usize,
+    source: usize,
+    keep: &dyn Fn(EdgeKind) -> bool,
+) -> Vec<Route> {
+    let mut adjacency: BTreeMap<usize, Vec<(usize, EdgeKind)>> = BTreeMap::new();
+    for e in edges.iter().filter(|e| keep(e.kind)) {
+        adjacency.entry(e.from).or_default().push((e.to, e.kind));
+    }
+    let mut came_from: BTreeMap<usize, (usize, EdgeKind)> = BTreeMap::new();
+    let mut seen = vec![false; nodes];
+    let mut queue = VecDeque::from([source]);
+    if let Some(slot) = seen.get_mut(source) {
+        *slot = true;
+    }
+    let mut out = Vec::new();
+    while let Some(node) = queue.pop_front() {
+        for &(next, kind) in adjacency.get(&node).into_iter().flatten() {
+            if seen.get(next).copied().unwrap_or(true) {
+                continue;
+            }
+            seen[next] = true;
+            came_from.insert(next, (node, kind));
+            out.push(route_back(&came_from, source, next));
+            queue.push_back(next);
+        }
+    }
+    out
+}
+
+/// Walk the parent chain back to `source` and turn it round.
+fn route_back(came_from: &BTreeMap<usize, (usize, EdgeKind)>, source: usize, sink: usize) -> Route {
+    let (mut hops, mut kinds) = (vec![sink], Vec::new());
+    let mut at = sink;
+    while at != source {
+        let Some(&(prev, kind)) = came_from.get(&at) else {
+            break;
+        };
+        hops.push(prev);
+        kinds.push(kind);
+        at = prev;
+    }
+    hops.reverse();
+    kinds.reverse();
+    Route { sink, hops, kinds }
 }
 
 /// A non-scheduling recovery read (`on_error.recover` · `E_r`) — projected

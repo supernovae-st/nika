@@ -166,6 +166,7 @@ impl<T> typenum::type_operators::Same for nika_display::check_render::ModelsAudi
 pub type nika_display::check_render::ModelsAudit::Output = T
 #[non_exhaustive] pub struct nika_display::check_render::VerdictLayers
 pub nika_display::check_render::VerdictLayers::access_lines: alloc::vec::Vec<alloc::string::String>
+pub nika_display::check_render::VerdictLayers::access_moot: bool
 pub nika_display::check_render::VerdictLayers::access_ready: core::option::Option<bool>
 pub nika_display::check_render::VerdictLayers::blockers: alloc::vec::Vec<alloc::string::String>
 pub nika_display::check_render::VerdictLayers::capacity_fit: bool
@@ -174,6 +175,7 @@ pub nika_display::check_render::VerdictLayers::valid: bool
 impl nika_display::check_render::VerdictLayers
 pub fn nika_display::check_render::VerdictLayers::new(valid: bool, access_ready: core::option::Option<bool>, access_lines: alloc::vec::Vec<alloc::string::String>, capacity_fit: bool, blockers: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_display::check_render::VerdictLayers::run_ready(&self) -> core::option::Option<bool>
+pub fn nika_display::check_render::VerdictLayers::with_access_moot(self, moot: bool) -> Self
 pub fn nika_display::check_render::VerdictLayers::with_seat_served(self, models: alloc::vec::Vec<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_display::check_render::VerdictLayers
 pub fn nika_display::check_render::VerdictLayers::clone(&self) -> nika_display::check_render::VerdictLayers
@@ -226,10 +228,12 @@ pub type nika_display::check_render::VerdictLayers::Output = T
 impl<T> zvariant::optional::NoneValue for nika_display::check_render::VerdictLayers where T: core::default::Default
 pub type nika_display::check_render::VerdictLayers::NoneType = T
 pub fn nika_display::check_render::VerdictLayers::null_value() -> T
+pub fn nika_display::check_render::boundary_clauses(report: &nika_check::CheckReport) -> (alloc::string::String, alloc::string::String)
 pub fn nika_display::check_render::mark(theme: nika_display::theme::Theme, ok: bool) -> alloc::string::String
 pub fn nika_display::check_render::permits(out: &mut alloc::string::String, report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, t: nika_display::theme::Theme)
 pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, repair_target: nika_display::check_render::RepairTarget, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String], verdict: bool, layers: &nika_display::check_render::VerdictLayers) -> alloc::string::String
 pub fn nika_display::check_render::required_inputs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<&str>
+pub fn nika_display::check_render::risk_handle(report: &nika_check::CheckReport, grade: nika_check::risk::RiskGrade) -> alloc::string::String
 pub mod nika_display::chrome
 pub const nika_display::chrome::PULSE: [char; 3]
 pub fn nika_display::chrome::banner(theme: nika_display::theme::Theme, title: &str, tagline: &str, version: &str) -> alloc::vec::Vec<alloc::string::String>

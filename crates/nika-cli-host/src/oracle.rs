@@ -28,7 +28,8 @@ use nika_schema::{ParseMode, ResolvedSkills};
 use serde_json::{Map, Value};
 
 use crate::models_rung::{
-    capacity_findings, pricing_section, thinking_findings, unresolvable_models, verdict_layers_for,
+    capacity_findings, dials_a_model, pricing_section, thinking_findings, unresolvable_models,
+    verdict_layers_for,
 };
 
 /// The filesystem edge an audit may be given — composition
@@ -124,11 +125,12 @@ impl Lane {
 pub const NATIVE_STRICT_FIX: &str = "replace each `exec:` with the builtin its hint names \
      (the exec ledger documents intent for a reviewer; it does not clear this gate)";
 
-/// The remedy the operational grade gate names — cap the spend or narrow
-/// the grant; the grade says WHY.
-pub const OPERATIONAL_GRADE_FIX: &str = "cap the spend or narrow the grant: glob/wildcard \
-     authority and uncapped autonomy block readiness under --profile operational \
-     (advisory by default)";
+/// The remedy the operational grade gate names at High, where the
+/// audited line's handle is empty and the lanes above carry the cause
+/// (a glob grant · an unconsumed human gate · an unpinned secret
+/// egress); the grade says WHY.
+pub const OPERATIONAL_GRADE_FIX: &str = "cap the spend or narrow the grant: glob authority, \
+     an unconsumed human gate or an unpinned secret egress block readiness";
 
 /// One refusal a lane folds ON TOP of the report — the typed fact the
 /// `--json` `findings[]` row and the human footer both project, so the
@@ -374,7 +376,10 @@ pub fn judge(
     // The effective workflow already carries any audit_source override.
     // An unrelated static lane does not supply a missing task model.
     let modelless = nika_service_execution::access::first_modelless_task(wf);
-    let layers = verdict_layers_for(&plan, valid, &capacity, modelless);
+    // The ACCESS question's premise: a file with no `infer:`/`agent:`
+    // task is not waiting on a seat, it will never ask for one.
+    let layers =
+        verdict_layers_for(&plan, valid, &capacity, modelless).with_access_moot(!dials_a_model(wf));
     let grade = nika_check::risk_grade(report);
     let drift = nika_dap::drift::scan(wf);
     let children = child_references(wf);
@@ -643,6 +648,48 @@ mod tests {
     }
 
     const MIXED_MODELS: &str = "nika: mixed\ntasks:\n  explicit:\n    infer: { prompt: hi, max_tokens: 10, model: mock/echo }\n  needs_model:\n    infer: { prompt: hi, max_tokens: 10 }\n";
+
+    /// The operations sceptic's ops5 scenario: three builtin/exec tasks, an
+    /// envelope `model:` nothing dials, and a run that exited 0 with 3/3
+    /// green while the card printed `run ready ○`. « No blocker is
+    /// named, no flag flips it, `--access mock` changes nothing. The
+    /// readiness line is a verdict the run contradicts. »
+    const BUILTIN_ONLY: &str = "nika: ops5\nmodel: mock/echo\npermits:\n  fs: { read: [\"./source.txt\"], write: [\"./out/summary.md\"] }\n  exec: [\"date\"]\n  tools: [\"nika:read\", \"nika:write\"]\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"./source.txt\" }\n  measure:\n    exec: { command: [\"date\", \"-u\"] }\n  save:\n    with: { t: \"${{ tasks.grab.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/summary.md\", content: \"${{ with.t }}\" }\n";
+
+    /// The same shape WITH something that dials, whose model is only
+    /// known at run time — the access question that really is open.
+    const RUN_TIME_MODEL: &str = "nika: tmpl\ninputs:\n  seat: { type: string, required: true }\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ inputs.seat }}\" }\n";
+
+    #[test]
+    fn a_workflow_that_never_dials_is_run_ready_not_unjudged() {
+        let audit = audit(BUILTIN_ONLY);
+        assert!(
+            audit.verdict.layers.access_moot,
+            "no infer/agent task: the ACCESS question has no subject"
+        );
+        assert_eq!(audit.verdict.layers.access_ready, None);
+        assert_eq!(
+            audit.verdict.layers.run_ready(),
+            Some(true),
+            "the run exits 0; the card must not contradict it: {:?}",
+            audit.verdict.layers
+        );
+        assert!(
+            audit.verdict.layers.blockers.is_empty(),
+            "{:?}",
+            audit.verdict.layers.blockers
+        );
+    }
+
+    #[test]
+    fn a_run_time_model_stays_genuinely_unjudged() {
+        let audit = audit(RUN_TIME_MODEL);
+        assert!(
+            !audit.verdict.layers.access_moot,
+            "a task DOES dial here — the question is open, not moot"
+        );
+        assert_eq!(audit.verdict.layers.run_ready(), None);
+    }
 
     fn has_modelless_blocker(audit: &Audit) -> bool {
         audit
