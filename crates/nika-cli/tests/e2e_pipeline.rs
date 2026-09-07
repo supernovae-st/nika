@@ -1268,16 +1268,14 @@ async fn e2e_agent_budget_and_schema_terminals() {
     let ok = agent.run(input).await.expect("conforming result");
     assert!(matches!(ok.output, AgentValue::Structured(v) if v == serde_json::json!({"sum": 5})));
 
+    // A violating done result is fed back and re-asked under the loop's
+    // repair budget (two by default) before the schema gate goes fatal, so
+    // the seat that never conforms answers three times.
     let dispatcher = dispatcher_rig();
-    let provider = MockProvider::new("mock").enqueue_response(InferResponse::new(
-        vec![ContentBlock::ToolUse {
-            id: "s-2".to_owned(),
-            name: "nika:done".to_owned(),
-            input: serde_json::json!({ "result": { "sum": "five" } }),
-        }],
-        TokenUsage::new(10, 5),
-        StopReason::ToolUse,
-    ));
+    let provider = MockProvider::new("mock")
+        .enqueue_response(violating_done("s-2"))
+        .enqueue_response(violating_done("s-3"))
+        .enqueue_response(violating_done("s-4"));
     let agent = AgentVerb::new(
         Arc::new(provider),
         Arc::new(nika_verb_invoke::InvokeVerb::new(Arc::clone(&dispatcher))),
@@ -1292,6 +1290,21 @@ async fn e2e_agent_budget_and_schema_terminals() {
         matches!(bad, VerbAgentError::SchemaValidation { .. }),
         "{bad:?}"
     );
+}
+
+/// A `nika:done` answer whose `result` misses the `sum` schema (a string
+/// where an integer is required) — the shape the schema gate refuses.
+fn violating_done(id: &str) -> nika_kernel::provider::InferResponse {
+    use nika_kernel::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
+    InferResponse::new(
+        vec![ContentBlock::ToolUse {
+            id: id.to_owned(),
+            name: "nika:done".to_owned(),
+            input: serde_json::json!({ "result": { "sum": "five" } }),
+        }],
+        TokenUsage::new(10, 5),
+        StopReason::ToolUse,
+    )
 }
 
 // ─── test 7 · binary round-trip + tz rendering through the REAL chain ────
