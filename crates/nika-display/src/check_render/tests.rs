@@ -1008,6 +1008,141 @@ mod audited_line_names_the_blast_radius {
     }
 }
 
+/// Wave 3 · p04 (operations sceptic), verbatim: « I assumed a file WITH
+/// findings still shows the boundary summary. It does not: grepping
+/// ops3's output for `audited|layers` returns 0. The one-line
+/// plain-words blast radius and the risk grade are printed ONLY when the
+/// file is already clean — withheld precisely when the workflow is
+/// dangerous. » and « The card's boundary summary is suppressed on any
+/// file with findings, so the over-broad ops3 — the one an ops lead most
+/// needs summarised — printed no boundary line and no risk grade at all. »
+mod the_failing_verdict_summarises_the_boundary_too {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::*;
+
+    fn console(yaml: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            // The verb's own verdict, never a hand-set `true` — this is
+            // the RED branch on purpose.
+            report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
+        )
+    }
+
+    /// The persona's ops3 shape: everything granted, and findings.
+    const OPS3: &str = "\
+nika: ops3
+model: mock/echo
+permits:
+  fs: { read: [\"/**\"], write: [\"/**\"] }
+  net: { http: [\"**\"] }
+  exec: true
+  tools: [\"nika:fetch\", \"nika:write\"]
+tasks:
+  grab:
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://example.com/data\" }
+  save:
+    with: { body: \"${{ tasks.grab.output }}\" }
+    invoke:
+      tool: \"nika:write\"
+      args: { path: \"./out/summary.md\", content: \"${{ with.body }}\" }
+";
+
+    #[test]
+    fn a_red_card_carries_the_permits_glance_and_the_risk_grade() {
+        let out = console(OPS3);
+        let line = out
+            .lines()
+            .find(|l| l.contains("findings above"))
+            .expect("the failing verdict");
+        assert!(
+            line.contains("permits "),
+            "the boundary an ops lead came for: {line}"
+        );
+        assert!(line.contains("risk "), "and how it graded: {line}");
+        assert!(
+            line.contains("read:/**") && line.contains("write:/**") && line.contains("exec:any"),
+            "naming the grants themselves, not the word `declared`: {line}"
+        );
+        assert!(
+            line.contains("no ceiling on the grant: fs.read /** · fs.write /** · exec: true"),
+            "and WHICH grants graded it: {line}"
+        );
+        assert!(
+            line.contains("2 tasks") && line.contains("est "),
+            "the same tail the green card carries: {line}"
+        );
+        // The word the report did not earn.
+        assert!(
+            !out.contains("audited"),
+            "a red file is never `audited`: {out}"
+        );
+    }
+
+    /// The tail is ONE derivation: the green card and the red card can
+    /// never describe different boundaries for the same grants. Same
+    /// permits, same tasks — one file clean, one with a finding.
+    #[test]
+    fn the_green_and_red_tails_are_the_same_derivation() {
+        let clean = "\
+nika: ok
+model: mock/echo
+permits:
+  fs: { write: [\"./out/summary.md\"] }
+  tools: [\"nika:write\"]
+tasks:
+  save:
+    invoke:
+      tool: \"nika:write\"
+      args: { path: \"./out/summary.md\", content: \"x\" }
+";
+        // The same grants, one task reaching OUTSIDE them.
+        let red = "\
+nika: ok
+model: mock/echo
+permits:
+  fs: { write: [\"./out/summary.md\"] }
+  tools: [\"nika:write\"]
+tasks:
+  save:
+    invoke:
+      tool: \"nika:write\"
+      args: { path: \"./elsewhere.md\", content: \"x\" }
+";
+        let tail = |out: &str, verdict: &str| {
+            out.lines()
+                .find(|l| l.contains(verdict))
+                .map(|l| l.split_once(" · ").expect("a tail").1.to_owned())
+                .expect("a verdict line")
+        };
+        let green = tail(&console(clean), "audited");
+        let red = tail(&console(red), "findings above");
+        assert_eq!(
+            green, red,
+            "one boundary derivation, two verdicts — the words before ` · ` are all that differ"
+        );
+        assert!(
+            green.contains("permits tools:nika:write write:./out/summary.md"),
+            "{green}"
+        );
+    }
+}
+
 mod permits_panel_under_red_conformance {
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;

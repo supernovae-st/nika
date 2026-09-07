@@ -585,8 +585,6 @@ fn audited_line(
     grade: nika_check::RiskGrade,
     t: Theme,
 ) -> String {
-    let tasks: usize = report.waves.iter().map(Vec::len).sum();
-    let permits = permits_glance::permits_glance(report);
     // #1393 — a declared secret leaving for an external destination by
     // sanction is stated on THIS line too (the one an operator reads
     // before running), and the line is never green over it.
@@ -600,6 +598,70 @@ fn audited_line(
     } else {
         (if t.ascii { "!" } else { "⚠" }, Role::Warn)
     };
+    t.paint(
+        role,
+        &format!(
+            "{mark} audited · {}",
+            boundary_tail(report, distinct_hints, hint_sites, grade, t)
+        ),
+    )
+}
+
+/// The SAME boundary summary under the failing verdict — what this file
+/// may touch, and how it graded — never the word « audited », which the
+/// report did not earn.
+///
+/// Wave 3 · p04 (operations sceptic): « the card's boundary summary is
+/// suppressed on any file with findings, so the over-broad ops3 — the
+/// one an ops lead most needs summarised — printed no boundary line and
+/// no risk grade at all. » Grepping that file's output for
+/// `audited|layers` returned 0: the plain-words blast radius and the
+/// grade were withheld precisely where the workflow was dangerous
+/// (`fs: {read: ["/**"], write: ["/**"]} · net.http ["**"] · exec: true`).
+///
+/// The verdict is untouched — same glyph, same `Role::Bad`, same exit
+/// code, the findings still stand above it. Only what the line withholds
+/// changed.
+fn findings_line(
+    report: &CheckReport,
+    distinct_hints: usize,
+    hint_sites: usize,
+    grade: nika_check::RiskGrade,
+    t: Theme,
+) -> String {
+    // Through `mark()`, not a hardcoded glyph: this line shipped a
+    // literal `✖` and was the one verdict in the report that leaked
+    // unicode under `--ascii` — the flag exists for terminals that
+    // cannot render it, and the failing verdict was exactly the row they
+    // could not read.
+    format!(
+        "{} {}",
+        mark(t, false),
+        t.paint(
+            Role::Bad,
+            &format!(
+                "findings above · {}",
+                boundary_tail(report, distinct_hints, hint_sites, grade, t)
+            )
+        )
+    )
+}
+
+/// The boundary summary both verdicts carry: what the file reaches, what
+/// it may cost, how many advisories rode along, and the risk grade with
+/// the handle that names its cause. One derivation, two lines — a green
+/// card and a red card can never describe different boundaries for the
+/// same file.
+fn boundary_tail(
+    report: &CheckReport,
+    distinct_hints: usize,
+    hint_sites: usize,
+    grade: nika_check::RiskGrade,
+    t: Theme,
+) -> String {
+    let tasks: usize = report.waves.iter().map(Vec::len).sum();
+    let permits = permits_glance::permits_glance(report);
+    let sanctioned = crate::check_journey::sanctioned_flow_count(report);
     let est = est_clause(report, t);
     let handle = risk_handle(report, grade);
     let hint_summary = if distinct_hints == hint_sites {
@@ -619,15 +681,11 @@ fn audited_line(
             crate::vocab::count(sanctioned, "sanctioned secret flow")
         )
     };
-    t.paint(
-        role,
-        &format!(
-            "{mark} audited · {} · {} · permits {permits} · {est} · {} · risk {}{handle}",
-            crate::vocab::count(tasks, "task"),
-            crate::vocab::count(report.waves.len(), "wave"),
-            hint_summary,
-            grade.as_str(),
-        ),
+    format!(
+        "{} · {} · permits {permits} · {est} · {hint_summary} · risk {}{handle}",
+        crate::vocab::count(tasks, "task"),
+        crate::vocab::count(report.waves.len(), "wave"),
+        grade.as_str(),
     )
 }
 
