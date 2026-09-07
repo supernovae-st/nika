@@ -219,9 +219,32 @@ pub(crate) fn rule_content(body: &str, page_type: PageType) -> Option<String> {
     // Phase 2 — ZONE target on the pruned tree (page-type cascade).
     let container_id = find_zone(&doc, page_type)?;
 
-    // Phase 3 — LINK-DENSITY finish inside the container.
+    // Phase 3 — LINK-DENSITY finish inside the container. The finish may
+    // never STARVE a qualifying zone: on a short page (a gov.uk service
+    // page whose body is a paragraph plus a call-to-action link), removing
+    // the link-dense blocks drops the zone under the thin floor and the
+    // cascade abstains into worse stages. Compute the post-finish text
+    // first; detach only if the zone still qualifies.
     let dense = link_dense_ids(&doc, container_id);
-    detach_all(&mut doc, &dense);
+    let pre_finish = doc
+        .tree
+        .get(container_id)
+        .and_then(scraper::ElementRef::wrap)
+        .map_or(0, |el| visible_text_len(&el.text().collect::<String>()));
+    if pre_finish >= MIN_EXTRACTED {
+        let dense_text: usize = dense
+            .iter()
+            .filter_map(|id| doc.tree.get(*id).and_then(scraper::ElementRef::wrap))
+            .map(|el| visible_text_len(&el.text().collect::<String>()))
+            .sum();
+        if pre_finish.saturating_sub(dense_text) < MIN_EXTRACTED {
+            // the finish would starve the zone — skip it
+        } else {
+            detach_all(&mut doc, &dense);
+        }
+    } else {
+        detach_all(&mut doc, &dense);
+    }
 
     let remaining_text = body_text_len(&doc);
     let container = doc
@@ -1001,6 +1024,38 @@ mod tests {
         assert!(
             out.contains("Share this"),
             "an all-chrome fragment keeps its text (over-prune guard): {out}"
+        );
+    }
+
+    /// The link-density finish may never STARVE a qualifying zone: a short
+    /// service page whose main is a paragraph plus a call-to-action link
+    /// block must keep the block (detaching it drops the zone under the
+    /// thin floor and the cascade abstains into worse stages — the EX08
+    /// gov.uk page shape). On a large zone the finish still prunes.
+    #[test]
+    fn link_density_finish_never_starves_a_qualifying_zone() {
+        let prose = "a short but genuine service page body with enough running prose to                      qualify the zone on its own before the finish runs today here, with extra words";
+        let page = format!(
+            "<html><body><main><p>{prose} {prose}</p><div>{}{}</div></main></body></html>",
+            "X",
+            r#"<a href="/go">Start now today</a>"#.repeat(6)
+        );
+        let html = rule_content(&page, PageType::Article).expect("zone kept");
+        assert!(
+            html.contains("Start now today"),
+            "the finish must not starve the zone into abstention: {html}"
+        );
+
+        let big = format!(
+            "<html><body><main><p>{}</p><div>{}{}</div></main></body></html>",
+            prose.repeat(20),
+            "X",
+            r#"<a href="/go">Start now today</a>"#.repeat(6)
+        );
+        let html = rule_content(&big, PageType::Article).expect("big zone kept");
+        assert!(
+            !html.contains("Start now today"),
+            "on a large zone the finish still prunes the link-dense block: {html}"
         );
     }
 }
