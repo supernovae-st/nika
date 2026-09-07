@@ -81,11 +81,12 @@ pub(crate) fn article(body: &str, base: Option<&str>) -> Result<serde_json::Valu
 }
 
 /// The furniture veto: a THIN extraction whose every word already lives in
-/// the page's own `<title>`/meta description is not a body — it is the
+/// the page's own `<title>` is not a body — it is the
 /// title bar of a shell (a JS-only app, a consent wall) that every stage
 /// scraped the same chrome off. Honest emptiness beats fabricated content:
 /// the caller sees `""` (no article found), not the masthead. A real brief
-/// survives: its prose contains words the title does not carry. The head
+/// survives: its prose contains words the title does not carry. A meta
+/// description can repeat the entire brief, so it is not chrome evidence. The head
 /// parse only happens on the thin-result path.
 fn furniture_veto(body: &str, value: serde_json::Value) -> serde_json::Value {
     let Some(text) = value.as_str() else {
@@ -103,13 +104,6 @@ fn furniture_veto(body: &str, value: serde_json::Value) -> serde_json::Value {
     if let Ok(sel) = scraper::Selector::parse("title") {
         for el in doc.select(&sel) {
             chrome_words.extend(prose_words(&el.text().collect::<String>()));
-        }
-    }
-    if let Ok(sel) = scraper::Selector::parse(r#"meta[name="description" i]"#) {
-        for el in doc.select(&sel) {
-            if let Some(content) = el.value().attr("content") {
-                chrome_words.extend(prose_words(content));
-            }
         }
     }
     if !chrome_words.is_empty() && pick_words.is_subset(&chrome_words) {
@@ -858,5 +852,25 @@ mod tests {
             md.contains("signalling fault"),
             "a brief with real prose survives the veto, got: {md}"
         );
+    }
+
+    #[test]
+    fn a_meta_description_repeating_the_brief_does_not_erase_it() {
+        let brief = "the metro line four closed for ninety minutes this morning after a \
+                     signalling fault near odeon station and service resumed before nine";
+        for container in ["article", "main"] {
+            let body = format!(
+                "<html><head><title>Metro disruption</title>\
+                 <meta name=\"description\" content=\"{brief}\"></head>\
+                 <body><{container}><p>{brief}</p></{container}></body></html>"
+            );
+            let out =
+                article(&body, Some("https://example.com/news/metro")).expect("the brief extracts");
+            let md = out.as_str().expect("article returns a string");
+            assert!(
+                md.contains(brief),
+                "a meta description summarizes content; it cannot veto the {container} brief"
+            );
+        }
     }
 }

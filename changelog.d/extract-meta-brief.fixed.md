@@ -1,0 +1,1 @@
+- **Briefs repeated in metadata are preserved.** Article extraction keeps short bodies repeated in a meta description instead of mistaking them for page furniture.
