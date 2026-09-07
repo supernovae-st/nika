@@ -205,7 +205,7 @@ fn cascade(
     }
 
     // Stage 2 — readability scoring (markup-poor pages).
-    match readability(body, base) {
+    match readability(body, base, page_type) {
         Ok(value) if !is_thin(&value) => match value.as_str() {
             Some(md) => Ok(override_check(body, md.to_owned())),
             None => Ok(value),
@@ -248,6 +248,11 @@ fn cascade(
 /// and REJECTED (2026-09-07, grid 60–100: every cap cost more forum recall
 /// than it saved on shop templates — the giant-template precision problem
 /// belongs to pruning, not to the override gate).
+///
+/// `body` is the RAW page: the recall floor needs every text block to
+/// judge density (a pruned input was measured a net loss on both WCXB dev
+/// and WCEB — 2026-09-07 — the density walk reads the chrome as context,
+/// not as content to keep).
 fn override_check(body: &str, pick: String) -> serde_json::Value {
     let fallback = crate::blocks::boilerpipe_content(body);
     let pick_len = pick.trim().len();
@@ -261,7 +266,11 @@ fn override_check(body: &str, pick: String) -> serde_json::Value {
 }
 
 /// Stage 1: `dom_smoothie` readability → Markdown.
-fn readability(body: &str, base: Option<&str>) -> Result<serde_json::Value, ExtractError> {
+fn readability(
+    body: &str,
+    base: Option<&str>,
+    page_type: crate::page_type::PageType,
+) -> Result<serde_json::Value, ExtractError> {
     let html = |reason: String| ExtractError::Html {
         mode: ExtractMode::Article,
         reason,
@@ -271,11 +280,11 @@ fn readability(body: &str, base: Option<&str>) -> Result<serde_json::Value, Extr
     let parsed = readability
         .parse()
         .map_err(|e| html(format!("readability parse: {e:?}")))?;
-    crate::html::convert_markdown(
-        parsed.content.as_ref(),
-        ExtractMode::Article,
-        ARTICLE_SKIP_TAGS,
-    )
+    // The winning fragment keeps whatever chrome readability's own scoring
+    // let through (a `class="byline"` row outranks no candidate, it just
+    // rides along): prune the discard zones out of the FRAGMENT.
+    let content = crate::zones::prune_fragment(parsed.content.as_ref(), page_type);
+    crate::html::convert_markdown(&content, ExtractMode::Article, ARTICLE_SKIP_TAGS)
 }
 
 fn is_thin(value: &serde_json::Value) -> bool {
@@ -387,7 +396,12 @@ mod tests {
             block("ALPHABLOCK"),
             block("OMEGABLOCK")
         );
-        let out = readability(&body, Some("https://example.com/")).expect("readability extracts");
+        let out = readability(
+            &body,
+            Some("https://example.com/"),
+            crate::page_type::PageType::Generic,
+        )
+        .expect("readability extracts");
         let md = out.as_str().expect("readability returns a Markdown string");
         assert!(
             md.contains("ALPHABLOCK"),

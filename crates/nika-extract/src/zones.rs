@@ -391,6 +391,29 @@ fn is_link_dense(el: scraper::ElementRef<'_>) -> bool {
         || (count > 1 && shorts.saturating_mul(10) > count.saturating_mul(8))
 }
 
+/// The Phase-1 discard applied to an already-extracted FRAGMENT (e.g. a
+/// readability win): chrome like `class="byline"` / `entry-meta` / share
+/// rows that survive a readability extraction is removed before the
+/// markdown conversion, without touching the rest of the page's signals
+/// (feeding readability a pruned INPUT was measured a net loss —
+/// 2026-09-07, dev −0.006). The over-prune guard runs at fragment scale.
+pub(crate) fn prune_fragment(fragment_html: &str, page_type: PageType) -> String {
+    let mut doc = Html::parse_fragment(fragment_html);
+    let total_text = body_text_len_fragment(&doc);
+    let discard = discard_ids(&doc, page_type, total_text);
+    if discard.is_empty() {
+        return fragment_html.to_owned();
+    }
+    detach_all(&mut doc, &discard);
+    doc.html()
+}
+
+/// The over-prune denominator for a fragment: total visible text of the
+/// fragment itself (no `<body>` wrapper exists in a fragment).
+fn body_text_len_fragment(doc: &Html) -> usize {
+    visible_text_len(&doc.root_element().text().collect::<String>())
+}
+
 /// Detach every id from its parent (orphans the subtree; idempotent over
 /// already-orphaned nodes).
 fn detach_all(doc: &mut Html, ids: &[NodeId]) {
@@ -421,7 +444,7 @@ mod tests {
     use super::{
         ARTICLE_CASCADE, BROAD_CASCADE, DISCARD_TAGS, DISCARD_TOKENS, DISCUSSION_TOKENS,
         FORUM_CASCADE, PageType, ZONE_MIN_SHARE_PERCENT, cascade_for, discard_ids, is_link_dense,
-        link_dense_ids, rule_content,
+        link_dense_ids, prune_fragment, rule_content,
     };
     use scraper::{Html, Selector};
 
@@ -956,6 +979,28 @@ mod tests {
         assert!(
             !ids.is_empty(),
             "the link-dense menu <div> inside <main> is collected (not vec![])"
+        );
+    }
+
+    /// The fragment prune strips chrome that rode a readability win: a
+    /// `.byline` / `.entry-meta` row inside the chosen fragment is removed,
+    /// the real prose is untouched, and a fragment that is ALL chrome keeps
+    /// its text (the over-prune guard at fragment scale).
+    #[test]
+    fn prune_fragment_strips_chrome_from_a_readability_win() {
+        let fragment = r#"<div><span class="byline">Posted by Jane Doe</span>
+            <span class="posted-on">January 1, 2026</span>
+            <p>The genuine article prose the reader came for, carried in full.</p>
+            </div>"#;
+        let out = prune_fragment(fragment, PageType::Article);
+        assert!(!out.contains("Posted by"), "byline pruned: {out}");
+        assert!(out.contains("genuine article prose"), "prose kept: {out}");
+
+        let all_chrome = r#"<div class="share-bar"><a href="/s">Share this</a></div>"#;
+        let out = prune_fragment(all_chrome, PageType::Article);
+        assert!(
+            out.contains("Share this"),
+            "an all-chrome fragment keeps its text (over-prune guard): {out}"
         );
     }
 }
