@@ -416,6 +416,49 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn the_one_door_native_choice_keeps_typed_repairs_on_the_provider() {
+        use crate::tests::{rig, text_response};
+        use nika_kernel_mock::{MockProvider, MockToolExecutor};
+
+        let r = rig(
+            MockProvider::new("mock")
+                .enqueue_response(text_response("unfinished"))
+                .enqueue_response(text_response(r#"{"score":7}"#)),
+            MockToolExecutor::new(),
+            Vec::new(),
+        );
+        let backend = Arc::new(TapeBackend {
+            tape: Mutex::new(vec![completed("harness answer")]),
+        });
+        let verb = r
+            .verb
+            .with_harness_seat(HarnessSeat::new(backend.clone(), "/tmp"));
+        let mut input = AgentInput::new("return a score");
+        input.native_only = true;
+        input.max_tokens_total = Some(15);
+        input.schema = Some(serde_json::json!({"type":"object"}));
+        let err = verb.run(input).await.expect_err("native token budget");
+        assert!(matches!(
+            err,
+            VerbAgentError::MaxTokens {
+                total_tokens: 15,
+                ..
+            }
+        ));
+        assert_eq!(r.provider.captured_requests().len(), 1);
+        assert_eq!(backend.tape.lock().unwrap().len(), 1, "seat unused");
+
+        // Negative control: an unpinned untyped task uses that same seat.
+        let out = verb
+            .run(AgentInput::new("finish"))
+            .await
+            .expect("seat runs");
+        assert_eq!(out.output, AgentValue::Text("harness answer".to_owned()));
+        assert!(backend.tape.lock().unwrap().is_empty());
+        assert_eq!(r.provider.captured_requests().len(), 1);
+    }
+
     /// A permission ask event whose reply closure records the verdict.
     fn ask(
         question: &str,
