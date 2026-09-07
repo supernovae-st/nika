@@ -517,6 +517,39 @@ tasks:
         );
     }
 
+    /// A SECRETS refusal row carries its wire code like every other lane's:
+    /// without it `nika explain` has nothing to be pointed at (wave 3 ·
+    /// personas 02 and 07 both hit the refusal with no code on the screen).
+    #[test]
+    fn a_secrets_refusal_row_prints_its_code() {
+        let out = console(
+            r#"
+nika: leak
+secrets:
+  TOKEN:
+    source: env
+    key: BUILD_TOKEN
+permits:
+  net:
+    http: ["api.acme-widgets.com"]
+  tools: [nika:fetch]
+tasks:
+  post:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://api.acme-widgets.com/x?t=${{ secrets.TOKEN }}", mode: text }
+"#,
+        );
+        let rung = out
+            .lines()
+            .find(|line| line.contains("SECRETS"))
+            .expect("the SECRETS rung renders");
+        assert!(
+            rung.contains("[NIKA-SEC-0") && rung.contains("leak into invoke"),
+            "the refusal row names its code for `nika explain`: {rung}"
+        );
+    }
+
     /// A sanctioned MCP egress is not a leak, but it is still an effect.
     /// Both SECRETS and JOURNEY must say so before suggesting a run.
     #[test]

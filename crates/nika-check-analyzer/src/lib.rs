@@ -50,6 +50,7 @@ mod scan;
 mod schema_lint;
 mod schema_paths;
 pub mod silent_literal;
+pub mod static_args;
 mod static_ref;
 mod thinking;
 pub mod types_contract;

@@ -738,6 +738,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     let (trifecta, mut consent_scan, order_findings) =
         gated_scans(wf, conforms, &edges, &topo_waves);
     hints.extend(std::mem::take(&mut consent_scan.hints));
+    hints::credit_gates(&mut hints, &trifecta.mitigations);
     let capability_escapes = permits_fit::scan_escapes(wf);
     let effective = boundary_offer::lane(wf, capability_escapes.is_empty(), conforms, &mut hints);
     let cost = cost::ceiling(wf);

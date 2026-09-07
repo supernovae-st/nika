@@ -244,6 +244,37 @@ pub fn nika_check_analyzer::native_first::classify(command: &nika_schema::raw::a
 pub fn nika_check_analyzer::native_first::classify_all(command: &nika_schema::raw::action::RawCommand) -> alloc::vec::Vec<(&'static str, alloc::string::String)>
 pub mod nika_check_analyzer::silent_literal
 pub fn nika_check_analyzer::silent_literal::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub mod nika_check_analyzer::static_args
+pub struct nika_check_analyzer::static_args::ConstStrings(_)
+impl nika_check_analyzer::static_args::ConstStrings
+pub fn nika_check_analyzer::static_args::ConstStrings::of(wf: &nika_schema::raw::workflow::RawWorkflow) -> Self
+pub fn nika_check_analyzer::static_args::ConstStrings::resolve(&self, expr: &str) -> core::option::Option<&str>
+impl core::default::Default for nika_check_analyzer::static_args::ConstStrings
+pub fn nika_check_analyzer::static_args::ConstStrings::default() -> nika_check_analyzer::static_args::ConstStrings
+impl core::fmt::Debug for nika_check_analyzer::static_args::ConstStrings
+pub fn nika_check_analyzer::static_args::ConstStrings::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::static_args::ConstStrings
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::static_args::ConstStrings where U: core::convert::From<T>
+pub fn nika_check_analyzer::static_args::ConstStrings::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::static_args::ConstStrings where U: core::convert::Into<T>
+pub type nika_check_analyzer::static_args::ConstStrings::Error = core::convert::Infallible
+pub fn nika_check_analyzer::static_args::ConstStrings::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::static_args::ConstStrings where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::static_args::ConstStrings::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::static_args::ConstStrings::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_check_analyzer::static_args::ConstStrings where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::static_args::ConstStrings::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::static_args::ConstStrings where T: ?core::marker::Sized
+pub fn nika_check_analyzer::static_args::ConstStrings::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::static_args::ConstStrings where T: ?core::marker::Sized
+pub fn nika_check_analyzer::static_args::ConstStrings::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_check_analyzer::static_args::ConstStrings
+pub fn nika_check_analyzer::static_args::ConstStrings::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::static_args::ConstStrings where T: 'static
+pub fn nika_check_analyzer::static_args::ConstStrings::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_check_analyzer::static_args::judgeable_arg(consts: &nika_check_analyzer::static_args::ConstStrings, a: &nika_schema::raw::action::RawInvokeAction, key: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_check_analyzer::static_args::templated_url_host(raw: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_check_analyzer::static_args::url_host(raw: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_check_analyzer::types_contract
 pub fn nika_check_analyzer::types_contract::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub fn nika_check_analyzer::types_contract::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>

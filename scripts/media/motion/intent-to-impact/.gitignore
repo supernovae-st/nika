@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Obtain this proprietary freeware font from Fontshare, not this repository.
+assets/fonts/clash-display-600.woff2

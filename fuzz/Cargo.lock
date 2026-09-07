@@ -910,8 +910,7 @@ dependencies = [
 [[package]]
 name = "dom_smoothie"
 version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf8b9b294aabb8010b37c49a07d6f82175152f4927855d534979a38737721875"
+source = "git+https://github.com/supernovae-st/dom_smoothie?rev=fd6db004615af3c14d20f90bfb43ca514db4e57d#fd6db004615af3c14d20f90bfb43ca514db4e57d"
 dependencies = [
  "dom_query",
  "flagset",
@@ -2302,6 +2301,7 @@ dependencies = [
  "bytes",
  "csv",
  "encoding_rs",
+ "globset",
  "jaq-core",
  "jaq-json",
  "jaq-std",
@@ -2403,6 +2403,7 @@ dependencies = [
  "nika-types",
  "nika-vocab",
  "serde_json",
+ "url",
 ]
 
 [[package]]

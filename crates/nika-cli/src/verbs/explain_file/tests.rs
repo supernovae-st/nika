@@ -796,3 +796,55 @@ fn an_existing_yaml_path_still_narrates_as_a_file() {
     assert!(out.text.contains("brief-factory"), "{}", out.text);
     assert!(out.text.contains("the story"), "{}", out.text);
 }
+
+/// `--model mock/echo` replaces the envelope model only: a task-level
+/// `model:` pin stays live and metered, and the `envelope-model` hint says
+/// so. Printing the rehearsal line under that hint contradicted it on one
+/// screen (wave 3 · persona 12); the caveat replaces the line.
+#[test]
+fn the_rehearsal_line_yields_to_a_task_level_pin() {
+    let pinned = tmp(
+        "pinned",
+        "nika: pinned
+model: mistral/mistral-small-latest
+tasks:
+  a:
+    infer: { prompt: hi, max_tokens: 10 }
+  b:
+    infer: { prompt: hi, max_tokens: 10, model: openai/gpt-4o-mini }
+",
+    );
+    let out = run(pinned.to_str().expect("utf8"), false, false);
+    std::fs::remove_file(&pinned).ok();
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    assert!(
+        !out.text.contains("offline rehearsal"),
+        "a pinned task is not rehearsed by the envelope override:\n{}",
+        out.text
+    );
+    assert!(
+        out.text
+            .contains("a task-level `model:` pin stays live and metered"),
+        "the caveat replaces the line:\n{}",
+        out.text
+    );
+
+    // Without a pin the rehearsal line is right, and stays.
+    let plain = tmp(
+        "plain",
+        "nika: plain
+model: mistral/mistral-small-latest
+tasks:
+  a:
+    infer: { prompt: hi, max_tokens: 10 }
+",
+    );
+    let out = run(plain.to_str().expect("utf8"), false, false);
+    std::fs::remove_file(&plain).ok();
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    assert!(
+        out.text.contains("offline rehearsal"),
+        "an envelope-only model rehearses under --model mock/echo:\n{}",
+        out.text
+    );
+}
