@@ -739,9 +739,9 @@ where
             st.messages.push(Message::new(Role::Assistant, final_prose));
         }
         let native = self.provider.supports_response_format();
-        // The done-result candidate can differ from the assistant's words.
-        // Budget errors preserve those words, then each re-ask's latest text.
-        let mut partial_output = st.last_text.clone();
+        // The done-result candidate and routing fallback can differ from this
+        // terminal message. Preserve its text, including an empty message.
+        let mut partial_output = joined_text(&final_response.content);
         while st.repairs < self.schema_retry_budget {
             turn::token_budget_gate(input.max_tokens_total, st.total_tokens, &partial_output)?;
             st.repairs = st.repairs.saturating_add(1);
