@@ -821,4 +821,189 @@ mod tests {
         assert_eq!(stops.0.len(), 1, "{stops:?}");
         assert!(stops.0[0].contains("needs:"), "{stops:?}");
     }
+
+    // ── W2 · the PARSE-024 promise vs. the W2 fixer, shape by shape ──
+    //
+    // `NIKA-PARSE-024` carries `provable` (nika-schema · read off the
+    // PARSED sequence) and this ladder arms `nika_migrate::w2()` (a raw
+    // LINE scanner). Two readers, one claim — so the table below runs
+    // BOTH on the same bytes. They disagreed twice before it existed:
+    // `["a"]` was provable and the fixer answered « [S7] malformed …
+    // rewrite by hand » (the promise and the refusal on one screen), and
+    // `[]` was NOT provable while `--fix` silently dropped the dead line.
+
+    /// What the real W2 pass did with the whole document.
+    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+    enum Verdict {
+        /// Migrated — an `after:` block, or a dead line dropped.
+        Changed,
+        /// `[S7] … malformed depends_on entries` — the shape the scanner
+        /// refuses to read. This is the ONLY answer a non-provable shape
+        /// may get.
+        Malformed,
+        /// A SEMANTIC stop on a shape the scanner DID read (S1 skippable
+        /// producer · S3 status-only · S4 armor): `provable` is necessary,
+        /// never sufficient.
+        SemanticStop,
+        /// Any other stop — never expected; the tail names it.
+        OtherStop,
+    }
+
+    /// A workflow whose task `c` carries the `depends_on:` under test.
+    fn w2_doc(deps: &str) -> String {
+        format!(
+            "nika: t\ntasks:\n  a:\n    exec: {{ command: [\"true\"] }}\n  b:\n    exec: {{ command: [\"true\"] }}\n  c:\n{deps}    exec: {{ command: [\"true\"] }}\n"
+        )
+    }
+
+    /// What the FINDING promises about this document's shape.
+    fn finding_is_provable(source: &str) -> bool {
+        let err = nika_schema::parse(
+            source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect_err("the dead form is refused at parse");
+        match err {
+            SchemaError::W2DependsOnField { provable, .. } => provable,
+            other => unreachable!("PARSE-024 is the finding: {other:?}"),
+        }
+    }
+
+    /// What the FIXER answers for the same bytes (+ a tail for the failure).
+    fn fixer_verdict(source: &str) -> (Verdict, String) {
+        match nika_migrate::w2(source) {
+            nika_migrate::W2Outcome::Changed(migrated) => (Verdict::Changed, migrated),
+            nika_migrate::W2Outcome::Stop(notes) => {
+                let tail = notes.join(" | ");
+                let verdict = if tail.contains("malformed depends_on entries") {
+                    Verdict::Malformed
+                } else if tail.contains("[S1]") || tail.contains("[S3]") || tail.contains("[S4]") {
+                    Verdict::SemanticStop
+                } else {
+                    Verdict::OtherStop
+                };
+                (verdict, tail)
+            }
+        }
+    }
+
+    /// The shape table — one row per `depends_on:` shape, both readers.
+    #[test]
+    fn the_parse_024_promise_and_the_w2_fixer_agree_shape_by_shape() {
+        for (shape, deps, promise, answer) in [
+            ("[a]", "    depends_on: [a]\n", true, Verdict::Changed),
+            ("[a, b]", "    depends_on: [a, b]\n", true, Verdict::Changed),
+            (
+                "[\"a\"]",
+                "    depends_on: [\"a\"]\n",
+                true,
+                Verdict::Changed,
+            ),
+            ("['a']", "    depends_on: ['a']\n", true, Verdict::Changed),
+            (
+                "[a] # note",
+                "    depends_on: [a] # note\n",
+                true,
+                Verdict::Changed,
+            ),
+            (
+                "block - a",
+                "    depends_on:\n      - a\n",
+                true,
+                Verdict::Changed,
+            ),
+            (
+                "block - \"a\"",
+                "    depends_on:\n      - \"a\"\n",
+                true,
+                Verdict::Changed,
+            ),
+            ("[] (empty)", "    depends_on: []\n", true, Verdict::Changed),
+            ("[a, 1]", "    depends_on: [a, 1]\n", true, Verdict::Changed),
+            (
+                "a (scalar)",
+                "    depends_on: a\n",
+                false,
+                Verdict::Malformed,
+            ),
+            (
+                "{a: success} (map)",
+                "    depends_on: { a: success }\n",
+                false,
+                Verdict::Malformed,
+            ),
+            (
+                "[\"a -> b\"] (expression)",
+                "    depends_on: [\"a -> b\"]\n",
+                false,
+                Verdict::Malformed,
+            ),
+            (
+                "[a, \"${{ x }}\"]",
+                "    depends_on: [a, \"${{ x }}\"]\n",
+                false,
+                Verdict::Malformed,
+            ),
+            (
+                "[[a]] (nested)",
+                "    depends_on: [[a]]\n",
+                false,
+                Verdict::Malformed,
+            ),
+        ] {
+            let source = w2_doc(deps);
+            let promised = finding_is_provable(&source);
+            let (answered, tail) = fixer_verdict(&source);
+            assert_eq!(promised, promise, "{shape}: the promise moved\n{source}");
+            assert_eq!(answered, answer, "{shape}: the answer moved — {tail}");
+            // THE invariant: the shape clause is spoken iff the scanner
+            // read the shape (a semantic stop is still a READ shape).
+            assert_eq!(
+                promised,
+                answered != Verdict::Malformed,
+                "{shape}: provable={promised} while the fixer answered \
+                 {answered:?} — {tail}"
+            );
+        }
+    }
+
+    /// `provable` is NECESSARY, never sufficient: `[a]` on a producer that
+    /// may SKIP is a shape the scanner reads — and the fixer still stops
+    /// the whole file (S1). The finding says that out loud now, so the two
+    /// screens agree.
+    #[test]
+    fn a_readable_shape_still_stops_on_a_skippable_producer() {
+        let source = "nika: t\ntasks:\n  a:\n    on_error: { skip: true }\n    exec: { command: [\"true\"] }\n  c:\n    depends_on: [a]\n    exec: { command: [\"true\"] }\n";
+        assert!(finding_is_provable(source), "the SHAPE is readable");
+        let (answered, tail) = fixer_verdict(source);
+        assert_eq!(answered, Verdict::SemanticStop, "{tail}");
+        assert!(tail.contains("may SKIP"), "{tail}");
+        let err = nika_schema::parse(
+            source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect_err("dead form");
+        let text = err.to_string();
+        assert!(text.contains("can migrate this shape"), "{text}");
+        assert!(text.contains("still stops the file"), "{text}");
+    }
+
+    /// The empty list declares no edge — migrating it means DROPPING the
+    /// dead line, and no `after:` edge is invented. The finding calls the
+    /// shape migratable for exactly this reason.
+    #[test]
+    fn the_empty_depends_on_list_is_dropped_by_the_ladder() {
+        let mut source = w2_doc("    depends_on: []\n");
+        let mut repairs = Vec::new();
+        let mut stops = StopNotes(Vec::new());
+        assert!(
+            apply_w2_flow(&mut source, &mut repairs, &mut stops),
+            "{stops:?}"
+        );
+        assert!(!source.contains("depends_on"), "{source}");
+        assert!(!source.contains("after:"), "no edge is invented: {source}");
+        assert_eq!(repairs.len(), 1, "{repairs:?}");
+    }
 }

@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nika · intent becomes proof</title>
+  <style>
+    @font-face {
+      font-family: "Geist";
+      src: url("../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2") format("woff2");
+      font-weight: 100 900;
+    }
+    @font-face {
+      font-family: "Geist Mono";
+      src: url("../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2");
+      font-weight: 100 900;
+    }
+    :root {
+      --github: #0f1216;
+      --panel: #15191f;
+      --panel-raised: #1a1f27;
+      --line: #30363d;
+      --line-soft: #21262d;
+      --text: #f0f3f6;
+      --muted: #8b949e;
+      --faint: #545d68;
+      --violet: #a78bfa;
+      --violet-soft: rgba(167, 139, 250, .14);
+      --blue: #79c0ff;
+      --blue-soft: rgba(121, 192, 255, .13);
+      --mint: #56d4a0;
+      --mint-soft: rgba(86, 212, 160, .13);
+      --amber: #e3b341;
+      --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: "Geist Mono", "SFMono-Regular", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; background: var(--github); }
+    body { overflow: hidden; }
+    #stage {
+      position: relative;
+      width: 1600px;
+      height: 900px;
+      overflow: hidden;
+      color: var(--text);
+      font-family: var(--sans);
+      background:
+        radial-gradient(800px 500px at 50% 50%, rgba(121, 192, 255, .025), transparent 72%),
+        var(--github);
+      isolation: isolate;
+    }
+    #stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      opacity: .035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E");
+      -webkit-mask-image: radial-gradient(ellipse 72% 70% at 50% 50%, #000 32%, transparent 84%);
+      mask-image: radial-gradient(ellipse 72% 70% at 50% 50%, #000 32%, transparent 84%);
+      pointer-events: none;
+    }
+    .mono { font-family: var(--mono); }
+    .scene { position: absolute; inset: 0; opacity: 0; }
+
+    /* Persistent orientation: the viewer always knows where they are. */
+    #masthead {
+      position: absolute;
+      top: 42px;
+      left: 52px;
+      right: 52px;
+      z-index: 20;
+      display: flex;
+      align-items: flex-start;
+      opacity: 0;
+    }
+    #brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      font-family: var(--mono);
+      font-size: 15px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    #brand-mark {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border: 1px solid rgba(167, 139, 250, .48);
+      border-radius: 8px;
+      background: var(--violet-soft);
+      box-shadow: 0 0 24px rgba(167, 139, 250, .12);
+    }
+    #brand-mark img { width: 25px; height: 25px; display: block; }
+    #brand strong { color: var(--text); font-weight: 620; }
+    #brand em { color: var(--faint); font-style: normal; }
+    #phase-rail {
+      position: absolute;
+      top: 2px;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .phase {
+      position: relative;
+      min-width: 118px;
+      color: var(--faint);
+      text-align: center;
+    }
+    .phase + .phase::before {
+      content: "";
+      position: absolute;
+      left: -39px;
+      top: 6px;
+      width: 78px;
+      height: 1px;
+      background: var(--line);
+    }
+    .phase-dot {
+      display: block;
+      width: 12px;
+      height: 12px;
+      margin: 0 auto 9px;
+      border: 2px solid var(--line);
+      border-radius: 50%;
+      background: var(--github);
+    }
+    .phase.active { color: var(--text); }
+    .phase.active .phase-dot {
+      border-color: var(--violet);
+      background: var(--violet);
+      box-shadow: 0 0 20px rgba(167, 139, 250, .45);
+    }
+    .phase.done { color: var(--muted); }
+    .phase.done .phase-dot { border-color: var(--mint); background: var(--mint); }
+
+    /* Scene 1 — natural-language intent. */
+    #intent-stage { display: grid; place-items: center; }
+    #intent-shell {
+      position: absolute;
+      left: 238px;
+      top: 208px;
+      width: 1124px;
+      height: 300px;
+      padding: 45px 56px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(21, 25, 31, .92);
+      box-shadow: 0 34px 100px rgba(0, 0, 0, .36);
+      opacity: 0;
+      transform-origin: 50% 50%;
+    }
+    #intent-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      opacity: 0;
+    }
+    #intent-label i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--violet);
+      box-shadow: 0 0 16px rgba(167, 139, 250, .65);
+    }
+    #intent-copy {
+      margin-top: 26px;
+      max-width: 990px;
+      font-size: 55px;
+      font-weight: 540;
+      line-height: 1.1;
+      letter-spacing: -.045em;
+      text-wrap: balance;
+    }
+    #intent-copy .char { opacity: 0; }
+    #intent-copy .word { display: inline-block; white-space: nowrap; }
+    #word-meeting, #word-clear, #word-actions { position: relative; }
+    #word-meeting::after, #word-clear::after, #word-actions::after {
+      content: "";
+      position: absolute;
+      left: -6px;
+      right: -6px;
+      bottom: 2px;
+      height: 13px;
+      z-index: -1;
+      border-radius: 5px;
+      opacity: 0;
+    }
+    #word-meeting::after { background: var(--violet-soft); }
+    #word-clear::after { background: var(--blue-soft); }
+    #word-actions::after { background: var(--mint-soft); }
+    #word-meeting.marked { color: var(--violet); }
+    #word-clear.marked { color: var(--blue); }
+    #word-actions.marked { color: var(--mint); }
+    #word-meeting.marked::after, #word-clear.marked::after, #word-actions.marked::after { opacity: 1; }
+    #cursor {
+      display: inline-block;
+      width: 3px;
+      height: .9em;
+      margin-left: 6px;
+      vertical-align: -.04em;
+      border-radius: 2px;
+      background: var(--violet);
+      opacity: 0;
+    }
+    #intent-help {
+      position: absolute;
+      left: 56px;
+      bottom: 35px;
+      color: var(--faint);
+      font-size: 15px;
+      letter-spacing: -.01em;
+      opacity: 0;
+    }
+    #intent-help strong { color: var(--muted); font-weight: 520; }
+
+    #capabilities {
+      position: absolute;
+      left: 287px;
+      top: 581px;
+      width: 1026px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+    }
+    .capability {
+      position: relative;
+      height: 116px;
+      padding: 21px 22px 18px 70px;
+      border: 1px solid var(--line-soft);
+      border-radius: 16px;
+      background: rgba(21, 25, 31, .84);
+      opacity: 0;
+      transform: translateY(18px) scale(.96);
+    }
+    .cap-icon {
+      position: absolute;
+      left: 20px;
+      top: 21px;
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--text);
+      background: var(--panel-raised);
+    }
+    .cap-icon svg { width: 20px; height: 20px; }
+    .capability strong { display: block; font-size: 17px; font-weight: 580; letter-spacing: -.02em; }
+    .capability span { display: block; margin-top: 8px; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+    #cap-connectors { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+    .connector { fill: none; stroke: var(--line); stroke-width: 1.5; }
+    .connector-tip { fill: var(--violet); opacity: 0; }
+
+    /* Scene 2 — the intent becomes a readable source file. */
+    #file-scene { padding: 146px 218px 0; }
+    .scene-kicker {
+      color: var(--violet);
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .scene-title {
+      margin-top: 10px;
+      color: var(--text);
+      font-size: 35px;
+      font-weight: 560;
+      letter-spacing: -.035em;
+    }
+    #file-headline { opacity: 0; }
+    #workflow-file {
+      position: absolute;
+      left: 218px;
+      top: 239px;
+      width: 1164px;
+      height: 550px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(21, 25, 31, .96);
+      box-shadow: 0 32px 100px rgba(0, 0, 0, .38);
+      opacity: 0;
+      transform: translateY(28px) scale(.985);
+    }
+    #file-bar {
+      display: flex;
+      align-items: center;
+      height: 58px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line-soft);
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+    #file-icon {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      margin-right: 12px;
+      border-radius: 7px;
+      color: var(--violet);
+      background: var(--violet-soft);
+    }
+    #file-icon img { width: 18px; height: 18px; display: block; }
+    #file-name { color: var(--text); }
+    #file-bar .extension { color: var(--violet); }
+    #file-badges { display: flex; gap: 8px; margin-left: auto; }
+    .file-badge {
+      padding: 5px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    #file-grid { display: grid; grid-template-columns: 682px 1fr; height: 492px; }
+    #yaml {
+      padding: 24px 28px;
+      border-right: 1px solid var(--line-soft);
+      font-family: var(--mono);
+      font-size: 15px;
+      line-height: 1.53;
+      font-variant-ligatures: none;
+    }
+    .yaml-line { display: block; white-space: pre; opacity: 0; color: var(--muted); }
+    .line-no { display: inline-block; width: 33px; color: #3f4751; user-select: none; }
+    .key { color: var(--blue); }
+    .value { color: var(--text); }
+    .string { color: #a5d6a7; }
+    .binding { color: var(--violet); }
+    .comment { color: var(--faint); }
+    #understood { padding: 28px 30px; }
+    #understood h3 {
+      margin: 0 0 21px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+    .meaning-row {
+      position: relative;
+      min-height: 70px;
+      margin-bottom: 13px;
+      padding: 14px 16px 13px 52px;
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .012);
+      opacity: 0;
+      transform: translateX(16px);
+    }
+    .meaning-row .meaning-icon {
+      position: absolute;
+      left: 15px;
+      top: 16px;
+      width: 24px;
+      height: 24px;
+      color: var(--muted);
+    }
+    .meaning-row strong { display: block; color: var(--text); font-size: 15px; font-weight: 560; }
+    .meaning-row span { display: block; margin-top: 5px; color: var(--muted); font-family: var(--mono); font-size: 11px; line-height: 1.35; }
+    #file-caption {
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line-soft);
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+      opacity: 0;
+    }
+    #file-caption strong { color: var(--mint); font-weight: 580; }
+    .flight-word {
+      position: absolute;
+      z-index: 40;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    #morph-shell {
+      position: absolute;
+      left: 238px;
+      top: 208px;
+      z-index: 35;
+      width: 1124px;
+      height: 300px;
+      overflow: hidden;
+      padding: 96px 56px 0;
+      border: 1px solid rgba(167, 139, 250, .5);
+      border-radius: 22px;
+      background: rgba(21, 25, 31, .96);
+      box-shadow: 0 34px 100px rgba(0,0,0,.4), 0 0 55px rgba(167,139,250,.08);
+      opacity: 0;
+      transform-origin: 50% 50%;
+      pointer-events: none;
+    }
+    #morph-shell span {
+      color: var(--text);
+      font-size: 55px;
+      font-weight: 540;
+      line-height: 1.1;
+      letter-spacing: -.045em;
+      white-space: nowrap;
+    }
+
+    /* Scene 3 — check reveals the execution graph before anything runs. */
+    #graph-scene { padding: 147px 180px 0; }
+    #graph-headline, #run-headline { opacity: 0; }
+    #run-headline { position: absolute; left: 180px; top: 147px; }
+    #graph-wrap {
+      position: absolute;
+      left: 180px;
+      top: 263px;
+      width: 1240px;
+      height: 440px;
+      opacity: 0;
+    }
+    #graph-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .graph-edge { fill: none; stroke: var(--line); stroke-width: 2; }
+    .graph-edge-live { fill: none; stroke: var(--violet); stroke-width: 2.5; opacity: 0; filter: drop-shadow(0 0 7px rgba(167,139,250,.45)); }
+    .graph-node {
+      position: absolute;
+      top: 120px;
+      width: 260px;
+      height: 150px;
+      padding: 25px 24px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(21, 25, 31, .98);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .32);
+      opacity: 0;
+      transform: translateY(22px) scale(.96);
+    }
+    #node-read { left: 50px; }
+    #node-think { left: 490px; }
+    #node-write { left: 930px; }
+    .node-number {
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .node-name { margin-top: 13px; color: var(--text); font-size: 24px; font-weight: 570; letter-spacing: -.03em; }
+    .node-tool { margin-top: 9px; color: var(--muted); font-family: var(--mono); font-size: 13px; }
+    .node-state {
+      position: absolute;
+      right: 18px;
+      top: 18px;
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: transparent;
+      font-family: var(--mono);
+      font-size: 14px;
+    }
+    .graph-node.running {
+      border-color: var(--violet);
+      box-shadow: 0 0 0 1px rgba(167,139,250,.12), 0 28px 74px rgba(0,0,0,.36), 0 0 45px rgba(167,139,250,.12);
+    }
+    .graph-node.running .node-state { border-color: var(--violet); background: var(--violet); color: var(--github); }
+    .graph-node.done { border-color: rgba(86, 212, 160, .48); }
+    .graph-node.done .node-state { border-color: var(--mint); background: var(--mint); color: var(--github); }
+    .packet { fill: var(--violet); filter: drop-shadow(0 0 8px rgba(167,139,250,.8)); opacity: 0; }
+    #check-receipt {
+      position: absolute;
+      left: 320px;
+      top: 345px;
+      width: 600px;
+      min-height: 136px;
+      padding: 22px 24px;
+      border: 1px solid rgba(86, 212, 160, .34);
+      border-radius: 16px;
+      background: rgba(18, 29, 27, .96);
+      box-shadow: 0 26px 80px rgba(0,0,0,.45);
+      opacity: 0;
+      transform: translateY(16px) scale(.97);
+    }
+    #check-receipt h3 { margin: 0; color: var(--mint); font-size: 19px; font-weight: 580; }
+    #check-receipt p { margin: 9px 0 0; color: var(--muted); font-family: var(--mono); font-size: 13px; }
+    #check-facts { display: flex; gap: 22px; margin-top: 16px; color: var(--text); font-family: var(--mono); font-size: 12px; }
+    #check-facts span::before { content: "✓"; margin-right: 7px; color: var(--mint); }
+    #run-label {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 25px;
+      text-align: center;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 13px;
+      letter-spacing: .04em;
+      opacity: 0;
+    }
+    #run-label strong { color: var(--text); font-weight: 540; }
+
+    /* Scene 4 — useful output and a tamper-evident receipt. */
+    #proof-scene { padding: 144px 176px 0; }
+    #proof-headline { opacity: 0; }
+    #output-card, #proof-card {
+      position: absolute;
+      top: 260px;
+      height: 430px;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: rgba(21, 25, 31, .96);
+      box-shadow: 0 30px 90px rgba(0,0,0,.36);
+      opacity: 0;
+    }
+    #output-card { left: 176px; width: 750px; transform: translateX(-24px); }
+    #proof-card { left: 958px; width: 466px; transform: translateX(24px); }
+    .result-bar {
+      display: flex;
+      align-items: center;
+      height: 58px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--line-soft);
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+    .result-bar strong { color: var(--text); font-weight: 520; }
+    .result-status {
+      margin-left: auto;
+      padding: 5px 9px;
+      border: 1px solid rgba(86,212,160,.35);
+      border-radius: 999px;
+      color: var(--mint);
+      background: var(--mint-soft);
+      font-size: 11px;
+    }
+    #action-table { padding: 14px 20px; }
+    .action-row {
+      display: grid;
+      grid-template-columns: 98px 1fr 94px;
+      align-items: center;
+      min-height: 86px;
+      border-bottom: 1px solid var(--line-soft);
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    .action-row:last-child { border-bottom: 0; }
+    .avatar { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 14px; }
+    .avatar i {
+      display: grid;
+      place-items: center;
+      width: 29px;
+      height: 29px;
+      border-radius: 9px;
+      color: var(--github);
+      background: var(--violet);
+      font-style: normal;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .action-row:nth-child(2) .avatar i { background: var(--blue); }
+    .action-row:nth-child(3) .avatar i { background: var(--mint); }
+    .task-copy { color: var(--muted); font-size: 14px; line-height: 1.35; }
+    .due { justify-self: end; color: var(--text); font-family: var(--mono); font-size: 12px; }
+    #output-foot {
+      display: flex;
+      align-items: center;
+      height: 56px;
+      margin: 0 20px;
+      padding: 0 2px;
+      border-top: 1px solid var(--line-soft);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    #output-foot strong { color: var(--text); font-weight: 520; }
+    #proof-inner { padding: 28px 28px 24px; }
+    #proof-seal {
+      display: grid;
+      place-items: center;
+      width: 50px;
+      height: 50px;
+      border: 1px solid rgba(86,212,160,.36);
+      border-radius: 15px;
+      color: var(--mint);
+      background: var(--mint-soft);
+      font-family: var(--mono);
+      font-size: 23px;
+      opacity: 0;
+      transform: scale(.55) rotate(-18deg);
+    }
+    #proof-card h3 { margin: 22px 0 7px; color: var(--text); font-size: 22px; font-weight: 580; letter-spacing: -.025em; }
+    #proof-card .proof-copy { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .proof-fact {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line-soft);
+      opacity: 0;
+    }
+    .proof-fact span { display: block; color: var(--faint); font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+    .proof-fact strong { display: block; margin-top: 7px; color: var(--text); font-family: var(--mono); font-size: 12px; font-weight: 460; }
+    #final-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 740px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 19px;
+      letter-spacing: -.015em;
+      opacity: 0;
+    }
+    #final-line strong { color: var(--text); font-weight: 590; }
+    #final-line .arrow { margin: 0 10px; color: var(--violet); }
+
+    #corner-note {
+      position: absolute;
+      left: 52px;
+      bottom: 31px;
+      z-index: 20;
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      opacity: 0;
+    }
+    #corner-note strong { color: var(--muted); font-weight: 520; }
+  </style>
+</head>
+<body>
+<div id="stage">
+  <header id="masthead">
+    <div id="brand"><span id="brand-mark"><img src="../../../media/brand/nika-logomark.svg" alt=""></span><strong>Nika</strong><em>/ intent compiler</em></div>
+    <div id="phase-rail" aria-label="Intent, check, run, proof">
+      <div class="phase" data-phase="intent"><span class="phase-dot"></span>Intent</div>
+      <div class="phase" data-phase="check"><span class="phase-dot"></span>Check</div>
+      <div class="phase" data-phase="run"><span class="phase-dot"></span>Run</div>
+      <div class="phase" data-phase="proof"><span class="phase-dot"></span>Proof</div>
+    </div>
+  </header>
+
+  <main id="story">
+    <section id="intent-stage" class="scene">
+      <div id="intent-shell">
+        <div id="intent-label"><i></i>Your intent · nika new</div>
+        <div id="intent-copy">Turn this <span id="word-meeting" class="word">meeting</span> into <span id="word-clear" class="word">clear</span> <span id="word-actions" class="word">action items</span><span id="cursor"></span></div>
+        <div id="intent-help">Plain English in. <strong>No SDK glue. No hidden agent loop.</strong></div>
+      </div>
+
+      <svg id="cap-connectors" viewBox="0 0 1600 900" aria-hidden="true">
+        <path class="connector" d="M 800 507 C 770 545 505 545 414 581"/>
+        <path class="connector" d="M 800 507 C 780 548 690 550 672 581"/>
+        <path class="connector" d="M 800 507 C 820 548 910 550 928 581"/>
+        <path class="connector" d="M 800 507 C 830 545 1095 545 1186 581"/>
+        <circle class="connector-tip" cx="414" cy="581" r="4"/>
+        <circle class="connector-tip" cx="672" cy="581" r="4"/>
+        <circle class="connector-tip" cx="928" cy="581" r="4"/>
+        <circle class="connector-tip" cx="1186" cy="581" r="4"/>
+      </svg>
+
+      <div id="capabilities">
+        <div class="capability">
+          <span class="cap-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .8a11.4 11.4 0 0 0-3.6 22.2c.57.1.78-.25.78-.55v-2.22c-3.18.69-3.85-1.35-3.85-1.35-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.68 1.24 3.33.95.1-.74.4-1.24.73-1.53-2.54-.29-5.21-1.27-5.21-5.64 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.45.11-3.02 0 0 .96-.31 3.14 1.17A10.9 10.9 0 0 1 12 6.17c.97 0 1.93.13 2.83.38 2.18-1.48 3.14-1.17 3.14-1.17.62 1.57.23 2.73.11 3.02.74.8 1.18 1.82 1.18 3.07 0 4.38-2.68 5.34-5.23 5.63.41.36.78 1.05.78 2.12v3.15c0 .3.21.66.79.55A11.4 11.4 0 0 0 12 .8Z"/></svg>
+          </span>
+          <strong>Apps</strong><span>GitHub · Slack</span>
+        </div>
+        <div class="capability">
+          <span class="cap-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="m7.3 11 9.2-4M7.3 13l9.2 4"/></svg>
+          </span>
+          <strong>MCP</strong><span>tools · context</span>
+        </div>
+        <div class="capability">
+          <span class="cap-icon mono">{ }</span>
+          <strong>APIs</strong><span>models · data</span>
+        </div>
+        <div class="capability">
+          <span class="cap-icon">✦</span>
+          <strong>Built-ins</strong><span>read · write</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="file-scene" class="scene">
+      <div id="file-headline">
+        <div class="scene-kicker">01 · Intent</div>
+        <div class="scene-title">Nika turns the request into one readable workflow.</div>
+      </div>
+      <div id="workflow-file">
+        <div id="file-bar">
+          <span id="file-icon"><img src="../../../media/brand/nika-logomark.svg" alt=""></span>
+          <span id="file-name"><span id="target-meeting">meeting</span>-<span id="target-actions">actions</span><span class="extension">.nika.yaml</span></span>
+          <div id="file-badges"><span class="file-badge">plain text</span><span class="file-badge">reviewable</span><span class="file-badge">Git-friendly</span></div>
+        </div>
+        <div id="file-grid">
+          <div id="yaml">
+            <span class="yaml-line"><span class="line-no">01</span><span class="key">nika:</span> <span class="value">meeting-actions</span></span>
+            <span class="yaml-line"><span class="line-no">02</span><span class="key">model:</span> <span class="value">ollama/llama3.2:3b</span></span>
+            <span class="yaml-line"><span class="line-no">03</span><span class="key">permits:</span></span>
+            <span class="yaml-line"><span class="line-no">04</span>  <span class="key">tools:</span> <span class="value">[nika:read, nika:write]</span></span>
+            <span class="yaml-line"><span class="line-no">05</span>  <span class="key">fs:</span> <span class="value">{ read: [meeting.txt], write: [action-items.json] }</span></span>
+            <span class="yaml-line"><span class="line-no">06</span><span class="key">tasks:</span></span>
+            <span class="yaml-line"><span class="line-no">07</span>  <span class="key">transcript:</span></span>
+            <span class="yaml-line"><span class="line-no">08</span>    <span class="key">invoke:</span> <span class="value">{ tool: nika:read, args: { path: meeting.txt } }</span></span>
+            <span class="yaml-line"><span class="line-no">09</span>  <span class="key">extract:</span></span>
+            <span class="yaml-line"><span class="line-no">10</span>    <span class="key">with:</span> <span class="value">{ transcript: </span><span class="binding">${{ tasks.transcript.output }}</span><span class="value"> }</span></span>
+            <span class="yaml-line"><span class="line-no">11</span>    <span class="key">infer:</span> <span class="value">{ prompt: </span><span class="string">"Extract action items"</span><span class="value"> }</span></span>
+            <span class="yaml-line"><span class="line-no">12</span>  <span class="key">save:</span></span>
+            <span class="yaml-line"><span class="line-no">13</span>    <span class="key">with:</span> <span class="value">{ actions: </span><span class="binding">${{ tasks.extract.output.actions }}</span><span class="value"> }</span></span>
+            <span class="yaml-line"><span class="line-no">14</span>    <span class="key">invoke:</span> <span class="value">{ tool: nika:write, args: { path: action-items.json } }</span></span>
+          </div>
+          <aside id="understood">
+            <h3>What Nika understood</h3>
+            <div class="meaning-row"><svg class="meaning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16M4 12h10M4 19h7"/></svg><strong>Read the meeting</strong><span>input · meeting.txt</span></div>
+            <div class="meaning-row"><svg class="meaning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a6 6 0 0 0-3.6 10.8V17h7.2v-3.2A6 6 0 0 0 12 3Z"/><path d="M9.5 21h5M9 17h6"/></svg><strong>Ask one model</strong><span>extract · typed action items</span></div>
+            <div class="meaning-row"><svg class="meaning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 17h8"/></svg><strong>Write the result</strong><span>output · action-items.json</span></div>
+            <div id="file-caption"><strong>Nothing has run yet.</strong><br>You can read, edit, commit, and review the plan first.</div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="graph-scene" class="scene">
+      <div id="graph-headline">
+        <div class="scene-kicker">02 · Check</div>
+        <div class="scene-title">Before it runs, you see the complete execution plan.</div>
+      </div>
+      <div id="run-headline">
+        <div class="scene-kicker">03 · Run</div>
+        <div class="scene-title">The checked plan executes — one visible step at a time.</div>
+      </div>
+      <div id="graph-wrap">
+        <svg id="graph-svg" viewBox="0 0 1240 440" aria-hidden="true">
+          <path id="run-edge-1" class="graph-edge" d="M310 195 C370 195 430 195 490 195"/>
+          <path id="run-edge-2" class="graph-edge" d="M750 195 C810 195 870 195 930 195"/>
+          <path class="graph-edge-live" d="M310 195 C370 195 430 195 490 195"/>
+          <path class="graph-edge-live" d="M750 195 C810 195 870 195 930 195"/>
+          <circle id="packet-1" class="packet" cx="0" cy="0" r="6"/>
+          <circle id="packet-2" class="packet" cx="0" cy="0" r="6"/>
+        </svg>
+        <div id="node-read" class="graph-node">
+          <span class="node-state">✓</span><div class="node-number">Step 1</div><div class="node-name">Read</div><div class="node-tool">nika:read · meeting.txt</div>
+        </div>
+        <div id="node-think" class="graph-node">
+          <span class="node-state">✓</span><div class="node-number">Step 2</div><div class="node-name">Extract</div><div class="node-tool">model · typed JSON</div>
+        </div>
+        <div id="node-write" class="graph-node">
+          <span class="node-state">✓</span><div class="node-number">Step 3</div><div class="node-name">Save</div><div class="node-tool">nika:write · result</div>
+        </div>
+        <div id="check-receipt">
+          <h3>✓ Valid workflow</h3>
+          <p>nika check · no execution</p>
+          <div id="check-facts"><span>3 steps</span><span>2 allowed tools</span><span>1 model</span></div>
+        </div>
+        <div id="run-label"><strong>nika run</strong> · the checked graph now executes left to right</div>
+      </div>
+    </section>
+
+    <section id="proof-scene" class="scene">
+      <div id="proof-headline">
+        <div class="scene-kicker">04 · Proof</div>
+        <div class="scene-title">You get the result — and a verifiable record of how it happened.</div>
+      </div>
+      <div id="output-card">
+        <div class="result-bar"><strong>action-items.json</strong><span class="result-status">3 items written</span></div>
+        <div id="action-table">
+          <div class="action-row"><div class="avatar"><i>M</i>Marco</div><div class="task-copy">fix the email queue</div><div class="due">Friday</div></div>
+          <div class="action-row"><div class="avatar"><i>S</i>Sam</div><div class="task-copy">review pricing page copy update</div><div class="due">Thursday</div></div>
+          <div class="action-row"><div class="avatar"><i>L</i>Lea</div><div class="task-copy">chase infra ticket for staging down issue and report back tomorrow morning</div><div class="due">no due date</div></div>
+        </div>
+        <div id="output-foot">output&nbsp; <strong>./action-items.json</strong></div>
+      </div>
+      <div id="proof-card">
+        <div class="result-bar"><strong>run receipt</strong><span class="result-status">verified</span></div>
+        <div id="proof-inner">
+          <div id="proof-seal">✓</div>
+          <h3>Trace intact</h3>
+          <p class="proof-copy"><span class="mono">nika trace verify</span><br>Every step, input, output, and permission is recorded.</p>
+          <div class="proof-fact"><span>events</span><strong>15 · complete chain</strong></div>
+          <div class="proof-fact"><span>sha-256</span><strong>66549215…e18d08</strong></div>
+        </div>
+      </div>
+      <div id="final-line" class="mono"><strong>nika new</strong><span class="arrow">→</span><strong>nika check</strong><span class="arrow">→</span><strong>nika run</strong><span class="arrow">→</span><strong>nika trace verify</strong></div>
+    </section>
+  </main>
+
+  <div id="morph-shell"><span>Turn this meeting into clear action items</span></div>
+
+  <div id="corner-note"><strong>Intent as Code.</strong> One readable file. Any model. Every run traced.</div>
+</div>
+
+<script src="../node_modules/gsap/dist/gsap.min.js"></script>
+<script src="../node_modules/gsap/dist/SplitText.min.js"></script>
+<script src="../node_modules/gsap/dist/DrawSVGPlugin.min.js"></script>
+<script src="../node_modules/gsap/dist/MotionPathPlugin.min.js"></script>
+<script>
+  gsap.registerPlugin(SplitText, DrawSVGPlugin, MotionPathPlugin);
+
+  const DURATION = 19200;
+  const phaseEls = [...document.querySelectorAll(".phase")];
+  const setPhase = (name) => {
+    const order = ["intent", "check", "run", "proof"];
+    const active = order.indexOf(name);
+    phaseEls.forEach((el, index) => {
+      el.classList.toggle("active", index === active);
+      el.classList.toggle("done", index < active);
+    });
+  };
+
+  const split = new SplitText("#intent-copy", { type: "chars,words" });
+  const timeline = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
+
+  gsap.set(split.chars, { opacity: 0, y: 10, filter: "blur(3px)" });
+  gsap.set(".connector", { drawSVG: "0%" });
+
+  timeline
+    .set("#story", { opacity: 1 }, 0)
+    .to("#masthead", { opacity: 1, duration: .55 }, .12)
+    .to("#corner-note", { opacity: 1, duration: .55 }, .18)
+    .set({}, { onComplete: () => setPhase("intent"), onReverseComplete: () => setPhase("intent") }, .22)
+    .to("#intent-stage", { opacity: 1, duration: .01 }, .25)
+    .to("#intent-shell", { opacity: 1, scale: 1, duration: .72, ease: "back.out(1.18)" }, .35)
+    .to("#intent-label", { opacity: 1, duration: .38 }, .62)
+    .to("#cursor", { opacity: 1, duration: .12 }, .72)
+    .to(split.chars, { opacity: 1, y: 0, filter: "blur(0px)", duration: .12, stagger: .038, ease: "power2.out" }, .82)
+    .to("#cursor", { opacity: 0, duration: .12 }, 2.65)
+    .add(() => document.querySelector("#word-meeting").classList.add("marked"), 2.64)
+    .add(() => document.querySelector("#word-clear").classList.add("marked"), 2.78)
+    .add(() => document.querySelector("#word-actions").classList.add("marked"), 2.92)
+    .to("#intent-help", { opacity: 1, y: 0, duration: .5 }, 3.02)
+    .to(".connector", { drawSVG: "100%", duration: .78, stagger: .08, ease: "power2.inOut" }, 3.22)
+    .to(".connector-tip", { opacity: 1, duration: .2, stagger: .08 }, 3.72)
+    .to(".capability", { opacity: 1, y: 0, scale: 1, duration: .58, stagger: .12, ease: "back.out(1.35)" }, 3.5)
+    .to("#intent-shell", { borderColor: "rgba(167,139,250,.5)", boxShadow: "0 34px 100px rgba(0,0,0,.36), 0 0 55px rgba(167,139,250,.08)", duration: .5 }, 4.35)
+
+    .set("#morph-shell", { opacity: 1 }, 5.02)
+    .to("#morph-shell span", { opacity: 0, scale: .96, duration: .35 }, 5.06)
+    .to("#morph-shell", { x: -20, y: 31, scaleX: 1.036, scaleY: 1.833, borderRadius: 20, duration: .82, ease: "power3.inOut" }, 5.04)
+    .to("#intent-stage", { opacity: 0, scale: .975, duration: .48, ease: "power2.inOut" }, 5.05)
+    .to("#file-scene", { opacity: 1, duration: .01 }, 5.24)
+    .to("#file-headline", { opacity: 1, y: 0, duration: .55 }, 5.38)
+    .to("#workflow-file", { opacity: 1, y: 0, scale: 1, duration: .78, ease: "back.out(1.12)" }, 5.48)
+    .to("#morph-shell", { opacity: 0, duration: .28 }, 5.62)
+    .from("#file-icon", { rotate: -100, scale: .4, duration: .65, ease: "back.out(1.8)" }, 5.7)
+    .from("#file-name", { opacity: 0, x: -14, duration: .42 }, 5.82)
+    .from(".file-badge", { opacity: 0, x: 10, duration: .38, stagger: .09 }, 5.96)
+    .to(".yaml-line", { opacity: 1, duration: .12, stagger: .07, ease: "none" }, 6.1)
+    .to(".meaning-row", { opacity: 1, x: 0, duration: .42, stagger: .18 }, 6.58)
+    .to("#file-caption", { opacity: 1, duration: .45 }, 7.25)
+    .to("#workflow-file", { borderColor: "rgba(121,192,255,.34)", duration: .4 }, 7.6)
+
+    .to("#file-headline", { opacity: 0, y: -10, duration: .36 }, 8.1)
+    .to("#workflow-file", { opacity: .18, y: -56, scale: .18, borderRadius: 44, duration: .72, ease: "power3.inOut" }, 8.2)
+    .set("#file-scene", { opacity: 0 }, 8.86)
+    .set({}, { onComplete: () => setPhase("check"), onReverseComplete: () => setPhase("intent") }, 8.5)
+    .to("#graph-scene", { opacity: 1, duration: .01 }, 8.52)
+    .to("#graph-headline", { opacity: 1, duration: .5 }, 8.55)
+    .to("#graph-wrap", { opacity: 1, duration: .35 }, 8.65)
+    .from(".graph-edge", { drawSVG: "0%", duration: .72, stagger: .16, ease: "power2.inOut" }, 8.82)
+    .fromTo(".graph-node",
+      { opacity: 0, y: 0, scale: .28, x: (index) => [440, 0, -440][index] },
+      { opacity: 1, x: 0, scale: 1, duration: .7, stagger: .16, ease: "back.out(1.25)" },
+      8.76)
+    .to("#check-receipt", { opacity: 1, y: 0, scale: 1, duration: .58, ease: "back.out(1.32)" }, 9.95)
+    .to("#check-receipt", { opacity: 0, y: -12, scale: .98, duration: .48 }, 11.0)
+    .to("#graph-headline", { opacity: 0, y: -10, duration: .35 }, 10.95)
+    .to("#run-headline", { opacity: 1, y: 0, duration: .42 }, 11.08)
+    .set({}, { onComplete: () => setPhase("run"), onReverseComplete: () => setPhase("check") }, 11.18)
+    .to("#run-label", { opacity: 1, duration: .4 }, 11.2)
+    .set("#node-read", { className: "graph-node running" }, 11.28)
+    .to("#node-read", { scale: 1.025, duration: .24, yoyo: true, repeat: 1 }, 11.34)
+    .set("#node-read", { className: "graph-node done" }, 12.05)
+    .to(".graph-edge-live:nth-of-type(3)", { opacity: 1, drawSVG: "100%", duration: .34 }, 12.0)
+    .set("#packet-1", { opacity: 1 }, 12.0)
+    .to("#packet-1", { motionPath: { path: "#run-edge-1", align: "#run-edge-1", alignOrigin: [.5,.5] }, duration: .62, ease: "power1.inOut" }, 12.0)
+    .set("#packet-1", { opacity: 0 }, 12.62)
+    .set("#node-think", { className: "graph-node running" }, 12.55)
+    .to("#node-think", { scale: 1.025, duration: .28, yoyo: true, repeat: 3 }, 12.6)
+    .set("#node-think", { className: "graph-node done" }, 13.75)
+    .to(".graph-edge-live:nth-of-type(4)", { opacity: 1, drawSVG: "100%", duration: .34 }, 13.7)
+    .set("#packet-2", { opacity: 1 }, 13.7)
+    .to("#packet-2", { motionPath: { path: "#run-edge-2", align: "#run-edge-2", alignOrigin: [.5,.5] }, duration: .62, ease: "power1.inOut" }, 13.7)
+    .set("#packet-2", { opacity: 0 }, 14.32)
+    .set("#node-write", { className: "graph-node running" }, 14.25)
+    .to("#node-write", { scale: 1.025, duration: .24, yoyo: true, repeat: 1 }, 14.3)
+    .set("#node-write", { className: "graph-node done" }, 14.88)
+
+    .to("#graph-scene", { opacity: 0, scale: .97, duration: .58, ease: "power2.inOut" }, 15.05)
+    .set({}, { onComplete: () => setPhase("proof"), onReverseComplete: () => setPhase("run") }, 15.3)
+    .to("#proof-scene", { opacity: 1, duration: .01 }, 15.32)
+    .to("#proof-headline", { opacity: 1, duration: .5 }, 15.35)
+    .to("#output-card", { opacity: 1, x: 0, duration: .68, ease: "back.out(1.15)" }, 15.48)
+    .to("#proof-card", { opacity: 1, x: 0, duration: .68, ease: "back.out(1.15)" }, 15.63)
+    .to(".action-row", { opacity: 1, y: 0, duration: .38, stagger: .16 }, 15.85)
+    .to("#proof-seal", { opacity: 1, scale: 1, rotate: 0, duration: .58, ease: "back.out(2)" }, 16.05)
+    .to(".proof-fact", { opacity: 1, duration: .38, stagger: .16 }, 16.3)
+    .to("#final-line", { opacity: 1, y: 0, duration: .55 }, 17.0)
+    .to("#proof-seal", { boxShadow: "0 0 34px rgba(86,212,160,.2)", duration: .55, yoyo: true, repeat: 1 }, 17.35)
+    .to("#story, #masthead, #corner-note", { opacity: 0, duration: .55, ease: "power2.in" }, 18.62);
+
+  timeline.duration(DURATION / 1000);
+  window.__scene = { name: "intent-dag-proof", duration: DURATION, fps: 30, gifFps: 20, gifWidth: 1200, gifColors: 160, width: 1600, height: 900, posterAt: 17600 };
+  window.__seek = (ms) => {
+    timeline.totalTime(Math.max(0, Math.min(DURATION, ms)) / 1000, false);
+  };
+
+  const renderMode = new URLSearchParams(location.search).has("render");
+  if (!renderMode && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    timeline.repeat(-1).play(0);
+  } else if (!renderMode) {
+    window.__seek(17600);
+  }
+</script>
+</body>
+</html>

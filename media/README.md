@@ -2,15 +2,38 @@
 
 Official visual assets for the README, docs, website and social surfaces.
 
+## Current README film
+
+**From intent to impact:** [60-second MP4](videos/intent-to-impact.mp4),
+[full-length GIF](gifs/intent-to-impact.optimized.gif),
+[poster](posters/intent-to-impact.png) and
+[contact sheet](storyboards/intent-to-impact.png).
+
+The film demonstrates checkout research, a reviewable YAML file, preflight,
+bounded parallel work, approval and concrete results. Telegram and Slack both
+receive an update; Linear is updated too. Source review and folding are brief,
+while the final deliverables stay on screen long enough to read.
+
+This is an **illustrative product film**, with fictional data and no live
+integrations. It is not a recording of a shipping graphical editor. Its focused
+YAML excerpts are not a complete runnable workflow. The source, timing tests,
+font prerequisites and regeneration steps are in
+[the film README](../scripts/media/motion/intent-to-impact/README.md).
+
+The older `intent-dag-proof` film remains an archived alternative; it is no
+longer the README hero.
+
 ## Rules
 
 - **No fake commands.** Every command shown in an asset exists in the CLI.
 - **No fake output.** Terminal text is captured from the real binary
   (`scripts/media/capture-transcripts.sh` → `media/raw/*.txt`). The
   chat-to-workflow run is a real local inference (`ollama/llama3.2:3b`).
-- **Every workflow shown passes `nika check`** — except the deliberately
+- **Every complete runnable workflow shown passes `nika check`** — except the deliberately
   broken fixture in the static-check-fix asset, whose failure is the point.
   `scripts/media/validate-media.sh` enforces both directions.
+- **Illustrations say so.** The product film labels fictional data and folded
+  source excerpts. It must never be described as a successful real integration.
 - **Budgets** · README GIF ≤ 8 MB · poster PNG ≤ 1 MB.
 - **Never edit exports by hand.** Edit the motion scene or fixture, then
   regenerate.
@@ -19,9 +42,11 @@ Official visual assets for the README, docs, website and social surfaces.
 
 ```
 media/
-  gifs/      *.optimized.gif   — README embeds (1280px · 16fps · ≤8MB)
+  brand/     nika-logomark.svg — official butterfly mark (geometry preserved)
+  gifs/      *.optimized.gif   — README embeds (scene width/fps · ≤8MB)
   videos/    *.mp4 + *.webm    — docs + website embeds
   posters/   *.png             — static frame per animation (og:image, video poster)
+  storyboards/*.png            — six-beat visual QA contact sheets
   social/    og-card + github-social-preview — share cards (scene: motion/og-card.html)
   raw/       *.txt + *.json    — captured CLI transcripts (the source of truth)
   nika-hero.gif                — real terminal capture (check + run)
@@ -31,14 +56,15 @@ media/
 
 ```sh
 bash scripts/media/capture-transcripts.sh     # refresh real CLI transcripts
-cd scripts/media && npm install               # once (playwright-core)
-node render-motion.mjs static-check-fix chat-to-workflow dag-execution
+cd scripts/media && npm install               # once (Playwright + GSAP + Geist)
+node render-motion.mjs intent-dag-proof static-check-fix chat-to-workflow dag-execution
 bash scripts/media/validate-media.sh          # honesty + budget gate
 ```
 
-The motion scenes live in `scripts/media/motion/*.html` — self-contained
-HTML/SVG timelines rendered frame-by-frame in headless Chrome. Open any
-scene in a browser to preview it live.
+The motion scenes live in `scripts/media/motion/*.html` — deterministic
+HTML/SVG timelines rendered frame-by-frame in headless Chrome. The README hero
+has a checked-in production storyboard beside its scene. Open any scene in a
+browser to preview it live.
 
 Terminal captures (the second lane) are VHS tapes in `scripts/media/tapes/`,
 rendered against the real installed binary in a staged workdir:

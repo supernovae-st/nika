@@ -1,0 +1,30 @@
+.file-review-heading { position:absolute; left:260px; top:112px; }
+.file-review-heading > span { font:500 10px 'Martian Mono',monospace; letter-spacing:.12em; color:#9cb4c7; }
+.file-review-heading h2 { margin:9px 0 0; font:600 33px/1.15 'Geist',sans-serif; letter-spacing:-.025em; color:#e7f0f8; }
+.file-review { position:absolute; right:28px; top:184px; width:466px; padding:24px; border:1.5px solid #496071; border-radius:14px; background:#15212c; box-shadow:0 18px 45px #070e1755; }
+.file-review > header { display:flex; align-items:center; gap:12px; }
+.review-file-icon { width:36px; height:40px; display:grid; place-items:center; flex:none; border:1px solid #5b7d96; border-radius:5px; color:#abd7fb; font:12px 'Martian Mono',monospace; }
+.file-review header small { display:block; margin-bottom:7px; font:500 9px 'Martian Mono',monospace; letter-spacing:.09em; color:#9bb7cc; }
+.file-review header strong { font:550 14px 'Martian Mono',monospace; color:#e0edf6; }
+.review-people { margin-left:auto; display:flex; padding-left:10px; }
+.review-people img { width:34px; height:34px; border:2px solid #15212c; border-radius:50%; object-fit:cover; margin-left:-8px; }
+.review-diff { margin-top:24px; }
+.review-diff > div { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.review-diff > div > span { font:500 9px 'Martian Mono',monospace; letter-spacing:.075em; color:#acc2d3; }
+.review-diff small { font:11px 'Geist',sans-serif; color:#9ab0c2; }
+.review-diff code { display:flex; align-items:center; height:42px; gap:10px; padding:0 14px; font:14px 'Martian Mono',monospace; }
+.review-diff code i { margin-right:12px; font-style:normal; }
+.review-diff code b { font-weight:600; }
+.diff-before { border:1px solid #6c444d; border-radius:7px 7px 0 0; background:#30212b; color:#dda9b2; }
+.diff-after { border:1px solid #3a6654; border-top:0; border-radius:0 0 7px 7px; background:#1c332a; color:#a6e7c3; }
+.review-comment { display:flex; align-items:flex-start; gap:12px; margin-top:22px; }
+.review-comment img { width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid #a47a45; }
+.review-comment strong { font:600 16px/1.3 'Geist',sans-serif; color:#f0cc99; }
+.review-comment p { margin:6px 0 0; font:14px/1.5 'Geist',sans-serif; color:#b9c9d7; }
+.review-history { display:flex; align-items:center; gap:10px; margin-top:22px; padding-top:18px; border-top:1px solid #314758; }
+.review-history > span { display:grid; place-items:center; width:33px; height:29px; border:1px solid #506679; border-radius:6px; font:11px 'Martian Mono',monospace; color:#a5bbcf; }
+.review-history svg { width:44px; height:16px; color:#8cbca9; }
+.review-history svg path { fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.review-history strong { font:500 13px/1.4 'Geist',sans-serif; color:#b4c9d8; margin-left:auto; }
+.review-safety { position:absolute; left:44px; right:28px; bottom:26px; display:flex; justify-content:space-between; gap:24px; font:12px/1.4 'Geist',sans-serif; color:#b3c8d9; }
+.review-safety span { color:#8aa3b7; font-size:10px; }

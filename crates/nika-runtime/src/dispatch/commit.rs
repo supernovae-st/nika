@@ -223,7 +223,16 @@ where
                         // real render: stamp the JSON `warnings` array AND
                         // the TaskCompleted `warning` field so the card and
                         // the machine output both say rehearsal.
-                        let warning = stamp_mock_media_rehearsal(&note, &mut value);
+                        let mut warning = stamp_mock_media_rehearsal(&note, &mut value);
+                        // The tool's OWN non-fatal diagnostic (`ToolResult::warning`
+                        // · a `nika:glob` naming the directories it left out) rides
+                        // the same OBS-E lane — joined, never dropped, when both speak.
+                        if let Some(said) = out.warning {
+                            warning = Some(match warning {
+                                Some(mock) => format!("{mock} · {said}"),
+                                None => said,
+                            });
+                        }
                         // A tool's self-reported REAL spend (top-level numeric
                         // `cost_usd` in its structured output) is metered into
                         // the run ledger — absent/invalid → unmetered, never a
