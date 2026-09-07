@@ -116,6 +116,9 @@ fn push_tool_findings(
         ));
     }
     for a in &report.unknown_args {
+        if a.tool == "nika:read" && a.invalid_value.is_some() {
+            continue; // the unified value diagnostic below owns this finding
+        }
         let mut msg = format!(
             "tool `{}` (task `{}`) has no arg `{}`",
             a.tool, a.task, a.arg
@@ -132,6 +135,15 @@ fn push_tool_findings(
             None,
             msg,
         ));
+    }
+    for f in &report.findings {
+        if f.kind == "unknown_arg" && f.code.as_deref() == Some("NIKA-INVOKE-002") {
+            diags.push(error_diag(
+                task_range(index, task_spans, f.task.as_deref().unwrap_or_default()),
+                f.code.clone(),
+                f.message.clone(),
+            ));
+        }
     }
     for m in &report.missing_args {
         let msg = format!(
@@ -318,6 +330,38 @@ mod tests {
             Ok(wf) => from_report(&index, &check(&wf), &wf),
             Err(err) => vec![from_parse_error(&index, &err)],
         }
+    }
+
+    #[test]
+    fn read_type_errors_keep_the_checker_message_code_and_task_span() {
+        let yaml = "nika: read-contract\npermits: {tools: [nika:read], fs: {read: ['./data/**']}}\ntasks:\n  read:\n    invoke: {tool: 'nika:read', args: {path: 42, binary: 'true', encoding: 'utf-8'}}\n";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+        let report = check(&wf);
+        let diags = diags_of(yaml);
+        let typed: Vec<_> = diags
+            .iter()
+            .filter(|d| {
+                matches!(&d.code,
+            Some(NumberOrString::String(c)) if c == "NIKA-INVOKE-002")
+            })
+            .collect();
+        assert_eq!(typed.len(), 2);
+        for diag in typed {
+            assert_eq!(diag.range.start.line, 3);
+            assert!(report.findings.iter().any(|f| f.message == diag.message));
+        }
+        assert_eq!(
+            diags
+                .iter()
+                .filter(|d| d.message.contains("has no arg"))
+                .count(),
+            1
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("has no arg `encoding`"))
+        );
     }
 
     #[test]

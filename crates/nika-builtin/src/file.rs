@@ -17,14 +17,17 @@ use crate::{Args, BuiltinFailure, BuiltinOutcome, req_str, strict_bool, strict_u
 #[cfg(test)]
 mod glob_grep_tests;
 #[cfg(test)]
+mod read_tests;
+#[cfg(test)]
 mod write_tests;
 
 /// `nika:read` — text (default) or binary. Returns the file content.
 pub(crate) async fn read<F: FsReadDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
-    const C1: &str = "NIKA-BUILTIN-READ-001";
+    // READ-001 is exclusively NotFound: first-run recovery filters on it.
+    const ARG: &str = "NIKA-INVOKE-002";
     const C3: &str = "NIKA-BUILTIN-READ-003";
-    let path = req_str(args, "path", C1)?;
-    if strict_bool(args, "binary", false, C1)? {
+    let path = req_str(args, "path", ARG)?;
+    if strict_bool(args, "binary", false, ARG)? {
         // Opaque bytes flow tool→tool — we surface them base64-tagged so
         // they round-trip through the string `content` channel without
         // pretending to be text (spec 04 value-rendering).
