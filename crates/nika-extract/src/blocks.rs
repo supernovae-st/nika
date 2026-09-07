@@ -28,7 +28,7 @@ use ego_tree::iter::Edge;
 use scraper::{Html, Node};
 
 /// Subtrees that never contribute text (same set as `html.rs`).
-const SKIP_TAGS: &[&str] = &["script", "style", "noscript", "template"];
+const SKIP_TAGS: &[&str] = &["script", "style", "noscript", "template", "select"];
 
 /// One atomic text block's shallow features.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]

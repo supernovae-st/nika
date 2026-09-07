@@ -144,9 +144,12 @@ const DISCUSSION_TOKENS: &[&str] = &[
 ];
 
 /// Tags whose whole subtree is never content (Trafilatura `MANUALLY_CLEANED`
-/// — the structural-chrome subset relevant after zone targeting).
+/// — the structural-chrome subset relevant after zone targeting). `select`
+/// joined 2026-09-07: a `<select>` dropdown (country picker, size picker)
+/// is a FORM CONTROL, not prose — its 200 `<option>`s read as a text flood
+/// inside any winning container (WCXB dev 0616's Etsy shipping list).
 const DISCARD_TAGS: &[&str] = &[
-    "nav", "aside", "footer", "form", "header", "noscript", "template", "dialog", "menu",
+    "nav", "aside", "footer", "form", "header", "noscript", "template", "dialog", "menu", "select",
 ];
 
 /// The article-body cascade (Trafilatura's `BODY_XPATH`) as ordered CSS
