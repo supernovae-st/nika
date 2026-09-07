@@ -7,18 +7,18 @@
 
 use super::*;
 use nika_error::traits::NikaErrorCode;
-use nika_kernel::ai::provider::{InferResponse, StopReason, TokenUsage};
+use nika_kernel::ai::provider::{InferResponse, ResponseFormat, StopReason, TokenUsage};
 use nika_kernel::runtime::tool_executor::ToolResult;
 use nika_kernel_mock::{MockProvider, MockToolDefinitionProvider, MockToolExecutor};
 
-fn usage(input: u64, output: u64) -> TokenUsage {
+pub(super) fn usage(input: u64, output: u64) -> TokenUsage {
     let mut usage = TokenUsage::default();
     usage.input_tokens = input;
     usage.output_tokens = output;
     usage
 }
 
-fn text_response(text: &str) -> InferResponse {
+pub(super) fn text_response(text: &str) -> InferResponse {
     InferResponse::new(
         vec![ContentBlock::Text {
             text: text.to_owned(),
@@ -28,7 +28,7 @@ fn text_response(text: &str) -> InferResponse {
     )
 }
 
-fn tool_use_response(id: &str, name: &str, args: serde_json::Value) -> InferResponse {
+pub(super) fn tool_use_response(id: &str, name: &str, args: serde_json::Value) -> InferResponse {
     InferResponse::new(
         vec![
             ContentBlock::Text {
@@ -45,17 +45,17 @@ fn tool_use_response(id: &str, name: &str, args: serde_json::Value) -> InferResp
     )
 }
 
-fn def(name: &str) -> ToolDef {
+pub(super) fn def(name: &str) -> ToolDef {
     ToolDef::new(name, format!("{name} description"), serde_json::json!({}))
 }
 
-struct Rig {
-    provider: Arc<MockProvider>,
-    tools: Arc<MockToolExecutor>,
-    verb: AgentVerb<MockProvider, MockToolExecutor, MockToolDefinitionProvider>,
+pub(super) struct Rig {
+    pub(super) provider: Arc<MockProvider>,
+    pub(super) tools: Arc<MockToolExecutor>,
+    pub(super) verb: AgentVerb<MockProvider, MockToolExecutor, MockToolDefinitionProvider>,
 }
 
-fn rig(provider: MockProvider, tools: MockToolExecutor, universe: Vec<ToolDef>) -> Rig {
+pub(super) fn rig(provider: MockProvider, tools: MockToolExecutor, universe: Vec<ToolDef>) -> Rig {
     let provider = Arc::new(provider);
     let tools = Arc::new(tools);
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&tools)));
@@ -1228,32 +1228,6 @@ async fn uncompilable_schema_fails_before_any_infer() {
         0,
         "C07: fail before paid infer"
     );
-}
-
-#[tokio::test]
-async fn schema_validates_the_done_result_value() {
-    let r = rig(
-        MockProvider::new("mock").enqueue_response(tool_use_response(
-            "c",
-            DONE_TOOL,
-            serde_json::json!({"result": {"score": "nine"}}),
-        )),
-        MockToolExecutor::new(),
-        Vec::new(),
-    );
-    let mut input = AgentInput::new("rate it");
-    input.tools = vec![DONE_TOOL.to_owned()];
-    input.schema = Some(serde_json::json!({
-        "type": "object",
-        "properties": {"score": {"type": "integer"}},
-        "required": ["score"]
-    }));
-    let err = r
-        .verb
-        .run(input)
-        .await
-        .expect_err("done result misses schema");
-    assert!(matches!(err, VerbAgentError::SchemaValidation { .. }));
 }
 
 // ── §6 · seam failures + parameter validation ───────────────────────
