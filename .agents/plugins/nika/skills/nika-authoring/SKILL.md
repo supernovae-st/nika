@@ -567,7 +567,7 @@ The order is `invoke: nika:*` → `invoke: mcp:<server>/<tool>` →
 
    The reflexes worth memorising: HTTP (curl/wget/helper fetch) →
    `nika:fetch` · file plumbing (cat/tee/cp/mkdir) →
-   `nika:read`/`nika:write` (`create_dirs: true`) · JSON shaping
+   `nika:read`/`nika:write` (`create_dirs: true` creates the missing parents of a FILE — no empty write stands in for `mkdir`) · JSON shaping
    (jq/sed) → `nika:jq` or an `extract:` binding · in-place edits →
    `nika:edit` · finding files (`find`/`ls`) → `nika:glob` · searching
    them (`grep`/`rg`) → `nika:grep` · `date`/`uuidgen`/`shasum` →
