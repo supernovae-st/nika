@@ -99,7 +99,7 @@ pub(super) fn hints_and_verdict(
         let _ = writeln!(
             out,
             " {}",
-            findings_line(report, distinct_identities.len(), hint_sites, grade, t)
+            findings_line(report, distinct_identities.len(), hint_sites, t)
         );
     }
     render_next(out, report, path, repair_target, hint_sites, t);

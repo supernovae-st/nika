@@ -602,7 +602,7 @@ fn audited_line(
         role,
         &format!(
             "{mark} audited · {}",
-            boundary_tail(report, distinct_hints, hint_sites, grade, t)
+            boundary_tail(report, distinct_hints, hint_sites, t)
         ),
     )
 }
@@ -626,7 +626,6 @@ fn findings_line(
     report: &CheckReport,
     distinct_hints: usize,
     hint_sites: usize,
-    grade: nika_check::RiskGrade,
     t: Theme,
 ) -> String {
     // Through `mark()`, not a hardcoded glyph: this line shipped a
@@ -641,9 +640,27 @@ fn findings_line(
             Role::Bad,
             &format!(
                 "findings above · {}",
-                boundary_tail(report, distinct_hints, hint_sites, grade, t)
+                boundary_tail(report, distinct_hints, hint_sites, t)
             )
         )
+    )
+}
+
+/// What the file may touch, and how it graded — the check card's OWN two
+/// clauses, from the one derivation, so every surface that previews a
+/// workflow says the same thing about its boundary.
+///
+/// Returned as a pair because the card interleaves the cost census
+/// between them (`permits … · est … · N hints · risk …`) while
+/// `nika run --dry-run` joins them on one line. Wave 3 · p04: « `--dry-run`
+/// looked like the blast-radius preview. It is not. … It prints no
+/// permits, no risk, no layers. »
+#[must_use]
+pub fn boundary_clauses(report: &CheckReport) -> (String, String) {
+    let grade = nika_check::risk_grade(report);
+    (
+        format!("permits {}", permits_glance::permits_glance(report)),
+        format!("risk {}{}", grade.as_str(), risk_handle(report, grade)),
     )
 }
 
@@ -656,14 +673,12 @@ fn boundary_tail(
     report: &CheckReport,
     distinct_hints: usize,
     hint_sites: usize,
-    grade: nika_check::RiskGrade,
     t: Theme,
 ) -> String {
     let tasks: usize = report.waves.iter().map(Vec::len).sum();
-    let permits = permits_glance::permits_glance(report);
+    let (permits, risk) = boundary_clauses(report);
     let sanctioned = crate::check_journey::sanctioned_flow_count(report);
     let est = est_clause(report, t);
-    let handle = risk_handle(report, grade);
     let hint_summary = if distinct_hints == hint_sites {
         crate::vocab::count(hint_sites, "hint")
     } else {
@@ -682,10 +697,9 @@ fn boundary_tail(
         )
     };
     format!(
-        "{} · {} · permits {permits} · {est} · {hint_summary} · risk {}{handle}",
+        "{} · {} · {permits} · {est} · {hint_summary} · {risk}",
         crate::vocab::count(tasks, "task"),
         crate::vocab::count(report.waves.len(), "wave"),
-        grade.as_str(),
     )
 }
 
