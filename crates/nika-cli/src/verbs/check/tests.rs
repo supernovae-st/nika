@@ -590,8 +590,20 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
     assert!(
         row["message"]
             .as_str()
-            .is_some_and(|m| m.starts_with("risk unbounded — fix: cap the spend")),
-        "{payload:#}"
+            .is_some_and(|m| m.starts_with("risk unbounded — ")
+                && m.contains("--max-cost-usd")
+                && !m.contains(" — fix: ")),
+        "the grade row carries the handle, the spend cause and its door: {payload:#}"
+    );
+    assert!(row.get("fix").is_none(), "{payload:#}");
+    // The human footer says the same cause, then the readiness clause.
+    assert!(
+        operational.text.contains("--max-cost-usd")
+            && operational
+                .text
+                .contains("blocks readiness under --profile operational (advisory by default)"),
+        "{}",
+        operational.text
     );
 }
 

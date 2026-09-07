@@ -92,8 +92,10 @@ impl Lanes {
 pub enum Lane {
     /// `--native-strict`: a surviving native-first hint refuses.
     NativeStrict,
-    /// `--profile operational`: grade ≥ High or ACCESS READY false refuses.
-    Operational,
+    /// `--profile operational`, the grade gate: High or worse refuses.
+    OperationalRisk,
+    /// `--profile operational`, the access gate: ACCESS READY false refuses.
+    OperationalAccess,
 }
 
 impl Lane {
@@ -103,18 +105,21 @@ impl Lane {
     pub const fn kind(self) -> &'static str {
         match self {
             Self::NativeStrict => "native_strict",
-            Self::Operational => "operational",
+            Self::OperationalRisk | Self::OperationalAccess => "operational",
         }
     }
 
-    /// The `findings[].gate` keyword — the word the human footer prints
-    /// (`✖ native-strict ·` · `✖ operational ·`), upper-cased like every
-    /// ladder rung.
+    /// The `findings[].gate` keyword — the ladder rung the human render
+    /// files the refusal under: the two footers' own word
+    /// (`✖ native-strict ·` · `✖ operational ·`) upper-cased, and the
+    /// ACCESS rung for the access row (the rung above the footer already
+    /// printed that refusal).
     #[must_use]
     pub const fn gate(self) -> &'static str {
         match self {
             Self::NativeStrict => "NATIVE-STRICT",
-            Self::Operational => "OPERATIONAL",
+            Self::OperationalRisk => "OPERATIONAL",
+            Self::OperationalAccess => "ACCESS",
         }
     }
 }
@@ -208,9 +213,9 @@ impl LaneFinding {
 
     /// An operational gate row — no code, no task: the gate judges the
     /// whole file.
-    fn operational(detail: String, fix: Option<&str>) -> Self {
+    fn operational(lane: Lane, detail: String, fix: Option<&str>) -> Self {
         Self {
-            lane: Lane::Operational,
+            lane,
             code: None,
             task: None,
             detail,
@@ -284,7 +289,8 @@ impl Verdict {
     /// row.
     #[must_use]
     pub fn profile_clean(&self, operational: bool) -> bool {
-        !operational || self.operational_findings().is_empty()
+        let (grade_red, access_red) = self.operational_red();
+        !operational || !(grade_red || access_red)
     }
 
     /// The lane-folded verdict — what the exit code and the verdict
@@ -313,22 +319,49 @@ impl Verdict {
             );
         }
         if lanes.operational {
-            out.extend(self.operational_findings());
+            out.extend(self.operational_findings(report));
         }
         out
     }
 
-    /// The operational gate's rows — the grade when it is High or worse,
-    /// the access blocker when ACCESS READY is false.
-    fn operational_findings(&self) -> Vec<LaneFinding> {
+    /// The operational gate's two predicates — the grade (High or worse)
+    /// and the access blocker — the ONE place [`Self::profile_clean`]
+    /// and the typed rows both read.
+    fn operational_red(&self) -> (bool, bool) {
+        (
+            self.grade >= RiskGrade::High,
+            self.layers.access_ready == Some(false),
+        )
+    }
+
+    /// The operational gate's rows. The grade row carries the audited
+    /// line's own cause clause ([`nika_display::check_render::risk_handle`])
+    /// when the grade is Unbounded — the handle names WHICH grant or
+    /// spend and the door that narrows it, so the row carries no fix of
+    /// its own; at High the handle is empty, the lanes above carry the
+    /// cause, and the fix is [`OPERATIONAL_GRADE_FIX`]. The access row
+    /// carries the blocker.
+    fn operational_findings(&self, report: &CheckReport) -> Vec<LaneFinding> {
+        let (grade_red, access_red) = self.operational_red();
         let mut out = Vec::new();
-        if self.grade >= RiskGrade::High {
-            out.push(LaneFinding::operational(
-                format!("risk {}", self.grade.as_str()),
-                Some(OPERATIONAL_GRADE_FIX),
-            ));
+        if grade_red {
+            let grade = self.grade.as_str();
+            let handle = nika_display::check_render::risk_handle(report, self.grade);
+            out.push(if handle.is_empty() {
+                LaneFinding::operational(
+                    Lane::OperationalRisk,
+                    format!("risk {grade}"),
+                    Some(OPERATIONAL_GRADE_FIX),
+                )
+            } else {
+                LaneFinding::operational(
+                    Lane::OperationalRisk,
+                    format!("risk {grade}{handle}"),
+                    None,
+                )
+            });
         }
-        if self.layers.access_ready == Some(false) {
+        if access_red {
             let blocker = self
                 .layers
                 .blockers
@@ -337,6 +370,7 @@ impl Verdict {
                 .or_else(|| self.layers.blockers.first())
                 .map_or("", String::as_str);
             out.push(LaneFinding::operational(
+                Lane::OperationalAccess,
                 format!("access not ready — {blocker}"),
                 None,
             ));
@@ -739,9 +773,10 @@ mod tests {
             assert_eq!(obj["clean"], false, "{obj:?}");
             let rows = operational_rows(&obj);
             assert!(
-                rows.iter()
-                    .any(|m| m.starts_with("risk unbounded — fix: cap the spend")),
-                "the grade row is typed: {rows:?}"
+                rows.iter().any(|m| m.starts_with("risk unbounded — ")
+                    && m.contains("--max-cost-usd")
+                    && !m.contains(" — fix: ")),
+                "the grade row carries the handle (the spend cause and its door), no generic fix: {rows:?}"
             );
             assert!(
                 rows.iter()
@@ -788,7 +823,13 @@ mod tests {
             .verdict
             .lane_findings(&audit.report, Lanes::new(false, true));
         assert_eq!(rows.len(), 1, "{rows:?}");
-        assert_eq!(rows[0].lane, Lane::Operational);
+        assert_eq!(rows[0].lane, Lane::OperationalAccess);
+        assert_eq!(rows[0].lane.kind(), "operational");
+        assert_eq!(
+            rows[0].lane.gate(),
+            "ACCESS",
+            "the rung that printed the refusal"
+        );
         assert!(rows[0].code.is_none() && rows[0].task.is_none() && rows[0].fix.is_none());
         assert!(
             rows[0]
@@ -821,6 +862,13 @@ mod tests {
         let rows = operational_rows(&obj);
         assert_eq!(rows.len(), 1, "{rows:?}");
         assert!(!rows[0].contains("cap the spend"), "{rows:?}");
+        let access_row = obj["findings"]
+            .as_array()
+            .expect("findings")
+            .iter()
+            .find(|f| f["kind"] == "operational")
+            .expect("the access row");
+        assert_eq!(access_row["gate"], "ACCESS", "{access_row}");
         let off = audit_json(
             &audit.wf,
             &audit.report,
@@ -850,6 +898,8 @@ mod tests {
             .verdict
             .lane_findings(&audit.report, Lanes::new(false, true));
         assert_eq!(rows.len(), 1, "{rows:?}");
+        assert_eq!(rows[0].lane, Lane::OperationalRisk);
+        assert_eq!(rows[0].lane.gate(), "OPERATIONAL");
         assert_eq!(rows[0].detail, "risk high");
         assert_eq!(rows[0].fix.as_deref(), Some(OPERATIONAL_GRADE_FIX));
         assert_eq!(
@@ -862,6 +912,65 @@ mod tests {
                 .lane_findings(&audit.report, Lanes::new(true, false))
                 .is_empty(),
             "no native-first hint, no native-strict row"
+        );
+    }
+
+    /// An Unbounded grade whose only ceiling-less thing is a `**` write
+    /// grant: the typed grade row carries the audited line's own handle
+    /// — the grant it was graded on and the door that narrows it — and
+    /// no generic fix, so the machine twin says the same cause the
+    /// human footer does.
+    #[test]
+    fn the_unbounded_grade_row_carries_the_handle_that_names_the_grant() {
+        let audit = audit(
+            "nika: ops\nmodel: mock/echo\npermits:\n  fs: { read: [\"./source.txt\"], write: [\"./out/**\"] }\n  tools: [\"nika:read\", \"nika:write\"]\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"./source.txt\" }\n  save:\n    with: { t: \"${{ tasks.grab.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/summary.md\", content: \"${{ with.t }}\" }\n",
+        );
+        assert!(audit.verdict.clean, "{:?}", audit.report.findings);
+        assert_eq!(audit.verdict.grade, RiskGrade::Unbounded);
+        let rows = audit
+            .verdict
+            .lane_findings(&audit.report, Lanes::new(false, true));
+        assert_eq!(rows.len(), 1, "nothing dials: no access row · {rows:?}");
+        assert_eq!(rows[0].lane, Lane::OperationalRisk);
+        assert!(
+            rows[0]
+                .detail
+                .starts_with("risk unbounded — no ceiling on the grant: fs.write ./out/**"),
+            "{}",
+            rows[0].detail
+        );
+        assert!(
+            rows[0].detail.contains("--infer-permits"),
+            "{}",
+            rows[0].detail
+        );
+        assert!(
+            rows[0].fix.is_none(),
+            "the handle names the cause and the door"
+        );
+        assert_eq!(rows[0].message(), rows[0].detail);
+        let obj = audit_json(
+            &audit.wf,
+            &audit.report,
+            &audit.skills,
+            &audit.verdict,
+            Lanes::new(false, true),
+        )
+        .expect("serializes");
+        assert_eq!(obj["clean"], false);
+        let row = obj["findings"]
+            .as_array()
+            .expect("findings")
+            .iter()
+            .find(|f| f["kind"] == "operational")
+            .expect("the grade row");
+        assert_eq!(row["gate"], "OPERATIONAL", "{row}");
+        assert!(row.get("fix").is_none(), "{row}");
+        assert!(
+            row["message"]
+                .as_str()
+                .is_some_and(|m| m.starts_with("risk unbounded — no ceiling on the grant")),
+            "{row}"
         );
     }
 

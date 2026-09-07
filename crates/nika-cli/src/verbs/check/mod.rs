@@ -234,9 +234,9 @@ fn overridden(
 /// `findings[]` carries: one native-strict line naming the count (the
 /// hints sit above it) when the report is otherwise clean, one
 /// operational line per failed gate (grade · access) when the verdict
-/// is otherwise clean — a dirty report already explains its red.
-/// `handle` is the audited line's own cause clause
-/// ([`nika_display::check_render::risk_handle`]): the footer used to
+/// is otherwise clean — a dirty report already explains its red. The
+/// grade row carries the audited line's own cause clause at Unbounded
+/// (the risk handle the oracle types onto the row): the footer used to
 /// blame « glob/wildcard authority and uncapped autonomy » on every
 /// Unbounded file — a persona wave: a file with one exact host, one
 /// named program, zero agents and a `./out/**` write grant was told
@@ -246,7 +246,6 @@ fn strict_footers(
     theme: Theme,
     (report_clean, verdict_clean): (bool, bool),
     rows: &[LaneFinding],
-    handle: &str,
 ) {
     let native = rows.iter().filter(|f| f.lane == Lane::NativeStrict).count();
     if report_clean && native > 0 {
@@ -266,24 +265,25 @@ fn strict_footers(
     if !verdict_clean {
         return;
     }
-    for finding in rows.iter().filter(|f| f.lane == Lane::Operational) {
-        // The grade names WHY; the handle names WHICH grant or spend
-        // (Unbounded). At High the handle is empty and the lanes above
-        // carry the cause (a glob grant · an unconsumed gate · an
-        // unpinned secret egress), so the fix direction mirrors the
-        // COST/hint lanes (cap the spend · narrow the grant). An access
-        // row carries the blocker and no remedy the plan did not name.
-        let line = match &finding.fix {
-            Some(_) if !handle.is_empty() => format!(
-                "✖ operational · {}{handle} · blocks readiness under --profile operational \
-                 (advisory by default)",
-                finding.detail
-            ),
-            Some(fix) => format!(
+    for finding in rows.iter().filter(|f| f.lane != Lane::NativeStrict) {
+        // The grade row names WHY (the grade) and, at Unbounded, WHICH
+        // grant or spend (the handle the oracle typed onto the row); at
+        // High the lanes above carry the cause and the fix direction
+        // mirrors the COST/hint lanes (cap the spend · narrow the grant).
+        // The access row carries the blocker and no remedy the plan did
+        // not name. The readiness clause belongs to the grade gate.
+        let line = match (finding.lane, &finding.fix) {
+            (Lane::OperationalRisk, Some(fix)) => format!(
                 "✖ operational · {} — {fix} under --profile operational (advisory by default)",
                 finding.detail
             ),
-            None => format!("✖ operational · {}", finding.detail),
+            (Lane::OperationalRisk, None) => format!(
+                "✖ operational · {} · blocks readiness under --profile operational \
+                 (advisory by default)",
+                finding.detail
+            ),
+            (_, Some(fix)) => format!("✖ operational · {} — {fix}", finding.detail),
+            (_, None) => format!("✖ operational · {}", finding.detail),
         };
         let _ = writeln!(text, " {}", theme.paint(Role::Bad, &line));
     }
@@ -755,13 +755,7 @@ fn render_checked_with_profile(
         verdict.clean,
         &verdict.layers,
     );
-    strict_footers(
-        &mut text,
-        theme,
-        (report.is_clean(), verdict.clean),
-        &lane,
-        &nika_display::check_render::risk_handle(report, verdict.grade),
-    );
+    strict_footers(&mut text, theme, (report.is_clean(), verdict.clean), &lane);
     access_footer(
         &mut text,
         theme,

@@ -186,7 +186,10 @@ fn the_operational_lane_names_only_the_gate_that_failed() {
     assert_eq!(payload["risk_grade"], "low", "{payload:#}");
     let rows = lane_rows(&payload, "operational");
     assert_eq!(rows.len(), 1, "{payload:#}");
-    assert_eq!(rows[0]["gate"], "OPERATIONAL", "{payload:#}");
+    assert_eq!(
+        rows[0]["gate"], "ACCESS",
+        "the rung that printed the refusal: {payload:#}"
+    );
     assert!(
         rows[0]["message"].as_str().is_some_and(
             |m| m.starts_with("access not ready — access: pin `not-a-real-seat` refused")

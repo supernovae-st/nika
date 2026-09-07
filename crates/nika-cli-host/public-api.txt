@@ -1861,7 +1861,8 @@ pub fn nika_cli_host::notify::workflow_label(wf: &nika_schema::raw::workflow::Ra
 pub mod nika_cli_host::oracle
 #[non_exhaustive] pub enum nika_cli_host::oracle::Lane
 pub nika_cli_host::oracle::Lane::NativeStrict
-pub nika_cli_host::oracle::Lane::Operational
+pub nika_cli_host::oracle::Lane::OperationalAccess
+pub nika_cli_host::oracle::Lane::OperationalRisk
 impl nika_cli_host::oracle::Lane
 pub const fn nika_cli_host::oracle::Lane::gate(self) -> &'static str
 pub const fn nika_cli_host::oracle::Lane::kind(self) -> &'static str
