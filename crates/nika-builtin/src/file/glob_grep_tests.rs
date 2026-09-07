@@ -12,7 +12,7 @@ use super::*;
 
 /// The value-only door the glob tests read (the report is pinned through
 /// the dispatcher, on a real tree).
-async fn glob<F: FsListDyn + FsMetaDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
+async fn glob<F: FsReadDyn + FsListDyn + FsMetaDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     glob_reported(fs, args).await.map(|globbed| globbed.paths)
 }
 

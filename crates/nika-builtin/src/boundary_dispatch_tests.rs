@@ -487,3 +487,52 @@ async fn write_to_an_existing_directory_is_taught_not_os_error_21() {
     assert!(target.is_dir(), "the directory is untouched");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// A directory reached through a symlink is a leaf for the walker, so the
+/// report neither enters it nor names it. Measured on the review of the
+/// report: `metadata` follows links, so `sub/loop -> ..` sent the report
+/// round the same tree forever while the value had long settled; the
+/// call must return, the value must be the two real files, and the
+/// warning must not mention the link.
+#[tokio::test]
+async fn glob_report_treats_a_symlinked_directory_as_a_leaf() {
+    let root = scratch();
+    std::fs::create_dir_all(root.join("allowed/proj/sub")).unwrap();
+    std::fs::write(root.join("allowed/proj/a.md"), b"a").unwrap();
+    std::fs::write(root.join("allowed/proj/sub/b.md"), b"b").unwrap();
+    std::os::unix::fs::symlink("..", root.join("allowed/proj/sub/loop")).unwrap();
+    std::fs::create_dir_all(root.join("allowed/proj/sub/dir.md")).unwrap();
+    let boundary = FsBoundary::declared(vec![format!("{}/allowed/**", root.display())], vec![]);
+    let dispatcher = dispatcher_with(boundary);
+    let pattern = format!("{}/allowed/proj/**/*.md", root.display());
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        dispatcher.execute(ToolCall::new(
+            "t",
+            "nika:glob",
+            serde_json::json!({ "pattern": pattern }),
+        )),
+    )
+    .await
+    .expect("the report settles: a symlink loop is never entered")
+    .expect("dispatches");
+    assert!(!result.is_error, "{}", result.content);
+    assert_eq!(
+        result.structured.clone().expect("files"),
+        serde_json::json!([
+            format!("{}/allowed/proj/a.md", root.display()),
+            format!("{}/allowed/proj/sub/b.md", root.display()),
+        ]),
+        "the two real files are the value"
+    );
+    let warning = result.warning.expect("the real directory match is named");
+    assert!(
+        warning.contains(&format!("{}/allowed/proj/sub/dir.md", root.display())),
+        "{warning}"
+    );
+    assert!(
+        !warning.contains("loop"),
+        "a symlinked directory is a leaf, never named: {warning}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}

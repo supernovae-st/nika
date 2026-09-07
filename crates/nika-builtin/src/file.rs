@@ -313,7 +313,7 @@ pub(crate) struct Globbed {
 
 /// `nika:glob` — sorted-lexicographically match (stdlib §glob), with the
 /// report of what the match set does NOT carry ([`dropped_directories`]).
-pub(crate) async fn glob_reported<F: FsListDyn + FsMetaDyn>(
+pub(crate) async fn glob_reported<F: FsReadDyn + FsListDyn + FsMetaDyn>(
     fs: &F,
     args: &Args,
 ) -> Result<Globbed, BuiltinFailure> {
@@ -372,10 +372,16 @@ pub(crate) async fn glob_reported<F: FsListDyn + FsMetaDyn>(
 /// matching child it did not return is a directory by construction. A
 /// pattern with a `/` or a `**` descends the way the walker does (hidden
 /// directories are not entered · a symlink is a leaf) and asks
-/// `metadata` which children are directories. Advisory by design: a
-/// listing that fails names nothing — the value has already settled;
-/// this only decides what the frame SAYS.
-async fn dropped_directories<F: FsListDyn + FsMetaDyn>(
+/// `metadata` which children are directories. `metadata` FOLLOWS links,
+/// so a directory reached through a symlink is told apart by its
+/// canonical path: one that is not the canonical root joined with the
+/// child's relative path was reached through a link (a loop, or a tree
+/// outside the walk) and is neither entered nor named — measured: a
+/// `sub/loop -> ..` link made the report walk forever while the value
+/// had long settled. Advisory by design: a listing that fails names
+/// nothing — the value has already settled; this only decides what the
+/// frame SAYS.
+async fn dropped_directories<F: FsReadDyn + FsListDyn + FsMetaDyn>(
     fs: &F,
     root: &Path,
     pattern: &str,
@@ -391,6 +397,13 @@ async fn dropped_directories<F: FsListDyn + FsMetaDyn>(
     let returned: BTreeSet<&str> = returned.iter().map(String::as_str).collect();
     let descend = pattern.contains('/') || pattern.contains("**");
     let mut dropped = Vec::new();
+    // The root's canonical form, computed once: a child is a real member of
+    // the walk only when its own canonical path is this root plus its
+    // relative path (`std::fs::canonicalize` resolves every link on the way).
+    let canonical_root = match fs.canonicalize(root).await {
+        Ok(canonical) => canonical,
+        Err(_) => root.to_path_buf(),
+    };
     let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
         let Ok(children) = fs.list_dir(&dir).await else {
@@ -415,6 +428,14 @@ async fn dropped_directories<F: FsListDyn + FsMetaDyn>(
                 continue;
             };
             if !meta.is_dir {
+                continue;
+            }
+            // A symlink is a leaf for the walker, so it is one for the report:
+            // neither entered (a loop would never settle) nor named.
+            let Ok(canonical) = fs.canonicalize(&child).await else {
+                continue;
+            };
+            if canonical != canonical_root.join(rel) {
                 continue;
             }
             if hit {
