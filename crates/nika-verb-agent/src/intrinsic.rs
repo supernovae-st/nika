@@ -65,10 +65,16 @@ pub(crate) fn is_loop_owned(name: &str) -> bool {
 /// a poisoned upstream def can never shadow them (the model sees the
 /// loop's own `nika:done` + `nika:compose`, default-deny when absent
 /// from `tools:`).
-pub(crate) fn synthesized_defs(whitelist: &crate::Whitelist) -> Vec<ToolDef> {
+///
+/// `schema` is the task's declared final-output contract, threaded in so
+/// the sentinel def can CARRY it (see [`done_def`]).
+pub(crate) fn synthesized_defs(
+    whitelist: &crate::Whitelist,
+    schema: Option<&serde_json::Value>,
+) -> Vec<ToolDef> {
     let mut defs = Vec::new();
     if whitelist.admits(crate::DONE_TOOL) {
-        defs.push(done_def());
+        defs.push(done_def(schema));
     }
     if whitelist.admits(COMPOSE_TOOL) {
         defs.push(compose_def());
@@ -77,18 +83,47 @@ pub(crate) fn synthesized_defs(whitelist: &crate::Whitelist) -> Vec<ToolDef> {
 }
 
 /// The synthesized `nika:done` sentinel definition (loop-owned).
-fn done_def() -> ToolDef {
+///
+/// Under a TYPED task the `result` parameter carries the declared
+/// `schema:` VERBATIM — the sentinel's own parameter schema IS how the
+/// contract reaches the seat, on the FIRST request and every one after.
+/// The binding is wire-universal by construction: a tool's parameter
+/// schema rides `tools[].function.parameters` (openai-compat),
+/// `functionDeclarations[].parametersJsonSchema` (gemini) and
+/// `input_schema` (anthropic) verbatim, so it needs no capability flag
+/// and it reaches the seats whose API has no structured mode at all
+/// (deepseek). `response_format` deliberately stays OFF the tool-calling
+/// turns — see the loop file's «Structured output» section: a grammar
+/// over the message content fights the `ReAct` turns it would ride on.
+///
+/// Untyped, the parameter stays open (any JSON) and OPTIONAL: a
+/// result-less `done` finishes on the model's last words.
+fn done_def(schema: Option<&serde_json::Value>) -> ToolDef {
+    let Some(schema) = schema else {
+        return ToolDef::new(
+            crate::DONE_TOOL,
+            "Finish the task. Pass `result` when the answer is a value; \
+             omit it to finish with your final message.",
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "description": "The final answer value (any JSON)."
+                    }
+                }
+            }),
+        );
+    };
     ToolDef::new(
         crate::DONE_TOOL,
-        "Finish the task. Pass `result` when the answer is a value; \
-         omit it to finish with your final message.",
+        "Finish the task by passing the final answer as `result`. \
+         `result` MUST satisfy the JSON Schema declared for it — the \
+         engine validates it and asks you to call this tool again when \
+         it does not conform.",
         serde_json::json!({
             "type": "object",
-            "properties": {
-                "result": {
-                    "description": "The final answer value (any JSON)."
-                }
-            }
+            "properties": { "result": schema },
+            "required": ["result"]
         }),
     )
 }
