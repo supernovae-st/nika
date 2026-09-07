@@ -13,7 +13,9 @@ the evidence for an authorized run.
 
 Use the installed engine's `nika check --json` report, not a second
 checker assembled from this prose. Keep its engine/spec identity with the
-result. Judge `clean` and `native_strict_clean` separately from `paid_ready`:
+result. Judge `clean` (the exit's verdict under the flags you passed —
+under `--native-strict` an exec a builtin covers is a `findings[]` row and
+`native_strict_clean` repeats `clean`) separately from `paid_ready`:
 a file can be paid-ready and still fail a permits finding. For composition,
 inspect `judged` and the children's findings; a report that did not resolve
 children cannot certify the tree.

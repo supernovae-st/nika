@@ -5,6 +5,16 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+The `check` command and the authoring/operating skills no longer teach
+two verdict keys. `nika check --native-strict --json` answers
+`clean: false` whenever it exits 2, with one `findings[]` row per exec a
+builtin covers (`kind: native_strict` · the hint's `native-first/00N`
+code · the task · the fix); `native_strict_clean` repeats `clean`. The
+previous teaching (« `clean` covers the conformance findings ONLY … green
+means BOTH are true ») described a payload that contradicted its own
+exit code, and offered the exec ledger as a repair the gate never
+accepted.
+
 Authoring now reads the workspace before creating another file:
 `nika list` discovers local candidates, then `explain` · `inspect` · `check`
 establish what each one does and whether it is clean. The skill states the

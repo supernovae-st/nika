@@ -99,6 +99,12 @@ on twelve, and the pack's oracle law (pack 12 §9) reads:
   line on the clean lane), `verbose: true` returns the verdict object on
   a clean answer, and `next_actions` name `nika_explain` — the door an
   agent without a shell can open.
+- The lane fold (post-0.118.7): `audit_json` writes `clean` from the
+  same typed rows the exit code reads — a lane refusal (`--native-strict`
+  · `--profile operational`) is a `findings[]` row on every door, never
+  only a lane key. The parity fixtures still compare `clean` and
+  `findings[].code`; under strict both doors carry the
+  `native-first/00N` row.
 
 ## Follow-ups
 
