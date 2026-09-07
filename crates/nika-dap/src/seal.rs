@@ -55,6 +55,15 @@ mod public_box;
 pub(crate) use key_files::keyring_entry;
 pub(crate) use public_box::parse_many as parse_public_boxes;
 
+/// The public half in its canonical form for `secret` — the pair honesty
+/// the custody loaders apply BEFORE a seal mints, and the ONE projection a
+/// seal's `key_id` names: a key handed to the seal from elsewhere (a door's
+/// injected source) seals attributably only through it. `None` when the
+/// box is not this secret's public half.
+pub(crate) fn canonical_public_box(secret: &minisign::SecretKey, text: &str) -> Option<String> {
+    public_box::for_signing(secret, text)
+}
+
 /// The keychain entries the run-key lives under. The separate public half lets
 /// trust and verification inspect enrollment without opening the secret; the
 /// signing loader checks it against the already-open secret's derived public key.

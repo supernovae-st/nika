@@ -104,6 +104,14 @@ const LIFECYCLE_TERMINAL: &[&str] = &[
     "run_settled",
 ];
 
+/// Whether `kind` closes a run's lifecycle (the set above) — the walk
+/// reads it per line, and the journal's writer asks it for a non-event
+/// record (`run_settled`), so the lease's fate follows the ONE law the
+/// reader applies (ADR-129).
+pub(crate) fn is_lifecycle_terminal(kind: &str) -> bool {
+    LIFECYCLE_TERMINAL.contains(&kind)
+}
+
 /// Maximum bytes per journal LINE the walk parses (F-P1 · NEP-0012) —
 /// the same 1 MiB grain as [`crate::bounded::MAX_ARTIFACT_BYTES`]: a
 /// real event line is under 10 KB (the seal's covers included); a line
@@ -194,7 +202,7 @@ pub fn walk(raw: &str) -> Verdict {
         last_closes = value
             .get("kind")
             .and_then(|k| k.as_str())
-            .is_some_and(|k| LIFECYCLE_TERMINAL.contains(&k));
+            .is_some_and(is_lifecycle_terminal);
     }
     if last_closes {
         Verdict::Intact {

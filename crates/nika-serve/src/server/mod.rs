@@ -16,6 +16,7 @@ mod schedule_http;
 mod scheduler;
 mod sse;
 mod store;
+mod trace_verdict;
 
 use std::collections::{BTreeMap, VecDeque};
 use std::future::Future;
@@ -229,11 +230,25 @@ pub trait ExecutionBackend: Send + Sync + 'static {
     ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         self.execute_with_max_cost(context, max_cost_usd)
     }
+
+    /// Where this backend leaves a job's trace journal (the `.nika/traces`
+    /// of the project it serves), when it leaves one at all. The verify
+    /// route locates the job's journal under it — the backend composes the
+    /// path ONCE, for the writer and the reader alike. `None` (the default)
+    /// says the backend keeps no journal: the route then answers
+    /// `unavailable`, never a scan of some other directory.
+    fn trace_journal_dir(&self) -> Option<PathBuf> {
+        None
+    }
 }
 
 struct AppState {
     token: BearerToken,
     store: StoreHandle,
+    /// The backend's journal directory (see
+    /// [`ExecutionBackend::trace_journal_dir`]) — the verify route's ONE
+    /// place to look for a job's trace.
+    journal_dir: Option<PathBuf>,
     project: Arc<OwnedDir>,
     /// The served registry (`--workflows`) and its project-relative scope
     /// (#1369): what this listener exposes and schedules.
@@ -477,6 +492,7 @@ impl BoundServer {
         let state = Arc::new(AppState {
             token: prepared.token,
             store: authority.state.store.clone(),
+            journal_dir: authority.state.backend.trace_journal_dir(),
             project,
             registry: Arc::clone(&prepared.project),
             registry_scope,

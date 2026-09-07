@@ -350,12 +350,19 @@ fn trace_verification_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "description": "Run-scoped typed verdict. Unavailable is an honest refusal: this server has no remote trace-journal authority and never scans or returns filesystem paths.",
+        "description": "Run-scoped verdict on the journal the resident wrote for the job, through the ONE verifier `nika trace verify --json` runs. `verdict` is the CLI's headline word: the attained tier (ok · sealed · anchored · replayed), incomplete for a journal with no terminal frame (the writer's liveness rides `reason`), tampered for a buried seal, broken for an edited chain, and the CLI's refusal classes; `unavailable` only when no journal exists for the job (refused before its first event · queued · a backend keeping none). `reason` is the machine class beside it (the seal tier under a ladder verdict). The CLI's own document rides verbatim (exit · chain · seal · anchor · replay · lines); a filesystem path is never returned.",
         "required": ["verdict", "reason"],
         "properties": {
-            "verdict": {"type": "string", "enum": ["unavailable"]},
-            "reason": {"type": "string", "enum": ["run_not_terminal", "trace_journal_unavailable"]},
-            "trace_id": {"type": "string", "minLength": 1}
+            "verdict": {"type": "string", "enum": ["unavailable", "ok", "sealed", "anchored", "replayed", "incomplete", "tampered", "broken", "unchained", "empty", "unreadable", "refused", "line-over-long", "unknown"]},
+            "reason": {"type": "string", "enum": ["run_not_terminal", "trace_journal_unavailable", "sealed", "unsealed", "forged", "buried", "unattributable", "writer_alive", "writer_dead", "writer_unknown", "buried_seal", "broken", "unchained", "empty", "unreadable", "refused", "line_over_long", "unknown"]},
+            "trace_id": {"type": "string", "minLength": 1},
+            "verify_version": {"type": "integer", "minimum": 1},
+            "exit": {"type": "integer", "enum": [0, 2, 3, 5], "description": "The CLI's exit class: 0 the reported tier holds · 2 a forged or edited journal · 3 the environment (unchained · unreadable · a missing input) · 5 incomplete lifecycle evidence"},
+            "chain": {"type": "object", "additionalProperties": true, "description": "events · head · headline (intact · torn · incomplete) · liveness (alive · dead · unknown · null)"},
+            "seal": {"type": "object", "additionalProperties": true, "description": "tier (unsealed · sealed · forged · buried · unattributable) and the tier's facts"},
+            "anchor": {"type": "object", "additionalProperties": true},
+            "replay": {"type": "object", "additionalProperties": true},
+            "lines": {"type": "array", "items": {"type": "string"}, "description": "The CLI's ladder lines, the journal path replaced by <journal>"}
         }
     })
 }
@@ -552,8 +559,8 @@ fn job_cancel_path() -> Value {
 
 fn job_trace_verify_path() -> Value {
     json!({"get": {
-        "summary": "Return the run-scoped trace verification verdict",
-        "description": "Returns a typed honest refusal while no remote trace-journal authority exists. It never scans a trace directory or exposes a filesystem path.",
+        "summary": "Verify the job's trace journal",
+        "description": "Locates the journal the resident wrote for this job under the project it serves (by the job's execution and trace identity) and verifies it through the same verifier `nika trace verify` runs; the vocabulary is the CLI's. `unavailable` is the honest refusal when no journal exists. The response never exposes a filesystem path.",
         "parameters": [job_id_param()],
         "responses": {"200": {"description": "Typed trace verdict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TraceVerification"}}}}, "401": error_ref(), "404": error_ref()}
     }})
