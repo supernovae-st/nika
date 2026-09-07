@@ -28,11 +28,13 @@ pub(crate) fn build_request(
     request
 }
 
-/// The FINAL schema-constrained re-ask request (BUG#11): tools OFF (the
-/// schema constraint and tool-calling do not reliably coexist in one
-/// request across providers — anthropic rejects `response_format`,
-/// openai/gemini are fragile), with the schema wired natively when the
-/// provider supports it (`infer`+schema parity · `build_request` mirror).
+/// The FINAL schema-constrained re-ask request (BUG#11): tools OFF (a
+/// grammar over the message content fights the tool-calling turns it
+/// would ride on — see the loop file's «Structured output» section), and
+/// `response_format` wired only when `native` says the seat carries a
+/// structured mode (the provider profile's `supports_response_format()`);
+/// otherwise the re-ask message already in the transcript carries the
+/// schema as an instruction (`infer`+schema parity · `build_request` mirror).
 pub(crate) fn schema_request(
     model: &str,
     messages: Vec<Message>,

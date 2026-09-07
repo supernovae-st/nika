@@ -85,8 +85,10 @@ pub(crate) fn synthesized_defs(
 /// The synthesized `nika:done` sentinel definition (loop-owned).
 ///
 /// Under a TYPED task the `result` parameter carries the declared
-/// `schema:` VERBATIM — the sentinel's own parameter schema IS how the
-/// contract reaches the seat, on the FIRST request and every one after.
+/// `schema:` (its `$defs` hoisted to the wrapper root — see
+/// [`typed_done_parameters`]) — the sentinel's own parameter schema IS
+/// how the contract reaches the seat, on the FIRST request and every one
+/// after.
 /// The binding is wire-universal by construction: a tool's parameter
 /// schema rides `tools[].function.parameters` (openai-compat),
 /// `functionDeclarations[].parametersJsonSchema` (gemini) and
@@ -120,12 +122,40 @@ fn done_def(schema: Option<&serde_json::Value>) -> ToolDef {
          `result` MUST satisfy the JSON Schema declared for it — the \
          engine validates it and asks you to call this tool again when \
          it does not conform.",
-        serde_json::json!({
-            "type": "object",
-            "properties": { "result": schema },
-            "required": ["result"]
-        }),
+        typed_done_parameters(schema),
     )
+}
+
+/// The typed sentinel's parameter schema: the declared `schema:` nested
+/// under `result`, with its `$defs`/`definitions` HOISTED to the wrapper's
+/// root. An internal JSON pointer (`"$ref": "#/$defs/row"`) resolves
+/// against the DOCUMENT root, and on the wire that root is this wrapper —
+/// nested verbatim, the pointer lands on nothing and a seat that validates
+/// its tool input reads a dangling ref. A `$schema` keyword is dropped (it
+/// has no place inside a tool input); everything else stays where the
+/// author wrote it, and local validation is untouched (it runs against the
+/// declared schema at its own root). A schema with nothing to hoist
+/// renders exactly as before.
+fn typed_done_parameters(schema: &serde_json::Value) -> serde_json::Value {
+    let mut nested = schema.clone();
+    let mut hoisted = serde_json::Map::new();
+    if let Some(declared) = nested.as_object_mut() {
+        declared.remove("$schema");
+        for key in ["$defs", "definitions"] {
+            if let Some(defs) = declared.remove(key) {
+                hoisted.insert(key.to_owned(), defs);
+            }
+        }
+    }
+    let mut parameters = serde_json::json!({
+        "type": "object",
+        "properties": { "result": nested },
+        "required": ["result"]
+    });
+    if let Some(root) = parameters.as_object_mut() {
+        root.extend(hoisted);
+    }
+    parameters
 }
 
 /// The synthesized `nika:compose` definition (loop-owned, like the
