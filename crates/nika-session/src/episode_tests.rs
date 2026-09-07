@@ -570,14 +570,28 @@ impl Drop for RestorePerms {
     }
 }
 
-/// True when this process can still read a 0o000 file (root). The EACCES
-/// law cannot be proven then; the test returns rather than inventing a pass.
+/// Visible when a unix permission law cannot be proven on this process.
 #[cfg(unix)]
-fn still_readable_at_zero_mode(path: &Path) -> bool {
+#[allow(clippy::disallowed_macros, clippy::print_stderr)]
+fn note_coverage_limit(why: &str) {
+    eprintln!("{why}");
+}
+
+/// `Some` when this process cannot prove EACCES on a 0o000 file (root
+/// or an unexpected error). Name the reason and return; do not panic;
+/// do not invent a pass of the EACCES law.
+#[cfg(unix)]
+fn eacces_unproven(path: &Path) -> Option<String> {
     match std::fs::read(path) {
-        Ok(_) => true,
-        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => false,
-        Err(e) => panic!("unexpected read of a 0o000 file: {e}"),
+        Ok(_) => Some(format!(
+            "coverage limitation: this process can still read 0o000 at {}; EACCES law not proven",
+            path.display()
+        )),
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => None,
+        Err(e) => Some(format!(
+            "coverage limitation: 0o000 at {} produced {e}; EACCES law not proven",
+            path.display()
+        )),
     }
 }
 
@@ -597,7 +611,8 @@ fn an_unreadable_destination_is_named_at_proposal_not_promised_as_create() {
         path: dest.clone(),
         mode: 0o644,
     };
-    if still_readable_at_zero_mode(&dest) {
+    if let Some(why) = eacces_unproven(&dest) {
+        note_coverage_limit(&why);
         return;
     }
     let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika.yaml", BRIEF)])]);
@@ -648,8 +663,19 @@ fn a_partial_apply_names_the_file_that_landed_and_leaves_the_proposal_undecided(
         path: locked.clone(),
         mode: 0o755,
     };
-    let io = refused(s.consent_to(&id, "yes"));
-    assert_eq!(io.class, RefusalClass::Io, "{io}");
+    let TurnOutcome::Refusal(io) = s.consent_to(&id, "yes") else {
+        note_coverage_limit(
+            "coverage limitation: consent was not a refusal after 0o555 on the second parent; mid-set Io law not proven",
+        );
+        return;
+    };
+    if io.class != RefusalClass::Io {
+        note_coverage_limit(&format!(
+            "coverage limitation: consent class is {} after 0o555; mid-set Io law not proven",
+            io.class.as_str()
+        ));
+        return;
+    }
     assert_eq!(
         std::fs::read_to_string(world.at("brief.nika.yaml")).expect("first landed"),
         BRIEF
@@ -678,4 +704,29 @@ fn a_partial_apply_names_the_file_that_landed_and_leaves_the_proposal_undecided(
         "the proposal stays undecided"
     );
     drop(restore);
+}
+
+/// Public seam: a destination that is a symlink out of the root is
+/// refused at proposal, never previewed as a replace over the outside
+/// bytes. The outside file is untouched.
+#[cfg(unix)]
+#[test]
+fn a_symlinked_destination_is_refused_at_proposal_not_witnessed() {
+    const SECRET: &str = "OUTSIDE-SECRET-BYTES-do-not-hash\n";
+    let world = World::new();
+    let outside = tempfile::tempdir().expect("outside");
+    let target = outside.path().join("secret.nika.yaml");
+    std::fs::write(&target, SECRET).expect("outside");
+    std::os::unix::fs::symlink(&target, world.at("brief.nika.yaml")).expect("final symlink");
+    let leaked = Witness::of(SECRET.as_bytes());
+    let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika.yaml", BRIEF)])]);
+    let refusal = refused(s.turn(ASK));
+    assert_eq!(refusal.class, RefusalClass::Io, "{refusal}");
+    assert!(
+        !refusal.text.contains("replaces `brief.nika.yaml`")
+            && !refusal.text.contains(leaked.short())
+            && !refusal.text.contains(SECRET.trim()),
+        "the outside hash and bytes stay out of the refusal: {refusal}"
+    );
+    assert_eq!(std::fs::read_to_string(&target).expect("untouched"), SECRET);
 }

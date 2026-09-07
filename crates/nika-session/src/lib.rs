@@ -38,6 +38,10 @@ pub mod snapshot;
 #[allow(clippy::expect_used, clippy::panic)]
 mod episode_tests;
 
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod change_fs_tests;
+
 pub use broker::{ContextBroker, SessionContextBundle, Snippet};
 pub use change::{
     Applied, ChangeError, PendingGate, ProjectChange, ProjectChangeSet, RunRequest, Witness,
