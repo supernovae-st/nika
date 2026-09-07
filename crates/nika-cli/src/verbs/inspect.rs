@@ -133,13 +133,21 @@ pub(crate) fn render_pair(
     VerbOutput::ok(out)
 }
 
-/// The engineering read in the anatomy surface — the scheduler-
-/// independent facts the report already computed (check/analysis.rs):
-/// exact width with its witness antichain, pinch points, the widest
-/// failure blast radii. Single-task workflows render nothing extra
-/// (width 1 of 1 is noise) and an absent read (oversized workflow ·
-/// honest skip) renders nothing — never a claim it cannot back.
+/// The engineering read in the anatomy surface — the boundary this file
+/// declares, then the scheduler-independent facts the report already
+/// computed (check/analysis.rs): exact width with its witness antichain,
+/// pinch points, the failure fan-out. Single-task workflows render no
+/// scheduling read (width 1 of 1 is noise) and an absent analysis
+/// (oversized workflow · honest skip) renders nothing — never a claim it
+/// cannot back. The BOUNDARY always renders: every file has one, and it
+/// is what the reader who typed `--dry-run` came for.
 fn render_analysis(out: &mut String, report: &nika_check::CheckReport) {
+    // The check card's OWN clauses, from its own derivation
+    // (`nika_display::check_render::boundary_clauses`) — a persona wave (the operations sceptic):
+    // « `--dry-run` looked like the blast-radius preview. It is not. …
+    // It prints no permits, no risk, no layers. »
+    let (permits, risk) = nika_display::check_render::boundary_clauses(report);
+    let _ = writeln!(out, "\nboundary     {permits} · {risk}");
     if let Some(a) = report.analysis.as_ref()
         && a.width_witness.len() >= 2
     {
@@ -152,7 +160,7 @@ fn render_analysis(out: &mut String, report: &nika_check::CheckReport) {
         };
         let _ = writeln!(
             out,
-            "\nparallelism  width {} · can run together: {}{ellipsis}",
+            "parallelism  width {} · can run together: {}{ellipsis}",
             a.width,
             witness.join(" · "),
         );
@@ -163,11 +171,24 @@ fn render_analysis(out: &mut String, report: &nika_check::CheckReport) {
                 a.pinch_points.join(" · "),
             );
         }
+        // NOT « blast » — this is scheduling fan-out, how many tasks
+        // STALL when one fails, and the word meant blast radius to the
+        // reader who typed the flag (a persona wave · the operations sceptic: « Its line literally
+        // labelled `blast` reads "blast   grab blocks 1" — that is
+        // scheduling fan-out (how many tasks stall), not blast radius.
+        // The word actively misleads the exact reader who typed the
+        // flag. »). The escapes line below is the radius.
         let top: Vec<String> = a
             .blast_radius
             .iter()
             .take(3)
-            .map(|b| format!("{} blocks {}", b.task, b.blocks))
+            .map(|b| {
+                format!(
+                    "`{}` fails → {} blocked",
+                    b.task,
+                    crate::text::count(b.blocks, "task")
+                )
+            })
             .collect();
         if !top.is_empty() {
             let more = a.blast_radius.len().saturating_sub(3);
@@ -176,11 +197,20 @@ fn render_analysis(out: &mut String, report: &nika_check::CheckReport) {
             } else {
                 String::new()
             };
-            let _ = writeln!(out, "blast        {}{suffix}", top.join(" · "));
+            // The sentence the operations sceptic said nothing printed before the run:
+            // « Nothing before the run says "if grab fails, save never
+            // runs and nothing is written". »
+            let _ = writeln!(
+                out,
+                "stalls       {}{suffix} · a blocked task never runs, so its effects never happen",
+                top.join(" · ")
+            );
         }
     }
-    // 1-task files have empty DAG blast; capability escapes are the
-    // radius a security persona reads (persona 07).
+    // 1-task files have empty DAG fan-out; capability escapes ARE the
+    // blast radius a security persona reads — named
+    // `escapes` now that `blast` no longer labels the scheduling line,
+    // so neither word has to carry two meanings.
     let cap: Vec<String> = report
         .capability_escapes
         .iter()
@@ -200,7 +230,7 @@ fn render_analysis(out: &mut String, report: &nika_check::CheckReport) {
         } else {
             String::new()
         };
-        let _ = writeln!(out, "blast        {}{suffix}", cap.join(" · "));
+        let _ = writeln!(out, "escapes      {}{suffix}", cap.join(" · "));
     }
 }
 
@@ -377,6 +407,61 @@ mod tests {
         path
     }
 
+    /// a persona wave (the operations sceptic), verbatim: « `--dry-run` looked
+    /// like the blast-radius preview. It is not. Its line literally
+    /// labelled `blast` reads "blast   grab blocks 1" — that is
+    /// scheduling fan-out (how many tasks stall), not blast radius. It
+    /// prints no permits, no risk, no layers. The word actively misleads
+    /// the exact reader who typed the flag. »
+    ///
+    /// The preview now speaks the check card's OWN clauses — the same
+    /// strings, from `boundary_clauses`, so the two surfaces cannot
+    /// describe different boundaries for the same file.
+    #[test]
+    fn the_dry_run_preview_speaks_the_check_cards_own_boundary() {
+        // The persona's ops5 shape: a grant with no ceiling, one exact
+        // host, builtin + exec tasks.
+        let src = "nika: ops\nmodel: mock/echo\npermits:\n  fs: { write: [\"./out/**\"] }\n  exec: [\"date\"]\n  tools: [\"nika:write\"]\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/summary.md\", content: \"x\" }\n  measure:\n    after: { grab: success }\n    exec: { command: [\"date\", \"-u\"] }\n";
+        let wf = nika_schema::parse(
+            src,
+            nika_schema::source::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("the fixture parses");
+        let report = nika_check::check(&wf);
+        let (permits, risk) = nika_display::check_render::boundary_clauses(&report);
+        let preview = render_pair(&wf, &report, Theme::new(false, false, false));
+        assert!(
+            preview
+                .text
+                .contains(&format!("boundary     {permits} · {risk}")),
+            "the flag's own reader gets the boundary: {}",
+            preview.text
+        );
+        assert!(
+            risk.contains("risk unbounded") && risk.contains("no ceiling on the grant"),
+            "with the grade AND its cause: {risk}"
+        );
+        // The check card carries those very clauses — one derivation.
+        let card = nika_display::check_render::render(
+            &report,
+            &wf,
+            src,
+            "w.nika.yaml",
+            nika_display::check_render::RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &nika_display::check_render::ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+            &nika_display::check_render::VerdictLayers::default(),
+        );
+        assert!(
+            card.contains(&permits) && card.contains(&risk),
+            "check and --dry-run say the same words: {card}"
+        );
+    }
+
     #[test]
     fn anatomy_carries_the_engineering_read() {
         // The diamond: width 2 ({left,right}) · pinch {root,join} ·
@@ -407,8 +492,14 @@ mod tests {
             out.text
         );
         assert!(
-            out.text.contains("blast        root blocks 3"),
-            "{}",
+            out.text
+                .contains("stalls       `root` fails → 3 tasks blocked"),
+            "the scheduling fan-out says what it means: {}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("blast"),
+            "the word that meant blast radius to every operator who typed the flag is gone: {}",
             out.text
         );
         // The diamond's middle wave is a bordered group; the solo root

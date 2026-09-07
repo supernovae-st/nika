@@ -8,6 +8,7 @@ pub nika_check_analyzer::edges::EdgeKind::TerminalObservation
 pub nika_check_analyzer::edges::EdgeKind::Value
 impl nika_check_analyzer::edges::EdgeKind
 pub fn nika_check_analyzer::edges::EdgeKind::admits(self, s: nika_check_analyzer::edges::SettledState) -> bool
+pub const fn nika_check_analyzer::edges::EdgeKind::carries_value(self) -> bool
 pub fn nika_check_analyzer::edges::EdgeKind::is_scheduling(self) -> bool
 pub fn nika_check_analyzer::edges::EdgeKind::wire_kind(self) -> &'static str
 impl core::clone::Clone for nika_check_analyzer::edges::EdgeKind
@@ -186,6 +187,49 @@ impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::RecoveryRead where T
 pub fn nika_check_analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::RecoveryRead where T: 'static
 pub fn nika_check_analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check_analyzer::edges::Route
+pub nika_check_analyzer::edges::Route::hops: alloc::vec::Vec<usize>
+pub nika_check_analyzer::edges::Route::kinds: alloc::vec::Vec<nika_check_analyzer::edges::EdgeKind>
+pub nika_check_analyzer::edges::Route::sink: usize
+impl core::clone::Clone for nika_check_analyzer::edges::Route
+pub fn nika_check_analyzer::edges::Route::clone(&self) -> nika_check_analyzer::edges::Route
+impl core::cmp::Eq for nika_check_analyzer::edges::Route
+impl core::cmp::PartialEq for nika_check_analyzer::edges::Route
+pub fn nika_check_analyzer::edges::Route::eq(&self, other: &nika_check_analyzer::edges::Route) -> bool
+impl core::fmt::Debug for nika_check_analyzer::edges::Route
+pub fn nika_check_analyzer::edges::Route::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check_analyzer::edges::Route
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::edges::Route
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::edges::Route where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Route::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::edges::Route where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Route::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::edges::Route where U: core::convert::From<T>
+pub fn nika_check_analyzer::edges::Route::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::edges::Route where U: core::convert::Into<T>
+pub type nika_check_analyzer::edges::Route::Error = core::convert::Infallible
+pub fn nika_check_analyzer::edges::Route::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::edges::Route where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::edges::Route::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::edges::Route::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::edges::Route where T: core::clone::Clone
+pub type nika_check_analyzer::edges::Route::Owned = T
+pub fn nika_check_analyzer::edges::Route::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::edges::Route::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::edges::Route where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Route::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::edges::Route where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Route::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::edges::Route where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Route::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::edges::Route where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::edges::Route::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::edges::Route
+pub fn nika_check_analyzer::edges::Route::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::Route where T: core::clone::Clone
+pub fn nika_check_analyzer::edges::Route::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::Route where T: 'static
+pub fn nika_check_analyzer::edges::Route::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_check_analyzer::edges::derive_edges(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_check_analyzer::edges::Edge>
 pub fn nika_check_analyzer::edges::derive_recovery_reads(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_check_analyzer::edges::RecoveryRead>
 pub fn nika_check_analyzer::edges::group_members(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>]) -> alloc::collections::btree::map::BTreeMap<&str, alloc::vec::Vec<usize>>
@@ -194,6 +238,7 @@ pub fn nika_check_analyzer::edges::incoming_of(task: &nika_schema::raw::task::Ra
 pub fn nika_check_analyzer::edges::producer_ids(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_check_analyzer::edges::role_of_field(field: core::option::Option<&str>) -> nika_check_analyzer::edges::EdgeKind
 pub fn nika_check_analyzer::edges::task_refs_in_value(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<(alloc::string::String, core::option::Option<alloc::string::String>)>)
+pub fn nika_check_analyzer::edges::witness_routes(edges: &[nika_check_analyzer::edges::Edge], nodes: usize, source: usize) -> alloc::vec::Vec<nika_check_analyzer::edges::Route>
 pub mod nika_check_analyzer::native_first
 pub fn nika_check_analyzer::native_first::classify(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<(&'static str, alloc::string::String)>
 pub fn nika_check_analyzer::native_first::classify_all(command: &nika_schema::raw::action::RawCommand) -> alloc::vec::Vec<(&'static str, alloc::string::String)>
@@ -241,6 +286,7 @@ pub nika_check_analyzer::EdgeKind::TerminalObservation
 pub nika_check_analyzer::EdgeKind::Value
 impl nika_check_analyzer::edges::EdgeKind
 pub fn nika_check_analyzer::edges::EdgeKind::admits(self, s: nika_check_analyzer::edges::SettledState) -> bool
+pub const fn nika_check_analyzer::edges::EdgeKind::carries_value(self) -> bool
 pub fn nika_check_analyzer::edges::EdgeKind::is_scheduling(self) -> bool
 pub fn nika_check_analyzer::edges::EdgeKind::wire_kind(self) -> &'static str
 impl core::clone::Clone for nika_check_analyzer::edges::EdgeKind
@@ -509,6 +555,49 @@ impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::RecoveryRead where T
 pub fn nika_check_analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::RecoveryRead where T: 'static
 pub fn nika_check_analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check_analyzer::Route
+pub nika_check_analyzer::Route::hops: alloc::vec::Vec<usize>
+pub nika_check_analyzer::Route::kinds: alloc::vec::Vec<nika_check_analyzer::edges::EdgeKind>
+pub nika_check_analyzer::Route::sink: usize
+impl core::clone::Clone for nika_check_analyzer::edges::Route
+pub fn nika_check_analyzer::edges::Route::clone(&self) -> nika_check_analyzer::edges::Route
+impl core::cmp::Eq for nika_check_analyzer::edges::Route
+impl core::cmp::PartialEq for nika_check_analyzer::edges::Route
+pub fn nika_check_analyzer::edges::Route::eq(&self, other: &nika_check_analyzer::edges::Route) -> bool
+impl core::fmt::Debug for nika_check_analyzer::edges::Route
+pub fn nika_check_analyzer::edges::Route::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check_analyzer::edges::Route
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::edges::Route
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::edges::Route where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Route::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::edges::Route where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Route::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::edges::Route where U: core::convert::From<T>
+pub fn nika_check_analyzer::edges::Route::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::edges::Route where U: core::convert::Into<T>
+pub type nika_check_analyzer::edges::Route::Error = core::convert::Infallible
+pub fn nika_check_analyzer::edges::Route::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::edges::Route where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::edges::Route::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::edges::Route::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::edges::Route where T: core::clone::Clone
+pub type nika_check_analyzer::edges::Route::Owned = T
+pub fn nika_check_analyzer::edges::Route::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::edges::Route::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::edges::Route where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Route::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::edges::Route where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Route::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::edges::Route where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Route::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::edges::Route where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::edges::Route::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::edges::Route
+pub fn nika_check_analyzer::edges::Route::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::Route where T: core::clone::Clone
+pub fn nika_check_analyzer::edges::Route::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::Route where T: 'static
+pub fn nika_check_analyzer::edges::Route::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check_analyzer::ThinkingFinding
 pub nika_check_analyzer::ThinkingFinding::model: alloc::string::String
 pub nika_check_analyzer::ThinkingFinding::task: alloc::string::String
@@ -564,3 +653,4 @@ pub fn nika_check_analyzer::returns_type(task: &nika_schema::raw::task::RawTask,
 pub fn nika_check_analyzer::role_of_field(field: core::option::Option<&str>) -> nika_check_analyzer::edges::EdgeKind
 pub fn nika_check_analyzer::static_literal_of<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, expr: &str) -> core::option::Option<&'w serde_json::value::Value>
 pub fn nika_check_analyzer::thinking_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::ThinkingFinding>
+pub fn nika_check_analyzer::witness_routes(edges: &[nika_check_analyzer::edges::Edge], nodes: usize, source: usize) -> alloc::vec::Vec<nika_check_analyzer::edges::Route>

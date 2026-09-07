@@ -228,14 +228,20 @@ fn overridden(
     }
 }
 
-/// Native-strict and operational-profile footers, only when their gate fired.
+/// Native-strict and operational-profile footers, only when their gate
+/// fired. `handle` is the audited line's own cause clause
+/// ([`nika_display::check_render::risk_handle`]): the footer used to
+/// blame « glob/wildcard authority and uncapped autonomy » on every
+/// Unbounded file — a persona wave (the operations sceptic): a file with one exact host, one named
+/// program, zero agents and a `./out/**` write grant was told both, and
+/// never WHICH grant to narrow.
 fn strict_footers(
     text: &mut String,
     theme: Theme,
     native_red: bool,
     native_hints: usize,
     operational_red: bool,
-    grade: nika_check::RiskGrade,
+    (grade, handle): (nika_check::RiskGrade, &str),
 ) {
     if native_red {
         let hint_word = if native_hints == 1 { "hint" } else { "hints" };
@@ -254,17 +260,26 @@ fn strict_footers(
         );
     }
     if operational_red {
+        // The grade names WHY; the handle names WHICH grant or spend
+        // (Unbounded). At High the handle is empty and the lanes above
+        // carry the cause (a glob grant · an unconsumed gate · an
+        // unpinned secret egress), so the fix direction mirrors the
+        // COST/hint lanes (cap the spend · narrow the grant).
+        let why = if handle.is_empty() {
+            " — cap the spend or narrow the grant: glob authority, an unconsumed \
+             human gate or an unpinned secret egress block readiness"
+                .to_owned()
+        } else {
+            format!("{handle} · blocks readiness")
+        };
         let _ = writeln!(
             text,
             " {}",
             theme.paint(
                 Role::Bad,
-                // The grade names WHY; the fix direction mirrors the
-                // COST/hint lanes (cap the spend · narrow the grant).
                 &format!(
-                    "✖ operational · risk {} — cap the spend or narrow the grant: \
-                     glob/wildcard authority and uncapped autonomy block readiness \
-                     under --profile operational (advisory by default)",
+                    "✖ operational · risk {}{why} under --profile operational \
+                     (advisory by default)",
                     grade.as_str()
                 )
             )
@@ -757,7 +772,10 @@ fn render_checked_with_profile(
         native_strict && report.is_clean() && native_hints > 0,
         native_hints,
         profile == Profile::Operational && verdict.clean && !profile_clean,
-        verdict.grade,
+        (
+            verdict.grade,
+            &nika_display::check_render::risk_handle(report, verdict.grade),
+        ),
     );
     access_footer(
         &mut text,

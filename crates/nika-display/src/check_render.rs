@@ -585,8 +585,6 @@ fn audited_line(
     grade: nika_check::RiskGrade,
     t: Theme,
 ) -> String {
-    let tasks: usize = report.waves.iter().map(Vec::len).sum();
-    let permits = permits_glance::permits_glance(report);
     // #1393 — a declared secret leaving for an external destination by
     // sanction is stated on THIS line too (the one an operator reads
     // before running), and the line is never green over it.
@@ -600,8 +598,87 @@ fn audited_line(
     } else {
         (if t.ascii { "!" } else { "⚠" }, Role::Warn)
     };
+    t.paint(
+        role,
+        &format!(
+            "{mark} audited · {}",
+            boundary_tail(report, distinct_hints, hint_sites, t)
+        ),
+    )
+}
+
+/// The SAME boundary summary under the failing verdict — what this file
+/// may touch, and how it graded — never the word « audited », which the
+/// report did not earn.
+///
+/// a persona wave (the operations sceptic): « the card's boundary summary is
+/// suppressed on any file with findings, so the over-broad ops3 — the
+/// one an ops lead most needs summarised — printed no boundary line and
+/// no risk grade at all. » Grepping that file's output for
+/// `audited|layers` returned 0: the plain-words blast radius and the
+/// grade were withheld precisely where the workflow was dangerous
+/// (`fs: {read: ["/**"], write: ["/**"]} · net.http ["**"] · exec: true`).
+///
+/// The verdict is untouched — same glyph, same `Role::Bad`, same exit
+/// code, the findings still stand above it. Only what the line withholds
+/// changed.
+fn findings_line(
+    report: &CheckReport,
+    distinct_hints: usize,
+    hint_sites: usize,
+    t: Theme,
+) -> String {
+    // Through `mark()`, not a hardcoded glyph: this line shipped a
+    // literal `✖` and was the one verdict in the report that leaked
+    // unicode under `--ascii` — the flag exists for terminals that
+    // cannot render it, and the failing verdict was exactly the row they
+    // could not read.
+    format!(
+        "{} {}",
+        mark(t, false),
+        t.paint(
+            Role::Bad,
+            &format!(
+                "findings above · {}",
+                boundary_tail(report, distinct_hints, hint_sites, t)
+            )
+        )
+    )
+}
+
+/// What the file may touch, and how it graded — the check card's OWN two
+/// clauses, from the one derivation, so every surface that previews a
+/// workflow says the same thing about its boundary.
+///
+/// Returned as a pair because the card interleaves the cost census
+/// between them (`permits … · est … · N hints · risk …`) while
+/// `nika run --dry-run` joins them on one line. A persona wave (the operations sceptic): « `--dry-run`
+/// looked like the blast-radius preview. It is not. … It prints no
+/// permits, no risk, no layers. »
+#[must_use]
+pub fn boundary_clauses(report: &CheckReport) -> (String, String) {
+    let grade = nika_check::risk_grade(report);
+    (
+        format!("permits {}", permits_glance::permits_glance(report)),
+        format!("risk {}{}", grade.as_str(), risk_handle(report, grade)),
+    )
+}
+
+/// The boundary summary both verdicts carry: what the file reaches, what
+/// it may cost, how many advisories rode along, and the risk grade with
+/// the handle that names its cause. One derivation, two lines — a green
+/// card and a red card can never describe different boundaries for the
+/// same file.
+fn boundary_tail(
+    report: &CheckReport,
+    distinct_hints: usize,
+    hint_sites: usize,
+    t: Theme,
+) -> String {
+    let tasks: usize = report.waves.iter().map(Vec::len).sum();
+    let (permits, risk) = boundary_clauses(report);
+    let sanctioned = crate::check_journey::sanctioned_flow_count(report);
     let est = est_clause(report, t);
-    let handle = unbounded_handle(report, grade);
     let hint_summary = if distinct_hints == hint_sites {
         crate::vocab::count(hint_sites, "hint")
     } else {
@@ -619,15 +696,10 @@ fn audited_line(
             crate::vocab::count(sanctioned, "sanctioned secret flow")
         )
     };
-    t.paint(
-        role,
-        &format!(
-            "{mark} audited · {} · {} · permits {permits} · {est} · {} · risk {}{handle}",
-            crate::vocab::count(tasks, "task"),
-            crate::vocab::count(report.waves.len(), "wave"),
-            hint_summary,
-            grade.as_str(),
-        ),
+    format!(
+        "{} · {} · {permits} · {est} · {hint_summary} · {risk}",
+        crate::vocab::count(tasks, "task"),
+        crate::vocab::count(report.waves.len(), "wave"),
     )
 }
 
@@ -666,30 +738,58 @@ fn est_clause(report: &CheckReport, t: Theme) -> String {
     )
 }
 
-/// The one next move behind `risk unbounded`. « risk unbounded » used to
-/// close the output with no handle (gauntlet 08-01, Camille — an alarm
-/// without a remedy, and « 0 hints » confessed it): the footer now
-/// carries it. An unpriced-only census is the local-model shape (no
-/// dollar meter exists — the cap matters IF a cloud seat is chosen);
-/// anything else has a declarable ceiling today.
-fn unbounded_handle(report: &CheckReport, grade: nika_check::RiskGrade) -> &'static str {
+/// The one next move behind `risk unbounded` — the handle names the
+/// CAUSE the grader read. « risk unbounded » used to close the output
+/// with no handle (gauntlet 08-01, Camille — an alarm without a remedy,
+/// and « 0 hints » confessed it); then the handle guessed: an `all()`
+/// over the cost table decided « unpriced-only » and printed the
+/// local-model clause, which is VACUOUSLY true on a file with no cost
+/// row at all (a persona wave · the operations sceptic · G2: a builtin-only `mock/echo` file graded
+/// Unbounded for `write: ["./out/**"]` read « no dollar meter for a
+/// local/unknown model » while its `write: ["./out/summary.md"]` twin
+/// graded Supervised — the model was never the differentiator). The
+/// spend arm speaks only when spend IS unbounded; the grant arm names
+/// the entries [`nika_check::wildcard_grants`] graded on and the door
+/// that narrows them. Public so the CLI's `--profile operational` footer
+/// speaks the same cause (one voice, two lines).
+#[must_use]
+pub fn risk_handle(report: &CheckReport, grade: nika_check::RiskGrade) -> String {
     if grade != nika_check::RiskGrade::Unbounded {
-        return "";
+        return String::new();
     }
-    let unpriced_only = report
-        .cost
-        .tasks
-        .iter()
-        .all(|c| matches!(c.unbounded_reason, None | Some(UnboundedReason::NoPrice)));
-    if unpriced_only {
+    let mut parts: Vec<String> = Vec::new();
+    if report.cost.has_unbounded {
         // The handle names its VERB. Pasted onto `check` the bare flag
         // exits 2 — `--max-cost-usd` lives on `run`, and a handle that
         // breaks where it is printed is the class this whole wave hunts
-        // (gauntlet 08-01, Sofia).
-        " — no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`"
-    } else {
-        " — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`"
+        // (gauntlet 08-01, Sofia). An unpriced-only census is the
+        // local-model shape (no dollar meter exists — the cap matters IF
+        // a cloud seat is chosen); anything else has a declarable ceiling.
+        let unpriced_only = report
+            .cost
+            .tasks
+            .iter()
+            .all(|c| matches!(c.unbounded_reason, None | Some(UnboundedReason::NoPrice)));
+        parts.push(
+            if unpriced_only {
+                "no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`"
+            } else {
+                "declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`"
+            }
+            .to_owned(),
+        );
     }
+    let grants = nika_check::wildcard_grants(report);
+    if !grants.is_empty() {
+        parts.push(format!(
+            "no ceiling on the grant: {} · narrow it to what the body reaches (`nika check --infer-permits <file>` derives that boundary)",
+            grants.join(" · ")
+        ));
+    }
+    if parts.is_empty() {
+        return String::new();
+    }
+    format!(" — {}", parts.join(" · "))
 }
 
 /// A finding section: one OK line when empty, one row per finding else.

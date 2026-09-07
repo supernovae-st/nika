@@ -25,11 +25,9 @@
 //! two ends would leave the author hunting for which edge carried the
 //! content; naming every hop makes the route the thing you fix.
 
-use std::collections::{BTreeMap, VecDeque};
-
 use nika_schema::raw::{RawAction, RawWorkflow};
 
-use crate::analyzer::Edge;
+use crate::analyzer::{Edge, EdgeKind, Route};
 
 /// One refused route — a net-effecting source, an `exec:` sink, and the
 /// path between them.
@@ -89,20 +87,28 @@ pub(crate) fn scan_order(wf: &RawWorkflow, edges: &[Edge]) -> Vec<OrderFinding> 
     }
     let mut out = Vec::new();
     for source in sources {
-        for (sink, path) in reachable_execs(wf, edges, source) {
-            let route = path.join(" → ");
+        for r in crate::analyzer::witness_routes(edges, wf.tasks.len(), source) {
+            if !matches!(wf.tasks[r.sink].value.action, RawAction::Exec(_)) {
+                continue;
+            }
+            let route = r
+                .hops
+                .iter()
+                .map(|&i| format!("`{}`", wf.tasks[i].value.id.value))
+                .collect::<Vec<_>>()
+                .join(" → ");
             let (from, to) = (
                 wf.tasks[source].value.id.value.clone(),
-                wf.tasks[sink].value.id.value.clone(),
+                wf.tasks[r.sink].value.id.value.clone(),
             );
+            let (claim, cut) = route_claim(wf, &r, &from, &to);
             out.push(OrderFinding {
                 detail: format!(
-                    "the order law · `{to}` shells on content `{from}` fetched — \
-                     {route}. Content the workflow did not author must not reach \
-                     a shell: this holds with no block declaring it and none able \
-                     to disable it. Fix: do the work in a builtin \
-                     (`nika:jq` · `nika:grep`) instead of a shell, or cut the \
-                     route so the fetched value never reaches `{to}`."
+                    "the order law · {claim} — {route}. Content the workflow did \
+                     not author must not reach a shell: this holds with no block \
+                     declaring it and none able to disable it. Fix: do the work \
+                     in a builtin (`nika:jq` · `nika:grep`) instead of a shell, \
+                     or {cut}."
                 ),
                 source: from,
                 sink: to,
@@ -112,55 +118,67 @@ pub(crate) fn scan_order(wf: &RawWorkflow, edges: &[Edge]) -> Vec<OrderFinding> 
     out
 }
 
-/// Every `exec:` task reachable from `source`, each with the shortest
-/// route to it (BFS · the first path found IS the shortest, and a
-/// shortest witness is the one an author can read).
-fn reachable_execs(wf: &RawWorkflow, edges: &[Edge], source: usize) -> Vec<(usize, Vec<String>)> {
-    let mut adjacency: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-    for e in edges {
-        adjacency.entry(e.from).or_default().push(e.to);
+/// The claim and the repair, matched to the edge kinds the route CROSSED.
+///
+/// « `X` shells on content `Y` fetched » is a DATA-FLOW claim, and the
+/// walk that produced it is a reachability walk over data ∪ control
+/// edges. Measured on 0.118.7 by a persona wave, verbatim: « The card
+/// said `measure` "shells on content `grab` fetched". I stripped the
+/// argv to `["date","-u"]` (no fetched value anywhere, no file read) and
+/// it STILL refused. `nika explain` was accurate where the card was not
+/// … The card's offered fix ("cut the route so the fetched value never
+/// reaches `measure`") is unactionable, because no fetched value reached
+/// it — the thing to delete was the `after:` edge, which the card never
+/// names. »
+///
+/// The VERDICT is untouched: the order law is unconditional over the
+/// derived graph, exactly as `nika explain NIKA-SEC-015` always said.
+/// Only the sentence changes, and only where it overclaimed. The route
+/// arrives from [`crate::analyzer::witness_routes`], which hands back a
+/// value route wherever one exists — so the second arm's « no `with:`
+/// chain carries it » is a fact about the whole graph, not about the one
+/// route that happened to be shortest.
+///
+/// Neither arm claims the value CANNOT arrive: the law is unconditional
+/// precisely because content also travels where no edge does (a file the
+/// fetch wrote, an environment the shell inherits). The sentence says
+/// what the graph shows, and the repair names a hop the author wrote.
+fn route_claim(wf: &RawWorkflow, r: &Route, from: &str, to: &str) -> (String, String) {
+    let Some(hop) = r.kinds.iter().position(|k| !k.carries_value()) else {
+        return (
+            format!("`{to}` shells on content `{from}` fetched"),
+            format!("cut the route so the fetched value never reaches `{to}`"),
+        );
+    };
+    let mut over: Vec<&str> = Vec::new();
+    if r.kinds.iter().any(|k| k.carries_value()) {
+        over.push("`with:` data edges");
     }
-    let mut came_from: BTreeMap<usize, usize> = BTreeMap::new();
-    let mut seen = vec![false; wf.tasks.len()];
-    let mut queue = VecDeque::from([source]);
-    seen[source] = true;
-    let mut hits = Vec::new();
-    while let Some(node) = queue.pop_front() {
-        for &next in adjacency.get(&node).into_iter().flatten() {
-            if seen.get(next).copied().unwrap_or(true) {
-                continue;
-            }
-            seen[next] = true;
-            came_from.insert(next, node);
-            if matches!(wf.tasks[next].value.action, RawAction::Exec(_)) {
-                hits.push((next, route_to(wf, &came_from, source, next)));
-            }
-            queue.push_back(next);
-        }
+    if r.kinds.iter().any(|k| matches!(k, EdgeKind::Control(_))) {
+        over.push("`after:` control edges");
     }
-    hits
-}
-
-/// The route as the author reads it — `a → b → c`, source first.
-fn route_to(
-    wf: &RawWorkflow,
-    came_from: &BTreeMap<usize, usize>,
-    source: usize,
-    sink: usize,
-) -> Vec<String> {
-    let mut rev = vec![sink];
-    let mut at = sink;
-    while at != source {
-        let Some(&prev) = came_from.get(&at) else {
-            break;
-        };
-        rev.push(prev);
-        at = prev;
+    if r.kinds
+        .iter()
+        .any(|k| !k.carries_value() && !matches!(k, EdgeKind::Control(_)))
+    {
+        over.push("observation edges (status · error · timing)");
     }
-    rev.reverse();
-    rev.into_iter()
-        .map(|i| format!("`{}`", wf.tasks[i].value.id.value))
-        .collect()
+    let word = match r.kinds.get(hop) {
+        Some(EdgeKind::Control(_)) => "`after:`",
+        _ => "observation",
+    };
+    let named = |at: Option<&usize>| {
+        at.and_then(|&i| wf.tasks.get(i))
+            .map_or_else(|| "?".to_owned(), |t| t.value.id.value.clone())
+    };
+    let (a, b) = (named(r.hops.get(hop)), named(r.hops.get(hop + 1)));
+    (
+        format!(
+            "`{to}` sits downstream of `{from}` over {} · no `with:` chain carries `{from}`'s output into `{to}`",
+            over.join(" and ")
+        ),
+        format!("cut the {word} edge `{a}` → `{b}`"),
+    )
 }
 
 #[cfg(test)]
@@ -212,6 +230,15 @@ mod tests {
     /// A control edge carries the law as surely as a data edge: the spec
     /// names `with:` data edges ∪ `after:` control edges, and an `after:`
     /// alone is enough to put the shell downstream of the fetch.
+    ///
+    /// Measured on 0.118.7 by a persona wave, verbatim: « The card said
+    /// `measure` "shells on content `grab` fetched". I stripped the argv
+    /// to `["date","-u"]` (no fetched value anywhere, no file read) and
+    /// it STILL refused. … The card's offered fix … is unactionable,
+    /// because no fetched value reached it — the thing to delete was the
+    /// `after:` edge, which the card never names. » The refusal stands;
+    /// the SENTENCE now names the edge kinds it walked, and the repair
+    /// names the hop.
     #[test]
     fn a_bare_control_edge_carries_it_too() {
         let r = report(&format!(
@@ -220,6 +247,135 @@ mod tests {
              after: {{ fetch_page: success }}\n    exec: {{ command: [\"echo\", \"hi\"] }}\n"
         ));
         assert_eq!(r.order_findings.len(), 1, "{:?}", r.order_findings);
+        let d = &r.order_findings[0].detail;
+        assert!(
+            d.contains("`act` sits downstream of `fetch_page` over `after:` control edges"),
+            "the claim names what the walk proved: {d}"
+        );
+        assert!(
+            d.contains("no `with:` chain carries `fetch_page`'s output into `act`"),
+            "and what the graph did NOT show: {d}"
+        );
+        assert!(
+            d.contains("cut the `after:` edge `fetch_page` → `act`"),
+            "the repair names the hop to delete: {d}"
+        );
+        assert!(
+            !d.contains("shells on content"),
+            "a data-flow claim the judge never made: {d}"
+        );
+        assert!(
+            !r.is_clean(),
+            "the verdict is untouched — the law is unconditional"
+        );
+    }
+
+    /// The measured file itself: a fetch whose output reaches a WRITE by
+    /// `with:`, and a shell ordered after the write by `after:` — argv
+    /// `["date","-u"]`, no fetched value anywhere in it. The claim names
+    /// both kinds it crossed, and the repair names the hop the author
+    /// wrote and then deleted: `save` → `measure`.
+    #[test]
+    fn a_mixed_route_names_both_kinds_and_the_after_hop_to_cut() {
+        let r = report(&format!(
+            "nika: t\n{PERMITS}tasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      \
+             args: {{ url: \"https://example.com/data\" }}\n  save:\n    \
+             with: {{ body: \"${{{{ tasks.grab.output }}}}\" }}\n    \
+             invoke:\n      tool: \"nika:write\"\n      \
+             args: {{ path: \"./out.txt\", content: \"${{{{ with.body }}}}\" }}\n  measure:\n    \
+             after: {{ save: success }}\n    exec: {{ command: [\"date\", \"-u\"] }}\n"
+        ));
+        assert_eq!(r.order_findings.len(), 1, "{:?}", r.order_findings);
+        let d = &r.order_findings[0].detail;
+        assert!(
+            d.contains(
+                "`measure` sits downstream of `grab` over `with:` data edges and `after:` control edges"
+            ),
+            "both kinds, in the order the route crossed them: {d}"
+        );
+        assert!(
+            d.contains("cut the `after:` edge `save` → `measure`"),
+            "the hop the reader deleted, named: {d}"
+        );
+        assert!(!d.contains("shells on content"), "{d}");
+    }
+
+    /// The under-claim the preference forbids. `act` sits one `after:`
+    /// hop from the fetch AND two `with:` hops from it; the shortest
+    /// route is the control one, and describing THAT would say « no
+    /// `with:` chain carries it » of a file where one does. The witness
+    /// walk hands back the value route, so the strong claim holds.
+    #[test]
+    fn a_value_route_outranks_a_shorter_control_shortcut() {
+        let r = report(&format!(
+            "nika: t\n{PERMITS}tasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      \
+             args: {{ url: \"https://example.com/data\" }}\n  clean:\n    \
+             with: {{ body: \"${{{{ tasks.grab.output }}}}\" }}\n    \
+             invoke:\n      tool: \"nika:jq\"\n      \
+             args: {{ input: \"${{{{ with.body }}}}\", expression: \".\" }}\n  act:\n    \
+             after: {{ grab: success }}\n    \
+             with: {{ v: \"${{{{ tasks.clean.output }}}}\" }}\n    \
+             exec: {{ command: [\"echo\", \"${{{{ with.v }}}}\"] }}\n"
+        ));
+        assert_eq!(r.order_findings.len(), 1, "{:?}", r.order_findings);
+        let d = &r.order_findings[0].detail;
+        assert!(
+            d.contains("`act` shells on content `grab` fetched")
+                && d.contains("`grab` → `clean` → `act`"),
+            "the longer VALUE route is the witness, not the one-hop `after:`: {d}"
+        );
+        assert!(
+            !d.contains("no `with:` chain"),
+            "the graph holds one — the negative would be false here: {d}"
+        );
+    }
+
+    /// The data route KEEPS its claim: every hop a `with:` value edge,
+    /// so the fetched bytes really do land in the argv. The two prose
+    /// arms are the same judge, told apart by the route.
+    #[test]
+    fn a_data_route_still_says_it_shells_on_the_fetched_content() {
+        let r = report(&format!(
+            "nika: t\n{PERMITS}tasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      \
+             args: {{ url: \"https://example.com/data\" }}\n  act:\n    \
+             with: {{ body: \"${{{{ tasks.fetch_page.output }}}}\" }}\n    \
+             exec: {{ command: [\"echo\", \"${{{{ with.body }}}}\"] }}\n"
+        ));
+        let d = &r.order_findings[0].detail;
+        assert!(
+            d.contains("`act` shells on content `fetch_page` fetched"),
+            "{d}"
+        );
+        assert!(
+            d.contains("cut the route so the fetched value never reaches `act`"),
+            "{d}"
+        );
+    }
+
+    /// An observation edge reads the RECORD (`.status` · `.error` ·
+    /// timings), which the engine authors — not the bytes the fetch
+    /// returned. It is neither a data edge nor an `after:` entry, so the
+    /// claim and the repair say so rather than naming an edge that is
+    /// not there.
+    #[test]
+    fn an_observation_route_names_the_observation_never_an_after_edge() {
+        let r = report(&format!(
+            "nika: t\n{PERMITS}tasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      \
+             args: {{ url: \"https://example.com/data\" }}\n  act:\n    \
+             with: {{ s: \"${{{{ tasks.fetch_page.status }}}}\" }}\n    \
+             exec: {{ command: [\"echo\", \"${{{{ with.s }}}}\"] }}\n"
+        ));
+        assert_eq!(r.order_findings.len(), 1, "{:?}", r.order_findings);
+        let d = &r.order_findings[0].detail;
+        assert!(
+            d.contains("over observation edges (status · error · timing)")
+                && d.contains("cut the observation edge `fetch_page` → `act`"),
+            "{d}"
+        );
+        assert!(
+            !d.contains("`after:`"),
+            "no edge kind the file never wrote: {d}"
+        );
     }
 
     /// The blind spot, closed by construction: an unwind edge stays out
