@@ -1758,12 +1758,14 @@ impl nika_dap::journal::TraceFileSink
 pub fn nika_dap::journal::TraceFileSink::chain_head(&self) -> &str
 pub fn nika_dap::journal::TraceFileSink::chain_len(&self) -> usize
 pub fn nika_dap::journal::TraceFileSink::disabled() -> Self
+pub fn nika_dap::journal::TraceFileSink::error(&self) -> core::option::Option<&core::io::error::Error>
 pub fn nika_dap::journal::TraceFileSink::finalize(&mut self)
 pub fn nika_dap::journal::TraceFileSink::for_execution(self, execution: nika_types::id::ExecutionId, trace: nika_types::id::TraceId) -> Self
 pub fn nika_dap::journal::TraceFileSink::into_error(self) -> core::option::Option<core::io::error::Error>
 pub fn nika_dap::journal::TraceFileSink::is_disabled(&self) -> bool
 pub fn nika_dap::journal::TraceFileSink::new(dir: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn nika_dap::journal::TraceFileSink::path(&self) -> core::option::Option<&std::path::Path>
+pub fn nika_dap::journal::TraceFileSink::write_record<T: serde_core::ser::Serialize>(&mut self, record: &T) -> core::io::error::Result<()>
 impl core::ops::drop::Drop for nika_dap::journal::TraceFileSink
 pub fn nika_dap::journal::TraceFileSink::drop(&mut self)
 impl nika_event::stamp::EventSink for nika_dap::journal::TraceFileSink
@@ -1796,6 +1798,7 @@ impl<T> typenum::type_operators::Same for nika_dap::journal::TraceFileSink
 pub type nika_dap::journal::TraceFileSink::Output = T
 pub fn nika_dap::journal::seal_journal(trace: &mut nika_dap::journal::TraceFileSink, workflow_hash: core::option::Option<&str>) -> bool
 pub fn nika_dap::journal::seal_journal_with(trace: &mut nika_dap::journal::TraceFileSink, workflow_hash: core::option::Option<&str>, teardown: core::option::Option<&nika_dap::seal::SealTeardown>) -> bool
+pub fn nika_dap::journal::seal_journal_with_key(trace: &mut nika_dap::journal::TraceFileSink, workflow_hash: core::option::Option<&str>, teardown: core::option::Option<&nika_dap::seal::SealTeardown>, key: impl core::ops::function::FnOnce() -> core::option::Option<(minisign::SecretKey, alloc::string::String)>) -> bool
 pub mod nika_dap::liveness
 #[non_exhaustive] pub enum nika_dap::liveness::Liveness
 pub nika_dap::liveness::Liveness::Alive
