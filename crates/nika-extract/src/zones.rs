@@ -697,38 +697,41 @@ mod tests {
         // EX08 corpus both annotate golds WITHOUT any of it.
         let page = r##"<html><body>
           <main id="content" class="mw-body">
-            <h1>Rust (langage)</h1>
-            <p class="hatnote">Pour le jeu vidéo, voir un autre article du même nom.</p>
-            <p>Rust est un langage de programmation compilé multi-paradigme dont le
-               développement a commencé en 2006, conçu pour être sûr, concurrent et
-               pratique, avec une syntaxe riche et une garantie de sûreté mémoire
-               sans ramasse-miettes qui le distingue des langages contemporains.<sup class="mw-ref reference" id="cite_ref-1"><a href="#cite_note-1">[1]</a></sup></p>
-            <h2><span class="mw-headline">Histoire</span><span class="mw-editsection"><a href="/w/index.php?edit=1">modifier</a></span></h2>
-            <p>Le langage naît d'un projet personnel de Graydon Hoare avant d'être
-               sponsorisé par Mozilla Research à partir de 2009 puis porté par une
-               fondation dédiée créée en 2021 par les principaux industriels du
-               logiciel qui financent désormais son développement continu.</p>
+            <h1>Rust (programming language)</h1>
+            <p class="hatnote">For the video game, see the other article of the same name.</p>
+            <p>Rust is a multi-paradigm compiled programming language whose development
+               began in 2006, designed to be safe, concurrent and practical, with a rich
+               syntax and a memory-safety guarantee without a garbage collector that sets
+               it apart from the languages of its time.<sup class="mw-ref reference" id="cite_ref-1"><a href="#cite_note-1">[1]</a></sup></p>
+            <h2><span class="mw-headline">History</span><span class="mw-editsection"><a href="/w/index.php?edit=1">edit</a></span></h2>
+            <p>The language began as a personal project of Graydon Hoare before being
+               sponsored by Mozilla Research from 2009 onward and then carried by a
+               dedicated foundation created in 2021 by the major software industry
+               players who now fund its continued development.</p>
             <div class="mw-references-wrap"><ol class="references">
-              <li id="cite_note-1"><a href="#cite_ref-1">↑</a> « Rust FAQ », consulté le 12 avril 2023.</li>
-              <li id="cite_note-2"><a href="#cite_ref-2">↑</a> « Mozilla News », consulté le 3 mai 2022.</li>
+              <li id="cite_note-1"><a href="#cite_ref-1">↑</a> "Rust FAQ", retrieved on 12 April 2023.</li>
+              <li id="cite_note-2"><a href="#cite_ref-2">↑</a> "Mozilla News", retrieved on 3 May 2022.</li>
             </ol></div>
           </main>
         </body></html>"##;
         let html = rule_content(page, PageType::Article).expect("wiki article extracts");
-        assert!(html.contains("langage de programmation"), "{html}");
-        assert!(html.contains("Histoire"), "{html}");
-        assert!(!html.contains("hatnote"), "hatnote pruned: {html}");
         assert!(
-            !html.contains("modifier"),
-            "edit-section link pruned: {html}"
+            html.contains("multi-paradigm compiled programming language"),
+            "{html}"
         );
+        assert!(html.contains("History"), "{html}");
+        assert!(!html.contains("hatnote"), "hatnote pruned: {html}");
+        assert!(!html.contains(">edit<"), "edit-section link pruned: {html}");
         assert!(
             !html.contains("cite_ref"),
             "inline citation sup pruned: {html}"
         );
         assert!(!html.contains("[1]"), "citation marker text gone: {html}");
         assert!(!html.contains("cite_note"), "reflist items pruned: {html}");
-        assert!(!html.contains("consulté"), "reflist text pruned: {html}");
+        assert!(
+            !html.contains("retrieved on"),
+            "reflist text pruned: {html}"
+        );
     }
 
     #[test]
