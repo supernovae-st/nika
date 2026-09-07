@@ -275,7 +275,14 @@ fn readability(
         mode: ExtractMode::Article,
         reason,
     };
-    let mut readability = dom_smoothie::Readability::new(body, base, None)
+    // The input is chrome-cleaned first (F006): readability strips class
+    // attributes from its winning fragment, so `prune_fragment` after the
+    // fact cannot see the reference machinery — it must never enter the
+    // scoring at all. (The FULL discard list as readability input was a
+    // measured net loss — 2026-09-07 — the surgical chrome set is not that:
+    // it only removes blocks that fool the scoring with real sentences.)
+    let cleaned = crate::zones::clean_document(body);
+    let mut readability = dom_smoothie::Readability::new(cleaned.as_ref(), base, None)
         .map_err(|e| html(format!("readability init: {e:?}")))?;
     let parsed = readability
         .parse()
@@ -297,12 +304,6 @@ fn is_thin(value: &serde_json::Value) -> bool {
 mod tests {
     use super::*;
     use serde_json::{Value, json};
-
-    // ── is_thin · the THIN gate (directly unit-testable) ──────────────
-    //
-    // `is_thin(v)` = v is NOT a string, OR its TRIMMED length is strictly
-    // below THIN_THRESHOLD (250). These cases pin every operator the
-    // mutation run left alive on lines 95-98.
 
     /// `THIN_THRESHOLD` is the canonical 250-char floor — make the boundary
     /// arithmetic explicit so a silent constant drift fails loudly here.

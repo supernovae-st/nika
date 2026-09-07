@@ -56,6 +56,95 @@ static ANCHOR_SEL: LazyLock<Option<Selector>> = LazyLock::new(|| Selector::parse
 static BLOCK_SEL: LazyLock<Option<Selector>> =
     LazyLock::new(|| Selector::parse("div, ul, ol, p, section").ok());
 
+/// Chrome subtrees removed at DOCUMENT level (F006) — the surgical subset of
+/// [`DISCARD_TOKENS`] whose blocks carry real sentences and therefore fool
+/// EVERY downstream stage, not just the rule cascade: reference machinery
+/// (reflist, citation superscripts, edit-section links), disambiguation
+/// hatnotes, wiki maintenance banners, cookie/consent banners, feedback
+/// widgets. `blocks::segment` skips them and `article::readability` receives
+/// a document already cleaned of them (readability strips class attributes
+/// from its fragment, so pruning AFTER its win cannot see these markers —
+/// the clean must happen on its INPUT). Kept narrow on purpose: the density
+/// walk and readability's scoring read the rest of the chrome as context.
+pub(crate) const CHROME_TOKENS: &[&str] = &[
+    "mw-references",
+    "reflist",
+    "cite_note",
+    "cite_ref",
+    "mw-ref",
+    "editsection",
+    "hatnote",
+    "bandeau",
+];
+
+/// True when the element's class or id carries a chrome token (substring,
+/// ASCII case-insensitive — same matching semantics as the denylist).
+/// `<html>`/`<body>` are exempt: their class lists carry template feature
+/// flags (a `has-cookie-banner` body class must not chrome away the page).
+pub(crate) fn is_chrome(el: &scraper::node::Element) -> bool {
+    if matches!(el.name(), "html" | "body") {
+        return false;
+    }
+    let hits = |value: &str| {
+        let value = value.to_ascii_lowercase();
+        CHROME_TOKENS.iter().any(|tok| value.contains(tok))
+    };
+    el.id().is_some_and(&hits) || el.classes().any(hits)
+}
+
+/// The document with every chrome subtree detached — the input readability
+/// and the density walk SHOULD have been served. Same over-prune guard as
+/// the discard pass: a page that is nothing BUT chrome (a citation index, a
+/// consent wall) keeps its original markup rather than starve every stage.
+pub(crate) fn clean_document(body: &str) -> String {
+    let mut doc = Html::parse_document(body);
+    let total_text = body_text_len(&doc);
+    let mut groups: Vec<String> = Vec::with_capacity(CHROME_TOKENS.len() * 2);
+    for tok in CHROME_TOKENS {
+        groups.push(format!(r#"[class*="{tok}" i]"#));
+        groups.push(format!(r#"[id*="{tok}" i]"#));
+    }
+    let Some(sel) = Selector::parse(&groups.join(", ")).ok() else {
+        return body.to_owned();
+    };
+    // `<html>`/`<body>` are EXEMPT: their class lists carry skin feature
+    // flags, not regions — Vector-2022 serves `vector-feature-language-in-
+    // main-menu-disabled` on <html>, whose `menu` substring otherwise matches
+    // the whole document and reverts the prune page-wide (F006 root cause).
+    let matched: std::collections::BTreeSet<NodeId> = doc
+        .select(&sel)
+        .filter(|el| !matches!(el.value().name(), "html" | "body"))
+        .map(|el| el.id())
+        .collect();
+    let mut ids = Vec::new();
+    let mut pruned_text = 0usize;
+    for el in doc.select(&sel) {
+        if matches!(el.value().name(), "html" | "body") {
+            continue; // feature flags on the root are not a region
+        }
+        if el.ancestors().any(|a| matched.contains(&a.id())) {
+            continue; // an outer match covers this one
+        }
+        ids.push(el.id());
+        pruned_text += visible_text_len(&el.text().collect::<String>());
+    }
+    if ids.is_empty() {
+        // No chrome found: hand the ORIGINAL bytes back — re-serializing a
+        // clean document drifts attribute order/entities and measurably
+        // shifts readability's scoring on unrelated pages (WCXB 0559 class).
+        return body.to_owned();
+    }
+    if total_text > 0 && pruned_text.saturating_mul(7) > total_text.saturating_mul(6) {
+        return body.to_owned(); // the page IS chrome — leave it be
+    }
+    for &id in &ids {
+        if let Some(mut n) = doc.tree.get_mut(id) {
+            n.detach();
+        }
+    }
+    doc.html()
+}
+
 /// Boilerplate class/id substring tokens (case-insensitive) — the
 /// substring-reducible core of Trafilatura's `OVERALL_DISCARD_XPATH`
 /// (D1+D2). Each becomes a `[class*="tok" i],[id*="tok" i]` select. The
@@ -128,6 +217,18 @@ const DISCARD_TOKENS: &[&str] = &[
     "noprint",
     "print-only",
     "tooltip",
+    // Reference-machinery chrome (F006): the reflist, inline citation
+    // superscripts, section edit links, disambiguation hatnotes and wiki
+    // maintenance banners are chrome in every gold convention we measure
+    // against (WCXB ground-truth and the EX08 corpus both exclude them).
+    "mw-references",
+    "reflist",
+    "cite_note",
+    "cite_ref",
+    "mw-ref",
+    "editsection",
+    "hatnote",
+    "bandeau",
 ];
 
 /// Discussion zones — boilerplate on articles, CONTENT on forums (the WCXB
@@ -309,10 +410,21 @@ fn discard_ids(doc: &Html, page_type: PageType, total_text: usize) -> Vec<NodeId
     // detaches its descendants). Counting only outermost text also avoids
     // DOUBLE-COUNTING nested matches (a `.comments` section AND its inner
     // `.comment` div), which would wrongly inflate the over-prune guard.
-    let matched: std::collections::BTreeSet<NodeId> = doc.select(&sel).map(|el| el.id()).collect();
+    // `<html>`/`<body>` are EXEMPT: their class lists carry skin feature
+    // flags, not regions — Vector-2022 serves `vector-feature-language-in-
+    // main-menu-disabled` on <html>, whose `menu` substring otherwise matches
+    // the whole document and reverts the prune page-wide (F006 root cause).
+    let matched: std::collections::BTreeSet<NodeId> = doc
+        .select(&sel)
+        .filter(|el| !matches!(el.value().name(), "html" | "body"))
+        .map(|el| el.id())
+        .collect();
     let mut ids = Vec::new();
     let mut pruned_text = 0usize;
     for el in doc.select(&sel) {
+        if matches!(el.value().name(), "html" | "body") {
+            continue; // feature flags on the root are not a region
+        }
         let has_matched_ancestor = el.ancestors().any(|a| matched.contains(&a.id()));
         if has_matched_ancestor {
             continue; // an outer match covers this one
@@ -466,8 +578,8 @@ fn body_text_len(doc: &Html) -> usize {
 mod tests {
     use super::{
         ARTICLE_CASCADE, BROAD_CASCADE, DISCARD_TAGS, DISCARD_TOKENS, DISCUSSION_TOKENS,
-        FORUM_CASCADE, PageType, ZONE_MIN_SHARE_PERCENT, cascade_for, discard_ids, is_link_dense,
-        link_dense_ids, prune_fragment, rule_content,
+        FORUM_CASCADE, PageType, ZONE_MIN_SHARE_PERCENT, cascade_for, clean_document, discard_ids,
+        is_link_dense, link_dense_ids, prune_fragment, rule_content,
     };
     use scraper::{Html, Selector};
 
@@ -574,6 +686,87 @@ mod tests {
         assert!(!html.contains("Tweet"), "share pruned: {html}");
         assert!(!html.contains("spam comment"), "comments pruned: {html}");
         assert!(!html.contains("footer junk"), "footer pruned: {html}");
+    }
+
+    #[test]
+    fn wiki_reference_chrome_is_pruned() {
+        // F006: MediaWiki reference machinery is chrome, never content — the
+        // reflist (`mw-references-wrap` / `cite_note` items), the inline
+        // citation superscripts (`mw-ref` / `cite_ref`), the section edit
+        // links (`mw-editsection`) and disambiguation hatnotes. WCXB and the
+        // EX08 corpus both annotate golds WITHOUT any of it.
+        let page = r##"<html><body>
+          <main id="content" class="mw-body">
+            <h1>Rust (langage)</h1>
+            <p class="hatnote">Pour le jeu vidéo, voir un autre article du même nom.</p>
+            <p>Rust est un langage de programmation compilé multi-paradigme dont le
+               développement a commencé en 2006, conçu pour être sûr, concurrent et
+               pratique, avec une syntaxe riche et une garantie de sûreté mémoire
+               sans ramasse-miettes qui le distingue des langages contemporains.<sup class="mw-ref reference" id="cite_ref-1"><a href="#cite_note-1">[1]</a></sup></p>
+            <h2><span class="mw-headline">Histoire</span><span class="mw-editsection"><a href="/w/index.php?edit=1">modifier</a></span></h2>
+            <p>Le langage naît d'un projet personnel de Graydon Hoare avant d'être
+               sponsorisé par Mozilla Research à partir de 2009 puis porté par une
+               fondation dédiée créée en 2021 par les principaux industriels du
+               logiciel qui financent désormais son développement continu.</p>
+            <div class="mw-references-wrap"><ol class="references">
+              <li id="cite_note-1"><a href="#cite_ref-1">↑</a> « Rust FAQ », consulté le 12 avril 2023.</li>
+              <li id="cite_note-2"><a href="#cite_ref-2">↑</a> « Mozilla News », consulté le 3 mai 2022.</li>
+            </ol></div>
+          </main>
+        </body></html>"##;
+        let html = rule_content(page, PageType::Article).expect("wiki article extracts");
+        assert!(html.contains("langage de programmation"), "{html}");
+        assert!(html.contains("Histoire"), "{html}");
+        assert!(!html.contains("hatnote"), "hatnote pruned: {html}");
+        assert!(
+            !html.contains("modifier"),
+            "edit-section link pruned: {html}"
+        );
+        assert!(
+            !html.contains("cite_ref"),
+            "inline citation sup pruned: {html}"
+        );
+        assert!(!html.contains("[1]"), "citation marker text gone: {html}");
+        assert!(!html.contains("cite_note"), "reflist items pruned: {html}");
+        assert!(!html.contains("consulté"), "reflist text pruned: {html}");
+    }
+
+    #[test]
+    fn a_chromeless_document_passes_through_byte_identical() {
+        // clean_document must return the ORIGINAL bytes when nothing was
+        // detached — a re-serialized twin drifts attribute order/entities
+        // and shifts readability's scoring on unrelated pages (measured
+        // WCXB 0559/0711/3067 class, 2026-09-07).
+        let page = r#"<html><body><main><p class="content">Plain prose with   odd   spacing &amp; entities — nothing chrome here.</p></main></body></html>"#;
+        assert_eq!(clean_document(page), page, "no match → byte-identical");
+    }
+
+    #[test]
+    fn root_feature_flag_classes_never_poison_the_prune() {
+        // F006 root cause: Vector-2022 serves `vector-feature-language-in-
+        // main-menu-disabled` on <html> — the `menu` substring matched the
+        // ROOT, the over-prune guard reverted, and NO chrome was pruned at
+        // all on every Wikipedia page. Root classes are feature flags, not
+        // regions: they must never enter the discard match set.
+        let page = r#"<html class="client-nojs vector-feature-language-in-main-menu-disabled skin-vector"><body class="mediawiki">
+          <main id="content">
+            <h1>Real Article</h1>
+            <p>The genuine article body carries enough running prose words to
+               stand on its own as the obvious page content, with sentence after
+               sentence of real information that a reader came here to read and
+               the extraction must keep from the first word to the last one.</p>
+            <p>A second paragraph keeps the body well above every threshold the
+               cascade enforces, so the zone stands on the article itself and
+               the chrome around it is the only thing under test right here.</p>
+            <ol class="references"><li id="cite_note-1">« Some Source », retrieved on 1 May 2026 with a long citation tail.</li></ol>
+          </main>
+        </body></html>"#;
+        let html = rule_content(page, PageType::Article).expect("article extracts");
+        assert!(html.contains("genuine article body"), "{html}");
+        assert!(
+            !html.contains("Some Source"),
+            "reflist pruned despite the poisoned root: {html}"
+        );
     }
 
     #[test]
