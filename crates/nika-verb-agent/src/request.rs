@@ -25,6 +25,11 @@ pub(crate) fn build_request(
     let mut request = InferRequest::new(model, messages);
     request.temperature = input.temperature;
     request.tools = defs;
+    // The task `timeout:` rides EVERY turn of the loop — the transport's
+    // per-provider default must not undercut the author's budget on the
+    // turns a slow seat needs it (issue 1516: the loop died at the 30 s
+    // cloud default while `infer:` on the same seat honored `timeout:`).
+    request.timeout = input.timeout;
     request
 }
 
@@ -45,6 +50,9 @@ pub(crate) fn schema_request(
     let mut request = InferRequest::new(model, messages);
     request.temperature = input.temperature;
     // tools deliberately left empty (default) — see the doc comment.
+    // The re-ask is one more provider call of the same task: it carries
+    // the task `timeout:` like every loop turn (`build_request` mirror).
+    request.timeout = input.timeout;
     if native {
         request.response_format = ResponseFormat::JsonSchema(schema.clone());
     }

@@ -14,6 +14,8 @@
 //! are shared (`crate::tests`), so a change to the loop's test double
 //! still moves both suites at once.
 
+use std::time::Duration;
+
 use super::*;
 use nika_kernel::ai::provider::{ResponseFormat, ToolDef};
 use nika_kernel::runtime::tool_executor::ToolResult;
@@ -588,5 +590,73 @@ async fn a_repair_turn_is_gated_by_the_token_budget() {
         r.provider.captured_requests().len(),
         1,
         "the repair was never requested"
+    );
+}
+
+// ── (f) the task `timeout:` rides every request the loop builds ─────
+
+#[tokio::test]
+async fn every_loop_turn_carries_the_task_timeout_including_a_repair() {
+    // The loop builds a request per turn; the task `timeout:` must ride
+    // each one — the repair turn included — or the transport's own default
+    // governs exactly the turns a slow seat needs the budget on (measured
+    // on 0.118.7: the loop died at the 30 s cloud default while `infer:`
+    // on the same seat honored the same `timeout:`).
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(tool_use_response(
+                "c1",
+                DONE_TOOL,
+                serde_json::json!({"result": {"score": "nine"}}),
+            ))
+            .enqueue_response(tool_use_response(
+                "c2",
+                DONE_TOOL,
+                serde_json::json!({"result": {"score": 9}}),
+            )),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("rate it");
+    input.tools = vec![DONE_TOOL.to_owned()];
+    input.schema = Some(score_schema());
+    input.timeout = Some(Duration::from_secs(420));
+    r.verb.run(input).await.expect("the repair conforms");
+    let reqs = r.provider.captured_requests();
+    assert_eq!(reqs.len(), 2, "the first turn and its repair");
+    for (i, request) in reqs.iter().enumerate() {
+        assert_eq!(
+            request.timeout,
+            Some(Duration::from_secs(420)),
+            "turn {} lost the task budget",
+            i + 1
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_tools_off_reask_carries_the_task_timeout_too() {
+    // The free-text re-ask has its own builder; same law, same field.
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(text_response("nine out of ten"))
+            .enqueue_response(text_response(r#"{"score": 9}"#)),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("rate it");
+    input.schema = Some(score_schema());
+    input.timeout = Some(Duration::from_secs(420));
+    let out = r.verb.run(input).await.expect("the re-ask conforms");
+    assert_eq!(
+        out.output,
+        AgentValue::Structured(serde_json::json!({"score": 9}))
+    );
+    let reqs = r.provider.captured_requests();
+    assert_eq!(reqs.len(), 2, "the prose answer and the schema re-ask");
+    assert_eq!(
+        reqs[1].timeout,
+        Some(Duration::from_secs(420)),
+        "the re-ask lost the task budget"
     );
 }

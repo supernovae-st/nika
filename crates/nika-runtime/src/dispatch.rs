@@ -882,6 +882,11 @@ where
         Self::bridge_inputs(&mut input, scope, ctx);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
+        // The task `timeout:` flows to the provider transport deadline of
+        // every loop turn — the infer branch's law (issue 1516: the loop
+        // took the transport's 30 s cloud default while `infer:` on the
+        // same seat honored the same `timeout:`).
+        input.timeout = ctx.deadline;
         input.temperature = temp_f32(action.temperature.as_ref());
         input.schema = task_schema(action.schema.as_ref(), contract);
         // The buffer is the CALLER's (per task-attempt-loop · still
@@ -1220,6 +1225,8 @@ mod infer_deadline_tests {
 // convention — `run_and_capture` is `pub(super)` for that sibling).
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_agent_deadline;
 /// #651 (OBS-E promoted) — an `infer` whose visible answer is BLANK while
 /// the provider billed real tokens settles the task FAILED with the typed
 /// `NIKA-INFER-004`, and the run verdict follows (no more « 7/7 done ·
