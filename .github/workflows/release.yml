@@ -888,7 +888,7 @@ jobs:
           mkdir -p .release-source/dist/linux/amd64 .release-source/dist/linux/arm64
           tar -xzf "artifacts/nika-linux-x64-${VERSION}.tar.gz" -C .release-source/dist/linux/amd64 nika
           tar -xzf "artifacts/nika-linux-arm64-${VERSION}.tar.gz" -C .release-source/dist/linux/arm64 nika
-      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
       - name: Build + push by digest (linux/amd64 · linux/arm64)
         id: image
         if: needs.release-draft.outputs.oci-build == 'true'
@@ -949,7 +949,7 @@ jobs:
           path: artifacts
           merge-multiple: true
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
@@ -1186,7 +1186,7 @@ jobs:
           path: artifacts
       - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
