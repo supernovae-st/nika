@@ -3,6 +3,11 @@
 
 use super::*;
 
+/// `--json --native-strict`: `clean` is the verdict the exit code
+/// carries and the refusal is a typed row on `findings[]` with the
+/// hint's own resolvable code. Measured on 0.118.7: the twin said
+/// `clean: true` beside exit 2, the refusal lived only in a lane key,
+/// and a consumer reading `clean` shipped a file the CLI refused.
 #[test]
 fn native_strict_json_payload_agrees_with_the_exit_code() {
     // net.http rides along: post-D1 the exec URL is a net USE —
@@ -27,13 +32,174 @@ fn native_strict_json_payload_agrees_with_the_exit_code() {
     let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
     assert_eq!(
         payload["clean"],
-        serde_json::json!(true),
-        "spec-clean stays true"
+        serde_json::json!(false),
+        "`clean` follows the exit: {payload:#}"
     );
     assert_eq!(
         payload["native_strict_clean"],
         serde_json::json!(false),
-        "the strict verdict rides the payload: {payload:#}"
+        "the lane key repeats the verdict: {payload:#}"
+    );
+    let rows = lane_rows(&payload, "native_strict");
+    assert_eq!(rows.len(), 1, "one row per surviving hint: {payload:#}");
+    assert_eq!(rows[0]["code"], "native-first/001", "{payload:#}");
+    assert_eq!(rows[0]["task"], "crawl", "{payload:#}");
+    assert_eq!(rows[0]["gate"], "NATIVE-STRICT", "{payload:#}");
+    assert_eq!(rows[0]["severity"], "error", "{payload:#}");
+    assert!(
+        rows[0]["message"]
+            .as_str()
+            .is_some_and(|m| m.starts_with("`curl`") && m.contains(" — fix: ")),
+        "the hint's advice, then the fix: {payload:#}"
+    );
+    assert!(
+        rows[0]["fix"]
+            .as_str()
+            .is_some_and(|f| f.contains("does not clear this gate")),
+        "{payload:#}"
+    );
+    // The advisory twin of the SAME file: exit 0 · clean · no lane row ·
+    // the hint still rides `hints[]` where the advice lives.
+    let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
+    assert_eq!(out.code, 0, "advisory: {}", out.text);
+    let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+    assert_eq!(payload["clean"], serde_json::json!(true), "{payload:#}");
+    assert!(payload.get("native_strict_clean").is_none(), "{payload:#}");
+    assert!(
+        payload["findings"].as_array().is_some_and(Vec::is_empty),
+        "{payload:#}"
+    );
+    assert!(
+        payload["hints"]
+            .as_array()
+            .expect("hints")
+            .iter()
+            .any(|h| h["code"] == "native-first/001"),
+        "{payload:#}"
+    );
+}
+
+/// The `findings[]` rows of one lane kind.
+fn lane_rows<'a>(payload: &'a serde_json::Value, kind: &str) -> Vec<&'a serde_json::Value> {
+    payload["findings"]
+        .as_array()
+        .expect("findings")
+        .iter()
+        .filter(|f| f["kind"] == kind)
+        .collect()
+}
+
+/// The measured shape (a persona wave on 0.118.7): a human-gated ship
+/// whose check ran `curl` answered `clean: true` with exit 2 under
+/// `--native-strict --json`. Both surfaces now agree with their exit
+/// code in both profiles, and the natively written twin (`nika:fetch`
+/// in front of the gate) passes strict on both.
+#[test]
+fn a_gated_ship_with_a_curl_check_is_red_on_both_strict_surfaces() {
+    let gated = "nika: gated\nmodel: mock/echo\npermits:\n  exec: [\"curl\", \"echo\"]\n  tools: [\"nika:prompt\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  check_a:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n  human:\n    after: { check_a: success }\n    invoke: { tool: \"nika:prompt\", args: { message: \"Proceed?\", default: false } }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: \"${{ with.go == true }}\"\n    exec: { command: [\"echo\", \"shipped\"] }\n";
+    let human = checked_output("gated-curl.nika.yaml", gated, true);
+    assert_eq!(
+        human.code, 2,
+        "strict refuses the curl check: {}",
+        human.text
+    );
+    assert!(
+        human.text.contains("native-strict - 1 native-first hint"),
+        "{}",
+        human.text
+    );
+    let (out, payload) = checked_json_with("gated-curl.nika.yaml", true, Profile::Advisory);
+    assert_eq!(out.code, 2, "the machine twin refuses too: {}", out.text);
+    assert_eq!(payload["clean"], false, "{payload:#}");
+    assert_eq!(payload["native_strict_clean"], false, "{payload:#}");
+    let rows = lane_rows(&payload, "native_strict");
+    assert_eq!(rows.len(), 1, "{payload:#}");
+    assert_eq!(rows[0]["code"], "native-first/001", "{payload:#}");
+    assert_eq!(rows[0]["task"], "check_a", "{payload:#}");
+    // The default profile: exit 0 and `clean: true` on both surfaces.
+    let human = checked_output("gated-curl.nika.yaml", gated, false);
+    assert_eq!(human.code, 0, "advisory by default: {}", human.text);
+    let (out, payload) = checked_json_with("gated-curl.nika.yaml", false, Profile::Advisory);
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert_eq!(payload["clean"], true, "{payload:#}");
+    assert!(
+        payload["findings"].as_array().is_some_and(Vec::is_empty),
+        "{payload:#}"
+    );
+    // The native twin: clean under strict, on both surfaces, no row.
+    let native = "nika: gated\nmodel: mock/echo\npermits:\n  tools: [\"nika:fetch\", \"nika:prompt\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  check_a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://acme.test\" } }\n  human:\n    after: { check_a: success }\n    invoke: { tool: \"nika:prompt\", args: { message: \"Proceed?\", default: false } }\n";
+    let human = checked_output("gated-native.nika.yaml", native, true);
+    assert_eq!(
+        human.code, 0,
+        "the native twin passes strict: {}",
+        human.text
+    );
+    let (out, payload) = checked_json_with("gated-native.nika.yaml", true, Profile::Advisory);
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert_eq!(payload["clean"], true, "{payload:#}");
+    assert_eq!(payload["native_strict_clean"], true, "{payload:#}");
+    assert!(
+        payload["findings"].as_array().is_some_and(Vec::is_empty),
+        "{payload:#}"
+    );
+}
+
+/// `--profile operational` with a refused access pin on a LOW-grade
+/// file: the only failed gate is ACCESS, so the footer and the
+/// `findings[]` row name access. 0.118.7 also printed `risk low — cap
+/// the spend or narrow the grant` on this file — a remedy the grade
+/// never asked for — and its JSON said `clean: true` beside exit 2.
+#[test]
+fn the_operational_lane_names_only_the_gate_that_failed() {
+    let yaml =
+        "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n";
+    let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join("op-access.nika.yaml");
+    std::fs::write(&path, yaml).expect("fixture body");
+    let path = path.to_str().expect("utf8 path");
+    let theme = Theme::new(false, true, false);
+    let pin = (None, Some("not-a-real-seat"));
+    let human = run_with_profile(path, false, false, Profile::Operational, pin, theme);
+    assert_eq!(
+        human.code, 2,
+        "a refused pin fails readiness: {}",
+        human.text
+    );
+    assert!(
+        human
+            .text
+            .contains("X operational - access not ready -- access: pin `not-a-real-seat` refused"),
+        "the access row names the blocker: {}",
+        human.text
+    );
+    assert!(
+        !human.text.contains("cap the spend"),
+        "a low grade names no spend remedy: {}",
+        human.text
+    );
+    let out = run_with_profile(path, true, false, Profile::Operational, pin, theme);
+    assert_eq!(out.code, 2, "{}", out.text);
+    let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+    assert_eq!(payload["clean"], false, "{payload:#}");
+    assert_eq!(payload["operational_clean"], false, "{payload:#}");
+    assert_eq!(payload["risk_grade"], "low", "{payload:#}");
+    let rows = lane_rows(&payload, "operational");
+    assert_eq!(rows.len(), 1, "{payload:#}");
+    assert_eq!(rows[0]["gate"], "OPERATIONAL", "{payload:#}");
+    assert!(
+        rows[0]["message"].as_str().is_some_and(
+            |m| m.starts_with("access not ready — access: pin `not-a-real-seat` refused")
+        ),
+        "{payload:#}"
+    );
+    assert!(
+        rows[0].get("code").is_none(),
+        "no conjured code: {payload:#}"
+    );
+    assert!(
+        rows[0].get("fix").is_none(),
+        "no invented remedy: {payload:#}"
     );
 }
 

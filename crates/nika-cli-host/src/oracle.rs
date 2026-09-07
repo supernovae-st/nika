@@ -11,6 +11,12 @@
 //! Formatting may differ per door; the semantic verdict may not (the
 //! one-door pack's oracle law): a divergence is a failing test
 //! (`oracle_parity_e2e.rs`), never a gauntlet finding.
+//!
+//! A lane a door runs under (`--native-strict` · `--profile
+//! operational`) refuses ON that same object: its refusal is a typed
+//! [`LaneFinding`] row on `findings[]`, and `clean` is computed from the
+//! facts the exit code reads — never a second key a consumer has to know
+//! to consult (measured on 0.118.7: `clean: true` beside exit 2).
 
 use std::path::Path;
 
@@ -77,6 +83,140 @@ impl Lanes {
     }
 }
 
+/// The lane that refused — the typed discriminator a consumer routes
+/// on: `findings[].kind` carries [`Lane::kind`], `findings[].gate`
+/// carries [`Lane::gate`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Lane {
+    /// `--native-strict`: a surviving native-first hint refuses.
+    NativeStrict,
+    /// `--profile operational`: grade ≥ High or ACCESS READY false refuses.
+    Operational,
+}
+
+impl Lane {
+    /// The `findings[].kind` slug — the unified-finding convention
+    /// (`snake_case` · a closed set that only grows).
+    #[must_use]
+    pub const fn kind(self) -> &'static str {
+        match self {
+            Self::NativeStrict => "native_strict",
+            Self::Operational => "operational",
+        }
+    }
+
+    /// The `findings[].gate` keyword — the word the human footer prints
+    /// (`✖ native-strict ·` · `✖ operational ·`), upper-cased like every
+    /// ladder rung.
+    #[must_use]
+    pub const fn gate(self) -> &'static str {
+        match self {
+            Self::NativeStrict => "NATIVE-STRICT",
+            Self::Operational => "OPERATIONAL",
+        }
+    }
+}
+
+/// The one remedy the native-strict gate accepts. The human footer and
+/// the machine row print THIS string — a second wording once offered the
+/// exec ledger as an escape it is not.
+pub const NATIVE_STRICT_FIX: &str = "replace each `exec:` with the builtin its hint names \
+     (the exec ledger documents intent for a reviewer; it does not clear this gate)";
+
+/// The remedy the operational grade gate names — cap the spend or narrow
+/// the grant; the grade says WHY.
+pub const OPERATIONAL_GRADE_FIX: &str = "cap the spend or narrow the grant: glob/wildcard \
+     authority and uncapped autonomy block readiness under --profile operational \
+     (advisory by default)";
+
+/// One refusal a lane folds ON TOP of the report — the typed fact the
+/// `--json` `findings[]` row and the human footer both project, so the
+/// two cannot disagree. The verdict object's `clean` is false exactly
+/// when the report is dirty or one of these exists: the predicate the
+/// exit code reads.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct LaneFinding {
+    /// The lane that refused.
+    pub lane: Lane,
+    /// The resolvable identity (`native-first/00N` · `nika explain`
+    /// teaches it) when the lane promotes a coded hint. The operational
+    /// gate carries none: a conjured code would not resolve.
+    pub code: Option<String>,
+    /// The task it concerns, when it names one.
+    pub task: Option<String>,
+    /// What was refused, in the hint's or the gate's own words.
+    pub detail: String,
+    /// The repair, when the gate knows one.
+    pub fix: Option<String>,
+}
+
+impl LaneFinding {
+    /// The unified `message` shape every report finding uses: the
+    /// detail, then ` — fix: …` when a repair exists.
+    #[must_use]
+    pub fn message(&self) -> String {
+        match &self.fix {
+            Some(fix) => format!("{} — fix: {fix}", self.detail),
+            None => self.detail.clone(),
+        }
+    }
+
+    /// The `findings[]` row: the keys a report finding carries (`kind` ·
+    /// `gate` · `severity` · `code` · `task` · `message`) plus `fix`
+    /// when one exists — the typed repair beside the prose.
+    fn row(&self) -> Value {
+        let mut row = serde_json::json!({
+            "kind": self.lane.kind(),
+            "gate": self.lane.gate(),
+            "severity": "error",
+            "message": self.message(),
+        });
+        if let Some(code) = &self.code {
+            row["code"] = Value::String(code.clone());
+        }
+        if let Some(task) = &self.task {
+            row["task"] = Value::String(task.clone());
+        }
+        if let Some(fix) = &self.fix {
+            row["fix"] = Value::String(fix.clone());
+        }
+        row
+    }
+
+    /// A native-first hint the strict lane promotes: its code and task,
+    /// its advice as the detail (the `code · ` prefix the advice repeats
+    /// is dropped — `code` carries it), the one remedy that clears the
+    /// gate.
+    fn native_first(hint: &nika_check::Hint) -> Self {
+        let detail = hint
+            .code
+            .and_then(|code| hint.advice.strip_prefix(format!("{code} · ").as_str()))
+            .unwrap_or(hint.advice.as_str())
+            .to_owned();
+        Self {
+            lane: Lane::NativeStrict,
+            code: hint.code.map(str::to_owned),
+            task: Some(hint.task.clone()),
+            detail,
+            fix: Some(NATIVE_STRICT_FIX.to_owned()),
+        }
+    }
+
+    /// An operational gate row — no code, no task: the gate judges the
+    /// whole file.
+    fn operational(detail: String, fix: Option<&str>) -> Self {
+        Self {
+            lane: Lane::Operational,
+            code: None,
+            task: None,
+            detail,
+            fix: fix.map(str::to_owned),
+        }
+    }
+}
+
 /// What the audit judged WITH the filesystem and what it could not — the
 /// verdict carries this, so a child-blind lane never reads as a clean
 /// composition.
@@ -107,8 +247,10 @@ impl Judged {
 }
 
 /// The typed verdict — computed ONCE from a judged workflow, projected
-/// by every door. `clean` means VALID + CAPACITY FIT, what it always
-/// folded (ADR-123); the lanes ride [`Verdict::strict_clean`].
+/// by every door. The `clean` FIELD is VALID + CAPACITY FIT, what
+/// [`judge`] folds with no lane in hand (ADR-123); the verdict OBJECT's
+/// `clean` key is [`Verdict::strict_clean`] — the lanes fold into it as
+/// typed [`LaneFinding`] rows, the same rows the exit code reads.
 #[non_exhaustive]
 pub struct Verdict {
     /// The MODELS rung: resolver refusals + the thinking and capacity
@@ -135,19 +277,69 @@ pub struct Verdict {
 
 impl Verdict {
     /// The operational gate: grade below High AND access ready (when a
-    /// static model exists). Always true off the operational lane.
+    /// static model exists). Always true off the operational lane — and
+    /// false exactly when [`Self::lane_findings`] carries an operational
+    /// row.
     #[must_use]
     pub fn profile_clean(&self, operational: bool) -> bool {
-        !operational || (self.grade < RiskGrade::High && self.layers.access_ready != Some(false))
+        !operational || self.operational_findings().is_empty()
     }
 
-    /// The lane-folded verdict: `clean` + the operational gate + the
-    /// native-strict gate (no surviving native-first hint).
+    /// The lane-folded verdict — what the exit code and the verdict
+    /// object's `clean` both read: `clean` AND no lane refusal.
     #[must_use]
     pub fn strict_clean(&self, report: &CheckReport, lanes: Lanes) -> bool {
-        self.clean
-            && self.profile_clean(lanes.operational)
-            && (!lanes.native_strict || native_hints(report) == 0)
+        self.clean && self.lane_findings(report, lanes).is_empty()
+    }
+
+    /// The lane refusals on top of the report, in lane order: one row
+    /// per surviving native-first hint under `--native-strict`; under
+    /// `--profile operational` the grade row when it is High or worse
+    /// and the access row when ACCESS READY is false — each only when
+    /// its own gate failed (the footer once told a low-grade file to cap
+    /// its spend because a refused pin had failed the OTHER gate).
+    #[must_use]
+    pub fn lane_findings(&self, report: &CheckReport, lanes: Lanes) -> Vec<LaneFinding> {
+        let mut out = Vec::new();
+        if lanes.native_strict {
+            out.extend(
+                report
+                    .hints
+                    .iter()
+                    .filter(|h| h.kind == "native-first")
+                    .map(LaneFinding::native_first),
+            );
+        }
+        if lanes.operational {
+            out.extend(self.operational_findings());
+        }
+        out
+    }
+
+    /// The operational gate's rows — the grade when it is High or worse,
+    /// the access blocker when ACCESS READY is false.
+    fn operational_findings(&self) -> Vec<LaneFinding> {
+        let mut out = Vec::new();
+        if self.grade >= RiskGrade::High {
+            out.push(LaneFinding::operational(
+                format!("risk {}", self.grade.as_str()),
+                Some(OPERATIONAL_GRADE_FIX),
+            ));
+        }
+        if self.layers.access_ready == Some(false) {
+            let blocker = self
+                .layers
+                .blockers
+                .iter()
+                .find(|b| b.starts_with("access:"))
+                .or_else(|| self.layers.blockers.first())
+                .map_or("", String::as_str);
+            out.push(LaneFinding::operational(
+                format!("access not ready — {blocker}"),
+                None,
+            ));
+        }
+        out
     }
 }
 
@@ -345,13 +537,16 @@ fn push_advisory_hints(hints: &mut Vec<Value>, drift: &[String], wf: &RawWorkflo
 }
 
 /// The ONE verdict object every machine lane emits: the serialized
-/// report, the advisory hint rows, `clean` · `models_resolve` · the
-/// model rows · the `access_plan` rows (ADR-122) · the four `verdicts`
+/// report, the advisory hint rows, the lane rows folded into
+/// `findings[]` ([`LaneFinding`]), `clean` (the lane-folded verdict —
+/// false exactly when the exit is 2) · `models_resolve` · the model
+/// rows · the `access_plan` rows (ADR-122) · the four `verdicts`
 /// (ADR-123) · `judged` · the skills · `pricing` · `risk_grade` · the
 /// engine identity · the lane keys (`operational_clean` ·
-/// `native_strict_clean`) · the paid-ready stamp. A door adds its own
-/// decorations AFTER (the CLI's cwd budget · the oracle's next actions);
-/// none of them changes a key this function wrote.
+/// `native_strict_clean` · each repeats `clean` on its lane) · the
+/// paid-ready stamp. A door adds its own decorations AFTER (the CLI's
+/// cwd budget · the oracle's next actions); none of them changes a key
+/// this function wrote.
 ///
 /// # Errors
 ///
@@ -376,7 +571,21 @@ pub fn audit_json(
     if let Some(hints) = obj.get_mut("hints").and_then(Value::as_array_mut) {
         push_advisory_hints(hints, &verdict.drift, wf);
     }
-    obj.insert("clean".to_owned(), Value::Bool(verdict.clean));
+    // The lane refusals ride `findings[]` and `clean` reads them: the
+    // same rows, the same predicate the exit code reads.
+    let lane_rows: Vec<Value> = verdict
+        .lane_findings(report, lanes)
+        .iter()
+        .map(LaneFinding::row)
+        .collect();
+    match obj.get_mut("findings").and_then(Value::as_array_mut) {
+        Some(findings) => findings.extend(lane_rows),
+        None => {
+            obj.insert("findings".to_owned(), Value::Array(lane_rows));
+        }
+    }
+    let strict_clean = verdict.strict_clean(report, lanes);
+    obj.insert("clean".to_owned(), Value::Bool(strict_clean));
     obj.insert(
         "models_resolve".to_owned(),
         Value::Bool(verdict.models.findings.is_empty()),
@@ -414,7 +623,6 @@ pub fn audit_json(
         Value::String(verdict.grade.as_str().to_owned()),
     );
     obj.extend(identity);
-    let strict_clean = verdict.strict_clean(report, lanes);
     if lanes.operational {
         obj.insert("operational_clean".to_owned(), Value::Bool(strict_clean));
     }
@@ -479,7 +687,135 @@ mod tests {
             assert_eq!(obj["verdicts"]["access_ready"], false);
             assert_eq!(obj["verdicts"]["run_ready"], false);
             assert_eq!(obj["operational_clean"], false);
+            // The verdict object's `clean` is the lane-folded verdict —
+            // the key a consumer reads must not contradict the exit.
+            assert_eq!(obj["clean"], false, "{obj:?}");
+            let rows = operational_rows(&obj);
+            assert!(
+                rows.iter()
+                    .any(|m| m.starts_with("risk unbounded — fix: cap the spend")),
+                "the grade row is typed: {rows:?}"
+            );
+            assert!(
+                rows.iter()
+                    .any(|m| m.starts_with("access not ready — access: task `needs_model`")),
+                "the access row carries the blocker: {rows:?}"
+            );
         }
+    }
+
+    /// The `message` of every operational row on a verdict object.
+    fn operational_rows(obj: &Map<String, Value>) -> Vec<String> {
+        obj["findings"]
+            .as_array()
+            .expect("findings")
+            .iter()
+            .filter(|f| f["kind"] == "operational")
+            .map(|f| f["message"].as_str().expect("message").to_owned())
+            .collect()
+    }
+
+    /// A LOW-grade file whose only failed operational gate is ACCESS (a
+    /// refused pin): one row, the access one — the grade row that told
+    /// this file to cap its spend (0.118.7) pronounced a remedy the
+    /// grade never asked for. Off the lane the object is clean and
+    /// carries no row at all.
+    #[test]
+    fn the_operational_lane_types_only_the_gate_that_failed() {
+        let audit = audit_source(
+            "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
+            "w.nika.yaml",
+            None,
+            None,
+            AuditOptions::new(None, Some("not-a-real-access-pin")),
+        )
+        .expect("parses");
+        assert!(audit.verdict.clean);
+        assert!(
+            audit.verdict.grade < RiskGrade::High,
+            "{:?}",
+            audit.verdict.grade
+        );
+        assert_eq!(audit.verdict.layers.access_ready, Some(false));
+        let rows = audit
+            .verdict
+            .lane_findings(&audit.report, Lanes::new(false, true));
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert_eq!(rows[0].lane, Lane::Operational);
+        assert!(rows[0].code.is_none() && rows[0].task.is_none() && rows[0].fix.is_none());
+        assert!(
+            rows[0]
+                .detail
+                .starts_with("access not ready — access: pin `not-a-real-access-pin` refused"),
+            "{}",
+            rows[0].detail
+        );
+        assert_eq!(
+            rows[0].message(),
+            rows[0].detail,
+            "no fix, no ` — fix:` tail"
+        );
+        assert!(!audit.verdict.profile_clean(true));
+        assert!(
+            !audit
+                .verdict
+                .strict_clean(&audit.report, Lanes::new(false, true))
+        );
+        let obj = audit_json(
+            &audit.wf,
+            &audit.report,
+            &audit.skills,
+            &audit.verdict,
+            Lanes::new(false, true),
+        )
+        .expect("serializes");
+        assert_eq!(obj["clean"], false);
+        assert_eq!(obj["operational_clean"], false);
+        let rows = operational_rows(&obj);
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert!(!rows[0].contains("cap the spend"), "{rows:?}");
+        let off = audit_json(
+            &audit.wf,
+            &audit.report,
+            &audit.skills,
+            &audit.verdict,
+            Lanes::default(),
+        )
+        .expect("serializes");
+        assert_eq!(off["clean"], true);
+        assert!(
+            off["findings"].as_array().is_some_and(Vec::is_empty),
+            "{off:?}"
+        );
+    }
+
+    /// A HIGH grade (a glob grant, every token capped) is the grade row
+    /// and nothing else: the gate reads `>= High`, so High itself
+    /// refuses, not only Unbounded.
+    #[test]
+    fn the_operational_lane_refuses_a_high_grade_on_its_own() {
+        let audit = audit(
+            "nika: h\nmodel: mock/echo\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 256 }\n",
+        );
+        assert!(audit.verdict.clean, "{:?}", audit.report.findings);
+        assert_eq!(audit.verdict.grade, RiskGrade::High);
+        let rows = audit
+            .verdict
+            .lane_findings(&audit.report, Lanes::new(false, true));
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert_eq!(rows[0].detail, "risk high");
+        assert_eq!(rows[0].fix.as_deref(), Some(OPERATIONAL_GRADE_FIX));
+        assert_eq!(
+            rows[0].message(),
+            format!("risk high — fix: {OPERATIONAL_GRADE_FIX}")
+        );
+        assert!(
+            audit
+                .verdict
+                .lane_findings(&audit.report, Lanes::new(true, false))
+                .is_empty(),
+            "no native-first hint, no native-strict row"
+        );
     }
 
     /// The existing envelope override fills the missing model before the
@@ -593,6 +929,10 @@ mod tests {
             !obj.contains_key("native_strict_clean") && !obj.contains_key("operational_clean"),
             "a lane key rides only on its lane: {obj:?}"
         );
+        assert!(
+            obj["findings"].as_array().is_some_and(Vec::is_empty),
+            "a clean object carries no lane row: {obj:?}"
+        );
     }
 
     /// A reader makes the composition judged; the CLI's posture.
@@ -669,5 +1009,53 @@ mod tests {
         )
         .expect("serializes");
         assert_eq!(obj["native_strict_clean"], Value::Bool(false));
+        // `clean` is the SAME verdict — the key a consumer reads first.
+        assert_eq!(obj["clean"], Value::Bool(false), "{obj:?}");
+        // The refusal is a typed row: the hint's own resolvable code,
+        // its task, the gate, the remedy — never only a lane key.
+        let rows: Vec<&Value> = obj["findings"]
+            .as_array()
+            .expect("findings")
+            .iter()
+            .filter(|f| f["kind"] == "native_strict")
+            .collect();
+        assert_eq!(rows.len(), hints, "one row per surviving hint: {obj:?}");
+        let row = rows[0];
+        assert_eq!(row["code"], "native-first/001");
+        assert_eq!(row["task"], "grab");
+        assert_eq!(row["gate"], "NATIVE-STRICT");
+        assert_eq!(row["severity"], "error");
+        let message = row["message"].as_str().expect("message");
+        assert!(
+            message.starts_with("`curl`") && message.contains(" — fix: replace each `exec:`"),
+            "the detail is the hint's advice without its code prefix, then the fix: {message}"
+        );
+        assert_eq!(row["fix"], NATIVE_STRICT_FIX);
+        assert!(
+            row.get("docs_url").is_none(),
+            "no conjured docs page: {row}"
+        );
+        // Off the lane: the same file is clean and carries no row.
+        let off = audit_json(
+            &audit.wf,
+            &audit.report,
+            &audit.skills,
+            &audit.verdict,
+            Lanes::default(),
+        )
+        .expect("serializes");
+        assert_eq!(off["clean"], Value::Bool(true));
+        assert!(
+            off["findings"].as_array().is_some_and(Vec::is_empty),
+            "{off:?}"
+        );
+        // An exec-only file has no static model: ACCESS READY is None,
+        // the grade is bounded — the operational lane carries no row.
+        assert!(
+            audit
+                .verdict
+                .lane_findings(&audit.report, Lanes::new(false, true))
+                .is_empty()
+        );
     }
 }
