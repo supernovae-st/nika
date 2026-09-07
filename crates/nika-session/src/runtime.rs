@@ -13,7 +13,8 @@ use std::path::{Path, PathBuf};
 
 use crate::broker::ContextBroker;
 use crate::change::{
-    ChangeError, PendingGate, ProjectChangeSet, RunRequest, check_on_disk, prose_outside_blocks,
+    Applied, ChangeError, PendingGate, ProjectChangeSet, RunRequest, check_on_disk,
+    prose_outside_blocks,
 };
 use crate::guard::KnownWorld;
 use crate::intelligence::{
@@ -438,6 +439,19 @@ impl SessionRuntime {
                 ));
             }
         };
+        self.report_landed(set, &applied, id)
+    }
+
+    /// After a yes lands the set: mark decided, check every workflow,
+    /// re-observe, remember, and request a run only when that check is
+    /// clean. Empty-write and mid-set Io stay on `consent` so a refusal
+    /// never becomes `already_consumed`.
+    fn report_landed(
+        &mut self,
+        set: ProjectChangeSet,
+        applied: &Applied,
+        id: ProposalId,
+    ) -> TurnOutcome {
         self.decided = Some(id);
         let written: Vec<String> = applied
             .written
