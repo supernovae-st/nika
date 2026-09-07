@@ -59,7 +59,8 @@
 //!
 //! - a **`nika:done` `result:`** that does not validate — the errors go
 //!   back as that call's tool result (`is_error: true`, the agentic
-//!   convention) and the model finishes again;
+//!   convention) and the model finishes again (one more request, so the
+//!   `max_tokens_total` gate applies to it as to any dispatch);
 //! - a **free-text answer** (natural completion · result-less `done`) —
 //!   the loop RE-ASKS the provider on a tools-OFF turn WITH the schema
 //!   wired (native `response_format` when supported · an instruction
@@ -1356,15 +1357,31 @@ fn classify_turn(
             turn::ExplicitDone::FinalText { text, stop_reason } => {
                 Ok(final_text_verdict(text, stop_reason, ctx))
             }
-            turn::ExplicitDone::Repair { detail } => Ok(TurnVerdict::RepairDone(DoneRepair {
-                tool_use_id: done.id.clone(),
-                detail,
-            })),
+            turn::ExplicitDone::Repair { detail } => {
+                // A repair is one more provider request: the token budget
+                // gates it exactly like a dispatch (a met budget ends the
+                // run on the budget verdict, never a silent overrun).
+                token_budget_gate(ctx)?;
+                Ok(TurnVerdict::RepairDone(DoneRepair {
+                    tool_use_id: done.id.clone(),
+                    detail,
+                }))
+            }
         };
     }
 
     // The loop WILL iterate to feed tool results back · enforce the token
     // budget NOW (spec §2 case 3 · `>=` exhausted · before spending more).
+    token_budget_gate(ctx)?;
+
+    Ok(TurnVerdict::Dispatch(tool_uses))
+}
+
+/// The token gate (spec §2 case 3 · `>=` exhausted): the loop is about
+/// to ask the provider again — to feed a tool batch back or to repair a
+/// `nika:done` result — and a budget already met stops it BEFORE that
+/// request. Both iterating verdicts pass here, so neither can overrun.
+fn token_budget_gate(ctx: &TurnCtx<'_>) -> Result<(), VerbAgentError> {
     if let Some(budget) = ctx.input.max_tokens_total
         && ctx.total_tokens >= budget
     {
@@ -1374,8 +1391,7 @@ fn classify_turn(
             spend: Box::default(), // decorated at the return seam
         });
     }
-
-    Ok(TurnVerdict::Dispatch(tool_uses))
+    Ok(())
 }
 
 /// Route a free-text final answer: a no-schema task closes immediately

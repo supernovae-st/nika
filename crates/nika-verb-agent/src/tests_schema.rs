@@ -14,6 +14,8 @@
 //! are shared (`crate::tests`), so a change to the loop's test double
 //! still moves both suites at once.
 
+use std::time::Duration;
+
 use super::*;
 use nika_kernel::ai::provider::{ResponseFormat, ToolDef};
 use nika_kernel::runtime::tool_executor::ToolResult;
@@ -421,5 +423,241 @@ async fn the_done_repair_and_the_text_reask_share_one_budget() {
         r.provider.captured_requests().len(),
         3,
         "the 4th canned response must stay unconsumed"
+    );
+}
+
+// ── (d) the def's `$defs` ride at the wrapper root, where a `$ref` lands ─
+
+/// A contract whose `result` reaches into its own `$defs` — the shape a
+/// schema-authoring tool emits by default.
+fn rows_schema() -> serde_json::Value {
+    serde_json::json!({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+            "rows": {"type": "array", "items": {"$ref": "#/$defs/row"}}
+        },
+        "required": ["rows"],
+        "$defs": {
+            "row": {
+                "type": "object",
+                "properties": {"id": {"type": "integer"}},
+                "required": ["id"]
+            }
+        }
+    })
+}
+
+#[tokio::test]
+async fn the_done_def_hoists_defs_to_the_wrapper_root() {
+    // On the wire the document root is the SENTINEL'S parameter schema,
+    // not the declared schema: `#/$defs/row` resolves against the wrapper,
+    // so the definitions must ride at its root and NOT under
+    // `properties.result` (nested verbatim, a seat that validates its tool
+    // input followed the pointer to nothing).
+    let r = rig(
+        MockProvider::new("mock").enqueue_response(tool_use_response(
+            "c",
+            DONE_TOOL,
+            serde_json::json!({"result": {"rows": [{"id": 1}]}}),
+        )),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("list the rows");
+    input.tools = vec![DONE_TOOL.to_owned()];
+    input.schema = Some(rows_schema());
+    let out = r
+        .verb
+        .run(input)
+        .await
+        .expect("local validation resolves the ref at the declared root");
+    assert_eq!(
+        out.output,
+        AgentValue::Structured(serde_json::json!({"rows": [{"id": 1}]}))
+    );
+
+    let reqs = r.provider.captured_requests();
+    let parameters = &done_def_on(&reqs[0]).parameters;
+    assert_eq!(
+        parameters["$defs"]["row"]["required"],
+        serde_json::json!(["id"]),
+        "the definitions ride at the wrapper root, where the pointer lands"
+    );
+    let result = &parameters["properties"]["result"];
+    assert!(
+        result.get("$defs").is_none(),
+        "no second copy under `result`"
+    );
+    assert!(
+        result.get("$schema").is_none(),
+        "`$schema` has no place inside a tool input"
+    );
+    assert_eq!(
+        result["properties"]["rows"]["items"]["$ref"],
+        serde_json::json!("#/$defs/row"),
+        "the pointer itself is left as the author wrote it"
+    );
+    assert_eq!(result["required"], serde_json::json!(["rows"]));
+}
+
+#[test]
+fn the_done_def_hoists_definitions_too_and_drops_the_schema_keyword() {
+    // The draft-7 spelling hoists the same way; `$schema` is DROPPED from
+    // the nested schema, not moved — a tool input declares no dialect.
+    let declared = serde_json::json!({
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {"row": {"$ref": "#/definitions/row"}},
+        "definitions": {"row": {"type": "object"}}
+    });
+    let whitelist = Whitelist::new(&[DONE_TOOL.to_owned()]);
+    let defs = crate::intrinsic::synthesized_defs(&whitelist, Some(&declared));
+    let parameters = &defs[0].parameters;
+    assert_eq!(
+        parameters["definitions"]["row"],
+        serde_json::json!({"type": "object"})
+    );
+    let result = &parameters["properties"]["result"];
+    assert!(result.get("definitions").is_none());
+    assert!(result.get("$schema").is_none());
+    assert!(parameters.get("$schema").is_none(), "dropped, not hoisted");
+    assert_eq!(
+        result["properties"]["row"]["$ref"],
+        serde_json::json!("#/definitions/row")
+    );
+}
+
+#[test]
+fn a_schema_without_defs_renders_the_pinned_wrapper_byte_for_byte() {
+    // No regression on the pinned shape: nothing to hoist ⇒ the wrapper is
+    // exactly the one every seat has read since the schema first rode
+    // the def.
+    let whitelist = Whitelist::new(&[DONE_TOOL.to_owned()]);
+    let defs = crate::intrinsic::synthesized_defs(&whitelist, Some(&score_schema()));
+    let pinned = serde_json::json!({
+        "type": "object",
+        "properties": {"result": score_schema()},
+        "required": ["result"]
+    });
+    assert_eq!(defs[0].parameters.to_string(), pinned.to_string());
+}
+
+// ── (e) a repair is a request: the token budget gates it ────────────
+
+#[tokio::test]
+async fn a_repair_turn_is_gated_by_the_token_budget() {
+    // Two violating dones queued; the first answer already spends the
+    // whole budget (15 tokens · `>=` exhausted). Without the gate the loop
+    // asks for the repair anyway: a second request past the author's
+    // budget (and, the allowance being two, a third one the mock queue
+    // cannot answer). A repair is a request like any other: not asked,
+    // the budget verdict instead — one request, NIKA-461.
+    let bad = || {
+        tool_use_response(
+            "c",
+            DONE_TOOL,
+            serde_json::json!({"result": {"score": "nine"}}),
+        )
+    };
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(bad())
+            .enqueue_response(bad()),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("rate it");
+    input.tools = vec![DONE_TOOL.to_owned()];
+    input.schema = Some(score_schema());
+    input.max_tokens_total = Some(15); // the first answer spends exactly 15
+    let err = r.verb.run(input).await.expect_err("the budget terminal");
+    assert!(
+        matches!(
+            &err,
+            VerbAgentError::MaxTokens {
+                total_tokens: 15,
+                ..
+            }
+        ),
+        "a met budget ends the run on the budget verdict, not on a repair: {err:?}"
+    );
+    assert_eq!(
+        nika_error::traits::NikaErrorCode::nika_code(&err).num,
+        461,
+        "NIKA-461 · wire NIKA-AGENT-002"
+    );
+    assert_eq!(
+        r.provider.captured_requests().len(),
+        1,
+        "the repair was never requested"
+    );
+}
+
+// ── (f) the task `timeout:` rides every request the loop builds ─────
+
+#[tokio::test]
+async fn every_loop_turn_carries_the_task_timeout_including_a_repair() {
+    // The loop builds a request per turn; the task `timeout:` must ride
+    // each one — the repair turn included — or the transport's own default
+    // governs exactly the turns a slow seat needs the budget on (measured
+    // on 0.118.7: the loop died at the 30 s cloud default while `infer:`
+    // on the same seat honored the same `timeout:`).
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(tool_use_response(
+                "c1",
+                DONE_TOOL,
+                serde_json::json!({"result": {"score": "nine"}}),
+            ))
+            .enqueue_response(tool_use_response(
+                "c2",
+                DONE_TOOL,
+                serde_json::json!({"result": {"score": 9}}),
+            )),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("rate it");
+    input.tools = vec![DONE_TOOL.to_owned()];
+    input.schema = Some(score_schema());
+    input.timeout = Some(Duration::from_secs(420));
+    r.verb.run(input).await.expect("the repair conforms");
+    let reqs = r.provider.captured_requests();
+    assert_eq!(reqs.len(), 2, "the first turn and its repair");
+    for (i, request) in reqs.iter().enumerate() {
+        assert_eq!(
+            request.timeout,
+            Some(Duration::from_secs(420)),
+            "turn {} lost the task budget",
+            i + 1
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_tools_off_reask_carries_the_task_timeout_too() {
+    // The free-text re-ask has its own builder; same law, same field.
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(text_response("nine out of ten"))
+            .enqueue_response(text_response(r#"{"score": 9}"#)),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("rate it");
+    input.schema = Some(score_schema());
+    input.timeout = Some(Duration::from_secs(420));
+    let out = r.verb.run(input).await.expect("the re-ask conforms");
+    assert_eq!(
+        out.output,
+        AgentValue::Structured(serde_json::json!({"score": 9}))
+    );
+    let reqs = r.provider.captured_requests();
+    assert_eq!(reqs.len(), 2, "the prose answer and the schema re-ask");
+    assert_eq!(
+        reqs[1].timeout,
+        Some(Duration::from_secs(420)),
+        "the re-ask lost the task budget"
     );
 }

@@ -27,6 +27,12 @@ pub struct AgentInput {
     pub max_turns: Option<u32>,
     /// Cumulative token budget across all turns.
     pub max_tokens_total: Option<u64>,
+    /// The task-level `timeout:` budget (spec 03) — plumbed to the
+    /// provider transport deadline so the HTTP effect's fixed default
+    /// cannot undercut a longer task budget (F1 · a local model
+    /// routinely needs minutes). `None` → the adapter's per-provider
+    /// default governs. Rides EVERY turn of the loop (issue 1516).
+    pub timeout: Option<std::time::Duration>,
     /// Sampling temperature (0-2 · validated here).
     pub temperature: Option<f32>,
     /// JSON Schema validating the FINAL output (spec `schema:`).
@@ -57,6 +63,7 @@ impl AgentInput {
             tools: Vec::new(),
             max_turns: None,
             max_tokens_total: None,
+            timeout: None,
             temperature: None,
             schema: None,
             permits: None,

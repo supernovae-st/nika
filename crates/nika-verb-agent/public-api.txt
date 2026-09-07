@@ -831,6 +831,7 @@ pub nika_verb_agent::AgentInput::prompt: alloc::string::String
 pub nika_verb_agent::AgentInput::schema: core::option::Option<serde_json::value::Value>
 pub nika_verb_agent::AgentInput::system: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentInput::temperature: core::option::Option<f32>
+pub nika_verb_agent::AgentInput::timeout: core::option::Option<core::time::Duration>
 pub nika_verb_agent::AgentInput::tools: alloc::vec::Vec<alloc::string::String>
 impl nika_verb_agent::AgentInput
 pub fn nika_verb_agent::AgentInput::new(prompt: impl core::convert::Into<alloc::string::String>) -> Self
