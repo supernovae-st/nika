@@ -9,7 +9,12 @@
 //! the scoring stay in the benchmark's own Python (`evaluate.py` is the
 //! official scorer and is never touched here).
 //!
-//! Usage · `wcxb_eval <html_dir> <out.json> <base_url_prefix> [threads]`
+//! Usage · `wcxb_eval <html_dir> <out.json> <base_url_prefix> [threads] [urls.json]`
+//!
+//! With `urls.json` (`{split: {file_id: original_url}}`, every split's map is
+//! merged) the per-page base URL is the page's ORIGINAL documentary URL
+//! instead of `<base_url_prefix><id>.html` — the DOM+URL condition, which
+//! lets `classify_url` fire the way it does on a real fetch.
 
 #![allow(clippy::print_stdout, clippy::print_stderr, clippy::disallowed_macros)]
 
@@ -33,6 +38,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         Some(raw) => raw.parse()?,
         None => 8,
     };
+    let urls: BTreeMap<String, String> = match args.next() {
+        Some(path) => {
+            let raw: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path)?)?;
+            let mut map = BTreeMap::new();
+            if let Some(obj) = raw.as_object() {
+                for entries in obj.values() {
+                    if let Some(e) = entries.as_object() {
+                        for (id, url) in e {
+                            if let Some(u) = url.as_str() {
+                                map.insert(id.clone(), u.to_owned());
+                            }
+                        }
+                    }
+                }
+            }
+            map
+        }
+        None => BTreeMap::new(),
+    };
 
     let mut pages: Vec<Page> = Vec::new();
     for entry in std::fs::read_dir(&dir)? {
@@ -55,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let collected: Vec<Vec<(String, String)>> = std::thread::scope(|scope| {
         let handles: Vec<_> = slices
             .into_iter()
-            .map(|slice| scope.spawn(|| run_slice(slice, &prefix)))
+            .map(|slice| scope.spawn(|| run_slice(slice, &prefix, &urls)))
             .collect();
         handles.into_iter().filter_map(|h| h.join().ok()).collect()
     });
@@ -82,16 +106,26 @@ fn main() -> Result<(), Box<dyn Error>> {
 /// One worker's share · every page yields an entry (an extraction error
 /// becomes an EMPTY prediction, exactly as the run-through-the-door
 /// scorer counts a null item).
-fn run_slice(slice: &[Page], prefix: &str) -> Vec<(String, String)> {
+fn run_slice(
+    slice: &[Page],
+    prefix: &str,
+    urls: &BTreeMap<String, String>,
+) -> Vec<(String, String)> {
     slice
         .iter()
         .map(|(id, path)| {
-            let base = format!("{prefix}{id}.html");
+            let owned;
+            let base: &str = if let Some(u) = urls.get(id) {
+                u
+            } else {
+                owned = format!("{prefix}{id}.html");
+                &owned
+            };
             let text = std::fs::read(path)
                 .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
                 .unwrap_or_default();
             let mut opts = ExtractOptions::new();
-            opts.base_url = Some(&base);
+            opts.base_url = Some(base);
             let markdown = match nika_extract::extract(&text, ExtractMode::Article, &opts) {
                 Ok(serde_json::Value::String(text)) => text,
                 Ok(other) => other.to_string(),
