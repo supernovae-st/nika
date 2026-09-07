@@ -509,6 +509,27 @@ fn fold_unknown_tool(t: &crate::UnknownTool) -> UnifiedFinding {
 }
 
 fn fold_unknown_arg(a: &crate::UnknownArg) -> UnifiedFinding {
+    if a.tool == "nika:read"
+        && let Some(value) = &a.invalid_value
+    {
+        let expected = if a.arg == "path" {
+            "a string"
+        } else {
+            "a boolean (true/false)"
+        };
+        let mut f = UnifiedFinding::new(
+            "unknown_arg",
+            "ARGS",
+            format!(
+                "`{}` `{}:` must be {expected}, not {value} (task `{}`)",
+                a.tool, a.arg, a.task
+            ),
+        );
+        f.code = Some("NIKA-INVOKE-002".to_owned());
+        f.docs_url = Some(format!("{}/NIKA-INVOKE-002", super::ERROR_DOCS_BASE));
+        f.task = Some(a.task.clone());
+        return f;
+    }
     if a.tool == "nika:notify"
         && a.arg == "channel"
         && let Some(value) = &a.invalid_value
