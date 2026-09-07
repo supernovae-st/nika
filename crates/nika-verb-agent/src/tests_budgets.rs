@@ -227,6 +227,55 @@ async fn mixed_done_budget_error_preserves_latest_assistant_text() {
 }
 
 #[tokio::test]
+async fn empty_natural_final_after_done_repair_does_not_revive_old_text() {
+    for budget in [26, 25] {
+        let mut first = tool_use_response(
+            "bad",
+            DONE_TOOL,
+            serde_json::json!({"result":{"score":false}}),
+        );
+        first.content[0] = ContentBlock::Text {
+            text: "obsolete first attempt".to_owned(),
+        };
+        let r = rig(
+            MockProvider::new("mock")
+                .enqueue_response(metered(first, 9, 4))
+                .enqueue_response(metered(text_response(""), 9, 4))
+                .enqueue_response(text_response(r#"{"score":9}"#)),
+            MockToolExecutor::new(),
+            Vec::new(),
+        );
+        let mut input = typed_input(budget);
+        input.timeout = Some(Duration::from_secs(317));
+        let events = Recording::default();
+        let err = r
+            .verb
+            .run_observed(input, &events)
+            .await
+            .expect_err("the empty final answer still needs a repair");
+        let reqs = r.provider.captured_requests();
+        assert_eq!(reqs.len(), 2, "no third request after spending 26 tokens");
+        assert!(
+            reqs.iter()
+                .all(|q| q.timeout == Some(Duration::from_secs(317)))
+        );
+        assert_token_stop(&err, 26, 18, 8);
+        assert_eq!(events.checkpoints(), [(1, 13), (2, 26)]);
+        assert!(events.finished().is_empty());
+        assert!(r.tools.captured_calls().is_empty());
+        let partial_output = match err {
+            VerbAgentError::MaxTokens { partial_output, .. } => Some(partial_output),
+            _ => None,
+        };
+        assert_eq!(
+            partial_output.as_deref(),
+            Some(""),
+            "preserve the current empty message, not the older routing text"
+        );
+    }
+}
+
+#[tokio::test]
 async fn successive_reasks_replace_the_budget_error_text() {
     for latest in ["the newest partial answer", ""] {
         let r = rig(

@@ -4,7 +4,8 @@
   `nika:done` repairs. An exhausted budget returns `NIKA-AGENT-002` with
   the last assistant text and observed usage instead of requesting another
   answer. This partial output stays separate from the `nika:done` result
-  being validated and updates with each text repair.
+  being validated and updates with each text repair. An empty current message
+  is preserved even when an earlier tool-loop reply contained text.
   A conforming answer still succeeds at or above the budget. This also
   covers result-less, string and null `nika:done` answers that need the
   final-text repair path.
