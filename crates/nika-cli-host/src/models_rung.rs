@@ -49,6 +49,26 @@ pub fn capacity_findings(wf: &RawWorkflow) -> Vec<ModelFinding> {
         .collect()
 }
 
+/// Whether ANY task in this file will dial a model — the ACCESS
+/// question's PREMISE, not its answer.
+///
+/// False and the question is MOOT: no `infer:`/`agent:` task exists, no
+/// seat will ever be asked for, and nothing a reader types can change
+/// that. True with no static lane and the question is UNANSWERED: a task
+/// dials, but its model arrives at run time. Both used to render
+/// `access_ready: None`, and the layers line spelled both `○` (wave 3 ·
+/// p04: `run ready ○` on a builtin-only file that then ran 3/3 green,
+/// with `--access mock` unable to move it).
+#[must_use]
+pub fn dials_a_model(wf: &RawWorkflow) -> bool {
+    wf.tasks.iter().any(|task| {
+        matches!(
+            task.value.action,
+            nika_schema::raw::RawAction::Infer(_) | nika_schema::raw::RawAction::Agent(_)
+        )
+    })
+}
+
 /// The four layered verdicts (wave 2) — computed ONCE beside the exit
 /// code from the frozen plan and the folded audit; the render and the
 /// JSON both project this value.
