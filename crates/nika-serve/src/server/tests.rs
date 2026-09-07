@@ -377,6 +377,8 @@ mod cancel_race;
 mod pause_boundary;
 #[cfg(test)]
 mod request_lifecycle;
+#[cfg(test)]
+mod trace_journal;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn workflows_list_and_metadata_are_authenticated_and_contained() {
