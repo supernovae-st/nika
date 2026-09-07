@@ -95,6 +95,19 @@ must not spend tokens to prove readiness.
   `run` · the layers line), the analyzer's capacity laws, the display's
   render tests, the service driver's row test.
 
+## Amendments
+
+- The lane fold (post-0.118.7): the verdict object's `clean` is the
+  lane-folded verdict — false exactly when the exit is 2 — and a lane's
+  refusal is a typed `findings[]` row (`kind: native_strict` with the
+  hint's `native-first/00N` code, task and fix · `kind: operational`
+  with the grade or the access blocker, each only when its own gate
+  failed). The `Verdict.clean` FIELD keeps meaning VALID + CAPACITY FIT;
+  the `native_strict_clean` / `operational_clean` keys stay and repeat
+  `clean` on their lane. Measured on 0.118.7: `--native-strict --json`
+  printed `clean: true` beside exit 2, and `--profile operational` told
+  a low-grade file with a refused access pin to cap its spend.
+
 ## Follow-ups
 
 - Delivered in wave 2b: a failed task terminal carries its lane and a

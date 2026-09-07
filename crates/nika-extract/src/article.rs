@@ -32,20 +32,184 @@ const ARTICLE_SKIP_TAGS: &[&str] = &["script", "style", "noscript", "template"];
 /// rarely shorter).
 const THIN_THRESHOLD: usize = 250;
 
+/// A lower-priority stage's output must be this much LONGER than the
+/// cascade's pick to override it. The "first non-thin wins" rule alone
+/// strands real content: a decorative container or a readability mis-grab
+/// that barely clears the 250-char floor wins over a boilerpipe pass that
+/// recovered the whole body (WCXB dev 4416: readability 390 chars vs
+/// boilerpipe 13,205; dev 0537: zone 1,622 vs boilerpipe 15,935). 2× is the
+/// flat centre of the measured 1.5–4.0 plateau (dev macro moves by <0.002
+/// …not a knife-edge fit.
+const OVERRIDE_RATIO: usize = 2;
+
+/// Absolute ceiling on the override's accepted size: a "recovered body" is
+/// a body, not a page-flood — past this many trimmed chars the fallback is
+/// re-emitting the template (nav, carousels, footer) faster than the gold
+/// could grow. Flat plateau measured on dev over 20k–50k; 30k sits in the
+/// middle (WCXB dev 0580's 99,852-char flood is the rejection shape).
+const OVERRIDE_MAX_LEN: usize = 30_000;
+
 pub(crate) fn article(body: &str, base: Option<&str>) -> Result<serde_json::Value, ExtractError> {
-    // Stage 1 — the rule cascade (page-type aware). The precise primary.
     let page_type = crate::page_type::classify(body, base);
-    if let Some(zone_html) = crate::zones::rule_content(body, page_type)
-        && let Ok(md) =
-            crate::html::convert_markdown(&zone_html, ExtractMode::Article, ARTICLE_SKIP_TAGS)
-        && !is_thin(&md)
+    let primary = cascade(body, base, page_type);
+    if primary.as_ref().is_ok_and(|value| !is_thin(value)) {
+        return primary;
+    }
+    // Every stage starved on the served markup. A JS-rendered shell can
+    // still carry its whole page in a server-rendered `<noscript>`
+    // fallback, which the HTML parser keeps as RAW TEXT (see
+    // `html::noscript_source`) — re-run the cascade on that source, with
+    // the page type classified on the OUTER document (the URL and the
+    // head are the classification signals, and the fallback has neither).
+    // Gated TWICE: on a thin primary, and on `rescue_may_replace` — the
+    // rescue may only ever ADD (see its doc), never overwrite prose the
+    // server really sent.
+    let primary_text = primary.as_ref().ok().and_then(serde_json::Value::as_str);
+    if let Some(inner) = crate::html::noscript_source(body)
+        && let Ok(rescued) = cascade(&inner, base, page_type)
+        && !is_thin(&rescued)
+        && rescue_may_replace(
+            body,
+            page_type,
+            primary_text,
+            rescued.as_str().unwrap_or_default(),
+        )
     {
-        return Ok(md);
+        return Ok(rescued);
+    }
+    primary.map(|value| furniture_veto(body, value))
+}
+
+/// The furniture veto: a THIN extraction whose every word already lives in
+/// the page's own `<title>`/meta description is not a body — it is the
+/// title bar of a shell (a JS-only app, a consent wall) that every stage
+/// scraped the same chrome off. Honest emptiness beats fabricated content:
+/// the caller sees `""` (no article found), not the masthead. A real brief
+/// survives: its prose contains words the title does not carry. The head
+/// parse only happens on the thin-result path.
+fn furniture_veto(body: &str, value: serde_json::Value) -> serde_json::Value {
+    let Some(text) = value.as_str() else {
+        return value;
+    };
+    if !is_thin(&value) {
+        return value;
+    }
+    let pick_words: std::collections::BTreeSet<String> = prose_words(text).collect();
+    if pick_words.is_empty() {
+        return value;
+    }
+    let doc = scraper::Html::parse_document(body);
+    let mut chrome_words: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    if let Ok(sel) = scraper::Selector::parse("title") {
+        for el in doc.select(&sel) {
+            chrome_words.extend(prose_words(&el.text().collect::<String>()));
+        }
+    }
+    if let Ok(sel) = scraper::Selector::parse(r#"meta[name="description" i]"#) {
+        for el in doc.select(&sel) {
+            if let Some(content) = el.value().attr("content") {
+                chrome_words.extend(prose_words(content));
+            }
+        }
+    }
+    if !chrome_words.is_empty() && pick_words.is_subset(&chrome_words) {
+        return serde_json::Value::String(String::new());
+    }
+    value
+}
+
+/// The lowercase alphanumeric words of a string (the comparable prose).
+fn prose_words(s: &str) -> impl Iterator<Item = String> + '_ {
+    s.split_whitespace()
+        .map(|word| {
+            word.chars()
+                .filter(|c| c.is_alphanumeric())
+                .flat_map(char::to_lowercase)
+                .collect::<String>()
+        })
+        .filter(|word| !word.is_empty())
+}
+
+/// Whether the `<noscript>` rescue may hand back `rescued` INSTEAD of the
+/// primary extraction. The rule: **the rescue only ever adds**.
+///
+/// A thin primary is not evidence of a JS shell. A legitimate news brief
+/// is thin too, and a large `<noscript>` block is not necessarily the
+/// page — an "enable JavaScript" notice repeated across a template
+/// clears the 250-char floor on its own. Firing on thinness alone
+/// therefore DELETED prose the server really sent (regression pinned by
+/// `noscript_never_replaces_a_short_but_real_primary`).
+///
+/// So the rescue fires only when nothing of the served page is lost —
+/// three arms, in cost order:
+///
+/// * `None` / empty — every stage errored, returned a non-string, or
+///   produced only whitespace: there is nothing to overwrite.
+/// * the rescued text CONTAINS the primary's — the fallback is the same
+///   page rendered whole (the shell that serves its first paragraph, and
+///   the full article inside `<noscript>`).
+/// * the served markup rendered NO text inside a semantic content zone
+///   ([`crate::zones::served_zone_text_len`] is 0) — the page is a shell,
+///   and whatever the cascade scraped out of it (a title bar, a logo alt,
+///   a tagline) is furniture, not a body. This is the shape every WCXB
+///   forum shell has: 12 pages of the dev split extract as
+///   `"<topic> - <category> - <site>"` and nothing else, with the whole
+///   thread inside `<noscript>`.
+///
+/// Anything else keeps the primary: a short-but-real body beside an
+/// unrelated `<noscript>` block stays the answer. The cost of the third
+/// arm is one more parse of the served markup, on the rescue path only.
+fn rescue_may_replace(
+    body: &str,
+    page_type: crate::page_type::PageType,
+    primary: Option<&str>,
+    rescued: &str,
+) -> bool {
+    let Some(text) = primary else {
+        return true;
+    };
+    let served = prose_signature(text);
+    if served.is_empty() || prose_signature(rescued).contains(&served) {
+        return true;
+    }
+    crate::zones::served_zone_text_len(body, page_type) == 0
+}
+
+/// The alphanumeric words of `s`, lowercased and single-spaced — the
+/// comparable PROSE of a render. Two passes of the same cascade over two
+/// pieces of markup escape Markdown differently (`*`, `\`, `#`, link
+/// syntax, entity decoding), so a raw `contains` would miss a containment
+/// that is real; stripping to words and case-folding compares what a
+/// reader would read.
+fn prose_signature(s: &str) -> String {
+    prose_words(s).collect::<Vec<_>>().join(" ")
+}
+
+/// The three-stage cascade over one piece of markup.
+fn cascade(
+    body: &str,
+    base: Option<&str>,
+    page_type: crate::page_type::PageType,
+) -> Result<serde_json::Value, ExtractError> {
+    // Stage 1 — the rule cascade (page-type aware). The precise primary.
+    let stage1 = crate::zones::rule_content(body, page_type).and_then(|zone_html| {
+        crate::html::convert_markdown(&zone_html, ExtractMode::Article, ARTICLE_SKIP_TAGS).ok()
+    });
+    if let Some(md) = &stage1
+        && !is_thin(md)
+    {
+        return Ok(match md.as_str() {
+            Some(s) => override_check(body, s.to_owned()),
+            None => md.clone(),
+        });
     }
 
     // Stage 2 — readability scoring (markup-poor pages).
-    match readability(body, base) {
-        Ok(value) if !is_thin(&value) => Ok(value),
+    match readability(body, base, page_type) {
+        Ok(value) if !is_thin(&value) => match value.as_str() {
+            Some(md) => Ok(override_check(body, md.to_owned())),
+            None => Ok(value),
+        },
         // Stage 3 — the decorrelated boilerpipe recall floor. A page where
         // ALL THREE starve yields whatever boilerpipe finds — honest
         // emptiness beats fabricated content.
@@ -74,22 +238,60 @@ pub(crate) fn article(body: &str, base: Option<&str>) -> Result<serde_json::Valu
     }
 }
 
+/// The recall-floor override: when the boilerpipe pass recovered DECISIVELY
+/// more text (≥ `OVERRIDE_RATIO`×) than the stage the cascade picked, the
+/// pick was a decorative container or a readability mis-grab and the
+/// boilerpipe reconstruction wins. The ratio compares the same trimmed
+/// length `is_thin` gates on, and the override only ever fires on a
+/// non-thin boilerpipe (a 2× override of a 250-char floor is still inside
+/// the recall regime the fallback is for). A share-of-page cap was measured
+/// and REJECTED (2026-09-07, grid 60–100: every cap cost more forum recall
+/// than it saved on shop templates — the giant-template precision problem
+/// belongs to pruning, not to the override gate).
+///
+/// `body` is the RAW page: the recall floor needs every text block to
+/// judge density (a pruned input was measured a net loss on both WCXB dev
+/// and WCEB — 2026-09-07 — the density walk reads the chrome as context,
+/// not as content to keep).
+fn override_check(body: &str, pick: String) -> serde_json::Value {
+    let fallback = crate::blocks::boilerpipe_content(body);
+    let pick_len = pick.trim().len();
+    let fallback_len = fallback.trim().len();
+    if (THIN_THRESHOLD..=OVERRIDE_MAX_LEN).contains(&fallback_len)
+        && fallback_len > OVERRIDE_RATIO * pick_len
+    {
+        return serde_json::Value::String(fallback);
+    }
+    serde_json::Value::String(pick)
+}
+
 /// Stage 1: `dom_smoothie` readability → Markdown.
-fn readability(body: &str, base: Option<&str>) -> Result<serde_json::Value, ExtractError> {
+fn readability(
+    body: &str,
+    base: Option<&str>,
+    page_type: crate::page_type::PageType,
+) -> Result<serde_json::Value, ExtractError> {
     let html = |reason: String| ExtractError::Html {
         mode: ExtractMode::Article,
         reason,
     };
-    let mut readability = dom_smoothie::Readability::new(body, base, None)
+    // The input is chrome-cleaned first (F006): readability strips class
+    // attributes from its winning fragment, so `prune_fragment` after the
+    // fact cannot see the reference machinery — it must never enter the
+    // scoring at all. (The FULL discard list as readability input was a
+    // measured net loss — 2026-09-07 — the surgical chrome set is not that:
+    // it only removes blocks that fool the scoring with real sentences.)
+    let cleaned = crate::zones::clean_document(body);
+    let mut readability = dom_smoothie::Readability::new(cleaned.as_ref(), base, None)
         .map_err(|e| html(format!("readability init: {e:?}")))?;
     let parsed = readability
         .parse()
         .map_err(|e| html(format!("readability parse: {e:?}")))?;
-    crate::html::convert_markdown(
-        parsed.content.as_ref(),
-        ExtractMode::Article,
-        ARTICLE_SKIP_TAGS,
-    )
+    // The winning fragment keeps whatever chrome readability's own scoring
+    // let through (a `class="byline"` row outranks no candidate, it just
+    // rides along): prune the discard zones out of the FRAGMENT.
+    let content = crate::zones::prune_fragment(parsed.content.as_ref(), page_type);
+    crate::html::convert_markdown(&content, ExtractMode::Article, ARTICLE_SKIP_TAGS)
 }
 
 fn is_thin(value: &serde_json::Value) -> bool {
@@ -102,12 +304,6 @@ fn is_thin(value: &serde_json::Value) -> bool {
 mod tests {
     use super::*;
     use serde_json::{Value, json};
-
-    // ── is_thin · the THIN gate (directly unit-testable) ──────────────
-    //
-    // `is_thin(v)` = v is NOT a string, OR its TRIMMED length is strictly
-    // below THIN_THRESHOLD (250). These cases pin every operator the
-    // mutation run left alive on lines 95-98.
 
     /// `THIN_THRESHOLD` is the canonical 250-char floor — make the boundary
     /// arithmetic explicit so a silent constant drift fails loudly here.
@@ -173,6 +369,50 @@ mod tests {
     // to `Err`, the Stage 3 boilerpipe fallback (our own deterministic
     // `blocks::boilerpipe_content`) drives the observable output.
     const NON_ABSOLUTE_BASE: Option<&str> = Some("not-an-absolute-url");
+
+    /// PR 1503 (2026-09-06) — readability broke candidate score TIES by its hash
+    /// map's per-process iteration order: the same page yielded two
+    /// different articles from one process to the next (WCXB dev 0545 ·
+    /// 40 runs → 30/10 through the public 0.118.7 door · dev 0847 three
+    /// variants). The pinned `dom_smoothie` rev keeps candidates in their
+    /// first-scored order (readability.js parity), so two equal-score
+    /// candidates settle on the FIRST one in document order, in every
+    /// process. Two blocks of identical shape under different parents
+    /// (plain `<div>` wrappers, which readability never scores on their
+    /// own, each beside a heading so the only-child climb never lifts the
+    /// candidate): only the first may own the article. Without the pin
+    /// this assertion is a coin flip; with it, it holds in every process.
+    #[test]
+    fn stage2_equal_score_candidates_settle_on_the_first_in_document_order() {
+        let block = |marker: &str| {
+            let sentence = "words that carry a comma, a second comma, and enough running text \
+                            to clear every threshold readability applies before it scores";
+            format!(
+                "<div><p>{marker} {sentence} {sentence}.</p><p>{marker} {sentence} {sentence}.</p></div>"
+            )
+        };
+        let body = format!(
+            "<html><head><title>t</title></head><body>\
+             <div><h2>One</h2>{}</div><div><h2>Two</h2>{}</div></body></html>",
+            block("ALPHABLOCK"),
+            block("OMEGABLOCK")
+        );
+        let out = readability(
+            &body,
+            Some("https://example.com/"),
+            crate::page_type::PageType::Generic,
+        )
+        .expect("readability extracts");
+        let md = out.as_str().expect("readability returns a Markdown string");
+        assert!(
+            md.contains("ALPHABLOCK"),
+            "the first block owns the article: {md}"
+        );
+        assert!(
+            !md.contains("OMEGABLOCK"),
+            "the equal-score second block never displaces the first: {md}"
+        );
+    }
 
     /// Stage 1 — a real `<article>` body returns the rule-cascade markdown
     /// without ever consulting readability/boilerpipe. Anchors the happy
@@ -256,8 +496,227 @@ mod tests {
         );
     }
 
-    /// All-thin terminus — an empty body: Stage 1 abstains, Stage 2 errors
-    /// (non-absolute base), and boilerpipe returns "" (empty). With an
+    /// The `<noscript>` rescue — a JS-rendered shell whose server-side
+    /// fallback carries the whole page. With scripting enabled (the HTML
+    /// parser's default) the `<noscript>` subtree is RAW TEXT, so all
+    /// three stages starve on the shell; the rescue re-parses that source
+    /// and returns the prose. Without it the page extracts to nothing.
+    #[test]
+    fn noscript_fallback_rescues_a_starved_shell() {
+        let prose = "the server rendered fallback carries the entire \
+             discussion thread inside a noscript block because the page \
+             itself is an empty javascript shell that renders nothing at \
+             all for a parser and every dom walking extractor starves on \
+             it unless the noscript source is parsed as the markup it is";
+        let posts = format!("<p>{prose}</p>").repeat(4);
+        let body = format!(
+            "<html><body><div id=\"main-outlet\"></div>\
+             <noscript><div id=\"content\">{posts}</div></noscript>\
+             </body></html>"
+        );
+
+        let out = article(&body, Some("https://example.com/t/thread/1"))
+            .expect("the noscript fallback carries the page");
+        let md = out.as_str().expect("rescue returns a Markdown string");
+        assert!(
+            md.contains("server rendered fallback carries"),
+            "the noscript source must be extracted, got: {md}"
+        );
+    }
+
+    /// The rescue is GATED on a starved primary: a page with a real body
+    /// AND a boilerplate `<noscript>` notice keeps its body. Pins that the
+    /// rescue can never overwrite a rich extraction.
+    #[test]
+    fn noscript_never_overrides_a_rich_primary() {
+        let prose = "this genuine article body is long enough to clear the \
+             thin floor on its own so the cascade returns it directly and \
+             the noscript notice underneath must never replace it no \
+             matter how much markup that notice happens to carry with it \
+             and the extra running words here exist only to put the body \
+             comfortably over the two hundred and fifty character floor";
+        let filler = "<p>enable javascript to view this site correctly</p>".repeat(40);
+        let body = format!(
+            "<html><body><article><p>{prose}</p></article>\
+             <noscript><div>{filler}</div></noscript></body></html>"
+        );
+
+        let out = article(&body, Some("https://example.com/")).expect("rich article extracts");
+        let md = out.as_str().expect("article returns a Markdown string");
+        assert!(
+            md.contains("genuine article body"),
+            "the rich primary must survive, got: {md}"
+        );
+        assert!(
+            !md.contains("enable javascript"),
+            "the noscript notice must not leak into a rich result, got: {md}"
+        );
+    }
+
+    /// A SHORT-but-real page — a news brief under the 250-char floor —
+    /// sitting beside a large `<noscript>` block that is NOT the page.
+    /// The primary is THIN, which is what makes this the dangerous case:
+    /// thinness alone is not evidence of a JS shell (a legitimate brief
+    /// is thin too), so a rescue that fires on thinness alone DELETES
+    /// real prose the server actually sent.
+    #[test]
+    fn noscript_never_replaces_a_short_but_real_primary() {
+        let brief = "paris the metro line four closed for ninety minutes \
+             this morning after a signalling fault near odeon station and \
+             the operator says that service resumed just before nine";
+        let notice = "<p>this site needs javascript enabled to work \
+             correctly so please turn it on in your browser settings and \
+             then reload this page to continue reading</p>"
+            .repeat(12);
+        let body = format!(
+            "<html><body><article><p>{brief}</p></article>\
+             <noscript><div id=\"content\">{notice}</div></noscript>\
+             </body></html>"
+        );
+
+        let out = article(&body, Some("https://example.com/news/metro-line-four"));
+        let md = out
+            .expect("the brief extracts")
+            .as_str()
+            .unwrap_or("")
+            .to_owned();
+        assert!(
+            md.contains("metro line four"),
+            "the real brief must survive the rescue, got: {md}"
+        );
+        assert!(
+            !md.contains("needs javascript enabled"),
+            "the noscript block must not replace real prose, got: {md}"
+        );
+    }
+
+    /// The ADD direction of the same rule: a shell that server-renders
+    /// only its opening line, with the whole article inside `<noscript>`.
+    /// The primary is thin AND contained, so the rescue must still fire —
+    /// the guard added above may not turn into a blanket refusal.
+    #[test]
+    fn noscript_rescue_fires_when_the_fallback_contains_the_teaser() {
+        let teaser = "the council voted on the budget last night";
+        let full = format!(
+            "<p>{teaser}</p>{}",
+            "<p>the debate ran for four hours and the amendment on \
+             transport spending passed by a single vote after the mayor \
+             broke the tie in front of a full public gallery</p>"
+                .repeat(6)
+        );
+        let body = format!(
+            "<html><body><div id=\"root\"><p>{teaser}</p></div>\
+             <noscript><article>{full}</article></noscript></body></html>"
+        );
+
+        let out = article(&body, Some("https://example.com/news/budget"));
+        let md = out.expect("the fallback carries the page");
+        let md = md.as_str().unwrap_or("");
+        assert!(
+            md.contains("broke the tie"),
+            "the fallback is the same page rendered whole — it must win, got: {md}"
+        );
+    }
+
+    /// The rule itself, arm by arm (the end-to-end tests exercise two of
+    /// the four).
+    #[test]
+    fn rescue_may_replace_only_adds() {
+        // A page that DID render a body: only the additive arms can fire.
+        let served = "<html><body><article><p>the metro line four closed \
+             for ninety minutes this morning after a signalling fault near \
+             odeon station</p></article></body></html>";
+        let art = crate::page_type::PageType::Article;
+        assert!(
+            crate::zones::served_zone_text_len(served, art) > 0,
+            "the fixture must carry served zone text, else it proves nothing"
+        );
+
+        // No primary at all (every stage errored) → nothing to lose.
+        assert!(rescue_may_replace(served, art, None, "any rescued prose"));
+        // A blank primary trims to nothing → same.
+        assert!(rescue_may_replace(
+            served,
+            art,
+            Some("   \n  "),
+            "any rescued prose"
+        ));
+        // Contained → the fallback is the same page, rendered whole.
+        assert!(rescue_may_replace(
+            served,
+            art,
+            Some("the council voted"),
+            "before the council voted the mayor spoke"
+        ));
+        // Markdown decoration must not defeat the containment: the two
+        // renders escape differently, the prose is the same.
+        assert!(rescue_may_replace(
+            served,
+            art,
+            Some("**The Council** voted \\- twice!"),
+            "the council voted twice in a single session"
+        ));
+        // Unrelated, on a page that served real body text → the prose
+        // would be DELETED. Refuse.
+        assert!(!rescue_may_replace(
+            served,
+            art,
+            Some("the metro line four closed this morning"),
+            "this site needs javascript enabled to work correctly"
+        ));
+    }
+
+    /// The third arm: a SHELL renders no text in any content zone, so the
+    /// chrome the cascade scraped out of it (here a title bar) is not
+    /// prose worth keeping — the fallback may replace it even though it
+    /// does not contain it.
+    #[test]
+    fn rescue_may_replace_on_a_shell_that_served_no_zone_text() {
+        let shell = "<html><body><header><h1>Docker Community Forums</h1></header>\
+             <div id=\"main-outlet\"></div></body></html>";
+        let forum = crate::page_type::PageType::Forum;
+        assert_eq!(
+            crate::zones::served_zone_text_len(shell, forum),
+            0,
+            "the shell renders no body text — that is the whole signal"
+        );
+        assert!(rescue_may_replace(
+            shell,
+            forum,
+            Some("Docker Community Forums - Share and learn"),
+            "an unrelated thread that the fallback carries in full"
+        ));
+    }
+
+    /// The WCXB forum shape, end to end (12 dev-split pages look exactly
+    /// like this): a Discourse shell whose served DOM is a title bar and
+    /// an empty mount point, with the whole thread inside `<noscript>`.
+    /// The primary is thin AND not contained in the fallback, so only the
+    /// shell arm can rescue it.
+    #[test]
+    fn noscript_rescue_fires_on_a_title_only_forum_shell() {
+        let posts = "<p>the upgrade left the daemon stuck on starting and \
+             rolling back to the previous release fixed it for me after a \
+             full restart of the host machine</p>"
+            .repeat(12);
+        let body = format!(
+            "<html><head><title>stuck on starting - Docker Community Forums</title></head>\
+             <body><header><h1>Docker Community Forums</h1>\
+             <p>Share and learn in the Docker community.</p></header>\
+             <div id=\"main-outlet\"></div>\
+             <noscript><div id=\"topic\">{posts}</div></noscript></body></html>"
+        );
+
+        let out = article(&body, Some("https://forums.docker.com/t/stuck/1234"));
+        let md = out.expect("the fallback carries the thread");
+        let md = md.as_str().unwrap_or("");
+        assert!(
+            md.contains("rolling back to the previous release"),
+            "the thread inside noscript must win over the title bar, got: {md}"
+        );
+    }
+
+    /// All-thin terminus — an empty body: Stage 1 abstains, Stage 2 errors    /// (non-absolute base), and boilerpipe returns "" (empty). With an
     /// EMPTY fallback, the correct cascade exhausts every rescue arm and
     /// surfaces the Stage-2 error verbatim (`other => other`, line 71).
     ///
@@ -275,6 +734,129 @@ mod tests {
         assert!(
             out.is_err(),
             "empty body + empty fallback must surface the stage-2 error, got: {out:?}"
+        );
+    }
+
+    /// The override's absolute ceiling (`OVERRIDE_MAX_LEN`): past 30k trimmed
+    /// chars the "recovered body" is the whole template (nav + carousels +
+    /// footer), and a small honest pick must stand (WCXB dev 0580's shape:
+    /// readability 2.4k vs a 99k boilerpipe flood). Exercises
+    /// `override_check` directly — readability's own floods are a different
+    /// gate's problem.
+    #[test]
+    fn override_never_accepts_a_page_flood() {
+        let prose = "template furniture prose floods the whole page from edge to edge and \
+                     keeps flooding it with yet more words for every reader everywhere ";
+        let pick = "the small honest answer that the zone cascade found and which the \
+                    fallback must not drown under the page's own furniture flood today"
+            .repeat(5); // ≈ 700 chars, comfortably non-thin
+
+        // Over the cap: the fallback is refused, the pick stands.
+        let flood = prose.repeat(400); // ≈ 50k chars, past the 30k cap
+        let body = format!("<html><body><div>{flood}</div></body></html>");
+        let out = override_check(&body, pick.clone());
+        assert_eq!(
+            out.as_str().expect("string"),
+            pick,
+            "a fallback past OVERRIDE_MAX_LEN must never replace the pick"
+        );
+
+        // Under the cap but decisively richer: the fallback wins (the cap is
+        // the only new refusal — the 2× rule still fires below it).
+        let big_but_sane = prose.repeat(40); // ≈ 5k chars > 2× pick, under 30k
+        let body = format!("<html><body><div>{big_but_sane}</div></body></html>");
+        let out = override_check(&body, pick);
+        let won = out.as_str().expect("string");
+        assert!(
+            won.contains("template furniture prose"),
+            "a 5k fallback still overrides a 700-char pick: {won}"
+        );
+    }
+
+    /// The recall-floor override (K3.1 · 2026-09-07): a decorative `<main>`
+    /// teaser clears the 250-char floor while the real body sits in
+    /// anonymous divs beside it — boilerpipe recovers the whole thing, and
+    /// at ≥2× the pick it must WIN (WCXB dev 4416's shape: readability 390
+    /// chars vs boilerpipe 13,205).
+    #[test]
+    fn override_recovers_the_body_when_the_pick_is_a_sliver() {
+        let teaser = "a short decorative teaser sits in the semantic container and \
+                      clears the two hundred and fifty character floor on its own words here \
+                      so that the zone cascade returns it as the winner pick today yes"
+            .to_string();
+        let prose = "the genuine article body hides in anonymous divisions with no \
+                     semantic markup at all and carries the overwhelming majority of the \
+                     page's real running prose for the reader who came here today";
+        let body = format!(
+            "<html><body><main><p>{teaser}</p></main>\
+             <div>{}</div><div>{}</div><div>{}</div></body></html>",
+            prose.repeat(4),
+            prose.repeat(4),
+            prose.repeat(4)
+        );
+        let out = article(&body, Some("https://example.com/")).expect("extracts");
+        let md = out.as_str().expect("string");
+        assert!(
+            md.contains("genuine article body hides"),
+            "the boilerpipe reconstruction must override the teaser pick: {md}"
+        );
+    }
+
+    /// The override is gated on DECISIVELY richer (≥2×): a boilerpipe pass
+    /// that finds only the same prose the zone already returned must not
+    /// replace it (no churn on healthy extractions).
+    #[test]
+    fn override_keeps_the_pick_when_the_fallback_is_not_decisively_richer() {
+        let prose = "a genuine body of running prose that the semantic zone cascade \
+                     identifies correctly and returns directly because it clears every \
+                     threshold on its own merits with no competing text anywhere else \
+                     on the page outside the navigation anchors and the footer line";
+        let body = format!(
+            "<html><body><nav><a href=\"/a\">Alpha</a> <a href=\"/b\">Beta</a></nav>\
+             <article><p>{prose}</p><p>{prose}</p></article></body></html>"
+        );
+        let out = article(&body, Some("https://example.com/")).expect("extracts");
+        let md = out.as_str().expect("string");
+        assert!(md.contains("genuine body of running prose"), "{md}");
+        assert!(
+            !md.contains("Alpha"),
+            "the pick stands; the nav rows never enter: {md}"
+        );
+    }
+
+    /// The furniture veto (K3.3 · 2026-09-07): a shell whose only scrapeable
+    /// text is its own title bar yields an EMPTY result, not the masthead —
+    /// honest emptiness beats fabricated content (WCXB dev 4802/4871: thin
+    /// title-only picks on pages the gold records as having no main content).
+    #[test]
+    fn furniture_veto_empties_a_title_only_shell() {
+        let body = "<html><head><title>Acme Widgets — Tools for Gardeners</title></head>\
+                    <body><header><h1>Acme Widgets</h1><p>Tools for Gardeners</p></header>\
+                    <div id=\"app\"></div></body></html>";
+        let out = article(body, Some("https://example.com/")).expect("extracts");
+        let md = out.as_str().expect("string");
+        assert_eq!(
+            md.trim(),
+            "",
+            "a thin pick made only of the page's own title words is furniture, got: {md}"
+        );
+    }
+
+    /// The veto must never eat a REAL brief: a short body whose prose
+    /// carries words the title does not (the news-brief shape) survives.
+    #[test]
+    fn furniture_veto_keeps_a_real_brief() {
+        let brief = "the metro line four closed for ninety minutes this morning after a \
+                     signalling fault near odeon station and service resumed before nine";
+        let body = format!(
+            "<html><head><title>Metro disruption</title></head>\
+             <body><article><p>{brief}</p></article></body>"
+        );
+        let out = article(&body, Some("https://example.com/news/metro")).expect("extracts");
+        let md = out.as_str().expect("string");
+        assert!(
+            md.contains("signalling fault"),
+            "a brief with real prose survives the veto, got: {md}"
         );
     }
 }

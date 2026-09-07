@@ -8,7 +8,9 @@ use std::fmt::Write as _;
 use nika_check::CheckReport;
 use nika_schema::raw::RawWorkflow;
 
-use super::{RepairTarget, Role, Theme, audited_line, mark, render_report_hints, required_inputs};
+use super::{
+    RepairTarget, Role, Theme, audited_line, findings_line, render_report_hints, required_inputs,
+};
 
 /// Advisory hints + the one-line verdict (the report's last words).
 /// `verdict` is the caller's ONE verdict (see [`super::render`]) — this
@@ -75,8 +77,8 @@ pub(super) fn hints_and_verdict(
             t.paint(Role::Strong, "HINT"),
         );
     }
+    let grade = nika_check::risk_grade(report);
     if verdict {
-        let grade = nika_check::risk_grade(report);
         let _ = writeln!(
             out,
             " {}",
@@ -91,16 +93,13 @@ pub(super) fn hints_and_verdict(
         scaffold_verdict(out, report, t);
         return;
     } else {
-        // Through `mark()`, not a hardcoded glyph: this line shipped a
-        // literal `✖` and was the one verdict in the report that leaked
-        // unicode under `--ascii` — the flag exists for terminals that
-        // cannot render it, and the failing verdict was exactly the row
-        // they could not read.
+        // The failing verdict carries the SAME boundary summary the
+        // green one does (a persona wave · the operations sceptic): the file with findings is the
+        // file an operator most needs summarised.
         let _ = writeln!(
             out,
-            " {} {}",
-            mark(t, false),
-            t.paint(Role::Bad, "findings above")
+            " {}",
+            findings_line(report, distinct_identities.len(), hint_sites, t)
         );
     }
     render_next(out, report, path, repair_target, hint_sites, t);

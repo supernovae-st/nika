@@ -18,7 +18,13 @@
 //!
 //! Content policy (Rule 1): recorded outputs ride ONLY under
 //! `include_content` — the default projection carries structure,
-//! timing, spend and identity, never payloads.
+//! timing, spend and identity, never payloads. That gate covers every
+//! field whose VALUE can carry run text, not only `output`: the failure
+//! `detail` (the status message keeps the error CODE alone), the
+//! success frame's `warning`. The T9-F04 sensitivity pass (2026-09-06)
+//! found both riding the content-free projection. `note` stays: it is
+//! the engine's own stage wording (`invoke · nika:fetch` · `cache hit`
+//! · `when: gate closed`), never a payload.
 //!
 //! Descended from `nika-cli`'s `trace_otel` verb (2026-07-09 · the W0
 //! trace descent); the CLI keeps the file plumbing and the operator's
@@ -262,41 +268,20 @@ fn one_task_span(
     if let Some(FieldValue::Int(tokens)) = field(terminal, "tokens") {
         attributes.push(kv_int("nika.tokens", *tokens));
     }
+    push_usage_semconv(&mut attributes, terminal);
     push_genai_semconv(&mut attributes, terminal);
     if let Some(FieldValue::Float(usd)) = field(terminal, "cost_usd") {
         attributes.push(kv_double(COST_ATTR, *usd));
         attributes.push(kv_double("nika.cost.usd", *usd));
     }
-    let mut status = serde_json::json!({});
-    match terminal.kind {
-        EventKind::TaskCompleted => status = serde_json::json!({ "code": 1 }),
-        EventKind::TaskFailed => {
-            let detail = field_str(terminal, "detail").unwrap_or("task failed");
-            status = serde_json::json!({ "code": 2, "message": detail });
-        }
-        EventKind::TaskSkipped => {
-            attributes.push(kv_bool("nika.task.skipped", true));
-            if let Some(when) = field_str(terminal, "when") {
-                attributes.push(kv_str("nika.task.when", when));
-            }
-        }
-        EventKind::TaskCancelled => {
-            attributes.push(kv_bool("nika.task.cancelled", true));
-            if let Some(culprit) = field_str(terminal, "blocked_by") {
-                attributes.push(kv_str("nika.task.blocked_by", culprit));
-            }
-        }
-        EventKind::TaskCacheHit => {
-            attributes.push(kv_bool("nika.cache.hit", true));
-            status = serde_json::json!({ "code": 1 });
-        }
-        _ => {}
-    }
+    let status = terminal_status(terminal, include_content, &mut attributes);
     if include_content && let Some(output) = field_str(terminal, "output") {
         attributes.push(kv_str("nika.task.output", output));
     }
-    // OBS-E non-fatal diagnostics ride the success frame — surface them.
-    if let Some(warning) = field_str(terminal, "warning") {
+    // OBS-E non-fatal diagnostics ride the success frame — surface them
+    // WITH the content gate: a warning quotes what went wrong (a blank
+    // model answer · a path), which is content.
+    if include_content && let Some(warning) = field_str(terminal, "warning") {
         attributes.push(kv_str("nika.task.warning", warning));
     }
 
@@ -318,6 +303,49 @@ fn one_task_span(
         "events": span_events,
         "status": status,
     }))
+}
+
+/// The span status the terminal kind dictates, plus the kind's own
+/// attributes (skipped · cancelled · cache hit). A failed span's message
+/// is the whole `detail` only with the content; otherwise the error CODE
+/// alone — `detail` is `<code> · <message>` and the message half can
+/// quote a path, a payload, a model answer.
+fn terminal_status(
+    terminal: &Event,
+    include_content: bool,
+    attributes: &mut Vec<serde_json::Value>,
+) -> serde_json::Value {
+    match terminal.kind {
+        EventKind::TaskCompleted => serde_json::json!({ "code": 1 }),
+        EventKind::TaskFailed => {
+            let detail = field_str(terminal, "detail").unwrap_or("task failed");
+            let message = if include_content {
+                detail
+            } else {
+                failure_code(detail)
+            };
+            serde_json::json!({ "code": 2, "message": message })
+        }
+        EventKind::TaskSkipped => {
+            attributes.push(kv_bool("nika.task.skipped", true));
+            if let Some(when) = field_str(terminal, "when") {
+                attributes.push(kv_str("nika.task.when", when));
+            }
+            serde_json::json!({})
+        }
+        EventKind::TaskCancelled => {
+            attributes.push(kv_bool("nika.task.cancelled", true));
+            if let Some(culprit) = field_str(terminal, "blocked_by") {
+                attributes.push(kv_str("nika.task.blocked_by", culprit));
+            }
+            serde_json::json!({})
+        }
+        EventKind::TaskCacheHit => {
+            attributes.push(kv_bool("nika.cache.hit", true));
+            serde_json::json!({ "code": 1 })
+        }
+        _ => serde_json::json!({}),
+    }
 }
 
 /// The in-span story: retry frames (`attempt`/`max_attempts`/`delay_ms`)
@@ -388,6 +416,18 @@ fn unfinished_task_span(
 /// Span id = the LOW 8 bytes of the event's `UUIDv7` — the random half.
 /// The high half is a millisecond timestamp: two events born in the
 /// same ms would collide there.
+/// The error CODE a `detail` opens with (`NIKA-…` up to the first
+/// ` · `), or the generic wording when the detail carries no code —
+/// never the message half.
+fn failure_code(detail: &str) -> &str {
+    let head = detail.split(" · ").next().unwrap_or(detail).trim();
+    if head.starts_with("NIKA-") && !head.contains(char::is_whitespace) {
+        head
+    } else {
+        "task failed"
+    }
+}
+
 fn span_id_of(event: &Event) -> String {
     let id = hex_bytes(&event.id.uuid.as_bytes()[8..16]);
     // The docstring's own law, enforced: an all-zero id (nil-uuid line
@@ -424,14 +464,19 @@ fn push_genai_semconv(attributes: &mut Vec<serde_json::Value>, terminal: &Event)
         // slash-less value stays whole.
         let name = model.split_once('/').map_or(model, |(_, n)| n);
         attributes.push(kv_str("gen_ai.request.model", name));
-        // `gen_ai.response.model` is NOT emitted: the semconv defines it
-        // as the model that SERVED the response, as the provider reports
-        // it — and the journal captures no provider-reported model id
-        // anywhere. The alternative (re-emitting the requested name
-        // here) does not survive: aliases (`-latest` · nicknames) make
-        // served ≠ requested, so the attribute would assert a fact never
-        // captured and an eval tool would read "requested" as "served".
-        // Deferred until the providers report a response model id.
+    }
+    // `gen_ai.response.model` is the model that SERVED the response, as
+    // the PROVIDER reports it — emitted only from the frame's own
+    // `model_served` (the wires' `gen_ai.response.model`, now
+    // journaled). The requested name is never re-emitted here: aliases
+    // (`-latest` · nicknames) make served ≠ requested, and an eval tool
+    // would read "requested" as "served" (ADR-112 L71-77 · its return
+    // condition is now met at the frame, not guessed).
+    if let Some(served) = field_str(terminal, "model_served") {
+        attributes.push(kv_str("gen_ai.response.model", served));
+    }
+    if let Some(id) = field_str(terminal, "response_id") {
+        attributes.push(kv_str("gen_ai.response.id", id));
     }
     if let Some(provider) = field_str(terminal, "provider") {
         // The normalization table: canonical nika ids → the semconv
@@ -450,6 +495,55 @@ fn push_genai_semconv(attributes: &mut Vec<serde_json::Value>, terminal: &Event)
             other => other,
         };
         attributes.push(kv_str("gen_ai.provider.name", well_known));
+    }
+}
+
+/// the usage SPLIT as `OTel` `GenAI` counters, so a collector
+/// prices the call without parsing our own names — and our own
+/// `nika.tokens.*` mirrors beside them, so a nika reader never depends
+/// on a semconv still marked `development`.
+///
+/// Names read from `open-telemetry/semantic-conventions` v1.37.0's
+/// `gen_ai` registry (the version this module already pins for
+/// `gen_ai.provider.name`): `gen_ai.usage.input_tokens` (SHOULD include
+/// the cached subset — which is exactly what the frame's `tokens_in`
+/// carries), `gen_ai.usage.output_tokens`,
+/// `gen_ai.usage.cache_read.input_tokens`,
+/// `gen_ai.usage.cache_write.input_tokens`,
+/// `gen_ai.usage.reasoning.output_tokens`.
+///
+/// Counters only — content-free by construction: an absent meter emits
+/// NOTHING (a projection must never invent a zero the journal did not
+/// carry).
+fn push_usage_semconv(attributes: &mut Vec<serde_json::Value>, terminal: &Event) {
+    const METERS: [(&str, &str, &str); 5] = [
+        ("tokens_in", "gen_ai.usage.input_tokens", "nika.tokens.in"),
+        (
+            "tokens_out",
+            "gen_ai.usage.output_tokens",
+            "nika.tokens.out",
+        ),
+        (
+            "tokens_cache_read",
+            "gen_ai.usage.cache_read.input_tokens",
+            "nika.tokens.cache_read",
+        ),
+        (
+            "tokens_cache_write",
+            "gen_ai.usage.cache_write.input_tokens",
+            "nika.tokens.cache_write",
+        ),
+        (
+            "tokens_reasoning",
+            "gen_ai.usage.reasoning.output_tokens",
+            "nika.tokens.reasoning",
+        ),
+    ];
+    for (field_key, semconv, mirror) in METERS {
+        if let Some(FieldValue::Int(n)) = field(terminal, field_key) {
+            attributes.push(kv_int(semconv, *n));
+            attributes.push(kv_int(mirror, *n));
+        }
     }
 }
 
@@ -696,6 +790,135 @@ mod tests {
         );
     }
 
+    /// T9-F04 · the content-free projection carries NO payload text:
+    /// not the failure detail's message half (the status keeps the
+    /// code), not a success warning. Canaries in every content-bearing
+    /// field; the gated projection must not contain one of them, the
+    /// content projection carries them all.
+    #[test]
+    fn content_free_projection_carries_no_payload_canary() {
+        let mut events = run_fixture();
+        events.insert(
+            8,
+            ev(
+                10,
+                2_350,
+                EventKind::TaskFailed,
+                &[
+                    ("task", s("broken")),
+                    ("note", s("invoke · nika:write")),
+                    (
+                        "detail",
+                        s("NIKA-BUILTIN-WRITE-002 · CANARY-detail /home/op/secret.txt exists"),
+                    ),
+                    ("duration_ms", FieldValue::Int(3)),
+                    ("items", s("[{\"index\":0,\"message\":\"CANARY-items\"}]")),
+                ],
+            ),
+        );
+        if let Some(done) = events
+            .iter_mut()
+            .find(|e| e.kind == EventKind::TaskCompleted)
+        {
+            *done = done
+                .clone()
+                .with_field(KeyValue::new("warning", s("CANARY-warning blank answer")));
+        }
+        let gated = project_bare(&events, false).expect("projects");
+        assert!(
+            !gated.contains("CANARY"),
+            "a content-free projection carries no payload text: {gated}"
+        );
+        let broken = spans_of(&gated)
+            .into_iter()
+            .find(|sp| sp["name"] == "broken")
+            .expect("the failed span");
+        assert_eq!(
+            broken["status"]["message"], "NIKA-BUILTIN-WRITE-002",
+            "the status keeps the CODE, the one part that is vocabulary"
+        );
+        assert!(
+            attr(&broken, "nika.task.note").is_some(),
+            "the stage wording stays"
+        );
+
+        let with_content = project_bare(&events, true).expect("projects");
+        for canary in ["CANARY-detail", "CANARY-warning"] {
+            assert!(
+                with_content.contains(canary),
+                "{canary} rides under include_content"
+            );
+        }
+    }
+
+    #[test]
+    fn a_detail_without_a_code_projects_the_generic_wording() {
+        assert_eq!(failure_code("NIKA-X-001 · the message"), "NIKA-X-001");
+        assert_eq!(failure_code("NIKA-X-001"), "NIKA-X-001");
+        assert_eq!(failure_code("just a message · with a dot"), "task failed");
+        assert_eq!(failure_code("NIKA-X 001 · spaced"), "task failed");
+        assert_eq!(failure_code(""), "task failed");
+    }
+
+    /// T9-F03 · admission before allocation: a file past the writer's
+    /// journal bound is refused by its SIZE, before a byte is read (a
+    /// sparse file makes the point without writing 256 MiB), and no
+    /// export is left behind. A non-regular path is refused by shape.
+    #[test]
+    fn export_refuses_a_journal_beyond_the_bound_before_reading() {
+        let dir = tempfile::tempdir().expect("dir");
+        let trace = dir.path().join("huge.ndjson");
+        let file = std::fs::File::create(&trace).expect("create");
+        file.set_len((crate::bounded::MAX_JOURNAL_BYTES as u64) + 1)
+            .expect("sparse");
+        drop(file);
+        let trace_str = trace.to_str().expect("utf8");
+        let err = export_journal(trace_str, None, false, "test").expect_err("refused");
+        assert!(err.contains("journal bound"), "{err}");
+        assert!(
+            !std::path::Path::new(&default_out_path(trace_str)).exists(),
+            "no export claims to exist"
+        );
+        let dir_str = dir.path().to_str().expect("utf8");
+        let err = export_journal(dir_str, None, false, "test").expect_err("refused");
+        assert!(err.contains("not a regular file"), "{err}");
+    }
+
+    /// The export is published by rename: the target appears whole and
+    /// no temp sibling survives.
+    #[test]
+    fn export_publishes_whole_and_leaves_no_temp() {
+        let dir = tempfile::tempdir().expect("dir");
+        let trace = dir.path().join("run.ndjson");
+        // A pre-chain journal in the sink's line shape (one event per
+        // line) — the recovery path the export reads.
+        let mut raw = String::new();
+        for event in run_fixture() {
+            raw.push_str(&serde_json::to_string(&event).expect("event json"));
+            raw.push('\n');
+        }
+        std::fs::write(&trace, raw).expect("journal");
+        let trace_str = trace.to_str().expect("utf8");
+        let outcome = export_journal(trace_str, None, false, "test").expect("exports");
+        assert!(outcome.target.ends_with("run.otlp.jsonl"));
+        let line = std::fs::read_to_string(&outcome.target).expect("export");
+        assert!(line.ends_with('\n') && line.contains("resourceSpans"));
+        let leftovers: Vec<_> = std::fs::read_dir(dir.path())
+            .expect("dir")
+            .filter_map(Result::ok)
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| {
+                std::path::Path::new(n)
+                    .extension()
+                    .is_some_and(|x| x.eq_ignore_ascii_case("tmp"))
+            })
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "no temp sibling survives: {leftovers:?}"
+        );
+    }
+
     #[test]
     fn a_journal_without_a_start_is_refused() {
         let orphan = vec![ev(9, 1, EventKind::TaskCompleted, &[("task", s("x"))])];
@@ -709,8 +932,9 @@ mod tests {
     /// differs · `gen_ai.request.model`) so every viewer and eval tool
     /// reads the model without a translation shim — and NEVER the
     /// deprecated `gen_ai.system` (semconv v1.37.0 renamed it).
-    /// `gen_ai.response.model` stays OUT: the semconv makes it the
-    /// provider-reported SERVED model, and the journal captures none.
+    /// `gen_ai.response.model` stays OUT of THIS frame: the semconv makes
+    /// it the provider-reported SERVED model, and this frame carries no
+    /// `model_served` (the one that does is judged below).
     #[test]
     fn infer_access_facts_project_to_current_genai_semconv() {
         let events = vec![
@@ -747,16 +971,89 @@ mod tests {
             "mistral-large",
             "the model NAME (after the provider slash), semconv shape"
         );
-        // The served model is a provider-reported fact the journal never
-        // captures — emitting the requested name there would assert it.
+        // The served model is a provider-reported fact: without
+        // `model_served` on the frame, emitting the requested name here
+        // would assert what was never captured.
         assert!(
             attr(draft, "gen_ai.response.model").is_none(),
-            "gen_ai.response.model is the SERVED model — uncaptured, so unemitted"
+            "gen_ai.response.model is the SERVED model — unreported here, so unemitted"
         );
         // The deprecated name must NEVER appear.
         assert!(
             attr(draft, "gen_ai.system").is_none(),
             "gen_ai.system was deprecated in semconv v1.37.0 — never emit it"
+        );
+    }
+
+    /// the measured openai usage projects to the `GenAI` usage
+    /// counters a collector prices with — and to our own mirrors. The
+    /// figures are the measured ones (prompt 5015 of which 4992 cached ·
+    /// one completion token): with only `nika.tokens` a warm-cache span
+    /// and a price change were the same sight.
+    #[test]
+    fn the_usage_split_projects_to_genai_usage_counters() {
+        let events = vec![
+            ev(
+                1,
+                1_000,
+                EventKind::WorkflowStarted,
+                &[("workflow", s("meter"))],
+            ),
+            ev(2, 1_050, EventKind::TaskStarted, &[("task", s("ask"))]),
+            ev(
+                3,
+                1_900,
+                EventKind::TaskCompleted,
+                &[
+                    ("task", s("ask")),
+                    ("note", s("infer · openai/gpt-4o-mini")),
+                    ("duration_ms", FieldValue::Int(800)),
+                    ("tokens", FieldValue::Int(1)),
+                    ("tokens_in", FieldValue::Int(5015)),
+                    ("tokens_out", FieldValue::Int(1)),
+                    ("tokens_cache_read", FieldValue::Int(4992)),
+                    ("cost_usd", FieldValue::Float(0.000_752_85)),
+                    ("model", s("openai/gpt-4o-mini")),
+                    ("provider", s("openai")),
+                    ("model_served", s("gpt-4o-mini-2024-07-18")),
+                    ("response_id", s("chatcmpl-p")),
+                ],
+            ),
+        ];
+        let line = project_bare(&events, false).expect("projects");
+        let spans = spans_of(&line);
+        let ask = spans.iter().find(|sp| sp["name"] == "ask").unwrap();
+        let int = |key: &str| {
+            attr(ask, key).map(|v| {
+                v["intValue"]
+                    .as_str()
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .or_else(|| v["intValue"].as_i64())
+                    .expect("an int attribute")
+            })
+        };
+        assert_eq!(int("gen_ai.usage.input_tokens"), Some(5015));
+        assert_eq!(int("gen_ai.usage.cache_read.input_tokens"), Some(4992));
+        assert_eq!(int("gen_ai.usage.output_tokens"), Some(1));
+        assert_eq!(int("nika.tokens.in"), Some(5015));
+        assert_eq!(int("nika.tokens.cache_read"), Some(4992));
+        assert_eq!(int("nika.tokens"), Some(1), "the historical mirror stays");
+        // An unreported meter is NOT projected as a zero.
+        assert!(attr(ask, "gen_ai.usage.cache_write.input_tokens").is_none());
+        assert!(attr(ask, "gen_ai.usage.reasoning.output_tokens").is_none());
+        // Now the SERVED model rides — from the provider's own report.
+        assert_eq!(
+            attr(ask, "gen_ai.response.model").unwrap()["stringValue"],
+            "gpt-4o-mini-2024-07-18"
+        );
+        assert_eq!(
+            attr(ask, "gen_ai.response.id").unwrap()["stringValue"],
+            "chatcmpl-p"
+        );
+        assert_eq!(
+            attr(ask, "gen_ai.request.model").unwrap()["stringValue"],
+            "gpt-4o-mini",
+            "requested and served stay distinct"
         );
     }
 
@@ -979,6 +1276,24 @@ pub fn export_journal(
     include_content: bool,
     engine: &str,
 ) -> Result<ExportOutcome, String> {
+    // Admission BEFORE allocation (T9-F03): the writer refuses a journal
+    // past `MAX_JOURNAL_BYTES`, so a larger file was never written by
+    // this engine — reading it whole would only prove that by running
+    // out of memory. A non-regular path (a FIFO · a device) would hang
+    // `read_to_string` forever; it is refused by shape, not by waiting.
+    let meta = std::fs::metadata(trace) // seam-bypass-ok: L4 verb reading the journal it exports
+        .map_err(|e| format!("cannot read {trace}: {e}"))?;
+    if !meta.is_file() {
+        return Err(format!("cannot read {trace}: not a regular file"));
+    }
+    let bound = crate::bounded::MAX_JOURNAL_BYTES;
+    if meta.len() > bound as u64 {
+        return Err(format!(
+            "refusing to read {trace}: {} bytes exceed the journal bound of {bound} bytes — \
+             no journal this engine wrote is larger, so the file is not one of its journals",
+            meta.len()
+        ));
+    }
     let raw = std::fs::read_to_string(trace) // seam-bypass-ok: L4 verb reading the journal it exports
         .map_err(|e| format!("cannot read {trace}: {e}"))?;
     let recovered = crate::recover::recover_events(&raw, trace).map_err(|e| e.to_string())?;
@@ -989,7 +1304,34 @@ pub fn export_journal(
     };
     let line = project(&recovered.events, include_content, Some(&verdict), engine)?;
     let target = out.map_or_else(|| default_out_path(trace), ToOwned::to_owned);
-    std::fs::write(&target, format!("{line}\n")) // seam-bypass-ok: L4 verb writing the export beside the journal
-        .map_err(|e| format!("cannot write {target}: {e}"))?;
+    write_whole(&target, &format!("{line}\n"))?;
     Ok(ExportOutcome { target, broken_at })
+}
+
+/// Publish the export ATOMICALLY: a sibling temp file, then a rename —
+/// a reader never sees a half-written export claiming to be complete
+/// (an interrupted `fs::write` left exactly that). The temp name is
+/// per-process so two exports of one journal cannot share it.
+fn write_whole(target: &str, contents: &str) -> Result<(), String> {
+    let path = std::path::Path::new(target);
+    let dir = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map_or_else(
+            || std::path::PathBuf::from("."),
+            std::path::Path::to_path_buf,
+        );
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| format!("cannot write {target}: no file name"))?;
+    let tmp = dir.join(format!(".{name}.{}.tmp", std::process::id()));
+    std::fs::write(&tmp, contents) // seam-bypass-ok: L4 verb writing the export beside the journal
+        .map_err(|e| format!("cannot write {}: {e}", tmp.display()))?;
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        // seam-bypass-ok: L4 verb publishing the export beside the journal
+        let _ = std::fs::remove_file(&tmp); // seam-bypass-ok: cleanup of our own temp
+        return Err(format!("cannot write {target}: {e}"));
+    }
+    Ok(())
 }

@@ -771,14 +771,65 @@
       },
       "TraceVerification": {
         "additionalProperties": false,
-        "description": "Run-scoped typed verdict. Unavailable is an honest refusal: this server has no remote trace-journal authority and never scans or returns filesystem paths.",
+        "description": "Run-scoped verdict on the journal the resident wrote for the job, through the ONE verifier `nika trace verify --json` runs. `verdict` is the CLI's headline word: the attained tier (ok · sealed · anchored · replayed), incomplete for a journal with no terminal frame (the writer's liveness rides `reason`), tampered for a buried seal, broken for an edited chain, and the CLI's refusal classes; `unavailable` only when no journal exists for the job (refused before its first event · queued · a backend keeping none). `reason` is the machine class beside it (the seal tier under a ladder verdict). The CLI's own document rides verbatim (exit · chain · seal · anchor · replay · lines); a filesystem path is never returned.",
         "properties": {
+          "anchor": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "chain": {
+            "additionalProperties": true,
+            "description": "events · head · headline (intact · torn · incomplete) · liveness (alive · dead · unknown · null)",
+            "type": "object"
+          },
+          "exit": {
+            "description": "The CLI's exit class: 0 the reported tier holds · 2 a forged or edited journal · 3 the environment (unchained · unreadable · a missing input) · 5 incomplete lifecycle evidence",
+            "enum": [
+              0,
+              2,
+              3,
+              5
+            ],
+            "type": "integer"
+          },
+          "lines": {
+            "description": "The CLI's ladder lines, the journal path replaced by <journal>",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "reason": {
             "enum": [
               "run_not_terminal",
-              "trace_journal_unavailable"
+              "trace_journal_unavailable",
+              "sealed",
+              "unsealed",
+              "forged",
+              "buried",
+              "unattributable",
+              "writer_alive",
+              "writer_dead",
+              "writer_unknown",
+              "buried_seal",
+              "broken",
+              "unchained",
+              "empty",
+              "unreadable",
+              "refused",
+              "line_over_long",
+              "unknown"
             ],
             "type": "string"
+          },
+          "replay": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "seal": {
+            "additionalProperties": true,
+            "description": "tier (unsealed · sealed · forged · buried · unattributable) and the tier's facts",
+            "type": "object"
           },
           "trace_id": {
             "minLength": 1,
@@ -786,9 +837,26 @@
           },
           "verdict": {
             "enum": [
-              "unavailable"
+              "unavailable",
+              "ok",
+              "sealed",
+              "anchored",
+              "replayed",
+              "incomplete",
+              "tampered",
+              "broken",
+              "unchained",
+              "empty",
+              "unreadable",
+              "refused",
+              "line-over-long",
+              "unknown"
             ],
             "type": "string"
+          },
+          "verify_version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
@@ -838,7 +906,7 @@
   "info": {
     "description": "Authenticated loopback remote execution and declarative schedules. Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent.",
     "title": "nika serve",
-    "version": "0.118.1"
+    "version": "0.118.7"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -1316,7 +1384,7 @@
     },
     "/v1/jobs/{id}/trace/verify": {
       "get": {
-        "description": "Returns a typed honest refusal while no remote trace-journal authority exists. It never scans a trace directory or exposes a filesystem path.",
+        "description": "Locates the journal the resident wrote for this job under the project it serves (by the job's execution and trace identity) and verifies it through the same verifier `nika trace verify` runs; the vocabulary is the CLI's. `unavailable` is the honest refusal when no journal exists. The response never exposes a filesystem path.",
         "parameters": [
           {
             "in": "path",
@@ -1360,7 +1428,7 @@
             "description": "Error envelope"
           }
         },
-        "summary": "Return the run-scoped trace verification verdict"
+        "summary": "Verify the job's trace journal"
       }
     },
     "/v1/openapi.json": {

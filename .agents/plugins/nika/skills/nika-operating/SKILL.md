@@ -12,8 +12,10 @@ The check reports readiness; it does not authorize unattended execution.
 Carry out execution already authorized by the user within its effects and
 spending scope, through the normal engine and host gates. Ask only for a
 decision still missing; permission to run does not supply a human-gate answer.
-Judge `clean`, `native_strict_clean`, `paid_ready` and resolved-child coverage
-separately, with the engine/spec identity that produced the report.
+Judge `clean` (the exit's verdict under the flags you passed; under
+`--native-strict` the refusal is a `findings[]` row and `native_strict_clean`
+repeats `clean`), `paid_ready` and resolved-child coverage separately, with
+the engine/spec identity that produced the report.
 
 ## Spend (the envelope is part of the contract)
 
@@ -59,6 +61,16 @@ A spawned child inherits NOTHING from the engine: its environment is
 composed from a cleared slate — the runner floor ∪ the names in
 `permits: { env: [NAME] }` ∪ the task's own `env:` map. A workflow
 that leaned on an ambient variable must now name it.
+
+## File creation and uncertain results
+
+Use `nika:write` with `overwrite: false` to preserve an occupied destination,
+including one created concurrently before publication. An existing destination
+returns `NIKA-BUILTIN-WRITE-002`; a backend unable to publish exclusively refuses
+instead of falling back to replacement. Keep the required filesystem permits.
+After a lost response or cancellation, inspect the file and trace before retry:
+publication may already have completed. Atomic visibility does not promise
+fsync durability or that a detached write has stopped.
 
 ## Secrets (masked, declared, sunk)
 

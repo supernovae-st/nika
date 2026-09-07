@@ -388,6 +388,36 @@ pub fn verdict_card(view: &RunView, theme: &Theme, notes: &[String]) -> Vec<Stri
     lines
 }
 
+/// The prompt side of the bill, summed over the rows that reported it:
+/// ` · 5015 in · 4992 cached`. The historical `N tok` segment keeps its
+/// meaning (the completion count) and this rides BESIDE it — a run whose
+/// frames carry no split renders byte-identically to before.
+///
+/// Why the card says it at all: the completion count is the smallest
+/// half of the bill. A 5015-token prompt answered in one token costs
+/// $0.00075 cold and $0.00038 warm; with `1 tok` alone those two runs are
+/// the same sight, and the operator cannot tell a cache hit from a price
+/// change without opening the trace.
+fn prompt_receipt(view: &RunView) -> String {
+    use std::fmt::Write as _;
+    let sum = |pick: fn(&crate::state::TaskRow) -> Option<u64>| -> Option<u64> {
+        view.rows()
+            .iter()
+            .filter_map(pick)
+            .fold(None, |acc: Option<u64>, n| {
+                Some(acc.unwrap_or(0).saturating_add(n))
+            })
+    };
+    let mut out = String::new();
+    if let Some(input) = sum(|r| r.tokens_in).filter(|n| *n > 0) {
+        let _ = write!(out, " · {input} in");
+    }
+    if let Some(cached) = sum(|r| r.tokens_cache_read).filter(|n| *n > 0) {
+        let _ = write!(out, " · {cached} cached");
+    }
+    out
+}
+
 /// The card's totals row: wall time · total tokens (when any task
 /// reported usage — tokens are real TODAY, dollars stay honest-zero
 /// until the engine prices them) · spend · the models the stream named
@@ -400,6 +430,7 @@ fn totals_row(view: &RunView) -> String {
     if tokens > 0 {
         let _ = write!(row, " · {tokens} tok");
     }
+    row.push_str(&prompt_receipt(view));
     // Partial totals never read as complete: `≥` + the unpriced count
     // when some calls carried no meterable price (local · mock ·
     // uncataloged · provider silent) — never silently sum nulls as zero.
@@ -977,5 +1008,60 @@ mod tests {
             !flat.iter().any(|l| l.contains("38;2;")),
             "no COLORTERM proof → no truecolor: {flat:?}"
         );
+    }
+
+    /// The card says the prompt side of the bill. A 5015-token prompt
+    /// answered in ONE token bills mostly for the prompt, and 4992 of
+    /// those were served from the provider's cache — with `1 tok` alone
+    /// the cold run and the warm one are the same sight. The historical
+    /// `tok` segment keeps its meaning and the receipt rides beside it.
+    #[test]
+    fn the_card_totals_carry_the_prompt_side_of_the_bill() {
+        let mut view = RunView::new();
+        view.apply(&ev(EventKind::TaskStarted, 100, &[("task", s("ask"))]));
+        view.apply(&ev(
+            EventKind::TaskCompleted,
+            900,
+            &[
+                ("task", s("ask")),
+                ("duration_ms", Value::Int(800)),
+                ("tokens", Value::Int(1)),
+                ("tokens_in", Value::Int(5015)),
+                ("tokens_out", Value::Int(1)),
+                ("tokens_cache_read", Value::Int(4992)),
+                ("cost_usd", Value::Float(0.000_378)),
+            ],
+        ));
+        let row = totals_row(&view);
+        assert!(
+            row.contains("1 tok"),
+            "`tokens` keeps its historical meaning: {row}"
+        );
+        assert!(row.contains("5015 in"), "the prompt is named: {row}");
+        assert!(
+            row.contains("4992 cached"),
+            "the warm cache is the reason the bill is small: {row}"
+        );
+    }
+
+    /// A run whose frames carry no split renders EXACTLY as before —
+    /// the receipt is additive, and a mock seat reports no meters.
+    #[test]
+    fn a_run_without_a_split_keeps_the_old_totals_row() {
+        let mut view = RunView::new();
+        view.apply(&ev(EventKind::TaskStarted, 100, &[("task", s("ask"))]));
+        view.apply(&ev(
+            EventKind::TaskCompleted,
+            900,
+            &[
+                ("task", s("ask")),
+                ("duration_ms", Value::Int(800)),
+                ("tokens", Value::Int(90)),
+            ],
+        ));
+        let row = totals_row(&view);
+        assert!(row.contains("90 tok"), "{row}");
+        assert!(!row.contains(" in"), "no invented prompt count: {row}");
+        assert!(!row.contains("cached"), "no invented cache count: {row}");
     }
 }

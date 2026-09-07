@@ -1,0 +1,1 @@
+- **Share the isolated test runner with pre-push.** The local push gate now uses the same nextest selection and serial fallback as the test script, preserving its library-only scope and refusing failed tests before publication.

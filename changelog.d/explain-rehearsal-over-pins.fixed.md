@@ -1,0 +1,1 @@
+- **`nika explain` no longer suggests `--model mock/echo` over task-level pins.** On a file whose tasks pin their own `model:`, the run section prints the caveat the envelope-model hint already states instead of a rehearsal line that would leave the pinned seats live and metered.

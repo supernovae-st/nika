@@ -163,9 +163,9 @@ fn render_outputs(view: &RunView, trace: &str, theme: Theme) -> String {
         } else {
             preview_cell(row, theme)
         };
-        // #1444 · the lineage the JSON already carried, said in prose.
+        // F-O1 · the born origin of an untrusted value, said in prose.
         if let Some(source) = row.integrity_source.as_deref() {
-            let _ = write!(preview, " · input from recovered {source}");
+            let _ = write!(preview, " · untrusted input from {source}");
         }
         let _ = writeln!(
             out,
@@ -243,6 +243,18 @@ pub fn peek(trace: &str, task: &str, raw: bool, theme: Theme) -> VerbOutput {
             out.push_str(&item_table(row, theme));
             return VerbOutput::ok(out);
         }
+        // A fan-out whose aggregate value was never checkpointed still
+        // recorded its item table on the terminal frame (#1276 · #1397):
+        // the per-item codes and messages ARE what an on-call reader came
+        // for, and this refusal was hiding them (wave 3 · persona 10 · « no
+        // error code anywhere » — it was on the frame, behind « recorded
+        // no output »). `--raw` keeps its jq contract: no value, no pipe.
+        if !raw && row.items_json.is_some() {
+            let mut out =
+                render_unrecorded_peek(row, recovered_from(&events, task).as_deref(), theme);
+            out.push_str(&item_table(row, theme));
+            return VerbOutput::ok(out);
+        }
         return VerbOutput::env(no_output_message(&view, row));
     };
     if raw {
@@ -310,6 +322,7 @@ pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::V
                 "error_code": recovered,
                 "recovered_from": recovered,
                 "integrity_source": row.integrity_source,
+                "warning": row.warning,
                 "items": items,
             })
         })
@@ -480,6 +493,14 @@ fn no_output_message(view: &RunView, row: &TaskRow) -> String {
         TaskState::Skipped => message.push_str(" — a guarded skip never runs, so never records"),
         TaskState::Cancelled => message.push_str(" — the path died upstream before it ran"),
         TaskState::Failed => message.push_str(" — the run settled before it produced a value"),
+        // ADR-099 · only a task that earned a resume stamp checkpoints its
+        // value; one that did not (inputs not replayable from the file)
+        // succeeded without the journal ever carrying the value. A row
+        // that recorded its item table is a NEW engine's row, whatever the
+        // rest of the trace carries.
+        TaskState::Ok if row.items_json.is_some() || !with_outputs.is_empty() => message.push_str(
+            " — the value was not checkpointed: this task earned no resume stamp (its inputs are not replayable from the file), so the journal never carried it",
+        ),
         _ if with_outputs.is_empty() => {
             message.push_str(" — no task in this trace carries one (an older engine's trace?)");
         }
@@ -525,6 +546,42 @@ fn render_failure_peek(row: &TaskRow, theme: Theme) -> String {
     out
 }
 
+/// The peek of a succeeded task whose value was never checkpointed but
+/// whose item table was recorded: the same identity block as a value
+/// peek, then the one honest line about the absent value — the table
+/// follows from the caller.
+fn render_unrecorded_peek(row: &TaskRow, recovered_from: Option<&str>, theme: Theme) -> String {
+    let mut out = String::new();
+    let title = match row.started_note.as_deref() {
+        Some(note) => format!("{} · {note}", row.id),
+        None => row.id.clone(),
+    };
+    let _ = writeln!(out, "  {}", theme.paint(Role::Strong, &title));
+    let mut meta = row
+        .wall_ms()
+        .map_or_else(|| dash(theme).to_owned(), fmt_wall_ms);
+    if let Some(tok) = row.tokens {
+        let _ = write!(meta, " · {tok} tok");
+    }
+    if row.recovered {
+        let _ = write!(meta, " · recovered");
+        if let Some(code) = recovered_from {
+            let _ = write!(meta, " from {code}");
+        }
+    }
+    let _ = writeln!(out, "  {}", theme.paint(Role::Dim, &meta));
+    let _ = writeln!(out);
+    let _ = writeln!(
+        out,
+        "  {}",
+        theme.paint(
+            Role::Dim,
+            "value not checkpointed — this task earned no resume stamp (its inputs are not replayable from the file); the item table below is the recorded truth"
+        )
+    );
+    out
+}
+
 /// The pretty read: identity block (task · verb · time · tokens ·
 /// hashes) then the full value, pretty-printed. A value that is not
 /// valid JSON (a hand-edited trace) prints verbatim — honesty over
@@ -549,9 +606,9 @@ fn render_peek(row: &TaskRow, text: &str, recovered_from: Option<&str>, theme: T
             let _ = write!(meta, " from {code}");
         }
     }
-    // #1444 · a value that came from a recovered fallback upstream.
+    // F-O1 · the born origin of an untrusted value.
     if let Some(source) = row.integrity_source.as_deref() {
-        let _ = write!(meta, " · input from recovered {source}");
+        let _ = write!(meta, " · untrusted input from {source}");
     }
     let _ = writeln!(out, "  {}", theme.paint(Role::Dim, &meta));
     if let (Some(def), Some(input)) = (row.def_hash.as_deref(), row.input_hash.as_deref()) {
@@ -1151,6 +1208,67 @@ mod tests {
         );
     }
 
+    /// Wave 3 · persona 10: a fan-out over a runtime collection earns no
+    /// resume stamp, so its aggregate value is never checkpointed — but its
+    /// item table (index · item · status · code · message) IS on the
+    /// terminal frame. `peek` must deliver the table instead of refusing
+    /// with « recorded no output (ok) »; `--raw` still has no value to pipe.
+    #[test]
+    fn peek_delivers_the_item_table_when_the_value_was_not_checkpointed() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let items = r#"[{"index":0,"item":"./items/a.md","status":"ok"},{"index":1,"item":"./items/b.md","status":"ok"},{"index":2,"item":"./items/c.md","status":"recovered","code":"NIKA-BUILTIN-READ-001","message":"file not found: ./items/c.md"}]"#;
+        let events = vec![
+            demo::bare_event(EventKind::TaskStarted, 0)
+                .with_field(KeyValue::new("task", Value::String("read".into())))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("for_each · nika:read".into()),
+                )),
+            demo::bare_event(EventKind::TaskRecovered, 20)
+                .with_field(KeyValue::new("task", Value::String("read".into())))
+                .with_field(KeyValue::new(
+                    "code",
+                    Value::String("NIKA-BUILTIN-READ-001".into()),
+                )),
+            demo::bare_event(EventKind::TaskCompleted, 40)
+                .with_field(KeyValue::new("task", Value::String("read".into())))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("for_each · 2/3 ok · 1 recovered: ./items/c.md".into()),
+                ))
+                .with_field(KeyValue::new("duration_ms", Value::Int(4)))
+                .with_field(KeyValue::new("items", Value::String(items.into()))),
+            demo::bare_event(EventKind::WorkflowCompleted, 50),
+        ];
+        let path = stage("unstamped-fan.ndjson", &events);
+        let trace = path.to_string_lossy();
+
+        let out = peek(&trace, "read", false, plain());
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        for needle in [
+            "items · 3",
+            "NIKA-BUILTIN-READ-001",
+            "file not found: ./items/c.md",
+            "recovered from NIKA-BUILTIN-READ-001",
+            "value not checkpointed",
+        ] {
+            assert!(
+                out.text.contains(needle),
+                "peek carries `{needle}`:\n{}",
+                out.text
+            );
+        }
+
+        let raw = peek(&trace, "read", true, plain());
+        assert_eq!(raw.code, exit::ENV, "no value, no pipe: {}", raw.text);
+        assert!(
+            raw.text.contains("not checkpointed") && raw.text.contains("no resume stamp"),
+            "the refusal says why the value is absent: {}",
+            raw.text
+        );
+    }
+
     /// B23 / issue 1275: peek + outputs + json never render a recovered
     /// task as a clean success.
     #[test]
@@ -1302,12 +1420,12 @@ mod tests {
             .find(|l| l.trim_start().starts_with("c "))
             .expect("c's row");
         assert!(
-            c_row.contains("input from recovered b"),
+            c_row.contains("untrusted input from b"),
             "outputs names the lineage: {c_row}"
         );
         let peeked = peek(&path.to_string_lossy(), "c", false, plain());
         assert!(
-            peeked.text.contains("input from recovered b"),
+            peeked.text.contains("untrusted input from b"),
             "peek names the lineage: {}",
             peeked.text
         );
@@ -1317,6 +1435,50 @@ mod tests {
         assert!(
             json["tasks"][0]["integrity_source"].is_null(),
             "b itself has no source"
+        );
+    }
+
+    /// The OBS-E `warning` a terminal frame carried (a `nika:glob` naming
+    /// the directories it left out · V9 wave 3 p10) reaches the machine
+    /// projection per task, and a clean task projects none — `trace
+    /// outputs --json` must say what `trace show` says.
+    #[test]
+    fn a_task_warning_is_projected_per_task() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let task = |id: &str| KeyValue::new("task", Value::String(id.into()));
+        let said = "nika:glob returns files only · 1 directory also matched `./items/*.md` and was left out: ./items/item-07.md";
+        let events = vec![
+            demo::bare_event(EventKind::WorkflowStarted, 0),
+            demo::bare_event(EventKind::TaskStarted, 1)
+                .with_field(task("discover"))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("invoke · nika:glob".into()),
+                )),
+            demo::bare_event(EventKind::TaskCompleted, 2)
+                .with_field(task("discover"))
+                .with_field(KeyValue::new("output", Value::String("[]".into())))
+                .with_field(KeyValue::new("warning", Value::String(said.into()))),
+            demo::bare_event(EventKind::TaskStarted, 3)
+                .with_field(task("merge"))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("infer · mock/echo".into()),
+                )),
+            demo::bare_event(EventKind::TaskCompleted, 4)
+                .with_field(task("merge"))
+                .with_field(KeyValue::new("output", Value::String("\"ok\"".into()))),
+            demo::bare_event(EventKind::WorkflowCompleted, 5),
+        ];
+        let path = stage("glob-warning.ndjson", &events);
+        let (view, events) = load_view_and_events(&path.to_string_lossy()).expect("loads");
+        let json = tasks_json(&view, &events);
+        assert_eq!(json["tasks"][0]["id"], "discover");
+        assert_eq!(json["tasks"][0]["warning"], said);
+        assert!(
+            json["tasks"][1]["warning"].is_null(),
+            "a clean task projects no warning"
         );
     }
 }

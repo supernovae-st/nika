@@ -251,6 +251,7 @@ mod tests {
         Finish {
             id: id.to_owned(),
             settle: SettleAs::Ran(Box::new(RanTask {
+                usage: None,
                 decisions: Vec::new(),
                 note: "invoke · nika:prompt".to_owned(),
                 retries: Vec::new(),

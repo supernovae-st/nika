@@ -38,7 +38,17 @@
           version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).workspace.package.version;
 
           src = self;
-          cargoLock.lockFile = ./Cargo.lock;
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+            # The one git dependency (`[patch.crates-io]` in Cargo.toml): the
+            # studio fork of dom_smoothie carrying the deterministic
+            # candidate-order fix until upstream releases it. Nix vendors a git
+            # source only against its fixed-output hash (the NAR hash of the
+            # checkout at the pinned rev, no .git).
+            outputHashes = {
+              "dom_smoothie-0.18.0" = "sha256-hjBKBzLvwkwuaSTb2y9XHCMhFgS/nhwG4eH/8XTKHvY=";
+            };
+          };
 
           # The operator-surface crate only — its dep tree is pure Rust
           # (rustls, no openssl/pkg-config), which is why this derivation

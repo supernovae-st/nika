@@ -261,8 +261,10 @@ pub fn resolve_access(
             rejected.push(rejection);
         } else if let Some(winner) = chosen {
             // W3-F3 · a ready path that lost the ranking stays available to
-            // a pin (never rejected) and the machine row names it — « chosen
-            // over N other path(s) » in JSON too.
+            // a pin (never rejected) and BOTH rows name it: the witness
+            // below is what the prose tail prints (« chosen over api
+            // (ready · ranked below `codex` (harness outranks api)) ») and
+            // what the JSON carries.
             outranked.push(nika_types::access::AccessRejection::new(
                 candidate.access.clone(),
                 nika_types::access::RejectionDimension::Outranked,

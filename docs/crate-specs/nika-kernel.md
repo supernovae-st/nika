@@ -49,6 +49,11 @@ reserved on kernel traits for the 2.0 Connectome work.
 
 ### 2.1 Effect traits (ISP-layered)
 
+The filesystem signatures below use `nika_kernel::fs::FsError`. The
+provided `write_new` method and backend/wrapper migration are defined in
+[the kernel-core migration contract](nika-kernel-core.md#4-filesystem-backend-migration).
+Its default body is omitted from this API summary.
+
 ```rust
 // ── clock.rs (~40 LOC) ───────────────────────────────────────
 #[trait_variant::make(ClockDyn: Send)]
@@ -61,28 +66,34 @@ pub trait Clock: Send + Sync {
 // ── fs.rs (~120 LOC) ─────────────────────────────────────────
 #[trait_variant::make(FsReadDyn: Send)]
 pub trait FsRead: Send + Sync {
-    async fn read(&self, path: &Path) -> io::Result<Bytes>;
-    async fn read_to_string(&self, path: &Path) -> io::Result<String>;
+    async fn read(&self, path: &Path) -> Result<Bytes, FsError>;
+    async fn read_to_string(&self, path: &Path) -> Result<String, FsError>;
     async fn exists(&self, path: &Path) -> bool;
-    async fn canonicalize(&self, path: &Path) -> io::Result<PathBuf>;
+    async fn canonicalize(&self, path: &Path) -> Result<PathBuf, FsError>;
 }
 
 #[trait_variant::make(FsWriteDyn: Send)]
 pub trait FsWrite: Send + Sync {
-    async fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
-    async fn create_dir_all(&self, path: &Path) -> io::Result<()>;
-    async fn remove_file(&self, path: &Path) -> io::Result<()>;
+    async fn write(&self, path: &Path, contents: &[u8]) -> Result<(), FsError>;
+    // Provided method; default body omitted.
+    fn write_new(
+        &self,
+        path: &Path,
+        contents: &[u8],
+    ) -> impl std::future::Future<Output = Result<(), FsError>> + Send;
+    async fn create_dir_all(&self, path: &Path) -> Result<(), FsError>;
+    async fn remove_file(&self, path: &Path) -> Result<(), FsError>;
 }
 
 #[trait_variant::make(FsMetaDyn: Send)]
 pub trait FsMeta: Send + Sync {
-    async fn metadata(&self, path: &Path) -> io::Result<FileMetadata>;
+    async fn metadata(&self, path: &Path) -> Result<FileMetadata, FsError>;
 }
 
 #[trait_variant::make(FsListDyn: Send)]
 pub trait FsList: Send + Sync {
-    async fn list_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>>;
-    async fn glob(&self, root: &Path, pattern: &str) -> io::Result<Vec<PathBuf>>;
+    async fn list_dir(&self, path: &Path) -> Result<Vec<PathBuf>, FsError>;
+    async fn glob(&self, root: &Path, pattern: &str) -> Result<Vec<PathBuf>, FsError>;
 }
 
 pub trait Fs: FsRead + FsWrite + FsMeta + FsList {}

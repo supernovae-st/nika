@@ -5,7 +5,7 @@
 //! (#213) + the four layered verdicts (ADR-123) — the judges the `check`
 //! verb folds, hosted HERE so every door reaches the same ones: the CLI
 //! verb re-exports them, and the MCP oracle (which reaches the host,
-//! never the CLI) folds the same layers (One Door · wave 3 parity). The
+//! never the CLI) folds the same layers (One Door parity). The
 //! finding TYPES live beside their renderer (`nika_display::check_render`).
 
 use nika_display::check_render::{ModelFinding, ModelsAudit, VerdictLayers};
@@ -49,6 +49,26 @@ pub fn capacity_findings(wf: &RawWorkflow) -> Vec<ModelFinding> {
         .collect()
 }
 
+/// Whether ANY task in this file will dial a model — the ACCESS
+/// question's PREMISE, not its answer.
+///
+/// False and the question is MOOT: no `infer:`/`agent:` task exists, no
+/// seat will ever be asked for, and nothing a reader types can change
+/// that. True with no static lane and the question is UNANSWERED: a task
+/// dials, but its model arrives at run time. Both used to render
+/// `access_ready: None`, and the layers line spelled both `○` (a persona wave ·
+/// the operations sceptic: `run ready ○` on a builtin-only file that then ran 3/3 green,
+/// with `--access mock` unable to move it).
+#[must_use]
+pub fn dials_a_model(wf: &RawWorkflow) -> bool {
+    wf.tasks.iter().any(|task| {
+        matches!(
+            task.value.action,
+            nika_schema::raw::RawAction::Infer(_) | nika_schema::raw::RawAction::Agent(_)
+        )
+    })
+}
+
 /// The four layered verdicts (wave 2) — computed ONCE beside the exit
 /// code from the frozen plan and the folded audit; the render and the
 /// JSON both project this value.
@@ -89,12 +109,7 @@ pub fn verdict_layers_for(
             nika_types::access::AccessClass::Mock => "mock · never dials · nothing to judge",
             _ => "present · liveness judged at run",
         };
-        let others = lane.candidates.saturating_sub(1);
-        let tail = if others == 0 {
-            String::new()
-        } else {
-            format!(" · chosen over {others} other path(s)")
-        };
+        let tail = chosen_over(lane.candidates, &lane.plan.outranked);
         lines.push(format!(
             "{model} → {} ({} · {} · {}) · {note}{tail}",
             lane.plan.access,
@@ -304,6 +319,26 @@ fn pin_message(refusal: &nika_providers::resolve_access::PinRefusal) -> &str {
     }
 }
 
+/// The « chosen over … » tail: the outranked READY paths by name and
+/// witness, so a reader learns which seat lost and why without opening
+/// the JSON (wave 3 · persona 12: « chosen over 1 other path(s) » named
+/// nobody). A count alone only when the plan recorded no outranked row.
+#[must_use]
+pub fn chosen_over(candidates: usize, outranked: &[nika_types::access::AccessRejection]) -> String {
+    let others = candidates.saturating_sub(1);
+    if others == 0 {
+        return String::new();
+    }
+    if outranked.is_empty() {
+        return format!(" · chosen over {others} other path(s)");
+    }
+    let named: Vec<String> = outranked
+        .iter()
+        .map(|r| format!("{} ({})", r.access, r.witness))
+        .collect();
+    format!(" · chosen over {}", named.join(" · "))
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
@@ -446,5 +481,47 @@ mod tests {
         let layers = verdict_layers_for(&plan(None, None, None), true, &[], None);
         assert_eq!(layers.access_ready, None);
         assert!(layers.blockers.is_empty());
+    }
+
+    /// Wave 3 · persona 12 · « chosen over 1 other path(s) » named
+    /// nobody. The tail NAMES every outranked ready path with its
+    /// witness, ` · `-joined; the bare count survives only where the
+    /// plan recorded no outranked row (an older plan · a JSON that
+    /// predates the field), and no tail at all when nothing competed.
+    /// A mutant that always returns the count fails the last two cases.
+    #[test]
+    fn chosen_over_names_every_outranked_seat() {
+        let outranked = |access: &str, witness: &str| {
+            nika_types::access::AccessRejection::new(
+                access,
+                nika_types::access::RejectionDimension::Outranked,
+                nika_types::access::RejectionLayer::Access,
+                witness,
+            )
+        };
+        assert_eq!(chosen_over(1, &[]), "", "a lone path beat nobody");
+        assert_eq!(
+            chosen_over(2, &[]),
+            " · chosen over 1 other path(s)",
+            "no outranked row recorded → the honest count, never a name"
+        );
+        let one = [outranked(
+            "api",
+            "ready · ranked below `codex` (harness outranks api)",
+        )];
+        assert_eq!(
+            chosen_over(2, &one),
+            " · chosen over api (ready · ranked below `codex` (harness outranks api))",
+            "one loser · named with the witness the plan built"
+        );
+        let several = [
+            outranked("api", "key present"),
+            outranked("oauth", "token present"),
+        ];
+        assert_eq!(
+            chosen_over(3, &several),
+            " · chosen over api (key present) · oauth (token present)",
+            "several losers · one separator, in plan order"
+        );
     }
 }

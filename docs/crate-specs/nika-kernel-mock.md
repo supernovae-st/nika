@@ -94,7 +94,9 @@ impl MockClock {
 
 ### 2.2 MockFs — in-memory filesystem
 
-Implements: `nika_kernel::FsRead` + `nika_kernel::FsWrite` (therefore `Filesystem`)
+Implements the `FsReadDyn`, `FsWriteDyn`, `FsMetaDyn` and `FsListDyn`
+companions from `nika_kernel::fs`; their blanket implementations provide the
+base traits and the `Fs` umbrella.
 
 ```rust
 #[derive(Clone, Default)]
@@ -117,11 +119,16 @@ impl MockFs {
 // - glob(root, pattern) → Vec<PathBuf> (suffix matching)
 // - canonicalize(path) → Ok(path) (no-op, in-memory has no symlinks)
 
-// Trait impl: FsWrite
+// Trait impl: FsWriteDyn
+// - write_new(path, contents) → Ok(()) or FsError::AlreadyExists
 // - write(path, contents) → Ok(()) (upsert)
 // - create_dir_all(path) → Ok(()) (no-op, dirs are implicit)
 // - remove_file(path) → Ok(()) or NotFound
 ```
+
+Filesystem write methods return `Result<(), nika_kernel::fs::FsError>`.
+See the [kernel backend migration contract](nika-kernel-core.md#4-filesystem-backend-migration)
+for the provided method and wrapper obligations.
 
 ### 2.3 MockHttp — canned HTTP responses
 

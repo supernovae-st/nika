@@ -10,6 +10,9 @@ use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
 
+#[cfg(test)]
+mod legacy_write_tests;
+
 /// Metadata about a filesystem entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -152,6 +155,28 @@ pub trait FsWrite: Send + Sync {
     /// CANCEL SAFETY: NOT cancel-safe unless impl uses atomic
     /// temp-file + rename. Partial writes possible.
     async fn write(&self, path: &Path, contents: &[u8]) -> Result<(), FsError>;
+
+    /// Publish complete contents only if the destination is absent at commit.
+    /// An occupied name, including a symlink, returns `AlreadyExists` without
+    /// replacing it. Durability is not implied. Cancellation can leave a
+    /// temporary file or a completed publication; dropping a future does not
+    /// prove that a detached filesystem operation has stopped.
+    ///
+    /// Existing backends remain source-compatible but must implement this
+    /// operation before serving exclusive writes. The default refuses without
+    /// I/O; it must never approximate exclusivity with `exists` then `write`.
+    fn write_new(
+        &self,
+        path: &Path,
+        contents: &[u8],
+    ) -> impl std::future::Future<Output = Result<(), FsError>> + Send {
+        let _ = (path, contents);
+        async {
+            Err(FsError::Io {
+                reason: "exclusive publication unsupported by this filesystem backend".to_owned(),
+            })
+        }
+    }
 
     /// Create a directory and all parent directories.
     ///

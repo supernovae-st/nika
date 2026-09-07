@@ -40,10 +40,13 @@ pub(crate) fn settle_run(
     settlement
 }
 
-/// Every record counted once by its status, the recovered ones by their
-/// cause (a recovered task IS a success), the never-started ones (cancelled
-/// at the boundary by the operator or the budget) apart from the
-/// upstream-cancelled.
+/// Every record counted once by its status, the never-started ones
+/// (cancelled at the boundary by the operator or the budget) apart from
+/// the upstream-cancelled — EXCEPT `recovered`, which counts REPAIRS,
+/// not rows: a `for_each` row that repaired two of twelve items is two
+/// repairs, exactly what its own task line and the verdict card print
+/// (a row said `1` under both · wave 3 · persona 10 · 2026-09-06). A
+/// recovered record never counts zero: the record IS a repair.
 pub(crate) fn tally(records: &BTreeMap<String, DataflowTaskRecord>) -> TaskTally {
     let count = |pick: &dyn Fn(&DataflowTaskRecord) -> bool| {
         u32::try_from(records.values().filter(|r| pick(r)).count()).unwrap_or(u32::MAX)
@@ -52,7 +55,10 @@ pub(crate) fn tally(records: &BTreeMap<String, DataflowTaskRecord>) -> TaskTally
     t.total = count(&|_| true);
     t.ok = count(&|r| r.status == TaskStatus::Success);
     t.failed = count(&|r| r.status == TaskStatus::Failure);
-    t.recovered = count(&|r| r.cause == TerminalCause::Recovered);
+    t.recovered = records
+        .values()
+        .filter(|r| r.cause == TerminalCause::Recovered)
+        .fold(0u32, |sum, r| sum.saturating_add(r.recovered_items.max(1)));
     t.skipped = count(&|r| r.status == TaskStatus::Skipped);
     t.cancelled = count(&|r| r.status == TaskStatus::Cancelled);
     t.never_started = count(&|r| {

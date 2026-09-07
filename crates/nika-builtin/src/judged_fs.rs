@@ -290,6 +290,10 @@ impl<F: FsWriteDyn> FsWriteDyn for JudgedFs<'_, F> {
         self.inner.write(path, contents).await
     }
 
+    async fn write_new(&self, path: &Path, contents: &[u8]) -> Result<(), FsError> {
+        self.inner.write_new(path, contents).await
+    }
+
     async fn create_dir_all(&self, path: &Path) -> Result<(), FsError> {
         self.inner.create_dir_all(path).await
     }

@@ -63,14 +63,15 @@ pub fn governs(ceiling: Option<f64>, traces: bool, registry: bool, beats: usize)
 /// grammar judged it.
 #[must_use]
 pub fn json(path: &str, clean: bool, name: Option<&str>, code: &str, message: &str) -> String {
-    let head = format!("{{\"report_version\":1,\"file\":{path:?},\"kind\":\"project\"");
+    let path = serde_json::json!(path);
+    let head = format!("{{\"report_version\":1,\"file\":{path},\"kind\":\"project\"");
     if clean {
-        let name = name.unwrap_or("<unnamed>");
-        format!("{head},\"clean\":true,\"name\":{name:?},\"findings\":[]}}")
+        let name = serde_json::json!(name.unwrap_or("<unnamed>"));
+        format!("{head},\"clean\":true,\"name\":{name},\"findings\":[]}}")
     } else {
-        format!(
-            "{head},\"clean\":false,\"findings\":[{{\"code\":{code:?},\"message\":{message:?}}}]}}"
-        )
+        let code = serde_json::json!(code);
+        let message = serde_json::json!(message);
+        format!("{head},\"clean\":false,\"findings\":[{{\"code\":{code},\"message\":{message}}}]}}")
     }
 }
 
@@ -118,6 +119,46 @@ mod tests {
             assert_eq!(v["kind"], "project", "{wire}");
             assert!(v["findings"].is_array(), "{wire}");
         }
+    }
+
+    #[test]
+    fn json_strings_round_trip_control_characters() {
+        let characters = (0..32)
+            .filter_map(char::from_u32)
+            .chain(['\u{7f}', '\u{85}', '\u{a0}', '"', '\\', 'é', '🦋']);
+        for ch in characters {
+            let value = format!("before{ch}after");
+            for clean in [true, false] {
+                let wire = json(&value, clean, Some(&value), &value, &value);
+                let parsed: serde_json::Value =
+                    serde_json::from_str(&wire).expect("JSON string escaping");
+                assert_eq!(parsed["file"], value);
+                if clean {
+                    assert_eq!(parsed["name"], value);
+                } else {
+                    assert_eq!(parsed["findings"][0]["code"], value);
+                    assert_eq!(parsed["findings"][0]["message"], value);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ordinary_machine_verdicts_keep_their_compact_bytes() {
+        assert_eq!(
+            json("nika.yaml", true, Some("my-project"), "", ""),
+            r#"{"report_version":1,"file":"nika.yaml","kind":"project","clean":true,"name":"my-project","findings":[]}"#,
+        );
+        assert_eq!(
+            json(
+                "nika.yaml",
+                false,
+                None,
+                "project.unknown-key",
+                "unknown field `celing`"
+            ),
+            r#"{"report_version":1,"file":"nika.yaml","kind":"project","clean":false,"findings":[{"code":"project.unknown-key","message":"unknown field `celing`"}]}"#,
+        );
     }
 
     #[test]

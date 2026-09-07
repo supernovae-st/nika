@@ -11,7 +11,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L1 effect crate |
-| NIKA codes | none — the kernel fs contract speaks `std::io::Result` (no crate error enum, like nika-clock) |
+| NIKA codes | kernel `FsError` taxonomy — no crate-owned error enum; `OwnedDir` returns `std::io::Result` |
 
 ---
 
@@ -42,7 +42,10 @@ pub struct TokioFs;
 pub struct OwnedDir; // held dirfd · contained components · nofollow children
 
 impl FsReadDyn  for TokioFs { read · read_to_string · exists · canonicalize }
-impl FsWriteDyn for TokioFs { write (ATOMIC temp+rename) · create_dir_all · remove_file }
+impl FsWriteDyn for TokioFs {
+  write (temp+rename, replaces) · write_new (complete temp+exclusive hard link)
+  create_dir_all · remove_file
+}
 impl FsMetaDyn  for TokioFs { metadata }
 impl FsListDyn  for TokioFs { list_dir (sorted) · glob (literal_separator · sorted) }
 
@@ -59,10 +62,45 @@ consumers can `tokio::spawn` filesystem work. (The `*Dyn` forms are
 generic bounds, NOT dyn-dispatch surfaces — RPITIT is not object-safe;
 per the kernel doc, L1 impls fan out via `Arc<T>`, not `Arc<dyn _>`.)
 
+### Exclusive publication and backend migration
+
+`write_new(path, contents)` publishes a complete file only if the destination
+name is unoccupied. TokioFs writes arbitrary bytes to an exclusively created
+temporary sibling, then publishes with `std::fs::hard_link`. An existing file,
+directory, or symlink is preserved and returns `FsError::AlreadyExists`.
+Unsupported filesystem operations fail without falling back to replacement.
+The ordinary `write` operation continues to create or replace by rename;
+other writers using that operation retain their replacement semantics.
+
+The exclusive operation runs in `spawn_blocking`. Dropping its future does
+not stop that worker: publication can complete after the caller stops waiting.
+Complete, exclusive publication is not crash durability; this operation adds
+no `fsync`. Once the link succeeds, the destination is committed. Removing
+the temporary name is best-effort cleanup, and a cleanup failure can leave a
+temporary alias while the operation still reports successful publication.
+An interrupted observer must establish the final state independently rather
+than treating cancellation as proof that no file was written.
+
+The kernel method has a provided default that returns `FsError::Io` without
+calling any filesystem operation. Existing backend implementations still
+compile with their original three methods, but `nika:write` with
+`overwrite:false` refuses until the backend overrides `write_new` with the
+exclusive contract. Wrappers must forward that method explicitly, including
+wrappers whose inner backend already supports it. An `exists` check followed
+by ordinary `write` is not a valid implementation. This migration changes no
+workflow arguments or result shape: the builtin still returns its path.
+
+The lib tests in `src/write_new_tests.rs` use real filesystem readers and
+directory inventories to check one winner, exact bytes, destination absence
+before publication, occupied destinations, normal cleanup, and preservation
+of ordinary replacement. These checks do
+not establish crash durability, worker quiescence, or every filesystem's
+behavior. The earlier admission results below do not cover this new method.
+
 ### Diamond upgrades vs brouillon (CRAFT · ADR-001)
 
 1. **Atomic write** — brouillon used bare `tokio::fs::write` (partial
-   writes observable). Diamond writes to `.nika-tmp.{pid}.{counter}`
+   writes observable). Diamond writes to `.nika-tmp.{pid}.{counter}` (or `..nika-tmp.{pid}.{counter}` for a single-dot-prefixed destination, keeping staging distinct under case folding)
    beside the destination then `rename`s (POSIX atomicity) · parents
    auto-created (parity) · error path cleans the temp best-effort ·
    no `fsync` at this layer (documented · durability is a policy/engine

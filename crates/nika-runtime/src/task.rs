@@ -26,6 +26,7 @@ use nika_schema::types::{OnErrorAction, Permits, WhenGate};
 use serde_json::Value;
 
 use crate::Runtime;
+use crate::agent_events::stamp_attempts;
 use crate::dispatch::DispatchCtx;
 use crate::dispatch::DispatchOk;
 use crate::errors::RuntimeError;
@@ -209,12 +210,43 @@ pub(crate) struct RanTask {
     /// determinism contract is "deterministic seams in · deterministic
     /// stream out", and the clock is a seam).
     pub duration_ms: u64,
-    /// A `for_each` fan-out's per-item terminals (#1276 · #1397): one
-    /// compact JSON array text · index · item · status · code · message ·
-    /// rides the terminal frame as `items`. `None` for every other lane.
-    pub items: Option<String>,
+    /// A `for_each` fan-out's per-item terminals (#1276 · #1397) plus
+    /// how many of them were repairs. `None` for every other lane.
+    pub items: Option<FanItems>,
+    /// the metered call's usage SPLIT (input · cached input ·
+    /// cache writes · output · reasoning + the responder's identity) —
+    /// lifted beside `evidence`/`items` so EVERY terminal shape carries
+    /// it: a success frame explains its `cost_usd`, a billed-then-failed
+    /// frame explains its own. `None` on the verbs that meter nothing.
+    pub usage: Option<Box<crate::usage::UsageSplit>>,
     /// The terminal result after `retry:` + `on_error:`.
     pub result: RunResult,
+}
+
+/// A fan-out's item table and its repair count, carried TOGETHER so the
+/// two never disagree: the table rides the terminal frame as `items`
+/// (what a human reads), the count rides the task record (what the
+/// settlement tally sums). Deriving the second from the first a second
+/// time is exactly the drift this pairs away — the banner counted ROWS
+/// while the task line counted ITEMS (wave 3 · persona 10 · 2026-09-06).
+pub(crate) struct FanItems {
+    /// One compact JSON array text · index · item · status · code ·
+    /// message (spec 17 §`items`).
+    pub json: String,
+    /// How many items settled `recovered` — an `on_error` repair per
+    /// item, never a row count.
+    pub recovered: u32,
+}
+
+impl FanItems {
+    /// The table and its repair count, the saturating conversion done
+    /// once at the ONE site that knows both.
+    pub(crate) fn new(json: String, recovered: usize) -> Self {
+        Self {
+            json,
+            recovered: u32::try_from(recovered).unwrap_or(u32::MAX),
+        }
+    }
 }
 
 impl RanTask {
@@ -684,8 +716,6 @@ where
             (acc.first_error, acc.first_recovered_from),
             (acc.cost_sum, acc.unpriced),
         );
-        let retries = acc.retries;
-        let agent_events = acc.agent_events;
         let mut ran = RanTask {
             note: fan_out::fan_note(
                 total,
@@ -693,12 +723,13 @@ where
                 &acc.failed_items,
                 &acc.recovered_items,
             ),
-            retries,
-            agent_events,
+            retries: acc.retries,
+            agent_events: acc.agent_events,
             decisions: acc.decisions,
             evidence: None,
             duration_ms: 0,
-            items: Some(item_terminals),
+            items: Some(FanItems::new(item_terminals, acc.recovered)),
+            usage: None, // its iterations carry their own metered terminals
             result,
         };
         let finally_scope =
@@ -767,6 +798,7 @@ where
                     evidence: None,
                     duration_ms: 0,
                     items: None,
+                    usage: None,
                     result: RunResult::Failed {
                         error: runtime_error_record(&err),
                         cost_usd: None,
@@ -899,18 +931,16 @@ where
             verb_note_prefix(&task.action).clone_into(&mut note); // timed out pre-dispatch
         }
 
-        let (result, evidence) = dispatch_result(task, scope, outcome);
+        let (result, evidence, usage) = dispatch_result(task, scope, outcome);
         RanTask {
             note,
             retries,
-            agent_events: crate::agent_events::stamp_attempts(
-                agent_buffer.into_events(),
-                &attempt_marks,
-            ),
+            agent_events: stamp_attempts(agent_buffer.into_events(), &attempt_marks),
             decisions: witness.take(),
             evidence,
             duration_ms,
             items: None,
+            usage,
             result,
         }
     }
@@ -939,6 +969,7 @@ where
                         // kill-on-drop contract.
                         Err(FailedOutcome {
                             access: None,
+                            usage: None,
                             record: TaskErrorRecord::new(
                                 TIMEOUT_CODE,
                                 format!("task exceeded its timeout of {} ms", limit.as_millis()),
@@ -1304,13 +1335,23 @@ fn dispatch_result(
     task: &RawTask,
     scope: &Scope<'_>,
     outcome: Result<DispatchOk, FailedOutcome>,
-) -> (RunResult, Option<crate::dispatch::commit::CommitEvidence>) {
+) -> (
+    RunResult,
+    Option<crate::dispatch::commit::CommitEvidence>,
+    Option<Box<crate::usage::UsageSplit>>,
+) {
     let evidence = match &outcome {
         Ok(ok) => ok
             .commit
             .clone()
             .map(crate::dispatch::commit::CommitEvidence::Fired),
         Err(failed) => failed.evidence.clone(),
+    };
+    // the split rides OUTSIDE the result, like the evidence: a
+    // recovered failure keeps the receipt of what it burned.
+    let usage = match &outcome {
+        Ok(ok) => ok.usage.clone(),
+        Err(failed) => failed.usage.clone(),
     };
     let result = match outcome {
         Ok(DispatchOk {
@@ -1323,6 +1364,7 @@ fn dispatch_result(
             cost_unpriced,
             commit: _,
             access,
+            usage: _,
         }) => RunResult::Success {
             value,
             tokens,
@@ -1338,7 +1380,7 @@ fn dispatch_result(
         },
         Err(failed) => apply_on_error(task, scope, failed),
     };
-    (result, evidence)
+    (result, evidence, usage)
 }
 
 /// `on_error:` (spec 05) — filter (`on_codes`) → ONE action.
@@ -1349,6 +1391,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
         cost_unpriced,
         evidence,
         access,
+        usage: _,
     } = failed;
     let Some(on_error) = task.on_error.as_ref() else {
         return RunResult::Failed {

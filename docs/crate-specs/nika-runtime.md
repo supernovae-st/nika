@@ -190,6 +190,15 @@ at the 03-dag milestone, deliberately).
 - Transient-only (`error.transient` — the verbs' `NikaErrorCode::
   is_transient()` feeds it) unless `on_codes:` whitelists the final
   error's wire code. `max_attempts` strict · last error surfaces.
+- Direct `invoke` calls to `nika:fetch` also apply
+  `nika_types::net::retry_is_effect_safe` to the resolved method and
+  header names at dispatch. A mutating request without a declared
+  idempotency key cannot retry a failure, including response extraction
+  failures matched by `on_codes`. The failed attempt is debited before
+  this veto; its error and commit evidence remain intact. A declared key
+  permits retry under the existing contract; it does not prove receiver
+  deduplication. This guard does not cover whole-agent or child-workflow
+  replay.
 - Backoff per the spec's three strategies (`fixed` · `linear` ·
   `exponential`, capped at `backoff_max_ms`) + **full jitter** when
   `jitter: true` (default) — Brooker (AWS Architecture Blog 2015) ·
@@ -334,7 +343,8 @@ form; the timeout class surfaces the SPEC code `NIKA-TIMEOUT-001`.
 6. **Records** · status/error/duration refs in `when:` + render ·
    defined-null diamond join · skipped→null output.
 7. **Retry** · transient×N→success (attempt counts · `TaskRetrying`
-   delay fields) · non-transient never retries · `on_codes` filter ·
+   delay fields) · non-transient requires `on_codes` admission ·
+   resolved fetch effect veto (including Unicode method normalization) ·
    `max_attempts` strict · backoff table (fixed/linear/exponential ·
    jitter bounds · property: delay ≤ cap forever).
 8. **Timeout** · hanging verb killed at budget (`NIKA-TIMEOUT-001` ·

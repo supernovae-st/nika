@@ -382,6 +382,7 @@ mod tests {
 
     fn ran(note: &str, result: RunResult) -> RanTask {
         RanTask {
+            usage: None,
             note: note.to_owned(),
             retries: Vec::new(),
             agent_events: Vec::new(),

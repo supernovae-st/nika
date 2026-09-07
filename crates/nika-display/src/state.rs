@@ -103,14 +103,63 @@ pub struct TaskRow {
     /// `items` JSON array text the terminal frame carried · index · item ·
     /// status · code · message. `None` for every other row.
     pub items_json: Option<String>,
-    /// The task consumed RECOVERED data (#1444 · the lineage leg of #1275):
-    /// the upstream task whose fallback fed this one, from the terminal
-    /// frame's `integrity_source` (present only when `integrity` reads
-    /// `untrusted`). A clean success renders as one; this one must not.
+    /// Prompt tokens the provider metered (`tokens_in`) — INCLUDES the
+    /// cache subsets, so the full-rate portion is the remainder. The
+    /// terminal frame carries these beside `tokens` when the provider
+    /// reported them; a reader recomputes `cost_usd` from them and the
+    /// pinned price table. `None` is "not reported", never a zero.
+    pub tokens_in: Option<u64>,
+    /// Completion tokens the provider metered (`tokens_out`) — includes
+    /// the reasoning subset.
+    pub tokens_out: Option<u64>,
+    /// Prompt tokens served from the provider's cache (`tokens_cache_read`
+    /// · a subset of `tokens_in`, priced at the cache-read rate). The one
+    /// number that tells a warm cache from a price change.
+    pub tokens_cache_read: Option<u64>,
+    /// Prompt tokens written to the provider's cache
+    /// (`tokens_cache_write` · a subset of `tokens_in`).
+    pub tokens_cache_write: Option<u64>,
+    /// Reasoning/thinking tokens (`tokens_reasoning` · a subset of
+    /// `tokens_out`).
+    pub tokens_reasoning: Option<u64>,
+    /// The born origin of the task's UNTRUSTED value (F-O1 · the
+    /// terminal frame's `integrity_source`, present only when `integrity`
+    /// reads `untrusted`): the ingress task that let the content in (a
+    /// fetch · an exec · a recovered fallback) or the `inputs.<name>` the
+    /// caller supplied. A trusted success renders as one; a task that
+    /// drank untrusted content must say where it was born. It is NOT a
+    /// repair marker: `recovered` is (the `task_recovered` frame). The two
+    /// were conflated in prose once (#1444) and a wave of eight personas
+    /// read « input from recovered » on runs that repaired nothing.
     pub integrity_source: Option<String>,
 }
 
 impl TaskRow {
+    /// The metered call's split, in reading order, present meters only —
+    /// the one reading order the card's totals row follows, and the one
+    /// `trace peek` will read the day it prints the split, so a receipt
+    /// read in prose and a receipt read by a machine name the same
+    /// numbers in the same order.
+    ///
+    /// `input` includes the cache subsets and `output` includes
+    /// `reasoning`, per the semantics the wires normalize to: a reader
+    /// recomputes the full-rate portion as `input - cache_read -
+    /// cache_write`. Empty when the frame carried no split (a mock or
+    /// local seat, a tool task, an older engine's trace).
+    #[must_use]
+    pub fn meters(&self) -> Vec<(&'static str, u64)> {
+        [
+            ("input", self.tokens_in),
+            ("cache_read", self.tokens_cache_read),
+            ("cache_write", self.tokens_cache_write),
+            ("output", self.tokens_out),
+            ("reasoning", self.tokens_reasoning),
+        ]
+        .into_iter()
+        .filter_map(|(name, value)| value.map(|n| (name, n)))
+        .collect()
+    }
+
     /// The task's best-known wall duration: the runtime-measured
     /// `duration_ms` when the stream carried it, else the stamp span.
     /// `None` for a task that never reached a terminal state.
@@ -220,12 +269,19 @@ impl RunView {
         self.plan_waves.as_deref()
     }
 
-    /// How many rows settled through an `on_error.recover` repair —
-    /// feeds the verdict card and the final meter (the `(N unpriced)`
-    /// honesty style: a non-zero count is never silent).
+    /// How many REPAIRS the run made — feeds the verdict card and the
+    /// final meter (the `(N unpriced)` honesty style: a non-zero count is
+    /// never silent). A fan-out row stands for as many repairs as its
+    /// item table records: the banner used to count ROWS while the task
+    /// line counted ITEMS, and one screen said `1 recovered` above
+    /// `2 recovered: …` (wave 3 · persona 10 · 2026-09-06).
     #[must_use]
     pub fn recovered_count(&self) -> usize {
-        self.rows.iter().filter(|r| r.recovered).count()
+        self.rows
+            .iter()
+            .filter(|r| r.recovered)
+            .map(recovered_items)
+            .sum()
     }
 
     /// How many rows reached a terminal state.
@@ -445,12 +501,23 @@ impl RunView {
         if let Some(d) = str_field(event, "detail") {
             d.clone_into(&mut row.detail);
         }
+        // The metered call's split — carried by `task_completed` AND by
+        // `task_failed` (a billed-then-failed attempt explains its own
+        // `cost_usd` too). Absent meters stay absent: a provider that
+        // reported nothing must not render as four honest zeroes.
+        let meter =
+            |event: &Event, key: &str| int_field(event, key).and_then(|n| u64::try_from(n).ok());
+        row.tokens_in = meter(event, "tokens_in").or(row.tokens_in);
+        row.tokens_out = meter(event, "tokens_out").or(row.tokens_out);
+        row.tokens_cache_read = meter(event, "tokens_cache_read").or(row.tokens_cache_read);
+        row.tokens_cache_write = meter(event, "tokens_cache_write").or(row.tokens_cache_write);
+        row.tokens_reasoning = meter(event, "tokens_reasoning").or(row.tokens_reasoning);
         // #1276 · #1397 · a fan-out's item table survives to the readers.
         if let Some(items) = str_field(event, "items") {
             row.items_json = Some(items.to_owned());
         }
-        // #1444 · a task fed by a recovered fallback says so on every
-        // prose surface, not only in the JSON.
+        // F-O1 · a task whose value is untrusted names its born origin on
+        // every prose surface, not only in the JSON.
         if str_field(event, "integrity") == Some("untrusted")
             && let Some(source) = str_field(event, "integrity_source")
         {
@@ -519,6 +586,11 @@ impl RunView {
                 model: None,
                 output_json: None,
                 tokens: None,
+                tokens_in: None,
+                tokens_out: None,
+                tokens_cache_read: None,
+                tokens_cache_write: None,
+                tokens_reasoning: None,
                 started_note: None,
                 def_hash: None,
                 input_hash: None,
@@ -600,8 +672,28 @@ fn int_field(event: &Event, key: &str) -> Option<i64> {
     }
 }
 
+/// The repairs one recovered row stands for: a fan-out terminal carries
+/// one `items` entry per iteration with its own status, so a batch that
+/// recovered two items is two repairs. A row without an item table, or
+/// with one that does not parse, is one repair (never zero: the row IS
+/// recovered).
+fn recovered_items(row: &TaskRow) -> usize {
+    let Some(items) = row.items_json.as_deref() else {
+        return 1;
+    };
+    let Ok(serde_json::Value::Array(rows)) = serde_json::from_str::<serde_json::Value>(items)
+    else {
+        return 1;
+    };
+    rows.iter()
+        .filter(|r| r.get("status").and_then(serde_json::Value::as_str) == Some("recovered"))
+        .count()
+        .max(1)
+}
+
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::demo;
 
@@ -912,6 +1004,39 @@ mod tests {
         assert_eq!(view.recovered_count(), 1);
     }
 
+    /// A fan-out that recovered two of twelve items is TWO repairs on the
+    /// banner, the same number its task line prints (wave 3 · persona 10).
+    #[test]
+    fn the_banner_counts_recovered_items_not_rows() {
+        use nika_types::resource::KeyValue;
+        let task = |id: &str| KeyValue::new("task", Value::String(id.to_owned()));
+        let mut view = RunView::new();
+        view.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task("fan")));
+        view.apply(
+            &demo::bare_event(EventKind::TaskRecovered, 5)
+                .with_field(task("fan"))
+                .with_field(KeyValue::new(
+                    "code",
+                    Value::String("NIKA-BUILTIN-READ-001".to_owned()),
+                )),
+        );
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 10)
+                .with_field(task("fan"))
+                .with_field(KeyValue::new(
+                    "items",
+                    Value::String(
+                        r#"[{"index":0,"status":"success"},{"index":7,"status":"recovered","code":"NIKA-BUILTIN-READ-001"},{"index":8,"status":"recovered"}]"#
+                            .to_owned(),
+                    ),
+                )),
+        );
+        view.apply(&demo::bare_event(EventKind::TaskStarted, 11).with_field(task("solo")));
+        view.apply(&demo::bare_event(EventKind::TaskRecovered, 12).with_field(task("solo")));
+        view.apply(&demo::bare_event(EventKind::TaskCompleted, 13).with_field(task("solo")));
+        assert_eq!(view.recovered_count(), 3, "two items + one plain row");
+    }
+
     /// The retry counter folds every `task_retrying` frame (feeds the
     /// verdict surface's `N retries`).
     #[test]
@@ -977,5 +1102,90 @@ mod tests {
             clean.rows()[0].integrity_source.is_none(),
             "a clean row has no source"
         );
+    }
+
+    fn ev_at(kind: EventKind, ms: u64, fields: &[(&str, Value)]) -> Event {
+        use nika_types::resource::KeyValue;
+        let mut e = demo::bare_event(kind, ms);
+        for (k, v) in fields {
+            e = e.with_field(KeyValue::new(*k, v.clone()));
+        }
+        e
+    }
+
+    fn s(v: &str) -> Value {
+        Value::String(v.to_owned())
+    }
+
+    /// The metered split lands on the row from `task_completed`, in the
+    /// ONE reading order every surface speaks. The measured probe: a
+    /// 5015-token prompt (4992 of them served from the provider's cache)
+    /// answered in one token — the frame that used to carry `tokens: 1`
+    /// and nothing else.
+    #[test]
+    fn the_usage_split_lands_on_the_row_in_reading_order() {
+        let mut view = RunView::new();
+        view.apply(&ev_at(EventKind::TaskStarted, 100, &[("task", s("ask"))]));
+        view.apply(&ev_at(
+            EventKind::TaskCompleted,
+            900,
+            &[
+                ("task", s("ask")),
+                ("tokens", Value::Int(1)),
+                ("tokens_in", Value::Int(5015)),
+                ("tokens_out", Value::Int(1)),
+                ("tokens_cache_read", Value::Int(4992)),
+            ],
+        ));
+        let row = &view.rows()[0];
+        assert_eq!(row.tokens, Some(1), "`tokens` keeps its meaning");
+        assert_eq!(row.tokens_in, Some(5015));
+        assert_eq!(row.tokens_cache_read, Some(4992));
+        assert_eq!(
+            row.tokens_cache_write, None,
+            "an unreported meter stays absent, never a zero"
+        );
+        assert_eq!(
+            row.meters(),
+            vec![("input", 5015), ("cache_read", 4992), ("output", 1)],
+            "input · cache_read · cache_write · output · reasoning, present only"
+        );
+    }
+
+    /// A BILLED-then-failed attempt explains its own spend: the split
+    /// rides `task_failed` too, so a failed frame carrying `cost_usd` is
+    /// never a number without a receipt.
+    #[test]
+    fn a_billed_then_failed_frame_carries_its_own_receipt() {
+        let mut view = RunView::new();
+        view.apply(&ev_at(EventKind::TaskStarted, 100, &[("task", s("ask"))]));
+        view.apply(&ev_at(
+            EventKind::TaskFailed,
+            900,
+            &[
+                ("task", s("ask")),
+                ("detail", s("NIKA-INFER-004 · the model refused")),
+                ("cost_usd", Value::Float(0.000_75)),
+                ("tokens_in", Value::Int(5015)),
+                ("tokens_out", Value::Int(0)),
+            ],
+        ));
+        let row = &view.rows()[0];
+        assert_eq!(row.state, TaskState::Failed);
+        assert_eq!(row.tokens_in, Some(5015));
+        assert_eq!(row.meters(), vec![("input", 5015), ("output", 0)]);
+    }
+
+    /// A mock seat reports no meters — and the row invents none.
+    #[test]
+    fn an_unmetered_frame_leaves_the_row_meterless() {
+        let mut view = RunView::new();
+        view.apply(&ev_at(EventKind::TaskStarted, 100, &[("task", s("ask"))]));
+        view.apply(&ev_at(
+            EventKind::TaskCompleted,
+            900,
+            &[("task", s("ask")), ("tokens", Value::Int(4))],
+        ));
+        assert!(view.rows()[0].meters().is_empty(), "no split, no meters");
     }
 }

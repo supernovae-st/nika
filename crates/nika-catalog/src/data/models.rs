@@ -184,6 +184,11 @@ pub fn find_pricing_for(model: &str) -> Option<&'static ModelPricing> {
 /// back to the input rate when the catalog does not disclose them (the
 /// pre-@1.1 approximation — documented, and rare now that the snapshot
 /// carries upstream cache rates).
+///
+/// Reasoning is a subset of `output_tokens` and prices at the OUTPUT rate:
+/// `reasoning_tokens_per_million` is declared but NO shipped row sets it
+/// (`no_row_declares_a_reasoning_rate_yet` pins that) — an arm would be
+/// unreachable; the day a row discloses one, that test fires with it.
 #[cfg(feature = "pricing")]
 // REASON: casting `u64` token counts to `f64` for the rate multiplication.
 // Token counts cap at provider context windows (≤ 10 M = 2²³), well below
@@ -1405,91 +1410,8 @@ mod provenance_tests {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Proptest capabilities invariants
+// Proptest capabilities invariants — `models/capabilities_proptests.rs`
 // ═══════════════════════════════════════════════════════════════════════════
 
-#[cfg(all(test, feature = "capabilities"))]
-mod capabilities_proptests {
-    use super::model_capabilities;
-    use crate::types::Modality;
-    use proptest::prelude::*;
-
-    fn provider_name() -> impl Strategy<Value = String> {
-        prop::string::string_regex("[a-zA-Z-]{1,30}").expect("valid regex")
-    }
-
-    fn model_name() -> impl Strategy<Value = String> {
-        prop::string::string_regex("[a-z0-9._/-]{0,50}").expect("valid regex")
-    }
-
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(10_000))]
-
-        /// Determinism: same input always produces the same output.
-        #[test]
-        fn deterministic(
-            provider in provider_name(),
-            model in model_name(),
-        ) {
-            let a = model_capabilities(&provider, &model);
-            let b = model_capabilities(&provider, &model);
-            prop_assert_eq!(a, b);
-        }
-
-        /// Case-insensitivity: mixed-case provider names resolve identically.
-        #[test]
-        fn case_insensitive_provider(
-            provider in provider_name(),
-            model in model_name(),
-        ) {
-            let lower = model_capabilities(&provider.to_ascii_lowercase(), &model);
-            let upper = model_capabilities(&provider.to_ascii_uppercase(), &model);
-            prop_assert_eq!(lower, upper);
-        }
-
-        /// Defaults contract: every resolved struct has at least Text input.
-        #[test]
-        fn always_has_text_input(
-            provider in provider_name(),
-            model in model_name(),
-        ) {
-            let caps = model_capabilities(&provider, &model);
-            prop_assert!(
-                caps.input_modalities.contains(&Modality::Text),
-                "every model must support Text input: {provider}/{model}",
-            );
-        }
-
-        /// Output modalities are non-empty (at least Text).
-        #[test]
-        fn always_has_output(
-            provider in provider_name(),
-            model in model_name(),
-        ) {
-            let caps = model_capabilities(&provider, &model);
-            prop_assert!(
-                !caps.output_modalities.is_empty(),
-                "output_modalities must not be empty: {provider}/{model}",
-            );
-        }
-    }
-
-    /// Provider aliases resolve to the same capabilities.
-    #[test]
-    fn alias_equivalence() {
-        let known_aliases = [
-            ("claude", "anthropic"),
-            ("gpt", "openai"),
-            ("deep-seek", "deepseek"),
-            ("grok", "xai"),
-        ];
-        for (alias, canonical) in known_aliases {
-            let via_alias = model_capabilities(alias, "test-model");
-            let via_canonical = model_capabilities(canonical, "test-model");
-            assert_eq!(
-                via_alias, via_canonical,
-                "{alias} and {canonical} should resolve identically",
-            );
-        }
-    }
-}
+#[cfg(test)]
+mod capabilities_proptests;

@@ -728,7 +728,9 @@ fn the_manifest_attests_the_original_and_names_the_class() {
     let fields = pack["redaction"]["fields"]
         .as_array()
         .expect("the key list");
-    for key in ["output", "outcome", "detail", "delta", "message", "choices"] {
+    for key in [
+        "output", "outcome", "detail", "delta", "message", "choices", "items", "warning",
+    ] {
         assert!(fields.contains(&json!(key)), "the policy names {key}");
     }
     assert!(

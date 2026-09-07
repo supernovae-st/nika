@@ -29,24 +29,28 @@ class PushDispatch(unittest.TestCase):
         self.repo = self.root / "repo"
         self.remote = self.root / "remote.git"
         self.repo.mkdir()
-        home = self.root / "home"
-        home.mkdir()
         fake_bin = self.root / "bin"
         fake_bin.mkdir()
         cargo = fake_bin / "cargo"
-        cargo.write_text("#!/bin/sh\nprintf 'cargo reached\\n' > gate-observed\nexit 17\n")
+        cargo.write_text(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> cargo-commands\n"
+            "case \"$1\" in test|nextest)\n"
+            "printf 'cargo reached\\n' > gate-observed\n"
+            "printf '%s\\n' \"$*\" > gate-command\n;; esac\nexit 17\n"
+        )
         cargo.chmod(0o755)
         # An allowlist prevents inherited Git configuration, credentials or gate
         # opt-outs from changing the fixture's authority or expected verdict.
         self.env = {
             "PATH": str(fake_bin) + os.pathsep + os.environ.get("PATH", ""),
-            "HOME": str(home),
             "TMPDIR": str(self.root),
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_TERMINAL_PROMPT": "0",
             "NO_COLOR": "1",
         }
+        if "HOME" in os.environ:
+            self.env["HOME"] = os.environ["HOME"]
         self.run_command("git", "init", "--bare", str(self.remote))
         self.run_command("git", "init", "-b", "main")
         self.run_command("git", "config", "user.name", "Nika Hook Test")
@@ -55,7 +59,10 @@ class PushDispatch(unittest.TestCase):
         shutil.copytree(ROOT / "scripts/hooks", self.repo / "scripts/hooks")
         if (ROOT / "scripts/pre-push").is_dir():
             shutil.copytree(ROOT / "scripts/pre-push", self.repo / "scripts/pre-push")
-        self.run_command("git", "add", "lefthook.yml", "scripts")
+        (self.repo / "scripts/ci").mkdir()
+        shutil.copyfile(ROOT / "scripts/ci/check-tests.sh", self.repo / "scripts/ci/check-tests.sh")
+        (self.repo / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/fixture"]\n')
+        self.run_command("git", "add", "lefthook.yml", "scripts", "Cargo.toml")
         self.run_command("git", "commit", "-m", "fixture initial tree")
         self.run_command("git", "remote", "add", "origin", str(self.remote))
         self.run_command("git", "push", "-u", "origin", "main")
@@ -82,7 +89,20 @@ class PushDispatch(unittest.TestCase):
     def assert_gate_refused(self, result):
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual((self.repo / "gate-observed").read_text(), "cargo reached\n")
+        command = (self.repo / "gate-command").read_text().split()
+        self.assertIn("--lib", command)
+        if command[0] == "test":
+            self.assertIn("--test-threads=1", command)
+        else:
+            self.assertEqual(command[:2], ["nextest", "run"])
+        commands = (self.repo / "cargo-commands").read_text().splitlines()
+        self.assertFalse(any(line.split()[0] == "clippy" for line in commands), commands)
         self.assertFalse((self.repo / ".git/nika-pre-push.lock").exists())
+
+    def test_pre_push_keeps_local_scope_when_caller_exports_ci(self):
+        self.env["CI"] = "1"
+        result = self.run_command(LEFTHOOK, "run", "pre-push", success=False, stdin="")
+        self.assert_gate_refused(result)
 
     def test_tag_only_push_reaches_gate_and_refuses_failed_cargo(self):
         self.run_command("git", "tag", "test-candidate")

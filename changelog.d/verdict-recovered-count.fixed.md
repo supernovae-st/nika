@@ -1,0 +1,1 @@
+- **`N recovered` counts repaired items, not rows — on every door.** A fan-out that recovered two of twelve items now says `2` in the meter, the verdict card AND the run's settlement (`tasks_recovered` on `workflow_completed`, `--json` and `nika trace show`), the same number its task line prints; every one of them said `1` before.

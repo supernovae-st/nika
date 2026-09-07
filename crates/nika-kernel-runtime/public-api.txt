@@ -425,11 +425,13 @@ pub nika_kernel_runtime::tool_executor::ToolResult::error_meta: core::option::Op
 pub nika_kernel_runtime::tool_executor::ToolResult::is_error: bool
 pub nika_kernel_runtime::tool_executor::ToolResult::structured: core::option::Option<serde_json::value::Value>
 pub nika_kernel_runtime::tool_executor::ToolResult::tool_use_id: nika_kernel_runtime::tool_executor::ToolCallId
+pub nika_kernel_runtime::tool_executor::ToolResult::warning: core::option::Option<alloc::string::String>
 impl nika_kernel_runtime::tool_executor::ToolResult
 pub fn nika_kernel_runtime::tool_executor::ToolResult::error(tool_use_id: impl core::convert::Into<alloc::string::String>, content: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_runtime::tool_executor::ToolResult::success(tool_use_id: impl core::convert::Into<alloc::string::String>, content: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_runtime::tool_executor::ToolResult::with_error_meta(self, meta: nika_kernel_runtime::tool_executor::ToolErrorMeta) -> Self
 pub fn nika_kernel_runtime::tool_executor::ToolResult::with_structured(self, value: serde_json::value::Value) -> Self
+pub fn nika_kernel_runtime::tool_executor::ToolResult::with_warning(self, warning: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_kernel_runtime::tool_executor::ToolResult
 pub fn nika_kernel_runtime::tool_executor::ToolResult::clone(&self) -> nika_kernel_runtime::tool_executor::ToolResult
 impl core::fmt::Debug for nika_kernel_runtime::tool_executor::ToolResult

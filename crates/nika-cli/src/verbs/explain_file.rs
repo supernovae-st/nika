@@ -782,7 +782,17 @@ fn run_section(s: &mut String, path: &str, report: &CheckReport) {
         .iter()
         .all(|m| m.model.starts_with("mock/"));
     if !report.requirements.models.is_empty() && !all_mock {
-        if report.data_journey.writes.is_empty() {
+        // A task-level `model:` pin is envelope-only at the CLI override:
+        // `--model mock/echo` would leave the pinned seat live and metered
+        // (the `envelope-model` hint says so two lines above). Printing the
+        // rehearsal line here contradicted that hint on one screen (wave 3
+        // · persona 12); the caveat replaces it.
+        if report.hints.iter().any(|h| h.kind == "envelope-model") {
+            let _ = writeln!(
+                s,
+                "  # `--model mock/echo` replaces the envelope model only — a task-level `model:` pin stays live and metered (the envelope-model hint above); to rehearse, set those pins to mock/echo in the file"
+            );
+        } else if report.data_journey.writes.is_empty() {
             let _ = writeln!(
                 s,
                 "  nika run {path} --model mock/echo   # offline rehearsal · zero keys"

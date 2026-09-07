@@ -472,8 +472,10 @@ pub struct AccessPlan {
     /// Every rejected candidate with its witness.
     pub rejected: alloc::vec::Vec<AccessRejection>,
     /// The READY paths that ranked below the chosen one — available to a
-    /// pin, never rejected; the machine row names them so « chosen over N
-    /// other path(s) » is a fact in JSON too (W3-F3).
+    /// pin, never rejected. Each carries its own witness, so the prose
+    /// tail NAMES the seats it beat (« chosen over api (ready · ranked
+    /// below `codex` …) ») and the JSON carries the same rows (W3-F3 ·
+    /// the bare count survives only where nothing was recorded).
     pub outranked: alloc::vec::Vec<AccessRejection>,
     /// How far the chosen path's identity is proven (ADR-134): declared
     /// by a profile or a pin · discovered on this machine · observed by a

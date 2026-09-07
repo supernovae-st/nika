@@ -101,6 +101,28 @@ impl FsReadDyn for MockFs {
 }
 
 impl FsWriteDyn for MockFs {
+    async fn write_new(&self, path: &Path, contents: &[u8]) -> Result<(), FsError> {
+        let mut files = self.files.write();
+        let prefix = format!("{}/", path.display());
+        if files
+            .keys()
+            .any(|child| child.to_string_lossy().starts_with(&prefix))
+        {
+            return Err(FsError::AlreadyExists {
+                path: path.display().to_string(),
+            });
+        }
+        match files.entry(path.to_path_buf()) {
+            std::collections::btree_map::Entry::Occupied(_) => Err(FsError::AlreadyExists {
+                path: path.display().to_string(),
+            }),
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(contents.to_vec());
+                Ok(())
+            }
+        }
+    }
+
     async fn write(&self, path: &Path, contents: &[u8]) -> Result<(), FsError> {
         self.files
             .write()

@@ -44,6 +44,7 @@ fn ticket(step: &str) -> ApprovalTicket {
 
 fn resolved(value: Value) -> crate::task::SettleAs {
     crate::task::SettleAs::Ran(Box::new(crate::task::RanTask {
+        usage: None,
         decisions: Vec::new(),
         note: "invoke · nika:prompt".to_owned(),
         retries: Vec::new(),

@@ -1,0 +1,1 @@
+- **SECRETS findings print their wire code on the human lane.** A secret leak or an output egress now reads `[NIKA-SEC-006]` / `[NIKA-SEC-007] …` like every other rung, so `nika explain` can be pointed at it.

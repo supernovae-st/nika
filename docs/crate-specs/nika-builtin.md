@@ -105,6 +105,16 @@ compact JSON). One rendering, one seam.
 
 ### Honest gaps (delegations, not omissions)
 
+`write overwrite:false` retains the stdlib §write arguments, path result and
+WRITE-002 code, but routes publication through `FsWriteDyn::write_new` so a
+target created after the early absence check remains intact. `JudgedFs`
+delegates this operation after the existing dispatch guard and parent policy.
+Backends without exclusive publication refuse through WRITE-001; implement
+the provided kernel method to migrate them. Replacement writes and edit retain
+their existing seam. Publication is neither fsync durability nor proof that a
+cancelled blocking operation has stopped; inspect the actual file before retry
+after an uncertain result.
+
 - **Path capability gating** (`nika:write` outside-CWD rejection · NIKA-204
   class): NOT here — `nika-policy` (L1.5 · design locked, impl gated on
   kernel-migration) sits between the verbs and this dispatcher. A canary

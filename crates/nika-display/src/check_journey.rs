@@ -79,7 +79,13 @@ pub(crate) fn secrets_rung(out: &mut String, report: &CheckReport, t: Theme) {
         .findings
         .iter()
         .filter(|f| f.kind == "secret_leak" || f.kind == "secret_egress")
-        .map(|f| f.message.clone())
+        // The wire code rides the row like every other lane's: without it
+        // `nika explain` has nothing to be pointed at (wave 3 · personas 02
+        // and 07 both hit a SECRETS refusal with no code on the screen).
+        .map(|f| match f.code.as_deref() {
+            Some(code) => format!("[{code}] {}", f.message),
+            None => f.message.clone(),
+        })
         .collect();
     let flows = sanctioned_flows(report);
     if !leak_rows.is_empty() || flows.is_empty() || !report.conformance.is_empty() {

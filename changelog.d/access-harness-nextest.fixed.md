@@ -1,0 +1,1 @@
+- **The access-harness CI leg runs one process per test.** The feature battery now uses cargo-nextest like the tests leg, so a fixture that enters a temporary project cannot change the ambient context of a concurrent `check` test; the selection and `--lib` scope are unchanged.

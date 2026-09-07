@@ -46,6 +46,7 @@ pub fn scan_trifecta(
                 egress_capable(&task.action),
                 human_gate(&task.action),
             )
+            .with_defaulted_gate(defaulted_gate(&task.action))
             .with_ingress_source(super::content_flow::classify(&task.action, &mcp_trusted).0)
         })
         .collect();
@@ -103,6 +104,24 @@ fn agent_egress(tools: &[Spanned<String>]) -> bool {
                     .map(|b| format!("nika:{}", b.name))
                     .any(|id| nika_cap::glob_matches(g, &id) && nika_cap::builtin_egresses(&id)))
     })
+}
+
+/// A `nika:prompt` that CARRIES a `default:` — the shape the judge never
+/// credits; the violation names it so the fix says « remove `default:` ».
+fn defaulted_gate(action: &RawAction) -> bool {
+    let RawAction::Invoke(inv) = action else {
+        return false;
+    };
+    let Some(tool) = inv.tool() else {
+        return false;
+    };
+    if tool.value != nika_cap::HUMAN_GATE_TOOL {
+        return false;
+    }
+    inv.args
+        .as_ref()
+        .and_then(|a| a.value.as_object())
+        .is_some_and(|o| o.contains_key("default"))
 }
 
 /// A BLOCKING `invoke: nika:prompt` (no `default:` arg) is the NEP's gate.
@@ -398,6 +417,13 @@ mod tests {
             r.trifecta_findings
         );
         assert_eq!(r.trifecta_findings[0].task, "leak");
+        // The why names the default, instead of telling the author to add
+        // the gate they just added (wave 3 · persona 07 · the headless-prompt
+        // hint had recommended `default:` two lines above).
+        let d = &r.trifecta_findings[0].detail;
+        for lesson in ["`ask`", "carries `default:`", "--answer ask=<value>"] {
+            assert!(d.contains(lesson), "the refusal teaches `{lesson}`: {d}");
+        }
     }
 
     /// No `permits:` block → the legs are not decidable as declared → the

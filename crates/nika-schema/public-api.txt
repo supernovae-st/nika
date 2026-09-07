@@ -283,6 +283,7 @@ pub nika_schema::error::SchemaError::W1TaskIdField::task: alloc::string::String
 pub nika_schema::error::SchemaError::W1TasksSequence
 pub nika_schema::error::SchemaError::W1TasksSequence::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::W2DependsOnField
+pub nika_schema::error::SchemaError::W2DependsOnField::provable: bool
 pub nika_schema::error::SchemaError::W2DependsOnField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::W2DependsOnField::task: alloc::string::String
 pub nika_schema::error::SchemaError::W2DependsOnField::task_hint: alloc::string::String
@@ -1994,6 +1995,7 @@ pub nika_schema::SchemaError::W1TaskIdField::task: alloc::string::String
 pub nika_schema::SchemaError::W1TasksSequence
 pub nika_schema::SchemaError::W1TasksSequence::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::W2DependsOnField
+pub nika_schema::SchemaError::W2DependsOnField::provable: bool
 pub nika_schema::SchemaError::W2DependsOnField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::W2DependsOnField::task: alloc::string::String
 pub nika_schema::SchemaError::W2DependsOnField::task_hint: alloc::string::String

@@ -1124,14 +1124,17 @@ pub trait nika_kernel_core::io::fs::FsWrite: core::marker::Send + core::marker::
 pub async fn nika_kernel_core::io::fs::FsWrite::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_core::io::fs::FsWrite::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_core::io::fs::FsWrite::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub fn nika_kernel_core::io::fs::FsWrite::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 impl<TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn> nika_kernel_core::io::fs::FsWrite for TraitVariantBlanketType
 pub async fn TraitVariantBlanketType::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn TraitVariantBlanketType::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn TraitVariantBlanketType::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub fn TraitVariantBlanketType::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub trait nika_kernel_core::io::fs::FsWriteDyn: core::marker::Send + core::marker::Sync + core::marker::Send
 pub fn nika_kernel_core::io::fs::FsWriteDyn::create_dir_all(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub fn nika_kernel_core::io::fs::FsWriteDyn::remove_file(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub fn nika_kernel_core::io::fs::FsWriteDyn::write(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsWriteDyn::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send + core::marker::Send
 pub mod nika_kernel_core::io::http
 #[non_exhaustive] pub enum nika_kernel_core::io::http::HttpError
 pub nika_kernel_core::io::http::HttpError::Connection

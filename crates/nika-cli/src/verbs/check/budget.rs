@@ -14,6 +14,8 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+use nika_vocab::project::ProjectError;
+
 use crate::display::theme::{Role, Theme};
 
 /// A project-file ceiling that `nika run` from this CWD would honour.
@@ -25,27 +27,29 @@ pub(super) struct AmbientCeiling {
 }
 
 /// Walk from `start` the same way `run::ceiling::ladder` does.
-#[must_use]
-pub(super) fn at(start: &Path) -> Option<AmbientCeiling> {
-    let (path, project) = nika_vocab::project::discover(start).ok().flatten()?;
-    let usd = project.ceiling?;
+pub(super) fn at(start: &Path) -> Result<Option<AmbientCeiling>, ProjectError> {
+    let Some((path, project)) = nika_vocab::project::discover(start)? else {
+        return Ok(None);
+    };
+    let Some(usd) = project.ceiling else {
+        return Ok(None);
+    };
     let line = ceiling_line(&path);
-    Some(AmbientCeiling { usd, path, line })
+    Ok(Some(AmbientCeiling { usd, path, line }))
 }
 
 /// The CWD door — identical start to `nika run` with no flag.
-#[must_use]
-pub(super) fn from_cwd() -> Option<AmbientCeiling> {
+pub(super) fn from_cwd() -> Result<Option<AmbientCeiling>, ProjectError> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     at(&cwd)
 }
 
 /// Human footnote. Presence-gated: silence when no file governs spend.
-pub(super) fn footnote(text: &mut String, theme: Theme) {
-    let Some(c) = from_cwd() else {
+pub(super) fn footnote(text: &mut String, theme: Theme, ceiling: Option<&AmbientCeiling>) {
+    let Some(c) = ceiling else {
         return;
     };
-    let where_ = provenance(&c);
+    let where_ = provenance(c);
     let _ = writeln!(
         text,
         " {} {}   ${} ← {where_} · the run's spend cap when `--max-cost-usd` is omitted",
@@ -56,8 +60,11 @@ pub(super) fn footnote(text: &mut String, theme: Theme) {
 }
 
 /// Presence-gated `--json` object. `clean` does not read it.
-pub(super) fn stamp_json(obj: &mut serde_json::Map<String, serde_json::Value>) {
-    let Some(c) = from_cwd() else {
+pub(super) fn stamp_json(
+    obj: &mut serde_json::Map<String, serde_json::Value>,
+    ceiling: Option<&AmbientCeiling>,
+) {
+    let Some(c) = ceiling else {
         return;
     };
     let mut v = serde_json::json!({
@@ -120,7 +127,7 @@ mod tests {
         let child = root.join("sub");
         std::fs::create_dir_all(&child).expect("mkdir");
         std::fs::write(root.join("nika.yaml"), "nika: proj\nceiling: 0.01\n").expect("seed");
-        let c = at(&child).expect("walks up");
+        let c = at(&child).expect("valid project").expect("walks up");
         assert_eq!(c.usd.to_bits(), 0.01f64.to_bits());
         assert_eq!(c.line, Some(2));
         assert!(c.path.ends_with("nika.yaml"), "{:?}", c.path);
@@ -131,7 +138,10 @@ mod tests {
     fn a_file_without_ceiling_is_silence() {
         let dir = fresh("none");
         std::fs::write(dir.join("nika.yaml"), "nika: proj\n").expect("seed");
-        assert!(at(&dir).is_none(), "no ceiling → check stays silent");
+        assert!(
+            at(&dir).expect("valid project").is_none(),
+            "no ceiling → check stays silent"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -142,7 +152,7 @@ mod tests {
         // ancestor ceiling.
         let dir = fresh("boundary");
         std::fs::write(dir.join("nika.yaml"), "nika: boundary\n").expect("seed");
-        assert!(at(&dir).is_none());
+        assert!(at(&dir).expect("valid boundary").is_none());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -153,13 +163,63 @@ mod tests {
         std::fs::create_dir_all(&child).expect("mkdir");
         std::fs::write(root.join("nika.yaml"), "nika: root\nceiling: 9.99\n").expect("root");
         std::fs::write(child.join("nika.yaml"), "nika: leaf\nceiling: 0.25\n").expect("leaf");
-        let c = at(&child).expect("leaf");
+        let c = at(&child).expect("valid project").expect("leaf");
         assert_eq!(
             c.usd.to_bits(),
             0.25f64.to_bits(),
             "the first file on the walk governs"
         );
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_invalid_nearest_project_preserves_its_error_instead_of_inheriting() {
+        let room = tempfile::tempdir().expect("room");
+        let child = room.path().join("child");
+        std::fs::create_dir(&child).expect("child");
+        std::fs::write(room.path().join("nika.yaml"), "nika: root\nceiling: 0.50\n")
+            .expect("ancestor");
+        let path = child.join("nika.yaml");
+        for yaml in [
+            "nika: child\nceiling: 0\n",
+            "nika: child\nceiling: -1\n",
+            "nika: child\nceiling: \"0.01\"\n",
+            "nika: child\nceiling: [\n",
+        ] {
+            std::fs::write(&path, yaml).expect("invalid nearest project");
+            let expected = nika_vocab::project::parse(yaml).expect_err("parser refusal");
+            let err = at(&child).expect_err("present invalid project is not absence");
+            assert_eq!(err.path(), Some(path.as_path()));
+            assert_eq!(err.kind(), expected.kind());
+            assert_eq!(err.line(), expected.line());
+            assert_eq!(err.detail(), expected.detail());
+            assert_eq!(err.remedy(), expected.remedy());
+        }
+    }
+
+    #[test]
+    fn an_unreadable_nearest_project_is_not_absence() {
+        let room = tempfile::tempdir().expect("room");
+        let path = room.path().join("nika.yaml");
+        std::fs::create_dir(&path).expect("directory in place of project");
+        let err = at(room.path()).expect_err("unreadable project");
+        assert_eq!(
+            err.kind(),
+            nika_vocab::project::ProjectErrorKind::Unreadable
+        );
+        assert_eq!(err.path(), Some(path.as_path()));
+        assert_eq!(err.line(), None);
+    }
+
+    #[test]
+    fn a_valid_bare_project_does_not_inherit_an_ancestor_ceiling() {
+        let room = tempfile::tempdir().expect("room");
+        let child = room.path().join("child");
+        std::fs::create_dir(&child).expect("child");
+        std::fs::write(room.path().join("nika.yaml"), "nika: root\nceiling: 0.50\n")
+            .expect("ancestor");
+        std::fs::write(child.join("nika.yaml"), "nika: child\n").expect("boundary");
+        assert!(at(&child).expect("valid boundary").is_none());
     }
 
     #[test]
@@ -170,7 +230,8 @@ mod tests {
         let prev = std::env::current_dir().expect("cwd");
         std::env::set_current_dir(&dir).expect("chdir");
         let mut text = String::new();
-        footnote(&mut text, Theme::new(false, true, false));
+        let ceiling = from_cwd().expect("valid project");
+        footnote(&mut text, Theme::new(false, true, false), ceiling.as_ref());
         let _ = std::env::set_current_dir(prev);
         assert!(
             text.contains("BUDGET") && text.contains("0.0100") && text.contains("nika.yaml:2"),
@@ -227,7 +288,8 @@ mod tests {
         let prev = std::env::current_dir().expect("cwd");
         std::env::set_current_dir(&dir).expect("chdir");
         let mut obj = serde_json::Map::new();
-        stamp_json(&mut obj);
+        let ceiling = from_cwd().expect("valid project");
+        stamp_json(&mut obj, ceiling.as_ref());
         let _ = std::env::set_current_dir(&prev);
         let v = obj.get("run_budget").expect("present");
         assert_eq!(v["max_cost_usd"], 0.01);
@@ -243,7 +305,8 @@ mod tests {
         std::fs::write(empty.join("nika.yaml"), "nika: boundary\n").expect("boundary");
         std::env::set_current_dir(&empty).expect("chdir empty");
         let mut silent = serde_json::Map::new();
-        stamp_json(&mut silent);
+        let ceiling = from_cwd().expect("valid boundary");
+        stamp_json(&mut silent, ceiling.as_ref());
         let _ = std::env::set_current_dir(prev);
         assert!(silent.is_empty(), "{silent:?}");
         let _ = std::fs::remove_dir_all(&dir);

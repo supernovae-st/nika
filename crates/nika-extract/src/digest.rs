@@ -16,12 +16,25 @@
 //! TOTAL like every HTML mode: malformed markup yields what html5ever
 //! salvages — honest emptiness, never a failure. Caps bound every list
 //! (a hostile page cannot balloon the crawl output).
+//!
+//! One admission, every DOM path: the digest passes the SAME depth guard
+//! the author-facing HTML modes pass ([`html::guard_depth`]) BEFORE any
+//! parser sees the body. It used to go straight to `Html::parse_document`
+//! (measured 2026-09-06 · the V9 telemetry review · T9-F07): the one
+//! path a crawl takes was the one path with no guard, so a depth bomb
+//! that `mode: markdown` refused in microseconds could still reach a
+//! recursive teardown through `traverse:`.
+//!
+//! Discovery is not the preview: the crawler reads EVERY link the page
+//! carries ([`page_digest_discovering`]); the digest's `links` facet is
+//! the ≤30 preview of that list. Capping discovery at what the preview
+//! shows silently lost the 31st link (T9-F08).
 
 use std::sync::LazyLock;
 
 use scraper::{Html, Selector};
 
-use crate::{html, metadata};
+use crate::{ExtractError, ExtractMode, html, metadata};
 
 /// One `LazyLock` static selector (the `metadata.rs` idiom — the
 /// unreachable parse-failure branch fails SOFT as a skipped selector).
@@ -48,8 +61,28 @@ const MAX_TEXT_CHARS: usize = 4000;
 /// Extract the composite page digest. `base` resolves relative
 /// `href`/`src` (absent → relative references are skipped, the
 /// `links`-mode contract).
-#[must_use]
-pub fn page_digest(body: &str, base: Option<&str>) -> serde_json::Value {
+///
+/// # Errors
+///
+/// The depth admission every DOM mode passes: a pathologically deep
+/// document is refused before any parser sees it (the `text` wording —
+/// the digest's largest facet is the page text).
+pub fn page_digest(body: &str, base: Option<&str>) -> Result<serde_json::Value, ExtractError> {
+    page_digest_discovering(body, base).map(|(digest, _)| digest)
+}
+
+/// The digest plus EVERY link the page carries (absolute · the
+/// `links`-mode contract) — the crawler's frontier input. The digest's
+/// `links` facet is the ≤30 preview of this list, never its bound.
+///
+/// # Errors
+///
+/// The same depth admission as [`page_digest`].
+pub fn page_digest_discovering(
+    body: &str,
+    base: Option<&str>,
+) -> Result<(serde_json::Value, Vec<String>), ExtractError> {
+    html::guard_depth(body, ExtractMode::Text)?;
     let document = Html::parse_document(body);
 
     let title = TITLE
@@ -77,17 +110,21 @@ pub fn page_digest(body: &str, base: Option<&str>) -> serde_json::Value {
         })
         .unwrap_or_default();
 
-    let links = match metadata::links(body, base) {
+    let discovered: Vec<String> = match metadata::links(body, base) {
         serde_json::Value::Array(all) => all
             .into_iter()
             .filter_map(|v| match v {
                 serde_json::Value::String(s) => Some(s),
                 _ => None,
             })
-            .take(MAX_LINKS)
             .collect(),
         _ => Vec::new(),
     };
+    let links: Vec<&str> = discovered
+        .iter()
+        .map(String::as_str)
+        .take(MAX_LINKS)
+        .collect();
 
     let images = collect_images(&document, base);
 
@@ -98,7 +135,7 @@ pub fn page_digest(body: &str, base: Option<&str>) -> serde_json::Value {
         _ => String::new(),
     };
 
-    serde_json::json!({
+    let digest = serde_json::json!({
         "title": title,
         "description": description,
         "headings": headings,
@@ -106,7 +143,8 @@ pub fn page_digest(body: &str, base: Option<&str>) -> serde_json::Value {
         "images": images,
         "colors": colors,
         "text": text,
-    })
+    });
+    Ok((digest, discovered))
 }
 
 /// `img[src|data-src]` + `og:image`, absolutized against `base`,
@@ -241,7 +279,7 @@ mod tests {
 
     #[test]
     fn digest_extracts_every_facet_of_the_page() {
-        let d = page_digest(PAGE, Some("https://acme.test/"));
+        let d = page_digest(PAGE, Some("https://acme.test/")).expect("digest");
         assert_eq!(d["title"], "Acme Widgets", "whitespace-collapsed");
         assert_eq!(d["description"], "The widget shop.");
         assert_eq!(d["headings"], serde_json::json!(["Widgets", "Catalog"]));
@@ -283,7 +321,7 @@ mod tests {
 
     #[test]
     fn no_base_url_keeps_absolute_references_only() {
-        let d = page_digest(PAGE, None);
+        let d = page_digest(PAGE, None).expect("digest");
         let images = d["images"].as_array().expect("array");
         assert!(images.is_empty(), "relative srcs skipped: {images:?}");
     }
@@ -300,7 +338,7 @@ mod tests {
             );
         }
         let hostile = format!("<html><body>{body}</body></html>");
-        let d = page_digest(&hostile, Some("https://x.test/"));
+        let d = page_digest(&hostile, Some("https://x.test/")).expect("digest");
         assert_eq!(d["headings"].as_array().expect("a").len(), MAX_HEADINGS);
         assert_eq!(d["images"].as_array().expect("a").len(), MAX_IMAGES);
         assert_eq!(d["colors"].as_array().expect("a").len(), MAX_COLORS);
@@ -311,8 +349,56 @@ mod tests {
         let d = page_digest(
             "<p>#12 #abcdef123 sha #deadbeefcafe but #AbC and #a1b2c3 live</p>",
             None,
-        );
+        )
+        .expect("digest");
         assert_eq!(d["colors"], serde_json::json!(["#abc", "#a1b2c3"]));
+    }
+
+    /// T9-F07 · the one path a crawl takes passes the SAME admission the
+    /// author-facing modes pass: a depth bomb is refused BEFORE any
+    /// parser sees it, with the guard's own wording.
+    #[test]
+    fn a_depth_bomb_is_refused_before_any_parse() {
+        let bomb = "<div>".repeat(html::MAX_HTML_DEPTH + 8);
+        let err = page_digest(&bomb, Some("https://t.test/")).expect_err("refused");
+        assert!(
+            err.to_string().contains("nesting exceeds"),
+            "the depth guard's wording: {err}"
+        );
+        let (_, discovered) =
+            page_digest_discovering("<a href=\"/x\">x</a>", Some("https://t.test/"))
+                .expect("a flat page still digests");
+        assert_eq!(discovered, vec!["https://t.test/x".to_owned()]);
+    }
+
+    /// T9-F08 · discovery carries EVERY link; the digest keeps its ≤30
+    /// preview (stdlib §fetch · traverse). The 31st link exists for the
+    /// crawler even though the preview never shows it.
+    #[test]
+    fn discovery_is_not_capped_by_the_preview() {
+        use std::fmt::Write as _;
+        let mut anchors = String::new();
+        for i in 0..40 {
+            // Writing to a String is infallible.
+            let _ = write!(anchors, "<a href=\"/p{i:02}\">p</a>");
+        }
+        let body = format!("<html><body>{anchors}</body></html>");
+        let (digest, discovered) =
+            page_digest_discovering(&body, Some("https://t.test/")).expect("digest");
+        assert_eq!(
+            discovered.len(),
+            40,
+            "every link is discovered: {discovered:?}"
+        );
+        assert_eq!(
+            digest["links"].as_array().expect("preview").len(),
+            MAX_LINKS,
+            "the preview keeps the spec cap"
+        );
+        assert_eq!(
+            discovered[30], "https://t.test/p30",
+            "the 31st link is reachable"
+        );
     }
 
     proptest! {

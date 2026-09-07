@@ -1230,3 +1230,45 @@ fn a_cancelled_run_renders_the_cancelled_card_not_the_failure_card() {
         );
     }
 }
+
+/// #1498 review B2 · F-O1 · a task whose value is UNTRUSTED names where
+/// the taint was born and NEVER says « recovered »: that word belongs to
+/// the `task_recovered` frame, and four personas read the old
+/// `input from recovered <x>` as a repair on runs that repaired nothing
+/// (wave 3 · 2026-09-06). Both registers say the same sentence.
+#[test]
+fn an_untrusted_row_names_its_origin_and_never_says_recovered() {
+    use nika_event::EventKind;
+    use nika_types::resource::{KeyValue, Value};
+    let task = |name: &str| KeyValue::new("task", Value::String(name.to_owned()));
+    let text = |key: &'static str, v: &str| KeyValue::new(key, Value::String(v.to_owned()));
+    let mut view = RunView::new();
+    view.apply(&demo::bare_event(EventKind::WorkflowStarted, 0).with_field(text("workflow", "w")));
+    view.apply(
+        &demo::bare_event(EventKind::TaskStarted, 1)
+            .with_field(task("summarize"))
+            .with_field(text("note", "infer · mock/echo")),
+    );
+    view.apply(
+        &demo::bare_event(EventKind::TaskCompleted, 2)
+            .with_field(task("summarize"))
+            .with_field(text("integrity", "untrusted"))
+            .with_field(text("integrity_source", "fetch_top")),
+    );
+    assert_eq!(
+        view.rows()[0].integrity_source.as_deref(),
+        Some("fetch_top"),
+        "the fold kept the born origin"
+    );
+    for lines in [frame(&view, &UNICODE, 0), frame(&view, &ASCII, 0)] {
+        let text = lines.join("\n");
+        assert!(
+            text.contains("untrusted input from fetch_top"),
+            "the storyboard names where the taint was born:\n{text}"
+        );
+        assert!(
+            !text.contains("input from recovered"),
+            "an untrusted origin is not a repair:\n{text}"
+        );
+    }
+}

@@ -28,7 +28,11 @@ use ego_tree::iter::Edge;
 use scraper::{Html, Node};
 
 /// Subtrees that never contribute text (same set as `html.rs`).
-const SKIP_TAGS: &[&str] = &["script", "style", "noscript", "template"];
+const SKIP_TAGS: &[&str] = &["script", "style", "noscript", "template", "select"];
+
+// Chrome subtrees (reference machinery, banners, feedback widgets) are
+// skipped at SEGMENT level via `crate::zones::is_chrome` — the single source
+// of truth for the surgical chrome set lives in zones.rs (F006).
 
 /// One atomic text block's shallow features.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -107,7 +111,7 @@ fn segment(body: &str) -> Vec<(Block, String)> {
             Edge::Open(node) => match node.value() {
                 Node::Element(el) => {
                     let name = el.name();
-                    if SKIP_TAGS.contains(&name) {
+                    if SKIP_TAGS.contains(&name) || crate::zones::is_chrome(el) {
                         skip_depth += 1;
                     } else if name == "a" {
                         anchor_depth += 1; // anchors never split a block
@@ -134,7 +138,7 @@ fn segment(body: &str) -> Vec<(Block, String)> {
             Edge::Close(node) => {
                 if let Node::Element(el) = node.value() {
                     let name = el.name();
-                    if SKIP_TAGS.contains(&name) {
+                    if SKIP_TAGS.contains(&name) || crate::zones::is_chrome(el) {
                         skip_depth = skip_depth.saturating_sub(1);
                     } else if name == "a" {
                         anchor_depth = anchor_depth.saturating_sub(1);
@@ -365,5 +369,89 @@ mod tests {
         assert_eq!(boilerpipe_content("<html><body></body></html>"), "");
         let linkonly = r#"<html><body><a href="/x">one</a> <a href="/y">two</a></body></html>"#;
         assert_eq!(boilerpipe_content(linkonly), "");
+    }
+
+    #[test]
+    fn reference_chrome_never_enters_the_density_walk() {
+        // F006: the reflist / citation superscripts / edit-section links are
+        // skipped at SEGMENT level — the boilerpipe fallback (and the
+        // recall-floor override, same input) must not re-import the chrome
+        // the rule stage pruned. (Cookie/consent/feedback banners were
+        // MEASURED a net loss here — real pages put the words in content
+        // classes, e.g. eBay `x-feedback-detail-list` — so the set stays
+        // wiki-machinery-only.)
+        let prose = "Real article prose carries more than enough running words \
+                     to be recognised as genuine page content by the shallow \
+                     classifier decision rules every single time.";
+        let html = format!(
+            r##"<html><body>
+            <p>{prose}<sup class="mw-ref reference" id="cite_ref-1"><a href="#cite_note-1">[1]</a></sup></p>
+            <p>{prose}</p>
+            <h2><span>History</span><span class="mw-editsection"><a href="/w/edit">edit this section</a></span></h2>
+            <div class="mw-references-wrap"><ol class="references">
+              <li id="cite_note-1"><a href="#cite_ref-1">jump</a> « Some FAQ », retrieved on 12 April 2023 with a long citation tail of words.</li>
+              <li id="cite_note-2"><a href="#cite_ref-2">jump</a> « Other News », retrieved on 3 May 2022 with yet more citation words here.</li>
+            </ol></div>
+            </body></html>"##
+        );
+        let out = boilerpipe_content(&html);
+        assert!(out.contains("Real article prose"), "{out}");
+        assert!(!out.contains("[1]"), "citation sup skipped: {out}");
+        assert!(
+            !out.contains("edit this section"),
+            "edit link skipped: {out}"
+        );
+        assert!(!out.contains("Some FAQ"), "reflist skipped: {out}");
+        assert!(
+            !out.contains("retrieved on"),
+            "citation text skipped: {out}"
+        );
+    }
+
+    #[test]
+    fn chrome_tokens_match_class_and_id_never_prose_text() {
+        // The word « references » inside running prose is content — the skip
+        // keys on class/id attributes only.
+        let prose = "The references section of a style guide explains citation \
+                     practice for authors who write about programming languages \
+                     and document their sources carefully in every chapter.";
+        let html = format!("<html><body><p>{prose}</p><p>{prose}</p></body></html>");
+        let out = boilerpipe_content(&html);
+        assert_eq!(out.matches("references section").count(), 2, "{out}");
+    }
+
+    #[test]
+    fn nested_chrome_stays_balanced() {
+        // Chrome inside chrome must not strand the skip depth: real prose
+        // after the nested pair is still segmented and kept.
+        let prose = "Real article prose carries more than enough running words \
+                     to be recognised as genuine page content by the shallow \
+                     classifier decision rules every single time.";
+        let html = format!(
+            r#"<html><body>
+            <div class="cite_note"><div class="hatnote"><p>citation inside hatnote junk words here</p></div></div>
+            <p>{prose}</p>
+            <p>{prose}</p>
+            </body></html>"#
+        );
+        let out = boilerpipe_content(&html);
+        assert!(!out.contains("citation inside hatnote"), "{out}");
+        assert_eq!(out.matches("Real article prose").count(), 2, "{out}");
+    }
+
+    #[test]
+    fn a_chrome_flag_on_body_never_skips_the_page() {
+        // Templates hang state on the root class rails (a skin flag like
+        // `cite_note-enabled` on <body>): the root is a feature-flag rail,
+        // not a region — it must not trip the chrome skip or the whole page
+        // disappears from the walk.
+        let prose = "Real article prose carries more than enough running words \
+                     to be recognised as genuine page content by the shallow \
+                     classifier decision rules every single time.";
+        let html = format!(
+            r#"<html class="cite_note-enabled"><body class="mw-ref-dark cite_note"><p>{prose}</p><p>{prose}</p></body></html>"#
+        );
+        let out = boilerpipe_content(&html);
+        assert_eq!(out.matches("Real article prose").count(), 2, "{out}");
     }
 }

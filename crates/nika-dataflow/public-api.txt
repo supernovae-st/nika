@@ -210,6 +210,7 @@ pub nika_dataflow::record::TaskRecord::integrity: nika_cap::integrity::Integrity
 pub nika_dataflow::record::TaskRecord::named: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub nika_dataflow::record::TaskRecord::output: serde_json::value::Value
 pub nika_dataflow::record::TaskRecord::recovered_from: core::option::Option<nika_dataflow::record::TaskErrorRecord>
+pub nika_dataflow::record::TaskRecord::recovered_items: u32
 pub nika_dataflow::record::TaskRecord::started_at: core::option::Option<nika_types::timestamp::Timestamp>
 pub nika_dataflow::record::TaskRecord::status: nika_dataflow::record::TaskStatus
 impl nika_dataflow::record::TaskRecord
@@ -501,6 +502,7 @@ pub nika_dataflow::TaskRecord::integrity: nika_cap::integrity::Integrity
 pub nika_dataflow::TaskRecord::named: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub nika_dataflow::TaskRecord::output: serde_json::value::Value
 pub nika_dataflow::TaskRecord::recovered_from: core::option::Option<nika_dataflow::record::TaskErrorRecord>
+pub nika_dataflow::TaskRecord::recovered_items: u32
 pub nika_dataflow::TaskRecord::started_at: core::option::Option<nika_types::timestamp::Timestamp>
 pub nika_dataflow::TaskRecord::status: nika_dataflow::record::TaskStatus
 impl nika_dataflow::record::TaskRecord

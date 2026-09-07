@@ -62,6 +62,7 @@ impl nika_kernel_core::io::fs::FsWriteDyn for nika_fs::TokioFs
 pub async fn nika_fs::TokioFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 impl<D> owo_colors::OwoColorize for nika_fs::TokioFs
 impl<T, U> core::convert::Into<U> for nika_fs::TokioFs where U: core::convert::From<T>
 pub fn nika_fs::TokioFs::into(self) -> U
@@ -102,3 +103,4 @@ impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_fs::Tok
 pub async fn nika_fs::TokioFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub fn nika_fs::TokioFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
