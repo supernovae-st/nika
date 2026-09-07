@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use crate::broker::ContextBroker;
 use crate::change::{
-    PendingGate, ProjectChangeSet, RunRequest, check_on_disk, prose_outside_blocks,
+    ChangeError, PendingGate, ProjectChangeSet, RunRequest, check_on_disk, prose_outside_blocks,
 };
 use crate::guard::KnownWorld;
 use crate::intelligence::{
@@ -358,10 +358,13 @@ impl SessionRuntime {
                 TurnOutcome::Proposal { id, preview }
             }
             Ok(None) => TurnOutcome::Reply(shown.to_owned()),
-            Err(e) => TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::NotAllowed,
-                format!("the reply proposed a file the session may not write — {e}"),
-            )),
+            Err(e) => TurnOutcome::Refusal(match &e {
+                ChangeError::Io(..) => Refusal::from_change(&e),
+                _ => Refusal::new(
+                    RefusalClass::NotAllowed,
+                    format!("the reply proposed a file the session may not write — {e}"),
+                ),
+            }),
         }
     }
 

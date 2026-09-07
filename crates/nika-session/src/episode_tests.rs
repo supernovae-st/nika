@@ -554,3 +554,66 @@ fn a_missing_grant_is_named_at_preview_and_stops_the_run_never_the_preparation()
     );
     assert!(!world.at("out").exists());
 }
+
+/// Restore a mode even if the test panics, so the tempdir can drop.
+#[cfg(unix)]
+struct RestorePerms {
+    path: PathBuf,
+    mode: u32,
+}
+
+#[cfg(unix)]
+impl Drop for RestorePerms {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt as _;
+        let _ = std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(self.mode));
+    }
+}
+
+/// True when this process can still read a 0o000 file (root). The EACCES
+/// law cannot be proven then; the test returns rather than inventing a pass.
+#[cfg(unix)]
+fn still_readable_at_zero_mode(path: &Path) -> bool {
+    match std::fs::read(path) {
+        Ok(_) => true,
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => false,
+        Err(e) => panic!("unexpected read of a 0o000 file: {e}"),
+    }
+}
+
+/// Public seam: an existing destination the process cannot read is named
+/// at proposal, never previewed as a create. The unreadable preimage
+/// stays. Skipped when this process can still read a 0o000 file (root).
+#[cfg(unix)]
+#[test]
+fn an_unreadable_destination_is_named_at_proposal_not_promised_as_create() {
+    use std::os::unix::fs::PermissionsExt as _;
+    const SECRET: &str = "nika: secret-on-disk\n";
+    let world = World::new();
+    let dest = world.at("brief.nika.yaml");
+    std::fs::write(&dest, SECRET).expect("seed");
+    std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+    let restore = RestorePerms {
+        path: dest.clone(),
+        mode: 0o644,
+    };
+    if still_readable_at_zero_mode(&dest) {
+        return;
+    }
+    let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika.yaml", BRIEF)])]);
+    let outcome = s.turn(ASK);
+    let refusal = refused(outcome);
+    assert_eq!(refusal.class, RefusalClass::Io, "{refusal}");
+    assert!(
+        !refusal.text.contains("creates `brief.nika.yaml`"),
+        "no create is promised over unwitnessed bytes: {refusal}"
+    );
+    assert!(
+        refusal.text.contains("brief.nika.yaml")
+            && (refusal.text.contains("cannot be witnessed")
+                || refusal.text.contains("unreadable")),
+        "the refusal names that the target exists and was not seen: {refusal}"
+    );
+    drop(restore);
+    assert_eq!(std::fs::read_to_string(&dest).expect("untouched"), SECRET);
+}

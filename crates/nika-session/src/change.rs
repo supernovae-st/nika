@@ -336,7 +336,7 @@ impl ProjectChangeSet {
                 );
                 audits.push(audit_bytes(&rel, &content));
             }
-            let before = std::fs::read(root.join(&rel)).ok().map(|b| Witness::of(&b));
+            let before = witness_now(root, &rel)?;
             changes.push(match (is_workflow, is_project, before) {
                 (true, _, None) => ProjectChange::CreateWorkflow { path: rel, content },
                 (true, _, Some(before)) => ProjectChange::UpdateWorkflow {
@@ -447,13 +447,18 @@ impl ProjectChangeSet {
     /// # Errors
     ///
     /// A stale witness, a create over bytes that appeared since the
-    /// preview, or the file system's refusal.
+    /// preview, a target that exists but cannot be witnessed, or the
+    /// file system's refusal at write.
     pub fn apply(&self) -> Result<Applied, ChangeError> {
         for c in &self.changes {
             let path = c.path();
-            let now = std::fs::read(self.root.join(&path))
-                .ok()
-                .map(|b| Witness::of(&b));
+            // `None` is absence only. Any other read error means the
+            // path is not the preimage the preview witnessed (missing
+            // for a create, or the exact bytes for an update) — stale,
+            // and no write is attempted.
+            let Ok(now) = witness_now(&self.root, &path) else {
+                return Err(ChangeError::Stale(path.display().to_string()));
+            };
             match (c.witness(), now) {
                 (None, None) => {}
                 (Some(before), Some(now)) if *before == now => {}
@@ -743,6 +748,23 @@ fn relative_inside_root(path: &str) -> Result<PathBuf, ChangeError> {
         return Err(ChangeError::OutsideRoot(path.to_owned()));
     }
     Ok(out)
+}
+
+/// The witness of the bytes at `rel` under `root`.
+///
+/// `None` only when the path is absent (`NotFound`). Any other error
+/// (EACCES, EISDIR, …) is a refusal: the target exists in some form
+/// and was not seen. Collapsing those into `None` would let a preview
+/// promise `creates` over bytes the session never read.
+fn witness_now(root: &Path, rel: &Path) -> Result<Option<Witness>, ChangeError> {
+    match std::fs::read(root.join(rel)) {
+        Ok(bytes) => Ok(Some(Witness::of(&bytes))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(ChangeError::Io(
+            rel.display().to_string(),
+            format!("exists but cannot be witnessed: {e}"),
+        )),
+    }
 }
 
 /// Write one file atomically under the root: the parents are created
@@ -1089,6 +1111,129 @@ mod tests {
         assert!(
             set.preview()
                 .contains("run `daily.nika.yaml` once (--max-cost-usd 0.05 ·")
+        );
+    }
+
+    /// Restore a mode even if the test panics, so the tempdir can drop.
+    #[cfg(unix)]
+    struct RestorePerms {
+        path: PathBuf,
+        mode: u32,
+    }
+
+    #[cfg(unix)]
+    impl Drop for RestorePerms {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt as _;
+            let _ =
+                std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(self.mode));
+        }
+    }
+
+    /// True when this process can still read a 0o000 file (root, or a
+    /// capability that ignores mode bits). The EACCES law cannot be
+    /// proven then; the test returns rather than inventing a pass.
+    #[cfg(unix)]
+    fn still_readable_at_zero_mode(path: &Path) -> bool {
+        match std::fs::read(path) {
+            Ok(_) => true,
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => false,
+            Err(e) => panic!("unexpected read of a 0o000 file: {e}"),
+        }
+    }
+
+    /// An existing target the process cannot read is not a create:
+    /// `std::fs::read(..).ok()` would treat EACCES like absence and the
+    /// preview would promise `creates` over bytes that were never
+    /// witnessed. Refused before any preview; the unreadable preimage
+    /// is left untouched. Skipped when this process can still read a
+    /// 0o000 file (root).
+    #[cfg(unix)]
+    #[test]
+    fn an_unreadable_existing_target_is_refused_before_the_preview() {
+        use std::os::unix::fs::PermissionsExt as _;
+        const SECRET: &str = "nika: secret-on-disk\n";
+        let dir = tempfile::tempdir().expect("tmp");
+        let path = dir.path().join("secret.nika.yaml");
+        std::fs::write(&path, SECRET).expect("seed");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+        let restore = RestorePerms {
+            path: path.clone(),
+            mode: 0o644,
+        };
+        if still_readable_at_zero_mode(&path) {
+            return;
+        }
+        let err = ProjectChangeSet::from_reply(
+            dir.path(),
+            "g",
+            &reply_with("secret.nika.yaml", WORKFLOW),
+            &[],
+            None,
+        )
+        .expect_err("an unreadable existing target is not a create");
+        assert!(
+            matches!(err, ChangeError::Io(..)),
+            "the class is the file system's, not unnamed/stale: {err}"
+        );
+        let text = err.to_string();
+        assert!(
+            text.contains("secret.nika.yaml")
+                && (text.contains("cannot be witnessed") || text.contains("unreadable")),
+            "the refusal names that the target exists and was not seen: {text}"
+        );
+        assert!(!text.contains("creates"), "no create is promised: {text}");
+        drop(restore);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("untouched"),
+            SECRET,
+            "the unreadable preimage is not replaced"
+        );
+    }
+
+    /// A create whose destination becomes unreadable after the preview
+    /// is stale: the file is not absent, it cannot be witnessed, and
+    /// apply must not try the write. Distinct from a permission error
+    /// mid-write. Skipped when this process can still read a 0o000 file.
+    #[cfg(unix)]
+    #[test]
+    fn a_create_over_an_unreadable_now_target_is_stale_and_writes_nothing() {
+        use std::os::unix::fs::PermissionsExt as _;
+        const SECRET: &str = "nika: appeared-unreadable\n";
+        let dir = tempfile::tempdir().expect("tmp");
+        let set = ProjectChangeSet::from_reply(
+            dir.path(),
+            "g",
+            &reply_with("daily.nika.yaml", WORKFLOW),
+            &[],
+            None,
+        )
+        .expect("legal")
+        .expect("a block");
+        assert!(matches!(
+            &set.changes[0],
+            ProjectChange::CreateWorkflow { .. }
+        ));
+        let path = dir.path().join("daily.nika.yaml");
+        std::fs::write(&path, SECRET).expect("appeared");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+        let restore = RestorePerms {
+            path: path.clone(),
+            mode: 0o644,
+        };
+        if still_readable_at_zero_mode(&path) {
+            return;
+        }
+        let err = set.apply().expect_err("stale");
+        assert!(
+            matches!(err, ChangeError::Stale(ref p) if p == "daily.nika.yaml"),
+            "unreadable-now is stale, not a silent create: {err}"
+        );
+        drop(restore);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("untouched"),
+            SECRET,
+            "nothing was written over the unreadable preimage"
         );
     }
 }
