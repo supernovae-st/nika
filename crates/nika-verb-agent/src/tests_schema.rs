@@ -548,10 +548,11 @@ fn a_schema_without_defs_renders_the_pinned_wrapper_byte_for_byte() {
 #[tokio::test]
 async fn a_repair_turn_is_gated_by_the_token_budget() {
     // Two violating dones queued; the first answer already spends the
-    // whole budget (15 tokens · `>=` exhausted). Measured before the gate:
-    // the loop asked for the repair anyway and the run ended on NIKA-464
-    // after TWO requests, one past the author's budget. A repair is a
-    // request like any other: not asked, the budget verdict instead.
+    // whole budget (15 tokens · `>=` exhausted). Without the gate the loop
+    // asks for the repair anyway: a second request past the author's
+    // budget (and, the allowance being two, a third one the mock queue
+    // cannot answer). A repair is a request like any other: not asked,
+    // the budget verdict instead — one request, NIKA-461.
     let bad = || {
         tool_use_response(
             "c",

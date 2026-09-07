@@ -135,7 +135,9 @@ fn done_def(schema: Option<&serde_json::Value>) -> ToolDef {
 /// has no place inside a tool input); everything else stays where the
 /// author wrote it, and local validation is untouched (it runs against the
 /// declared schema at its own root). A schema with nothing to hoist
-/// renders exactly as before.
+/// renders exactly as before. Only `$defs`/`definitions` pointers are
+/// rescued: a `"$ref": "#"` or a `#/properties/…` pointer still names
+/// the wrapper on the wire (the author's root is `properties.result`).
 fn typed_done_parameters(schema: &serde_json::Value) -> serde_json::Value {
     let mut nested = schema.clone();
     let mut hoisted = serde_json::Map::new();
