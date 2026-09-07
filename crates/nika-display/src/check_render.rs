@@ -611,7 +611,7 @@ fn audited_line(
 /// may touch, and how it graded — never the word « audited », which the
 /// report did not earn.
 ///
-/// Wave 3 · p04 (operations sceptic): « the card's boundary summary is
+/// a persona wave (the operations sceptic): « the card's boundary summary is
 /// suppressed on any file with findings, so the over-broad ops3 — the
 /// one an ops lead most needs summarised — printed no boundary line and
 /// no risk grade at all. » Grepping that file's output for
@@ -652,7 +652,7 @@ fn findings_line(
 ///
 /// Returned as a pair because the card interleaves the cost census
 /// between them (`permits … · est … · N hints · risk …`) while
-/// `nika run --dry-run` joins them on one line. Wave 3 · p04: « `--dry-run`
+/// `nika run --dry-run` joins them on one line. A persona wave (the operations sceptic): « `--dry-run`
 /// looked like the blast-radius preview. It is not. … It prints no
 /// permits, no risk, no layers. »
 #[must_use]
@@ -744,7 +744,7 @@ fn est_clause(report: &CheckReport, t: Theme) -> String {
 /// and « 0 hints » confessed it); then the handle guessed: an `all()`
 /// over the cost table decided « unpriced-only » and printed the
 /// local-model clause, which is VACUOUSLY true on a file with no cost
-/// row at all (wave 3 · p04 · G2: a builtin-only `mock/echo` file graded
+/// row at all (a persona wave · the operations sceptic · G2: a builtin-only `mock/echo` file graded
 /// Unbounded for `write: ["./out/**"]` read « no dollar meter for a
 /// local/unknown model » while its `write: ["./out/summary.md"]` twin
 /// graded Supervised — the model was never the differentiator). The

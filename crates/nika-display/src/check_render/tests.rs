@@ -940,7 +940,7 @@ mod audited_line_names_the_blast_radius {
         assert!(line.contains("permits none"), "{line}");
     }
 
-    /// Wave 3 · p04 · G2, verbatim: « `risk unbounded — no dollar meter
+    /// a persona wave (the operations sceptic · G2), verbatim: « `risk unbounded — no dollar meter
     /// for a local/unknown model` is a misattribution. Identical
     /// `model: mock/echo` in ops5 graded `risk supervised`. The model was
     /// never the differentiator; the grant was. » The persona's ops2:
@@ -1008,7 +1008,7 @@ mod audited_line_names_the_blast_radius {
     }
 }
 
-/// Wave 3 · p04 (operations sceptic), verbatim: « I assumed a file WITH
+/// a persona wave (the operations sceptic), verbatim: « I assumed a file WITH
 /// findings still shows the boundary summary. It does not: grepping
 /// ops3's output for `audited|layers` returns 0. The one-line
 /// plain-words blast radius and the risk grade are printed ONLY when the

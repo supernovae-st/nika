@@ -31,7 +31,7 @@ pub struct VerdictLayers {
     /// `infer:`/`agent:` task, so no seat will ever dial and there is
     /// nothing for a pin to fix. Distinct from `access_ready == None`
     /// with a task present, where the model arrives at run time and
-    /// admission judges it (wave 3 · p04: `run ready ○` on a file that
+    /// admission judges it (a persona wave · the operations sceptic: `run ready ○` on a file that
     /// then ran 3/3 green — the two shapes shared one glyph).
     ///
     /// Defaults FALSE, so a caller that never sets it keeps the
@@ -93,7 +93,7 @@ impl VerdictLayers {
     /// `None` — genuinely unknown — only when access is UNANSWERED: a
     /// task dials, but its model arrives at run time and admission
     /// judges it. When access is MOOT the three answered layers decide,
-    /// because no seat will ever be asked for. Wave 3 · p04, verbatim:
+    /// because no seat will ever be asked for. A persona wave (the operations sceptic), verbatim:
     /// « `run ready ○` on a file that then ran `RUN_RC=0`, 3/3 tasks
     /// green. No blocker is named, no flag flips it, `--access mock`
     /// changes nothing. The readiness line is a verdict the run
@@ -180,7 +180,7 @@ pub(super) fn layers_line(layers: &VerdictLayers, t: Theme) -> String {
         line.push_str(first);
     }
     // The ONE place `○` is defined — printed exactly where it appears,
-    // for the reader who has it on screen. Wave 3 · p04: « `○` is never
+    // for the reader who has it on screen. A persona wave (the operations sceptic): « `○` is never
     // defined. Not in the card, not in `--help` output I could reach. »
     if unjudged {
         line.push_str(" · ");
@@ -207,7 +207,7 @@ mod tests {
         VerdictLayers::new(true, None, Vec::new(), true, Vec::new())
     }
 
-    /// Wave 3 · p04 (operations sceptic), verbatim: « `run ready ○` on a
+    /// a persona wave (the operations sceptic), verbatim: « `run ready ○` on a
     /// file that then ran `RUN_RC=0`, 3/3 tasks green. No blocker is
     /// named, no flag flips it, `--access mock` changes nothing. The
     /// readiness line is a verdict the run contradicts. »
@@ -232,7 +232,7 @@ mod tests {
     }
 
     /// The other shape keeps `○` — and the line DEFINES it, once, where
-    /// it appears. p04: « `○` is never defined. Not in the card, not in
+    /// it appears. The operations sceptic: « `○` is never defined. Not in the card, not in
     /// `--help` output I could reach. »
     #[test]
     fn an_unanswered_access_keeps_the_circle_and_defines_it_in_place() {

@@ -143,7 +143,7 @@ pub(crate) fn render_pair(
 /// is what the reader who typed `--dry-run` came for.
 fn render_analysis(out: &mut String, report: &nika_check::CheckReport) {
     // The check card's OWN clauses, from its own derivation
-    // (`nika_display::check_render::boundary_clauses`) — wave 3 · p04:
+    // (`nika_display::check_render::boundary_clauses`) — a persona wave (the operations sceptic):
     // « `--dry-run` looked like the blast-radius preview. It is not. …
     // It prints no permits, no risk, no layers. »
     let (permits, risk) = nika_display::check_render::boundary_clauses(report);
@@ -173,7 +173,7 @@ fn render_analysis(out: &mut String, report: &nika_check::CheckReport) {
         }
         // NOT « blast » — this is scheduling fan-out, how many tasks
         // STALL when one fails, and the word meant blast radius to the
-        // reader who typed the flag (wave 3 · p04: « Its line literally
+        // reader who typed the flag (a persona wave · the operations sceptic: « Its line literally
         // labelled `blast` reads "blast   grab blocks 1" — that is
         // scheduling fan-out (how many tasks stall), not blast radius.
         // The word actively misleads the exact reader who typed the
@@ -197,7 +197,7 @@ fn render_analysis(out: &mut String, report: &nika_check::CheckReport) {
             } else {
                 String::new()
             };
-            // The sentence p04 said nothing printed before the run:
+            // The sentence the operations sceptic said nothing printed before the run:
             // « Nothing before the run says "if grab fails, save never
             // runs and nothing is written". »
             let _ = writeln!(
@@ -208,7 +208,7 @@ fn render_analysis(out: &mut String, report: &nika_check::CheckReport) {
         }
     }
     // 1-task files have empty DAG fan-out; capability escapes ARE the
-    // blast radius a security persona reads (persona 07) — named
+    // blast radius a security persona reads — named
     // `escapes` now that `blast` no longer labels the scheduling line,
     // so neither word has to carry two meanings.
     let cap: Vec<String> = report
@@ -407,7 +407,7 @@ mod tests {
         path
     }
 
-    /// Wave 3 · p04 (operations sceptic), verbatim: « `--dry-run` looked
+    /// a persona wave (the operations sceptic), verbatim: « `--dry-run` looked
     /// like the blast-radius preview. It is not. Its line literally
     /// labelled `blast` reads "blast   grab blocks 1" — that is
     /// scheduling fan-out (how many tasks stall), not blast radius. It

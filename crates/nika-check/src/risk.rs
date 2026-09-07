@@ -125,7 +125,7 @@ fn unpinned_secret_net_flow(report: &CheckReport) -> bool {
 /// no ceiling on the rope itself: `fs` `**` (the whole tree from the
 /// root down) · `exec: true` / `exec: ["*"]` (any program) · a bare
 /// `net.http` `*` (any host). Each is named `<family> <entry>` so the
-/// card can say WHICH grant graded the file Unbounded — wave 3 (p04):
+/// card can say WHICH grant graded the file Unbounded — a persona wave (the operations sceptic):
 /// the audited line blamed « no dollar meter for a local/unknown model »
 /// on a builtin-only `mock/echo` file whose only ceiling-less thing was
 /// `write: ["./out/**"]`; the grader read the grant, the handle guessed
@@ -375,8 +375,8 @@ tasks:
         );
     }
 
-    /// The Unbounded handle must name the GRANT the grader read (wave 3 ·
-    /// p04): a builtin-only file under `mock/echo` with `write:
+    /// The Unbounded handle must name the GRANT the grader read (a persona wave ·
+    /// the operations sceptic): a builtin-only file under `mock/echo` with `write:
     /// ["./out/**"]` is Unbounded for its rope, and this projection names
     /// exactly that entry — nothing about a meter, nothing it did not
     /// read. The narrow twin names nothing.

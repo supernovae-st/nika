@@ -94,7 +94,7 @@ pub(super) fn hints_and_verdict(
         return;
     } else {
         // The failing verdict carries the SAME boundary summary the
-        // green one does (wave 3 · p04): the file with findings is the
+        // green one does (a persona wave · the operations sceptic): the file with findings is the
         // file an operator most needs summarised.
         let _ = writeln!(
             out,

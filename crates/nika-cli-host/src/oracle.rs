@@ -440,7 +440,7 @@ mod tests {
 
     const MIXED_MODELS: &str = "nika: mixed\ntasks:\n  explicit:\n    infer: { prompt: hi, max_tokens: 10, model: mock/echo }\n  needs_model:\n    infer: { prompt: hi, max_tokens: 10 }\n";
 
-    /// The persona's ops5 (wave 3 · p04): three builtin/exec tasks, an
+    /// The operations sceptic's ops5 scenario: three builtin/exec tasks, an
     /// envelope `model:` nothing dials, and a run that exited 0 with 3/3
     /// green while the card printed `run ready ○`. « No blocker is
     /// named, no flag flips it, `--access mock` changes nothing. The

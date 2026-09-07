@@ -232,7 +232,7 @@ fn overridden(
 /// fired. `handle` is the audited line's own cause clause
 /// ([`nika_display::check_render::risk_handle`]): the footer used to
 /// blame « glob/wildcard authority and uncapped autonomy » on every
-/// Unbounded file — wave 3 (p04): a file with one exact host, one named
+/// Unbounded file — a persona wave (the operations sceptic): a file with one exact host, one named
 /// program, zero agents and a `./out/**` write grant was told both, and
 /// never WHICH grant to narrow.
 fn strict_footers(
