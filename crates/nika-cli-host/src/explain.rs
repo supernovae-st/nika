@@ -104,12 +104,22 @@ pub fn run_for(wire: &str, theme: Theme, door: Door) -> VerbOutput {
         if let Some(text) = nika_error::codes::namespace_help(&normalized, &docs) {
             return VerbOutput::ok(text);
         }
+        // The last rung before the 404: a code nothing served is often ONE
+        // edit from a real one (`NIKA-PARSE-01` · `NIKA-DGA-003` — V9 wave 3
+        // row 11, p01: « no way to LIST or SEARCH codes … if a sceptic
+        // mistyped a code, they'd be stuck »). The metric is the engine's
+        // ONE metric (`nika_types::suggest` · Damerau-Levenshtein, rustc's
+        // threshold), over the canon's OWN registry — never a second
+        // spelling of « close », and silence when nothing is near enough.
+        let rows = nika_pack::error_codes();
+        let near = nika_types::suggest::did_you_mean(&normalized, rows.iter().map(|r| r.code))
+            .map_or_else(String::new, |code| format!("\n\n  did you mean `{code}`?"));
         return VerbOutput::file(format!(
             "unknown code `{wire}` — the registry knows NIKA-001..NIKA-9999 \
              (allocated ranges), the spec conformance codes \
              (NIKA-DAG-* · NIKA-VAR-* · …), per-builtin NIKA-BUILTIN-<NAME>-NNN \
              and per-provider NIKA-PROVIDER-NNN codes, and the hint kinds \
-             `nika check` prints in [brackets]; see {docs}"
+             `nika check` prints in [brackets]; see {docs}{near}"
         ));
     };
     // The category/severity labels are the OWNING crate's canonical
@@ -718,6 +728,34 @@ mod tests {
             out.text.contains("[brackets]"),
             "the 404 names the other occupant of the slot:\n{}",
             out.text
+        );
+    }
+
+    /// V9 wave 3 · row 11 (p01): `nika explain` refused a mistyped code
+    /// with a range list and no way to search — « if a sceptic mistyped a
+    /// code, they'd be stuck ». A near-miss now names its neighbour, and a
+    /// code that is near NOTHING still says nothing (a wrong suggestion is
+    /// worse than none · the shared `did_you_mean` threshold decides).
+    #[test]
+    fn a_mistyped_code_is_answered_with_its_nearest_neighbour() {
+        let real = nika_pack::error_codes();
+        let known = real.first().expect("the canon ships error codes").code;
+        // One deletion from a real code — the dominant typo class.
+        let typo = &known[..known.len() - 1];
+        let out = run(typo);
+        assert_eq!(out.code, exit::FILE, "{}", out.text);
+        assert!(
+            real.iter()
+                .any(|r| out.text.contains(&format!("did you mean `{}`?", r.code))),
+            "the neighbour of `{typo}` is named, and it is a REAL canon code:\n{}",
+            out.text
+        );
+        // Near nothing → the 404 alone, never an invented neighbour.
+        let far = run("NIKA-ZZZ-999");
+        assert!(
+            !far.text.contains("did you mean"),
+            "a far code earns silence:\n{}",
+            far.text
         );
     }
 

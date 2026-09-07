@@ -322,6 +322,7 @@ pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::V
                 "error_code": recovered,
                 "recovered_from": recovered,
                 "integrity_source": row.integrity_source,
+                "warning": row.warning,
                 "items": items,
             })
         })
@@ -1434,6 +1435,50 @@ mod tests {
         assert!(
             json["tasks"][0]["integrity_source"].is_null(),
             "b itself has no source"
+        );
+    }
+
+    /// The OBS-E `warning` a terminal frame carried (a `nika:glob` naming
+    /// the directories it left out · V9 wave 3 p10) reaches the machine
+    /// projection per task, and a clean task projects none — `trace
+    /// outputs --json` must say what `trace show` says.
+    #[test]
+    fn a_task_warning_is_projected_per_task() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let task = |id: &str| KeyValue::new("task", Value::String(id.into()));
+        let said = "nika:glob returns files only · 1 directory also matched `./items/*.md` and was left out: ./items/item-07.md";
+        let events = vec![
+            demo::bare_event(EventKind::WorkflowStarted, 0),
+            demo::bare_event(EventKind::TaskStarted, 1)
+                .with_field(task("discover"))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("invoke · nika:glob".into()),
+                )),
+            demo::bare_event(EventKind::TaskCompleted, 2)
+                .with_field(task("discover"))
+                .with_field(KeyValue::new("output", Value::String("[]".into())))
+                .with_field(KeyValue::new("warning", Value::String(said.into()))),
+            demo::bare_event(EventKind::TaskStarted, 3)
+                .with_field(task("merge"))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("infer · mock/echo".into()),
+                )),
+            demo::bare_event(EventKind::TaskCompleted, 4)
+                .with_field(task("merge"))
+                .with_field(KeyValue::new("output", Value::String("\"ok\"".into()))),
+            demo::bare_event(EventKind::WorkflowCompleted, 5),
+        ];
+        let path = stage("glob-warning.ndjson", &events);
+        let (view, events) = load_view_and_events(&path.to_string_lossy()).expect("loads");
+        let json = tasks_json(&view, &events);
+        assert_eq!(json["tasks"][0]["id"], "discover");
+        assert_eq!(json["tasks"][0]["warning"], said);
+        assert!(
+            json["tasks"][1]["warning"].is_null(),
+            "a clean task projects no warning"
         );
     }
 }

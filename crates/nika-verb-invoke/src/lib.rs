@@ -103,6 +103,10 @@ pub struct InvokeOutput {
     pub structured: Option<serde_json::Value>,
     /// The resolved tool id (echo · engine event context).
     pub tool: String,
+    /// The tool's non-fatal diagnostic beside a success
+    /// (`ToolResult::warning` · the OBS-E lane): the engine puts it on the
+    /// task's terminal frame as `warning`; the value planes never carry it.
+    pub warning: Option<String>,
 }
 
 impl InvokeOutput {
@@ -114,6 +118,7 @@ impl InvokeOutput {
             content: content.into(),
             structured: None,
             tool: tool.into(),
+            warning: None,
         }
     }
 
@@ -122,6 +127,15 @@ impl InvokeOutput {
     #[must_use]
     pub fn with_structured(mut self, value: Option<serde_json::Value>) -> Self {
         self.structured = value;
+        self
+    }
+
+    /// Attach the tool's non-fatal diagnostic (the OBS-E lane). Builder
+    /// over [`new`](Self::new): the value planes stay exactly what the
+    /// tool returned.
+    #[must_use]
+    pub fn with_warning(mut self, warning: Option<String>) -> Self {
+        self.warning = warning;
         self
     }
 }
@@ -217,7 +231,9 @@ where
         // Carry the tool's typed value (when it has one) on the structured
         // plane — the engine routes it into tasks.X.output so a builtin
         // array/object survives as itself; `content` stays the TEXT view.
-        Ok(InvokeOutput::new(input.tool, result.content).with_structured(result.structured))
+        Ok(InvokeOutput::new(input.tool, result.content)
+            .with_structured(result.structured)
+            .with_warning(result.warning))
     }
 }
 
@@ -361,6 +377,30 @@ mod tests {
             .expect("builtin resolves");
         assert_eq!(out.content, "[\"a.md\",\"b.md\"]");
         assert_eq!(out.structured, Some(arr));
+    }
+
+    /// A tool's non-fatal diagnostic (`ToolResult::warning` · a `nika:glob`
+    /// naming the directories it left out) crosses the seam beside the
+    /// value planes, which stay exactly what the tool returned; a tool
+    /// with nothing to say crosses with `None`.
+    #[tokio::test]
+    async fn a_tools_warning_crosses_the_seam_beside_an_unchanged_value() {
+        let arr = serde_json::json!(["a.md"]);
+        let said = "nika:glob returns files only · 1 directory also matched `*.md` and was left out: ./b.md";
+        let out = verb(MockTool::with(Ok(ToolResult::success("tc", "[\"a.md\"]")
+            .with_structured(arr.clone())
+            .with_warning(said))))
+        .run(InvokeInput::new("nika:glob"))
+        .await
+        .expect("builtin resolves");
+        assert_eq!(out.content, "[\"a.md\"]");
+        assert_eq!(out.structured, Some(arr.clone()));
+        assert_eq!(out.warning.as_deref(), Some(said));
+        let quiet = verb(MockTool::ok_structured("[\"a.md\"]", arr))
+            .run(InvokeInput::new("nika:glob"))
+            .await
+            .expect("builtin resolves");
+        assert!(quiet.warning.is_none(), "{:?}", quiet.warning);
     }
 
     #[tokio::test]

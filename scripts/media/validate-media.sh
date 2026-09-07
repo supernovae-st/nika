@@ -103,8 +103,8 @@ if node --test scripts/media/motion/intent-to-impact/commerce-model.test.js; the
 else
   fail=1
 fi
-if command -v ffprobe >/dev/null 2>&1 && \
-   [ "$(ffprobe -v error -show_entries format=duration -of csv=p=0 media/videos/intent-to-impact.mp4)" = "60.000000" ]; then
+if command -v ffprobe >/dev/null 2>&1 \
+  && [ "$(ffprobe -v error -show_entries format=duration -of csv=p=0 media/videos/intent-to-impact.mp4)" = "60.000000" ]; then
   say "✔ product film MP4 is exactly 60 seconds"
 else
   say "✖ product film duration must be 60 seconds (ffprobe required)"

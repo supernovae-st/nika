@@ -11,6 +11,7 @@
 use super::*;
 
 mod seated_receipt;
+mod tool_warning;
 
 /// The F-O1 integrity label for the pre-existing frame tests below —
 /// they exercise the frame surface, not the label: a trusted settle
