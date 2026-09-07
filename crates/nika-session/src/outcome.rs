@@ -85,7 +85,7 @@ pub enum RefusalClass {
     AlreadyConsumed,
     /// A gate needs an answer; an empty line is none.
     EmptyAnswer,
-    /// The file system refused; nothing else was written.
+    /// The file system refused; the sentence names what this call wrote.
     Io,
 }
 

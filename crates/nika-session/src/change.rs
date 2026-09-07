@@ -177,8 +177,10 @@ pub enum ChangeError {
         "`{0}` changed since this preview — nothing was applied · ask again to rebuild the preview"
     )]
     Stale(String),
-    /// The file system refused.
-    #[error("`{0}`: {1} — nothing else was written")]
+    /// The file system refused. The second field is the OS error plus
+    /// the account of what this call itself wrote before the refusal
+    /// (nothing, or the paths it kept).
+    #[error("`{0}`: {1}")]
     Io(String, String),
 }
 
@@ -284,6 +286,57 @@ impl PendingGate {
 pub struct Applied {
     /// The paths written, relative to the root, in set order.
     pub written: Vec<PathBuf>,
+}
+
+/// A failed apply, together with the paths this call itself wrote
+/// before the refusal. The list is the write loop's own record, never
+/// inferred from the tree.
+pub(crate) struct ApplyAttempt {
+    /// Paths this call wrote, in set order, before the refusal.
+    pub written: Vec<PathBuf>,
+    /// The refusal (stale before any write, or Io at a write).
+    pub error: ChangeError,
+}
+
+impl ApplyAttempt {
+    fn stale(path: &Path) -> Self {
+        Self {
+            written: Vec::new(),
+            error: ChangeError::Stale(path.display().to_string()),
+        }
+    }
+
+    /// The human-facing account: the error, then the on-disk check of
+    /// workflows this call itself wrote (only those; never a tree scan).
+    pub(crate) fn refusal_text(&self, set: &ProjectChangeSet) -> String {
+        let mut text = self.error.to_string();
+        for path in &self.written {
+            let Some(change) = set.changes.iter().find(|c| c.path() == *path) else {
+                continue;
+            };
+            if !change.is_workflow() {
+                continue;
+            }
+            let audit = check_on_disk(&set.root, path);
+            let _ = write!(
+                text,
+                "\n  check · `{}` · {}",
+                path.display(),
+                if audit.clean {
+                    "clean ✔"
+                } else {
+                    "findings ✖"
+                }
+            );
+            for f in &audit.findings {
+                let _ = write!(text, "\n    · {f}");
+            }
+            for h in &audit.hints {
+                let _ = write!(text, "\n    · hint · {h}");
+            }
+        }
+        text
+    }
 }
 
 impl ProjectChangeSet {
@@ -450,6 +503,13 @@ impl ProjectChangeSet {
     /// preview, a target that exists but cannot be witnessed, or the
     /// file system's refusal at write.
     pub fn apply(&self) -> Result<Applied, ChangeError> {
+        self.apply_attempt().map_err(|attempt| attempt.error)
+    }
+
+    /// Land the set, keeping the paths this call itself wrote when a
+    /// later write is refused. Callers that must name a partial effect
+    /// use this; [`apply`](Self::apply) still returns only the error.
+    pub(crate) fn apply_attempt(&self) -> Result<Applied, ApplyAttempt> {
         for c in &self.changes {
             let path = c.path();
             // `None` is absence only. Any other read error means the
@@ -457,18 +517,26 @@ impl ProjectChangeSet {
             // for a create, or the exact bytes for an update) — stale,
             // and no write is attempted.
             let Ok(now) = witness_now(&self.root, &path) else {
-                return Err(ChangeError::Stale(path.display().to_string()));
+                return Err(ApplyAttempt::stale(&path));
             };
             match (c.witness(), now) {
                 (None, None) => {}
                 (Some(before), Some(now)) if *before == now => {}
-                _ => return Err(ChangeError::Stale(path.display().to_string())),
+                _ => return Err(ApplyAttempt::stale(&path)),
             }
         }
         let mut written = Vec::new();
         for c in &self.changes {
             let path = c.path();
-            write_under(&self.root, &path, c.content())?;
+            if let Err(e) = write_under(&self.root, &path, c.content()) {
+                let error = match e {
+                    ChangeError::Io(failed, os) => {
+                        ChangeError::Io(failed, io_write_account(&os, &written))
+                    }
+                    other => other,
+                };
+                return Err(ApplyAttempt { written, error });
+            }
             written.push(path);
         }
         Ok(Applied { written })
@@ -748,6 +816,20 @@ fn relative_inside_root(path: &str) -> Result<PathBuf, ChangeError> {
         return Err(ChangeError::OutsideRoot(path.to_owned()));
     }
     Ok(out)
+}
+
+/// The OS error plus what this call itself wrote before the refusal.
+fn io_write_account(os: &str, written: &[PathBuf]) -> String {
+    if written.is_empty() {
+        format!("{os} — nothing was written")
+    } else {
+        let kept = written
+            .iter()
+            .map(|p| format!("`{}`", p.display()))
+            .collect::<Vec<_>>()
+            .join(" · ");
+        format!("{os} — written before it and kept: {kept} · nothing after it was written")
+    }
 }
 
 /// The witness of the bytes at `rel` under `root`.
@@ -1235,5 +1317,68 @@ mod tests {
             SECRET,
             "nothing was written over the unreadable preimage"
         );
+    }
+
+    /// Two creates: the first write lands, the second parent is then
+    /// not writable. The refusal names the file that landed and the
+    /// file that did not — it does not say « nothing else was written »
+    /// as if the set were empty. Distinct from a stale preflight, which
+    /// writes nothing at all.
+    #[cfg(unix)]
+    #[test]
+    fn a_write_refused_mid_set_names_what_already_landed() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = tempfile::tempdir().expect("tmp");
+        let locked = dir.path().join("locked");
+        std::fs::create_dir(&locked).expect("locked");
+        let set = ProjectChangeSet::from_reply(
+            dir.path(),
+            "two files",
+            &format!(
+                "{}\n```yaml path=locked/note.nika.yaml\n{WORKFLOW}```\n",
+                reply_with("brief.nika.yaml", WORKFLOW)
+            ),
+            &[],
+            None,
+        )
+        .expect("legal")
+        .expect("two blocks");
+        assert_eq!(set.changes.len(), 2);
+        assert!(set.changes.iter().all(|c| c.witness().is_none()));
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o555)).expect("ro");
+        let restore = RestorePerms {
+            path: locked.clone(),
+            mode: 0o755,
+        };
+        let attempt = set.apply_attempt().expect_err("second write refused");
+        assert_eq!(
+            attempt.written,
+            vec![PathBuf::from("brief.nika.yaml")],
+            "the write loop's own record, not a tree scan"
+        );
+        let err = attempt.error;
+        let brief = dir.path().join("brief.nika.yaml");
+        let note = locked.join("note.nika.yaml");
+        assert_eq!(
+            std::fs::read_to_string(&brief).expect("first landed"),
+            WORKFLOW,
+            "the first write is on disk"
+        );
+        assert!(!note.exists(), "the second write did not land");
+        let text = err.to_string();
+        assert!(
+            matches!(err, ChangeError::Io(..)),
+            "a write-time refusal, not a stale preflight: {err}"
+        );
+        assert!(
+            text.contains("brief.nika.yaml")
+                && (text.contains("written before") || text.contains("kept")),
+            "the refusal names what landed: {text}"
+        );
+        assert!(
+            !text.contains("nothing else was written"),
+            "the baked suffix claims a total no-write: {text}"
+        );
+        drop(restore);
     }
 }

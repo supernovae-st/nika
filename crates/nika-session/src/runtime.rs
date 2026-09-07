@@ -418,12 +418,25 @@ impl SessionRuntime {
                 ),
             };
         }
-        let applied = match set.apply() {
+        let applied = match set.apply_attempt() {
             Ok(applied) => applied,
-            // Nothing was applied: the proposal is neither pending nor
+            // Nothing this call wrote: the proposal is neither pending nor
             // decided, so a retry by identity reads `wrong_state` — never a
             // false `already_consumed` (« its effect happened once »).
-            Err(e) => return TurnOutcome::Refusal(Refusal::from_change(&e)),
+            Err(attempt) if attempt.written.is_empty() => {
+                return TurnOutcome::Refusal(Refusal::from_change(&attempt.error));
+            }
+            // A later write failed after this call itself landed files.
+            // The account is the write loop's record, not a tree scan;
+            // the proposal stays undecided.
+            Err(attempt) => {
+                let text = attempt.refusal_text(&set);
+                self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
+                return TurnOutcome::Refusal(Refusal::new(
+                    Refusal::from_change(&attempt.error).class,
+                    text,
+                ));
+            }
         };
         self.decided = Some(id);
         let written: Vec<String> = applied

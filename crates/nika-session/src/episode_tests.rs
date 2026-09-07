@@ -617,3 +617,65 @@ fn an_unreadable_destination_is_named_at_proposal_not_promised_as_create() {
     drop(restore);
     assert_eq!(std::fs::read_to_string(&dest).expect("untouched"), SECRET);
 }
+
+/// Public seam: the first write of a two-file set lands, the second is
+/// refused by the file system. The refusal names the file that landed
+/// from the apply's own written list; the snapshot sees it; a retry by
+/// id is `wrong_state` (undecided — the law holds). Distinct from the
+/// stale-second-target fixture, which writes nothing at all.
+#[cfg(unix)]
+#[test]
+fn a_partial_apply_names_the_file_that_landed_and_leaves_the_proposal_undecided() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let world = World::new();
+    let locked = world.at("locked");
+    std::fs::create_dir(&locked).expect("locked");
+    let (mut s, _seen) = open(
+        &world,
+        &[proposal(&[
+            ("brief.nika.yaml", BRIEF),
+            ("locked/note.nika.yaml", NOTE),
+        ])],
+    );
+    let (id, preview) = propose(&mut s, "make the brief and a note about it");
+    assert!(
+        preview.contains("creates `brief.nika.yaml`")
+            && preview.contains("creates `locked/note.nika.yaml`"),
+        "{preview}"
+    );
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o555)).expect("ro");
+    let restore = RestorePerms {
+        path: locked.clone(),
+        mode: 0o755,
+    };
+    let io = refused(s.consent_to(&id, "yes"));
+    assert_eq!(io.class, RefusalClass::Io, "{io}");
+    assert_eq!(
+        std::fs::read_to_string(world.at("brief.nika.yaml")).expect("first landed"),
+        BRIEF
+    );
+    assert!(!world.at("locked/note.nika.yaml").exists());
+    assert!(
+        io.text.contains("brief.nika.yaml")
+            && (io.text.contains("written before") || io.text.contains("kept")),
+        "the refusal names what landed: {io}"
+    );
+    assert!(
+        !io.text.contains("nothing else was written"),
+        "the baked suffix claims a total no-write: {io}"
+    );
+    assert!(
+        s.snapshot
+            .workflows
+            .iter()
+            .any(|w| w.path.ends_with("brief.nika.yaml")),
+        "the snapshot re-observes the landed workflow"
+    );
+    assert!(s.pending_proposal().is_none());
+    assert_eq!(
+        refused(s.consent_to(&id, "yes")).class,
+        RefusalClass::WrongState,
+        "the proposal stays undecided"
+    );
+    drop(restore);
+}
