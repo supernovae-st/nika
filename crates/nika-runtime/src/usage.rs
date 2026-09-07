@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The metered call's usage SPLIT — the receipt the frame owes its
-//! reader (Q01 · lot 1).
+//! reader (the usage-split lot).
 //!
 //! The catalog prices a call from four numbers (input · cached input ·
 //! cache writes · output) and the frame kept ONE (`tokens` = the
@@ -144,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn the_reconcile_openai_usage_rides_the_frame() {
+    fn the_measured_openai_usage_rides_the_frame() {
         // The measured probe: prompt 5015 of which 4992 cached, one
         // completion token — the frame that could not tell a warm cache
         // from a price change.
@@ -173,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn the_reconcile_gemini_usage_folds_thoughts_as_reasoning() {
+    fn the_measured_gemini_usage_folds_thoughts_as_reasoning() {
         // prompt 5009 · candidates 1 · thoughts 490 (the wire folds
         // thoughts into output; the meter names them too).
         let mut usage = TokenUsage::new(5009, 491);

@@ -2,12 +2,12 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The ONE model-spend computation and its honest-absence WHY — split
-//! from `dispatch.rs` at the 1500-line file cap when the Q01 usage
+//! from `dispatch.rs` at the 1500-line file cap when the usage
 //! split joined the seam; the bodies moved verbatim.
 
 use nika_types::cost::UnpricedReason;
 
-/// Q01 · the split of what a FAILED verb had already burned — the same
+/// the split of what a FAILED verb had already burned — the same
 /// numbers `price_failed_spend` turns into dollars, so `task_failed`
 /// explains its own `cost_usd`.
 pub(super) fn failed_usage_split(

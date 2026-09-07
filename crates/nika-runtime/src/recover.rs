@@ -314,7 +314,7 @@ fn try_park(
         retries,
         agent_events,
         decisions,
-        // F-P6 · its evidence and Q01's usage receipt ride back out.
+        // F-P6 · its evidence and the usage receipt ride back out.
         evidence: failed.evidence,
         duration_ms,
         items,
@@ -516,7 +516,7 @@ fn resolve_parked(
         evidence,
         duration_ms,
         items,
-        // Q01 · the receipt of what the parked attempts burned.
+        // the receipt of what the parked attempts burned.
         usage,
         result,
     }));

@@ -467,7 +467,7 @@ fn push_genai_semconv(attributes: &mut Vec<serde_json::Value>, terminal: &Event)
     }
     // `gen_ai.response.model` is the model that SERVED the response, as
     // the PROVIDER reports it — emitted only from the frame's own
-    // `model_served` (Q01: the wires' `gen_ai.response.model`, now
+    // `model_served` (the wires' `gen_ai.response.model`, now
     // journaled). The requested name is never re-emitted here: aliases
     // (`-latest` · nicknames) make served ≠ requested, and an eval tool
     // would read "requested" as "served" (ADR-112 L71-77 · its return
@@ -498,7 +498,7 @@ fn push_genai_semconv(attributes: &mut Vec<serde_json::Value>, terminal: &Event)
     }
 }
 
-/// Q01 · the usage SPLIT as `OTel` `GenAI` counters, so a collector
+/// the usage SPLIT as `OTel` `GenAI` counters, so a collector
 /// prices the call without parsing our own names — and our own
 /// `nika.tokens.*` mirrors beside them, so a nika reader never depends
 /// on a semconv still marked `development`.
@@ -985,7 +985,7 @@ mod tests {
         );
     }
 
-    /// Q01 · the RECONCILE openai usage projects to the `GenAI` usage
+    /// the measured openai usage projects to the `GenAI` usage
     /// counters a collector prices with — and to our own mirrors. The
     /// figures are the measured ones (prompt 5015 of which 4992 cached ·
     /// one completion token): with only `nika.tokens` a warm-cache span

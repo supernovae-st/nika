@@ -88,7 +88,7 @@ pub(crate) fn push_access_fields(
 }
 
 /// Emit one `task_completed` frame — the base fields (`note` ·
-/// `duration_ms`) + spend (`tokens` + the Q01 additive usage split) + the OBS-E `warning` diagnostic
+/// `duration_ms`) + spend (`tokens` + the additive usage split) + the OBS-E `warning` diagnostic
 /// when present + the ADR-099 checkpoint trio (`def_hash` · `input_hash`
 /// · `output` as ONE compact JSON text) when the task carries a resume
 /// stamp + the spec-13 `outcome` (class · cause · payload, derived from
@@ -125,7 +125,7 @@ pub(crate) fn emit_completed(
     if let Some(n) = tokens {
         fields.push(("tokens", i(n)));
     }
-    // Q01 · the split that PRICED the call, additive beside `tokens`
+    // the split that PRICED the call, additive beside `tokens`
     // (which keeps its historical meaning: the completion count). A
     // reader recomputes `cost_usd` from these × the pinned catalog —
     // a warm-cache frame and a price change are no longer the same

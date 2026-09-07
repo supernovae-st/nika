@@ -176,7 +176,7 @@ where
         // consumes the dispatch (a divergence is never transient).
         let evidence = failed.evidence.clone();
         let access = failed.access.clone();
-        // Q01 · the split of THIS attempt's burn, lifted with the rest.
+        // the split of THIS attempt's burn, lifted with the rest.
         let usage = failed.usage.clone();
         let retry_forbidden = failed.retry_forbidden;
         // Debits PER ATTEMPT — a retry storm is never invisible.

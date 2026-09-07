@@ -45,7 +45,7 @@ pub(crate) struct FailedOutcome {
     pub evidence: Option<crate::dispatch::commit::CommitEvidence>,
     /// The admitted lane the failed dispatch rode (wave 2b).
     pub access: Option<Box<nika_types::access::AccessPlan>>,
-    /// Q01 · the usage split of the billed-then-failed attempts.
+    /// the usage split of the billed-then-failed attempts.
     pub usage: Option<Box<crate::usage::UsageSplit>>,
 }
 
@@ -75,7 +75,7 @@ impl FailedOutcome {
         self
     }
 
-    /// Attach the split of what the failed attempts burned (Q01).
+    /// Attach the split of what the failed attempts burned .
     pub(crate) fn with_usage(mut self, usage: Option<Box<crate::usage::UsageSplit>>) -> Self {
         self.usage = usage;
         self

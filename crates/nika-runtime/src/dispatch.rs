@@ -72,7 +72,7 @@ pub(crate) struct FailedDispatch {
     /// The admitted lane the failed dispatch rode (One Door · wave 2b) —
     /// the terminal frame names the path that FAILED, not `?`.
     pub access: Option<Box<nika_types::access::AccessPlan>>,
-    /// Q01 · the usage split of a BILLED-then-failed round-trip — the
+    /// the usage split of a BILLED-then-failed round-trip — the
     /// receipt rides `task_failed` beside the spend it explains. `None`
     /// when the attempt never reached a provider. Boxed: cold.
     pub usage: Option<Box<crate::usage::UsageSplit>>,
@@ -153,7 +153,7 @@ pub(crate) struct DispatchOk {
     /// from a provider-prefix guess. `None` = no plan attached (a bare
     /// embedder · a templated model judged at dispatch). Boxed: cold.
     pub access: Option<Box<nika_types::access::AccessPlan>>,
-    /// Q01 · the provider-reported usage SPLIT that priced `cost_usd`
+    /// the provider-reported usage SPLIT that priced `cost_usd`
     /// (input · cached input · cache writes · output · reasoning) plus
     /// the responder's own identity — the receipt a reader needs to
     /// recompute the number from the pinned catalog. `None` on the verbs
@@ -224,7 +224,7 @@ impl Dispatched {
         }
     }
 
-    /// Q01 · stamp the metered call's usage split (and the responder's
+    /// stamp the metered call's usage split (and the responder's
     /// identity) on a success — a failure keeps its own copy.
     fn with_usage(mut self, usage: Option<Box<crate::usage::UsageSplit>>) -> Self {
         if let Ok(ok) = &mut self.result {
@@ -290,7 +290,7 @@ impl Dispatched {
         self
     }
 
-    /// Q01 · the usage split of a billed-then-failed attempt — the
+    /// the usage split of a billed-then-failed attempt — the
     /// receipt rides `task_failed` beside the spend it explains.
     fn with_failed_usage(mut self, usage: Option<Box<crate::usage::UsageSplit>>) -> Self {
         if let Err(failed) = &mut self.result {

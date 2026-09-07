@@ -390,7 +390,7 @@ pub(crate) fn settle_ran(
     let evidence = run.evidence;
     // #1276 · #1397 · a fan-out's per-item table rides its terminal frame.
     let items = run.items;
-    // Q01 · the metered call's split — lifted like the evidence so
+    // the metered call's split — lifted like the evidence so
     // EVERY terminal shape can carry the receipt of what it burned.
     let usage = run.usage;
     let mut record = fresh_ran_record(started_at, run.duration_ms, integrity);
@@ -646,7 +646,7 @@ fn settle_failed_terminal(
         ("duration_ms", i(duration)),
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
-    // Q01 · a billed-then-failed frame explains its own `cost_usd`.
+    // a billed-then-failed frame explains its own `cost_usd`.
     crate::usage::push_usage_fields(&mut fields, usage);
     // Wave 2b · the lane that FAILED stamps the terminal like a success
     // (`model` · `provider` · `access` · `access_id` · `billing`) — a

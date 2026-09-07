@@ -406,7 +406,7 @@ fn parse_response(
 }
 
 /// The ONE OpenAI-compatible usage parse — the non-stream door and the
-/// stream translator read the same `usage` object through it (B19: the
+/// stream translator read the same `usage` object through it (the
 /// stream used to build a bare `TokenUsage::new(prompt, completion)` and
 /// drop both details subsets, so a streamed cached prompt would price at
 /// the full input rate).
@@ -542,7 +542,7 @@ impl EventMapper for CompatMapper {
         if let Some(u) = v.pointer("/usage")
             && !u.is_null()
         {
-            // The SAME parse as the non-stream door (B19): a streamed
+            // The SAME parse as the non-stream door : a streamed
             // cached prompt must not price at the full input rate the
             // day a verb streams. `stream_options.include_usage` is
             // already requested above.

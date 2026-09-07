@@ -1,0 +1,1 @@
+- **The card names the prompt side of the bill.** The totals row said ` · 1 tok` for a 5015-token prompt answered in one token, so a cold run and a warm-cache run were the same sight; it now prints ` · 5015 in · 4992 cached` beside the historical `tok` segment when the frame carries the split, and renders byte-identically to before when it does not.

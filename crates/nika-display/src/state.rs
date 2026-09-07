@@ -131,9 +131,10 @@ pub struct TaskRow {
 
 impl TaskRow {
     /// The metered call's split, in reading order, present meters only —
-    /// the ONE vocabulary the card, `trace peek` and the `--json`
-    /// projection all speak, so a receipt read in prose and a receipt
-    /// read by a machine name the same numbers.
+    /// the one reading order the card's totals row follows, and the one
+    /// `trace peek` will read the day it prints the split, so a receipt
+    /// read in prose and a receipt read by a machine name the same
+    /// numbers in the same order.
     ///
     /// `input` includes the cache subsets and `output` includes
     /// `reasoning`, per the semantics the wires normalize to: a reader

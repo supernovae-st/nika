@@ -214,7 +214,7 @@ pub(crate) struct RanTask {
     /// compact JSON array text · index · item · status · code · message ·
     /// rides the terminal frame as `items`. `None` for every other lane.
     pub items: Option<String>,
-    /// Q01 · the metered call's usage SPLIT (input · cached input ·
+    /// the metered call's usage SPLIT (input · cached input ·
     /// cache writes · output · reasoning + the responder's identity) —
     /// lifted beside `evidence`/`items` so EVERY terminal shape carries
     /// it: a success frame explains its `cost_usd`, a billed-then-failed
@@ -1322,7 +1322,7 @@ fn dispatch_result(
             .map(crate::dispatch::commit::CommitEvidence::Fired),
         Err(failed) => failed.evidence.clone(),
     };
-    // Q01 · the split rides OUTSIDE the result, like the evidence: a
+    // the split rides OUTSIDE the result, like the evidence: a
     // recovered failure keeps the receipt of what it burned.
     let usage = match &outcome {
         Ok(ok) => ok.usage.clone(),

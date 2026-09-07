@@ -169,7 +169,7 @@ mod cache_aware {
     }
 }
 
-/// The reasoning-rate ratchet (Q01 · lot 1). `reasoning_tokens_per_million`
+/// The reasoning-rate ratchet (the usage-split lot). `reasoning_tokens_per_million`
 /// is DECLARED on `ModelPricing` and read by nothing: today reasoning
 /// prices at the output rate, which is exact as long as no row discloses a
 /// different one. When one does, this test fires — and `usd_for_split`

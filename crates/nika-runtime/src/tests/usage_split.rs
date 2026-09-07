@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Q01 · the metered terminal's usage-split receipt.
+//! the metered terminal's usage-split receipt.
 
 use super::*;
 
-/// Q01 · the metered call's SPLIT rides the terminal frame beside the
-/// `tokens` it always carried. The RECONCILE probe's openai usage
+/// the metered call's SPLIT rides the terminal frame beside the
+/// `tokens` it always carried. The measured openai usage
 /// (prompt 5015 of which 4992 cached · one completion token) priced at
 /// `0.00075285` cold and would price at `0.000378` warm: with one
 /// integer on the frame those two are the SAME sight. With the split a

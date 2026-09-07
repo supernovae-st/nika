@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Q01 · the OpenAI-compatible usage parse, judged at BOTH doors —
+//! the OpenAI-compatible usage parse, judged at BOTH doors —
 //! split from `openai_compat.rs` at the 1500-line file cap.
 
 use nika_kernel::ai::provider::{InferEvent, InferRequest, Message, Role};
@@ -13,7 +13,7 @@ fn req(messages: Vec<Message>) -> InferRequest {
     InferRequest::new("test-model", messages)
 }
 
-/// B19 · the two doors read the SAME usage. The RECONCILE payload
+/// the two doors read the SAME usage. The measured payload
 /// (prompt 5015 of which 4992 cached · one completion token) parses
 /// identically through the non-stream response and through the
 /// stream translator — before this, the stream built a bare
