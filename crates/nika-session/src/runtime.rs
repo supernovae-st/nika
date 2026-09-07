@@ -13,7 +13,8 @@ use std::path::{Path, PathBuf};
 
 use crate::broker::ContextBroker;
 use crate::change::{
-    PendingGate, ProjectChangeSet, RunRequest, check_on_disk, prose_outside_blocks,
+    Applied, ChangeError, PendingGate, ProjectChangeSet, RunRequest, check_on_disk,
+    prose_outside_blocks,
 };
 use crate::guard::KnownWorld;
 use crate::intelligence::{
@@ -358,10 +359,13 @@ impl SessionRuntime {
                 TurnOutcome::Proposal { id, preview }
             }
             Ok(None) => TurnOutcome::Reply(shown.to_owned()),
-            Err(e) => TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::NotAllowed,
-                format!("the reply proposed a file the session may not write — {e}"),
-            )),
+            Err(e) => TurnOutcome::Refusal(match &e {
+                ChangeError::Io(..) => Refusal::from_change(&e),
+                _ => Refusal::new(
+                    RefusalClass::NotAllowed,
+                    format!("the reply proposed a file the session may not write — {e}"),
+                ),
+            }),
         }
     }
 
@@ -415,13 +419,39 @@ impl SessionRuntime {
                 ),
             };
         }
-        let applied = match set.apply() {
+        let applied = match set.apply_attempt() {
             Ok(applied) => applied,
-            // Nothing was applied: the proposal is neither pending nor
+            // Nothing this call wrote: the proposal is neither pending nor
             // decided, so a retry by identity reads `wrong_state` — never a
             // false `already_consumed` (« its effect happened once »).
-            Err(e) => return TurnOutcome::Refusal(Refusal::from_change(&e)),
+            Err(attempt) if attempt.written.is_empty() => {
+                return TurnOutcome::Refusal(Refusal::from_change(&attempt.error));
+            }
+            // A later write failed after this call itself landed files.
+            // The account is the write loop's record, not a tree scan;
+            // the proposal stays undecided.
+            Err(attempt) => {
+                let text = attempt.refusal_text(&set);
+                self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
+                return TurnOutcome::Refusal(Refusal::new(
+                    Refusal::from_change(&attempt.error).class,
+                    text,
+                ));
+            }
         };
+        self.report_landed(set, &applied, id)
+    }
+
+    /// After a yes lands the set: mark decided, check every workflow,
+    /// re-observe, remember, and request a run only when that check is
+    /// clean. Empty-write and mid-set Io stay on `consent` so a refusal
+    /// never becomes `already_consumed`.
+    fn report_landed(
+        &mut self,
+        set: ProjectChangeSet,
+        applied: &Applied,
+        id: ProposalId,
+    ) -> TurnOutcome {
         self.decided = Some(id);
         let written: Vec<String> = applied
             .written

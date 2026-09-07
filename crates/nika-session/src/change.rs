@@ -5,6 +5,7 @@
 //! reasoner's tool.
 
 use std::fmt::Write as _;
+use std::io::Read as _;
 use std::path::{Component, Path, PathBuf};
 
 use nika_cli_host::fix_ladder::{StopNotes, apply_prepass};
@@ -177,8 +178,10 @@ pub enum ChangeError {
         "`{0}` changed since this preview — nothing was applied · ask again to rebuild the preview"
     )]
     Stale(String),
-    /// The file system refused.
-    #[error("`{0}`: {1} — nothing else was written")]
+    /// The file system refused. The second field is the OS error plus
+    /// the account of what this call itself wrote before the refusal
+    /// (nothing, or the paths it kept).
+    #[error("`{0}`: {1}")]
     Io(String, String),
 }
 
@@ -286,6 +289,57 @@ pub struct Applied {
     pub written: Vec<PathBuf>,
 }
 
+/// A failed apply, together with the paths this call itself wrote
+/// before the refusal. The list is the write loop's own record, never
+/// inferred from the tree.
+pub(crate) struct ApplyAttempt {
+    /// Paths this call wrote, in set order, before the refusal.
+    pub written: Vec<PathBuf>,
+    /// The refusal (stale before any write, or Io at a write).
+    pub error: ChangeError,
+}
+
+impl ApplyAttempt {
+    fn stale(path: &Path) -> Self {
+        Self {
+            written: Vec::new(),
+            error: ChangeError::Stale(path.display().to_string()),
+        }
+    }
+
+    /// The human-facing account: the error, then the on-disk check of
+    /// workflows this call itself wrote (only those; never a tree scan).
+    pub(crate) fn refusal_text(&self, set: &ProjectChangeSet) -> String {
+        let mut text = self.error.to_string();
+        for path in &self.written {
+            let Some(change) = set.changes.iter().find(|c| c.path() == *path) else {
+                continue;
+            };
+            if !change.is_workflow() {
+                continue;
+            }
+            let audit = check_on_disk(&set.root, path);
+            let _ = write!(
+                text,
+                "\n  check · `{}` · {}",
+                path.display(),
+                if audit.clean {
+                    "clean ✔"
+                } else {
+                    "findings ✖"
+                }
+            );
+            for f in &audit.findings {
+                let _ = write!(text, "\n    · {f}");
+            }
+            for h in &audit.hints {
+                let _ = write!(text, "\n    · hint · {h}");
+            }
+        }
+        text
+    }
+}
+
 impl ProjectChangeSet {
     /// Build the set from a reply: every fenced block that names a path
     /// (`path=<p>` on the fence, or `# path: <p>` as its first line)
@@ -336,7 +390,7 @@ impl ProjectChangeSet {
                 );
                 audits.push(audit_bytes(&rel, &content));
             }
-            let before = std::fs::read(root.join(&rel)).ok().map(|b| Witness::of(&b));
+            let before = witness_now(root, &rel)?;
             changes.push(match (is_workflow, is_project, before) {
                 (true, _, None) => ProjectChange::CreateWorkflow { path: rel, content },
                 (true, _, Some(before)) => ProjectChange::UpdateWorkflow {
@@ -447,23 +501,43 @@ impl ProjectChangeSet {
     /// # Errors
     ///
     /// A stale witness, a create over bytes that appeared since the
-    /// preview, or the file system's refusal.
+    /// preview, a target that exists but cannot be witnessed, or the
+    /// file system's refusal at write.
     pub fn apply(&self) -> Result<Applied, ChangeError> {
+        self.apply_attempt().map_err(|attempt| attempt.error)
+    }
+
+    /// Land the set, keeping the paths this call itself wrote when a
+    /// later write is refused. Callers that must name a partial effect
+    /// use this; [`apply`](Self::apply) still returns only the error.
+    pub(crate) fn apply_attempt(&self) -> Result<Applied, ApplyAttempt> {
         for c in &self.changes {
             let path = c.path();
-            let now = std::fs::read(self.root.join(&path))
-                .ok()
-                .map(|b| Witness::of(&b));
+            // `None` is absence only. Any other read error means the
+            // path is not the preimage the preview witnessed (missing
+            // for a create, or the exact bytes for an update) — stale,
+            // and no write is attempted.
+            let Ok(now) = witness_now(&self.root, &path) else {
+                return Err(ApplyAttempt::stale(&path));
+            };
             match (c.witness(), now) {
                 (None, None) => {}
                 (Some(before), Some(now)) if *before == now => {}
-                _ => return Err(ChangeError::Stale(path.display().to_string())),
+                _ => return Err(ApplyAttempt::stale(&path)),
             }
         }
         let mut written = Vec::new();
         for c in &self.changes {
             let path = c.path();
-            write_under(&self.root, &path, c.content())?;
+            if let Err(e) = write_under(&self.root, &path, c.content()) {
+                let error = match e {
+                    ChangeError::Io(failed, os) => {
+                        ChangeError::Io(failed, io_write_account(&os, &written))
+                    }
+                    other => other,
+                };
+                return Err(ApplyAttempt { written, error });
+            }
             written.push(path);
         }
         Ok(Applied { written })
@@ -743,6 +817,48 @@ fn relative_inside_root(path: &str) -> Result<PathBuf, ChangeError> {
         return Err(ChangeError::OutsideRoot(path.to_owned()));
     }
     Ok(out)
+}
+
+/// The OS error plus what this call itself wrote before the refusal.
+fn io_write_account(os: &str, written: &[PathBuf]) -> String {
+    if written.is_empty() {
+        format!("{os} — nothing was written")
+    } else {
+        let kept = written
+            .iter()
+            .map(|p| format!("`{}`", p.display()))
+            .collect::<Vec<_>>()
+            .join(" · ");
+        format!("{os} — written before it and kept: {kept} · nothing after it was written")
+    }
+}
+
+/// The witness of the bytes at `rel` under `root`.
+///
+/// `None` only when the path is absent (`NotFound`). Any other error
+/// (EACCES, EISDIR, …) is a refusal: the target exists in some form
+/// and was not seen. Collapsing those into `None` would let a preview
+/// promise `creates` over bytes the session never read.
+fn witness_now(root: &Path, rel: &Path) -> Result<Option<Witness>, ChangeError> {
+    let shown = rel.display().to_string();
+    let io = |e: std::io::Error| {
+        ChangeError::Io(
+            shown.clone(),
+            format!("exists but cannot be witnessed: {e}"),
+        )
+    };
+    // Contained, no-follow: the same primitive the write path uses.
+    // `std::fs::read` follows a final or parent symlink and would hash
+    // bytes that sit outside the root.
+    let dir = OwnedDir::open(root).map_err(io)?;
+    let mut file = match dir.open_relative(rel) {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(io(e)),
+    };
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).map_err(io)?;
+    Ok(Some(Witness::of(&bytes)))
 }
 
 /// Write one file atomically under the root: the parents are created
@@ -1090,5 +1206,215 @@ mod tests {
             set.preview()
                 .contains("run `daily.nika.yaml` once (--max-cost-usd 0.05 ·")
         );
+    }
+
+    /// Restore a mode even if the test panics, so the tempdir can drop.
+    #[cfg(unix)]
+    struct RestorePerms {
+        path: PathBuf,
+        mode: u32,
+    }
+
+    #[cfg(unix)]
+    impl Drop for RestorePerms {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt as _;
+            let _ =
+                std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(self.mode));
+        }
+    }
+
+    /// Visible when a unix permission law cannot be proven on this
+    /// process (root, or a 0o555 directory that still accepts a write).
+    /// stderr, not a panic: the suite stays green and the limitation is
+    /// named.
+    #[cfg(unix)]
+    #[allow(clippy::disallowed_macros, clippy::print_stderr)]
+    fn note_coverage_limit(why: &str) {
+        eprintln!("{why}");
+    }
+
+    /// `Some` when this process cannot prove EACCES on a 0o000 file
+    /// (root, a capability that ignores mode bits, or an unexpected
+    /// error). The caller names the reason and returns; it must not
+    /// panic, and it must not invent a pass of the EACCES law.
+    #[cfg(unix)]
+    fn eacces_unproven(path: &Path) -> Option<String> {
+        match std::fs::read(path) {
+            Ok(_) => Some(format!(
+                "coverage limitation: this process can still read 0o000 at {}; EACCES law not proven",
+                path.display()
+            )),
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => None,
+            Err(e) => Some(format!(
+                "coverage limitation: 0o000 at {} produced {e}; EACCES law not proven",
+                path.display()
+            )),
+        }
+    }
+
+    /// An existing target the process cannot read is not a create:
+    /// `std::fs::read(..).ok()` would treat EACCES like absence and the
+    /// preview would promise `creates` over bytes that were never
+    /// witnessed. Refused before any preview; the unreadable preimage
+    /// is left untouched. Skipped when this process can still read a
+    /// 0o000 file (root).
+    #[cfg(unix)]
+    #[test]
+    fn an_unreadable_existing_target_is_refused_before_the_preview() {
+        use std::os::unix::fs::PermissionsExt as _;
+        const SECRET: &str = "nika: secret-on-disk\n";
+        let dir = tempfile::tempdir().expect("tmp");
+        let path = dir.path().join("secret.nika.yaml");
+        std::fs::write(&path, SECRET).expect("seed");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+        let restore = RestorePerms {
+            path: path.clone(),
+            mode: 0o644,
+        };
+        if let Some(why) = eacces_unproven(&path) {
+            note_coverage_limit(&why);
+            return;
+        }
+        let err = ProjectChangeSet::from_reply(
+            dir.path(),
+            "g",
+            &reply_with("secret.nika.yaml", WORKFLOW),
+            &[],
+            None,
+        )
+        .expect_err("an unreadable existing target is not a create");
+        assert!(
+            matches!(err, ChangeError::Io(..)),
+            "the class is the file system's, not unnamed/stale: {err}"
+        );
+        let text = err.to_string();
+        assert!(
+            text.contains("secret.nika.yaml")
+                && (text.contains("cannot be witnessed") || text.contains("unreadable")),
+            "the refusal names that the target exists and was not seen: {text}"
+        );
+        assert!(!text.contains("creates"), "no create is promised: {text}");
+        drop(restore);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("untouched"),
+            SECRET,
+            "the unreadable preimage is not replaced"
+        );
+    }
+
+    /// A create whose destination becomes unreadable after the preview
+    /// is stale: the file is not absent, it cannot be witnessed, and
+    /// apply must not try the write. Distinct from a permission error
+    /// mid-write. Skipped when this process can still read a 0o000 file.
+    #[cfg(unix)]
+    #[test]
+    fn a_create_over_an_unreadable_now_target_is_stale_and_writes_nothing() {
+        use std::os::unix::fs::PermissionsExt as _;
+        const SECRET: &str = "nika: appeared-unreadable\n";
+        let dir = tempfile::tempdir().expect("tmp");
+        let set = ProjectChangeSet::from_reply(
+            dir.path(),
+            "g",
+            &reply_with("daily.nika.yaml", WORKFLOW),
+            &[],
+            None,
+        )
+        .expect("legal")
+        .expect("a block");
+        assert!(matches!(
+            &set.changes[0],
+            ProjectChange::CreateWorkflow { .. }
+        ));
+        let path = dir.path().join("daily.nika.yaml");
+        std::fs::write(&path, SECRET).expect("appeared");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+        let restore = RestorePerms {
+            path: path.clone(),
+            mode: 0o644,
+        };
+        if let Some(why) = eacces_unproven(&path) {
+            note_coverage_limit(&why);
+            return;
+        }
+        let err = set.apply().expect_err("stale");
+        assert!(
+            matches!(err, ChangeError::Stale(ref p) if p == "daily.nika.yaml"),
+            "unreadable-now is stale, not a silent create: {err}"
+        );
+        drop(restore);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("untouched"),
+            SECRET,
+            "nothing was written over the unreadable preimage"
+        );
+    }
+
+    /// Two creates: the first write lands, the second parent is then
+    /// not writable. The refusal names the file that landed and the
+    /// file that did not — it does not say « nothing else was written »
+    /// as if the set were empty. Distinct from a stale preflight, which
+    /// writes nothing at all.
+    #[cfg(unix)]
+    #[test]
+    fn a_write_refused_mid_set_names_what_already_landed() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = tempfile::tempdir().expect("tmp");
+        let locked = dir.path().join("locked");
+        std::fs::create_dir(&locked).expect("locked");
+        let set = ProjectChangeSet::from_reply(
+            dir.path(),
+            "two files",
+            &format!(
+                "{}\n```yaml path=locked/note.nika.yaml\n{WORKFLOW}```\n",
+                reply_with("brief.nika.yaml", WORKFLOW)
+            ),
+            &[],
+            None,
+        )
+        .expect("legal")
+        .expect("two blocks");
+        assert_eq!(set.changes.len(), 2);
+        assert!(set.changes.iter().all(|c| c.witness().is_none()));
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o555)).expect("ro");
+        let restore = RestorePerms {
+            path: locked.clone(),
+            mode: 0o755,
+        };
+        let Err(attempt) = set.apply_attempt() else {
+            note_coverage_limit(
+                "coverage limitation: this process wrote into a 0o555 directory; mid-set Io law not proven",
+            );
+            return;
+        };
+        assert_eq!(
+            attempt.written,
+            vec![PathBuf::from("brief.nika.yaml")],
+            "the write loop's own record, not a tree scan"
+        );
+        let err = attempt.error;
+        let brief = dir.path().join("brief.nika.yaml");
+        let note = locked.join("note.nika.yaml");
+        assert_eq!(
+            std::fs::read_to_string(&brief).expect("first landed"),
+            WORKFLOW,
+            "the first write is on disk"
+        );
+        assert!(!note.exists(), "the second write did not land");
+        let text = err.to_string();
+        assert!(
+            matches!(err, ChangeError::Io(..)),
+            "a write-time refusal, not a stale preflight: {err}"
+        );
+        assert!(
+            text.contains("brief.nika.yaml")
+                && (text.contains("written before") || text.contains("kept")),
+            "the refusal names what landed: {text}"
+        );
+        assert!(
+            !text.contains("nothing else was written"),
+            "the baked suffix claims a total no-write: {text}"
+        );
+        drop(restore);
     }
 }
