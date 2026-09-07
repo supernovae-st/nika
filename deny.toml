@@ -189,3 +189,6 @@ ignore = [
 [sources]
 unknown-registry = "deny"
 unknown-git      = "deny"
+# The one git source: the studio fork of dom_smoothie carrying the deterministic
+# candidate-order fix until upstream releases it (see [patch.crates-io] in Cargo.toml).
+allow-git        = ["https://github.com/supernovae-st/dom_smoothie"]

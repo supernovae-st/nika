@@ -115,6 +115,17 @@ pub(super) fn parse_tasks(
     Ok(tasks)
 }
 
+/// A `depends_on:` entry the W2 migrator can splice into `after:` — the
+/// bare task-id alphabet (`[a-z0-9_]+`), mirroring `is_bare_task_id` in
+/// `nika-migrate` (that scanner dequotes first, so `["a"]` reads as `a`
+/// here and there alike).
+fn is_bare_task_id(entry: &str) -> bool {
+    !entry.is_empty()
+        && entry
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
 /// Parse one task mapping (identity = the map key, passed in).
 fn parse_task(
     cx: &Cx<'_>,
@@ -133,14 +144,34 @@ fn parse_task(
     // teaching (data → with: · control → after:) before the generic
     // unknown-field check. The first dep seeds the teaching's example.
     if let Some(node) = mapping.get_node("depends_on") {
-        let task_hint = node
-            .as_sequence()
-            .and_then(|seq| seq.iter().next())
-            .and_then(marked_yaml::Node::as_scalar)
-            .map_or_else(|| "producer".to_owned(), |s| s.as_str().to_owned());
+        // The shape decides what the teaching may promise: the migrator's
+        // scanner reads a SEQUENCE whose every entry is a bare task id and
+        // nothing else — an EMPTY sequence declares no edge, so the dead
+        // line simply drops (vacuously every entry is an id). Anything
+        // that is not a sequence (a scalar · a map) it calls malformed.
+        // So the example names the first entry only when it IS an id, and
+        // the promise is spoken only for a sequence the scanner accepts.
+        let entries: Option<Vec<String>> = node.as_sequence().map(|seq| {
+            seq.iter()
+                .map(|n| {
+                    n.as_scalar()
+                        .map_or_else(String::new, |s| s.as_str().to_owned())
+                })
+                .collect()
+        });
+        let provable = entries
+            .as_ref()
+            .is_some_and(|e| e.iter().all(|e| is_bare_task_id(e)));
+        let task_hint = entries
+            .as_ref()
+            .and_then(|e| e.first())
+            .filter(|e| is_bare_task_id(e))
+            .cloned()
+            .unwrap_or_else(|| "producer".to_owned());
         return Err(SchemaError::W2DependsOnField {
             task: id.value.clone(),
             task_hint,
+            provable,
             span: cx.span(node.span()),
         });
     }
@@ -687,6 +718,11 @@ fn parse_extract_bindings(
     }
     Ok(out)
 }
+
+/// The W2 `depends_on:` shape table (`NIKA-PARSE-024` · what the finding
+/// may promise per shape) — its own file at the 1500-line cap.
+#[cfg(test)]
+mod w2_tests;
 
 #[cfg(test)]
 pub(crate) mod tests {

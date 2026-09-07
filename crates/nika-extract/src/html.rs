@@ -11,305 +11,17 @@ use scraper::{Html, Node, Selector};
 
 use crate::ExtractError;
 
+mod depth_guard;
+
+pub(crate) use depth_guard::guard_depth;
+// The cap itself is read only by the depth-bomb tests of the callers
+// (`digest.rs`) — a plain re-export would be an unused import in a
+// non-test build.
+#[cfg(test)]
+pub(crate) use depth_guard::MAX_HTML_DEPTH;
+
 /// Tags whose SUBTREES never contribute content (any mode).
 const SKIP_TAGS: &[&str] = &["script", "style", "noscript", "template"];
-
-/// Maximum HTML nesting depth before extraction refuses the document.
-/// Real content nests a few dozen deep; browsers themselves cap the DOM
-/// tree (Chrome ~512, Firefox similar) PRECISELY to stop the
-/// stack-overflow class this guards. 2048 is generous vs. legit content
-/// yet far below the depth where any recursive consumer dies.
-///
-/// EMPIRICAL (2026-06-12): a 50 000-deep `<div>` SIGABRTs the process —
-/// `htmd` builds a `markup5ever_rcdom` whose `Drop` is RECURSIVE
-/// (`Rc<Node>` → child drop → … → stack overflow on teardown). A
-/// source-level "all walks are iterative" audit MISSES this because the
-/// recursion lives in `Drop`, not in a visible walk — the runtime probe
-/// is authoritative. NOTE the guard must run BEFORE any html5ever
-/// parse: the tree builder is itself super-linear on pathological deep
-/// nesting (a full parse of 50 000-deep hangs), so a "parse then
-/// measure" guard trades the crash for a hang. The byte-scan below
-/// never parses — it early-exits in O(cap), not O(input).
-pub(crate) const MAX_HTML_DEPTH: usize = 2048;
-
-/// HTML void elements (HTML5 §12.1.2) — they take no close tag, so they
-/// never open a nesting level. A page of 50 000 `<br>` is FLAT, not deep.
-const VOID_ELEMENTS: &[&str] = &[
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
-    "track", "wbr",
-];
-
-/// Reject a document whose tag-nesting depth exceeds [`MAX_HTML_DEPTH`]
-/// BEFORE any DOM parse. A single O(n) byte scan with an O(cap)
-/// early-exit: a hostile 50 000-deep body is rejected after ~2049 tags,
-/// never fully parsed.
-///
-/// SOUND against the nesting attack: every start tag of a NON-void
-/// element opens a level (close tags pop). It does NOT honor `/>`
-/// self-closing — `<div/>` is NOT self-closing in HTML5 (html5ever
-/// nests it; only void + true foreign-content elements self-close), so
-/// counting `<div/>`×N as N levels matches the tree the parser builds.
-///
-/// The soundness HINGES on not mis-skipping content html5ever parses as
-/// real markup — skip too much and the scan UNDER-counts and the crash
-/// is reachable. Two regions are skipped:
-///
-/// 1. **RAWTEXT/RCDATA/`SCRIPT_DATA`/PLAINTEXT bodies** ([`RAWTEXT_ELEMENTS`])
-///    — in HTML context `<script>`/`<style>`/`<title>`/… content is TEXT,
-///    so a literal `</div>` there does NOT nest (verified P0, 2026-06-12:
-///    `<div><script></div></script>`×n holds a naive close-counting scan
-///    flat at depth 2 while the real tree nests +1/unit to a
-///    stack-overflowing htmd Drop). We jump to the matching `</name>`. BUT
-///    this holds ONLY in HTML context: inside SVG/MathML foreign content
-///    those very names are ordinary NESTING elements (html5ever
-///    `step_foreign`), so the skip is GATED on a foreign-context stack —
-///    `<svg>`/`<math>` turn it OFF, integration points (`foreignObject`/
-///    `desc`/`title`/`mi…`) turn it back ON. Verified P0, 2026-06-12:
-///    without the gate, `<svg><title><g>`×N skips to a `</title>` that
-///    never comes, counting depth 2 while html5ever builds an N-deep
-///    foreign DOM → htmd recursive-Drop SIGABRT (markdown is the default
-///    `nika:fetch` mode, so the default path crashed).
-/// 2. **Comments** (`<!-- … -->`, incl. the abrupt `<!-->`/`<!--->`
-///    empty forms) — never nesting.
-///
-/// With the context gate, skipping can never UNDER-count the real tree;
-/// the residual over-count (stray `<word` in text, mis-nested or
-/// auto-closing `<p>`, foreign rawtext past a breakout) only ever
-/// OVER-rejects pathological input — the browser-cap philosophy (browsers
-/// cap DOM depth ~512 for the same reason).
-pub(crate) fn guard_depth(body: &str, mode: ExtractMode) -> Result<(), ExtractError> {
-    let bytes = body.as_bytes();
-    // Open-element stack (lowercased names of the non-void, non-skipped
-    // elements currently open). Its LENGTH is the live nesting depth; the
-    // cap fires on `stack.len()`. STRICT-LIFO: a close pops ONLY when it
-    // matches the top — a stray `</x>` is ignored, never collapsing a
-    // foreign root we are still inside (popping it early would re-enable
-    // the rawtext skip and UNDER-count · the SVG/MathML bypass below).
-    let mut stack: Vec<String> = Vec::new();
-    // Foreign-content context, pushed/popped in lock-step with `stack` for
-    // marker elements only. The TOP says whether we are in HTML parsing
-    // (where RAWTEXT tokenization — hence the skip — is valid) or inside
-    // SVG/MathML foreign content (where `<script>`/`<title>`/… are ordinary
-    // NESTING elements, not rawtext · html5ever `step_foreign`).
-    let mut context: Vec<bool> = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] != b'<' {
-            i += 1;
-            continue;
-        }
-        match bytes.get(i + 1) {
-            // Close tag: strict-LIFO pop (the matched top only).
-            Some(b'/') => {
-                let (name, j) = scan_name(bytes, body, i + 2);
-                if stack.last().is_some_and(|top| *top == name) {
-                    stack.pop();
-                    if is_context_marker(&name) {
-                        context.pop();
-                    }
-                }
-                i = advance_past_gt(bytes, j);
-            }
-            // `<!--` comment → skip to its terminator. MUST honor the
-            // HTML5 abrupt-closing forms `<!-->` and `<!--->` (empty
-            // comments that end IMMEDIATELY): scanning past them for a
-            // full `-->` would over-consume real markup to EOF and
-            // UNDER-count the tree (a crash-through bypass). Other `<!…`
-            // (doctype/CDATA) and `<?…` (PI) → skip to `>`.
-            Some(b'!') if bytes[i + 2..].starts_with(b"--") => {
-                i = skip_comment(bytes, i + 4);
-            }
-            Some(b'!' | b'?') => i = advance_past_gt(bytes, i + 2),
-            // Open tag.
-            Some(&c) if c.is_ascii_alphabetic() => {
-                let (name, j) = scan_name(bytes, body, i + 1);
-                let after_open = advance_past_gt(bytes, j);
-                if VOID_ELEMENTS.contains(&name.as_str()) {
-                    // Void elements take no close tag — they never nest.
-                    i = after_open;
-                } else if context.last().copied().unwrap_or(true)
-                    && RAWTEXT_ELEMENTS.contains(&name.as_str())
-                {
-                    // HTML-context RAWTEXT/RCDATA/SCRIPT_DATA/PLAINTEXT: the
-                    // body is TEXT, so an internal `</div>` never nests —
-                    // count one level transiently for the cap, then jump to
-                    // the matching close. In FOREIGN content this branch is
-                    // skipped (the gate above is false), so the same names
-                    // fall through to real counting below — that is the
-                    // SVG/MathML soundness fix.
-                    if stack.len() + 1 > MAX_HTML_DEPTH {
-                        return Err(too_deep(mode));
-                    }
-                    i = skip_to_close(bytes, name.as_bytes(), after_open);
-                } else {
-                    // A real nesting element: push it (and its foreign
-                    // context marker, if it carries one).
-                    let kind = context_kind(&name);
-                    stack.push(name);
-                    if stack.len() > MAX_HTML_DEPTH {
-                        return Err(too_deep(mode));
-                    }
-                    if let Some(html) = kind {
-                        context.push(html);
-                    }
-                    i = after_open;
-                }
-            }
-            // A bare `<` not starting a tag — ordinary text.
-            _ => i += 1,
-        }
-    }
-    Ok(())
-}
-
-/// Elements whose content html5ever does NOT parse as markup — RAWTEXT
-/// (`style`/`xmp`/`iframe`/`noembed`/`noframes`), `SCRIPT_DATA` (`script`),
-/// RCDATA (`textarea`/`title`), and PLAINTEXT (`plaintext`, which makes
-/// the rest of the document text — [`skip_to_close`] finds no close and
-/// runs to EOF, exactly the parser's behavior). Their bodies hold text
-/// that may LOOK like tags but never nests, so the scan jumps over them.
-///
-/// `noscript` is deliberately EXCLUDED: html5ever parses with scripting
-/// DISABLED, so `<noscript>` content IS real nested markup — skipping it
-/// would UNDER-count and reopen the crash.
-const RAWTEXT_ELEMENTS: &[&str] = &[
-    "script",
-    "style",
-    "textarea",
-    "title",
-    "xmp",
-    "iframe",
-    "noembed",
-    "noframes",
-    "plaintext",
-];
-
-/// Elements that switch the parser INTO SVG/MathML foreign content. Their
-/// subtree is NOT HTML — the [`RAWTEXT_ELEMENTS`] names NEST there rather
-/// than tokenizing as text (html5ever `step_foreign`), so the rawtext
-/// skip must be OFF while we are inside one.
-const FOREIGN_ROOTS: &[&str] = &["svg", "math"];
-
-/// HTML integration points — inside foreign content these RESUME HTML
-/// parsing for their own subtree (so rawtext tokenization is valid again
-/// below them). SVG `foreignObject`/`desc`/`title` + the `MathML` text
-/// integration points.
-const INTEGRATION_POINTS: &[&str] = &[
-    "foreignobject",
-    "desc",
-    "title",
-    "mi",
-    "mo",
-    "mn",
-    "ms",
-    "mtext",
-];
-
-/// The foreign-context marker for `name`: `Some(false)` for a foreign root
-/// (entering foreign content · rawtext skip OFF), `Some(true)` for an
-/// integration point (resuming HTML · skip ON), `None` for an ordinary
-/// element (context unchanged · not tracked on the `context` stack).
-fn context_kind(name: &str) -> Option<bool> {
-    if FOREIGN_ROOTS.contains(&name) {
-        Some(false)
-    } else if INTEGRATION_POINTS.contains(&name) {
-        Some(true)
-    } else {
-        None
-    }
-}
-
-/// Whether `name` carries a foreign-context marker, so its matching close
-/// pops the `context` stack in lock-step with the element stack.
-fn is_context_marker(name: &str) -> bool {
-    context_kind(name).is_some()
-}
-
-/// The depth-cap rejection — one wording, two call sites (the transient
-/// rawtext check and the real push).
-fn too_deep(mode: ExtractMode) -> ExtractError {
-    ExtractError::Html {
-        mode,
-        reason: format!(
-            "HTML nesting exceeds the {MAX_HTML_DEPTH}-level cap — refusing \
-             to parse a pathologically deep document (DoS guard)"
-        ),
-    }
-}
-
-/// Scan an ASCII tag name at `from` → `(lowercased name, index just past
-/// it)`. The name charset is `[A-Za-z0-9:-]` (the open-tag arm has already
-/// vetted the first byte ASCII-alpha; a close tag may yield an empty name,
-/// which matches no open element), so `body[from..j]` is boundary-safe.
-fn scan_name(bytes: &[u8], body: &str, from: usize) -> (String, usize) {
-    let mut j = from;
-    while j < bytes.len()
-        && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'-' || bytes[j] == b':')
-    {
-        j += 1;
-    }
-    (body[from..j].to_ascii_lowercase(), j)
-}
-
-/// Index just past the next `>` at or after `from` (or `len` if none).
-fn advance_past_gt(bytes: &[u8], from: usize) -> usize {
-    advance_past(bytes, from, b">")
-}
-
-/// Index just past the next occurrence of `needle` at or after `from`
-/// (or `len` if the needle never appears — an unterminated region runs
-/// to EOF, matching how a parser would consume it).
-fn advance_past(bytes: &[u8], from: usize, needle: &[u8]) -> usize {
-    let mut i = from;
-    while i < bytes.len() {
-        if bytes[i..].starts_with(needle) {
-            return (i + needle.len()).min(bytes.len());
-        }
-        i += 1;
-    }
-    bytes.len()
-}
-
-/// Index just past the end of an HTML comment whose `<!--` opener ended
-/// at `from` (i.e. `from` points just past `<!--`). Honors the HTML5
-/// abrupt-closing empty-comment forms `<!-->` (`from` at `>`) and
-/// `<!--->` (`from` at `-` then `>`) — WITHOUT this, scanning for a full
-/// `-->` would over-consume real markup to EOF and UNDER-count the tree.
-fn skip_comment(bytes: &[u8], from: usize) -> usize {
-    // `<!-->` → empty comment, ends at the immediate `>`.
-    if bytes.get(from) == Some(&b'>') {
-        return from + 1;
-    }
-    // `<!--->` → empty comment, ends at `-` then `>`.
-    if bytes.get(from) == Some(&b'-') && bytes.get(from + 1) == Some(&b'>') {
-        return from + 2;
-    }
-    advance_past(bytes, from, b"-->")
-}
-
-/// Index just past the matching `</name>` (case-insensitive) at or after
-/// `from`, for a RAWTEXT/RCDATA element. EOF if unterminated.
-fn skip_to_close(bytes: &[u8], name: &[u8], from: usize) -> usize {
-    let mut i = from;
-    while i < bytes.len() {
-        // Look for `</`.
-        if bytes[i] == b'<' && bytes.get(i + 1) == Some(&b'/') {
-            let tag_start = i + 2;
-            let end = (tag_start + name.len()).min(bytes.len());
-            if bytes[tag_start..end].eq_ignore_ascii_case(name)
-                // The next byte must end the tag name (`>`, whitespace,
-                // or `/`) so `</script>` matches but `</scriptx>` doesn't.
-                && bytes
-                    .get(end)
-                    .is_none_or(|b| b.is_ascii_whitespace() || *b == b'>' || *b == b'/')
-            {
-                return advance_past_gt(bytes, end);
-            }
-        }
-        i += 1;
-    }
-    bytes.len()
-}
 
 /// Chrome stripped in `markdown` mode per the spec ("removes scripts ·
 /// styles · nav · footer · ads") — `text` mode keeps page furniture
@@ -456,6 +168,62 @@ fn best_srcset(srcset: Option<&str>) -> Option<String> {
     best.map(|(_, url)| url)
 }
 
+/// The tag name the fast path looks for, as bytes.
+const NOSCRIPT_TAG: &[u8] = b"noscript";
+
+/// Whether `body` mentions `noscript` AT ALL — one allocation-free,
+/// case-insensitive pass (html5ever lowercases tag names, the source
+/// need not: `<NOSCRIPT>` is legal markup).
+///
+/// [`noscript_source`] runs on every article whose primary extraction
+/// came back thin, and its `Html::parse_document` is a SECOND full parse
+/// of the document — tens of milliseconds on a real page. The
+/// overwhelming majority of thin pages carry no `<noscript>` at all, and
+/// this scan settles those before the parser is ever built.
+fn mentions_noscript(body: &str) -> bool {
+    body.as_bytes()
+        .windows(NOSCRIPT_TAG.len())
+        .any(|window| window.eq_ignore_ascii_case(NOSCRIPT_TAG))
+}
+
+/// Below this many characters of markup, a `<noscript>` block is the
+/// standard "enable JavaScript" notice, not a page. The server-rendered
+/// fallbacks that matter (a forum thread, a product sheet) ship tens of
+/// kilobytes; the notices in the wild ship a couple of hundred bytes.
+const NOSCRIPT_MIN_SOURCE: usize = 1024;
+
+/// The largest `<noscript>` payload, as SOURCE, when it is substantial
+/// markup rather than a notice.
+///
+/// With scripting ENABLED the parser keeps a `<noscript>` subtree as RAW
+/// TEXT: a server-rendered no-JS fallback is therefore invisible to every
+/// DOM-walking extractor, however good. Handing that source back lets a
+/// caller re-parse it as the markup it is. Returns `None` when no block
+/// clears the floor or none looks like markup.
+///
+/// Scripting IS enabled on this parse, and the whole function rests on
+/// it: `scraper::Html::parse_document` hands html5ever
+/// `ParseOpts::default()` (scraper-0.27.0 `src/html/mod.rs:80-83`), whose
+/// `TreeBuilderOpts::default()` sets `scripting_enabled: true`
+/// (html5ever-0.39.0 `src/tree_builder/mod.rs:75`); the in-body arm at
+/// `rules.rs:990` then takes `parse_raw_data`. Were that default to flip
+/// on a dependency bump, the block would parse as a normal subtree, the
+/// `contains('<')` filter below would stop matching and the rescue would
+/// silently die — `html5ever_keeps_a_noscript_body_as_raw_text` is the
+/// test that would fail first. See also `depth_guard::RAWTEXT_ELEMENTS`,
+/// which excludes `noscript` because THIS function re-parses it.
+pub(crate) fn noscript_source(body: &str) -> Option<String> {
+    if !mentions_noscript(body) {
+        return None;
+    }
+    let doc = Html::parse_document(body);
+    let selector = Selector::parse("noscript").ok()?;
+    doc.select(&selector)
+        .map(|el| el.text().collect::<String>())
+        .filter(|raw| raw.len() >= NOSCRIPT_MIN_SOURCE && raw.contains('<'))
+        .max_by_key(String::len)
+}
+
 /// `mode: text` — tags stripped, text preserved with block-level line
 /// breaks. Iterative tree walk (parser-hostile depth must never become
 /// stack depth); script/style subtrees skipped via a depth counter.
@@ -570,10 +338,9 @@ pub(crate) fn selector(body: &str, sel: &str) -> Result<serde_json::Value, Extra
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ExtractMode, MAX_HTML_DEPTH, advance_past, best_srcset, context_kind, guard_depth,
-        is_context_marker, scan_name, selector, skip_comment, skip_to_close, tidy_text,
-    };
+    use scraper::{Html, Selector};
+
+    use super::{best_srcset, mentions_noscript, noscript_source, selector, tidy_text};
 
     // The single-pass rewrite's contract: intra-line whitespace collapses,
     // blank-line RUNS collapse to at most one, leading/trailing blanks are
@@ -605,359 +372,89 @@ mod tests {
         }
     }
 
-    // ───────────────────────────────────────────────────────────────────
-    // is_context_marker (line 225 `→true` / `→false`)
+    // ── noscript_source · the fast path ──────────────────────────────
     //
-    // A marker name (foreign root / integration point) must return TRUE; an
-    // ordinary element must return FALSE. Asserting BOTH polarities pins the
-    // function against the constant-replacement mutants: `→true` is killed by
-    // the `div` FALSE assertion, `→false` by the `svg` TRUE assertion.
-    // ───────────────────────────────────────────────────────────────────
+    // The helper decides whether the SECOND full parse happens at all, so
+    // it is pinned in both directions: a page with no noscript must never
+    // reach the parser, and a page that spells the tag in capitals must.
+
     #[test]
-    fn is_context_marker_true_for_markers_false_for_plain() {
-        // Foreign root → marker.
-        assert!(is_context_marker("svg"), "svg is a foreign root → marker");
-        assert!(is_context_marker("math"), "math is a foreign root → marker");
-        // Integration point → marker.
-        assert!(
-            is_context_marker("foreignobject"),
-            "foreignObject is an integration point → marker"
+    fn mentions_noscript_is_false_without_the_tag() {
+        assert!(!mentions_noscript(
+            "<html><body><article><p>a real page with a script tag \
+             and a nosc typo and nothing else</p></article></body></html>"
+        ));
+        assert!(!mentions_noscript(""));
+        // Shorter than the needle — `windows` must not be handed a slice
+        // it cannot fill.
+        assert!(!mentions_noscript("<p>hi"));
+    }
+
+    #[test]
+    fn mentions_noscript_is_case_insensitive() {
+        assert!(mentions_noscript("<body><noscript>x</noscript></body>"));
+        assert!(mentions_noscript("<body><NOSCRIPT>x</NOSCRIPT></body>"));
+        assert!(mentions_noscript("<body><NoScript>x</NoScript></body>"));
+    }
+
+    #[test]
+    fn noscript_source_returns_none_on_the_fast_path() {
+        // No noscript anywhere: the helper is false, so `noscript_source`
+        // returns without parsing.
+        let page = format!(
+            "<html><body><div>{}</div></body></html>",
+            "<p>filler paragraph with enough text to clear any floor</p>".repeat(40)
         );
+        assert!(!mentions_noscript(&page), "the fixture carries no noscript");
+        assert!(noscript_source(&page).is_none());
+    }
+
+    #[test]
+    fn noscript_source_still_reads_an_uppercase_tag() {
+        // The fast path must not cost the capitalised form its rescue —
+        // a plain `body.contains("noscript")` pre-check would.
+        // The prose must not itself spell the tag: a case-SENSITIVE
+        // pre-check would then pass for the wrong reason (it did, first
+        // draft of this test).
+        let payload = "<p>the server rendered fallback carries the entire \
+             article inside this hidden block</p>"
+            .repeat(20);
+        let page = format!("<html><body><NOSCRIPT>{payload}</NOSCRIPT></body></html>");
+        let found = noscript_source(&page).expect("the uppercase block is still found");
         assert!(
-            is_context_marker("desc"),
-            "desc is an integration point → marker"
-        );
-        // Ordinary elements → NOT markers (kills the `→true` mutant).
-        assert!(
-            !is_context_marker("div"),
-            "div carries no foreign-context marker"
-        );
-        assert!(
-            !is_context_marker("p"),
-            "p carries no foreign-context marker"
-        );
-        assert!(
-            !is_context_marker("script"),
-            "script is rawtext, not a context marker"
+            found.contains("server rendered fallback"),
+            "the block's source must come back, got: {found}"
         );
     }
 
-    // context_kind drives is_context_marker; pin its three arms directly so a
-    // wrong branch can't masquerade as the right Option-ness.
+    // The parser contract `noscript_source` rests on, measured on the
+    // pinned scraper/html5ever rather than recalled: with scripting
+    // enabled a `<noscript>` body is a single TEXT node holding its own
+    // markup as literal characters. A dependency bump that flips the
+    // default fails here first, loudly, instead of silently killing the
+    // no-JS rescue.
     #[test]
-    fn context_kind_three_arms() {
-        // foreign root → Some(false) (rawtext skip OFF inside it).
-        assert_eq!(context_kind("svg"), Some(false));
-        assert_eq!(context_kind("math"), Some(false));
-        // integration point → Some(true) (HTML parsing resumes · skip ON).
-        assert_eq!(context_kind("title"), Some(true));
-        assert_eq!(context_kind("mi"), Some(true));
-        // ordinary element → None (untracked).
-        assert_eq!(context_kind("div"), None);
-    }
-
-    // ───────────────────────────────────────────────────────────────────
-    // scan_name (line 246 `<→<=`, line 247 `||→&&`)
-    //
-    // 247 `||→&&`: the name charset is `[A-Za-z0-9] | '-' | ':'`. A real name
-    // mixing all three classes is only scanned WHOLE under the `||`; under
-    // `&&` every byte fails (no byte is alnum AND '-' AND ':' at once) so the
-    // scan stops at `from`, yielding an empty name.
-    // ───────────────────────────────────────────────────────────────────
-    #[test]
-    fn scan_name_reads_full_mixed_charset_name() {
-        let body = "a1-b:c>";
-        let bytes = body.as_bytes();
-        let (name, j) = scan_name(bytes, body, 0);
-        // Whole `[alnum | '-' | ':']` run consumed, lowercased, stops at `>`.
-        assert_eq!(name, "a1-b:c", "the `||` must accept alnum AND '-' AND ':'");
-        assert_eq!(j, 6, "index lands just past the name, on `>`");
-    }
-
-    // 246 `<→<=`: the loop bound `j < bytes.len()`. When the tag name runs to
-    // EOF (no terminator byte), the correct loop STOPS at `j == len`. The
-    // mutated `<=` would test `bytes[len]` → out-of-bounds panic. A name that
-    // ends exactly at EOF therefore distinguishes the two: current code
-    // returns cleanly, the mutant panics.
-    #[test]
-    fn scan_name_name_running_to_eof_does_not_overrun() {
-        let body = "div"; // pure name, no '>' — ends exactly at len.
-        let bytes = body.as_bytes();
-        let (name, j) = scan_name(bytes, body, 0);
-        assert_eq!(name, "div");
-        assert_eq!(j, bytes.len(), "stops AT len, never indexes bytes[len]");
-    }
-
-    // ───────────────────────────────────────────────────────────────────
-    // skip_comment (line 280 `==→!=`, 281 `+→-/*`, 284 `==→!=` `&&→||` `+→-/*`,
-    //               285 `+→-/*`)
-    //
-    // `from` points just past `<!--`. The three shapes:
-    //   `<!-->`  → abrupt empty, ends at the immediate `>`  (return from+1)
-    //   `<!--->` → abrupt empty, ends at `-` then `>`       (return from+2)
-    //   `<!--x-->` → ordinary, ends at the `-->` terminator (advance_past)
-    // Exact return indices pin every arithmetic + comparison operator.
-    // ───────────────────────────────────────────────────────────────────
-    #[test]
-    fn skip_comment_abrupt_gt_form() {
-        // bytes = `>rest`; `from = 0` points at `>` (the `<!-->` shape).
-        // Correct: return 1 (just past `>`). Kills 280 `==→!=` (mutant would
-        // fall through to advance_past and consume to EOF) and 281 `+→-/*`
-        // (return index must be exactly from+1).
-        let bytes = b">rest";
-        assert_eq!(skip_comment(bytes, 0), 1);
-    }
-
-    #[test]
-    fn skip_comment_abrupt_dash_gt_form() {
-        // bytes = `->rest`; `from = 0` at `-`, `from+1` at `>` (`<!--->`).
-        // Correct: return 2. Kills 284 `==→!=`, 284 `+→-/*` (the `from + 1`
-        // index), 285 `+→-/*` (the `from + 2` return), and—paired with the
-        // next test—284 `&&→||`.
-        let bytes = b"->rest";
-        assert_eq!(skip_comment(bytes, 0), 2);
-    }
-
-    #[test]
-    fn skip_comment_dash_not_followed_by_gt_runs_to_terminator() {
-        // bytes = `-x-->tail`; `from = 0` at `-`, `from+1` is `x` (NOT `>`).
-        // The `&&` guard is FALSE → must fall through to advance_past('-->').
-        // Under the `||` mutant the first operand (`==Some('-')`) alone would
-        // wrongly trigger the early `from+2` return (=> 2). Correct path scans
-        // to the `-->` ending at index 5.
-        let bytes = b"-x-->tail";
-        let out = skip_comment(bytes, 0);
+    fn html5ever_keeps_a_noscript_body_as_raw_text() {
+        let doc = Html::parse_document(
+            "<html><body><noscript><div id=\"f\">hi</div></noscript></body></html>",
+        );
+        let sel = Selector::parse("noscript").expect("static selector");
+        let block = doc.select(&sel).next().expect("the noscript element");
         assert_eq!(
-            out, 5,
-            "`&&` must require BOTH `-` and `>`; here it falls through to `-->`"
+            block.child_elements().count(),
+            0,
+            "scripting enabled: the block holds no element children"
         );
-        assert_ne!(out, 2, "the `||` mutant would early-return from+2 here");
-    }
-
-    #[test]
-    fn skip_comment_ordinary_finds_terminator() {
-        // A non-abrupt comment body: neither abrupt branch fires, so the
-        // `==→!=` flips on lines 280/284 would (wrongly) ENTER an abrupt
-        // branch here. `from = 0` at `a`. Correct: advance_past `-->` → 6.
-        let bytes = b"abc-->z";
-        assert_eq!(skip_comment(bytes, 0), 6);
-    }
-
-    // ───────────────────────────────────────────────────────────────────
-    // skip_to_close (line 296 `&&→||`, 302 `&&→||`, 304 `==→!=`)
-    //
-    // Drives the rawtext close-tag scan. `name` is the rawtext element; the
-    // scan jumps to just past `</name>` (case-insensitive, terminator-checked).
-    // ───────────────────────────────────────────────────────────────────
-    #[test]
-    fn skip_to_close_matches_terminated_close() {
-        // `..</style>tail`. Correct: index just past `>` of `</style>`.
-        // 304 `==→!=`: the close is terminated by `>`. Under `!=`, `>` is
-        // REJECTED as a terminator → no match → run to EOF (len). Correct
-        // returns the position right after `</style>`.
-        let body = "abc</style>tail";
-        let bytes = body.as_bytes();
-        let from = 0;
-        let out = skip_to_close(bytes, b"style", from);
-        // `</style>` occupies bytes 3..11; index just past `>` is 11.
-        assert_eq!(out, 11, "must stop just past the `>`-terminated `</style>`");
-        assert_ne!(
-            out,
-            bytes.len(),
-            "the `==→!=` mutant rejects `>` → runs to EOF"
-        );
-    }
-
-    #[test]
-    fn skip_to_close_rejects_non_terminator_suffix() {
-        // `</scriptx>` is NOT a close for `script` (next byte `x` is not a
-        // terminator); the real `</script>` follows. 302 `&&→||`: under `||`
-        // the name-match alone (ignoring the terminator check) would stop at
-        // `</scriptx>` (index 10). Correct skips it and stops past `</script>`.
-        let body = "</scriptx></script>end";
-        let bytes = body.as_bytes();
-        let out = skip_to_close(bytes, b"script", 0);
-        // `</script>` is at 10..19; just past `>` is 19.
-        assert_eq!(out, 19, "the trailing `x` disqualifies `</scriptx>`");
-        assert_ne!(out, 10, "the `||` mutant would accept `</scriptx>`");
-    }
-
-    #[test]
-    fn skip_to_close_requires_slash_after_lt() {
-        // 296 `&&→||`: the open-of-close detector is `bytes[i]=='<' AND
-        // next=='/'`. Under `||`, a bare `<` (no following `/`) would enter
-        // the branch and try to match `name` at `i+2`. Craft a body where a
-        // bare `<style` (an OPEN tag, no slash) precedes the real `</style>`,
-        // positioned so the `||` mutant mis-matches `style` two bytes past the
-        // bare `<`. Correct only stops at the true `</style>`.
-        //   "<style></style>X"
-        //    ^0      ^7 real close
-        // Under `||`: at i=0 (`<`), i+1 is `s` (not `/`), tag_start=2,
-        // bytes[2..7]=="tyle>"? name is `style` (5 bytes) → "tyle>" != "style"
-        // so that particular i doesn't match — pick a body that DOES expose it:
-        let body = "<style</style>Z";
-        let bytes = body.as_bytes();
-        let out = skip_to_close(bytes, b"style", 0);
-        // Real `</style>` is at 6..14; just past `>` is 14.
-        assert_eq!(out, 14, "only `</style>` (with the slash) is the close");
-        // Under the `||` mutant, i=0 is `<`; with `||` it skips the slash
-        // check, tag_start=2, bytes[2..7]="tyle<" != "style" → still no match
-        // there, but i=5 is `<` followed by `/` so both behave; the decisive
-        // distinguishing input is the bare `<` WITHOUT a following close —
-        // covered by the truncated test below.
-    }
-
-    #[test]
-    fn skip_to_close_bare_lt_then_name_only_matches_via_slash() {
-        // Decisive 296 `&&→||` case: a bare `<style>` (open, slash-less)
-        // sitting exactly `name.len()`+2 before nothing — under `||` the
-        // detector fires on the bare `<` and matches `style` at i+2, returning
-        // early; under the correct `&&` it requires the `/` and finds none →
-        // runs to EOF.
-        //   bytes: `<style>` then EOF, name = `style`.
-        //   i=0: '<', next 's' (not '/').  &&: skip.  ||: tag_start=2,
-        //        bytes[2..7] = "tyle>" != "style" → no early match.
-        // To force a positive ||-only match we need `</`-less `<` directly
-        // followed by the name:  `<<style>`  — at i=0 '<', next '<' (not '/');
-        // ||: tag_start=2 → bytes[2..7]="style" == name AND end byte '>' is a
-        // terminator → ||-mutant returns past that `>` (index 8). The correct
-        // && path: i=0 no slash; i=1 '<', next 's' (not '/') no; no `</` ever
-        // → runs to EOF (len 8). Both give 8 here, so instead place a
-        // terminator the mutant would stop BEFORE:
-        let body = "<<style>X</style>";
-        let bytes = body.as_bytes();
-        let out = skip_to_close(bytes, b"style", 0);
-        // Correct: the FIRST real `</` is at index 9 (`</style>` 9..17), past
-        // `>` is 17. The `||` mutant fires at i=1 (`<` then `style`) and
-        // returns past the `>` at index 7 → 8. They DIFFER.
-        assert_eq!(
-            out, 17,
-            "`&&` ignores the slash-less `<style>` and finds `</style>`"
-        );
-        assert_ne!(
-            out, 8,
-            "the `||` mutant would match the open `<style>` and stop at 8"
-        );
-    }
-
-    // ───────────────────────────────────────────────────────────────────
-    // guard_depth integration — exercises scan_name / skip_comment /
-    // skip_to_close / context tracking IN SITU at the depth boundary, so the
-    // accept/reject verdict (Ok vs too-deep Err) flips when the byte-scan
-    // arithmetic is wrong.
-    // ───────────────────────────────────────────────────────────────────
-
-    // A rawtext element body that LOOKS deep but is flat: `<script>` whose
-    // body holds N literal `<div>` is depth 1, not N. This relies on
-    // skip_to_close jumping past the `</script>`. If skip_to_close mis-scans
-    // (304/302/296 mutants), the `<div>`s inside get counted and the document
-    // is wrongly rejected.
-    #[test]
-    fn guard_depth_rawtext_body_is_flat_not_deep() {
-        let mut body = String::from("<script>");
-        for _ in 0..(MAX_HTML_DEPTH + 50) {
-            body.push_str("<div>");
-        }
-        body.push_str("</script>");
-        // The `<div>`s are TEXT inside script → flat. Must be accepted.
+        let text = block.text().collect::<String>();
         assert!(
-            guard_depth(&body, ExtractMode::Markdown).is_ok(),
-            "script body is rawtext (flat) — skip_to_close must jump past it"
+            text.contains("<div id=\"f\">"),
+            "the block's own markup comes back as literal text, got: {text}"
         );
-    }
-
-    // The same `<div>` flood NOT wrapped in rawtext IS genuinely deep and must
-    // be rejected — pins that the accept above is real skipping, not a
-    // blanket accept.
-    #[test]
-    fn guard_depth_real_deep_nesting_rejected() {
-        let mut body = String::new();
-        for _ in 0..(MAX_HTML_DEPTH + 5) {
-            body.push_str("<div>");
-        }
+        // And the div is nowhere in the DOM — it was never parsed.
+        let div = Selector::parse("div#f").expect("static selector");
         assert!(
-            guard_depth(&body, ExtractMode::Markdown).is_err(),
-            "genuinely nested `<div>`s past the cap must be refused"
-        );
-    }
-
-    // Exact depth boundary: a stack of EXACTLY MAX_HTML_DEPTH open elements is
-    // accepted; one more is rejected. Pins the `stack.len() > MAX_HTML_DEPTH`
-    // off-by-one (the real-push cap site) and proves scan_name reads every
-    // `<div>` name correctly (a mis-scan would mis-count the stack).
-    #[test]
-    fn guard_depth_exact_cap_boundary() {
-        let at_cap: String = "<div>".repeat(MAX_HTML_DEPTH);
-        assert!(
-            guard_depth(&at_cap, ExtractMode::Markdown).is_ok(),
-            "exactly the cap is allowed"
-        );
-        let over_cap: String = "<div>".repeat(MAX_HTML_DEPTH + 1);
-        assert!(
-            guard_depth(&over_cap, ExtractMode::Markdown).is_err(),
-            "one past the cap is refused"
-        );
-    }
-
-    // Foreign-context gate: inside `<svg>` the rawtext names (`<script>`)
-    // NEST instead of tokenizing as text, because the `context` top is
-    // `false` (foreign) so the rawtext-skip branch is OFF. A deep
-    // `<svg><script><script>…` chain must therefore be rejected. This
-    // exercises context_kind/is_context_marker (the `context` stack): if
-    // marker tracking is wrong (225 mutants) the rawtext skip stays ON inside
-    // the svg, under-counts, and wrongly ACCEPTS a genuinely deep foreign tree.
-    #[test]
-    fn guard_depth_foreign_script_nests_and_is_rejected() {
-        let mut body = String::from("<svg>");
-        // <script> is a marker-less element (context_kind == None): inside the
-        // foreign (`false`) context it falls through to REAL nesting, so each
-        // one opens a level.
-        for _ in 0..(MAX_HTML_DEPTH + 5) {
-            body.push_str("<script>");
-        }
-        assert!(
-            guard_depth(&body, ExtractMode::Markdown).is_err(),
-            "inside <svg>, <script> nests (foreign context · skip OFF) — deep chain refused"
-        );
-    }
-
-    // Control proving the foreign gate is what made the difference: the SAME
-    // deep `<script>` flood WITHOUT the `<svg>` wrapper is rawtext in HTML
-    // context and stays FLAT — accepted. Pins that the `is_context_marker`
-    // push/pop (and the `<svg>` foreign root) genuinely toggle the skip; a
-    // `→true` mutant on is_context_marker would mis-track the context stack.
-    #[test]
-    fn guard_depth_html_context_script_flood_is_flat() {
-        let mut body = String::new();
-        for _ in 0..(MAX_HTML_DEPTH + 5) {
-            // No close → each is rawtext-skipped to EOF after counting +1
-            // transiently; they never accumulate (depth never exceeds 1).
-            body.push_str("<script></script>");
-        }
-        assert!(
-            guard_depth(&body, ExtractMode::Markdown).is_ok(),
-            "HTML-context <script> is rawtext (flat) — never reaches the cap"
-        );
-    }
-
-    // Comment skipping in situ: a body of N `<!--...-->` comments is FLAT
-    // (comments never nest). If skip_comment over- or under-consumes
-    // (280/281/284/285 mutants), the surrounding real tags get mis-counted.
-    #[test]
-    fn guard_depth_comments_are_flat() {
-        let mut body = String::from("<div>");
-        for _ in 0..50 {
-            body.push_str("<!-- c -->");
-        }
-        // abrupt empty forms interleaved (exercise the abrupt branches).
-        for _ in 0..50 {
-            body.push_str("<!-->");
-            body.push_str("<!--->");
-        }
-        body.push_str("</div>");
-        assert!(
-            guard_depth(&body, ExtractMode::Markdown).is_ok(),
-            "comments (incl. abrupt forms) are flat — one real <div> only"
+            doc.select(&div).next().is_none(),
+            "a rawtext body contributes no elements to the tree"
         );
     }
 
@@ -1099,23 +596,5 @@ mod tests {
             }
             other => panic!("expected Ok(String), got {other:?}"),
         }
-    }
-
-    // advance_past underpins advance_past_gt / skip_comment / skip_to_close —
-    // pin its needle arithmetic so a returned index is always JUST PAST the
-    // needle, and EOF when absent.
-    #[test]
-    fn advance_past_lands_just_past_needle() {
-        assert_eq!(
-            advance_past(b"ab-->cd", 0, b"-->"),
-            5,
-            "just past the `-->`"
-        );
-        assert_eq!(
-            advance_past(b"abc", 0, b"-->"),
-            3,
-            "absent needle → len (EOF)"
-        );
-        assert_eq!(advance_past(b">x", 0, b">"), 1, "single-byte needle");
     }
 }

@@ -638,3 +638,79 @@ tasks:
         "the parent note names which item recovered:\n{journal}"
     );
 }
+
+/// #1498 review B1 · a fan-out's repairs are ITEMS, never rows. Twelve
+/// items, two repaired by `on_error.recover`: ONE recovered task row and
+/// TWO repairs. The settlement is built once and every door projects it
+/// (ADR-128), so `tasks_recovered` on the wire must be the number the
+/// task line and the verdict card print from the same run's item table —
+/// a tally that counts records reads `1` here and this test fails.
+#[tokio::test]
+async fn a_fan_out_settlement_counts_repaired_items_not_rows() {
+    let yaml = r#"
+nika: fan-out-repairs-counted
+permits: { exec: true }
+const:
+  items: ["i01", "i02", "i03", "i04", "i05", "i06", "i07", "i08", "i09", "i10", "i11", "i12"]
+tasks:
+  process:
+    for_each: { items: "${{ const.items }}", max_parallel: 1 }
+    on_error: { recover: "repaired" }
+    exec: { command: ["do", "${{ item }}"] }
+"#;
+    // The first two iterations fail and recover; the other ten succeed.
+    let shell = (0..10).fold(
+        MockShell::new()
+            .enqueue_fail(1, "exploded")
+            .enqueue_fail(1, "exploded"),
+        |shell, _| shell.enqueue_ok("ok\n"),
+    );
+    let (outcome, events) = run_yaml(yaml, shell, Some(1)).await;
+
+    assert!(outcome.ok, "every item settled (two through a recovery)");
+    let record = &outcome.records["process"];
+    assert_eq!(record.status, TaskStatus::Success);
+    assert_eq!(
+        record.cause,
+        TerminalCause::Recovered,
+        "the fan-out row IS a recovery"
+    );
+    let tally = outcome
+        .settlement
+        .tasks
+        .expect("the terminal frame carries the tally");
+    assert_eq!(tally.total, 1, "one task row settled");
+    assert_eq!(
+        tally.recovered, 2,
+        "two ITEMS were repaired — the row count is 1 and would be the lie"
+    );
+    let journal = journal_text(&events);
+    assert!(
+        journal.contains("2 recovered: i01, i02"),
+        "the task line names the same two repairs the tally counted:\n{journal}"
+    );
+}
+
+/// #1498 review B1 (the other side) · a plain recovered task is exactly
+/// ONE repair — the item-aware tally must not lose the single-row case.
+#[tokio::test]
+async fn a_plain_recovered_task_counts_one_repair() {
+    let yaml = r#"
+nika: plain-repair-counted
+permits: { exec: true }
+tasks:
+  one:
+    exec: { command: ["do", "it"] }
+    on_error: { recover: "repaired" }
+"#;
+    let shell = MockShell::new().enqueue_fail(1, "exploded");
+    let (outcome, _events) = run_yaml(yaml, shell, Some(1)).await;
+
+    assert!(outcome.ok, "the recovery repaired the run");
+    assert_eq!(outcome.records["one"].cause, TerminalCause::Recovered);
+    let tally = outcome
+        .settlement
+        .tasks
+        .expect("the terminal frame carries the tally");
+    assert_eq!((tally.total, tally.recovered), (1, 1));
+}

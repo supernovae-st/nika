@@ -469,3 +469,11 @@ codegen-units = 1
 # the artifact would be dead weight implying a recovery the crate refuses
 # to promise. No catch_unwind exists anywhere in the wasm dependency tree.
 panic = "abort"
+
+[patch.crates-io]
+# dom_smoothie 0.18.0 breaks candidate score ties by its hash map's per-process
+# iteration order: the same page yielded two different articles (nika PR 1503 · 2026-09-06 ·
+# 40 identical runs → 30/10). The pinned rev carries the upstream-shaped fix (the
+# candidates keep their first-scored order · readability.js parity); it drops the
+# day upstream releases it.
+dom_smoothie = { git = "https://github.com/supernovae-st/dom_smoothie", rev = "fd6db004615af3c14d20f90bfb43ca514db4e57d" }

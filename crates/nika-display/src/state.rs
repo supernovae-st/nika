@@ -122,10 +122,15 @@ pub struct TaskRow {
     /// Reasoning/thinking tokens (`tokens_reasoning` · a subset of
     /// `tokens_out`).
     pub tokens_reasoning: Option<u64>,
-    /// The task consumed RECOVERED data (#1444 · the lineage leg of #1275):
-    /// the upstream task whose fallback fed this one, from the terminal
-    /// frame's `integrity_source` (present only when `integrity` reads
-    /// `untrusted`). A clean success renders as one; this one must not.
+    /// The born origin of the task's UNTRUSTED value (F-O1 · the
+    /// terminal frame's `integrity_source`, present only when `integrity`
+    /// reads `untrusted`): the ingress task that let the content in (a
+    /// fetch · an exec · a recovered fallback) or the `inputs.<name>` the
+    /// caller supplied. A trusted success renders as one; a task that
+    /// drank untrusted content must say where it was born. It is NOT a
+    /// repair marker: `recovered` is (the `task_recovered` frame). The two
+    /// were conflated in prose once (#1444) and a wave of eight personas
+    /// read « input from recovered » on runs that repaired nothing.
     pub integrity_source: Option<String>,
 }
 
@@ -264,12 +269,19 @@ impl RunView {
         self.plan_waves.as_deref()
     }
 
-    /// How many rows settled through an `on_error.recover` repair —
-    /// feeds the verdict card and the final meter (the `(N unpriced)`
-    /// honesty style: a non-zero count is never silent).
+    /// How many REPAIRS the run made — feeds the verdict card and the
+    /// final meter (the `(N unpriced)` honesty style: a non-zero count is
+    /// never silent). A fan-out row stands for as many repairs as its
+    /// item table records: the banner used to count ROWS while the task
+    /// line counted ITEMS, and one screen said `1 recovered` above
+    /// `2 recovered: …` (wave 3 · persona 10 · 2026-09-06).
     #[must_use]
     pub fn recovered_count(&self) -> usize {
-        self.rows.iter().filter(|r| r.recovered).count()
+        self.rows
+            .iter()
+            .filter(|r| r.recovered)
+            .map(recovered_items)
+            .sum()
     }
 
     /// How many rows reached a terminal state.
@@ -504,8 +516,8 @@ impl RunView {
         if let Some(items) = str_field(event, "items") {
             row.items_json = Some(items.to_owned());
         }
-        // #1444 · a task fed by a recovered fallback says so on every
-        // prose surface, not only in the JSON.
+        // F-O1 · a task whose value is untrusted names its born origin on
+        // every prose surface, not only in the JSON.
         if str_field(event, "integrity") == Some("untrusted")
             && let Some(source) = str_field(event, "integrity_source")
         {
@@ -660,8 +672,28 @@ fn int_field(event: &Event, key: &str) -> Option<i64> {
     }
 }
 
+/// The repairs one recovered row stands for: a fan-out terminal carries
+/// one `items` entry per iteration with its own status, so a batch that
+/// recovered two items is two repairs. A row without an item table, or
+/// with one that does not parse, is one repair (never zero: the row IS
+/// recovered).
+fn recovered_items(row: &TaskRow) -> usize {
+    let Some(items) = row.items_json.as_deref() else {
+        return 1;
+    };
+    let Ok(serde_json::Value::Array(rows)) = serde_json::from_str::<serde_json::Value>(items)
+    else {
+        return 1;
+    };
+    rows.iter()
+        .filter(|r| r.get("status").and_then(serde_json::Value::as_str) == Some("recovered"))
+        .count()
+        .max(1)
+}
+
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::demo;
 
@@ -970,6 +1002,39 @@ mod tests {
         assert!(view.rows()[0].recovered, "the fact survives the terminal");
         assert!(!view.rows()[1].recovered, "a clean row stays unmarked");
         assert_eq!(view.recovered_count(), 1);
+    }
+
+    /// A fan-out that recovered two of twelve items is TWO repairs on the
+    /// banner, the same number its task line prints (wave 3 · persona 10).
+    #[test]
+    fn the_banner_counts_recovered_items_not_rows() {
+        use nika_types::resource::KeyValue;
+        let task = |id: &str| KeyValue::new("task", Value::String(id.to_owned()));
+        let mut view = RunView::new();
+        view.apply(&demo::bare_event(EventKind::TaskStarted, 0).with_field(task("fan")));
+        view.apply(
+            &demo::bare_event(EventKind::TaskRecovered, 5)
+                .with_field(task("fan"))
+                .with_field(KeyValue::new(
+                    "code",
+                    Value::String("NIKA-BUILTIN-READ-001".to_owned()),
+                )),
+        );
+        view.apply(
+            &demo::bare_event(EventKind::TaskCompleted, 10)
+                .with_field(task("fan"))
+                .with_field(KeyValue::new(
+                    "items",
+                    Value::String(
+                        r#"[{"index":0,"status":"success"},{"index":7,"status":"recovered","code":"NIKA-BUILTIN-READ-001"},{"index":8,"status":"recovered"}]"#
+                            .to_owned(),
+                    ),
+                )),
+        );
+        view.apply(&demo::bare_event(EventKind::TaskStarted, 11).with_field(task("solo")));
+        view.apply(&demo::bare_event(EventKind::TaskRecovered, 12).with_field(task("solo")));
+        view.apply(&demo::bare_event(EventKind::TaskCompleted, 13).with_field(task("solo")));
+        assert_eq!(view.recovered_count(), 3, "two items + one plain row");
     }
 
     /// The retry counter folds every `task_retrying` frame (feeds the

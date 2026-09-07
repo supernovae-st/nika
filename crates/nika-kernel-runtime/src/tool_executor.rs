@@ -143,6 +143,14 @@ pub struct ToolResult {
     /// own code — both were dropped when only `content` survived the seam
     /// (BUG-D · the metadata-slot gap the `BuiltinFailure` doc foretold).
     pub error_meta: Option<ToolErrorMeta>,
+    /// A non-fatal diagnostic the tool raised BESIDE a success — what its
+    /// value does not carry (a `nika:glob` pattern that also matched
+    /// directories the walk never returns). Never folded into `content`
+    /// or `structured`: a consumer's value is unchanged; the `invoke` verb
+    /// carries it to the task's terminal frame as the OBS-E `warning`
+    /// field, so the run line and the trace say it. `None` = nothing to
+    /// say — the common case, and every pre-existing tool.
+    pub warning: Option<String>,
 }
 
 /// A failed [`ToolResult`]'s machine-readable error metadata — the
@@ -186,6 +194,7 @@ impl ToolResult {
             structured: None,
             is_error: false,
             error_meta: None,
+            warning: None,
         }
     }
 
@@ -196,6 +205,15 @@ impl ToolResult {
     #[must_use]
     pub fn with_structured(mut self, value: serde_json::Value) -> Self {
         self.structured = Some(value);
+        self
+    }
+
+    /// Attach a non-fatal diagnostic to a success (the OBS-E `warning`
+    /// lane · never the value): the tool ran, returned its value whole,
+    /// and has one thing to say about what that value leaves out.
+    #[must_use]
+    pub fn with_warning(mut self, warning: impl Into<String>) -> Self {
+        self.warning = Some(warning.into());
         self
     }
 
@@ -210,6 +228,7 @@ impl ToolResult {
             structured: None,
             is_error: true,
             error_meta: None,
+            warning: None,
         }
     }
 

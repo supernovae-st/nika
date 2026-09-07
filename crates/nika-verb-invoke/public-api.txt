@@ -82,9 +82,11 @@ pub fn nika_verb_invoke::InvokeInput::as_any(&self) -> &(dyn core::any::Any + 's
 pub nika_verb_invoke::InvokeOutput::content: alloc::string::String
 pub nika_verb_invoke::InvokeOutput::structured: core::option::Option<serde_json::value::Value>
 pub nika_verb_invoke::InvokeOutput::tool: alloc::string::String
+pub nika_verb_invoke::InvokeOutput::warning: core::option::Option<alloc::string::String>
 impl nika_verb_invoke::InvokeOutput
 pub fn nika_verb_invoke::InvokeOutput::new(tool: impl core::convert::Into<alloc::string::String>, content: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_verb_invoke::InvokeOutput::with_structured(self, value: core::option::Option<serde_json::value::Value>) -> Self
+pub fn nika_verb_invoke::InvokeOutput::with_warning(self, warning: core::option::Option<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_verb_invoke::InvokeOutput
 pub fn nika_verb_invoke::InvokeOutput::clone(&self) -> nika_verb_invoke::InvokeOutput
 impl core::cmp::Eq for nika_verb_invoke::InvokeOutput

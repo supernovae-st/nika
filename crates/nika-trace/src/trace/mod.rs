@@ -163,9 +163,9 @@ fn render_outputs(view: &RunView, trace: &str, theme: Theme) -> String {
         } else {
             preview_cell(row, theme)
         };
-        // #1444 · the lineage the JSON already carried, said in prose.
+        // F-O1 · the born origin of an untrusted value, said in prose.
         if let Some(source) = row.integrity_source.as_deref() {
-            let _ = write!(preview, " · input from recovered {source}");
+            let _ = write!(preview, " · untrusted input from {source}");
         }
         let _ = writeln!(
             out,
@@ -322,6 +322,7 @@ pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::V
                 "error_code": recovered,
                 "recovered_from": recovered,
                 "integrity_source": row.integrity_source,
+                "warning": row.warning,
                 "items": items,
             })
         })
@@ -605,9 +606,9 @@ fn render_peek(row: &TaskRow, text: &str, recovered_from: Option<&str>, theme: T
             let _ = write!(meta, " from {code}");
         }
     }
-    // #1444 · a value that came from a recovered fallback upstream.
+    // F-O1 · the born origin of an untrusted value.
     if let Some(source) = row.integrity_source.as_deref() {
-        let _ = write!(meta, " · input from recovered {source}");
+        let _ = write!(meta, " · untrusted input from {source}");
     }
     let _ = writeln!(out, "  {}", theme.paint(Role::Dim, &meta));
     if let (Some(def), Some(input)) = (row.def_hash.as_deref(), row.input_hash.as_deref()) {
@@ -1419,12 +1420,12 @@ mod tests {
             .find(|l| l.trim_start().starts_with("c "))
             .expect("c's row");
         assert!(
-            c_row.contains("input from recovered b"),
+            c_row.contains("untrusted input from b"),
             "outputs names the lineage: {c_row}"
         );
         let peeked = peek(&path.to_string_lossy(), "c", false, plain());
         assert!(
-            peeked.text.contains("input from recovered b"),
+            peeked.text.contains("untrusted input from b"),
             "peek names the lineage: {}",
             peeked.text
         );
@@ -1434,6 +1435,50 @@ mod tests {
         assert!(
             json["tasks"][0]["integrity_source"].is_null(),
             "b itself has no source"
+        );
+    }
+
+    /// The OBS-E `warning` a terminal frame carried (a `nika:glob` naming
+    /// the directories it left out · V9 wave 3 p10) reaches the machine
+    /// projection per task, and a clean task projects none — `trace
+    /// outputs --json` must say what `trace show` says.
+    #[test]
+    fn a_task_warning_is_projected_per_task() {
+        use nika_event::EventKind;
+        use nika_types::resource::{KeyValue, Value};
+        let task = |id: &str| KeyValue::new("task", Value::String(id.into()));
+        let said = "nika:glob returns files only · 1 directory also matched `./items/*.md` and was left out: ./items/item-07.md";
+        let events = vec![
+            demo::bare_event(EventKind::WorkflowStarted, 0),
+            demo::bare_event(EventKind::TaskStarted, 1)
+                .with_field(task("discover"))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("invoke · nika:glob".into()),
+                )),
+            demo::bare_event(EventKind::TaskCompleted, 2)
+                .with_field(task("discover"))
+                .with_field(KeyValue::new("output", Value::String("[]".into())))
+                .with_field(KeyValue::new("warning", Value::String(said.into()))),
+            demo::bare_event(EventKind::TaskStarted, 3)
+                .with_field(task("merge"))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("infer · mock/echo".into()),
+                )),
+            demo::bare_event(EventKind::TaskCompleted, 4)
+                .with_field(task("merge"))
+                .with_field(KeyValue::new("output", Value::String("\"ok\"".into()))),
+            demo::bare_event(EventKind::WorkflowCompleted, 5),
+        ];
+        let path = stage("glob-warning.ndjson", &events);
+        let (view, events) = load_view_and_events(&path.to_string_lossy()).expect("loads");
+        let json = tasks_json(&view, &events);
+        assert_eq!(json["tasks"][0]["id"], "discover");
+        assert_eq!(json["tasks"][0]["warning"], said);
+        assert!(
+            json["tasks"][1]["warning"].is_null(),
+            "a clean task projects no warning"
         );
     }
 }

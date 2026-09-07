@@ -52,7 +52,7 @@ use crate::record::{TaskErrorRecord, TaskRecord, TaskStatus};
 use crate::resume::ResumeContext;
 use crate::stamp::{EventSink, Stamper};
 use crate::task::{
-    FailedOutcome, Finish, RanTask, RetryStamp, RunResult, SettleAs, bind_outputs,
+    FailedOutcome, FanItems, Finish, RanTask, RetryStamp, RunResult, SettleAs, bind_outputs,
     runtime_error_record, success_output,
 };
 
@@ -104,8 +104,9 @@ struct Parked {
     retries: Vec<RetryStamp>,
     agent_events: Vec<crate::agent_events::StampedAgentEvent>,
     duration_ms: u64,
-    /// The fan-out's item table (#1276), carried to resolution.
-    items: Option<String>,
+    /// The fan-out's item table + repair count (#1276), carried to
+    /// resolution.
+    items: Option<FanItems>,
     resume: Option<crate::resume::ResumeStamp>,
     /// The dispatch boundary's permit decisions recorded before the park
     /// (NEP-0007) — they ride to resolution like the declassify events.

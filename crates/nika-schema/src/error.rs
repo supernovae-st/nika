@@ -178,15 +178,32 @@ pub enum SchemaError {
     /// W2 « the flow » · a task carries `depends_on:` — dead form.
     /// Data crosses through `with:` (the binding IS the edge) · pure
     /// control through `after:` predicates (spec `03-dag.md`
-    /// §`depends_on` · `check --fix` migrates the provable cases).
-    #[error(
-        "task `{task}` carries `depends_on:` — dead since W2; data → `with:` bindings (the binding IS the edge) · control → `after: {{{task_hint}: success}}` (`nika check --fix` migrates the provable cases)"
-    )]
+    /// §`depends_on` · `check --fix` migrates the shapes its W2 scanner
+    /// reads — see [`provable`](Self::W2DependsOnField::provable), which
+    /// is NECESSARY for the repair, never sufficient).
+    #[error("{}", w2_depends_on_message(.task, .task_hint, *.provable))]
     W2DependsOnField {
         /// The task (named by its map key).
         task: String,
-        /// The first dep name (for the teaching's `after:` example).
+        /// The first dep name (for the teaching's `after:` example) — the
+        /// placeholder `producer` when the first entry is not a task id.
         task_hint: String,
+        /// Whether the SHAPE is one the W2 migrator reads: a sequence
+        /// whose every entry is a bare task id (`[a-z0-9_]+` · quotes
+        /// stripped · an EMPTY sequence declares no edge and the dead line
+        /// simply drops). A scalar, a map or any other entry is what the
+        /// scanner calls malformed — `--fix` stops there, so the message
+        /// hands that shape back to the author.
+        ///
+        /// NECESSARY, not sufficient: on an accepted shape the migrator
+        /// still stops the whole file when a producer may skip (`when:` ·
+        /// `for_each:` · `on_error.skip` · S1), when a dep is read only
+        /// through its status (S3), or when a hoist would leave `on_error:`
+        /// armor (S4) — which is why the message promises a shape `--fix`
+        /// *can* migrate, never a repair it *will* apply (wave 3 · persona
+        /// 02 · the promise fired on a scalar, then `--fix` answered
+        /// « rewrite by hand »).
+        provable: bool,
         /// Span of the dead `depends_on:` node.
         span: Option<Span>,
     },
@@ -1127,6 +1144,7 @@ fn analysis_level_variants() -> Vec<SchemaError> {
         SchemaError::W2DependsOnField {
             task: String::new(),
             task_hint: String::new(),
+            provable: false,
             span: None,
         },
         SchemaError::UnknownAfterPredicate {
@@ -1215,6 +1233,24 @@ fn type_level_variants() -> Vec<SchemaError> {
             span: None,
         },
     ]
+}
+
+/// The W2 teaching, honest per shape AND about its own limits: the shape
+/// clause is spoken only for a sequence the migrator's scanner reads (no
+/// entry anything but a bare task id), any other shape is named as the
+/// author's to rewrite — and the accepted shape says out loud that the
+/// whole-file stops still apply, so the finding never promises a repair
+/// the fixer then refuses on the next screen.
+fn w2_depends_on_message(task: &str, task_hint: &str, provable: bool) -> String {
+    if provable {
+        format!(
+            "task `{task}` carries `depends_on:` — dead since W2; data → `with:` bindings (the binding IS the edge) · control → `after: {{{task_hint}: success}}` (`nika check --fix` can migrate this shape — no entry is anything but a bare task id; it still stops the file when a producer may skip (`when:` · `for_each:` · `on_error.skip`) or is read only through its status)"
+        )
+    } else {
+        format!(
+            "task `{task}` carries `depends_on:` — dead since W2; data → `with:` bindings (the binding IS the edge) · control → `after: {{{task_hint}: success}}` (`nika check --fix` leaves this shape to you — it is not a list of bare task ids; write the `after:` map by hand)"
+        )
+    }
 }
 
 #[cfg(test)]

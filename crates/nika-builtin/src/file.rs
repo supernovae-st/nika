@@ -5,13 +5,17 @@
 //! Each composes the injected kernel `Fs*Dyn` seams.
 
 use std::borrow::Cow;
-use std::path::Path;
+use std::collections::BTreeSet;
+use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
 
-use nika_kernel::io::fs::{FsError, FsListDyn, FsReadDyn, FsWriteDyn};
+use nika_kernel::io::fs::{FsError, FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
 
 use crate::permits::{FsAccess, FsBoundary};
 use crate::{Args, BuiltinFailure, BuiltinOutcome, req_str, strict_bool, strict_u64};
 
+#[cfg(test)]
+mod glob_grep_tests;
 #[cfg(test)]
 mod write_tests;
 
@@ -63,13 +67,40 @@ fn read_failure(e: FsError, path: &str) -> BuiltinFailure {
 /// (`nika:read binary: true` → `{ bytes_base64, len }`) — is written
 /// as-is (builtins-v0.1.md:130 · the value carries its own type), so
 /// read→write round-trips bytes without a decoder step in the workflow.
-pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
+/// `path:` names a FILE, never a directory · a directory-shaped path is a
+/// coded refusal that teaches the file-inside form (see `directory_refusal`).
+pub(crate) async fn write<F: FsReadDyn + FsWriteDyn + FsMetaDyn>(
+    fs: &F,
+    args: &Args,
+) -> BuiltinOutcome {
     const C1: &str = "NIKA-BUILTIN-WRITE-001";
     const C2: &str = "NIKA-BUILTIN-WRITE-002";
     let path = req_str(args, "path", C1)?;
     let content = write_content(args, C1)?;
     let overwrite = strict_bool(args, "overwrite", true, C1)?;
     let create_dirs = strict_bool(args, "create_dirs", false, C1)?;
+
+    // `nika:write` writes FILES. A path that NAMES a directory — a trailing
+    // separator (`out/replies/`), a `.`/`..` last component, or a name that
+    // already IS a directory — used to reach the seam and come back as
+    // `path not found` then `Is a directory (os error 21)`: neither says what
+    // to do. Measured on Harness-Bench 005 (0.118.7 · gpt-4o-mini): 8 failed
+    // writes over 6 of the agent's 11 turns. Refuse BEFORE any effect and
+    // teach the file-inside form · the refusal never creates the directory
+    // (no new effect class), it only names the one the author meant.
+    if names_a_directory(path) || is_existing_dir(fs, path).await {
+        return Err(directory_refusal(C1, path));
+    }
+    // The `Not a directory (os error 20)` half: a FILE stands where a parent
+    // directory is needed. Measured on Harness-Bench 005 with the two teaches
+    // above in place (gpt-4o-mini): the model "pre-created" `out/replies`
+    // with an empty `nika:write`, then every `out/replies/<name>` write died
+    // `path already exists: out/replies` — the seam's parent creation, not
+    // the cause — for the rest of the run. Name the file, its size, and the
+    // fact that nothing here deletes it.
+    if let Some((blocker, len)) = file_in_the_way(fs, path).await {
+        return Err(file_in_the_way_refusal(C1, path, &blocker, len));
+    }
 
     if !overwrite && fs.exists(Path::new(path)).await {
         return Err(BuiltinFailure::new(
@@ -114,6 +145,83 @@ pub(crate) async fn write<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Bui
         other => BuiltinFailure::new(C1, format!("write failed: {other}")),
     })?;
     Ok(serde_json::Value::String(path.to_owned()))
+}
+
+/// A path whose last component names a DIRECTORY, not a file. `Path`
+/// normalizes a trailing separator away (`Path::new("a/b/").file_name()` is
+/// `Some("b")`), so the raw string is the only witness of `out/replies/`;
+/// `file_name() == None` catches the rest (`.` · `..` · `/` · `a/..`). An
+/// empty path is left to the seam — it is not this teach's shape.
+fn names_a_directory(path: &str) -> bool {
+    let Some(last) = path.chars().next_back() else {
+        return false;
+    };
+    last == '/' || last == std::path::MAIN_SEPARATOR || Path::new(path).file_name().is_none()
+}
+
+/// The `Is a directory (os error 21)` half: the NAME already exists and is a
+/// directory. Any other verdict (absent · a regular file · an unreadable
+/// stat) falls through, so the write's own error keeps its meaning.
+async fn is_existing_dir<F: FsMetaDyn>(fs: &F, path: &str) -> bool {
+    matches!(fs.metadata(Path::new(path)).await, Ok(meta) if meta.is_dir)
+}
+
+/// The nearest EXISTING ancestor of `path` that is not a directory — a
+/// regular file (or anything else that is not a directory) standing where
+/// the parent chain needs a directory. Walks upward from the immediate
+/// parent; the first ancestor that exists decides: a directory means the
+/// chain is sound (`None`), anything else is the blocker. Absent ancestors
+/// are skipped (they are `create_dirs:`' business); an empty parent (a bare
+/// filename → cwd) is never a candidate.
+async fn file_in_the_way<F: FsMetaDyn>(fs: &F, path: &str) -> Option<(String, u64)> {
+    let ancestors = Path::new(path)
+        .ancestors()
+        .skip(1)
+        .filter(|p| !p.as_os_str().is_empty());
+    for ancestor in ancestors {
+        match fs.metadata(ancestor).await {
+            Ok(meta) if meta.is_dir => return None,
+            Ok(meta) => return Some((ancestor.display().to_string(), meta.len)),
+            Err(_) => {}
+        }
+    }
+    None
+}
+
+/// The refusal for a file in the parent chain · it names the blocker, its
+/// size, the fact that `nika:write` never deletes, and the mistake that
+/// usually put it there (an empty write meant as a `mkdir`).
+fn file_in_the_way_refusal(
+    code: &'static str,
+    path: &str,
+    blocker: &str,
+    len: u64,
+) -> BuiltinFailure {
+    BuiltinFailure::new(
+        code,
+        format!(
+            "`{blocker}` is a file ({len} bytes), not a directory — `{path}` cannot be \
+             created beneath it, and `nika:write` never deletes: write the file under \
+             another directory, or have the workflow's author remove `{blocker}` first. \
+             (An empty `nika:write` at a directory's path creates a FILE there, never \
+             the directory — write the first file inside it with `create_dirs: true` \
+             instead.)"
+        ),
+    )
+}
+
+/// The teaching refusal · it names the path, the shape, and the exact call
+/// that works (an agent reads this and its next turn is the right one).
+fn directory_refusal(code: &'static str, path: &str) -> BuiltinFailure {
+    let inside = path.trim_end_matches(['/', std::path::MAIN_SEPARATOR]);
+    BuiltinFailure::new(
+        code,
+        format!(
+            "`{path}` names a directory, not a file — `nika:write` writes files. \
+             Write the file inside it (`{inside}/<name>`) with `create_dirs: true` \
+             and the directory is created."
+        ),
+    )
 }
 
 /// Resolve `content:` to bytes — a string is written VERBATIM; the binary
@@ -195,8 +303,20 @@ pub(crate) async fn edit<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Buil
     Ok(serde_json::Value::String(path.to_owned()))
 }
 
-/// `nika:glob` — sorted-lexicographically match (stdlib §glob).
-pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
+/// A `nika:glob` result: the file list (the value a consumer receives —
+/// unchanged, forever) beside the OBS-E `warning` naming the directory
+/// matches the walk left out, when there were any.
+pub(crate) struct Globbed {
+    pub(crate) paths: serde_json::Value,
+    pub(crate) warning: Option<String>,
+}
+
+/// `nika:glob` — sorted-lexicographically match (stdlib §glob), with the
+/// report of what the match set does NOT carry ([`dropped_directories`]).
+pub(crate) async fn glob_reported<F: FsReadDyn + FsListDyn + FsMetaDyn>(
+    fs: &F,
+    args: &Args,
+) -> Result<Globbed, BuiltinFailure> {
     const C: &str = "NIKA-BUILTIN-GLOB-001";
     let pattern = req_str(args, "pattern", C)?;
     // The kernel `glob(root, pattern)` matches `pattern` against the
@@ -208,7 +328,8 @@ pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
     // named (`hiring/inbox/*.md` walks `./hiring/inbox`, not the whole cwd:
     // a scoped `permits.fs.read` boundary must accept a scoped glob).
     let (root, rel_pattern) = split_pattern_root(pattern);
-    let matches = match fs.glob(Path::new(root.as_ref()), rel_pattern).await {
+    let root = Path::new(root.as_ref());
+    let matches = match fs.glob(root, rel_pattern).await {
         Ok(matches) => matches,
         // A missing walk root means the match set is empty, not an error —
         // the historical cwd-walk contract (`[]` for `gone-dir/*.md`), now
@@ -217,14 +338,145 @@ pub(crate) async fn glob<F: FsListDyn>(fs: &F, args: &Args) -> BuiltinOutcome {
         Err(e) => return Err(BuiltinFailure::new(C, format!("invalid pattern: {e}"))),
     };
     let excludes = exclude_patterns(args);
-    let mut paths: Vec<String> = matches
+    let silenced = |p: &String| excludes.iter().any(|ex| simple_glob(ex, p));
+    let walked: Vec<String> = matches
         .into_iter()
         .map(|p| p.to_string_lossy().into_owned())
-        .filter(|p| !excludes.iter().any(|ex| simple_glob(ex, p)))
         .collect();
+    // The report reads the walker's RAW set (an excluded file is still a
+    // file the walker returned), and an author's `exclude:` silences the
+    // directories it names — that drop is the author's own.
+    let dropped: Vec<String> = dropped_directories(fs, root, rel_pattern, &walked)
+        .await
+        .into_iter()
+        .filter(|p| !silenced(p))
+        .collect();
+    let mut paths: Vec<String> = walked.into_iter().filter(|p| !silenced(p)).collect();
     paths.sort();
-    Ok(serde_json::Value::Array(
-        paths.into_iter().map(serde_json::Value::String).collect(),
+    Ok(Globbed {
+        paths: serde_json::Value::Array(paths.into_iter().map(serde_json::Value::String).collect()),
+        warning: dropped_warning(pattern, &dropped),
+    })
+}
+
+/// The directories under `root` that match `pattern` — the entries the
+/// kernel walk never returns (`FsListDyn::glob` yields non-directory
+/// entries only), named so a `*.md` that also matched a folder called
+/// `item-07.md` cannot settle as a bare success (V9 wave 3 · p10: a
+/// 12-candidate batch fanned over 11 and the trace read `succeeded`).
+/// The grammar is the walker's own (`globset` · `literal_separator`) —
+/// a second spelling would drift.
+///
+/// A single-segment pattern (`*.md`) needs neither descent nor stat: the
+/// walker returned EVERY matching non-directory child of the root, so a
+/// matching child it did not return is a directory by construction. A
+/// pattern with a `/` or a `**` descends the way the walker does (hidden
+/// directories are not entered · a symlink is a leaf) and asks
+/// `metadata` which children are directories. `metadata` FOLLOWS links,
+/// so a directory reached through a symlink is told apart by its
+/// canonical path: one that is not the canonical root joined with the
+/// child's relative path was reached through a link (a loop, or a tree
+/// outside the walk) and is neither entered nor named — measured: a
+/// `sub/loop -> ..` link made the report walk forever while the value
+/// had long settled. Advisory by design: a listing that fails names
+/// nothing — the value has already settled; this only decides what the
+/// frame SAYS.
+async fn dropped_directories<F: FsReadDyn + FsListDyn + FsMetaDyn>(
+    fs: &F,
+    root: &Path,
+    pattern: &str,
+    returned: &[String],
+) -> Vec<String> {
+    let Ok(matcher) = globset::GlobBuilder::new(pattern)
+        .literal_separator(true)
+        .build()
+        .map(|glob| glob.compile_matcher())
+    else {
+        return Vec::new();
+    };
+    let returned: BTreeSet<&str> = returned.iter().map(String::as_str).collect();
+    let descend = pattern.contains('/') || pattern.contains("**");
+    let mut dropped = Vec::new();
+    // The root's canonical form, computed once: a child is a real member of
+    // the walk only when its own canonical path is this root plus its
+    // relative path (`std::fs::canonicalize` resolves every link on the way).
+    let canonical_root = match fs.canonicalize(root).await {
+        Ok(canonical) => canonical,
+        Err(_) => root.to_path_buf(),
+    };
+    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(children) = fs.list_dir(&dir).await else {
+            continue;
+        };
+        for child in children {
+            let text = child.to_string_lossy().into_owned();
+            if returned.contains(text.as_str()) {
+                continue; // a non-directory the walker returned
+            }
+            let Ok(rel) = child.strip_prefix(root) else {
+                continue;
+            };
+            let hit = matcher.is_match(rel);
+            if !descend {
+                if hit {
+                    dropped.push(text);
+                }
+                continue;
+            }
+            let Ok(meta) = fs.metadata(&child).await else {
+                continue;
+            };
+            if !meta.is_dir {
+                continue;
+            }
+            // A symlink is a leaf for the walker, so it is one for the report:
+            // neither entered (a loop would never settle) nor named.
+            let Ok(canonical) = fs.canonicalize(&child).await else {
+                continue;
+            };
+            if canonical != canonical_root.join(rel) {
+                continue;
+            }
+            if hit {
+                dropped.push(text);
+            }
+            let hidden = child
+                .file_name()
+                .is_some_and(|name| name.as_encoded_bytes().first() == Some(&b'.'));
+            if !hidden {
+                stack.push(child);
+            }
+        }
+    }
+    dropped.sort();
+    dropped
+}
+
+/// The OBS-E sentence for the directories a glob left out — the first
+/// five named, the rest counted (a warning is a line, not a listing).
+fn dropped_warning(pattern: &str, dropped: &[String]) -> Option<String> {
+    const NAMED: usize = 5;
+    let n = dropped.len();
+    if n == 0 {
+        return None;
+    }
+    let (noun, verb) = if n == 1 {
+        ("directory", "was")
+    } else {
+        ("directories", "were")
+    };
+    let mut names = dropped
+        .iter()
+        .take(NAMED)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if n > NAMED {
+        let _ = write!(names, " (+{} more)", n - NAMED);
+    }
+    Some(format!(
+        "nika:glob returns files only · {n} {noun} also matched `{pattern}` and {verb} left out: {names}"
     ))
 }
 
@@ -464,6 +716,7 @@ fn is_not_a_directory(e: &FsError) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use nika_kernel_mock::MockFs;
 
     fn args(v: serde_json::Value) -> Args {
@@ -683,6 +936,181 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn write_refuses_a_path_that_names_a_directory() {
+        // Harness-Bench 005 (0.118.7 · gpt-4o-mini · proxy trace kept): the
+        // model asked for the DIRECTORY — `nika:write { path: "out/replies/",
+        // content: "", create_dirs: true }` — and got `path not found`. The
+        // refusal now NAMES the shape and the call that works.
+        let fs = MockFs::new();
+        let trailing = write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "out/replies/", "content": "", "create_dirs": true
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&trailing, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("out/replies/")
+                && f.message.contains("names a directory")
+                && f.message.contains("create_dirs: true")),
+            "a trailing slash is taught, never `path not found`: {trailing:?}"
+        );
+        // The teach VERBATIM — this string IS the fix (an agent reads it and
+        // its next turn is the right one), so it is pinned, not sampled.
+        assert_eq!(
+            trailing.as_ref().err().map(|f| f.message.as_str()),
+            Some(
+                "`out/replies/` names a directory, not a file — `nika:write` writes files. \
+                 Write the file inside it (`out/replies/<name>`) with `create_dirs: true` \
+                 and the directory is created."
+            )
+        );
+        // …and NOTHING was created — a refusal carries no effect.
+        assert!(
+            fs.file_paths().is_empty(),
+            "the refusal wrote nothing: {:?}",
+            fs.file_paths()
+        );
+        // `.` and `..` are the same shape (`Path::file_name()` → None).
+        let dotdot = write(
+            &fs,
+            &args(serde_json::json!({ "path": "..", "content": "x" })),
+        )
+        .await;
+        assert!(
+            matches!(&dotdot, Err(f) if f.message.contains("names a directory")),
+            "`..` names a directory too: {dotdot:?}"
+        );
+        // …while a bare filename (empty parent = cwd) is untouched by the gate.
+        write(
+            &fs,
+            &args(serde_json::json!({ "path": "bare.txt", "content": "hi" })),
+        )
+        .await
+        .expect("a bare filename still writes");
+    }
+
+    #[tokio::test]
+    async fn write_refuses_an_existing_directory_target() {
+        // The `Is a directory (os error 21)` half — what the same model got
+        // once a sibling call had created `out/replies`. Refused before the
+        // seam, with the same teach, and the taught form still writes.
+        let fs = MockFs::new().with_file("out/replies/001.txt", "first");
+        let refused = write(
+            &fs,
+            &args(serde_json::json!({ "path": "out/replies", "content": "" })),
+        )
+        .await;
+        assert!(
+            matches!(&refused, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("out/replies")
+                && f.message.contains("names a directory")
+                && f.message.contains("create_dirs: true")),
+            "an existing directory target is taught: {refused:?}"
+        );
+        let ok = write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "out/replies/002.txt", "content": "second", "create_dirs": true
+            })),
+        )
+        .await
+        .expect("the taught form writes");
+        assert_eq!(
+            ok,
+            serde_json::Value::String("out/replies/002.txt".to_owned())
+        );
+        assert_eq!(
+            fs.read_to_string(Path::new("out/replies/002.txt"))
+                .await
+                .expect("landed"),
+            "second"
+        );
+        // …and the sibling the directory already held is untouched.
+        assert_eq!(
+            fs.read_to_string(Path::new("out/replies/001.txt"))
+                .await
+                .expect("intact"),
+            "first"
+        );
+    }
+
+    #[tokio::test]
+    async fn write_beneath_a_file_names_the_file_in_the_way() {
+        // Harness-Bench 005 again, on the binary that carries the two teaches
+        // above (gpt-4o-mini): the model "pre-created" `out/replies` with an
+        // EMPTY write (a file), then every `out/replies/<name>` write died
+        // `path already exists: out/replies` — with and without `create_dirs`
+        // — for the rest of the run. The refusal now names the blocker.
+        let fs = MockFs::new().with_file("out/replies", "");
+        let with_dirs = write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "out/replies/002.txt", "content": "hi", "create_dirs": true
+            })),
+        )
+        .await;
+        assert_eq!(
+            with_dirs
+                .as_ref()
+                .err()
+                .map(|f| (f.code, f.message.as_str())),
+            Some((
+                "NIKA-BUILTIN-WRITE-001",
+                "`out/replies` is a file (0 bytes), not a directory — `out/replies/002.txt` \
+                 cannot be created beneath it, and `nika:write` never deletes: write the \
+                 file under another directory, or have the workflow's author remove \
+                 `out/replies` first. (An empty `nika:write` at a directory's path creates \
+                 a FILE there, never the directory — write the first file inside it with \
+                 `create_dirs: true` instead.)"
+            ))
+        );
+        // Without `create_dirs` the same blocker is named (the old path went
+        // through the seam and came back `path already exists`).
+        let plain = write(
+            &fs,
+            &args(serde_json::json!({ "path": "out/replies/002.txt", "content": "hi" })),
+        )
+        .await;
+        assert!(
+            matches!(&plain, Err(f) if f.code == "NIKA-BUILTIN-WRITE-001"
+                && f.message.contains("`out/replies` is a file (0 bytes)")),
+            "the blocker is named without create_dirs too: {plain:?}"
+        );
+        // A deeper target names the SAME blocker (the nearest existing
+        // ancestor decides), and its size is the file's.
+        let fs = MockFs::new().with_file("out/replies", "marker");
+        let deep = write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "out/replies/2026/002.txt", "content": "hi", "create_dirs": true
+            })),
+        )
+        .await;
+        assert!(
+            matches!(&deep, Err(f) if f.message.contains("`out/replies` is a file (6 bytes)")
+                && f.message.contains("`out/replies/2026/002.txt` cannot be created")),
+            "the nearest existing ancestor is the blocker: {deep:?}"
+        );
+        // …and nothing was written anywhere by the refusals.
+        assert_eq!(
+            fs.file_paths(),
+            vec![Path::new("out/replies").to_path_buf()]
+        );
+        // A directory parent is not in the way: the taught form still writes.
+        let fs = MockFs::new().with_file("out/replies/001.txt", "first");
+        write(
+            &fs,
+            &args(serde_json::json!({
+                "path": "out/replies/002.txt", "content": "second", "create_dirs": true
+            })),
+        )
+        .await
+        .expect("a directory parent is sound");
+    }
+
+    #[tokio::test]
     async fn edit_replaces_all_or_capped_and_fails_on_no_match() {
         let fs = MockFs::new().with_file("c.txt", "a a a");
         edit(
@@ -733,361 +1161,6 @@ mod tests {
             serde_json::Value::String("a a a a".to_owned()),
             "the file survives the string-count footgun (no over-edit)"
         );
-    }
-
-    #[tokio::test]
-    async fn grep_sorts_by_path_then_line() {
-        let fs = MockFs::new()
-            .with_file("proj/b.txt", "no\nTODO: two\n")
-            .with_file("proj/a.txt", "TODO: one\n");
-        let out = grep(
-            &fs,
-            &FsBoundary::unbounded(),
-            &args(serde_json::json!({ "pattern": "TODO:", "path": "proj" })),
-        )
-        .await
-        .expect("ok");
-        let hits = out.as_array().expect("array");
-        assert_eq!(hits.len(), 2);
-        assert_eq!(hits[0]["path"], "proj/a.txt");
-        assert_eq!(hits[0]["line"], 1);
-        assert_eq!(hits[1]["path"], "proj/b.txt");
-        assert_eq!(hits[1]["line"], 2);
-
-        let bad = grep(
-            &fs,
-            &FsBoundary::unbounded(),
-            &args(serde_json::json!({ "pattern": "(unclosed", "path": "proj" })),
-        )
-        .await;
-        assert!(matches!(bad, Err(f) if f.code == "NIKA-BUILTIN-GREP-001"));
-    }
-
-    #[tokio::test]
-    async fn glob_sorts_and_excludes() {
-        // Files keyed under "./" so the mock's root `.` finds them.
-        let fs = MockFs::new()
-            .with_file("./b.rs", "")
-            .with_file("./a.rs", "")
-            .with_file("./target/x.rs", "");
-        let all = glob(&fs, &args(serde_json::json!({ "pattern": "**" })))
-            .await
-            .expect("ok");
-        let names: Vec<&str> = all
-            .as_array()
-            .expect("array")
-            .iter()
-            .map(|v| v.as_str().expect("string"))
-            .collect();
-        assert_eq!(
-            names,
-            vec!["./a.rs", "./b.rs", "./target/x.rs"],
-            "sorted lexicographically"
-        );
-        // The exclude predicate over the same tree drops target/.
-        let filtered = glob(
-            &fs,
-            &args(serde_json::json!({ "pattern": "**", "exclude": ["**/target/**"] })),
-        )
-        .await
-        .expect("ok");
-        let kept: Vec<&str> = filtered
-            .as_array()
-            .expect("array")
-            .iter()
-            .map(|v| v.as_str().expect("string"))
-            .collect();
-        assert_eq!(kept, vec!["./a.rs", "./b.rs"]);
-    }
-
-    #[tokio::test]
-    async fn glob_applies_the_exclude_filter() {
-        // Files keyed under "./" so the mock's root-prefix (root ".") finds
-        // them; the exclude predicate drops the matching one.
-        let fs = MockFs::new()
-            .with_file("./keep.rs", "")
-            .with_file("./drop.rs", "");
-        let out = glob(
-            &fs,
-            &args(serde_json::json!({ "pattern": "**", "exclude": ["**drop**"] })),
-        )
-        .await
-        .expect("ok");
-        let paths: Vec<&str> = out
-            .as_array()
-            .expect("array")
-            .iter()
-            .map(|v| v.as_str().expect("string"))
-            .collect();
-        assert_eq!(paths, vec!["./keep.rs"], "drop.rs excluded");
-    }
-
-    #[tokio::test]
-    async fn glob_exclude_accepts_a_bare_string() {
-        // The Finding #5 fix: a single-pattern `exclude:` string (the
-        // natural one-pattern form) was silently dropped when only arrays
-        // were read.
-        let fs = MockFs::new()
-            .with_file("./keep.rs", "")
-            .with_file("./drop.rs", "");
-        let out = glob(
-            &fs,
-            &args(serde_json::json!({ "pattern": "**", "exclude": "**drop**" })),
-        )
-        .await
-        .expect("ok");
-        let paths: Vec<&str> = out
-            .as_array()
-            .expect("array")
-            .iter()
-            .map(|v| v.as_str().expect("string"))
-            .collect();
-        assert_eq!(paths, vec!["./keep.rs"], "string exclude drops drop.rs");
-    }
-
-    #[tokio::test]
-    async fn glob_matches_an_absolute_pattern() {
-        // F2 · the silent-empty footgun: an absolute pattern matching an
-        // existing file used to return `[]` (the kernel matches the pattern
-        // against cwd-relative paths · an absolute one never matched). Now
-        // it re-roots at the literal dir prefix and matches.
-        let fs = MockFs::new()
-            .with_file("/tmp/x/file.txt", "")
-            .with_file("/tmp/x/other.md", "")
-            .with_file("/tmp/y/elsewhere.txt", "");
-
-        // An exact absolute file path returns it.
-        let exact = glob(
-            &fs,
-            &args(serde_json::json!({ "pattern": "/tmp/x/file.txt" })),
-        )
-        .await
-        .expect("ok");
-        assert_eq!(
-            exact,
-            serde_json::json!(["/tmp/x/file.txt"]),
-            "an absolute file pattern matches it (was silently [])"
-        );
-
-        // An absolute glob pattern matches under its root only.
-        let starred = glob(&fs, &args(serde_json::json!({ "pattern": "/tmp/x/*.txt" })))
-            .await
-            .expect("ok");
-        assert_eq!(
-            starred,
-            serde_json::json!(["/tmp/x/file.txt"]),
-            "absolute *.txt under /tmp/x — not /tmp/y"
-        );
-
-        // An absolute `**` recurses under its root.
-        let recursive = glob(&fs, &args(serde_json::json!({ "pattern": "/tmp/**" })))
-            .await
-            .expect("ok");
-        assert_eq!(
-            recursive,
-            serde_json::json!(["/tmp/x/file.txt", "/tmp/x/other.md", "/tmp/y/elsewhere.txt"]),
-            "absolute /tmp/** spans both subtrees"
-        );
-
-        // An absolute no-match is a clean [] (not an error).
-        let empty = glob(
-            &fs,
-            &args(serde_json::json!({ "pattern": "/tmp/x/nope.zip" })),
-        )
-        .await
-        .expect("ok");
-        assert_eq!(empty, serde_json::json!([]), "absolute no-match is []");
-    }
-
-    #[tokio::test]
-    async fn glob_relative_patterns_still_work() {
-        // The F2 fix must not regress the relative (cwd-rooted) path.
-        let fs = MockFs::new()
-            .with_file("./a.rs", "")
-            .with_file("./b.rs", "");
-        let out = glob(&fs, &args(serde_json::json!({ "pattern": "**" })))
-            .await
-            .expect("ok");
-        assert_eq!(out, serde_json::json!(["./a.rs", "./b.rs"]));
-    }
-
-    #[test]
-    fn split_pattern_root_relative_vs_absolute() {
-        // Relative → the literal directory prefix, `./`-prefixed (the walk
-        // AND the permits gate anchor at the directory the author named —
-        // a scoped boundary accepts a scoped glob) · returned paths keep
-        // the historical `./…` byte shape.
-        assert_eq!(
-            split_pattern_root("src/**/*.rs"),
-            ("./src".into(), "**/*.rs")
-        );
-        assert_eq!(split_pattern_root("**"), (".".into(), "**"));
-        assert_eq!(
-            split_pattern_root("hiring/inbox/*.md"),
-            ("./hiring/inbox".into(), "*.md")
-        );
-        // A leading `./` is stripped from the MATCH pattern — the walker
-        // matches root-relative paths (no `./`), so `./**/*.rs` MUST behave
-        // as `**/*.rs` (the spec example uses the `./` form; keeping it
-        // returned a silent empty match).
-        assert_eq!(split_pattern_root("./**/*.rs"), (".".into(), "**/*.rs"));
-        assert_eq!(split_pattern_root("./src/*.rs"), ("./src".into(), "*.rs"));
-        assert_eq!(split_pattern_root("./file.txt"), (".".into(), "file.txt"));
-        // No meta char at all — the whole relative path is literal: walk its
-        // parent, match its name.
-        assert_eq!(
-            split_pattern_root("docs/guide.md"),
-            ("./docs".into(), "guide.md")
-        );
-        // Absolute exact file → the parent dir + the file name.
-        assert_eq!(
-            split_pattern_root("/tmp/x/file.txt"),
-            ("/tmp/x".into(), "file.txt")
-        );
-        // Absolute with a meta char → split at the last `/` before it.
-        assert_eq!(
-            split_pattern_root("/data/**/*.rs"),
-            ("/data".into(), "**/*.rs")
-        );
-        assert_eq!(split_pattern_root("/var/*.log"), ("/var".into(), "*.log"));
-        // A meta char in the first segment after root → walk from `/`.
-        assert_eq!(split_pattern_root("/*.txt"), ("/".into(), "*.txt"));
-        // A bare absolute file under root → (`/`, name).
-        assert_eq!(split_pattern_root("/hosts"), ("/".into(), "hosts"));
-        // The public root accessor agrees.
-        assert_eq!(glob_walk_root("/tmp/x/file.txt"), "/tmp/x");
-        assert_eq!(glob_walk_root("rel/**"), "./rel");
-    }
-
-    #[test]
-    fn exclude_patterns_reads_string_or_array() {
-        let none = exclude_patterns(&args(serde_json::json!({})));
-        assert!(none.is_empty(), "absent exclude = empty");
-        let one = exclude_patterns(&args(serde_json::json!({ "exclude": "**/target/**" })));
-        assert_eq!(
-            one,
-            vec!["**/target/**".to_owned()],
-            "bare string → one pattern"
-        );
-        let many = exclude_patterns(&args(
-            serde_json::json!({ "exclude": ["**/target/**", "*.tmp"] }),
-        ));
-        assert_eq!(many, vec!["**/target/**".to_owned(), "*.tmp".to_owned()]);
-    }
-
-    #[test]
-    fn simple_glob_star_vs_doublestar() {
-        assert!(simple_glob("**/target/**", "a/target/x"));
-        assert!(simple_glob("*.rs", "lib.rs"));
-        assert!(!simple_glob("*.rs", "a/lib.rs"), "single * stops at /");
-        assert!(simple_glob("**/*.rs", "a/b/lib.rs"));
-        // The literal-char branch: a non-matching char fails (kills the
-        // `t[0] == c && …` mutant), an exact match passes.
-        assert!(simple_glob("abc", "abc"));
-        assert!(!simple_glob("abc", "abd"));
-        assert!(!simple_glob("abc", "ab"), "pattern longer than text");
-        // The `*`-then-recurse branch (kills the `!t.is_empty() && t[0] != b'/'`
-        // mutant): `a*c` matches `axc` but a `/` between stops it.
-        assert!(simple_glob("a*c", "axc"));
-        assert!(!simple_glob("a*c", "a/c"), "* cannot swallow /");
-        assert!(simple_glob("a*c", "ac"), "* matches empty");
-        // ** crosses / (kills the doublestar-vs-star confusion).
-        assert!(simple_glob("a**c", "a/x/c"));
-        // Empty pattern matches only empty text.
-        assert!(simple_glob("", ""));
-        assert!(!simple_glob("", "x"));
-        // Trailing-star edge: matches through to the end.
-        assert!(simple_glob("a*", "abc"));
-        assert!(simple_glob("a**", "a/b/c"));
-    }
-
-    // ── Gate 6 · property test (crate spec §5 · glob determinism) ───────
-
-    /// The pre-DP recursive matcher — the semantic REFERENCE the
-    /// iterative rewrite must agree with (kept test-only; exponential
-    /// on adversarial input, harmless at proptest's small bounds).
-    fn naive_glob(p: &[u8], t: &[u8]) -> bool {
-        match p.first() {
-            None => t.is_empty(),
-            Some(b'*') if p.get(1) == Some(&b'*') => {
-                naive_glob(&p[2..], t) || (!t.is_empty() && naive_glob(p, &t[1..]))
-            }
-            Some(b'*') => {
-                naive_glob(&p[1..], t) || (!t.is_empty() && t[0] != b'/' && naive_glob(p, &t[1..]))
-            }
-            Some(&c) => !t.is_empty() && t[0] == c && naive_glob(&p[1..], &t[1..]),
-        }
-    }
-
-    proptest::proptest! {
-        /// The DP matcher is EXTENSIONALLY EQUAL to the recursive
-        /// reference over the full small-input space (both star forms ·
-        /// separators · literals).
-        #[test]
-        fn dp_glob_agrees_with_the_recursive_reference(
-            pattern in "[ab/*]{0,8}",
-            text in "[ab/]{0,10}",
-        ) {
-            proptest::prop_assert_eq!(
-                simple_glob(&pattern, &text),
-                naive_glob(pattern.as_bytes(), text.as_bytes()),
-                "pattern={:?} text={:?}", pattern, text
-            );
-        }
-    }
-
-    #[test]
-    fn simple_glob_is_polynomial_on_adversarial_patterns() {
-        // The classic exponential-backtracking killer: many stars against
-        // a long non-matching text. COMPLETION is the proof — a
-        // backtracking matcher faces ~2^12 branch points over 2 000
-        // chars (≈10³⁶ operations · never finishes), the DP answers in
-        // ~52k cells. No wall-clock assertion: timing oracles trip under
-        // full-workspace CPU contention (observed: this test red in the
-        // 34-crate run, green in isolation) while the algorithmic
-        // property they meant to pin is load-independent — the test
-        // harness timeout is the hang backstop.
-        let pattern = "*a*a*a*a*a*a*a*a*a*a*a*a*b";
-        let text = "a".repeat(2_000);
-        assert!(!simple_glob(pattern, &text));
-        // A leading ** against a long text — linear-ish, no stack risk.
-        let long = "x".repeat(100_000);
-        assert!(!simple_glob("**Y", &long));
-        assert!(simple_glob("**x", &long));
-    }
-
-    #[tokio::test]
-    async fn grep_on_a_file_path_names_the_directory_contract() {
-        // The low-priority DX fix: grep is a recursive DIRECTORY walk · a
-        // `path:` naming a FILE used to surface the cryptic "Not a directory
-        // (os error 20)". It now names the real contract. Proven on the REAL
-        // fs (MockFs is a HashMap · never raises ENOTDIR).
-        use nika_fs::TokioFs;
-        let dir = std::env::temp_dir().join(format!(
-            "nika-grep-enotdir-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0)
-        ));
-        std::fs::create_dir_all(&dir).expect("scratch");
-        let file = dir.join("a.txt");
-        std::fs::write(&file, b"hello\n").expect("write");
-        let out = grep(
-            &TokioFs,
-            &FsBoundary::unbounded(),
-            &args(serde_json::json!({
-                "pattern": "hello", "path": file.to_string_lossy()
-            })),
-        )
-        .await;
-        assert!(
-            matches!(&out, Err(f) if f.code == "NIKA-BUILTIN-GREP-001"
-                && f.message.contains("must be a directory")),
-            "grep on a file names the directory contract: {out:?}"
-        );
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

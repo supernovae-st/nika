@@ -842,6 +842,7 @@ impl<T> core::convert::From<T> for nika_cap::TrifectaMitigation
 pub fn nika_cap::TrifectaMitigation::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::TrifectaMitigation where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_cap::TrifectaSubject
+pub nika_cap::TrifectaSubject::defaulted_gate: bool
 pub nika_cap::TrifectaSubject::egress_capable: bool
 pub nika_cap::TrifectaSubject::human_gate: bool
 pub nika_cap::TrifectaSubject::id: alloc::string::String
@@ -849,6 +850,7 @@ pub nika_cap::TrifectaSubject::ingress_source: bool
 pub nika_cap::TrifectaSubject::parents: alloc::vec::Vec<usize>
 impl nika_cap::TrifectaSubject
 pub fn nika_cap::TrifectaSubject::new(id: alloc::string::String, egress_capable: bool, human_gate: bool) -> Self
+pub fn nika_cap::TrifectaSubject::with_defaulted_gate(self, defaulted_gate: bool) -> Self
 pub fn nika_cap::TrifectaSubject::with_ingress_source(self, ingress_source: bool) -> Self
 impl core::clone::Clone for nika_cap::TrifectaSubject
 pub fn nika_cap::TrifectaSubject::clone(&self) -> nika_cap::TrifectaSubject
