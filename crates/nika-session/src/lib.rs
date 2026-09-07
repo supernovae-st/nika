@@ -34,6 +34,10 @@ pub mod reasoner;
 pub mod runtime;
 pub mod snapshot;
 
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod episode_tests;
+
 pub use broker::{ContextBroker, SessionContextBundle, Snippet};
 pub use change::{
     Applied, ChangeError, PendingGate, ProjectChange, ProjectChangeSet, RunRequest, Witness,
