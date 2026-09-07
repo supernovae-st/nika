@@ -85,7 +85,7 @@ pub(crate) fn synthesized_defs(
 /// The synthesized `nika:done` sentinel definition (loop-owned).
 ///
 /// Under a TYPED task the `result` parameter carries the declared
-/// `schema:` (its `$defs` hoisted to the wrapper root — see
+/// `schema:` (its `$defs` kept at the resource root — see
 /// [`typed_done_parameters`]) — the sentinel's own parameter schema IS
 /// how the contract reaches the seat, on the FIRST request and every one
 /// after.
@@ -127,25 +127,32 @@ fn done_def(schema: Option<&serde_json::Value>) -> ToolDef {
 }
 
 /// The typed sentinel's parameter schema: the declared `schema:` nested
-/// under `result`, with its `$defs`/`definitions` HOISTED to the wrapper's
-/// root. An internal JSON pointer (`"$ref": "#/$defs/row"`) resolves
-/// against the DOCUMENT root, and on the wire that root is this wrapper —
-/// nested verbatim, the pointer lands on nothing and a seat that validates
-/// its tool input reads a dangling ref. A `$schema` keyword is dropped (it
-/// has no place inside a tool input); everything else stays where the
-/// author wrote it, and local validation is untouched (it runs against the
-/// declared schema at its own root). A schema with nothing to hoist
-/// renders exactly as before. Only `$defs`/`definitions` pointers are
-/// rescued: a `"$ref": "#"` or a `#/properties/…` pointer still names
-/// the wrapper on the wire (the author's root is `properties.result`).
+/// under `result`. A non-fragment `$id` identifies a resource rooted at
+/// `result`: keep its `$defs`/`definitions` there so local pointers and
+/// relative resource IDs retain their base. Hoisting those definitions
+/// would leave `"$ref": "#/$defs/row"` dangling inside that resource.
+///
+/// Without such an ID (including empty or fragment-only IDs), retain the
+/// existing hoist to the wrapper root, where local definition pointers
+/// resolve. On that path only `$defs`/`definitions` pointers are rescued:
+/// `"$ref": "#"` and `#/properties/…` still name the wrapper on the wire.
+/// The existing `$schema` removal is unchanged; this is not a dialect
+/// translation. References are never rewritten, and local final-output
+/// validation still runs against the original declared schema.
 fn typed_done_parameters(schema: &serde_json::Value) -> serde_json::Value {
     let mut nested = schema.clone();
     let mut hoisted = serde_json::Map::new();
     if let Some(declared) = nested.as_object_mut() {
         declared.remove("$schema");
-        for key in ["$defs", "definitions"] {
-            if let Some(defs) = declared.remove(key) {
-                hoisted.insert(key.to_owned(), defs);
+        let has_resource_id = declared
+            .get("$id")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|id| !id.is_empty() && !id.starts_with('#'));
+        if !has_resource_id {
+            for key in ["$defs", "definitions"] {
+                if let Some(defs) = declared.remove(key) {
+                    hoisted.insert(key.to_owned(), defs);
+                }
             }
         }
     }
