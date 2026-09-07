@@ -121,33 +121,58 @@ fn unpinned_secret_net_flow(report: &CheckReport) -> bool {
     })
 }
 
+/// The TRUE wildcard entries of the declared boundary — the grants with
+/// no ceiling on the rope itself: `fs` `**` (the whole tree from the
+/// root down) · `exec: true` / `exec: ["*"]` (any program) · a bare
+/// `net.http` `*` (any host). Each is named `<family> <entry>` so the
+/// card can say WHICH grant graded the file Unbounded — wave 3 (p04):
+/// the audited line blamed « no dollar meter for a local/unknown model »
+/// on a builtin-only `mock/echo` file whose only ceiling-less thing was
+/// `write: ["./out/**"]`; the grader read the grant, the handle guessed
+/// at a spend. The `*.` sub-domain form is already a hard refuse
+/// (NIKA-AUTH-010), so it never reaches a clean report to grade.
+#[must_use]
+pub fn wildcard_grants(report: &CheckReport) -> Vec<String> {
+    use nika_schema::types::ExecPermit;
+
+    let Some(p) = report.permits.declared.as_ref() else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    if let Some(fs) = &p.fs {
+        let wild = |family: &str, globs: &[String]| -> Vec<String> {
+            globs
+                .iter()
+                .filter(|g| g.contains("**"))
+                .map(|g| format!("{family} {g}"))
+                .collect()
+        };
+        out.extend(wild("fs.read", &fs.read));
+        out.extend(wild("fs.write", &fs.write));
+    }
+    match &p.exec {
+        Some(ExecPermit::Any) => out.push("exec: true".to_owned()),
+        Some(ExecPermit::Programs(programs)) if programs.iter().any(|x| x == "*") => {
+            out.push("exec *".to_owned());
+        }
+        _ => {}
+    }
+    if let Some(net) = &p.net {
+        out.extend(
+            net.http
+                .iter()
+                .filter(|h| *h == "*")
+                .map(|h| format!("net.http {h}")),
+        );
+    }
+    out
+}
+
 /// The authority ladder alone — cost ceiling + declared boundary (the
 /// pre-P0-2 read; the consent signal folds in at [`risk_grade`]).
 fn authority_grade(report: &CheckReport) -> RiskGrade {
-    use nika_schema::types::ExecPermit;
-
     let declared = report.permits.declared.as_ref();
-    // TRUE wildcards — no ceiling on the rope itself: `fs` `**` (the
-    // whole tree from the root down) · `exec: true` / `exec: ["*"]` (any
-    // program) · a bare `net.http` `*` (any host). The `*.` sub-domain
-    // form is already a hard refuse (NIKA-AUTH-010), so it never reaches
-    // a clean report to grade.
-    let wildcard = declared.is_some_and(|p| {
-        let fs_wild =
-            p.fs.as_ref()
-                .is_some_and(|fs| fs.read.iter().chain(&fs.write).any(|g| g.contains("**")));
-        let exec_wild = match &p.exec {
-            Some(ExecPermit::Any) => true,
-            Some(ExecPermit::Programs(programs)) => programs.iter().any(|x| x == "*"),
-            _ => false,
-        };
-        let net_wild = p
-            .net
-            .as_ref()
-            .is_some_and(|net| net.http.iter().any(|h| h == "*"));
-        fs_wild || exec_wild || net_wild
-    });
-    if report.cost.has_unbounded || wildcard {
+    if report.cost.has_unbounded || !wildcard_grants(report).is_empty() {
         return RiskGrade::Unbounded;
     }
     let Some(p) = declared else {
@@ -347,6 +372,57 @@ tasks:
             ),
             RiskGrade::Low,
             "the absent boundary is the zero boundary"
+        );
+    }
+
+    /// The Unbounded handle must name the GRANT the grader read (wave 3 ·
+    /// p04): a builtin-only file under `mock/echo` with `write:
+    /// ["./out/**"]` is Unbounded for its rope, and this projection names
+    /// exactly that entry — nothing about a meter, nothing it did not
+    /// read. The narrow twin names nothing.
+    #[test]
+    fn wildcard_grants_name_the_ceiling_less_entries_and_nothing_else() {
+        let builtin_only = |permits: &str| {
+            format!(
+                "nika: w\nmodel: mock/echo\npermits: {permits}\ntasks:\n  t:\n    exec: {{ command: [\"date\", \"-u\"] }}\n"
+            )
+        };
+        let grants = |yaml: &str| {
+            let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+            wildcard_grants(&crate::check(&wf))
+        };
+        assert_eq!(
+            grants(&builtin_only(
+                "{ exec: [\"date\"], fs: { write: [\"./out/**\"] } }"
+            )),
+            ["fs.write ./out/**"],
+            "the one ceiling-less grant, named with its family"
+        );
+        assert_eq!(
+            grants(&builtin_only(
+                "{ exec: true, fs: { read: [\"/**\"], write: [\"/**\"] }, net: { http: [\"*\"] } }"
+            )),
+            ["fs.read /**", "fs.write /**", "exec: true", "net.http *"],
+            "every family, in the ladder's order"
+        );
+        assert!(
+            grants(&builtin_only(
+                "{ exec: [\"date\"], fs: { write: [\"./out/summary.md\"] } }"
+            ))
+            .is_empty(),
+            "a concrete path is not a wildcard"
+        );
+        assert!(
+            grants(&builtin_only("{ exec: [\"*\"] }")) == ["exec *"],
+            "the starred program list is the any-program grant"
+        );
+        // The grade and the projection never disagree: Unbounded ⇔ a
+        // named grant, on a file with no spend to be unbounded about.
+        assert_eq!(
+            grade_of(&builtin_only(
+                "{ exec: [\"date\"], fs: { write: [\"./out/**\"] } }"
+            )),
+            RiskGrade::Unbounded
         );
     }
 

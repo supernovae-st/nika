@@ -188,7 +188,7 @@ pub use permits_infer::InferredPermits;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
 pub use retry_safety::RetrySafetyFinding;
-pub use risk::{RiskGrade, risk_grade};
+pub use risk::{RiskGrade, risk_grade, wildcard_grants};
 pub use run_decl::RunDeclFinding;
 pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::{SchemaTypeFinding, UnverifiableOutputRef};

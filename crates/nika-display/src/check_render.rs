@@ -601,7 +601,7 @@ fn audited_line(
         (if t.ascii { "!" } else { "⚠" }, Role::Warn)
     };
     let est = est_clause(report, t);
-    let handle = unbounded_handle(report, grade);
+    let handle = risk_handle(report, grade);
     let hint_summary = if distinct_hints == hint_sites {
         crate::vocab::count(hint_sites, "hint")
     } else {
@@ -666,30 +666,58 @@ fn est_clause(report: &CheckReport, t: Theme) -> String {
     )
 }
 
-/// The one next move behind `risk unbounded`. « risk unbounded » used to
-/// close the output with no handle (gauntlet 08-01, Camille — an alarm
-/// without a remedy, and « 0 hints » confessed it): the footer now
-/// carries it. An unpriced-only census is the local-model shape (no
-/// dollar meter exists — the cap matters IF a cloud seat is chosen);
-/// anything else has a declarable ceiling today.
-fn unbounded_handle(report: &CheckReport, grade: nika_check::RiskGrade) -> &'static str {
+/// The one next move behind `risk unbounded` — the handle names the
+/// CAUSE the grader read. « risk unbounded » used to close the output
+/// with no handle (gauntlet 08-01, Camille — an alarm without a remedy,
+/// and « 0 hints » confessed it); then the handle guessed: an `all()`
+/// over the cost table decided « unpriced-only » and printed the
+/// local-model clause, which is VACUOUSLY true on a file with no cost
+/// row at all (wave 3 · p04 · G2: a builtin-only `mock/echo` file graded
+/// Unbounded for `write: ["./out/**"]` read « no dollar meter for a
+/// local/unknown model » while its `write: ["./out/summary.md"]` twin
+/// graded Supervised — the model was never the differentiator). The
+/// spend arm speaks only when spend IS unbounded; the grant arm names
+/// the entries [`nika_check::wildcard_grants`] graded on and the door
+/// that narrows them. Public so the CLI's `--profile operational` footer
+/// speaks the same cause (one voice, two lines).
+#[must_use]
+pub fn risk_handle(report: &CheckReport, grade: nika_check::RiskGrade) -> String {
     if grade != nika_check::RiskGrade::Unbounded {
-        return "";
+        return String::new();
     }
-    let unpriced_only = report
-        .cost
-        .tasks
-        .iter()
-        .all(|c| matches!(c.unbounded_reason, None | Some(UnboundedReason::NoPrice)));
-    if unpriced_only {
+    let mut parts: Vec<String> = Vec::new();
+    if report.cost.has_unbounded {
         // The handle names its VERB. Pasted onto `check` the bare flag
         // exits 2 — `--max-cost-usd` lives on `run`, and a handle that
         // breaks where it is printed is the class this whole wave hunts
-        // (gauntlet 08-01, Sofia).
-        " — no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`"
-    } else {
-        " — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`"
+        // (gauntlet 08-01, Sofia). An unpriced-only census is the
+        // local-model shape (no dollar meter exists — the cap matters IF
+        // a cloud seat is chosen); anything else has a declarable ceiling.
+        let unpriced_only = report
+            .cost
+            .tasks
+            .iter()
+            .all(|c| matches!(c.unbounded_reason, None | Some(UnboundedReason::NoPrice)));
+        parts.push(
+            if unpriced_only {
+                "no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`"
+            } else {
+                "declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`"
+            }
+            .to_owned(),
+        );
     }
+    let grants = nika_check::wildcard_grants(report);
+    if !grants.is_empty() {
+        parts.push(format!(
+            "no ceiling on the grant: {} · narrow it to what the body reaches (`nika check --infer-permits <file>` derives that boundary)",
+            grants.join(" · ")
+        ));
+    }
+    if parts.is_empty() {
+        return String::new();
+    }
+    format!(" — {}", parts.join(" · "))
 }
 
 /// A finding section: one OK line when empty, one row per finding else.

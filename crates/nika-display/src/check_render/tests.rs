@@ -939,6 +939,73 @@ mod audited_line_names_the_blast_radius {
             .expect("audited card");
         assert!(line.contains("permits none"), "{line}");
     }
+
+    /// Wave 3 · p04 · G2, verbatim: « `risk unbounded — no dollar meter
+    /// for a local/unknown model` is a misattribution. Identical
+    /// `model: mock/echo` in ops5 graded `risk supervised`. The model was
+    /// never the differentiator; the grant was. » The persona's ops2:
+    /// three builtin/exec tasks, zero `infer:`, `write: ["./out/**"]`.
+    /// The handle must name the GRANT the grader read — and never a
+    /// meter on a file with no cost row to be unbounded about.
+    #[test]
+    fn a_grant_graded_unbounded_names_the_grant_never_a_dollar_meter() {
+        let ops = |write: &str| {
+            format!(
+                "nika: ops\nmodel: mock/echo\npermits:\n  fs: {{ write: [\"{write}\"] }}\n  exec: [\"date\"]\n  tools: [\"nika:write\"]\ntasks:\n  save:\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"./out/summary.md\", content: \"x\" }}\n  measure:\n    exec: {{ command: [\"date\", \"-u\"] }}\n"
+            )
+        };
+        let out = console(&ops("./out/**"));
+        let line = out
+            .lines()
+            .find(|l| l.contains("audited"))
+            .expect("audited card");
+        assert!(
+            line.contains("risk unbounded"),
+            "the grade is the grader's: {line}"
+        );
+        assert!(
+            line.contains("no ceiling on the grant: fs.write ./out/**"),
+            "the cause names the grant: {line}"
+        );
+        assert!(
+            line.contains("--infer-permits"),
+            "and the door that narrows it: {line}"
+        );
+        assert!(
+            !line.contains("dollar meter") && !line.contains("--max-cost-usd"),
+            "no spend handle on a file with no spend: {line}"
+        );
+        // The persona's control (ops5): the same model, a concrete path.
+        let twin = console(&ops("./out/summary.md"));
+        let line = twin
+            .lines()
+            .find(|l| l.contains("audited"))
+            .expect("audited card");
+        assert!(line.contains("risk supervised"), "{line}");
+        assert!(!line.contains("no ceiling"), "{line}");
+    }
+
+    /// The spend arm still speaks where spend IS unbounded — an uncapped
+    /// local model keeps its meter clause — and a file unbounded BOTH
+    /// ways names both causes.
+    #[test]
+    fn unbounded_spend_keeps_its_own_handle_beside_the_grant() {
+        let out = console(
+            "nika: w\nmodel: ollama/llama3\npermits:\n  fs: { write: [\"./out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10 }\n  save:\n    with: { t: \"${{ tasks.think.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/a.md\", content: \"${{ with.t }}\" }\n",
+        );
+        let line = out
+            .lines()
+            .find(|l| l.contains("audited"))
+            .expect("audited card");
+        assert!(
+            line.contains("no dollar meter for a local/unknown model"),
+            "the unpriced local model keeps its clause: {line}"
+        );
+        assert!(
+            line.contains("no ceiling on the grant: fs.write ./out/**"),
+            "and the grant is named beside it: {line}"
+        );
+    }
 }
 
 mod permits_panel_under_red_conformance {
