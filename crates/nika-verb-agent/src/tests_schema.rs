@@ -23,6 +23,327 @@ use nika_kernel_mock::{MockProvider, MockToolExecutor};
 
 use crate::tests::{def, rig, text_response, tool_use_response};
 
+// The projection must preserve resource boundaries, not just the spelling
+// of a `$ref`. These tests validate the definition captured by MockProvider
+// after a native done run, independently of final-output validation.
+#[derive(Default)]
+struct SchemaEvents(std::sync::Mutex<Vec<AgentEvent>>);
+
+impl AgentObserver for SchemaEvents {
+    fn on_event(&self, event: &AgentEvent) {
+        self.0.lock().expect("event tape").push(event.clone());
+    }
+}
+
+struct NoSchemaRetrieval;
+
+impl jsonschema::Retrieve for NoSchemaRetrieval {
+    fn retrieve(
+        &self,
+        uri: &jsonschema::Uri<String>,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+        Err(format!("external schema retrieval forbidden: {uri}").into())
+    }
+}
+
+fn offline_validator(schema: &serde_json::Value) -> Result<jsonschema::Validator, String> {
+    jsonschema::options()
+        .with_retriever(NoSchemaRetrieval)
+        .build(schema)
+        .map_err(|error| error.to_string())
+}
+
+fn identified_score_schema(id: Option<&str>, definitions: &str) -> serde_json::Value {
+    let mut schema = score_schema();
+    schema["$schema"] = serde_json::json!(if definitions == "definitions" {
+        "http://json-schema.org/draft-07/schema#"
+    } else {
+        "https://json-schema.org/draft/2020-12/schema"
+    });
+    schema["properties"]["score"] = serde_json::json!({"$ref": format!("#/{definitions}/score")});
+    schema[definitions] = serde_json::json!({"score": {"type": "integer"}});
+    if let Some(id) = id {
+        schema["$id"] = serde_json::json!(id);
+    }
+    schema
+}
+
+async fn captured_score_projection(case: &str, schema: serde_json::Value) -> serde_json::Value {
+    let good = serde_json::json!({"score": 7});
+    let bad = serde_json::json!({"score": "bad"});
+    let declared = offline_validator(&schema).expect("standalone schema compiles offline");
+    assert!(
+        declared.is_valid(&good),
+        "{case}: standalone positive control"
+    );
+    assert!(
+        !declared.is_valid(&bad),
+        "{case}: standalone negative control"
+    );
+
+    let r = rig(
+        MockProvider::new("mock").enqueue_response(tool_use_response(
+            "done-score",
+            DONE_TOOL,
+            serde_json::json!({"result": good}),
+        )),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let events = SchemaEvents::default();
+    let mut input = AgentInput::new("return a score");
+    input.tools = vec![DONE_TOOL.to_owned()];
+    input.schema = Some(schema.clone());
+    let out = r
+        .verb
+        .run_observed(input, &events)
+        .await
+        .expect("native done succeeds");
+    assert_eq!(out.output, AgentValue::Structured(good.clone()));
+    assert_eq!(out.stop_reason, AgentStopReason::ExplicitCompletion);
+    assert_eq!(out.turns, 1);
+    assert!(
+        r.tools.captured_calls().is_empty(),
+        "done never dispatches an external tool"
+    );
+    let events = events.0.lock().expect("event tape");
+    assert!(matches!(
+        events.first(),
+        Some(AgentEvent::RunStarted { .. })
+    ));
+    assert!(matches!(
+        events.last(),
+        Some(AgentEvent::Finished { turns: 1, .. })
+    ));
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(event, AgentEvent::ToolCompleted { .. }))
+    );
+    let requests = r.provider.captured_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].response_format, ResponseFormat::Text);
+    done_def_on(&requests[0]).parameters.clone()
+}
+
+async fn assert_score_projection(case: &str, schema: serde_json::Value) {
+    let parameters = captured_score_projection(case, schema).await;
+    let projected = offline_validator(&parameters)
+        .unwrap_or_else(|error| panic!("{case}: captured done schema must compile: {error}"));
+    assert!(
+        projected.is_valid(&serde_json::json!({"result": {"score": 7}})),
+        "{case}"
+    );
+    for bad in [
+        serde_json::json!({"result": {"score": "bad"}}),
+        serde_json::json!({"result": {}}),
+        serde_json::json!({"result": {"score": 7, "extra": true}}),
+        serde_json::json!({}),
+    ] {
+        assert!(!projected.is_valid(&bad), "{case}: must reject {bad}");
+    }
+}
+
+#[tokio::test]
+async fn projection_absolute_id_defs() {
+    assert_score_projection(
+        "absolute_id_defs",
+        identified_score_schema(Some("https://example.invalid/score.json"), "$defs"),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn projection_relative_id_defs() {
+    assert_score_projection(
+        "relative_id_defs",
+        identified_score_schema(Some("schemas/score.json"), "$defs"),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn projection_urn_id_defs() {
+    assert_score_projection(
+        "urn_id_defs",
+        identified_score_schema(Some("urn:example:score"), "$defs"),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn projection_absolute_id_empty_fragment() {
+    assert_score_projection(
+        "absolute_id_empty_fragment",
+        identified_score_schema(Some("https://example.invalid/score.json#"), "$defs"),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn projection_absolute_id_definitions() {
+    assert_score_projection(
+        "absolute_id_definitions",
+        identified_score_schema(Some("https://example.invalid/score.json"), "definitions"),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn projection_without_id_controls() {
+    for definitions in ["$defs", "definitions"] {
+        assert_score_projection(
+            &format!("no_id_{definitions}"),
+            identified_score_schema(None, definitions),
+        )
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn projection_same_document_id_controls() {
+    for id in ["", "#"] {
+        assert_score_projection(
+            &format!("same_document_id_{id}"),
+            identified_score_schema(Some(id), "$defs"),
+        )
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn projection_id_without_refs_control() {
+    let mut schema = score_schema();
+    schema["$id"] = serde_json::json!("https://example.invalid/plain.json");
+    assert_score_projection("id_without_refs", schema).await;
+}
+
+#[tokio::test]
+async fn projection_nested_relative_resource_keeps_its_parent_base() {
+    // Moving this definition outside its parent's `$id` loses the base
+    // URI needed to find it by its relative resource identifier.
+    let mut schema = identified_score_schema(
+        Some("https://example.invalid/contracts/result.json"),
+        "$defs",
+    );
+    schema["properties"]["score"] = serde_json::json!({"$ref": "score.json#/$defs/value"});
+    schema["$defs"]["score"] = serde_json::json!({
+        "$id": "score.json", "$defs": {"value": {"type": "integer"}}
+    });
+    assert_score_projection("nested_relative_resource", schema).await;
+}
+
+#[tokio::test]
+async fn projection_absolute_self_reference_keeps_result_identity() {
+    // Hoisting `$id` instead of keeping its resource intact would make
+    // this URI name the wrapper, silently changing what `score` validates.
+    let mut schema = identified_score_schema(Some("https://example.invalid/score.json"), "$defs");
+    schema["properties"]["previous"] =
+        serde_json::json!({"$ref": "https://example.invalid/score.json"});
+    let parameters = captured_score_projection("absolute_self_reference", schema).await;
+    let projected = offline_validator(&parameters).expect("self reference compiles");
+    assert!(projected.is_valid(&serde_json::json!({
+        "result": {"score": 7, "previous": {"score": 6}}
+    })));
+    assert!(!projected.is_valid(&serde_json::json!({
+        "result": {"score": 7, "previous": {"score": "bad"}}
+    })));
+}
+
+#[tokio::test]
+async fn projection_identified_done_repair_preserves_schema_and_trace() {
+    let schema = identified_score_schema(Some("https://example.invalid/score.json"), "$defs");
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(tool_use_response(
+                "bad",
+                DONE_TOOL,
+                serde_json::json!({"result": {"score": "bad"}}),
+            ))
+            .enqueue_response(tool_use_response(
+                "good",
+                DONE_TOOL,
+                serde_json::json!({"result": {"score": 7}}),
+            )),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let mut input = AgentInput::new("return a score");
+    input.tools = vec![DONE_TOOL.to_owned()];
+    input.schema = Some(schema);
+    let events = SchemaEvents::default();
+    let out = r
+        .verb
+        .run_observed(input, &events)
+        .await
+        .expect("repair succeeds");
+    assert_eq!(out.stop_reason, AgentStopReason::ExplicitCompletion);
+    assert_eq!(
+        out.output,
+        AgentValue::Structured(serde_json::json!({"score": 7}))
+    );
+    let requests = r.provider.captured_requests();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(
+        done_def_on(&requests[0]).parameters,
+        done_def_on(&requests[1]).parameters
+    );
+    assert!(
+        requests[1]
+            .messages
+            .iter()
+            .flat_map(|m| &m.content)
+            .any(|block| matches!(
+                block, ContentBlock::ToolResult { tool_use_id, content, is_error: true }
+                if tool_use_id == "bad" && content.contains("integer")
+            ))
+    );
+    assert!(matches!(
+        events.0.lock().expect("event tape").last(),
+        Some(AgentEvent::Finished { turns: 2, .. })
+    ));
+    let validator = offline_validator(&done_def_on(&requests[1]).parameters)
+        .expect("repair definition compiles");
+    assert!(validator.is_valid(&serde_json::json!({"result": {"score": 7}})));
+}
+
+#[tokio::test]
+async fn projection_identified_invalid_done_is_schema_error_without_finished() {
+    let mut r = rig(
+        MockProvider::new("mock").enqueue_response(tool_use_response(
+            "bad",
+            DONE_TOOL,
+            serde_json::json!({"result": {"score": "bad"}}),
+        )),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    r.verb = r.verb.with_schema_retry_budget(0);
+    let mut input = AgentInput::new("return a score");
+    input.tools = vec![DONE_TOOL.to_owned()];
+    input.schema = Some(identified_score_schema(
+        Some("https://example.invalid/score.json"),
+        "$defs",
+    ));
+    let events = SchemaEvents::default();
+    let err = r
+        .verb
+        .run_observed(input, &events)
+        .await
+        .expect_err("bad value refused");
+    assert!(matches!(err, VerbAgentError::SchemaValidation { .. }));
+    assert_eq!(nika_error::traits::NikaErrorCode::nika_code(&err).num, 464);
+    assert_eq!(r.provider.captured_requests().len(), 1);
+    assert!(
+        !events
+            .0
+            .lock()
+            .expect("event tape")
+            .iter()
+            .any(|event| matches!(event, AgentEvent::Finished { .. }))
+    );
+}
+
 /// The task contract used across this suite: an object with one
 /// required integer. A string `score` misses it in a way no extraction
 /// trick can rescue — the model has to send a different value.
