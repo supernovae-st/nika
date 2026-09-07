@@ -12,6 +12,26 @@ use nika_kernel::runtime::agent::AgentStopReason;
 use crate::shape;
 use crate::{AgentOutput, AgentValue, VerbAgentError};
 
+/// Stop before another request when the cumulative token budget is met.
+/// Tool feedback, done-result repairs and final-text repairs all pass
+/// this gate; an already valid conclusion returns before reaching it.
+pub(crate) fn token_budget_gate(
+    budget: Option<u64>,
+    total_tokens: u64,
+    last_text: &str,
+) -> Result<(), VerbAgentError> {
+    if let Some(budget) = budget
+        && total_tokens >= budget
+    {
+        return Err(VerbAgentError::MaxTokens {
+            total_tokens,
+            partial_output: last_text.to_owned(),
+            spend: Box::default(), // decorated at the return seam
+        });
+    }
+    Ok(())
+}
+
 /// The ONE schema-repair allowance of a run, shared by BOTH repair
 /// paths: a non-conforming `nika:done` `result:` (fed back as a tool
 /// result so the model calls the sentinel again) and a free-text final
