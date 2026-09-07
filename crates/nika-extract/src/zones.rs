@@ -56,6 +56,95 @@ static ANCHOR_SEL: LazyLock<Option<Selector>> = LazyLock::new(|| Selector::parse
 static BLOCK_SEL: LazyLock<Option<Selector>> =
     LazyLock::new(|| Selector::parse("div, ul, ol, p, section").ok());
 
+/// Chrome subtrees removed at DOCUMENT level (F006) — the surgical subset of
+/// [`DISCARD_TOKENS`] whose blocks carry real sentences and therefore fool
+/// EVERY downstream stage, not just the rule cascade: reference machinery
+/// (reflist, citation superscripts, edit-section links), disambiguation
+/// hatnotes, wiki maintenance banners, cookie/consent banners, feedback
+/// widgets. `blocks::segment` skips them and `article::readability` receives
+/// a document already cleaned of them (readability strips class attributes
+/// from its fragment, so pruning AFTER its win cannot see these markers —
+/// the clean must happen on its INPUT). Kept narrow on purpose: the density
+/// walk and readability's scoring read the rest of the chrome as context.
+pub(crate) const CHROME_TOKENS: &[&str] = &[
+    "mw-references",
+    "reflist",
+    "cite_note",
+    "cite_ref",
+    "mw-ref",
+    "editsection",
+    "hatnote",
+    "bandeau",
+];
+
+/// True when the element's class or id carries a chrome token (substring,
+/// ASCII case-insensitive — same matching semantics as the denylist).
+/// `<html>`/`<body>` are exempt: their class lists carry template feature
+/// flags (a `has-cookie-banner` body class must not chrome away the page).
+pub(crate) fn is_chrome(el: &scraper::node::Element) -> bool {
+    if matches!(el.name(), "html" | "body") {
+        return false;
+    }
+    let hits = |value: &str| {
+        let value = value.to_ascii_lowercase();
+        CHROME_TOKENS.iter().any(|tok| value.contains(tok))
+    };
+    el.id().is_some_and(&hits) || el.classes().any(hits)
+}
+
+/// The document with every chrome subtree detached — the input readability
+/// and the density walk SHOULD have been served. Same over-prune guard as
+/// the discard pass: a page that is nothing BUT chrome (a citation index, a
+/// consent wall) keeps its original markup rather than starve every stage.
+pub(crate) fn clean_document(body: &str) -> String {
+    let mut doc = Html::parse_document(body);
+    let total_text = body_text_len(&doc);
+    let mut groups: Vec<String> = Vec::with_capacity(CHROME_TOKENS.len() * 2);
+    for tok in CHROME_TOKENS {
+        groups.push(format!(r#"[class*="{tok}" i]"#));
+        groups.push(format!(r#"[id*="{tok}" i]"#));
+    }
+    let Some(sel) = Selector::parse(&groups.join(", ")).ok() else {
+        return body.to_owned();
+    };
+    // `<html>`/`<body>` are EXEMPT: their class lists carry skin feature
+    // flags, not regions — Vector-2022 serves `vector-feature-language-in-
+    // main-menu-disabled` on <html>, whose `menu` substring otherwise matches
+    // the whole document and reverts the prune page-wide (F006 root cause).
+    let matched: std::collections::BTreeSet<NodeId> = doc
+        .select(&sel)
+        .filter(|el| !matches!(el.value().name(), "html" | "body"))
+        .map(|el| el.id())
+        .collect();
+    let mut ids = Vec::new();
+    let mut pruned_text = 0usize;
+    for el in doc.select(&sel) {
+        if matches!(el.value().name(), "html" | "body") {
+            continue; // feature flags on the root are not a region
+        }
+        if el.ancestors().any(|a| matched.contains(&a.id())) {
+            continue; // an outer match covers this one
+        }
+        ids.push(el.id());
+        pruned_text += visible_text_len(&el.text().collect::<String>());
+    }
+    if ids.is_empty() {
+        // No chrome found: hand the ORIGINAL bytes back — re-serializing a
+        // clean document drifts attribute order/entities and measurably
+        // shifts readability's scoring on unrelated pages (WCXB 0559 class).
+        return body.to_owned();
+    }
+    if total_text > 0 && pruned_text.saturating_mul(7) > total_text.saturating_mul(6) {
+        return body.to_owned(); // the page IS chrome — leave it be
+    }
+    for &id in &ids {
+        if let Some(mut n) = doc.tree.get_mut(id) {
+            n.detach();
+        }
+    }
+    doc.html()
+}
+
 /// Boilerplate class/id substring tokens (case-insensitive) — the
 /// substring-reducible core of Trafilatura's `OVERALL_DISCARD_XPATH`
 /// (D1+D2). Each becomes a `[class*="tok" i],[id*="tok" i]` select. The
@@ -128,6 +217,18 @@ const DISCARD_TOKENS: &[&str] = &[
     "noprint",
     "print-only",
     "tooltip",
+    // Reference-machinery chrome (F006): the reflist, inline citation
+    // superscripts, section edit links, disambiguation hatnotes and wiki
+    // maintenance banners are chrome in every gold convention we measure
+    // against (WCXB ground-truth and the EX08 corpus both exclude them).
+    "mw-references",
+    "reflist",
+    "cite_note",
+    "cite_ref",
+    "mw-ref",
+    "editsection",
+    "hatnote",
+    "bandeau",
 ];
 
 /// Discussion zones — boilerplate on articles, CONTENT on forums (the WCXB
@@ -144,9 +245,12 @@ const DISCUSSION_TOKENS: &[&str] = &[
 ];
 
 /// Tags whose whole subtree is never content (Trafilatura `MANUALLY_CLEANED`
-/// — the structural-chrome subset relevant after zone targeting).
+/// — the structural-chrome subset relevant after zone targeting). `select`
+/// joined 2026-09-07: a `<select>` dropdown (country picker, size picker)
+/// is a FORM CONTROL, not prose — its 200 `<option>`s read as a text flood
+/// inside any winning container (WCXB dev 0616's Etsy shipping list).
 const DISCARD_TAGS: &[&str] = &[
-    "nav", "aside", "footer", "form", "header", "noscript", "template", "dialog", "menu",
+    "nav", "aside", "footer", "form", "header", "noscript", "template", "dialog", "menu", "select",
 ];
 
 /// The article-body cascade (Trafilatura's `BODY_XPATH`) as ordered CSS
@@ -216,9 +320,32 @@ pub(crate) fn rule_content(body: &str, page_type: PageType) -> Option<String> {
     // Phase 2 — ZONE target on the pruned tree (page-type cascade).
     let container_id = find_zone(&doc, page_type)?;
 
-    // Phase 3 — LINK-DENSITY finish inside the container.
+    // Phase 3 — LINK-DENSITY finish inside the container. The finish may
+    // never STARVE a qualifying zone: on a short page (a gov.uk service
+    // page whose body is a paragraph plus a call-to-action link), removing
+    // the link-dense blocks drops the zone under the thin floor and the
+    // cascade abstains into worse stages. Compute the post-finish text
+    // first; detach only if the zone still qualifies.
     let dense = link_dense_ids(&doc, container_id);
-    detach_all(&mut doc, &dense);
+    let pre_finish = doc
+        .tree
+        .get(container_id)
+        .and_then(scraper::ElementRef::wrap)
+        .map_or(0, |el| visible_text_len(&el.text().collect::<String>()));
+    if pre_finish >= MIN_EXTRACTED {
+        let dense_text: usize = dense
+            .iter()
+            .filter_map(|id| doc.tree.get(*id).and_then(scraper::ElementRef::wrap))
+            .map(|el| visible_text_len(&el.text().collect::<String>()))
+            .sum();
+        if pre_finish.saturating_sub(dense_text) < MIN_EXTRACTED {
+            // the finish would starve the zone — skip it
+        } else {
+            detach_all(&mut doc, &dense);
+        }
+    } else {
+        detach_all(&mut doc, &dense);
+    }
 
     let remaining_text = body_text_len(&doc);
     let container = doc
@@ -283,10 +410,21 @@ fn discard_ids(doc: &Html, page_type: PageType, total_text: usize) -> Vec<NodeId
     // detaches its descendants). Counting only outermost text also avoids
     // DOUBLE-COUNTING nested matches (a `.comments` section AND its inner
     // `.comment` div), which would wrongly inflate the over-prune guard.
-    let matched: std::collections::BTreeSet<NodeId> = doc.select(&sel).map(|el| el.id()).collect();
+    // `<html>`/`<body>` are EXEMPT: their class lists carry skin feature
+    // flags, not regions — Vector-2022 serves `vector-feature-language-in-
+    // main-menu-disabled` on <html>, whose `menu` substring otherwise matches
+    // the whole document and reverts the prune page-wide (F006 root cause).
+    let matched: std::collections::BTreeSet<NodeId> = doc
+        .select(&sel)
+        .filter(|el| !matches!(el.value().name(), "html" | "body"))
+        .map(|el| el.id())
+        .collect();
     let mut ids = Vec::new();
     let mut pruned_text = 0usize;
     for el in doc.select(&sel) {
+        if matches!(el.value().name(), "html" | "body") {
+            continue; // feature flags on the root are not a region
+        }
         let has_matched_ancestor = el.ancestors().any(|a| matched.contains(&a.id()));
         if has_matched_ancestor {
             continue; // an outer match covers this one
@@ -388,6 +526,29 @@ fn is_link_dense(el: scraper::ElementRef<'_>) -> bool {
         || (count > 1 && shorts.saturating_mul(10) > count.saturating_mul(8))
 }
 
+/// The Phase-1 discard applied to an already-extracted FRAGMENT (e.g. a
+/// readability win): chrome like `class="byline"` / `entry-meta` / share
+/// rows that survive a readability extraction is removed before the
+/// markdown conversion, without touching the rest of the page's signals
+/// (feeding readability a pruned INPUT was measured a net loss —
+/// 2026-09-07, dev −0.006). The over-prune guard runs at fragment scale.
+pub(crate) fn prune_fragment(fragment_html: &str, page_type: PageType) -> String {
+    let mut doc = Html::parse_fragment(fragment_html);
+    let total_text = body_text_len_fragment(&doc);
+    let discard = discard_ids(&doc, page_type, total_text);
+    if discard.is_empty() {
+        return fragment_html.to_owned();
+    }
+    detach_all(&mut doc, &discard);
+    doc.html()
+}
+
+/// The over-prune denominator for a fragment: total visible text of the
+/// fragment itself (no `<body>` wrapper exists in a fragment).
+fn body_text_len_fragment(doc: &Html) -> usize {
+    visible_text_len(&doc.root_element().text().collect::<String>())
+}
+
 /// Detach every id from its parent (orphans the subtree; idempotent over
 /// already-orphaned nodes).
 fn detach_all(doc: &mut Html, ids: &[NodeId]) {
@@ -417,8 +578,8 @@ fn body_text_len(doc: &Html) -> usize {
 mod tests {
     use super::{
         ARTICLE_CASCADE, BROAD_CASCADE, DISCARD_TAGS, DISCARD_TOKENS, DISCUSSION_TOKENS,
-        FORUM_CASCADE, PageType, ZONE_MIN_SHARE_PERCENT, cascade_for, discard_ids, is_link_dense,
-        link_dense_ids, rule_content,
+        FORUM_CASCADE, PageType, ZONE_MIN_SHARE_PERCENT, cascade_for, clean_document, discard_ids,
+        is_link_dense, link_dense_ids, prune_fragment, rule_content,
     };
     use scraper::{Html, Selector};
 
@@ -525,6 +686,90 @@ mod tests {
         assert!(!html.contains("Tweet"), "share pruned: {html}");
         assert!(!html.contains("spam comment"), "comments pruned: {html}");
         assert!(!html.contains("footer junk"), "footer pruned: {html}");
+    }
+
+    #[test]
+    fn wiki_reference_chrome_is_pruned() {
+        // F006: MediaWiki reference machinery is chrome, never content — the
+        // reflist (`mw-references-wrap` / `cite_note` items), the inline
+        // citation superscripts (`mw-ref` / `cite_ref`), the section edit
+        // links (`mw-editsection`) and disambiguation hatnotes. WCXB and the
+        // EX08 corpus both annotate golds WITHOUT any of it.
+        let page = r##"<html><body>
+          <main id="content" class="mw-body">
+            <h1>Rust (programming language)</h1>
+            <p class="hatnote">For the video game, see the other article of the same name.</p>
+            <p>Rust is a multi-paradigm compiled programming language whose development
+               began in 2006, designed to be safe, concurrent and practical, with a rich
+               syntax and a memory-safety guarantee without a garbage collector that sets
+               it apart from the languages of its time.<sup class="mw-ref reference" id="cite_ref-1"><a href="#cite_note-1">[1]</a></sup></p>
+            <h2><span class="mw-headline">History</span><span class="mw-editsection"><a href="/w/index.php?edit=1">edit</a></span></h2>
+            <p>The language began as a personal project of Graydon Hoare before being
+               sponsored by Mozilla Research from 2009 onward and then carried by a
+               dedicated foundation created in 2021 by the major software industry
+               players who now fund its continued development.</p>
+            <div class="mw-references-wrap"><ol class="references">
+              <li id="cite_note-1"><a href="#cite_ref-1">↑</a> "Rust FAQ", retrieved on 12 April 2023.</li>
+              <li id="cite_note-2"><a href="#cite_ref-2">↑</a> "Mozilla News", retrieved on 3 May 2022.</li>
+            </ol></div>
+          </main>
+        </body></html>"##;
+        let html = rule_content(page, PageType::Article).expect("wiki article extracts");
+        assert!(
+            html.contains("multi-paradigm compiled programming language"),
+            "{html}"
+        );
+        assert!(html.contains("History"), "{html}");
+        assert!(!html.contains("hatnote"), "hatnote pruned: {html}");
+        assert!(!html.contains(">edit<"), "edit-section link pruned: {html}");
+        assert!(
+            !html.contains("cite_ref"),
+            "inline citation sup pruned: {html}"
+        );
+        assert!(!html.contains("[1]"), "citation marker text gone: {html}");
+        assert!(!html.contains("cite_note"), "reflist items pruned: {html}");
+        assert!(
+            !html.contains("retrieved on"),
+            "reflist text pruned: {html}"
+        );
+    }
+
+    #[test]
+    fn a_chromeless_document_passes_through_byte_identical() {
+        // clean_document must return the ORIGINAL bytes when nothing was
+        // detached — a re-serialized twin drifts attribute order/entities
+        // and shifts readability's scoring on unrelated pages (measured
+        // WCXB 0559/0711/3067 class, 2026-09-07).
+        let page = r#"<html><body><main><p class="content">Plain prose with   odd   spacing &amp; entities — nothing chrome here.</p></main></body></html>"#;
+        assert_eq!(clean_document(page), page, "no match → byte-identical");
+    }
+
+    #[test]
+    fn root_feature_flag_classes_never_poison_the_prune() {
+        // F006 root cause: Vector-2022 serves `vector-feature-language-in-
+        // main-menu-disabled` on <html> — the `menu` substring matched the
+        // ROOT, the over-prune guard reverted, and NO chrome was pruned at
+        // all on every Wikipedia page. Root classes are feature flags, not
+        // regions: they must never enter the discard match set.
+        let page = r#"<html class="client-nojs vector-feature-language-in-main-menu-disabled skin-vector"><body class="mediawiki">
+          <main id="content">
+            <h1>Real Article</h1>
+            <p>The genuine article body carries enough running prose words to
+               stand on its own as the obvious page content, with sentence after
+               sentence of real information that a reader came here to read and
+               the extraction must keep from the first word to the last one.</p>
+            <p>A second paragraph keeps the body well above every threshold the
+               cascade enforces, so the zone stands on the article itself and
+               the chrome around it is the only thing under test right here.</p>
+            <ol class="references"><li id="cite_note-1">« Some Source », retrieved on 1 May 2026 with a long citation tail.</li></ol>
+          </main>
+        </body></html>"#;
+        let html = rule_content(page, PageType::Article).expect("article extracts");
+        assert!(html.contains("genuine article body"), "{html}");
+        assert!(
+            !html.contains("Some Source"),
+            "reflist pruned despite the poisoned root: {html}"
+        );
     }
 
     #[test]
@@ -953,6 +1198,60 @@ mod tests {
         assert!(
             !ids.is_empty(),
             "the link-dense menu <div> inside <main> is collected (not vec![])"
+        );
+    }
+
+    /// The fragment prune strips chrome that rode a readability win: a
+    /// `.byline` / `.entry-meta` row inside the chosen fragment is removed,
+    /// the real prose is untouched, and a fragment that is ALL chrome keeps
+    /// its text (the over-prune guard at fragment scale).
+    #[test]
+    fn prune_fragment_strips_chrome_from_a_readability_win() {
+        let fragment = r#"<div><span class="byline">Posted by Jane Doe</span>
+            <span class="posted-on">January 1, 2026</span>
+            <p>The genuine article prose the reader came for, carried in full.</p>
+            </div>"#;
+        let out = prune_fragment(fragment, PageType::Article);
+        assert!(!out.contains("Posted by"), "byline pruned: {out}");
+        assert!(out.contains("genuine article prose"), "prose kept: {out}");
+
+        let all_chrome = r#"<div class="share-bar"><a href="/s">Share this</a></div>"#;
+        let out = prune_fragment(all_chrome, PageType::Article);
+        assert!(
+            out.contains("Share this"),
+            "an all-chrome fragment keeps its text (over-prune guard): {out}"
+        );
+    }
+
+    /// The link-density finish may never STARVE a qualifying zone: a short
+    /// service page whose main is a paragraph plus a call-to-action link
+    /// block must keep the block (detaching it drops the zone under the
+    /// thin floor and the cascade abstains into worse stages — the EX08
+    /// gov.uk page shape). On a large zone the finish still prunes.
+    #[test]
+    fn link_density_finish_never_starves_a_qualifying_zone() {
+        let prose = "a short but genuine service page body with enough running prose to                      qualify the zone on its own before the finish runs today here, with extra words";
+        let page = format!(
+            "<html><body><main><p>{prose} {prose}</p><div>{}{}</div></main></body></html>",
+            "X",
+            r#"<a href="/go">Start now today</a>"#.repeat(6)
+        );
+        let html = rule_content(&page, PageType::Article).expect("zone kept");
+        assert!(
+            html.contains("Start now today"),
+            "the finish must not starve the zone into abstention: {html}"
+        );
+
+        let big = format!(
+            "<html><body><main><p>{}</p><div>{}{}</div></main></body></html>",
+            prose.repeat(20),
+            "X",
+            r#"<a href="/go">Start now today</a>"#.repeat(6)
+        );
+        let html = rule_content(&big, PageType::Article).expect("big zone kept");
+        assert!(
+            !html.contains("Start now today"),
+            "on a large zone the finish still prunes the link-dense block: {html}"
         );
     }
 }

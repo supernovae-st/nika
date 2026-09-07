@@ -213,11 +213,40 @@ fn classify_dom(body: &str) -> PageType {
     if matches(&doc, &SCHEMA_ARTICLE) {
         return PageType::Article;
     }
-    // A prominent search form with no other signal → a search surface.
-    if matches(&doc, &SEARCH_FORM) {
+    // A search page is a SEARCH-RESULTS page, not a page that HAS a search
+    // box: `role="search"` rides in the header of most modern templates, so
+    // the bare role was classifying articles, docs and collections as
+    // Search (150 of 1,497 WCXB dev pages — none of them search pages).
+    // Require the role AND a page with no content structure: no <article>,
+    // and no main/content container carrying real paragraphs.
+    if matches(&doc, &SEARCH_FORM) && !has_content_structure(&doc) {
         return PageType::Search;
     }
     PageType::Generic
+}
+
+/// Structural evidence that the page carries content (not a bare search
+/// surface): an `<article>` element, or a main/content container with at
+/// least one paragraph of running text.
+fn has_content_structure(doc: &Html) -> bool {
+    static ARTICLE: LazyLock<Option<Selector>> = LazyLock::new(|| Selector::parse("article").ok());
+    static MAIN: LazyLock<Option<Selector>> = LazyLock::new(|| {
+        Selector::parse(r#"main, [role="main" i], [id="content" i], [id="main-content" i]"#).ok()
+    });
+    static P: LazyLock<Option<Selector>> = LazyLock::new(|| Selector::parse("p").ok());
+    if matches(doc, &ARTICLE) {
+        return true;
+    }
+    let Some(main_sel) = MAIN.as_ref() else {
+        return false;
+    };
+    let Some(p_sel) = P.as_ref() else {
+        return false;
+    };
+    doc.select(main_sel).any(|main| {
+        main.select(p_sel)
+            .any(|p| p.text().collect::<String>().trim().len() > 40)
+    })
 }
 
 fn matches(doc: &Html, sel: &LazyLock<Option<Selector>>) -> bool {
@@ -277,6 +306,40 @@ mod tests {
             None,
         );
         assert_eq!(article, PageType::Article);
+    }
+
+    /// A page that merely HAS a search box is not a search-results page:
+    /// `role="search"` rides in the header of most modern templates. With a
+    /// real `<article>` present the page classifies by its content signals,
+    /// never Search (WCXB dev: 150 pages misclassified by the bare role —
+    /// none of them search pages).
+    #[test]
+    fn a_search_box_in_the_chrome_does_not_make_a_search_page() {
+        let page = r#"<html><body>
+            <form role="search"><input type="search" name="q"></form>
+            <article><p>Real article prose lives here in the body of the page.</p></article>
+        </body></html>"#;
+        assert_ne!(
+            classify(page, Some("https://x.com/some-post")),
+            PageType::Search,
+            "a search box in the chrome must not flip a content page to Search"
+        );
+    }
+
+    /// A BARE search surface (the role, no article, no main carrying prose)
+    /// is still Search — the demotion only applies when content structure
+    /// exists.
+    #[test]
+    fn a_bare_search_surface_is_still_search() {
+        let page = r#"<html><body>
+            <form role="search"><input type="search" name="q"></form>
+            <ul><li><a href="/r1">result one</a></li><li><a href="/r2">result two</a></li></ul>
+        </body></html>"#;
+        assert_eq!(
+            classify(page, Some("https://x.com/find")),
+            PageType::Search,
+            "a bare search surface keeps the Search classification"
+        );
     }
 
     #[test]
