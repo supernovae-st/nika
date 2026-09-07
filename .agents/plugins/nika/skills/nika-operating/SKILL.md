@@ -12,8 +12,10 @@ The check reports readiness; it does not authorize unattended execution.
 Carry out execution already authorized by the user within its effects and
 spending scope, through the normal engine and host gates. Ask only for a
 decision still missing; permission to run does not supply a human-gate answer.
-Judge `clean`, `native_strict_clean`, `paid_ready` and resolved-child coverage
-separately, with the engine/spec identity that produced the report.
+Judge `clean` (the exit's verdict under the flags you passed; under
+`--native-strict` the refusal is a `findings[]` row and `native_strict_clean`
+repeats `clean`), `paid_ready` and resolved-child coverage separately, with
+the engine/spec identity that produced the report.
 
 ## Spend (the envelope is part of the contract)
 

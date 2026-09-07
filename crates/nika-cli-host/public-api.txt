@@ -1859,6 +1859,62 @@ pub async fn nika_cli_host::notify::deliver_paused(workflow: &str, pause: &nika_
 pub fn nika_cli_host::notify::event_id(trace_id: &str, task: &str) -> alloc::string::String
 pub fn nika_cli_host::notify::workflow_label(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::string::String
 pub mod nika_cli_host::oracle
+#[non_exhaustive] pub enum nika_cli_host::oracle::Lane
+pub nika_cli_host::oracle::Lane::NativeStrict
+pub nika_cli_host::oracle::Lane::OperationalAccess
+pub nika_cli_host::oracle::Lane::OperationalRisk
+impl nika_cli_host::oracle::Lane
+pub const fn nika_cli_host::oracle::Lane::gate(self) -> &'static str
+pub const fn nika_cli_host::oracle::Lane::kind(self) -> &'static str
+impl core::clone::Clone for nika_cli_host::oracle::Lane
+pub fn nika_cli_host::oracle::Lane::clone(&self) -> nika_cli_host::oracle::Lane
+impl core::cmp::Eq for nika_cli_host::oracle::Lane
+impl core::cmp::PartialEq for nika_cli_host::oracle::Lane
+pub fn nika_cli_host::oracle::Lane::eq(&self, other: &nika_cli_host::oracle::Lane) -> bool
+impl core::fmt::Debug for nika_cli_host::oracle::Lane
+pub fn nika_cli_host::oracle::Lane::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::oracle::Lane
+impl core::marker::StructuralPartialEq for nika_cli_host::oracle::Lane
+impl<D> owo_colors::OwoColorize for nika_cli_host::oracle::Lane
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::oracle::Lane where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::oracle::Lane::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::oracle::Lane where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::oracle::Lane::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::oracle::Lane where U: core::convert::From<T>
+pub fn nika_cli_host::oracle::Lane::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::oracle::Lane where U: core::convert::Into<T>
+pub type nika_cli_host::oracle::Lane::Error = core::convert::Infallible
+pub fn nika_cli_host::oracle::Lane::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::oracle::Lane where U: core::convert::TryFrom<T>
+pub type nika_cli_host::oracle::Lane::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::oracle::Lane::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::oracle::Lane where T: core::clone::Clone
+pub type nika_cli_host::oracle::Lane::Owned = T
+pub fn nika_cli_host::oracle::Lane::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::oracle::Lane::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::oracle::Lane where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::oracle::Lane::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::oracle::Lane where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Lane::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::oracle::Lane where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Lane::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::oracle::Lane where T: core::clone::Clone
+pub unsafe fn nika_cli_host::oracle::Lane::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::oracle::Lane
+pub fn nika_cli_host::oracle::Lane::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::oracle::Lane where T: core::clone::Clone
+pub fn nika_cli_host::oracle::Lane::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::oracle::Lane where T: 'static
+pub fn nika_cli_host::oracle::Lane::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::oracle::Lane where T: core::marker::Copy
+pub fn nika_cli_host::oracle::Lane::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::oracle::Lane where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::Lane::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::oracle::Lane::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::oracle::Lane
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::oracle::Lane
+impl<T> typenum::type_operators::Same for nika_cli_host::oracle::Lane
+pub type nika_cli_host::oracle::Lane::Output = T
 #[non_exhaustive] pub struct nika_cli_host::oracle::Audit
 pub nika_cli_host::oracle::Audit::report: nika_check::CheckReport
 pub nika_cli_host::oracle::Audit::skills: nika_schema::skill::ResolvedSkills
@@ -1996,6 +2052,60 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::oracle::Judged
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::oracle::Judged
 impl<T> typenum::type_operators::Same for nika_cli_host::oracle::Judged
 pub type nika_cli_host::oracle::Judged::Output = T
+#[non_exhaustive] pub struct nika_cli_host::oracle::LaneFinding
+pub nika_cli_host::oracle::LaneFinding::code: core::option::Option<alloc::string::String>
+pub nika_cli_host::oracle::LaneFinding::detail: alloc::string::String
+pub nika_cli_host::oracle::LaneFinding::fix: core::option::Option<alloc::string::String>
+pub nika_cli_host::oracle::LaneFinding::lane: nika_cli_host::oracle::Lane
+pub nika_cli_host::oracle::LaneFinding::task: core::option::Option<alloc::string::String>
+impl nika_cli_host::oracle::LaneFinding
+pub fn nika_cli_host::oracle::LaneFinding::message(&self) -> alloc::string::String
+impl core::clone::Clone for nika_cli_host::oracle::LaneFinding
+pub fn nika_cli_host::oracle::LaneFinding::clone(&self) -> nika_cli_host::oracle::LaneFinding
+impl core::cmp::Eq for nika_cli_host::oracle::LaneFinding
+impl core::cmp::PartialEq for nika_cli_host::oracle::LaneFinding
+pub fn nika_cli_host::oracle::LaneFinding::eq(&self, other: &nika_cli_host::oracle::LaneFinding) -> bool
+impl core::fmt::Debug for nika_cli_host::oracle::LaneFinding
+pub fn nika_cli_host::oracle::LaneFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::oracle::LaneFinding
+impl<D> owo_colors::OwoColorize for nika_cli_host::oracle::LaneFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::oracle::LaneFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::oracle::LaneFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::oracle::LaneFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::oracle::LaneFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::oracle::LaneFinding where U: core::convert::From<T>
+pub fn nika_cli_host::oracle::LaneFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::oracle::LaneFinding where U: core::convert::Into<T>
+pub type nika_cli_host::oracle::LaneFinding::Error = core::convert::Infallible
+pub fn nika_cli_host::oracle::LaneFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::oracle::LaneFinding where U: core::convert::TryFrom<T>
+pub type nika_cli_host::oracle::LaneFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::oracle::LaneFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::oracle::LaneFinding where T: core::clone::Clone
+pub type nika_cli_host::oracle::LaneFinding::Owned = T
+pub fn nika_cli_host::oracle::LaneFinding::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::oracle::LaneFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::oracle::LaneFinding where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::oracle::LaneFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::oracle::LaneFinding where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::LaneFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::oracle::LaneFinding where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::LaneFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::oracle::LaneFinding where T: core::clone::Clone
+pub unsafe fn nika_cli_host::oracle::LaneFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::oracle::LaneFinding
+pub fn nika_cli_host::oracle::LaneFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::oracle::LaneFinding where T: core::clone::Clone
+pub fn nika_cli_host::oracle::LaneFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::oracle::LaneFinding where T: 'static
+pub fn nika_cli_host::oracle::LaneFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::oracle::LaneFinding where T: ?core::marker::Sized
+pub fn nika_cli_host::oracle::LaneFinding::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::oracle::LaneFinding::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::oracle::LaneFinding
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::oracle::LaneFinding
+impl<T> typenum::type_operators::Same for nika_cli_host::oracle::LaneFinding
+pub type nika_cli_host::oracle::LaneFinding::Output = T
 #[non_exhaustive] pub struct nika_cli_host::oracle::Lanes
 pub nika_cli_host::oracle::Lanes::native_strict: bool
 pub nika_cli_host::oracle::Lanes::operational: bool
@@ -2058,6 +2168,7 @@ pub nika_cli_host::oracle::Verdict::layers: nika_display::check_render::layers::
 pub nika_cli_host::oracle::Verdict::models: nika_display::check_models::ModelsAudit
 pub nika_cli_host::oracle::Verdict::plan: nika_providers::plan::ExecutionAccessPlan
 impl nika_cli_host::oracle::Verdict
+pub fn nika_cli_host::oracle::Verdict::lane_findings(&self, report: &nika_check::CheckReport, lanes: nika_cli_host::oracle::Lanes) -> alloc::vec::Vec<nika_cli_host::oracle::LaneFinding>
 pub fn nika_cli_host::oracle::Verdict::profile_clean(&self, operational: bool) -> bool
 pub fn nika_cli_host::oracle::Verdict::strict_clean(&self, report: &nika_check::CheckReport, lanes: nika_cli_host::oracle::Lanes) -> bool
 impl<D> owo_colors::OwoColorize for nika_cli_host::oracle::Verdict
@@ -2086,6 +2197,8 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::oracle::Verdict
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::oracle::Verdict
 impl<T> typenum::type_operators::Same for nika_cli_host::oracle::Verdict
 pub type nika_cli_host::oracle::Verdict::Output = T
+pub const nika_cli_host::oracle::NATIVE_STRICT_FIX: &str
+pub const nika_cli_host::oracle::OPERATIONAL_GRADE_FIX: &str
 pub fn nika_cli_host::oracle::audit_json(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, skills: &nika_schema::skill::ResolvedSkills, verdict: &nika_cli_host::oracle::Verdict, lanes: nika_cli_host::oracle::Lanes) -> core::result::Result<serde_json::map::Map<alloc::string::String, serde_json::value::Value>, alloc::string::String>
 pub fn nika_cli_host::oracle::audit_source(source: &str, logical_path: &str, read: core::option::Option<nika_cli_host::oracle::Reader<'_>>, skills_base: core::option::Option<&std::path::Path>, opts: nika_cli_host::oracle::AuditOptions<'_>) -> core::result::Result<nika_cli_host::oracle::Audit, nika_schema::error::SchemaError>
 pub fn nika_cli_host::oracle::child_references(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<alloc::string::String>

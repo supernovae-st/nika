@@ -180,6 +180,8 @@ use nika_check::CheckReport;
 use nika_check::infer_permits;
 use nika_schema::raw::RawWorkflow;
 
+use nika_cli_host::oracle::{Lane, LaneFinding, NATIVE_STRICT_FIX};
+
 use crate::display::theme::{Role, Theme};
 use crate::verbs::{RunSource, VerbOutput, load_checked, load_checked_run_source};
 
@@ -228,62 +230,62 @@ fn overridden(
     }
 }
 
-/// Native-strict and operational-profile footers, only when their gate
-/// fired. `handle` is the audited line's own cause clause
-/// ([`nika_display::check_render::risk_handle`]): the footer used to
+/// The lane footers, projected from the SAME typed rows the `--json`
+/// `findings[]` carries: one native-strict line naming the count (the
+/// hints sit above it) when the report is otherwise clean, one
+/// operational line per failed gate (grade · access) when the verdict
+/// is otherwise clean — a dirty report already explains its red. The
+/// grade row carries the audited line's own cause clause at Unbounded
+/// (the risk handle the oracle types onto the row): the footer used to
 /// blame « glob/wildcard authority and uncapped autonomy » on every
-/// Unbounded file — a persona wave (the operations sceptic): a file with one exact host, one named
-/// program, zero agents and a `./out/**` write grant was told both, and
-/// never WHICH grant to narrow.
+/// Unbounded file — a persona wave: a file with one exact host, one
+/// named program, zero agents and a `./out/**` write grant was told
+/// both, and never WHICH grant to narrow.
 fn strict_footers(
     text: &mut String,
     theme: Theme,
-    native_red: bool,
-    native_hints: usize,
-    operational_red: bool,
-    (grade, handle): (nika_check::RiskGrade, &str),
+    (report_clean, verdict_clean): (bool, bool),
+    rows: &[LaneFinding],
 ) {
-    if native_red {
-        let hint_word = if native_hints == 1 { "hint" } else { "hints" };
+    let native = rows.iter().filter(|f| f.lane == Lane::NativeStrict).count();
+    if report_clean && native > 0 {
+        let hint_word = if native == 1 { "hint" } else { "hints" };
         let _ = writeln!(
             text,
             " {}",
             theme.paint(
                 Role::Bad,
                 &format!(
-                    "✖ native-strict · {native_hints} native-first {hint_word} above — \
-                     replace each one with the builtin its hint names \
-                     (the exec ledger documents intent for a reviewer; \
-                     it does not clear this gate)"
+                    "✖ native-strict · {native} native-first {hint_word} above — \
+                     {NATIVE_STRICT_FIX}"
                 ),
             )
         );
     }
-    if operational_red {
-        // The grade names WHY; the handle names WHICH grant or spend
-        // (Unbounded). At High the handle is empty and the lanes above
-        // carry the cause (a glob grant · an unconsumed gate · an
-        // unpinned secret egress), so the fix direction mirrors the
-        // COST/hint lanes (cap the spend · narrow the grant).
-        let why = if handle.is_empty() {
-            " — cap the spend or narrow the grant: glob authority, an unconsumed \
-             human gate or an unpinned secret egress block readiness"
-                .to_owned()
-        } else {
-            format!("{handle} · blocks readiness")
+    if !verdict_clean {
+        return;
+    }
+    for finding in rows.iter().filter(|f| f.lane != Lane::NativeStrict) {
+        // The grade row names WHY (the grade) and, at Unbounded, WHICH
+        // grant or spend (the handle the oracle typed onto the row); at
+        // High the lanes above carry the cause and the fix direction
+        // mirrors the COST/hint lanes (cap the spend · narrow the grant).
+        // The access row carries the blocker and no remedy the plan did
+        // not name. The readiness clause belongs to the grade gate.
+        let line = match (finding.lane, &finding.fix) {
+            (Lane::OperationalRisk, Some(fix)) => format!(
+                "✖ operational · {} — {fix} under --profile operational (advisory by default)",
+                finding.detail
+            ),
+            (Lane::OperationalRisk, None) => format!(
+                "✖ operational · {} · blocks readiness under --profile operational \
+                 (advisory by default)",
+                finding.detail
+            ),
+            (_, Some(fix)) => format!("✖ operational · {} — {fix}", finding.detail),
+            (_, None) => format!("✖ operational · {}", finding.detail),
         };
-        let _ = writeln!(
-            text,
-            " {}",
-            theme.paint(
-                Role::Bad,
-                &format!(
-                    "✖ operational · risk {}{why} under --profile operational \
-                     (advisory by default)",
-                    grade.as_str()
-                )
-            )
-        );
+        let _ = writeln!(text, " {}", theme.paint(Role::Bad, &line));
     }
 }
 
@@ -666,50 +668,36 @@ fn fold_verdicts(
 
 /// The operational profile's access footer: RUN READY false is a
 /// `--profile` outcome (exit 2), and the line names the blocker.
+/// The operational profile SAYS it held, never silence (W3-F9). The red
+/// rows (grade · access) print from the typed lane findings in
+/// [`strict_footers`].
 fn access_footer(
     text: &mut String,
     theme: Theme,
     profile: Profile,
-    (clean, strict_clean): (bool, bool),
+    strict_clean: bool,
     layers: &VerdictLayers,
     grade: nika_check::RiskGrade,
 ) {
-    if profile != Profile::Operational {
+    if profile != Profile::Operational || !strict_clean {
         return;
     }
-    // W3-F9 · the operational profile SAYS it held, never silence.
-    if strict_clean {
-        let access = match layers.access_ready {
-            Some(true) => "access ready",
-            Some(false) => "access not ready",
-            None => "access not judged (no model to judge)",
-        };
-        let _ = writeln!(
-            text,
-            " {}",
-            theme.paint(
-                Role::Good,
-                &format!(
-                    "✔ operational · risk {} · {access} — the gates hold",
-                    grade.as_str()
-                )
+    let access = match layers.access_ready {
+        Some(true) => "access ready",
+        Some(false) => "access not ready",
+        None => "access not judged (no model to judge)",
+    };
+    let _ = writeln!(
+        text,
+        " {}",
+        theme.paint(
+            Role::Good,
+            &format!(
+                "✔ operational · risk {} · {access} — the gates hold",
+                grade.as_str()
             )
-        );
-        return;
-    }
-    if clean && layers.access_ready == Some(false) {
-        let _ = writeln!(
-            text,
-            " {}",
-            theme.paint(
-                Role::Bad,
-                &format!(
-                    "✖ operational · access not ready — {}",
-                    layers.blockers.first().map_or("", String::as_str)
-                )
-            )
-        );
-    }
+        )
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -727,12 +715,13 @@ fn render_checked_with_profile(
     theme: Theme,
 ) -> Result<VerbOutput, nika_vocab::project::ProjectError> {
     let ceiling = budget::from_cwd()?;
-    let native_hints = nika_cli_host::oracle::native_hints(report);
     let lanes = nika_cli_host::oracle::Lanes::new(native_strict, profile == Profile::Operational);
     let verdict = fold_verdicts(wf, report, skills, access_pin);
     // The risk grade (P0-6): a pure projection — advisory by default;
     // `--profile operational` gates on it and on ACCESS READY (ADR-123).
-    let profile_clean = verdict.profile_clean(lanes.operational);
+    // The lane rows are typed ONCE: the footers below and the machine
+    // twin's `findings[]` project them, and the exit reads the same rows.
+    let lane = verdict.lane_findings(report, lanes);
     let strict_clean = verdict.strict_clean(report, lanes);
 
     if strict_clean {
@@ -766,22 +755,12 @@ fn render_checked_with_profile(
         verdict.clean,
         &verdict.layers,
     );
-    strict_footers(
-        &mut text,
-        theme,
-        native_strict && report.is_clean() && native_hints > 0,
-        native_hints,
-        profile == Profile::Operational && verdict.clean && !profile_clean,
-        (
-            verdict.grade,
-            &nika_display::check_render::risk_handle(report, verdict.grade),
-        ),
-    );
+    strict_footers(&mut text, theme, (report.is_clean(), verdict.clean), &lane);
     access_footer(
         &mut text,
         theme,
         profile,
-        (verdict.clean, strict_clean),
+        strict_clean,
         &verdict.layers,
         verdict.grade,
     );

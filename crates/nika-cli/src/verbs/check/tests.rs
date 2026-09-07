@@ -426,10 +426,27 @@ pub(crate) fn checked_output_profile(
 
 /// `--json` twin of a fixture already written by [`checked_output`].
 pub(crate) fn checked_json(name: &str) -> (VerbOutput, serde_json::Value) {
+    checked_json_with(name, false, Profile::Advisory)
+}
+
+/// The posture-parameterized twin of [`checked_json`] — the lane tests
+/// read `clean` and `findings[]` under `--native-strict` / `--profile`.
+pub(crate) fn checked_json_with(
+    name: &str,
+    native_strict: bool,
+    profile: Profile,
+) -> (VerbOutput, serde_json::Value) {
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
     let path = dir.join(name);
     let theme = Theme::new(false, true, false);
-    let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
+    let out = run_with_profile(
+        path.to_str().expect("utf8 path"),
+        true,
+        native_strict,
+        profile,
+        (None, None),
+        theme,
+    );
     let payload = serde_json::from_str(&out.text).expect("json");
     (out, payload)
 }
@@ -558,9 +575,36 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
     );
     assert_eq!(out.code, 2, "the machine surface agrees: {}", out.text);
     let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
-    assert_eq!(payload["clean"], true, "spec-clean stays true: {payload:#}");
+    assert_eq!(
+        payload["clean"], false,
+        "`clean` follows the exit under the lane: {payload:#}"
+    );
     assert_eq!(payload["risk_grade"], "unbounded", "{payload:#}");
     assert_eq!(payload["operational_clean"], false, "{payload:#}");
+    // The refusal is a typed row — the grade, then the remedy.
+    let rows = payload["findings"].as_array().expect("findings");
+    let row = rows.iter().find(|f| f["kind"] == "operational");
+    assert!(row.is_some(), "the grade row rides findings[]: {payload:#}");
+    let row = row.expect("asserted above");
+    assert_eq!(row["gate"], "OPERATIONAL", "{payload:#}");
+    assert!(
+        row["message"]
+            .as_str()
+            .is_some_and(|m| m.starts_with("risk unbounded — ")
+                && m.contains("--max-cost-usd")
+                && !m.contains(" — fix: ")),
+        "the grade row carries the handle, the spend cause and its door: {payload:#}"
+    );
+    assert!(row.get("fix").is_none(), "{payload:#}");
+    // The human footer says the same cause, then the readiness clause.
+    assert!(
+        operational.text.contains("--max-cost-usd")
+            && operational
+                .text
+                .contains("blocks readiness under --profile operational (advisory by default)"),
+        "{}",
+        operational.text
+    );
 }
 
 /// The advisory card over bounded-but-broad authority is honest too:
