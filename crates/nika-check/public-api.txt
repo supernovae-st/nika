@@ -2956,4 +2956,5 @@ pub fn nika_check::stamp_paid_ready(obj: &mut serde_json::map::Map<alloc::string
 pub fn nika_check::static_read_paths(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_check::task_permits(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_check::typed_renames(report: &nika_check::CheckReport) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String, &'static str)>
+pub fn nika_check::wildcard_grants(report: &nika_check::CheckReport) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_check::with_model_override(wf: &nika_schema::raw::workflow::RawWorkflow, model: &str) -> nika_schema::raw::workflow::RawWorkflow
