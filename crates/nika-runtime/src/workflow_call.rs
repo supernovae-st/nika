@@ -147,6 +147,8 @@ where
                 // F-P6 · the child's OWN trace attests its steps (spec 14
                 // law 9) — the call itself fires no exec/tool bytes.
                 commit: None,
+                // The child's own frames carry its metered calls' splits.
+                usage: None,
             };
             // Belt: a runner that kept no trace still records the
             // outcome class (the forest row is check≡run material).
@@ -193,6 +195,8 @@ where
                 cost_unpriced: None,
                 // F-P6 · the child's own trace attests its steps.
                 evidence: None,
+                // The child's own frames carry its metered calls' splits.
+                usage: None,
                 access: None,
             }),
         }

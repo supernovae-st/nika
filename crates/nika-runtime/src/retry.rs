@@ -176,6 +176,8 @@ where
         // consumes the dispatch (a divergence is never transient).
         let evidence = failed.evidence.clone();
         let access = failed.access.clone();
+        // the split of THIS attempt's burn, lifted with the rest.
+        let usage = failed.usage.clone();
         let retry_forbidden = failed.retry_forbidden;
         // Debits PER ATTEMPT — a retry storm is never invisible.
         let error = failed.debit_and_fold(ledger, failed_cost, failed_unpriced);
@@ -188,7 +190,8 @@ where
         let Some(delay) = delay else {
             return Err(
                 FailedOutcome::new(error, *failed_cost, *failed_unpriced, evidence)
-                    .with_access(access),
+                    .with_access(access)
+                    .with_usage(usage),
             );
         };
         Ok(delay)

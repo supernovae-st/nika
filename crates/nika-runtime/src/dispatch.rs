@@ -32,10 +32,12 @@ pub(crate) mod commit;
 mod exec_io;
 mod permits;
 mod regate;
+mod spend;
 mod verb_outcome;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 use exec_io::{build_exec_input, capture_mode, render_exec_io};
+use spend::{failed_usage_split, price_failed_spend, spend_for_model};
 
 /// One dispatch's outcome — the display note + value-or-error.
 /// (Agent decisions do NOT ride here: the buffer lives in the CALLER,
@@ -70,6 +72,10 @@ pub(crate) struct FailedDispatch {
     /// The admitted lane the failed dispatch rode (One Door · wave 2b) —
     /// the terminal frame names the path that FAILED, not `?`.
     pub access: Option<Box<nika_types::access::AccessPlan>>,
+    /// the usage split of a BILLED-then-failed round-trip — the
+    /// receipt rides `task_failed` beside the spend it explains. `None`
+    /// when the attempt never reached a provider. Boxed: cold.
+    pub usage: Option<Box<crate::usage::UsageSplit>>,
 }
 
 impl FailedDispatch {
@@ -84,6 +90,7 @@ impl FailedDispatch {
             cost_unpriced: None,
             evidence: None,
             access: None,
+            usage: None,
         }
     }
 
@@ -146,6 +153,12 @@ pub(crate) struct DispatchOk {
     /// from a provider-prefix guess. `None` = no plan attached (a bare
     /// embedder · a templated model judged at dispatch). Boxed: cold.
     pub access: Option<Box<nika_types::access::AccessPlan>>,
+    /// the provider-reported usage SPLIT that priced `cost_usd`
+    /// (input · cached input · cache writes · output · reasoning) plus
+    /// the responder's own identity — the receipt a reader needs to
+    /// recompute the number from the pinned catalog. `None` on the verbs
+    /// that meter nothing. Boxed: cold, never widens the channel.
+    pub usage: Option<Box<crate::usage::UsageSplit>>,
 }
 
 impl DispatchOk {
@@ -178,6 +191,7 @@ impl Dispatched {
                 cost_unpriced: None,
                 commit: None,
                 access: None,
+                usage: None,
             }),
         }
     }
@@ -205,8 +219,18 @@ impl Dispatched {
                 cost_unpriced,
                 commit: None,
                 access: None,
+                usage: None,
             }),
         }
+    }
+
+    /// stamp the metered call's usage split (and the responder's
+    /// identity) on a success — a failure keeps its own copy.
+    fn with_usage(mut self, usage: Option<Box<crate::usage::UsageSplit>>) -> Self {
+        if let Ok(ok) = &mut self.result {
+            ok.usage = usage;
+        }
+        self
     }
 
     /// Stamp the admitted lane on a success (the plan's `AccessPlan`
@@ -253,6 +277,7 @@ impl Dispatched {
                 cost_unpriced,
                 evidence: None,
                 access: None,
+                usage: None,
             }),
         }
     }
@@ -261,6 +286,15 @@ impl Dispatched {
     fn with_retry_forbidden(mut self, retry_forbidden: bool) -> Self {
         if let Err(failed) = &mut self.result {
             failed.retry_forbidden = retry_forbidden;
+        }
+        self
+    }
+
+    /// the usage split of a billed-then-failed attempt — the
+    /// receipt rides `task_failed` beside the spend it explains.
+    fn with_failed_usage(mut self, usage: Option<Box<crate::usage::UsageSplit>>) -> Self {
+        if let Err(failed) = &mut self.result {
+            failed.usage = usage;
         }
         self
     }
@@ -785,10 +819,12 @@ where
         match self.infer.run(input).await {
             Ok(out) => verb_outcome::infer_success(out, access),
             Err(err) => {
+                let split = failed_usage_split(err.spend());
                 let spend = price_failed_spend(err.spend());
                 // The note names the model the lane was asked for (the
                 // W1 gauntlet read `infer · ?` in a sealed trace).
                 Dispatched::verb_err_spent(format!("infer · {lane_model}"), &err, spend)
+                    .with_failed_usage(split)
                     .with_failed_access(access)
             }
         }
@@ -859,8 +895,10 @@ where
         match ran {
             Ok(out) => verb_outcome::agent_success(out, access),
             Err(err) => {
+                let split = failed_usage_split(err.spend());
                 let spend = price_failed_spend(err.spend());
                 Dispatched::verb_err_spent(format!("agent · {lane_model}"), &err, spend)
+                    .with_failed_usage(split)
                     .with_failed_access(access)
             }
         }
@@ -921,80 +959,6 @@ where
 /// its error at the verb seam): the LLM leg through the same resolver
 /// successes use, plus any tool-reported spend — either alone still
 /// rides. `None`-everything when the failure preceded any billed call.
-fn price_failed_spend(
-    spend: Option<&nika_types::cost::SpendOnFailure>,
-) -> (Option<f64>, Option<String>, Option<UnpricedReason>) {
-    let Some(incurred) = spend else {
-        return (None, None, None);
-    };
-    let (llm, unpriced) = match incurred.model_resolved.as_deref() {
-        Some(model) if usage_has_signal(&incurred.usage) => spend_for_model(model, &incurred.usage),
-        _ => (None, None),
-    };
-    let cost_usd = match (llm, incurred.tools_cost_usd) {
-        (None, None) => None,
-        (a, b) => Some(a.unwrap_or(0.0) + b.unwrap_or(0.0)),
-    };
-    (cost_usd, incurred.model_resolved.clone(), unpriced)
-}
-
-/// The ONE model-spend computation — catalog price × the FULL usage
-/// split, with the honest WHY when no number can exist.
-///
-/// Order matters: an unpriced model class (mock · local · uncataloged)
-/// outranks a silent provider — « local compute · not priced » is the
-/// actionable truth for a local model even when it also reported no
-/// usage. A PRICED model with a degenerate split (all meters zero —
-/// e.g. a stream that never carried usage) must NOT price to $0.00:
-/// the spend is real but unknowable, so it stays absent + named
-/// (`provider_did_not_report_usage`) — the fake-zero gate.
-fn spend_for_model(
-    model: &str,
-    usage: &nika_kernel::provider::TokenUsage,
-) -> (Option<f64>, Option<UnpricedReason>) {
-    if nika_catalog::find_pricing_for(model).is_none() {
-        return (None, Some(unpriced_reason_for(model)));
-    }
-    if !usage_has_signal(usage) {
-        return (None, Some(UnpricedReason::ProviderDidNotReportUsage));
-    }
-    let cache_write = usage
-        .cache_write_tokens
-        .unwrap_or(0)
-        .saturating_add(usage.cache_creation_tokens.unwrap_or(0));
-    let cost = nika_catalog::estimate_cost_usage_for(
-        model,
-        usage.input_tokens,
-        usage.output_tokens,
-        usage.cache_read_tokens.unwrap_or(0),
-        cache_write,
-    )
-    .map(|e| e.usd);
-    (cost, None)
-}
-
-/// Whether the provider reported ANY billable meter — zero-everything is
-/// « did not report », never a $0.00.
-fn usage_has_signal(usage: &nika_kernel::provider::TokenUsage) -> bool {
-    usage.input_tokens > 0
-        || usage.output_tokens > 0
-        || usage.cache_read_tokens.is_some_and(|n| n > 0)
-        || usage.cache_write_tokens.is_some_and(|n| n > 0)
-        || usage.cache_creation_tokens.is_some_and(|n| n > 0)
-}
-
-/// Why a model string has no catalog price (`mock` · local · missing).
-fn unpriced_reason_for(model: &str) -> UnpricedReason {
-    match model.split_once('/').map(|(provider, _)| provider) {
-        Some("mock") => UnpricedReason::MockProvider,
-        Some(prefix) => match nika_catalog::find_provider(prefix) {
-            Some(row) if !row.requires_key => UnpricedReason::LocalModel,
-            _ => UnpricedReason::MissingCatalogPrice,
-        },
-        None => UnpricedReason::MissingCatalogPrice,
-    }
-}
-
 fn collect_vision(
     items: &[nika_schema::Spanned<VisionInput>],
     scope: &Scope<'_>,

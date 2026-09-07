@@ -90,6 +90,7 @@ mod settlement;
 pub mod simulated;
 mod task;
 mod trust;
+mod usage;
 mod workflow_call;
 
 use std::collections::BTreeMap;

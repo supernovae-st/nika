@@ -268,6 +268,7 @@ fn one_task_span(
     if let Some(FieldValue::Int(tokens)) = field(terminal, "tokens") {
         attributes.push(kv_int("nika.tokens", *tokens));
     }
+    push_usage_semconv(&mut attributes, terminal);
     push_genai_semconv(&mut attributes, terminal);
     if let Some(FieldValue::Float(usd)) = field(terminal, "cost_usd") {
         attributes.push(kv_double(COST_ATTR, *usd));
@@ -463,14 +464,19 @@ fn push_genai_semconv(attributes: &mut Vec<serde_json::Value>, terminal: &Event)
         // slash-less value stays whole.
         let name = model.split_once('/').map_or(model, |(_, n)| n);
         attributes.push(kv_str("gen_ai.request.model", name));
-        // `gen_ai.response.model` is NOT emitted: the semconv defines it
-        // as the model that SERVED the response, as the provider reports
-        // it — and the journal captures no provider-reported model id
-        // anywhere. The alternative (re-emitting the requested name
-        // here) does not survive: aliases (`-latest` · nicknames) make
-        // served ≠ requested, so the attribute would assert a fact never
-        // captured and an eval tool would read "requested" as "served".
-        // Deferred until the providers report a response model id.
+    }
+    // `gen_ai.response.model` is the model that SERVED the response, as
+    // the PROVIDER reports it — emitted only from the frame's own
+    // `model_served` (the wires' `gen_ai.response.model`, now
+    // journaled). The requested name is never re-emitted here: aliases
+    // (`-latest` · nicknames) make served ≠ requested, and an eval tool
+    // would read "requested" as "served" (ADR-112 L71-77 · its return
+    // condition is now met at the frame, not guessed).
+    if let Some(served) = field_str(terminal, "model_served") {
+        attributes.push(kv_str("gen_ai.response.model", served));
+    }
+    if let Some(id) = field_str(terminal, "response_id") {
+        attributes.push(kv_str("gen_ai.response.id", id));
     }
     if let Some(provider) = field_str(terminal, "provider") {
         // The normalization table: canonical nika ids → the semconv
@@ -489,6 +495,55 @@ fn push_genai_semconv(attributes: &mut Vec<serde_json::Value>, terminal: &Event)
             other => other,
         };
         attributes.push(kv_str("gen_ai.provider.name", well_known));
+    }
+}
+
+/// the usage SPLIT as `OTel` `GenAI` counters, so a collector
+/// prices the call without parsing our own names — and our own
+/// `nika.tokens.*` mirrors beside them, so a nika reader never depends
+/// on a semconv still marked `development`.
+///
+/// Names read from `open-telemetry/semantic-conventions` v1.37.0's
+/// `gen_ai` registry (the version this module already pins for
+/// `gen_ai.provider.name`): `gen_ai.usage.input_tokens` (SHOULD include
+/// the cached subset — which is exactly what the frame's `tokens_in`
+/// carries), `gen_ai.usage.output_tokens`,
+/// `gen_ai.usage.cache_read.input_tokens`,
+/// `gen_ai.usage.cache_write.input_tokens`,
+/// `gen_ai.usage.reasoning.output_tokens`.
+///
+/// Counters only — content-free by construction: an absent meter emits
+/// NOTHING (a projection must never invent a zero the journal did not
+/// carry).
+fn push_usage_semconv(attributes: &mut Vec<serde_json::Value>, terminal: &Event) {
+    const METERS: [(&str, &str, &str); 5] = [
+        ("tokens_in", "gen_ai.usage.input_tokens", "nika.tokens.in"),
+        (
+            "tokens_out",
+            "gen_ai.usage.output_tokens",
+            "nika.tokens.out",
+        ),
+        (
+            "tokens_cache_read",
+            "gen_ai.usage.cache_read.input_tokens",
+            "nika.tokens.cache_read",
+        ),
+        (
+            "tokens_cache_write",
+            "gen_ai.usage.cache_write.input_tokens",
+            "nika.tokens.cache_write",
+        ),
+        (
+            "tokens_reasoning",
+            "gen_ai.usage.reasoning.output_tokens",
+            "nika.tokens.reasoning",
+        ),
+    ];
+    for (field_key, semconv, mirror) in METERS {
+        if let Some(FieldValue::Int(n)) = field(terminal, field_key) {
+            attributes.push(kv_int(semconv, *n));
+            attributes.push(kv_int(mirror, *n));
+        }
     }
 }
 
@@ -877,8 +932,9 @@ mod tests {
     /// differs · `gen_ai.request.model`) so every viewer and eval tool
     /// reads the model without a translation shim — and NEVER the
     /// deprecated `gen_ai.system` (semconv v1.37.0 renamed it).
-    /// `gen_ai.response.model` stays OUT: the semconv makes it the
-    /// provider-reported SERVED model, and the journal captures none.
+    /// `gen_ai.response.model` stays OUT of THIS frame: the semconv makes
+    /// it the provider-reported SERVED model, and this frame carries no
+    /// `model_served` (the one that does is judged below).
     #[test]
     fn infer_access_facts_project_to_current_genai_semconv() {
         let events = vec![
@@ -915,16 +971,89 @@ mod tests {
             "mistral-large",
             "the model NAME (after the provider slash), semconv shape"
         );
-        // The served model is a provider-reported fact the journal never
-        // captures — emitting the requested name there would assert it.
+        // The served model is a provider-reported fact: without
+        // `model_served` on the frame, emitting the requested name here
+        // would assert what was never captured.
         assert!(
             attr(draft, "gen_ai.response.model").is_none(),
-            "gen_ai.response.model is the SERVED model — uncaptured, so unemitted"
+            "gen_ai.response.model is the SERVED model — unreported here, so unemitted"
         );
         // The deprecated name must NEVER appear.
         assert!(
             attr(draft, "gen_ai.system").is_none(),
             "gen_ai.system was deprecated in semconv v1.37.0 — never emit it"
+        );
+    }
+
+    /// the measured openai usage projects to the `GenAI` usage
+    /// counters a collector prices with — and to our own mirrors. The
+    /// figures are the measured ones (prompt 5015 of which 4992 cached ·
+    /// one completion token): with only `nika.tokens` a warm-cache span
+    /// and a price change were the same sight.
+    #[test]
+    fn the_usage_split_projects_to_genai_usage_counters() {
+        let events = vec![
+            ev(
+                1,
+                1_000,
+                EventKind::WorkflowStarted,
+                &[("workflow", s("meter"))],
+            ),
+            ev(2, 1_050, EventKind::TaskStarted, &[("task", s("ask"))]),
+            ev(
+                3,
+                1_900,
+                EventKind::TaskCompleted,
+                &[
+                    ("task", s("ask")),
+                    ("note", s("infer · openai/gpt-4o-mini")),
+                    ("duration_ms", FieldValue::Int(800)),
+                    ("tokens", FieldValue::Int(1)),
+                    ("tokens_in", FieldValue::Int(5015)),
+                    ("tokens_out", FieldValue::Int(1)),
+                    ("tokens_cache_read", FieldValue::Int(4992)),
+                    ("cost_usd", FieldValue::Float(0.000_752_85)),
+                    ("model", s("openai/gpt-4o-mini")),
+                    ("provider", s("openai")),
+                    ("model_served", s("gpt-4o-mini-2024-07-18")),
+                    ("response_id", s("chatcmpl-p")),
+                ],
+            ),
+        ];
+        let line = project_bare(&events, false).expect("projects");
+        let spans = spans_of(&line);
+        let ask = spans.iter().find(|sp| sp["name"] == "ask").unwrap();
+        let int = |key: &str| {
+            attr(ask, key).map(|v| {
+                v["intValue"]
+                    .as_str()
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .or_else(|| v["intValue"].as_i64())
+                    .expect("an int attribute")
+            })
+        };
+        assert_eq!(int("gen_ai.usage.input_tokens"), Some(5015));
+        assert_eq!(int("gen_ai.usage.cache_read.input_tokens"), Some(4992));
+        assert_eq!(int("gen_ai.usage.output_tokens"), Some(1));
+        assert_eq!(int("nika.tokens.in"), Some(5015));
+        assert_eq!(int("nika.tokens.cache_read"), Some(4992));
+        assert_eq!(int("nika.tokens"), Some(1), "the historical mirror stays");
+        // An unreported meter is NOT projected as a zero.
+        assert!(attr(ask, "gen_ai.usage.cache_write.input_tokens").is_none());
+        assert!(attr(ask, "gen_ai.usage.reasoning.output_tokens").is_none());
+        // Now the SERVED model rides — from the provider's own report.
+        assert_eq!(
+            attr(ask, "gen_ai.response.model").unwrap()["stringValue"],
+            "gpt-4o-mini-2024-07-18"
+        );
+        assert_eq!(
+            attr(ask, "gen_ai.response.id").unwrap()["stringValue"],
+            "chatcmpl-p"
+        );
+        assert_eq!(
+            attr(ask, "gen_ai.request.model").unwrap()["stringValue"],
+            "gpt-4o-mini",
+            "requested and served stay distinct"
         );
     }
 

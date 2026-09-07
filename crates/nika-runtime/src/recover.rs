@@ -260,6 +260,7 @@ fn try_park(
         evidence,
         duration_ms,
         items,
+        usage,
         result,
     } = *ran;
     let pending = match result {
@@ -273,6 +274,7 @@ fn try_park(
                 evidence,
                 duration_ms,
                 items,
+                usage,
                 result: other,
             };
             let settle = SettleAs::Ran(Box::new(ran));
@@ -301,9 +303,8 @@ fn try_park(
         );
         return None;
     }
-    // An awaited root that is NOT a declared task can never reach a
-    // terminal state — the recovery fails NOW, exactly as if nothing
-    // had parked (spec 05).
+    // An awaited root that is NOT a declared task can never reach a terminal
+    // state — the recovery fails NOW, as if nothing had parked (spec 05).
     let PendingRecovery {
         failed,
         render_error,
@@ -314,10 +315,11 @@ fn try_park(
         retries,
         agent_events,
         decisions,
-        // F-P6 · the parked failure's evidence rides back out.
+        // F-P6 · its evidence and the usage receipt ride back out.
         evidence: failed.evidence,
         duration_ms,
         items,
+        usage: failed.usage,
         result: RunResult::Failed {
             error: render_error,
             cost_usd: failed.cost_usd,
@@ -474,6 +476,7 @@ fn resolve_parked(
         cost_unpriced,
         evidence,
         access,
+        usage,
     } = failed;
     let result = match recover_template(scope.wf, task_index) {
         Some(template) => {
@@ -514,6 +517,8 @@ fn resolve_parked(
         evidence,
         duration_ms,
         items,
+        // the receipt of what the parked attempts burned.
+        usage,
         result,
     }));
     let named = match scope.wf.tasks.get(task_index) {

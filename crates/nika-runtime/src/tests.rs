@@ -12,6 +12,7 @@ use super::*;
 
 mod seated_receipt;
 mod tool_warning;
+mod usage_split;
 
 /// The F-O1 integrity label for the pre-existing frame tests below —
 /// they exercise the frame surface, not the label: a trusted settle
@@ -769,6 +770,7 @@ fn declared_output_types_fit_lenient_floats_strict_cross_type() {
 #[test]
 fn recovered_success_emits_task_recovered_before_completed() {
     let ran = task::RanTask {
+        usage: None,
         decisions: Vec::new(),
         note: "exec · sh".to_owned(),
         retries: Vec::new(),
@@ -835,6 +837,7 @@ fn recovered_success_emits_task_recovered_before_completed() {
 #[test]
 fn obs_e_warning_rides_task_completed() {
     let ran = task::RanTask {
+        usage: None,
         decisions: Vec::new(),
         note: "infer · gemini/flash".to_owned(),
         retries: Vec::new(),
@@ -901,6 +904,7 @@ fn obs_e_warning_rides_task_completed() {
 #[test]
 fn no_warning_field_on_a_clean_success() {
     let ran = task::RanTask {
+        usage: None,
         decisions: Vec::new(),
         note: "exec · true".to_owned(),
         retries: Vec::new(),
@@ -968,6 +972,7 @@ fn no_warning_field_on_a_clean_success() {
 #[test]
 fn access_facts_ride_the_infer_terminal() {
     let ran = task::RanTask {
+        usage: None,
         decisions: Vec::new(),
         note: "infer · mock/echo".to_owned(),
         retries: Vec::new(),
@@ -1034,6 +1039,7 @@ fn access_facts_ride_the_infer_terminal() {
 #[test]
 fn cost_unpriced_reason_rides_task_completed() {
     let ran = task::RanTask {
+        usage: None,
         decisions: Vec::new(),
         note: "infer · ollama/llama3.2".to_owned(),
         retries: Vec::new(),

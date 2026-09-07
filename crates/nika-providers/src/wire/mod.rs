@@ -12,6 +12,8 @@ pub(crate) mod gemini;
 pub(crate) mod mock;
 mod mock_schema;
 pub(crate) mod openai_compat;
+#[cfg(test)]
+mod openai_compat_usage_tests;
 mod openai_schema;
 
 use std::collections::VecDeque;

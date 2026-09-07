@@ -353,6 +353,22 @@ fn emit_permit_checked(
     }
 }
 
+/// The settled record every terminal shape starts from — the F-O1
+/// integrity label is set BEFORE any terminal frame so the frame's
+/// additive fields read the settled truth. (Carved out of `settle_ran`
+/// at the 100-line fn ratchet; the body moved verbatim.)
+fn fresh_ran_record(
+    started_at: nika_types::timestamp::Timestamp,
+    duration_ms: u64,
+    integrity: &nika_cap::Integrity,
+) -> TaskRecord {
+    let mut record = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
+    record.started_at = Some(started_at);
+    record.duration_ms = Some(duration_ms);
+    record.integrity = integrity.clone();
+    record
+}
+
 #[allow(clippy::too_many_arguments)] // the ran settle parts + the pens
 pub(crate) fn settle_ran(
     id: &str,
@@ -374,12 +390,10 @@ pub(crate) fn settle_ran(
     let evidence = run.evidence;
     // #1276 · #1397 · the item table rides the frame, its repair count the record.
     let items = run.items;
-    let mut record = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
-    record.started_at = Some(started_at);
-    record.duration_ms = Some(run.duration_ms);
-    // F-O1 — the pipeline's computed label, set BEFORE any terminal frame
-    // so the frame's additive fields read the settled truth.
-    record.integrity = integrity.clone();
+    // the metered call's split — lifted like the evidence so
+    // EVERY terminal shape can carry the receipt of what it burned.
+    let usage = run.usage;
+    let mut record = fresh_ran_record(started_at, run.duration_ms, integrity);
     match run.result {
         task::RunResult::Success {
             value,
@@ -401,6 +415,7 @@ pub(crate) fn settle_ran(
             attempts,
             resume,
             (evidence.as_ref(), items.as_ref()),
+            usage.as_deref(),
             &mut record,
             stamper,
             sink,
@@ -431,6 +446,7 @@ pub(crate) fn settle_ran(
             (cost_usd, cost_unpriced, access.as_deref()),
             attempts,
             (evidence.as_ref(), items.as_ref()),
+            usage.as_deref(),
             &mut record,
             ok,
             stamper,
@@ -510,6 +526,7 @@ fn settle_pending_backstop(
         ),
         attempts,
         (evidence, None),
+        pending.failed.usage.as_deref(),
         record,
         ok,
         stamper,
@@ -552,6 +569,7 @@ fn settle_success_terminal(
         Option<&crate::dispatch::commit::CommitEvidence>,
         Option<&task::FanItems>,
     ),
+    usage: Option<&crate::usage::UsageSplit>,
     record: &mut TaskRecord,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -590,6 +608,7 @@ fn settle_success_terminal(
         child,
         resume,
         (evidence, items.map(|fan| fan.json.as_str())),
+        usage,
         record,
         stamper,
         sink,
@@ -615,6 +634,7 @@ fn settle_failed_terminal(
         Option<&crate::dispatch::commit::CommitEvidence>,
         Option<&task::FanItems>,
     ),
+    usage: Option<&crate::usage::UsageSplit>,
     record: &mut TaskRecord,
     ok: &mut bool,
     stamper: &mut dyn Stamper,
@@ -634,6 +654,8 @@ fn settle_failed_terminal(
         ("duration_ms", i(duration)),
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
+    // a billed-then-failed frame explains its own `cost_usd`.
+    crate::usage::push_usage_fields(&mut fields, usage);
     // Wave 2b · the lane that FAILED stamps the terminal like a success
     // (`model` · `provider` · `access` · `access_id` · `billing`) — a
     // sealed trace must say which path was allowed to bill.
