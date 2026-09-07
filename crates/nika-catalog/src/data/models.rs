@@ -1413,5 +1413,5 @@ mod provenance_tests {
 // Proptest capabilities invariants — `models/capabilities_proptests.rs`
 // ═══════════════════════════════════════════════════════════════════════════
 
-#[cfg(all(test, feature = "capabilities"))]
+#[cfg(test)]
 mod capabilities_proptests;

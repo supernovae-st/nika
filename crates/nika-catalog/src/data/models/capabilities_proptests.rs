@@ -5,6 +5,8 @@
 //! `models`, carved out when the table crossed the 1500-line wall; the
 //! `super::` paths below still name `models`' own items.
 
+#![cfg(feature = "capabilities")]
+
 use super::model_capabilities;
 use crate::types::Modality;
 use proptest::prelude::*;
