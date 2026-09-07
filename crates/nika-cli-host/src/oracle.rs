@@ -892,7 +892,10 @@ mod tests {
         let audit = audit(
             "nika: h\nmodel: mock/echo\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 256 }\n",
         );
-        assert!(audit.verdict.clean, "{:?}", audit.report.findings);
+        assert!(
+            audit.verdict.clean,
+            "high-grade glob-grant fixture must stay default-clean"
+        );
         assert_eq!(audit.verdict.grade, RiskGrade::High);
         let rows = audit
             .verdict
@@ -925,7 +928,10 @@ mod tests {
         let audit = audit(
             "nika: ops\nmodel: mock/echo\npermits:\n  fs: { read: [\"./source.txt\"], write: [\"./out/**\"] }\n  tools: [\"nika:read\", \"nika:write\"]\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"./source.txt\" }\n  save:\n    with: { t: \"${{ tasks.grab.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./out/summary.md\", content: \"${{ with.t }}\" }\n",
         );
-        assert!(audit.verdict.clean, "{:?}", audit.report.findings);
+        assert!(
+            audit.verdict.clean,
+            "unbounded write-glob fixture must stay default-clean"
+        );
         assert_eq!(audit.verdict.grade, RiskGrade::Unbounded);
         let rows = audit
             .verdict
