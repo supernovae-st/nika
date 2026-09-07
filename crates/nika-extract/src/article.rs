@@ -39,8 +39,15 @@ const THIN_THRESHOLD: usize = 250;
 /// recovered the whole body (WCXB dev 4416: readability 390 chars vs
 /// boilerpipe 13,205; dev 0537: zone 1,622 vs boilerpipe 15,935). 2× is the
 /// flat centre of the measured 1.5–4.0 plateau (dev macro moves by <0.002
-/// across that grid), not a knife-edge fit.
+/// …not a knife-edge fit.
 const OVERRIDE_RATIO: usize = 2;
+
+/// Absolute ceiling on the override's accepted size: a "recovered body" is
+/// a body, not a page-flood — past this many trimmed chars the fallback is
+/// re-emitting the template (nav, carousels, footer) faster than the gold
+/// could grow. Flat plateau measured on dev over 20k–50k; 30k sits in the
+/// middle (WCXB dev 0580's 99,852-char flood is the rejection shape).
+const OVERRIDE_MAX_LEN: usize = 30_000;
 
 pub(crate) fn article(body: &str, base: Option<&str>) -> Result<serde_json::Value, ExtractError> {
     let page_type = crate::page_type::classify(body, base);
@@ -245,7 +252,9 @@ fn override_check(body: &str, pick: String) -> serde_json::Value {
     let fallback = crate::blocks::boilerpipe_content(body);
     let pick_len = pick.trim().len();
     let fallback_len = fallback.trim().len();
-    if fallback_len >= THIN_THRESHOLD && fallback_len > OVERRIDE_RATIO * pick_len {
+    if (THIN_THRESHOLD..=OVERRIDE_MAX_LEN).contains(&fallback_len)
+        && fallback_len > OVERRIDE_RATIO * pick_len
+    {
         return serde_json::Value::String(fallback);
     }
     serde_json::Value::String(pick)
@@ -710,6 +719,42 @@ mod tests {
         assert!(
             out.is_err(),
             "empty body + empty fallback must surface the stage-2 error, got: {out:?}"
+        );
+    }
+
+    /// The override's absolute ceiling (`OVERRIDE_MAX_LEN`): past 30k trimmed
+    /// chars the "recovered body" is the whole template (nav + carousels +
+    /// footer), and a small honest pick must stand (WCXB dev 0580's shape:
+    /// readability 2.4k vs a 99k boilerpipe flood). Exercises
+    /// `override_check` directly — readability's own floods are a different
+    /// gate's problem.
+    #[test]
+    fn override_never_accepts_a_page_flood() {
+        let prose = "template furniture prose floods the whole page from edge to edge and \
+                     keeps flooding it with yet more words for every reader everywhere ";
+        let pick = "the small honest answer that the zone cascade found and which the \
+                    fallback must not drown under the page's own furniture flood today"
+            .repeat(5); // ≈ 700 chars, comfortably non-thin
+
+        // Over the cap: the fallback is refused, the pick stands.
+        let flood = prose.repeat(400); // ≈ 50k chars, past the 30k cap
+        let body = format!("<html><body><div>{flood}</div></body></html>");
+        let out = override_check(&body, pick.clone());
+        assert_eq!(
+            out.as_str().expect("string"),
+            pick,
+            "a fallback past OVERRIDE_MAX_LEN must never replace the pick"
+        );
+
+        // Under the cap but decisively richer: the fallback wins (the cap is
+        // the only new refusal — the 2× rule still fires below it).
+        let big_but_sane = prose.repeat(40); // ≈ 5k chars > 2× pick, under 30k
+        let body = format!("<html><body><div>{big_but_sane}</div></body></html>");
+        let out = override_check(&body, pick);
+        let won = out.as_str().expect("string");
+        assert!(
+            won.contains("template furniture prose"),
+            "a 5k fallback still overrides a 700-char pick: {won}"
         );
     }
 
