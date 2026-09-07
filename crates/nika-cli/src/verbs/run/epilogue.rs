@@ -383,12 +383,13 @@ pub(super) fn failure_witnesses(view: &crate::RunView) -> Vec<&str> {
 
 /// Best-effort wire-code extraction: the first `NIKA-…` token in a
 /// diagnostic (findings render `[NIKA-PARSE-009]` · run details lead with
-/// `NIKA-431 · …`). Never invents — no token, no code.
+/// `NIKA-431 · …`). Builtin sub-namespaces can contain underscores
+/// (`NIKA-BUILTIN-JSON_MERGE_PATCH-001`). No token, no code.
 pub(super) fn first_nika_code(text: &str) -> Option<&str> {
     let start = text.find("NIKA-")?;
     let rest = &text[start..];
     let end = rest
-        .find(|c: char| !(c.is_ascii_uppercase() || c.is_ascii_digit() || c == '-'))
+        .find(|c: char| !(c.is_ascii_uppercase() || c.is_ascii_digit() || matches!(c, '-' | '_')))
         .unwrap_or(rest.len());
     let code = rest[..end].trim_end_matches('-');
     // A bare `NIKA-` prefix with no digits is prose, not a code.
@@ -618,6 +619,76 @@ mod tests {
         );
         assert_eq!(super::first_nika_code("the NIKA- prefix alone"), None);
         assert_eq!(super::first_nika_code("no code here"), None);
+    }
+
+    /// Exercise the emitted constants, including every underscore-named
+    /// builtin family, without claiming to execute media/provider calls.
+    #[test]
+    fn error_envelope_preserves_canonical_builtin_codes() -> Result<(), serde_json::Error> {
+        let sources = [
+            include_str!("../../../../nika-builtin/src/data.rs"),
+            include_str!("../../../../nika-builtin/src/image_fx.rs"),
+            include_str!("../../../../nika-builtin/src/image/types.rs"),
+            include_str!("../../../../nika-builtin/src/tts/types.rs"),
+        ];
+        let codes: std::collections::BTreeSet<_> = sources
+            .iter()
+            .flat_map(|source| source.lines())
+            .filter(|line| line.contains("const ") && line.contains(": &str = "))
+            .filter_map(|line| line.split('"').nth(1))
+            .filter(|code| code.starts_with("NIKA-BUILTIN-") && code.contains('_'))
+            .collect();
+        assert!(
+            codes.len() >= 22,
+            "the emitted-code inventory must not be empty or truncated"
+        );
+        for code in codes {
+            for message in [
+                format!("{code} · invalid arguments"),
+                format!("task `patch` failed — [{code}]: invalid arguments"),
+                format!("diagnostic:\n\"{code}\"\nnext line"),
+            ] {
+                assert_eq!(super::first_nika_code(&message), Some(code), "{message}");
+                let envelope: Value = serde_json::from_str(&super::error_envelope_line(&message))?;
+                assert_eq!(
+                    envelope,
+                    json!({"error": {"code": code, "message": message}})
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn first_nika_code_keeps_lexical_boundaries() {
+        for text in [
+            "NIKA-",
+            "NIKA-BUILTIN-JSON_MERGE_PATCH-",
+            "NIKA-BUILTIN-JSON_MERGE_PATCH-no-number",
+            "NIKA-BUILTIN-JSON/MERGE_PATCH-001",
+            "nika-BUILTIN-JSON_MERGE_PATCH-001",
+        ] {
+            assert_eq!(super::first_nika_code(text), None, "{text}");
+        }
+        for text in [
+            "échec 🦋 [NIKA-BUILTIN-JSON_MERGE_PATCH-001] détail",
+            "\u{1b}[31mNIKA-BUILTIN-JSON_MERGE_PATCH-001\u{1b}[0m",
+            "NIKA-BUILTIN-JSON_MERGE_PATCH-001 · then NIKA-431",
+        ] {
+            assert_eq!(
+                super::first_nika_code(text),
+                Some("NIKA-BUILTIN-JSON_MERGE_PATCH-001"),
+                "{text}"
+            );
+        }
+        assert_eq!(
+            super::first_nika_code("[NIKA-431] NIKA-VAR-001"),
+            Some("NIKA-431")
+        );
+        assert_eq!(
+            super::first_nika_code("NIKA-PARSE-009--- · detail"),
+            Some("NIKA-PARSE-009")
+        );
     }
 
     /// A findings render condenses to the line that carries the code.
