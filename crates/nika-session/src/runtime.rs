@@ -24,6 +24,12 @@ use crate::outcome::{GateId, ProposalId, Refusal, RefusalClass};
 use crate::reasoner::{ReasonError, SessionReasoner};
 use crate::snapshot::ProjectSnapshot;
 
+mod durable;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod durable_tests;
+mod history;
+
 /// The durable half of the conversation — decisions, not chat.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -130,6 +136,7 @@ pub struct SessionRuntime {
     broker: ContextBroker,
     known: KnownWorld,
     recent: Vec<(String, String)>,
+    history: history::HistoryMode,
     census: Option<IntelligenceCensus>,
     home: Option<PathBuf>,
     factory: Option<ReasonerFactory>,
@@ -174,6 +181,7 @@ impl SessionRuntime {
             broker,
             known,
             recent: Vec::new(),
+            history: history::HistoryMode::Ephemeral,
             census: None,
             home: None,
             factory: None,
@@ -210,7 +218,7 @@ impl SessionRuntime {
     /// the choice is judged, kept under the home when one exists, and the
     /// reasoner rebuilt — refused with its fix when this machine cannot
     /// serve it, and the previous choice stands.
-    pub fn choose(&mut self, answer: &str) -> TurnOutcome {
+    fn choose_unrecorded(&mut self, answer: &str) -> TurnOutcome {
         let (Some(census), Some(factory)) = (&self.census, &self.factory) else {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
@@ -265,7 +273,7 @@ impl SessionRuntime {
     }
 
     /// One turn.
-    pub fn turn(&mut self, input: &str) -> TurnOutcome {
+    fn turn_unrecorded(&mut self, input: &str) -> TurnOutcome {
         // A new turn discards a pending proposal: consent is the NEXT line
         // and nothing else (the door routes that line to `consent`).
         self.pending = None;
@@ -374,7 +382,7 @@ impl SessionRuntime {
     /// outside the set), the real check follows every workflow written,
     /// and a run the human asked for is requested ONLY when that check is
     /// clean. Anything else discards the set; nothing is written.
-    pub fn consent(&mut self, answer: &str) -> TurnOutcome {
+    fn consent_unrecorded(&mut self, answer: &str) -> TurnOutcome {
         let Some(set) = self.pending.take() else {
             return TurnOutcome::Refusal(self.nothing_pending());
         };
@@ -598,7 +606,7 @@ impl SessionRuntime {
     /// session — never re-run, never re-authorized (attaching is
     /// observation). A pause (exit 4) whose trace carries the gate
     /// becomes the question asked to the human.
-    pub fn observe_run(&mut self, exit: u8, trace: Option<&Path>) -> TurnOutcome {
+    fn observe_run_unrecorded(&mut self, exit: u8, trace: Option<&Path>) -> TurnOutcome {
         let line = self.observation_line(exit, trace);
         if exit == 4
             && let (Some(trace), Some(workflow)) = (trace, self.last_workflow.clone())
@@ -617,7 +625,7 @@ impl SessionRuntime {
 
     /// The human's answer to a pending gate: the resume the door runs.
     /// Nothing answers for the human; an empty line is not an answer.
-    pub fn answer_gate(&mut self, line: &str) -> TurnOutcome {
+    fn answer_gate_unrecorded(&mut self, line: &str) -> TurnOutcome {
         let Some(gate) = self.pending_gate.take() else {
             return TurnOutcome::Refusal(self.no_gate_waiting());
         };
