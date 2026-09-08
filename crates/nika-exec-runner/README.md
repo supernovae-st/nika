@@ -47,10 +47,23 @@ trips the `env ` wrapper pattern; route via `pre_validated`).
 
 | guarantee | how |
 |---|---|
-| no orphan/zombie on cancel/timeout/panic | `kill_on_drop(true)` (INV-011) — the PRIMARY cancellation (ADR-016 future-drop) |
-| no pipe-buffer deadlock on large output | concurrent stdout/stderr drain + `wait()` via `try_join!` (INV-012) |
+| termination requested on cancel/timeout/unwind | Linux/macOS: SIGKILL to the dedicated group before releasing its unreaped leader; other platforms: direct-child `kill_on_drop(true)` |
+| no pipe-buffer deadlock on large output | concurrent stdout/stderr drain + exit observation via `try_join!` (INV-012) |
 | out-of-band kill | `cancel(pid)` — registry-backed (ADR-016 · unknown/dead pid = idempotent `Ok`) |
 | deadline | `tokio::time::timeout` → `ShellError::Timeout` |
+
+Linux/macOS use rustix 1.1.4's safe `waitid(WNOWAIT)` wrapper to observe
+exit without releasing the process-group identity while a descendant holds
+an output pipe. SIGCHLD wakes the waiter; there is no periodic polling.
+Cancellation registration and post-confinement scratch are released on
+future-drop as well as normal return. An old registration cannot erase a
+new generation that reused the PID.
+
+A sent signal is **not a cleanup acknowledgement**. Descendants that leave
+the group, uninterruptible processes, abrupt engine termination and
+successful background commands that close their pipes remain outside this
+guarantee. Embedders must not reap the executor's children independently.
+The pre-spawn sandbox-confinement error path has its own scratch lifecycle.
 
 ## Surface
 

@@ -53,9 +53,10 @@
 //!
 //! # Process safety (kernel CANCEL SAFETY contract)
 //!
-//! - **`kill_on_drop(true)`** (INV-011) — dropping the `run()` future SIGKILLs
-//!   the child. This IS the PRIMARY cancellation per ADR-016 (future-drop).
-//! - **Concurrent stdout/stderr drain with `wait()`** via `tokio::try_join!`
+//! - **Future-drop** (INV-011 / ADR-016): on Linux/macOS a dedicated group
+//!   receives SIGKILL before the unreaped leader is released. Other platforms
+//!   retain direct-child `kill_on_drop(true)`. Neither proves completed cleanup.
+//! - **Concurrent stdout/stderr drain with exit observation** via `tokio::try_join!`
 //!   (INV-012) — a child writing past the OS pipe buffer would deadlock if we
 //!   waited-then-read.
 //! - **`cancel(id)`** is registry-backed kill-by-pid (ADR-016 · the OS kills) —
@@ -69,6 +70,7 @@
 
 mod blocklist;
 mod egress;
+mod process;
 /// The `permits:` → `SandboxSpec` derivation (ADR-095 Layer 6 · descended
 /// from `nika-runtime::dispatch` at the 15k wall, ADR-110 · #889) — `pub`
 /// because the runtime's dispatch still judges through it (L3→L1).
@@ -118,7 +120,7 @@ type Registry = Arc<Mutex<BTreeMap<u32, Arc<Notify>>>>;
 /// Production shell executor backed by `tokio::process::Command`.
 ///
 /// Cheap to clone (the cancel registry is `Arc`-shared). The blocklist is
-/// the safe-by-default floor; `kill_on_drop` + the registry give cancellation.
+/// the safe-by-default floor; the spawn owner + registry request cancellation.
 /// An optional injected [`CommandSandbox`] (the `nika-sandbox-{seatbelt,
 /// landlock}` backends) confines a command that carries a `SandboxSpec`.
 /// Clones of one `TokioShell` share ONE loopback egress proxy (started lazily
@@ -200,7 +202,8 @@ impl TokioShell {
         notify
     }
 
-    /// Deregister a pid (on natural exit). Best-effort.
+    /// Deregister a pid in the registry contract test.
+    #[cfg(test)]
     fn deregister(&self, pid: u32) {
         if let Ok(mut reg) = self.registry.lock() {
             reg.remove(&pid);
@@ -216,12 +219,46 @@ enum Outcome {
     TimedOut(u64),
 }
 
+/// Dropped after Process (and its Child), including when an outer task
+/// timeout abandons the entire run future. Cleanup is best-effort, not a
+/// receipt proving that every descendant has exited.
+struct Resources {
+    registry: Registry,
+    pid: Option<u32>,
+    notify: Option<Arc<Notify>>,
+    scratch: Option<std::path::PathBuf>,
+}
+
+impl Drop for Resources {
+    fn drop(&mut self) {
+        if let (Some(pid), Some(own)) = (self.pid, &self.notify)
+            && let Ok(mut registry) = self.registry.lock()
+            && registry
+                .get(&pid)
+                .is_some_and(|current| Arc::ptr_eq(current, own))
+        {
+            registry.remove(&pid);
+        }
+        if let Some(path) = &self.scratch {
+            let _ = std::fs::remove_dir_all(path);
+        }
+    }
+}
+
+// Fields drop in declaration order: request process termination before
+// removing its registration and scratch, independent of async-local layout.
+struct Spawn {
+    process: process::Process,
+    _resources: Resources,
+}
+
 impl ShellRunDyn for TokioShell {
     /// Run a command: blocklist (unless `pre_validated`) → spawn
-    /// (`kill_on_drop`) → concurrent drain + wait with timeout + cancel.
+    /// (owned cancellation boundary) → concurrent drain + exit observation.
     ///
-    /// CANCEL SAFETY: cancel-safe — `kill_on_drop(true)` means dropping this
-    /// future SIGKILLs the child (no orphan). The PRIMARY cancellation path.
+    /// CANCEL SAFETY: drop requests termination of the owned process group
+    /// on Linux/macOS, or the direct child elsewhere. No cleanup receipt is
+    /// implied; descendants that leave the group are outside this mechanism.
     async fn run(&self, command: ShellCommand) -> Result<ShellResult, ShellError> {
         pre_validate(&command)?;
 
@@ -230,6 +267,12 @@ impl ShellRunDyn for TokioShell {
         // launcher wrapper. `scratch` is the per-spawn private TMPDIR the
         // seatbelt arm minted (issue 754) — removed when the spawn settles.
         let (command, scratch, sandbox_classifier) = self.apply_sandbox(command)?;
+        let mut resources = Resources {
+            registry: Arc::clone(&self.registry),
+            pid: None,
+            notify: None,
+            scratch,
+        };
 
         let start = Instant::now();
         let mut cmd = build_command(&command);
@@ -243,11 +286,17 @@ impl ShellRunDyn for TokioShell {
         // INV-011: kill the child when its handle drops (cancel/timeout/panic).
         cmd.kill_on_drop(true);
 
-        let mut child = spawn_classified(&mut cmd, &command.program)?;
+        let process = spawn_classified(&mut cmd, &command.program)?;
 
         // Register for out-of-band cancel-by-pid (ADR-016).
-        let pid = child.id();
+        let pid = process.child.id();
         let notify = pid.map(|p| self.register(p));
+        resources.pid = pid;
+        resources.notify.clone_from(&notify);
+        let mut spawn = Spawn {
+            process,
+            _resources: resources,
+        };
 
         // Take stdin before `child` moves into `wait_drain_feed`, which drains
         // stdout/stderr AND feeds this stdin CONCURRENTLY under the timeout
@@ -257,8 +306,8 @@ impl ShellRunDyn for TokioShell {
         let stdin_feed = command
             .stdin
             .clone()
-            .and_then(|data| child.stdin.take().map(|si| (si, data)));
-        let child_fut = wait_drain_feed(child, stdin_feed);
+            .and_then(|data| spawn.process.child.stdin.take().map(|si| (si, data)));
+        let child_fut = wait_drain_feed(spawn, stdin_feed);
 
         let timeout_fut = async {
             match command.timeout {
@@ -287,17 +336,6 @@ impl ShellRunDyn for TokioShell {
             }
         };
 
-        if let Some(p) = pid {
-            self.deregister(p);
-        }
-
-        // The per-spawn scratch dies with the spawn (issue 754 · best-effort:
-        // a leftover under the user temp is the OS reaper's to sweep, never
-        // a correctness problem — the next spawn mints a fresh one).
-        if let Some(dir) = scratch {
-            let _ = std::fs::remove_dir_all(&dir);
-        }
-
         outcome_to_result(outcome, pid, start, sandbox_classifier.as_deref())
     }
 }
@@ -311,11 +349,11 @@ impl ShellRunDyn for TokioShell {
 /// benign · its status rides `wait()`), so it cannot cancel the join; the
 /// 4-tuple maps back to the 3-tuple the [`Outcome::Done`] contract expects.
 async fn wait_drain_feed(
-    mut child: tokio::process::Child,
+    mut spawn: Spawn,
     stdin_feed: Option<(tokio::process::ChildStdin, String)>,
 ) -> std::io::Result<(std::process::ExitStatus, Vec<u8>, Vec<u8>)> {
-    let out = child.stdout.take();
-    let err = child.stderr.take();
+    let out = spawn.process.child.stdout.take();
+    let err = spawn.process.child.stderr.take();
     let feed = async move {
         if let Some((mut stdin, data)) = stdin_feed {
             let _ = stdin.write_all(data.as_bytes()).await;
@@ -323,25 +361,23 @@ async fn wait_drain_feed(
         }
         Ok::<(), std::io::Error>(())
     };
-    let (status, out_bytes, err_bytes, ()) = tokio::try_join!(
-        child.wait(),
+    let ((), out_bytes, err_bytes, ()) = tokio::try_join!(
+        spawn.process.exited(),
         drain(out, MAX_OUTPUT_BYTES),
         drain(err, MAX_OUTPUT_BYTES),
         feed,
     )?;
+    let status = spawn.process.finish()?;
     Ok((status, out_bytes, err_bytes))
 }
 
 /// Map the `select!` [`Outcome`] to the public `Result` — a clean exit
 /// becomes a [`ShellResult`] with the captured stdout/stderr; the
 /// cancel/timeout arms report the typed error and the spawned child dies
-/// via `kill_on_drop` (INV-011) when the `run()` future drops. Detached
-/// grandchildren (`sh -c "... &"`) are NOT group-killed today: the
-/// process-group kill rode arms the engine never reaches (the task
-/// `timeout:` budget is never assigned to the command, `cancel` is never
-/// invoked), so it was removed rather than kept as a tested-but-dead
-/// promise — it returns with the wave that wires the task deadline into
-/// the command (`linger: false`), where it can actually fire.
+/// through the spawn owner when collection is dropped. On Linux/macOS its
+/// dedicated group remains owned while the leader is unreaped, including
+/// when a descendant holds stdout after that leader exits. This requests
+/// termination, without asserting synchronous descendant exit or rollback.
 fn outcome_to_result(
     outcome: Outcome,
     pid: Option<u32>,
@@ -422,8 +458,8 @@ fn pre_validate(command: &ShellCommand) -> Result<(), ShellError> {
 fn spawn_classified(
     cmd: &mut tokio::process::Command,
     program: &str,
-) -> Result<tokio::process::Child, ShellError> {
-    cmd.spawn().map_err(|e| {
+) -> Result<process::Process, ShellError> {
+    process::Process::spawn(cmd).map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
             ShellError::NotFound {
                 program: program.to_owned(),

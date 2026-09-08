@@ -34,6 +34,9 @@ nika-schema = { path = "../nika-schema", version = "0.118.7" }
 # cancel-by-pid registry; time::timeout enforces the deadline.
 tokio = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
 
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+rustix = { workspace = true }
+
 [dev-dependencies]
 proptest = { workspace = true }
 tokio    = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
