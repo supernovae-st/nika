@@ -108,7 +108,7 @@ pub(crate) fn jq_with_clock(args: &Args, clock: JqClock) -> BuiltinOutcome {
     single.ok_or_else(|| {
         BuiltinFailure::new(
             C,
-            "the program emitted NO value — a binding needs exactly one (use `// default` or `first(…)`)",
+            "the program emitted NO value — a binding needs exactly one: use `[ … ]` to collect an array, or `([ … ] + [null])[0]` for the first value with a null default (preserves false; `//` replaces false)",
         )
     })
 }
