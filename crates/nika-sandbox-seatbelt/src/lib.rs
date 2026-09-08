@@ -43,7 +43,8 @@
 //! granularity, not per-file.
 //!
 //! The ONE same-directory extension: an EXACT-file grant (no glob
-//! metacharacter) also admits its `SQLite` journal family — `<db>-wal`,
+//! metacharacter, a regular file or a cleanly absent path) also admits
+//! its `SQLite` journal family — `<db>-wal`,
 //! `<db>-shm` (WAL mode) and `<db>-journal` (rollback mode) — as three
 //! exact-path `literal` filters on the same rule, access class inherited
 //! (the `write_journal_sidecars` helper). `SQLite`'s atomicity model creates, locks,
@@ -248,9 +249,9 @@ fn build_profile(spec: &SandboxSpec, cwd: Option<&Path>) -> Result<String, Comma
 
 /// The `SQLite` durability family (module doc §Coarseness): when a grant names
 /// an EXACT file — no glob metacharacter, so `literal_prefix` kept it whole
-/// (`glob == prefix`), and no trailing slash (a directory grant already
-/// covers same-dir sidecars) — append `<file>-wal`, `<file>-shm` and
-/// `<file>-journal` as exact-path `literal` filters on the same rule, so the
+/// (`glob == prefix`), no directory marker and a file-compatible identity
+/// (an existing directory never gains siblings) — append `<file>-wal`,
+/// `<file>-shm` and `<file>-journal` as exact-path `literal` filters, so the
 /// sidecars inherit the file's access class. `SQLite`'s atomicity model
 /// creates, locks, mmaps and unlinks these same-stem siblings on every
 /// write; without them the confined open dies with `SQLITE_CANTOPEN` (14).
@@ -266,7 +267,26 @@ fn write_journal_sidecars(
     listings: &mut std::collections::BTreeSet<String>,
 ) -> Result<(), CommandSandboxError> {
     use std::fmt::Write as _;
-    if glob != prefix || prefix.ends_with('/') {
+    // Exactness AND directory-intent are properties of the ORIGINAL
+    // GLOB, preserved through absolutization (KR-03): a directory
+    // grant — any metacharacter (the literal prefix trimmed back to a
+    // directory boundary), a trailing `/`, or a terminal `/.` / `/..` — emits
+    // NEITHER the three journal siblings (they live OUTSIDE the
+    // directory's subtree) NOR the parent listing. SandboxSpec preserves
+    // that intent when absolutizing relative grants.
+    // Testing the already-folded prefix cannot preserve it (the fold
+    // erases both the trailing slash and the `/.`). An exact FILE
+    // keeps its whole family on the canonical spelling.
+    if literal_prefix(glob) != glob
+        || glob.ends_with('/')
+        || glob.ends_with("/.")
+        || glob.ends_with("/..")
+    {
+        return Ok(());
+    }
+    if !journal_file_prefix(prefix).map_err(|reason| CommandSandboxError::Profile {
+        reason: format!("permits path {glob:?} cannot grant journal siblings: {reason}"),
+    })? {
         return Ok(());
     }
     for suffix in JOURNAL_SIDECAR_SUFFIXES {
@@ -282,6 +302,32 @@ fn write_journal_sidecars(
         listings.insert(parent.to_string_lossy().into_owned());
     }
     Ok(())
+}
+
+/// A bare directory is still a directory. Never follow the FINAL component
+/// to decide this extension: a final symlink must not borrow its target's
+/// file type or gain siblings. Ancestor aliases were resolved by the grant
+/// judge; an exact new file is legal only under the same healthy parent.
+fn journal_file_prefix(prefix: &str) -> Result<bool, String> {
+    match std::fs::symlink_metadata(prefix) {
+        // seam-bypass-ok: profile-build-time final-entry judgment, without following it
+        Ok(metadata) if metadata.is_dir() => Ok(false),
+        Ok(metadata) if metadata.is_file() => Ok(true),
+        Ok(_) => Err(format!(
+            "an exact grant must name a regular file or directory, not a final symlink or special entry: {prefix}"
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            // ENOENT alone can hide an unresolved ancestor. Re-judge the
+            // parent and refuse if its effective identity changed, instead
+            // of silently treating a dangling/error path as a new file.
+            let rechecked = effective_seatbelt_prefix(prefix)?;
+            if rechecked != prefix {
+                return Err(format!("the grant parent identity changed: {prefix}"));
+            }
+            Ok(true)
+        }
+        Err(error) => Err(format!("cannot inspect exact grant {prefix}: {error}")),
+    }
 }
 
 /// The single-database journal sidecars `SQLite` keeps next to the main file
@@ -363,13 +409,153 @@ fn grant_subpath(glob: &str) -> Result<Option<String>, CommandSandboxError> {
     // Fold to what the KERNEL will see before comparing — see the
     // landlock sibling for the escape this closes. One fold, shared, so
     // the two backends cannot answer differently.
-    let Some(folded) = fold_sandbox_prefix(&prefix) else {
+    let Some(lexical) = fold_sandbox_prefix(&prefix) else {
         return refuse("this path cannot be expressed as a stable subpath");
     };
-    if names_system_root(&folded, SYSTEM_ROOTS) {
+    // KIMI-SEC-02 · NEP-0009 law 2 on the seatbelt arm: macOS seatbelt
+    // matches paths CANONICALLY, so a rule spelled through a symlinked
+    // ancestor (the system `/tmp` → `/private/tmp` link) never fires —
+    // the identity judge tolerates a legitimately-symlinked ancestor and
+    // the child resolves it too, so the confined write died on every
+    // access (the check≡run≡jail parity break). Spell the rule in the
+    // SAME effective form the judge compares against: longest EXISTING
+    // ancestor canonicalized, final component lexical (a planted symlink
+    // AT the prefix keeps its own name — access through it resolves
+    // outside the rule and the floor holds), the genuinely-absent tail
+    // folded lexically (NEP-0009 law 5 · KR-04: only independently
+    // established ABSENCE may fold — every other resolution failure
+    // refuses through the fallible profile boundary). Seatbelt-only:
+    // the bwrap mount projection keeps the author's spelling.
+    let folded =
+        effective_seatbelt_prefix(&lexical).map_err(|reason| CommandSandboxError::Profile {
+            reason: format!("permits path {glob:?} cannot be confined: {reason}"),
+        })?;
+    // KR-02 · the system-root guard reads the lexical form, the
+    // effective form, AND the canonical identities of the protected
+    // roots themselves: `/etc` IS `/private/etc` on macOS, so an alias
+    // reaching `…/alias/etc` must refuse exactly like the literal
+    // `/etc` — exact-match membership over all three sets, never a
+    // widened grant, and the pre-existing direct-`/private/etc` gap
+    // closes with it.
+    if names_system_root(&lexical, SYSTEM_ROOTS)
+        || names_system_root(&folded, SYSTEM_ROOTS)
+        || canonical_system_roots()
+            .iter()
+            .any(|root| folded.eq_ignore_ascii_case(root))
+    {
         return refuse("a bare system-root directory would over-grant its whole tree");
     }
     Ok(Some(folded))
+}
+
+/// The spelling macOS seatbelt can actually match: the parent chain's
+/// longest EXISTING ancestor canonicalized (symlinked ancestors
+/// absorbed), the FINAL component lexical (NEVER followed — a planted
+/// symlink at the prefix keeps its own name, so access through it
+/// resolves outside the rule; the derivation-side identity judge owns
+/// the hard refusal), the genuinely-absent tail folded lexically
+/// (KR-04 · see the helper for the absence-vs-error discrimination).
+fn effective_seatbelt_prefix(prefix: &str) -> Result<String, String> {
+    let path = Path::new(prefix);
+    let Some(name) = path.file_name() else {
+        // A bare root has no final component to protect.
+        return std::fs::canonicalize(path) // seam-bypass-ok: profile-build-time fs judgment (the resolve_effective precedent)
+            .map(|c| c.to_string_lossy().into_owned())
+            .map_err(|error| format!("cannot resolve grant root {prefix}: {error}"));
+    };
+    let mut effective_parent = effective_existing_ancestor(path.parent().unwrap_or(path))?;
+    effective_parent.push(name);
+    Ok(effective_parent.to_string_lossy().into_owned())
+}
+
+/// The longest existing ancestor of `dir`, canonicalized, with the
+/// genuinely-absent tail folded back lexically. KR-04: resolution
+/// failures are NOT absence — per level, `symlink_metadata` (never
+/// follows the final component) discriminates a clean ENOENT (the
+/// entry does not exist at all · the legal new-write tail, NEP-0009
+/// law 5) from an entry that EXISTS but cannot be resolved (dangling
+/// link · ELOOP · ENOTDIR · EACCES · anything else) — the latter
+/// refuses through the fallible profile boundary, fail-closed.
+fn effective_existing_ancestor(dir: &Path) -> Result<PathBuf, String> {
+    let mut trailing: Vec<&std::ffi::OsStr> = Vec::new();
+    let mut cur = dir;
+    loop {
+        match std::fs::canonicalize(cur) {
+            // seam-bypass-ok: profile-build-time fs judgment (the resolve_effective precedent)
+            Ok(canon) => {
+                // This helper resolves a PARENT: even an empty `trailing`
+                // has the grant's final component appended by the caller.
+                // canonicalize succeeds on regular files too (KR-04).
+                let metadata = std::fs::metadata(&canon) // seam-bypass-ok: same profile-build-time ancestor judgment
+                    .map_err(|error| {
+                        format!("cannot inspect ancestor {}: {error}", canon.display())
+                    })?;
+                if !metadata.is_dir() {
+                    return Err(format!(
+                        "grant ancestor is not a directory: {}",
+                        canon.display()
+                    ));
+                }
+                let mut out = canon;
+                for name in trailing.iter().rev() {
+                    out.push(name);
+                }
+                return Ok(out);
+            }
+            Err(resolve_err) => match std::fs::symlink_metadata(cur) {
+                // seam-bypass-ok: same judgment, never following the final component
+                Ok(_) => {
+                    return Err(format!(
+                        "a path component exists but cannot be resolved (dangling link, loop, or access failure): {}",
+                        cur.display()
+                    ));
+                }
+                Err(meta_err)
+                    if resolve_err.kind() == std::io::ErrorKind::NotFound
+                        && meta_err.kind() == std::io::ErrorKind::NotFound =>
+                {
+                    match cur.parent() {
+                        Some(parent) if parent != cur => {
+                            if let Some(name) = cur.file_name() {
+                                trailing.push(name);
+                            }
+                            cur = parent;
+                        }
+                        _ => {
+                            return Err(format!(
+                                "no resolvable directory ancestor: {}",
+                                dir.display()
+                            ));
+                        }
+                    }
+                }
+                Err(meta_err) => {
+                    return Err(format!(
+                        "cannot resolve or inspect the grant prefix: {} · {resolve_err} · {meta_err}",
+                        cur.display()
+                    ));
+                }
+            },
+        }
+    }
+}
+
+/// The protected roots in their canonical identities (computed once):
+/// on macOS `/etc` IS `/private/etc`, so matching only the literal
+/// list lets an alias-spelled or canonically-spelled root through
+/// (KR-02). A root that fails to resolve keeps its raw entry (the
+/// guard is never widened by a resolution failure).
+fn canonical_system_roots() -> &'static Vec<String> {
+    static ROOTS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    ROOTS.get_or_init(|| {
+        SYSTEM_ROOTS
+            .iter()
+            .map(|r| {
+                std::fs::canonicalize(r) // seam-bypass-ok: profile-build-time fs judgment of the protected roots themselves
+                    .map_or_else(|_| (*r).to_owned(), |c| c.to_string_lossy().into_owned())
+            })
+            .collect()
+    })
 }
 
 /// The literal directory prefix of a gitignore-style glob — everything before
@@ -489,6 +675,8 @@ const PROFILE_PREAMBLE: &str = r#"(version 1)
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    mod journal_grants;
     use super::*;
 
     fn apply(outcome: ShellAdapterOutcome) -> Result<(), nika_kernel::ShellError> {
@@ -1017,5 +1205,228 @@ mod tests {
     #[test]
     fn backend_name_is_stable() {
         assert_eq!(SeatbeltSandbox::new().backend(), "seatbelt");
+    }
+
+    // -- KR fixtures: failed setup fails the test through the existing test-only expect policy.
+    fn must_ok(r: std::io::Result<()>) {
+        r.expect("fixture setup must succeed");
+    }
+
+    fn canon(p: &std::path::Path) -> String {
+        std::fs::canonicalize(p)
+            .expect("fixture path must resolve")
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    fn scratch(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("nika-sb-kr-{tag}-{}", std::process::id()));
+        must_ok(std::fs::create_dir_all(&d));
+        d
+    }
+
+    /// KR-02 · an alias whose canonical form is a protected root must
+    /// refuse exactly like the literal root — profile GENERATION only,
+    /// zero writes near any system path (the alias lives in scratch).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_canonical_alias_of_a_protected_root_is_refused() {
+        let s = scratch("alias");
+        must_ok(std::os::unix::fs::symlink("/private", s.join("alias")));
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec![format!("{}/etc/**", s.join("alias").display())];
+        assert!(
+            build_profile(&spec, None).is_err(),
+            "alias → /private then /etc/** must refuse like bare /etc"
+        );
+        let mut direct = SandboxSpec::new();
+        direct.fs_read = vec!["/private/etc/**".to_owned()];
+        assert!(
+            build_profile(&direct, None).is_err(),
+            "the direct canonical spelling of a protected root refuses too"
+        );
+        let mut tmp = SandboxSpec::new();
+        tmp.fs_read = vec!["/tmp/**".to_owned()];
+        assert!(
+            build_profile(&tmp, None).is_err(),
+            "the lexical bare-/tmp refusal is preserved"
+        );
+        let _ = std::fs::remove_dir_all(&s);
+    }
+
+    /// KR-03 · a DIRECTORY grant (trailing slash · terminal `/.` ·
+    /// metachar) emits NEITHER the three journal siblings (they live
+    /// outside the subtree) NOR the parent listing — while an exact
+    /// FILE keeps its whole family on the canonical spelling.
+    #[cfg(unix)]
+    #[test]
+    fn directory_grants_emit_no_sidecars_exact_files_keep_theirs() {
+        let s = scratch("sidecar");
+        must_ok(std::fs::create_dir_all(s.join("data")));
+        let s_canon = canon(&s);
+        for grant in [
+            format!("{}/", s.join("data").display()),
+            format!("{}.", s.join("data").display().to_string() + "/"),
+            format!("{}/**", s.join("data").display()),
+        ] {
+            let mut spec = SandboxSpec::new();
+            spec.fs_write = vec![grant.clone()];
+            let p = build_profile(&spec, None);
+            assert!(p.is_ok(), "a directory grant builds: {grant}");
+            let p = p.expect("valid fixture must succeed");
+            assert!(
+                !p.contains("-wal") && !p.contains("-shm") && !p.contains("-journal"),
+                "{grant}: no sibling sidecars outside the subtree: {p}"
+            );
+            assert!(
+                !p.contains(&format!("(literal \"{s_canon}\"")),
+                "{grant}: no parent listing either: {p}"
+            );
+        }
+        // the exact file keeps all three suffixes + the parent listing
+        must_ok(std::fs::write(s.join("state.db"), b""));
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec![format!("{}", s.join("state.db").display())];
+        let p = build_profile(&spec, None).expect("valid fixture must succeed");
+        let db = canon(&s.join("state.db"));
+        for suffix in ["-wal", "-shm", "-journal"] {
+            assert!(
+                p.contains(&format!("(literal \"{db}{suffix}\"")),
+                "the exact file keeps its {suffix} sibling: {p}"
+            );
+        }
+        assert!(
+            p.contains(&format!("(literal \"{s_canon}\"")),
+            "the exact file's parent listing stays: {p}"
+        );
+        let _ = std::fs::remove_dir_all(&s);
+    }
+
+    /// KR-04 · resolution failures are NOT absence: symlink loops,
+    /// dangling ancestors and not-a-directory components refuse
+    /// through the fallible profile boundary, while a genuinely-absent
+    /// tail folds lexically (the legal new-write).
+    #[cfg(unix)]
+    #[test]
+    fn resolution_errors_refuse_clean_absence_still_folds() {
+        // loop a <-> b
+        let s = scratch("loop");
+        must_ok(std::os::unix::fs::symlink(s.join("b"), s.join("a")));
+        must_ok(std::os::unix::fs::symlink(s.join("a"), s.join("b")));
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec![format!("{}/leaf/**", s.join("a").display())];
+        assert!(
+            build_profile(&spec, None).is_err(),
+            "a symlink loop must refuse (ELOOP is not absence)"
+        );
+        let _ = std::fs::remove_dir_all(&s);
+
+        // dangling ancestor link
+        let s = scratch("dangling");
+        must_ok(std::os::unix::fs::symlink(
+            s.join("missing"),
+            s.join("dangling"),
+        ));
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec![format!("{}/leaf/**", s.join("dangling").display())];
+        assert!(
+            build_profile(&spec, None).is_err(),
+            "a dangling ancestor must refuse (the link EXISTS)"
+        );
+        let _ = std::fs::remove_dir_all(&s);
+
+        // a regular file used as a directory component
+        let s = scratch("notdir");
+        must_ok(std::fs::write(s.join("afile"), b""));
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec![format!("{}/leaf/**", s.join("afile").display())];
+        assert!(
+            build_profile(&spec, None).is_err(),
+            "a not-a-directory component must refuse (ENOTDIR is not absence)"
+        );
+        let _ = std::fs::remove_dir_all(&s);
+
+        // the legal case: a clean-absent tail under a healthy ancestor
+        let s = scratch("newwrite");
+        let grant = format!("{}/fresh/out/**", s.display());
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec![grant.clone()];
+        let p = build_profile(&spec, None);
+        assert!(p.is_ok(), "a clean-absent suffix still folds: {grant}");
+        let expected = format!("{}/fresh/out", canon(&s));
+        let p = p.expect("valid fixture must succeed");
+        assert!(
+            p.contains(&format!("(subpath \"{expected}\"")),
+            "the folded effective suffix is emitted: {p}"
+        );
+        let _ = std::fs::remove_dir_all(&s);
+    }
+
+    #[test]
+    fn regular_file_ancestors_refuse_both_access_classes() {
+        let s = scratch("file-ancestor");
+        must_ok(std::fs::write(s.join("afile"), b""));
+        for write in [false, true] {
+            for suffix in ["leaf", "leaf/**", "missing/leaf/**"] {
+                let grant = format!("{}/afile/{suffix}", s.display());
+                let mut spec = SandboxSpec::new();
+                if write {
+                    spec.fs_write = vec![grant.clone()];
+                } else {
+                    spec.fs_read = vec![grant.clone()];
+                }
+                assert!(
+                    matches!(
+                        build_profile(&spec, None),
+                        Err(CommandSandboxError::Profile { .. })
+                    ),
+                    "file ancestor must refuse: write={write}, {grant}"
+                );
+            }
+        }
+        let _ = std::fs::remove_dir_all(&s);
+    }
+
+    /// The macOS /tmp-alias positive (KIMI-SEC-02's fixed case): a
+    /// grant through the system `/tmp` symlink is spelled canonically,
+    /// and the lexical spelling leaves the rules entirely.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_tmp_alias_grant_is_spelled_canonically() {
+        let dir = PathBuf::from("/tmp").join(format!("nika-sb-kr-tmp-{}", std::process::id()));
+        must_ok(std::fs::create_dir_all(dir.join("arena")));
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec![format!("{}/**", dir.join("arena").display())];
+        let p = build_profile(&spec, None).expect("valid fixture must succeed");
+        let want = canon(&dir.join("arena"));
+        assert!(
+            p.contains(&format!("(subpath \"{want}\"")),
+            "the canonical spelling is emitted: {p}"
+        );
+        assert!(
+            !p.contains(&format!("(subpath \"{}\"", dir.join("arena").display())),
+            "the lexical alias spelling is gone: {p}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The final-pivot invariant (CVE-2024-42472 class): a symlink AT
+    /// the grant root keeps its own name in the rule — the rule never
+    /// spells the pivot's target.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_at_the_grant_root_keeps_its_own_name() {
+        let s = scratch("pivot");
+        must_ok(std::fs::create_dir_all(s.join("real")));
+        must_ok(std::os::unix::fs::symlink(s.join("real"), s.join("pivot")));
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec![format!("{}/**", s.join("pivot").display())];
+        let p = build_profile(&spec, None).expect("valid fixture must succeed");
+        let target = canon(&s.join("real"));
+        assert!(
+            !p.contains(&format!("(subpath \"{target}\"")),
+            "the rule never spells the pivot's target: {p}"
+        );
+        let _ = std::fs::remove_dir_all(&s);
     }
 }

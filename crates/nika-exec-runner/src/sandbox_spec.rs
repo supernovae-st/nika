@@ -249,10 +249,18 @@ fn fold_trailing<'a>(base: PathBuf, comps: impl Iterator<Item = &'a Component<'a
 /// operator, never a silent widening. `~/` · `$HOME/` · `${HOME}/` expand first so
 /// the jail lists the live absolute path.
 fn absolutize(root: &Path, glob: &str, home: Option<&str>) -> String {
-    let glob = match home {
+    let directory_intent =
+        |g: &str| g.ends_with('/') || matches!(g.rsplit('/').next(), Some("." | ".."));
+    let directory = directory_intent(glob);
+    let mut glob = match home {
         Some(h) => expand_home_grant(glob, h),
         None => glob.to_owned(),
     };
+    // Expanding `~/` (or `$HOME/`) drops its empty suffix. Keep that
+    // directory marker too, before the absolute-path fast path.
+    if directory && !directory_intent(&glob) {
+        glob.push('/');
+    }
     if glob.starts_with('/') {
         return glob;
     }
@@ -264,7 +272,14 @@ fn absolutize(root: &Path, glob: &str, home: Option<&str>) -> String {
     {
         return glob;
     }
-    lexically_normalize(&root.join(glob))
+    // Path::components erases terminal separators and `.`. Preserve the
+    // authored directory intent for consumers such as Seatbelt, which must
+    // not add file-journal siblings outside a directory grant (KR-03).
+    let mut absolute = lexically_normalize(&root.join(glob));
+    if directory && !absolute.ends_with('/') {
+        absolute.push('/');
+    }
+    absolute
 }
 
 /// Textual `.`/`..` fold (the `nika-cap` `fit::lexically_normalize`
@@ -424,6 +439,157 @@ mod tests {
     }
 
     #[test]
+    fn relative_directory_intent_survives_spec_derivation() {
+        let root = scratch("directory-intent");
+        for grant in [
+            "data/",
+            "data/.",
+            "./data/./",
+            "data/../data/",
+            "data/child/..",
+        ] {
+            let spec = spec_of(&permits(&[grant], &[grant], &[]), &root)
+                .expect("valid fixture must succeed");
+            let expected = vec![format!("{}/data/", root.display())];
+            assert_eq!(spec.fs_read, expected, "read: {grant}");
+            assert_eq!(spec.fs_write, expected, "write: {grant}");
+        }
+        assert_eq!(absolutize(&root, ".", None), format!("{}/", root.display()));
+        assert_eq!(
+            absolutize(&root, "state.db", None),
+            root.join("state.db").display().to_string()
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Exercise the real derivation and public renderer boundary together.
+    /// `confine` constructs argv only: no child or sandbox probe is run.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn derived_directory_grants_do_not_gain_sibling_sidecars() {
+        use nika_kernel::command_sandbox::CommandSandbox;
+        use nika_kernel::process::ShellCommand;
+        use nika_sandbox_seatbelt::SeatbeltSandbox;
+
+        assert!(
+            SeatbeltSandbox::available(),
+            "macOS wrapper fixture needs the launcher"
+        );
+        let root = scratch("derived-sidecars");
+        for dir in ["data", "cwd"] {
+            std::fs::create_dir_all(root.join(dir)).expect("fixture setup must succeed");
+        }
+        std::fs::write(root.join("state.db"), b"").expect("fixture setup must succeed");
+        let home = root.display().to_string();
+        let profile = |p: &Permits| {
+            let spec =
+                spec_of_with_home(p, &root, Some(&home)).expect("valid fixture must succeed");
+            let mut command = ShellCommand::new("true");
+            command.cwd = Some(root.join("cwd"));
+            SeatbeltSandbox::new()
+                .confine(&spec, command)
+                .expect("profile construction must succeed")
+                .args[1]
+                .clone()
+        };
+        for write in [false, true] {
+            for grant in [
+                "data",
+                "data/",
+                "data/.",
+                "./data/./",
+                "data/child/..",
+                "data/**",
+                "~/data/",
+                "$HOME/data/.",
+                "${HOME}/data/",
+            ] {
+                let p = if write {
+                    permits(&[], &[grant], &[])
+                } else {
+                    permits(&[grant], &[], &[])
+                };
+                let text = profile(&p);
+                let dir = root.join("data").display().to_string();
+                assert!(
+                    text.contains(&format!("(subpath \"{dir}\")")),
+                    "{grant}: {text}"
+                );
+                for suffix in ["-wal", "-shm", "-journal"] {
+                    assert!(
+                        !text.contains(&format!("(literal \"{dir}{suffix}\")")),
+                        "directory gained a sibling: write={write}, {grant}: {text}"
+                    );
+                }
+                assert!(!text.contains(&format!("(literal \"{home}\")")), "{text}");
+            }
+            for grant in ["~/", "$HOME/", "${HOME}/"] {
+                let p = if write {
+                    permits(&[], &[grant], &[])
+                } else {
+                    permits(&[grant], &[], &[])
+                };
+                let text = profile(&p);
+                assert!(text.contains(&format!("(subpath \"{home}\")")), "{text}");
+                for suffix in ["-wal", "-shm", "-journal"] {
+                    assert!(
+                        !text.contains(&format!("(literal \"{home}{suffix}\")")),
+                        "expanded home directory gained a sibling: {grant}: {text}"
+                    );
+                }
+            }
+            // Existing AND new exact files retain their three journal literals.
+            for grant in ["state.db", "new.db"] {
+                let p = if write {
+                    permits(&[], &[grant], &[])
+                } else {
+                    permits(&[grant], &[], &[])
+                };
+                let text = profile(&p);
+                let file = root.join(grant).display().to_string();
+                for suffix in ["-wal", "-shm", "-journal"] {
+                    assert!(
+                        text.contains(&format!("(literal \"{file}{suffix}\")")),
+                        "{text}"
+                    );
+                }
+                assert!(text.contains(&format!("(literal \"{home}\")")), "{text}");
+            }
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn derived_file_ancestor_is_refused_before_any_spawn() {
+        use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
+        use nika_kernel::process::ShellCommand;
+        use nika_sandbox_seatbelt::SeatbeltSandbox;
+
+        assert!(
+            SeatbeltSandbox::available(),
+            "macOS wrapper fixture needs the launcher"
+        );
+        let root = scratch("derived-notdir");
+        std::fs::write(root.join("afile"), b"").expect("fixture setup must succeed");
+        for write in [false, true] {
+            for grant in ["afile/leaf/**", "afile/missing/leaf/**"] {
+                let p = if write {
+                    permits(&[], &[grant], &[])
+                } else {
+                    permits(&[grant], &[], &[])
+                };
+                let spec = spec_of(&p, &root).expect("valid fixture must succeed");
+                assert!(matches!(
+                    SeatbeltSandbox::new().confine(&spec, ShellCommand::new("true")),
+                    Err(CommandSandboxError::Profile { .. })
+                ));
+            }
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn absolute_globs_pass_through_and_a_host_list_maps_to_allowlist() {
         let spec = spec_of(
             &permits(&["/data/in/**"], &["/data/out/**"], &["api.example.com"]),
@@ -574,10 +740,19 @@ mod tests {
         let link = base.join("link");
         std::os::unix::fs::symlink(&real, &link).expect("redirecting link");
 
-        let grant = format!("{}/**", link.display());
-        let err = spec_of(&permits(&[&grant], &[], &[]), &base)
-            .expect_err("the final component redirects · refused");
-        assert_eq!(err.resolved, real.display().to_string());
+        for suffix in ["", "/", "/.", "/**"] {
+            let grant = format!("{}{suffix}", link.display());
+            for write in [false, true] {
+                let p = if write {
+                    permits(&[], &[&grant], &[])
+                } else {
+                    permits(&[&grant], &[], &[])
+                };
+                let err = spec_of(&p, &base).expect_err("final symlink must refuse");
+                assert_eq!(err.resolved, real.display().to_string());
+                assert_eq!(err.access, if write { "write" } else { "read" });
+            }
+        }
         let _ = std::fs::remove_dir_all(&base);
     }
 

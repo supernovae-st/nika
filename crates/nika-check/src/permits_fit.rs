@@ -179,18 +179,16 @@ fn check_action(
                 // by the composition lane (NIKA-COMP-002 · spec 14 law 3/4).
                 return;
             };
-            // NEP-0003 law 1 · under an ABSENT block a pure-internal
-            // builtin requires nothing (it is the « pure compute » the
-            // legal zero admits) — but the exemption belongs to the CALL,
-            // not the tool. `nika:decide` is in the class AND carries an
-            // fs effect when its `bundle:` is a literal path; asking only
-            // the class returned here before the effect was consulted, so
-            // `nika:decide { bundle: "/etc/passwd" }` passed clean under
-            // zero authority while `nika:read` on the same path was
-            // refused. The SSOT already said which was right (« a bundle:
-            // path reads like any declared fs.read »).
+            // NEP-0003: purity belongs to the call, not the tool name.
+            // A decide bundle naming a path is an fs effect, like read;
+            // a pure call needs no authority under any block form. The
+            // nika-cap predicates define literal versus unresolved effects.
             let args = a.args.as_ref().map(|s| &s.value);
-            if undeclared && nika_cap::is_pure_internal_call(&tool.value, args) {
+            // Declared blocks require proven purity; only absence may defer
+            // an unresolved effect slot (the nika-cap predicates own this rule).
+            if (undeclared && nika_cap::is_pure_internal_call(&tool.value, args))
+                || nika_cap::is_pure_internal_call_proven(&tool.value, args)
+            {
                 return;
             }
             if permits.allows_tool(&tool.value) {
@@ -210,9 +208,11 @@ fn check_action(
         }
         RawAction::Agent(a) => {
             for tool in &a.tools {
-                // NEP-0003 law 1 · under an ABSENT block a pure-internal
-                // tool requires nothing (the invoke twin · check≡run).
-                if undeclared && nika_cap::is_pure_internal(&tool.value) {
+                // A whitelist has no call args: declared blocks exempt only
+                // names pure for every call; absence keeps runtime deferral.
+                if (undeclared && nika_cap::is_pure_internal(&tool.value))
+                    || nika_cap::pure_internal_for_all_calls(&tool.value)
+                {
                     continue;
                 }
                 if !permits.allows_tool(&tool.value) {
