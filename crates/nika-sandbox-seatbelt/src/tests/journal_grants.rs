@@ -145,3 +145,39 @@ fn unsafe_ancestors_and_non_absence_metadata_errors_refuse() {
     }
     let _ = std::fs::remove_dir_all(&s);
 }
+
+#[test]
+fn canonical_path_encoding_never_substitutes_another_identity() {
+    use std::os::unix::ffi::OsStringExt;
+    let raw = PathBuf::from(std::ffi::OsString::from_vec(b"/scratch/\xff/data".to_vec()));
+    let replacement = raw.to_string_lossy().into_owned();
+    assert!(exact_seatbelt_path(raw).is_err());
+    assert_eq!(
+        exact_seatbelt_path(PathBuf::from(&replacement)),
+        Ok(replacement)
+    );
+    assert_eq!(
+        exact_seatbelt_path(PathBuf::from("/scratch/café/data")),
+        Ok("/scratch/café/data".to_owned())
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn non_utf8_ancestor_alias_cannot_grant_the_replacement_named_tree() {
+    use std::os::unix::ffi::OsStringExt;
+    let root = scratch("non-utf8-ancestor");
+    let raw = root.join(std::ffi::OsString::from_vec(vec![0xff]));
+    let replacement = root.join("�");
+    must_ok(std::fs::create_dir_all(raw.join("data")));
+    must_ok(std::fs::create_dir_all(replacement.join("data")));
+    let alias = root.join("alias");
+    must_ok(std::os::unix::fs::symlink(&raw, &alias));
+    for write in [false, true] {
+        assert!(matches!(
+            profile(&format!("{}/data/**", alias.display()), write),
+            Err(CommandSandboxError::Profile { .. })
+        ));
+    }
+    must_ok(std::fs::remove_dir_all(root));
+}

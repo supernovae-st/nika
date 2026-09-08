@@ -459,13 +459,21 @@ fn effective_seatbelt_prefix(prefix: &str) -> Result<String, String> {
     let path = Path::new(prefix);
     let Some(name) = path.file_name() else {
         // A bare root has no final component to protect.
-        return std::fs::canonicalize(path) // seam-bypass-ok: profile-build-time fs judgment (the resolve_effective precedent)
-            .map(|c| c.to_string_lossy().into_owned())
-            .map_err(|error| format!("cannot resolve grant root {prefix}: {error}"));
+        let root = std::fs::canonicalize(path) // seam-bypass-ok: profile-build-time fs judgment (the resolve_effective precedent)
+            .map_err(|error| format!("cannot resolve grant root {prefix}: {error}"))?;
+        return exact_seatbelt_path(root);
     };
     let mut effective_parent = effective_existing_ancestor(path.parent().unwrap_or(path))?;
     effective_parent.push(name);
-    Ok(effective_parent.to_string_lossy().into_owned())
+    exact_seatbelt_path(effective_parent)
+}
+
+/// Authority cannot substitute replacement characters for a canonical identity.
+/// The caller maps this failure to the existing fail-closed Profile boundary.
+fn exact_seatbelt_path(path: PathBuf) -> Result<String, String> {
+    path.into_os_string()
+        .into_string()
+        .map_err(|_| "canonical grant path is not representable as UTF-8".to_owned())
 }
 
 /// The longest existing ancestor of `dir`, canonicalized, with the
