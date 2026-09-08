@@ -9,6 +9,7 @@
 //! decide its own read boundary.
 
 use std::fmt::Write as _;
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
 use crate::identity::{IDENTITY_CORE, language_digest};
@@ -86,9 +87,12 @@ impl ContextBroker {
                 ));
                 continue;
             };
-            let Ok(raw) = std::fs::read_to_string(&path) else {
-                diagnostics.push(format!("`{name}` could not be read"));
-                continue;
+            let raw = match read_context_file(&path) {
+                Ok(raw) => raw,
+                Err(reason) => {
+                    diagnostics.push(format!("`{name}` {reason} · omitted"));
+                    continue;
+                }
             };
             let (text, kinds) = redact(&raw);
             let cut = text.len() > self.max_snippet_bytes;
@@ -198,14 +202,62 @@ impl ContextBroker {
     }
 }
 
+// Input reads have a separate ceiling from the redacted snippet output.
+// Reject oversized sources rather than exposing an unredacted partial token.
+const MAX_CONTEXT_FILE_BYTES: usize = 256 * 1024;
+
+fn read_context_file(path: &Path) -> Result<String, &'static str> {
+    let metadata = std::fs::metadata(path).map_err(|_| "could not be read")?;
+    if !metadata.is_file() {
+        return Err("is not a regular file");
+    }
+    let file = std::fs::File::open(path).map_err(|_| "could not be read")?;
+    if !file.metadata().map_err(|_| "could not be read")?.is_file() {
+        return Err("is not a regular file");
+    }
+    read_bounded_context(file)
+}
+
+fn read_bounded_context(reader: impl std::io::Read) -> Result<String, &'static str> {
+    let mut bytes = Vec::new();
+    // One lookahead byte distinguishes an exact-size file from a larger one.
+    reader
+        .take(MAX_CONTEXT_FILE_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| "could not be read")?;
+    if bytes.len() > MAX_CONTEXT_FILE_BYTES {
+        return Err("exceeds the 256 KiB context read limit");
+    }
+    String::from_utf8(bytes).map_err(|_| "is not valid UTF-8")
+}
+
 /// Redact obvious secrets before anything leaves: API keys, private key
 /// blocks, `password=`/`token=` values. Returns the text and the KINDS
-/// found (never a value).
+/// found (never a value). An unterminated private-key block hides the rest
+/// of the input; this shape-based filter is not a general secret detector.
 #[must_use]
 pub fn redact(text: &str) -> (String, Vec<String>) {
     let mut kinds = Vec::new();
     let mut out = String::with_capacity(text.len());
+    let mut private_key_end: Option<String> = None;
     for line in text.lines() {
+        // A missing or mismatched footer keeps the remaining material hidden.
+        if let Some(end) = &private_key_end {
+            if line.contains(end) {
+                private_key_end = None;
+            }
+            continue;
+        }
+        if let Some((_, rest)) = line.split_once("-----BEGIN ")
+            && let Some((label, _)) = rest.split_once("-----")
+            && label.contains("PRIVATE KEY")
+        {
+            let end = format!("-----END {label}-----");
+            private_key_end = (!rest.contains(&end)).then_some(end);
+            out.push_str("[redacted private key block]\n");
+            kinds.push("private key".to_owned());
+            continue;
+        }
         let mut l = line.to_owned();
         for (marker, kind) in [
             ("sk-", "api key"),
@@ -213,17 +265,33 @@ pub fn redact(text: &str) -> (String, Vec<String>) {
             ("ghp_", "github token"),
             ("xoxb-", "slack token"),
         ] {
-            if let Some(i) = l.find(marker)
-                && l[i..].len() >= marker.len() + 8
-                && l[i + marker.len()..]
-                    .chars()
-                    .take(8)
-                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-            {
+            let mut scan = 0;
+            let mut kept = 0;
+            let mut redacted = String::new();
+            while let Some(offset) = l[scan..].find(marker) {
+                let i = scan + offset;
+                scan = i + marker.len();
+                if l[i..].len() < marker.len() + 8
+                    || !l[scan..]
+                        .chars()
+                        .take(8)
+                        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+                {
+                    continue;
+                }
                 let end = l[i..]
                     .find(|c: char| c.is_whitespace() || c == '"' || c == '\'' || c == ',')
                     .map_or(l.len(), |e| i + e);
-                l.replace_range(i..end, "[redacted]");
+                // Copy each untouched span once instead of repeatedly shifting
+                // the tail of a line containing many credentials.
+                redacted.push_str(&l[kept..i]);
+                redacted.push_str("[redacted]");
+                kept = end;
+                scan = end;
+            }
+            if kept != 0 {
+                redacted.push_str(&l[kept..]);
+                l = redacted;
                 kinds.push(kind.to_owned());
             }
         }
@@ -343,7 +411,7 @@ mod tests {
     #[test]
     fn the_redactor_names_the_kinds_never_the_values() {
         let (text, kinds) = redact(
-            "password: hunter2\nx: AKIAABCDEFGHIJKLMNOP\n-----BEGIN RSA PRIVATE KEY-----\nplain: ${{ secrets.k }}\ntoken: ${{ secrets.t }}\n",
+            "password: hunter2\nx: AKIAABCDEFGHIJKLMNOP\n-----BEGIN RSA PRIVATE KEY-----\nFAKE_PRIVATE_MATERIAL\n-----END RSA PRIVATE KEY-----\nplain: ${{ secrets.k }}\ntoken: ${{ secrets.t }}\n",
         );
         assert!(
             !text.contains("hunter2") && !text.contains("AKIAABCD") && !text.contains("BEGIN RSA"),
@@ -354,5 +422,179 @@ mod tests {
             "a reference is not a secret: {text}"
         );
         assert_eq!(kinds, vec!["aws key", "password", "private key"]);
+    }
+    #[test]
+    fn private_key_bodies_are_removed_through_the_matching_footer() {
+        for label in [
+            "PRIVATE KEY",
+            "RSA PRIVATE KEY",
+            "EC PRIVATE KEY",
+            "ENCRYPTED PRIVATE KEY",
+            "OPENSSH PRIVATE KEY",
+        ] {
+            let input = format!(
+                "before\n-----BEGIN {label}-----\nFAKE_PRIVATE_MATERIAL\n-----END {label}-----\nafter\n"
+            );
+            let (text, kinds) = redact(&input);
+            assert!(
+                !text.contains("FAKE_PRIVATE_MATERIAL"),
+                "private body escaped for {label}"
+            );
+            assert!(!text.contains("-----END"));
+            assert!(text.starts_with("before\n") && text.ends_with("after\n"));
+            assert_eq!(kinds, vec!["private key"]);
+        }
+    }
+
+    #[test]
+    fn unterminated_or_mismatched_private_blocks_do_not_release_the_tail() {
+        for tail in ["", "\r\n-----END CERTIFICATE-----\r\nMORE_FAKE_MATERIAL"] {
+            let input =
+                format!("évidence\r\n-----BEGIN PRIVATE KEY-----\r\nFAKE_PRIVATE_MATERIAL{tail}");
+            let (text, _) = redact(&input);
+            assert!(!text.contains("FAKE_PRIVATE_MATERIAL"));
+            assert!(!text.contains("MORE_FAKE_MATERIAL"));
+            assert!(text.contains("évidence"));
+        }
+    }
+
+    #[test]
+    fn every_key_on_a_line_is_redacted_even_after_an_invalid_prefix() {
+        for marker in ["sk-", "AKIA", "ghp_", "xoxb-"] {
+            let first = format!("{marker}FAKEFIRST123");
+            let second = format!("{marker}FAKESECOND456");
+            let input = format!("é {marker}! short {first}, '{second}' end");
+            let (text, _) = redact(&input);
+            assert!(
+                !text.contains(&first) && !text.contains(&second),
+                "repeated key escaped: {marker}"
+            );
+            assert!(text.contains("short") && text.ends_with("end"));
+        }
+    }
+
+    #[test]
+    fn inline_private_blocks_do_not_consume_following_lines() {
+        let (text, _) = redact(
+            "x: -----BEGIN PRIVATE KEY-----FAKE_BODY-----END PRIVATE KEY-----\nnext: visible",
+        );
+        assert!(!text.contains("FAKE_BODY"));
+        assert!(text.ends_with("next: visible"));
+    }
+
+    #[test]
+    fn redaction_is_idempotent_and_keeps_reference_only_text() {
+        for prefix in ["", "é", "🦋", "unicode 漢字"] {
+            for suffix in ["", "\n", "\r\n"] {
+                let input = format!("{prefix} sk-FAKEFIRST123 sk-FAKESECOND456{suffix}");
+                let (once, _) = redact(&input);
+                let (twice, _) = redact(&once);
+                assert_eq!(once, twice);
+                assert!(!once.contains("FAKEFIRST123") && !once.contains("FAKESECOND456"));
+            }
+        }
+        let reference = "token: ${{ secrets.k }}\nplain: visible";
+        assert_eq!(redact(reference).0, reference);
+    }
+
+    #[test]
+    fn named_workflow_private_material_never_reaches_the_reasoner_prompt() {
+        let dir = tree();
+        let input = "nika: private-fixture\nconst:\n  key: |\n    -----BEGIN PRIVATE KEY-----\n    FAKE_PRIVATE_MATERIAL\n    -----END PRIVATE KEY-----\n";
+        std::fs::write(dir.path().join("a.nika.yaml"), input).expect("fixture");
+        let snapshot = ProjectSnapshot::observe(dir.path());
+        for cap in [8, 8192] {
+            let mut broker = ContextBroker::new(dir.path().to_path_buf());
+            broker.max_snippet_bytes = cap;
+            let bundle = broker.bundle(&snapshot, None, &["a.nika.yaml".to_owned()], "local");
+            let prompt = ContextBroker::prompt(&bundle, &[], "inspect the named workflow");
+            assert_eq!(bundle.selected_snippets.len(), 1);
+            assert!(bundle.redactions.contains(&"private key".to_owned()));
+            assert!(!prompt.contains("FAKE_PRIVATE_MATERIAL"));
+            assert!(bundle.selected_snippets[0].text.len() <= cap);
+        }
+    }
+
+    #[test]
+    fn oversized_named_files_are_omitted_with_a_visible_reason() {
+        let dir = tree();
+        let snapshot = ProjectSnapshot::observe(dir.path());
+        std::fs::write(dir.path().join("a.nika.yaml"), "x".repeat(256 * 1024 + 1))
+            .expect("fixture");
+        let broker = ContextBroker::new(dir.path().to_path_buf());
+        let bundle = broker.bundle(&snapshot, None, &["a.nika.yaml".to_owned()], "local");
+        assert!(bundle.selected_snippets.is_empty());
+        assert!(bundle.diagnostics.iter().any(|d| d.contains("read limit")));
+    }
+
+    #[test]
+    fn non_regular_workflow_paths_are_not_read() {
+        let dir = tree();
+        let snapshot = ProjectSnapshot::observe(dir.path());
+        std::fs::create_dir(dir.path().join("directory.nika.yaml")).expect("fixture");
+        let broker = ContextBroker::new(dir.path().to_path_buf());
+        let bundle = broker.bundle(
+            &snapshot,
+            None,
+            &["directory.nika.yaml".to_owned()],
+            "local",
+        );
+        assert!(bundle.selected_snippets.is_empty());
+        assert!(
+            bundle
+                .diagnostics
+                .iter()
+                .any(|d| d.contains("not a regular file"))
+        );
+    }
+
+    #[test]
+    fn context_reads_stop_after_one_lookahead_byte() {
+        struct Endless {
+            read: usize,
+        }
+        impl std::io::Read for Endless {
+            fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+                buffer.fill(b'x');
+                self.read += buffer.len();
+                Ok(buffer.len())
+            }
+        }
+        let mut source = Endless { read: 0 };
+        assert!(read_bounded_context(&mut source).is_err());
+        assert_eq!(source.read, MAX_CONTEXT_FILE_BYTES + 1);
+    }
+
+    #[test]
+    fn context_read_boundary_counts_bytes_and_preserves_utf8() {
+        let exact = "é".repeat(MAX_CONTEXT_FILE_BYTES / 2);
+        assert_eq!(
+            read_bounded_context(exact.as_bytes()).expect("exact limit"),
+            exact
+        );
+        assert!(read_bounded_context(format!("{exact}x").as_bytes()).is_err());
+        assert_eq!(read_bounded_context(&b""[..]).expect("empty"), "");
+        assert_eq!(read_bounded_context(&[0xff][..]), Err("is not valid UTF-8"));
+    }
+
+    #[test]
+    fn context_read_errors_discard_partial_payloads() {
+        struct Broken {
+            first: bool,
+        }
+        impl std::io::Read for Broken {
+            fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+                if self.first && !buffer.is_empty() {
+                    self.first = false;
+                    buffer[0] = b'x';
+                    return Ok(1);
+                }
+                Err(std::io::Error::other("fixture failure"))
+            }
+        }
+        assert_eq!(
+            read_bounded_context(Broken { first: true }),
+            Err("could not be read")
+        );
     }
 }
