@@ -1023,11 +1023,13 @@ pub fn nika_cap::invoke_tool_is_ingress(tool_id: &str, mcp_content_trusted: bool
 pub fn nika_cap::is_dangerous_env_name(name: &str) -> bool
 pub fn nika_cap::is_pure_internal(tool: &str) -> bool
 pub fn nika_cap::is_pure_internal_call(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> bool
+pub fn nika_cap::is_pure_internal_call_proven(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> bool
 pub fn nika_cap::is_withheld_jq_native(name: &str) -> bool
 pub fn nika_cap::jq_capability_rule(name: &str, kind: nika_cap::JqSymbolKind) -> core::option::Option<&'static nika_cap::JqCapabilityRule>
 pub fn nika_cap::judge_harness_ask(facts: &nika_cap::HarnessAskFacts, permits: core::option::Option<&nika_cap::Permits>) -> nika_cap::HarnessGate
 pub fn nika_cap::lexically_normalize(path: &str) -> alloc::string::String
 pub fn nika_cap::path_leaves_workspace(path: &str) -> bool
+pub fn nika_cap::pure_internal_for_all_calls(tool: &str) -> bool
 pub fn nika_cap::tool_grant_admits_ingress(grant: &str) -> bool
 pub fn nika_cap::trifecta_verdict(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> nika_cap::TrifectaVerdict
 pub fn nika_cap::withheld_jq_native(name: &str) -> core::option::Option<&'static nika_cap::WithheldNative>
