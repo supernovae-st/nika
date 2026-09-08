@@ -10,6 +10,7 @@
 
 use super::*;
 
+mod returns_contract;
 mod seated_receipt;
 mod tool_warning;
 mod usage_split;
