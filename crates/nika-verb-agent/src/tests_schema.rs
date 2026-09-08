@@ -41,7 +41,10 @@ impl jsonschema::Retrieve for NoSchemaRetrieval {
     fn retrieve(
         &self,
         uri: &jsonschema::Uri<String>,
-    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<
+        serde_json::Value,
+        Box<dyn std::error::Error + Send + Sync>, // box-dyn-ok(vendor-seam): required by jsonschema::Retrieve; confined to this test validator
+    > {
         Err(format!("external schema retrieval forbidden: {uri}").into())
     }
 }
