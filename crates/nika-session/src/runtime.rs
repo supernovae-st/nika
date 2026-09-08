@@ -421,9 +421,9 @@ impl SessionRuntime {
         }
         let applied = match set.apply_attempt() {
             Ok(applied) => applied,
-            // Nothing this call wrote: the proposal is neither pending nor
-            // decided, so a retry by identity reads `wrong_state` — never a
-            // false `already_consumed` (« its effect happened once »).
+            // No write returned success; the failing target may have changed.
+            // The proposal is neither pending nor decided, so retry by identity
+            // reads `wrong_state`, never a false claim of a completed effect.
             Err(attempt) if attempt.written.is_empty() => {
                 return TurnOutcome::Refusal(Refusal::from_change(&attempt.error));
             }

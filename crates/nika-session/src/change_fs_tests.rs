@@ -20,6 +20,66 @@ fn reply_with(path: &str, body: &str) -> String {
     format!("Here is the workflow.\n\n```yaml path={path}\n{body}```\n")
 }
 
+/// A write may report failure after its replacement is visible. The fixture
+/// performs real descriptor-rooted writes, then injects the late error; it
+/// does not claim to simulate hardware failure or a real fsync error.
+#[test]
+fn a_late_write_error_preserves_uncertainty_and_stops_the_remaining_files() {
+    for failed_index in [0, 1] {
+        let root = tempfile::tempdir().expect("root");
+        let reply = ["first.nika.yaml", "second.nika.yaml", "third.nika.yaml"]
+            .map(|name| reply_with(name, WORKFLOW))
+            .join("\n");
+        let set = ProjectChangeSet::from_reply(root.path(), "three files", &reply, &[], None)
+            .expect("legal proposal")
+            .expect("three files");
+        let mut attempted = Vec::new();
+        let failure = set
+            .apply_attempt_with(|root, path, body| {
+                attempted.push(path.to_path_buf());
+                nika_fs::OwnedDir::open(root)
+                    .expect("root capability")
+                    .write_atomic(path.to_str().expect("fixture path"), body)
+                    .expect("real replacement");
+                if attempted.len() == failed_index + 1 {
+                    Err(ChangeError::Io(
+                        path.display().to_string(),
+                        "late sync failure".into(),
+                    ))
+                } else {
+                    Ok(())
+                }
+            })
+            .expect_err("injected failure");
+        assert_eq!(failure.written, attempted[..failed_index]);
+        assert_eq!(attempted.len(), failed_index + 1);
+        assert_eq!(
+            std::fs::read_to_string(root.path().join(&attempted[failed_index]))
+                .expect("failed target did change"),
+            WORKFLOW
+        );
+        assert!(
+            !root.path().join("third.nika.yaml").exists(),
+            "stop after failure"
+        );
+        let text = failure.refusal_text(&set);
+        assert!(
+            !text.contains("nothing was written"),
+            "false no-effect verdict: {text}"
+        );
+        assert!(
+            text.contains("may have changed"),
+            "uncertainty must be visible: {text}"
+        );
+        if failed_index == 1 {
+            assert!(
+                text.contains("first.nika.yaml") && text.contains("kept"),
+                "{text}"
+            );
+        }
+    }
+}
+
 /// A final symlink at the destination is not a contained file: the
 /// public `from_reply` seam must not follow it, hash the outside
 /// bytes, or preview `replaces` over them. Preexisting: the write
