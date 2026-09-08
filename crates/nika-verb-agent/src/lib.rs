@@ -117,8 +117,8 @@ mod turn;
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ProviderMeta, Role,
-    TokenUsage, ToolDef,
+    ContentBlock, InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn,
+    ProviderMeta, Role, StopReason, TokenUsage, ToolDef,
 };
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::blob::BlobStoreDyn;
@@ -616,7 +616,7 @@ where
     }
 
     /// One provider call: infer, fold its usage into the running total,
-    /// and report the budget checkpoint. Maps a provider failure to 463.
+    /// report its budget checkpoint, then stop on refusal (NIKA-463).
     async fn infer_turn(
         &self,
         observer: &dyn AgentObserver,
@@ -662,6 +662,16 @@ where
             total_tokens: *total_tokens,
             budget: input.max_tokens_total,
         });
+        if matches!(response.stop_reason, StopReason::ContentFilter)
+            || response.finish_reason_raw.as_deref() == Some("refusal")
+        {
+            return Err(VerbAgentError::Inference {
+                source: ProviderError::Other {
+                    reason: "provider explicitly refused the response".to_owned(),
+                },
+                spend: Box::default(),
+            });
+        }
         Ok(response)
     }
 
@@ -1480,6 +1490,8 @@ fn is_clean_tool_name(name: &str) -> bool {
 mod tests;
 #[cfg(test)]
 mod tests_budgets;
+#[cfg(test)]
+mod tests_refusal;
 #[cfg(test)]
 mod tests_schema;
 #[cfg(test)]

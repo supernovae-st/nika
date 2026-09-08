@@ -1,3 +1,5 @@
+mod refusal;
+
 use super::*;
 use nika_providers::ProvidersConfig;
 use serde_json::json;

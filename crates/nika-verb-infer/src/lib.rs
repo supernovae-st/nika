@@ -380,7 +380,7 @@ where
             usage_total.absorb(&response.usage);
             // R3-F1 (2026-07-29 audit · run 3 · the agent loop's own
             // `NIKA-AGENT-005` sibling): the usage-absence gate.
-            refuse_unmetered(&response, model, incurred(&usage_total))?;
+            refuse_unusable_response(&response, model, incurred(&usage_total))?;
             let text = response_text(&response);
 
             let (Some(schema), Some(validator)) = (input.schema.as_ref(), validator.as_ref())
@@ -418,7 +418,7 @@ where
     }
 }
 
-/// The B-5 gate (the sibling of [`refuse_unmetered`] — a named refusal
+/// The B-5 gate (the sibling of [`refuse_unusable_response`] — a named refusal
 /// BEFORE the hang, never a silent one): probe the local endpoint a
 /// server-backed keyless model would call, and refuse FAST when it is
 /// silent (nothing listening · DNS stalled · blackholed) or mute
@@ -466,8 +466,9 @@ where
 /// `NIKA-AGENT-005` sibling): a priced backend that omits the usage
 /// block would bill this task $0 in the ledger while charging real
 /// money — fail CLOSED; a mock/local zero is a TRUE zero (the
-/// documented unmetered carve-out), never an invented number.
-fn refuse_unmetered(
+/// documented unmetered carve-out), never an invented number. Explicit
+/// refusals then stop before output validation, with the incurred spend.
+fn refuse_unusable_response(
     response: &InferResponse,
     model: &str,
     spend: Box<SpendOnFailure>,
@@ -475,6 +476,17 @@ fn refuse_unmetered(
     if !response.usage_reported && nika_catalog::find_pricing_for(model).is_some() {
         return Err(VerbInferError::UsageUnmetered {
             model: model.to_owned(),
+            spend,
+        });
+    }
+    // A refusal is terminal, including valid JSON or a schema reask.
+    if matches!(response.stop_reason, StopReason::ContentFilter)
+        || response.finish_reason_raw.as_deref() == Some("refusal")
+    {
+        return Err(VerbInferError::ProviderCall {
+            source: ProviderError::Other {
+                reason: "provider explicitly refused the response".to_owned(),
+            },
             spend,
         });
     }

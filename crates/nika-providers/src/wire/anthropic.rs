@@ -495,6 +495,7 @@ fn map_stop(raw: Option<&str>) -> StopReason {
         Some("max_tokens") => StopReason::MaxTokens,
         Some("stop_sequence") => StopReason::StopSequence,
         Some("tool_use") => StopReason::ToolUse,
+        Some("refusal") => StopReason::ContentFilter,
         Some(other) => StopReason::Unknown(other.to_owned()),
         None => StopReason::Unknown("missing-stop-reason".to_owned()),
     }

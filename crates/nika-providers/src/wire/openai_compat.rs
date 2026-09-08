@@ -384,6 +384,14 @@ fn parse_response(
         .pointer("/choices/0/finish_reason")
         .and_then(Value::as_str);
     let mut resp = InferResponse::new(content, usage, map_finish(raw_finish));
+    // Keep the billed response intact; verbs stop before consuming its output.
+    if msg
+        .and_then(|m| m.get("refusal"))
+        .and_then(Value::as_str)
+        .is_some_and(|refusal| !refusal.is_empty())
+    {
+        resp.stop_reason = StopReason::ContentFilter;
+    }
     // The budget law (R3-F1): an omitting backend gets an UNREPORTED
     // mark, not a fabricated zero the budgets would trust — and an EMPTY
     // usage object carries no signal, same class as the omission.
