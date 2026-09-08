@@ -60,7 +60,13 @@ pub(crate) fn of(report: &CheckReport) -> Vec<SpecCode> {
             builtin
         }
     }));
-    codes.extend(report.unknown_args.iter().map(|_| builtin));
+    codes.extend(report.unknown_args.iter().map(|a| {
+        if a.tool == "nika:read" && a.invalid_value.is_some() {
+            SpecCode::new("INVOKE", 2, SpecCategory::ValidationError)
+        } else {
+            builtin
+        }
+    }));
     codes.extend(report.missing_args.iter().map(|_| builtin));
     // Gate liveness (03 §static liveness · check-only, reach.rs):
     // DAG-006 statically dead task · DAG-007 out-of-vocabulary literal.

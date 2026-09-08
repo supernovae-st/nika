@@ -117,8 +117,8 @@ mod turn;
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ProviderMeta, Role,
-    TokenUsage, ToolDef,
+    ContentBlock, InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn,
+    ProviderMeta, Role, StopReason, TokenUsage, ToolDef,
 };
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::blob::BlobStoreDyn;
@@ -616,7 +616,7 @@ where
     }
 
     /// One provider call: infer, fold its usage into the running total,
-    /// and report the budget checkpoint. Maps a provider failure to 463.
+    /// report its budget checkpoint, then stop on refusal (NIKA-463).
     async fn infer_turn(
         &self,
         observer: &dyn AgentObserver,
@@ -662,6 +662,16 @@ where
             total_tokens: *total_tokens,
             budget: input.max_tokens_total,
         });
+        if matches!(response.stop_reason, StopReason::ContentFilter)
+            || response.finish_reason_raw.as_deref() == Some("refusal")
+        {
+            return Err(VerbAgentError::Inference {
+                source: ProviderError::Other {
+                    reason: "provider explicitly refused the response".to_owned(),
+                },
+                spend: Box::default(),
+            });
+        }
         Ok(response)
     }
 
@@ -718,10 +728,9 @@ where
             Err(detail) => detail,
         };
 
-        // The answer is prose · append it and re-ask WITH the schema wired.
-        // The cumulative token budget gates the TOOL loop (classify_turn);
-        // the final shaping is bounded by schema_retry_budget instead — a
-        // concluded answer is a success even over budget (spec §2 terminal).
+        // The answer does not conform yet. Each repair spends a provider
+        // request, so BOTH the repair allowance and token budget govern it.
+        // An already valid answer returned above keeps terminal precedence.
         //
         // STRIP any tool-call blocks from the final turn first: a result-less
         // `nika:done` (or any terminal tool call) rides `final_response.content`
@@ -740,7 +749,11 @@ where
             st.messages.push(Message::new(Role::Assistant, final_prose));
         }
         let native = self.provider.supports_response_format();
+        // The done-result candidate and routing fallback can differ from this
+        // terminal message. Preserve its text, including an empty message.
+        let mut partial_output = joined_text(&final_response.content);
         while st.repairs < self.schema_retry_budget {
+            turn::token_budget_gate(input.max_tokens_total, st.total_tokens, &partial_output)?;
             st.repairs = st.repairs.saturating_add(1);
             st.messages.push(Message::text(
                 Role::User,
@@ -764,6 +777,7 @@ where
                 }
                 Err(d) => {
                     detail = d;
+                    partial_output = text;
                     st.messages
                         .push(Message::new(Role::Assistant, response.content));
                 }
@@ -1361,7 +1375,11 @@ fn classify_turn(
                 // A repair is one more provider request: the token budget
                 // gates it exactly like a dispatch (a met budget ends the
                 // run on the budget verdict, never a silent overrun).
-                token_budget_gate(ctx)?;
+                turn::token_budget_gate(
+                    ctx.input.max_tokens_total,
+                    ctx.total_tokens,
+                    ctx.last_text,
+                )?;
                 Ok(TurnVerdict::RepairDone(DoneRepair {
                     tool_use_id: done.id.clone(),
                     detail,
@@ -1372,26 +1390,9 @@ fn classify_turn(
 
     // The loop WILL iterate to feed tool results back · enforce the token
     // budget NOW (spec §2 case 3 · `>=` exhausted · before spending more).
-    token_budget_gate(ctx)?;
+    turn::token_budget_gate(ctx.input.max_tokens_total, ctx.total_tokens, ctx.last_text)?;
 
     Ok(TurnVerdict::Dispatch(tool_uses))
-}
-
-/// The token gate (spec §2 case 3 · `>=` exhausted): the loop is about
-/// to ask the provider again — to feed a tool batch back or to repair a
-/// `nika:done` result — and a budget already met stops it BEFORE that
-/// request. Both iterating verdicts pass here, so neither can overrun.
-fn token_budget_gate(ctx: &TurnCtx<'_>) -> Result<(), VerbAgentError> {
-    if let Some(budget) = ctx.input.max_tokens_total
-        && ctx.total_tokens >= budget
-    {
-        return Err(VerbAgentError::MaxTokens {
-            total_tokens: ctx.total_tokens,
-            partial_output: ctx.last_text.to_owned(),
-            spend: Box::default(), // decorated at the return seam
-        });
-    }
-    Ok(())
 }
 
 /// Route a free-text final answer: a no-schema task closes immediately
@@ -1487,6 +1488,10 @@ fn is_clean_tool_name(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_budgets;
+#[cfg(test)]
+mod tests_refusal;
 #[cfg(test)]
 mod tests_schema;
 #[cfg(test)]

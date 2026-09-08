@@ -1,3 +1,30 @@
+#[test]
+fn read_argument_types_are_not_rendered_as_unknown_keys() {
+    use nika_schema::{FileId, ParseMode, parse};
+    let yaml = "nika: read-contract\ntasks:\n  read:\n    invoke: {tool: 'nika:read', args: {path: 42, binary: 'true', encoding: 'utf-8'}}\n";
+    let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+    let report = nika_check::check(&wf);
+    let rows = super::arg_rows(&report);
+    assert_eq!(rows.len(), 3);
+    assert!(
+        rows.iter()
+            .any(|r| r.contains("`path:` must be a string") && r.contains("NIKA-INVOKE-002"))
+    );
+    assert!(
+        rows.iter()
+            .any(|r| r.contains("`binary:` must be a boolean") && r.contains("NIKA-INVOKE-002"))
+    );
+    assert!(
+        rows.iter()
+            .any(|r| r.contains("has no `encoding` arg") && r.contains("NIKA-BUILTIN-001"))
+    );
+    assert!(
+        !rows
+            .iter()
+            .any(|r| r.contains("has no `path`") || r.contains("has no `binary`"))
+    );
+}
+
 mod trifecta_rung_tests {
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;

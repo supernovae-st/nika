@@ -27,6 +27,9 @@ use nika_schema::raw::{RawAction, RawWorkflow};
 
 use nika_types::suggest::did_you_mean;
 
+#[cfg(test)]
+mod read_tests;
+
 /// An invoke/agent tool naming a `nika:` builtin that does not exist.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
@@ -121,7 +124,8 @@ pub struct UnknownArg {
     /// (`#[non_exhaustive]`).
     pub declared: Vec<String>,
     /// When the defect is a VALUE (not an unknown key) — `channel: slack`
-    /// on `nika:notify`. `None` for the undeclared-key class. Additive.
+    /// on `nika:notify`, or a wrong literal type on `nika:read`.
+    /// `None` for the undeclared-key class. Additive.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub invalid_value: Option<String>,
 }
@@ -139,6 +143,7 @@ pub(super) fn scan_unknown_args(wf: &RawWorkflow) -> Vec<UnknownArg> {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect_args(id, &task.value.action, &mut findings);
+        collect_read_types(id, &task.value.action, &mut findings);
         collect_notify_channel(id, &task.value.action, &mut findings);
     }
     findings
@@ -177,6 +182,51 @@ fn collect_args(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
             invalid_value: None,
         });
     }
+}
+
+/// Read's literal argument types are decidable before any filesystem access.
+/// A whole-value binding can return a boolean; interpolation with surrounding
+/// text and containers cannot. Only the whole binding's result defers to the
+/// runtime's strict argument readers, not every value containing a template.
+fn collect_read_types(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
+    let RawAction::Invoke(a) = action else {
+        return;
+    };
+    if a.tool().is_none_or(|t| t.value != "nika:read") {
+        return;
+    }
+    let Some(args) = a.args.as_ref().and_then(|a| a.value.as_object()) else {
+        return;
+    };
+    for key in ["path", "binary"] {
+        let Some(value) = args.get(key) else {
+            continue; // missing path has its own finding; absent binary defaults false
+        };
+        let valid = match key {
+            "path" => value.is_string(),
+            _ => value.is_boolean() || deferred_read_boolean(value),
+        };
+        if !valid {
+            out.push(UnknownArg {
+                task: site.to_owned(),
+                tool: "nika:read".to_owned(),
+                arg: key.to_owned(),
+                suggestion: None,
+                declared: vec!["path".to_owned(), "binary".to_owned()],
+                invalid_value: Some(value.to_string()),
+            });
+        }
+    }
+}
+
+fn deferred_read_boolean(value: &serde_json::Value) -> bool {
+    let Some(text) = value.as_str().map(str::trim) else {
+        return false;
+    };
+    let Ok(islands) = nika_schema::expression::scan_templates(text) else {
+        return true; // the expression analyzer reports malformed templates
+    };
+    matches!(islands.as_slice(), [island] if island.start == 0 && island.end == text.len())
 }
 
 /// The one declared key the unknown key unambiguously abbreviates —
