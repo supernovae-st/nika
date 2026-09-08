@@ -136,7 +136,7 @@ impl SessionRuntime {
         } else {
             AuthorityState::None
         };
-        let evidence = crate::broker::redact(&format!("{outcome:?}")).0;
+        let evidence = outcome_kind(&outcome).to_owned();
         if let Err(error) =
             history.complete(self.saved_conversation(), run, authority, evidence, effect)
         {
@@ -166,6 +166,26 @@ impl SessionRuntime {
                 .map(|(a, b)| (redact(a), redact(b)))
                 .collect(),
         }
+    }
+}
+
+// Persist no Debug representation of the payload. Debug escapes newlines
+// before the line-oriented redactor can see them, and can expose secrets
+// already removed from Saved. Dialogue lives in that redacted projection;
+// this diagnostic is only a category, never an executable request.
+fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
+    match outcome {
+        TurnOutcome::Reply(_) => "reply",
+        TurnOutcome::Facts(_) => "facts",
+        TurnOutcome::Help(_) => "help",
+        TurnOutcome::Quit => "quit",
+        TurnOutcome::Refusal(_) => "refusal",
+        TurnOutcome::Ask(_) => "ask",
+        TurnOutcome::Held { .. } => "held",
+        TurnOutcome::Proposal { .. } => "proposal",
+        TurnOutcome::RunRequested { .. } => "run_requested",
+        TurnOutcome::GateAsk { .. } => "gate_ask",
+        TurnOutcome::ResumeRequested { .. } => "resume_requested",
     }
 }
 
