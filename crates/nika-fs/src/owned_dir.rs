@@ -119,7 +119,8 @@ impl OwnedDir {
         Ok(Self { fd, display })
     }
 
-    /// Open a contained regular file, refusing symlinks at every component.
+    /// Open a contained regular file, refusing symlinks at every component
+    /// and special files without waiting for a FIFO peer.
     ///
     /// # Errors
     /// The relative path is empty, escaping, inaccessible, or redirected.
@@ -350,7 +351,9 @@ impl OwnedDir {
 
     fn open_file(&self, name: &str, flags: OFlag) -> io::Result<File> {
         validate_component(name)?;
-        let fd = openat(&self.fd, name, flags, FILE_MODE).map_err(io_error)?;
+        // Reject special files after descriptor validation without blocking
+        // first on a FIFO. O_NONBLOCK does not change regular-file I/O.
+        let fd = openat(&self.fd, name, flags | OFlag::O_NONBLOCK, FILE_MODE).map_err(io_error)?;
         let file = File::from(fd);
         if !file.metadata()?.file_type().is_file() {
             return Err(io::Error::new(
@@ -410,7 +413,7 @@ fn open_regular_file(parent: &File, name: &OsStr) -> io::Result<File> {
     let fd = openat(
         parent,
         name,
-        OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK,
         FILE_MODE,
     )
     .map_err(io_error)?;

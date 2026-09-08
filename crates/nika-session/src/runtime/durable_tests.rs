@@ -740,3 +740,158 @@ fn a_failed_final_journal_barrier_withholds_the_run_request_after_real_apply() {
         "the withheld request was never executed"
     );
 }
+
+// Append inside runtime::durable_tests. The fake value is intentionally
+// recognized by the line-oriented redactor in the raw reply: formatting
+// Debug first must not flatten the two lines and let it escape via outcome.
+
+#[test]
+fn diagnostic_history_cannot_leak_a_value_masked_in_the_raw_reply() {
+    let root = tempfile::tempdir().expect("project");
+    let home = tempfile::tempdir().expect("home");
+    let reply = "token: ${{ secrets.reference }}\ntoken: FAKE_PRIVATE_VALUE_FROM_SECOND_LINE";
+    assert!(
+        !crate::broker::redact(reply)
+            .0
+            .contains("FAKE_PRIVATE_VALUE_FROM_SECOND_LINE"),
+        "the fixture is a recognized secret in raw text"
+    );
+    let (mut session, _) = open(root.path(), &[reply]);
+    session.enable_history(home.path()).expect("fresh history");
+    assert!(matches!(session.turn(GOAL), TurnOutcome::Reply(_)));
+    drop(session);
+    let journal =
+        std::fs::read_to_string(history_dir(home.path(), root.path()).join("events.ndjson"))
+            .expect("journal");
+    assert!(
+        !journal.contains("FAKE_PRIVATE_VALUE_FROM_SECOND_LINE"),
+        "an outcome diagnostic persisted a value already masked in the saved conversation"
+    );
+}
+
+#[cfg(unix)]
+#[allow(
+    clippy::disallowed_types,
+    clippy::disallowed_methods,
+    reason = "bounded process fixture: a blocked FIFO opener must be killable by its parent"
+)]
+mod fifo_history_regression {
+    use super::*;
+    use std::process::{Child, Command, Stdio};
+    use std::time::{Duration, Instant};
+
+    struct KillOnDrop(Child);
+
+    impl Drop for KillOnDrop {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    #[test]
+    #[ignore = "process fixture for FIFO refusal; never opened by the parent"]
+    fn open_fifo_history_child() {
+        let root = PathBuf::from(
+            std::env::var_os("NIKA_FIFO_HISTORY_FIXTURE_ROOT").expect("fixture root"),
+        );
+        let home = PathBuf::from(
+            std::env::var_os("NIKA_FIFO_HISTORY_FIXTURE_HOME").expect("fixture home"),
+        );
+        let marker = PathBuf::from(
+            std::env::var_os("NIKA_FIFO_HISTORY_FIXTURE_MARKER").expect("fixture marker"),
+        );
+        let (mut session, seen) = open(&root, &[ANSWER]);
+        std::fs::write(marker, b"about to open history\n").expect("fixture progress");
+        assert!(
+            session.enable_history(&home).is_err(),
+            "a FIFO is not a regular history file"
+        );
+        assert!(seen.lock().expect("record").is_empty());
+    }
+
+    #[test]
+    fn a_fifo_history_is_refused_without_blocking_the_host() {
+        use std::os::unix::fs::FileTypeExt as _;
+
+        let root = tempfile::tempdir().expect("project");
+        let home = tempfile::tempdir().expect("home");
+        let markers = tempfile::tempdir().expect("markers");
+        let (mut first, _) = open(root.path(), &[ANSWER]);
+        first
+            .enable_history(home.path())
+            .expect("fresh regular history");
+        drop(first);
+        let journal = history_dir(home.path(), root.path()).join("events.ndjson");
+        std::fs::remove_file(&journal).expect("remove regular fixture journal");
+        assert!(
+            Command::new("mkfifo")
+                .args(["-m", "600"])
+                .arg(&journal)
+                .status()
+                .expect("Unix mkfifo fixture command")
+                .success()
+        );
+        assert!(
+            std::fs::symlink_metadata(&journal)
+                .expect("FIFO metadata")
+                .file_type()
+                .is_fifo()
+        );
+        let marker = markers.path().join("opening");
+        let mut child = KillOnDrop(
+            Command::new(std::env::current_exe().expect("test executable"))
+                .args([
+                    "--exact",
+                    "runtime::durable_tests::fifo_history_regression::open_fifo_history_child",
+                    "--ignored",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env("NIKA_FIFO_HISTORY_FIXTURE_ROOT", root.path())
+                .env("NIKA_FIFO_HISTORY_FIXTURE_HOME", home.path())
+                .env("NIKA_FIFO_HISTORY_FIXTURE_MARKER", &marker)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .expect("start FIFO fixture host"),
+        );
+        let started = Instant::now();
+        let mut opening = None;
+        let status = loop {
+            if marker.exists() {
+                opening.get_or_insert_with(Instant::now);
+            }
+            if let Some(status) = child.0.try_wait().expect("fixture state") {
+                break status;
+            }
+            if let Some(opening) = opening {
+                assert!(
+                    opening.elapsed() < Duration::from_secs(5),
+                    "opening a FIFO blocked the host; the child is killed on unwind"
+                );
+            } else {
+                assert!(
+                    started.elapsed() < Duration::from_secs(15),
+                    "fixture did not start"
+                );
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        assert!(
+            marker.exists(),
+            "the child actually attempted to enable history"
+        );
+        assert!(
+            status.success(),
+            "the history was not cleanly refused: {status}"
+        );
+        assert!(
+            std::fs::symlink_metadata(&journal)
+                .expect("preserved FIFO")
+                .file_type()
+                .is_fifo()
+        );
+    }
+}
