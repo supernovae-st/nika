@@ -9,7 +9,7 @@ use serde::Serialize;
 use nika_schema::expression::NamespaceRef;
 use nika_schema::raw::{RawAction, RawWorkflow};
 
-use super::flow::{action_effect_fields, collect_json_strings, prompt_system_fields, refs_in_str};
+use super::flow::{action_effect_fields, collect_json_strings, refs_in_str};
 use nika_schema::types::{SecretSource, VarDecl, WhenGate};
 
 /// One model the run will call, with the tasks that call it.
@@ -126,7 +126,7 @@ fn inputs_reads_of_task(
 ) {
     // Env reads: every template-bearing string of the task surface,
     // through the REAL extractor (the same path the analyzer uses).
-    for text in task_template_fields(&task.value.action) {
+    for text in action_effect_fields(&task.value.action) {
         collect_inputs_reads(text, inputs_read);
     }
     for (_, v) in &task.value.with {
@@ -171,28 +171,6 @@ fn inputs_reads_of_task(
     // `on_finally:` cleanups carry full actions (and gates) of their own.
 }
 
-/// Every template-bearing string of one action — flow's effect fields
-/// (command · stdin · exec env · invoke args) PLUS the prompts (a config
-/// read in a prompt is as much a requirement as one in a command).
-fn task_template_fields(action: &RawAction) -> Vec<&str> {
-    let mut fields = action_effect_fields(action);
-    match action {
-        RawAction::Infer(a) => {
-            fields.extend(prompt_system_fields(&a.prompt.value, a.system.as_ref()));
-        }
-        RawAction::Agent(a) => {
-            fields.extend(prompt_system_fields(&a.prompt.value, a.system.as_ref()));
-        }
-        RawAction::Exec(_) | RawAction::Invoke(_) => {}
-        #[allow(
-            clippy::unreachable,
-            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-        )]
-        other => unreachable!("unknown action: {other:?}"),
-    }
-    fields
-}
-
 fn collect_inputs_reads(text: &str, out: &mut BTreeSet<String>) {
     for r in refs_in_str(text) {
         if let NamespaceRef::Inputs(name) = r
@@ -211,6 +189,18 @@ mod tests {
 
     fn wf_of(yaml: &str) -> RawWorkflow {
         parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses")
+    }
+
+    #[test]
+    fn prompt_and_system_inputs_are_collected_once_for_both_model_verbs() {
+        for verb in ["infer", "agent"] {
+            let wf = wf_of(&format!(
+                "nika: requirements\ntasks:\n  model:\n    {verb}:\n      \
+                 prompt: '${{{{ inputs.prompt }}}} ${{{{ inputs.shared }}}}'\n      \
+                 system: '${{{{ inputs.system }}}} ${{{{ inputs.shared }}}}'\n"
+            ));
+            assert_eq!(collect(&wf).inputs_read, ["prompt", "shared", "system"]);
+        }
     }
 
     #[test]

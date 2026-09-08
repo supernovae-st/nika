@@ -80,7 +80,9 @@ pub(crate) fn deeply_referenced(wf: &RawWorkflow) -> BTreeSet<String> {
 fn for_each_island_text(wf: &RawWorkflow, visit: &mut dyn FnMut(&str)) {
     for task in &wf.tasks {
         let t = &task.value;
-        visit_action(&t.action, visit);
+        for text in crate::flow::action_effect_fields(&t.action) {
+            visit(text);
+        }
         if let Some(when) = &t.when
             && let Some(expr) = when.value.as_expr()
         {
@@ -92,66 +94,13 @@ fn for_each_island_text(wf: &RawWorkflow, visit: &mut dyn FnMut(&str)) {
             visit(src);
         }
         for (_, v) in &t.with {
-            visit_json(&v.value, visit);
+            for text in crate::flow::collect_json_strings(&v.value) {
+                visit(text);
+            }
         }
     }
     for (_, decl) in &wf.outputs {
         visit(&decl.value().value);
-    }
-}
-
-fn visit_action(action: &RawAction, visit: &mut dyn FnMut(&str)) {
-    match action {
-        RawAction::Exec(a) => {
-            for fragment in a.command.text_fragments() {
-                visit(fragment);
-            }
-            if let Some(stdin) = &a.stdin {
-                visit(&stdin.value);
-            }
-            for (_, v) in &a.env {
-                visit(&v.value);
-            }
-        }
-        RawAction::Invoke(a) => {
-            if let Some(args) = &a.args {
-                visit_json(&args.value, visit);
-            }
-        }
-        RawAction::Infer(a) => {
-            visit(&a.prompt.value);
-            if let Some(system) = &a.system {
-                visit(&system.value);
-            }
-        }
-        RawAction::Agent(a) => {
-            visit(&a.prompt.value);
-            if let Some(system) = &a.system {
-                visit(&system.value);
-            }
-        }
-        #[allow(
-            clippy::unreachable,
-            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-        )]
-        other => unreachable!("unknown action: {other:?}"),
-    }
-}
-
-pub(crate) fn visit_json(value: &serde_json::Value, visit: &mut dyn FnMut(&str)) {
-    match value {
-        serde_json::Value::String(s) => visit(s),
-        serde_json::Value::Array(items) => {
-            for item in items {
-                visit_json(item, visit);
-            }
-        }
-        serde_json::Value::Object(map) => {
-            for item in map.values() {
-                visit_json(item, visit);
-            }
-        }
-        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
     }
 }
 
@@ -192,4 +141,85 @@ pub fn static_read_paths(wf: &RawWorkflow) -> Vec<(String, String)> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    fn workflow(task: &str) -> Result<RawWorkflow, String> {
+        parse(
+            &format!("nika: references\ntasks:\n  consumer:\n{task}\n"),
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .map_err(|errors| format!("{errors:?}"))
+    }
+
+    #[test]
+    fn output_references_cover_every_action_text_surface() -> Result<(), String> {
+        for task in [
+            "    exec: { shell: 'echo ${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}' }",
+            "    exec: { command: ['echo', '${{ tasks.shallow.output }}', '${{ tasks.deep.output.x }}'] }",
+            "    exec: { command: ['cat'], stdin: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}' }",
+            "    exec: { command: ['echo'], env: { X: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}' } }",
+            "    infer: { prompt: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}' }",
+            "    infer: { prompt: 'plain', system: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}' }",
+            "    agent: { prompt: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}', tools: [] }",
+            "    agent: { prompt: 'plain', system: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}', tools: [] }",
+            "    invoke: { tool: 'nika:read', args: { path: '${{ tasks.shallow.output }}', binary: '${{ tasks.deep.output.x }}' } }",
+            "    invoke: { tool: 'mcp:local/tool', args: { nested: [null, 1, true, { text: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}' }] } }",
+            "    invoke: { workflow: './child.nika.yaml', args: { text: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}' } }",
+        ] {
+            let wf = workflow(task)?;
+            assert_eq!(
+                consumed_outputs(&wf),
+                BTreeSet::from(["shallow".to_owned(), "deep".to_owned()]),
+                "{task}"
+            );
+            assert_eq!(
+                deeply_referenced(&wf),
+                BTreeSet::from(["deep".to_owned()]),
+                "{task}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn output_references_keep_workflow_surfaces_and_ignore_nonvalues() -> Result<(), String> {
+        let wf = workflow(
+            "    invoke: { tool: 'nika:log' }\n\
+             \x20   with:\n\
+             \x20     nested: [null, false, 42, { text: '${{ tasks.nested.output.value }}' }]\n\
+             \x20     '${{ tasks.key.output }}': '${{ tasks.envelope }}'\n\
+             \x20   when: '${{ tasks.gate.output.ok }}'\n\
+             \x20   for_each: { items: '${{ tasks.items.output }}' }\n\
+             outputs:\n  public: '${{ tasks.public.output }}'\n  again: '${{ tasks.nested.output.value }}'",
+        )?;
+        assert_eq!(
+            consumed_outputs(&wf),
+            ["nested", "gate", "items", "public"]
+                .map(str::to_owned)
+                .into_iter()
+                .collect()
+        );
+        assert_eq!(
+            deeply_referenced(&wf),
+            BTreeSet::from(["nested".to_owned(), "gate".to_owned()])
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn output_references_ignore_literals_and_bare_envelopes() -> Result<(), String> {
+        let wf = workflow(
+            "    invoke: { tool: 'mcp:local/tool', args: { text: 'tasks.literal.output', bare: '${{ tasks.envelope }}', empty: [], scalar: null } }",
+        )?;
+        assert!(consumed_outputs(&wf).is_empty());
+        assert!(deeply_referenced(&wf).is_empty());
+        Ok(())
+    }
 }
