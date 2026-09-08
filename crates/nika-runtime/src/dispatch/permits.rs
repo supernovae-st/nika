@@ -28,6 +28,23 @@ pub(super) fn check_tool_permits(
     args: Option<&serde_json::Value>,
     witness: &PermitWitness,
 ) -> Option<Dispatched> {
+    // NEP-0003 law 1 as corrected 2026-08-11 (spec 01 §permits: « under
+    // ANY form of the block »), bounded by KR-01: the exemption holds
+    // only for a call proven pure at the resolved level. A templated
+    // effect slot is unproven: under the ABSENT block it still defers
+    // to the builtin's empty-boundary backstop (the arm below ·
+    // pre-existing), but under a DECLARED block the tools veto is the
+    // boundary — never the builtin's own fs enforcement, which the
+    // workflow's fs.read could otherwise satisfy (KR-01).
+    if nika_cap::is_pure_internal_call_proven(tool, args) {
+        witness.record(
+            "tool",
+            tool,
+            "allow",
+            "pure-internal exemption (NEP-0003 law 1 · any block form)",
+        );
+        return None;
+    }
     let Some(permits) = permits else {
         // F-O8 · absent = zero authority: every tool effect refused —
         // EXCEPT a pure-internal CALL (NEP-0003 law 1 · mirrors the
@@ -320,5 +337,75 @@ mod tests {
                 "{tool} must be refused under an absent permits block"
             );
         }
+    }
+
+    /// KR-01 regression (run half) · judged on the gate's VISIBLE
+    /// verdict: the declared-block exemption holds only for a call
+    /// proven pure at the resolved level — a literal-path bundle and a
+    /// template-path bundle meet the SAME tools veto; the inline
+    /// object stays exempt; the absent block keeps its deferral chain.
+    #[test]
+    fn declared_block_exemption_requires_a_proven_pure_call() {
+        let w = PermitWitness::new();
+        let empty = Permits::default(); // `permits: {}` · the declared zero
+        let inline = json!({ "bundle": { "policy": {} }, "evidence": {} });
+        let literal_path =
+            json!({ "bundle": "/private/tmp/kimi-review/bundle.json", "evidence": {} });
+        let templated_path = json!({ "bundle": "${{ const.bundle }}", "evidence": {} });
+
+        // proven-pure calls run under any block form.
+        assert!(
+            check_tool_permits(Some(&empty), "n", "nika:jq", None, &w).is_none(),
+            "a pure builtin under `permits: {{}}`"
+        );
+        assert!(
+            check_tool_permits(Some(&empty), "n", "nika:decide", Some(&inline), &w).is_none(),
+            "an inline object bundle stays exempt (decide really pure)"
+        );
+
+        // KR-01 · literal AND resolved/dynamic paths demand the same authority.
+        assert!(
+            check_tool_permits(Some(&empty), "n", "nika:decide", Some(&literal_path), &w).is_some(),
+            "a literal path bundle meets the tools veto"
+        );
+        assert!(
+            check_tool_permits(Some(&empty), "n", "nika:decide", Some(&templated_path), &w)
+                .is_some(),
+            "a templated path bundle meets the SAME veto (unproven · never the builtin backstop)"
+        );
+
+        // The fs right alone never admits the call (two independent rights).
+        let mut fs_only = Permits::default();
+        fs_only.fs = Some(nika_schema::types::FsPermits::new(
+            vec!["/private/tmp/kimi-review/bundle.json".to_owned()],
+            vec![],
+        ));
+        assert!(
+            check_tool_permits(
+                Some(&fs_only),
+                "n",
+                "nika:decide",
+                Some(&templated_path),
+                &w
+            )
+            .is_some(),
+            "fs-only still meets the tools veto (KR-01's exact shape)"
+        );
+
+        // The absent block keeps its pre-existing deferral chain.
+        assert!(
+            check_tool_permits(None, "n", "nika:decide", Some(&templated_path), &w).is_none(),
+            "absent: a dynamic bundle still defers to the builtin's empty-boundary backstop"
+        );
+        assert!(
+            check_tool_permits(None, "n", "nika:decide", Some(&literal_path), &w).is_some(),
+            "absent: a literal path is refused (the pre-existing zero-authority rule)"
+        );
+
+        // The effect class is untouched.
+        assert!(
+            check_tool_permits(Some(&empty), "n", "nika:write", None, &w).is_some(),
+            "an effect tool is still refused under `permits: {{}}`"
+        );
     }
 }

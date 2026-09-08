@@ -249,10 +249,18 @@ fn fold_trailing<'a>(base: PathBuf, comps: impl Iterator<Item = &'a Component<'a
 /// operator, never a silent widening. `~/` · `$HOME/` · `${HOME}/` expand first so
 /// the jail lists the live absolute path.
 fn absolutize(root: &Path, glob: &str, home: Option<&str>) -> String {
-    let glob = match home {
+    let directory_intent =
+        |g: &str| g.ends_with('/') || matches!(g.rsplit('/').next(), Some("." | ".."));
+    let directory = directory_intent(glob);
+    let mut glob = match home {
         Some(h) => expand_home_grant(glob, h),
         None => glob.to_owned(),
     };
+    // Expanding `~/` (or `$HOME/`) drops its empty suffix. Keep that
+    // directory marker too, before the absolute-path fast path.
+    if directory && !directory_intent(&glob) {
+        glob.push('/');
+    }
     if glob.starts_with('/') {
         return glob;
     }
@@ -264,7 +272,14 @@ fn absolutize(root: &Path, glob: &str, home: Option<&str>) -> String {
     {
         return glob;
     }
-    lexically_normalize(&root.join(glob))
+    // Path::components erases terminal separators and `.`. Preserve the
+    // authored directory intent for consumers such as Seatbelt, which must
+    // not add file-journal siblings outside a directory grant (KR-03).
+    let mut absolute = lexically_normalize(&root.join(glob));
+    if directory && !absolute.ends_with('/') {
+        absolute.push('/');
+    }
+    absolute
 }
 
 /// Textual `.`/`..` fold (the `nika-cap` `fit::lexically_normalize`
@@ -423,6 +438,200 @@ mod tests {
         );
     }
 
+    // Keep earlier fixtures untouched; new security fixtures propagate failures.
+    type FixtureResult<T = ()> = Result<T, String>;
+
+    fn fixture<T, E: std::fmt::Debug>(context: &str, result: Result<T, E>) -> FixtureResult<T> {
+        result.map_err(|error| format!("{context}: {error:?}"))
+    }
+
+    fn security_scratch(tag: &str) -> FixtureResult<PathBuf> {
+        let base = std::env::temp_dir().join(format!("nika-h2-{}-{tag}", std::process::id()));
+        if let Err(error) = std::fs::remove_dir_all(&base)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(format!("remove prior fixture {}: {error}", base.display()));
+        }
+        fixture("create fixture root", std::fs::create_dir_all(&base))?;
+        fixture("canonicalize fixture root", std::fs::canonicalize(&base))
+    }
+
+    #[test]
+    fn relative_directory_intent_survives_spec_derivation() -> FixtureResult {
+        let root = security_scratch("directory-intent")?;
+        for grant in [
+            "data/",
+            "data/.",
+            "./data/./",
+            "data/../data/",
+            "data/child/..",
+        ] {
+            let spec = fixture(
+                "derive directory-intent fixture",
+                spec_of(&permits(&[grant], &[grant], &[]), &root),
+            )?;
+            let expected = vec![format!("{}/data/", root.display())];
+            assert_eq!(spec.fs_read, expected, "read: {grant}");
+            assert_eq!(spec.fs_write, expected, "write: {grant}");
+        }
+        assert_eq!(absolutize(&root, ".", None), format!("{}/", root.display()));
+        assert_eq!(
+            absolutize(&root, "state.db", None),
+            root.join("state.db").display().to_string()
+        );
+        fixture("remove fixture tree", std::fs::remove_dir_all(&root))?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    fn sidecar_fixture_profile(p: &Permits, root: &Path, home: &str) -> FixtureResult<String> {
+        use nika_kernel::command_sandbox::CommandSandbox;
+        use nika_kernel::process::ShellCommand;
+        use nika_sandbox_seatbelt::SeatbeltSandbox;
+
+        let spec = fixture(
+            "derive sidecar fixture",
+            spec_of_with_home(p, root, Some(home)),
+        )?;
+        let mut command = ShellCommand::new("true");
+        command.cwd = Some(root.join("cwd"));
+        let wrapped = fixture(
+            "construct sidecar fixture profile",
+            SeatbeltSandbox::new().confine(&spec, command),
+        )?;
+        wrapped
+            .args
+            .get(1)
+            .cloned()
+            .ok_or_else(|| "confined fixture is missing its profile argument".to_owned())
+    }
+
+    /// Exercise the real derivation and public renderer boundary together.
+    /// `confine` constructs argv only: no child or sandbox probe is run.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn derived_directory_grants_do_not_gain_sibling_sidecars() -> FixtureResult {
+        use nika_sandbox_seatbelt::SeatbeltSandbox;
+
+        assert!(
+            SeatbeltSandbox::available(),
+            "macOS wrapper fixture needs the launcher"
+        );
+        let root = security_scratch("derived-sidecars")?;
+        for dir in ["data", "cwd"] {
+            fixture(
+                "create fixture directory",
+                std::fs::create_dir_all(root.join(dir)),
+            )?;
+        }
+        fixture(
+            "write database fixture",
+            std::fs::write(root.join("state.db"), b""),
+        )?;
+        let home = root.display().to_string();
+
+        for write in [false, true] {
+            for grant in [
+                "data",
+                "data/",
+                "data/.",
+                "./data/./",
+                "data/child/..",
+                "data/**",
+                "~/data/",
+                "$HOME/data/.",
+                "${HOME}/data/",
+            ] {
+                let p = if write {
+                    permits(&[], &[grant], &[])
+                } else {
+                    permits(&[grant], &[], &[])
+                };
+                let text = sidecar_fixture_profile(&p, &root, &home)?;
+                let dir = root.join("data").display().to_string();
+                assert!(
+                    text.contains(&format!("(subpath \"{dir}\")")),
+                    "{grant}: {text}"
+                );
+                for suffix in ["-wal", "-shm", "-journal"] {
+                    assert!(
+                        !text.contains(&format!("(literal \"{dir}{suffix}\")")),
+                        "directory gained a sibling: write={write}, {grant}: {text}"
+                    );
+                }
+                assert!(!text.contains(&format!("(literal \"{home}\")")), "{text}");
+            }
+            for grant in ["~/", "$HOME/", "${HOME}/"] {
+                let p = if write {
+                    permits(&[], &[grant], &[])
+                } else {
+                    permits(&[grant], &[], &[])
+                };
+                let text = sidecar_fixture_profile(&p, &root, &home)?;
+                assert!(text.contains(&format!("(subpath \"{home}\")")), "{text}");
+                for suffix in ["-wal", "-shm", "-journal"] {
+                    assert!(
+                        !text.contains(&format!("(literal \"{home}{suffix}\")")),
+                        "expanded home directory gained a sibling: {grant}: {text}"
+                    );
+                }
+            }
+            // Existing AND new exact files retain their three journal literals.
+            for grant in ["state.db", "new.db"] {
+                let p = if write {
+                    permits(&[], &[grant], &[])
+                } else {
+                    permits(&[grant], &[], &[])
+                };
+                let text = sidecar_fixture_profile(&p, &root, &home)?;
+                let file = root.join(grant).display().to_string();
+                for suffix in ["-wal", "-shm", "-journal"] {
+                    assert!(
+                        text.contains(&format!("(literal \"{file}{suffix}\")")),
+                        "{text}"
+                    );
+                }
+                assert!(text.contains(&format!("(literal \"{home}\")")), "{text}");
+            }
+        }
+        fixture("remove fixture tree", std::fs::remove_dir_all(&root))?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn derived_file_ancestor_is_refused_before_any_spawn() -> FixtureResult {
+        use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
+        use nika_kernel::process::ShellCommand;
+        use nika_sandbox_seatbelt::SeatbeltSandbox;
+
+        assert!(
+            SeatbeltSandbox::available(),
+            "macOS wrapper fixture needs the launcher"
+        );
+        let root = security_scratch("derived-notdir")?;
+        fixture(
+            "write file-ancestor fixture",
+            std::fs::write(root.join("afile"), b""),
+        )?;
+        for write in [false, true] {
+            for grant in ["afile/leaf/**", "afile/missing/leaf/**"] {
+                let p = if write {
+                    permits(&[], &[grant], &[])
+                } else {
+                    permits(&[grant], &[], &[])
+                };
+                let spec = fixture("derive file-ancestor fixture", spec_of(&p, &root))?;
+                assert!(matches!(
+                    SeatbeltSandbox::new().confine(&spec, ShellCommand::new("true")),
+                    Err(CommandSandboxError::Profile { .. })
+                ));
+            }
+        }
+        fixture("remove fixture tree", std::fs::remove_dir_all(&root))?;
+        Ok(())
+    }
+
     #[test]
     fn absolute_globs_pass_through_and_a_host_list_maps_to_allowlist() {
         let spec = spec_of(
@@ -567,18 +776,33 @@ mod tests {
     /// backwards-compat · declare the effective path).
     #[cfg(unix)]
     #[test]
-    fn a_final_component_symlink_is_refused_even_to_a_sibling() {
-        let base = scratch("sibling");
+    fn a_final_component_symlink_is_refused_even_to_a_sibling() -> FixtureResult {
+        let base = security_scratch("sibling")?;
         let real = base.join("real");
-        std::fs::create_dir_all(&real).expect("sibling tree");
+        fixture("create sibling fixture", std::fs::create_dir_all(&real))?;
         let link = base.join("link");
-        std::os::unix::fs::symlink(&real, &link).expect("redirecting link");
+        fixture(
+            "create redirecting fixture link",
+            std::os::unix::fs::symlink(&real, &link),
+        )?;
 
-        let grant = format!("{}/**", link.display());
-        let err = spec_of(&permits(&[&grant], &[], &[]), &base)
-            .expect_err("the final component redirects · refused");
-        assert_eq!(err.resolved, real.display().to_string());
-        let _ = std::fs::remove_dir_all(&base);
+        for suffix in ["", "/", "/.", "/**"] {
+            let grant = format!("{}{suffix}", link.display());
+            for write in [false, true] {
+                let p = if write {
+                    permits(&[], &[&grant], &[])
+                } else {
+                    permits(&[&grant], &[], &[])
+                };
+                let err = spec_of(&p, &base)
+                    .err()
+                    .ok_or_else(|| format!("final symlink was admitted: {grant}, write={write}"))?;
+                assert_eq!(err.resolved, real.display().to_string());
+                assert_eq!(err.access, if write { "write" } else { "read" });
+            }
+        }
+        fixture("remove fixture tree", std::fs::remove_dir_all(&base))?;
+        Ok(())
     }
 
     /// A missing or non-absolute home leaves every portable spelling

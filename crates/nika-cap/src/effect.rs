@@ -128,6 +128,64 @@ pub fn is_pure_internal_call(tool: &str, args: Option<&serde_json::Value>) -> bo
     is_pure_internal(tool) && builtin_effect(tool, args).is_none()
 }
 
+/// NEP-0003 law 1 as corrected 2026-08-11 (« under ANY form of the
+/// block »), bounded by KR-01: under a DECLARED block the exemption may
+/// hold only for a call pure AT THE RESOLVED level. A call whose effect
+/// slot hides behind an unresolved template (`bundle: "${{ … }}"`) is
+/// not proven pure: statically it defers, and at run the builtin
+/// enforces only its own fs boundary — the tools veto would be lost
+/// exactly when the workflow's `fs.read` admits the resolved path
+/// (KR-01). The ABSENT block keeps the [`is_pure_internal_call`]
+/// deferral chain (the builtin's empty-boundary enforcement is the
+/// backstop there · pre-existing, untouched).
+///
+/// Proven here: in the class AND no statically-visible effect AND no
+/// string-shaped effect slot — a literal string is the effect itself
+/// (already excluded by [`is_pure_internal_call`]); a templated string
+/// is UNPROVEN. For `nika:decide` that means the bundle is absent or a
+/// non-string (the inline object the exemption exists for). Every
+/// other member of the class is pure by construction (the
+/// [`builtin_effect`] table · verified against the real dispatch
+/// routes), so its call needs no second question.
+#[must_use]
+pub fn is_pure_internal_call_proven(tool: &str, args: Option<&serde_json::Value>) -> bool {
+    is_pure_internal_call(tool, args) && !effect_slot_is_string(tool, args)
+}
+
+/// NEP-0003 for the agent whitelist (no args exist at whitelist level):
+/// which class members are pure for EVERY call, not only for the calls
+/// the args happen to prove? That is the class minus its one
+/// call-dependent member: `nika:decide`'s string `bundle:` is an fs
+/// effect decided per call, so a whitelist exemption by name would
+/// admit a path read the tools boundary never judged (KR-01 · the
+/// model supplies the bundle at run). Every other member's purity
+/// holds for all calls by construction.
+#[must_use]
+pub fn pure_internal_for_all_calls(tool: &str) -> bool {
+    is_pure_internal(tool) && !call_dependent_effect(tool)
+}
+
+/// Does the call's effect slot hold ANY string — literal (the effect
+/// itself) or templated (unproven)? Reads the same slots
+/// [`builtin_effect`] reads, for the class members that have one.
+fn effect_slot_is_string(tool: &str, args: Option<&serde_json::Value>) -> bool {
+    match tool {
+        "nika:decide" => args
+            .and_then(|a| a.get("bundle"))
+            .is_some_and(serde_json::Value::is_string),
+        _ => false,
+    }
+}
+
+/// The class's ONE call-dependent effect slot, mirrored from the
+/// [`builtin_effect`] table above: `decide`'s string `bundle:` — the
+/// only member whose purity is a per-call question. A catalogue fact
+/// placed next to the table it mirrors, not a name check scattered in
+/// consumers.
+fn call_dependent_effect(tool: &str) -> bool {
+    matches!(tool, "nika:decide")
+}
+
 #[must_use]
 pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<BuiltinEffect> {
     match tool {

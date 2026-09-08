@@ -1444,3 +1444,5 @@ fn templated_url_host_names_a_closed_literal_authority_only() {
         "no island: not this door"
     );
 }
+
+mod declared_zero;
