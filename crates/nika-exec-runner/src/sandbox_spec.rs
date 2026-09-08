@@ -438,9 +438,27 @@ mod tests {
         );
     }
 
+    // Keep earlier fixtures untouched; new security fixtures propagate failures.
+    type FixtureResult<T = ()> = Result<T, String>;
+
+    fn fixture<T, E: std::fmt::Debug>(context: &str, result: Result<T, E>) -> FixtureResult<T> {
+        result.map_err(|error| format!("{context}: {error:?}"))
+    }
+
+    fn security_scratch(tag: &str) -> FixtureResult<PathBuf> {
+        let base = std::env::temp_dir().join(format!("nika-h2-{}-{tag}", std::process::id()));
+        if let Err(error) = std::fs::remove_dir_all(&base)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(format!("remove prior fixture {}: {error}", base.display()));
+        }
+        fixture("create fixture root", std::fs::create_dir_all(&base))?;
+        fixture("canonicalize fixture root", std::fs::canonicalize(&base))
+    }
+
     #[test]
-    fn relative_directory_intent_survives_spec_derivation() {
-        let root = scratch("directory-intent");
+    fn relative_directory_intent_survives_spec_derivation() -> FixtureResult {
+        let root = security_scratch("directory-intent")?;
         for grant in [
             "data/",
             "data/.",
@@ -448,8 +466,10 @@ mod tests {
             "data/../data/",
             "data/child/..",
         ] {
-            let spec = spec_of(&permits(&[grant], &[grant], &[]), &root)
-                .expect("valid fixture must succeed");
+            let spec = fixture(
+                "derive directory-intent fixture",
+                spec_of(&permits(&[grant], &[grant], &[]), &root),
+            )?;
             let expected = vec![format!("{}/data/", root.display())];
             assert_eq!(spec.fs_read, expected, "read: {grant}");
             assert_eq!(spec.fs_write, expected, "write: {grant}");
@@ -459,39 +479,57 @@ mod tests {
             absolutize(&root, "state.db", None),
             root.join("state.db").display().to_string()
         );
-        let _ = std::fs::remove_dir_all(&root);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&root))?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    fn sidecar_fixture_profile(p: &Permits, root: &Path, home: &str) -> FixtureResult<String> {
+        use nika_kernel::command_sandbox::CommandSandbox;
+        use nika_kernel::process::ShellCommand;
+        use nika_sandbox_seatbelt::SeatbeltSandbox;
+
+        let spec = fixture(
+            "derive sidecar fixture",
+            spec_of_with_home(p, root, Some(home)),
+        )?;
+        let mut command = ShellCommand::new("true");
+        command.cwd = Some(root.join("cwd"));
+        let wrapped = fixture(
+            "construct sidecar fixture profile",
+            SeatbeltSandbox::new().confine(&spec, command),
+        )?;
+        wrapped
+            .args
+            .get(1)
+            .cloned()
+            .ok_or_else(|| "confined fixture is missing its profile argument".to_owned())
     }
 
     /// Exercise the real derivation and public renderer boundary together.
     /// `confine` constructs argv only: no child or sandbox probe is run.
     #[cfg(target_os = "macos")]
     #[test]
-    fn derived_directory_grants_do_not_gain_sibling_sidecars() {
-        use nika_kernel::command_sandbox::CommandSandbox;
-        use nika_kernel::process::ShellCommand;
+    fn derived_directory_grants_do_not_gain_sibling_sidecars() -> FixtureResult {
         use nika_sandbox_seatbelt::SeatbeltSandbox;
 
         assert!(
             SeatbeltSandbox::available(),
             "macOS wrapper fixture needs the launcher"
         );
-        let root = scratch("derived-sidecars");
+        let root = security_scratch("derived-sidecars")?;
         for dir in ["data", "cwd"] {
-            std::fs::create_dir_all(root.join(dir)).expect("fixture setup must succeed");
+            fixture(
+                "create fixture directory",
+                std::fs::create_dir_all(root.join(dir)),
+            )?;
         }
-        std::fs::write(root.join("state.db"), b"").expect("fixture setup must succeed");
+        fixture(
+            "write database fixture",
+            std::fs::write(root.join("state.db"), b""),
+        )?;
         let home = root.display().to_string();
-        let profile = |p: &Permits| {
-            let spec =
-                spec_of_with_home(p, &root, Some(&home)).expect("valid fixture must succeed");
-            let mut command = ShellCommand::new("true");
-            command.cwd = Some(root.join("cwd"));
-            SeatbeltSandbox::new()
-                .confine(&spec, command)
-                .expect("profile construction must succeed")
-                .args[1]
-                .clone()
-        };
+
         for write in [false, true] {
             for grant in [
                 "data",
@@ -509,7 +547,7 @@ mod tests {
                 } else {
                     permits(&[grant], &[], &[])
                 };
-                let text = profile(&p);
+                let text = sidecar_fixture_profile(&p, &root, &home)?;
                 let dir = root.join("data").display().to_string();
                 assert!(
                     text.contains(&format!("(subpath \"{dir}\")")),
@@ -529,7 +567,7 @@ mod tests {
                 } else {
                     permits(&[grant], &[], &[])
                 };
-                let text = profile(&p);
+                let text = sidecar_fixture_profile(&p, &root, &home)?;
                 assert!(text.contains(&format!("(subpath \"{home}\")")), "{text}");
                 for suffix in ["-wal", "-shm", "-journal"] {
                     assert!(
@@ -545,7 +583,7 @@ mod tests {
                 } else {
                     permits(&[grant], &[], &[])
                 };
-                let text = profile(&p);
+                let text = sidecar_fixture_profile(&p, &root, &home)?;
                 let file = root.join(grant).display().to_string();
                 for suffix in ["-wal", "-shm", "-journal"] {
                     assert!(
@@ -556,12 +594,13 @@ mod tests {
                 assert!(text.contains(&format!("(literal \"{home}\")")), "{text}");
             }
         }
-        let _ = std::fs::remove_dir_all(&root);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&root))?;
+        Ok(())
     }
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn derived_file_ancestor_is_refused_before_any_spawn() {
+    fn derived_file_ancestor_is_refused_before_any_spawn() -> FixtureResult {
         use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
         use nika_kernel::process::ShellCommand;
         use nika_sandbox_seatbelt::SeatbeltSandbox;
@@ -570,8 +609,11 @@ mod tests {
             SeatbeltSandbox::available(),
             "macOS wrapper fixture needs the launcher"
         );
-        let root = scratch("derived-notdir");
-        std::fs::write(root.join("afile"), b"").expect("fixture setup must succeed");
+        let root = security_scratch("derived-notdir")?;
+        fixture(
+            "write file-ancestor fixture",
+            std::fs::write(root.join("afile"), b""),
+        )?;
         for write in [false, true] {
             for grant in ["afile/leaf/**", "afile/missing/leaf/**"] {
                 let p = if write {
@@ -579,14 +621,15 @@ mod tests {
                 } else {
                     permits(&[grant], &[], &[])
                 };
-                let spec = spec_of(&p, &root).expect("valid fixture must succeed");
+                let spec = fixture("derive file-ancestor fixture", spec_of(&p, &root))?;
                 assert!(matches!(
                     SeatbeltSandbox::new().confine(&spec, ShellCommand::new("true")),
                     Err(CommandSandboxError::Profile { .. })
                 ));
             }
         }
-        let _ = std::fs::remove_dir_all(&root);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&root))?;
+        Ok(())
     }
 
     #[test]
@@ -733,12 +776,15 @@ mod tests {
     /// backwards-compat · declare the effective path).
     #[cfg(unix)]
     #[test]
-    fn a_final_component_symlink_is_refused_even_to_a_sibling() {
-        let base = scratch("sibling");
+    fn a_final_component_symlink_is_refused_even_to_a_sibling() -> FixtureResult {
+        let base = security_scratch("sibling")?;
         let real = base.join("real");
-        std::fs::create_dir_all(&real).expect("sibling tree");
+        fixture("create sibling fixture", std::fs::create_dir_all(&real))?;
         let link = base.join("link");
-        std::os::unix::fs::symlink(&real, &link).expect("redirecting link");
+        fixture(
+            "create redirecting fixture link",
+            std::os::unix::fs::symlink(&real, &link),
+        )?;
 
         for suffix in ["", "/", "/.", "/**"] {
             let grant = format!("{}{suffix}", link.display());
@@ -748,12 +794,15 @@ mod tests {
                 } else {
                     permits(&[&grant], &[], &[])
                 };
-                let err = spec_of(&p, &base).expect_err("final symlink must refuse");
+                let err = spec_of(&p, &base)
+                    .err()
+                    .ok_or_else(|| format!("final symlink was admitted: {grant}, write={write}"))?;
                 assert_eq!(err.resolved, real.display().to_string());
                 assert_eq!(err.access, if write { "write" } else { "read" });
             }
         }
-        let _ = std::fs::remove_dir_all(&base);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&base))?;
+        Ok(())
     }
 
     /// A missing or non-absolute home leaves every portable spelling

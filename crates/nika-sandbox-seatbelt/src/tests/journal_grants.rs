@@ -16,8 +16,11 @@ fn profile(grant: &str, write: bool) -> Result<String, CommandSandboxError> {
     build_profile(&spec, None)
 }
 
-fn rendered(grant: &str, write: bool) -> String {
-    profile(grant, write).expect("valid fixture must succeed")
+fn rendered(grant: &str, write: bool) -> FixtureResult<String> {
+    fixture(
+        &format!("profile {grant:?}, write={write}"),
+        profile(grant, write),
+    )
 }
 
 fn family(text: &str, stem: &Path, present: bool) {
@@ -28,14 +31,14 @@ fn family(text: &str, stem: &Path, present: bool) {
 }
 
 #[test]
-fn bare_and_explicit_directories_never_gain_sibling_journals() {
-    let s = PathBuf::from(canon(&scratch("v4-directories")));
+fn bare_and_explicit_directories_never_gain_sibling_journals() -> FixtureResult {
+    let s = PathBuf::from(canon(&scratch("v4-directories")?)?);
     let dir = s.join("data");
-    must_ok(std::fs::create_dir_all(&dir));
+    fixture("create fixture directory", std::fs::create_dir_all(&dir))?;
     for write in [false, true] {
         for suffix in ["", "/", "/.", "/**"] {
             let grant = format!("{}{suffix}", dir.display());
-            let text = rendered(&grant, write);
+            let text = rendered(&grant, write)?;
             let access = if write {
                 "file-write* file-read*"
             } else {
@@ -46,50 +49,73 @@ fn bare_and_explicit_directories_never_gain_sibling_journals() {
             assert!(!text.contains(&format!("(literal \"{}\")", s.display())));
         }
     }
-    let _ = std::fs::remove_dir_all(&s);
+    fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
+    Ok(())
 }
 
 #[test]
-fn exact_regular_and_clean_absent_files_keep_journal_family() {
-    let s = PathBuf::from(canon(&scratch("v4-files")));
-    must_ok(std::fs::write(s.join("state.db"), b""));
+fn exact_regular_and_clean_absent_files_keep_journal_family() -> FixtureResult {
+    let s = PathBuf::from(canon(&scratch("v4-files")?)?);
+    fixture(
+        "write fixture file",
+        std::fs::write(s.join("state.db"), b""),
+    )?;
     for write in [false, true] {
         for name in ["state.db", "new.db", "fresh/new.db"] {
             let file = s.join(name);
-            let text = rendered(&file.display().to_string(), write);
+            let text = rendered(&file.display().to_string(), write)?;
             family(&text, &file, true);
-            let parent = file.parent().expect("fixture has a parent");
+            let parent = file
+                .parent()
+                .ok_or_else(|| format!("fixture path has no parent: {}", file.display()))?;
             assert!(text.contains(&format!("(literal \"{}\")", parent.display())));
         }
     }
-    let _ = std::fs::remove_dir_all(&s);
+    fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
+    Ok(())
 }
 
 #[test]
-fn healthy_ancestor_alias_preserves_file_kind_and_canonical_spelling() {
-    let s = PathBuf::from(canon(&scratch("v4-ancestor")));
+fn healthy_ancestor_alias_preserves_file_kind_and_canonical_spelling() -> FixtureResult {
+    let s = PathBuf::from(canon(&scratch("v4-ancestor")?)?);
     let real = s.join("real");
     let alias = s.join("alias");
-    must_ok(std::fs::create_dir_all(real.join("data")));
-    must_ok(std::fs::write(real.join("state.db"), b""));
-    must_ok(std::os::unix::fs::symlink(&real, &alias));
+    fixture(
+        "create fixture directory",
+        std::fs::create_dir_all(real.join("data")),
+    )?;
+    fixture(
+        "write fixture file",
+        std::fs::write(real.join("state.db"), b""),
+    )?;
+    fixture(
+        "create fixture symlink",
+        std::os::unix::fs::symlink(&real, &alias),
+    )?;
     for write in [false, true] {
         for (name, journals) in [("data", false), ("state.db", true), ("fresh/new.db", true)] {
-            let text = rendered(&alias.join(name).display().to_string(), write);
+            let text = rendered(&alias.join(name).display().to_string(), write)?;
             let effective = real.join(name);
             assert!(text.contains(&format!("(subpath \"{}\")", effective.display())));
             assert!(!text.contains(&alias.display().to_string()));
             family(&text, &effective, journals);
         }
     }
-    let _ = std::fs::remove_dir_all(&s);
+    fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
+    Ok(())
 }
 
 #[test]
-fn bare_final_symlinks_refuse_without_borrowing_target_type() {
-    let s = PathBuf::from(canon(&scratch("v4-final-links")));
-    must_ok(std::fs::create_dir_all(s.join("real")));
-    must_ok(std::fs::write(s.join("state.db"), b""));
+fn bare_final_symlinks_refuse_without_borrowing_target_type() -> FixtureResult {
+    let s = PathBuf::from(canon(&scratch("v4-final-links")?)?);
+    fixture(
+        "create fixture directory",
+        std::fs::create_dir_all(s.join("real")),
+    )?;
+    fixture(
+        "write fixture file",
+        std::fs::write(s.join("state.db"), b""),
+    )?;
     for (link, target) in [
         ("dir-link", "real"),
         ("file-link", "state.db"),
@@ -97,7 +123,10 @@ fn bare_final_symlinks_refuse_without_borrowing_target_type() {
         ("loop-a", "loop-b"),
         ("loop-b", "loop-a"),
     ] {
-        must_ok(std::os::unix::fs::symlink(s.join(target), s.join(link)));
+        fixture(
+            "create fixture symlink",
+            std::os::unix::fs::symlink(s.join(target), s.join(link)),
+        )?;
     }
     for write in [false, true] {
         for name in ["dir-link", "file-link", "dangling", "loop-a"] {
@@ -109,24 +138,28 @@ fn bare_final_symlinks_refuse_without_borrowing_target_type() {
         // Explicit directory specs keep the final component lexical. The
         // upstream identity judge refuses such pivots before normal dispatch.
         for suffix in ["/", "/.", "/**"] {
-            let text = rendered(&format!("{}{suffix}", s.join("dir-link").display()), write);
+            let text = rendered(&format!("{}{suffix}", s.join("dir-link").display()), write)?;
             assert!(text.contains(&format!("(subpath \"{}\")", s.join("dir-link").display())));
             assert!(!text.contains(&s.join("real").display().to_string()));
             family(&text, &s.join("dir-link"), false);
         }
     }
-    let _ = std::fs::remove_dir_all(&s);
+    fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
+    Ok(())
 }
 
 #[test]
-fn unsafe_ancestors_and_non_absence_metadata_errors_refuse() {
-    let s = PathBuf::from(canon(&scratch("v4-errors")));
-    must_ok(std::fs::write(s.join("afile"), b""));
-    must_ok(std::os::unix::fs::symlink(
-        s.join("missing"),
-        s.join("dangling"),
-    ));
-    must_ok(std::os::unix::fs::symlink(s.join("loop"), s.join("loop")));
+fn unsafe_ancestors_and_non_absence_metadata_errors_refuse() -> FixtureResult {
+    let s = PathBuf::from(canon(&scratch("v4-errors")?)?);
+    fixture("write fixture file", std::fs::write(s.join("afile"), b""))?;
+    fixture(
+        "create fixture symlink",
+        std::os::unix::fs::symlink(s.join("missing"), s.join("dangling")),
+    )?;
+    fixture(
+        "create fixture symlink",
+        std::os::unix::fs::symlink(s.join("loop"), s.join("loop")),
+    )?;
     // Exceeds NAME_MAX on the target macOS/Linux filesystems. Its parent
     // resolves normally; metadata failure must not become "new file".
     let too_long = "x".repeat(512);
@@ -143,7 +176,8 @@ fn unsafe_ancestors_and_non_absence_metadata_errors_refuse() {
             ));
         }
     }
-    let _ = std::fs::remove_dir_all(&s);
+    fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
+    Ok(())
 }
 
 #[test]
@@ -164,20 +198,30 @@ fn canonical_path_encoding_never_substitutes_another_identity() {
 
 #[cfg(target_os = "linux")]
 #[test]
-fn non_utf8_ancestor_alias_cannot_grant_the_replacement_named_tree() {
+fn non_utf8_ancestor_alias_cannot_grant_the_replacement_named_tree() -> FixtureResult {
     use std::os::unix::ffi::OsStringExt;
-    let root = scratch("non-utf8-ancestor");
+    let root = scratch("non-utf8-ancestor")?;
     let raw = root.join(std::ffi::OsString::from_vec(vec![0xff]));
     let replacement = root.join("�");
-    must_ok(std::fs::create_dir_all(raw.join("data")));
-    must_ok(std::fs::create_dir_all(replacement.join("data")));
+    fixture(
+        "create fixture directory",
+        std::fs::create_dir_all(raw.join("data")),
+    )?;
+    fixture(
+        "create fixture directory",
+        std::fs::create_dir_all(replacement.join("data")),
+    )?;
     let alias = root.join("alias");
-    must_ok(std::os::unix::fs::symlink(&raw, &alias));
+    fixture(
+        "create fixture symlink",
+        std::os::unix::fs::symlink(&raw, &alias),
+    )?;
     for write in [false, true] {
         assert!(matches!(
             profile(&format!("{}/data/**", alias.display()), write),
             Err(CommandSandboxError::Profile { .. })
         ));
     }
-    must_ok(std::fs::remove_dir_all(root));
+    fixture("remove fixture tree", std::fs::remove_dir_all(root))?;
+    Ok(())
 }

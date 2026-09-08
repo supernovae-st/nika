@@ -1215,22 +1215,25 @@ mod tests {
         assert_eq!(SeatbeltSandbox::new().backend(), "seatbelt");
     }
 
-    // -- KR fixtures: failed setup fails the test through the existing test-only expect policy.
-    fn must_ok(r: std::io::Result<()>) {
-        r.expect("fixture setup must succeed");
+    // Security fixtures propagate setup and profile failures to the test harness.
+    type FixtureResult<T = ()> = Result<T, String>;
+
+    fn fixture<T, E: std::fmt::Debug>(context: &str, result: Result<T, E>) -> FixtureResult<T> {
+        result.map_err(|error| format!("{context}: {error:?}"))
     }
 
-    fn canon(p: &std::path::Path) -> String {
-        std::fs::canonicalize(p)
-            .expect("fixture path must resolve")
-            .to_string_lossy()
-            .into_owned()
+    fn canon(p: &Path) -> FixtureResult<String> {
+        let canonical = fixture("canonicalize fixture path", std::fs::canonicalize(p))?;
+        fixture(
+            "fixture path must be UTF-8",
+            canonical.into_os_string().into_string(),
+        )
     }
 
-    fn scratch(tag: &str) -> PathBuf {
+    fn scratch(tag: &str) -> FixtureResult<PathBuf> {
         let d = std::env::temp_dir().join(format!("nika-sb-kr-{tag}-{}", std::process::id()));
-        must_ok(std::fs::create_dir_all(&d));
-        d
+        fixture("create fixture root", std::fs::create_dir_all(&d))?;
+        Ok(d)
     }
 
     /// KR-02 · an alias whose canonical form is a protected root must
@@ -1238,9 +1241,12 @@ mod tests {
     /// zero writes near any system path (the alias lives in scratch).
     #[cfg(target_os = "macos")]
     #[test]
-    fn a_canonical_alias_of_a_protected_root_is_refused() {
-        let s = scratch("alias");
-        must_ok(std::os::unix::fs::symlink("/private", s.join("alias")));
+    fn a_canonical_alias_of_a_protected_root_is_refused() -> FixtureResult {
+        let s = scratch("alias")?;
+        fixture(
+            "create fixture symlink",
+            std::os::unix::fs::symlink("/private", s.join("alias")),
+        )?;
         let mut spec = SandboxSpec::new();
         spec.fs_write = vec![format!("{}/etc/**", s.join("alias").display())];
         assert!(
@@ -1259,7 +1265,8 @@ mod tests {
             build_profile(&tmp, None).is_err(),
             "the lexical bare-/tmp refusal is preserved"
         );
-        let _ = std::fs::remove_dir_all(&s);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
+        Ok(())
     }
 
     /// KR-03 · a DIRECTORY grant (trailing slash · terminal `/.` ·
@@ -1268,10 +1275,13 @@ mod tests {
     /// FILE keeps its whole family on the canonical spelling.
     #[cfg(unix)]
     #[test]
-    fn directory_grants_emit_no_sidecars_exact_files_keep_theirs() {
-        let s = scratch("sidecar");
-        must_ok(std::fs::create_dir_all(s.join("data")));
-        let s_canon = canon(&s);
+    fn directory_grants_emit_no_sidecars_exact_files_keep_theirs() -> FixtureResult {
+        let s = scratch("sidecar")?;
+        fixture(
+            "create fixture directory",
+            std::fs::create_dir_all(s.join("data")),
+        )?;
+        let s_canon = canon(&s)?;
         for grant in [
             format!("{}/", s.join("data").display()),
             format!("{}.", s.join("data").display().to_string() + "/"),
@@ -1281,7 +1291,7 @@ mod tests {
             spec.fs_write = vec![grant.clone()];
             let p = build_profile(&spec, None);
             assert!(p.is_ok(), "a directory grant builds: {grant}");
-            let p = p.expect("valid fixture must succeed");
+            let p = fixture("profile must build", p)?;
             assert!(
                 !p.contains("-wal") && !p.contains("-shm") && !p.contains("-journal"),
                 "{grant}: no sibling sidecars outside the subtree: {p}"
@@ -1292,11 +1302,14 @@ mod tests {
             );
         }
         // the exact file keeps all three suffixes + the parent listing
-        must_ok(std::fs::write(s.join("state.db"), b""));
+        fixture(
+            "write fixture file",
+            std::fs::write(s.join("state.db"), b""),
+        )?;
         let mut spec = SandboxSpec::new();
         spec.fs_write = vec![format!("{}", s.join("state.db").display())];
-        let p = build_profile(&spec, None).expect("valid fixture must succeed");
-        let db = canon(&s.join("state.db"));
+        let p = fixture("profile must build", build_profile(&spec, None))?;
+        let db = canon(&s.join("state.db"))?;
         for suffix in ["-wal", "-shm", "-journal"] {
             assert!(
                 p.contains(&format!("(literal \"{db}{suffix}\"")),
@@ -1307,7 +1320,8 @@ mod tests {
             p.contains(&format!("(literal \"{s_canon}\"")),
             "the exact file's parent listing stays: {p}"
         );
-        let _ = std::fs::remove_dir_all(&s);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
+        Ok(())
     }
 
     /// KR-04 · resolution failures are NOT absence: symlink loops,
@@ -1316,64 +1330,71 @@ mod tests {
     /// tail folds lexically (the legal new-write).
     #[cfg(unix)]
     #[test]
-    fn resolution_errors_refuse_clean_absence_still_folds() {
+    fn resolution_errors_refuse_clean_absence_still_folds() -> FixtureResult {
         // loop a <-> b
-        let s = scratch("loop");
-        must_ok(std::os::unix::fs::symlink(s.join("b"), s.join("a")));
-        must_ok(std::os::unix::fs::symlink(s.join("a"), s.join("b")));
+        let s = scratch("loop")?;
+        fixture(
+            "create fixture symlink",
+            std::os::unix::fs::symlink(s.join("b"), s.join("a")),
+        )?;
+        fixture(
+            "create fixture symlink",
+            std::os::unix::fs::symlink(s.join("a"), s.join("b")),
+        )?;
         let mut spec = SandboxSpec::new();
         spec.fs_write = vec![format!("{}/leaf/**", s.join("a").display())];
         assert!(
             build_profile(&spec, None).is_err(),
             "a symlink loop must refuse (ELOOP is not absence)"
         );
-        let _ = std::fs::remove_dir_all(&s);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
 
         // dangling ancestor link
-        let s = scratch("dangling");
-        must_ok(std::os::unix::fs::symlink(
-            s.join("missing"),
-            s.join("dangling"),
-        ));
+        let s = scratch("dangling")?;
+        fixture(
+            "create fixture symlink",
+            std::os::unix::fs::symlink(s.join("missing"), s.join("dangling")),
+        )?;
         let mut spec = SandboxSpec::new();
         spec.fs_write = vec![format!("{}/leaf/**", s.join("dangling").display())];
         assert!(
             build_profile(&spec, None).is_err(),
             "a dangling ancestor must refuse (the link EXISTS)"
         );
-        let _ = std::fs::remove_dir_all(&s);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
 
         // a regular file used as a directory component
-        let s = scratch("notdir");
-        must_ok(std::fs::write(s.join("afile"), b""));
+        let s = scratch("notdir")?;
+        fixture("write fixture file", std::fs::write(s.join("afile"), b""))?;
         let mut spec = SandboxSpec::new();
         spec.fs_write = vec![format!("{}/leaf/**", s.join("afile").display())];
         assert!(
             build_profile(&spec, None).is_err(),
             "a not-a-directory component must refuse (ENOTDIR is not absence)"
         );
-        let _ = std::fs::remove_dir_all(&s);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
 
         // the legal case: a clean-absent tail under a healthy ancestor
-        let s = scratch("newwrite");
+        let s = scratch("newwrite")?;
         let grant = format!("{}/fresh/out/**", s.display());
         let mut spec = SandboxSpec::new();
         spec.fs_write = vec![grant.clone()];
         let p = build_profile(&spec, None);
         assert!(p.is_ok(), "a clean-absent suffix still folds: {grant}");
-        let expected = format!("{}/fresh/out", canon(&s));
-        let p = p.expect("valid fixture must succeed");
+        let expected = format!("{}/fresh/out", canon(&s)?);
+        let p = fixture("profile must build", p)?;
         assert!(
             p.contains(&format!("(subpath \"{expected}\"")),
             "the folded effective suffix is emitted: {p}"
         );
-        let _ = std::fs::remove_dir_all(&s);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
+        Ok(())
     }
 
     #[test]
-    fn regular_file_ancestors_refuse_both_access_classes() {
-        let s = scratch("file-ancestor");
-        must_ok(std::fs::write(s.join("afile"), b""));
+    fn regular_file_ancestors_refuse_both_access_classes() -> FixtureResult {
+        let s = scratch("file-ancestor")?;
+        fixture("write fixture file", std::fs::write(s.join("afile"), b""))?;
         for write in [false, true] {
             for suffix in ["leaf", "leaf/**", "missing/leaf/**"] {
                 let grant = format!("{}/afile/{suffix}", s.display());
@@ -1392,7 +1413,8 @@ mod tests {
                 );
             }
         }
-        let _ = std::fs::remove_dir_all(&s);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
+        Ok(())
     }
 
     /// The macOS /tmp-alias positive (KIMI-SEC-02's fixed case): a
@@ -1400,13 +1422,16 @@ mod tests {
     /// and the lexical spelling leaves the rules entirely.
     #[cfg(target_os = "macos")]
     #[test]
-    fn a_tmp_alias_grant_is_spelled_canonically() {
+    fn a_tmp_alias_grant_is_spelled_canonically() -> FixtureResult {
         let dir = PathBuf::from("/tmp").join(format!("nika-sb-kr-tmp-{}", std::process::id()));
-        must_ok(std::fs::create_dir_all(dir.join("arena")));
+        fixture(
+            "create fixture directory",
+            std::fs::create_dir_all(dir.join("arena")),
+        )?;
         let mut spec = SandboxSpec::new();
         spec.fs_write = vec![format!("{}/**", dir.join("arena").display())];
-        let p = build_profile(&spec, None).expect("valid fixture must succeed");
-        let want = canon(&dir.join("arena"));
+        let p = fixture("profile must build", build_profile(&spec, None))?;
+        let want = canon(&dir.join("arena"))?;
         assert!(
             p.contains(&format!("(subpath \"{want}\"")),
             "the canonical spelling is emitted: {p}"
@@ -1415,7 +1440,8 @@ mod tests {
             !p.contains(&format!("(subpath \"{}\"", dir.join("arena").display())),
             "the lexical alias spelling is gone: {p}"
         );
-        let _ = std::fs::remove_dir_all(&dir);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&dir))?;
+        Ok(())
     }
 
     /// The final-pivot invariant (CVE-2024-42472 class): a symlink AT
@@ -1423,18 +1449,25 @@ mod tests {
     /// spells the pivot's target.
     #[cfg(unix)]
     #[test]
-    fn a_symlink_at_the_grant_root_keeps_its_own_name() {
-        let s = scratch("pivot");
-        must_ok(std::fs::create_dir_all(s.join("real")));
-        must_ok(std::os::unix::fs::symlink(s.join("real"), s.join("pivot")));
+    fn a_symlink_at_the_grant_root_keeps_its_own_name() -> FixtureResult {
+        let s = scratch("pivot")?;
+        fixture(
+            "create fixture directory",
+            std::fs::create_dir_all(s.join("real")),
+        )?;
+        fixture(
+            "create fixture symlink",
+            std::os::unix::fs::symlink(s.join("real"), s.join("pivot")),
+        )?;
         let mut spec = SandboxSpec::new();
         spec.fs_write = vec![format!("{}/**", s.join("pivot").display())];
-        let p = build_profile(&spec, None).expect("valid fixture must succeed");
-        let target = canon(&s.join("real"));
+        let p = fixture("profile must build", build_profile(&spec, None))?;
+        let target = canon(&s.join("real"))?;
         assert!(
             !p.contains(&format!("(subpath \"{target}\"")),
             "the rule never spells the pivot's target: {p}"
         );
-        let _ = std::fs::remove_dir_all(&s);
+        fixture("remove fixture tree", std::fs::remove_dir_all(&s))?;
+        Ok(())
     }
 }
