@@ -141,5 +141,4 @@ async fn operator_signal() {
 }
 
 #[cfg(test)]
-#[path = "thread_tests.rs"]
 mod tests;
