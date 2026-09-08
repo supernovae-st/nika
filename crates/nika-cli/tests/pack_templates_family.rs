@@ -30,9 +30,16 @@ const SLOT_ANSWER: &str = "answered by the committed corpus golden";
 /// the safe explicit decline; the test supplies that answer without changing
 /// the workflow's default-free security posture.
 ///
+/// `human-gated-ship` likewise keeps its `human` prompt default-free so
+/// the gate dominates shipping. Its golden records `acted: skipped`; the
+/// rehearsal supplies an explicit decline to that prompt.
+///
 /// A name may only join this list with that shape of reason written down.
 /// "It was red" is not a reason.
-const REQUIRES_EXPLICIT_ANSWER: &[&str] = &["etl-state"];
+const EXPLICIT_ANSWERS: &[(&str, &str)] = &[
+    ("etl-state", "approve=false"),
+    ("human-gated-ship", "human=false"),
+];
 
 fn scratch_dir(tag: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("nika-cli-pack-family-{tag}"));
@@ -200,8 +207,8 @@ fn every_shipped_template_runs_green_under_mock() {
     // The leg `check` cannot reach. Ordinary templates compare against the
     // COMMITTED pin with update=false: a missing or corrupt pin must fail this
     // test instead of being silently regenerated in scratch. The security-
-    // gated template takes one explicit refusal decision for this invocation;
-    // its workflow remains blocking and default-free.
+    // gated templates take one explicit refusal decision for this invocation;
+    // their workflows remain blocking and default-free.
     let dir = scratch_dir("run");
     let names = nika_pack::template_names();
     let committed = committed_golden_names();
@@ -214,13 +221,11 @@ fn every_shipped_template_runs_green_under_mock() {
     for name in &names {
         let path = plant(&dir, name);
         copy_committed_golden(name, &path);
-        let code = if REQUIRES_EXPLICIT_ANSWER.contains(&name.as_str()) {
-            nika_cli::verbs::test::run_with_answers(
-                &path,
-                false,
-                &["approve=false".to_owned()],
-                PLAIN,
-            )
+        let answer = EXPLICIT_ANSWERS
+            .iter()
+            .find_map(|&(template, answer)| (template == name.as_str()).then_some(answer));
+        let code = if let Some(answer) = answer {
+            nika_cli::verbs::test::run_with_answers(&path, false, &[answer.to_owned()], PLAIN)
         } else {
             nika_cli::verbs::test::run(&path, false, PLAIN)
         };
@@ -237,7 +242,7 @@ fn the_gated_template_stays_refusable_while_its_decline_is_pinned() {
     // If `etl-state` ever runs unattended, its human gate went away — and
     // that is a security change, not a test-maintenance chore.
     let dir = scratch_dir("gate");
-    let name = REQUIRES_EXPLICIT_ANSWER
+    let &(name, answer) = EXPLICIT_ANSWERS
         .first()
         .expect("the exempt set is non-empty");
     let path = plant(&dir, name);
@@ -262,7 +267,7 @@ fn the_gated_template_stays_refusable_while_its_decline_is_pinned() {
     );
     copy_committed_golden(name, &path);
     assert_eq!(
-        nika_cli::verbs::test::run_with_answers(&path, false, &["approve=false".to_owned()], PLAIN,),
+        nika_cli::verbs::test::run_with_answers(&path, false, &[answer.to_owned()], PLAIN,),
         exit::OK,
         "the committed explicit decline executes the safe branch without weakening the gate"
     );
