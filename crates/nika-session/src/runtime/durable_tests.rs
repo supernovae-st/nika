@@ -172,7 +172,7 @@ fn persisted_history_redacts_recognized_values_in_every_intent_field_and_dialogu
     ] {
         assert!(
             !journal.contains(secret),
-            "recognized value persisted: {secret}"
+            "a recognized value was persisted without redaction"
         );
     }
     let (mut resumed, seen) = open(root.path(), &[ANSWER]);
