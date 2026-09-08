@@ -6,7 +6,7 @@
 //! caller supplies. Stale preimages are injected on the real filesystem
 //! by the outer controller. `reset` drops the runtime and the id cache.
 //!
-//! Stdin (`op`): `open`/`reset` `{root, replies?}` · `feed` `{text}`
+//! Stdin (`op`): `open`/`reset` `{root, replies?, home?}` · `feed` `{text}`
 //! (queued until the next open) · `turn` `{text}` · `consent`
 //! `{answer, id?}` · `observe_run` `{exit, trace?}` · `answer_gate`
 //! `{line, id?}` · `pending` · `quit`.
@@ -111,12 +111,20 @@ impl Host {
         }
         let intelligence = scripted_intelligence();
         let reasoner = ScriptedReasoner::new(replies);
-        let session = SessionRuntime::open(Path::new(root), intelligence, Box::new(reasoner));
+        let mut session = SessionRuntime::open(Path::new(root), intelligence, Box::new(reasoner));
+        let recovery = if let Some(home) = v.get("home").and_then(Value::as_str) {
+            session
+                .enable_history(Path::new(home))
+                .map_err(|why| why.to_string())?
+        } else {
+            None
+        };
         self.proposals.clear();
         self.gates.clear();
         let shown = session.snapshot.root.display().to_string();
         self.session = Some(session);
-        emit_ok(&json!({"v": 1, "event": "opened", "root": shown}))?;
+        emit_ok(&json!({"v": 1, "event": "opened", "root": shown,
+            "recovery": recovery, "goal": self.session.as_ref().and_then(|s| s.intent.goal.as_ref())}))?;
         Ok(Next::Continue)
     }
 

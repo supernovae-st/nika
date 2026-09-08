@@ -122,7 +122,20 @@ fn drive<R: BufRead, W: Write>(
     };
     let mut session =
         SessionRuntime::open_with(cwd, census.clone(), &pref, home, Box::new(reasoner_for));
+    let recovered = match home {
+        Some(home) => match session.enable_history(home) {
+            Ok(notice) => notice,
+            Err(why) => {
+                writeln!(output, "✖ {why}")?;
+                return Ok(exit::ENV);
+            }
+        },
+        None => Some("conversation is temporary: no home directory is available".to_owned()),
+    };
     writeln!(output, "{}", session.banner())?;
+    if let Some(notice) = recovered {
+        writeln!(output, "{notice}")?;
+    }
     let mut next = Next::Turn;
     loop {
         write!(output, "\n{}", next.prompt())?;
@@ -385,6 +398,47 @@ mod tests {
     use std::io::Cursor;
 
     use super::*;
+
+    #[test]
+    fn a_reopened_terminal_restores_history_and_refuses_corruption() {
+        let project = tempfile::tempdir().expect("project");
+        let home = tempfile::tempdir().expect("home");
+        let census = IntelligenceCensus::empty();
+        let invoke = |lines: &[u8]| {
+            let mut input = Cursor::new(lines.to_vec());
+            let mut output = Vec::new();
+            let code = drive(
+                &mut input,
+                &mut output,
+                &census,
+                Some(home.path()),
+                project.path(),
+                Theme::new(false, false, false),
+            )
+            .expect("drive");
+            (code, String::from_utf8(output).expect("text"))
+        };
+        assert_eq!(invoke(b"4\nwhat workflows are here?\n/quit\n").0, exit::OK);
+        let (code, text) = invoke(b"/quit\n");
+        assert_eq!(code, exit::OK);
+        assert!(text.contains("conversation restored"), "{text}");
+        let histories = home.path().join(".nika/sessions");
+        let folder = std::fs::read_dir(histories)
+            .expect("histories")
+            .next()
+            .expect("one project")
+            .expect("entry")
+            .path();
+        let journal = folder.join("events.ndjson");
+        std::fs::write(&journal, "broken").expect("corrupt fixture");
+        let (code, text) = invoke(b"what workflows are here?\n");
+        assert_eq!(code, exit::ENV);
+        assert!(text.contains("history unavailable"), "{text}");
+        assert_eq!(
+            std::fs::read_to_string(journal).expect("retained"),
+            "broken"
+        );
+    }
 
     /// The first run asks, keeps the answer under the home, opens the
     /// session, answers a fact without any model, and closes on `/quit`.
