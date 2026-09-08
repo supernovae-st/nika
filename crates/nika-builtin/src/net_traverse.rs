@@ -21,10 +21,13 @@
 //!   only the ROOT's origin is enqueued, fragments are stripped for
 //!   dedup, and the frontier caps at `max_pages × 8` (a link farm cannot
 //!   balloon the queue).
-//! - **`max_pages` (1..=[`MAX_TRAVERSE_PAGES`])** bounds page REQUESTS —
-//!   the effect certificate counts exactly `max_pages` page calls
-//!   (+1 robots probe unless `respect_robots: false`), one definition
-//!   with `nika-schema`'s certificate via `nika_types::net`.
+//! - **`max_pages` (1..=[`MAX_TRAVERSE_PAGES`])** bounds logical page GETs —
+//!   the effect certificate reserves up to `max_pages + 2` logical GETs
+//!   (seed and landed-origin robots), or `max_pages` with literal
+//!   `respect_robots: false`. Transport redirect hops/retries are not
+//!   separate logical GETs. The cap is shared with `nika-check` via
+//!   `nika_types::net`; the same-origin link filter does not prevent
+//!   a root redirect from landing on another origin.
 //! - **`respect_robots` (default `true`)** — one GET of
 //!   `{origin}/robots.txt`; `User-agent: *` `Disallow:` prefixes are
 //!   honored. The probe's outcome follows RFC 9309 §2.3.1: a 4xx
@@ -744,6 +747,56 @@ mod tests {
         .expect("bounded crawl");
         assert_eq!(out["page_count"], 2);
         assert_eq!(http.sent_requests().len(), 3, "robots + exactly 2 pages");
+    }
+
+    #[tokio::test]
+    async fn traverse_one_page_counts_logical_gets_across_origins() -> Result<(), String> {
+        for respect_robots in [None, Some(true), Some(false)] {
+            for landed in ["https://acme.test/", "https://www.acme.test/"] {
+                let robots = respect_robots != Some(false);
+                let changed_origin = landed != "https://acme.test/";
+                let mut http = MockHttp::new();
+                let mut expected = Vec::new();
+                if robots {
+                    http = http.enqueue_ok(404, Vec::new());
+                    expected.push("https://acme.test/robots.txt");
+                }
+                http = http.enqueue_ok_final_url(200, page("root", &["/next"]), landed);
+                expected.push("https://acme.test/");
+                if robots && changed_origin {
+                    http = http.enqueue_ok(404, Vec::new());
+                    expected.push("https://www.acme.test/robots.txt");
+                }
+                let mut options = serde_json::json!({ "max_pages": 1 });
+                if let Some(enabled) = respect_robots {
+                    options["respect_robots"] = serde_json::json!(enabled);
+                }
+                let out = traverse(
+                    &http,
+                    "https://acme.test/",
+                    &args(serde_json::json!({
+                        "url": "https://acme.test/", "traverse": options
+                    })),
+                )
+                .await
+                .map_err(|error| format!("{error:?}"))?;
+                assert_eq!(out["page_count"], 1);
+                let sent: Vec<String> = http.sent_requests().into_iter().map(|r| r.url).collect();
+                assert_eq!(sent, expected, "robots={respect_robots:?}, landed={landed}");
+                assert_eq!(http.remaining(), 0, "all responses are explicitly consumed");
+                // N=1 still spends robots B after the root GET when it
+                // lands on B: 3 logical calls, despite the one-page cap.
+                let count = if !robots {
+                    1
+                } else if changed_origin {
+                    3
+                } else {
+                    2
+                };
+                assert_eq!(sent.len(), count);
+            }
+        }
+        Ok(())
     }
 
     #[tokio::test]

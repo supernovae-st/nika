@@ -46,7 +46,9 @@
 //! - `on_finally` cleanups run once per ITERATION (after the terminal
 //!   attempt — never per attempt)
 //! - `infer` = 1 LLM call per body run · `agent` ≤ `max_turns` (default
-//!   10) per body run · `exec`/`invoke` = 1 effect call per body run
+//!   10) per body run · `exec`/`invoke` = 1 effect call per body run,
+//!   except a fetch traverse, which counts logical page/robots GETs.
+//!   Transport redirects/retries are not separate calls at this grain.
 
 use nika_cap::CertEffects;
 use nika_types::net::MAX_TRAVERSE_PAGES;
@@ -112,7 +114,8 @@ pub struct RunCertificate {
     pub task_attempts: Bound,
     /// Upper bound on LLM calls (`infer` + `agent` turns).
     pub llm_calls: Bound,
-    /// Upper bound on effect calls (`exec` + `invoke` dispatches).
+    /// Upper bound on effect calls (`exec` + `invoke` dispatches,
+    /// counting logical page/robots GETs for a fetch traverse).
     pub effect_calls: Bound,
     /// The PARAMETRIC spend bound, in micro-USD (integer keeps the
     /// wire exact) — the deepening of the cost ceiling: a
@@ -302,11 +305,15 @@ fn action_calls(action: &RawAction) -> (u64, u64) {
 
 /// Effect calls ONE `invoke:` body run performs — 1 for every tool
 /// except a `nika:fetch` carrying `traverse:` (the bounded crawl): a
-/// literal `max_pages: N` means N page requests, +1 robots.txt probe
-/// unless `respect_robots:` is LITERALLY `false`; a templated spec or
-/// field folds to the runtime cap ([`MAX_TRAVERSE_PAGES`] — ONE
-/// definition with the runtime via `nika-types`). The certificate may
-/// over-state a crawl that converges early; it must never under-count.
+/// literal `max_pages: N` bounds N logical page GETs, plus up to TWO
+/// robots.txt GETs (seed origin, then a different landed root origin)
+/// unless `respect_robots:` is LITERALLY `false`. The initial URL does
+/// not prove where a redirect lands; same-origin filters discovered
+/// links, not the root redirect. Unknown/invalid page bounds use the
+/// runtime cap ([`MAX_TRAVERSE_PAGES`]); invalid resolved options still
+/// refuse before GET, never clamp at runtime. Thus one valid invocation
+/// needs at most 27 logical GETs, not 27 physical transmissions. This
+/// local bound does not resolve saturation of the aggregate polynomial.
 fn invoke_effect_calls(action: &RawInvokeAction) -> u64 {
     // A `workflow:` call is 1 effect call at the parent-own grain (the
     // dispatch itself); the COMPOSED bound — parent ⊇ own + child (spec 14
@@ -328,7 +335,7 @@ fn invoke_effect_calls(action: &RawInvokeAction) -> u64 {
         .unwrap_or(MAX_TRAVERSE_PAGES);
     let robots = match traverse.get("respect_robots") {
         Some(serde_json::Value::Bool(false)) => 0,
-        _ => 1,
+        _ => 2,
     };
     pages + robots
 }
@@ -567,27 +574,148 @@ mod tests {
     }
 
     #[test]
-    fn traverse_fetch_counts_its_page_bound_plus_robots() {
-        // literal max_pages 5 + default robots → 5 + 1 effects.
-        let c = cert(&wf(
-            "  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: { max_pages: 5 } } }\n",
-        ));
-        assert_eq!(c.effect_calls, konst(6));
-        // respect_robots literally false → no probe.
-        let c = cert(&wf(
-            "  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: { max_pages: 5, respect_robots: false } } }\n",
-        ));
-        assert_eq!(c.effect_calls, konst(5));
-        // a templated spec folds to the runtime cap (+ robots).
-        let c = cert(&wf(
-            "  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: \"${{ inputs.spec }}\" } }\n",
-        ));
-        assert_eq!(c.effect_calls, konst(MAX_TRAVERSE_PAGES + 1));
+    fn traverse_fetch_counts_pages_and_both_robots_origins() -> Result<(), String> {
+        // Even a literal URL may land elsewhere: N=1 can require three GETs.
+        for (traverse, expected) in [
+            ("{ max_pages: 1 }", 3),
+            ("{ max_pages: 1, respect_robots: true }", 3),
+            ("{ max_pages: 1, respect_robots: false }", 1),
+            ("{ max_pages: 5 }", 7),
+            ("{ max_pages: 5, respect_robots: false }", 5),
+            ("{ max_pages: 25 }", 27),
+            ("{ max_pages: 25, respect_robots: true }", 27),
+            ("{ max_pages: 25, respect_robots: false }", 25),
+        ] {
+            let yaml = wf(&format!(
+                "  crawl:\n    invoke:\n      tool: nika:fetch\n      args:\n        url: https://a.test/\n        traverse: {traverse}\n"
+            ));
+            let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict)
+                .map_err(|error| format!("{error:?}"))?;
+            let c = certify(&parsed);
+            assert_eq!(c.effect_calls, konst(expected), "{traverse}");
+            assert_eq!(c.derivation[0].main_effect, expected, "{traverse}");
+            assert!(c.audit(&parsed).is_ok(), "{traverse}");
+        }
         // a plain fetch stays exactly 1 (no traverse key).
         let c = cert(&wf(
             "  one:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\" } }\n",
         ));
         assert_eq!(c.effect_calls, konst(1));
+        Ok(())
+    }
+
+    #[test]
+    fn traverse_fetch_bounds_dynamic_options_conservatively() -> Result<(), String> {
+        for (traverse, expected) in [
+            (r#""${{ inputs.spec }}""#, 27),
+            (r#"{ max_pages: "${{ inputs.pages }}" }"#, 27),
+            (
+                r#"{ max_pages: "${{ inputs.pages }}", respect_robots: false }"#,
+                25,
+            ),
+            (
+                r#"{ max_pages: 1, respect_robots: "${{ inputs.robots }}" }"#,
+                3,
+            ),
+            (
+                r#"{ max_pages: "${{ inputs.pages }}", respect_robots: "${{ inputs.robots }}" }"#,
+                27,
+            ),
+        ] {
+            let yaml = wf(&format!(
+                "  crawl:\n    invoke:\n      tool: nika:fetch\n      args:\n        url: https://a.test/\n        traverse: {traverse}\n"
+            ));
+            let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict)
+                .map_err(|error| format!("{error:?}"))?;
+            let c = certify(&parsed);
+            assert_eq!(c.effect_calls, konst(expected), "{traverse}");
+            assert_eq!(c.derivation[0].main_effect, expected, "{traverse}");
+            assert!(c.audit(&parsed).is_ok(), "{traverse}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn traverse_fetch_invalid_page_bounds_do_not_overflow_the_coefficient() -> Result<(), String> {
+        // These options refuse before GET when validated/resolved. A
+        // conservative certificate for the raw structure is not admission.
+        let yaml = wf(
+            "  crawl:\n    invoke: { tool: nika:fetch, args: { url: 'https://a.test/', traverse: { max_pages: 1 } } }\n",
+        );
+        let mut parsed = parse(&yaml, FileId::new(0), ParseMode::Strict)
+            .map_err(|error| format!("{error:?}"))?;
+        let RawAction::Invoke(action) = &mut parsed.tasks[0].value.action else {
+            return Err("expected invoke fixture".into());
+        };
+        // Set the exact JSON integer: YAML's scalar conversion may route
+        // a value above i64::MAX through f64 before it reaches this seam.
+        for pages in [
+            serde_json::json!(0),
+            serde_json::json!(26),
+            serde_json::json!(u64::MAX),
+            serde_json::json!(1.5),
+            serde_json::Value::Null,
+        ] {
+            let Some(args) = action.args.as_mut() else {
+                return Err("expected args fixture".into());
+            };
+            args.value["traverse"]["max_pages"] = pages;
+            assert_eq!(invoke_effect_calls(action), 27);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn traverse_effect_bound_folds_retries_and_rejects_the_old_witness() -> Result<(), String> {
+        let yaml = wf(
+            "  crawl:\n    for_each: { items: [a, b] }\n    retry: { max_attempts: 3 }\n    invoke: { tool: nika:fetch, args: { url: 'https://a.test/', traverse: { max_pages: 1 } } }\n  plain:\n    invoke: { tool: nika:fetch, args: { url: 'https://a.test/' } }\n",
+        );
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict)
+            .map_err(|error| format!("{error:?}"))?;
+        let honest = certify(&parsed);
+        // 2 iterations × 3 attempts × 3 logical GETs, plus one plain fetch.
+        assert_eq!(honest.effect_calls, konst(19));
+        assert_eq!(honest.task_attempts, konst(7));
+        assert_eq!(honest.span_attempts, 3);
+        assert_eq!(honest.llm_calls, konst(0));
+        // This certificate's spend model is unchanged; not a network tariff.
+        assert_eq!(honest.usd_micros, Some(konst(0)));
+        assert!(honest.audit(&parsed).is_ok());
+
+        let mut rows = honest.derivation.clone();
+        rows[0].main_effect = 2; // old N+1 coefficient, internally re-folded
+        let mut stale = fold_rows(&rows);
+        stale.derivation = rows;
+        stale.effects = honest.effects;
+        assert_eq!(stale.effect_calls, konst(13));
+        assert!(
+            stale
+                .audit(&parsed)
+                .is_err_and(|error| error.contains("main-action call counts"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn traverse_dynamic_bound_folds_into_a_parametric_term() -> Result<(), String> {
+        let yaml = wf(
+            "  crawl:\n    for_each: { items: '${{ inputs.items }}' }\n    retry: { max_attempts: 3 }\n    invoke: { tool: nika:fetch, args: { url: 'https://a.test/', traverse: '${{ inputs.spec }}' } }\n",
+        );
+        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict)
+            .map_err(|error| format!("{error:?}"))?;
+        let c = certify(&parsed);
+        assert_eq!(c.effect_calls.constant, 0);
+        assert_eq!(
+            c.effect_calls.terms,
+            vec![CertTerm {
+                task: "crawl".into(),
+                coeff: 81, // 27 logical GETs × 3 attempts per collection item
+            }]
+        );
+        assert_eq!(c.task_attempts.terms[0].coeff, 3);
+        assert_eq!(c.usd_micros, Some(konst(0)));
+        assert!(c.audit(&parsed).is_ok());
+        Ok(())
     }
 
     #[test]
