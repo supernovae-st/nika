@@ -18,14 +18,14 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4872
+  classified_files: 5020
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 1892
+    authored: 2029
     authored-pin: 2
-    generated: 127
-    pinned-copy: 146
+    generated: 137
+    pinned-copy: 147
     testimonial: 2705
     foreign: 0
   unverified-default: 7
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: 96105b2a7208b8031a19bc9afa41c42bc2f09d6476e9d82b716cb91e9e5331bf
+  sha256: d55f5ea0196299222881dbb13fe5252eef55ce04958b25b9fc0f812c1fd031cf
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: f4f60b65c7a59e72999a0b8906be5a14e57b32ef74536f6ee8d4244b4b6b5525
+  sha256: 327100f3ed2bb2ca075de70db571b7fea298db20716de5af4f94110cef3ed5f7
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 3e89375443f851853c0e7a51981270ca82bc36dadd620fcb3322517e485badbd
+  sha256: 8284a9556e219fff63d25570414db1a97a5dc908173ffd55159786affc4b713d
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -98,7 +98,7 @@ files:
     - "fuzz/Cargo.toml"
 - path: "media/README.md"
   class: authored
-  sha256: fbd41fa5b40b6c13ed01902b209869a77b6144504a97b68a7a014928c7bdd929
+  sha256: bf6f3e849245cc718f3011e183875b89f64ee75c3fa13e8176c8c15ba2aab6e0
   evidence: "the authored rules for the media lanes ('No fake commands · No fake output · budgets · Never edit exports by hand')"
 - path: "scripts/estate.py"
   class: pinned-copy
@@ -113,8 +113,8 @@ files:
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
-  match_count: 145
-  aggregate_sha256: 858a346e8719c39b7261259494ace0435b3e278540a64d9b4b44c0c1fed9b03d
+  match_count: 146
+  aggregate_sha256: 8a05571282b76ab2b4c9dd823fba42179d5df5ceec1e312f52b577ec3661bf17
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout at SPEC_PIN> — spec-pin-heal.yml advances the pin and pack together, and Diamond CI refuses any pack differing from spec@SPEC_PIN"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 71
-  aggregate_sha256: 174de5bf39953b56dc5ac1e9da21e3e0b12a2e2f4eaf89c1d5de7fd28d5ea4b9
+  aggregate_sha256: 6a9b7db6749426765b883390a1e8741d57d4d22887a8711d544c453a8571e839
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,29 +151,29 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 970
-  aggregate_sha256: 0a37f8c51732a0e7a898077f34b72784e1134cd197391f3af48dd67738b66256
+  match_count: 1004
+  aggregate_sha256: 8616acdba7cd1eb2abb85a53fd05a747673ca09ad5603f21dc08e26d0eba7601
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 209
-  aggregate_sha256: c7b39b197f863f3b7df808f53035b597ee1d66121c814f4102c5741fc6496d3c
+  match_count: 210
+  aggregate_sha256: 765033d06df719decb6d63436f531d02f6d0d4b4d029d15b61b8972d0a071ec9
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
-  match_count: 148
-  aggregate_sha256: 890634a72513db06545760d14fe23dca2a4aefd540f125d5b2ebd9ef754a3281
+  match_count: 150
+  aggregate_sha256: f0067968536a26bc6adaa624b803a47ab7a7b3e12b12050cc24a6ad7f30f30b5
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
   class: authored
   match_count: 7
-  aggregate_sha256: 88e97637235ab359851dc374314bea4fde2225bea9488915bb7df602eb315d31
+  aggregate_sha256: d5cc397653ad7547c5d3da36330638e681e2b6ff1b955fed3913009aeb0bb538
   evidence: "4 hand-written fuzz targets + the fuzz workspace config (fuzz/Cargo.toml · .gitignore); corpus excepted above, lockfile in files:"
 - glob: "docs/adr/**"
   class: authored
   match_count: 101
-  aggregate_sha256: fdc0448955a98bb959a293cf3a0819023bad0c9fc7fbb0a9c3535e16b8e712a0
+  aggregate_sha256: 1f45e0ac5cd72fb63723ad814db3bb644732ce4d866ead23f42c4868a4a0e485
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/testimonials/**"
   class: testimonial
@@ -182,18 +182,18 @@ patterns:
   evidence: "privacy-sanitized machine receipts captured from complete verification runs; their validator binds the tested commit, pre-run census, invocation, input blobs, accounting, and artifact hashes"
 - glob: "docs/**"
   class: authored
-  match_count: 123
-  aggregate_sha256: a0a1ccd11c5984a1d88de9c28b113acc3cf9b99b28cb803eb99947b739dd9d7e
+  match_count: 124
+  aggregate_sha256: 2786cae38d4797b5dddacac8d9a2400b78aa8087310f3ad0014a7b956bee8bfb
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 205
-  aggregate_sha256: a635039e86e27e2b83933a331a30e37f14cdbe3153a7091be9647d7cfade6cf3
+  match_count: 244
+  aggregate_sha256: d6a2f08f81b2362b576ede2db5833b4fb277c4d2f3d3cdbcc59fe3ba3af9bbaa
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: 2726c78a51a9c7915bfb649d2294460341279d87b138e560ccffe98aadc29a67
+  aggregate_sha256: 16bc672b200f35df33d6dd08f7f14bb2bbebdbd0500736c2d09f09d459b0fb1e
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -203,7 +203,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 33
-  aggregate_sha256: 99ecfac15272afa6b621721b743665d00669115f6a3b54c6303047e06f537b02
+  aggregate_sha256: c36013708278460ba9770131fb69d917704ff6ce8d6d336912b4a09812e0087c
   evidence: "the engine-owned portable release kit; wave-sweep advances its manifests with the engine and nika-plugins mirrors these bytes only from immutable engine release tags via resync-mirror.py"
   note: "direction is engine tag → nika-plugins mirror; clients-resync owns only clients.registry.yaml and must never overwrite this tree from a moving downstream main branch"
 - glob: ".claude/**"
@@ -223,8 +223,8 @@ patterns:
   evidence: "cargo config · audit.toml · mutants.toml — hand-kept workspace policy"
 - glob: "media/**"
   class: generated
-  match_count: 51
-  aggregate_sha256: 53892036978a25b5c40b9375879821940ccc4269be7e656a320508658e16634c
+  match_count: 61
+  aggregate_sha256: 2e64fee48707222b4085884665c0a8004410ff9935f890b417644995e292dceb
   evidence: "media/README.md: 'Never edit exports by hand. Edit the motion scene or fixture, then re-render' — gifs/posters/videos/social render from scripts/media/motion/ scenes + tapes; raw/ transcripts are captured from the real binary"
   derivation:
     tool: "scripts/media/render-motion.mjs + render-tape.sh + capture-transcripts.sh (scenes: scripts/media/motion/ · fixtures: scripts/media/fixtures/ · tapes: scripts/media/tapes/)"
@@ -238,18 +238,18 @@ patterns:
 - glob: "examples/**"
   class: authored
   match_count: 1
-  aggregate_sha256: a843bf81b89fb2f04d2a2fd43087c9b7db32c1c4ba81c2cf2fb322f7f6675e7f
+  aggregate_sha256: 50fdea7599e32ff8b91a75a670403a5030b2dfe3959a2a91cbad5c2a9294447a
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 3
-  aggregate_sha256: 2864d80d1e7c3b32522332a1addf0e62bbb6bbae13ae42b7977ce413ed6e964f
+  match_count: 63
+  aggregate_sha256: fe74100b22aa9ddaf1e95a34ca6445c7821e1d338f216b6fc5a5eeab7d52e413
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: 4ea0343d4a5ab64cd060b2f6da31873f74b66acf8a74c9305d6364a171082ba2
+  aggregate_sha256: 6ee1bd056278f3f808b0856f14981fb3d27b8ca9feb9364c6bc5de2874e17764
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

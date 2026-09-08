@@ -5,6 +5,8 @@
 #
 #   [discover]──▶[process ∥×N]───▶[survivors]──▶[merge]
 #   nika:glob     for_each·infer    nika:jq        infer
+#   [prove]──▶[law_holds]────────────┘  the fan-in law, proven on a fixture first
+#   nika:jq    nika:assert
 #
 # The "do this for EVERY one of them" job, where you do not know how many there
 # are until the run starts. Discovery yields a collection, `for_each` fans it
@@ -23,18 +25,34 @@
 #     including prompts that read `item.field`
 #   - extract facts (`type: integer`), then `nika:jq` is the law —
 #     do not pay a second infer to name the level (`13-extract-then-law`)
+#   - prove the fan-in law on a const fixture + `nika:assert` BEFORE it meets
+#     real data (`prove` → `law_holds` · the `unproven-law` hint stays silent)
 #
 # Needs · nothing. Scaffolds and runs green in an empty directory — an empty
 #   discovery skips the fan-out and the fan-in still returns a value.
 #
-# Run · nika run <file> --model mock/echo    # offline rehearsal
+# COST · `check` reads `process` as UNBOUNDED by construction: the fan width
+#   is discovered at run, so no static ceiling exists (measured on 0.118.7 ·
+#   « for_each over an expression (unknown count) · 1 uncapped task »). The
+#   per-item ceiling below bounds each CALL; the RUN bounds the FAN. The cap
+#   admits this file (measured on a real seat with `--max-cost-usd 0.10`: the
+#   static floor stays under the cap because the width is unknown) and a
+#   crossing mid-run is NIKA-1704 — the crossing call completes and counts,
+#   nothing new starts.
+#
+# Run · nika run <file> --model mock/echo                            # offline rehearsal
+#       nika run <file> --model <provider/model> --max-cost-usd 0.25     # a real seat · the fan's cap
 nika: fanout-template       # SLOT: kebab-case workflow id
 
 # SLOT: provider/model · local · zero key. House seat — `ollama/qwen3.5:4b`,
 # a THINKING model: the ceilings below leave room for the think block, which
 # counts against `max_tokens` too.
 # `--model mock/echo` needs no seat and is the path this file guarantees.
-model: mock/echo   # `nika new` replaces this with the machine's ready model seat
+# `nika new` STAMPS this line: it rewrites `model:` with a seat this binary
+# can resolve, and whatever rides on the line is dropped — so the teaching
+# lives here, above it. Measured on 0.118.7: with no resolvable seat the
+# stamp leaves `mock/echo`, the offline path this file guarantees.
+model: mock/echo
 
 run:
   # A `timeout:` is a deadline, and a deadline needs a clock. Declaring it says
@@ -44,9 +62,13 @@ run:
 
 const:
   collection_source: "./items"      # SLOT: where the collection comes from
+  # Known answers for the fan-in law — computed by hand, never by a model.
+  # `prove` feeds them through the SAME jq `survivors` uses; a drift between
+  # the two is a red assert, not a quietly wrong report.
+  law_cases: ["kept", null, "also kept"]
 
 permits:
-  tools: ["nika:glob", "nika:jq", "nika:read"]
+  tools: ["nika:assert", "nika:glob", "nika:jq", "nika:read"]
   fs:
     # TWO entries, and both earn their place. `nika:glob` is gated on the
     # DIRECTORY it walks, not on the files it returns — measured: with
@@ -114,7 +136,29 @@ tasks:
 
         ${{ item }}
 
+  # The fan-in below is a LAW: a jq over what a model produced. A law is
+  # proven on known answers first — `prove` runs the SAME expression over
+  # `const.law_cases`, `law_holds` refuses the run if it drifted. Measured on
+  # 0.118.7: without this pair `check` hints `[unproven-law]` on `survivors`.
+  prove:
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: ${{ const.law_cases }}
+        expression: "((. // []) | [ .[] | select(. != null) ]) == [\"kept\", \"also kept\"]"
+
+  law_holds:
+    with:
+      ok: ${{ tasks.prove.output }}
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ with.ok }}"
+        message: "the fan-in law drifted from its hand-computed fixture"
+
   survivors:
+    after:
+      law_holds: success            # state, no data · the law is proven before it meets real data
     with:
       process: ${{ tasks.process.output }}
     invoke:                         # the null-aware fan-in · order preserved

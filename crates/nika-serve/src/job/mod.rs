@@ -14,3 +14,7 @@ pub use store::{ApprovalHistory, JobStore};
 mod result_tests;
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod process_tests;

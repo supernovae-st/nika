@@ -14,8 +14,9 @@
 # Demonstrates ·
 #   - `agent:` under the full leash · `max_turns` + `max_tokens_total` + an
 #     explicit `tools:` list · nothing outside it is reachable
-#   - `schema:` on the agent · the engine owns the final shape and RE-ASKS
-#     until it conforms — you never hand-instruct it (see `execute`)
+#   - `schema:` on the agent · the engine owns the final shape — a free-text
+#     answer that misses it is re-asked; a `nika:done` result that misses it
+#     is judged as it is on 0.118.7 (see `execute`) — never hand-instruct it
 #   - `nika:assert` as a trust boundary · an empty run must not read as a
 #     successful one
 #
@@ -30,7 +31,11 @@ nika: agent-loop-template       # SLOT: kebab-case workflow id
 # ceiling below. A reasoning seat (`ollama/qwen3.5:4b`) spends its whole
 # budget thinking and never emits JSON here — the guaranteed offline path is
 # `--model mock/echo`, which needs no seat at all.
-model: mock/echo   # `nika new` replaces this with the machine's ready model seat
+# `nika new` STAMPS this line: it rewrites `model:` with a seat this binary
+# can resolve, and whatever rides on the line is dropped — so the teaching
+# lives here, above it. Measured on 0.118.7: with no resolvable seat the
+# stamp leaves `mock/echo`, the offline path this file guarantees.
+model: mock/echo
 
 inputs:
   goal:
@@ -66,23 +71,31 @@ tasks:
 
   execute:
     with:
+      # BOTH bindings, on purpose. The plan is a summary of the goal, never a
+      # substitute for it: measured on five real seats, a prompt that carried
+      # only the plan produced three GREEN runs with an invented or an empty
+      # answer — the agent was asked to compute over data it never received,
+      # and the assert below only proves non-emptiness. The goal rides in.
+      goal: ${{ inputs.goal }}
       steps: ${{ tasks.plan.output.steps }}
     agent:
       # Say what the JOB is. Do NOT describe the output shape.
       #
-      # The engine binds `schema:` to the FINAL answer: a free-text answer
-      # that does not conform is RE-ASKED with the schema wired, bounded by a
-      # retry budget. Measured on ollama/qwen3.5:4b — this task, with zero
-      # shape instruction, returns a clean typed object.
-      #
-      # Hand-instructing "reply with the object, then call nika:done" is
-      # actively harmful: a `nika:done` carrying `result:` is validated
-      # DIRECTLY and is NEVER re-asked (nika-verb-agent/src/lib.rs · "a miss
-      # is a verdict, never a re-ask"), so a model that hands its JSON back
-      # as a *string* dies NIKA-INFER-002 with the budget already spent.
-      # Measured twice on that exact instruction. Let the engine own shape.
+      # The engine binds `schema:` to the FINAL answer. A free-text answer
+      # that misses it is RE-ASKED with the schema wired, bounded by a retry
+      # budget (measured on ollama/qwen3.5:4b — this task, with zero shape
+      # instruction, returns a clean typed object). A `nika:done` result that
+      # misses it is judged AS IT IS on 0.118.7 — NIKA-INFER-002, attempts 1,
+      # the budget already spent (measured: two of five real seats died on one
+      # extra key beside `findings`); an engine that carries the schema on the
+      # `nika:done` definition repairs it through the same retry budget. On
+      # either engine, hand-instructing "reply with the object, then call
+      # nika:done" only makes that miss more likely (measured twice on that
+      # exact instruction). Let the engine own the shape.
       system: "You are a careful analyst. Work the plan step by step and report what you actually found."   # SLOT
-      prompt: "Plan · ${{ with.steps }}"
+      prompt: |
+        Goal · ${{ with.goal }}
+        Plan · ${{ with.steps }}
       tools:                        # SLOT: the MINIMUM grant for the job
         # Pure compute — this pair needs no filesystem, so the skeleton runs
         # anywhere. Granting the agent a tool here is only HALF a grant: every
@@ -97,15 +110,32 @@ tasks:
       max_turns: 15                 # SLOT: the loop bound
       max_tokens_total: 80000       # SLOT: the spend bound
       schema:                       # SLOT: the typed final-message contract
+        # Closed on purpose (`check` hints `strictness` on an open object):
+        # on 0.118.7 an extra key through `nika:done` is a verdict (above),
+        # so every field the answer may carry is named HERE, not in the prompt.
+        # Measured on a real seat with the goal bound in: it computed the
+        # answer and died on one key it added beside `findings`. On 0.118.7
+        # the trade is yours — open the object (one `strictness` hint) or
+        # name the key here; the fix is the engine's repair, not the prompt.
         type: object
         additionalProperties: false
         required: [findings]
         properties:
-          findings: { type: array, items: { type: string } }
+          findings:
+            type: array
+            minItems: 1               # an empty list is a schema miss, never a green run
+            items: { type: string, minLength: 1 }
 
   confirm:
     with:
-      has_findings: ${{ size(tasks.execute.output.findings) > 0 }}   # the check crosses as ONE boundary expression
+      # The schema above already refuses an empty list and an empty string;
+      # this assert is the trust boundary downstream code can SEE, and the
+      # place for YOUR law once the goal fixes one (a count · a required id ·
+      # a value you computed by hand). `size` is the one callable in this
+      # expression language on 0.118.7 — a per-item rule belongs in the schema
+      # (as above) or in a `nika:jq` law. No static law catches an INVENTED
+      # answer: that gap closes upstream, by binding the goal into the agent.
+      has_findings: ${{ size(tasks.execute.output.findings) > 0 }}   # the check crosses as ONE boundary expression · SLOT: your law
     invoke:
       tool: "nika:assert"
       args:

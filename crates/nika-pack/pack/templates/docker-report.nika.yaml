@@ -29,7 +29,11 @@ nika: docker-report-template       # SLOT: kebab-case workflow id
 # SLOT: local-first · `--model mock/echo` for the offline rehearsal. House
 # seat — `ollama/qwen3.5:4b`, a THINKING model: the think block counts against
 # `max_tokens` too, so the ceiling below leaves room for it.
-model: mock/echo   # `nika new` replaces this with the machine's ready model seat
+# `nika new` STAMPS this line: it rewrites `model:` with a seat this binary
+# can resolve, and whatever rides on the line is dropped — so the teaching
+# lives here, above it. Measured on 0.118.7: with no resolvable seat the
+# stamp leaves `mock/echo`, the offline path this file guarantees.
+model: mock/echo
 
 permits:                            # the blast radius · default-deny once present
   exec:

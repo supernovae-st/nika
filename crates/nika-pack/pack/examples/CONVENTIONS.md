@@ -391,9 +391,13 @@ callable is a tool under `invoke:` — `fetch`, recall, db, files are tools,
 not verbs.
 
 **Native-first.** The work happens in builtins, not in `exec python3 helper.py`.
-`curl` is `nika:fetch`; `cat`/`mkdir` are `nika:read`/`nika:write`
-(`create_dirs: true`); `jq` is `nika:jq`. The checker says so
-(`native-first/001`, `/002`) and it is right.
+`curl` is `nika:fetch`; `cat` is `nika:read`; `mkdir` is the first
+`nika:write` INSIDE the directory with `create_dirs: true` — never an empty
+write at the directory's path (measured on 0.118.7: a trailing `/` is refused
+`NIKA-BUILTIN-WRITE-001 · path not found`, and an empty write at `./out`
+lands a FILE there that every later `create_dirs` under `./out` trips on —
+`create_dirs failed: path already exists` — and nothing deletes it); `jq` is
+`nika:jq`. The checker says so (`native-first/001`, `/002`) and it is right.
 
 ---
 

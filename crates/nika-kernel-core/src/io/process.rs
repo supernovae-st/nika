@@ -426,10 +426,12 @@ pub enum ShellError {
 pub trait ShellRun: Send + Sync {
     /// Execute a shell command and return the result.
     ///
-    /// CANCEL SAFETY: cancel-safe IF the impl sets `kill_on_drop(true)`
-    /// on its `tokio::process::Command` (INV-011). Dropping the future
-    /// then sends SIGKILL to the child on drop — no orphan processes,
-    /// no resource leak. Impls that do NOT set `kill_on_drop` are UNSAFE.
+    /// CANCEL SAFETY: (INV-011) the returned future owns cancellation.
+    /// Dropping it must request termination of acquired processes and
+    /// release its local registrations and resources. Implementations
+    /// document the children or process groups they target; they may use
+    /// `kill_on_drop` or a dedicated ownership guard. A termination request
+    /// does not acknowledge process exit or undo effects already performed.
     async fn run(&self, command: ShellCommand) -> Result<ShellResult, ShellError>;
 }
 
@@ -438,9 +440,10 @@ pub trait ShellRun: Send + Sync {
 pub trait ShellCancel: Send + Sync {
     /// Cancel a running command by its identifier.
     ///
-    /// CANCEL SAFETY: cancel-safe and idempotent — signalling an already
-    /// dead pid is a harmless no-op. Callers may race cancel against
-    /// natural exit without corruption.
+    /// CANCEL SAFETY: request cancellation of the current registration.
+    /// An unknown identifier is an idempotent no-op. Success acknowledges
+    /// the request, not process exit; collection may need to be polled or
+    /// dropped to act on it. A reused identifier names its new registration.
     async fn cancel(&self, id: &str) -> Result<(), ShellError>;
 }
 

@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · the fail-closed default disarms the gate. With a file-reading
+# gate (private read), a program that ships (untrusted ingress + egress) and a
+# record that leaves the machine (external egress), a `nika:prompt` that carries
+# `default:` is not blocking and dominates nothing — the trifecta is complete.
+# Expected · NIKA-SEC-009.
+nika: human-gated-ship-negative
+const:
+  evidence_dir: "./release"
+  version_pattern: '1\.4\.2'
+permits:
+  exec: ["echo"]
+  tools: ["nika:grep", "nika:assert", "nika:prompt", "nika:notify"]
+  net: { http: ["hooks.slack.com"] }
+  fs: { read: ["./release", "./release/*"] }
+secrets:
+  webhook:
+    source: env
+    key: TEAM_WEBHOOK_URL
+    egress:
+      - to: "nika:notify"
+        host_from_self: true
+tasks:
+  check_a:
+    invoke:
+      tool: "nika:grep"
+      args: { pattern: "${{ const.version_pattern }}", path: "${{ const.evidence_dir }}" }
+  check_b:
+    exec:
+      command: ["echo", "ok"]
+      capture: structured
+  gates:
+    with:
+      all_green: ${{ size(tasks.check_a.output) > 0 && tasks.check_b.output.exit_code == 0 }}
+    invoke:
+      tool: "nika:assert"
+      args: { condition: "${{ with.all_green }}", message: "A gate is RED: refusing to proceed" }
+  human:
+    after: { gates: success }
+    invoke:
+      tool: "nika:prompt"
+      args:
+        message: "All gates GREEN. Proceed?"
+        default: false              # the disarming line · unattended NO, but no longer a gate
+  act:
+    with: { go: "${{ tasks.human.output }}" }
+    when: ${{ with.go == true }}
+    exec:
+      command: ["echo", "shipped"]
+  record:
+    after: { act: terminal }
+    with: { acted: "${{ tasks.act.status }}" }
+    invoke:
+      tool: "nika:notify"
+      args:
+        channel: webhook
+        target: "${{ secrets.webhook }}"
+        message: "Run finished · act=${{ with.acted }}"
+        severity: info
+outputs:
+  acted: ${{ tasks.act.status }}

@@ -8,9 +8,14 @@
 #
 # Needs · nothing. Runs offline in an empty directory with mock/echo.
 # Run · nika run <file> --model mock/echo
-nika: classify-and-route
+nika: classify-and-route       # SLOT: kebab-case workflow id
 
-model: mock/echo                     # SLOT: replace with a local or hosted seat
+# SLOT: the seat this file runs on — a local one first (`ollama/…`), a hosted
+# one when the job needs it. `nika new` STAMPS this line: it rewrites `model:`
+# with a seat this binary can resolve, and whatever rides on the line is
+# dropped — a marker THERE never reaches the reader, so it lives here.
+# Measured on 0.118.7: with no resolvable seat the stamp leaves `mock/echo`.
+model: mock/echo
 
 const:
   request: "<SLOT: the request to classify and route>"

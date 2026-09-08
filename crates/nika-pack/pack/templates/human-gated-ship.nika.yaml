@@ -5,7 +5,7 @@
 #
 #   [check_a]─┐                             ┌──▶[act]──▶[record]
 #   [check_b]─┴─▶[gates]──▶[human ⏸]──yes──┘    exec     nika:notify (always)
-#   exec ×2       assert     nika:prompt
+#   grep · exec   assert     nika:prompt
 #
 # Anything you cannot take back — a deploy, a send, a publish. The machine
 # proves the preconditions in parallel, an assert refuses to even ASK when a
@@ -13,33 +13,65 @@
 # lands whether the answer was yes, no, or the ship blew up.
 #
 # Demonstrates ·
+#   - two gate kinds, each in its native form · FILE evidence is `nika:grep`
+#     (structured · no subprocess · no confinement trap) · a COMMAND is `exec:`
+#     in argv form
 #   - `nika:assert` before the question · never ask a human to rubber-stamp a
 #     red board
 #   - `after: <task>: success` · a STATE edge (ordering, no data) vs `with:` (a
 #     value edge) — two different kinds of arrow
 #   - `after: <task>: terminal` · the always-runs pattern · evidence on success,
 #     failure OR refusal
-#   - fail-closed defaults · unattended, the answer is NO
+#   - a BLOCKING gate that dominates every effect · fail-closed lives in the
+#     invocation, never in the file (see THE TRADE)
 #
-# Needs · nothing to rehearse. To ship FOR REAL: TEAM_WEBHOOK_URL in the
-#   environment, real commands in the three `exec:` slots — then delete the
-#   `on_error:` on `record` so a lost audit trail is loud.
+# THE TRADE · real gates read private files, the ship is a program, the record
+#   leaves the machine: that is the lethal trifecta (NEP-0002), and only a
+#   blocking `nika:prompt` that dominates every path to those effects clears
+#   it. A `default: false` on the gate LOOKS fail-closed — unattended it answers
+#   NO — but a defaulted gate is not blocking and dominates nothing: with the
+#   gates below the file is refused at check, `NIKA-SEC-009 lethal trifecta
+#   complete · human gate required` (measured on 0.118.7 · pinned beside this
+#   file in `human-gated-ship.negative.yaml`). So the gate here has NO default:
+#   the check is green, and headless the run PAUSES (exit 4 · durable, not a
+#   failure) — the ONE hint this file keeps, `[headless-prompt]`, is the checker
+#   naming that pause. Unattended NO is one flag away, and it belongs to the
+#   invocation, never to the workflow ·
+#     nika run <file> --answer human=false
 #
-# Run · nika run <file>                    # unattended · gates run, the answer defaults to NO
-#       Headless, `default: false` answers for you — delete that line and the
-#       run PAUSES instead (exit 4 · durable, not a failure) and prints its
-#       own resume line ·
-#       nika run <file> --resume <trace> --answer human=true · or false
+# Needs · nothing to rehearse. To ship FOR REAL: the evidence the gate greps
+#   (under `const.evidence_dir`), TEAM_WEBHOOK_URL in the environment, a real
+#   command in `check_b` and the real ship in `act` — then delete the three
+#   `on_error:` rehearsal blocks, so missing evidence, a refused command and a
+#   lost audit trail are all loud.
+#
+# Run · nika run <file>                        # asks at a terminal · PAUSES headless (exit 4)
+#       nika run <file> --answer human=false   # unattended · fail closed · act settles skipped
+#       nika run <file> --resume <trace> --answer human=true   # the resume line the pause prints
+#
+# GOLDEN LANE · nika test <file> --answer human=false --update · the answer
+#   belongs to this invocation, never to the workflow.
 nika: human-gated-ship-template       # SLOT: kebab-case workflow id
 
+const:
+  evidence_dir: "./release"         # SLOT: the DIRECTORY the file gate walks (grep walks a tree, never one file)
+  version_pattern: '1\.4\.2'        # SLOT: the version you are shipping · a regex, so the dots are escaped
+
 permits:                            # SLOT: the blast radius · default-deny once present
-  exec: ["echo"]                    # SLOT: ONLY the programs the gates + act run (argv form)
-  tools: ["nika:assert", "nika:prompt", "nika:notify"]
+  exec: ["echo"]                    # SLOT: ONLY the programs check_b + act run (argv form)
+  tools: ["nika:grep", "nika:assert", "nika:prompt", "nika:notify"]
   # `host_from_self` below sanctions the FLOW (the secret may BE the URL) — it
   # does not grant the capability to reach anyone. The host stays unknown at
   # check, so it is judged at RUN against this list: name the webhook host here
   # or the record is refused mid-run, after the ship already happened.
   net: { http: ["hooks.slack.com"] }   # SLOT: the webhook host · nothing else may leave
+  fs:
+    # TWO entries, both measured on 0.118.7. The grep walk is judged on its
+    # ROOT at check — `./release/*` alone is refused NIKA-SEC-004 — and reads
+    # its FILES at run: `./release` alone checks green and then returns NO
+    # MATCH for a pattern that is there (the files stay unreadable, the walk
+    # reports nothing) — a gate that reads RED with no error to tell you why.
+    read: ["./release", "./release/*"]   # SLOT: keep in step with const.evidence_dir
 
 secrets:
   webhook:
@@ -50,10 +82,33 @@ secrets:
         host_from_self: true        # the secret value IS the destination URL
 
 tasks:
-  # ── the verification wave · all checks run in parallel ──
+  # ── the verification wave · both gates run in parallel ──
   check_a:
+    # FILE evidence, the native way. `nika:grep` returns `[{path, line, match}]`,
+    # already structured. An `exec: ["grep", …]` here draws the native-first/006
+    # hint (exit 2 under `--native-strict`) AND needs the same fs grant: an exec
+    # child is confined to `permits.fs.read` too (measured on 0.118.7 · without
+    # the grant `grep` dies NIKA-SEC-001 « seatbelt refused the confined
+    # process » and the message names no path). GREEN = the release notes under
+    # `evidence_dir` name the version being shipped.
+    invoke:
+      tool: "nika:grep"
+      args:
+        pattern: "${{ const.version_pattern }}"
+        path: "${{ const.evidence_dir }}"
+    on_error:
+      # Rehearsal · in an EMPTY directory the walk finds no `./release` and
+      # fails NIKA-BUILTIN-GREP-001 (measured); recovering to one match keeps
+      # the scaffold green the moment it is scaffolded. `on_codes:` keeps that
+      # narrow — a permission refusal still fails loudly. DELETE this block once
+      # the evidence exists: a ship gate must fail CLOSED on missing evidence.
+      on_codes: [NIKA-BUILTIN-GREP-001]
+      recover: [{ path: "REHEARSAL", line: 0, match: "REHEARSAL" }]
+
+  check_b:
+    # A COMMAND gate · a test suite, a CLI probe · argv form, never a shell.
     exec:
-      command: ["echo", "ok"]        # SLOT: gate 1 (argv form · injection-safe)
+      command: ["echo", "ok"]        # SLOT: gate 2 · the program must be in permits.exec
       capture: structured
     on_error:
       # Golden rehearsal · `nika test` refuses exec (NIKA-SEC-001 · the mock
@@ -64,17 +119,9 @@ tasks:
       # Delete once the gate runs a real check.
       recover: { exit_code: 0, stdout: "REHEARSAL", stderr: "" }
 
-  check_b:
-    exec:
-      command: ["echo", "ok"]        # SLOT: gate 2
-      capture: structured
-    on_error:
-      # Same rehearsal armor as check_a · delete once real.
-      recover: { exit_code: 0, stdout: "REHEARSAL", stderr: "" }
-
   gates:
     with:
-      all_green: ${{ tasks.check_a.output.exit_code == 0 && tasks.check_b.output.exit_code == 0 }}   # two value edges · one boundary expression
+      all_green: ${{ size(tasks.check_a.output) > 0 && tasks.check_b.output.exit_code == 0 }}   # two value edges · one boundary expression
     invoke:
       tool: "nika:assert"
       args:
@@ -85,17 +132,14 @@ tasks:
     after:
       gates: success              # state, no data · no question until the board is green
     invoke:
-      # On a terminal this ASKS. Headless, it answers with `default:` below —
-      # the run completes, it does not pause (measured · act settles skipped).
-      # The durable pause belongs to a prompt with NO default: headless it
-      # PAUSES (exit 4 · not a failure) and prints its own resume line:
-      #   nika run <file> --resume <trace> --answer human=true · or false
+      # NO `default:` — on purpose (THE TRADE above). At a terminal this ASKS;
+      # headless it PAUSES (exit 4 · durable, not a failure) and prints its own
+      # resume line. A `default: false` would answer NO unattended AND disarm
+      # the gate: measured on 0.118.7, this file is then refused NIKA-SEC-009
+      # at check. The unattended answer is the invocation's, `--answer`.
       tool: "nika:prompt"
       args:
         message: "All gates GREEN. Proceed?"   # SLOT: the decision, fully informed
-        # Fail CLOSED. The unattended answer to "should I do the irreversible
-        # thing" is no — `default: true` would hand CI a rubber stamp.
-        default: false
 
   act:
     with:

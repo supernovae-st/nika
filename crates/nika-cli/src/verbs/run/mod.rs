@@ -219,7 +219,7 @@ fn preflight(
 
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
-fn run_verdict(
+pub(crate) fn run_verdict(
     file: &str,
     json: bool,
     output: Option<&str>,

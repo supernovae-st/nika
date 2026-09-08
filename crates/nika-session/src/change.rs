@@ -179,8 +179,8 @@ pub enum ChangeError {
     )]
     Stale(String),
     /// The file system refused. The second field is the OS error plus
-    /// the account of what this call itself wrote before the refusal
-    /// (nothing, or the paths it kept).
+    /// the earlier writes whose completion was confirmed. The failed
+    /// target may have changed before the error was reported.
     #[error("`{0}`: {1}")]
     Io(String, String),
 }
@@ -289,9 +289,9 @@ pub struct Applied {
     pub written: Vec<PathBuf>,
 }
 
-/// A failed apply, together with the paths this call itself wrote
-/// before the refusal. The list is the write loop's own record, never
-/// inferred from the tree.
+/// A failed apply, together with the paths whose writes returned success
+/// before the refusal. The failed target may also have changed; the list
+/// is the write loop's own record, never inferred from the tree.
 pub(crate) struct ApplyAttempt {
     /// Paths this call wrote, in set order, before the refusal.
     pub written: Vec<PathBuf>,
@@ -511,6 +511,15 @@ impl ProjectChangeSet {
     /// later write is refused. Callers that must name a partial effect
     /// use this; [`apply`](Self::apply) still returns only the error.
     pub(crate) fn apply_attempt(&self) -> Result<Applied, ApplyAttempt> {
+        self.apply_attempt_with(write_under)
+    }
+
+    /// Shared write loop; the injected operation lets filesystem tests fail
+    /// after replacement, where an error no longer proves absence of effect.
+    pub(crate) fn apply_attempt_with(
+        &self,
+        mut write: impl FnMut(&Path, &Path, &str) -> Result<(), ChangeError>,
+    ) -> Result<Applied, ApplyAttempt> {
         for c in &self.changes {
             let path = c.path();
             // `None` is absence only. Any other read error means the
@@ -529,7 +538,7 @@ impl ProjectChangeSet {
         let mut written = Vec::new();
         for c in &self.changes {
             let path = c.path();
-            if let Err(e) = write_under(&self.root, &path, c.content()) {
+            if let Err(e) = write(&self.root, &path, c.content()) {
                 let error = match e {
                     ChangeError::Io(failed, os) => {
                         ChangeError::Io(failed, io_write_account(&os, &written))
@@ -819,18 +828,22 @@ fn relative_inside_root(path: &str) -> Result<PathBuf, ChangeError> {
     Ok(out)
 }
 
-/// The OS error plus what this call itself wrote before the refusal.
+/// Confirmed earlier writes and the uncertainty of the failing target.
+/// `write_atomic` can replace the target before directory sync fails.
 fn io_write_account(os: &str, written: &[PathBuf]) -> String {
-    if written.is_empty() {
-        format!("{os} — nothing was written")
+    let earlier = if written.is_empty() {
+        "no earlier file was confirmed written".to_owned()
     } else {
         let kept = written
             .iter()
             .map(|p| format!("`{}`", p.display()))
             .collect::<Vec<_>>()
             .join(" · ");
-        format!("{os} — written before it and kept: {kept} · nothing after it was written")
-    }
+        format!("written before it and kept: {kept}")
+    };
+    format!(
+        "{os} — {earlier} · the failed target may have changed; inspect it before retrying · later files were not attempted"
+    )
 }
 
 /// The witness of the bytes at `rel` under `root`.

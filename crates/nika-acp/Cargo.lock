@@ -2175,6 +2175,7 @@ dependencies = [
  "nika-kernel",
  "nika-schema",
  "nika-types",
+ "rustix",
  "tokio",
 ]
 

@@ -519,9 +519,10 @@ section refuses** (D-2026-08-11-N26 · ambient reads and the wall clock): it is
 the single data extraction-and-transform language (`extract:` bindings + the
 `nika:jq` builtin). ⚠️ *Full-minus-a-prose-list is a floor, not a ceiling.* The
 ceiling is a named, versioned grammar — `jq-subset/0.1`, the sibling of
-[`cel-subset/0.1`](./03-dag.md) — which **does not exist yet**
-(D-2026-08-11-N31 creates it). Until it does, this sentence is the boundary,
-and a boundary written in prose is weaker than one written in EBNF.
+[`cel-subset/0.1`](./03-dag.md) — defined by the normative EBNF below
+(D-2026-08-11-N31). The grammar is written; enforcement of its bounded syntax
+remains the target described in the implementation-status note below. The
+portable floor does not replace that normative ceiling.
 
 ##### Formal grammar · jq v0.1 subset (normative · grammar version `jq-subset/0.1`)
 
@@ -595,8 +596,11 @@ arithmetic. Everything above is that set plus its obvious companions.
 
 > ### 🔴 The bounded-subset table is still a TARGET gate
 >
-> **Current in v0.115.** The engine embeds a full jaq and the bounded syntax
-> subset below is **not yet enforced**. A workflow whose only task is ·
+> **Reference-engine source status at `6ac427c5e62dc450d1d2393e3eec169e9566f6a3`.**
+> The engine embeds a full jaq and the bounded syntax subset below is
+> **not yet enforced**. The following check observation was recorded in
+> v0.115; it is historical evidence, not a new run at that source pin.
+> A workflow whose only task is ·
 >
 > ```yaml
 > invoke: { tool: "nika:jq", args: { input: "a LOC=120 b LOC=45",
@@ -623,7 +627,7 @@ arithmetic. Everything above is that set plus its obvious companions.
 >
 > The table stands as the **specification of the gate**, unchanged. What
 > changes is its status: it describes what `jq-subset/0.1` MUST refuse
-> when the gate ships, not what v0.115 refuses today. Until then the
+> when the gate ships, not a list of refusals delivered at that engine pin. Until then the
 > honest sentence is « the grammar is written, the gate is owed ».
 
 **What the grammar refuses BY CONSTRUCTION, and why ·**

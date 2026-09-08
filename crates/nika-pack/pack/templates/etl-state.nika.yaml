@@ -21,14 +21,18 @@
 #     write · NEP-0002's Rule of Two, as a check
 #   - `on_error: on_codes:` · forgive not-found ONLY, never a permission error
 #
-# TWO HONEST HINTS · this file ships RED-adjacent on purpose:
-#   [headless-prompt] the gate is deliberately blocking · a `default:` here
-#     completes the lethal trifecta and lights NIKA-SEC-009 (measured — add one
-#     and watch the TRIFECTA rung flip). The hint is right that it needs a
-#     human; that is the point.
-#   [inputs] `previous_raw` reads a cursor file that does not exist yet · the
-#     `on_error:` below handles exactly that, but `check` does not model
-#     recovery. First run creates it.
+# TWO HINTS THIS FILE KEEPS · one is right, one is the checker's limit:
+#   [headless-prompt] RIGHT · the gate is deliberately blocking · a `default:`
+#     here completes the lethal trifecta and lights NIKA-SEC-009 (measured —
+#     add one and watch the TRIFECTA rung flip). It needs a human; that is
+#     the point.
+#   [inputs] WRONG ABOUT THE RUN · « `previous_raw` reads ./state/etl-state.json
+#     which does not exist here … the run would fail at that wave ». It does
+#     not: the `on_error: on_codes: [NIKA-BUILTIN-READ-001]` below carries the
+#     first run (measured on 0.118.7 · the run reaches the gate with
+#     `previous_raw` recovered). The checker names static read paths without
+#     modelling recovery — a checker limitation, not a defect of this file.
+#     The hint retires the moment the cursor file exists.
 #
 # GOLDEN LANE · the gate stays blocking and default-free. Pin the declined
 #   branch with `nika test <file> --answer approve=false --update`: the answer

@@ -500,7 +500,7 @@ where
     /// exec path decodes + fits against it (`NIKA-TYPE-101`); the
     /// infer/agent paths compile `lower(returns)` onto the EXISTING
     /// structured-output lane (violations stay `NIKA-INFER-002`);
-    /// invoke stays `Unknown` in W3 (tool contracts land later).
+    /// invoke checks the tool's final value against the declared contract.
     /// `child_budget` — the run ledger's remaining USD at call time
     /// (spec 14 law 6): an `invoke: workflow:` child runs under
     /// `min(this, its declared budget)`. `None` = no budget to inherit.
@@ -610,7 +610,8 @@ where
         input.args = args;
         // F-P6 · the gated firing lane (PREVIEW → tamper seam → COMMIT
         // gate → run · `dispatch/commit.rs` owns the binding).
-        self.run_invoke_gated(note, input, ctx.run_start).await
+        self.run_invoke_gated(note, input, ctx.run_start, contract)
+            .await
     }
 
     /// ADR-095 Layer 6 — derive the OS jail from the declared boundary. F-O8

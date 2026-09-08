@@ -4484,6 +4484,7 @@ dependencies = [
  "nika-schema",
  "nika-types",
  "proptest",
+ "rustix 1.1.4",
  "tokio",
 ]
 

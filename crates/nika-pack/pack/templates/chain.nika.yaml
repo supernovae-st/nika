@@ -23,8 +23,10 @@
 # Run · nika run <file> --model mock/echo    # offline rehearsal · zero keys
 nika: chain-template       # SLOT: kebab-case workflow id
 
-# `nika new` replaces this with the machine's ready model seat.
-# `--model mock/echo` keeps the offline rehearsal available.
+# `nika new` STAMPS this line with a seat this binary can resolve; with no
+# resolvable seat it leaves `mock/echo` (measured on 0.118.7). Whatever rides
+# on the `model:` line is dropped by that stamp — teaching goes above it.
+# `--model mock/echo` keeps the offline rehearsal available either way.
 model: mock/echo
 
 const:
@@ -37,8 +39,8 @@ permits:                            # the blast radius · default-deny once pres
   # `const:`) and proves them against the boundary before anything runs — keep
   # them in step with the two `const:` entries above.
   fs:
-    read: ["./README.md"]
-    write: ["./output.md"]
+    read: ["./README.md"]     # SLOT: same path as const.source
+    write: ["./output.md"]    # SLOT: same path as const.destination
 
 tasks:
   gather:

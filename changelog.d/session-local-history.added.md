@@ -1,0 +1,1 @@
+- **Restore private project conversation history.** Bare `nika` restores the local project's conversation after reopening. Private history detects corruption, excludes concurrent writers and keeps interrupted operations visible; previous proposals and gates require fresh validation instead of replaying effects.

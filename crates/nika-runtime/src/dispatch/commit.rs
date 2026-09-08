@@ -199,6 +199,7 @@ where
         note: String,
         mut input: InvokeInput,
         run_start: nika_kernel::tool_executor::ToolRunStart,
+        contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> super::Dispatched {
         let Some(preview) = digest(&invoke_request(&input)) else {
             return super::Dispatched::unwired(
@@ -245,6 +246,22 @@ where
                         let cost_source = cost_usd
                             .is_some()
                             .then(|| note.trim_start_matches("invoke · ").to_owned());
+                        // Judge the final task value before publishing success.
+                        // The call already fired: a contract rejection keeps its
+                        // spend and attestation, and follows the ordinary typed
+                        // error/recovery lane (TYPE-101 is not transient).
+                        if let Some(contract) = contract
+                            && let Err(err) = contract.check_fit(&note, &value)
+                        {
+                            let mut rejected = super::Dispatched::template_err(&note, &err);
+                            if let Err(failed) = &mut rejected.result {
+                                failed.cost_usd = cost_usd;
+                                failed.cost_source = cost_source;
+                            }
+                            return rejected
+                                .with_commit(attestation)
+                                .with_retry_forbidden(retry_forbidden);
+                        }
                         super::Dispatched::ok_metered(
                             note,
                             value,
