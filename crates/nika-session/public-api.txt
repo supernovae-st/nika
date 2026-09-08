@@ -1631,16 +1631,18 @@ pub nika_session::runtime::SessionRuntime::intent: nika_session::runtime::Intent
 pub nika_session::runtime::SessionRuntime::snapshot: nika_session::snapshot::ProjectSnapshot
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::answer_gate(&mut self, line: &str) -> nika_session::runtime::TurnOutcome
-pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &nika_session::outcome::GateId, line: &str) -> nika_session::runtime::TurnOutcome
-pub fn nika_session::runtime::SessionRuntime::banner(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::choose(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::consent(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
-pub fn nika_session::runtime::SessionRuntime::consent_to(&mut self, id: &nika_session::outcome::ProposalId, answer: &str) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::enable_history(&mut self, home: &std::path::Path) -> core::result::Result<core::option::Option<alloc::string::String>, nika_session::outcome::Refusal>
 pub fn nika_session::runtime::SessionRuntime::observe_run(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::turn(&mut self, input: &str) -> nika_session::runtime::TurnOutcome
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &nika_session::outcome::GateId, line: &str) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::banner(&self) -> alloc::string::String
+pub fn nika_session::runtime::SessionRuntime::consent_to(&mut self, id: &nika_session::outcome::ProposalId, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::open(cwd: &std::path::Path, intelligence: nika_session::intelligence::ResolvedSessionIntelligence, reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
 pub fn nika_session::runtime::SessionRuntime::open_with(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, pref: &nika_session::intelligence::UserIntelligencePreference, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
 pub fn nika_session::runtime::SessionRuntime::pending_proposal(&self) -> core::option::Option<nika_session::outcome::ProposalId>
-pub fn nika_session::runtime::SessionRuntime::turn(&mut self, input: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::option::Option<nika_session::outcome::GateId>
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -3022,16 +3024,18 @@ pub nika_session::SessionRuntime::intent: nika_session::runtime::IntentDraft
 pub nika_session::SessionRuntime::snapshot: nika_session::snapshot::ProjectSnapshot
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::answer_gate(&mut self, line: &str) -> nika_session::runtime::TurnOutcome
-pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &nika_session::outcome::GateId, line: &str) -> nika_session::runtime::TurnOutcome
-pub fn nika_session::runtime::SessionRuntime::banner(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::choose(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::consent(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
-pub fn nika_session::runtime::SessionRuntime::consent_to(&mut self, id: &nika_session::outcome::ProposalId, answer: &str) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::enable_history(&mut self, home: &std::path::Path) -> core::result::Result<core::option::Option<alloc::string::String>, nika_session::outcome::Refusal>
 pub fn nika_session::runtime::SessionRuntime::observe_run(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::turn(&mut self, input: &str) -> nika_session::runtime::TurnOutcome
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &nika_session::outcome::GateId, line: &str) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::banner(&self) -> alloc::string::String
+pub fn nika_session::runtime::SessionRuntime::consent_to(&mut self, id: &nika_session::outcome::ProposalId, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::open(cwd: &std::path::Path, intelligence: nika_session::intelligence::ResolvedSessionIntelligence, reasoner: alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner>) -> Self
 pub fn nika_session::runtime::SessionRuntime::open_with(cwd: &std::path::Path, census: nika_session::intelligence::IntelligenceCensus, pref: &nika_session::intelligence::UserIntelligencePreference, home: core::option::Option<&std::path::Path>, factory: nika_session::runtime::ReasonerFactory) -> Self
 pub fn nika_session::runtime::SessionRuntime::pending_proposal(&self) -> core::option::Option<nika_session::outcome::ProposalId>
-pub fn nika_session::runtime::SessionRuntime::turn(&mut self, input: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::waiting_gate(&self) -> core::option::Option<nika_session::outcome::GateId>
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
