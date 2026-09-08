@@ -591,8 +591,12 @@ fn unknown_persisted_fields_fail_closed_without_rewrite() {
     let store = JobStore::open(root.path()).expect("store");
     drop(store);
     let state_path = root.path().join("jobs/state.json");
-    let future = b"{\"version\":1,\"jobs\":[],\"future_authority\":\"must-survive\"}\n";
-    std::fs::write(&state_path, future).expect("write future state");
+    let mut future: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&state_path).expect("read current state"))
+            .expect("current state JSON");
+    future["future_authority"] = json!("must-survive");
+    let future = serde_json::to_vec(&future).expect("future state JSON");
+    std::fs::write(&state_path, &future).expect("write future state");
 
     assert!(matches!(
         JobStore::open(root.path()),
