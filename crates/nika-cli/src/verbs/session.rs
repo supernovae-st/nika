@@ -304,7 +304,6 @@ fn run_resume(
     answer: &str,
     theme: Theme,
 ) -> (u8, Option<std::path::PathBuf>) {
-    let before = nika_trace::trace::manage::latest();
     let file = root.join(workflow).display().to_string();
     let resume = ResumeRequest {
         trace: Some(trace.to_path_buf()),
@@ -313,7 +312,7 @@ fn run_resume(
         compat: None,
         allow_unverified: false,
     };
-    let code = crate::verbs::run::run(
+    let verdict = crate::verbs::run::run_verdict(
         &file,
         false,
         None,
@@ -330,9 +329,9 @@ fn run_resume(
         None,
         false,
         false,
+        None,
     );
-    let after = nika_trace::trace::manage::latest();
-    (code, after.filter(|a| Some(a) != before.as_ref()))
+    (verdict.code, verdict.trace)
 }
 
 /// The run the human consented to, through the SAME path as `nika run`
@@ -343,9 +342,8 @@ fn run_once(
     run: &RunRequest,
     theme: Theme,
 ) -> (u8, Option<std::path::PathBuf>) {
-    let before = nika_trace::trace::manage::latest();
     let file = root.join(&run.workflow).display().to_string();
-    let code = crate::verbs::run::run(
+    let verdict = crate::verbs::run::run_verdict(
         &file,
         false,
         None,
@@ -362,9 +360,9 @@ fn run_once(
         Some(run.max_cost_usd),
         false,
         false,
+        None,
     );
-    let after = nika_trace::trace::manage::latest();
-    (code, after.filter(|a| Some(a) != before.as_ref()))
+    (verdict.code, verdict.trace)
 }
 
 /// Open the native session on this terminal.
@@ -560,3 +558,7 @@ mod tests {
         assert!(text.contains("kept"), "the new choice is kept: {text}");
     }
 }
+
+#[cfg(test)]
+#[path = "session_run_tests.rs"]
+mod run_tests;

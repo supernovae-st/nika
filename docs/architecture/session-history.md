@@ -37,6 +37,9 @@ it is not a permission. The ordinary apply/check/run path remains the owner
 of execution.
 
 `RunRequested` is recorded before the terminal calls the existing run path.
+The terminal receives the exact trace from that invocation's `RunVerdict`,
+including a paused or resumed leg. Concurrent runs and modification times
+cannot select a different run's trace. A pre-run refusal supplies no trace.
 The journal does not yet correlate an interrupted request with a particular
 job through an idempotent submission key. It therefore does not recover a run
 by guessing from the latest trace, nor promise automatic resume or exactly-once
@@ -50,16 +53,20 @@ hashes are refused. Corrupt bytes are preserved. Hash chaining detects
 accidental damage; a writer able to forge the entire private file can also
 recompute its hashes. It is not an authentication boundary.
 
-The journal retains operation inputs, diagnostic outcomes and conversation
-projections. Diagnostic outcome strings are not a machine protocol and are
-never deserialized into executable commands. The projection sent to the model
+The journal retains operation inputs, outcome categories and conversation
+projections. New outcome diagnostics are constant category names, without
+user, model or command payloads. Older diagnostic strings remain readable
+but are never deserialized into executable commands. Redaction happens on
+raw text before JSON escaping; Debug output is not a safe redaction input.
+The projection sent to the model
 keeps the existing eight-turn window; this is distinct from journal retention.
 The broker's existing redaction patterns also protect persisted text. They
 are not an exhaustive secret detector. No credential store, model availability
 snapshot or hidden reasoning is serialized.
 
 The local directory and files use `OwnedDir` and its private modes (0700/0600).
-Contained opens refuse symlinks. The project tree receives no conversation
+Contained opens refuse symlinks and special files; opening a FIFO does not
+wait for another process to connect. The project tree receives no conversation
 file. Input is limited to 64 KiB, a record to 1 MiB, and a journal to 16 MiB;
 capacity is reserved before starting an operation. Reaching capacity refuses
 new work and preserves history. Automatic compaction, archive rotation,
@@ -73,6 +80,11 @@ exercise writer exclusion, normal reopen and SIGKILL during inference. The
 terminal driver checks recovery and corruption exit behavior. The JSONL
 `session_script` example accepts an optional `home` for process-level tests;
 it is a host over the same runtime and never executes a workflow itself.
+
+Separate CLI tests execute actual workflows: a trace that sorts ahead cannot
+hide this invocation's result, paused/resumed legs keep their exact traces,
+and a durable conversation applies a proposal, performs a file write, records
+the result and reopens without replaying the write or accepting old consent.
 
 These checks establish local conversation continuity on the tested platform.
 They do not qualify power-loss behavior, cloud replication, learned memory,
