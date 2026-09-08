@@ -29,16 +29,61 @@ pub(super) fn block_on_run<F>(
 where
     F: std::future::Future<Output = RunVerdict>,
 {
-    listen(cancel.clone());
+    let _listener = listen(cancel.clone());
     runtime.block_on(future)
+}
+
+/// A run owns its listener, including while the listener waits for the
+/// second signal. Finishing or unwinding the run cancels that wait and joins
+/// the thread before another run can start in the same terminal session.
+struct Listener {
+    stop: Option<tokio::sync::oneshot::Sender<()>>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for Listener {
+    fn drop(&mut self) {
+        if let Some(stop) = self.stop.take() {
+            let _ = stop.send(());
+        }
+        if let Some(thread) = self.thread.take()
+            && thread.join().is_err()
+        {
+            eprintln!("nika run: signal listener ended unexpectedly");
+        }
+    }
 }
 
 /// Hear the operator on a thread of its own: the first signal flips the
 /// context and says what happens next; the second ends the process with
 /// the cancelled class. A listener that cannot start says so once and the
 /// run then ends the way the platform ends it, never a silent hang.
-fn listen(cancel: CancelCtx) {
-    let spawned = std::thread::Builder::new()
+fn listen(cancel: CancelCtx) -> Option<Listener> {
+    let signals = async move {
+        operator_signal().await;
+        cancel.cancel();
+        eprintln!(
+            "nika run: cancelling · in-flight work completes and is counted · \
+             unstarted tasks are cancelled · Ctrl-C again to abort"
+        );
+        operator_signal().await;
+        eprintln!("nika run: aborted · the trace is incomplete (the run was cut mid-flight)");
+        std::process::exit(i32::from(crate::verbs::exit::CANCELLED));
+    };
+    match spawn_listener(signals) {
+        Ok(listener) => Some(listener),
+        Err(error) => {
+            eprintln!("nika run: cannot listen for Ctrl-C: {error}");
+            None
+        }
+    }
+}
+
+fn spawn_listener(
+    signals: impl std::future::Future<Output = ()> + Send + 'static,
+) -> std::io::Result<Listener> {
+    let (stop, stopped) = tokio::sync::oneshot::channel();
+    let thread = std::thread::Builder::new()
         .name("nika-signals".to_owned())
         .spawn(move || {
             let Ok(rt) = tokio::runtime::Builder::new_current_thread()
@@ -49,22 +94,17 @@ fn listen(cancel: CancelCtx) {
                 return;
             };
             rt.block_on(async {
-                operator_signal().await;
-                cancel.cancel();
-                eprintln!(
-                    "nika run: cancelling · in-flight work completes and is counted · \
-                     unstarted tasks are cancelled · Ctrl-C again to abort"
-                );
-                operator_signal().await;
-                eprintln!(
-                    "nika run: aborted · the trace is incomplete (the run was cut mid-flight)"
-                );
-                std::process::exit(i32::from(crate::verbs::exit::CANCELLED));
+                tokio::select! {
+                    biased;
+                    _ = stopped => {}
+                    () = signals => {}
+                }
             });
-        });
-    if let Err(error) = spawned {
-        eprintln!("nika run: cannot listen for Ctrl-C: {error}");
-    }
+        })?;
+    Ok(Listener {
+        stop: Some(stop),
+        thread: Some(thread),
+    })
 }
 
 /// Resolves on the operator's next SIGINT (Ctrl-C) or, on unix, SIGTERM. A
@@ -99,3 +139,7 @@ async fn operator_signal() {
     #[cfg(not(unix))]
     interrupt.await;
 }
+
+#[cfg(test)]
+#[path = "thread_tests.rs"]
+mod tests;
