@@ -560,5 +560,4 @@ mod tests {
 }
 
 #[cfg(test)]
-#[path = "session_run_tests.rs"]
 mod run_tests;
