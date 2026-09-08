@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 5017
+  classified_files: 5020
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 2026
+    authored: 2029
     authored-pin: 2
     generated: 137
     pinned-copy: 147
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: ced21bdb59947c47f2cb08d7a9953ada23c7d89cedd4e57ec4dcf02d032f3815
+  sha256: d55f5ea0196299222881dbb13fe5252eef55ce04958b25b9fc0f812c1fd031cf
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 667860d8757052a955e6274f694fa6e3a4670417254cf2a2cbdb98d005e550b2
+  sha256: 8284a9556e219fff63d25570414db1a97a5dc908173ffd55159786affc4b713d
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 1002
-  aggregate_sha256: 07b74cfec2543f96f4028dc4ec09e00813af4e77958af9cc6cb96b13cd904ce9
+  match_count: 1004
+  aggregate_sha256: 8616acdba7cd1eb2abb85a53fd05a747673ca09ad5603f21dc08e26d0eba7601
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 150
-  aggregate_sha256: e66d1afeb0ea39f15c89afba5b1adaa5d3db4c329422c5576964d4b37e2a8217
+  aggregate_sha256: f0067968536a26bc6adaa624b803a47ab7a7b3e12b12050cc24a6ad7f30f30b5
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
@@ -242,14 +242,14 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 62
-  aggregate_sha256: 7ca1ef84fdac21a829346329347a096ce830218d7fff14e07f9f5c2cd897f2de
+  match_count: 63
+  aggregate_sha256: fe74100b22aa9ddaf1e95a34ca6445c7821e1d338f216b6fc5a5eeab7d52e413
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: 5fc40438e17d7e316e4a025d9d7cbf31ea912a4f06deca3a119771cf2bab9096
+  aggregate_sha256: 6ee1bd056278f3f808b0856f14981fb3d27b8ca9feb9364c6bc5de2874e17764
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

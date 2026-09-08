@@ -94,8 +94,8 @@ use tokio::sync::Notify;
 /// Per-stream capture cap (stdout AND stderr each). A runaway writer
 /// (`yes`, `cat /dev/zero`) would otherwise grow the capture buffer until
 /// the host OOMs — the `timeout` bounds wall-clock, NOT memory. Fail-closed
-/// at 64 MiB, mirroring the file-read cap precedent; the spawned child is
-/// killed via `kill_on_drop` the instant the cap is hit. Commands needing
+/// at 64 MiB, mirroring the file-read cap precedent; the spawn owner requests
+/// termination when the drain fails. Commands needing
 /// larger output redirect to a file in-command and read it back.
 const MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 
