@@ -39,8 +39,13 @@ if [ ! -d "$DIR" ]; then
   exit 1
 fi
 
-tests=$(find "$DIR" -name '*.test.sh' -type f | sort)
-if [ -z "$tests" ]; then
+# Paths are records, not shell words. Keep discovery NUL-delimited so a
+# checkout name containing spaces, glob characters or newlines stays intact.
+tests=()
+while IFS= read -r -d '' test_path; do
+  tests+=("$test_path")
+done < <(find "$DIR" -name '*.test.sh' -type f -print0)
+if [ "${#tests[@]}" -eq 0 ]; then
   echo "YELLOW: scripts/hygiene/tests holds no *.test.sh"
   exit 1
 fi
@@ -48,7 +53,7 @@ fi
 # --- run them ---------------------------------------------------------------
 fails=0
 count=0
-for t in $tests; do
+for t in "${tests[@]}"; do
   count=$((count + 1))
   if out=$(bash "$t" 2>&1); then
     printf '  ok   %s\n' "$(basename "$t")"
@@ -70,7 +75,7 @@ fi
 # that is RED, not a shrug.
 undeclared=""
 covered=""
-for t in $tests; do
+for t in "${tests[@]}"; do
   line="$(grep -m1 '^# COVERS:' "$t" 2>/dev/null || true)"
   if [ -z "$line" ]; then
     undeclared="$undeclared $(basename "$t")"
