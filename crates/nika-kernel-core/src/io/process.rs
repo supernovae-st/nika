@@ -426,7 +426,7 @@ pub enum ShellError {
 pub trait ShellRun: Send + Sync {
     /// Execute a shell command and return the result.
     ///
-    /// CANCEL SAFETY (INV-011): the returned future owns cancellation.
+    /// CANCEL SAFETY: (INV-011) the returned future owns cancellation.
     /// Dropping it must request termination of acquired processes and
     /// release its local registrations and resources. Implementations
     /// document the children or process groups they target; they may use
