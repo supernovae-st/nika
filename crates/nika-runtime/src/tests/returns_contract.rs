@@ -16,7 +16,7 @@ use serde_json::json;
 
 use super::*;
 
-type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
+type TestResult<T = ()> = Result<T, String>;
 type Builtins = nika_builtin::BuiltinDispatcher<
     MockFs,
     MockHttp,
@@ -62,7 +62,8 @@ async fn run<T: ToolExecuteDyn>(yaml: &str, tools: T) -> TestResult<(RunOutcome,
         yaml,
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
-    )?;
+    )
+    .map_err(|error| error.to_string())?;
     let checked = nika_check::check(&wf);
     assert!(checked.is_clean(), "fixture checks: {:?}", checked.findings);
     let tools = Arc::new(Counted {
@@ -90,7 +91,10 @@ async fn run<T: ToolExecuteDyn>(yaml: &str, tools: T) -> TestResult<(RunOutcome,
     );
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
-    let outcome = runtime.run(&wf, &checked, &mut stamper, &mut sink).await?;
+    let outcome = runtime
+        .run(&wf, &checked, &mut stamper, &mut sink)
+        .await
+        .map_err(|error| error.to_string())?;
     assert!(provider.captured_requests().is_empty());
     assert!(shell.executed_commands().is_empty());
     Ok((outcome, sink, tools.calls.load(Ordering::Relaxed)))
@@ -137,8 +141,8 @@ fn assert_success(outcome: &RunOutcome, sink: &VecSink, value: &Value) -> TestRe
     assert_eq!(&outcome.outputs["value"], value);
     let completed = frame(sink, EventKind::TaskCompleted);
     assert_fired(completed);
-    let receipt: Value =
-        serde_json::from_str(text(completed, "outcome").ok_or("outcome missing")?)?;
+    let receipt: Value = serde_json::from_str(text(completed, "outcome").ok_or("outcome missing")?)
+        .map_err(|error| error.to_string())?;
     assert_eq!(&receipt["payload"]["value"], value);
     frame(sink, EventKind::WorkflowCompleted);
     Ok(())
@@ -180,7 +184,8 @@ fn assert_rejected(outcome: &RunOutcome, sink: &VecSink) -> TestResult {
     frame(sink, EventKind::TaskStarted);
     let failed = frame(sink, EventKind::TaskFailed);
     assert_fired(failed);
-    let receipt: Value = serde_json::from_str(text(failed, "outcome").ok_or("outcome missing")?)?;
+    let receipt: Value = serde_json::from_str(text(failed, "outcome").ok_or("outcome missing")?)
+        .map_err(|error| error.to_string())?;
     assert_eq!(receipt["payload"]["error"]["code"], "NIKA-TYPE-101");
     assert_eq!(receipt["payload"]["error"]["transient"], false);
     assert_eq!(receipt["payload"]["attempts"], 1);
