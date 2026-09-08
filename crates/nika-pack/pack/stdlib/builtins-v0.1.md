@@ -140,7 +140,7 @@ Throws · `NIKA-BUILTIN-WAIT-001` on absolute timeout · `-002` if the timestamp
 
 ### `nika:read`
 ```yaml
-invoke: { tool: "nika:read", args: { path: "./config.yaml", encoding: utf-8 } }
+invoke: { tool: "nika:read", args: { path: "./config.yaml" } }
 ```
 Read a file · returns **string** content (text mode · the default).
 `binary: true` (explicit · no content sniffing) returns **opaque bytes**
@@ -154,9 +154,9 @@ use `binary: true`). All `tool_error` · `transient: false`.
 ```yaml
 invoke: { tool: "nika:write", args: { path: "./out.md", content: "...", create_dirs: true, overwrite: true } }
 ```
-Write a file · returns the path. A binary `content` value (an opaque bytes output from an upstream tool · e.g. MCP image content) is written as-is · no `output_format` declaration needed (the value carries its own type).
+Write a file · `path:` names a FILE, never a directory · returns the path. A binary `content` value (an opaque bytes output from an upstream tool · e.g. MCP image content) is written as-is · no `output_format` declaration needed (the value carries its own type). A directory is never the target: it is made by writing its first file inside it with `create_dirs: true`, never by an empty write at the directory's path.
 
-`overwrite:` defaults **true** · `create_dirs:` defaults **false** — and a false `create_dirs:` is ENFORCED, not ignored: a missing parent directory is refused loudly (a typo'd path surfaces rather than silently materializing a directory tree), so pass `create_dirs: true` to create the parent. **One carve-out, by decision (engine #433 option C): a declared `permits.fs.write` entry covering the target path IS the intent** — the boundary creates the parent tree before the builtin's gate, and the write lands without `create_dirs:` (measured on the reference engine: a literal grant `deep/dir/new.txt` and a glob grant `out/**` both materialize their tree · run green). The refusal keeps its teeth where no declared grant covers the path — and there the boundary itself speaks first: an uncovered write is `NIKA-SEC-004` before the parent gate can. A typo'd path under a *narrow* grant still surfaces (it falls outside the grant → SEC-004); the tree-scatter the enforcement exists to catch cannot hide inside a boundary the author drew. Throws · `NIKA-BUILTIN-WRITE-001` (IO failure, or a missing parent while `create_dirs: false` outside a covering grant) · `-002` (`overwrite: false` and the path exists). Both `tool_error` · `transient: false`.
+`overwrite:` defaults **true** · `create_dirs:` defaults **false** — and a false `create_dirs:` is ENFORCED, not ignored: a missing parent directory is refused loudly (a typo'd path surfaces rather than silently materializing a directory tree), so pass `create_dirs: true` to create the parent. **One carve-out, by decision (engine #433 option C): a declared `permits.fs.write` entry covering the target path IS the intent** — the boundary creates the parent tree before the builtin's gate, and the write lands without `create_dirs:` (measured on the reference engine: a literal grant `deep/dir/new.txt` and a glob grant `out/**` both materialize their tree · run green). The refusal keeps its teeth where no declared grant covers the path — and there the boundary itself speaks first: an uncovered write is `NIKA-SEC-004` before the parent gate can. A typo'd path under a *narrow* grant still surfaces (it falls outside the grant → SEC-004); the tree-scatter the enforcement exists to catch cannot hide inside a boundary the author drew. Throws · `NIKA-BUILTIN-WRITE-001` (IO failure, or a missing parent while `create_dirs: false` outside a covering grant · a directory-shaped `path:` — a trailing `/` is `write failed: path not found`, an existing directory is `filesystem I/O error: Is a directory` · a file in the way of `create_dirs:` — `create_dirs failed: path already exists`, the mark an earlier empty write at the directory's path leaves behind, and nothing deletes it; all three measured on the reference engine 0.118.7) · `-002` (`overwrite: false` and the path exists). Both `tool_error` · `transient: false`.
 
 ### `nika:edit`
 ```yaml
@@ -285,10 +285,17 @@ invoke: { tool: "nika:date", args: { op: now } }
 Timestamp arithmetic · op-discriminated single builtin · timezone-aware (IANA · default UTC) · ISO 8601 out. `format:`/`parse` use the **strftime** field grammar (`%Y-%m-%d` · the one cross-language constant). Every op returns a string EXCEPT `diff` (integer · in `unit:`). Throws · `NIKA-BUILTIN-DATE-001` (unparseable input / unknown op / bad tz · `validation_error`).
 
 ### `nika:hash`
+
+> **Reference-engine availability at `6ac427c5e62dc450d1d2393e3eec169e9566f6a3`:**
+> digest calls accept `content`, `algo` and `encoding`. The `op` argument,
+> including explicit `op: hash`, and the `sign`/`verify` forms below are
+> **spec-ahead of this engine pin**. Their normative contract is retained;
+> these examples do not announce implementation availability.
+
 ```yaml
 invoke: { tool: "nika:hash", args: { algo: blake3, content: "${{ tasks.X.output }}", encoding: hex } }
 
-# op-discriminated · hash (default) | sign | verify
+# Normative op forms · spec-ahead at the engine pin named above
 invoke: { tool: "nika:hash", args: { op: sign,   content: "${{ with.manifest }}", key: "${{ secrets.release_key }}" } }
 invoke: { tool: "nika:hash", args: { op: verify, content: "${{ with.manifest }}", public_key: "${{ const.release_pub }}", signature: "${{ with.sig }}" } }
 ```
@@ -377,14 +384,32 @@ fragment-stripped dedup · per-page output is the fixed page digest
 `{url, status, title, description, headings ≤16, links ≤30, images ≤24,
 colors ≤20, text ≤4000}` · crawl output is `{url, page_count, pages[],
 assets: {images ≤40, colors ≤30}}` · `robots.txt` honored by default
-(RFC 9309 group semantics · `User-agent: *` `Disallow` prefixes · a
-missing/unreadable robots.txt is allow-all · a disallowed ROOT is a loud
-failure · disallowed descendants are silently skipped) · every hop rides
+(RFC 9309 group semantics · `User-agent: *` `Disallow` prefixes · the
+probe's outcome follows RFC 9309 §2.3.1: a 4xx is *unavailable* and
+allow-all · a 5xx or a transport failure is *unreachable* and a COMPLETE
+DISALLOW, refused loudly and transiently before a page is spent · rules
+are per origin, so a root that lands on another origin re-reads that
+origin's robots before any descendant is enqueued · a disallowed ROOT is
+a loud failure · disallowed descendants are silently skipped) · the page
+digest passes the same depth admission every HTML mode passes (a
+depth-bomb root is a loud failure · a depth-bomb descendant is an honest
+`{url, status, error}` entry) · discovery reads every link a page
+carries (the `links ≤30` facet is a preview, never the frontier's bound)
+· every hop rides
 the engine's SSRF defense · a failing descendant page becomes an honest
 `{url, status|error}` entry and the crawl continues · the effect
-certificate counts `max_pages` page requests (+1 robots probe unless
-`respect_robots: false` is literal) — a bounded crawl is auditable
-before a request is spent. `crawl`/`http`/`website` are intentions, not
+certificate bounds logical GET calls per invocation: `max_pages` with
+literal `respect_robots: false`, otherwise `max_pages + 2` (the seed's
+robots, then at most one probe of the landed root's different origin).
+An unchanged origin needs only one robots probe, but a literal initial
+URL and the same-origin link filter do not exclude a root redirect;
+an unknown final origin therefore requires the two-probe bound. Dynamic
+page bounds use the valid runtime maximum 25, hence at most 27 logical
+GETs (25 with literal robots false); dynamic robots options reserve both
+probes. Invalid resolved options still refuse before any GET. These are
+logical calls, not a bound on physical transmissions, redirect hops or
+transport retries; aggregate saturation is not a proven global bound.
+`crawl`/`http`/`website` are intentions, not
 tools — they all route HERE (no `nika:crawl`).
 
 **Non-2xx is failure (normative)** · a non-2xx response throws

@@ -17,8 +17,9 @@
 #   - a masked `secrets:` entry in a header, with `egress:` naming the two
 #     places it may travel (the call, and the returned value)
 #   - `mode: jq` response narrowing · the workflow carries fields, not payloads
-#   - `on_error: recover:` · rehearses green with no key and no endpoint, and
-#     the same bindings work once it is wired
+#   - `on_error: on_codes:` + `recover:` · rehearses green while the KEY is not
+#     configured, and forgives nothing else — a wired key the API rejects, or a
+#     dead endpoint, is loud; the same bindings work once it is wired
 #
 # WHY ONE CALL, not upload-then-create · a file part is `permits.fs.read`-gated,
 #   and a private read + untrusted ingress + an onward authenticated POST is the
@@ -29,9 +30,10 @@
 #
 # Needs · nothing to rehearse. To run it FOR REAL: a reachable API, the file at
 #   `const.asset_path`, and EXAMPLE_API_KEY in the environment — then delete the
-#   `on_error:` block so a genuine failure is loud.
+#   `on_error:` block, so that an unset key is loud too (a rejected key already
+#   is: the block only forgives the not-configured case).
 #
-# Run · nika run <file>          # offline rehearsal · no key, no endpoint
+# Run · nika run <file>          # offline rehearsal · no key exported
 nika: api-upload-and-create-template       # SLOT: kebab-case workflow id
 
 const:
@@ -79,10 +81,18 @@ tasks:
         mode: jq
         jq: "{ id: .id, url: .url }"   # SLOT: the fields downstream needs
     on_error:
-      # Offline rehearsal · a literal shaped EXACTLY like what the jq above
-      # projects, so `outputs.result` has the same shape on both paths. It also
-      # absorbs the unset key: a `secrets:` entry whose env var is missing fails
-      # NIKA-VAR-001, and a recover catches that too (measured).
+      # Offline rehearsal, NARROWED to the one thing it may forgive: the key is
+      # not configured. A `secrets:` entry whose env var is unset fails
+      # NIKA-VAR-001 before any byte leaves (measured on 0.118.7 · the run
+      # settles « 1 recovered » on that code) — that absence IS the rehearsal
+      # switch. Everything else stays loud: a wired key the API rejects is
+      # NIKA-BUILTIN-FETCH-001 naming the 401 (measured), a dead endpoint too.
+      # A catch-all here turned a 401 into a GREEN run carrying the id below —
+      # a result that reads like a created item (measured against a fixture API
+      # answering 401). The literal is shaped EXACTLY like what the jq above
+      # projects, so `outputs.result` has the same shape on both paths. Delete
+      # the block once the key is wired, so an unset key is loud as well.
+      on_codes: [NIKA-VAR-001]
       recover: { id: "rehearsal-0001", url: "https://app.example.com/items/rehearsal-0001" }
 
 outputs:
