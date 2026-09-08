@@ -15,6 +15,8 @@ pub(crate) mod openai_compat;
 #[cfg(test)]
 mod openai_compat_usage_tests;
 mod openai_schema;
+#[cfg(test)]
+mod refusal_tests;
 
 use std::collections::VecDeque;
 use std::pin::Pin;
