@@ -1,0 +1,1 @@
+- **Bounded commit changelog preview.** The optional post-commit preview stops after a three-second work budget, with bounded child reaping, so a stalled git-cliff cannot hold the commit indefinitely. Missing tools and preview errors keep the hook optional.
