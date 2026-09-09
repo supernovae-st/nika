@@ -261,6 +261,11 @@ fn the_first_terminal_decision_is_immutable() {
         .attest_outcome("ask", &mut late_allow, 2)
         .expect("the duplicate observes the terminal");
     assert_eq!(second.decision, "deny");
+    assert_eq!(first.answer.as_deref(), Some("false"));
+    assert_eq!(
+        second.answer, first.answer,
+        "a racing result cannot rewrite the attested answer"
+    );
     assert!(matches!(
         late_allow,
         crate::task::SettleAs::Ran(ref ran)

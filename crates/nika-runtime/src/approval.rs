@@ -490,7 +490,7 @@ impl ApprovalBook {
         let entry = inner.steps.get(task)?;
         let (ticket, mode, source) = (entry.ticket.clone(), entry.mode.clone(), entry.source);
         let question = entry.question.clone();
-        let answer_text = crate::record::render_value(&value);
+        let mut answer_text = crate::record::render_value(&value);
         let proposed = if mode == "confirm" && matches!(value, Value::Bool(false)) {
             ApprovalDecision::Deny
         } else {
@@ -498,7 +498,8 @@ impl ApprovalBook {
         };
         // First terminal wins; a racing terminal cannot rewrite it.
         let decision = if let Some(minted) = inner.minted.get_mut(&ticket.content_hash) {
-            if let Some((settled, _)) = &minted.decided {
+            if let Some((settled, prior)) = &minted.decided {
+                answer_text = crate::record::render_value(prior);
                 *settled
             } else {
                 minted.decided = Some((proposed, value));

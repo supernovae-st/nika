@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 5020
+  classified_files: 5040
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 2029
+    authored: 2049
     authored-pin: 2
     generated: 137
     pinned-copy: 147
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 71
-  aggregate_sha256: 6a9b7db6749426765b883390a1e8741d57d4d22887a8711d544c453a8571e839
+  aggregate_sha256: 1bc25931f247fa56c1c8f84a9c64cc19f038318f465da82462fe9286349c1786
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 1004
-  aggregate_sha256: 8616acdba7cd1eb2abb85a53fd05a747673ca09ad5603f21dc08e26d0eba7601
+  match_count: 1014
+  aggregate_sha256: 0c012d94d187338f424710e962969d22286d2c84f011216e9ee6e7e3bafc7444
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 150
-  aggregate_sha256: f0067968536a26bc6adaa624b803a47ab7a7b3e12b12050cc24a6ad7f30f30b5
+  aggregate_sha256: 1242657946aeb64b9d48472bcae9dff6ada16195a041809c181917a82b3647cd
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
@@ -183,12 +183,12 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 124
-  aggregate_sha256: 2786cae38d4797b5dddacac8d9a2400b78aa8087310f3ad0014a7b956bee8bfb
+  aggregate_sha256: 694f29f1e7078a91e9c439b317ca440354fedba0a9db58bac88c3386454dea21
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 244
-  aggregate_sha256: d6a2f08f81b2362b576ede2db5833b4fb277c4d2f3d3cdbcc59fe3ba3af9bbaa
+  match_count: 245
+  aggregate_sha256: 5c5cd521be38ba0f370c20fec5ec1a717b5f672cc365f4acececdb59de1c613c
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -242,8 +242,8 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 63
-  aggregate_sha256: fe74100b22aa9ddaf1e95a34ca6445c7821e1d338f216b6fc5a5eeab7d52e413
+  match_count: 72
+  aggregate_sha256: 52bff454ac056dbeaecd64e1f8c24b49c53e273af88103d2ca1bc720cc5c13e3
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
