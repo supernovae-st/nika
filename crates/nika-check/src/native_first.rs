@@ -7,7 +7,7 @@
 //! descent): this module is the Hint wrap plus the two public functions
 //! embedders and `nika-lints` already call.
 
-use nika_schema::raw::{RawAction, RawCommand, RawWorkflow};
+use nika_schema::raw::{RawCommand, RawWorkflow};
 
 use super::hints::Hint;
 
@@ -33,23 +33,21 @@ pub fn classify(command: &RawCommand) -> Option<(&'static str, String)> {
     nika_check_analyzer::native_first::classify(command)
 }
 
-/// Scan every `exec:` task for a native path — every matching shell
-/// segment keeps its own site, wrapped as a check [`Hint`].
+/// Scan execution advisories with their stable rule identifiers.
 pub(super) fn scan(wf: &RawWorkflow) -> Vec<Hint> {
-    let mut hints = Vec::new();
-    for task in &wf.tasks {
-        let id = task.value.id.value.as_str();
-        let RawAction::Exec(exec) = &task.value.action else {
-            continue;
-        };
-        for (rule, advice) in classify_all(&exec.command) {
-            hints.push(Hint {
-                kind: KIND,
-                code: Some(rule),
-                task: id.to_owned(),
-                advice: format!("{rule} · {advice}"),
-            });
-        }
-    }
-    hints
+    nika_check_analyzer::native_first::scan_sites(wf)
+        .into_iter()
+        .map(|site| (KIND, site))
+        .chain(
+            nika_check_analyzer::exec_read_path::scan(wf)
+                .into_iter()
+                .map(|site| ("exec-read-path", site)),
+        )
+        .map(|(kind, (task, rule, advice))| Hint {
+            kind,
+            code: Some(rule),
+            task,
+            advice: format!("{rule} · {advice}"),
+        })
+        .collect()
 }

@@ -197,7 +197,11 @@ fn closer_line(code: &str) -> &'static str {
         "NIKA-SEC-001" => {
             "`nika check` catches a literal argv before a run (the same \
              floor predicate the run judges with); a templated command — \
-             a `${{ }}` island — is judged at RUN."
+             a `${{ }}` island — is judged at RUN. A confined child the \
+             OS denied is also this code: the refusal names the path when \
+             stderr carries it. Check the relevant `permits.fs.read` / \
+             `permits.fs.write` and OS access; an unknown operation stays \
+             unknown (a path on stderr is not proof a grant is missing)."
         }
         // #1396: check's own EXEC row says « a templated argv is the
         // RUN's verdict », and an exit status can never be a check-time
@@ -536,6 +540,15 @@ mod tests {
         assert!(
             floor.text.contains("literal argv") && floor.text.contains("judged at RUN"),
             "the literal/templated split is taught:\n{}",
+            floor.text
+        );
+        assert!(
+            floor.text.contains("permits.fs.read")
+                && floor.text.contains("permits.fs.write")
+                && floor.text.contains("OS access")
+                && floor.text.contains("unknown")
+                && !floor.text.contains("add that path"),
+            "the confined-file closer checks authority, it does not prescribe a grant:\n{}",
             floor.text
         );
     }

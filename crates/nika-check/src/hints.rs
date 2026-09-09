@@ -54,6 +54,9 @@
 //!   `native_first` pass (the `native-first/001..006` ruleset:
 //!   http/file/data/media/helper/utility commands a builtin or MCP tool
 //!   covers); `nika check --native-strict` promotes them to failures.
+//! - **exec names a file a reader will open** (`exec-read-path`) — `grep`/
+//!   `rg`/`ag` with a literal path token outside `permits.fs.read`. Other
+//!   programs (`echo`, `touch`) stay silent. Advisory.
 //! - **exec the run will refuse** (`exec-floor`) — RETIRED by #605: the
 //!   argv-form command the runtime's exec floor refuses is the
 //!   `NIKA-SEC-001` FINDING now (`check/exec_floor.rs` judges the SAME
@@ -126,6 +129,7 @@ pub struct Hint {
     /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
     /// · `fail-open-consent`
     /// · `unproven-law` · `silent-literal` · `documentation-host`
+    /// · `exec-read-path`
     /// (additive · agents route on it; the module doc describes each).
     /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
     /// reads — never `is_clean`.

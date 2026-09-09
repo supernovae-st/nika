@@ -133,6 +133,8 @@ mod declass;
 mod effective;
 mod energy;
 mod exec_floor;
+#[cfg(test)]
+mod exec_read_path;
 mod failure_plan;
 mod findings;
 mod flow;
@@ -717,20 +719,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     } else {
         analysis::DagRead::skipped()
     };
-    let mut hints = hints::scan_hints(wf);
-    hints.extend(native_first::scan(wf));
-    // H6 · the width-capped DAG read STATES its miss (the
-    // verdict-coverage law: a law that did not judge says so, in the
-    // report's own surface — the JSON `hints[]` and the console HINTS
-    // section both carry it).
-    if let Some(miss) = dag_read.stated_miss {
-        hints.push(Hint {
-            kind: "analysis",
-            code: None,
-            task: "-".to_owned(),
-            advice: miss,
-        });
-    }
+    let mut hints = initial_hints(wf, dag_read.stated_miss);
     // Named once: two readers now ask « did the body conform? » — the gated
     // scans, and the legal-zero hint. Both must answer from the same fact,
     // and a predicate spelled twice is a place for them to drift apart.
@@ -802,6 +791,25 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     report.findings = findings::collect(&report);
     report.failure_plan = failure_plan::collect(wf, &report);
     report
+}
+
+/// Advisory scans and the DAG analysis coverage witness.
+fn initial_hints(wf: &RawWorkflow, stated_miss: Option<String>) -> Vec<Hint> {
+    let mut hints = hints::scan_hints(wf);
+    hints.extend(native_first::scan(wf));
+    // H6 · the width-capped DAG read STATES its miss (the
+    // verdict-coverage law: a law that did not judge says so, in the
+    // report's own surface — the JSON `hints[]` and the console HINTS
+    // section both carry it).
+    if let Some(miss) = stated_miss {
+        hints.push(Hint {
+            kind: "analysis",
+            code: None,
+            task: "-".to_owned(),
+            advice: miss,
+        });
+    }
+    hints
 }
 
 /// The workflow with a CLI `--model` swapped into the envelope default

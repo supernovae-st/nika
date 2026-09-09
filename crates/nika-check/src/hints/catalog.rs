@@ -146,6 +146,18 @@ const ROWS: &[(&str, &str)] = &[
          instead of becoming data",
     ),
     (
+        "exec-read-path",
+        "`grep`/`rg`/`ag` names a literal path token. If that program opens \
+         the path for reading, check `permits.fs.read` (OS ACLs can still \
+         deny). `-e` patterns and other programs stay silent",
+    ),
+    (
+        "exec-read-path/001",
+        "a `grep`/`rg`/`ag` argv names a literal path. If the program opens \
+         it for reading, check the cwd-resolved path against `permits.fs.read`. \
+         Advisory (`is_clean` ignores it)",
+    ),
+    (
         "swallowed-exit",
         "`capture: structured` makes a non-zero exit DATA, not a failure, and \
          nothing reads `exit_code` — a failing command here reports success. \
