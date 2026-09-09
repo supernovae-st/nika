@@ -109,7 +109,7 @@ pub struct PresenceFact {
 /// Presence + sign-in probe for every registry row (sync by design —
 /// the census, `check`, the run gate and the serve worker all call
 /// it). The login command of a present product runs through the SAME
-/// [`probe_auth`] the doctor uses — one probe, two callers, so doctor
+/// `probe_auth` the doctor uses — one probe, two callers, so doctor
 /// and admission can never disagree on « signed in ».
 #[must_use]
 pub fn presence_facts(rows: Vec<AdapterRow>) -> Vec<PresenceFact> {
