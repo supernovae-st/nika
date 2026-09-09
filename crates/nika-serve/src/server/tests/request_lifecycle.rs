@@ -194,6 +194,33 @@ async fn a_job_access_pin_is_the_cli_pin_and_absence_inherits_the_resident() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn non_string_access_is_refused_before_registry_capture() {
+    let world = TestWorld::new();
+    let backend = Arc::new(PinRecordingBackend::new());
+    let server = world.start(backend.clone(), limits()).await;
+    for (index, access) in ["null", "false", "42", "[]", "{}"].iter().enumerate() {
+        // The absent name proves validation happens before registry capture:
+        // a valid request for it would instead return not_found.
+        for name in ["root.nika.yaml", "missing.nika.yaml"] {
+            let body = format!(r#"{{"workflow":"{name}","access":{access}}}"#);
+            let response = server
+                .request(&post_request(
+                    &body,
+                    &format!("invalid-pin-{index}-{name}"),
+                    &auth_header(),
+                ))
+                .await;
+            assert_eq!(response.status, 422, "{}", response.body);
+            assert_eq!(response.json()["error"]["code"], "malformed_snapshot");
+            assert!(response.json().get("id").is_none());
+        }
+    }
+    assert_eq!(backend.calls(), 0);
+    assert!(backend.last_pin().is_none());
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn an_empty_access_pin_is_nika_1802_and_never_reaches_the_backend() {
     let world = TestWorld::new();
     let backend = Arc::new(PinRecordingBackend::new());

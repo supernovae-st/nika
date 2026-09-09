@@ -57,9 +57,17 @@ struct JobByName {
     workflow: String,
     #[serde(default)]
     units: Option<serde::de::IgnoredAny>,
-    /// Same vocabulary as `--access`. Absent: the resident's unpinned plan.
-    #[serde(default)]
+    /// Same vocabulary as `--access`. Only absence inherits the unpinned plan.
+    #[serde(default, deserialize_with = "present_access")]
     access: Option<String>,
+}
+
+/// A present pin must be a string; JSON null must not silently erase it.
+fn present_access<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    <String as serde::Deserialize>::deserialize(deserializer).map(Some)
 }
 
 impl<'de: 'a, 'a> serde::Deserialize<'de> for BoundedWireUnits<'a> {
