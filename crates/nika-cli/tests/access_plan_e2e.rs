@@ -19,7 +19,8 @@
 //! the API with whatever key was lying around.
 //!
 //! The rig: a scripted `codex` on PATH (the subscription seat · presence
-//! is the admission fact) beside a DEAD provider key pointed at an
+//! and sign-in are admission facts, never proof for a model) beside a
+//! DEAD provider key, when requested, pointed at an
 //! unreachable loopback endpoint (the API path). Which path served is
 //! then unambiguous: the seat answers `seated-answer`; the API refuses
 //! the connection.
@@ -42,6 +43,10 @@ outputs:
 /// A `codex exec --json` that answers one turn and never reads a key.
 const FAKE_CODEX: &str = r#"#!/bin/sh
 set -eu
+if [ "${1-}" = login ] && [ "${2-}" = status ]; then
+    exit 0
+fi
+printf '%s\n' invoked >> "$HOME/seat-invocations"
 IFS= read -r _prompt || true
 printf '%s\n' '{"type":"thread.started","thread_id":"t"}'
 printf '%s\n' '{"type":"turn.started"}'
@@ -88,6 +93,7 @@ impl Rig {
             .env("PATH", path)
             .env("HOME", self.root.join("home"))
             .env("TERM", "dumb")
+            .env("NIKA_KEYCHAIN", "off")
             .current_dir(self.root.join("work"));
         if dead_key {
             cmd.env("OPENAI_API_KEY", "sk-dead-key-never-accepted")
@@ -140,15 +146,15 @@ fn field<'a>(
     fields.iter().find(|(k, _)| k == key).map(|(_, v)| v)
 }
 
-/// The plan admits the seat (sovereign order: harness before api), so
-/// the run RIDES the seat — the dead key is never dialed, the task
+/// With no configured API key, the signed-in seat is the only ready
+/// path, so the run RIDES the seat; the task
 /// terminal stamps the lane that served (`access_id: codex`).
 #[test]
 fn the_run_rides_the_seat_the_plan_admitted() {
     let rig = Rig::new("seat", true);
     let out = rig.nika(
         &["run", "lane.nika.yaml", "--json", "--max-cost-usd", "1"],
-        true,
+        false,
     );
     let stdout = text(&out.stdout);
     let stderr = text(&out.stderr);
@@ -184,7 +190,7 @@ fn the_run_rides_the_seat_the_plan_admitted() {
 #[test]
 fn the_announce_names_the_path_the_run_takes() {
     let rig = Rig::new("announce", true);
-    let out = rig.nika(&["run", "lane.nika.yaml", "--max-cost-usd", "1"], true);
+    let out = rig.nika(&["run", "lane.nika.yaml", "--max-cost-usd", "1"], false);
     let stderr = text(&out.stderr);
     assert_eq!(
         out.status.code(),
@@ -276,7 +282,7 @@ fn the_mock_override_leaves_the_seat_unannounced() {
 #[test]
 fn check_names_the_path_the_run_takes() {
     let rig = Rig::new("check", true);
-    let out = rig.nika(&["check", "lane.nika.yaml", "--json"], true);
+    let out = rig.nika(&["check", "lane.nika.yaml", "--json"], false);
     let stdout = text(&out.stdout);
     assert_eq!(out.status.code(), Some(0), "clean: {stdout}");
     let verdict: serde_json::Value = serde_json::from_str(&stdout).expect("check json");
@@ -285,6 +291,87 @@ fn check_names_the_path_the_run_takes() {
     assert_eq!(row["resolved"], true, "{verdict}");
     assert_eq!(row["access"], "codex", "{verdict}");
     assert_eq!(row["chosen"], "harness", "{verdict}");
+}
+
+/// A successful login is not a model proof. A configured API key wins
+/// the unpinned lane, while an explicit seat pin remains sovereign.
+#[test]
+fn a_signed_in_unproven_seat_does_not_outrank_a_key() {
+    let rig = Rig::new("unproven-seat", true);
+    let out = rig.nika(&["check", "lane.nika.yaml", "--json"], true);
+    let stdout = text(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{stdout}");
+    let verdict: serde_json::Value = serde_json::from_str(&stdout).expect("check json");
+    let row = &verdict["access_plan"][0];
+    assert_eq!(row["access"], "openai", "{verdict}");
+    assert_eq!(row["chosen"], "api", "{verdict}");
+    assert_eq!(row["pinned"], false, "{verdict}");
+    assert!(
+        row["outranked"]
+            .as_array()
+            .is_some_and(|losers| losers.iter().any(|loser| {
+                loser["access"] == "codex"
+                    && loser["witness"].as_str().is_some_and(|witness| {
+                        witness.contains("signed in")
+                            && witness.contains("not proven for `gpt-5.2`")
+                    })
+            })),
+        "the lower-ranked seat retains its evidence: {verdict}"
+    );
+    assert!(
+        !rig.root.join("home/seat-invocations").exists(),
+        "check probes sign-in without executing a model turn"
+    );
+    let unpinned = rig.nika(
+        &["run", "lane.nika.yaml", "--json", "--max-cost-usd", "1"],
+        true,
+    );
+    let stdout = text(&unpinned.stdout);
+    assert_eq!(
+        unpinned.status.code(),
+        Some(1),
+        "{stdout}\n{}",
+        text(&unpinned.stderr)
+    );
+    let fields = frame_fields(&stdout, "task_failed");
+    assert_eq!(
+        field(&fields, "access_id").and_then(serde_json::Value::as_str),
+        Some("openai")
+    );
+    assert!(
+        !rig.root.join("home/seat-invocations").exists(),
+        "the failed API run never substitutes the seat"
+    );
+}
+
+/// An explicit pin can choose the signed-in seat even beside a key.
+#[test]
+fn a_seat_pin_overrides_a_competing_key() {
+    let rig = Rig::new("pinned-unproven-seat", true);
+    let pinned = rig.nika(
+        &[
+            "run",
+            "lane.nika.yaml",
+            "--access",
+            "codex",
+            "--json",
+            "--max-cost-usd",
+            "1",
+        ],
+        true,
+    );
+    let stdout = text(&pinned.stdout);
+    assert_eq!(
+        pinned.status.code(),
+        Some(0),
+        "{stdout}\n{}",
+        text(&pinned.stderr)
+    );
+    let fields = frame_fields(&stdout, "task_completed");
+    assert_eq!(
+        field(&fields, "access_id").and_then(serde_json::Value::as_str),
+        Some("codex")
+    );
 }
 
 /// No key, no seat: the plan refuses BEFORE the first task with the
@@ -361,7 +448,7 @@ impl Rig {
     /// Run the gated workflow up to its pause on the seat; the trace path.
     fn pause_on_the_seat(&self) -> String {
         self.write("gate.nika.yaml", GATED);
-        let out = self.nika(&["run", "gate.nika.yaml", "--max-cost-usd", "1"], true);
+        let out = self.nika(&["run", "gate.nika.yaml", "--max-cost-usd", "1"], false);
         assert_eq!(
             out.status.code(),
             Some(4),
@@ -476,7 +563,7 @@ fn a_seated_resume_keeps_its_lane_and_its_cache() {
             "--max-cost-usd",
             "1",
         ],
-        true,
+        false,
     );
     let stdout = text(&out.stdout);
     let stderr = text(&out.stderr);

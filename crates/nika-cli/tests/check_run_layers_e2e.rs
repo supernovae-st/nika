@@ -26,6 +26,9 @@ use std::process::Command;
 /// A `codex exec --json` that answers one turn and never reads a key.
 const FAKE_CODEX: &str = r#"#!/bin/sh
 set -eu
+if [ "${1-}" = login ] && [ "${2-}" = status ]; then
+    exit 0
+fi
 IFS= read -r _prompt || true
 printf '%s\n' '{"type":"thread.started","thread_id":"t"}'
 printf '%s\n' '{"type":"turn.started"}'
@@ -67,7 +70,7 @@ impl Rig {
     }
 
     /// The binary with a dead key aimed at a closed port and the stub
-    /// seat on PATH — the seat is the admitted lane, the key is present.
+    /// seat on PATH. Without a pin, the key outranks this unproven seat.
     fn nika(&self, args: &[&str]) -> std::process::Output {
         let path = format!("{}:/usr/bin:/bin", self.root.join("bin").display());
         Command::new(env!("CARGO_BIN_EXE_nika"))
@@ -76,6 +79,7 @@ impl Rig {
             .env("PATH", path)
             .env("HOME", self.root.join("home"))
             .env("TERM", "dumb")
+            .env("NIKA_KEYCHAIN", "off")
             .env("OPENAI_API_KEY", "sk-dead-key-never-accepted")
             .env("NIKA_OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
             .current_dir(self.root.join("work"))
@@ -146,23 +150,26 @@ fn capacity_is_judged_on_both_doors() {
 
 /// The ONE lane-row shape: `check --json`, `run --dry-run --json` and the
 /// boot manifest carry the same rows for the same file on the same
-/// machine.
+/// machine, with the same explicit seat pin on all three doors.
 #[test]
 fn one_lane_shape_on_three_surfaces() {
     let rig = Rig::new("shape");
     rig.write("lane.nika.yaml", &workflow(256));
-    let check = rig.nika(&["check", "lane.nika.yaml", "--json"]);
+    let check = rig.nika(&["check", "lane.nika.yaml", "--json", "--access", "codex"]);
     let check_json: serde_json::Value =
         serde_json::from_str(&text(&check.stdout)).expect("check json");
     let check_rows = sorted_rows(&check_json["access_plan"]);
     assert_eq!(check_rows.len(), 1, "{check_json}");
     assert_eq!(check_rows[0]["access"], "codex");
     assert_eq!(check_rows[0]["chosen"], "harness");
+    assert_eq!(check_rows[0]["pinned"], true);
     assert!(check_rows[0].get("rejected").is_some());
 
     let dry = rig.nika(&[
         "run",
         "lane.nika.yaml",
+        "--access",
+        "codex",
         "--dry-run",
         "--json",
         "--max-cost-usd",
@@ -176,7 +183,15 @@ fn one_lane_shape_on_three_surfaces() {
     );
     assert_eq!(dry_json["access"]["seat"], "codex", "{dry_json}");
 
-    let run = rig.nika(&["run", "lane.nika.yaml", "--json", "--max-cost-usd", "1"]);
+    let run = rig.nika(&[
+        "run",
+        "lane.nika.yaml",
+        "--access",
+        "codex",
+        "--json",
+        "--max-cost-usd",
+        "1",
+    ]);
     let stdout = text(&run.stdout);
     assert_eq!(run.status.code(), Some(0), "{}", text(&run.stderr));
     let started = stdout
@@ -247,8 +262,8 @@ fn the_layers_line_names_the_four_questions() {
     let out = text(&check.stdout);
     assert_eq!(check.status.code(), Some(0), "{out}");
     assert!(
-        out.contains("ACCESS") && out.contains("codex (harness"),
-        "the ACCESS rung names the seat: {out}"
+        out.contains("ACCESS") && out.contains("openai (api"),
+        "the ACCESS rung names the key-backed path: {out}"
     );
     assert!(
         out.contains("layers · valid")
@@ -385,7 +400,15 @@ fn a_refused_run_settles_with_its_code() {
 fn a_seated_run_settles_with_its_lanes() {
     let rig = Rig::new("settled-lanes");
     rig.write("lane.nika.yaml", &workflow(256));
-    let run = rig.nika(&["run", "lane.nika.yaml", "--json", "--max-cost-usd", "1"]);
+    let run = rig.nika(&[
+        "run",
+        "lane.nika.yaml",
+        "--access",
+        "codex",
+        "--json",
+        "--max-cost-usd",
+        "1",
+    ]);
     let stdout = text(&run.stdout);
     assert_eq!(run.status.code(), Some(0), "{}", text(&run.stderr));
     let settled = last_frame(&stdout);
@@ -460,8 +483,8 @@ fn the_check_help_carries_the_legend_and_the_gate_keys() {
     }
 }
 
-/// W3-F3 · an outranked ready path rides the lane row: the seat wins over
-/// the present API key, and the JSON says so.
+/// W3-F3 · an outranked ready path rides the lane row: the present API
+/// key wins over the signed-in, unproven seat, and the JSON says so.
 #[test]
 fn an_outranked_path_rides_the_lane_rows() {
     let rig = Rig::new("outranked");
@@ -470,12 +493,12 @@ fn an_outranked_path_rides_the_lane_rows() {
     let obj: serde_json::Value =
         serde_json::from_str(text(&out.stdout).trim()).expect("one object");
     let lane = &obj["access_plan"][0];
-    assert_eq!(lane["access"], "codex", "{obj:#}");
+    assert_eq!(lane["access"], "openai", "{obj:#}");
     let outranked = lane["outranked"].as_array().expect("outranked rows");
     assert!(
         outranked
             .iter()
-            .any(|r| r["access"] == "openai" && r["dimension"] == "outranked"),
+            .any(|r| r["access"] == "codex" && r["dimension"] == "outranked"),
         "{obj:#}"
     );
     assert_eq!(lane["candidates"], 2, "{obj:#}");
