@@ -1,1 +1,1 @@
-A `POST /v1/jobs` by-name body may carry `access`, the same pin as CLI `--access`. Absent, the job inherits the resident's unpinned plan. A pin is a pin: a failing seat is the job's refusal, never a silent substitute.
+- **Durable per-job access pins.** A `POST /v1/jobs` by-name body may carry `access`, the same pin as CLI `--access`. Absent, the job inherits the resident's unpinned plan. A pin is a pin: a failing seat is the job's refusal, never a silent substitute.
