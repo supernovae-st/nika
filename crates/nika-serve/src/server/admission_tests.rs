@@ -33,6 +33,7 @@ async fn a_settled_queue_duplicate_does_not_reopen_its_world() {
             crate::RequestDigest::from_bytes(Sha256::digest(encoded.as_bytes()).into()),
             "root.nika.yaml".to_owned(),
             encoded,
+            None,
         )
         .await
         .expect("admission");
@@ -126,6 +127,7 @@ async fn a_running_queue_duplicate_keeps_the_owners_cancellation_registration() 
             crate::RequestDigest::from_bytes(Sha256::digest(encoded.as_bytes()).into()),
             "root.nika.yaml".to_owned(),
             encoded,
+            None,
         )
         .await
         .expect("admission");

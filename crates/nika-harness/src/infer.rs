@@ -293,11 +293,19 @@ impl CodexExec {
             return Err(execution("event stream exceeded 8 MiB".to_owned()));
         }
         if !output.status.success() {
+            // The seat's OWN refusal is the witness: in `--json` mode codex
+            // writes it as an `error` event on stdout and leaves stderr
+            // empty (measured on 0.118.7: « The 'gpt-4o-mini' model is not
+            // supported when using Codex with a ChatGPT account » rode a
+            // 400 the run rendered as `exited 1 · `).
             let stderr = String::from_utf8_lossy(&output.stderr);
+            let witness = match stderr.trim() {
+                "" => refusal_from_events(&output.stdout).unwrap_or_default(),
+                said => said.to_owned(),
+            };
             return Err(execution(format!(
-                "codex exec exited {} · {}",
-                output.status,
-                stderr.trim()
+                "codex exec exited {} · {witness}",
+                output.status
             )));
         }
         let observed = parse_events(&output.stdout)?;
@@ -399,6 +407,45 @@ fn write_schema(dir: &Path, schema: Option<&Value>) -> Result<Option<PathBuf>, I
         .map_err(|e| execution(format!("output schema serialization: {e}")))?;
     std::fs::write(&path, bytes).map_err(|e| execution(format!("output schema write: {e}")))?;
     Ok(Some(path))
+}
+
+/// The seat's refusal text from its JSONL stdout — the LAST `error`
+/// event's message (or `turn.failed`'s), with the backend's nested JSON
+/// unwrapped to its `error.message` when it parses; `None` when no
+/// event carried one.
+fn refusal_from_events(stdout: &[u8]) -> Option<String> {
+    let text = std::str::from_utf8(stdout).ok()?;
+    let mut last = None;
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        let Ok(event) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        let message = match event.get("type").and_then(Value::as_str) {
+            Some("error") => event.get("message").and_then(Value::as_str),
+            Some("turn.failed") => event
+                .get("error")
+                .and_then(|error| error.get("message"))
+                .and_then(Value::as_str),
+            _ => None,
+        };
+        if let Some(message) = message {
+            last = Some(unwrap_nested_message(message));
+        }
+    }
+    last
+}
+
+fn unwrap_nested_message(message: &str) -> String {
+    serde_json::from_str::<Value>(message)
+        .ok()
+        .and_then(|nested| {
+            nested
+                .get("error")
+                .and_then(|error| error.get("message"))
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| message.to_owned())
 }
 
 fn codex_env() -> BTreeMap<String, String> {
@@ -647,6 +694,62 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens
             .await
             .expect_err("tool use refuses");
         assert!(err.to_string().contains("implicit tool"), "{err}");
+    }
+
+    /// The seat's own refusal is the witness (measured on 0.118.7): codex
+    /// `--json` exits 1 with an EMPTY stderr and an `error` event on
+    /// stdout whose message wraps the backend's 400 — the run used to
+    /// read `codex exec exited exit status: 1 · ` and taught nothing.
+    /// Revert the stdout parse (`unwrap_or_default()` → `String::new()`)
+    /// and the witness goes blank again.
+    #[tokio::test]
+    async fn a_seat_refusal_on_stdout_is_the_witness_when_stderr_is_empty() {
+        let body = r#"
+IFS= read -r _prompt
+printf '%s\n' '{"type":"thread.started","thread_id":"t"}'
+printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `gpt-4o-mini` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}'
+printf '%s\n' '{"type":"turn.started"}'
+printf '%s\n' '{"type":"error","message":"{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The '"'"'gpt-4o-mini'"'"' model is not supported when using Codex with a ChatGPT account.\"}}"}'
+printf '%s\n' '{"type":"turn.failed","error":{"message":"{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The '"'"'gpt-4o-mini'"'"' model is not supported when using Codex with a ChatGPT account.\"}}"}}'
+exit 1
+"#;
+        let (_dir, bin) = scripted_codex(body);
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::Text,
+            CodexExec::with_command(bin),
+        )
+        .expect("meet");
+        let err = seat
+            .run(HarnessInferRequest::new("hi", "openai/gpt-4o-mini"))
+            .await
+            .expect_err("exit 1 refuses");
+        let witness = err.to_string();
+        assert!(
+            witness.contains(
+                "codex exec exited exit status: 1 · The 'gpt-4o-mini' model is not \
+                              supported when using Codex with a ChatGPT account."
+            ),
+            "{witness}"
+        );
+        assert!(!witness.ends_with("· "), "never a blank witness: {witness}");
+        // stderr still wins when the seat speaks there.
+        let (_dir2, loud) = scripted_codex("IFS= read -r _p\necho 'unauthorized' >&2\nexit 2");
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::Text,
+            CodexExec::with_command(loud),
+        )
+        .expect("meet");
+        let err = seat
+            .run(HarnessInferRequest::new("hi", "openai/gpt-4o-mini"))
+            .await
+            .expect_err("exit 2 refuses");
+        assert!(
+            err.to_string()
+                .contains("exited exit status: 2 · unauthorized"),
+            "{err}"
+        );
     }
 
     #[tokio::test]

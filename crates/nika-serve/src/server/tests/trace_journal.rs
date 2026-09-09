@@ -202,7 +202,9 @@ async fn a_door_run_seals_its_journal_at_settlement() {
             public,
         })),
     );
-    let server = world.start(backend, limits()).await;
+    // The production admission may probe installed seats. This test judges
+    // sealing, so use the full-driver budget rather than the mock 2 s limit.
+    let server = world.start(backend, long_execution_limits()).await;
     let id = run_by_name(&server, "root.nika.yaml", "journal-seal").await;
     wait_for_settled(&server, &id, "succeeded")
         .await
@@ -253,7 +255,7 @@ async fn an_interrupted_door_job_closes_its_journal_and_releases_its_lease() {
     assert!(
         wait_until(
             || !files_with(&dir, "ndjson").is_empty(),
-            Duration::from_secs(3)
+            Duration::from_secs(15)
         )
         .await,
         "the run's first frames land before the cancel"

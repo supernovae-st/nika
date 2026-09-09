@@ -444,6 +444,7 @@ fn replay_veto_debits_the_attempt_and_preserves_its_failure() {
     }));
     let failed = FailedDispatch {
         usage: None,
+        access_refused: None,
         record: crate::record::TaskErrorRecord::new(
             "NIKA-BUILTIN-FETCH-001",
             "recorded failure",

@@ -369,6 +369,9 @@ fn fresh_ran_record(
     record
 }
 
+/// Settle every terminal shape with the dispatch binding evidence (F-P6),
+/// item table and repair count (#1276, #1397), and metered usage receipt.
+/// Borrow those independent fields directly so moving the result cannot lose them.
 #[allow(clippy::too_many_arguments)] // the ran settle parts + the pens
 pub(crate) fn settle_ran(
     id: &str,
@@ -385,14 +388,6 @@ pub(crate) fn settle_ran(
     let duration = i64::try_from(run.duration_ms).unwrap_or(i64::MAX);
     // Every attempt including the settling one (spec 13 §payload).
     let attempts = run.attempts();
-    // F-P6 · the settling dispatch's binding evidence (lifted before
-    // `run.result` moves — EVERY terminal shape can carry it).
-    let evidence = run.evidence;
-    // #1276 · #1397 · the item table rides the frame, its repair count the record.
-    let items = run.items;
-    // the metered call's split — lifted like the evidence so
-    // EVERY terminal shape can carry the receipt of what it burned.
-    let usage = run.usage;
     let mut record = fresh_ran_record(started_at, run.duration_ms, integrity);
     match run.result {
         task::RunResult::Success {
@@ -414,8 +409,8 @@ pub(crate) fn settle_ran(
             (cost_usd, cost_unpriced, model, access),
             attempts,
             resume,
-            (evidence.as_ref(), items.as_ref()),
-            usage.as_deref(),
+            (run.evidence.as_ref(), run.items.as_ref()),
+            run.usage.as_deref(),
             &mut record,
             stamper,
             sink,
@@ -428,7 +423,7 @@ pub(crate) fn settle_ran(
             id,
             error,
             (cost_usd, cost_unpriced),
-            evidence.as_ref(),
+            run.evidence.as_ref(),
             &mut record,
             stamper,
             sink,
@@ -438,15 +433,21 @@ pub(crate) fn settle_ran(
             cost_usd,
             cost_unpriced,
             access,
+            access_refused,
         } => settle_failed_terminal(
             id,
             &run.note,
             duration,
             error,
-            (cost_usd, cost_unpriced, access.as_deref()),
+            (
+                cost_usd,
+                cost_unpriced,
+                access.as_deref(),
+                access_refused.as_deref(),
+            ),
             attempts,
-            (evidence.as_ref(), items.as_ref()),
-            usage.as_deref(),
+            (run.evidence.as_ref(), run.items.as_ref()),
+            run.usage.as_deref(),
             &mut record,
             ok,
             stamper,
@@ -461,7 +462,7 @@ pub(crate) fn settle_ran(
             duration,
             *pending,
             attempts,
-            evidence.as_ref(),
+            run.evidence.as_ref(),
             &mut record,
             ok,
             stamper,
@@ -523,6 +524,7 @@ fn settle_pending_backstop(
             pending.failed.cost_usd,
             pending.failed.cost_unpriced,
             pending.failed.access.as_deref(),
+            pending.failed.access_refused.as_deref(),
         ),
         attempts,
         (evidence, None),
@@ -628,6 +630,7 @@ fn settle_failed_terminal(
         Option<f64>,
         Option<nika_types::cost::UnpricedReason>,
         Option<&nika_types::access::AccessPlan>,
+        Option<&nika_types::access::AccessRefused>,
     ),
     attempts: u32,
     (evidence, items): (
@@ -660,6 +663,8 @@ fn settle_failed_terminal(
     // (`model` · `provider` · `access` · `access_id` · `billing`) — a
     // sealed trace must say which path was allowed to bill.
     emit_task::push_access_fields(&mut fields, None, spend.2, spend.1);
+    // A chosen seat that failed at the call names what to pin instead.
+    emit_task::push_access_refused_field(&mut fields, spend.3);
     // F-P6 · a divergence refusal carries its finding HERE (never a warn);
     // a post-gate verb failure attests the fired ≡ judged digests.
     push_commit_fields(&mut fields, evidence);

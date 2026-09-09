@@ -70,10 +70,10 @@ impl ResidentExecutionCoordinator {
                 .clone()
                 .try_reserve_owned()
                 .map_err(|_| ServerError::ExecutionQueueFull)?;
-            permit.send(ExecutionTask::new(
-                record.id().clone(),
-                self.limits.default_max_cost_usd(),
-            ));
+            permit.send(
+                ExecutionTask::new(record.id().clone(), self.limits.default_max_cost_usd())
+                    .with_access_pin(record.access_pin().map(str::to_owned)),
+            );
         }
         Ok(Some(admission))
     }
@@ -84,6 +84,7 @@ impl ResidentExecutionCoordinator {
         digest: RequestDigest,
         workflow: String,
         world: String,
+        access_pin: Option<String>,
     ) -> Result<Admission, ServerError> {
         let permit = self
             .jobs
@@ -92,20 +93,27 @@ impl ResidentExecutionCoordinator {
             .map_err(|_| ServerError::ExecutionQueueFull)?;
         let admission = self
             .store
-            .create_or_replay(key, digest, self.limits.max_jobs(), workflow, world)
+            .create_or_replay(
+                key,
+                digest,
+                self.limits.max_jobs(),
+                workflow,
+                world,
+                access_pin,
+            )
             .await?;
         match &admission {
             Admission::Created(record) => {
-                permit.send(ExecutionTask::new(
-                    record.id().clone(),
-                    self.limits.default_max_cost_usd(),
-                ));
+                permit.send(
+                    ExecutionTask::new(record.id().clone(), self.limits.default_max_cost_usd())
+                        .with_access_pin(record.access_pin().map(str::to_owned)),
+                );
             }
             Admission::Existing(record) if record.status() == JobStatus::Queued => {
-                permit.send(ExecutionTask::new(
-                    record.id().clone(),
-                    self.limits.default_max_cost_usd(),
-                ));
+                permit.send(
+                    ExecutionTask::new(record.id().clone(), self.limits.default_max_cost_usd())
+                        .with_access_pin(record.access_pin().map(str::to_owned)),
+                );
             }
             Admission::Existing(_) | Admission::Conflict(_) => drop(permit),
         }

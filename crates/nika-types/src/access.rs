@@ -523,6 +523,141 @@ impl AccessPlan {
     }
 }
 
+/// How far a HARNESS seat's readiness is PROVEN — a rung, never a
+/// word, beside [`Trust`] (which grades identity). A seat on PATH is
+/// `installed`; a seat whose own login/identity command answered 0 at
+/// admission is `signed_in`; a seat a probe proved for the model the
+/// task asks is `proven`. Measured on 0.118.7: a `ChatGPT`-plan codex
+/// answers `codex login status` 0 and still refuses `--model
+/// gpt-4o-mini` with a 400 (« not supported when using Codex with a
+/// `ChatGPT` account ») — sign-in never predicts the run, and no probe in
+/// this build reaches `proven` for a named model (the seat lists no
+/// models); an embedder that proved a seat for a model may raise the
+/// rung itself. The resolver reads the rung: an unproven seat ranks
+/// BELOW a key-backed api for an unpinned model and the card says why;
+/// a pin stays a pin.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum SeatReadiness {
+    /// The seat's binary is on PATH; nothing answered.
+    Installed,
+    /// The seat's own login/identity command answered 0 at admission
+    /// (an exit code, never a credential read).
+    SignedIn,
+    /// A probe proved the seat serves the model the task asks.
+    Proven,
+}
+
+impl SeatReadiness {
+    /// The `snake_case` wire form.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Installed => "installed",
+            Self::SignedIn => "signed_in",
+            Self::Proven => "proven",
+        }
+    }
+
+    /// The rung a sign-in witness earns — signed in, never proven: the
+    /// login command answers for the account, not for the model.
+    #[must_use]
+    pub const fn from_signed_in(signed_in: bool) -> Self {
+        if signed_in {
+            Self::SignedIn
+        } else {
+            Self::Installed
+        }
+    }
+
+    /// The seat may take the harness class's sovereign rank — only a
+    /// PROVEN seat outranks a key-backed api for an unpinned model.
+    #[must_use]
+    pub const fn is_proven(self) -> bool {
+        matches!(self, Self::Proven)
+    }
+}
+
+impl fmt::Display for SeatReadiness {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// The RUN-TIME refusal of a chosen seat — the typed frame a
+/// `task_failed` carries when the admitted seat fails at the call: the
+/// seat, the seat's OWN witness (its refusal text, never a shrug), the
+/// next READY path the admission ranked when the plan recorded one, and
+/// the one flag that pins it. The run fails as it always did; nothing
+/// falls through onto a metered path the author did not choose — the
+/// frame says what to pin instead (`access_refused` on the wire).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
+pub struct AccessRefused {
+    /// The seat that failed (its pin token · `codex`).
+    pub seat: alloc::string::String,
+    /// The seat's own refusal text.
+    pub witness: alloc::string::String,
+    /// The next READY path the admission ranked (an access id), when
+    /// the plan recorded one.
+    pub next_ready: Option<alloc::string::String>,
+    /// The one flag that pins that path (`--access <id>`).
+    pub pin: Option<alloc::string::String>,
+}
+
+impl AccessRefused {
+    /// Construct (INV-019) — no next path known.
+    #[must_use]
+    pub fn new(
+        seat: impl Into<alloc::string::String>,
+        witness: impl Into<alloc::string::String>,
+    ) -> Self {
+        Self {
+            seat: seat.into(),
+            witness: witness.into(),
+            next_ready: None,
+            pin: None,
+        }
+    }
+
+    /// Name the next READY path and the flag that pins it.
+    #[must_use]
+    pub fn with_next_ready(mut self, access: impl Into<alloc::string::String>) -> Self {
+        let access = access.into();
+        self.pin = Some(alloc::format!("--access {access}"));
+        self.next_ready = Some(access);
+        self
+    }
+
+    /// The refusal over the admitted plan: the next ready path is the
+    /// first READY row the ranking recorded — an outranked path, else a
+    /// path a pin excluded (ready without the pin). A plan that recorded
+    /// none (a seat pin · a sole candidate) names nothing: honest.
+    #[must_use]
+    pub fn from_plan(
+        seat: impl Into<alloc::string::String>,
+        witness: impl Into<alloc::string::String>,
+        plan: Option<&AccessPlan>,
+    ) -> Self {
+        let refused = Self::new(seat, witness);
+        let Some(plan) = plan else {
+            return refused;
+        };
+        let next = plan.outranked.first().or_else(|| {
+            plan.rejected
+                .iter()
+                .find(|r| r.dimension == RejectionDimension::PinUnsatisfied)
+        });
+        match next {
+            Some(row) => refused.with_next_ready(row.access.clone()),
+            None => refused,
+        }
+    }
+}
+
 #[cfg(test)]
 mod plan_tests {
     use super::*;
@@ -823,6 +958,76 @@ mod tests {
             HarnessRuntime::CLAUDE_CODE
                 .acp_missing()
                 .contains("claude-agent-acp")
+        );
+    }
+}
+
+#[cfg(test)]
+mod readiness_tests {
+    use super::*;
+
+    /// A rung, never a word: the wire form is stable, the order is the
+    /// ladder, and a sign-in witness earns `signed_in` — never `proven`
+    /// (measured on 0.118.7: the login answers for the account, the
+    /// seat still refuses a model it does not carry).
+    #[test]
+    fn seat_readiness_is_a_ladder_and_sign_in_is_never_proven() {
+        assert_eq!(SeatReadiness::Installed.as_str(), "installed");
+        assert_eq!(SeatReadiness::SignedIn.as_str(), "signed_in");
+        assert_eq!(SeatReadiness::Proven.as_str(), "proven");
+        assert!(SeatReadiness::Installed < SeatReadiness::SignedIn);
+        assert!(SeatReadiness::SignedIn < SeatReadiness::Proven);
+        assert_eq!(SeatReadiness::from_signed_in(true), SeatReadiness::SignedIn);
+        assert_eq!(
+            SeatReadiness::from_signed_in(false),
+            SeatReadiness::Installed
+        );
+        assert!(!SeatReadiness::SignedIn.is_proven());
+        assert!(SeatReadiness::Proven.is_proven());
+    }
+
+    /// The typed refusal names the next READY path from the plan the
+    /// admission froze — an outranked row first, a pin-excluded row
+    /// next — and the one flag that pins it; a plan with neither names
+    /// nothing (never an invented path).
+    #[test]
+    fn the_refusal_names_the_next_ready_path_the_plan_recorded() {
+        let mut plan = AccessPlan::new(
+            "openai/gpt-4o-mini",
+            "openai",
+            "codex",
+            AccessClass::Harness,
+            BillingClass::Unknown,
+            false,
+            alloc::vec::Vec::new(),
+        );
+        let bare = AccessRefused::from_plan("codex", "exited 1", Some(&plan));
+        assert_eq!(bare.next_ready, None);
+        assert_eq!(bare.pin, None);
+        plan.rejected.push(AccessRejection::new(
+            "openai",
+            RejectionDimension::PinUnsatisfied,
+            RejectionLayer::Pin,
+            "pin `--access codex` names another path",
+        ));
+        let pinned = AccessRefused::from_plan("codex", "exited 1", Some(&plan));
+        assert_eq!(pinned.next_ready.as_deref(), Some("openai"));
+        assert_eq!(pinned.pin.as_deref(), Some("--access openai"));
+        plan.outranked.push(AccessRejection::new(
+            "ollama",
+            RejectionDimension::Outranked,
+            RejectionLayer::Access,
+            "ready",
+        ));
+        let ranked = AccessRefused::from_plan("codex", "exited 1", Some(&plan));
+        assert_eq!(
+            ranked.next_ready.as_deref(),
+            Some("ollama"),
+            "the outranked row wins over the pin-excluded one"
+        );
+        assert_eq!(
+            AccessRefused::from_plan("codex", "exited 1", None).seat,
+            "codex"
         );
     }
 }

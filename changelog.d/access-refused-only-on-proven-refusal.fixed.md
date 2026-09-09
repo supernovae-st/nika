@@ -1,0 +1,1 @@
+`access_refused` on a terminal frame is a proven seat/access refusal (NIKA-1800..1805, an infer harness-access miss, or a harness error wrapped as agent inference). A tool, max-turns, or schema failure after a seat already ran is not a pin.

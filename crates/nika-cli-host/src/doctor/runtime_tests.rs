@@ -48,12 +48,12 @@ fn codex_without_acp_still_names_the_direct_infer_path() {
     let finding = super::harness_finding_from_parts("codex", None, None, "codex-acp package", true);
 
     assert!(
-        finding.detail.contains("usable for `infer:` now"),
+        finding.detail.contains("usable for `infer:`"),
         "{}",
         finding.detail
     );
     assert!(
-        finding.detail.contains("judged when a run starts"),
+        finding.detail.contains("judged at admission"),
         "{}",
         finding.detail
     );

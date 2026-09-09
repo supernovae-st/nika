@@ -57,6 +57,9 @@ struct JobByName {
     workflow: String,
     #[serde(default)]
     units: Option<serde::de::IgnoredAny>,
+    /// Same vocabulary as `--access`. Absent: the resident's unpinned plan.
+    #[serde(default)]
+    access: Option<String>,
 }
 
 impl<'de: 'a, 'a> serde::Deserialize<'de> for BoundedWireUnits<'a> {
@@ -212,15 +215,19 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
     // its digest domain) or the snapshot `nika check <file> --json
     // --sdk-snapshot` prints (digests optional: computed when absent,
     // checked when present).
-    if let Some(name) = by_name(&body) {
-        let admitted = match admit_by_name(&name, &state).await {
-            Ok(admitted) => admitted,
-            Err(response) => return response,
-        };
-        let Ok(world) = admitted.snapshot().encode() else {
-            return admission_refused().into_response();
-        };
-        return admit_job(state, key, digest, name, world).await;
+    match named_job(&body) {
+        Ok(Some((name, access))) => {
+            let admitted = match admit_by_name(&name, &state).await {
+                Ok(admitted) => admitted,
+                Err(response) => return response,
+            };
+            let Ok(world) = admitted.snapshot().encode() else {
+                return admission_refused().into_response();
+            };
+            return admit_job(state, key, digest, name, world, access).await;
+        }
+        Ok(None) => {}
+        Err(error) => return error.into_response(),
     }
     let admitted = match readmit_body(&body, &state).await {
         Ok(admitted) => admitted,
@@ -232,14 +239,34 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
     let Ok(world) = admitted.snapshot().encode() else {
         return admission_refused().into_response();
     };
-    admit_job(state, key, digest, workflow, world).await
+    admit_job(state, key, digest, workflow, world, None).await
 }
 
 /// The by-name form, when the body is one (`{"workflow": "<name>"}` with no
-/// `units`); `None` for a snapshot body.
-fn by_name(body: &[u8]) -> Option<String> {
-    let probe: JobByName = serde_json::from_slice(body).ok()?;
-    probe.units.is_none().then_some(probe.workflow)
+/// `units`); `Ok(None)` for a snapshot body. Optional `access` is the CLI
+/// pin. An empty pin is NIKA-1802 — never silently unpinned.
+fn named_job(body: &[u8]) -> Result<Option<(String, Option<String>)>, ApiError> {
+    let probe: JobByName = match serde_json::from_slice(body) {
+        Ok(probe) => probe,
+        Err(_) => return Ok(None),
+    };
+    if probe.units.is_some() {
+        return Ok(None);
+    }
+    let access = match probe.access {
+        None => None,
+        Some(pin) if pin.trim().is_empty() => return Err(empty_access_pin()),
+        Some(pin) => Some(pin),
+    };
+    Ok(Some((probe.workflow, access)))
+}
+
+fn empty_access_pin() -> ApiError {
+    ApiError::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "NIKA-1802",
+        "`--access` is empty — a pin is a pin: name an access class or a known agentic CLI (`nika doctor` lists every path)",
+    )
 }
 
 /// Capture and admit a workflow the served registry names (ADR-131): the
@@ -293,9 +320,10 @@ async fn check_snapshot(
     };
     // The check door admits by name too (ADR-131): the same two forms, the
     // same admission, the compact acknowledgement.
-    let admitted = match by_name(&body) {
-        Some(name) => admit_by_name(&name, &state).await,
-        None => readmit_body(&body, &state).await,
+    let admitted = match named_job(&body) {
+        Ok(Some((name, _))) => admit_by_name(&name, &state).await,
+        Ok(None) => readmit_body(&body, &state).await,
+        Err(error) => return error.into_response(),
     };
     match admitted {
         Ok(admitted) => json_response(
@@ -457,10 +485,11 @@ async fn admit_job(
     digest: RequestDigest,
     workflow: String,
     world: String,
+    access_pin: Option<String>,
 ) -> Response<ResponseBody> {
     match state
         .coordinator
-        .admit_manual(key, digest, workflow, world)
+        .admit_manual(key, digest, workflow, world, access_pin)
         .await
     {
         Ok(admission) => admission_response(admission),

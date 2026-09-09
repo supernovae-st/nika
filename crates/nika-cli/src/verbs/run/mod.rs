@@ -328,7 +328,11 @@ fn announce_access(
             lane.plan.chosen.as_str(),
             lane.plan.billing.as_str(),
             lane.plan.trust.as_str(),
-            nika_cli_host::models_rung::chosen_over(lane.candidates, &lane.plan.outranked)
+            nika_cli_host::models_rung::chosen_over_with_rejections(
+                lane.candidates,
+                &lane.plan.outranked,
+                &lane.plan.rejected
+            )
         );
     }
 }

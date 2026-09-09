@@ -87,6 +87,26 @@ pub(crate) fn push_access_fields(
     }
 }
 
+/// The typed refusal of a chosen seat (`access_refused` · ONE compact
+/// JSON text, the `outcome` precedent): the seat that failed, its own
+/// witness, the next READY path the admission recorded and the one flag
+/// that pins it — so a reader of the sealed trace knows what to pin
+/// without re-running. Absent when no seat refused.
+pub(crate) fn push_access_refused_field(
+    fields: &mut Vec<(&'static str, FieldValue)>,
+    refused: Option<&nika_types::access::AccessRefused>,
+) {
+    if let Some(refused) = refused {
+        let json = serde_json::json!({
+            "seat": refused.seat,
+            "witness": refused.witness,
+            "next_ready": refused.next_ready,
+            "pin": refused.pin,
+        });
+        fields.push(("access_refused", s(&json.to_string())));
+    }
+}
+
 /// Emit one `task_completed` frame — the base fields (`note` ·
 /// `duration_ms`) + spend (`tokens` + the additive usage split) + the OBS-E `warning` diagnostic
 /// when present + the ADR-099 checkpoint trio (`def_hash` · `input_hash`

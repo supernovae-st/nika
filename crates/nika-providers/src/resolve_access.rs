@@ -15,7 +15,7 @@
 
 use nika_types::access::{
     AccessClass, AccessPlan, AccessRejection, BillingClass, HarnessRuntime, RejectionDimension,
-    RejectionLayer, Trust,
+    RejectionLayer, SeatReadiness, Trust,
 };
 
 use crate::probe::ProviderProbe;
@@ -41,6 +41,13 @@ pub struct AccessCandidate {
     /// How far this path's identity is proven (ADR-134) — the floor the
     /// probe's evidence earns, raised only by [`Self::with_trust`].
     pub trust: Trust,
+    /// How far a HARNESS seat's readiness is proven — `None` on every
+    /// other class. A signed-in seat is not a proven one: only a
+    /// [`SeatReadiness::Proven`] seat takes the harness class's sovereign
+    /// rank; an unproven seat ranks below a key-backed path for an
+    /// unpinned model (measured on 0.118.7: the seat's login answered and
+    /// the seat still refused the model asked).
+    pub readiness: Option<SeatReadiness>,
 }
 
 impl AccessCandidate {
@@ -54,7 +61,16 @@ impl AccessCandidate {
             fix_var: None,
             billing: class.default_billing(),
             trust: Trust::from_evidence(class, configured, None),
+            readiness: None,
         }
+    }
+
+    /// The rung a harness seat's readiness reached (a probe's evidence,
+    /// or an embedder's own proof for the model asked).
+    #[must_use]
+    pub const fn with_readiness(mut self, readiness: SeatReadiness) -> Self {
+        self.readiness = Some(readiness);
+        self
     }
 
     /// The rung the probe's evidence earned (ADR-134).
@@ -112,19 +128,37 @@ impl AccessRefusal {
 
 /// The sovereign preference order (research §7.2 step 7) — a STRICT
 /// total order across classes so no tie ever needs a coin: local <
-/// mock < harness < oauth < api. Local compute leads (sovereignty),
-/// the test lane spends nothing, the user's own plan (harness · then
-/// the sanctioned oauth grant) beats metered USD. A class this fn has
-/// not learned ranks LAST — conservative, never silently preferred.
-const fn sovereign_rank(class: AccessClass) -> u8 {
+/// mock < PROVEN harness < oauth < api < unproven harness. Local
+/// compute leads (sovereignty), the test lane spends nothing, the
+/// user's own plan (a seat PROVEN for the model · then the sanctioned
+/// oauth grant) beats metered USD. A seat that is merely installed or
+/// signed in is not proven (measured on 0.118.7: a signed-in
+/// ChatGPT-plan codex refused the model asked and the run died with
+/// the key ready beside it): it ranks below every key-backed path for
+/// an unpinned model — a pin still names it. A class this fn has not
+/// learned ranks LAST — conservative, never silently preferred.
+const fn sovereign_rank(class: AccessClass, readiness: Option<SeatReadiness>) -> u8 {
     match class {
         AccessClass::Local => 0,
         AccessClass::Mock => 1,
-        AccessClass::Harness => 2,
+        AccessClass::Harness => match readiness {
+            Some(rung) if rung.is_proven() => 2,
+            _ => 5,
+        },
         AccessClass::Oauth => 3,
         AccessClass::Api => 4,
         _ => u8::MAX,
     }
+}
+
+/// Whether a candidate is an unproven seat (installed · signed in ·
+/// never proven for the model) — the witness law reads it.
+const fn unproven_seat(c: &AccessCandidate) -> bool {
+    matches!(c.class, AccessClass::Harness)
+        && match c.readiness {
+            Some(rung) => !rung.is_proven(),
+            None => true,
+        }
 }
 
 /// The provider prefix of a `provider/name` model id (the whole id
@@ -155,7 +189,7 @@ fn pin_matches(pin: &str, candidate: &AccessCandidate) -> bool {
 /// pathological inputs, not machine truth).
 fn order_key(c: &AccessCandidate) -> (u8, &str, bool, &'static str, &'static str, Option<&str>) {
     (
-        sovereign_rank(c.class),
+        sovereign_rank(c.class, c.readiness),
         c.access.as_str(),
         !c.configured,
         c.class.as_str(),
@@ -265,16 +299,11 @@ pub fn resolve_access(
             // below is what the prose tail prints (« chosen over api
             // (ready · ranked below `codex` (harness outranks api)) ») and
             // what the JSON carries.
-            outranked.push(nika_types::access::AccessRejection::new(
+            outranked.push(AccessRejection::new(
                 candidate.access.clone(),
-                nika_types::access::RejectionDimension::Outranked,
-                nika_types::access::RejectionLayer::Access,
-                format!(
-                    "ready · ranked below `{}` ({} outranks {})",
-                    winner.access,
-                    winner.class.as_str(),
-                    candidate.class.as_str()
-                ),
+                RejectionDimension::Outranked,
+                RejectionLayer::Access,
+                outranked_witness(model, winner, candidate),
             ));
         } else {
             chosen = Some(candidate);
@@ -293,6 +322,32 @@ pub fn resolve_access(
         .with_outranked(outranked)
         .with_trust(c.trust)),
         None => Err(AccessRefusal::new(model, provider, rejected)),
+    }
+}
+
+/// The outranked row's witness: an UNPROVEN seat that lost to a
+/// key-backed path says exactly why and how to pin it (« installed ·
+/// signed in · not proven for `gpt-4o-mini` → api … `--access codex`
+/// pins it »); every other loser keeps the classic class sentence.
+fn outranked_witness(model: &str, winner: &AccessCandidate, loser: &AccessCandidate) -> String {
+    let key_backed = !matches!(winner.class, AccessClass::Local | AccessClass::Mock);
+    match (unproven_seat(loser), key_backed) {
+        (true, true) => {
+            let name = model.split_once('/').map_or(model, |(_, name)| name);
+            format!(
+                "installed · signed in · not proven for `{name}` → {} (an unproven seat \
+                 ranks below {} · `--access {}` pins it)",
+                winner.class.as_str(),
+                winner.class.as_str(),
+                loser.access
+            )
+        }
+        _ => format!(
+            "ready · ranked below `{}` ({} outranks {})",
+            winner.access,
+            winner.class.as_str(),
+            loser.class.as_str()
+        ),
     }
 }
 
@@ -732,16 +787,28 @@ fn profile_candidate(p: &ProviderProbe) -> AccessCandidate {
 }
 
 /// The candidate a HARNESS probe row yields (R-5c): the ADAPTER is the
-/// path (sovereign rank 2 — the operator's own plan beats the metered
-/// key), and an unauthenticated adapter teaches its own sign-in gesture
-/// verbatim (the judge's Harness arm prints it instead of `<var> unset`).
+/// path, its readiness rung is what the probe proved (a login answer
+/// earns `signed_in`, never `proven` — the class's sovereign rank is
+/// the proven seat's alone), and an absent or unauthenticated adapter
+/// teaches its own install / sign-in gesture verbatim (the judge's
+/// Harness arm prints it instead of `<var> unset`).
 fn harness_candidate(p: &ProviderProbe) -> AccessCandidate {
     let candidate =
-        AccessCandidate::new(p.id.clone(), AccessClass::Harness, p.readiness.configured);
-    if p.readiness.configured {
-        candidate
-    } else {
-        candidate.with_fix_var(format!("sign in to `{}` itself", p.id))
+        AccessCandidate::new(p.id.clone(), AccessClass::Harness, p.readiness.configured)
+            .with_readiness(SeatReadiness::from_signed_in(p.readiness.configured));
+    match (p.readiness.configured, p.product_present || p.key_present) {
+        (true, _) => candidate,
+        (false, true) => candidate.with_fix_var(format!(
+            "installed · not signed in · sign in to `{}` itself",
+            p.id
+        )),
+        (false, false) => {
+            let install = match p.fix_var.trim() {
+                "" => format!("install `{}` itself", p.id),
+                line => line.to_owned(),
+            };
+            candidate.with_fix_var(format!("not installed · {install}"))
+        }
     }
 }
 

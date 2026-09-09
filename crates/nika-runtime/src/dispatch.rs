@@ -76,6 +76,10 @@ pub(crate) struct FailedDispatch {
     /// receipt rides `task_failed` beside the spend it explains. `None`
     /// when the attempt never reached a provider. Boxed: cold.
     pub usage: Option<Box<crate::usage::UsageSplit>>,
+    /// The typed refusal of a chosen SEAT that failed at the call (the
+    /// seat · its own witness · the next ready path · the flag that pins
+    /// it) — `access_refused` on the terminal frame. Boxed: cold.
+    pub access_refused: Option<Box<nika_types::access::AccessRefused>>,
 }
 
 impl FailedDispatch {
@@ -91,6 +95,7 @@ impl FailedDispatch {
             evidence: None,
             access: None,
             usage: None,
+            access_refused: None,
         }
     }
 
@@ -278,6 +283,7 @@ impl Dispatched {
                 evidence: None,
                 access: None,
                 usage: None,
+                access_refused: None,
             }),
         }
     }
@@ -304,6 +310,15 @@ impl Dispatched {
     fn with_failed_access(mut self, access: Option<nika_types::access::AccessPlan>) -> Self {
         if let Err(failed) = &mut self.result {
             failed.access = access.map(Box::new);
+        }
+        self
+    }
+
+    /// The typed refusal of a chosen seat that failed at the call — the
+    /// frame carries it beside the lane; the run fails as it always did.
+    fn with_access_refused(mut self, refused: Option<nika_types::access::AccessRefused>) -> Self {
+        if let Err(failed) = &mut self.result {
+            failed.access_refused = refused.map(Box::new);
         }
         self
     }
@@ -809,12 +824,20 @@ where
         if let Some(seat_id) = self.seat_for(&lane_model) {
             return match self.infer.run_on_harness(seat_id, input).await {
                 Ok(out) => verb_outcome::harness_infer_success(seat_id, out, access),
-                Err(err) => Dispatched::verb_err_spent(
-                    format!("infer · seat {seat_id}"),
-                    &err,
-                    (None, None, None),
-                )
-                .with_failed_access(access),
+                // The chosen seat failed at the call: a TYPED refusal rides
+                // the frame (the seat · its own witness · the next ready
+                // path · the flag that pins it) and the task fails here —
+                // never a fall-through onto the metered path beside it.
+                Err(err) => {
+                    let refused = verb_outcome::proven_seat_refusal(seat_id, &err, access.as_ref());
+                    Dispatched::verb_err_spent(
+                        format!("infer · seat {seat_id}"),
+                        &err,
+                        (None, None, None),
+                    )
+                    .with_access_refused(refused)
+                    .with_failed_access(access)
+                }
             };
         }
         match self.infer.run(input).await {
@@ -879,7 +902,8 @@ where
             .clone()
             .unwrap_or_else(|| self.agent.default_model().to_owned());
         let access = self.lane_plan(&lane_model);
-        input.native_only = self.access_plan.is_some() && self.seat_for(&lane_model).is_none();
+        let seat = self.seat_for(&lane_model).map(str::to_owned);
+        input.native_only = self.access_plan.is_some() && seat.is_none();
         Self::bridge_inputs(&mut input, scope, ctx);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
@@ -903,8 +927,15 @@ where
             Err(err) => {
                 let split = failed_usage_split(err.spend());
                 let spend = price_failed_spend(err.spend());
+                // A proven seat/access refusal carries the typed field.
+                // Tool, max-turns, and schema failures after a seat
+                // already ran do not — they are not a pin.
+                let refused = seat.as_deref().and_then(|seat| {
+                    verb_outcome::proven_seat_refusal(seat, &err, access.as_ref())
+                });
                 Dispatched::verb_err_spent(format!("agent · {lane_model}"), &err, spend)
                     .with_failed_usage(split)
+                    .with_access_refused(refused)
                     .with_failed_access(access)
             }
         }

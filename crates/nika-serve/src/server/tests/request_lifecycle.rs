@@ -154,6 +154,117 @@ async fn authenticated_invalid_json_and_content_type_are_stable_refusals() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_job_access_pin_is_the_cli_pin_and_absence_inherits_the_resident() {
+    let world = TestWorld::new();
+    let backend = Arc::new(PinRecordingBackend::new());
+    let server = world.start(backend.clone(), limits()).await;
+
+    let pinned = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml","access":"mock"}"#,
+            "pin-mock",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(pinned.status, 202, "{}", pinned.body);
+    let pinned_id = pinned.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &pinned_id, "succeeded")
+        .await
+        .expect("pinned job");
+    assert_eq!(
+        backend.last_pin(),
+        Some(ObservedPin::Pinned("mock".to_owned()))
+    );
+
+    let unpinned = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "pin-absent",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(unpinned.status, 202, "{}", unpinned.body);
+    let unpinned_id = unpinned.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &unpinned_id, "succeeded")
+        .await
+        .expect("unpinned job");
+    assert_eq!(backend.last_pin(), Some(ObservedPin::Unpinned));
+    assert_eq!(backend.calls(), 2);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_empty_access_pin_is_nika_1802_and_never_reaches_the_backend() {
+    let world = TestWorld::new();
+    let backend = Arc::new(PinRecordingBackend::new());
+    let server = world.start(backend.clone(), limits()).await;
+
+    let empty = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml","access":""}"#,
+            "pin-empty",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(empty.status, 422, "{}", empty.body);
+    assert_eq!(empty.json()["error"]["code"], "NIKA-1802");
+    assert!(
+        empty.json()["error"]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("empty") && m.contains("pin is a pin")),
+        "{}",
+        empty.body
+    );
+    assert_eq!(backend.calls(), 0);
+    assert!(backend.last_pin().is_none());
+
+    let blank = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml","access":"   "}"#,
+            "pin-blank",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(blank.status, 422, "{}", blank.body);
+    assert_eq!(blank.json()["error"]["code"], "NIKA-1802");
+    assert_eq!(backend.calls(), 0);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_backend_that_does_not_honor_access_refuses_the_pin_unpinned() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+
+    let pinned = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml","access":"mock"}"#,
+            "pin-default-backend",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(pinned.status, 202, "{}", pinned.body);
+    let id = pinned.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "failed")
+        .await
+        .expect("pin refused");
+    assert_eq!(backend.calls(), 0, "the default must not run the pin");
+    let job = server
+        .request(&get_request(&format!("/v1/jobs/{id}")))
+        .await;
+    assert_eq!(job.json()["error"]["code"], "NIKA-1801", "{}", job.body);
+    assert!(
+        job.json()["error"]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("--access mock") && m.contains("never an unpinned")),
+        "{}",
+        job.body
+    );
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn create_read_and_status_use_real_loopback_and_execution_service() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));

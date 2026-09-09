@@ -6,7 +6,8 @@
 //! Split from `dispatch.rs` at the 100-line fn cap (One Door · wave 1
 //! threaded the lane through both arms); the bodies moved verbatim.
 
-use nika_types::access::AccessPlan;
+use nika_error::traits::NikaErrorCode;
+use nika_types::access::{AccessPlan, AccessRefused};
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::{AgentOutput, AgentValue};
 #[cfg(feature = "access-harness")]
@@ -69,6 +70,61 @@ pub(super) fn infer_success(out: InferOutput, access: Option<AccessPlan>) -> Dis
     )
     .with_usage(split)
     .with_access(access)
+}
+
+/// A chosen seat that failed at the call — the typed refusal the
+/// terminal frame carries (`access_refused`): the seat, its OWN witness
+/// (the error's words · the seat's refusal text rides them), the next
+/// READY path the admission recorded and the one flag that pins it.
+/// The run fails as it always did; nothing falls through onto a metered
+/// path the author did not choose — the frame says what to pin.
+pub(super) fn seat_refused(
+    seat_id: &str,
+    err: &dyn NikaErrorCode,
+    access: Option<&AccessPlan>,
+) -> AccessRefused {
+    AccessRefused::from_plan(seat_id, err.to_string(), access)
+}
+
+/// `access_refused` only when the error is a proven seat/access
+/// refusal (NIKA-1800..1805, an infer harness-access miss, or a
+/// harness error wrapped as agent inference). A tool, max-turns, or
+/// schema failure after a seat already ran is not a pin: teaching
+/// `--access api` there would lie.
+pub(super) fn proven_seat_refusal(
+    seat_id: &str,
+    err: &dyn NikaErrorCode,
+    access: Option<&AccessPlan>,
+) -> Option<AccessRefused> {
+    is_proven_access_refusal(err).then(|| seat_refused(seat_id, err, access))
+}
+
+fn is_proven_access_refusal(err: &dyn NikaErrorCode) -> bool {
+    let code = err.nika_code();
+    if code.category == nika_error::codes::Category::Access {
+        return (1800..=1805).contains(&code.num);
+    }
+    if let Some(infer) = err
+        .as_any()
+        .downcast_ref::<nika_verb_infer::VerbInferError>()
+    {
+        return matches!(infer, nika_verb_infer::VerbInferError::HarnessAccess { .. });
+    }
+    err.as_any()
+        .downcast_ref::<nika_verb_agent::VerbAgentError>()
+        .is_some_and(agent_error_is_harness_refusal)
+}
+
+fn agent_error_is_harness_refusal(err: &nika_verb_agent::VerbAgentError) -> bool {
+    match err {
+        nika_verb_agent::VerbAgentError::Inference { source, .. } => {
+            let msg = source.to_string();
+            msg.contains("harness unavailable:")
+                || msg.contains("harness session failed:")
+                || msg.contains("harness refused:")
+        }
+        _ => false,
+    }
 }
 
 /// A one-shot `infer:` served by the operator's subscription seat: the
@@ -136,4 +192,123 @@ pub(super) fn agent_success(out: AgentOutput, access: Option<AccessPlan>) -> Dis
     )
     .with_usage(split)
     .with_access(access)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod proven_refusal_tests {
+    use nika_kernel::ai::harness::HarnessError;
+    use nika_kernel::ai::provider::ProviderError;
+    use nika_types::blame::BlamePolarity;
+    use nika_types::cost::SpendOnFailure;
+    use nika_verb_agent::VerbAgentError;
+    use nika_verb_infer::VerbInferError;
+
+    use super::{is_proven_access_refusal, proven_seat_refusal};
+
+    #[test]
+    fn infer_harness_access_is_a_typed_refusal() {
+        let err = VerbInferError::HarnessAccess {
+            detail: "not infer-grade".to_owned(),
+        };
+        let refused = proven_seat_refusal("gemini-cli", &err, None).expect("seat refusal");
+        assert_eq!(refused.seat, "gemini-cli");
+        assert!(refused.witness.contains("not infer-grade"), "{refused:?}");
+    }
+
+    #[test]
+    fn infer_schema_after_the_seat_is_not_a_pin() {
+        let err = VerbInferError::SchemaValidation {
+            attempts: 1,
+            detail: "missing field".to_owned(),
+            spend: Box::default(),
+        };
+        assert!(proven_seat_refusal("gemini-cli", &err, None).is_none());
+        assert!(!is_proven_access_refusal(&err));
+    }
+
+    #[test]
+    fn agent_max_turns_after_a_seat_is_not_a_pin() {
+        let err = VerbAgentError::MaxTurns {
+            turns: 1,
+            partial_output: "hi".to_owned(),
+            blame: BlamePolarity::ByTheCaller,
+            blame_source: "the task's own `max_turns:`",
+            spend: Box::default(),
+        };
+        assert!(proven_seat_refusal("gemini-cli", &err, None).is_none());
+    }
+
+    #[test]
+    fn agent_schema_after_a_seat_is_not_a_pin() {
+        let err = VerbAgentError::SchemaValidation {
+            detail: "missing field".to_owned(),
+            spend: Box::default(),
+        };
+        assert!(proven_seat_refusal("gemini-cli", &err, None).is_none());
+    }
+
+    #[test]
+    fn agent_tool_after_a_seat_is_not_a_pin() {
+        let err = VerbAgentError::WhitelistViolation {
+            tool: "nika:rm".to_owned(),
+            spend: Box::default(),
+        };
+        assert!(proven_seat_refusal("gemini-cli", &err, None).is_none());
+    }
+
+    #[test]
+    fn agent_provider_failure_after_a_seat_is_not_a_pin() {
+        let err = VerbAgentError::Inference {
+            source: ProviderError::Other {
+                reason: "MockProvider: response queue exhausted".into(),
+            },
+            spend: Box::default(),
+        };
+        assert!(proven_seat_refusal("gemini-cli", &err, None).is_none());
+    }
+
+    #[test]
+    fn wrapped_harness_unavailable_is_a_typed_refusal() {
+        let source = HarnessError::Unavailable {
+            reason: "binary absent".to_owned(),
+        };
+        let err = VerbAgentError::Inference {
+            source: ProviderError::Other {
+                reason: source.to_string(),
+            },
+            spend: Box::default(),
+        };
+        let refused = proven_seat_refusal("codex", &err, None).expect("harness refusal");
+        assert_eq!(refused.seat, "codex");
+        assert!(
+            refused.witness.contains("harness unavailable:"),
+            "{refused:?}"
+        );
+    }
+
+    #[test]
+    fn access_family_codes_are_a_typed_refusal_except_the_human_gate() {
+        let unavailable = HarnessError::Unavailable {
+            reason: "no binary".to_owned(),
+        };
+        assert!(is_proven_access_refusal(&unavailable));
+        let session = HarnessError::Session {
+            reason: "wire died".to_owned(),
+        };
+        assert!(is_proven_access_refusal(&session));
+        let refused = HarnessError::Refused {
+            reason: "not signed in".to_owned(),
+        };
+        assert!(is_proven_access_refusal(&refused));
+        let gate = VerbAgentError::HarnessGate {
+            question: "allow net?".to_owned(),
+            detail: "permits.net missing".to_owned(),
+            spend: Box::new(SpendOnFailure::default()),
+        };
+        assert!(
+            !is_proven_access_refusal(&gate),
+            "NIKA-1806 is a pause, not a pin"
+        );
+    }
 }

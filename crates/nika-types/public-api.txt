@@ -203,6 +203,60 @@ pub unsafe fn nika_types::access::RejectionLayer::clone_to_uninit(&self, dest: *
 impl<T> core::convert::From<T> for nika_types::access::RejectionLayer
 pub fn nika_types::access::RejectionLayer::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::RejectionLayer where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::access::SeatReadiness
+pub nika_types::access::SeatReadiness::Installed
+pub nika_types::access::SeatReadiness::Proven
+pub nika_types::access::SeatReadiness::SignedIn
+impl nika_types::access::SeatReadiness
+pub const fn nika_types::access::SeatReadiness::as_str(self) -> &'static str
+pub const fn nika_types::access::SeatReadiness::from_signed_in(signed_in: bool) -> Self
+pub const fn nika_types::access::SeatReadiness::is_proven(self) -> bool
+impl core::clone::Clone for nika_types::access::SeatReadiness
+pub fn nika_types::access::SeatReadiness::clone(&self) -> nika_types::access::SeatReadiness
+impl core::cmp::Eq for nika_types::access::SeatReadiness
+impl core::cmp::Ord for nika_types::access::SeatReadiness
+pub fn nika_types::access::SeatReadiness::cmp(&self, other: &nika_types::access::SeatReadiness) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_types::access::SeatReadiness
+pub fn nika_types::access::SeatReadiness::eq(&self, other: &nika_types::access::SeatReadiness) -> bool
+impl core::cmp::PartialOrd for nika_types::access::SeatReadiness
+pub fn nika_types::access::SeatReadiness::partial_cmp(&self, other: &nika_types::access::SeatReadiness) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_types::access::SeatReadiness
+pub fn nika_types::access::SeatReadiness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::access::SeatReadiness
+pub fn nika_types::access::SeatReadiness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::SeatReadiness
+pub fn nika_types::access::SeatReadiness::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::SeatReadiness
+impl core::marker::StructuralPartialEq for nika_types::access::SeatReadiness
+impl serde_core::ser::Serialize for nika_types::access::SeatReadiness
+pub fn nika_types::access::SeatReadiness::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::SeatReadiness
+pub fn nika_types::access::SeatReadiness::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::SeatReadiness where U: core::convert::From<T>
+pub fn nika_types::access::SeatReadiness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::SeatReadiness where U: core::convert::Into<T>
+pub type nika_types::access::SeatReadiness::Error = core::convert::Infallible
+pub fn nika_types::access::SeatReadiness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::SeatReadiness where U: core::convert::TryFrom<T>
+pub type nika_types::access::SeatReadiness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::SeatReadiness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::SeatReadiness where T: core::clone::Clone
+pub type nika_types::access::SeatReadiness::Owned = T
+pub fn nika_types::access::SeatReadiness::clone_into(&self, target: &mut T)
+pub fn nika_types::access::SeatReadiness::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::access::SeatReadiness where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::access::SeatReadiness::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::access::SeatReadiness where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::SeatReadiness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::SeatReadiness where T: ?core::marker::Sized
+pub fn nika_types::access::SeatReadiness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::SeatReadiness where T: ?core::marker::Sized
+pub fn nika_types::access::SeatReadiness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::SeatReadiness where T: core::clone::Clone
+pub unsafe fn nika_types::access::SeatReadiness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::SeatReadiness
+pub fn nika_types::access::SeatReadiness::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::SeatReadiness where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_types::access::Trust
 pub nika_types::access::Trust::Declared
 pub nika_types::access::Trust::Discovered
@@ -301,6 +355,50 @@ pub unsafe fn nika_types::access::AccessPlan::clone_to_uninit(&self, dest: *mut 
 impl<T> core::convert::From<T> for nika_types::access::AccessPlan
 pub fn nika_types::access::AccessPlan::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessPlan where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::access::AccessRefused
+pub nika_types::access::AccessRefused::next_ready: core::option::Option<alloc::string::String>
+pub nika_types::access::AccessRefused::pin: core::option::Option<alloc::string::String>
+pub nika_types::access::AccessRefused::seat: alloc::string::String
+pub nika_types::access::AccessRefused::witness: alloc::string::String
+impl nika_types::access::AccessRefused
+pub fn nika_types::access::AccessRefused::from_plan(seat: impl core::convert::Into<alloc::string::String>, witness: impl core::convert::Into<alloc::string::String>, plan: core::option::Option<&nika_types::access::AccessPlan>) -> Self
+pub fn nika_types::access::AccessRefused::new(seat: impl core::convert::Into<alloc::string::String>, witness: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_types::access::AccessRefused::with_next_ready(self, access: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_types::access::AccessRefused
+pub fn nika_types::access::AccessRefused::clone(&self) -> nika_types::access::AccessRefused
+impl core::cmp::Eq for nika_types::access::AccessRefused
+impl core::cmp::PartialEq for nika_types::access::AccessRefused
+pub fn nika_types::access::AccessRefused::eq(&self, other: &nika_types::access::AccessRefused) -> bool
+impl core::fmt::Debug for nika_types::access::AccessRefused
+pub fn nika_types::access::AccessRefused::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::access::AccessRefused
+impl serde_core::ser::Serialize for nika_types::access::AccessRefused
+pub fn nika_types::access::AccessRefused::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::AccessRefused
+pub fn nika_types::access::AccessRefused::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::AccessRefused where U: core::convert::From<T>
+pub fn nika_types::access::AccessRefused::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::AccessRefused where U: core::convert::Into<T>
+pub type nika_types::access::AccessRefused::Error = core::convert::Infallible
+pub fn nika_types::access::AccessRefused::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::AccessRefused where U: core::convert::TryFrom<T>
+pub type nika_types::access::AccessRefused::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::AccessRefused::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::AccessRefused where T: core::clone::Clone
+pub type nika_types::access::AccessRefused::Owned = T
+pub fn nika_types::access::AccessRefused::clone_into(&self, target: &mut T)
+pub fn nika_types::access::AccessRefused::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::AccessRefused where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::AccessRefused::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::AccessRefused where T: ?core::marker::Sized
+pub fn nika_types::access::AccessRefused::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::AccessRefused where T: ?core::marker::Sized
+pub fn nika_types::access::AccessRefused::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::AccessRefused where T: core::clone::Clone
+pub unsafe fn nika_types::access::AccessRefused::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::AccessRefused
+pub fn nika_types::access::AccessRefused::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessRefused where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::access::AccessRejection
 pub nika_types::access::AccessRejection::access: alloc::string::String
 pub nika_types::access::AccessRejection::dimension: nika_types::access::RejectionDimension

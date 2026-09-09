@@ -81,11 +81,15 @@ pub async fn probe_adapters(rows: Vec<AdapterRow>) -> Vec<AdapterProbeRow> {
     out.into_iter().map(|(_, row)| row).collect()
 }
 
-/// Cheap admission facts for `--access` (PATH + [`AuthProbe::HomeFile`]).
-/// Never handshake-spawns — compose and `nika check` must not start
-/// five ACP speakers. Doctor still uses [`probe_adapters_sync`].
-/// Command-auth rows treat ACP-on-PATH as configured; the session
-/// is the sign-in witness (NIKA-1805 if the harness refuses).
+/// Admission facts for `--access` (PATH + the auth surface). Never
+/// handshake-spawns — compose and `nika check` must not start five ACP
+/// speakers. Doctor still uses [`probe_adapters_sync`] for versions.
+/// A Command-auth row (codex · claude-code) is `configured` only when
+/// the seat's OWN login/identity command answered 0 at admission —
+/// « installed » was the old witness, and a merely installed seat was
+/// ranked above a ready key (measured on 0.118.7); the command runs
+/// only when the product binary is present, bounded like every probe,
+/// its exit code is the whole verdict (never a credential read).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct PresenceFact {
@@ -97,27 +101,66 @@ pub struct PresenceFact {
     pub product_present: bool,
     /// ACP speaker on PATH (`claude-agent-acp`).
     pub acp_present: bool,
-    /// [`AuthProbe::HomeFile`] witness, or ACP-on-PATH for Command auth.
+    /// [`AuthProbe::HomeFile`] witness, or the login command's exit
+    /// code for Command auth — SIGNED IN, never merely installed.
     pub configured: bool,
 }
 
-/// Presence-only probe for every registry row — no tokio, no spawn.
+/// Presence + sign-in probe for every registry row (sync by design —
+/// the census, `check`, the run gate and the serve worker all call
+/// it). The login command of a present product runs through the SAME
+/// [`probe_auth`] the doctor uses — one probe, two callers, so doctor
+/// and admission can never disagree on « signed in ».
 #[must_use]
 pub fn presence_facts(rows: Vec<AdapterRow>) -> Vec<PresenceFact> {
-    rows.into_iter()
+    presence_facts_with(rows, &probe_auth_sync)
+}
+
+/// [`presence_facts`] over an INJECTED login probe — the pure half
+/// tests drive. `probe` is consulted for a Command-auth row ONLY when
+/// its product binary is present; a home-file row never spawns.
+pub(crate) fn presence_facts_with(
+    rows: Vec<AdapterRow>,
+    probe: &(dyn Fn(&AuthProbe) -> Option<bool> + Sync),
+) -> Vec<PresenceFact> {
+    let presence: Vec<(bool, bool)> = rows
+        .iter()
         .map(|row| {
             let rt = nika_types::access::HarnessRuntime::lookup(&row.adapter.id);
             let detect = rt.map_or(row.adapter.command.as_str(), |r| r.detect_bin);
             let acp = rt.map_or(row.adapter.command.as_str(), |r| r.acp_bin);
-            let product_present = binary_on_path(detect);
-            let acp_present = binary_on_path(acp);
+            (binary_on_path(detect), binary_on_path(acp))
+        })
+        .collect();
+    // The login commands of the present products answer CONCURRENTLY
+    // (each is bounded; two seats must not cost two waits).
+    let signed_in: Vec<Option<bool>> = std::thread::scope(|scope| {
+        let handles: Vec<_> = rows
+            .iter()
+            .zip(&presence)
+            .map(|(row, &(product_present, _))| {
+                scope.spawn(move || match row.auth {
+                    AuthProbe::Command { .. } if product_present => probe(&row.auth),
+                    AuthProbe::Command { .. } | AuthProbe::HomeFile(_) => None,
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap_or(None))
+            .collect()
+    });
+    rows.into_iter()
+        .zip(presence)
+        .zip(signed_in)
+        .map(|((row, (product_present, acp_present)), signed_in)| {
             let configured = match row.auth {
                 AuthProbe::HomeFile(_) => {
                     probe_auth_home_sync(&row.auth, row.directory_auth).unwrap_or(false)
                 }
-                AuthProbe::Command { .. } => {
-                    command_access_present(&row.adapter.id, product_present, acp_present)
-                }
+                // An unreadable surface (no answer in time · the command
+                // itself failed to run) is NOT signed in: fail closed.
+                AuthProbe::Command { .. } => signed_in == Some(true),
             };
             PresenceFact {
                 id: row.adapter.id.clone(),
@@ -130,8 +173,23 @@ pub fn presence_facts(rows: Vec<AdapterRow>) -> Vec<PresenceFact> {
         .collect()
 }
 
-fn command_access_present(id: &str, product_present: bool, acp_present: bool) -> bool {
-    acp_present || (id == "codex" && product_present)
+/// The login/identity probe for a sync caller — [`probe_auth`] on a
+/// one-shot current-thread runtime hosted by a scoped thread, so the
+/// census can run inside an async context (the serve worker) without
+/// a runtime-in-runtime panic. `None` = the surface did not answer.
+fn probe_auth_sync(surface: &AuthProbe) -> Option<bool> {
+    std::thread::scope(|scope| {
+        scope
+            .spawn(|| {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .ok()?;
+                rt.block_on(probe_auth(surface, None))
+            })
+            .join()
+            .unwrap_or(None)
+    })
 }
 
 fn probe_auth_home_sync(
@@ -526,12 +584,81 @@ pub fn judge_version(
 mod tests {
     use super::*;
 
+    /// A Command-auth row is configured ONLY by its login command's
+    /// answer (the S18 shape of 0.118.7: an installed codex was a
+    /// « ready » seat and outranked a ready key): the probe is consulted
+    /// exactly once per PRESENT product, never for an absent one, and an
+    /// unanswered surface reads as not signed in. Revert
+    /// `signed_in == Some(true)` to `product_present` and the second
+    /// row flips.
     #[test]
-    fn direct_codex_counts_for_infer_without_claiming_other_acp_seats() {
-        assert!(command_access_present("codex", true, false));
-        assert!(!command_access_present("codex", false, false));
-        assert!(!command_access_present("claude-code", true, false));
-        assert!(command_access_present("claude-code", true, true));
+    fn a_command_auth_row_is_configured_only_by_its_login_answer() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let row = |id: &str, bin: &'static str| crate::registry::AdapterRow {
+            adapter: crate::HarnessAdapter::new(id, bin).expect("fine"),
+            serves: &["mock"],
+            auth: crate::registry::AuthProbe::Command {
+                command: bin,
+                args: &[],
+            },
+            directory_auth: None,
+            package: "test-only",
+        };
+        let asked = AtomicUsize::new(0);
+        let asked_ref = &asked;
+        let says = |verdict: Option<bool>| {
+            move |_: &AuthProbe| {
+                asked_ref.fetch_add(1, Ordering::SeqCst);
+                verdict
+            }
+        };
+        // `true` is on PATH: the product is present, the probe decides.
+        let yes = presence_facts_with(vec![row("seat-yes", "true")], &says(Some(true)));
+        assert!(yes[0].product_present && yes[0].configured, "{yes:?}");
+        let no = presence_facts_with(vec![row("seat-no", "true")], &says(Some(false)));
+        assert!(no[0].product_present && !no[0].configured, "{no:?}");
+        let mute = presence_facts_with(vec![row("seat-mute", "true")], &says(None));
+        assert!(!mute[0].configured, "no answer is not signed in: {mute:?}");
+        assert_eq!(
+            asked.load(Ordering::SeqCst),
+            3,
+            "one probe per present product"
+        );
+        // An absent product never spawns its login command.
+        let absent = presence_facts_with(
+            vec![row("seat-absent", "nika-no-such-binary-anywhere")],
+            &says(Some(true)),
+        );
+        assert!(
+            !absent[0].product_present && !absent[0].configured,
+            "{absent:?}"
+        );
+        assert_eq!(
+            asked.load(Ordering::SeqCst),
+            3,
+            "an absent product is never asked"
+        );
+    }
+
+    /// The real sync probe reads the exit code like the async one —
+    /// `true` is signed in, `false` is not, an absent binary is mute.
+    #[test]
+    fn the_sync_login_probe_reads_the_exit_code() {
+        let yes = AuthProbe::Command {
+            command: "true",
+            args: &[],
+        };
+        let no = AuthProbe::Command {
+            command: "false",
+            args: &[],
+        };
+        let absent = AuthProbe::Command {
+            command: "nika-no-such-binary-anywhere",
+            args: &[],
+        };
+        assert_eq!(probe_auth_sync(&yes), Some(true));
+        assert_eq!(probe_auth_sync(&no), Some(false));
+        assert_eq!(probe_auth_sync(&absent), None);
     }
 
     #[test]

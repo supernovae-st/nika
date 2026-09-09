@@ -184,6 +184,7 @@ where
         Dispatched {
             note: note.to_owned(),
             result: Err(FailedDispatch {
+                access_refused: None,
                 record: TaskErrorRecord::new(
                     code,
                     format!("child workflow `{target}` failed: {message}{trace_note}"),
