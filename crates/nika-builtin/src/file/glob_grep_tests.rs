@@ -398,3 +398,71 @@ async fn grep_on_a_file_path_names_the_directory_contract() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+fn finite_words(alphabet: &[u8], maximum_length: usize) -> Vec<String> {
+    let mut words = vec![String::new()];
+    let mut frontier = vec![String::new()];
+    for _ in 0..maximum_length {
+        let mut next = Vec::with_capacity(frontier.len() * alphabet.len());
+        for prefix in frontier {
+            for byte in alphabet {
+                let mut word = prefix.clone();
+                word.push(char::from(*byte));
+                next.push(word);
+            }
+        }
+        words.extend(next.iter().cloned());
+        frontier = next;
+    }
+    words
+}
+
+const MANUAL_CASES: [(&str, &str, bool); 20] = [
+    ("", "", true),
+    ("", "a", false),
+    ("*", "", true),
+    ("*", "a", true),
+    ("*", "a/b", false),
+    ("**", "a/b", true),
+    ("a*c", "ac", true),
+    ("a*c", "a/c", false),
+    ("a**c", "a/c", true),
+    ("**/target/**", "target/x", false),
+    ("**/target/**", "./target/x", true),
+    ("?", "a", false),
+    ("?", "?", true),
+    ("[ab]", "a", false),
+    ("[ab]", "[ab]", true),
+    ("*é*", "réel", true),
+    ("*é*", "ré/el", false),
+    ("**é**", "ré/el", true),
+    ("**", "", true),
+    ("a***c", "a/b/c", true),
+];
+
+#[test]
+fn manual_glob_exclusions_preserve_byte_grammar() {
+    for (pattern, text, expected) in MANUAL_CASES {
+        assert_eq!(
+            simple_glob(pattern, text),
+            expected,
+            "pattern={pattern:?}, text={text:?}"
+        );
+    }
+}
+
+#[test]
+fn exhaustive_glob_exclusions_match_existing_oracle() {
+    let patterns = finite_words(b"a/*", 4);
+    let texts = finite_words(b"ab/", 5);
+    assert_eq!(patterns.len() * texts.len(), 44_044);
+    for pattern in &patterns {
+        for text in &texts {
+            assert_eq!(
+                simple_glob(pattern, text),
+                naive_glob(pattern.as_bytes(), text.as_bytes()),
+                "pattern={pattern:?}, text={text:?}"
+            );
+        }
+    }
+}

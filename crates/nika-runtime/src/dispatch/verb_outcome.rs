@@ -110,21 +110,9 @@ fn is_proven_access_refusal(err: &dyn NikaErrorCode) -> bool {
     {
         return matches!(infer, nika_verb_infer::VerbInferError::HarnessAccess { .. });
     }
-    err.as_any()
-        .downcast_ref::<nika_verb_agent::VerbAgentError>()
-        .is_some_and(agent_error_is_harness_refusal)
-}
-
-fn agent_error_is_harness_refusal(err: &nika_verb_agent::VerbAgentError) -> bool {
-    match err {
-        nika_verb_agent::VerbAgentError::Inference { source, .. } => {
-            let msg = source.to_string();
-            msg.contains("harness unavailable:")
-                || msg.contains("harness session failed:")
-                || msg.contains("harness refused:")
-        }
-        _ => false,
-    }
+    // The agent bridge currently erases HarnessError into ProviderError::Other.
+    // A provider's text can imitate that spelling; it is not typed evidence.
+    false
 }
 
 /// A one-shot `infer:` served by the operator's subscription seat: the
@@ -269,22 +257,23 @@ mod proven_refusal_tests {
     }
 
     #[test]
-    fn wrapped_harness_unavailable_is_a_typed_refusal() {
-        let source = HarnessError::Unavailable {
-            reason: "binary absent".to_owned(),
-        };
-        let err = VerbAgentError::Inference {
-            source: ProviderError::Other {
-                reason: source.to_string(),
-            },
-            spend: Box::default(),
-        };
-        let refused = proven_seat_refusal("codex", &err, None).expect("harness refusal");
-        assert_eq!(refused.seat, "codex");
-        assert!(
-            refused.witness.contains("harness unavailable:"),
-            "{refused:?}"
-        );
+    fn provider_text_cannot_impersonate_a_typed_harness_refusal() {
+        for reason in [
+            "harness unavailable: missing",
+            "harness session failed: denied",
+            "harness refused: denied",
+        ] {
+            let err = VerbAgentError::Inference {
+                source: ProviderError::Other {
+                    reason: reason.to_owned(),
+                },
+                spend: Box::default(),
+            };
+            assert!(
+                proven_seat_refusal("codex", &err, None).is_none(),
+                "{reason}"
+            );
+        }
     }
 
     #[test]

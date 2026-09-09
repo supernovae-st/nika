@@ -545,6 +545,7 @@ pub type nika_runtime::compose::ProdRuntime = nika_runtime::Runtime<nika_exec_ru
 pub type nika_runtime::compose::SimRuntime = nika_runtime::Runtime<nika_runtime::simulated::SimulatedShell, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>>, nika_clock::declared_clock::DeclaredClock>
 pub mod nika_runtime::config
 #[non_exhaustive] pub struct nika_runtime::config::RuntimeConfig
+pub nika_runtime::config::RuntimeConfig::approval_operator: core::option::Option<alloc::string::String>
 pub nika_runtime::config::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::config::RuntimeConfig::max_cost_usd: core::option::Option<f64>
 pub nika_runtime::config::RuntimeConfig::project_root_fingerprint: core::option::Option<alloc::string::String>
@@ -555,6 +556,7 @@ pub nika_runtime::config::RuntimeConfig::sandbox_waived: bool
 pub nika_runtime::config::RuntimeConfig::wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>
 impl nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_approval_operator(self, operator: alloc::string::String) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_project_root(self, root: &std::path::Path) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_backend(self, backend: &str) -> Self
@@ -1064,6 +1066,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::RuntimeCa
 impl<T> typenum::type_operators::Same for nika_runtime::compose::RuntimeCapabilities
 pub type nika_runtime::compose::RuntimeCapabilities::Output = T
 #[non_exhaustive] pub struct nika_runtime::RuntimeConfig
+pub nika_runtime::RuntimeConfig::approval_operator: core::option::Option<alloc::string::String>
 pub nika_runtime::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::RuntimeConfig::max_cost_usd: core::option::Option<f64>
 pub nika_runtime::RuntimeConfig::project_root_fingerprint: core::option::Option<alloc::string::String>
@@ -1074,6 +1077,7 @@ pub nika_runtime::RuntimeConfig::sandbox_waived: bool
 pub nika_runtime::RuntimeConfig::wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>
 impl nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_approval_operator(self, operator: alloc::string::String) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_project_root(self, root: &std::path::Path) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_backend(self, backend: &str) -> Self

@@ -148,10 +148,10 @@ fn the_book_mints_counts_and_refuses_the_sixth_distinct() {
     );
     for i in 0..APPROVAL_MAX_TICKETS_PER_RUN {
         let hash = format!("{i:064x}");
-        let admit = book.admit("ask", "confirm", &hash, 0, None, "builtin");
+        let admit = book.admit("ask", "confirm", &hash, 0, None, "builtin", None);
         assert!(matches!(admit, Admit::Run { .. }), "mint {i} runs");
     }
-    let admit = book.admit("ask", "confirm", &"f".repeat(64), 0, None, "builtin");
+    let admit = book.admit("ask", "confirm", &"f".repeat(64), 0, None, "builtin", None);
     let Admit::Refused(r) = admit else {
         panic!("the sixth distinct mint is refused");
     };
@@ -160,7 +160,15 @@ fn the_book_mints_counts_and_refuses_the_sixth_distinct() {
     assert!(r.detail.contains(APPROVAL_CODE), "{}", r.detail);
     // A SIXTH distinct step is refused; a SIXTH mint of KNOWN content
     // still passes (the dedup path is not the storm).
-    let admit = book.admit("ask", "confirm", &format!("{:064x}", 0), 0, None, "builtin");
+    let admit = book.admit(
+        "ask",
+        "confirm",
+        &format!("{:064x}", 0),
+        0,
+        None,
+        "builtin",
+        None,
+    );
     assert!(matches!(admit, Admit::Run { .. }), "known content re-runs");
 }
 
@@ -178,7 +186,7 @@ fn the_book_consumes_a_decided_ticket_instead_of_replaying_it() {
     );
     let hash = "a".repeat(64);
     // Mint + decide (the attest path records the answer for dedup).
-    let Admit::Run { .. } = book.admit("one", "confirm", &hash, 0, None, "builtin") else {
+    let Admit::Run { .. } = book.admit("one", "confirm", &hash, 0, None, "builtin", None) else {
         panic!("the first mint runs");
     };
     let mut settle = resolved(Value::Bool(true));
@@ -190,7 +198,8 @@ fn the_book_consumes_a_decided_ticket_instead_of_replaying_it() {
     // A decision consumes the capability. Even if a caller presents the
     // same content hash again inside the TTL, the recorded answer cannot
     // bind a second task: fresh consent and a fresh ticket are required.
-    let Admit::Run { bind } = book.admit("two", "confirm", &hash, 2_000, None, "builtin") else {
+    let Admit::Run { bind } = book.admit("two", "confirm", &hash, 2_000, None, "builtin", None)
+    else {
         panic!("the second ask re-mints");
     };
     assert_eq!(bind, None, "the consumed answer never replays");
@@ -207,7 +216,8 @@ fn the_book_consumes_a_decided_ticket_instead_of_replaying_it() {
     assert_eq!(att2.source, "builtin");
     // A later use also re-mints (fresh consent · it counts).
     let stale_at = 1_000_000 + 901_000;
-    let Admit::Run { bind } = book.admit("three", "confirm", &hash, stale_at, None, "builtin")
+    let Admit::Run { bind } =
+        book.admit("three", "confirm", &hash, stale_at, None, "builtin", None)
     else {
         panic!("the stale ticket re-mints");
     };
@@ -229,7 +239,7 @@ fn the_first_terminal_decision_is_immutable() {
         "nonce".to_owned(),
     );
     let hash = "e".repeat(64);
-    let Admit::Run { .. } = book.admit("ask", "confirm", &hash, 0, None, "builtin") else {
+    let Admit::Run { .. } = book.admit("ask", "confirm", &hash, 0, None, "builtin", None) else {
         panic!("the ticket mints");
     };
 
@@ -284,6 +294,7 @@ fn the_book_validates_the_resumed_ticket_laws() {
         1_000,
         Some(&Value::Bool(true)),
         "cli",
+        None,
     );
     let Admit::Refused(r) = admit else {
         panic!("a cross-run replay is refused");
@@ -301,6 +312,7 @@ fn the_book_validates_the_resumed_ticket_laws() {
         1_000,
         Some(&Value::Bool(true)),
         "cli",
+        None,
     );
     let Admit::Refused(r) = admit else {
         panic!("a content mismatch is refused");
@@ -322,6 +334,7 @@ fn the_book_validates_the_resumed_ticket_laws() {
         901_000,
         Some(&Value::Bool(true)),
         "cli",
+        None,
     );
     let Admit::Run { bind } = admit else {
         panic!("the expired ticket re-mints");
@@ -339,6 +352,7 @@ fn the_book_validates_the_resumed_ticket_laws() {
         60_000,
         Some(&Value::Bool(true)),
         "cli",
+        None,
     );
     let Admit::Run { bind } = admit else {
         panic!("the valid ticket binds");
@@ -377,6 +391,7 @@ fn a_paused_capability_clone_admits_exactly_one_runtime() {
             1_000,
             Some(&Value::Bool(true)),
             "cli",
+            None,
         ),
         Admit::Run { .. }
     ));
@@ -387,6 +402,7 @@ fn a_paused_capability_clone_admits_exactly_one_runtime() {
         1_000,
         Some(&Value::Bool(true)),
         "cli",
+        None,
     ) else {
         panic!("the cloned capability must be single-use across runtimes");
     };
@@ -513,6 +529,9 @@ struct ApprovalFrame {
     shown_hash: String,
     digest: Option<String>,
     why: Option<String>,
+    operator: Option<String>,
+    question: Option<String>,
+    answer: Option<String>,
 }
 
 /// The `approval_decided` frames of a sink, projected.
@@ -527,8 +546,127 @@ fn decisions(sink: &VecSink) -> Vec<ApprovalFrame> {
             shown_hash: str_field(e, "shown_hash").unwrap_or("").to_owned(),
             digest: str_field(e, "digest").map(str::to_owned),
             why: str_field(e, "why").map(str::to_owned),
+            operator: str_field(e, "operator").map(str::to_owned),
+            question: str_field(e, "question").map(str::to_owned),
+            answer: str_field(e, "answer").map(str::to_owned),
         })
         .collect()
+}
+
+// ─── #1284 · operator identity + the malformed-answer refusal ────────
+
+/// #1284 (b) · `approval_decided` names WHO answered — `NIKA_OPERATOR`
+/// when declared, else OS user + hostname — plus WHAT was asked and WHAT
+/// was answered. Source is a channel; the journal can now tell Alice
+/// from Bob. Additive fields — older readers ignore them.
+#[tokio::test]
+async fn the_decided_frame_names_operator_question_and_answer() {
+    let (outcome, sink) = run_gated(
+        "nika: cli\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"ship it?\" }\n",
+        Seams {
+            shell: vec![],
+            tool: vec![ToolResult::success("tc", "true").with_structured(Value::Bool(true))],
+            pause: true,
+            plan: None,
+            answers: BTreeMap::from([("ask".to_owned(), Value::Bool(true))]),
+            paused: None,
+        },
+    )
+    .await;
+    assert!(outcome.ok);
+    let ds = decisions(&sink);
+    assert_eq!(ds.len(), 1, "{ds:?}");
+    let allow = &ds[0];
+    assert!(
+        allow.operator.as_deref().is_some_and(|o| !o.is_empty()),
+        "the frame attributes a WHO: {allow:?}"
+    );
+    assert_eq!(allow.operator.as_deref(), Some("alice-ci"));
+    assert_eq!(allow.question.as_deref(), Some("ship it?"));
+    assert_eq!(allow.answer.as_deref(), Some("true"));
+}
+
+/// The operator composition is pure and testable: the declared
+/// `NIKA_OPERATOR` wins whole; else `user@host`; absent pieces read
+/// `unknown`, never a guess.
+#[test]
+fn operator_identity_composes_declared_then_user_at_host() {
+    use super::compose_operator;
+    assert_eq!(
+        compose_operator(Some("alice-ci".to_owned()), None, None),
+        "alice-ci",
+        "the declaration wins whole"
+    );
+    assert_eq!(
+        compose_operator(None, Some("bob".to_owned()), Some("forge.local".to_owned())),
+        "bob@forge.local"
+    );
+    assert_eq!(compose_operator(None, None, None), "unknown@unknown");
+    // An empty declaration is no declaration.
+    assert_eq!(
+        compose_operator(Some(String::new()), Some("bob".to_owned()), None),
+        "bob@unknown"
+    );
+}
+
+/// #1284 (c) · a malformed `--answer` on a confirm gate used to bind as
+/// a wrong-typed `default:`, fail PROMPT-001 inside the builtin and
+/// silently PAUSE — a CI with a typo got an unexplained gate. The gate
+/// now refuses TYPED (`approval.answer_malformed` · NIKA-SEC-010): the
+/// run fails loudly, the deny is journaled, nothing pauses.
+#[tokio::test]
+async fn a_malformed_answer_refuses_typed_instead_of_pausing() {
+    let (outcome, sink) = run_gated(
+        "nika: cli\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"ship it?\" }\n",
+        Seams {
+            shell: vec![],
+            tool: vec![],
+            pause: true,
+            plan: None,
+            answers: BTreeMap::from([("ask".to_owned(), Value::String("banana".to_owned()))]),
+            paused: None,
+        },
+    )
+    .await;
+    assert!(!outcome.ok, "the malformed answer halts the run");
+    assert!(
+        outcome.paused.is_none(),
+        "loud refusal, never the silent pause"
+    );
+    let error = outcome.records["ask"].error.as_ref().expect("typed");
+    assert_eq!(error.code, APPROVAL_CODE);
+    assert!(
+        error.message.contains("approval.answer_malformed"),
+        "{error:?}"
+    );
+    assert!(
+        error.message.contains("a confirm gate takes true or false"),
+        "the refusal teaches the shape: {error:?}"
+    );
+    let ds = decisions(&sink);
+    assert_eq!(ds.len(), 1, "{ds:?}");
+    assert_eq!(ds[0].decision, "deny");
+    assert_eq!(ds[0].why.as_deref(), Some("approval.answer_malformed"));
+}
+
+/// The guard's guard — a WELLFORMED string answer on an `input` gate
+/// still binds and completes (the shape law judges against the RESOLVED
+/// mode, never blanket-refuses strings).
+#[tokio::test]
+async fn a_wellformed_input_answer_still_binds() {
+    let (outcome, _sink) = run_gated(
+        "nika: cli\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"name?\" }\n",
+        Seams {
+            shell: vec![],
+            tool: vec![ToolResult::success("tc", "amel")],
+            pause: true,
+            plan: None,
+            answers: BTreeMap::from([("ask".to_owned(), Value::String("amel".to_owned()))]),
+            paused: None,
+        },
+    )
+    .await;
+    assert!(outcome.ok, "a string IS the input-mode shape");
 }
 
 async fn run_gated(yaml: &str, seams: Seams) -> (RunOutcome, VecSink) {
@@ -561,7 +699,7 @@ async fn run_gated(yaml: &str, seams: Seams) -> (RunOutcome, VecSink) {
             "mock/echo",
         ),
         MockClock::new(),
-        RuntimeConfig::default(),
+        RuntimeConfig::default().with_approval_operator("alice-ci".to_owned()),
     )
     .with_prompt_pause(seams.pause)
     .with_prompt_answers(seams.answers)
@@ -984,4 +1122,27 @@ async fn fixture_f_the_honest_gate_binds_and_attests() {
         "one ticket digest"
     );
     assert!(allow.why.is_none());
+}
+
+#[tokio::test]
+async fn a_choice_answer_must_belong_to_the_resolved_choices() {
+    for (answer, accepted) in [("a", true), ("outside", false)] {
+        let tool = if accepted {
+            vec![ToolResult::success("tc", answer)]
+        } else {
+            vec![]
+        };
+        let (outcome, sink) = run_gated(
+            "nika: cli\npermits: { tools: [nika:prompt] }\ntasks:\n  ask:\n    invoke:\n      tool: nika:prompt\n      args: {mode: choice, message: pick, choices: [a, b]}\n",
+            Seams {shell: vec![], tool, pause: true, plan: None, answers: BTreeMap::from([("ask".to_owned(), Value::String(answer.to_owned()))]), paused: None},
+        ).await;
+        assert_eq!(outcome.ok, accepted);
+        assert!(outcome.paused.is_none());
+        if !accepted {
+            assert_eq!(
+                decisions(&sink)[0].why.as_deref(),
+                Some("approval.answer_malformed")
+            );
+        }
+    }
 }

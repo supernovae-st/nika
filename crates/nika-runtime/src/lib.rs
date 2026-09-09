@@ -403,6 +403,8 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             infer,
             agent,
             clock,
+            approvals: approval::ApprovalBook::new()
+                .with_operator(config.approval_operator.clone()),
             config,
             secrets: Arc::new(nika_secret::NoSecrets),
             var_overrides: BTreeMap::new(),
@@ -417,7 +419,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             child_closures: BTreeMap::new(),
             child_runner: None,
             run_depth: 0,
-            approvals: approval::ApprovalBook::new(),
+
             resume_compat: None,
             resume_unverified: None,
             access_pin: None,

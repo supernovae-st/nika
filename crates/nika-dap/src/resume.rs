@@ -469,6 +469,25 @@ pub fn parse_answers(
             None => serde_json::from_str(raw)
                 .unwrap_or_else(|_| serde_json::Value::String(raw.to_owned())),
         };
+        // #1284 · a duplicate flag for ONE task: identical values dedupe
+        // (a retried CI line is not an error); conflicting ones refuse —
+        // last-wins was a silent coin toss on a human gate.
+        if let Some(prior) = answers.get(task_id) {
+            if prior != &value {
+                return Err(format!(
+                    "--answer {task_id}: conflicting answers `{prior}` and `{value}` — give \
+                     exactly one"
+                ));
+            }
+            continue;
+        }
+        // #1284 · the SHAPE is judged against the declared mode where it
+        // is literal — a confirm typo used to ride to the builtin, fail
+        // PROMPT-001 and silently pause (the runtime gate re-judges the
+        // RESOLVED mode; this is the earliest honest refusal).
+        if is_prompt {
+            judge_answer_shape(task_id, &task.value, &value)?;
+        }
         answers.insert(task_id.to_owned(), value);
     }
     Ok(answers)
@@ -528,6 +547,64 @@ pub fn refuse_reopened_settled_gates(
         }
     }
     Ok(())
+}
+
+/// The parse-time shape law (#1284): a LITERAL `mode:` names the answer
+/// shape — `confirm` takes a boolean · `input` a string · `choice` one
+/// of its literal `choices:`. A templated mode (or args) stays un-judged
+/// here; the runtime's approval gate owns the resolved mode.
+fn judge_answer_shape(
+    task_id: &str,
+    task: &nika_schema::raw::RawTask,
+    value: &serde_json::Value,
+) -> Result<(), String> {
+    let nika_schema::raw::RawAction::Invoke(invoke) = &task.action else {
+        return Ok(());
+    };
+    let args = invoke.args.as_ref().map(|a| &a.value);
+    let literal =
+        |v: &serde_json::Value| v.as_str().map(str::to_owned).filter(|s| !s.contains("${{"));
+    // A non-object (templated) args block resolves at run — un-judged.
+    let Some(serde_json::Value::Object(map)) = args else {
+        return Ok(());
+    };
+    let mode = match map.get("mode") {
+        // The stdlib default IS confirm (§prompt).
+        None => "confirm".to_owned(),
+        Some(raw) => match literal(raw) {
+            Some(mode) => mode,
+            None => return Ok(()), // templated mode — the runtime judges
+        },
+    };
+    match mode.as_str() {
+        "confirm" if !value.is_boolean() => Err(format!(
+            "--answer {task_id}: `{value}` — a confirm gate takes true or false"
+        )),
+        "input" if !value.is_string() => Err(format!(
+            "--answer {task_id}: `{value}` — an input gate takes a string (quote it)"
+        )),
+        "choice" => {
+            let choices: Option<Vec<String>> = map
+                .get("choices")
+                .and_then(serde_json::Value::as_array)
+                .and_then(|items| items.iter().map(&literal).collect());
+            let named = value.as_str();
+            // Membership judges only a fully-literal choice list.
+            if named.is_none()
+                || choices
+                    .as_ref()
+                    .is_some_and(|choices| named.is_some_and(|n| !choices.iter().any(|c| c == n)))
+            {
+                return Err(format!(
+                    "--answer {task_id}: `{value}` — a choice gate takes one of the declared \
+                     choices: {}",
+                    choices.unwrap_or_default().join(" · ")
+                ));
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
 }
 
 /// The resume's chain-trust verdict (ADR-099 trust amendment ·
@@ -966,6 +1043,8 @@ mod tests {
         };
         assert!(!finding.contains('\u{1b}'), "stripped: {finding}");
     }
+
+    mod answer_shapes;
 
     #[test]
     fn answers_bind_only_known_prompt_tasks() {

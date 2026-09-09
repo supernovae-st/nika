@@ -226,7 +226,7 @@ const CARD_INNER_CAP: usize = 58;
 /// provided one (the scheduler's truth), else reconstructed by chaining
 /// overlapping intervals in start order (a replayed trace's best honest
 /// read — only tasks that RAN count).
-fn wave_sizes(view: &RunView) -> Vec<usize> {
+pub(crate) fn wave_sizes(view: &RunView) -> Vec<usize> {
     if let Some(plan) = view.plan() {
         return plan.iter().map(Vec::len).collect();
     }
