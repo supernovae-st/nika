@@ -103,7 +103,7 @@ showcase:
   - file: examples/deep-research-brief.nika.yaml
     name: deep-research-brief
     constructs: [agent_tools, local_model, outputs, schema, typed_inputs, with]
-    sha256_16: 3eec94752242fc49
+    sha256_16: 9a7047b27f389ba2
   - file: examples/etl-quarantine.nika.yaml
     name: etl-quarantine
     constructs: [on_error, outputs, when, with]
