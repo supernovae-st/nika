@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 5020
+  classified_files: 5025
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 2029
+    authored: 2034
     authored-pin: 2
     generated: 137
     pinned-copy: 147
@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: 327100f3ed2bb2ca075de70db571b7fea298db20716de5af4f94110cef3ed5f7
+  sha256: c81b77f7c8fa9cb719b8144f2258a6263d06859514e5000d186f35bda1c4d6fd
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 146
-  aggregate_sha256: 8a05571282b76ab2b4c9dd823fba42179d5df5ceec1e312f52b577ec3661bf17
+  aggregate_sha256: e55314c2653a8166fb9afb8a279143f6c04e6accc4e4cd9ee8d66ae02baa45ba
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout at SPEC_PIN> — spec-pin-heal.yml advances the pin and pack together, and Diamond CI refuses any pack differing from spec@SPEC_PIN"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 71
-  aggregate_sha256: 6a9b7db6749426765b883390a1e8741d57d4d22887a8711d544c453a8571e839
+  aggregate_sha256: d82830e38c0d6e9f03a09fccb049dcc947723e963e50091b88757f58be294ec8
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 1004
-  aggregate_sha256: 8616acdba7cd1eb2abb85a53fd05a747673ca09ad5603f21dc08e26d0eba7601
+  match_count: 1006
+  aggregate_sha256: f99bd45984d44dc06e0f04661b35a03bb0b0323022e248f4cf05b9eec61760cb
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -183,12 +183,12 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 124
-  aggregate_sha256: 2786cae38d4797b5dddacac8d9a2400b78aa8087310f3ad0014a7b956bee8bfb
+  aggregate_sha256: 694f29f1e7078a91e9c439b317ca440354fedba0a9db58bac88c3386454dea21
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 244
-  aggregate_sha256: d6a2f08f81b2362b576ede2db5833b4fb277c4d2f3d3cdbcc59fe3ba3af9bbaa
+  match_count: 245
+  aggregate_sha256: 5c5cd521be38ba0f370c20fec5ec1a717b5f672cc365f4acececdb59de1c613c
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -242,8 +242,8 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 63
-  aggregate_sha256: fe74100b22aa9ddaf1e95a34ca6445c7821e1d338f216b6fc5a5eeab7d52e413
+  match_count: 65
+  aggregate_sha256: 921987a887bcb9b3da0598d45517a5707e9ceb3cab94a2ddbb736a57a4df1f27
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"

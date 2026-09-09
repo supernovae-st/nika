@@ -110,7 +110,7 @@ tasks:
         - "nika:fetch"                 # the corpus named in permits.net.http
         - "nika:done"                  # the loop-completion sentinel
       max_turns: 25                    # the leash · a loop that cannot end is a bill
-      max_tokens_total: 150000         # and the second leash, in tokens
+      max_tokens_total: 120000         # below the default model’s 128k context window
       schema:
         type: object
         additionalProperties: false
