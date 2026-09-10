@@ -17,7 +17,17 @@
 <p align="center">
   <a href="https://github.com/supernovae-st/nika/releases/latest"><img src="https://img.shields.io/github/v/release/supernovae-st/nika?label=release" alt="Latest release"></a>
   <a href="https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml"><img src="https://github.com/supernovae-st/nika/actions/workflows/diamond-ci.yml/badge.svg?branch=main" alt="CI status"></a>
+  <a href="https://www.npmjs.com/package/@supernovae-st/nika"><img src="https://img.shields.io/npm/v/@supernovae-st/nika?label=npm" alt="npm package"></a>
+  <a href="https://docs.nika.sh"><img src="https://img.shields.io/badge/docs-docs.nika.sh-8b8cf8.svg" alt="Documentation"></a>
   <a href="https://github.com/supernovae-st/nika-spec"><img src="https://img.shields.io/badge/spec-open-8b8cf8.svg" alt="Open specification"></a>
+</p>
+
+<p align="center">
+  <a href="https://scorecard.dev/viewer/?uri=github.com/supernovae-st/nika"><img src="https://api.scorecard.dev/projects/github.com/supernovae-st/nika/badge" alt="OpenSSF Scorecard"></a>
+  <a href="https://github.com/supernovae-st/nika/actions/workflows/codeql.yml"><img src="https://github.com/supernovae-st/nika/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL"></a>
+  <a href="https://github.com/supernovae-st/nika/releases/latest"><img src="https://slsa.dev/images/gh-badge-level3.svg" alt="SLSA 3 provenance on every release"></a>
+  <a href="https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/supernovae-st/nika"><img src="https://archive.softwareheritage.org/badge/origin/https://github.com/supernovae-st/nika/" alt="Archived by Software Heritage"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg" alt="AGPL-3.0-or-later"></a>
 </p>
 
 ## See the idea in one minute
@@ -76,6 +86,17 @@ nika run --model openai/gpt-4.1-mini --access api
 This uses `OPENAI_API_KEY` from your terminal environment. It makes a real,
 billable model call and sends the transcript to your selected provider. Use
 notes you are allowed to process there. No credentials go in the workflow.
+
+`nika check` prints its verdict before a token is spent. Two of its lines
+say where your notes go and what the run may cost:
+
+```
+ ✔ JOURNEY cloud endpoint openai · task data leaves this machine · retention 30 · training no
+ ✔ audited · 4 tasks · 4 waves · permits tools:nika:log,nika:read,nika:write read:examples/fixtures/meeting-transcript.txt write:out/action-items.json · est out ≤$0.0048 · 0 hints · risk supervised
+```
+
+No key at hand yet? `--model mock/echo` in both commands rehearses the whole
+plan with no key and no network; the result is an echo, not an extraction.
 
 **Your result is `out/action-items.json`:** one entry per commitment, with an
 owner, a task and a deadline when one was stated. Open that file. Review the
@@ -155,9 +176,15 @@ and `infer`; it does not add a shell or an agent loop just to fill the diagram.
 
 With Homebrew: `brew install supernovae-st/tap/nika`.
 
+From npm, the same binary plus a TypeScript client:
+`npm install @supernovae-st/nika` (the `nika` command lands in
+`node_modules/.bin`).
+
 See the [install guide](https://nika.sh/install) or download a
-[release archive](https://github.com/supernovae-st/nika/releases/latest).
-Windows users can use WSL2; native Windows binaries are not shipped yet.
+[release archive](https://github.com/supernovae-st/nika/releases/latest);
+every release ships SLSA provenance you can verify. A Nix flake is in the
+repository. Windows users can use WSL2; native Windows binaries are not
+shipped yet.
 
 </details>
 
@@ -177,12 +204,49 @@ with the one printed by the run. This checks the record, not the AI's judgement.
 
 </details>
 
+<!-- city:map -->
+## The city · where this repo sits
+
+```text
+📜 nika-spec ──── language law and conformance
+    │
+    ▼
+⚙️ nika ───────── this repo: the engine · admission, execution, receipts and schedules
+    │
+    ▼
+🔌 doors ──────── npm @supernovae-st/nika · Homebrew · VS Code · plugins · gh nika · the CI action
+    │
+    ▼
+🧩 your workflows
+```
+
+This repository is the one executable: it parses, admits, runs and traces
+every workflow. The language is defined in the specification; the doors
+consume this engine and add nothing to its authority.
+
+All the buildings: [nika-spec](https://github.com/supernovae-st/nika-spec) ·
+[nika](https://github.com/supernovae-st/nika) ·
+[nika.sh](https://github.com/supernovae-st/nika.sh) ·
+[nika-docs](https://github.com/supernovae-st/nika-docs) ·
+[nika-client](https://github.com/supernovae-st/nika-client) ·
+[nika-vscode](https://github.com/supernovae-st/nika-vscode) ·
+[nika-plugins](https://github.com/supernovae-st/nika-plugins) ·
+[gh-nika](https://github.com/supernovae-st/gh-nika) ·
+[homebrew-tap](https://github.com/supernovae-st/homebrew-tap) ·
+[nika-action](https://github.com/supernovae-st/nika-action) ·
+[nika-actions-starter](https://github.com/supernovae-st/nika-actions-starter) ·
+[nika-registry](https://github.com/supernovae-st/nika-registry) ·
+[nika-estate](https://github.com/supernovae-st/nika-estate).
+<!-- /city:map -->
+
 ## Go further
 
 [Examples](examples/README.md) ·
 [Documentation](https://docs.nika.sh) ·
+[TypeScript SDK](https://www.npmjs.com/package/@supernovae-st/nika) ·
 [Editor extension](https://marketplace.visualstudio.com/items?itemName=supernovae.nika-lang) ·
 [Open specification](https://github.com/supernovae-st/nika-spec) ·
+[Registry](https://github.com/supernovae-st/nika-registry) ·
 [Roadmap](https://github.com/orgs/supernovae-st/projects/3)
 
 Nika is usable today and pre-1.0. The engine is
