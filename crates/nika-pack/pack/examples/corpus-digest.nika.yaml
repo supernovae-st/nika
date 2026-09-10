@@ -6,7 +6,7 @@
 # A pile of documents becomes one sourced brief — and no model window ever
 # holds two documents. A fast pass assigns each file a focus FROM ITS PATH
 # alone, every document is then read and carded in its own fresh window,
-# jq assembles and ranks the deck deterministically, and a thinking pass
+# jq assembles and ranks the deck deterministically, and a synthesis pass
 # answers the question from the cards. Context folding: the corpus lives
 # in the dataflow, each model call sees one slice, the synthesis sees only
 # projections. Window size stops scaling with corpus size.
@@ -40,11 +40,10 @@ nika: corpus-digest
 run:
   clock: system   # the `timeout:` deadlines below ride the wall clock · said out loud (see 03)
 
-# The house seat — a THINKING model. Measured: at caps of 600, 2000 and
-# 3000 tokens qwen3.5:4b spent the whole budget reasoning before the JSON
-# and never closed it (NIKA-INFER-002 · engine#428). So every stage's
-# ceiling below is sized for the think block AND the answer — both count
-# against `max_tokens`. One resident seat also spares the model-swap
+# The house local seat. The embedded catalog marks qwen3.5:4b as a
+# non-reasoning model, so this workflow declares no `thinking:` block.
+# Its generous output ceilings leave room for complete typed forms.
+# One resident seat also spares the model-swap
 # thrash of per-task overrides on a single GPU (measured: alternating two
 # seats sent every stage cold and timed the synthesis out).
 model: ollama/qwen3.5:4b   # local · zero key · `--model mock/echo` rehearses the whole file
@@ -90,7 +89,7 @@ tasks:
       files: ${{ tasks.files.output }}
     timeout: "8m"                # a local seat may be slow · bounded, not instant
     infer:
-      max_tokens: 6000           # think block + the form · the cap is margin, not hope
+      max_tokens: 6000           # the form plus margin, not hope
       prompt: |
         Assign one focus of 3 to 8 words to each file path. The focuses
         serve this question: ${{ with.question }}
@@ -161,7 +160,7 @@ tasks:
     on_error:
       recover: null              # null holds the index open so the zip below stays aligned
     infer:
-      max_tokens: 6000           # think block + a card, not an essay
+      max_tokens: 6000           # a complete card plus margin
       prompt: |
         Fill the card for ONE document. Claims are one sentence each,
         quotes are verbatim and short, relevance is 0 to 5 for the focus.
@@ -217,19 +216,15 @@ tasks:
     when: ${{ size(with.deck) > 0 }}
     timeout: "12m"               # judgment gets patience · still bounded
     infer:
-      max_tokens: 8000           # the declared think budget (4000 below) + the brief · both count
+      max_tokens: 8000           # bounded synthesis on the default local seat
       prompt: |
         Question · ${{ with.question }}
         Deck of source cards · ${{ with.deck }}
         Answer the question from the cards alone. Cite the `path` of every
         card you lean on. Where cards disagree, say so — do not resolve a
         conflict the sources did not resolve.
-      thinking:
-        # A reasoning budget, honoured by seats that support extended
-        # thinking and ignored by the ones that do not — declaring it
-        # never fails a run.
-        enabled: true
-        budget_tokens: 4000
+      # Extended thinking requires a reasoning-capable seat in the catalog.
+      # The default local seat does not declare that capability.
 
 # Both the brief and the deck, so the fold is inspectable: the deck is
 # everything the synthesis was allowed to see. Read with `--output json`.

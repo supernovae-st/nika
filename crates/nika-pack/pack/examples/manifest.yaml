@@ -94,8 +94,8 @@ showcase:
     sha256_16: c48168dfc6470ee1
   - file: examples/corpus-digest.nika.yaml
     name: corpus-digest
-    constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, thinking, timeout, typed_inputs, when, with]
-    sha256_16: deb6969b9b25f161
+    constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, timeout, typed_inputs, when, with]
+    sha256_16: 6e6ef94ca12fe32c
   - file: examples/csv-chart-report.nika.yaml
     name: csv-chart-report
     constructs: [outputs, with]
