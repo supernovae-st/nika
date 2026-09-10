@@ -95,8 +95,14 @@ say where your notes go and what the run may cost:
  ✔ audited · 4 tasks · 4 waves · permits tools:nika:log,nika:read,nika:write read:examples/fixtures/meeting-transcript.txt write:out/action-items.json · est out ≤$0.0048 · 0 hints · risk supervised
 ```
 
-No key at hand yet? `--model mock/echo` in both commands rehearses the whole
-plan with no key and no network; the result is an echo, not an extraction.
+No key at hand yet? Rehearse the whole plan with no key and no network:
+
+```sh
+nika check --model mock/echo
+nika run --model mock/echo
+```
+
+The mock run needs no access pin; the result is an echo, not an extraction.
 
 **Your result is `out/action-items.json`:** one entry per commitment, with an
 owner, a task and a deadline when one was stated. Open that file. Review the
@@ -226,7 +232,7 @@ consume this engine and add nothing to its authority.
 
 All the buildings: [nika-spec](https://github.com/supernovae-st/nika-spec) ·
 [nika](https://github.com/supernovae-st/nika) ·
-[nika.sh](https://github.com/supernovae-st/nika.sh) ·
+[nika.sh](https://nika.sh) ·
 [nika-docs](https://github.com/supernovae-st/nika-docs) ·
 [nika-client](https://github.com/supernovae-st/nika-client) ·
 [nika-vscode](https://github.com/supernovae-st/nika-vscode) ·
