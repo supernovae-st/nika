@@ -416,19 +416,7 @@ capabilities:
 # hashed into the resume key, never copied onto InferInput) ·
 # lsp --clientProcessId (clap accepts, comment says "currently unread").
 
-silent_drops:
-  - id: infer.vision
-    parsed_file: crates/nika-schema/src/parser/verbs.rs
-    parsed_needle: "action.vision"
-    runtime_file: crates/nika-runtime/src/dispatch.rs
-    runtime_needle: "action.vision"
-    issue: 1135
-  - id: infer.thinking
-    parsed_file: crates/nika-schema/src/parser/verbs.rs
-    parsed_needle: "action.thinking"
-    runtime_file: crates/nika-runtime/src/dispatch.rs
-    runtime_needle: "action.thinking"
-    issue: 1180
+silent_drops: []
   # lsp.client-process-id — REMOVED 2026-08-24. The flag is read at
   # main.rs and drives the `initialize` §processId watchdog; the field is
   # no longer silent, so the watch would now be the lie in the other
