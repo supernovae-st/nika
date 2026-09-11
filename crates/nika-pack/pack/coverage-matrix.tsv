@@ -156,3 +156,7 @@ verbs	(positive)	positive-check	conformance/tests/stdlib/hash/019-templated-algo
 verbs	(positive)	positive-check	conformance/tests/stdlib/hash/020-templated-encoding-valid
 verbs	NIKA-BUILTIN	check-reject	conformance/tests/stdlib/hash/021-invalid-algo-with-templated-encoding-refused
 verbs	NIKA-BUILTIN	check-reject	conformance/tests/stdlib/hash/022-templated-algo-with-invalid-encoding-refused
+verbs	NIKA-BUILTIN	check-reject	conformance/tests/deep/030-decide-without-evidence
+verbs	NIKA-BUILTIN	check-reject	conformance/tests/deep/031-decide-without-bundle
+verbs	NIKA-BUILTIN	check-reject	conformance/tests/deep/032-decide-without-args
+verbs	(positive)	positive-check	conformance/tests/deep/033-decide-inline-pair

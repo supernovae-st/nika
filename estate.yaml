@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 5041
+  classified_files: 5045
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 2050
+    authored: 2054
     authored-pin: 2
     generated: 137
     pinned-copy: 147
@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: c81b77f7c8fa9cb719b8144f2258a6263d06859514e5000d186f35bda1c4d6fd
+  sha256: a6e81d85bbe85869caebfbde648c8c9f0e23189a226c693d0b5ab2d2d594f2fc
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 146
-  aggregate_sha256: e55314c2653a8166fb9afb8a279143f6c04e6accc4e4cd9ee8d66ae02baa45ba
+  aggregate_sha256: fbc4e238a3c70fbf7b11eb9ed658179727c97eea76059a997b511056913ae988
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout at SPEC_PIN> — spec-pin-heal.yml advances the pin and pack together, and Diamond CI refuses any pack differing from spec@SPEC_PIN"
@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 1014
-  aggregate_sha256: b05d574fb4333ee5e27fe2461e278ec230645ff805cf4f3ff4a63ab8cb938e40
+  aggregate_sha256: 8ab08f7ebe58ffbc039be581a0318f449be8d3177b93f414a678637e7b341c72
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 210
-  aggregate_sha256: d4bb898bdd897669ead3b29f5dc9b54f27f36912a0a4e14c58833ea3b5f63925
+  match_count: 211
+  aggregate_sha256: b4196f1969925f3dd0cfe81af129cc9d84419d32756207529a3256e556547fea
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -242,14 +242,14 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 73
-  aggregate_sha256: f8a7a51962020f15b14984d5db14c1653297c7f7148ec52a83935bee954210ae
+  match_count: 76
+  aggregate_sha256: c8c30f919cf80eea83ffbd728701f3f02196d80db894314549638d6eb70ce54d
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: 6ee1bd056278f3f808b0856f14981fb3d27b8ca9feb9364c6bc5de2874e17764
+  aggregate_sha256: 96dbf038152634e0f3ad272f978f294a29d407f00660bd91df9842817403ad95
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
