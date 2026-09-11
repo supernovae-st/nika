@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · docker-report's reads are argv arrays. A string exec is a
+# shell door the skeleton does not teach and check refuses.
+# Expected · NIKA-PARSE-019.
+nika: docker-report-negative
+permits:
+  exec: ["docker"]
+tasks:
+  ps:
+    exec: "docker ps --all"

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · the chain's edge is `with:`. Reading tasks.* inside infer
+# is not an edge; the gather result never becomes a DAG input.
+# Expected · NIKA-VAR-021.
+nika: chain-negative
+model: mock/echo
+permits:
+  tools: ["nika:read"]
+tasks:
+  gather:
+    invoke:
+      tool: nika:read
+      args: { path: "./README.md" }
+    on_error:
+      recover: "rehearsal"
+  think:
+    infer:
+      prompt: "Summarize ${{ tasks.gather.output }}"
