@@ -41,15 +41,17 @@ if ! command -v lefthook >/dev/null 2>&1; then
   echo "  ! lefthook              NOT INSTALLED — ${declared} local gates stay inert"
   echo "                          install it, then re-run this script"
 else
-  hooks_path=$(git config --get core.hooksPath 2>/dev/null || true)
-  if { [ -n "$hooks_path" ] && [ -e "$hooks_path/pre-commit" ]; } || [ -f .git/hooks/pre-commit ]; then
+  hook_path=$(git rev-parse --git-path hooks/pre-commit 2>/dev/null || true)
+  if [ -f "$hook_path" ] && [ -x "$hook_path" ]; then
     echo "  = lefthook              already installed (${declared} gates reachable)"
     already=$((already + 1))
-  elif lefthook install >/dev/null 2>&1; then
+  elif lefthook install >/dev/null 2>&1 \
+    && hook_path=$(git rev-parse --git-path hooks/pre-commit 2>/dev/null) \
+    && [ -f "$hook_path" ] && [ -x "$hook_path" ]; then
     echo "  + lefthook              installed (${declared} gates now reachable)"
     armed=$((armed + 1))
   else
-    echo "  ! lefthook install      FAILED — ${declared} gates stay inert"
+    echo "  ! lefthook install      FAILED to arm an executable pre-commit hook — ${declared} gates stay inert"
   fi
 fi
 
