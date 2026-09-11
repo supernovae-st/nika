@@ -1,0 +1,1 @@
+- **Vector 49 proves on macOS.** The hygiene self-test runner now shims GNU `sha256sum` with `shasum -a 256` when the binary is absent, and the publication-barrier fixture does the same in its fake PATH. Local pre-push no longer dies on a missing GNU hasher while the guards themselves still pass.
