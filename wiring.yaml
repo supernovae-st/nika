@@ -505,9 +505,7 @@ capabilities:
     declared_at: crates/nika-cli/src/main.rs:273
     shipped_when: "default"
     reachable_by: "nika catalog"
-    # no test invokes `nika catalog` today · the row keeps the gap visible (G3 · a
-    # declaration without a probe is the class) until a probe names it.
-    proven_by: null
+    proven_by: rust   # crates/nika-cli/tests/cli_declared_surfaces.rs · provider/tool JSON dispatch, builtin schema and unknown-flag refusal
   - id: verb.check
     kind: verb
     declared_at: crates/nika-cli/src/main.rs:141
@@ -519,17 +517,13 @@ capabilities:
     declared_at: crates/nika-cli/src/main.rs:307
     shipped_when: "default"
     reachable_by: "nika completions"
-    # no test invokes `nika completions` today · the row keeps the gap visible (G3 · a
-    # declaration without a probe is the class) until a probe names it.
-    proven_by: null
+    proven_by: rust   # crates/nika-cli/tests/cli_declared_surfaces.rs · five-shell generation; Bash callback execution; unknown-shell refusal
   - id: verb.dap
     kind: verb
     declared_at: crates/nika-cli/src/main.rs:333
     shipped_when: "default"
     reachable_by: "nika dap"
-    # no test invokes `nika dap` today · the row keeps the gap visible (G3 · a
-    # declaration without a probe is the class) until a probe names it.
-    proven_by: null
+    proven_by: rust   # crates/nika-cli/tests/cli_declared_surfaces.rs · framed initialize, admission/unsupported-command refusals, disconnect; not replay execution
   - id: verb.doctor
     kind: verb
     declared_at: crates/nika-cli/src/main.rs:221
@@ -565,9 +559,7 @@ capabilities:
     declared_at: crates/nika-cli/src/main.rs:201
     shipped_when: "default"
     reachable_by: "nika key"
-    # no test invokes `nika key` today · the row keeps the gap visible (G3 · a
-    # declaration without a probe is the class) until a probe names it.
-    proven_by: null
+    proven_by: rust   # crates/nika-cli/tests/cli_declared_surfaces.rs · scratch custody init/trust, non-clobber refusal and public-key retirement
   - id: verb.list
     kind: verb
     declared_at: crates/nika-cli/src/main.rs:123
@@ -615,17 +607,13 @@ capabilities:
     declared_at: crates/nika-cli/src/main.rs:217
     shipped_when: "default"
     reachable_by: "nika sign"
-    # no test invokes `nika sign` today · the row keeps the gap visible (G3 · a
-    # declaration without a probe is the class) until a probe names it.
-    proven_by: null
+    proven_by: rust   # crates/nika-cli/tests/cli_declared_surfaces.rs · scratch signing, byte-exact verification, missing custody and tamper refusals
   - id: verb.spec
     kind: verb
     declared_at: crates/nika-cli/src/main.rs:258
     shipped_when: "default"
     reachable_by: "nika spec"
-    # no test invokes `nika spec` today · the row keeps the gap visible (G3 · a
-    # declaration without a probe is the class) until a probe names it.
-    proven_by: null
+    proven_by: rust   # crates/nika-cli/tests/cli_declared_surfaces.rs · embedded identity/canon, workflow/project schemas and conflicting-flag refusals
   - id: verb.test
     kind: verb
     declared_at: crates/nika-cli/src/main.rs:148

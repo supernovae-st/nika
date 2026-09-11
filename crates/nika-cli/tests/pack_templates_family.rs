@@ -202,6 +202,51 @@ fn every_shipped_template_audits() {
     }
 }
 
+/// A negative specimen must fail for its declared reason, not merely for
+/// an unrelated parser error. Traverse the shipped shelf as it grows.
+#[test]
+fn every_negative_template_refuses_with_its_declared_code() {
+    let shelf =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../nika-pack/pack/templates");
+    let mut names = std::collections::BTreeSet::new();
+    for entry in std::fs::read_dir(shelf).expect("template shelf exists") {
+        let path = entry.expect("template entry").path();
+        let name = path.file_name().expect("file name").to_string_lossy();
+        let Some(template) = name.strip_suffix(".negative.yaml") else {
+            continue;
+        };
+        let body = std::fs::read_to_string(&path).expect("negative specimen");
+        let code = body
+            .lines()
+            .find_map(|line| {
+                line.strip_prefix("# Expected · ")
+                    .map(|s| s.trim_end_matches('.'))
+            })
+            .expect("negative specimen declares its diagnostic");
+        assert!(code.starts_with("NIKA-"), "invalid expected code: {code}");
+        let out = check::run(path.to_str().expect("utf8 path"), false, false, None, PLAIN);
+        assert_ne!(out.code, exit::OK, "{template} unexpectedly accepted");
+        assert!(
+            out.text.contains(code),
+            "{template} expected {code}: {}",
+            out.text
+        );
+        names.insert(template.to_owned());
+    }
+    for required in [
+        "classify-and-route",
+        "corpus-qa",
+        "document-to-fields",
+        "evaluate-and-optimize",
+        "human-gated-ship",
+    ] {
+        assert!(
+            names.contains(required),
+            "missing negative specimen: {required}"
+        );
+    }
+}
+
 #[test]
 fn every_shipped_template_runs_green_under_mock() {
     // The leg `check` cannot reach. Ordinary templates compare against the
