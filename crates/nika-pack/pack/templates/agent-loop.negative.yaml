@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · agent `tools:` is only half a grant. `permits.tools` is
+# the other half, judged at check. A read the workflow never declared is not
+# a leash.
+# Expected · NIKA-SEC-004.
+nika: agent-loop-negative
+model: mock/echo
+permits:
+  tools: ["nika:assert", "nika:done", "nika:jq"]
+tasks:
+  execute:
+    agent:
+      prompt: "work the plan"
+      tools: ["nika:read"]
+      max_turns: 2
