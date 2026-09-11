@@ -183,7 +183,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 124
-  aggregate_sha256: 694f29f1e7078a91e9c439b317ca440354fedba0a9db58bac88c3386454dea21
+  aggregate_sha256: 9324ccbe1a88b849836b306f80112a3d25db0240daeeca1672ebcfda1a88bc58
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored

@@ -121,9 +121,11 @@ after an uncertain result.
   test pins today's pass-through so the policy landing flips it visibly.
 - **jq evaluation cost**: the 16 MiB ceiling bounds the RENDERED output;
   jaq's internal materialization (`[range(1e9)]` builds in-engine before
-  any output is yielded) is bounded by the engine's task-level supervision
-  (timeout · memory caps), not re-implemented per-builtin. `spawn_blocking`
-  keeps the executor responsive meanwhile.
+  any output is yielded) has no evaluation budget here. `spawn_blocking`
+  keeps the async executor responsive, but a task timeout does not stop
+  its running computation or bound its memory. A jaq step budget or
+  process isolation with resource limits remains deferred (see
+  `crates/nika-builtin/src/data.rs` and `route_jq` in `src/lib.rs`).
 - **`BuiltinFailure.transient`** is typed at the failure plane; the wire
   `ToolResult` has no metadata slot yet — the flag projects when the kernel
   grows one (both types `#[non_exhaustive]`, strictly additive).

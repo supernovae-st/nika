@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **SPEC** (Gate 1 · authored 2026-06-11 · announce-ladder step s12 · night arc · the 4th and LAST verb · **impl BLOCKED on a `ToolDefinitionProvider` seam** — see §8 ⛔ · not just deferred for time) |
+| Status | **Implemented** — the loop consumes the kernel `ToolDefinitionProviderDyn` seam; §8 records the original missing-seam decision from 2026-06-11. |
 | Layer | **L2** — verb crate · domain executor for the `agent` verb (4th of the 4 verbs · D-2026-05-22-N18) |
 | Design | the multi-turn agentic loop · consumes `nika-providers` (L1.5 · inference) **+ `nika-verb-invoke`** (L2 · tool dispatch · same-layer dep — layering-legal, §0.5) · drives infer → tool-calls → infer until a terminal condition |
 | LOC budget | ≤4k src (the most complex verb · brouillon agent loop was the largest verb) · caps ≤1500/file · ≤100/fn · ≤15k/crate |
@@ -203,7 +203,13 @@ vs brouillon agent loop.
 wip · `deny.toml` tokio wrapper · NIKA_460-469 registered in
 `nika-error/codes.rs` + `verb_help` · kernel hub doc row.
 
-## §8 · Why implementation is DEFERRED (not skipped) — + the BLOCKER found
+## §8 · Historical implementation deferral — missing seam, 2026-06-11
+
+The account below records the pre-implementation decision. Its blocker is
+resolved: `crates/nika-kernel-ai/src/tool_defs.rs` defines the tool-definition
+seam, and `AgentVerb` consumes `ToolDefinitionProviderDyn` through its injected
+`tool_defs` source (`crates/nika-verb-agent/src/lib.rs`). This is not an open
+implementation dependency.
 
 The agent verb is the most complex of the four — a stateful multi-turn loop
 with budget tracking, the `nika:done` sentinel protocol, whitelist-glob
@@ -212,7 +218,7 @@ discipline (`diamond-discipline.md` Rule 6 · `session-discipline.md`
 anti-patinage · quality > speed · « no rushing »), this crate is authored as
 a complete Gate-1 SPEC and its implementation is left to a focused session.
 
-### ⛔ The missing seam (found 2026-06-11 · verify-the-seam-first paid off)
+### The missing seam at the time (2026-06-11)
 
 A second-pass empirical check before coding surfaced a REAL upstream gap, not
 just complexity: **there is no tool-definition source in the workspace.** To
@@ -236,7 +242,7 @@ the Question-First doctrine), not a verb implementation. Building the loop now
 would mean inventing or stubbing that seam — exactly the fragile shortcut the
 deferral avoids.
 
-**Resolution for the next session** · decide the `ToolDefinitionProvider`
+**Original proposed resolution (2026-06-11)** · decide the `ToolDefinitionProvider`
 shape FIRST (likely: a kernel trait the wiring layer implements over
 `nika-catalog` for builtins + `nika-mcp` for MCP), admit it, THEN the agent
 loop has a clean seam to consume. The loop logic itself (turns · sentinel ·
