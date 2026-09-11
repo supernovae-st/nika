@@ -80,13 +80,13 @@ capabilities:
     shipped_when: "--features access-harness"
     reachable_by: "nika run F --access kimi-code"
     proven_by: acp-quarantine
-  - id: access.seat.codex-acp
+  - id: access.seat.codex
     kind: access-seat
     declared_at: crates/nika-harness/src/registry.rs:178
     shipped_when: "--features access-harness"
     reachable_by: "nika run F --access codex-acp"
     proven_by: acp-quarantine
-  - id: access.seat.claude-agent-acp
+  - id: access.seat.claude-code
     kind: access-seat
     declared_at: crates/nika-harness/src/registry.rs:200
     shipped_when: "--features access-harness"
@@ -408,6 +408,255 @@ capabilities:
     proven_by: rust
     issue: 1307
 
+  # templates and verbs · the declared surface (2026-09-10 · G3 read 40 of them as
+  # undeclared) · a row without proven_by stays a finding by design
+  - id: template.agent-loop
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/agent-loop.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new agent-loop <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/init_smoke.rs
+  - id: template.api-upload-and-create
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/api-upload-and-create.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new api-upload-and-create <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/verdict_coverage_oracle.rs
+  - id: template.chain
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/chain.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new chain <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/composition_e2e.rs
+  - id: template.classify-and-route
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/classify-and-route.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new classify-and-route <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
+  - id: template.corpus-qa
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/corpus-qa.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new corpus-qa <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
+  - id: template.docker-report
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/docker-report.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new docker-report <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
+  - id: template.document-to-fields
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/document-to-fields.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new document-to-fields <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
+  - id: template.etl-state
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/etl-state.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new etl-state <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/pack_templates_family.rs
+  - id: template.evaluate-and-optimize
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/evaluate-and-optimize.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new evaluate-and-optimize <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
+  - id: template.fanout
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/fanout.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new fanout <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/init_smoke.rs
+  - id: template.gate-and-act
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/gate-and-act.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new gate-and-act <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/wizard_pty.rs
+  - id: template.human-gated-ship
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/human-gated-ship.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new human-gated-ship <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/pack_templates_family.rs
+  - id: template.media-asset-pack
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/media-asset-pack.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new media-asset-pack <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
+  - id: template.website-brief
+    kind: template
+    declared_at: crates/nika-pack/pack/templates/website-brief.nika.yaml
+    shipped_when: "default"
+    reachable_by: "nika new website-brief <file>"
+    proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
+  - id: verb.arm
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:209
+    shipped_when: "default"
+    reachable_by: "nika arm"
+    proven_by: rust   # crates/nika-cli/tests/arm_fire.rs
+  - id: verb.catalog
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:273
+    shipped_when: "default"
+    reachable_by: "nika catalog"
+    # no test invokes `nika catalog` today · the row keeps the gap visible (G3 · a
+    # declaration without a probe is the class) until a probe names it.
+    proven_by: null
+  - id: verb.check
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:141
+    shipped_when: "default"
+    reachable_by: "nika check"
+    proven_by: rust   # crates/nika-check-wasm/tests/differential.rs
+  - id: verb.completions
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:307
+    shipped_when: "default"
+    reachable_by: "nika completions"
+    # no test invokes `nika completions` today · the row keeps the gap visible (G3 · a
+    # declaration without a probe is the class) until a probe names it.
+    proven_by: null
+  - id: verb.dap
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:333
+    shipped_when: "default"
+    reachable_by: "nika dap"
+    # no test invokes `nika dap` today · the row keeps the gap visible (G3 · a
+    # declaration without a probe is the class) until a probe names it.
+    proven_by: null
+  - id: verb.doctor
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:221
+    shipped_when: "default"
+    reachable_by: "nika doctor"
+    proven_by: rust   # crates/nika-cli/tests/arm_fire.rs
+  - id: verb.explain
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:184
+    shipped_when: "default"
+    reachable_by: "nika explain"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+  - id: verb.guard
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:327
+    shipped_when: "default"
+    reachable_by: "nika guard"
+    proven_by: rust   # crates/nika-cli/tests/guard_e2e.rs
+  - id: verb.init
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:228
+    shipped_when: "default"
+    reachable_by: "nika init"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+  - id: verb.inspect
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:171
+    shipped_when: "default"
+    reachable_by: "nika inspect"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+  - id: verb.key
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:201
+    shipped_when: "default"
+    reachable_by: "nika key"
+    # no test invokes `nika key` today · the row keeps the gap visible (G3 · a
+    # declaration without a probe is the class) until a probe names it.
+    proven_by: null
+  - id: verb.list
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:123
+    shipped_when: "default"
+    reachable_by: "nika list"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+  - id: verb.lsp
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:336
+    shipped_when: "default"
+    reachable_by: "nika lsp"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+  - id: verb.mcp
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:363
+    shipped_when: "default"
+    reachable_by: "nika mcp"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+  - id: verb.model
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:252
+    shipped_when: "default"
+    reachable_by: "nika model"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+  - id: verb.new
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:293
+    shipped_when: "default"
+    reachable_by: "nika new"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+  - id: verb.run
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:144
+    shipped_when: "default"
+    reachable_by: "nika run"
+    proven_by: rust   # crates/nika-check-wasm/tests/differential.rs
+  - id: verb.serve
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:214
+    shipped_when: "default"
+    reachable_by: "nika serve"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+  - id: verb.sign
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:217
+    shipped_when: "default"
+    reachable_by: "nika sign"
+    # no test invokes `nika sign` today · the row keeps the gap visible (G3 · a
+    # declaration without a probe is the class) until a probe names it.
+    proven_by: null
+  - id: verb.spec
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:258
+    shipped_when: "default"
+    reachable_by: "nika spec"
+    # no test invokes `nika spec` today · the row keeps the gap visible (G3 · a
+    # declaration without a probe is the class) until a probe names it.
+    proven_by: null
+  - id: verb.test
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:148
+    shipped_when: "default"
+    reachable_by: "nika test"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+  - id: verb.trace
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:314
+    shipped_when: "default"
+    reachable_by: "nika trace"
+    proven_by: rust   # crates/nika-cli/tests/json_capture_e2e.rs
+  - id: verb.try
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:286
+    shipped_when: "default"
+    reachable_by: "nika try"
+    proven_by: rust   # crates/nika-cli/tests/pack_examples_family.rs
+  - id: verb.welcome
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:128
+    shipped_when: "default"
+    reachable_by: "nika welcome"
+    proven_by: rust   # crates/nika-cli/tests/ascii_contract.rs
+  - id: verb.wire
+    kind: verb
+    declared_at: crates/nika-cli/src/main.rs:234
+    shipped_when: "default"
+    reachable_by: "nika wire"
+    proven_by: rust   # crates/nika-cli/tests/bin_smoke.rs
+
 # A field the parser accepts and the runtime never reads. G6 fires while
 # the runtime needle is absent. Tombstone with a reason and a date to
 # park a known drop; remove the watch when the field actually ships.
@@ -416,19 +665,7 @@ capabilities:
 # hashed into the resume key, never copied onto InferInput) ·
 # lsp --clientProcessId (clap accepts, comment says "currently unread").
 
-silent_drops:
-  - id: infer.vision
-    parsed_file: crates/nika-schema/src/parser/verbs.rs
-    parsed_needle: "action.vision"
-    runtime_file: crates/nika-runtime/src/dispatch.rs
-    runtime_needle: "action.vision"
-    issue: 1135
-  - id: infer.thinking
-    parsed_file: crates/nika-schema/src/parser/verbs.rs
-    parsed_needle: "action.thinking"
-    runtime_file: crates/nika-runtime/src/dispatch.rs
-    runtime_needle: "action.thinking"
-    issue: 1180
+silent_drops: []
   # lsp.client-process-id — REMOVED 2026-08-24. The flag is read at
   # main.rs and drives the `initialize` §processId watchdog; the field is
   # no longer silent, so the watch would now be the lie in the other
