@@ -1,18 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
-# COUNTEREXAMPLE · egress sanctions the send. A webhook secret that reaches
-# nika:notify with no door is not a watcher, it is a leak.
+# COUNTEREXAMPLE · a watcher fetches under the declared host, and egress
+# sanctions the send. An undeclared source plus a webhook secret with no
+# door is not a watcher, it is a leak.
 # Expected · NIKA-SEC-006.
 nika: gate-and-act-negative
-const:
-  source_url: "https://api.example.com/v1/value"
 secrets:
   webhook:
     source: env
     key: ALERTS_WEBHOOK_URL
 permits:
-  tools: ["nika:notify"]
+  tools: ["nika:fetch", "nika:notify"]
   net: { http: ["hooks.slack.com"] }
 tasks:
+  watch:
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "https://other.example/v1/value"
+        mode: jq
+        jq: ".value"
   act:
     invoke:
       tool: nika:notify
