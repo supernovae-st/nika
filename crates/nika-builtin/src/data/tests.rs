@@ -19,6 +19,138 @@ fn args(v: serde_json::Value) -> Args {
 }
 
 #[test]
+fn jq_json_string_input_error_teaches_explicit_decoding_without_echoing_data() {
+    for (input, expression) in [
+        (r#"{"private":"secret-marker","items":[1]}"#, ".items"),
+        (r#"["secret-marker"]"#, ".[]"),
+    ] {
+        let err = jq(&args(
+            serde_json::json!({ "input": input, "expression": expression }),
+        ))
+        .expect_err("encoded containers remain strings");
+        assert_eq!(err.code, "NIKA-BUILTIN-JQ-001");
+        assert!(err.message.contains("`input` is a string"), "{err:?}");
+        assert!(err.message.contains("fromjson"), "{err:?}");
+        assert!(err.message.contains("nika:read"), "{err:?}");
+        assert!(!err.message.contains("secret-marker"), "{err:?}");
+    }
+}
+
+#[test]
+fn jq_json_string_input_keeps_string_operations_and_explicit_fromjson() {
+    let input = r#"{"items":[1,2]}"#;
+    for (expression, expected) in [
+        (".", serde_json::json!(input)),
+        ("type", serde_json::json!("string")),
+        ("length", serde_json::json!(input.len())),
+        ("fromjson | .items", serde_json::json!([1, 2])),
+    ] {
+        let out = jq(&args(
+            serde_json::json!({ "input": input, "expression": expression }),
+        ))
+        .expect("the caller controls decoding");
+        assert_eq!(out, expected);
+    }
+}
+
+#[test]
+fn jq_json_string_input_does_not_relabel_unrelated_errors() {
+    for (input, expression) in [
+        ("plain", ".items"),
+        ("123", ".items"),
+        ("{broken", ".items"),
+        (r#"{"items":1}"#, ". |"),
+        (r#"{"items":1}"#, "fromjson | .items.x"),
+        (r#"{"items":1}"#, "floor"),
+        (r#"{"items":1}"#, "halt"),
+    ] {
+        let err = jq(&args(
+            serde_json::json!({ "input": input, "expression": expression }),
+        ))
+        .expect_err("the original error still occurs");
+        assert!(!err.message.contains("`input` is a string"), "{err:?}");
+    }
+}
+
+#[test]
+fn validate_json_string_input_reports_shape_and_preserves_error_handles() {
+    for (data, kind) in [
+        (r#"{"private":"secret-marker"}"#, "object"),
+        (r#"["secret-marker"]"#, "array"),
+    ] {
+        let report = validate(&args(serde_json::json!({
+            "data": data, "schema": { "type": kind }
+        })))
+        .expect("invalid data is still a report");
+        assert_eq!(report["valid"], false);
+        let error = &report["errors"][0];
+        assert_eq!(error["path"], "");
+        assert_eq!(error["schema_path"], "/type");
+        let message = error["message"].as_str().expect("message");
+        assert!(message.contains("`data` is a string"), "{error}");
+        assert!(message.contains("fromjson"), "{error}");
+        assert!(!message.contains("secret-marker"), "{error}");
+    }
+}
+
+#[test]
+fn validate_json_string_input_keeps_string_schemas_and_explicit_yaml() {
+    for (data, format, schema) in [
+        (
+            serde_json::json!(r#"{"items":[1]}"#),
+            "json",
+            serde_json::json!({ "type": "string" }),
+        ),
+        (
+            serde_json::json!({ "items": [1] }),
+            "json",
+            serde_json::json!({ "type": "object" }),
+        ),
+        (
+            serde_json::json!(r#"{"items":[1]}"#),
+            "yaml",
+            serde_json::json!({ "type": "object" }),
+        ),
+    ] {
+        let report = validate(&args(serde_json::json!({
+            "data": data, "format": format, "schema": schema
+        })))
+        .expect("report");
+        assert_eq!(report, serde_json::json!({ "valid": true, "errors": [] }));
+    }
+}
+
+#[test]
+fn validate_json_string_input_does_not_relabel_other_validation_errors() {
+    for (data, schema) in [
+        (
+            serde_json::json!("plain"),
+            serde_json::json!({ "type": "object" }),
+        ),
+        (
+            serde_json::json!(r#"{"x":1}"#),
+            serde_json::json!({ "type": "integer" }),
+        ),
+        (
+            serde_json::json!(r#"{"x":1}"#),
+            serde_json::json!({ "type": "string", "maxLength": 1 }),
+        ),
+        (
+            serde_json::json!({ "x": r#"{"y":1}"# }),
+            serde_json::json!({ "properties": { "x": { "type": "object" } } }),
+        ),
+    ] {
+        let report =
+            validate(&args(serde_json::json!({ "data": data, "schema": schema }))).expect("report");
+        assert_eq!(report["valid"], false);
+        assert!(
+            !report.to_string().contains("`data` is a string"),
+            "{report}"
+        );
+    }
+}
+
+#[test]
 fn jq_cannot_read_the_ambient_environment() {
     // D-2026-08-11-N26 · an expression sees only its INPUT. Measured on the
     // shipped 0.108.0 binary (2026-08-15) this returned the operator's

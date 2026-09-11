@@ -83,8 +83,8 @@ pub(crate) fn jq_with_clock(args: &Args, clock: JqClock) -> BuiltinOutcome {
         Vars::new([Val::from(clock.unix_seconds())]),
     );
     let mut single: Option<serde_json::Value> = None;
-    for result in filter.id.run((ctx, val)) {
-        let value = unwrap_without_exit(result)?;
+    for result in filter.id.run((ctx, val.clone())) {
+        let value = unwrap_without_exit(result, &val, &input)?;
         // The exactly-one law fires BEFORE serializing a second value —
         // a long stream never pays per-element render cost past the law.
         if single.is_some() {
@@ -123,12 +123,35 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
     )
 }
 
-fn unwrap_without_exit(result: jaq_core::ValX<'_, Val>) -> Result<Val, BuiltinFailure> {
+fn unwrap_without_exit(
+    result: jaq_core::ValX<'_, Val>,
+    original: &Val,
+    input: &serde_json::Value,
+) -> Result<Val, BuiltinFailure> {
     const C: &str = "NIKA-BUILTIN-JQ-001";
     match result {
         Ok(value) => Ok(value),
         Err(exception) => match exception.get_err() {
-            Ok(error) => Err(BuiltinFailure::new(C, format!("jq runtime error: {error}"))),
+            Ok(error) => {
+                let message = error.to_string();
+                // jaq's Error stores its parts privately. Match only its
+                // type/index diagnostic on the original value, not an
+                // unrelated failure after a successful transformation.
+                let hint = encoded_container_type(input).filter(|kind| {
+                    message.starts_with(&format!("cannot index {original} with "))
+                        || error
+                            == jaq_core::Error::typ(original.clone(), "iterable (array or object)")
+                        || (*kind == jsonschema::JsonType::Array
+                            && error == jaq_core::Error::typ(original.clone(), "array"))
+                });
+                Err(BuiltinFailure::new(
+                    C,
+                    hint.map_or_else(
+                        || format!("jq runtime error: {message}"),
+                        |kind| json_string_value_hint("input", kind),
+                    ),
+                ))
+            }
             Err(exception) => match exception.get_halt() {
                 Ok(exit_code) => Err(BuiltinFailure::new(
                     C,
@@ -141,6 +164,28 @@ fn unwrap_without_exit(result: jaq_core::ValX<'_, Val>) -> Result<Val, BuiltinFa
             },
         },
     }
+}
+
+/// Recognize an encoded container for diagnostics only; never coerce input.
+fn encoded_container_type(value: &serde_json::Value) -> Option<jsonschema::JsonType> {
+    let text = value.as_str()?.trim_start();
+    if !text.starts_with(['{', '[']) {
+        return None;
+    }
+    match serde_json::from_str::<serde_json::Value>(text).ok()? {
+        serde_json::Value::Object(_) => Some(jsonschema::JsonType::Object),
+        serde_json::Value::Array(_) => Some(jsonschema::JsonType::Array),
+        _ => None,
+    }
+}
+
+/// This teaching text contains shape facts only, never the caller's data.
+fn json_string_value_hint(argument: &str, kind: jsonschema::JsonType) -> String {
+    format!(
+        "`{argument}` is a string containing a JSON {kind}; pass the parsed value. \
+         For file contents from `nika:read`, decode explicitly with `nika:jq` \
+         expression `fromjson` before using the {kind}."
+    )
 }
 
 /// jq-std defs we SHADOW with the jq-correct semantics (loaded last, so the
@@ -318,14 +363,36 @@ pub(crate) fn validate(args: &Args) -> BuiltinOutcome {
     let errors: Vec<serde_json::Value> = validator
         .iter_errors(&data)
         .map(|e| {
+            let message = validate_string_hint(&e, &data, format)
+                .map_or_else(|| e.to_string(), |hint| format!("{}; {hint}", e.masked()));
             serde_json::json!({
                 "path": e.instance_path().to_string(),
                 "schema_path": e.schema_path().to_string(),
-                "message": e.to_string(),
+                "message": message,
             })
         })
         .collect();
     Ok(serde_json::json!({ "valid": errors.is_empty(), "errors": errors }))
+}
+
+fn validate_string_hint(
+    error: &jsonschema::ValidationError<'_>,
+    data: &serde_json::Value,
+    format: &str,
+) -> Option<String> {
+    use jsonschema::error::{TypeKind, ValidationErrorKind};
+    if format != "json" || !error.instance_path().as_str().is_empty() {
+        return None;
+    }
+    let ValidationErrorKind::Type { kind } = error.kind() else {
+        return None;
+    };
+    let encoded = encoded_container_type(data)?;
+    let accepts_container = match kind {
+        TypeKind::Single(expected) => *expected == encoded,
+        TypeKind::Multiple(expected) => expected.contains(encoded),
+    };
+    accepts_container.then(|| json_string_value_hint("data", encoded))
 }
 
 /// `schema:` may be a JSON object OR a string `nika:read` just handed
