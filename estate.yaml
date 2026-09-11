@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 5045
+  classified_files: 5049
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 2054
+    authored: 2058
     authored-pin: 2
     generated: 137
     pinned-copy: 147
@@ -187,8 +187,8 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 245
-  aggregate_sha256: 5c5cd521be38ba0f370c20fec5ec1a717b5f672cc365f4acececdb59de1c613c
+  match_count: 247
+  aggregate_sha256: b59bcfd996c5503b896c61b1de9b51780f163181a0108bb9df62f5bd04a650dc
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -242,8 +242,8 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 76
-  aggregate_sha256: c8c30f919cf80eea83ffbd728701f3f02196d80db894314549638d6eb70ce54d
+  match_count: 78
+  aggregate_sha256: 94972c1701bb88e54fc14144aac88cf319b7e2898a6e33abdba63f6340ee5875
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
