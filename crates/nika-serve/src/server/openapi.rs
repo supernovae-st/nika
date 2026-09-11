@@ -475,10 +475,16 @@ fn job_by_name_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes.",
+        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies do not carry this field.",
         "required": ["workflow"],
         "properties": {
-            "workflow": {"type": "string", "minLength": 1, "maxLength": 4096}
+            "workflow": {"type": "string", "minLength": 1, "maxLength": 4096},
+            "access": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Access pin, same vocabulary as `--access` (class or harness id). A pin never silently substitutes a metered seat."
+            }
         }
     })
 }
@@ -486,7 +492,7 @@ fn job_by_name_schema() -> Value {
 fn jobs_path() -> Value {
     json!({"post": {
         "summary": "Admit a workflow as a durable job — by served name, or as immutable snapshot bytes",
-        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional caller-supplied integrity digests (a content assertion, never a signature). The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
+        "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. Optional `access` on that form is CLI `--access` for this job only. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional caller-supplied integrity digests (a content assertion, never a signature). Snapshot jobs inherit the resident's unpinned plan. The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
         "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}],
         "requestBody": snapshot_request_body(),
         "responses": {
@@ -645,6 +651,12 @@ mod tests {
         assert!(
             description.contains("POST /v1/run"),
             "description must name the absent run door"
+        );
+        let by_name = &spec["components"]["schemas"]["JobByName"];
+        assert_eq!(by_name["additionalProperties"], false);
+        assert!(
+            by_name["properties"]["access"].is_object(),
+            "JobByName must name the CLI access pin"
         );
         let post = spec["paths"]["/v1/jobs"]["post"]["responses"]
             .as_object()

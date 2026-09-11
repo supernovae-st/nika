@@ -22,8 +22,8 @@
 # WHAT IT LOOKS AT (per gate-honesty Mandate 5 — an instrument says what it
 # examined, what it skipped, and how it goes red)
 #   · merge.ours.driver in the effective git config
-#   · whether a real pre-commit hook is reachable (core.hooksPath, or a
-#     non-sample .git/hooks/pre-commit)
+#   · whether Git's effective pre-commit hook is a regular executable file
+#     (core.hooksPath, or the common hooks directory of a clone/worktree)
 # WHAT IT CANNOT SEE
 #   · whether the hook, once installed, actually FIRES. A registered path is
 #     not a proven run. That is the arming-edge limit, and it is stated rather
@@ -39,12 +39,11 @@ missing=()
 driver=$(git config --get merge.ours.driver 2>/dev/null || true)
 [ "$driver" = "true" ] || missing+=("merge.ours.driver")
 
-hooks_path=$(git config --get core.hooksPath 2>/dev/null || true)
+hook_path=$(git rev-parse --git-path hooks/pre-commit 2>/dev/null || true)
 hook_ok=0
-if [ -n "$hooks_path" ] && [ -e "$hooks_path/pre-commit" ]; then
-  hook_ok=1
-elif [ -f .git/hooks/pre-commit ]; then
-  # a `.sample` is git's stock file; only a real one counts
+if [ -f "$hook_path" ] && [ -x "$hook_path" ]; then
+  # Git resolves linked worktrees and custom paths; a configured path never
+  # falls back to .git/hooks, and a non-executable hook cannot fire.
   hook_ok=1
 fi
 [ "$hook_ok" -eq 1 ] || missing+=("pre-commit hook")

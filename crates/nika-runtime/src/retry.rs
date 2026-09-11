@@ -176,6 +176,7 @@ where
         // consumes the dispatch (a divergence is never transient).
         let evidence = failed.evidence.clone();
         let access = failed.access.clone();
+        let access_refused = failed.access_refused.clone();
         // the split of THIS attempt's burn, lifted with the rest.
         let usage = failed.usage.clone();
         let retry_forbidden = failed.retry_forbidden;
@@ -191,6 +192,7 @@ where
             return Err(
                 FailedOutcome::new(error, *failed_cost, *failed_unpriced, evidence)
                     .with_access(access)
+                    .with_access_refused(access_refused)
                     .with_usage(usage),
             );
         };

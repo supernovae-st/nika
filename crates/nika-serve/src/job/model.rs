@@ -493,6 +493,10 @@ pub struct JobRecord {
     /// rescheduled after a crash.
     #[serde(default)]
     pub(crate) workflow: String,
+    /// Per-job `--access` pin from POST `/v1/jobs` (same vocabulary).
+    /// Absent: the resident's unpinned plan. A pin is a pin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) access_pin: Option<String>,
     /// Engine execution identity minted when the captured world is readmitted.
     /// Empty until the worker readmits the POST-time snapshot.
     #[serde(default)]
@@ -563,6 +567,12 @@ impl JobRecord {
     #[must_use]
     pub fn workflow(&self) -> &str {
         &self.workflow
+    }
+
+    /// Return the per-job access pin, when the caller named one.
+    #[must_use]
+    pub fn access_pin(&self) -> Option<&str> {
+        self.access_pin.as_deref()
     }
 
     /// Return the engine execution identity after snapshot readmission.

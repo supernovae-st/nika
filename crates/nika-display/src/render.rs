@@ -372,6 +372,7 @@ pub fn stream_settled_line(
 pub fn stream_summary(view: &RunView, theme: &Theme, notes: &[String]) -> Vec<String> {
     let mut lines = warning_lines(view, theme);
     lines.extend(caution_lines(view, theme));
+    lines.push(plain_totals_line(view, theme));
     lines.push(meter_line(view, theme));
     lines.extend(
         notes
@@ -389,6 +390,32 @@ pub fn stream_summary(view: &RunView, theme: &Theme, notes: &[String]) -> Vec<St
         append_paused_card(&mut lines, view, theme);
     }
     lines
+}
+
+/// The pipe's totals line (#1244): the same FACTS the verdict card's
+/// head + totals rows carry, in plain prose — task · wave · retry
+/// tallies, the repair count when real, the token total when reported.
+/// Colors and formatting may differ between faces; information may not
+/// (P06: the card said `3 tasks · 3 waves · 0 retries` + `19 tok`, the
+/// pipe said none of it). Wall + spend stay on the meter line below.
+// `&Theme` to match the close's sibling line builders.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn plain_totals_line(view: &RunView, theme: &Theme) -> String {
+    use std::fmt::Write as _;
+    let mut row = format!(
+        "{} · {} · {}",
+        crate::vocab::count(view.rows().len(), "task"),
+        crate::vocab::count(crate::flow::wave_sizes(view).len(), "wave"),
+        crate::vocab::count(view.retries as usize, "retry"),
+    );
+    if view.recovered_count() > 0 {
+        let _ = write!(row, " · {} recovered", view.recovered_count());
+    }
+    let tokens: u64 = view.token_samples.iter().sum();
+    if tokens > 0 {
+        let _ = write!(row, " · {tokens} tok");
+    }
+    format!("  {}", theme.paint(Role::Dim, &row))
 }
 
 /// The wall-time cell for one row: a settled row's REAL duration (the

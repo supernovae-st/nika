@@ -102,14 +102,17 @@ pub fn verdict_layers_for(
     }
     for (model, lane) in plan.admitted() {
         let note = match lane.plan.chosen {
-            nika_types::access::AccessClass::Harness => "seat present · sign-in judged at run",
+            nika_types::access::AccessClass::Harness => {
+                "seat signed in (its login command answered) · the model is proven only by the run"
+            }
             nika_types::access::AccessClass::Api => {
                 "key present · not validated (check never dials)"
             }
             nika_types::access::AccessClass::Mock => "mock · never dials · nothing to judge",
             _ => "present · liveness judged at run",
         };
-        let tail = chosen_over(lane.candidates, &lane.plan.outranked);
+        let tail =
+            chosen_over_with_rejections(lane.candidates, &lane.plan.outranked, &lane.plan.rejected);
         lines.push(format!(
             "{model} → {} ({} · {} · {}) · {note}{tail}",
             lane.plan.access,
@@ -142,7 +145,8 @@ pub fn verdict_layers_for(
         // W3-F13 · a model-less infer rides a seat or nothing.
         if let Some(seat) = &plan.seat {
             lines.push(format!(
-                "`{task}` → {seat} (harness · seat) · pinned · seat present · sign-in judged at run"
+                "`{task}` → {seat} (harness · seat) · pinned · seat signed in (its login command \
+                 answered) · the model is proven only by the run"
             ));
             true
         } else {
@@ -319,23 +323,36 @@ fn pin_message(refusal: &nika_providers::resolve_access::PinRefusal) -> &str {
     }
 }
 
-/// The « chosen over … » tail: the outranked READY paths by name and
-/// witness, so a reader learns which seat lost and why without opening
-/// the JSON (wave 3 · persona 12: « chosen over 1 other path(s) » named
-/// nobody). A count alone only when the plan recorded no outranked row.
+/// The historical outranked-only tail, retained for embedding callers.
 #[must_use]
 pub fn chosen_over(candidates: usize, outranked: &[nika_types::access::AccessRejection]) -> String {
+    chosen_over_with_rejections(candidates, outranked, &[])
+}
+
+/// The « chosen over … » tail: the outranked READY paths by name and
+/// witness, THEN the rejected ones with theirs (« codex (installed ·
+/// not signed in · sign in to `codex` itself) »), so a reader learns
+/// which seat lost and why without opening the JSON (wave 3 · persona
+/// 12: « chosen over 1 other path(s) » named nobody). A count alone
+/// only when the plan recorded no row at all.
+#[must_use]
+pub fn chosen_over_with_rejections(
+    candidates: usize,
+    outranked: &[nika_types::access::AccessRejection],
+    rejected: &[nika_types::access::AccessRejection],
+) -> String {
     let others = candidates.saturating_sub(1);
     if others == 0 {
         return String::new();
     }
-    if outranked.is_empty() {
-        return format!(" · chosen over {others} other path(s)");
-    }
     let named: Vec<String> = outranked
         .iter()
+        .chain(rejected)
         .map(|r| format!("{} ({})", r.access, r.witness))
         .collect();
+    if named.is_empty() {
+        return format!(" · chosen over {others} other path(s)");
+    }
     format!(" · chosen over {}", named.join(" · "))
 }
 
@@ -390,7 +407,7 @@ mod tests {
         assert!(layers.blockers.is_empty(), "{:?}", layers.blockers);
         assert!(
             layers.access_lines[0].contains("`answer` → codex")
-                && layers.access_lines[0].contains("seat present"),
+                && layers.access_lines[0].contains("seat signed in"),
             "{:?}",
             layers.access_lines
         );
@@ -499,18 +516,22 @@ mod tests {
                 witness,
             )
         };
-        assert_eq!(chosen_over(1, &[]), "", "a lone path beat nobody");
         assert_eq!(
-            chosen_over(2, &[]),
+            chosen_over_with_rejections(1, &[], &[]),
+            "",
+            "a lone path beat nobody"
+        );
+        assert_eq!(
+            chosen_over_with_rejections(2, &[], &[]),
             " · chosen over 1 other path(s)",
-            "no outranked row recorded → the honest count, never a name"
+            "no row recorded → the honest count, never a name"
         );
         let one = [outranked(
             "api",
             "ready · ranked below `codex` (harness outranks api)",
         )];
         assert_eq!(
-            chosen_over(2, &one),
+            chosen_over_with_rejections(2, &one, &[]),
             " · chosen over api (ready · ranked below `codex` (harness outranks api))",
             "one loser · named with the witness the plan built"
         );
@@ -519,9 +540,30 @@ mod tests {
             outranked("oauth", "token present"),
         ];
         assert_eq!(
-            chosen_over(3, &several),
+            chosen_over_with_rejections(3, &several, &[]),
             " · chosen over api (key present) · oauth (token present)",
             "several losers · one separator, in plan order"
+        );
+        // A REJECTED path is named too (the S18 card: « codex installed ·
+        // not signed in → api » must be readable without the JSON), after
+        // the outranked ones. Revert the `.chain(rejected)` and this reads
+        // the bare count.
+        let refused = [nika_types::access::AccessRejection::new(
+            "codex",
+            nika_types::access::RejectionDimension::NotConfigured,
+            nika_types::access::RejectionLayer::Access,
+            "installed · not signed in · sign in to `codex` itself",
+        )];
+        assert_eq!(
+            chosen_over_with_rejections(2, &[], &refused),
+            " · chosen over codex (installed · not signed in · sign in to `codex` itself)",
+            "a rejected seat is named with its gesture"
+        );
+        assert_eq!(
+            chosen_over_with_rejections(3, &one, &refused),
+            " · chosen over api (ready · ranked below `codex` (harness outranks api)) · codex \
+             (installed · not signed in · sign in to `codex` itself)",
+            "outranked first, rejected after"
         );
     }
 }

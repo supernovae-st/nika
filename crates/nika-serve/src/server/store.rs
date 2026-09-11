@@ -151,6 +151,7 @@ enum RequestCommand {
         max_jobs: usize,
         workflow: String,
         world: String,
+        access_pin: Option<String>,
         reply: Reply<Admission>,
     },
     Replay {
@@ -180,7 +181,7 @@ enum RequestCommand {
         reply: Reply<String>,
     },
     Queued {
-        reply: Reply<Vec<(JobId, String)>>,
+        reply: Reply<Vec<(JobId, String, Option<String>)>>,
     },
     EventsAfter {
         id: JobId,
@@ -255,6 +256,7 @@ impl StoreHandle {
         max_jobs: usize,
         workflow: String,
         world: String,
+        access_pin: Option<String>,
     ) -> Result<Admission, ServerError> {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::Create {
@@ -263,6 +265,7 @@ impl StoreHandle {
             max_jobs,
             workflow,
             world,
+            access_pin,
             reply,
         })?;
         receive(answer).await
@@ -359,7 +362,9 @@ impl StoreHandle {
         receive(answer).await
     }
 
-    pub(super) async fn queued_jobs(&self) -> Result<Vec<(JobId, String)>, ServerError> {
+    pub(super) async fn queued_jobs(
+        &self,
+    ) -> Result<Vec<(JobId, String, Option<String>)>, ServerError> {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::Queued { reply })?;
         receive(answer).await
@@ -649,9 +654,12 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             max_jobs,
             workflow,
             world,
+            access_pin,
             reply,
         } => {
-            let result = store.create_or_replay_captured(key, digest, max_jobs, workflow, &world);
+            let result = store.create_or_replay_captured_pinned(
+                key, digest, max_jobs, workflow, &world, access_pin,
+            );
             let _result = reply.send(result);
         }
         RequestCommand::Replay { key, digest, reply } => {
@@ -692,7 +700,7 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             let _result = reply.send(store.load_world(&id));
         }
         RequestCommand::Queued { reply } => {
-            let _result = reply.send(store.queued_jobs());
+            let _result = reply.send(store.queued_jobs_pinned());
         }
         RequestCommand::EventsAfter {
             id,

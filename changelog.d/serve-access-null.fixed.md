@@ -1,0 +1,1 @@
+- **Present access pins require strings.** A by-name job request rejects a present non-string access pin, including JSON null, before registry capture. Only an absent access field inherits the resident plan.

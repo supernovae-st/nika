@@ -256,6 +256,7 @@ impl JobStore {
             status: JobStatus::Running,
             origin,
             workflow,
+            access_pin: None,
             execution_id,
             trace_id,
             snapshot_digest,

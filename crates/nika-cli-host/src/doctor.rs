@@ -1223,8 +1223,9 @@ fn harness_finding_from_parts(
             level: Level::Warn,
             label: "runtime".to_owned(),
             detail: format!(
-                "{id} — {display} · usable for `infer:` now (its own login is judged when a run \
-                 starts) · `agent:` needs the ACP speaker · `--access {id}`"
+                "{id} — {display} · usable for `infer:` (its login command is judged at \
+                 admission · a model the seat does not carry is the run's refusal, and a ready \
+                 key outranks it unpinned) · `agent:` needs the ACP speaker · `--access {id}`"
             ),
             fix: Some(format!("install: {package} (only required for agent:)")),
         };

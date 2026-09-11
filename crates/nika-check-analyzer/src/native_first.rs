@@ -664,6 +664,21 @@ fn shell_words(segment: &str) -> Vec<String> {
     words
 }
 
+/// Scan every argv or shell exec for native alternatives in source order.
+#[must_use]
+pub fn scan_sites(wf: &nika_schema::raw::RawWorkflow) -> Vec<(String, &'static str, String)> {
+    let mut sites = Vec::new();
+    for task in &wf.tasks {
+        let nika_schema::raw::RawAction::Exec(exec) = &task.value.action else {
+            continue;
+        };
+        for (rule, advice) in classify_all(&exec.command) {
+            sites.push((task.value.id.value.clone(), rule, advice));
+        }
+    }
+    sites
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

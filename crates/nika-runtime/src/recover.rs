@@ -245,10 +245,19 @@ fn try_park(
         declassified,
         approval,
     } = finish;
-    let ran = match settled_as {
+    let mut ran = match settled_as {
         SettleAs::Ran(ran) => ran,
         other => {
             let done = finish_with(id, other, named, resume, integrity, declassified, approval);
+            return Some(done);
+        }
+    };
+    let pending = match ran.result {
+        RunResult::PendingRecovery(pending) => pending,
+        other => {
+            ran.result = other;
+            let settle = SettleAs::Ran(ran);
+            let done = finish_with(id, settle, named, resume, integrity, declassified, approval);
             return Some(done);
         }
     };
@@ -257,31 +266,10 @@ fn try_park(
         retries,
         agent_events,
         decisions,
-        evidence,
         duration_ms,
         items,
-        usage,
-        result,
+        ..
     } = *ran;
-    let pending = match result {
-        RunResult::PendingRecovery(pending) => pending,
-        other => {
-            let ran = RanTask {
-                note,
-                retries,
-                agent_events,
-                decisions,
-                evidence,
-                duration_ms,
-                items,
-                usage,
-                result: other,
-            };
-            let settle = SettleAs::Ran(Box::new(ran));
-            let done = finish_with(id, settle, named, resume, integrity, declassified, approval);
-            return Some(done);
-        }
-    };
     let declared = |t: &String| scope.wf.tasks.iter().any(|s| s.value.id.value == *t);
     if let Some(task_index) =
         task_index(scope.wf, &id).filter(|_| pending.awaiting.iter().all(declared))
@@ -325,6 +313,7 @@ fn try_park(
             cost_usd: failed.cost_usd,
             cost_unpriced: failed.cost_unpriced,
             access: failed.access,
+            access_refused: failed.access_refused,
         },
     };
     let settle = SettleAs::Ran(Box::new(ran));
@@ -477,6 +466,7 @@ fn resolve_parked(
         evidence,
         access,
         usage,
+        access_refused,
     } = failed;
     let result = match recover_template(scope.wf, task_index) {
         Some(template) => {
@@ -496,6 +486,7 @@ fn resolve_parked(
                     cost_usd,
                     cost_unpriced,
                     access: access.clone(),
+                    access_refused: access_refused.clone(),
                 },
             }
         }
@@ -506,6 +497,7 @@ fn resolve_parked(
             cost_usd,
             cost_unpriced,
             access: access.clone(),
+            access_refused: access_refused.clone(),
         },
     };
     let mut settled_as = SettleAs::Ran(Box::new(RanTask {

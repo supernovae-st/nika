@@ -334,6 +334,9 @@ pub(crate) enum RunResult {
         /// The admitted lane the failed dispatch rode (wave 2b) — the
         /// terminal frame stamps the path that failed. Boxed: cold.
         access: Option<Box<nika_types::access::AccessPlan>>,
+        /// The typed refusal of a chosen seat that failed at the call —
+        /// `access_refused` on the terminal frame. Boxed: cold.
+        access_refused: Option<Box<nika_types::access::AccessRefused>>,
     },
     /// `on_error: recover` whose reference awaits not-yet-terminal
     /// referents (spec 05 §recover step 3 · a recover ref is NOT an
@@ -804,6 +807,7 @@ where
                         cost_usd: None,
                         cost_unpriced: None,
                         access: None,
+                        access_refused: None,
                     },
                 };
                 fan_out::stamp_iteration(&mut ran, locals.index, locals.item);
@@ -970,6 +974,7 @@ where
                         Err(FailedOutcome {
                             access: None,
                             usage: None,
+                            access_refused: None,
                             record: TaskErrorRecord::new(
                                 TIMEOUT_CODE,
                                 format!("task exceeded its timeout of {} ms", limit.as_millis()),
@@ -1195,6 +1200,7 @@ fn replace_success_with_failure(settle: &mut SettleAs, error: TaskErrorRecord) {
                 cost_usd,
                 cost_unpriced,
                 access,
+                access_refused: None,
             };
         }
         // A binding that fails over a REHYDRATED output fails the task
@@ -1392,6 +1398,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
         evidence,
         access,
         usage: _,
+        access_refused,
     } = failed;
     let Some(on_error) = task.on_error.as_ref() else {
         return RunResult::Failed {
@@ -1399,6 +1406,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             cost_usd,
             cost_unpriced,
             access,
+            access_refused,
         };
     };
     if !on_error_applies(&on_error.value, &error) {
@@ -1408,6 +1416,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             cost_usd,
             cost_unpriced,
             access,
+            access_refused,
         };
     }
     match &on_error.value.action {
@@ -1426,7 +1435,8 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                             // F-P6 · the evidence parks WITH the failure —
                             // a recovered divergence keeps its finding.
                             failed: FailedOutcome::new(error, cost_usd, cost_unpriced, evidence)
-                                .with_access(access.clone()),
+                                .with_access(access.clone())
+                                .with_access_refused(access_refused.clone()),
                             render_error,
                             awaiting,
                             with_ns: scope.with_namespace().cloned().unwrap_or_default(),
@@ -1437,6 +1447,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                         cost_usd,
                         cost_unpriced,
                         access,
+                        access_refused,
                     },
                 }
             }
@@ -1456,6 +1467,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             cost_usd,
             cost_unpriced,
             access: None,
+            access_refused: None,
         },
     }
 }

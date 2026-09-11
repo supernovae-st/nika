@@ -52,12 +52,22 @@ impl ResidentExecutionBackend {
         &'a self,
         context: nika_execution::ExecutionContext<'a>,
         max_cost_usd: Option<f64>,
+        access_pin: Option<&str>,
         cancel: Option<CancelCtx>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         let display_root = self.display_root.clone();
         let seal = Arc::clone(&self.seal);
+        let access_pin = access_pin.map(str::to_owned);
         Box::pin(async move {
-            drive_resident_execution(display_root, seal, context, max_cost_usd, cancel).await
+            drive_resident_execution(
+                display_root,
+                seal,
+                context,
+                max_cost_usd,
+                access_pin.as_deref(),
+                cancel,
+            )
+            .await
         })
     }
 }
@@ -95,7 +105,7 @@ impl ExecutionBackend for ResidentExecutionBackend {
         &'a self,
         context: nika_execution::ExecutionContext<'a>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        self.drive(context, None, None)
+        self.drive(context, None, None, None)
     }
 
     fn execute_with_cancel<'a>(
@@ -104,7 +114,7 @@ impl ExecutionBackend for ResidentExecutionBackend {
         max_cost_usd: Option<f64>,
         cancel: CancelCtx,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        self.drive(context, max_cost_usd, Some(cancel))
+        self.drive(context, max_cost_usd, None, Some(cancel))
     }
 
     fn execute_with_max_cost<'a>(
@@ -112,7 +122,17 @@ impl ExecutionBackend for ResidentExecutionBackend {
         context: nika_execution::ExecutionContext<'a>,
         max_cost_usd: Option<f64>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        self.drive(context, max_cost_usd, None)
+        self.drive(context, max_cost_usd, None, None)
+    }
+
+    fn execute_with_access<'a>(
+        &'a self,
+        context: nika_execution::ExecutionContext<'a>,
+        max_cost_usd: Option<f64>,
+        access_pin: Option<&str>,
+        cancel: CancelCtx,
+    ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        self.drive(context, max_cost_usd, access_pin, Some(cancel))
     }
 
     fn trace_journal_dir(&self) -> Option<PathBuf> {
@@ -157,6 +177,7 @@ async fn drive_resident_execution(
     seal: Arc<dyn JournalSeal>,
     context: nika_execution::ExecutionContext<'_>,
     max_cost_usd: Option<f64>,
+    access_pin: Option<&str>,
     operator_cancel: Option<CancelCtx>,
 ) -> ExecutionOutcome {
     // The journal a `nika run` would leave, under the project the resident
@@ -181,9 +202,9 @@ async fn drive_resident_execution(
         );
     };
     // One Door · wave 1b: the resident resolves the SAME frozen plan the
-    // CLI door does (no pin, no override on a resident job) and executes
-    // it — a job with no ready path refuses before its first task.
-    let plan = driver.resolve_access_plan(None, None);
+    // CLI door does. A job body `access` is `--access` (a pin is a pin);
+    // absent, the unpinned plan. No silent substitution after admission.
+    let plan = driver.resolve_access_plan(None, access_pin);
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     let _cancel = CancelOnDrop(Some(cancel_tx));
     let job = ResidentJob {

@@ -160,6 +160,7 @@ impl super::Dispatched {
         Self {
             note: note.to_owned(),
             result: Err(super::FailedDispatch {
+                access_refused: None,
                 record: crate::record::TaskErrorRecord::new(
                     DIVERGENCE_CODE,
                     format!(

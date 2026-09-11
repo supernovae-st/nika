@@ -84,10 +84,11 @@ pub trait CommandSandbox: Send + Sync {
 #[must_use]
 pub fn stderr_signals_confinement_denial(stderr: &str) -> bool {
     stderr.lines().map(str::trim_start).any(|line| {
-        line.contains("Operation not permitted")
-            || line.contains("Permission denied")
-            || line.contains("file system sandbox blocked")
-            || line.contains("Read-only file system")
+        let lower = line.to_ascii_lowercase();
+        lower.contains("operation not permitted")
+            || lower.contains("permission denied")
+            || lower.contains("file system sandbox blocked")
+            || lower.contains("read-only file system")
     })
 }
 
@@ -321,6 +322,12 @@ mod tests {
         assert!(stderr_signals_confinement_denial(
             "dyld[1]: Library not loaded: /opt/homebrew/lib/x.dylib\n  Reason: file system sandbox blocked open()\n"
         ));
+        assert!(
+            stderr_signals_confinement_denial(
+                "permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock\n"
+            ),
+            "docker's lowercase permission denied is the same class"
+        );
         assert!(
             !stderr_signals_confinement_denial("tests failed"),
             "an authored non-zero must stay data under capture: structured"

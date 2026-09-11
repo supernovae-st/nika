@@ -93,19 +93,40 @@ CAP_IDS=""
 if [ -f "$LEDGER" ]; then
   CAP_IDS="$(
     awk '
+      # This ledger uses single-line scalars. Strip a comment only outside
+      # quotes; a hash in a quoted value is data and must remain an unknown
+      # job, not accidentally become a live one. Unsupported/malformed values
+      # remain intact so the membership check refuses them.
+      function scalar(value, quote, end, rest) {
+        sub(/^[[:space:]]*/, "", value)
+        quote=substr(value, 1, 1)
+        if (quote == "\047" || quote == "\042") {
+          end=index(substr(value, 2), quote)
+          if (!end) return value
+          rest=substr(value, end + 2)
+          if (rest !~ /^([[:space:]]+#[^\n]*|[[:space:]]*)$/) return value
+          return substr(value, 2, end - 1)
+        }
+        sub(/[[:space:]]+#.*/, "", value)
+        sub(/[[:space:]]*$/, "", value)
+        return value
+      }
       /^capabilities:/{grab=1; next}
       grab && /^[a-z_]+:/ && $0 !~ /^[[:space:]]/{grab=0}
       grab && $0 ~ /^[[:space:]]+-[[:space:]]*id:[[:space:]]*/ {
-        sub(/.*id:[[:space:]]*/, ""); gsub(/["\047]/, ""); id=$0
+        sub(/.*id:[[:space:]]*/, ""); id=scalar($0)
       }
       # A YAML value starts its line; a comment that names the key does
       # not (the #1218 class — the issue-proof ledger reader already
       # anchors; this one read proven_by inside a comment and judged a
       # markdown-wrapped code span as a job that is in no workflow).
       grab && $0 ~ /^[[:space:]]*proven_by:[[:space:]]*/ {
-        sub(/^[[:space:]]*proven_by:[[:space:]]*/, ""); gsub(/["\047]/, "")
-        job=$0
+        sub(/^[[:space:]]*proven_by:[[:space:]]*/, "")
+        job=scalar($0)
         if (job == "" || job == "null") print id "\t"
+        # Validate before TSV serialization: read with tab IFS would trim
+        # a literal tab inside a quoted value and silently bless another job.
+        else if (job !~ /^[A-Za-z_][A-Za-z0-9_-]*$/) print id "\t<invalid-job>"
         else print id "\t" job
       }
     ' "$LEDGER"

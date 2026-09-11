@@ -234,6 +234,16 @@ pub(crate) struct ApprovalAttestation {
     pub ttl_remaining_seconds: i64,
     /// The law applied on an engine refusal.
     pub why: Option<&'static str>,
+    /// WHO answered (#1284 · additive): `NIKA_OPERATOR` when declared,
+    /// else declared `user@host` — informational, never authentication.
+    pub operator: String,
+    /// WHAT was asked — the gate's resolved `message` (secret-marker
+    /// scope · the same text the shown-hash binds). `None` when the
+    /// prompt declared none.
+    pub question: Option<String>,
+    /// WHAT was answered — the decided value, rendered (spec 04 value
+    /// rendering). `None` on a refusal (nothing was decided).
+    pub answer: Option<String>,
 }
 
 impl ApprovalAttestation {
@@ -258,8 +268,34 @@ impl ApprovalAttestation {
         if let Some(why) = self.why {
             fields.push(("why", crate::s(why)));
         }
+        fields.push(("operator", crate::s(&self.operator)));
+        if let Some(question) = &self.question {
+            fields.push(("question", crate::s(question)));
+        }
+        if let Some(answer) = &self.answer {
+            fields.push(("answer", crate::s(answer)));
+        }
         fields
     }
+}
+
+/// The operator attribution (#1284) — pure and total: a non-empty
+/// `NIKA_OPERATOR` declaration wins whole; else `user@host`; an absent
+/// piece reads `unknown`, never a guess.
+#[must_use]
+pub(crate) fn compose_operator(
+    declared: Option<String>,
+    user: Option<String>,
+    host: Option<String>,
+) -> String {
+    if let Some(operator) = declared.filter(|d| !d.is_empty()) {
+        return operator;
+    }
+    let piece = |v: Option<String>| {
+        v.filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "unknown".into())
+    };
+    format!("{}@{}", piece(user), piece(host))
 }
 
 /// The gate's verdict (pipeline-facing).
@@ -296,10 +332,13 @@ struct StepEntry {
     ticket: ApprovalTicket,
     mode: String,
     source: &'static str,
+    /// The gate's resolved `message` (#1284 · rides the attestation).
+    question: Option<String>,
 }
 
 #[derive(Default)]
 struct BookInner {
+    operator: String,
     /// This run's `workflow_started` event id.
     nonce: String,
     /// Prompt step → its unleashed closure (computed once per run).
@@ -324,14 +363,61 @@ enum Admit {
     /// Run — binding this answer (a validated CLI/resume answer) when set.
     Run { bind: Option<Value> },
     /// Refuse — the typed detail + the attestation.
-    Refused(Refusal),
+    Refused(Box<Refusal>),
+}
+
+impl Admit {
+    fn refused(refusal: Refusal) -> Self {
+        Self::Refused(Box::new(refusal))
+    }
 }
 
 impl ApprovalBook {
     pub(crate) fn new() -> Self {
         Self {
-            inner: Mutex::new(BookInner::default()),
+            inner: Mutex::new(BookInner {
+                operator: "unknown@unknown".to_owned(),
+                ..BookInner::default()
+            }),
         }
+    }
+
+    pub(crate) fn with_operator(self, operator: Option<String>) -> Self {
+        if let Some(operator) = operator.filter(|s| !s.is_empty()) {
+            self.lock().operator = operator;
+        }
+        self
+    }
+
+    /// Judge bound answers after ticket admission; expired answers stay discarded.
+    fn bind_answer(
+        &self,
+        task: &RawTask,
+        mode: &str,
+        content: &Value,
+        hash: &str,
+        value: &Value,
+    ) -> Gate {
+        if let Some(teach) = answer_shape_error(mode, &content["approval"]["choices"], value) {
+            let inner = self.lock();
+            let step = task.id.value.as_str();
+            let mut refused = refusal(
+                &inner,
+                step,
+                mode,
+                hash,
+                None,
+                0,
+                "approval.answer_malformed",
+                format!(
+                    "task '{step}' · approval.answer_malformed — the answer does not fit this gate: {teach} ({APPROVAL_CODE})"
+                ),
+            );
+            refused.attestation.question =
+                content["approval"]["message"].as_str().map(str::to_owned);
+            return Gate::Refused(Box::new(refused));
+        }
+        Gate::Run(Box::new(prompt_task_with_default(task, value)))
     }
 
     /// Recover the plain accumulator maps after a test-harness panic.
@@ -373,14 +459,17 @@ impl ApprovalBook {
         now_ms: i64,
         answer: Option<&Value>,
         source: &'static str,
+        question: Option<&str>,
     ) -> Admit {
         let mut inner = self.lock();
-        if let Some(verdict) =
-            admit_resumed(&mut inner, step, mode, shown_hash, now_ms, answer, source)
-        {
+        if let Some(verdict) = admit_resumed(
+            &mut inner, step, mode, shown_hash, now_ms, answer, source, question,
+        ) {
             return verdict;
         }
-        admit_live(&mut inner, step, mode, shown_hash, now_ms, answer, source)
+        admit_live(
+            &mut inner, step, mode, shown_hash, now_ms, answer, source, question,
+        )
     }
 
     /// Attest a resolved prompt; blocked and failed prompts attest elsewhere.
@@ -400,6 +489,8 @@ impl ApprovalBook {
         let mut inner = self.lock();
         let entry = inner.steps.get(task)?;
         let (ticket, mode, source) = (entry.ticket.clone(), entry.mode.clone(), entry.source);
+        let question = entry.question.clone();
+        let mut answer_text = crate::record::render_value(&value);
         let proposed = if mode == "confirm" && matches!(value, Value::Bool(false)) {
             ApprovalDecision::Deny
         } else {
@@ -407,7 +498,8 @@ impl ApprovalBook {
         };
         // First terminal wins; a racing terminal cannot rewrite it.
         let decision = if let Some(minted) = inner.minted.get_mut(&ticket.content_hash) {
-            if let Some((settled, _)) = &minted.decided {
+            if let Some((settled, prior)) = &minted.decided {
+                answer_text = crate::record::render_value(prior);
                 *settled
             } else {
                 minted.decided = Some((proposed, value));
@@ -428,11 +520,17 @@ impl ApprovalBook {
             ttl_seconds: ticket.ttl_seconds,
             ttl_remaining_seconds: ticket.ttl_remaining_seconds(now_ms),
             why: None,
+            operator: inner.operator.clone(),
+            question,
+            answer: Some(answer_text),
         })
     }
 }
 
 /// Validate a matching paused ticket before binding its answer.
+// REASON: the ticket laws + the attribution facts — each param is one
+// distinct axis of the same admission (the admit() shape).
+#[allow(clippy::too_many_arguments)]
 fn admit_resumed(
     inner: &mut BookInner,
     step: &str,
@@ -441,6 +539,7 @@ fn admit_resumed(
     now_ms: i64,
     answer: Option<&Value>,
     source: &'static str,
+    question: Option<&str>,
 ) -> Option<Admit> {
     // Clone because the expiry path consumes the paused slot.
     let paused = inner
@@ -453,7 +552,7 @@ fn admit_resumed(
     let trace_nonce = paused.trace_nonce.clone();
     let answer = answer?;
     if ticket.run_nonce != trace_nonce {
-        return Some(Admit::Refused(refusal(
+        return Some(Admit::refused(refusal(
             inner,
             step,
             mode,
@@ -470,7 +569,7 @@ fn admit_resumed(
         )));
     }
     if ticket.content_hash != shown_hash {
-        return Some(Admit::Refused(refusal(
+        return Some(Admit::refused(refusal(
             inner,
             step,
             mode,
@@ -489,7 +588,9 @@ fn admit_resumed(
     if ticket.is_expired(now_ms) {
         // Expired authority re-mints without binding the stale answer.
         inner.paused = None;
-        return Some(mint(inner, step, mode, shown_hash, now_ms, None, source));
+        return Some(mint(
+            inner, step, mode, shown_hash, now_ms, None, source, question,
+        ));
     }
     if let Err(error) = paused.consume() {
         let (why, detail) = match error {
@@ -506,7 +607,7 @@ fn admit_resumed(
                 ),
             ),
         };
-        return Some(Admit::Refused(refusal(
+        return Some(Admit::refused(refusal(
             inner,
             step,
             mode,
@@ -519,13 +620,15 @@ fn admit_resumed(
     }
     // This capability was issued by the paused run, so no new mint counts.
     inner.paused = None;
-    remember_step(inner, step, ticket, mode, "resume");
+    remember_step(inner, step, ticket, mode, "resume", question);
     Some(Admit::Run {
         bind: Some(answer.clone()),
     })
 }
 
 /// Admit a live ticket; decided tickets re-mint, in-flight twins may share.
+// REASON: the admit() shape — see admit_resumed.
+#[allow(clippy::too_many_arguments)]
 fn admit_live(
     inner: &mut BookInner,
     step: &str,
@@ -534,6 +637,7 @@ fn admit_live(
     now_ms: i64,
     answer: Option<&Value>,
     source: &'static str,
+    question: Option<&str>,
 ) -> Admit {
     let prior = inner
         .minted
@@ -542,17 +646,23 @@ fn admit_live(
     if let Some((ticket, decided)) = prior {
         if decided.is_some() {
             inner.minted.remove(shown_hash);
-            return mint(inner, step, mode, shown_hash, now_ms, answer, source);
+            return mint(
+                inner, step, mode, shown_hash, now_ms, answer, source, question,
+            );
         }
-        remember_step(inner, step, ticket, mode, source);
+        remember_step(inner, step, ticket, mode, source, question);
         return Admit::Run {
             bind: answer.cloned(),
         };
     }
-    mint(inner, step, mode, shown_hash, now_ms, answer, source)
+    mint(
+        inner, step, mode, shown_hash, now_ms, answer, source, question,
+    )
 }
 
 /// Mint a ticket or refuse the first mint above the per-run bound.
+// REASON: the admit() shape — see admit_resumed.
+#[allow(clippy::too_many_arguments)]
 fn mint(
     inner: &mut BookInner,
     step: &str,
@@ -561,9 +671,10 @@ fn mint(
     now_ms: i64,
     answer: Option<&Value>,
     source: &'static str,
+    question: Option<&str>,
 ) -> Admit {
     if inner.mints >= APPROVAL_MAX_TICKETS_PER_RUN {
-        return Admit::Refused(refusal(
+        return Admit::refused(refusal(
             inner,
             step,
             mode,
@@ -594,7 +705,7 @@ fn mint(
             decided: None,
         },
     );
-    remember_step(inner, step, ticket, mode, source);
+    remember_step(inner, step, ticket, mode, source, question);
     Admit::Run {
         bind: answer.cloned(),
     }
@@ -606,6 +717,7 @@ fn remember_step(
     ticket: ApprovalTicket,
     mode: &str,
     source: &'static str,
+    question: Option<&str>,
 ) {
     inner.steps.insert(
         step.to_owned(),
@@ -613,11 +725,14 @@ fn remember_step(
             ticket,
             mode: mode.to_owned(),
             source,
+            question: question.map(str::to_owned),
         },
     );
 }
 
 /// Build the deny attestation journaled before task failure.
+// REASON: the deny's whole fact surface — the admit() shape.
+#[allow(clippy::too_many_arguments)]
 fn refusal(
     inner: &BookInner,
     step: &str,
@@ -641,6 +756,9 @@ fn refusal(
             ttl_seconds: APPROVAL_TTL_SECONDS,
             ttl_remaining_seconds,
             why: Some(why),
+            operator: inner.operator.clone(),
+            question: None,
+            answer: None,
         },
     }
 }
@@ -838,6 +956,7 @@ where
         );
         let gated = self.approvals.gated_for(step);
         let (mode, content) = canonical_content(task, &gated, &scope);
+        let question = content["approval"]["message"].as_str().map(str::to_owned);
         let Some(shown_hash) = crate::resume::jcs_blake3_hex(&content) else {
             // The content shape is canonicalizable; still fail closed.
             let inner = self.approvals.lock();
@@ -872,16 +991,42 @@ where
             // The generic tool seam cannot prove a human answered.
             "builtin"
         };
-        match self
-            .approvals
-            .admit(step, &mode, &shown_hash, self.now_unix_ms(), answer, source)
-        {
+        match self.approvals.admit(
+            step,
+            &mode,
+            &shown_hash,
+            self.now_unix_ms(),
+            answer,
+            source,
+            question.as_deref(),
+        ) {
             Admit::Run { bind } => match bind {
-                Some(value) => Gate::Run(Box::new(prompt_task_with_default(task, &value))),
+                Some(value) => {
+                    self.approvals
+                        .bind_answer(task, &mode, &content, &shown_hash, &value)
+                }
                 None => Gate::Run(Box::new(task.clone())),
             },
-            Admit::Refused(r) => Gate::Refused(Box::new(r)),
+            Admit::Refused(r) => Gate::Refused(r),
         }
+    }
+}
+
+/// The answer-shape law (#1284): what a gate MODE accepts — `None` = it
+/// fits (unknown modes stay un-judged; the builtin owns them).
+fn answer_shape_error(mode: &str, choices: &Value, answer: &Value) -> Option<&'static str> {
+    match mode {
+        "confirm" if !answer.is_boolean() => Some("a confirm gate takes true or false"),
+        "input" if !answer.is_string() => Some("an input gate takes a string (quote it)"),
+        "choice"
+            if !answer.is_string()
+                || choices
+                    .as_array()
+                    .is_some_and(|items| !items.contains(answer)) =>
+        {
+            Some("a choice gate takes one of its declared choices as a string")
+        }
+        _ => None,
     }
 }
 

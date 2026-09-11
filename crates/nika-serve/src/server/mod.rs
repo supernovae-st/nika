@@ -231,6 +231,36 @@ pub trait ExecutionBackend: Send + Sync + 'static {
         self.execute_with_max_cost(context, max_cost_usd)
     }
 
+    /// Execute with the job's `--access` pin (same vocabulary as the CLI).
+    ///
+    /// Absent pin: the resident's unpinned plan. A pin is a pin: it never
+    /// substitutes a metered seat at run time. The default refuses a
+    /// nonempty pin rather than silently running unpinned — adapters that
+    /// honor `--access` override this.
+    fn execute_with_access<'a>(
+        &'a self,
+        context: ExecutionContext<'a>,
+        max_cost_usd: Option<f64>,
+        access_pin: Option<&str>,
+        cancel: nika_types::cancel::CancelCtx,
+    ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        match access_pin {
+            Some("") => Box::pin(async {
+                ExecutionOutcome::failed(
+                    "NIKA-1802",
+                    "NIKA-1802 · `--access` is empty — a pin is a pin: name an access class or a known agentic CLI (`nika doctor` lists every path)",
+                )
+            }),
+            Some(pin) => {
+                let message = format!(
+                    "NIKA-1801 · this execution backend does not honor `--access {pin}` — a pin is a pin: refusal, never an unpinned substitute"
+                );
+                Box::pin(async move { ExecutionOutcome::failed("NIKA-1801", message) })
+            }
+            None => self.execute_with_cancel(context, max_cost_usd, cancel),
+        }
+    }
+
     /// Where this backend leaves a job's trace journal (the `.nika/traces`
     /// of the project it serves), when it leaves one at all. The verify
     /// route locates the job's journal under it — the backend composes the
@@ -299,6 +329,7 @@ struct ExecutionTask {
     prestarted: bool,
     origin: JobOrigin,
     max_cost_usd: Option<f64>,
+    access_pin: Option<String>,
 }
 
 impl ExecutionTask {
@@ -309,7 +340,13 @@ impl ExecutionTask {
             prestarted: false,
             origin: JobOrigin::Manual,
             max_cost_usd,
+            access_pin: None,
         }
+    }
+
+    fn with_access_pin(mut self, pin: Option<String>) -> Self {
+        self.access_pin = pin;
+        self
     }
 
     fn scheduled(
@@ -324,6 +361,7 @@ impl ExecutionTask {
             prestarted: true,
             origin,
             max_cost_usd,
+            access_pin: None,
         }
     }
 }
@@ -364,7 +402,9 @@ impl ResidentAuthority {
             .queued_jobs()
             .await?
             .into_iter()
-            .map(|(id, _workflow)| ExecutionTask::new(id, default_max_cost_usd))
+            .map(|(id, _workflow, access_pin)| {
+                ExecutionTask::new(id, default_max_cost_usd).with_access_pin(access_pin)
+            })
             .collect();
         let coordinator =
             ResidentExecutionCoordinator::new(store_actor.handle(), jobs, config.limits());
@@ -995,6 +1035,7 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
         admitted,
         task.origin,
         task.max_cost_usd,
+        task.access_pin,
         cancel,
     )
     .await
@@ -1067,13 +1108,16 @@ async fn settle_disposition(
     admitted: nika_execution::AdmittedExecution,
     origin: JobOrigin,
     max_cost_usd: Option<f64>,
+    access_pin: Option<String>,
     cancel: nika_types::cancel::CancelCtx,
 ) -> Result<(), ServerError> {
     let session = state.service.begin(admitted);
-    let execute =
-        state
-            .backend
-            .execute_with_cancel(session.context(), max_cost_usd, cancel.clone());
+    let execute = state.backend.execute_with_access(
+        session.context(),
+        max_cost_usd,
+        access_pin.as_deref(),
+        cancel.clone(),
+    );
     // A cancel signal gives the runtime a grace to reach its next wave
     // boundary and return its result. A signal requests action; only the
     // execution owner can settle it. No returned result means interruption.

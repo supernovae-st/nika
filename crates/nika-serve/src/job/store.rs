@@ -231,7 +231,7 @@ impl JobStore {
         max_jobs: usize,
         workflow: String,
     ) -> Result<Admission, JobStoreError> {
-        self.create_or_replay_inner(key, digest, max_jobs, workflow, None)
+        self.create_or_replay_inner(key, digest, max_jobs, workflow, None, None)
     }
 
     /// Create or replay while persisting the POST-time execution world.
@@ -250,7 +250,23 @@ impl JobStore {
         workflow: String,
         world: &str,
     ) -> Result<Admission, JobStoreError> {
-        self.create_or_replay_inner(key, digest, max_jobs, workflow, Some(world))
+        self.create_or_replay_inner(key, digest, max_jobs, workflow, Some(world), None)
+    }
+
+    /// Create or replay while persisting the POST-time world and access pin.
+    ///
+    /// # Errors
+    /// Returns the same typed failures as [`Self::create_or_replay_captured`].
+    pub fn create_or_replay_captured_pinned(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        max_jobs: usize,
+        workflow: String,
+        world: &str,
+        access_pin: Option<String>,
+    ) -> Result<Admission, JobStoreError> {
+        self.create_or_replay_inner(key, digest, max_jobs, workflow, Some(world), access_pin)
     }
 
     fn create_or_replay_inner(
@@ -260,6 +276,7 @@ impl JobStore {
         max_jobs: usize,
         workflow: String,
         world: Option<&str>,
+        access_pin: Option<String>,
     ) -> Result<Admission, JobStoreError> {
         key.validate()?;
         digest.validate()?;
@@ -298,6 +315,7 @@ impl JobStore {
             status: JobStatus::Queued,
             origin: crate::JobOrigin::Manual,
             workflow,
+            access_pin,
             execution_id: String::new(),
             trace_id: String::new(),
             snapshot_digest: String::new(),
@@ -464,6 +482,20 @@ impl JobStore {
     /// # Errors
     /// Returns an error when the store cannot be locked or validated.
     pub fn queued_jobs(&self) -> Result<Vec<(JobId, String)>, JobStoreError> {
+        Ok(self
+            .queued_jobs_pinned()?
+            .into_iter()
+            .map(|(id, workflow, _)| (id, workflow))
+            .collect())
+    }
+
+    /// Queued jobs with their persisted access pin for resident recovery.
+    ///
+    /// # Errors
+    /// Returns an error when the store cannot be locked or validated.
+    pub fn queued_jobs_pinned(
+        &self,
+    ) -> Result<Vec<(JobId, String, Option<String>)>, JobStoreError> {
         let _local = self.local_guard()?;
         let _lease = self.kernel_lease()?;
         let state = self.load_state()?;
@@ -471,7 +503,13 @@ impl JobStore {
             .jobs
             .iter()
             .filter(|job| job.record.status == JobStatus::Queued && !job.record.workflow.is_empty())
-            .map(|job| (job.record.id.clone(), job.record.workflow.clone()))
+            .map(|job| {
+                (
+                    job.record.id.clone(),
+                    job.record.workflow.clone(),
+                    job.record.access_pin.clone(),
+                )
+            })
             .collect())
     }
 

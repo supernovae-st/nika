@@ -10,6 +10,8 @@ use std::num::NonZeroUsize;
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RuntimeConfig {
+    /// Composer-declared approval attribution; informational, never authority.
+    pub approval_operator: Option<String>,
     /// Per-wave in-flight cap (`for_each` has its own `max_parallel`).
     /// `None` = wave-width (every wave member in flight at once).
     pub wave_parallelism: Option<NonZeroUsize>,
@@ -71,6 +73,7 @@ impl RuntimeConfig {
     #[must_use]
     pub fn new(wave_parallelism: Option<NonZeroUsize>, jitter_seed: u64) -> Self {
         Self {
+            approval_operator: None,
             wave_parallelism,
             jitter_seed,
             max_cost_usd: None,
@@ -80,6 +83,13 @@ impl RuntimeConfig {
             sandbox_waived: false,
             project_root_fingerprint: None,
         }
+    }
+
+    /// Attach approval attribution without reading process state during execution.
+    #[must_use]
+    pub fn with_approval_operator(mut self, operator: String) -> Self {
+        self.approval_operator = Some(operator);
+        self
     }
 
     /// Bind the run to `root` (the project the sandbox admits).

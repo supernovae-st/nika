@@ -23,6 +23,7 @@
 
 use std::sync::Arc;
 
+mod operator;
 mod secret_resolver;
 
 #[cfg(test)]
@@ -862,6 +863,7 @@ fn production_runtime_with_emitter(
         ),
         seams.clock,
         RuntimeConfig::new(None, seams.jitter_seed)
+            .with_approval_operator(operator::identity())
             .with_project_root(&sandbox_root)
             .with_sandbox_root(sandbox_root)
             .with_sandbox_backend(sandbox_backend)

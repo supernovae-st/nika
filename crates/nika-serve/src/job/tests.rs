@@ -875,8 +875,8 @@ fn identityless_running_job_restarts_as_recoverable_queued_without_receipt() {
     assert_eq!(recovered.trace_id(), None);
     assert_eq!(recovered.receipt(), None);
     assert_eq!(
-        store.queued_jobs().expect("restart schedule"),
-        vec![(record.id().clone(), "root.nika.yaml".to_owned())]
+        store.queued_jobs_pinned().expect("restart schedule"),
+        vec![(record.id().clone(), "root.nika.yaml".to_owned(), None)]
     );
     let events = store
         .events_after(record.id(), 0, page_limit(MAX_EVENT_PAGE_LEN))
@@ -1166,3 +1166,35 @@ fn transition_and_events_commit_as_one_mutation() {
 
 #[cfg(test)]
 mod event_integrity;
+
+#[test]
+fn a_queued_pin_survives_reopen_without_changing_the_legacy_listing() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    let record = admitted_record(
+        store
+            .create_or_replay_captured_pinned(
+                key("persisted-access"),
+                digest(82),
+                usize::MAX,
+                "root.nika.yaml".to_owned(),
+                "captured-world",
+                Some("codex".to_owned()),
+            )
+            .expect("pinned job"),
+    );
+    drop(store);
+    let reopened = JobStore::open(root.path()).expect("reopened");
+    assert_eq!(
+        reopened.queued_jobs().expect("legacy"),
+        vec![(record.id().clone(), "root.nika.yaml".to_owned())]
+    );
+    assert_eq!(
+        reopened.queued_jobs_pinned().expect("pinned"),
+        vec![(
+            record.id().clone(),
+            "root.nika.yaml".to_owned(),
+            Some("codex".to_owned())
+        )]
+    );
+}

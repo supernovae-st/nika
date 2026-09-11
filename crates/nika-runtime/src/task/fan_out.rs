@@ -230,6 +230,7 @@ pub(super) fn fan_out_result(
             cost_usd,
             cost_unpriced,
             access: None,
+            access_refused: None,
         },
     }
 }
@@ -399,6 +400,7 @@ mod tests {
         ran(
             &iteration_note(index, &identity),
             RunResult::Failed {
+                access_refused: None,
                 error: TaskErrorRecord::new(
                     "NIKA-EXEC-001",
                     format!("for_each item [{index}] {identity}: boom"),
@@ -578,6 +580,7 @@ mod tests {
         let mut ran = ran(
             "exec · false",
             RunResult::Failed {
+                access_refused: None,
                 error: boom("command exited with status 1:"),
                 cost_usd: None,
                 cost_unpriced: None,

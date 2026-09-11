@@ -47,6 +47,8 @@ pub(crate) struct FailedOutcome {
     pub access: Option<Box<nika_types::access::AccessPlan>>,
     /// the usage split of the billed-then-failed attempts.
     pub usage: Option<Box<crate::usage::UsageSplit>>,
+    /// The typed refusal of a chosen seat that failed at the call.
+    pub access_refused: Option<Box<nika_types::access::AccessRefused>>,
 }
 
 impl FailedOutcome {
@@ -63,7 +65,17 @@ impl FailedOutcome {
             evidence,
             access: None,
             usage: None,
+            access_refused: None,
         }
+    }
+
+    /// Attach the typed seat refusal the failed dispatch carried.
+    pub(crate) fn with_access_refused(
+        mut self,
+        refused: Option<Box<nika_types::access::AccessRefused>>,
+    ) -> Self {
+        self.access_refused = refused;
+        self
     }
 
     /// Attach the lane the failed dispatch rode (wave 2b).

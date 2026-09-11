@@ -50,6 +50,9 @@ pub struct FoldSink<W: Write> {
     /// under `nika-try-<slug>/` and the fruit card must not name a
     /// discarded write (C12).
     source_path: Option<String>,
+    /// The explore teaching line (#1244) — set by the run verb, printed
+    /// at the PLAIN close so a piped user learns the machine surfaces.
+    explore: Option<String>,
     /// Lines painted by the previous frame (to clear before the redraw).
     last_lines: usize,
     /// The spinner phase — advanced by the timer rider, read by every
@@ -144,6 +147,7 @@ impl<W: Write> FoldSink<W> {
             outputs: false,
             trace_recorded: true,
             source_path: None,
+            explore: None,
             last_lines: 0,
             tick: 0,
             map: None,
@@ -187,6 +191,11 @@ impl<W: Write> FoldSink<W> {
         self.trace_recorded = on;
     }
 
+    /// Set the machine-surface hint printed by the plain close.
+    pub fn set_explore_hint(&mut self, line: String) {
+        self.explore = Some(line);
+    }
+
     /// Pin the workflow path so the fruit card can detect a try room.
     pub fn set_source_path(&mut self, path: impl Into<String>) {
         self.source_path = Some(path.into());
@@ -220,17 +229,17 @@ impl<W: Write> FoldSink<W> {
             // The plain close carries the FRUIT block (A-2): the files
             // the run materialized + the model's last word — composed
             // here (sizes are a stat, the display crate holds no I/O).
-            RenderMode::Plain => stream_summary(
-                &self.view,
-                &self.theme,
-                &super::epilogue::fruit_notes(
+            RenderMode::Plain => {
+                let notes = super::epilogue::fruit_notes(
                     &self.view,
                     self.trace_recorded,
-                    self.source_path
-                        .as_deref()
-                        .and_then(super::example::try_rehearsal_slug),
-                ),
-            ),
+                    self.source_path.as_deref(),
+                );
+                let mut lines = stream_summary(&self.view, &self.theme, &notes);
+                // #1244 · the explore hint closes the pipe story too.
+                lines.extend(self.explore.as_ref().map(|h| format!("  {h}")));
+                lines
+            }
             _ if self.outputs => frame_with_outputs(&self.view, &self.theme, 0),
             _ => frame(&self.view, &self.theme, 0),
         };
@@ -725,6 +734,104 @@ mod tests {
             assert_eq!(
                 surfaced.note_error.map(|error| error.kind()),
                 Some(std::io::ErrorKind::PermissionDenied)
+            );
+        }
+    }
+
+    /// The face-independent FACT SET: counted units (tasks · waves ·
+    /// retries · tok · unpriced · recovered) and the explore teaching
+    /// line. Box glyphs, colors and layout are presentation; these are
+    /// information.
+    fn facts(text: &str) -> std::collections::BTreeSet<String> {
+        fn singular(unit: &str) -> &str {
+            match unit {
+                "tasks" => "task",
+                "waves" => "wave",
+                "retries" => "retry",
+                _ => unit,
+            }
+        }
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let mut out = std::collections::BTreeSet::new();
+        for pair in words.windows(2) {
+            let unit = pair[1].trim_matches(|c: char| !c.is_ascii_alphabetic());
+            let count = pair[0].trim_matches(|c: char| !c.is_ascii_digit());
+            if !count.is_empty()
+                && count.chars().all(|c| c.is_ascii_digit())
+                && matches!(
+                    unit,
+                    "task"
+                        | "tasks"
+                        | "wave"
+                        | "waves"
+                        | "retry"
+                        | "retries"
+                        | "tok"
+                        | "unpriced"
+                        | "recovered"
+                )
+            {
+                out.insert(format!("{count} {}", singular(unit)));
+            }
+        }
+        if text.contains("explore: nika run") {
+            out.insert("explore hint".to_owned());
+        }
+        out
+    }
+
+    /// #1244 · the two-faces law: colors and formatting may differ
+    /// between faces; information may not. Same run, both faces — every
+    /// fact the TTY verdict card carries (task · wave · retry tallies ·
+    /// the token count · the explore hint) must reach the piped close.
+    /// P06 measured the amputation verbatim: the card said `3 tasks ·
+    /// 3 waves · 0 retries` + `28ms · 19 tok`, the pipe said none of it.
+    #[test]
+    fn the_pipe_close_carries_the_cards_facts() {
+        let theme = Theme::new(false, true, false);
+        let plan = vec![
+            vec!["fetch_top".to_owned()],
+            vec!["extract_ai".to_owned()],
+            vec!["summarize".to_owned()],
+            vec!["write_md".to_owned(), "notify_slack".to_owned()],
+        ];
+        let hint = "explore: nika run veille-news.nika.yaml --json > run.ndjson \
+                    · nika trace outputs run.ndjson";
+        // The PIPE face — the Plain close, exactly as `run` drives it.
+        let mut buf = Vec::new();
+        {
+            let mut sink = FoldSink::new(&mut buf, theme, RenderMode::Plain);
+            sink.set_plan(plan.clone());
+            sink.set_trace_recorded(true);
+            sink.set_explore_hint(hint.to_owned());
+            for ev in demo::success() {
+                sink.emit(ev);
+            }
+            sink.print_final();
+            assert!(sink.into_error().is_none());
+        }
+        let pipe = String::from_utf8(buf).expect("utf8");
+        // The TTY face — waterfall + verdict card + hint over the SAME fold.
+        let mut view = crate::RunView::new();
+        view.set_plan(plan);
+        for ev in demo::success() {
+            view.apply(&ev);
+        }
+        let mut tty = crate::display::flow::waterfall(&view, &theme);
+        tty.extend(crate::display::flow::verdict_card(&view, &theme, &[]));
+        tty.push(format!("  {hint}"));
+        let tty = tty.join("\n");
+        let (tty_facts, pipe_facts) = (facts(&tty), facts(&pipe));
+        assert!(
+            tty_facts.is_subset(&pipe_facts),
+            "the pipe dropped facts the card carries: {:?}\n\nTTY:\n{tty}\n\nPIPE:\n{pipe}",
+            tty_facts.difference(&pipe_facts).collect::<Vec<_>>()
+        );
+        // The exact P06 fact classes, pinned closed one by one.
+        for class in ["wave", "retry", "tok", "explore"] {
+            assert!(
+                pipe_facts.iter().any(|f| f.contains(class)),
+                "pipe lost the `{class}` fact: {pipe_facts:?}\n{pipe}"
             );
         }
     }

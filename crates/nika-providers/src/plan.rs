@@ -431,13 +431,16 @@ mod tests {
         ModelNeed::new(model, true, false)
     }
 
-    /// The P0 fixture: the operator's key is set (invalid or not — the
-    /// resolver never reads a value) and a ready codex row serves the
-    /// same provider. Unpinned, the plan seats codex for the lane, and
-    /// that seat is what the runtime routes on — never the key.
+    /// The S18 shape (measured on 0.118.7): the operator's key is set
+    /// and a SIGNED-IN codex row serves the same provider. The login
+    /// answered for the account, not for `gpt-5-mini` — the seat is not
+    /// proven for the model, so the unpinned plan keeps the key, spawns
+    /// no seat, and the outranked row names the seat with the flag that
+    /// pins it. Revert `harness_candidate`'s `from_signed_in` to
+    /// `SeatReadiness::Proven` and the seat wins the lane again.
     #[cfg(feature = "access-harness")]
     #[test]
-    fn a_ready_infer_grade_seat_wins_the_lane_and_is_the_runs_seat() {
+    fn a_signed_in_but_unproven_seat_yields_the_lane_to_the_key() {
         let probes = vec![
             api_probe("openai", true),
             harness_probe("codex", &["openai"], true),
@@ -445,15 +448,52 @@ mod tests {
         let plan = resolve_execution_plan(&[infer("openai/gpt-5-mini")], &probes, None);
         assert!(plan.is_admitted());
         let lane = plan.lane("openai/gpt-5-mini").expect("admitted");
-        assert_eq!(lane.plan.access, "codex");
-        assert_eq!(lane.plan.chosen, AccessClass::Harness);
-        assert_eq!(lane.plan.billing, BillingClass::Unknown, "never guessed");
+        assert_eq!(lane.plan.access, "openai");
+        assert_eq!(lane.plan.chosen, AccessClass::Api);
+        assert_eq!(lane.plan.billing, BillingClass::ApiMetered);
         assert_eq!(
             lane.candidates, 2,
-            "the announce counts the api path it outranked"
+            "the announce counts the seat it outranked"
         );
-        assert_eq!(plan.seat.as_deref(), Some("codex"));
-        assert_eq!(plan.seat_for("openai/gpt-5-mini"), Some("codex"));
+        let seat = &lane.plan.outranked[0];
+        assert_eq!(seat.access, "codex");
+        assert!(
+            seat.witness.contains("not proven for `gpt-5-mini`")
+                && seat.witness.contains("`--access codex` pins it"),
+            "{}",
+            seat.witness
+        );
+        assert_eq!(plan.seat, None, "no seat is spawned for a key lane");
+        assert_eq!(plan.seat_for("openai/gpt-5-mini"), None);
+    }
+
+    /// A pin is a pin: `--access codex` on a seat that is installed but
+    /// NOT signed in refuses the whole plan with the seat's own gesture
+    /// (NIKA-1800 `NoPath`) — the ready key beside it is never substituted
+    /// (no admitted api lane, no seat). Revert `refuse_named_runtime`'s
+    /// `!row.readiness.configured` arm and the pin is admitted.
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn a_pinned_signed_out_seat_is_refused_never_substituted() {
+        let probes = vec![
+            api_probe("openai", true),
+            harness_probe("codex", &["openai"], false),
+        ];
+        let plan = resolve_execution_plan(&[infer("openai/gpt-5-mini")], &probes, Some("codex"));
+        assert!(!plan.is_admitted(), "a failing pinned seat is the refusal");
+        match &plan.pin_refusal {
+            Some(PinRefusal::NoPath { message }) => {
+                assert!(message.contains("not signed in"), "{message}");
+            }
+            other => panic!("expected NoPath, got {other:?}"),
+        }
+        assert_eq!(plan.seat, None);
+        assert!(
+            plan.admitted()
+                .all(|(_, lane)| lane.plan.chosen != AccessClass::Api),
+            "the key must never be substituted under a seat pin: {:?}",
+            plan.lanes
+        );
     }
 
     /// An ACP-only seat (claude-code · gemini-cli …) is a candidate for
@@ -485,19 +525,30 @@ mod tests {
         assert_eq!(plan.seat_for("gemini/gemini-2.5-flash"), None);
     }
 
-    /// The same ACP-only seat DOES serve an `agent:` lane.
+    /// The same ACP-only seat DOES serve an `agent:` lane — when no
+    /// key-backed path outranks it. A signed-in seat is unproven for the
+    /// model asked, so a ready key wins the unpinned agent lane too, and
+    /// the seat stays available to a pin.
     #[cfg(feature = "access-harness")]
     #[test]
     fn an_acp_seat_serves_an_agent_lane() {
-        let probes = vec![
-            api_probe("anthropic", true),
-            harness_probe("claude-code", &["anthropic"], true),
-        ];
         let need = ModelNeed::new("anthropic/claude-sonnet-4-6", false, true);
-        let plan = resolve_execution_plan(&[need], &probes, None);
+        let alone = vec![harness_probe("claude-code", &["anthropic"], true)];
+        let plan = resolve_execution_plan(std::slice::from_ref(&need), &alone, None);
         let lane = plan.lane("anthropic/claude-sonnet-4-6").expect("admitted");
         assert_eq!(lane.plan.access, "claude-code");
         assert_eq!(plan.seat.as_deref(), Some("claude-code"));
+        let with_key = vec![
+            api_probe("anthropic", true),
+            harness_probe("claude-code", &["anthropic"], true),
+        ];
+        let plan = resolve_execution_plan(&[need], &with_key, None);
+        let lane = plan.lane("anthropic/claude-sonnet-4-6").expect("admitted");
+        assert_eq!(
+            lane.plan.access, "anthropic",
+            "a ready key outranks an unproven seat on an agent lane too"
+        );
+        assert_eq!(plan.seat, None);
     }
 
     /// No configured path at all: the lane is REFUSED with the env-var
@@ -602,15 +653,15 @@ mod tests {
         assert_eq!(plan.seat, None);
     }
 
-    /// One seat per run: once a lane rides codex, another ready seat
-    /// that serves a second provider steps aside with a witness, and the
-    /// second lane falls to its next path.
+    /// One seat per run: once a lane rides a seat (the sole path for its
+    /// provider), another ready seat that serves a second provider steps
+    /// aside with a witness, and the second lane falls to its next path.
     #[cfg(feature = "access-harness")]
     #[test]
     fn one_seat_per_run_the_second_harness_row_steps_aside() {
         let probes = vec![
             api_probe("openai", true),
-            api_probe("anthropic", true),
+            api_probe("anthropic", false),
             harness_probe("codex", &["openai"], true),
             harness_probe("claude-code", &["anthropic"], true),
         ];
@@ -683,7 +734,8 @@ mod tests {
     }
 
     /// W3-F3 · a READY path that lost the ranking rides the lane's
-    /// rejections, so the machine row says a choice happened.
+    /// outranked rows, so the machine row says a choice happened — the
+    /// signed-in seat that the key outranks, with its witness.
     #[cfg(feature = "access-harness")]
     #[test]
     fn an_outranked_ready_path_rides_the_lane_outranked_rows() {
@@ -693,7 +745,7 @@ mod tests {
         ];
         let plan = resolve_execution_plan(&[infer("openai/gpt-5-mini")], &probes, None);
         let lane = plan.lane("openai/gpt-5-mini").expect("admitted");
-        assert_eq!(lane.plan.access, "codex");
+        assert_eq!(lane.plan.access, "openai");
         assert!(
             lane.plan.rejected.is_empty(),
             "available to a pin: {:?}",
@@ -701,13 +753,13 @@ mod tests {
         );
         assert_eq!(lane.plan.outranked.len(), 1, "{:?}", lane.plan.outranked);
         let loser = &lane.plan.outranked[0];
-        assert_eq!(loser.access, "openai");
+        assert_eq!(loser.access, "codex");
         assert_eq!(
             loser.dimension,
             nika_types::access::RejectionDimension::Outranked
         );
         assert!(
-            loser.witness.contains("ranked below `codex`"),
+            loser.witness.contains("not proven for `gpt-5-mini` → api"),
             "{}",
             loser.witness
         );

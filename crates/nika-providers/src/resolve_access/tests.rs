@@ -101,11 +101,14 @@ fn an_unauthenticated_adapter_row_is_a_candidate_marked_unconfigured() {
     assert!(!witness.contains("unset"), "{witness}");
 }
 
+/// The S18 shape (measured on 0.118.7): a signed-in seat and a ready
+/// key both serve the provider. A login answer proves the ACCOUNT, not
+/// the model — the seat's readiness for `claude-sonnet-4-5` is unproven,
+/// so the key wins the unpinned lane and the outranked row names the
+/// seat, why it lost and the flag that pins it. Revert the unproven
+/// rank (`_ => 5` → `_ => 2` in `sovereign_rank`) and the seat wins again.
 #[test]
-fn the_harness_row_outranks_the_metered_api_when_both_serve() {
-    // The sovereign order (local < mock < harness < oauth < api):
-    // an authenticated harness wins over the metered key — the
-    // access doctrine's whole point (the operator's own plan first).
+fn a_signed_in_seat_ranks_below_the_key_until_proven() {
     let api_row = ProviderProbe::new(
         "anthropic",
         true,
@@ -131,13 +134,120 @@ fn the_harness_row_outranks_the_metered_api_when_both_serve() {
         None,
     )
     .expect("both paths configured → a plan");
-    assert_eq!(plan.access, "claude-code");
-    assert_eq!(plan.chosen, AccessClass::Harness);
+    assert_eq!(plan.access, "anthropic");
+    assert_eq!(plan.chosen, AccessClass::Api);
     assert_eq!(
         plan.rejected.len(),
         0,
-        "the api row is outranked, NOT rejected (dispo au pin): {:?}",
+        "the seat is outranked, NOT rejected (dispo au pin): {:?}",
         plan.rejected
+    );
+    let seat = &plan.outranked[0];
+    assert_eq!(seat.access, "claude-code");
+    assert_eq!(seat.dimension, RejectionDimension::Outranked);
+    for term in [
+        "installed · signed in",
+        "not proven for `claude-sonnet-4-5`",
+        "→ api",
+        "`--access claude-code` pins it",
+    ] {
+        assert!(
+            seat.witness.contains(term),
+            "{term} missing: {}",
+            seat.witness
+        );
+    }
+}
+
+/// A seat PROVEN for the model keeps the harness class's sovereign rank
+/// (local < mock < proven harness < oauth < api): the operator's own
+/// plan beats the metered key, with the classic witness. Revert
+/// `Some(rung) if rung.is_proven() => 2` and the key wins.
+#[test]
+fn a_proven_seat_keeps_the_sovereign_rank_above_the_key() {
+    let candidates = [
+        api("anthropic", true, "ANTHROPIC_API_KEY"),
+        AccessCandidate::new("claude-code", AccessClass::Harness, true)
+            .with_readiness(SeatReadiness::Proven),
+    ];
+    let plan = resolve_access("anthropic/claude-sonnet-4-5", &candidates, None, None)
+        .expect("both ready → a plan");
+    assert_eq!(plan.access, "claude-code");
+    assert_eq!(plan.chosen, AccessClass::Harness);
+    assert_eq!(
+        plan.outranked[0].witness,
+        "ready · ranked below `claude-code` (harness outranks api)"
+    );
+    // A signed-in twin of the same seat loses to the same key.
+    let signed_in = [
+        api("anthropic", true, "ANTHROPIC_API_KEY"),
+        AccessCandidate::new("claude-code", AccessClass::Harness, true)
+            .with_readiness(SeatReadiness::SignedIn),
+    ];
+    let plan = resolve_access("anthropic/claude-sonnet-4-5", &signed_in, None, None)
+        .expect("both ready → a plan");
+    assert_eq!(plan.access, "anthropic");
+    // A harness row that never reported a rung is unproven (conservative).
+    let unranked = [
+        api("anthropic", true, "ANTHROPIC_API_KEY"),
+        AccessCandidate::new("claude-code", AccessClass::Harness, true),
+    ];
+    let plan = resolve_access("anthropic/claude-sonnet-4-5", &unranked, None, None)
+        .expect("both ready → a plan");
+    assert_eq!(plan.access, "anthropic");
+}
+
+/// Local compute leads every seat, proven or not — sovereignty first —
+/// and the loser's witness keeps the classic sentence (no key is being
+/// spared there).
+#[test]
+fn a_local_path_still_leads_an_unproven_seat_with_the_classic_witness() {
+    let candidates = [
+        local("ollama", true),
+        AccessCandidate::new("claude-code", AccessClass::Harness, true)
+            .with_readiness(SeatReadiness::SignedIn),
+    ];
+    let plan = resolve_access("ollama/qwen3.5:4b", &candidates, None, None).expect("plan");
+    assert_eq!(plan.access, "ollama");
+    assert_eq!(
+        plan.outranked[0].witness,
+        "ready · ranked below `ollama` (local outranks harness)"
+    );
+}
+
+/// An unproven seat that is the ONLY path still serves the lane
+/// (nothing outranks it) — and an installed-but-signed-out seat is
+/// refused with the gesture, never ranked.
+#[test]
+fn a_lone_unproven_seat_serves_and_a_signed_out_seat_is_refused() {
+    let probes = vec![harness_probe("codex", &["openai"], true)];
+    let plan = resolve_access(
+        "openai/gpt-5",
+        &candidates_for(&probes, "openai"),
+        None,
+        None,
+    )
+    .expect("the lone seat serves");
+    assert_eq!(plan.access, "codex");
+    assert!(plan.outranked.is_empty());
+    let signed_out = vec![harness_probe("codex", &["openai"], false)];
+    let refusal = resolve_access(
+        "openai/gpt-5",
+        &candidates_for(&signed_out, "openai"),
+        None,
+        None,
+    )
+    .expect_err("a signed-out seat never serves");
+    assert_eq!(
+        refusal.rejected[0].dimension,
+        RejectionDimension::NotConfigured
+    );
+    assert!(
+        refusal.rejected[0]
+            .witness
+            .starts_with("installed · not signed in"),
+        "{}",
+        refusal.rejected[0].witness
     );
 }
 
@@ -332,21 +442,26 @@ fn the_configured_twin_wins_either_order() {
 }
 
 /// The FULL sovereign chain, pinned pairwise (mutation-killers for
-/// every `sovereign_rank` arm — a deleted arm must flip a winner).
+/// every `sovereign_rank` arm — a deleted arm must flip a winner):
+/// local < mock < PROVEN harness < oauth < api < unproven harness.
 #[test]
 fn the_sovereign_chain_is_total_local_mock_harness_oauth_api() {
     let all = [
         AccessCandidate::new("the-local", AccessClass::Local, true),
         AccessCandidate::new("the-mock", AccessClass::Mock, true),
-        AccessCandidate::new("the-harness", AccessClass::Harness, true),
+        AccessCandidate::new("the-harness", AccessClass::Harness, true)
+            .with_readiness(SeatReadiness::Proven),
         AccessCandidate::new("the-oauth", AccessClass::Oauth, true),
         AccessCandidate::new("the-api", AccessClass::Api, true),
+        AccessCandidate::new("the-seat", AccessClass::Harness, true)
+            .with_readiness(SeatReadiness::SignedIn),
     ];
     for (winner, loser_rank) in [
         ("the-local", 0),
         ("the-mock", 1),
         ("the-harness", 2),
         ("the-oauth", 3),
+        ("the-api", 4),
     ] {
         let _ = loser_rank;
         let idx = all

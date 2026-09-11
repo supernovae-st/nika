@@ -351,6 +351,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
     let pending = crate::recover::PendingRecovery {
         failed: task::FailedOutcome {
             usage: None,
+            access_refused: None,
             record: error("NIKA-EXEC-001", "exit 1"),
             cost_usd: None,
             cost_unpriced: None,

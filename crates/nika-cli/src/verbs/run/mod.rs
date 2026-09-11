@@ -328,7 +328,11 @@ fn announce_access(
             lane.plan.chosen.as_str(),
             lane.plan.billing.as_str(),
             lane.plan.trust.as_str(),
-            nika_cli_host::models_rung::chosen_over(lane.candidates, &lane.plan.outranked)
+            nika_cli_host::models_rung::chosen_over_with_rejections(
+                lane.candidates,
+                &lane.plan.outranked,
+                &lane.plan.rejected
+            )
         );
     }
 }
@@ -1163,6 +1167,7 @@ async fn execute_fold_lane(
     if let Ok(mut f) = fold.lock() {
         f.set_trace_recorded(trace_recorded);
         f.set_source_path(file);
+        f.set_explore_hint(epilogue::explore_hint_line(theme, file));
     }
     // Plain's heartbeat keeps a piped local-model run from reading as a hang.
     let pulse = (mode == RenderMode::Plain).then(|| {
