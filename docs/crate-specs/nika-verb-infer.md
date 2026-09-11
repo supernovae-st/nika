@@ -127,10 +127,11 @@ passthrough). Range registered in the kernel range-registry hub at admission.
   surface (brouillon kept it in the engine bridge; Diamond will too until
   `verb-agent` s15 needs it). Seam note: the registry already resolves
   stream-capable providers; adding `run_stream` later is additive.
-- **NOT vision** — `vision:` staging couples to media (deferred §10bis).
-  `InferInput` carries no vision field at v1; the spec field maps when
-  `nika-media-*` lands. (Spec allows partial conformance pre-1.0; the
-  conformance fixture for vision is marked pending.)
+- **NOT CAS vision staging** — `InferInput.vision` carries file and URL
+  references. `src/vision.rs` reads each local file in full and inlines
+  its bytes as a base64 `data:` URL; remote URLs are forwarded to the
+  provider. Missing or empty files fail before the provider call.
+  Content-addressed staging remains deferred to `nika-media-*` (§10bis).
 - **NOT template/CEL resolution** — `${{ }}` is resolved upstream.
 - **NOT retry-on-transport** — transport retry/backoff policy belongs to the
   engine scheduler; the verb retries ONLY schema-validation (spec-sanctioned).
