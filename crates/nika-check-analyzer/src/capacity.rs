@@ -2,12 +2,11 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! CAPACITY FIT — the third layer of `nika check` (One Door · wave 2):
-//! can the seat satisfy what the task declares? Four laws over the
+//! can the seat satisfy what the task declares? Three laws over the
 //! catalog's POSITIVE knowledge ([`catalog_knows`] — a seat the catalog
 //! never heard of gets no claim, the mock never does): an
 //! `infer.max_tokens` above the seat's max output · a `schema:` on a
-//! seat the catalog marks without a JSON mode · an `agent.max_tokens_total`
-//! above the seat's context window · a `vision:` input on a seat whose
+//! seat the catalog marks without a JSON mode · a `vision:` input on a seat whose
 //! input modalities exclude images. Each finding names the task, the
 //! seat, the two numbers (or the capability) and the repair — a static
 //! judgment, so the failure is met at `check`, never after a task spent.
@@ -44,74 +43,58 @@ pub fn capacity_findings(wf: &RawWorkflow) -> Vec<CapacityFinding> {
     let mut findings = Vec::new();
     for task in &wf.tasks {
         let id = task.value.id.value.as_str();
-        match &task.value.action {
-            RawAction::Infer(a) => {
-                let Some((seat, caps)) = known_seat(wf, a.model.as_ref()) else {
-                    continue;
-                };
-                if let Some(max) = a.max_tokens.as_ref()
-                    && let Some(cap) = caps.max_output_tokens
-                    && max.value > cap
-                {
-                    findings.push(CapacityFinding::new(
-                        id.to_owned(),
-                        seat.clone(),
-                        format!(
-                            "`max_tokens` ({}) on `{id}` exceeds what `{seat}` can emit in one \
+        // An agent's max_tokens_total is cumulative across requests
+        // (spec 02 §agent Fields), not a per-request context bound.
+        // It cannot prove overflow: even a budget above the window
+        // can fund several individually fitting turns. The strongest
+        // useful static sub-question is whether one request fits, but
+        // this declaration does not bound the prompt, tools or growing
+        // history of any individual request.
+        if let RawAction::Infer(a) = &task.value.action {
+            let Some((seat, caps)) = known_seat(wf, a.model.as_ref()) else {
+                continue;
+            };
+            if let Some(max) = a.max_tokens.as_ref()
+                && let Some(cap) = caps.max_output_tokens
+                && max.value > cap
+            {
+                findings.push(CapacityFinding::new(
+                    id.to_owned(),
+                    seat.clone(),
+                    format!(
+                        "`max_tokens` ({}) on `{id}` exceeds what `{seat}` can emit in one \
                              answer ({cap}) — the provider clamps or refuses the call; lower \
                              `max_tokens` to at most {cap} or seat a model with a larger output \
                              window",
-                            max.value
-                        ),
-                    ));
-                }
-                if a.schema.is_some() && caps.json_mode == Some(JsonMode::Unavailable) {
-                    findings.push(CapacityFinding::new(
-                        id.to_owned(),
-                        seat.clone(),
-                        format!(
-                            "`schema:` on `{id}` asks `{seat}` for structured output the catalog \
+                        max.value
+                    ),
+                ));
+            }
+            if a.schema.is_some() && caps.json_mode == Some(JsonMode::Unavailable) {
+                findings.push(CapacityFinding::new(
+                    id.to_owned(),
+                    seat.clone(),
+                    format!(
+                        "`schema:` on `{id}` asks `{seat}` for structured output the catalog \
                              marks unavailable — the answer cannot be forced to the shape; seat a \
                              model with a JSON mode or drop `schema:`"
-                        ),
-                    ));
-                }
-                if !a.vision.is_empty()
-                    && !caps.input_modalities.is_empty()
-                    && !caps.input_modalities.contains(&Modality::Image)
-                {
-                    findings.push(CapacityFinding::new(
-                        id.to_owned(),
-                        seat,
-                        format!(
-                            "`vision:` on `{id}` sends images to a seat whose input modalities \
+                    ),
+                ));
+            }
+            if !a.vision.is_empty()
+                && !caps.input_modalities.is_empty()
+                && !caps.input_modalities.contains(&Modality::Image)
+            {
+                findings.push(CapacityFinding::new(
+                    id.to_owned(),
+                    seat,
+                    format!(
+                        "`vision:` on `{id}` sends images to a seat whose input modalities \
                              the catalog lists without `image` — the provider refuses the parts; \
                              seat a vision-capable model or drop `vision:`"
-                        ),
-                    ));
-                }
+                    ),
+                ));
             }
-            RawAction::Agent(a) => {
-                let Some((seat, caps)) = known_seat(wf, a.model.as_ref()) else {
-                    continue;
-                };
-                if let Some(total) = a.max_tokens_total.as_ref()
-                    && let Some(window) = caps.context_window_tokens
-                    && total.value > u64::from(window)
-                {
-                    findings.push(CapacityFinding::new(
-                        id.to_owned(),
-                        seat,
-                        format!(
-                            "`max_tokens_total` ({}) on `{id}` exceeds the context window of the \
-                             seat ({window}) — the loop cannot hold that budget in one context; \
-                             lower it to at most {window} or seat a larger-window model",
-                            total.value
-                        ),
-                    ));
-                }
-            }
-            _ => {}
         }
     }
     findings
@@ -185,20 +168,32 @@ mod tests {
         assert!(capacity_findings(&under).is_empty());
     }
 
-    /// An agent's total budget above the seat's context window is a
-    /// finding — through the envelope model, like the thinking laws.
+    /// A cumulative agent budget is not one request's context size (#1518).
+    /// Check both model-selection paths and the window's boundaries;
+    /// absence of this finding does not certify the individual requests.
     #[test]
-    fn an_agent_budget_above_the_context_window_is_a_finding() {
+    fn cumulative_agent_budget_is_independent_of_the_context_window() {
+        for budget in [0, 63_999, 64_000, 64_001, 120_000] {
+            for model in ["", "model: deepseek/deepseek-chat, "] {
+                let wf = parse(&format!(
+                    "nika: t\nmodel: deepseek/deepseek-chat\ntasks:\n  go:\n    agent: {{ {model}prompt: hi, tools: [], max_tokens_total: {budget} }}\n"
+                ));
+                let findings = capacity_findings(&wf);
+                assert!(findings.is_empty(), "budget {budget}: {findings:?}");
+            }
+        }
+    }
+
+    /// Accepting a multi-turn budget must not hide a real per-call excess.
+    #[test]
+    fn an_agent_budget_does_not_hide_an_infer_output_overflow() {
         let wf = parse(
-            "nika: t\nmodel: openai/gpt-5.2\ntasks:\n  go:\n    agent: { prompt: hi, tools: [], max_tokens_total: 300000 }\n",
+            "nika: t\nmodel: openai/gpt-5.2\ntasks:\n  go:\n    agent: { prompt: hi, tools: [], max_tokens_total: 300000 }\n  answer:\n    infer: { prompt: hi, max_tokens: 200000 }\n",
         );
         let findings = capacity_findings(&wf);
         assert_eq!(findings.len(), 1, "{findings:?}");
-        assert!(
-            findings[0].why.contains("300000") && findings[0].why.contains("272000"),
-            "{}",
-            findings[0].why
-        );
+        assert_eq!(findings[0].task, "answer");
+        assert!(findings[0].why.contains("max_tokens"), "{findings:?}");
     }
 
     /// `vision:` on a seat the catalog lists as text-only is a finding.
