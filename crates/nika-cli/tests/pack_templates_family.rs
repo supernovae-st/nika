@@ -233,16 +233,15 @@ fn every_negative_template_refuses_with_its_declared_code() {
         );
         names.insert(template.to_owned());
     }
-    for required in [
-        "classify-and-route",
-        "corpus-qa",
-        "document-to-fields",
-        "evaluate-and-optimize",
-        "human-gated-ship",
-    ] {
+    let shipped = nika_pack::template_names();
+    assert!(
+        !shipped.is_empty(),
+        "the pack ships templates — a shelf with no skeletons cannot prove its negatives"
+    );
+    for required in &shipped {
         assert!(
             names.contains(required),
-            "missing negative specimen: {required}"
+            "missing negative specimen: {required} — every shipped skeleton owns a declared-code counterexample"
         );
     }
 }

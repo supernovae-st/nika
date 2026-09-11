@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · the etl cursor is private read + untrusted fetch + write
+# of the next trusted state. A `nika:prompt` with `default:` does not dominate
+# that path; the trifecta is complete.
+# Expected · NIKA-SEC-009.
+nika: etl-state-negative
+const:
+  source_url: "https://api.example.com/v1/records"
+  state_path: "./state/etl-state.json"
+permits:
+  tools: ["nika:fetch", "nika:prompt", "nika:read", "nika:write"]
+  net: { http: ["api.example.com"] }
+  fs:
+    read: ["./state/etl-state.json"]
+    write: ["./state/etl-state.json"]
+tasks:
+  approve:
+    invoke:
+      tool: nika:prompt
+      args:
+        default: true
+        message: "Fetch and persist?"
+  previous_raw:
+    invoke:
+      tool: nika:read
+      args: { path: "${{ const.state_path }}" }
+    on_error:
+      recover: "[]"
+  fresh:
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "${{ const.source_url }}"
+        mode: jq
+        jq: "."
+  save_state:
+    with:
+      fresh: ${{ tasks.fresh.output }}
+    invoke:
+      tool: nika:write
+      args:
+        path: "${{ const.state_path }}"
+        content: "${{ with.fresh }}"

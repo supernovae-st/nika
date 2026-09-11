@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · image_generate lands files. A grant that names jq is not
+# a pack; check refuses the undeclared generator.
+# Expected · NIKA-SEC-004.
+nika: media-asset-pack-negative
+model: mock/echo
+permits:
+  tools: ["nika:jq"]
+tasks:
+  render:
+    invoke:
+      tool: nika:image_generate
+      args:
+        prompt: "a calm field"
+        provider: mock
+        output_dir: "./out/assets"

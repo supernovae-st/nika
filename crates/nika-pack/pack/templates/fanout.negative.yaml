@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · the fan leash lives inside `for_each:`, not on the task.
+# Expected · NIKA-PARSE-005.
+nika: fanout-negative
+model: mock/echo
+tasks:
+  process:
+    fail_fast: false
+    infer:
+      prompt: "process one item"

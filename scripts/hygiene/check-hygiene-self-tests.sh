@@ -34,6 +34,24 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 DIR="$HERE/tests"
 BOARD="$HERE/check-all.sh"
 
+# Linux CI has GNU sha256sum; macOS pre-push has shasum only. Several release
+# self-tests (and the scripts they drive) call sha256sum. Provide a shim so
+# vector 49 proves the guards on the machine that runs the hook, not only Ubuntu.
+if ! command -v sha256sum >/dev/null 2>&1; then
+  _nika_sha256_shim="$(mktemp -d)"
+  cat >"$_nika_sha256_shim/sha256sum" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = -c ]; then
+  shift
+  exec shasum -a 256 -c "$@"
+fi
+exec shasum -a 256 "$@"
+EOF
+  chmod +x "$_nika_sha256_shim/sha256sum"
+  export PATH="$_nika_sha256_shim:$PATH"
+fi
+
 if [ ! -d "$DIR" ]; then
   echo "YELLOW: no hygiene self-test directory at scripts/hygiene/tests"
   exit 1

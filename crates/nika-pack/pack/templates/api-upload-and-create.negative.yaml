@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · a product API key in a header without `egress: to nika:fetch`
+# is not authenticated upload; it is an unsanctioned secret door. The URL is
+# also off the declared host, so the reference oracle refuses the same file.
+# Expected · NIKA-SEC-006.
+nika: api-upload-and-create-negative
+secrets:
+  API_KEY:
+    source: env
+    key: EXAMPLE_API_KEY
+permits:
+  tools: ["nika:fetch"]
+  net: { http: ["api.example.com"] }
+tasks:
+  create:
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "https://other.example/items"
+        method: POST
+        headers:
+          x-api-key: "${{ secrets.API_KEY }}"

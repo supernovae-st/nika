@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · traverse is same-origin under the declared host. A crawl
+# whose URL is not on permits.net.http is not a brief of that site.
+# Expected · NIKA-SEC-004.
+nika: website-brief-negative
+permits:
+  tools: ["nika:fetch"]
+  net: { http: ["example.com"] }
+tasks:
+  crawl_site:
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "https://other.example/"
+        traverse: { max_pages: 2 }
