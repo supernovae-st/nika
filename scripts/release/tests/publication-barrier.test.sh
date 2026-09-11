@@ -49,6 +49,19 @@ LOG="$TEST_ROOT/log"
 TAG_MOVED_FILE="$TEST_ROOT/tag-moved"
 mkdir -p "$LOCAL" "$REMOTE" "$BIN"
 : >"$LOG"
+# macOS has shasum only. The scripts under test call GNU sha256sum (Linux CI).
+if ! command -v sha256sum >/dev/null 2>&1; then
+  cat >"$BIN/sha256sum" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = -c ]; then
+  shift
+  exec shasum -a 256 -c "$@"
+fi
+exec shasum -a 256 "$@"
+EOF
+  chmod +x "$BIN/sha256sum"
+fi
 export RELEASE_SHA TAG TAG_MOVED_FILE
 
 names=(
@@ -330,7 +343,7 @@ fi
 NPM_TGZ="$TEST_ROOT/package.tgz"
 NPM_SHA="$NPM_TGZ.sha256"
 printf 'npm bytes\n' >"$NPM_TGZ"
-(cd "$TEST_ROOT" && sha256sum package.tgz >package.tgz.sha256)
+(cd "$TEST_ROOT" && PATH="$BIN:$PATH" sha256sum package.tgz >package.tgz.sha256)
 NPM_SRI="sha512-$(openssl dgst -sha512 -binary "$NPM_TGZ" | base64 | tr -d '\n')"
 cat >"$BIN/npm" <<'EOF'
 #!/usr/bin/env bash
