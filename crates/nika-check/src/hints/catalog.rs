@@ -31,9 +31,9 @@ const ROWS: &[(&str, &str)] = &[
     ),
     (
         "envelope-model",
-        "a per-task `model:` pin is envelope-only: CLI `--model` replaces \
-         the workflow envelope, never the task pin. `--model mock/echo` \
-         does not preview a pinned paid seat",
+        "CLI `--model` replaces only the parent workflow's default model. \
+         Infer/agent model pins and invoked child workflows keep their own \
+         model selections; `--model mock/echo` does not make their calls or other effects offline",
     ),
     (
         "zero-cap",

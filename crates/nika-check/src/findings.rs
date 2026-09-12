@@ -879,9 +879,10 @@ mod tests {
             r.capability_escapes
         );
         assert!(
-            r.capability_escapes
-                .iter()
-                .any(|e| e.detail.contains("escapes the workspace") && e.fix.is_none()),
+            r.capability_escapes.iter().any(|e| e
+                .detail
+                .contains("does not match permits.fs.read lexically")
+                && e.fix.is_none()),
             "the host path is an escape, never a grant: {:?}",
             r.capability_escapes
         );

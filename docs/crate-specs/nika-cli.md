@@ -26,6 +26,11 @@ this service. Stdin supplies its already acquired root bytes through
 `admit_root_bytes`; dependencies still resolve from the held current project,
 without a temporary file or a world-less compatibility path.
 
+Human runs with `--model` project the admitted `envelope-model` hints after
+task selection and before composition/dispatch. The notice names retained
+task pins and child invocation sites; it does not choose models or access.
+Machine modes and Quiet retain their existing announcement policy.
+
 ## 2. Verb surface
 
 ### 1.0 launch floor (locked · D-2026-06-10-N6 · amended D-2026-06-20-N1 — was "v0.81")

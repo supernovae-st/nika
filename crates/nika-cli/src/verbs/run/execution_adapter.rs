@@ -99,6 +99,18 @@ struct CliExecutionRequest<'a> {
     max_cost_usd: Option<f64>,
 }
 
+impl CliExecutionRequest<'_> {
+    fn announce_model_scope(&self, report: &CheckReport) {
+        if let Some(notice) = nika_display::model_scope::notice(
+            report,
+            self.model_override,
+            !(self.json || self.output_json || self.mode == RenderMode::Quiet),
+        ) {
+            eprintln!("{notice}");
+        }
+    }
+}
+
 /// ARM's in-process adapter over exact service-admitted bytes; it never reopens
 /// workflows, scans a latest trace, shells to the CLI, or crosses HTTP.
 pub(crate) fn run_arm_context(
@@ -221,6 +233,7 @@ fn run_admitted_context(
     };
     let wf = world.driver.workflow().clone();
     let report = world.driver.report().clone();
+    request.announce_model_scope(&report);
     let inputs = match inputs::validated_var_overrides(request.vars, &wf, request.output_json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),

@@ -538,6 +538,8 @@ pub fn nika_display::fruit::recovered_ok(view: &nika_display::state::RunView) ->
 pub fn nika_display::fruit::rehearsal(view: &nika_display::state::RunView) -> bool
 pub fn nika_display::fruit::rehearsal_note(view: &nika_display::state::RunView) -> core::option::Option<&'static str>
 pub fn nika_display::fruit::written_files(view: &nika_display::state::RunView) -> alloc::vec::Vec<nika_display::fruit::WroteFile>
+pub mod nika_display::model_scope
+pub fn nika_display::model_scope::notice(report: &nika_check::CheckReport, model_override: core::option::Option<&str>, human: bool) -> core::option::Option<alloc::string::String>
 pub mod nika_display::project_render
 pub fn nika_display::project_render::governs(ceiling: core::option::Option<f64>, traces: bool, registry: bool, beats: usize) -> alloc::string::String
 pub fn nika_display::project_render::json(path: &str, clean: bool, name: core::option::Option<&str>, code: &str, message: &str) -> alloc::string::String

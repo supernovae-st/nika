@@ -23,7 +23,7 @@ nika-providers = { path = "../nika-providers", version = "0.119.0" } # ProviderR
 nika-runtime   = { path = "../nika-runtime", version = "0.119.0" }   # trace-store shapes retention walks + WorkflowPause/Stamper (notify · ADR-111)
 nika-service-execution = { path = "../nika-service-execution", version = "0.119.0" } # the ONE access-plan resolver + probe door every door executes (One Door · wave 1b)
 nika-registry-client = { path = "../nika-registry-client", version = "0.119.0" } # canonical registry cache root for --fix provenance
-nix            = { workspace = true, features = ["fs", "feature"] }   # FIFO fixtures · sysconf RAM probe (first-wow cascade)
+nix            = { workspace = true, features = ["fs", "feature", "user"] }   # FIFO fixtures · sysconf RAM probe · account-home lookup
 nika-schema    = { path = "../nika-schema", version = "0.119.0" }    # RawWorkflow (context envelope · glance)
 nika-http      = { path = "../nika-http", version = "0.119.0" }      # ReqwestHttp — the notify webhook client (ADR-111 · SSRF floor)
 nika-event     = { path = "../nika-event", version = "0.119.0" }     # Event + notify_delivered/notify_failed kinds (ADR-111)

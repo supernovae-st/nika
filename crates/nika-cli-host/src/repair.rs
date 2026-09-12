@@ -59,20 +59,17 @@ fn is_registry_cache_path_under(path: &std::path::Path, root: &std::path::Path) 
 mod tests {
     use super::*;
 
-    fn arena(label: &str) -> std::path::PathBuf {
-        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let path = std::env::temp_dir().join(format!(
-            "nika-repair-target-{label}-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-        ));
-        std::fs::create_dir_all(&path).expect("repair-target arena");
-        path
+    fn arena(label: &str) -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix(&format!("nika-repair-target-{label}-"))
+            .tempdir()
+            .expect("owned repair-target arena")
     }
 
     #[test]
     fn direct_dotdot_and_missing_cache_shapes_are_immutable() {
-        let root = arena("cache");
+        let fixture = arena("cache");
+        let root = fixture.path();
         let cache_root = root.join(".nika/registry");
         let cache = cache_root.join("acme/report");
         std::fs::create_dir_all(&cache).expect("cache dirs");
@@ -112,7 +109,8 @@ mod tests {
     fn cache_aliases_are_immutable_but_regular_workspace_symlinks_stay_files() {
         use std::os::unix::fs::symlink;
 
-        let root = arena("aliases");
+        let fixture = arena("aliases");
+        let root = fixture.path();
         let cache_root = root.join(".nika/registry");
         let cache_dir = cache_root.join("acme/report");
         std::fs::create_dir_all(&cache_dir).expect("cache dirs");
@@ -157,7 +155,8 @@ mod tests {
             RepairTarget::NonRegularSource
         );
 
-        let root = arena("fifo");
+        let fixture = arena("fifo");
+        let root = fixture.path();
         let fifo = root.join("workflow.pipe");
         nix::unistd::mkfifo(&fifo, nix::sys::stat::Mode::S_IRUSR)
             .expect("mkfifo creates the fixture");
