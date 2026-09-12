@@ -8,6 +8,7 @@ mod project_context;
 /// and the worst spec-§4 exit survives.
 #[test]
 fn run_many_audits_every_file_and_keeps_the_worst_exit() {
+    let _cwd = crate::cwd::hold();
     let dir = std::env::temp_dir().join(format!("nika-check-many-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let clean =
@@ -57,6 +58,7 @@ fn run_many_audits_every_file_and_keeps_the_worst_exit() {
 /// invents a failure.
 #[test]
 fn run_many_is_clean_when_every_file_is() {
+    let _cwd = crate::cwd::hold();
     let dir = std::env::temp_dir().join(format!("nika-check-many-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let clean =
@@ -81,6 +83,7 @@ fn run_many_is_clean_when_every_file_is() {
 
 #[test]
 fn missing_read_files_flags_static_literal_and_var_default() {
+    let _cwd = crate::cwd::hold();
     let dir = std::env::temp_dir().join(format!("nika-lint-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap_or(());
     let present = dir.join("present.txt");
@@ -104,6 +107,7 @@ fn missing_read_files_flags_static_literal_and_var_default() {
 
 #[test]
 fn pricing_section_rates_known_null_unknown() {
+    let _cwd = crate::cwd::hold();
     let wf = parse_wf(
         "nika: priced\nmodel: anthropic/claude-opus-4-5\ntasks:\n  think:\n    infer:\n      prompt: hi\n  odd:\n    infer:\n      model: custom/never-heard-of-it\n      prompt: hi\n",
     );
@@ -146,6 +150,7 @@ pub(crate) fn parse_wf(yaml: &str) -> RawWorkflow {
 /// floor's NIKA-SEC-005.
 #[test]
 fn floor_escape_renders_without_a_permits_block() {
+    let _cwd = crate::cwd::hold();
     let wf = parse_wf(
         "nika: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/x\" } }\n",
     );
@@ -207,6 +212,7 @@ fn floor_escape_renders_without_a_permits_block() {
 /// the panel TEACHES the clearing with the informational line.
 #[test]
 fn permitted_loopback_literal_renders_green_with_the_teaching_line() {
+    let _cwd = crate::cwd::hold();
     let wf = parse_wf(
         "nika: local-watch\npermits:\n  net: { http: [\"127.0.0.1\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/price.json\" } }\n",
     );
@@ -245,6 +251,7 @@ fn permitted_loopback_literal_renders_green_with_the_teaching_line() {
 /// with NIKA-VAR-001.
 #[test]
 fn required_input_without_default_is_listed() {
+    let _cwd = crate::cwd::hold();
     let wf = parse_wf(
         "nika: needs-input\nmodel: mock/echo\ninputs:\n  text:\n    type: string\n    required: true\ntasks:\n  a:\n    infer: { prompt: \"${{ inputs.text }}\" }\n",
     );
@@ -255,6 +262,7 @@ fn required_input_without_default_is_listed() {
 /// — none block a bare `run`, so none are listed.
 #[test]
 fn defaulted_or_optional_inputs_are_not_listed() {
+    let _cwd = crate::cwd::hold();
     let wf = parse_wf(
         "nika: ok\nmodel: mock/echo\ninputs:\n  b:\n    type: string\n    default: \"d\"\n  c:\n    type: string\n    required: false\nconst:\n  a: \"has default\"\ntasks:\n  t:\n    infer: { prompt: \"${{ const.a }} ${{ inputs.b }} ${{ inputs.c }}\" }\n",
     );
@@ -338,6 +346,7 @@ fn order_law_renders_its_row_in_the_human_lane() {
     // net-effecting task to the shell) · the row is green and says what
     // it looked at — the repair the finding teaches, rendered.
     const GAP_BESIDE_FETCH: &str = "nika: beat\npermits:\n  exec: [\"sleep\"]\n  tools: [\"nika:fetch\"]\n  net:\n    http: [\"export.arxiv.org\"]\ntasks:\n  pull:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://export.arxiv.org/api/query?search_query=nika\", mode: text } }\n  gap:\n    exec: { command: [\"sleep\", \"3\"] }\n";
+    let _cwd = crate::cwd::hold();
     let text = assert_every_wire_code_renders("order-gap-after-fetch.nika.yaml", GAP_AFTER_FETCH);
     let row = text
         .lines()
@@ -373,6 +382,7 @@ fn idle_door_renders_its_row_in_the_human_lane_and_a_doorless_file_has_no_row() 
     // the door guards an empty room.
     const IDLE_DOOR: &str = "nika: doors\ninputs:\n  p: { type: string, default: \"x\" }\npermits:\n  exec: [\"echo\"]\ntasks:\n  say:\n    lift:\n      - { law: taint, from: inputs.p, because: \"reviewed 2026-08-19\" }\n    exec: { command: [\"echo\", \"hello\"] }\n";
     const NO_DOOR: &str = "nika: plain\npermits:\n  exec: [\"echo\"]\ntasks:\n  say:\n    exec: { command: [\"echo\", \"hello\"] }\n";
+    let _cwd = crate::cwd::hold();
     let text = assert_every_wire_code_renders("lift-idle-door.nika.yaml", IDLE_DOOR);
     let row = text
         .lines()
@@ -456,6 +466,7 @@ pub(crate) fn checked_json_with(
 /// finding, exit 2 — never a green audit that dies at run.
 #[test]
 fn models_rung_reds_a_cataloged_but_unresolvable_provider() {
+    let _cwd = crate::cwd::hold();
     let out = checked_output(
         "models-azure.nika.yaml",
         "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
@@ -491,6 +502,7 @@ fn models_rung_reds_a_cataloged_but_unresolvable_provider() {
 /// re-derive it.
 #[test]
 fn the_footer_never_contradicts_the_exit_code() {
+    let _cwd = crate::cwd::hold();
     let out = checked_output(
         "footer-verdict.nika.yaml",
         "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
@@ -519,6 +531,7 @@ fn the_footer_never_contradicts_the_exit_code() {
 /// exit 0.
 #[test]
 fn operational_profile_folds_unbounded_risk_into_the_verdict() {
+    let _cwd = crate::cwd::hold();
     let yaml = "nika: loop\nmodel: mock/echo\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  loop:\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 100 }\n";
     // Advisory (default): the exit stays 0 — but the card must tell
     // the truth (no green audited line over unbounded rope).
@@ -613,6 +626,7 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
 /// the green card with the grade named.
 #[test]
 fn the_card_names_the_grade_on_every_rung() {
+    let _cwd = crate::cwd::hold();
     let high = checked_output(
         "risk-high.nika.yaml",
         "nika: h\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 256 }\n",
@@ -641,6 +655,7 @@ fn the_card_names_the_grade_on_every_rung() {
 /// rung AND must never wear a conjured price in the pricing section.
 #[test]
 fn models_rung_reds_a_bare_model_id_and_never_conjures_a_price() {
+    let _cwd = crate::cwd::hold();
     let out = checked_output(
         "models-bare.nika.yaml",
         "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
@@ -688,6 +703,7 @@ fn models_rung_reds_a_bare_model_id_and_never_conjures_a_price() {
 /// — `check --json` stamps `NIKA-PROVIDER` so the spec harness can match.
 #[test]
 fn models_rung_stamps_nika_provider_on_an_unknown_prefix() {
+    let _cwd = crate::cwd::hold();
     let out = checked_output(
         "models-unknown-prefix.nika.yaml",
         "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"not-a-provider/gpt-4\" }\n",
@@ -711,6 +727,7 @@ fn models_rung_stamps_nika_provider_on_an_unknown_prefix() {
 /// line and the audit verdict is untouched.
 #[test]
 fn models_rung_is_green_when_every_model_resolves() {
+    let _cwd = crate::cwd::hold();
     let out = checked_output(
         "models-green.nika.yaml",
         "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
@@ -734,6 +751,7 @@ fn models_rung_is_green_when_every_model_resolves() {
 /// line names the via-default judgement.
 #[test]
 fn models_rung_judges_a_templated_models_declared_default() {
+    let _cwd = crate::cwd::hold();
     // A bare-literal const (spec 01 §const), read through `${{ }}`
     // at the task — the parameterization pattern in its simplest
     // canonical form.
@@ -779,6 +797,7 @@ fn models_rung_judges_a_templated_models_declared_default() {
 /// are exercised across this test pair.
 #[test]
 fn models_rung_reds_a_templated_models_refusable_default() {
+    let _cwd = crate::cwd::hold();
     let out = checked_output(
         "models-param-bad.nika.yaml",
         "nika: p\nconst:\n  model: { type: string, value: \"gpt-5-turbo\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
@@ -811,6 +830,7 @@ fn models_rung_reds_a_templated_models_refusable_default() {
 /// object's `default` key — analysis never guesses.
 #[test]
 fn models_rung_never_guesses_inside_a_literal_object_const() {
+    let _cwd = crate::cwd::hold();
     let out = checked_output(
         "models-param-object.nika.yaml",
         "nika: p\nconst:\n  model: { type: string, default: \"gpt-5-turbo\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
@@ -835,6 +855,7 @@ fn models_rung_never_guesses_inside_a_literal_object_const() {
 /// nobody looked — the false-green class, MODELS edition).
 #[test]
 fn models_rung_makes_no_claim_over_a_defaultless_run_time_model() {
+    let _cwd = crate::cwd::hold();
     let out = checked_output(
         "models-param-runtime.nika.yaml",
         "nika: p\ninputs:\n  model: { type: string, required: true }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ inputs.model }}\" }\n",
@@ -864,6 +885,7 @@ mod verdict_profiles;
 #[test]
 fn the_check_help_carries_the_exit_contract() {
     use clap::Args as _;
+    let _cwd = crate::cwd::hold();
     let help = CheckArgs::augment_args(clap::Command::new("check"))
         .render_long_help()
         .to_string();

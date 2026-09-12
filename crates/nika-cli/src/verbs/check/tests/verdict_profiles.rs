@@ -10,6 +10,7 @@ use super::*;
 /// and a consumer reading `clean` shipped a file the CLI refused.
 #[test]
 fn native_strict_json_payload_agrees_with_the_exit_code() {
+    let _cwd = crate::cwd::hold();
     // net.http rides along: post-D1 the exec URL is a net USE —
     // undeclared it would be a PERMITS escape, not a hint-only file.
     let helper = "nika: helper\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
@@ -96,6 +97,7 @@ fn lane_rows<'a>(payload: &'a serde_json::Value, kind: &str) -> Vec<&'a serde_js
 /// in front of the gate) passes strict on both.
 #[test]
 fn a_gated_ship_with_a_curl_check_is_red_on_both_strict_surfaces() {
+    let _cwd = crate::cwd::hold();
     let gated = "nika: gated\nmodel: mock/echo\npermits:\n  exec: [\"curl\", \"echo\"]\n  tools: [\"nika:prompt\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  check_a:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n  human:\n    after: { check_a: success }\n    invoke: { tool: \"nika:prompt\", args: { message: \"Proceed?\", default: false } }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: \"${{ with.go == true }}\"\n    exec: { command: [\"echo\", \"shipped\"] }\n";
     let human = checked_output("gated-curl.nika.yaml", gated, true);
     assert_eq!(
@@ -151,6 +153,7 @@ fn a_gated_ship_with_a_curl_check_is_red_on_both_strict_surfaces() {
 /// never asked for — and its JSON said `clean: true` beside exit 2.
 #[test]
 fn the_operational_lane_names_only_the_gate_that_failed() {
+    let _cwd = crate::cwd::hold();
     let yaml =
         "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n";
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
@@ -208,6 +211,7 @@ fn the_operational_lane_names_only_the_gate_that_failed() {
 
 #[test]
 fn json_keeps_each_native_hint_site_with_its_stable_code() {
+    let _cwd = crate::cwd::hold();
     let yaml = "nika: sites\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  first:\n    exec: { command: [\"curl\", \"https://acme.test/a\"] }\n  second:\n    exec: { command: [\"curl\", \"https://acme.test/b\"] }\n";
     let dir = std::env::temp_dir().join(format!("nika-cli-hint-sites-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
@@ -249,6 +253,7 @@ fn json_keeps_each_native_hint_site_with_its_stable_code() {
 /// `--native-strict` is green.
 #[test]
 fn json_payload_names_paid_ready_without_failing_clean() {
+    let _cwd = crate::cwd::hold();
     let judge = "nika: w\nmodel: mock/echo\ntasks:\n  judge:\n    infer:\n      prompt: |\n        Read the note and assign a belt.\n      max_tokens: 32\noutputs:\n  r: ${{ tasks.judge.output }}\n";
     let dir = std::env::temp_dir().join(format!("nika-cli-paidready-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
@@ -283,6 +288,7 @@ fn json_payload_names_paid_ready_without_failing_clean() {
 /// 0 under strict.
 #[test]
 fn native_strict_fails_on_native_first_hints_only() {
+    let _cwd = crate::cwd::hold();
     // net.http rides along: post-D1 the exec URL is a net USE —
     // undeclared it would be a PERMITS escape, not a hint-only file.
     let helper = "nika: helper\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
@@ -327,6 +333,7 @@ fn native_strict_fails_on_native_first_hints_only() {
 /// as the remedy, and say what the ledger is actually for.
 #[test]
 fn the_strict_refusal_does_not_sell_the_ledger_as_an_escape() {
+    let _cwd = crate::cwd::hold();
     // One line, like every other fixture here. A backslash-continued
     // string reads better but defeats the fn-length ratchet: its
     // literal stripper is line-local, so the YAML braces inside the
@@ -358,6 +365,7 @@ fn the_strict_refusal_does_not_sell_the_ledger_as_an_escape() {
 /// each exact phrase pins its arm: `NoTokenLimit` · `NoPrice` · `UnknownIterations`.
 #[test]
 fn cost_section_names_each_unbounded_reason() {
+    let _cwd = crate::cwd::hold();
     let text = checked_text(
         "cost-reasons.nika.yaml",
         "nika: cost-reasons\ninputs:\n  items: { type: { array: string }, required: true }\ntasks:\n  a:\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  b:\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  c:\n    for_each: { items: \"${{ inputs.items }}\" }\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
@@ -379,6 +387,7 @@ fn cost_section_names_each_unbounded_reason() {
 /// strips the section glyphs (count drops) or injects a placeholder.
 #[test]
 fn clean_report_marks_every_section() {
+    let _cwd = crate::cwd::hold();
     let text = checked_text(
         "clean-one.nika.yaml",
         "nika: clean-one\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
@@ -414,6 +423,7 @@ fn clean_report_marks_every_section() {
 /// word that keeps the quoted line from meaning the whole meter.
 #[test]
 fn clean_verdict_is_the_audited_card_line() {
+    let _cwd = crate::cwd::hold();
     let yaml = "nika: card\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"echo\", \"bye\"] }\n";
     let text = checked_text("audited-card.nika.yaml", yaml, false);
     assert!(
@@ -459,6 +469,7 @@ fn clean_verdict_is_the_audited_card_line() {
 /// instance: no doubled brace anywhere in a rendered report.
 #[test]
 fn the_report_never_teaches_a_doubled_brace() {
+    let _cwd = crate::cwd::hold();
     let pure = "nika: pure\ntasks:\n  j:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        expr: \".n\"\n        input: { n: 1 }\n";
     for ascii in [false, true] {
         let text = checked_text("doubled-brace.nika.yaml", pure, ascii);
@@ -478,6 +489,7 @@ fn the_report_never_teaches_a_doubled_brace() {
 /// line and leave the operator wondering where the plan went.
 #[test]
 fn plan_prints_wave_membership_with_verbs_and_targets() {
+    let _cwd = crate::cwd::hold();
     let text = checked_text(
         "plan-membership.nika.yaml",
         "nika: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  think:\n    infer: { prompt: hi }\n  after:\n    after:\n      think: success\n    exec:\n      command: [\"echo\", \"x\"]\n",
@@ -496,6 +508,7 @@ fn plan_prints_wave_membership_with_verbs_and_targets() {
 
 #[test]
 fn plan_announces_the_skip_when_conformance_fails() {
+    let _cwd = crate::cwd::hold();
     let text = checked_text(
         "plan-skip.nika.yaml",
         "nika: bad-ref\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.nope }}\"] }\n",
@@ -524,6 +537,7 @@ fn plan_announces_the_skip_when_conformance_fails() {
 #[test]
 fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
     const LEAK: &str = "nika: leak\nsecrets:\n  key: { source: env, key: K }\npermits: { exec: [\"curl\"], net: { http: [\"x.example.com\"] }, fs: { read: [\"data/**\"] } }\ntasks:\n  send:\n    with: { k: \"${{ secrets.key }}\" }\n    exec: { command: [\"curl\", \"-d\", \"${{ with.k }}\", \"https://x.example.com\"] }\n";
+    let _cwd = crate::cwd::hold();
     let analyzable = checked_text("lanes-analyzable.nika.yaml", LEAK, false);
     assert!(
         analyzable.contains("leak into exec (task `send`)"),
@@ -564,6 +578,7 @@ fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
 fn the_failing_verdict_has_an_ascii_twin() {
     const BAD: &str =
         "nika: typo\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { path: \"x\" } }\n";
+    let _cwd = crate::cwd::hold();
     let uni = checked_text("verdict-unicode.nika.yaml", BAD, false);
     assert!(uni.contains("✖ findings above"), "{uni}");
     let ascii = checked_text("verdict-ascii.nika.yaml", BAD, true);
@@ -579,6 +594,7 @@ fn the_failing_verdict_has_an_ascii_twin() {
 /// declarations are smell, not failure).
 #[test]
 fn unused_declaration_is_hinted_and_the_exit_stays_green() {
+    let _cwd = crate::cwd::hold();
     let out = checked_output(
         "drift-unused.nika.yaml",
         "nika: w\nconst:\n  ghost: \"x\"\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
@@ -602,6 +618,7 @@ fn unused_declaration_is_hinted_and_the_exit_stays_green() {
 /// its code, `clean` stays true, and the exit stays 0.
 #[test]
 fn drift_hint_rides_the_json_projection() {
+    let _cwd = crate::cwd::hold();
     // Per-PROCESS dir (the check-expect mktemp collision class, #376).
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
@@ -641,6 +658,7 @@ fn drift_hint_rides_the_json_projection() {
 /// it (the two codes never name the same site).
 #[test]
 fn unresolved_reference_never_also_drifts() {
+    let _cwd = crate::cwd::hold();
     let out = checked_output(
         "drift-no-dup.nika.yaml",
         "nika: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.ghost }}\"] }\n",
@@ -660,6 +678,7 @@ fn unresolved_reference_never_also_drifts() {
 /// (Lives cli-side since ADR-110: SAMPLE is the host member's, `check::run` is ours.)
 #[test]
 fn the_welcome_sample_is_a_real_workflow_that_checks_clean() {
+    let _cwd = crate::cwd::hold();
     let path = std::env::temp_dir().join(format!(
         "nika-welcome-sample-{}.nika.yaml",
         std::process::id()
@@ -683,6 +702,7 @@ fn the_welcome_sample_is_a_real_workflow_that_checks_clean() {
 
 #[test]
 fn access_plan_rows_narrate_the_machine_paths() {
+    let _cwd = crate::cwd::hold();
     // mock: keyless, compiled in — deterministic on EVERY machine (the
     // env-independent fixture class this advisory section must test on).
     let wf = parse_wf("nika: a\ntasks:\n  t:\n    infer: { prompt: hi, model: \"mock/echo\" }\n");
@@ -717,6 +737,7 @@ fn access_plan_rows_narrate_the_machine_paths() {
 
 #[test]
 fn a_catalog_warning_speaks_exactly_once_per_model() {
+    let _cwd = crate::cwd::hold();
     // The duplicated advisory block (pre-2026-08-05) doubled every row —
     // one model with a catalog miss must yield ONE warning.
     let wf = parse_wf(
@@ -740,6 +761,7 @@ fn a_catalog_warning_speaks_exactly_once_per_model() {
 /// (the bare-cwd half of the repro): the bytes must be identical.
 #[test]
 fn infer_permits_output_cannot_depend_on_the_disk() {
+    let _cwd = crate::cwd::hold();
     let dir = std::env::temp_dir().join(format!("nika-i774-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let target = dir.join("news.json");
@@ -784,6 +806,7 @@ fn infer_permits_output_cannot_depend_on_the_disk() {
 /// independent `report_version` schema contract remains untouched.
 #[test]
 fn check_json_carries_the_typed_engine_identity() {
+    let _cwd = crate::cwd::hold();
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let path = dir.join("provenance.nika.yaml");
@@ -853,6 +876,7 @@ fn check_json_carries_the_typed_engine_identity() {
 
 #[test]
 fn snapshot_export_is_explicit_machine_only_and_round_trips() {
+    let _cwd = crate::cwd::hold();
     let dir = std::env::temp_dir().join(format!("nika-cli-snapshot-export-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let path = dir.join("snapshot-export.nika.yaml");
@@ -892,6 +916,7 @@ fn snapshot_export_is_explicit_machine_only_and_round_trips() {
 /// form byte-identical to the bare version.
 #[test]
 fn the_long_version_keeps_the_bare_version_first() {
+    let _cwd = crate::cwd::hold();
     let identity = nika_runtime::engine_identity();
     let long = identity.version_long();
     let first = long.split_whitespace().next().expect("a version token");
@@ -915,6 +940,7 @@ fn the_long_version_keeps_the_bare_version_first() {
 /// workflow files agree, and all 18 divergences are the prefix.
 #[test]
 fn the_naming_note_fires_on_a_copy_and_not_on_an_ordering_prefix() {
+    let _cwd = crate::cwd::hold();
     let wf = parse_wf(
         "nika: foo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
     );
