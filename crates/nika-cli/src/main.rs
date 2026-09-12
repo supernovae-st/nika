@@ -455,12 +455,10 @@ struct RunArgs {
     /// executed would be a lie).
     #[arg(long, conflicts_with = "output")]
     dry_run: bool,
-    /// Override the workflow's envelope `model:` only (`<provider>/<name>`).
-    /// Per-task `model:` pins stay live and metered — `--model` does not
-    /// descend into them (B22). Resolved through the SAME path as an
-    /// envelope model — a bad id fails loud when an infer/agent task
-    /// resolves it. `--model mock/echo` rehearses the envelope seat
-    /// offline (zero key · zero network).
+    /// Override only this workflow's default `model:` (`<provider>/<name>`).
+    /// Task `model:` pins and invoked child workflows keep their own models.
+    /// `mock/echo` does not make their calls or other effects offline.
+    /// A bad id refuses when an infer/agent task resolves it.
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
