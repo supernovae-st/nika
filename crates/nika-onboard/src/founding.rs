@@ -8,7 +8,7 @@
 //! the ready panel). **Any flag, `--yes`, a pipe, or CI** is the
 //! scriptable twin: `--recipe` scaffolds a workflow set, `--theme`
 //! stamps the VS Code DAG skin, `--wire` connects agent clients — and
-//! plain `--yes` keeps the historical report byte-for-byte.
+//! plain `--yes` emits file receipts and a first-workflow hand-off.
 //!
 //! The human keeps the hand everywhere: an existing file is SKIPPED,
 //! never clobbered — `--force` is the explicit override (same law as
@@ -89,7 +89,7 @@ fn join(dir: &str, rel: &str) -> String {
 }
 
 /// Render the report (✔ created · · skipped · ✖ write error) — the
-/// HISTORICAL byte shape scripts have parsed since #158; the wizard has
+/// familiar row prefixes; the wizard has
 /// its own themed register.
 pub(crate) fn render(lines: &[(char, String)]) -> String {
     let mut s = String::new();
@@ -106,7 +106,7 @@ pub(crate) fn render(lines: &[(char, String)]) -> String {
 /// non-interactive shape scripts have seen since #158.
 pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika try 01-hello   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token";
 
-/// The scriptable path — briefs report (historical bytes), then each
+/// The scriptable path — briefs report with purposes, then each
 /// flagged extra as its own receipt block, then the hand-off. The door
 /// logic (bare-TTY → the wizard) lives at the composition root; this
 /// crate exposes the two paths and the root routes.
@@ -139,13 +139,15 @@ pub fn scripted_run(
         .iter()
         .any(|(_, o)| matches!(o, BriefOutcome::Failed(_)))
         || matches!(git.1, gitignore::Outcome::Failed(_));
-    // The HISTORICAL report bytes (joined paths · ✔/·/✖ rows) — scripts
-    // have parsed this shape since #158. The gitignore row is ADDITIVE:
-    // one more row after the brief rows, no historical byte changes.
+    // Keep joined paths and receipt prefixes; explain each newly created
+    // brief so the transcript helps humans review the generated setup.
     let mut lines: Vec<(char, String)> = rows
         .iter()
         .map(|(path, outcome)| match outcome {
-            BriefOutcome::Created => ('✔', format!("created {path}")),
+            BriefOutcome::Created => (
+                '✔',
+                format!("created {path} — {}", briefs::purpose(&rel_to(dir, path))),
+            ),
             BriefOutcome::Skipped => (
                 '·',
                 format!("skipped {path} (exists · --force to overwrite)"),
@@ -175,14 +177,14 @@ pub fn scripted_run(
         let _ = writeln!(
             text,
             "· starter's workflow step is a conversation — a script cannot answer it. \
-             The wiring landed; run bare `nika init` on a terminal for the questions, \
+             The project files were scaffolded; run bare `nika init` on a terminal for the questions, \
              or `nika new \"<your job in plain words>\" <file>.nika.yaml` for the twin."
         );
     }
 
-    for line in wire_receipts(dir, wires, wire) {
-        let _ = writeln!(text, "{line}");
-    }
+    let wiring = wire_receipts(dir, wires, wire);
+    text.push_str(&wiring.text);
+    text.push_str("\nteam ·\n  nika init --project-file --yes   # optional shared budget and trace settings\n  Git: commit reviewed workflows, goldens, guides and shared settings.\n  Keep credentials, signing private keys and raw traces local; review artifacts.\n  Read NIKA.md for the file map and first workflow.\n");
 
     let next = first_workflow.map_or_else(
         || NEXT_BLOCK.to_owned(),
@@ -200,7 +202,7 @@ pub fn scripted_run(
     );
     Outcome {
         text: format!("{text}\n{next}"),
-        code: worst,
+        code: worst.max(wiring.code),
     }
 }
 
@@ -305,7 +307,7 @@ pub(crate) fn apply_briefs(
             Action::Skip { path } => rows.push((path, BriefOutcome::Skipped)),
             Action::Create { path, body } => {
                 let stamped;
-                let body = if path.ends_with(".cursor/hooks-nika/session-context.sh") {
+                let body = if path.ends_with("hooks-nika/session-context.sh") {
                     stamped = body.replacen(
                         "scaffold_version=\"\"",
                         concat!("scaffold_version=\"", env!("CARGO_PKG_VERSION"), "\""),
@@ -397,18 +399,23 @@ pub(crate) fn proof_receipts(
 
 /// Connect the picked agent clients through the REAL `wire` verb —
 /// each client's own receipt, indented under one header.
-pub(crate) fn wire_receipts(dir: &str, wires: &[&str], wire: &Wire<'_>) -> Vec<String> {
+pub(crate) fn wire_receipts(dir: &str, wires: &[&str], wire: &Wire<'_>) -> Outcome {
     if wires.is_empty() {
-        return Vec::new();
+        return Outcome {
+            text: String::new(),
+            code: codes::OK,
+        };
     }
-    let mut lines = vec!["wired ·".to_owned()];
+    let mut text = "wiring ·\n".to_owned();
+    let mut code = codes::OK;
     for client in wires {
         let out = wire(client, dir);
+        code = code.max(out.code);
         for l in out.text.lines() {
-            lines.push(format!("  {l}"));
+            let _ = writeln!(text, "  {l}");
         }
     }
-    lines
+    Outcome { text, code }
 }
 
 /// A path relative to the project dir when it nests there.
@@ -451,6 +458,30 @@ mod tests {
     }
     fn stub_wire(client: &str, _dir: &str) -> Outcome {
         Outcome::ok(format!("{client}: wired (stub)"))
+    }
+
+    #[test]
+    fn scripted_init_preserves_a_wire_refusal() {
+        let dir =
+            std::env::temp_dir().join(format!("nika-init-wire-refusal-{}", std::process::id()));
+        let out = scripted_run(
+            dir.to_str().expect("path"),
+            false,
+            None,
+            None,
+            None,
+            &["all"],
+            &stub_audit,
+            &|_, _| Outcome::env("wiring requires a decision".to_owned()),
+        );
+        assert_eq!(out.code, codes::ENV, "{}", out.text);
+        assert!(out.text.contains("wiring requires a decision"));
+        assert!(!out.text.contains("wired ·"));
+        assert!(
+            dir.join("AGENTS.md").exists(),
+            "completed scaffold is retained"
+        );
+        std::fs::remove_dir_all(dir).expect("remove owned fixture");
     }
 
     /// The old 7-arg `run` shape, test-side: scripted path with stubs
@@ -621,7 +652,7 @@ mod tests {
         assert!(out.text.contains("nika check"));
     }
 
-    /// `--yes` (and any non-terminal) is the byte-stable script shape —
+    /// `--yes` (and any non-terminal) keeps the scriptable file report —
     /// the report and the classic hand-off, zero prompts.
     #[test]
     fn yes_keeps_the_non_interactive_shape() {
@@ -760,7 +791,7 @@ mod tests {
     #[test]
     fn plan_creates_both_when_nothing_exists() {
         let p = plan(".", &|_| false, false);
-        assert_eq!(p.len(), 23);
+        assert_eq!(p.len(), 28);
         assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
         // Schema wiring + agent guide + per-client briefs are the targets.
         let paths: Vec<&str> = p

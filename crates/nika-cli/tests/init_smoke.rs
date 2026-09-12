@@ -2,8 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! `nika init` founding-surface smoke — the REAL binary over the
-//! scriptable twins (`--recipe` · `--theme`) and the byte-stability law
-//! (bare `--yes` = the historical report exactly). Split from
+//! scriptable twins (`--recipe` · `--theme`) and the plain `--yes`
+//! file report and hand-off. Split from
 //! `bin_smoke.rs` under the 1500-line file law.
 
 #![allow(clippy::expect_used, clippy::panic, clippy::disallowed_types)]
@@ -267,8 +267,8 @@ fn init_recipe_scaffolds_the_curriculum_and_audits_it() {
 }
 
 #[test]
-fn init_plain_yes_keeps_the_historical_bytes() {
-    // The byte-stability law: `--yes` with ZERO new flags must render
+fn init_plain_yes_keeps_file_receipts_and_the_handoff() {
+    // `--yes` with ZERO new flags must render
     // the exact pre-wizard shape (report rows + the classic next block)
     // — scripts have parsed it since #158.
     let dir = workspace_tmp_dir("nika-init-stable-smoke");

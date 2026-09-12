@@ -14,7 +14,7 @@ hand · the proof inside the first minute):
   scaffold bytes: AGENTS.md contract · per-client thin briefs · schema
   wiring), the recipe register (`recipes` — SETS over the embedded
   templates through the guided `stamp`, ids explicit under the kebab
-  law), the scripted path (`scripted_run` — historical report bytes),
+  law), the scripted path (`scripted_run` — file receipts and next commands),
   the canvas stamp (`nika.dag.theme` parsed-and-re-emitted into a
   CREATED settings.json, never string-spliced), and the trace cover
   (`gitignore` — adds-only: create when absent · one marked section
@@ -50,8 +50,19 @@ exit vocabulary.
   `nika-schema`, test-side only).
 - **Questions before writes**: cancel at any wizard beat = « nothing
   written », honestly (PTY-pinned at the root).
-- **Byte-stable sober registers**: the scripted report keeps the exact
-  historical shape (`✔ created …` rows + the classic next block).
+- **Readable sober registers**: file rows keep the `✔ created …` / `· skipped …`
+  prefixes. Created briefs explain their purpose; the team block teaches Git
+  and offers `nika init --project-file --yes` before the next commands.
+  `NIKA.md` is the human guide, leaving an existing `README.md` untouched.
+- **Wire results are outcomes**: both doors preserve each client's receipt
+  and propagate a failed wiring code. A failed wizard never emits the ready
+  panel. Client names round-trip through the root's live registry without
+  substituting a broader target.
+- **Project hooks**: Cursor and Claude project settings point at the same
+  canonical kit scripts, copied into each client's `hooks-nika/` directory.
+  Claude commands anchor at the quoted `CLAUDE_PROJECT_DIR`; existing settings
+  are skipped under the normal law. A declared hook is not proof a client
+  has loaded it.
 - **No CLI framework below the root**: `CanvasTheme` stays a plain enum
   here; the root mirrors it as its clap `ValueEnum`.
 
