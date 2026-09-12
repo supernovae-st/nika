@@ -11,7 +11,7 @@ use crate::Theme;
 
 /// Stage the rehearsal room: the workflow and the ingredients it
 /// reads, in a temp dir of their own, then ENTER it. Returns the
-/// staged path and the directory to restore on the way out — the
+/// staged path, cwd lease and temporary-directory owner — the
 /// isolation is what makes the storefront's « nothing written » a
 /// fact (paths resolve from the RUN's working directory, so an
 /// example that reads `examples/fixtures/x` must find it beside
@@ -24,9 +24,22 @@ use crate::Theme;
 /// dutifully holding its own (different) lock. The returned [`crate::cwd::Lease`]
 /// IS the restore: dropping it puts the operator's session back, on every path
 /// including a panic unwind.
-fn stage_room(slug: &str, yaml: &str) -> Result<(std::path::PathBuf, crate::cwd::Lease), u8> {
-    let stem = slug.replace('/', "-");
-    let room = std::env::temp_dir().join(format!("nika-try-{stem}"));
+fn stage_room(
+    slug: &str,
+    yaml: &str,
+) -> Result<(std::path::PathBuf, crate::cwd::Lease, tempfile::TempDir), u8> {
+    let stem = slug
+        .strip_suffix(".nika.yaml")
+        .unwrap_or(slug)
+        .replace('/', "-");
+    let scratch = tempfile::Builder::new()
+        .prefix("nika-rehearsal-")
+        .tempdir()
+        .map_err(|e| {
+            eprintln!("nika run: environment: cannot create rehearsal room: {e}");
+            exit::ENV
+        })?;
+    let room = scratch.path().join(format!("nika-try-{stem}"));
     let path = room.join(format!("{stem}.nika.yaml"));
     if let Err(e) = std::fs::create_dir_all(&room).and_then(|()| std::fs::write(&path, yaml)) {
         eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
@@ -36,11 +49,15 @@ fn stage_room(slug: &str, yaml: &str) -> Result<(std::path::PathBuf, crate::cwd:
         eprintln!("nika run: environment: cannot stage the ingredients of `{slug}`: {e}");
         return Err(exit::ENV);
     }
+    if let Err(e) = nika_onboard::rehearsal::stage(slug, &room) {
+        eprintln!("nika run: environment: cannot stage rehearsal kit for `{slug}`: {e}");
+        return Err(exit::ENV);
+    }
     let lease = crate::cwd::enter(&room).map_err(|e| {
         eprintln!("nika run: environment: cannot enter the rehearsal room: {e}");
         exit::ENV
     })?;
-    Ok((path, lease))
+    Ok((path, lease, scratch))
 }
 
 /// The staged try room is `…/nika-try-<stem>/<stem>.nika.yaml`.
@@ -119,7 +136,7 @@ pub fn example(
     // Pin `--resume` to the operator cwd before the room chdir.
     let operator_cwd = std::env::current_dir().ok();
     let resume_req = try_gate_request(answers, resume, operator_cwd.as_deref());
-    let (path, room_lease) = match stage_room(slug, yaml) {
+    let (path, room_lease, scratch) = match stage_room(slug, yaml) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
@@ -127,6 +144,8 @@ pub fn example(
     if mode == RenderMode::Live {
         example_predisplay(slug, yaml, theme);
     }
+    let mut run_vars = vars.to_vec();
+    run_vars.extend(nika_onboard::rehearsal::supplied_vars(slug, vars));
     let verdict = run_verdict(
         &path.to_string_lossy(),
         false,
@@ -136,7 +155,7 @@ pub fn example(
         false,
         model_override,
         access_pin,
-        vars,
+        &run_vars,
         resume_req.as_ref(),
         // No run journal: the example is staged to a TEMP file — `.nika/
         // traces/` belongs to workspace runs (the same drive underneath,
@@ -184,6 +203,7 @@ pub fn example(
     // drop is here so the release is a readable step rather than an
     // end-of-scope accident.
     drop(room_lease);
+    drop(scratch);
     verdict.code
 }
 
