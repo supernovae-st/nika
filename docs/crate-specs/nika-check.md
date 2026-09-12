@@ -39,6 +39,12 @@ keysets). The dependency points DOWNWARD-ONLY: `nika-check → nika-schema`,
 never the reverse — the one shared constant (`ERROR_DOCS_BASE`) lives
 beside `SpecCode` in `nika_schema::error` and is re-exported here.
 
+Filesystem permit refusals compare lexical paths. Their diagnostic names
+the requested path and declared boundary, explains that the pure checker
+does not resolve symlinks, and teaches consistent spelling for aliases
+before changing grants. The matcher, refusal and automatic-fix policy do
+not infer filesystem identity from an alias example.
+
 ## Why L0, not L1
 
 The registry's mechanical sort (< 10 s): not the binary, not a
