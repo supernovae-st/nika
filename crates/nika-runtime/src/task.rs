@@ -644,11 +644,7 @@ where
         };
 
         let started = self.clock.now();
-        let fail_fast = task.fail_fast.as_ref().is_none_or(|f| f.value);
-        let cap = task
-            .max_parallel
-            .as_ref()
-            .map_or(items.len(), |m| (m.value as usize).max(1));
+        let (cap, fail_fast) = Self::fan_out_limits(task, items.len());
         let total = items.len();
         let mut stream = futures_util::stream::iter(
             items
@@ -718,6 +714,14 @@ where
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(Box::new(ran))
+    }
+
+    fn fan_out_limits(task: &RawTask, item_count: usize) -> (usize, bool) {
+        let cap = task
+            .max_parallel
+            .as_ref()
+            .map_or(item_count, |m| (m.value as usize).max(1));
+        (cap, task.fail_fast.as_ref().is_none_or(|f| f.value))
     }
 
     /// The `on_finally:` scope for a fan-out — `item`/`index` out of

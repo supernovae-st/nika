@@ -471,15 +471,7 @@ fn resolve_parked(
     } = failed;
     let result = match recover_template(scope.wf, task_index) {
         Some(template) => {
-            let render_scope = Scope::workflow_with_value_authorities(
-                view,
-                scope.inputs,
-                scope.consts,
-                scope.secrets,
-            )
-            // Iterations never park (fan-out boundary), and rendering performs
-            // no effect, so neither loop locals nor permits ride this scope.
-            .with_task_context(Some(&with_ns), None, None, None);
+            let render_scope = parked_render_scope(scope, view, &with_ns);
             match expr::render_json(template, &render_scope) {
                 Ok(value) => RunResult::recovered(value, record, cost_usd, cost_unpriced),
                 Err(err) => RunResult::Failed {
@@ -571,3 +563,13 @@ fn task_index(wf: &RawWorkflow, id: &str) -> Option<usize> {
 
 #[cfg(test)]
 mod tests;
+
+/// Rendering a parked recovery has value authorities but no effect authority.
+fn parked_render_scope<'a>(
+    scope: &'a ResolveScope<'_>,
+    view: &'a BTreeMap<String, TaskRecord>,
+    with_ns: &'a BTreeMap<String, Value>,
+) -> Scope<'a> {
+    Scope::workflow_with_value_authorities(view, scope.inputs, scope.consts, scope.secrets)
+        .with_task_context(Some(with_ns), None, None, None)
+}

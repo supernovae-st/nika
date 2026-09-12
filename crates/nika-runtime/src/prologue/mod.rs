@@ -297,25 +297,7 @@ pub(crate) fn emit_prologue(
         event = event.with_field(KeyValue::new(key, value));
     }
     sink.emit(event);
-    let attachments = cleanup_attachments(wf);
-    for task in &wf.tasks {
-        let mut fields = vec![("task", s(&task.value.id.value))];
-        if let Some(links) = attachments.get(task.value.id.value.as_str()) {
-            // Keep the original singleton carrier readable, but never select
-            // one parent from a shared cleanup and pretend it is the only one.
-            if let [link] = links.as_slice() {
-                fields.push((
-                    "cleanup_parent",
-                    s(link["parent"].as_str().unwrap_or_default()),
-                ));
-                fields.push(("cleanup_gate", s(link["gate"].as_str().unwrap_or_default())));
-            }
-            if let Ok(json) = serde_json::to_string(links) {
-                fields.push(("cleanup_attachments", s(&json)));
-            }
-        }
-        emit(stamper, sink, EventKind::TaskScheduled, &fields);
-    }
+    emit_task_declarations(wf, stamper, sink);
     // F-P4 · the approval book opens with the run: the nonce is the
     // opening frame's id, and every prompt's unleashed closure is
     // precomputed over THESE bytes (the resumed run recomputes the same
@@ -339,4 +321,26 @@ fn cleanup_attachments(wf: &RawWorkflow) -> BTreeMap<&str, Vec<serde_json::Value
         }
     }
     links
+}
+
+fn emit_task_declarations(wf: &RawWorkflow, stamper: &mut dyn Stamper, sink: &mut dyn EventSink) {
+    let attachments = cleanup_attachments(wf);
+    for task in &wf.tasks {
+        let mut fields = vec![("task", s(&task.value.id.value))];
+        if let Some(links) = attachments.get(task.value.id.value.as_str()) {
+            // Keep the original singleton carrier readable, but never select
+            // one parent from a shared cleanup and pretend it is the only one.
+            if let [link] = links.as_slice() {
+                fields.push((
+                    "cleanup_parent",
+                    s(link["parent"].as_str().unwrap_or_default()),
+                ));
+                fields.push(("cleanup_gate", s(link["gate"].as_str().unwrap_or_default())));
+            }
+            if let Ok(json) = serde_json::to_string(links) {
+                fields.push(("cleanup_attachments", s(&json)));
+            }
+        }
+        emit(stamper, sink, EventKind::TaskScheduled, &fields);
+    }
 }

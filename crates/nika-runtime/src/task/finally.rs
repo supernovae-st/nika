@@ -198,21 +198,8 @@ where
             }
         };
         let scope = &scope.with_task_context(Some(&with_ns), None, None, scope.permits());
-        if let Some(gate) = cleanup.when.as_ref() {
-            // Closed gate OR eval error → the cleanup is skipped
-            // (a cleanup error never propagates) — and the skip is
-            // journaled: without this frame a gate-closed cleanup
-            // is pixel-identical to a dead trigger on the trace.
-            if !matches!(eval_gate(&gate.value, scope), Ok(true)) {
-                witness.record(
-                    "on_finally",
-                    format!("cleanup #{index}"),
-                    "skipped",
-                    "when: gate closed or errored — the cleanup did not run \
-                     (best-effort lane · spec 03 §unwind)",
-                );
-                return Vec::new();
-            }
+        if !Self::cleanup_gate_open(cleanup, scope, witness, index) {
+            return Vec::new();
         }
         let limit = cleanup
             .timeout
@@ -282,6 +269,31 @@ where
             }
         }
         declassified
+    }
+
+    fn cleanup_gate_open(
+        cleanup: &RawTask,
+        scope: &Scope<'_>,
+        witness: &crate::witness::PermitWitness,
+        index: usize,
+    ) -> bool {
+        if let Some(gate) = cleanup.when.as_ref() {
+            // Closed gate OR eval error → the cleanup is skipped
+            // (a cleanup error never propagates) — and the skip is
+            // journaled: without this frame a gate-closed cleanup
+            // is pixel-identical to a dead trigger on the trace.
+            if !matches!(eval_gate(&gate.value, scope), Ok(true)) {
+                witness.record(
+                    "on_finally",
+                    format!("cleanup #{index}"),
+                    "skipped",
+                    "when: gate closed or errored — the cleanup did not run \
+                     (best-effort lane · spec 03 §unwind)",
+                );
+                return false;
+            }
+        }
+        true
     }
 
     /// The outcome never PROPAGATES (best-effort lane) but it is
