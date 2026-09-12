@@ -160,7 +160,7 @@ fn schemas() -> Value {
 fn health_schema() -> Value {
     json!({
         "type": "object", "additionalProperties": false,
-        "required": ["status", "service", "engine_version", "build_sha", "spec_sha", "api_version", "engineVersion", "buildSha", "specSha", "machineProtocolVersion", "snapshotFormatVersion", "checkReportVersion", "eventFormatVersion", "traceFormatVersion", "supportedCapabilities"],
+        "required": ["status", "service", "engine_version", "build_sha", "spec_sha", "api_version", "engineVersion", "buildSha", "specSha", "machineProtocolVersion", "snapshotFormatVersion", "checkReportVersion", "eventFormatVersion", "traceFormatVersion", "storeFormatVersion", "supportedCapabilities"],
         "properties": {
             "status": {"type": "string", "const": "ok"},
             "service": {"type": "string", "const": "nika-serve"},
@@ -176,6 +176,15 @@ fn health_schema() -> Value {
             "checkReportVersion": {"type": "integer", "minimum": 1},
             "eventFormatVersion": {"type": "integer", "minimum": 1},
             "traceFormatVersion": {"type": "integer", "minimum": 1},
+            "storeFormatVersion": {
+                "type": "object", "additionalProperties": false,
+                "description": "Durable store formats this resident reads and writes; independent of the HTTP and event protocol versions.",
+                "required": ["jobs", "schedules"],
+                "properties": {
+                    "jobs": {"type": "integer", "minimum": 1, "examples": [crate::job::STATE_VERSION]},
+                    "schedules": {"type": "integer", "minimum": 1, "examples": [crate::schedule::STATE_VERSION]}
+                }
+            },
             "supportedCapabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
         }
     })

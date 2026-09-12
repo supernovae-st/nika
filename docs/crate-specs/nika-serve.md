@@ -72,7 +72,8 @@ becomes a child name.
   source. `ServerLimits` names body, request, execution, shutdown,
   active-job, queue, connection, SSE-client, header, and durable-job ceilings.
 - `BoundServer::bind` validates and acquires all authority before listening;
-  `serve_until` stops admission and gives active jobs a bounded grace period.
+  `serve_until` stops admission and gives running and queued jobs one shared
+  grace period (30 seconds by default, with four concurrent workers).
 - `ExecutionBackend` receives only `ExecutionContext` over the immutable
   world admitted by `ExecutionService`. It is asynchronous, receives the
   run-scoped `CancelCtx` through an additive default method, remains
@@ -86,7 +87,7 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 
 | method | route | authority | response allowlist |
 |---|---|---|---|
-| `GET` | `/health` | public | status, service, four `EngineIdentity` fields |
+| `GET` | `/health` | public | status, service, engine/protocol identity and `storeFormatVersion` for jobs and schedules |
 | `GET` | `/v1/workflows` | exactly one Bearer | contained `.nika.yaml` relative names |
 | `GET` | `/v1/workflows/{name}` | exactly one Bearer | `{ "workflow": "<contained name>" }` |
 | `POST` | `/v1/jobs` | exactly one Bearer + `Idempotency-Key` | opaque id + status · 422 `{error:{code,message}}` names the capture NIKA code when stamped · also 400/408/409/413/415/503/507 |
@@ -106,6 +107,34 @@ timeout does not bound an open event stream. Events become visible only
 after durable persist. A slow client is dropped rather than stalling
 execution. Every stream advertises a 100–30,000 ms bounded reconnect delay;
 heartbeat comments carry no `id:` and therefore never advance replay state.
+
+### Persistent resident shutdown
+
+Ctrl-C/SIGINT and, on Unix, SIGTERM take the same shutdown path: close the
+HTTP listener and its connections, stop new scheduling and admission, and
+drain **all already-admitted work**, including the queue. The default is one
+30-second grace period with four concurrent workers, not 30 seconds per job.
+Thus forty jobs lasting three seconds each can occupy roughly thirty seconds;
+a resident still draining after five seconds has not exceeded this contract.
+Embedders can select another grace with `ServerLimits`; the CLI uses the default.
+
+If the queue finishes within the grace, the resident exits 0. At grace expiry,
+it aborts the remaining execution futures, records running jobs as `interrupted`
+with durable terminal events, preserves jobs still `queued`, and exits 1
+(`ShutdownTimeout`). Restart with the same `--state-root` resumes queued jobs
+from the snapshots captured at admission, even if the live workflow files have
+changed. Interrupted jobs retain their receipts and are not automatically retried.
+SIGKILL skips cleanup; the next resident first interrupts ownerless running jobs,
+then resumes the still-queued jobs. Killing a process does not prove that its
+external effects did not happen.
+
+The grace bounds asynchronous execution draining. It is not a hard deadline
+for process exit: cancellation must yield, scheduler/backend cleanup must join,
+and durable settlement requires filesystem writes. A stuck backend or filesystem
+can delay these steps. Supervisors should allow additional cleanup time beyond
+30 seconds before forcing SIGKILL; the supplied systemd unit uses 45 seconds
+(30 for draining plus 15 for cleanup). This allowance cannot bound a stuck
+filesystem; a forced kill may defer settlement to restart.
 
 On Unix, the token file must be opened no-follow/nonblocking as a regular
 owner-only file. It contains 32–512 visible ASCII bytes (one trailing line

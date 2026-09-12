@@ -17,8 +17,20 @@ use super::{VerbOutput, exit};
 use jiff::{SignedDuration, Zoned};
 use nika_cadence::registry::{ArmRegistry, Locus};
 use std::path::{Path, PathBuf};
+
+const SHUTDOWN_HELP: &str = "Shutdown (persistent mode): Ctrl-C/SIGINT and SIGTERM stop HTTP admissions \
+and new scheduling, then drain running AND queued jobs for up to 30 seconds \
+with four workers. On grace expiry, running jobs become interrupted and \
+jobs still queued remain queued. Restart with the same --state-root resumes queued \
+jobs from their captured snapshots; interrupted jobs are not retried. SIGKILL \
+skips cleanup: the next start interrupts ownerless running jobs and resumes \
+queued jobs. A completed drain exits 0; grace expiry exits 1. The 30-second \
+grace bounds execution draining, not filesystem cleanup or a stuck backend. \
+Allow extra time before a supervisor forces SIGKILL.";
+
 /// `nika serve` — the resident firer's args, plus the explicit HTTP pair.
 #[derive(Debug, Clone, clap::Args)]
+#[command(after_long_help = SHUTDOWN_HELP)]
 pub struct ServeArgs {
     /// Fire what is due once, then exit — the rehearsal.
     #[arg(long)]
@@ -537,6 +549,27 @@ mod tests {
     use crate::verbs::arm::state::{FireKind, HistoryEntry};
 
     mod resident_tests;
+
+    #[test]
+    fn serve_help_states_the_queue_grace_and_restart_contract() {
+        let help = <ServeArgs as clap::Args>::augment_args(clap::Command::new("serve"))
+            .render_long_help()
+            .to_string();
+        for lesson in [
+            "SIGINT",
+            "SIGTERM",
+            "30 seconds",
+            "queued",
+            "interrupted",
+            "SIGKILL",
+            "--state-root",
+            "filesystem",
+            "exits 0",
+            "exits 1",
+        ] {
+            assert!(help.contains(lesson), "missing {lesson}: {help}");
+        }
+    }
 
     fn at(text: &str) -> Zoned {
         text.parse::<jiff::Timestamp>()

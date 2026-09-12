@@ -379,9 +379,9 @@ fn split_tz(text: &str, lead: usize) -> Result<(String, &str), CadenceError> {
         _ => Err(CadenceError::file(
             CadenceErrorKind::TzMissing,
             format!(
-                "cadence `{text}` · pas de fuseau — il ne peut pas être oublié par le calculateur, donc il vit DANS l expression"
+                "cadence `{text}` has no time zone; include it in the expression: `TZ=<IANA zone> {text}`"
             ),
-            "préfixe la cadence de `TZ=<iana>` · ex. `TZ=Europe/Paris 0 9 * * 1` (seul `on-webhook` n en porte pas)",
+            "Prefix the cadence with `TZ=<IANA zone>`, for example `TZ=Europe/Paris 0 9 * * 1`; only `on-webhook` omits a time zone",
         )
         .with_span((lead, lead + text.len()))),
     }

@@ -29,7 +29,9 @@ UMask=0077
 ExecStart=/usr/local/bin/nika serve --bind 127.0.0.1:8787 --workflows /var/lib/nika/workflows --token-file /var/lib/nika/serve.token --state-root /var/lib/nika/serve
 Restart=on-failure
 RestartSec=2
-TimeoutStopSec=30
+# 30 seconds for the shared queue drain, plus 15 for joins and durable settlement.
+# A stuck filesystem can still outlast this allowance; restart performs recovery.
+TimeoutStopSec=45
 KillSignal=SIGTERM
 
 [Install]

@@ -156,6 +156,14 @@ fn refuse_a_zoneless_cadence() {
     assert_eq!(err.kind(), CadenceErrorKind::TzMissing);
     assert_eq!(err.kind().spec_code(), "cadence.tz-missing");
     assert_eq!(
+        err.to_string(),
+        "cadence.tz-missing · cadence `0 9 * * 1` has no time zone; include it in the expression: `TZ=<IANA zone> 0 9 * * 1`"
+    );
+    assert!(
+        err.remedy()
+            .starts_with("Prefix the cadence with `TZ=<IANA zone>`")
+    );
+    assert_eq!(
         err.span(),
         Some((0, 9)),
         "le refus peint l expression entière"
