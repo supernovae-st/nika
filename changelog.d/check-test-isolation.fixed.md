@@ -1,1 +1,0 @@
-- **Isolate the local test fallback.** Without cargo-nextest, run library tests serially so temporary project directories cannot change a concurrent test's ambient context. Nextest and the required CI test scope remain unchanged.

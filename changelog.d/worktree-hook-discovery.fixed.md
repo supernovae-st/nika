@@ -1,1 +1,0 @@
-- **Local gate readiness** now resolves the effective hook path through Git, including linked worktrees and custom hook directories. Only an executable hook counts as reachable, and bootstrap verifies the installer's result before reporting success.
