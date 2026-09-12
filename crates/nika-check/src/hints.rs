@@ -1353,27 +1353,11 @@ fn value_mentions_tasks(v: &serde_json::Value, ids: &BTreeSet<&str>) -> bool {
         .any(|id| ids.contains(id.as_str()))
 }
 
-/// The trifecta's credited gates rewrite their own `headless-prompt`
-/// hint. That hint's close clause recommends `default: false` over an
-/// effect, and a defaulted prompt is exactly what the trifecta judge
-/// refuses to credit: following the hint broke the gate and SEC-009
-/// answered with a fix that never named `default:` (wave 3 · persona 07 ·
-/// the two judges contradicting each other on one file). The gate's hint
-/// now says the one thing that keeps both judges agreeing.
-pub(crate) fn credit_gates(hints: &mut [Hint], mitigations: &[nika_cap::TrifectaMitigation]) {
-    for h in hints.iter_mut() {
-        if h.kind != "headless-prompt" || !mitigations.iter().any(|m| m.gate == h.task) {
-            continue;
-        }
-        h.advice = format!(
-            "`nika:prompt` on `{id}` declares no `default:` — and must not: it is the blocking \
-             human gate the lethal-trifecta judge credits, and a defaulted prompt answers itself \
-             unattended (spec 06) and stops being a gate. Unattended (CI, or an agent handing it \
-             over) the run pauses here awaiting a human (exit 4 · the resume line taught on the \
-             frame); answer it in one pass with `nika run <file> --answer {id}=<value>`",
-            id = h.task
-        );
-    }
+/// A credited blocking gate must have no default: its headless behavior is
+/// required by the trifecta proof, not an improvement to make (#1511).
+/// Only that gate's headless hint is suppressed; all other advice survives.
+pub(crate) fn credit_gates(hints: &mut Vec<Hint>, mitigations: &[nika_cap::TrifectaMitigation]) {
+    hints.retain(|h| h.kind != "headless-prompt" || !mitigations.iter().any(|m| m.gate == h.task));
 }
 
 /// A literal `nika:fetch`/`nika:notify` target whose host is a documentation
