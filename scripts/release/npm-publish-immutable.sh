@@ -80,7 +80,10 @@ esac
   exit 77
 }
 
-if npm publish "$tgz" --provenance --access public; then
+# npm records its OIDC exchange in the private debug log even at the
+# default console level. Keep that log ephemeral; emit only fixed diagnoses,
+# never its token-bearing contents or a registry-supplied error message.
+if npm publish "$tgz" --provenance --access public --logs-dir "$scratch/npm-logs"; then
   publish_failed=false
 else
   publish_failed=true
@@ -104,6 +107,15 @@ for attempt in 1 2 3 4 5 6; do
 done
 if [ "$publish_failed" = true ]; then
   echo "npm barrier: publish failed and the version remains absent" >&2
+  if grep -Fq 'verbose oidc Successfully retrieved and set token' "$scratch"/npm-logs/*-debug-0.log 2>/dev/null; then
+    echo "npm barrier: OIDC exchange succeeded; check that the trusted publisher allows direct npm publish, not only npm stage publish, and has publishing access to this package" >&2
+  elif grep -Fq 'verbose oidc Failed token exchange request' "$scratch"/npm-logs/*-debug-0.log 2>/dev/null; then
+    echo "npm barrier: OIDC exchange was rejected; verify the trusted publisher organization, repository, workflow filename and optional environment exactly match this job" >&2
+  elif grep -Fq 'verbose oidc Failed to fetch id_token from GitHub' "$scratch"/npm-logs/*-debug-0.log 2>/dev/null; then
+    echo "npm barrier: GitHub did not return an OIDC identity; inspect the job id-token permission and runner response" >&2
+  else
+    echo "npm barrier: OIDC exchange outcome unavailable; no authentication conclusion can be drawn from the publish error alone" >&2
+  fi
 else
   echo "npm barrier: publish returned success but the version never became visible" >&2
 fi

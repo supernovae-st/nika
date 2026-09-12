@@ -691,6 +691,8 @@ bash "$ROOT/scripts/release/tests/immutable-assets.test.sh" >/dev/null \
   || fail 'the immutable asset replay regression failed'
 bash "$ROOT/scripts/release/tests/publication-barrier.test.sh" >/dev/null \
   || fail 'the cross-registry publication barrier regression failed'
+bash "$ROOT/scripts/release/tests/npm-oidc-diagnostic.test.sh" >/dev/null \
+  || fail 'the npm OIDC diagnostic regression failed'
 bash "$ROOT/scripts/release/tests/finalize-release.test.sh" >/dev/null \
   || fail 'the write-only finalizer barrier regression failed'
 python3 "$ROOT/scripts/release/tests/test-draft-authority.py" \
