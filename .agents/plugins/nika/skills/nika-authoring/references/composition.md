@@ -55,10 +55,10 @@ engine's normal admission; a compose result cannot grant or bypass it.
   and 4). The parent's `permits:` must be the union of what every child
   touches. `nika check --infer-permits` will NOT compute that half for
   you: it prints a review note saying the child's boundary is resolved
-  by the composition lane, never inferred. **Read that message with
-  suspicion**: `child tool X is outside the parent boundary` also fires
-  when the parent grants X and the CHILD's own `permits:` is the block
-  missing it. Check the child alone before widening the parent.
+  by the composition lane, never inferred. Read the finding's file and
+  task context: a child's missing grant is attributed to that child;
+  a containment finding identifies the parent's boundary. Check the child
+  alone before changing either boundary, and grant only the intended effects.
 
 **What the parent reads back.** `${{ tasks.<id>.output }}` is the
 child's whole `outputs:` map, and `${{ tasks.<id>.output.<name> }}`

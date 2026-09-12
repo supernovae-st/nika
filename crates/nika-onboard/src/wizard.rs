@@ -29,7 +29,7 @@ use crate::{Audit, Outcome, Wire, codes};
 const TAGLINE: &str = "the workflow language for AI — audited before it runs";
 
 /// The wire menu the agents step offers — the popular five, then `all`
-/// (the full 15-client register stays one `nika wire all` away). Plain
+/// (the installed register is listed by `nika wire --help`). Plain
 /// client words: the injected [`Wire`] resolves them at the root.
 const WIRE_MENU: [(&str, &str); 5] = [
     ("cursor", "~/.cursor/mcp.json"),
@@ -295,7 +295,11 @@ fn report_briefs(
     for (path, outcome) in briefs {
         let rel = relative(dir, path);
         let line = match outcome {
-            BriefOutcome::Created => brief_line(theme, '✔', &format!("created {rel}")),
+            BriefOutcome::Created => brief_line(
+                theme,
+                '✔',
+                &format!("created {rel} — {}", crate::briefs::purpose(&rel)),
+            ),
             BriefOutcome::Skipped => {
                 brief_line(theme, '·', &format!("skipped {rel} (exists · --force)"))
             }
@@ -360,8 +364,13 @@ fn found(
         return Outcome::env("scaffold failed — see the report above".to_owned());
     }
 
-    for line in wire_receipts(dir, &choices.wires, wire) {
-        writeln!(out, "{line}").ok();
+    let wiring = wire_receipts(dir, &choices.wires, wire);
+    write!(out, "{}", wiring.text).ok();
+    if wiring.code != codes::OK {
+        return Outcome {
+            text: "scaffold saved; client wiring failed — see the report above".to_owned(),
+            code: wiring.code,
+        };
     }
 
     // starter hands over to the guided three-question flow — its
@@ -479,6 +488,10 @@ fn ready_panel(
     ];
     lines.append(&mut next);
     lines.extend([
+        (
+            "Read NIKA.md: first workflow, file purposes and what to commit".to_owned(),
+            Role::Dim,
+        ),
         (
             "nika explain <NIKA-XXXX>   # every finding teaches".to_owned(),
             Role::Dim,
@@ -699,6 +712,31 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
         std::fs::create_dir_all(&dir).expect("mkdir");
         dir
+    }
+
+    #[test]
+    fn a_wire_refusal_never_returns_a_ready_panel() {
+        let dir = fresh_dir("wire-refusal");
+        let mut input = std::io::Cursor::new(b"\n\n\n3\n\n".to_vec());
+        let mut output = Vec::new();
+        let result = wizard_io(
+            dir.to_str().expect("path"),
+            false,
+            PLAIN,
+            &mut input,
+            &mut output,
+            &stub_audit,
+            &|_, _| Outcome::env("client config cannot be written".to_owned()),
+        );
+        assert_eq!(result.code, codes::ENV, "{}", result.text);
+        assert!(!result.text.contains("wired to the oracle"));
+        assert!(
+            String::from_utf8(output)
+                .expect("utf8")
+                .contains("client config cannot be written")
+        );
+        assert!(dir.join("AGENTS.md").exists());
+        std::fs::remove_dir_all(dir).expect("remove owned fixture");
     }
 
     /// Two Enters + skip + skip + skip = the golden path: agentic

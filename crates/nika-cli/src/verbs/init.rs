@@ -49,13 +49,12 @@ impl From<CanvasTheme> for nika_onboard::founding::CanvasTheme {
 
 /// Scaffold `dir` (default `.`). Bare on a terminal (no `--yes`, no
 /// recipe/theme/wire flag) the founding wizard runs; anything scripted
-/// keeps receipts-plus-hand-off — and with ZERO new flags the output is
-/// the historical bytes exactly.
+/// keeps file receipts with purposes followed by the next commands.
 ///
 /// `project_file` — `--project-file` (D-2026-08-11-N5): the scripted
 /// twin of the wizard's offer question. It routes to the scripted lane
 /// (a flag is a script), and lays the starter AFTER the scaffold with
-/// its receipt appended — never silently, never without the flag.
+/// its receipt before the hand-off — never silently, never without the flag.
 #[must_use]
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)] // the clap surface, unpacked — one struct-shaped seam
 pub fn run(
@@ -97,27 +96,28 @@ pub fn run(
         || project_file
         || !interactive();
     let out = if scripted {
-        let wire_names: Vec<&str> = wires.iter().copied().map(wire_name).collect();
+        let wire_names: Vec<String> = wires.iter().copied().map(wire_name).collect();
+        let wire_refs: Vec<&str> = wire_names.iter().map(String::as_str).collect();
         let out = nika_onboard::founding::scripted_run(
             dir,
             force,
             recipe,
             example,
             canvas.map(Into::into),
-            &wire_names,
+            &wire_refs,
             &audit,
             &wire,
         );
         // The scripted twin of the wizard's offer — the flag is the
         // ONLY scripted door (never laid silently), and the receipt
-        // appends to the same report (the adds-only law · one law,
+        // joins the file report before the hand-off (the adds-only law · one law,
         // two doors).
         if project_file {
             let (path, outcome) = nika_onboard::project_file::ensure(dir, force);
             let failed = matches!(outcome, nika_onboard::project_file::Outcome::Failed(_));
-            let (_mark, msg) = nika_onboard::project_file::report(&path, &outcome);
+            let (mark, msg) = nika_onboard::project_file::report(&path, &outcome);
             nika_onboard::Outcome {
-                text: format!("{}\n{msg}", out.text),
+                text: format!("{mark} {msg}\n{}", out.text),
                 code: if failed {
                     nika_onboard::codes::ENV
                 } else {
@@ -159,42 +159,14 @@ fn wire_target(client: &str) -> Option<WireTarget> {
     WireTarget::from_str(client, true).ok()
 }
 
-/// A `WireTarget` back to its wire word (for the member's receipts) —
-/// interned through the static register so the member sees stable words.
-fn wire_name(target: WireTarget) -> &'static str {
+/// Carry the exact clap target through the member's injected wire seam.
+/// A second client list must never turn `detected` into the broader `all`.
+fn wire_name(target: WireTarget) -> String {
     use clap::ValueEnum as _;
     target
         .to_possible_value()
-        .map_or("all", |v| wire_static(v.get_name()))
-}
-
-/// Intern a clap possible-value name onto the static register.
-fn wire_static(name: &str) -> &'static str {
-    const NAMES: [&str; 22] = [
-        "cursor",
-        "vscode",
-        "windsurf",
-        "claude",
-        "claude-desktop",
-        "cline",
-        "codex",
-        "continue",
-        "zed",
-        "opencode",
-        "hermes",
-        "gemini",
-        "qwen",
-        "lmstudio",
-        "junie",
-        "grok",
-        "antigravity",
-        "kimi",
-        "kiro",
-        "copilot",
-        "amp",
-        "all",
-    ];
-    NAMES.iter().find(|n| **n == name).copied().unwrap_or("all")
+        .map(|value| value.get_name().to_owned())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -203,6 +175,15 @@ mod tests {
     use crate::verbs::exit;
 
     const PLAIN: Theme = Theme::new(false, false, false);
+
+    #[test]
+    fn every_init_wire_target_preserves_the_requested_scope() {
+        use clap::ValueEnum as _;
+        for target in WireTarget::value_variants() {
+            assert_eq!(wire_target(&wire_name(*target)), Some(*target));
+        }
+        assert_eq!(wire_name(WireTarget::Detected), "detected");
+    }
 
     /// The root adapter keeps the composed behavior the smoke tests pin:
     /// `--yes` + `--recipe` scaffolds, audits through the REAL ladder,
@@ -272,7 +253,7 @@ mod tests {
 
     /// `--project-file` (D-2026-08-11-N5): the ONE scripted door — it
     /// routes to the scripted lane, lays the starter after the
-    /// scaffold with its receipt appended, and respects the skip law.
+    /// scaffold with a file receipt before the hand-off, and respects the skip law.
     #[test]
     fn the_project_file_flag_is_the_only_scripted_door() {
         let tmp = std::env::temp_dir().join(format!("nika-init-projfile-{}", std::process::id()));
@@ -293,7 +274,8 @@ mod tests {
         assert!(
             out.text
                 .lines()
-                .any(|l| l.contains("created") && l.ends_with("nika.yaml")),
+                .next()
+                .is_some_and(|l| l.starts_with("✔ created ") && l.ends_with("nika.yaml")),
             "the receipt rides the report (joined path, the scripted register): {}",
             out.text
         );

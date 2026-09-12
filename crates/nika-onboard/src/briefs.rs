@@ -80,9 +80,10 @@ files, so review a fresh scaffold in a separate directory before updating them.
 - **Explain** · `nika explain NIKA-XXXX` teaches one error code ·
   `nika explain <file>` narrates a workflow (waves · cost · touches · how
   to run) — read it before handing a workflow to a human.
-- **Wire** · `nika wire <cursor|vscode|windsurf|claude|codex|all>` — point an
-  agent client's MCP config at the real oracle (idempotent · preserves other
-  servers).
+- **Wire** · `nika wire <client>` — point an agent client's MCP config at the
+  real oracle (idempotent · preserves other servers). `nika wire --help` lists
+  the installed registry; `nika wire detected --dry-run` previews the clients
+  found on this machine before `nika wire detected` connects them.
 
 ## The four verbs (exactly one per task)
 `infer` (an LLM call) · `exec` (a subprocess — `command:` is argv, one token per
@@ -415,6 +416,51 @@ const CURSOR_HOOKS_JSON: &str = r#"{
 }
 "#;
 
+// Project-root anchoring also works after an agent changes directory.
+// https://code.claude.com/docs/en/hooks-guide
+const CLAUDE_SETTINGS_JSON: &str = r#"{
+  "hooks": {
+    "SessionStart": [{ "hooks": [
+      { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks-nika/session-context.sh" }
+    ] }],
+    "PreToolUse": [{ "matcher": "Bash", "hooks": [
+      { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks-nika/guard-run.sh" }
+    ] }],
+    "PostToolUse": [{ "matcher": "Edit|Write|MultiEdit", "hooks": [
+      { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks-nika/check-on-edit.sh" }
+    ] }]
+  }
+}
+"#;
+
+/// One purpose per scaffold row, shared by the scripted and interactive reports.
+pub(crate) fn purpose(path: &str) -> &'static str {
+    match path {
+        "AGENTS.md" => "shared workflow instructions for coding agents",
+        "NIKA.md" => "human guide: first workflow, team settings and Git",
+        "CLAUDE.md" => "Claude entrypoint to the shared agent guide",
+        ".vscode/settings.json" => "YAML schema validation in the editor",
+        ".cursor/hooks.json" | ".claude/settings.json" => {
+            "connect session, edit and execution hooks"
+        }
+        ".cursor/mcp.json" | ".mcp.json" | ".agents/mcp_config.json" => {
+            "connect the Nika MCP oracle"
+        }
+        ".github/copilot-instructions.md" => "Copilot workflow instructions",
+        _ if path.ends_with("/session-context.sh") => {
+            "session context and binary version diagnosis"
+        }
+        _ if path.ends_with("/guard-run.sh") => "judge shell execution through nika guard",
+        _ if path.ends_with("/check-on-edit.sh") => {
+            "audit workflow edits with native-strict checks"
+        }
+        _ if path.starts_with(".agents/skills/") => "local authoring skill and linked reference",
+        _ if path.starts_with(".cursor/agents/") => "specialized workflow agent instructions",
+        _ if path.starts_with(".cursor/rules/") => "Cursor workflow and delegation rules",
+        _ => "project workflow resource",
+    }
+}
+
 /// The scaffolded agent guide, exposed for the bin-side parity test —
 /// a verb the binary ships and the guide never names is a verb a wired
 /// agent will never reach (found stale 2026-07-05: the scaffold taught
@@ -427,10 +473,18 @@ pub fn agents_md() -> &'static str {
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
 /// writes — `plan` and the docs both read it.
-pub(super) fn targets() -> [(&'static str, &'static str); 23] {
+pub(super) fn targets() -> [(&'static str, &'static str); 28] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
+        ("NIKA.md", include_str!("../assets/NIKA.md")),
+        (".claude/settings.json", CLAUDE_SETTINGS_JSON),
+        (
+            ".claude/hooks-nika/session-context.sh",
+            HOOK_SESSION_CONTEXT,
+        ),
+        (".claude/hooks-nika/check-on-edit.sh", HOOK_CHECK_ON_EDIT),
+        (".claude/hooks-nika/guard-run.sh", HOOK_GUARD_RUN),
         (".cursor/rules/nika.mdc", CURSOR_RULES),
         (".cursor/rules/nika-delegation.mdc", CURSOR_DELEGATION),
         (".cursor/mcp.json", MCP_SERVERS),
@@ -1022,7 +1076,7 @@ mod tests {
     #[test]
     fn targets_names_every_brief_family() {
         let t = targets();
-        assert_eq!(t.len(), 23);
+        assert_eq!(t.len(), 28);
         let paths: Vec<&str> = t.iter().map(|(p, _)| *p).collect();
         for expected in [
             ".vscode/settings.json",
@@ -1065,6 +1119,38 @@ mod tests {
                     paths.contains(&rel),
                     "{event} points at {rel}, which the scaffold never writes"
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn claude_project_hooks_preserve_the_kit_contract_and_resolve() {
+        let kit = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../.agents/plugins/nika/hooks/claude-hooks.json"
+        ));
+        let expected: serde_json::Value = serde_json::from_str(&kit.replace(
+            "${CLAUDE_PLUGIN_ROOT}/scripts/",
+            "\\\"$CLAUDE_PROJECT_DIR\\\"/.claude/hooks-nika/",
+        ))
+        .expect("rewritten kit JSON");
+        let actual: serde_json::Value =
+            serde_json::from_str(CLAUDE_SETTINGS_JSON).expect("settings JSON");
+        assert_eq!(
+            actual, expected,
+            "event, matcher, type and script must match the kit"
+        );
+        let emitted: std::collections::BTreeMap<_, _> = targets().into_iter().collect();
+        for entries in actual["hooks"].as_object().expect("hooks").values() {
+            for entry in entries.as_array().expect("entries") {
+                for hook in entry["hooks"].as_array().expect("commands") {
+                    let path = hook["command"]
+                        .as_str()
+                        .expect("command")
+                        .strip_prefix("\"$CLAUDE_PROJECT_DIR\"/")
+                        .expect("quoted project root");
+                    assert!(emitted.contains_key(path), "unshipped hook: {path}");
+                }
             }
         }
     }
