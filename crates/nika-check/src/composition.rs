@@ -7,8 +7,8 @@
 //! - `NIKA-COMP-001` · a `workflow:` target that is not statically
 //!   resolvable (templated · malformed · unpinned registry ref ·
 //!   unreadable · unparseable) — law 1.
-//! - `NIKA-COMP-002` · the child's effect boundary exceeds the parent's
-//!   declared boundary — laws 3/4 (the runtime twin is `NIKA-SEC-004`).
+//! - `NIKA-COMP-002` · the child's effect needs exceed the parent/child
+//!   declared intersection — laws 3/4 (the runtime twin is `NIKA-SEC-004`).
 //! - `NIKA-COMP-003` · the static call graph is not acyclic (literal
 //!   self-launch · A→B→A) — law 7 (`NIKA-SEC-003` is the run backstop).
 //! - `NIKA-COMP-004` · the typed call does not compose (args ⋢ the
@@ -433,12 +433,13 @@ fn judge_direct_call(
     // flow down implicitly. The judged formula (the Python oracle's twin):
     // child NEEDS − (parent ∩ child-declared) — the inference only ever
     // computes NEEDS, never the judged boundary itself.
-    let zero = Permits::new();
-    let parent = cx.parent_permits.unwrap_or(&zero);
-    let child_declared = child.permits.as_ref().map_or(&zero, |s| &s.value);
-    let meet = parent.intersect(child_declared);
     let child_needs = super::permits_infer::infer(&child).permits;
-    for detail in boundary_violations(&child_needs, &meet) {
+    for detail in boundary_violations(
+        &child_needs,
+        cx.parent_permits,
+        child.permits.as_ref().map(|s| &s.value),
+        (cx.root, &child_id),
+    ) {
         push("NIKA-COMP-002", detail);
     }
 }
@@ -591,88 +592,97 @@ fn is_literal(v: &serde_json::Value) -> bool {
     !serde_json::to_string(v).unwrap_or_default().contains("${{")
 }
 
-/// Laws 3/4 — every concrete child-boundary entry the parent's declared
-/// boundary does not admit. The child side is CONCRETE (declared globs
-/// or inferred literal effects); the parent side judges with the same
-/// `allows_*` predicates the escape scan and the runtime use — one
-/// containment vocabulary, check≡run.
-fn boundary_violations(child: &Permits, parent: &Permits) -> Vec<String> {
+/// Laws 3/4 — retain the conservative meet as the sole refusal gate.
+/// Attribution probes each declared side with the SAME predicate; different
+/// matching globs may both admit an effect yet share no entry in the meet.
+/// These probes explain a refusal, never grant authority or replace the meet.
+/// Needs are inferred effects, not the child's declared permissions.
+fn boundary_violations(
+    needs: &Permits,
+    parent: Option<&Permits>,
+    child: Option<&Permits>,
+    paths: (&str, &str),
+) -> Vec<String> {
+    let parent_name = boundary_name("parent", paths.0, parent);
+    let child_name = boundary_name("child", paths.1, child);
+    let zero = Permits::new();
+    let (parent, child) = (parent.unwrap_or(&zero), child.unwrap_or(&zero));
+    let meet = parent.intersect(child);
     let mut out = Vec::new();
-    if let Some(fs) = &child.fs {
-        for p in &fs.read {
-            if !parent.allows_path(p, false) {
-                out.push(format!(
-                    "child fs read `{p}` is outside the parent boundary \
-                     (spec 14 law 4 · child ⊆ parent)"
-                ));
-            }
+    let refusal = |effect: String, admits: &dyn Fn(&Permits) -> bool| {
+        if admits(&meet) {
+            return None;
         }
-        for p in &fs.write {
-            if !parent.allows_path(p, true) {
-                out.push(format!(
-                    "child fs write `{p}` is outside the parent boundary \
-                     (spec 14 law 4 · child ⊆ parent)"
-                ));
+        let repair = match (admits(parent), admits(child)) {
+            (false, true) => {
+                format!("{parent_name} does not admit it; add the intended grant in that file")
+            }
+            (true, false) => format!(
+                "{child_name} does not admit it; grants never descend; add the intended grant in that file"
+            ),
+            (false, false) => format!(
+                "{parent_name} and {child_name} do not admit it; add the intended grant in both files"
+            ),
+            (true, true) => format!(
+                "{parent_name} and {child_name} each admit it, but their conservative intersection does not; \
+                 align a common narrow grant"
+            ),
+        };
+        Some(format!(
+            "child body needs {effect}; {repair} (spec 14 laws 3/4)"
+        ))
+    };
+    if let Some(fs) = &needs.fs {
+        for (paths, write, kind) in [(&fs.read, false, "read"), (&fs.write, true, "write")] {
+            for p in paths {
+                out.extend(refusal(format!("fs {kind} `{p}`"), &|b| {
+                    b.allows_path(p, write)
+                }));
             }
         }
     }
-    if let Some(net) = &child.net {
+    if let Some(net) = &needs.net {
         for h in &net.http {
-            if !parent.allows_host(h) {
-                out.push(format!(
-                    "child net host `{h}` is outside the parent boundary \
-                     (spec 14 law 4 · child ⊆ parent)"
-                ));
-            }
+            out.extend(refusal(format!("net host `{h}`"), &|b| b.allows_host(h)));
         }
     }
-    out.extend(exec_violations(child.exec.as_ref(), parent));
-    if let Some(tools) = &child.tools {
-        for tool in tools {
-            if !parent.allows_tool(tool) {
-                out.push(format!(
-                    "child tool `{tool}` is outside the parent boundary \
-                     (spec 14 law 3 · zero implicit authority)"
-                ));
+    // The exec axis stays tri-state: a program list cannot admit a shell.
+    match &needs.exec {
+        None | Some(ExecPermit::No) => {}
+        Some(ExecPermit::Any) => out.extend(refusal(
+            "exec authority (`exec: true`, any program)".to_owned(),
+            &|b| matches!(b.exec, Some(ExecPermit::Any)),
+        )),
+        Some(ExecPermit::Programs(list)) => {
+            for p in list {
+                out.extend(refusal(format!("exec program `{p}`"), &|b| {
+                    b.allows_program(p)
+                }));
             }
+        }
+        // `#[non_exhaustive]` — an exec form this checker does not know
+        // cannot be proven contained: refuse loudly (fail-closed).
+        Some(other) => out.push(format!(
+            "child needs an exec form this checker cannot bound ({other:?}) \
+             — containment unprovable, refused (spec 14 law 3 · fail-closed)"
+        )),
+    }
+    if let Some(tools) = &needs.tools {
+        for tool in tools {
+            out.extend(refusal(format!("tool `{tool}`"), &|b| b.allows_tool(tool)));
         }
     }
     out
 }
 
-/// The `exec:` axis of the containment law (closed tri-state).
-fn exec_violations(child_exec: Option<&ExecPermit>, parent: &Permits) -> Vec<String> {
-    match child_exec {
-        None | Some(ExecPermit::No) => Vec::new(),
-        Some(ExecPermit::Any) => {
-            if matches!(parent.exec, Some(ExecPermit::Any)) {
-                Vec::new()
-            } else {
-                vec![
-                    "child declares `exec: true` (any program) but the parent \
-                     boundary does not (spec 14 law 3 · a child never gains a \
-                     capability the parent lacks)"
-                        .to_owned(),
-                ]
-            }
-        }
-        Some(ExecPermit::Programs(list)) => list
-            .iter()
-            .filter(|p| !parent.allows_program(p))
-            .map(|p| {
-                format!(
-                    "child exec program `{p}` is outside the parent boundary \
-                     (spec 14 law 3)"
-                )
-            })
-            .collect(),
-        // `#[non_exhaustive]` — an exec form this checker does not know
-        // cannot be proven contained: refuse loudly (fail-closed).
-        Some(other) => vec![format!(
-            "child declares an exec form this checker cannot bound ({other:?}) \
-             — containment unprovable, refused (spec 14 law 3 · fail-closed)"
-        )],
-    }
+/// Name the repair file without claiming an absent block was written as `{}`.
+fn boundary_name(role: &str, path: &str, declared: Option<&Permits>) -> String {
+    let declaration = match declared {
+        None => "absent `permits:` block: zero authority",
+        Some(p) if *p == Permits::new() => "declared `permits: {}`: zero authority",
+        Some(_) => "`permits:` declared",
+    };
+    format!("{role} boundary in `{path}` ({declaration})")
 }
 
 /// The report-shaped byte range of a source span.
