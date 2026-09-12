@@ -198,7 +198,7 @@ async fn grep_through_an_escaping_symlink_is_refused() {
     // escapes the declared `permits.fs` must NOT leak that target's bytes
     // (the per-file sibling of `read`'s symlink-escape guard · grep was the
     // one fs builtin missing it · NIKA-SEC-004). Proven BOTH ways so the
-    // test is not vacuous: bounded → skipped, unbounded → leaks (the walk
+    // test is not vacuous: bounded → refused, unbounded → leaks (the walk
     // genuinely reaches and reads the link).
     let root = scratch();
     let link = root.join("allowed/leak");
@@ -214,17 +214,16 @@ async fn grep_through_an_escaping_symlink_is_refused() {
         )
     };
 
-    // Bounded to `allowed/**`: the escaping leaf is skipped like any
-    // unreadable entry — the grep succeeds with zero hits, the secret's
-    // bytes never surface.
+    // Bounded to `allowed/**`: refuse the escaping leaf explicitly rather
+    // than presenting an incomplete search as a successful empty result.
     let boundary = FsBoundary::declared(vec![format!("{}/allowed/**", root.display())], vec![]);
     let bounded = dispatcher_with(boundary)
         .execute(call())
         .await
         .expect("dispatches");
     assert!(
-        !bounded.is_error,
-        "the in-boundary grep itself is fine: {}",
+        bounded.is_error && bounded.content.starts_with("NIKA-SEC-004"),
+        "the escaping leaf must refuse the search: {}",
         bounded.content
     );
     assert!(
@@ -245,6 +244,86 @@ async fn grep_through_an_escaping_symlink_is_refused() {
         leaked.content
     );
     let _ = std::fs::remove_dir_all(&root);
+}
+
+#[tokio::test]
+async fn grep_directory_only_grant_refuses_instead_of_returning_no_hits() {
+    let root = scratch();
+    let directory = root.join("allowed").to_string_lossy().into_owned();
+    let result = dispatcher_with(FsBoundary::declared(vec![directory.clone()], vec![]))
+        .execute(ToolCall::new(
+            "t",
+            "nika:grep",
+            serde_json::json!({ "path": directory, "pattern": "inside" }),
+        ))
+        .await
+        .expect("dispatches");
+    let _ = std::fs::remove_dir_all(&root);
+    assert!(
+        result.is_error,
+        "a root grant cannot read its files: {result:?}"
+    );
+    assert!(result.content.starts_with("NIKA-SEC-004"), "{result:?}");
+    assert!(
+        result.content.contains("in.txt"),
+        "name the denied file: {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn grep_root_and_file_grants_return_hits() {
+    let root = scratch();
+    let directory = root.join("allowed").to_string_lossy().into_owned();
+    let result = dispatcher_with(FsBoundary::declared(
+        vec![directory.clone(), format!("{directory}/*")],
+        vec![],
+    ))
+    .execute(ToolCall::new(
+        "t",
+        "nika:grep",
+        serde_json::json!({ "path": directory, "pattern": "inside" }),
+    ))
+    .await
+    .expect("dispatches");
+    let _ = std::fs::remove_dir_all(&root);
+    assert!(!result.is_error, "both grants admit the search: {result:?}");
+    let hits: serde_json::Value = serde_json::from_str(&result.content).expect("hits array");
+    assert_eq!(
+        hits,
+        serde_json::json!([
+            { "path": format!("{directory}/in.txt"), "line": 1, "match": "inside" }
+        ])
+    );
+}
+
+#[tokio::test]
+async fn grep_mixed_file_grants_refuse_instead_of_returning_partial_hits() {
+    let root = scratch();
+    let directory = root.join("allowed").to_string_lossy().into_owned();
+    // The allowed match sorts first: a later refusal must discard it.
+    std::fs::write(root.join("allowed/z-denied.txt"), b"inside denied").unwrap();
+    let result = dispatcher_with(FsBoundary::declared(
+        vec![directory.clone(), format!("{directory}/in.txt")],
+        vec![],
+    ))
+    .execute(ToolCall::new(
+        "t",
+        "nika:grep",
+        serde_json::json!({ "path": directory, "pattern": "inside" }),
+    ))
+    .await
+    .expect("dispatches");
+    let _ = std::fs::remove_dir_all(&root);
+    assert!(
+        result.is_error,
+        "a partial search must not succeed: {result:?}"
+    );
+    assert!(result.content.starts_with("NIKA-SEC-004"), "{result:?}");
+    assert!(result.content.contains("z-denied.txt"), "{result:?}");
+    assert!(
+        !result.content.contains("inside"),
+        "no file content: {result:?}"
+    );
 }
 
 #[cfg(unix)]

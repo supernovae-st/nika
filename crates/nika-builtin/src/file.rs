@@ -657,14 +657,11 @@ pub(crate) async fn grep<F: FsReadDyn + FsListDyn>(
         // (the per-file sibling of `read`'s guard · grep was the one fs builtin
         // missing it · symlinked-leaf read bypass). An undeclared/unbounded
         // boundary short-circuits to Ok (the engine floor · MockFs tests are
-        // unaffected). An out-of-boundary leaf is skipped like any unreadable.
-        if boundary
+        // unaffected). Refuse an out-of-boundary leaf before reading it:
+        // skipping it would report an incomplete search as a successful one.
+        boundary
             .enforce(fs, &file.to_string_lossy(), FsAccess::Read)
-            .await
-            .is_err()
-        {
-            continue;
-        }
+            .await?;
         // The walk yields directories (EISDIR), binary files (InvalidData),
         // raced deletions (NotFound) and unreadable entries alike — grep
         // semantics skip them all (`grep -rs`): the spec allocates only
