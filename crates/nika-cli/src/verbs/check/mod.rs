@@ -178,6 +178,7 @@ use std::fmt::Write as _;
 
 use nika_check::CheckReport;
 use nika_check::infer_permits;
+#[cfg(test)]
 use nika_schema::raw::RawWorkflow;
 
 use nika_cli_host::oracle::{Lane, LaneFinding, NATIVE_STRICT_FIX};
@@ -905,7 +906,7 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
         Err(out) => return out,
     };
     let inferred = infer_permits(&wf);
-    let mut yaml = tighten_exec_yaml(&wf, &inferred.to_yaml());
+    let mut yaml = tighten_exec_yaml(&inferred.to_yaml());
     let code = if report.is_clean() {
         crate::verbs::exit::OK
     } else {
@@ -930,49 +931,15 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
     VerbOutput { text: yaml, code }
 }
 
-/// B15 / #1279 adjacent: never paste `exec: true` as the ready block.
-/// A shell-form task runs via `sh`; an argv task names its program.
-/// Dynamic heads stay comment-only — widening to `true` undoes the
-/// tightest-grant teaching `nika explain NIKA-SEC-004` just made.
-fn tighten_exec_yaml(wf: &RawWorkflow, yaml: &str) -> String {
-    if !yaml.contains("exec: true") {
-        return yaml.to_owned();
-    }
-    let mut programs = std::collections::BTreeSet::new();
-    let mut dynamic = false;
-    for task in &wf.tasks {
-        if let nika_schema::raw::RawAction::Exec(exec) = &task.value.action {
-            if let Some(prog) = exec.command.argv_program() {
-                if prog.contains("${{") || prog.is_empty() {
-                    dynamic = true;
-                } else {
-                    programs.insert(prog.to_owned());
-                }
-            } else if let Some(shell) = exec.command.shell_str() {
-                if shell.contains("${{") {
-                    dynamic = true;
-                } else {
-                    // The binary that actually runs (`/bin/sh -c`).
-                    programs.insert("sh".to_owned());
-                }
-            } else {
-                dynamic = true;
-            }
-        }
-    }
-    if dynamic || programs.is_empty() {
-        return yaml.replace(
-            "  exec: true\n",
-            "  # exec: true is not a paste-ready grant — name the binary \
-             (`exec: [\"sh\"]` for shell: · the argv program for command:)\n",
-        );
-    }
-    let list = programs
-        .iter()
-        .map(|p| format!("\"{p}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
-    yaml.replace("  exec: true\n", &format!("  exec: [{list}]\n"))
+/// A program allowlist cannot admit shell strings. Unknown exec authority
+/// stays comment-only until the operator rewrites or resolves the command.
+fn tighten_exec_yaml(yaml: &str) -> String {
+    yaml.replace(
+        "  exec: true\n",
+        "  # exec grant omitted: no paste-ready program allowlist can be inferred.\n\
+         # rewrite shell: as command: [\"program\", ...] before granting its program.\n\
+         # For dynamic argv, resolve the intended program before declaring exec.\n",
+    )
 }
 
 #[cfg(test)]

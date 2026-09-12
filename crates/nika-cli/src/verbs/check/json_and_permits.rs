@@ -32,7 +32,7 @@ fn infer_permits_on_a_red_file_is_not_exit_0() {
 }
 
 #[test]
-fn infer_permits_shell_form_names_sh_not_true() {
+fn infer_permits_shell_form_is_comment_only_until_rewritten() {
     let dir = std::env::temp_dir().join(format!("nika-b15-sh-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let path = dir.join("shell.nika.yaml");
@@ -48,9 +48,21 @@ fn infer_permits_shell_form_names_sh_not_true() {
         out.text
     );
     assert!(
-        out.text.contains("exec: [\"sh\"]") || out.text.contains("exec: [\"echo\"]"),
-        "B15 infers the binary: {}",
+        !out.text.lines().any(|line| line.starts_with("  exec:")),
+        "a program allowlist cannot admit the unchanged shell body: {}",
         out.text
+    );
+    assert!(
+        out.text.contains("rewrite shell:") && out.text.contains("command:"),
+        "{}",
+        out.text
+    );
+    let json = run_infer_permits(path.to_str().expect("utf8"), true);
+    let payload: serde_json::Value = serde_json::from_str(&json.text).expect("JSON output");
+    let yaml = payload["permits_yaml"].as_str().expect("inferred YAML");
+    assert!(
+        !yaml.lines().any(|line| line.starts_with("  exec:")),
+        "{yaml}"
     );
 }
 
