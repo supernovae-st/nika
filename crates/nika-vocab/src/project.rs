@@ -514,6 +514,36 @@ impl std::error::Error for ProjectError {}
 /// YAML (the line names it), or a closed-grammar fault (unknown key ·
 /// frozen tag · bad value).
 pub fn discover(start: &Path) -> Result<Option<(PathBuf, Project)>, ProjectError> {
+    let found = discover_reachable(start)?;
+    if let Some((path, err)) = &found.unreachable {
+        return Err(ProjectError::io(path, err));
+    }
+    Ok(found.found)
+}
+
+/// What the walk saw from here.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct Discovery {
+    /// The governing file and its parse — `None` when no file governs.
+    pub found: Option<(PathBuf, Project)>,
+    /// An ancestor `nika.yaml` this process is not ALLOWED to read (an
+    /// exec sandbox · another owner's directory), with the refusal the
+    /// OS gave. Its law cannot apply from here; a consumer says so and
+    /// carries on (#1547) — [`discover`] turns it into a refusal instead.
+    pub unreachable: Option<(PathBuf, std::io::Error)>,
+}
+
+/// [`discover`], except that an ancestor answering `PermissionDenied`
+/// ends the walk as [`Discovery::unreachable`] instead of a refusal. A
+/// nested `nika` under an exec sandbox meets the repository's root file
+/// exactly this way, and refusing there masked every finding of the
+/// workflow itself (#1547). A file that reads but will not parse, and
+/// every other read error, still refuse.
+///
+/// # Errors
+/// As [`discover`], minus the permission case.
+pub fn discover_reachable(start: &Path) -> Result<Discovery, ProjectError> {
     for dir in start.ancestors() {
         let candidate = dir.join(FILE_NAME);
         // seam-bypass-ok: local operator config, read-only — the
@@ -521,15 +551,27 @@ pub fn discover(start: &Path) -> Result<Option<(PathBuf, Project)>, ProjectError
         match std::fs::read_to_string(&candidate) {
             Ok(text) => {
                 let project = parse(&text).map_err(|e| e.in_path(&candidate))?;
-                return Ok(Some((candidate, project)));
+                return Ok(Discovery {
+                    found: Some((candidate, project)),
+                    unreachable: None,
+                });
             }
             // Absent here → keep walking (the arm's fall-through IS
             // the walk; an explicit `continue` trips the lint).
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                return Ok(Discovery {
+                    found: None,
+                    unreachable: Some((candidate, e)),
+                });
+            }
             Err(e) => return Err(ProjectError::io(&candidate, &e)),
         }
     }
-    Ok(None)
+    Ok(Discovery {
+        found: None,
+        unreachable: None,
+    })
 }
 
 /// The CWD door — discovery walks up from the invocation directory,

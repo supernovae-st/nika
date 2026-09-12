@@ -698,6 +698,27 @@ impl<T> core::clone::CloneToUninit for nika_vocab::project::ArmEntry where T: co
 pub unsafe fn nika_vocab::project::ArmEntry::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::project::ArmEntry
 pub fn nika_vocab::project::ArmEntry::from(t: T) -> T
+#[non_exhaustive] pub struct nika_vocab::project::Discovery
+pub nika_vocab::project::Discovery::found: core::option::Option<(std::path::PathBuf, nika_vocab::project::Project)>
+pub nika_vocab::project::Discovery::unreachable: core::option::Option<(std::path::PathBuf, core::io::error::Error)>
+impl core::fmt::Debug for nika_vocab::project::Discovery
+pub fn nika_vocab::project::Discovery::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_vocab::project::Discovery where U: core::convert::From<T>
+pub fn nika_vocab::project::Discovery::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::project::Discovery where U: core::convert::Into<T>
+pub type nika_vocab::project::Discovery::Error = core::convert::Infallible
+pub fn nika_vocab::project::Discovery::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::project::Discovery where U: core::convert::TryFrom<T>
+pub type nika_vocab::project::Discovery::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::project::Discovery::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_vocab::project::Discovery where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::project::Discovery::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::project::Discovery where T: ?core::marker::Sized
+pub fn nika_vocab::project::Discovery::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::project::Discovery where T: ?core::marker::Sized
+pub fn nika_vocab::project::Discovery::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_vocab::project::Discovery
+pub fn nika_vocab::project::Discovery::from(t: T) -> T
 #[non_exhaustive] pub struct nika_vocab::project::Project
 pub nika_vocab::project::Project::ceiling: core::option::Option<f64>
 pub nika_vocab::project::Project::name: core::option::Option<alloc::string::String>
@@ -856,6 +877,7 @@ pub const nika_vocab::project::STARTER: &str
 pub const nika_vocab::project::TOP_LEVEL_KEYS: &[&str]
 pub fn nika_vocab::project::discover(start: &std::path::Path) -> core::result::Result<core::option::Option<(std::path::PathBuf, nika_vocab::project::Project)>, nika_vocab::project::ProjectError>
 pub fn nika_vocab::project::discover_from_cwd() -> core::result::Result<core::option::Option<(std::path::PathBuf, nika_vocab::project::Project)>, nika_vocab::project::ProjectError>
+pub fn nika_vocab::project::discover_reachable(start: &std::path::Path) -> core::result::Result<nika_vocab::project::Discovery, nika_vocab::project::ProjectError>
 pub fn nika_vocab::project::is_kebab_id(s: &str) -> bool
 pub fn nika_vocab::project::is_project_document(yaml: &str) -> bool
 pub fn nika_vocab::project::parse(text: &str) -> core::result::Result<nika_vocab::project::Project, nika_vocab::project::ProjectError>
