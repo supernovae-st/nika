@@ -40,6 +40,15 @@ effect scope and budget. Continue through requested checks, repairs and
 execution. A missing business decision or human-gate answer remains a question;
 a clean checker result does not supply authorization or prove effects.
 
+For authoring details, open the project-local
+[authoring skill](.agents/skills/nika-authoring/SKILL.md), then only the reference
+needed for the task. `nika init` ships that entry and its six linked guides;
+clients that do not discover `.agents/skills` can follow this link directly.
+Check `nika --version` and use the installed schema/catalog for supported names.
+An installed marketplace plugin and this project's scaffold can be from different
+releases. `nika doctor` diagnoses installed plugin drift; init preserves existing
+files, so review a fresh scaffold in a separate directory before updating them.
+
 ## The workflow tools
 - **Author** · `nika new <template> <file>.nika.yaml` (or write one —
   the envelope is `nika: <id>` (kebab-case — the id lives ON the tag)
@@ -352,8 +361,9 @@ const CURSOR_DELEGATION: &str = include_str!(concat!(
     "/../../.agents/plugins/nika/rules/nika-delegation.mdc"
 ));
 
-/// `.cursor/hooks-nika/*.sh` — the three seatbelts, verbatim from the
-/// kit. The scripts sniff their dialect from stdin and self-silence
+/// `.cursor/hooks-nika/*.sh` — the three seatbelts from the kit. The session
+/// hook's one provenance slot is stamped by `apply_briefs`; all other script
+/// bytes are preserved. The scripts sniff their dialect from stdin and self-silence
 /// outside nika contexts, so carrying them project-side is safe by the
 /// same proof that ships them in the plugin.
 const HOOK_SESSION_CONTEXT: &str = include_str!(concat!(

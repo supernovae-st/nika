@@ -30,6 +30,11 @@
 # so nothing user-controlled can break the JSON.
 set -euo pipefail
 
+# nika init stamps ONLY this slot in its project copy. The stamp describes
+# this hook's producer, not the contents of files an init rerun skipped.
+# Plugin installs leave it empty and read their own manifest below.
+scaffold_version=""
+
 input="$(cat)"
 
 # Dialect sniff: `hook_event_name` is Claude Code's (SessionStart);
@@ -134,7 +139,7 @@ fi
 
 # The map is STATIC — fixed content, hand-escaped once, zero
 # interpolation. Both envelopes carry the SAME text.
-map='This workspace uses Nika (nika.sh): repeatable AI work lives in .nika.yaml workflow files, audited BEFORE they run (nika check), metered while they run, with recording enabled by default (.nika/traces/). Missing recording does not prove no effects. Laws: (1) nika check <file> must pass before any run. When the human asks you to run it, run it yourself with --max-cost-usd (announce the ceiling first); nika guard judges every run at the hook. NEVER answer a human gate for them: when a run pauses (exit 4), surface the gate'"'"'s question in the conversation verbatim, wait for their answer, then resume with --resume <trace> --answer <task>=<their answer>. (2) Cost honesty: report the output-token estimate and unpriced input billing; a local model is unpriced, never free. Already admitted calls may overshoot a metered cap. A mock model does not remove real tools or effects. (3) The boundary: an absent permits: block is ZERO authority, not a floor · any effect with no grant refuses NIKA-AUTH-006 at check. (4) Values ride three authorities · inputs (caller-supplied, and deployment-supplied via required: false + a default:) · const (baked in the file) · secrets (store references) · vars: and env: are dead envelope fields, and config: is not a field at all (NIKA-PARSE-005). Installed surfaces: read-only MCP oracle (nika_check, nika_inspect, nika_explain, nika_schema, nika_examples, nika_template, nika_canon, nika_catalog, nika_tools) · subagents nika-author (write a workflow), nika-debugger (root-cause a run from its trace), nika-migrator (port a script) · skills nika-authoring, nika-debugging, nika-operating, nika-migration · commands check, explain, new, trace, permits, doctor (slash-prefixed per your client). CLI: nika check|run|try|test|trace|explain|inspect|new|catalog|doctor|welcome|wire|model|init|spec|sign|key|mcp|lsp|dap|completions. Use the relevant skill for requested repeatable workflow work, not unrelated code edits or one-off answers. Read only the references needed for the task. Preserve existing authorization and continue through the requested outcome; the selected model does not change engine contracts.'
+map='This workspace uses Nika (nika.sh): repeatable AI work lives in .nika.yaml workflow files, audited BEFORE they run (nika check), metered while they run, with recording enabled by default (.nika/traces/). Missing recording does not prove no effects. Laws: (1) nika check <file> must pass before any run. When the human asks you to run it, run it yourself with --max-cost-usd (announce the ceiling first); nika guard judges every run at the hook. NEVER answer a human gate for them: when a run pauses (exit 4), surface the gate'"'"'s question in the conversation verbatim, wait for their answer, then resume with --resume <trace> --answer <task>=<their answer>. (2) Cost honesty: report the output-token estimate and unpriced input billing; a local model is unpriced, never free. Already admitted calls may overshoot a metered cap. A mock model does not remove real tools or effects. (3) The boundary: an absent permits: block is ZERO authority, not a floor · any effect with no grant refuses NIKA-AUTH-006 at check. (4) Values ride three authorities · inputs (caller-supplied, and deployment-supplied via required: false + a default:) · const (baked in the file) · secrets (store references) · vars: and env: are dead envelope fields, and config: is not a field at all (NIKA-PARSE-005). Kit surfaces (availability depends on the installation): read-only MCP oracle (nika_check, nika_inspect, nika_explain, nika_schema, nika_examples, nika_template, nika_canon, nika_catalog, nika_tools) · subagents nika-author (write a workflow), nika-debugger (root-cause a run from its trace), nika-migrator (port a script) · skills nika-authoring, nika-debugging, nika-operating, nika-migration · commands check, explain, new, trace, permits, doctor (slash-prefixed per your client). CLI: nika check|run|try|test|trace|explain|inspect|new|catalog|doctor|welcome|wire|model|init|spec|sign|key|mcp|lsp|dap|completions. Use the relevant skill for requested repeatable workflow work, not unrelated code edits or one-off answers. Read only the references needed for the task. Preserve existing authorization and continue through the requested outcome; the selected model does not change engine contracts.'
 
 # A claim names its proof: the resolved root and the evidence source
 # (P0-14 — an unnamed "this workspace" taught the agent to trust a
@@ -152,8 +157,12 @@ fi
 
 # Version handshake — kit manifest vs `nika --version`, major.minor
 # only (the kit follows release trains; patch drift is not a finding).
-# Both tokens sanitized to [0-9.]; unreadable on either side → silence
-# (never guess a version).
+# Select the version token before normalizing: the long binary version also
+# carries a git hash, whose digits are not part of its semantic version.
+# An unreadable version stays unknown; it never becomes an inferred match.
+release_version() {
+  sed -nE 's/^([0-9]+\.[0-9]+\.[0-9]+)([-+][[:alnum:].-]+)?$/\1/p'
+}
 drift=""
 kit_raw=""
 for m in .claude-plugin/plugin.json .codex-plugin/plugin.json .cursor-plugin/plugin.json; do
@@ -162,8 +171,15 @@ for m in .claude-plugin/plugin.json .codex-plugin/plugin.json .cursor-plugin/plu
     [ -n "$kit_raw" ] && break
   fi
 done
-kitv="$(printf '%s' "$kit_raw" | tr -cd '0-9.')"
-binv="$(nika --version 2>/dev/null | tr -cd '0-9.' || true)"
+kitv="$(printf '%s' "$scaffold_version" | release_version)"
+kit_label='project hook scaffold'
+refresh=' Generate a fresh scaffold with nika init <new-dir> --yes, then review and merge its hooks and authoring resources into this project. Existing files are skipped by default; the hook stamp does not attest skipped or edited files.'
+if [ -z "$kitv" ]; then
+  kitv="$(printf '%s' "$kit_raw" | sed -nE 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | release_version)"
+  kit_label='plugin kit'
+  refresh=' Refresh the kit from your marketplace (Codex: codex plugin marketplace upgrade nika · Claude Code: claude plugin marketplace update nika, then claude plugin update nika@nika).'
+fi
+binv="$(nika --version 2>/dev/null | sed -nE 's/^nika ([^[:space:]]+).*$/\1/p' | release_version || true)"
 if [ -n "$kitv" ] && [ -n "$binv" ]; then
   kit_maj="$(printf '%s' "$kitv" | cut -d. -f1)"
   kit_min="$(printf '%s' "$kitv" | cut -d. -f2)"
@@ -171,9 +187,9 @@ if [ -n "$kitv" ] && [ -n "$binv" ]; then
   bin_min="$(printf '%s' "$binv" | cut -d. -f2)"
   if [ -n "$kit_maj" ] && [ -n "$kit_min" ] && [ -n "$bin_maj" ] && [ -n "$bin_min" ]; then
     if [ "$bin_maj" -lt "$kit_maj" ] || { [ "$bin_maj" -eq "$kit_maj" ] && [ "$bin_min" -lt "$kit_min" ]; }; then
-      drift=' Version drift: plugin kit '"$kitv"' rides ahead of nika binary '"$binv"'. Align the binary: brew upgrade nika.'
+      drift=' Version drift: '"$kit_label $kitv"' rides ahead of nika binary '"$binv"'. Align the binary: brew upgrade nika.'
     elif [ "$bin_maj" -gt "$kit_maj" ] || { [ "$bin_maj" -eq "$kit_maj" ] && [ "$bin_min" -gt "$kit_min" ]; }; then
-      drift=' Version drift: nika binary '"$binv"' rides ahead of plugin kit '"$kitv"'. Refresh the kit from your marketplace (Codex: codex plugin marketplace upgrade nika · Claude Code: claude plugin marketplace update nika, then claude plugin update nika@nika).'
+      drift=' Version drift: nika binary '"$binv"' rides ahead of '"$kit_label $kitv"'.'"$refresh"
     fi
   fi
 fi
