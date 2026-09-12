@@ -149,9 +149,13 @@ fn canon_row(code: &str, door: Door) -> Option<String> {
         .find(|r| r.code == code)?;
     // The contract lesson, when the code earned one (one voice: the MCP
     // explain appends the same text — `nika_error::codes::spec_contract_help`).
-    let lesson = nika_error::codes::spec_contract_help(code)
-        .map(|l| format!("\n{l}"))
-        .unwrap_or_default();
+    let lesson = match code {
+        "NIKA-VALUES-001" => Some(nika_schema::error::DeadForm::Vars.field_teaching()),
+        "NIKA-VALUES-002" => Some(nika_schema::error::DeadForm::Env.field_teaching()),
+        _ => nika_error::codes::spec_contract_help(code).map(str::to_owned),
+    }
+    .map(|lesson| format!("\n{}", door.reword(&lesson)))
+    .unwrap_or_default();
     let fix = cli_fix_hint(code)
         .map(|h| format!("  fix: {}\n\n", door.reword(h)))
         .unwrap_or_default();
@@ -407,6 +411,24 @@ mod tests {
     /// machine surface reads.
     fn run(wire: &str) -> VerbOutput {
         super::run(wire, Theme::new(false, false, false))
+    }
+
+    #[test]
+    fn explain_shares_value_routing_and_exec_shape_teaching() {
+        let values = run("NIKA-VALUES-001");
+        let shared = nika_schema::error::DeadForm::Vars.field_teaching();
+        assert!(values.text.contains(&shared), "{}", values.text);
+        let parse = run("NIKA-PARSE-019");
+        for lesson in ["command: [", "shell:", "nika check --fix"] {
+            assert!(parse.text.contains(lesson), "{}", parse.text);
+        }
+        let oracle = super::run_for(
+            "NIKA-VALUES-001",
+            Theme::new(false, false, false),
+            Door::Oracle,
+        );
+        assert!(oracle.text.contains("`nika_check` with `fix: true`"));
+        assert!(!oracle.text.contains("`nika check --fix`"));
     }
 
     /// R4 — the credential refusal teaches the seat escape hatch: the

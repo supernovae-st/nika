@@ -604,6 +604,16 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
     }
 }
 
+// One literal feeds both the parser refusal and the offline code lesson.
+macro_rules! exec_body_help {
+    () => {
+        "`exec:` body must be a YAML mapping. Choose exactly one form:\n\n  exec:\n    command: [ls, -la]\n\n  exec:\n    shell: \"ls -la\"\n\n`command:` is argv-only; pipes and redirects belong in explicit `shell:`. `nika check --fix` can migrate the old scalar form."
+    };
+}
+
+/// The shared exec-body shape lesson, consumed by parsing and offline explain.
+pub const EXEC_BODY_HELP: &str = exec_body_help!();
+
 /// The per-code contract lessons for the SPEC conformance codes — the
 /// high-traffic refusals whose registry row states WHAT while the user
 /// at the terminal needs the GRAMMAR (gauntlet 2026-07-31, twice: the
@@ -615,13 +625,11 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
 pub fn spec_contract_help(code: &str) -> Option<&'static str> {
     match code {
         "NIKA-VAR-005" => Some(nika_tmpl::callable::CALLABLE_HELP),
-        "NIKA-PARSE-019" => Some(
-            "  The field's YAML SHAPE is wrong. `tasks:` is a MAP keyed by \
-             task id. An `invoke:` tool id is `nika:<path>` OR \
-             `mcp:<server>/<tool>` (one colon · a slash inside `mcp:`). \
-             The finding names the field whose shape to fix — `nika explain` \
-             cites the same phrase `nika check` printed.\n",
-        ),
+        "NIKA-PARSE-019" => Some(concat!(
+            "  The field's YAML shape is wrong. `tasks:` is a map keyed by task id.\n\n",
+            exec_body_help!(),
+            "\n\nAn `invoke:` tool id is `nika:<path>` or `mcp:<server>/<tool>` (one colon, a slash inside `mcp:`). The finding identifies the field to repair.\n",
+        )),
         "NIKA-INFER-004" => Some(
             "  A thinking model spent the `max_tokens` budget on its \
              reasoning trace and the visible answer is blank. `nika check` \
