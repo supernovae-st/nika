@@ -269,13 +269,21 @@ mod tests {
     }
 
     /// ADR-124 · the plugin's teaching surface is derived, never typed:
-    /// every example slug the engine-owned authoring skill names resolves
-    /// in the pack. Measured 2026-09-03: the intent table taught six
+    /// every example slug the engine-owned authoring skill and its linked
+    /// example guide name resolves in the pack. Measured 2026-09-03:
+    /// the intent table taught six
     /// `tN-` slugs no example carried (`t1-meeting-actions` …) and no test
     /// read it. This one does.
     #[test]
     fn the_authoring_skill_teaches_only_living_example_slugs() {
         let skill = include_str!("../../../.agents/plugins/nika/skills/nika-authoring/SKILL.md");
+        let examples = include_str!(
+            "../../../.agents/plugins/nika/skills/nika-authoring/references/workspace-and-examples.md"
+        );
+        assert!(
+            skill.contains("](references/workspace-and-examples.md)"),
+            "the skill must link to the example guide being checked"
+        );
         let slug_shaped = |token: &str| {
             token.contains('-')
                 && !token.starts_with('-')
@@ -283,7 +291,7 @@ mod tests {
                     .bytes()
                     .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
         };
-        // Every backticked token anywhere in the skill that wears the
+        // Every backticked token in the skill or its example guide that wears the
         // example-slug shape — `NN-name` or `tN-name` — must resolve.
         let numbered = |token: &str| {
             let (head, _) = token.split_once('-').unwrap_or((token, ""));
@@ -293,7 +301,7 @@ mod tests {
         };
         let mut table_rows = 0;
         let mut in_table = false;
-        for line in skill.lines() {
+        for line in skill.lines().chain(examples.lines()) {
             if line.starts_with("### Which example answers which intent") {
                 in_table = true;
                 continue;
