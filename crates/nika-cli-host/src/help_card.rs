@@ -111,13 +111,27 @@ pub fn classify_help(argv: &[impl AsRef<OsStr>]) -> Option<HelpKind> {
     })
 }
 
-/// `HOME=$scratch` without `env -i` still walks the operator's real
-/// home on macOS (`dirs` / Directory Services ignore `$HOME`). Warn
-/// when HOME looks like a scratch isolation attempt.
+/// Warn when the configured HOME differs from the account database.
+/// HOME selects Nika's home; it does not clear other process environment.
 #[must_use]
 pub fn isolation_warning() -> Option<String> {
     let home = env_home()?;
-    home_looks_like_scratch(&home).then(|| isolation_warning_text(&home))
+    let account = nix::unistd::User::from_uid(nix::unistd::Uid::current())
+        .ok()
+        .flatten();
+    isolation_warning_for(&home, account.as_ref().map(|user| user.dir.as_path()))
+}
+
+fn isolation_warning_for(home: &str, account_home: Option<&Path>) -> Option<String> {
+    let observation = match account_home {
+        Some(account) if Path::new(home) == account => return None,
+        Some(_) => "configured HOME differs from the account home.",
+        None => "the account home is unavailable; HOME could not be compared.",
+    };
+    Some(format!(
+        "nika: home isolation: {observation} {}",
+        isolation_warning_text(home)
+    ))
 }
 
 /// Whether `$HOME` looks like a scratch isolation directory.
@@ -131,13 +145,12 @@ pub fn home_looks_like_scratch(home: &str) -> bool {
         || home.contains("scratch-")
 }
 
-/// The isolation warning for a scratch `$HOME` that still inherited the env.
+/// Explain the boundary between selecting a home and clearing environment.
 #[must_use]
 pub fn isolation_warning_text(home: &str) -> String {
     format!(
-        "nika: HOME={home} looks like a scratch, but this process still inherited \
-         the rest of the environment. Isolation needs `env -i HOME={home} \
-         PATH=\"$PATH\" nika …` — HOME alone does not move ~/.nika on macOS."
+        "HOME={home:?} selects Nika's home, but other environment variables still apply. \
+         For a clean environment: env -i HOME=\"$HOME\" PATH=\"$PATH\" nika …"
     )
 }
 
@@ -254,6 +267,33 @@ mod tests {
         assert!(!home_looks_like_scratch("/home/nika"));
         let text = isolation_warning_text("/tmp/scratch");
         assert!(text.contains("env -i"), "{text}");
-        assert!(text.contains("HOME=/tmp/scratch"), "{text}");
+        assert!(text.contains("HOME=\"$HOME\""), "{text}");
+    }
+
+    #[test]
+    fn home_warning_compares_the_account_instead_of_guessing_from_the_path() {
+        assert!(isolation_warning_for("/tmp/service", Some(Path::new("/tmp/service"))).is_none());
+        let text = isolation_warning_for("/opt/alternate-home", Some(Path::new("/home/account")))
+            .expect("a non-temporary alternate HOME is still different");
+        assert!(text.contains("differs from the account home"), "{text}");
+        assert!(
+            text.contains("other environment variables still apply"),
+            "{text}"
+        );
+        assert!(!text.contains("does not move"), "{text}");
+        let unusual =
+            isolation_warning_for("/opt/a\nforged-line", Some(Path::new("/home/account")))
+                .expect("different HOME");
+        assert!(
+            !unusual.contains('\n'),
+            "the path cannot inject a diagnostic line"
+        );
+        let unknown = isolation_warning_for("/opt/alternate-home", None)
+            .expect("an unavailable account database still teaches the environment boundary");
+        assert!(unknown.contains("account home is unavailable"), "{unknown}");
+        assert!(
+            !unknown.contains("differs from"),
+            "unknown is not a comparison"
+        );
     }
 }

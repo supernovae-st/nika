@@ -631,6 +631,7 @@ fn mirror_verb(json: bool, deep: bool, theme: Theme) -> u8 {
 /// precedent) — `--verbose` unfolds the healthy machine's advisory
 /// notes (B-8b · the human lane defaults to calm).
 fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
+    warn_about_home(!args.json && !std::io::stderr().is_terminal());
     emit(&verbs::doctor::run_with(
         args.ping,
         args.json,
@@ -638,6 +639,13 @@ fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
         theme,
         resident_finding(),
     ))
+}
+
+/// One emission seam for the front door and the typed command routes.
+fn warn_about_home(should_warn: bool) {
+    if should_warn && let Some(warning) = help_card::isolation_warning() {
+        eprintln!("{warning}");
+    }
 }
 
 /// Print a verb's text on the right stream and return its exit code.
@@ -736,6 +744,7 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     }
     match first {
         None => {
+            warn_about_home(!json && std::io::stderr().is_terminal());
             let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
             // ADR-125 · bare `nika` on an interactive terminal is the native
             // session; a pipe keeps the deterministic concierge (exit 0).
@@ -802,11 +811,6 @@ fn real_main() -> std::process::ExitCode {
         }
         None => {}
     }
-    if std::io::stderr().is_terminal()
-        && let Some(warning) = help_card::isolation_warning()
-    {
-        eprintln!("{warning}");
-    }
     if let Some(code) = front_door(&argv) {
         return code;
     }
@@ -821,6 +825,10 @@ fn real_main() -> std::process::ExitCode {
         argv
     };
     let cli = Cli::parse_from(std::iter::once(std::ffi::OsString::from("nika")).chain(argv));
+    warn_about_home(
+        std::io::stderr().is_terminal()
+            && !matches!(&cli.command, Some(Command::Doctor(doctor)) if doctor.json),
+    );
     let (color, link_when) = cli.presentation();
     let plain_theme = term_theme(
         color.with_no_color(false),
