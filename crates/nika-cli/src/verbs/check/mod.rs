@@ -215,15 +215,16 @@ pub fn run(
 }
 
 /// Recompute the report as if `nika run --model` overrode the envelope.
-fn overridden(
+pub(super) fn overridden(
     wf: nika_schema::raw::RawWorkflow,
     report: nika_check::CheckReport,
     model_override: Option<&str>,
+    path: &str,
 ) -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) {
     match model_override {
         Some(m) => {
             let wf = crate::verbs::with_model_override(&wf, m);
-            let report = nika_check::check(&wf);
+            let report = crate::verbs::check_workflow(&wf, path);
             (wf, report)
         }
         None => (wf, report),
@@ -399,6 +400,7 @@ fn run_target_with_profile_and_slots(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn run_source_with_profile(
     source: &RunSource,
     json: bool,
@@ -434,7 +436,7 @@ fn run_source_with_profile_and_slots(
         Err(out) => return out,
     };
     let path = source.logical_path();
-    let (wf, report) = overridden(wf, report, model_override);
+    let (wf, report) = overridden(wf, report, model_override, path);
     let skills = super::resolve_workflow_skills(&wf, super::workflow_base(path));
     let slot_only = allow_slot_only
         && !report.slot_findings.is_empty()
