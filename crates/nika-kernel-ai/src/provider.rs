@@ -434,7 +434,7 @@ pub enum ProviderError {
     },
 
     /// Authentication failed.
-    #[error("authentication failed: {reason}")]
+    #[error("authentication failed: {reason} — {}", auth_failure_help())]
     AuthFailed {
         /// Why auth failed.
         reason: String,
@@ -446,6 +446,12 @@ pub enum ProviderError {
         /// Error description.
         reason: String,
     },
+}
+
+fn auth_failure_help() -> &'static str {
+    nika_error::codes::spec_contract_help("NIKA-INFER-001")
+        .unwrap_or_default()
+        .trim()
 }
 
 impl ProviderError {

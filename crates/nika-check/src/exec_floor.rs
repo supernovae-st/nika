@@ -112,8 +112,10 @@ fn describe(refusal: &ArgvFloorRefusal) -> (String, String) {
                  command never starts)"
             ),
             format!(
-                "move the code into a script file and invoke `{base}` on the file \
-                 (a file is data the floor can trust; inline code is not)"
+                "move the code into a script file and invoke `{base}` on the file; \
+                 grant `{base}` in `permits.exec` and the script path in \
+                 `permits.fs.read` (plus only the paths and effects the script needs); \
+                 the script remains confined"
             ),
         ),
         ArgvFloorRefusal::DangerousProgram { base } => (
@@ -167,6 +169,30 @@ mod tests {
         report(yaml).exec_floor_findings
     }
 
+    #[test]
+    fn script_file_repair_requires_both_program_and_read_grants() {
+        let body =
+            "nika: script-repair\ntasks:\n  work:\n    exec: { command: [sh, ./worker.sh] }\n";
+        for grants in ["  exec: [sh]\n", "  fs: { read: [./worker.sh] }\n"] {
+            let refused = report(&format!("{body}permits:\n{grants}"));
+            assert!(
+                !refused.is_clean(),
+                "a partial script repair is not sufficient"
+            );
+            assert!(
+                refused
+                    .findings
+                    .iter()
+                    .any(|f| f.code.as_deref() == Some("NIKA-SEC-004"))
+            );
+        }
+        let repaired = report(&format!(
+            "{body}permits:\n  exec: [sh]\n  fs: {{ read: [./worker.sh] }}\n"
+        ));
+        assert!(repaired.is_clean(), "{:?}", repaired.findings);
+        assert!(repaired.exec_floor_findings.is_empty());
+    }
+
     /// THE issue's repro (#605): `["bash", "-c", "echo hello"]` checked
     /// GREEN while the run refused it with NIKA-SEC-001. The check now
     /// refuses too — a finding, not a hint.
@@ -198,6 +224,8 @@ mod tests {
             "the real route is taught: {}",
             hit.message
         );
+        assert!(hit.message.contains("permits.exec"), "{}", hit.message);
+        assert!(hit.message.contains("permits.fs.read"), "{}", hit.message);
         // N-6 · the phantom-route pin: `pre_validated` is the kernel's
         // internal wire flag, never authorable — a finding may only teach
         // a field an author can write.

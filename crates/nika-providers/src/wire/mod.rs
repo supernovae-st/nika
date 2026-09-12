@@ -392,7 +392,11 @@ mod tests {
     fn status_error_maps_the_table() {
         let auth = status_error(401, br#"{"error":{"message":"bad key"}}"#, None, "m");
         assert!(matches!(auth, ProviderError::AuthFailed { .. }));
-        assert_eq!(auth.to_string(), "authentication failed: bad key");
+        assert!(
+            auth.to_string()
+                .starts_with("authentication failed: bad key — ")
+        );
+        assert!(auth.to_string().contains("does not probe present keys"));
 
         let nf = status_error(404, b"{}", None, "anthropic/claude-x");
         assert!(matches!(nf, ProviderError::ModelNotFound { .. }));
