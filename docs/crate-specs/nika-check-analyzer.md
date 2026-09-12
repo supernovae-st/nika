@@ -28,6 +28,9 @@ module reads and which reads none of them back:
   compiles with — no check↔runtime drift)
 - `schema_lint` · the jsonschema meta-check (`validator_for`, the SAME
   one the runtime compiles a `schema:` with)
+- `model_scope` · explicit infer/agent model pins and child invocation sites
+  that an envelope override does not replace; declaration facts only, with
+  no model resolution, billing judgment or child loading
 
 The boundary was measured, not themed · **33** edges point into this
 plane from the rest of `nika-check`, and **0** point back out.
