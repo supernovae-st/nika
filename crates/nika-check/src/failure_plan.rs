@@ -191,7 +191,7 @@ mod tests {
                 let wf = fs_fixture(tool, path, true);
                 let report = crate::check(&wf);
                 let plan = passwd_reads(&wf, &report);
-                assert_eq!(plan.len(), 1, "{tool}, {path}: {plan:?}");
+                assert_eq!(plan.len(), 1, "{tool}, {path}");
                 assert_eq!(plan[0].shape, "host_passwd_read");
                 assert_eq!(plan[0].code, "NIKA-SEC-004");
             }
@@ -227,7 +227,7 @@ mod tests {
                 let wf = fs_fixture(tool, path, false);
                 let report = crate::check(&wf);
                 let plan = passwd_reads(&wf, &report);
-                assert_eq!(plan.len(), 1, "{tool}, {path}: {plan:?}");
+                assert_eq!(plan.len(), 1, "{tool}, {path}");
                 assert_eq!(plan[0].code, "NIKA-AUTH-006");
             }
         }
