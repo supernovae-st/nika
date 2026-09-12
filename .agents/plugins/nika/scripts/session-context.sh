@@ -187,7 +187,7 @@ if [ -n "$kitv" ] && [ -n "$binv" ]; then
   bin_min="$(printf '%s' "$binv" | cut -d. -f2)"
   if [ -n "$kit_maj" ] && [ -n "$kit_min" ] && [ -n "$bin_maj" ] && [ -n "$bin_min" ]; then
     if [ "$bin_maj" -lt "$kit_maj" ] || { [ "$bin_maj" -eq "$kit_maj" ] && [ "$bin_min" -lt "$kit_min" ]; }; then
-      drift=' Version drift: '"$kit_label $kitv"' rides ahead of nika binary '"$binv"'. Align the binary: brew upgrade nika.'
+      drift=' Version drift: '"$kit_label $kitv"' rides ahead of nika binary '"$binv"'. Update the nika executable resolved by PATH using its installation method, then verify nika --version.'
     elif [ "$bin_maj" -gt "$kit_maj" ] || { [ "$bin_maj" -eq "$kit_maj" ] && [ "$bin_min" -gt "$kit_min" ]; }; then
       drift=' Version drift: nika binary '"$binv"' rides ahead of '"$kit_label $kitv"'.'"$refresh"
     fi

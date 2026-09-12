@@ -142,6 +142,8 @@ unset CLAUDE_PLUGIN_ROOT
 play "$ROOT" "{\"cwd\":\"$WS\"}"
 need binary-build-hash 'nika binary 0.117.2.'
 deny binary-build-hash '0.117.24123'
+deny binary-build-hash 'brew upgrade nika'
+need binary-build-hash 'Update the nika executable resolved by PATH using its installation method'
 
 NIKA_TEST_VERSION='nika 0.118.9 (1234567)'
 play "$ROOT" "{\"cwd\":\"$WS\"}"
