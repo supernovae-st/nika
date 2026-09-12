@@ -1030,6 +1030,7 @@ pub fn nika_cap::judge_harness_ask(facts: &nika_cap::HarnessAskFacts, permits: c
 pub fn nika_cap::lexically_normalize(path: &str) -> alloc::string::String
 pub fn nika_cap::path_leaves_workspace(path: &str) -> bool
 pub fn nika_cap::pure_internal_for_all_calls(tool: &str) -> bool
+pub fn nika_cap::required_fs_directions(tool: &str) -> core::option::Option<(bool, bool)>
 pub fn nika_cap::tool_grant_admits_ingress(grant: &str) -> bool
 pub fn nika_cap::trifecta_verdict(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> nika_cap::TrifectaVerdict
 pub fn nika_cap::withheld_jq_native(name: &str) -> core::option::Option<&'static nika_cap::WithheldNative>

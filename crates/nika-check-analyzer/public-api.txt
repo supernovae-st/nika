@@ -281,6 +281,8 @@ pub fn nika_check_analyzer::static_args::ConstStrings::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_check_analyzer::static_args::ConstStrings where T: 'static
 pub fn nika_check_analyzer::static_args::ConstStrings::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_check_analyzer::static_args::judgeable_arg(consts: &nika_check_analyzer::static_args::ConstStrings, a: &nika_schema::raw::action::RawInvokeAction, key: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_check_analyzer::static_args::judgeable_program<'a>(command: &'a nika_schema::raw::action::RawCommand, consts: &'a nika_check_analyzer::static_args::ConstStrings) -> core::option::Option<&'a str>
+pub fn nika_check_analyzer::static_args::static_program(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<&str>
 pub fn nika_check_analyzer::static_args::templated_url_host(raw: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_check_analyzer::static_args::url_host(raw: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_check_analyzer::types_contract

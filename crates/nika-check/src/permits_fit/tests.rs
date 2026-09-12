@@ -7,6 +7,7 @@
 
 use super::*;
 
+mod agent_fs;
 mod exec_static;
 
 #[cfg(test)]

@@ -215,7 +215,9 @@ fn check_action(
                 {
                     continue;
                 }
-                if !permits.allows_tool(&tool.value) {
+                if permits.allows_tool(&tool.value) {
+                    check_agent_fs(id, &tool.value, permits, out);
+                } else {
                     escapes_tool(id, "agent", &tool.value, out);
                 }
             }
@@ -226,6 +228,33 @@ fn check_action(
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
         other => unreachable!("unknown action: {other:?}"),
+    }
+}
+
+/// A granted tool with an empty required fs side has no possible legal target.
+fn check_agent_fs(id: &str, tool: &str, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
+    let Some((reads, writes)) = nika_cap::required_fs_directions(tool) else {
+        return;
+    };
+    for (active, write, side) in [(reads, false, "fs.read"), (writes, true, "fs.write")] {
+        if active
+            && permits.fs.as_ref().is_none_or(|fs| {
+                if write {
+                    fs.write.is_empty()
+                } else {
+                    fs.read.is_empty()
+                }
+            })
+        {
+            out.push(CapabilityEscape {
+                task: id.to_owned(),
+                category: "fs",
+                detail: format!("agent tool `{tool}` requires {side}, but that side grants no paths"),
+                fix: Some(format!("grant the intended paths in permits.{side}, or remove `{tool}` from the agent tools")),
+                floor: false,
+                undeclared: false,
+            });
+        }
     }
 }
 
@@ -938,43 +967,13 @@ pub(super) fn literal_arg(a: &RawInvokeAction, key: &str) -> Option<String> {
 /// The judgeable-argument seam — carved into the analysis substrate at the
 /// 15k wall; the paths below keep their spelling for every consumer.
 pub(super) use nika_check_analyzer::static_args::{
-    ConstStrings, judgeable_arg, templated_url_host, url_host,
+    ConstStrings, judgeable_arg, judgeable_program, static_program, templated_url_host, url_host,
 };
 
 /// The raw (un-resolved) string value of `args.<key>` — a `${{ }}` value is
 /// KEPT (the journey needs to see the island, not reject it as dynamic).
 pub(super) fn raw_arg<'a>(a: &'a RawInvokeAction, key: &str) -> Option<&'a str> {
     a.args.as_ref()?.value.get(key)?.as_str()
-}
-
-/// The statically-known program of an ARRAY-form command: `argv[0]` when it
-/// is a literal (argv is execve-direct — no shell expansion — so only a
-/// `${{ }}` island makes it dynamic). `None` for the shell-string form,
-/// which has no single static program to check against an allowlist — a
-/// pipeline can launch any program, so `check_exec` refuses it by FORM
-/// before ever asking for its program.
-pub(super) fn static_program(command: &RawCommand) -> Option<&str> {
-    match command {
-        RawCommand::Argv(_) => command.argv_program().filter(|p| !p.contains("${{")),
-        RawCommand::Shell(_) => None,
-        #[allow(
-            clippy::unreachable,
-            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-        )]
-        other => unreachable!("unknown exec command form: {other:?}"),
-    }
-}
-
-/// Immutable const argv[0] is known even when later argv entries are computed.
-/// Input defaults remain replaceable by the run and cannot authorize a verdict.
-fn judgeable_program<'a>(command: &'a RawCommand, consts: &'a ConstStrings) -> Option<&'a str> {
-    static_program(command).or_else(|| {
-        let program = command.argv_program()?;
-        // Outside whitespace is literal argv data, not expression trivia.
-        (program == program.trim())
-            .then(|| consts.resolve(program))
-            .flatten()
-    })
 }
 
 // `permits_fit/tests.rs`, not `permits_fit_tests.rs` behind a `#[path]`.
