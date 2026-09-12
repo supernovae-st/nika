@@ -37,11 +37,49 @@ class DraftAuthority(unittest.TestCase):
             "read-release-state.sh",
             "release-digest-marker.sh",
             "read-release-provenance.sh",
+            "read-release-payload.sh",
             "gh release download",
             'gh api "repos/${REPO}/releases/',
         ):
             self.assertNotIn(draft_read, source, f"{name} requires draft access")
         return source
+
+    def test_all_payload_consumers_use_the_selected_artifact(self):
+        for name in ("native-attest", "provenance-publish", "provenance-replay-check",
+                     "npm-wasm-publish", "docker", "oci-proof", "release-assets-converge",
+                     "release-final-proof", "finalize", "bump-formula"):
+            with self.subTest(job=name):
+                source = job(name)
+                self.assertIn("name: release-payload", source)
+                self.assertNotIn("pattern: nika-*", source)
+                self.assertNotIn("name: npm-tarball", source)
+                self.assertNotIn("merge-multiple: true", source)
+        source = self.assert_read_only_without_draft_access("release-payload")
+        self.assertIn("release-payload.py select", source)
+        self.assertIn("verify-release-attestations.sh", source)
+        self.assertIn("EVENT_NAME: ${{ github.event_name }}", source)
+        self.assertLess(source.index("verify-release-attestations.sh"),
+                        source.index("name: release-payload"))
+        self.assertIn("needs: [release-draft, npm-wasm-pack]", source)
+        self.assertIn("read-release-payload.sh", job("release-draft"))
+        # Replay verification runs before the artifact is uploaded; consumers
+        # cannot receive a tarball with only a forged checksum sidecar.
+        self.assertRegex(source, r"(?s)name: Verify existing tag attestations[^\n]*\n"
+                         r"        if: github.event_name == 'workflow_dispatch'")
+        self.assertNotIn("continue-on-error", source)
+        for build in ("build", "npm-wasm-pack"):
+            self.assertNotRegex(job(build), r"(?m)^    if:")
+        for name in ("native-attest", "provenance-publish", "provenance-replay-check",
+                     "npm-wasm-publish", "docker", "oci-proof", "release-assets-converge",
+                     "release-final-proof", "finalize"):
+            source = job(name)
+            needs = re.search(r"(?m)^    needs: (.+)$", source)
+            if needs:
+                self.assertIn("release-payload", needs.group(1))
+            else:
+                needs = re.search(r"(?m)^    needs:\n((?:      - [\w-]+\n)+)", source)
+                self.assertIsNotNone(needs, name)
+                self.assertIn("      - release-payload\n", needs.group(1))
 
     def test_push_provenance_reads_public_tag_not_private_draft(self):
         source = self.assert_read_only_without_draft_access("provenance-publish")
@@ -86,7 +124,8 @@ class ReleaseRouting(unittest.TestCase):
         self.assertEqual(self.condition("release-assets-converge"),
                          "always() && needs.release-draft.result == 'success' && "
                          "needs.provenance-result.result == 'success' && "
-                         "needs.npm-wasm-pack.result == 'success'")
+                         "needs.npm-wasm-pack.result == 'success' && "
+                         "needs.release-payload.result == 'success'")
 
     def test_stable_pointers_rejoin_only_after_successful_publication(self):
         for name in ("bump-formula", "move-latest"):
