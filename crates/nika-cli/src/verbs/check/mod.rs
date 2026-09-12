@@ -714,7 +714,7 @@ fn render_checked_with_profile(
     access_pin: Option<&str>,
     theme: Theme,
 ) -> Result<VerbOutput, nika_vocab::project::ProjectError> {
-    let ceiling = budget::from_cwd()?;
+    let ambient = budget::from_cwd()?;
     let lanes = nika_cli_host::oracle::Lanes::new(native_strict, profile == Profile::Operational);
     let verdict = fold_verdicts(wf, report, skills, access_pin);
     // The risk grade (P0-6): a pure projection — advisory by default;
@@ -732,14 +732,7 @@ fn render_checked_with_profile(
     }
 
     if json {
-        return Ok(json_verdict(
-            wf,
-            report,
-            skills,
-            &verdict,
-            lanes,
-            ceiling.as_ref(),
-        ));
+        return Ok(json_verdict(wf, report, skills, &verdict, lanes, &ambient));
     }
 
     let mut text = render(
@@ -765,7 +758,7 @@ fn render_checked_with_profile(
         verdict.grade,
     );
     naming_note(&mut text, theme, path, wf);
-    budget::footnote(&mut text, theme, ceiling.as_ref());
+    budget::footnote(&mut text, theme, &ambient);
     Ok(if strict_clean {
         VerbOutput::ok(nika_display::vocab::sober(theme, &text))
     } else {
@@ -849,13 +842,13 @@ fn json_verdict(
     skills: &nika_schema::ResolvedSkills,
     verdict: &nika_cli_host::oracle::Verdict,
     lanes: nika_cli_host::oracle::Lanes,
-    ceiling: Option<&budget::AmbientCeiling>,
+    ambient: &budget::Ambient,
 ) -> VerbOutput {
     let mut obj = match nika_cli_host::oracle::audit_json(wf, report, skills, verdict, lanes) {
         Ok(obj) => obj,
         Err(why) => return VerbOutput::env(why),
     };
-    budget::stamp_json(&mut obj, ceiling);
+    budget::stamp_json(&mut obj, ambient);
     let text = format!("{:#}", serde_json::Value::Object(obj));
     if verdict.strict_clean(report, lanes) {
         VerbOutput::ok(text)

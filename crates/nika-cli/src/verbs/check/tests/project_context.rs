@@ -277,3 +277,44 @@ fn an_ambient_path_with_control_characters_stays_machine_readable() {
     );
     assert_ambient_refusal(&run_snapshot_export("value.nika.yaml", theme()), true, &err);
 }
+
+/// #1547 · the room's project file is unreadable (the sandboxed nested
+/// `nika check` shape): the check exits on the WORKFLOW's verdict, the
+/// hint names the file, `--json` carries `project_unreachable`, `clean`
+/// stays the workflow's.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_ancestor_project_is_a_hint_never_a_refusal() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let room = tempfile::tempdir().expect("room");
+    std::fs::write(room.path().join("value.nika.yaml"), WORKFLOW).expect("workflow");
+    let project = room.path().join("nika.yaml");
+    std::fs::write(&project, "nika: root\nceiling: 0.50\n").expect("valid project");
+    std::fs::set_permissions(&project, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+    if std::fs::read_to_string(&project).is_ok() {
+        return; // root reads through 0o000 — nothing to measure here
+    }
+    let _cwd = crate::cwd::enter(room.path()).expect("cwd lease");
+    let human = run("value.nika.yaml", false, false, None, theme());
+    assert_eq!(human.code, exit::OK, "{}", human.text);
+    assert!(
+        human.text.contains("[project]") && human.text.contains("is not readable from here"),
+        "{}",
+        human.text
+    );
+    assert!(!human.text.contains("BUDGET"), "{}", human.text);
+    let json = run("value.nika.yaml", true, false, None, theme());
+    assert_eq!(json.code, exit::OK, "{}", json.text);
+    let payload: serde_json::Value = serde_json::from_str(&json.text).expect("check json");
+    assert_eq!(payload["clean"], true, "{payload}");
+    // The walk starts at the cwd, which macOS hands back canonical
+    // (`/private/var/…` for a `/var/…` tempdir): compare canonical paths.
+    let canonical = std::fs::canonicalize(&project).expect("canonical project path");
+    assert_eq!(
+        payload["project_unreachable"],
+        canonical.display().to_string(),
+        "{payload}"
+    );
+    assert!(payload.get("run_budget").is_none(), "{payload}");
+    std::fs::set_permissions(&project, std::fs::Permissions::from_mode(0o644)).expect("restore");
+}

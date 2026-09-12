@@ -12,7 +12,8 @@
 #![allow(clippy::float_cmp)]
 
 use super::{
-    ArmLocus, MissPolicy, Project, ProjectErrorKind, ProvenanceFloor, STARTER, discover, parse,
+    ArmLocus, MissPolicy, Project, ProjectErrorKind, ProvenanceFloor, STARTER, discover,
+    discover_reachable, parse,
 };
 use proptest::strategy::Strategy as _;
 use std::time::Duration;
@@ -610,4 +611,34 @@ fn the_project_schema_mirrors_the_parser() {
         );
     }
     assert_eq!(miss.len(), 3);
+}
+
+/// #1547 · an ancestor the process may not read ends the walk as
+/// `unreachable` (the sandboxed nested `nika` case); `discover` keeps
+/// refusing it, byte for byte, for the consumers that need the file.
+#[cfg(unix)]
+#[test]
+fn an_unreadable_ancestor_is_unreachable_not_a_refusal() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let room = std::env::temp_dir().join(format!("nika-vocab-1547-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&room);
+    std::fs::create_dir_all(&room).expect("room");
+    let project = room.join("nika.yaml");
+    std::fs::write(&project, "nika: root\nceiling: 0.50\n").expect("seed");
+    std::fs::set_permissions(&project, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+    if std::fs::read_to_string(&project).is_ok() {
+        return; // root reads through 0o000 — nothing to measure here
+    }
+    let child = room.join("a").join("b");
+    std::fs::create_dir_all(&child).expect("child");
+    let seen = discover_reachable(&child).expect("never a refusal");
+    assert!(seen.found.is_none(), "{seen:?}");
+    let (path, err) = seen.unreachable.expect("the ancestor is named");
+    assert_eq!(path, project);
+    assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+    let refusal = discover(&child).expect_err("discover still refuses");
+    assert_eq!(refusal.kind(), ProjectErrorKind::Unreadable);
+    assert_eq!(refusal.path(), Some(project.as_path()));
+    std::fs::set_permissions(&project, std::fs::Permissions::from_mode(0o644)).expect("restore");
+    let _ = std::fs::remove_dir_all(&room);
 }

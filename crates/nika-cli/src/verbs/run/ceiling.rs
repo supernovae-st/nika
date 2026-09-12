@@ -18,10 +18,16 @@ use nika_vocab::project::{self, ProjectError};
 
 /// The ladder at an explicit root (the tempdir-injectable half).
 pub(super) fn ladder(flag: Option<f64>, start: &Path) -> Result<Option<f64>, ProjectError> {
-    let Some((_path, project)) = project::discover(start)? else {
-        return Ok(flag);
-    };
-    Ok(flag.or(project.ceiling))
+    let found = project::discover_reachable(start)?;
+    // An ancestor this process may not read (an exec sandbox · another
+    // owner) governs nothing from here — said, never refused (#1547).
+    if let Some((path, _)) = &found.unreachable {
+        eprintln!(
+            "project: `{}` is not readable from here — its ceiling: does not govern this run · cap it with --max-cost-usd",
+            path.display()
+        );
+    }
+    Ok(flag.or(found.found.and_then(|(_, project)| project.ceiling)))
 }
 
 /// The CWD door — discovery walks up from the invocation directory,
@@ -95,6 +101,32 @@ mod tests {
             ladder(Some(9.99), &dir).is_err(),
             "the flag does not pardon a broken file"
         );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// #1547 · an ancestor the process may not read is not a budget and
+    /// not a refusal: the flag still wins, absence of a flag is the
+    /// built-in default, and the walk says so on stderr.
+    #[cfg(unix)]
+    #[test]
+    fn an_unreadable_ancestor_file_governs_nothing_and_refuses_nothing() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = fresh_dir("unreachable");
+        let project = dir.join("nika.yaml");
+        std::fs::write(&project, "nika: proj\nceiling: 0.50\n").expect("seed");
+        std::fs::set_permissions(&project, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+        if std::fs::read_to_string(&project).is_ok() {
+            return; // root reads through 0o000 — nothing to measure here
+        }
+        let child = dir.join("sub");
+        std::fs::create_dir_all(&child).expect("child");
+        assert_eq!(ladder(None, &child).expect("never a refusal"), None);
+        assert_eq!(
+            ladder(Some(1.25), &child).expect("never a refusal"),
+            Some(1.25)
+        );
+        std::fs::set_permissions(&project, std::fs::Permissions::from_mode(0o644))
+            .expect("restore");
         std::fs::remove_dir_all(&dir).ok();
     }
 }
