@@ -448,6 +448,7 @@ struct RunArgs {
     #[arg(long, conflicts_with_all = ["no_progress", "json", "output"])]
     quiet: bool,
     /// Plan only — show the static plan and execute ZERO effects (spec §10).
+    /// This preview does not judge --max-cost-usd; the real run judges the budget.
     /// With `--json`: ONE versioned plan object (`plan_version: 1` — waves ·
     /// cost ceiling · permits · requirements) instead of the human preview.
     /// `--output` stays refused (an outputs export of a run that never

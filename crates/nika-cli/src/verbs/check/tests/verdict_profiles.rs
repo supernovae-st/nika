@@ -373,7 +373,7 @@ fn cost_section_names_each_unbounded_reason() {
     );
     assert!(text.contains("no max_tokens declared"), "{text}");
     assert!(
-        text.contains("no catalog price (local/unknown model)"),
+        text.contains("no catalog price (local model; spend not metered)"),
         "{text}"
     );
     assert!(
