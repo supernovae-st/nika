@@ -93,6 +93,18 @@ or paraphrase the schema in prose. The engine owns the format
 negotiation; a prompt that re-states it fights the engine and degrades
 weak-model output (the eval measures exactly this).
 
+**Agent completion and budgets.** When `nika:done` is effectively granted,
+finish with that sentinel; a text-only plan continues within the existing
+turn and token limits. Without the grant, a final text answer can complete.
+The reference engine's `max_tokens_total` sums reported input plus output
+across requests, including re-sent history. It can exceed a model's
+per-request context window; that does not prove that every request fits.
+Cache pricing discounts belong to monetary cost accounting and do not
+subtract from this token counter. Use the engine's monetary run cap when
+the requirement is a currency budget; already admitted calls can overshoot.
+Keep a typed `schema:` for the result and verify promised artifacts or facts
+independently of schema conformance.
+
 **Extract facts, then the law.** A model may produce closed, cited
 semantic *facts*. Scoring, routing, publish/abstain is `nika:jq` or
 `nika:decide` — never a second `infer:` to "pick the level". Numeric
