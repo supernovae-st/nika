@@ -95,7 +95,7 @@ fn cost_task_rows(out: &mut String, report: &CheckReport, t: Theme) {
             (None, reason) => {
                 let why = match reason {
                     Some(UnboundedReason::NoTokenLimit) => "no max_tokens declared",
-                    Some(UnboundedReason::NoPrice) => "no catalog price (local/unknown model)",
+                    Some(UnboundedReason::NoPrice) => no_price_reason(model),
                     Some(UnboundedReason::UnknownIterations) => {
                         "for_each over an expression (unknown count)"
                     }
@@ -111,6 +111,32 @@ fn cost_task_rows(out: &mut String, report: &CheckReport, t: Theme) {
                 );
             }
         }
+    }
+}
+
+fn no_price_reason(model: &str) -> &'static str {
+    let Some((provider, name)) = model
+        .split_once('/')
+        .and_then(|(id, name)| nika_catalog::find_provider(id).map(|p| (p, name)))
+    else {
+        return "no catalog price (unknown provider/model; spend unpriced)";
+    };
+    if provider.tags.contains(&nika_catalog::types::Tag::Local) {
+        return "no catalog price (local model; spend not metered)";
+    }
+    if provider.id == "mock" {
+        return "no catalog price (mock model; spend not metered)";
+    }
+    if provider
+        .models
+        .iter()
+        .any(|m| m.id == name || m.model == name)
+        || provider.default_model == name
+        || provider.cheap_model == name
+    {
+        "no catalog price (catalogued cloud model; spend unpriced)"
+    } else {
+        "no catalog price (cloud provider; spend unpriced)"
     }
 }
 
@@ -204,4 +230,47 @@ pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &Ve
         ),
     );
     cost_task_rows(out, report, t);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unpriced_rows_distinguish_catalogued_cloud_local_and_unknown_models() {
+        for (model, expected) in [
+            ("moonshot/k2", "catalogued cloud model; spend unpriced"),
+            ("moonshot/unlisted-model", "cloud provider; spend unpriced"),
+            ("ollama/unlisted-model", "local model; spend not metered"),
+            (
+                "unlisted-provider/model",
+                "unknown provider/model; spend unpriced",
+            ),
+        ] {
+            let source = format!(
+                "nika: price-wording\nmodel: {model}\ntasks:\n  say:\n    infer: {{ prompt: hi, max_tokens: 20 }}\n"
+            );
+            let wf = nika_schema::parse(
+                &source,
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            )
+            .expect("fixture parses");
+            let report = nika_check::check(&wf);
+            assert_eq!(
+                report.cost.tasks[0].unbounded_reason,
+                Some(UnboundedReason::NoPrice)
+            );
+            let mut text = String::new();
+            cost_task_rows(&mut text, &report, Theme::new(false, false, false));
+            assert!(
+                text.contains("UNBOUNDED") && text.contains(expected),
+                "{text}"
+            );
+            assert!(
+                !text.contains("$0") && !text.contains("local/unknown"),
+                "{text}"
+            );
+        }
+    }
 }

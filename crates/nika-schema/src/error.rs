@@ -214,9 +214,7 @@ pub enum SchemaError {
     /// `02-verbs.md` §exec · `check --fix` migrates the mechanical
     /// cases). The wire code stays the generic structural PARSE-019 —
     /// the variant exists so the fix ladder can MATCH the dead form.
-    #[error(
-        "`exec.command` is argv-only — [\"prog\", \"arg\", …] runs via execve, each element one token (an interpolated value can never break out) · the old string form was an IMPLICIT shell: pipes/redirects/globs now live in `shell:` explicitly (02 §exec · 0.103 · `nika check --fix` migrates)"
-    )]
+    #[error("{}", nika_error::codes::EXEC_BODY_HELP)]
     D1StringCommand {
         /// Span of the string node.
         span: Option<Span>,

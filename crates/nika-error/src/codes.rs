@@ -632,10 +632,11 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
     }
 }
 
-// One literal feeds both the parser refusal and the offline code lesson.
+// One single-line lesson feeds both exec shape refusals and offline explain.
+// Parse-fatal JSON retains the diagnostic line, not the source frame below it.
 macro_rules! exec_body_help {
     () => {
-        "`exec:` body must be a YAML mapping. Choose exactly one form:\n\n  exec:\n    command: [ls, -la]\n\n  exec:\n    shell: \"ls -la\"\n\n`command:` is argv-only; pipes and redirects belong in explicit `shell:`. `nika check --fix` can migrate the old scalar form."
+        "Use a YAML mapping for `exec:`, choosing exactly one form: `exec: { command: [ls, -la] }` or `exec: { shell: \"ls -la\" }`. `exec.command` is argv-only: execve runs the program with one argument per element; an interpolated value can never break out. The old string form was an implicit shell: pipes, redirects and globs now belong in explicit `shell:`. `nika check --fix` can migrate the old scalar body or string command (02 §exec)."
     };
 }
 
