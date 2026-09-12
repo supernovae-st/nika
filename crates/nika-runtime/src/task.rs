@@ -99,7 +99,11 @@ fn assemble_ran_finish(
     // F-O1 PR-3 · the task RAN — the door was used: the receipt
     // carries one `declassify` event per declared entry (the settle
     // spine emits them after `task_started`).
-    let declassified = declassify_evidence(task, inputs, records);
+    let mut declassified = declassify_evidence(task, inputs, records);
+    if let SettleAs::Ran(ran) = &mut settle {
+        // Finish already preserves these receipts through deferred recovery.
+        declassified.append(&mut ran.cleanup_declassified);
+    }
     Finish {
         id,
         settle,
@@ -198,6 +202,9 @@ pub(crate) struct RanTask {
     /// The dispatch boundary's permit decisions across attempts (NEP-0007
     /// law 2 · spec 17) — one `permit_checked` frame each at settle.
     pub decisions: Vec<crate::witness::PermitDecision>,
+    /// Exercised cleanup lifts retain their own task identity and value
+    /// receipts even though their outcomes settle with the producer.
+    pub cleanup_declassified: Vec<DeclassifyEvidence>,
     /// F-P6 · the settling dispatch's binding evidence — `Fired` (the
     /// terminal frame carries both digests) or `Refused` (the finding
     /// rides even under an `on_error:` recovery — never a warn). `None`
@@ -644,7 +651,8 @@ where
             &finally_witness,
             run_start,
         );
-        nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
+        ran.cleanup_declassified =
+            nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(Box::new(ran))
@@ -729,6 +737,7 @@ where
             retries: acc.retries,
             agent_events: acc.agent_events,
             decisions: acc.decisions,
+            cleanup_declassified: Vec::new(),
             evidence: None,
             duration_ms: 0,
             items: Some(FanItems::new(item_terminals, acc.recovered)),
@@ -747,7 +756,8 @@ where
             &finally_witness,
             run_start,
         );
-        nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
+        ran.cleanup_declassified =
+            nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(Box::new(ran))
@@ -798,6 +808,7 @@ where
                     retries: Vec::new(),
                     agent_events: Vec::new(),
                     decisions: Vec::new(),
+                    cleanup_declassified: Vec::new(),
                     evidence: None,
                     duration_ms: 0,
                     items: None,
@@ -941,6 +952,7 @@ where
             retries,
             agent_events: stamp_attempts(agent_buffer.into_events(), &attempt_marks),
             decisions: witness.take(),
+            cleanup_declassified: Vec::new(),
             evidence,
             duration_ms,
             items: None,

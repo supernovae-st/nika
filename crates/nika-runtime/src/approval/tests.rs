@@ -46,6 +46,7 @@ fn resolved(value: Value) -> crate::task::SettleAs {
     crate::task::SettleAs::Ran(Box::new(crate::task::RanTask {
         usage: None,
         decisions: Vec::new(),
+        cleanup_declassified: Vec::new(),
         note: "invoke · nika:prompt".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),

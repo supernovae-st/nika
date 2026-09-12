@@ -367,6 +367,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
         settle: task::SettleAs::Ran(Box::new(task::RanTask {
             usage: None,
             decisions: Vec::new(),
+            cleanup_declassified: Vec::new(),
             note: "exec · sh".to_owned(),
             retries: Vec::new(),
             agent_events: Vec::new(),

@@ -95,6 +95,58 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 
 // ─── the battery ─────────────────────────────────────────────────────────
 
+#[tokio::test]
+async fn unwind_taint_lifts_record_the_cleanup_and_resolved_value() {
+    for (gate, binding, expected_receipts) in [
+        ("", "${{ inputs.p }}", 1),
+        ("    when: ${{ false }}\n", "${{ inputs.p }}", 0),
+        ("", "${{ tasks.main.output.missing }}", 0),
+    ] {
+        let yaml = format!(
+            r#"
+nika: cleanup-lift-receipt
+inputs:
+  p: {{ type: string, default: datasets/archive.tar }}
+permits:
+  exec: [work, tar]
+  fs: {{ read: ["datasets/**"] }}
+tasks:
+  main:
+    exec: {{ command: [work] }}
+  cleanup:
+    after: {{ main: unwind }}
+{gate}    with: {{ p: "{binding}" }}
+    lift:
+      - {{ law: taint, from: inputs.p, because: reviewed archive path }}
+    exec: {{ command: [tar, -xf, "${{{{ with.p }}}}"] }}
+"#
+        );
+        let (outcome, events) = run_to_events(
+            &yaml,
+            MockShell::new()
+                .enqueue_ok("worked\n")
+                .enqueue_ok("cleaned\n"),
+            MockToolExecutor::new(),
+            MockProvider::new("mock"),
+            RuntimeConfig::default(),
+        )
+        .await;
+        assert!(outcome.ok);
+        let receipts: Vec<_> = events
+            .iter()
+            .filter(|e| e.kind == EventKind::Declassify)
+            .collect();
+        assert_eq!(receipts.len(), expected_receipts, "{events:?}");
+        if let Some(receipt) = receipts.first() {
+            assert_eq!(str_field(receipt, "task"), Some("cleanup"));
+            assert_eq!(str_field(receipt, "from"), Some("inputs.p"));
+            assert_eq!(str_field(receipt, "because"), Some("reviewed archive path"));
+            let expected = blake3::hash(br#""datasets/archive.tar""#).to_hex();
+            assert_eq!(str_field(receipt, "value_digest"), Some(expected.as_str()));
+        }
+    }
+}
+
 /// #1546: cleanup bindings belong to the cleanup, and materialize before
 /// its gate. Both terminal paths expose the parent's fresh record.
 #[tokio::test]

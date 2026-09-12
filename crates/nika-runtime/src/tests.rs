@@ -774,6 +774,7 @@ fn recovered_success_emits_task_recovered_before_completed() {
     let ran = task::RanTask {
         usage: None,
         decisions: Vec::new(),
+        cleanup_declassified: Vec::new(),
         note: "exec · sh".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
@@ -841,6 +842,7 @@ fn obs_e_warning_rides_task_completed() {
     let ran = task::RanTask {
         usage: None,
         decisions: Vec::new(),
+        cleanup_declassified: Vec::new(),
         note: "infer · gemini/flash".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
@@ -908,6 +910,7 @@ fn no_warning_field_on_a_clean_success() {
     let ran = task::RanTask {
         usage: None,
         decisions: Vec::new(),
+        cleanup_declassified: Vec::new(),
         note: "exec · true".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
@@ -976,6 +979,7 @@ fn access_facts_ride_the_infer_terminal() {
     let ran = task::RanTask {
         usage: None,
         decisions: Vec::new(),
+        cleanup_declassified: Vec::new(),
         note: "infer · mock/echo".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),
@@ -1043,6 +1047,7 @@ fn cost_unpriced_reason_rides_task_completed() {
     let ran = task::RanTask {
         usage: None,
         decisions: Vec::new(),
+        cleanup_declassified: Vec::new(),
         note: "infer · ollama/llama3.2".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),

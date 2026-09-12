@@ -118,13 +118,13 @@ where
         integrity: &nika_cap::Integrity,
         witness: &crate::witness::PermitWitness,
         run_start: nika_kernel::tool_executor::ToolRunStart,
-    ) {
+    ) -> Vec<super::DeclassifyEvidence> {
         // The cleanup bodies are TASKS now, joined by an `unwind` edge
         // (spec 03 §unwind). They run in DECLARATION order — the source
         // order of `tasks:` — so the sequence is stable across re-runs.
         let cleanups = unwind_tasks_of(wf, task.id.value.as_str());
         if cleanups.is_empty() {
-            return;
+            return Vec::new();
         }
         // The cleanup scope sees the PARENT's fresh status/error via a
         // one-record overlay (spec 03 · status/error routing).
@@ -150,10 +150,17 @@ where
         // Locals are out of scope after fan-out; `on_finally` exec retains the
         // workflow capability boundary.
         .with_task_context(None, None, None, scope.permits());
+        let mut receipts = Vec::new();
         for (index, cleanup) in cleanups.iter().enumerate() {
-            self.run_one_cleanup(cleanup, &cleanup_scope, witness, index, run_start)
+            let mut entries = self
+                .run_one_cleanup(cleanup, &cleanup_scope, witness, index, run_start)
                 .await;
+            for entry in &mut entries {
+                entry.task = Some(cleanup.id.value.clone());
+            }
+            receipts.extend(entries);
         }
+        receipts
     }
 
     /// One cleanup TASK · its own `when:` + `timeout:` · outcome
@@ -169,7 +176,7 @@ where
         witness: &crate::witness::PermitWitness,
         index: usize,
         run_start: nika_kernel::tool_executor::ToolRunStart,
-    ) {
+    ) -> Vec<super::DeclassifyEvidence> {
         // Cleanup is an ordinary task: materialize its own bindings before
         // the gate, using the parent's fresh record and the run authorities.
         // A boundary failure is journaled and never reaches the verb.
@@ -183,7 +190,7 @@ where
             Ok(ns) => ns,
             Err(err) => {
                 Self::journal_cleanup_failure(witness, index, &runtime_error_record(&err));
-                return;
+                return Vec::new();
             }
         };
         let scope = &scope.with_task_context(Some(&with_ns), None, None, scope.permits());
@@ -200,7 +207,7 @@ where
                     "when: gate closed or errored — the cleanup did not run \
                      (best-effort lane · spec 03 §unwind)",
                 );
-                return;
+                return Vec::new();
             }
         }
         let limit = cleanup
@@ -215,6 +222,10 @@ where
         // The cleanup's bindings retain their provenance through the same
         // re-gate oracle as the main lane (F-O1 PR-2).
         let value_taint = crate::integrity::ValueTaint::of_task(cleanup, scope.records());
+        // Resolve the receipt at the same boundary as the lift, including
+        // the parent's fresh value. A closed gate or failed binding above
+        // never exercises the door and therefore produces no receipt.
+        let declassified = super::declassify_evidence(cleanup, scope.inputs(), scope.records());
         // NEP-0007 law 2 (the final review's catch · 2026-07-23): the
         // cleanup lane's decisions are recorded into the PARENT's
         // witness — they settle with it as `permit_checked` frames (the
@@ -259,6 +270,7 @@ where
                 Self::journal_cleanup_timeout(witness, index, limit);
             }
         }
+        declassified
     }
 
     /// The outcome never PROPAGATES (best-effort lane) but it is

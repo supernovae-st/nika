@@ -20,6 +20,7 @@ fn a_metered_terminal_carries_the_usage_split_beside_tokens() {
     let ran = task::RanTask {
         usage: Some(Box::new(split)),
         decisions: Vec::new(),
+        cleanup_declassified: Vec::new(),
         note: "infer · openai/gpt-4o-mini".to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),

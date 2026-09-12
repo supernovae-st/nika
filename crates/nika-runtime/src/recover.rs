@@ -303,6 +303,7 @@ fn try_park(
         retries,
         agent_events,
         decisions,
+        cleanup_declassified: Vec::new(),
         // F-P6 · its evidence and the usage receipt ride back out.
         evidence: failed.evidence,
         duration_ms,
@@ -505,6 +506,7 @@ fn resolve_parked(
         retries,
         agent_events,
         decisions,
+        cleanup_declassified: Vec::new(),
         // F-P6 · the parked failure's evidence rides back out.
         evidence,
         duration_ms,
