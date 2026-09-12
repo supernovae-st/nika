@@ -189,11 +189,11 @@ pub fn scripted_run(
         |first| {
             if has_drafts {
                 format!(
-                    "next ·\n  $EDITOR {first}                   # fill the remaining `<SLOT: …>` values\n  nika check {first}                    # audit before a single token\n  nika run {first} --model mock/echo   # offline proof · zero keys\n  nika explain <NIKA-XXXX>              # every finding teaches"
+                    "next ·\n  $EDITOR {first}                   # fill the remaining `<SLOT: …>` values\n  nika check {first}                    # audit before a single token\n  nika run {first} --model mock/echo   # mocked envelope inference; task model pins, tools and effects remain real\n  nika explain <NIKA-XXXX>              # every finding teaches"
                 )
             } else {
                 format!(
-                "next ·\n  nika run {first} --model mock/echo   # offline proof · zero keys\n  nika check {first}                    # audit before a single token\n  nika explain <NIKA-XXXX>              # every finding teaches"
+                "next ·\n  nika check {first}                    # audit before a single token\n  nika run {first} --model mock/echo   # mocked envelope inference; task model pins, tools and effects remain real\n  nika explain <NIKA-XXXX>              # every finding teaches"
                 )
             }
         },
@@ -291,7 +291,8 @@ pub(crate) enum BriefOutcome {
 }
 
 /// Write the briefs per `plan`, honoring the canvas stamp on a CREATED
-/// settings file.
+/// settings file and producer version in a CREATED session hook. Skipped
+/// files retain their content and provenance.
 pub(crate) fn apply_briefs(
     dir: &str,
     force: bool,
@@ -303,6 +304,17 @@ pub(crate) fn apply_briefs(
         match action {
             Action::Skip { path } => rows.push((path, BriefOutcome::Skipped)),
             Action::Create { path, body } => {
+                let stamped;
+                let body = if path.ends_with(".cursor/hooks-nika/session-context.sh") {
+                    stamped = body.replacen(
+                        "scaffold_version=\"\"",
+                        concat!("scaffold_version=\"", env!("CARGO_PKG_VERSION"), "\""),
+                        1,
+                    );
+                    stamped.as_str()
+                } else {
+                    body
+                };
                 let themed;
                 let body = match canvas {
                     Some(c) if path.ends_with(".vscode/settings.json") => {
@@ -538,6 +550,55 @@ mod tests {
     }
 
     #[test]
+    fn effectful_scaffolds_teach_check_before_run_without_an_offline_promise() {
+        for draft in [false, true] {
+            let tmp = std::env::temp_dir().join(format!(
+                "nika-init-effectful-{}-{draft}",
+                std::process::id()
+            ));
+            let audit = |_: &str| {
+                Outcome::ok(
+                    if draft {
+                        "not a workflow yet"
+                    } else {
+                        "audited clean"
+                    }
+                    .to_owned(),
+                )
+            };
+            let out = scripted_run(
+                tmp.to_str().expect("path"),
+                false,
+                None,
+                Some("03-exec-pipeline"),
+                None,
+                &[],
+                &audit,
+                &stub_wire,
+            );
+            let source = std::fs::read_to_string(tmp.join("workflows/03-exec-pipeline.nika.yaml"))
+                .expect("effectful example");
+            assert!(
+                source.contains("exec:"),
+                "the fixture has real subprocess effects"
+            );
+            let next = out.text.split("next ·").last().expect("handover");
+            let check = next.find("nika check ").expect("inspection command");
+            let run = next.find("nika run ").expect("execution command");
+            assert!(check < run, "inspection precedes real execution: {next}");
+            assert!(
+                !next.contains("offline proof") && !next.contains("zero keys"),
+                "mock does not remove effects or task model pins: {next}"
+            );
+            assert!(
+                next.contains("effects remain real"),
+                "handover names the execution boundary: {next}"
+            );
+            std::fs::remove_dir_all(tmp).expect("remove temp project");
+        }
+    }
+
+    #[test]
     fn successful_init_hands_over_to_the_next_command() {
         // The 2026-07-05 beginner walk: init ended SILENTLY (4 files ·
         // no workflow · no next step). An onboarding surface must hand
@@ -635,6 +696,65 @@ mod tests {
             "adds-only: the second run changed nothing"
         );
         std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn fresh_project_routes_to_the_shipped_authoring_resources() {
+        let tmp = std::env::temp_dir().join(format!("nika-authoring-route-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).expect("temp project");
+        let rows = apply_briefs(tmp.to_str().expect("path"), false, None);
+        assert!(
+            rows.iter()
+                .all(|(_, outcome)| matches!(outcome, BriefOutcome::Created))
+        );
+        let entry = std::fs::read_to_string(tmp.join("AGENTS.md")).expect("entry");
+        let skill_path = ".agents/skills/nika-authoring/SKILL.md";
+        assert!(
+            entry.contains(&format!("]({skill_path})")),
+            "the loaded entry must route to the local skill"
+        );
+        let skill = std::fs::read_to_string(tmp.join(skill_path)).expect("local skill");
+        let mut references = 0;
+        for part in skill.split("](references/").skip(1) {
+            let relative = part.split(')').next().expect("reference link");
+            let path = tmp
+                .join(".agents/skills/nika-authoring/references")
+                .join(relative);
+            assert!(
+                std::fs::read_to_string(path).is_ok(),
+                "reference {relative} is readable"
+            );
+            references += 1;
+        }
+        assert_eq!(
+            references, 6,
+            "all conditional guides reachable from the entry"
+        );
+        std::fs::remove_dir_all(tmp).expect("remove temp project");
+    }
+
+    #[test]
+    fn project_hook_carries_its_generator_version_and_reruns_preserve_it() {
+        let tmp = std::env::temp_dir().join(format!("nika-hook-provenance-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).expect("temp project");
+        apply_briefs(tmp.to_str().expect("path"), false, None);
+        let hook = tmp.join(".cursor/hooks-nika/session-context.sh");
+        let body = std::fs::read_to_string(&hook).expect("project hook");
+        assert!(
+            body.contains(concat!(
+                "scaffold_version=\"",
+                env!("CARGO_PKG_VERSION"),
+                "\""
+            )),
+            "the relocated hook must retain its producer version"
+        );
+        std::fs::write(&hook, "# user-owned hook\n").expect("custom hook");
+        apply_briefs(tmp.to_str().expect("path"), false, None);
+        assert_eq!(
+            std::fs::read_to_string(&hook).expect("preserved hook"),
+            "# user-owned hook\n"
+        );
+        std::fs::remove_dir_all(tmp).expect("remove temp project");
     }
 
     #[test]

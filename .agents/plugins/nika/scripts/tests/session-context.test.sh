@@ -122,6 +122,61 @@ OUT="$(cd "$ROOT" && printf '%s' "{\"cwd\":\"$REALWS\",\"note\":\"see \\\"cwd\\\
 need fallback-first-cwd "$(cd "$REALWS" && pwd)"
 deny fallback-first-cwd 'fakews'
 
+# 6 · version evidence comes from the semantic version, not digits in the
+# build hash. Use a disposable binary and kit, never the machine's install.
+BIN="$ROOT/bin"
+KIT="$ROOT/kit"
+mkdir -p "$BIN" "$KIT/scripts" "$KIT/.claude-plugin"
+cp "$HOOK" "$KIT/scripts/session-context.sh"
+printf '%s\n' '{"version":"0.118.7"}' >"$KIT/.claude-plugin/plugin.json"
+cat >"$BIN/nika" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$NIKA_TEST_VERSION"
+SH
+chmod +x "$BIN/nika"
+REAL_HOOK="$HOOK"
+HOOK="$KIT/scripts/session-context.sh"
+export PATH="$BIN:$PATH"
+export NIKA_TEST_VERSION='nika 0.117.2 (c4cdbeafb123)'
+unset CLAUDE_PLUGIN_ROOT
+play "$ROOT" "{\"cwd\":\"$WS\"}"
+need binary-build-hash 'nika binary 0.117.2.'
+deny binary-build-hash '0.117.24123'
+deny binary-build-hash 'brew upgrade nika'
+need binary-build-hash 'Update the nika executable resolved by PATH using its installation method'
+
+NIKA_TEST_VERSION='nika 0.118.9 (1234567)'
+play "$ROOT" "{\"cwd\":\"$WS\"}"
+deny patch-only 'Version drift:'
+
+NIKA_TEST_VERSION='nika 0.117.2-rc.1 (c4cdbeafb123)'
+play "$ROOT" "{\"cwd\":\"$WS\"}"
+need prerelease-build-hash 'nika binary 0.117.2.'
+
+NIKA_TEST_VERSION='unavailable build 1234'
+play "$ROOT" "{\"cwd\":\"$WS\"}"
+deny unknown-version 'Version drift:'
+
+NIKA_TEST_VERSION='nika 0.119.0 (1234567)'
+play "$ROOT" "{\"cwd\":\"$WS\"}"
+need plugin-behind 'plugin kit 0.118.7'
+need plugin-behind 'Refresh the kit from your marketplace'
+
+# 7 · init's project copy has no plugin manifest. The producer stamps a
+# version in the copied hook; a newer binary must route to scaffold refresh,
+# not to marketplace installation. An unrelated plugin root cannot win.
+PROJECT_HOOK="$WS/.cursor/hooks-nika/session-context.sh"
+mkdir -p "$(dirname "$PROJECT_HOOK")"
+sed 's/scaffold_version=""/scaffold_version="0.117.2"/' "$REAL_HOOK" >"$PROJECT_HOOK"
+HOOK="$PROJECT_HOOK"
+NIKA_TEST_VERSION='nika 0.118.7 (9876543)'
+export CLAUDE_PLUGIN_ROOT="$KIT"
+play "$ROOT" "{\"cwd\":\"$WS\"}"
+need project-hook 'project hook scaffold 0.117.2'
+need project-hook 'nika binary 0.118.7'
+need project-hook 'nika init'
+deny project-hook 'Refresh the kit from your marketplace'
+
 if [ "$FAILS" -gt 0 ]; then
   say "── $FAILS failure(s)"
   exit 1
