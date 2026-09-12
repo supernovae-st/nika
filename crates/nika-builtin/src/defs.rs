@@ -242,10 +242,10 @@ fn data_defs() -> Vec<ToolDef> {
     vec![
         def(
             "jq",
-            "Run a jq expression over input · THE data-transform language (map·filter·select·reshape). Emits exactly one value.",
+            "Run a jq expression over input, a JSON value, never a file path to read. Emits exactly one value. To use JSON file contents as an object or array, use nika:read first, then expression: fromjson to decode explicitly.",
             serde_json::json!({
                 "expression": s("the jq program"),
-                "input": { "description": "any JSON value (or an array for multi-input ops)" }
+                "input": { "description": "any JSON value; strings stay strings, including JSON text and path strings. Decode with fromjson only when an object or array is intended." }
             }),
             &["expression"],
         ),
@@ -260,9 +260,9 @@ fn data_defs() -> Vec<ToolDef> {
         ),
         def(
             "validate",
-            "Validate data against a JSON Schema · returns {valid, errors} (invalid data is a report, not a failure).",
+            "Validate data, a JSON value, never a file path to read, against a JSON Schema · returns {valid, errors} (invalid data is a report, not a failure). To use JSON file contents as an object or array, use nika:read first, then nika:jq expression: fromjson to decode explicitly.",
             serde_json::json!({
-                "data": { "description": "the value (or a YAML string with format: yaml)" },
+                "data": { "description": "any JSON value; strings stay strings with format: json (default). Decode JSON text with nika:jq fromjson only when an object or array is intended. With format: yaml, pass YAML text for explicit decoding." },
                 "schema": { "description": "a JSON Schema" },
                 "format": s("json (default) | yaml")
             }),
@@ -455,6 +455,36 @@ fn media_defs() -> Vec<ToolDef> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn value_tools_teach_explicit_decoding_without_adding_path_authority() {
+        let payload = tools_json();
+        for (name, argument) in [("nika:jq", "input"), ("nika:validate", "data")] {
+            let tool = payload["tools"]
+                .as_array()
+                .expect("tools")
+                .iter()
+                .find(|tool| tool["name"] == name)
+                .expect("value tool");
+            let description = tool["description"].as_str().expect("description");
+            for lesson in ["JSON value", "never a file path", "nika:read", "fromjson"] {
+                assert!(description.contains(lesson), "{name}: missing {lesson}");
+            }
+            let properties = &tool["parameters"]["properties"];
+            let argument_help = properties[argument]["description"]
+                .as_str()
+                .expect("argument description");
+            assert!(argument_help.contains("strings stay strings"), "{name}");
+            assert!(properties.get("path").is_none(), "{name}");
+            assert!(properties[argument].get("type").is_none(), "{name}");
+            if name == "nika:validate" {
+                assert!(argument_help.contains("format: yaml"));
+                assert!(description.contains("invalid data is a report"));
+            } else {
+                assert!(description.contains("exactly one value"));
+            }
+        }
+    }
 
     #[test]
     fn tools_json_is_the_versioned_total_join() {
