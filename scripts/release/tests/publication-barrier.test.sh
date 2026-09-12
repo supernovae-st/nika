@@ -395,22 +395,29 @@ if PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI
   fail 'npm absent verification passed'
 fi
 PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
-  NODE_AUTH_TOKEN=test bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish \
+  ACTIONS_ID_TOKEN_REQUEST_URL=https://oidc.test ACTIONS_ID_TOKEN_REQUEST_TOKEN=test bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish \
   x "$NPM_TGZ" "$NPM_SHA" >/dev/null
 [ "$(wc -l <"$NPM_LOG" | tr -d ' ')" = 1 ] || fail 'npm first publish count differs'
 printf 'absent\n' >"$NPM_STATE"
 PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
-  NPM_PUBLISH_ERROR=1 NODE_AUTH_TOKEN=test \
+  NPM_PUBLISH_ERROR=1 ACTIONS_ID_TOKEN_REQUEST_URL=https://oidc.test ACTIONS_ID_TOKEN_REQUEST_TOKEN=test \
   bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish x \
   "$NPM_TGZ" "$NPM_SHA" >/dev/null
 [ "$(wc -l <"$NPM_LOG" | tr -d ' ')" = 2 ] || fail 'npm committed publish error retried publish'
 printf 'mixed\n' >"$NPM_STATE"
 if PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
-  NODE_AUTH_TOKEN=test bash "$ROOT/scripts/release/npm-publish-immutable.sh" \
+  ACTIONS_ID_TOKEN_REQUEST_URL=https://oidc.test ACTIONS_ID_TOKEN_REQUEST_TOKEN=test bash "$ROOT/scripts/release/npm-publish-immutable.sh" \
   publish x "$NPM_TGZ" "$NPM_SHA" >/dev/null 2>&1; then
   fail 'mixed npm 500/E404/unauthorized granted publish authority'
 fi
 [ "$(wc -l <"$NPM_LOG" | tr -d ' ')" = 2 ] || fail 'mixed npm lookup reached publish'
+
+printf 'absent\n' >"$NPM_STATE"
+if PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
+  bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish x "$NPM_TGZ" "$NPM_SHA" >/dev/null 2>&1; then
+  fail 'an absent version published without GitHub OIDC'
+fi
+[ "$(wc -l <"$NPM_LOG" | tr -d ' ')" = 2 ] || fail 'the OIDC barrier reached npm publish'
 
 # OCI: absent/equal/divergent and label drift. The fake exposes two runnable
 # platforms plus their BuildKit attestations, like the real release index.
