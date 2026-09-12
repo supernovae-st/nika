@@ -23,6 +23,8 @@ use crate::display::theme::Theme;
 use crate::{RunView, VerbOutput, exit, frame, frame_with_outputs};
 use crate::{evidence, receipt, trace, trace_anchor, trace_otel, trace_reproduce, trace_verify};
 
+mod gates;
+
 /// Print a verb's text on the right stream and return its exit code.
 /// Findings + successes go to stdout (they ARE the product); only
 /// environment errors go to stderr.
@@ -273,6 +275,7 @@ fn trace_render(
         notes.push(format!("said {quote}"));
     }
     print_lines(&crate::display::flow::verdict_card(&view, &theme, &notes));
+    print_lines(&gates::lines(&events));
     // The locked exit contract: 0 = run ok · 1 = workflow failed.
     u8::from(view.verdict != Some(true))
 }
