@@ -381,6 +381,45 @@ fn compare_run_contract(
     }
 }
 
+/// The public agent completion fixtures run at the binary boundary, with
+/// synthetic inference and no credentials. New cases cannot silently disappear
+/// behind an older spec pin.
+#[test]
+fn agent_completion_fixtures_match_their_run_contract() {
+    let root = spec_dir().join("conformance/tests/runtime/agent");
+    let mut failures = Vec::new();
+    for name in [
+        "004-text-with-done-exhausts-turns",
+        "005-text-without-done-completes",
+        "006-text-with-done-exhausts-tokens",
+    ] {
+        let fixture = root.join(name);
+        let expected: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(fixture.join("expected-run.json"))
+                .expect("pinned agent fixture"),
+        )
+        .expect("expected outcome");
+        let observed = run_observed(
+            &fixture.join("input.nika.yaml"),
+            &[("NIKA_KEYCHAIN".to_owned(), "off".to_owned())],
+            &[],
+        );
+        compare_run_contract(name, &observed, &expected, &mut failures);
+        assert!(
+            observed
+                .kinds
+                .iter()
+                .any(|kind| kind == "agent_tools_selected"),
+            "{name}: the agent loop must run"
+        );
+        assert!(
+            !observed.kinds.iter().any(|kind| kind == "tool_invoked"),
+            "{name}: a text-only model dispatches no tool"
+        );
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
 /// Mapping-law rows 2+3 — check-clean + DEFER ⇒ the run twin decides,
 /// and an executed effect is attested. Every `runtime/permits` fixture
 /// must be check-CLEAN — unless a statically-decidable conjunct

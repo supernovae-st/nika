@@ -6,8 +6,8 @@
 //!
 //! The multi-turn `ReAct` loop (spec `docs/crate-specs/nika-verb-agent.md`
 //! §2): model response → whitelisted tool dispatch → results fed back →
-//! repeat, until the model completes (no tool calls), the `nika:done`
-//! sentinel fires, or a budget stops the run (turns · tokens — budgets
+//! repeat, until the model completes (no tool calls, only when `nika:done`
+//! is not granted), the sentinel fires, or a budget stops the run (turns · tokens — budgets
 //! are FAILURES per spec, with `partial_output` preserved).
 //!
 //! ## Seams (all injected · INV-027 hermeticity)
@@ -423,9 +423,8 @@ where
         let (whitelist, defs, model, budget) = armed;
         let (mut router, mut guard) = self.arm_loop(observer, model, defs);
         let mut st = turn::LoopState::new(opening_messages(&input));
-        // `loop`, not `while turns < max_turns`: the Dispatch arm is the
-        // SOLE max_turns authority (fires BEFORE spending the final batch)
-        // — a trailing `while` exit would be dead code (J2 review fold).
+        // Continuing turns check their budget before dispatch or re-asking;
+        // terminal turns may still conclude on the final allowed turn.
         loop {
             st.turns += 1;
             observer.on_event(&AgentEvent::TurnStarted { turn: st.turns });
@@ -461,8 +460,7 @@ where
                 repairs: st.repair_budget(self.schema_retry_budget),
             };
             // Terminals return one output (FinalText shapes to `schema:` ·
-            // BUG#11); Dispatch and RepairDone feed back and iterate. One
-            // exit point.
+            // BUG#11); the other verdicts feed back and iterate.
             let output = match classify_turn(&response, &text, &ctx)? {
                 TurnVerdict::Done(output) => *output,
                 TurnVerdict::FinalText { text, stop_reason } => {
@@ -480,7 +478,13 @@ where
                 }
                 TurnVerdict::RepairDone(repair) => {
                     st.repairs = st.repairs.saturating_add(1);
-                    feed_done_repair(&mut st.messages, response, &repair);
+                    turn::feed_done_repair(&mut st.messages, response, &repair);
+                    continue;
+                }
+                TurnVerdict::ContinueText => {
+                    st.last_text.clone_from(&text);
+                    budget.check(st.turns, &st.last_text)?;
+                    turn::feed_text_continuation(&mut st.messages, response);
                     continue;
                 }
                 TurnVerdict::Dispatch(tool_uses) => {
@@ -507,8 +511,8 @@ where
         }
     }
 
-    /// One Dispatch turn within the loop: stop at the turn budget (the SOLE
-    /// `max_turns` exit · BEFORE spending the batch, mirroring the token
+    /// One Dispatch turn within the loop: stop at the turn budget
+    /// BEFORE spending the batch, mirroring the token
     /// gate's "no wasted side effects"), else append the assistant turn and
     /// feed the tool batch back. The observations digest lands in the
     /// ledger for the next routing query and the batch's tool cost is
@@ -529,15 +533,7 @@ where
         run_start: Option<ToolRunStart>,
     ) -> Result<f64, VerbAgentError> {
         let (router, guard) = intelligence;
-        if st.turns >= budget.max_turns {
-            return Err(VerbAgentError::MaxTurns {
-                turns: st.turns,
-                partial_output: st.last_text.clone(),
-                blame: budget.blame,
-                blame_source: budget.blame_source,
-                spend: Box::default(), // decorated at the return seam
-            });
-        }
+        budget.check(st.turns, &st.last_text)?;
         // All-whitelisted, non-sentinel tools · feed results back.
         st.messages
             .push(Message::new(Role::Assistant, response.content));
@@ -1274,40 +1270,14 @@ enum TurnVerdict {
     /// the run still has repair budget — the errors go back as THAT
     /// call's tool result and the model finishes again.
     RepairDone(DoneRepair),
-}
-
-/// Feed a non-conforming `nika:done` `result:` back as THAT call's tool
-/// result (`is_error: true`) — the same agentic convention every failing
-/// tool already uses (spec §2: models recover from a typed observation).
-///
-/// The assistant turn must ride along or the tool result is an orphan;
-/// its SIBLING tool calls must not, because Terminal 2 already decided
-/// they never run — an unanswered `tool_use` on the transcript is a 400
-/// on a strict wire ("`tool_call_ids` did not have response messages"),
-/// the same trap `finalize_schema` documents.
-fn feed_done_repair(messages: &mut Vec<Message>, response: InferResponse, repair: &DoneRepair) {
-    let turn: Vec<ContentBlock> = response
-        .content
-        .into_iter()
-        .filter(|block| match block {
-            ContentBlock::ToolUse { id, .. } => *id == repair.tool_use_id,
-            _ => true,
-        })
-        .collect();
-    messages.push(Message::new(Role::Assistant, turn));
-    messages.push(Message::new(
-        Role::User,
-        vec![ContentBlock::ToolResult {
-            tool_use_id: repair.tool_use_id.clone(),
-            content: shape::done_repair_message(&repair.detail),
-            is_error: true,
-        }],
-    ));
+    /// A text-only turn cannot finish a task that grants the completion sentinel.
+    ContinueText,
 }
 
 /// Decide one turn — the ONE place the loop's exit conditions live, in
-/// spec §2 order: terminal-1 (no tools → Completed, success even over
-/// budget) → security batch-validate (before any dispatch) → terminal-2
+/// spec §2 order: text without a granted sentinel → Completed; text with
+/// a granted sentinel → bounded continuation; then security batch validation
+/// (before any dispatch) → terminal-2
 /// (`nika:done` → `ExplicitCompletion`, wins over batch-mates) → budget
 /// gate (`>=` exhausted, before spending more). Falls through to
 /// `Dispatch` when the loop should iterate.
@@ -1332,6 +1302,10 @@ fn classify_turn(
     // Terminal 1 · a concluded answer is a SUCCESS even if it spent the
     // last token (budgets stop CONTINUING, they don't fail a finished run).
     if tool_uses.is_empty() {
+        if ctx.whitelist.admits(DONE_TOOL) {
+            turn::token_budget_gate(ctx.input.max_tokens_total, ctx.total_tokens, text)?;
+            return Ok(TurnVerdict::ContinueText);
+        }
         return Ok(final_text_verdict(
             text.to_owned(),
             AgentStopReason::Completed,
@@ -1490,6 +1464,8 @@ fn is_clean_tool_name(name: &str) -> bool {
 mod tests;
 #[cfg(test)]
 mod tests_budgets;
+#[cfg(test)]
+mod tests_completion;
 #[cfg(test)]
 mod tests_refusal;
 #[cfg(test)]

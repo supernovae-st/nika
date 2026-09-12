@@ -113,7 +113,11 @@ impl<H, T> AgentVerb<H, T> {
 The loop: model response → if tool-use blocks present, dispatch each via
 invoke, feed results back as tool-result messages → repeat. Terminates on:
 
-1. **Model returns no tool calls** → `Completed` · `success`.
+1. **Model returns no tool calls without a granted `nika:done`** →
+   `Completed` · `success`. If the effective whitelist grants `nika:done`,
+   preserve the assistant response and request that the model continue or
+   call the sentinel. This continuation spends the existing turn and token
+   budgets; it does not spend the separate schema-repair allowance.
 2. **`nika:done` sentinel** (a tool in the whitelist) → `ExplicitCompletion`
    · `success`. Optional `result:` arg → `.output` is that JSON value
    (schema validates IT); absent → `.output` is the final assistant text.

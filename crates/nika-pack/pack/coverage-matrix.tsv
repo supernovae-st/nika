@@ -160,3 +160,6 @@ verbs	NIKA-BUILTIN	check-reject	conformance/tests/deep/030-decide-without-eviden
 verbs	NIKA-BUILTIN	check-reject	conformance/tests/deep/031-decide-without-bundle
 verbs	NIKA-BUILTIN	check-reject	conformance/tests/deep/032-decide-without-args
 verbs	(positive)	positive-check	conformance/tests/deep/033-decide-inline-pair
+verbs	NIKA-AGENT-001	run-fail	conformance/tests/runtime/agent/004-text-with-done-exhausts-turns
+verbs	(positive)	positive-run	conformance/tests/runtime/agent/005-text-without-done-completes
+verbs	NIKA-AGENT-002	run-fail	conformance/tests/runtime/agent/006-text-with-done-exhausts-tokens

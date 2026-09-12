@@ -113,11 +113,9 @@ async fn ordinary_refusal_like_text_is_repairable_without_a_signal() {
         MockToolExecutor::new(),
         Vec::new(),
     );
-    let out = r
-        .verb
-        .run(typed_input(6000))
-        .await
-        .expect("ordinary repair");
+    let mut input = typed_input(6000);
+    input.tools.clear();
+    let out = r.verb.run(input).await.expect("ordinary repair");
     assert_eq!(r.provider.captured_requests().len(), 2);
     assert_eq!(out.usage.input_tokens, 20);
     assert_eq!(out.usage.output_tokens, 10);

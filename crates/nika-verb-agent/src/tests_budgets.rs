@@ -69,6 +69,12 @@ fn typed_input(budget: u64) -> AgentInput {
     input
 }
 
+fn natural_input(budget: u64) -> AgentInput {
+    let mut input = typed_input(budget);
+    input.tools.clear();
+    input
+}
+
 fn metered(mut response: InferResponse, input: u64, output: u64) -> InferResponse {
     response.usage = usage(input, output);
     response
@@ -227,7 +233,7 @@ async fn mixed_done_budget_error_preserves_latest_assistant_text() {
 }
 
 #[tokio::test]
-async fn empty_natural_final_after_done_repair_does_not_revive_old_text() {
+async fn empty_continuation_after_done_repair_does_not_revive_old_text() {
     for budget in [26, 25] {
         let mut first = tool_use_response(
             "bad",
@@ -252,7 +258,7 @@ async fn empty_natural_final_after_done_repair_does_not_revive_old_text() {
             .verb
             .run_observed(input, &events)
             .await
-            .expect_err("the empty final answer still needs a repair");
+            .expect_err("the empty continuation still needs an explicit conclusion");
         let reqs = r.provider.captured_requests();
         assert_eq!(reqs.len(), 2, "no third request after spending 26 tokens");
         assert!(
@@ -328,7 +334,7 @@ async fn every_text_repair_checks_the_accumulated_usage() {
         Vec::new(),
     );
     let events = Recording::default();
-    let result = r.verb.run_observed(typed_input(40), &events).await;
+    let result = r.verb.run_observed(natural_input(40), &events).await;
     assert_eq!(r.provider.captured_requests().len(), 2);
     let err = result.expect_err("no third request at the cumulative ceiling");
     assert_token_stop(&err, 40, 24, 16);
@@ -393,6 +399,13 @@ async fn a_valid_typed_conclusion_wins_at_or_above_both_budgets() {
             let events = Recording::default();
             let mut input = typed_input(budget);
             input.max_turns = Some(1);
+            if !first
+                .content
+                .iter()
+                .any(|block| matches!(block, ContentBlock::ToolUse { .. }))
+            {
+                input.tools.clear();
+            }
             let out = r
                 .verb
                 .run_observed(input, &events)
@@ -420,7 +433,7 @@ async fn a_text_repair_below_budget_can_complete_over_budget() {
     let events = Recording::default();
     let out = r
         .verb
-        .run_observed(typed_input(18), &events)
+        .run_observed(natural_input(18), &events)
         .await
         .expect("one token left allows repair");
     assert_eq!(
@@ -462,7 +475,7 @@ async fn repair_allowance_exhaustion_remains_a_schema_error() {
         let verb = r.verb.with_schema_retry_budget(allowance);
         let budget = [17, 40, 71][usize::from(allowance)];
         let err = verb
-            .run(typed_input(budget))
+            .run(natural_input(budget))
             .await
             .expect_err("schema never conformed");
         assert!(

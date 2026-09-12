@@ -6,11 +6,46 @@
 //! under the 100-line fn-length ratchet without growing the loop file
 //! past 1,500.
 
-use nika_kernel::ai::provider::Message;
+use nika_kernel::ai::provider::{ContentBlock, InferResponse, Message, Role};
 use nika_kernel::runtime::agent::AgentStopReason;
 
 use crate::shape;
 use crate::{AgentOutput, AgentValue, VerbAgentError};
+
+/// Preserve the model's plan, then request an explicit conclusion without
+/// inventing a tool result or spending the separate schema-repair allowance.
+pub(crate) fn feed_text_continuation(messages: &mut Vec<Message>, response: InferResponse) {
+    messages.push(Message::new(Role::Assistant, response.content));
+    messages.push(Message::new(Role::User, vec![ContentBlock::Text {
+        text: "This task requires explicit completion. Continue using the available tools, or call nika:done with your result to finish. A text-only answer does not complete the task.".to_owned(),
+    }]));
+}
+
+/// Feed a failed done result back under its original tool-call id. Sibling
+/// calls were never dispatched, so they must not become unanswered tool uses.
+pub(crate) fn feed_done_repair(
+    messages: &mut Vec<Message>,
+    response: InferResponse,
+    repair: &crate::DoneRepair,
+) {
+    let turn: Vec<ContentBlock> = response
+        .content
+        .into_iter()
+        .filter(|block| match block {
+            ContentBlock::ToolUse { id, .. } => *id == repair.tool_use_id,
+            _ => true,
+        })
+        .collect();
+    messages.push(Message::new(Role::Assistant, turn));
+    messages.push(Message::new(
+        Role::User,
+        vec![ContentBlock::ToolResult {
+            tool_use_id: repair.tool_use_id.clone(),
+            content: shape::done_repair_message(&repair.detail),
+            is_error: true,
+        }],
+    ));
+}
 
 /// Stop before another request when the cumulative token budget is met.
 /// Tool feedback, done-result repairs and final-text repairs all pass

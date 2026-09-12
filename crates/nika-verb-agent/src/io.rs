@@ -90,6 +90,22 @@ pub(crate) struct TurnBudget {
     pub(crate) blame_source: &'static str,
 }
 
+impl TurnBudget {
+    /// Refuse continuation before another model request or tool dispatch.
+    pub(crate) fn check(self, turns: u32, last_text: &str) -> Result<(), crate::VerbAgentError> {
+        if turns >= self.max_turns {
+            return Err(crate::VerbAgentError::MaxTurns {
+                turns,
+                partial_output: last_text.to_owned(),
+                blame: self.blame,
+                blame_source: self.blame_source,
+                spend: Box::default(),
+            });
+        }
+        Ok(())
+    }
+}
+
 /// The verb's result value — text, or the validated JSON value when the
 /// task carried a `schema:` (or `nika:done` carried a `result:`).
 #[derive(Debug, Clone, PartialEq)]
