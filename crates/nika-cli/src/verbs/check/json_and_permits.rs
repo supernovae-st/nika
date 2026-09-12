@@ -57,13 +57,34 @@ fn infer_permits_shell_form_is_comment_only_until_rewritten() {
         "{}",
         out.text
     );
+    assert_inferred_boundary_parses(&out.text);
     let json = run_infer_permits(path.to_str().expect("utf8"), true);
     let payload: serde_json::Value = serde_json::from_str(&json.text).expect("JSON output");
     let yaml = payload["permits_yaml"].as_str().expect("inferred YAML");
+    assert_inferred_boundary_parses(yaml);
     assert!(
         !yaml.lines().any(|line| line.starts_with("  exec:")),
         "{yaml}"
     );
+}
+
+fn assert_inferred_boundary_parses(yaml: &str) {
+    let workflow =
+        format!("nika: inferred\n{yaml}\ntasks:\n  t:\n    exec: {{ command: [\"echo\"] }}\n");
+    nika_schema::parser::parse(
+        &workflow,
+        nika_schema::source::FileId::new(0),
+        nika_schema::parser::ParseMode::Strict,
+    )
+    .expect("inferred boundary remains a schema-valid mapping");
+}
+
+#[test]
+fn infer_permits_omits_unknown_exec_but_retains_other_grants() {
+    let yaml = tighten_exec_yaml("permits:\n  fs:\n    read: [\"data.txt\"]\n  exec: true\n");
+    assert!(yaml.contains("  fs:\n    read:"));
+    assert!(!yaml.contains("exec: true"));
+    assert_inferred_boundary_parses(&yaml);
 }
 
 /// Persona 03: TTY used to stamp `NIKA-BUILTIN-001` on a ghost

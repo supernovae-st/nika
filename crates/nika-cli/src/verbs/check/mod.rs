@@ -934,12 +934,20 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
 /// A program allowlist cannot admit shell strings. Unknown exec authority
 /// stays comment-only until the operator rewrites or resolves the command.
 fn tighten_exec_yaml(yaml: &str) -> String {
-    yaml.replace(
+    let yaml = yaml.replace(
         "  exec: true\n",
         "  # exec grant omitted: no paste-ready program allowlist can be inferred.\n\
          # rewrite shell: as command: [\"program\", ...] before granting its program.\n\
          # For dynamic argv, resolve the intended program before declaring exec.\n",
-    )
+    );
+    if yaml.lines().skip(1).all(|line| {
+        let line = line.trim();
+        line.is_empty() || line.starts_with('#')
+    }) {
+        yaml.replacen("permits:\n", "permits: {}\n", 1)
+    } else {
+        yaml
+    }
 }
 
 #[cfg(test)]
