@@ -31,7 +31,10 @@ pub(super) struct TestWorld {
 
 impl TestWorld {
     pub(super) fn new() -> Self {
-        let root = tempfile::tempdir().expect("test root");
+        Self::from_tempdir(tempfile::tempdir().expect("test root"))
+    }
+
+    fn from_tempdir(root: tempfile::TempDir) -> Self {
         let workflows = root.path().join("workflows");
         let state = root.path().join("state");
         let token = root.path().join("serve.token");
@@ -449,6 +452,8 @@ mod durable_queue;
 mod pause_boundary;
 #[cfg(test)]
 mod request_lifecycle;
+#[cfg(test)]
+mod shutdown;
 #[cfg(test)]
 mod trace_journal;
 
