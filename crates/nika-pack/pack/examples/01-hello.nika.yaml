@@ -14,7 +14,10 @@
 #   - one task · the `infer:` verb, bounded by `max_tokens:`
 #   - `outputs:` · the value a caller gets back
 #
-# Needs · ollama with the model pulled · `ollama pull qwen3.5:4b`.
+# Needs · ollama with a small model pulled · `ollama pull qwen2.5:0.5b`.
+#   This non-reasoning model is a smaller starting point; local speed depends
+#   on hardware and cold loading. Buffered local inference defaults to 300s.
+#   For a slower machine, add `timeout: 7m` to greet, next to `infer:`.
 #   No ollama? The dry twin runs anywhere, zero setup ·
 #   `nika run examples/01-hello.nika.yaml --model mock/echo`
 #
@@ -22,7 +25,7 @@
 
 nika: hello
 
-model: ollama/qwen3.5:4b   # local · zero key · swap for any provider in the catalog
+model: ollama/qwen2.5:0.5b   # small local model · zero key · mock/echo rehearses offline
 
 # The declared zero. `permits:` is default-deny once present, so an empty
 # block is a statement, not a formality: this workflow opens no file, reaches
@@ -42,13 +45,10 @@ tasks:
       # The ceiling. On a priced model this is what turns the cost report from
       # UNBOUNDED into a hard worst-case number.
       #
-      # 2048 for two words looks absurd until you measure it. `max_tokens` caps
-      # think + answer, and qwen3.5 is a reasoning model that deliberates before
-      # it speaks — on this exact prompt: 64 → "", 256 → "", 512 → "", 1024 →
-      # "Bonjour.", 2048 → "Bonjour !". Under the threshold the run is GREEN and
-      # the output is EMPTY, because the budget ran out mid-thought. Size the
-      # cap for the thinking, not just the answer.
-      max_tokens: 2048
+      # A short greeting on the small non-reasoning seat does not need a
+      # thinking budget. If you later choose a reasoning model, raise this
+      # cap to cover its thinking as well as its visible answer.
+      max_tokens: 128
 
 # The return value. It does NOT appear on the live run — that surface shows
 # progress. `--output json` is the export contract: the typed `outputs:` as
