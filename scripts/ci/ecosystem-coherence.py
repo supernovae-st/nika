@@ -123,7 +123,7 @@ def main():
 
     sdk_repo = grab(f"{RAW}/supernovae-st/nika-client/main/package.json",
                     lambda t: json.loads(t)["version"], "client-sdk repo")
-    npm = grab("https://registry.npmjs.org/@supernovae-st%2Fnika-client",
+    npm = grab("https://registry.npmjs.org/@supernovae-st%2Fnika",
                lambda t: json.loads(t)["dist-tags"]["latest"], "npm")
     if sdk_repo and npm and sdk_repo != npm:
         FINDINGS.append(("FAIL", "npm", f"published {npm} != repo {sdk_repo}"))
