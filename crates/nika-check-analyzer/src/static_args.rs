@@ -153,7 +153,7 @@ pub fn static_program(command: &RawCommand) -> Option<&str> {
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown exec command form: {other:?}"),
+        _ => unreachable!("unknown exec command form"),
     }
 }
 
