@@ -15,7 +15,8 @@ use crate::CheckReport;
 #[non_exhaustive]
 pub struct FailurePlanEntry {
     /// Closed slug: `host_passwd_read` · `exec_cat_host` ·
-    /// `priced_image_over_cap` · `unpriced_cloud_cap`.
+    /// `priced_image_over_cap` · `unpriced_cloud_cap`. The historical
+    /// `host_passwd_read` slug covers confirmed read/write fs refusals.
     pub shape: &'static str,
     /// The wire code the run would stamp.
     pub code: String,
@@ -58,17 +59,17 @@ fn passwd_reads(wf: &RawWorkflow, report: &CheckReport) -> Vec<FailurePlanEntry>
     report
         .capability_escapes
         .iter()
-        .filter(|e| e.detail.contains("/etc/passwd") || e.detail.contains("escapes the workspace"))
+        .filter(|e| e.category == "fs" && !e.floor)
         .filter(|e| {
             wf.tasks.iter().any(|t| {
                 t.value.id.value == e.task
-                    && matches!(&t.value.action, RawAction::Invoke(inv) if inv.tool().is_some_and(|tool| tool.value.contains("nika:read") || tool.value.contains("nika:write")))
+                    && matches!(&t.value.action, RawAction::Invoke(inv) if inv.tool().is_some_and(|tool| matches!(tool.value.as_str(), "nika:read" | "nika:write")))
             })
         })
         .map(|e| {
             FailurePlanEntry::new(
                 "host_passwd_read",
-                "NIKA-SEC-004",
+                if e.undeclared { "NIKA-AUTH-006" } else { "NIKA-SEC-004" },
                 e.task.clone(),
                 e.detail.clone(),
             )
@@ -157,6 +158,121 @@ mod tests {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
         let report = crate::check(&wf);
         collect(&wf, &report)
+    }
+
+    fn fs_fixture(tool: &str, path: &str, declared: bool) -> RawWorkflow {
+        let permits = if declared {
+            format!(
+                "permits: {{ tools: ['{tool}'], fs: {{ read: ['./safe/**'], write: ['./safe/**'] }} }}\n"
+            )
+        } else {
+            String::new()
+        };
+        let content = if tool == "nika:write" {
+            ", content: hi"
+        } else {
+            ""
+        };
+        let source = format!(
+            "nika: fs-plan\nconst:\n  target: /outside/nika/secret.txt\n{permits}tasks:\n  probe:\n    invoke: {{ tool: '{tool}', args: {{ path: '{path}'{content} }} }}\n"
+        );
+        parse(&source, FileId::new(0), ParseMode::Strict).expect("fixture")
+    }
+
+    #[test]
+    fn host_shapes_survive_new_wording_for_literals_and_consts() {
+        for tool in ["nika:read", "nika:write"] {
+            for path in [
+                "/outside/nika/secret.txt",
+                "../secret.txt",
+                "${{ const.target }}",
+                "./other/file.txt",
+            ] {
+                let wf = fs_fixture(tool, path, true);
+                let report = crate::check(&wf);
+                let plan = passwd_reads(&wf, &report);
+                assert_eq!(plan.len(), 1, "{tool}, {path}: {plan:?}");
+                assert_eq!(plan[0].shape, "host_passwd_read");
+                assert_eq!(plan[0].code, "NIKA-SEC-004");
+            }
+        }
+    }
+
+    #[test]
+    fn changing_only_the_diagnostic_text_keeps_the_refusal_classification() {
+        let wf = fs_fixture("nika:read", "/etc/passwd", true);
+        let mut report = crate::check(&wf);
+        let before = passwd_reads(&wf, &report);
+        assert_eq!(before.len(), 1);
+        for escape in &mut report.capability_escapes {
+            escape.detail = "an independently worded diagnostic".to_owned();
+        }
+        let after = passwd_reads(&wf, &report);
+        assert_eq!(after.len(), before.len());
+        assert_eq!(after[0].shape, before[0].shape);
+        assert_eq!(after[0].code, before[0].code);
+        assert_eq!(after[0].task, before[0].task);
+        assert_eq!(after[0].message, "an independently worded diagnostic");
+    }
+
+    #[test]
+    fn an_absent_boundary_keeps_its_host_shape_and_its_authority_code() {
+        for tool in ["nika:read", "nika:write"] {
+            for path in [
+                "/outside/nika/secret.txt",
+                "../secret.txt",
+                "${{ const.target }}",
+                "./safe/file.txt",
+            ] {
+                let wf = fs_fixture(tool, path, false);
+                let report = crate::check(&wf);
+                let plan = passwd_reads(&wf, &report);
+                assert_eq!(plan.len(), 1, "{tool}, {path}: {plan:?}");
+                assert_eq!(plan[0].code, "NIKA-AUTH-006");
+            }
+        }
+    }
+
+    #[test]
+    fn an_unrelated_capability_cannot_spoof_a_host_shape_through_its_message() {
+        let wf = fs_fixture("nika:read", "/etc/passwd", true);
+        let mut report = crate::check(&wf);
+        for escape in &mut report.capability_escapes {
+            escape.category = "net";
+        }
+        assert!(passwd_reads(&wf, &report).is_empty());
+        for escape in &mut report.capability_escapes {
+            escape.category = "fs";
+            escape.floor = true;
+        }
+        assert!(passwd_reads(&wf, &report).is_empty());
+    }
+
+    #[test]
+    fn clean_reads_and_tool_only_refusals_do_not_gain_a_filesystem_plan() {
+        let wf = fs_fixture("nika:read", "./safe/file.txt", true);
+        let report = crate::check(&wf);
+        assert!(report.is_clean());
+        assert!(passwd_reads(&wf, &report).is_empty());
+        let source = "nika: denied-tool\npermits: { tools: [], fs: { read: ['./safe/**'] } }\ntasks:\n  probe:\n    invoke: { tool: nika:read, args: { path: './safe/file.txt' } }\n";
+        let wf = parse(source, FileId::new(0), ParseMode::Strict).expect("fixture");
+        let report = crate::check(&wf);
+        assert!(!report.is_clean());
+        assert!(
+            report
+                .capability_escapes
+                .iter()
+                .all(|e| e.category == "tools")
+        );
+        assert!(passwd_reads(&wf, &report).is_empty());
+    }
+
+    #[test]
+    fn a_tool_name_containing_a_builtin_name_is_not_that_builtin() {
+        let wf = fs_fixture("nika:read", "/etc/passwd", true);
+        let report = crate::check(&wf);
+        let other = fs_fixture("nika:read_extra", "/etc/passwd", true);
+        assert!(passwd_reads(&other, &report).is_empty());
     }
 
     #[test]

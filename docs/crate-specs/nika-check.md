@@ -45,6 +45,11 @@ does not resolve symlinks, and teaches consistent spelling for aliases
 before changing grants. The matcher, refusal and automatic-fix policy do
 not infer filesystem identity from an alias example.
 
+The historical `failure_plan` shape `host_passwd_read` projects confirmed
+filesystem refusals for `nika:read` and `nika:write`, including relative
+paths. It uses the category, task and boundary provenance; wording is
+copied only as the message. Missing authority retains `NIKA-AUTH-006`.
+
 ## Why L0, not L1
 
 The registry's mechanical sort (< 10 s): not the binary, not a

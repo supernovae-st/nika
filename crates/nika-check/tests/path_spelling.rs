@@ -51,6 +51,13 @@ fn mismatched_spellings_name_both_sides_and_teach_the_static_limit() {
         ] {
             let report = report(surface, grant, requested);
             assert!(!report.is_clean(), "{surface:?}: mismatch stays refused");
+            assert!(
+                report
+                    .failure_plan
+                    .iter()
+                    .any(|e| e.task == "probe" && e.code == "NIKA-SEC-004"),
+                "{surface:?}: the public failure plan retains the refusal"
+            );
             let escape = report
                 .capability_escapes
                 .iter()
