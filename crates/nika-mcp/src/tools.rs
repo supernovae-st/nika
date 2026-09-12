@@ -1176,6 +1176,44 @@ mod tests {
     }
 
     #[test]
+    fn explain_mirrors_the_complete_value_and_exec_finding_lessons() {
+        for (source, code) in [
+            (
+                "nika: teaching\nvars: {x: hi}\ntasks: {}\n",
+                "NIKA-VALUES-001",
+            ),
+            (
+                "nika: teaching\ntasks:\n  say:\n    exec: ls -la\n",
+                "NIKA-PARSE-019",
+            ),
+            (
+                "nika: teaching\ntasks:\n  say:\n    exec: {command: 'ls -la'}\n",
+                "NIKA-PARSE-019",
+            ),
+        ] {
+            let refusal = nika_schema::parse(
+                source,
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            )
+            .expect_err("fixture is refused");
+            let lesson = match &refusal {
+                nika_schema::SchemaError::Validation { message, .. } => message.clone(),
+                _ => refusal.to_string(),
+            };
+            let message = execute("nika_check", &json!({ "workflow": source }))
+                .expect_err("parse refusal is the actual MCP error");
+            let cli_words = message.replace("`nika_check` with `fix: true`", "`nika check --fix`");
+            assert!(cli_words.contains(&lesson), "{message}");
+            let explained = execute("nika_explain", &json!({"code": code})).expect("explained");
+            let oracle_words =
+                lesson.replace("`nika check --fix`", "`nika_check` with `fix: true`");
+            assert!(explained.contains(&oracle_words), "{explained}");
+            assert!(!explained.contains("`nika check --fix`"), "{explained}");
+        }
+    }
+
+    #[test]
     fn explain_an_unknown_code_is_a_tool_error() {
         assert!(execute("nika_explain", &json!({ "code": "NIKA-GHOST-999" })).is_err());
     }
