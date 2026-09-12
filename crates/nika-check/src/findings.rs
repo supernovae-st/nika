@@ -166,7 +166,10 @@ fn push_secret_rows(out: &mut Vec<UnifiedFinding>, report: &CheckReport) {
         let mut f = UnifiedFinding::new(
             "secret_egress",
             "SECRETS",
-            format!("EGRESS via outputs.{} — {}", e.output, e.trace),
+            format!(
+                "EGRESS via outputs.{} — {} · fix: remove `outputs.{}`; if exporting this secret is intended, add `{{ to: \"outputs\" }}` to `secrets.{}.egress` (keep existing rules)",
+                e.output, e.trace, e.output, e.secret
+            ),
         );
         // NIKA-SEC-007 — a tainted value reaches the workflow boundary.
         f.code = Some("NIKA-SEC-007".to_owned());
