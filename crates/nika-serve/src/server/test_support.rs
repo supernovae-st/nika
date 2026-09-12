@@ -5,6 +5,17 @@
 
 use serde_json::Value;
 
+/// One deterministic filesystem mutation after the route's existence check.
+pub(super) type CaptureAction = Box<dyn FnOnce() + Send>;
+pub(super) type CaptureProbe = std::sync::Arc<std::sync::Mutex<Option<CaptureAction>>>;
+
+pub(super) fn before_named_capture(probe: &CaptureProbe) {
+    let action = probe.lock().expect("capture probe").take();
+    if let Some(action) = action {
+        action();
+    }
+}
+
 pub(super) fn assert_allowlisted(event: &Value) {
     let object = event.as_object().expect("event object");
     assert!(

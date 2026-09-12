@@ -92,6 +92,17 @@ impl TestWorld {
         resident: ResidentConfig,
         http_root: &std::path::Path,
     ) -> TestServer {
+        self.start_with_capture_action(backend, resident, http_root, None)
+            .await
+    }
+
+    pub(super) async fn start_with_capture_action(
+        &self,
+        backend: Arc<dyn ExecutionBackend>,
+        resident: ResidentConfig,
+        http_root: &std::path::Path,
+        before_capture: Option<super::test_support::CaptureAction>,
+    ) -> TestServer {
         let authority = ResidentAuthority::open(resident, backend)
             .await
             .expect("authority");
@@ -101,6 +112,11 @@ impl TestWorld {
             &self.token,
         );
         let bound = BoundServer::attach(config, &authority).await.expect("bind");
+        *bound
+            .state
+            .before_named_capture
+            .lock()
+            .expect("capture probe") = before_capture;
         let address = bound.local_addr().expect("local address");
         let shutdown_probe = authority.state.store.shutdown_test_probe();
         let shutdown_observer = Arc::clone(&shutdown_probe);
