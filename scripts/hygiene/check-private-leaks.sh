@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Vector 14: no private monorepo paths referenced in this PUBLIC tree.
+# Vector 14: no private monorepo paths referenced in this PUBLIC text tree.
 #
 # 2026-08-15 · this vector guarded ONE hardcoded pattern
 # (`.claude/projects/-Users-thibaut`) while the pre-commit hook guarded TEN
@@ -41,7 +41,11 @@ EXCLUDES=(
 
 ALTERNATION="$(nika_private_alternation)"
 
-leaks="$(git grep -l -E "$ALTERNATION" -- "${EXCLUDES[@]}" 2>/dev/null || true)"
+# Compressed media can contain arbitrary matching bytes. GNU git grep found
+# the three-byte substrate prefix inside GIF/MP4 payloads, making clean-tree
+# mutation proofs fail on Linux. Judge tracked text, like the staged-diff twin;
+# binary content needs its own format-aware review, not a source-path regex.
+leaks="$(git grep -I -l -E "$ALTERNATION" -- "${EXCLUDES[@]}" 2>/dev/null || true)"
 
 # The venture tree, matched by shape, with the one public tier carved out.
 #
@@ -56,11 +60,11 @@ leaks="$(git grep -l -E "$ALTERNATION" -- "${EXCLUDES[@]}" 2>/dev/null || true)"
 # keep the file only if something private survives.
 while IFS= read -r f; do
   [ -n "$f" ] || continue
-  if git grep -h -oE "$NIKA_VENTURE_SHAPE" -- "$f" 2>/dev/null \
+  if git grep -I -h -oE "$NIKA_VENTURE_SHAPE" -- "$f" 2>/dev/null \
     | grep -qvE "$NIKA_VENTURE_PUBLIC"; then
     leaks="$(printf '%s\n%s' "$leaks" "$f")"
   fi
-done < <(git grep -l -E "$NIKA_VENTURE_SHAPE" -- "${EXCLUDES[@]}" 2>/dev/null || true)
+done < <(git grep -I -l -E "$NIKA_VENTURE_SHAPE" -- "${EXCLUDES[@]}" 2>/dev/null || true)
 leaks="$(printf '%s' "$leaks" | grep -v '^$' | sort -u || true)"
 
 if [ -n "$leaks" ]; then
@@ -68,5 +72,5 @@ if [ -n "$leaks" ]; then
   printf '%s\n' "$leaks" | sed 's/^/  /'
   exit 2
 fi
-echo "OK (no private paths in tracked code · $(printf '%s' "${#NIKA_PRIVATE_PATTERNS[@]}") patterns + the venture shape)"
+echo "OK (no private paths in tracked text · $(printf '%s' "${#NIKA_PRIVATE_PATTERNS[@]}") patterns + the venture shape)"
 exit 0

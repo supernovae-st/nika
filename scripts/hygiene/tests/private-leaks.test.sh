@@ -12,7 +12,7 @@
 #
 # The properties, and each one is a defect this vector actually had:
 #
-#   1. IT LOOKS. A private path anywhere in the tracked tree turns it red.
+#   1. IT LOOKS. A private path in tracked files Git treats as text turns it red.
 #      With one pattern, nine families were invisible.
 #   2. IT DOES NOT OVER-LOOK. The public repos tier is of the same SHAPE as
 #      a private pole; the first cut of the widening reported every file
@@ -68,6 +68,12 @@ expect "a private venture pole turns it red" 2 "ventures/example/05-growth/campa
 expect "a pre-migration spelling turns it red" 2 "nika/hq/strategy.md"
 expect "the PUBLIC venture tier stays green" 0 "ventures/nika/02-engineering/repos/engine/README.md"
 expect "lmstudio keeps the word boundary green" 0 "/home/u/.cache/lm-studio/models and the lmstudio/ provider"
+
+# Git treats this NUL-containing fixture as binary despite its .rs extension.
+# This proves classification, not semantic inspection of its readable bytes.
+# The surrounding tests still require the existing private text cases to fail.
+printf '\0\306dx/\377 ventures/example/05-growth/opaque\0\n' >"$PROBE"
+expect "binary bytes are not source-path references" 0 ""
 
 # The gate and its full-tree twin must read the SAME list, or they drift back
 # apart — which is the whole reason the leak slept.
