@@ -29,7 +29,7 @@ pub(super) fn block_on_run<F>(
 where
     F: std::future::Future<Output = RunVerdict>,
 {
-    let _listener = listen(cancel.clone());
+    let _listener = listen(runtime, cancel.clone());
     runtime.block_on(future)
 }
 
@@ -58,14 +58,36 @@ impl Drop for Listener {
 /// context and says what happens next; the second ends the process with
 /// the cancelled class. A listener that cannot start says so once and the
 /// run then ends the way the platform ends it, never a silent hang.
-fn listen(cancel: CancelCtx) -> Option<Listener> {
+fn listen(runtime: &tokio::runtime::Runtime, cancel: CancelCtx) -> Option<Listener> {
+    // Register before dispatch, and retain both Unix subscriptions between
+    // signals. Recreating a receiver after "cancelling" could lose the next
+    // signal while another runtime broadcasts it with no receiver present.
+    #[cfg(unix)]
+    let mut receiver = {
+        let _entered = runtime.enter();
+        match OperatorSignals::new() {
+            Ok(receiver) => receiver,
+            Err(error) => {
+                eprintln!("nika run: cannot listen for Ctrl-C: {error}");
+                return None;
+            }
+        }
+    };
+    #[cfg(not(unix))]
+    let _ = runtime;
     let signals = async move {
+        #[cfg(unix)]
+        receiver.recv().await;
+        #[cfg(not(unix))]
         operator_signal().await;
         cancel.cancel();
         eprintln!(
             "nika run: cancelling · in-flight work completes and is counted · \
              unstarted tasks are cancelled · Ctrl-C again to abort"
         );
+        #[cfg(unix)]
+        receiver.recv().await;
+        #[cfg(not(unix))]
         operator_signal().await;
         eprintln!("nika run: aborted · the trace is incomplete (the run was cut mid-flight)");
         std::process::exit(i32::from(crate::verbs::exit::CANCELLED));
@@ -107,37 +129,42 @@ fn spawn_listener(
     })
 }
 
-/// Resolves on the operator's next SIGINT (Ctrl-C) or, on unix, SIGTERM. A
-/// listener that cannot be installed says so once and never resolves.
-async fn operator_signal() {
-    let interrupt = async {
-        match tokio::signal::ctrl_c().await {
-            Ok(()) => {}
-            Err(error) => {
-                eprintln!("nika run: cannot listen for Ctrl-C: {error}");
-                std::future::pending::<()>().await;
-            }
-        }
-    };
-    #[cfg(unix)]
-    {
+/// Persistent subscriptions retain a signal delivered between the two waits.
+#[cfg(unix)]
+struct OperatorSignals {
+    interrupt: tokio::signal::unix::Signal,
+    terminate: tokio::signal::unix::Signal,
+}
+
+#[cfg(unix)]
+impl OperatorSignals {
+    fn new() -> std::io::Result<Self> {
         use tokio::signal::unix::{SignalKind, signal};
-        let mut term = signal(SignalKind::terminate()).ok();
-        let terminate = async {
-            match term.as_mut() {
-                Some(term) => {
-                    term.recv().await;
-                }
-                None => std::future::pending::<()>().await,
-            }
-        };
+        Ok(Self {
+            interrupt: signal(SignalKind::interrupt())?,
+            terminate: signal(SignalKind::terminate())?,
+        })
+    }
+
+    async fn recv(&mut self) {
         tokio::select! {
-            () = interrupt => {}
-            () = terminate => {}
+            _ = self.interrupt.recv() => {}
+            _ = self.terminate.recv() => {}
         }
     }
-    #[cfg(not(unix))]
-    interrupt.await;
+}
+
+/// Resolves on the operator's next Ctrl-C. A listener that cannot be
+/// installed says so once and never resolves.
+#[cfg(not(unix))]
+async fn operator_signal() {
+    match tokio::signal::ctrl_c().await {
+        Ok(()) => {}
+        Err(error) => {
+            eprintln!("nika run: cannot listen for Ctrl-C: {error}");
+            std::future::pending::<()>().await;
+        }
+    }
 }
 
 #[cfg(test)]

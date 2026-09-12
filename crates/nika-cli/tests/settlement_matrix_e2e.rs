@@ -16,6 +16,9 @@
 use std::io::{BufRead as _, BufReader};
 use std::process::{Child, Command, Stdio};
 
+#[path = "support/held_run.rs"]
+mod held_run;
+
 /// Two jq tasks · succeeds · unmetered.
 const CLEAN: &str = "nika: m-clean
 permits: { tools: [\"nika:jq\"] }
@@ -109,6 +112,7 @@ impl Rig {
             ("fan.nika.yaml", FAN),
             ("gate.nika.yaml", GATE),
             ("wait.nika.yaml", WAIT),
+            ("held.nika.yaml", held_run::WORKFLOW),
         ] {
             std::fs::write(root.join("work").join(file), body).expect("workflow");
         }
@@ -452,36 +456,14 @@ fn row_human_gate_pauses_and_the_same_run_resumes_on_every_door() {
 #[test]
 fn row_cancel_every_door_says_cancelled_by_the_operator() {
     let rig = Rig::new("cancel");
-    let mut child = rig.spawn_wait();
-    let mut reader = BufReader::new(child.stdout.take().expect("piped stdout"));
-    let mut seen = String::new();
-    let mut line = String::new();
-    loop {
-        line.clear();
-        let n = reader.read_line(&mut line).expect("stdout readable");
-        assert!(
-            n > 0,
-            "the stream ended before the first task settled:\n{seen}"
-        );
-        seen.push_str(&line);
-        if line.contains("\"kind\":\"task_completed\"") {
-            break;
-        }
-    }
-    let pid = child.id().to_string();
-    assert!(
-        Command::new("kill")
-            .args(["-INT", &pid])
-            .status()
-            .expect("kill runs")
-            .success(),
-        "SIGINT delivered"
+    let mut child = held_run::HeldRun::spawn(
+        rig.command(&["run", "held.nika.yaml", "--json", "--max-cost-usd", "0.01"]),
+        &rig.root.join("work"),
     );
-    let mut rest = String::new();
-    std::io::Read::read_to_string(&mut reader, &mut rest).expect("the rest of the stream");
-    seen.push_str(&rest);
-    let status = child.wait().expect("reaped");
-    assert_eq!(status.code(), Some(130), "the CANCELLED class");
+    child.signal(nix::sys::signal::Signal::SIGINT);
+    child.wait_cancelling();
+    let (code, seen, stderr) = child.finish(true);
+    assert_eq!(code, 130, "the CANCELLED class · stderr:\n{stderr}");
     let lines: Vec<serde_json::Value> = seen
         .lines()
         .filter(|l| !l.trim().is_empty())
