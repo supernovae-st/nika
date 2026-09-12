@@ -315,7 +315,8 @@ impl ArgvFloorRefusal {
             Self::InterpreterEval { base } => format!(
                 "argv interpreter inline-eval refused: {base:?} with an eval flag \
                  or subcommand runs attacker-influenceable code — run a script \
-                 file or route via pre_validated"
+                 file with the interpreter in permits.exec and the script path \
+                 in permits.fs.read; the script remains confined"
             ),
             Self::NetcatExec => {
                 String::from("argv `nc -e/-c` (reverse shell) refused at the exec floor")
@@ -633,7 +634,8 @@ mod tests {
             eval.reason(),
             "argv interpreter inline-eval refused: \"bash\" with an eval flag \
              or subcommand runs attacker-influenceable code — run a script \
-             file or route via pre_validated"
+             file with the interpreter in permits.exec and the script path \
+             in permits.fs.read; the script remains confined"
         );
         let prog = ArgvFloorRefusal::DangerousProgram {
             base: String::from("sudo"),

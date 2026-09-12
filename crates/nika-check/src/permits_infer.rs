@@ -278,7 +278,7 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
                     clippy::unreachable,
                     reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
                 )]
-                other => unreachable!("unknown exec command form: {other:?}"),
+                _ => unreachable!("unknown exec command form"),
             }
         }
         RawAction::Invoke(a) => match &a.target {

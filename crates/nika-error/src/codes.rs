@@ -667,13 +667,19 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              `thinking:`, or seat a no-think variant.\n",
         ),
         "NIKA-INFER-001" => Some(
-            "  The run could not reach that model. `--model` / envelope \
+            "  The run could not reach that model. Key presence does not prove \
+             validity: nika does not probe present keys before the inference request. \
+             `--model` / envelope \
              `model:` is envelope-only: a per-task `model:` pin stays live \
              and metered (it does not inherit a parent `--model mock/echo` \
              rehearsal). Keep testing offline with `--model mock/echo` on \
              a workflow that has no per-task pins, or `--access <seat>`. \
              A catalog alias (`grok`) is the same seat as its canonical \
-             id (`xai`) and uses that seat's key (`XAI_API_KEY`).\n",
+             id (`xai`) and uses that seat's key (`XAI_API_KEY`). \
+             Buffered inference defaults to 300s local / 30s cloud. \
+             For a local timeout, choose a smaller non-reasoning model or set \
+             `timeout: 7m` on the task (next to infer:). Streaming has an \
+             idle-read guard, not this implicit total deadline.\n",
         ),
         "NIKA-PROVIDER" => Some(
             "  `model:` is `<provider>/<model>` — a pasteable id \
@@ -681,6 +687,18 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              aliases (`grok`) resolve to the canonical provider (`xai`) \
              and that seat's key (`XAI_API_KEY`). `nika catalog` prints \
              pasteable ids.\n",
+        ),
+        "NIKA-SEC-001" => Some(
+            "  The exec floor is always-on; no permit disables it. It refuses \
+             blocked program identities (privilege escalation, system control, re-exec), \
+             interpreter inline-eval flags or eval subcommands, reverse shell flags, \
+             raw disk operands, and destructive command patterns. Shell-mode \
+             expansion and substitution have additional restrictions. For ordinary \
+             script logic, put the code in a file and invoke the interpreter: \
+             `exec: { command: [sh, ./worker.sh] }` with `permits.exec: [sh]` \
+             and `permits.fs.read: [./worker.sh]`. Grant only the script's other \
+             required paths and effects. File form does not disable confinement \
+             or make a blocked program admissible.\n",
         ),
         "NIKA-SEC-004" => Some(
             "  The boundary is default-deny once `permits:` is present: an \
@@ -894,7 +912,19 @@ mod tests {
             assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
         }
         // Only the earned codes teach — the rest keep the registry row.
-        assert!(spec_contract_help("NIKA-SEC-001").is_none());
+        let floor = spec_contract_help("NIKA-SEC-001").expect("floor repair");
+        for lesson in [
+            "inline-eval",
+            "subcommand",
+            "privilege",
+            "reverse shell",
+            "raw disk",
+            "destructive",
+            "permits.exec",
+            "permits.fs.read",
+        ] {
+            assert!(floor.contains(lesson), "missing {lesson}: {floor}");
+        }
         assert!(spec_contract_help("NIKA-DAG-001").is_none());
     }
 
@@ -929,6 +959,10 @@ mod tests {
         assert!(help.contains("mock/echo"), "{help}");
         assert!(help.contains("xai"), "{help}");
         assert!(help.contains("XAI_API_KEY"), "{help}");
+        assert!(help.contains("300s local"), "{help}");
+        assert!(help.contains("30s cloud"), "{help}");
+        assert!(help.contains("timeout: 7m"), "{help}");
+        assert!(help.contains("next to infer:"), "{help}");
     }
 
     /// B18 / issue 1306: NIKA-PROVIDER names the pasteable id, not a

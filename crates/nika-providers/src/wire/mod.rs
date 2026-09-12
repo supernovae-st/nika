@@ -109,7 +109,14 @@ pub(crate) fn map_http_err(e: &HttpError) -> ProviderError {
     match e {
         HttpError::Timeout { .. } => ProviderError::Api {
             status: 408,
-            message: e.to_string(),
+            message: format!(
+                "{e}; buffered inference defaults to {}s local / {}s cloud. \
+                 For a buffered call, choose a smaller non-reasoning local model \
+                 or set timeout: 7m on the task (next to infer:). \
+                 Streaming has an idle-read guard, not this implicit total deadline.",
+                LOCAL_DEFAULT_TIMEOUT.as_secs(),
+                CLOUD_DEFAULT_TIMEOUT.as_secs(),
+            ),
         },
         _ => ProviderError::Other {
             reason: e.to_string(),
@@ -392,7 +399,11 @@ mod tests {
     fn status_error_maps_the_table() {
         let auth = status_error(401, br#"{"error":{"message":"bad key"}}"#, None, "m");
         assert!(matches!(auth, ProviderError::AuthFailed { .. }));
-        assert_eq!(auth.to_string(), "authentication failed: bad key");
+        assert!(
+            auth.to_string()
+                .starts_with("authentication failed: bad key — ")
+        );
+        assert!(auth.to_string().contains("does not probe present keys"));
 
         let nf = status_error(404, b"{}", None, "anthropic/claude-x");
         assert!(matches!(nf, ProviderError::ModelNotFound { .. }));
@@ -441,12 +452,25 @@ mod tests {
 
     #[test]
     fn timeout_maps_to_api_408() {
-        let err = map_http_err(&HttpError::Timeout { duration_ms: 30000 });
-        match err {
-            ProviderError::Api { status, .. } => assert_eq!(status, 408),
-            other => panic!("expected Api 408, got {other:?}"),
+        for duration_ms in [30_000, 300_000, 420_000] {
+            let err = map_http_err(&HttpError::Timeout { duration_ms });
+            match &err {
+                ProviderError::Api { status, message } => {
+                    assert_eq!(*status, 408);
+                    assert!(message.contains(&format!("{duration_ms}ms")), "{message}");
+                    assert!(message.contains("300s local"), "{message}");
+                    assert!(message.contains("30s cloud"), "{message}");
+                    assert!(message.contains("timeout: 7m"), "{message}");
+                    assert!(message.contains("next to infer:"), "{message}");
+                    assert!(message.contains("smaller non-reasoning"), "{message}");
+                }
+                other => panic!("expected Api 408, got {other:?}"),
+            }
+            assert!(
+                !err.is_transient(),
+                "408 retains its existing terminal classification"
+            );
         }
-        assert!(err.is_transient() || !err.is_transient(), "total");
         let other = map_http_err(&HttpError::Connection {
             reason: "refused".into(),
         });

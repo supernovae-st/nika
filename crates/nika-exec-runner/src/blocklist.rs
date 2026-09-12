@@ -246,7 +246,9 @@ pub(crate) fn check_shell_mode(command: &str) -> Result<(), ShellError> {
     {
         return Err(ShellError::Blocked {
             reason: format!(
-                "shell-mode expansion/substitution char refused: {c:?} (route via pre_validated)"
+                "shell-mode expansion/substitution char refused: {c:?} — use argv \
+                 or a script file with the interpreter in permits.exec and \
+                 the script path in permits.fs.read; the script remains confined"
             ),
         });
     }

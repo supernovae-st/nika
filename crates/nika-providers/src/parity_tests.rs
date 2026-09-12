@@ -202,6 +202,10 @@ async fn every_wired_profile_stream_maps_401_to_auth_failed() {
     for (id, _wire, requires_key) in wired_http_profiles() {
         let fake = FakeHttp::with_stream(401, AUTH_ERR, 64);
         let rp = resolve_on(&fake, id, requires_key);
+        assert!(
+            fake.captured().is_empty(),
+            "resolution does not probe key validity"
+        );
         let err = rp
             .infer_stream(request())
             .await
@@ -211,6 +215,26 @@ async fn every_wired_profile_stream_maps_401_to_auth_failed() {
             matches!(err, ProviderError::AuthFailed { .. }),
             "[{id}] stream 401 → AuthFailed (same table as infer), got {err:?}"
         );
+        assert_eq!(
+            fake.captured().len(),
+            1,
+            "one inference request, no validity probe"
+        );
+        assert!(
+            !err.is_transient(),
+            "auth refusal is not a retryable transport error"
+        );
+        for lesson in [
+            "does not probe",
+            "--model mock/echo",
+            "per-task",
+            "--access <seat>",
+        ] {
+            assert!(
+                err.to_string().contains(lesson),
+                "[{id}] missing {lesson}: {err}"
+            );
+        }
     }
 }
 
@@ -220,11 +244,35 @@ async fn every_wired_profile_maps_401_to_auth_failed() {
         let _ = wire;
         let fake = FakeHttp::with_json(401, AUTH_ERR);
         let rp = resolve_on(&fake, id, requires_key);
+        assert!(
+            fake.captured().is_empty(),
+            "resolution does not probe key validity"
+        );
         let err = rp.infer(request()).await.expect_err("401 must be an error");
         assert!(
             matches!(err, ProviderError::AuthFailed { .. }),
             "[{id}] 401 → AuthFailed, got {err:?}"
         );
+        assert_eq!(
+            fake.captured().len(),
+            1,
+            "one inference request, no validity probe"
+        );
+        assert!(
+            !err.is_transient(),
+            "auth refusal is not a retryable transport error"
+        );
+        for lesson in [
+            "does not probe",
+            "--model mock/echo",
+            "per-task",
+            "--access <seat>",
+        ] {
+            assert!(
+                err.to_string().contains(lesson),
+                "[{id}] missing {lesson}: {err}"
+            );
+        }
     }
 }
 
