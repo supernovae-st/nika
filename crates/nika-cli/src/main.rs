@@ -1454,9 +1454,12 @@ mod tests {
             .map(std::string::ToString::to_string)
             .unwrap_or_default();
         assert!(
-            model_help.contains("envelope")
+            model_help.contains("Override only this workflow's default")
+                && model_help.contains("Task `model:` pins")
+                && model_help.contains("invoked child workflows keep their own models")
+                && model_help.contains("does not make their calls or other effects offline")
                 && !model_help.to_ascii_lowercase().contains("any workflow"),
-            "B22 · `--model` help is envelope-only, not a preview of every task: {model_help}"
+            "B22 · `--model` help names the workflow default and retained live scopes: {model_help}"
         );
         let hidden = cmd
             .get_subcommands()
