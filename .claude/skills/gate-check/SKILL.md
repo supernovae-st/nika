@@ -1,97 +1,39 @@
 ---
 name: gate-check
-description: Run the 12 gates against a named crate and report pass/fail per gate. Use before crate admission or when verifying gate progress on an in-flight crate.
+description: Audit the evidence for a named crate's 12 admission gates. Use for admission readiness or gate progress, not ordinary code validation.
 argument-hint: [crate-name]
 allowed-tools: Bash, Read, Grep
 ---
 
-# 12-Gate Check — `$ARGUMENTS`
+# Audit crate admission evidence
 
-Run each gate sequentially on crate `$ARGUMENTS`. Report PASS / FAIL / N/A with a 1-line reason.
+Use `docs/adr/adr-003-12-gate-admission.md`, the candidate's
+`docs/crate-specs/<crate>.md`, and the current revision. Validate the crate name
+against the manifest before interpolating it into commands. This is an audit:
+do not modify workspace membership, commit, or launch execution outside scope.
 
-## Gate 1 — SPEC
+Report each gate as PASS, FAIL, PENDING or a justified N/A, with its actual
+command/result or evidence path. Review available evidence first; execute the
+missing authorized checks needed for the requested audit. A test count does not
+prove test-first development, a file's existence does not prove its test ran,
+and an empty warning search does not prove the compiler succeeded.
 
-```bash
-test -f docs/crate-specs/$ARGUMENTS.md && echo PASS || echo FAIL
-```
+| Gate | Evidence |
+|---|---|
+| 1 Spec | Purpose, layer, API, dependencies and applicable exemptions |
+| 2 Test first | Recorded failing-before-passing behavior and relevant history |
+| 3 Implementation | `cargo test -p <crate> --lib --locked`, plus affected targets |
+| 4 Clippy | `cargo clippy -p <crate> --all-targets -- -D warnings` exits successfully |
+| 5 Mutation | `bash scripts/ci/check-mutation-floor.sh <crate>`; report score and limitations |
+| 6 Property | Executed properties for parser, encoding and security contracts |
+| 7 Benchmarks | Executed relevant hot-path benchmarks, or supported N/A |
+| 8 Documentation | `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps -p <crate>` and public API coverage |
+| 9 Canary | Actual end-to-end canary result, or supported exemption |
+| 10 Parity | Executed comparison with legacy behavior on the same inputs |
+| 11 Review | Three independent reviews, findings and resolution at candidate revision |
+| 12 Atomic commit | Exact admission diff and commit; pending until committed |
 
-## Gate 2 — TDD (tests written first)
-
-```bash
-grep -rc -E '#\[(test|tokio::test)\]' crates/$ARGUMENTS/src 2>/dev/null | awk -F: '{s+=$2} END{print s " tests"}'
-```
-PASS if tests > 20 per 1k LOC. Check `git log --oneline crates/$ARGUMENTS/` for test-first commit order.
-
-## Gate 3 — IMPL (compiles, tests pass)
-
-```bash
-cargo test -p $ARGUMENTS --lib 2>&1 | tail -5
-```
-
-## Gate 4 — CLIPPY 0
-
-```bash
-cargo clippy -p $ARGUMENTS --all-targets -- -D warnings 2>&1 | grep -E '(error|warning)' | wc -l
-```
-PASS if output is 0.
-
-## Gate 5 — MUTATION ≥ 90 %
-
-```bash
-cargo mutants -p $ARGUMENTS --timeout 30 2>&1 | tail -5
-```
-
-## Gate 6 — PROPERTY (proptest if parser/security/encoding)
-
-```bash
-grep -rE 'proptest!|quickcheck!' crates/$ARGUMENTS/ 2>/dev/null | wc -l
-```
-N/A if crate is pure types. Document exemption in spec.
-
-## Gate 7 — BENCHMARKS (if hot path)
-
-```bash
-test -d crates/$ARGUMENTS/benches && echo PASS || echo "N/A (not hot path)"
-```
-
-## Gate 8 — DOCS (cargo doc 0 warnings, pub items documented)
-
-```bash
-cargo doc --no-deps -p $ARGUMENTS 2>&1 | grep -iE 'warning' | wc -l
-```
-
-## Gate 9 — CANARY E2E
-
-```bash
-test -f tests/canary-$ARGUMENTS.nika.yaml && echo PASS || echo "N/A"
-```
-
-## Gate 10 — PARITY LEGACY
-
-Crate-specific. Check golden-test file against `git show brouillon:…` output.
-
-## Gate 11 — REVIEW SWARM
-
-Launch 3 parallel agents. See `.claude/agents/review-swarm.md`.
-
-## Gate 12 — ATOMIC COMMIT
-
-```bash
-git log --oneline --grep "admit to workspace" crates/$ARGUMENTS/ | head -5
-```
-PASS = exactly 1 commit `feat($ARGUMENTS): admit to workspace — all 12 gates passed`, co-authored Nika 🦋.
-
----
-
-After running all 12 gates, print a summary table:
-
-```
-Gate  Status  Detail
-────  ──────  ──────────────
-1     PASS    docs/crate-specs/$ARGUMENTS.md exists
-2     PASS    87 tests
-3     PASS    all green
-...
-```
-
-If any FAIL → stop, report why. Do NOT proceed with admission.
+Preserve command exit statuses; do not pipe a compiler into `tail`, `grep` or
+`wc` and use the last process as its verdict. Reuse relevant current evidence
+and identify what became stale after edits. Missing tools or permissions stay
+PENDING. Admission is not ready while a required gate is failed or pending.

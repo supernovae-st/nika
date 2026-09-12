@@ -1,53 +1,22 @@
-# Session Discipline — rules per session
+# Session ownership and completion
 
-## Avant de commencer (5 min obligatoire)
+Establish the requested outcome, target checkout and concurrent edits. Inspect
+current source and relevant evidence instead of trusting a prior handoff's
+counts or phase labels. A stale note is not a reason to halt unrelated work;
+correct it when within scope and report a material contradiction.
 
-1. Lire MEMORY.md Quick State (HEAD, phase active, count crates)
-2. Lire le handoff actif (MEGA_HANDOFF_PHASE_D.md pour Phase D courante)
-3. Grep-verify les 3 chiffres clés :
-   ```bash
-   git log --oneline -1                    # HEAD correct ?
-   ls crates/*/Cargo.toml 2>/dev/null | wc -l  # crates admises ?
-   cargo clippy --workspace 2>&1 | tail -3  # CI green ?
-   ```
-4. Si divergence avec docs → STOP, escalader, fixer avant de coder
+Continue through implementation, affected checks and the requested delivery.
+Crate admission retains its 12 gates and one-crate-per-admission-commit rule;
+an ordinary edit does not require a fixed session duration, a full workspace
+build, a new plan or a stop after each small result.
 
-## Pendant la session
+When interrupted, reconcile processes, worktree changes and partial external
+effects before retrying. Preserve other sessions' files and index entries.
+Use bounded independent reviews when their contract requires them; unavailable
+review evidence remains pending, not passed. Do not invent a different model
+or paid fallback to satisfy an old agent-role name.
 
-- **1 crate à la fois** — pas de parallel admission
-- **12 gates séquentielles** — spec → TDD → impl → clippy → mutation → ...
-- **Stop après chaque crate admise** — rapporter, attendre validation user
-- **Expliquer le Rust** quand le user demande — c'est une feature, pas du bruit
-- **Pas de nouveau fichier mémoire** sauf si session > 3h ET décision locked
-
-## Fin de session (5 min)
-
-1. Update STATE.md si crate admise (HEAD, count, LOC)
-2. Si Phase milestone → tag git `v0.90.0-alpha.N`
-3. Si documents canoniques touchés → vérifier cohérence MEMORY.md
-4. 1 paragraphe résumé inline (PAS de fichier completion memo)
-
-## Anti-patinage
-
-Signaux d'alerte que la session patine :
-- Tu écris plus de texte que de code
-- Tu spawns > 3 sub-agents dans 1 session
-- Tu proposes un "nouveau plan" alors que le plan est locked
-- Tu écris un "completion memo" de > 200 mots
-- Tu changes d'avis sur une décision locked (POST_AUDIT authority)
-
-→ Si tu détectes ça : STOP, reviens aux 12 gates de la crate en cours.
-
-## Max files modifiés par session
-
-- Max 3 fichiers mémoire touchés par session (éviter drift)
-- Max 1 fichier canonique modifié (POST_AUDIT, PRE_LAUNCH, DIAMOND)
-- Max 0 fichier canonique CRÉÉ (les canoniques existent déjà, update seulement)
-
-## Notifications au user
-
-Rapporter au user quand :
-- Crate admise (12/12 gates, commit SHA, LOC, mutation score)
-- Gate échouée (laquelle, pourquoi, fix proposé)
-- Découverte inattendue (shadow zone, dep circulaire, LOC > budget)
-- Doute sur une décision (escalader, pas décider solo)
+Close with what changed, actual validation, unresolved blockers and any required
+next action. Update affected canonical docs and caller references; do not
+create a parallel status file merely to record completion. Tags and releases
+are separate authorized operations governed by current release policy.

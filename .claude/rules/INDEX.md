@@ -1,44 +1,16 @@
-# Rules INDEX — nika/engine
+# Contributor guidance routes
 
-Route-finding map for Diamond enforcement rules. Agents should load this first, then `@`-reference only the specific rule(s) needed for the current task. Keeps context lean.
+`AGENTS.md` owns the common contract. Use a rule when the task needs it:
 
-| Rule | Path | Tags | When to load |
-|---|---|---|---|
-| Diamond discipline | [diamond-discipline.md](diamond-discipline.md) | diamond, 12-gates, main-read-only | **Before ANY session start, ANY commit** — non-negotiable rules |
-| Nika invariants | [nika-invariants.md](nika-invariants.md) | invariants, crate-count, layers, naming | Before crate admission, ADR write, structural change |
-| Commit granularity | [commit-granularity.md](commit-granularity.md) | commit, conventional, atomic, subject-len | Before every commit |
-| Session discipline | [session-discipline.md](session-discipline.md) | session, pre-flight, end-of-session, anti-patinage | Beginning + end of every session |
-| Evolution | [evolution.md](evolution.md) | archive, memory, freshness, update-cadence | When touching memory/ files or canonical docs |
+| Rule | When relevant |
+|---|---|
+| [diamond-discipline.md](diamond-discipline.md) | Crate admission, legacy reference or architecture gates |
+| [nika-invariants.md](nika-invariants.md) | Crate/layer changes or ADRs |
+| [commit-granularity.md](commit-granularity.md) | Preparing a commit |
+| [session-discipline.md](session-discipline.md) | Ownership, interruption, continuation or completion |
+| [evolution.md](evolution.md) | Maintaining canonical documentation |
 
-## Quick decision tree
-
-```
-User asks you to …                    → Load rule
-─────────────────────────────────────  ─────────────────────────────────
-"admit a new crate"                    diamond-discipline + nika-invariants + commit-granularity
-"make a commit"                        commit-granularity
-"starting a session"                   session-discipline + diamond-discipline
-"update memory / MEMORY.md"            evolution
-"rename a crate / symbol"              nika-invariants + diamond-discipline
-"write an ADR"                         nika-invariants + evolution
-"skip a gate"                          diamond-discipline (NO exceptions rule)
-```
-
-## Authority chain (from `../CLAUDE.md`)
-
-Higher in this list wins when two docs contradict:
-
-1. Studio-internal authority docs (POST_AUDIT_REVISIONS · PRE_LAUNCH_GATES · HANDOFF · the velocity north-star) — private overlay on the operator's machine (`.claude/settings.local.json` · gitignored) — supreme authority when present locally
-2. `.claude/rules/*.md` (this directory) — project-specific enforcement
-
-## Loading philosophy
-
-- **Start small**: load this INDEX.md first (≤400 tokens)
-- **`@`-reference**: cite specific rules via `@.claude/rules/<rule>.md`
-- **Don't preload all**: 5 rules total ~6000 tokens — too much for every task
-- **Update this index** when adding a new rule (file + tags + trigger)
-
-## Related
-
-- `../CLAUDE.md` — Diamond rules entry point (authority hierarchy, 12 gates, interdits stricts)
-- Root monorepo rules at `../../../dx/.claude/rules/INDEX.md` (hygiene, submodule, naming, security, root-structure)
+Do not load every rule as an entry ritual. Some clients automatically load
+rule files: this index alone does not control host loading. User instructions
+and host boundaries take precedence; optional private notes are context, not
+a replacement for the public contract.

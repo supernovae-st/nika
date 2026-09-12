@@ -1,6 +1,6 @@
 ---
 name: nika-operating
-description: Operate Nika workflows day-2 — spend caps, permits boundaries, secrets, model swaps (cloud/local), CI wiring, trace export. Use when hardening a working workflow for production, wiring it into CI or a scheduler, capping cost, tightening the permits boundary, swapping models, or exporting traces to OpenTelemetry.
+description: "Prepare existing Nika workflows for unattended operation: budgets, permits, secrets, model changes, CI and trace export. Use for operational changes to a working workflow."
 ---
 
 # Operating Nika workflows
@@ -23,7 +23,8 @@ the engine/spec identity that produced the report.
   bounds that output estimate, not prompt/input cost or the entire invoice.
   `≥ $X FLOOR` means at least one task is unbounded — fix
   the reason (a missing `max_tokens`, an uncataloged model, an
-  expression fan-out), never ship a floor to production.
+  expression fan-out). Before unattended use, state the exposure and
+  applicable controls; unpriced compute must not be called a bounded USD cost.
 - Cap the run: `nika run <file> --max-cost-usd <n>` refuses a known
   over-budget floor before execution. Crossing the metered budget during
   execution stops new admissions; already-started calls finish and count.
@@ -44,8 +45,8 @@ any spawn. A pure-compute body states the zero explicitly:
 nika check <file> --infer-permits
 ```
 
-prints the tightest `permits:` block the workflow needs — paste it
-into the file. From then on the boundary is default-deny: a new host,
+proposes a `permits:` block and unresolved review notes. Reconcile them with
+the intended effects before applying the justified grants. From then on the boundary is default-deny: a new host,
 path or tool must be added consciously, in a reviewable diff. Permits
 are data, not config — they travel with the file through PR review.
 
@@ -167,7 +168,7 @@ re-pinning is a review decision, not an automatic fix for drift.
 - Audits cite `nika trace verify <trace>`, which reports the highest
   tier honestly attained: chain OK · SEALED (the `run_sealed`
   signature verifies against a custody key) · ANCHORED (the detached
-  sidecar verifies fully offline) · REPLAYED (`--replay` compares a
+  sidecar verifies fully offline) · REPLAYED (`--replay <fresh-trace>` compares a
   fresh run). A journal that never reached a terminal frame verifies
   INCOMPLETE. Never a log screenshot.
 - `nika trace evidence <trace>` exports the auditor's pack — journal +
@@ -200,3 +201,13 @@ re-pinning is a review decision, not an automatic fix for drift.
 8. For a run someone will audit: signed (`nika sign`), verified to its
    highest honest tier (`nika trace verify`), packed
    (`nika trace evidence`).
+
+## Completion
+
+For the requested operational change, validate the final file and affected
+integration, preserving unrelated settings. Complete an already authorized
+rehearsal or rollout and inspect its artifacts; otherwise return the checked
+configuration and precise remaining decision. Report which readiness checks,
+effect assertions and evidence tiers actually passed. A production checklist
+is conditional on the workflow's features, not a demand to configure every
+capability for a narrow model or budget change.

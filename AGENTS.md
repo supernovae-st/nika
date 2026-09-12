@@ -1,136 +1,83 @@
-# AGENTS — Nika Diamond
+# AGENTS — Nika engine
 
-Guidance for AI coding agents (Claude Code, Cursor, Aider, etc.) working in
-this repository. This is the public AGENTS counterpart to the
-`.claude/` rules — a single page that any agent can read on entry.
+This public repository owns the Nika engine and canonical agent plugin under
+`.agents/plugins/nika/`. The current user request defines scope and authorized
+actions. Preserve concurrent work and establish the checkout, branch, HEAD and
+staged changes before editing; do not switch a shared checkout for discovery.
 
-## Repository snapshot
+## Find the relevant contract
 
-| Field   | Value |
-|---------|-------|
-| Branch  | `main` (orphan, no shared history with `brouillon` · renamed 2026-05-06 from `nika-diamond` per Option C-full) |
-| Workspace | tracks `Cargo.toml` `workspace.version` (the CHANGELOG top names the latest release) · real semver toward a 1.0 launch (amended D-2026-06-20-N1 · ADR-002) |
+| Work | Read when needed |
+|---|---|
+| Product overview and documentation | `README.md`, `llms.txt` |
+| Workflow authoring or static findings | `.agents/plugins/nika/skills/nika-authoring/SKILL.md` |
+| Run diagnosis, migration or operations | Corresponding skill under `.agents/plugins/nika/skills/` |
+| Rust API, layer or architecture change | `docs/architecture/forward-compat-invariants.md`, `docs/architecture/crate-layer-registry.md`, affected crate spec and ADR |
+| Admit a crate | `CONTRIBUTING.md`, `docs/adr/adr-003-12-gate-admission.md`, `.claude/skills/crate-admit/SKILL.md` |
+| Release readiness or future direction | `ROADMAP.md`, `CHANGELOG.md`, `DIAMOND.md`; long-horizon details in `docs/architecture/VISION_2040_intelligence-layer.md` |
+| Contribution history or session handling | `.claude/rules/INDEX.md` |
 
-**Live numbers live in ONE place** — the AUTO-GENERATED block in
-`.claude/CLAUDE.md` (regenerate: `bash scripts/refresh-status.sh` ·
-parity-enforced by hygiene vector 23). This file used to carry a
-hand-typed copy of that table and drifted badly (said 8 crates / 905
-tests while the block said 18 / 1267) — counts are never hand-typed
-here again. Architecture worth knowing on entry: the kernel is 4
-sibling crates (`nika-kernel-{core,ai,runtime,plugin}`) behind the
-`nika-kernel` facade hub (split 2026-06-10 · census forensic at
-`docs/architecture/kernel-split-census-2026-06-10.md`) · errors speak
-the `NikaErrorCode` trait + `nika_error::codes` registry (one-voice ·
-`docs/architecture/error-trait-completeness-2026-06-10.md`).
+Read the material needed for the requested change, not the whole table.
+The historical `.claude/` directory contains shared contributor guidance;
+client adapters do not choose a model or override the user's mandate.
 
-## What to read first
+## Preserve the engine contracts
 
-0. `llms.txt` — the agent on-ramp (curated index of every doc below, in order).
-1. `README.md` — user-facing overview + current state.
-2. `DIAMOND.md` — the Diamond rewrite philosophy.
-3. `docs/architecture/forward-compat-invariants.md` — 8 patterns, 10 rules, non-negotiable.
-4. `docs/architecture/crate-layer-registry.md` — L0 to L4 layer discipline.
-5. `ROADMAP.md` — real-semver plan toward 1.0 (amended D-2026-06-20-N1 · was "forever-v0.x"): the CHANGELOG top names the latest tagged release; `main` carries the next → 1.0.0 launch → 1.x adds the remaining crates.
-6. `.claude/CLAUDE.md` + `.claude/rules/` — project-specific enforcement.
-7. `docs/architecture/VISION_2040_intelligence-layer.md` — the long-horizon
-   direction (LSP, workflow generator, agent-comprehension, Connectome, Nika-OS).
+- `brouillon` is read-only legacy reference: use `git show brouillon:path`.
+  Never check it out or copy legacy defects into the current implementation.
+- No `.unwrap()` or `.expect(` in production `src/`, and no
+  `#[allow(dead_code)]`. Propagate errors with `?` and follow workspace lints.
+- Split files beyond 1,500 LOC; crates beyond 15,000 LOC are rejected.
+  Public error enums are `#[non_exhaustive]`; every I/O sits behind a kernel
+  trait. Dependency layers and response compatibility follow the architecture
+  invariants, not an improvised alternative.
+- A verdict must cover its claim or narrow it. A waiver that calls a check
+  undecidable must name the decidable sub-question considered and why it does
+  not apply. See `crates/nika-check/src/lib.rs` and
+  `docs/plans/2026-07-28-verdict-coverage.md` for the concrete failures.
+- Crate admission still requires all 12 ADR-003 gates in the same PR; this
+  entry does not relax them or apply admission ceremony to ordinary edits.
 
-**Writing a `.nika.yaml` workflow?** That is a LANGUAGE task, not an
-engine task — follow the deterministic protocol in the spec repo:
-instantiate a template (`nika-spec/templates/` — the live shelf: `nika new '?'`),
-fill the SLOT lines, validate, repair from the error. Protocol:
-`nika-spec/AGENTS.md` §Writing a workflow ·
-https://docs.nika.sh/guides/agent-authoring.
+## Complete and verify the requested work
 
-## Hard rules (non-negotiable)
+Use `rust-toolchain.toml`, package manifests and the relevant CI targets.
+Default local unit checks are `cargo test -p <package> --lib --locked`;
+select hermetic integration tests or doctests when the changed contract lives
+there. Inspect test effects first: Keychain, credentials and provider suites
+are not interchangeable with disposable local fixtures. Run authorized local
+checks, repair failures caused by the change and rerun affected checks without
+asking for approval at every iteration.
 
-- `brouillon` branch is **read-only** (legacy v0.79.3 reference). Access legacy code via `git show brouillon:path` only. Never `git checkout brouillon`.
-- No `.unwrap()` or `.expect(` in `src/` (use `?` propagation). Enforced by clippy + hygiene.
-- No `#[allow(dead_code)]` (delete or make `pub(crate)`).
-- Files greater than 1,500 LOC must be split. Crates greater than 15,000 LOC are rejected.
-- Every public error enum is `#[non_exhaustive]` from day one.
-- Every I/O is behind a kernel trait (ADR-006, ADR-014).
-- **A verdict COVERS its claim, or NARROWS its claim to what it covers.** A green
-  that means less than it says spends the reader's trust and returns nothing.
-  When you cannot widen the coverage, narrow the sentence and name what defers —
-  that option is always available. (Measured: `COST` said "worst-case spend"
-  while pricing output tokens only — 328× understated on the commonest first
-  workflow.)
-- **A comment that waives a check as undecidable MUST name the sub-question it
-  considered and why that one does not survive either.** A waiver with no named
-  alternative is reviewable as incomplete, and four times out of four the
-  alternative existed — including the one that hid a shipped fail-open, where a
-  true theorem about containment between two *patterns* was used to excuse
-  matching a *concrete path* against one. Ask: what is the strongest claim I CAN
-  decide here, and does the code make it? Both laws with their repros:
-  `crates/nika-check/src/lib.rs` module doc and
-  `docs/plans/2026-07-28-verdict-coverage.md`.
-- Commits are atomic: one logical change per commit. Co-authored by `Nika <nika@supernovae.studio>` (never "Claude").
-- No `--no-verify`, no `git add -A` / `git add .`, no `cargo test --test` (use `--lib` to avoid macOS Keychain popups).
+For Rust changes, run appropriate clippy targets and `cargo fmt --all -- --check`.
+Use `bash scripts/hygiene/check-all.sh` for required repository hygiene and the
+affected plugin/onboarding tests when changing emitted guidance. Keep existing
+hooks. Do not use `--no-verify` or claim unexecuted checks passed. Broaden testing
+when consumers, failures or remaining uncertainty justify it.
 
-## Crate admission: 12 gates
+Report the changed behavior, exact checks and limitations. Completion includes
+the requested integration or execution when authorized; a first implementation
+is not the stopping point. Pause only at a concrete unresolved decision or
+missing authority, while finishing independent work. Never force-push, erase
+another session's work or add unrelated files to the index.
 
-No crate enters `Cargo.toml` `members = [...]` without all 12 gates passing in the same PR. Summary:
+## Ownership and publication
 
-1. SPEC — `docs/crate-specs/nika-X.md`
-2. TDD — tests first, red before green
-3. IMPL — minimal, compiles, tests pass
-4. CLIPPY — 0 warnings
-5. MUTATION — greater than or equal to 90% killed
-6. PROPERTY — proptest for parsers, encoders, security paths
-7. BENCHMARKS — `benches/` if hot path
-8. DOCS — 0 `cargo doc` warnings, all pub items documented
-9. CANARY E2E — `tests/canary-X.nika.yaml`
-10. PARITY LEGACY — golden test vs `git show brouillon:...` output
-11. REVIEW SWARM — 3-agent parallel review
-12. ATOMIC COMMIT — 1 commit, `feat(nika-X): admit to workspace — all 12 gates passed`
+The plugin kit is canonical here. The marketplace repository mirrors released
+tags using its `mirror.json`; edits reach it through its release sync, not a
+hand-edited mirror. `nika init` embeds the kit: ship referenced resources with
+its entrypoint and validate emitted artifacts. A model name does not establish
+capabilities; keep prompts portable and preserve provider/user choices.
 
-Full detail: `CONTRIBUTING.md` + `.claude/rules/diamond-discipline.md`.
+Stage explicit paths and inspect the staged diff before committing. One logical
+change per commit, subject `type(scope): lowercase description`, trailer:
+`Co-Authored-By: Nika 🦋 <nika@supernovae.studio>`. Use `git commit -s` for the author-matching DCO sign-off required by `CONTRIBUTING.md`. Publication follows existing
+authorization and repository policy; do not ask again for an authorized push.
 
-## Tooling agents should run
+Keep private plans, research, private workspace paths, tokens and production
+`.env` values out of this public repository. Optional private tooling may help
+locally but is not required by contributors. Fall back to repository search
+when an optional tool is unavailable. Report security issues using `SECURITY.md`.
 
-```bash
-cargo test --workspace --lib              # always --lib, avoids Keychain
-cargo clippy --all-targets -- -D warnings
-cargo fmt --check
-bash scripts/hygiene/check-all.sh         # engine-internal hygiene vectors (incl.
-                                          # supply-chain cargo-deny, ADR-081 guard
-                                          # presence, error one-voice)
-bash scripts/refresh-status.sh            # regenerate canonical status block
-```
-
-Admission-tier gates (slow · run per crate when admitting, not in the suite):
-
-```bash
-bash scripts/ci/check-mutation-floor.sh <crate>   # real Gate 5 (cargo-mutants ≥90%)
-cargo deny check                                   # full supply-chain policy
-```
-
-## Code intelligence
-
-Local MCP sidecar is provided by **olympus**. Configured at user scope
-in `~/.claude.json` (private monorepo · binary built from the olympus
-OS workspace — path is machine-local, not committed here).
-Exposes three tools: `olympus_query`, `olympus_impact`, `olympus_context`.
-
-Never commit `nika/engine/.mcp.json` — this engine is a PUBLIC submodule.
-
-If olympus is unavailable, fall back to `Grep` + `Glob` + `cargo clippy`.
-
-## Scope boundaries
-
-This repository is **PUBLIC** (supernovae-st/nika). Never commit:
-
-- Brand bibles, launch plans, market research, competitive intel.
-- `.env*` files with production values, API tokens.
-- References to private monorepo paths (see monorepo hygiene vector 1).
-
-Privacy is enforced by the monorepo hygiene boundary (vector 1).
-
-## Getting help
-
-- Bug reports, feature requests: GitHub Issues.
-- Security reports: `nika@supernovae.studio` (see `SECURITY.md`).
-- Architecture questions: read the ADRs at `docs/adr/` first.
-
-Butterfly on the SuperNovae flag.
+Live counts are generated by `scripts/refresh-status.sh` and parity-checked in
+`.claude/CLAUDE.md`; do not hand-copy them into instructions. Recorded counts
+are evidence at their recorded revision, not the current checkout's test result.

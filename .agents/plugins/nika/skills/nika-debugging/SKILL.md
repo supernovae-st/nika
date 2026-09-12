@@ -1,6 +1,6 @@
 ---
 name: nika-debugging
-description: Diagnose and repair failed, paused or suspicious Nika runs from their traces (.nika/traces). Use when nika run exited red, a run paused on a prompt, a NIKA-XXXX runtime finding needs a root cause, a trace must be read or tamper-verified, or a fixed workflow needs a surgical partial rerun.
+description: Diagnose failed, paused or suspicious Nika runs from traces. Use for runtime failures, integrity checks and recovery; static workflow edits belong to authoring.
 ---
 
 # Debugging Nika runs
@@ -130,7 +130,7 @@ Exit 0 verified · 2 broken · 3 unchained or missing input · 5 incomplete. The
 verdict also names the highest tier honestly attained — chain OK ·
 **SEALED** (the `run_sealed` signature verifies against a custody
 key) · **ANCHORED** (the detached sidecar verifies fully offline) ·
-**REPLAYED** (`--replay` compares a fresh run; verify never
+**REPLAYED** (`--replay <fresh-trace>` compares a fresh run; verify never
 re-executes). A journal that never reached a lifecycle-terminal frame
 verifies **INCOMPLETE**: the verifier's finding about a run that died
 mid-flight — not a pass, and not a tamper claim. Say which one you
@@ -147,3 +147,11 @@ does not prove that the producer told the truth.
 - Never edit a trace. Never delete a paused trace to "clean up".
 - If the binary is missing: `brew install supernovae-st/tap/nika` —
   do not reconstruct runs from memory.
+
+## Completion
+
+A diagnosis names the evidenced cause, remaining hypotheses and the smallest
+repair. When repair and recovery are requested and authorized, continue through
+the affected check, reconciled retry and output inspection; do not stop at the
+first plausible explanation. Preserve the original effect scope and budget,
+and ask only for a missing decision or a human gate's actual answer.

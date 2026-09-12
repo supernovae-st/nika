@@ -28,7 +28,9 @@ runs, several ask).
      `nika explain NIKA-XXXX` and fold its teaching in.
    - **Cost** — the ceiling (`≤ $X`) or the floor (`≥ $X FLOOR` — name
      WHY it is unbounded: missing `max_tokens`, uncataloged model,
-     expression fan-out). A local model is **unpriced, never free**.
+     expression fan-out). This estimates OUTPUT tokens, not input billing
+     or the complete invoice. Metered caps may overshoot for calls already
+     admitted. A local model is **unpriced, never free**.
    - **Native path** — `hints[]` rows with `kind: native-first`. Each
      one names an `exec` that a builtin already covers, and under
      `--native-strict` each one is also a `findings[]` row (`kind:

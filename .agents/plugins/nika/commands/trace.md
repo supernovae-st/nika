@@ -1,42 +1,28 @@
 ---
-description: Read a run's flight recorder — verdict, failing task, tamper check, and the exact resume line if paused
+description: Inspect a Nika run's result, trace integrity and recovery evidence.
 argument-hint: [trace-or-workflow]
 allowed-tools: Bash(nika trace:*), Bash(nika explain:*), Read, Glob
 ---
 
-Read the journal, not a memory of the terminal — `.nika/traces/` is
-the only truth about what a run did.
+Resolve `$ARGUMENTS` to the requested run. If omitted, use `nika trace ls` and
+identify the selected workflow and trace explicitly; ask only if selection
+would be ambiguous. Read `nika trace show <trace>`, `nika trace outputs <trace>`
+and `nika trace verify <trace>`.
 
-Target: `$ARGUMENTS` (no argument? `nika trace ls` and take the `★`
-newest — say which one you picked).
+Report lifecycle result, causal failing tasks, relevant outputs, integrity and
+remaining uncertainty. A broken chain is an integrity failure; it does not by
+itself establish why bytes changed. INCOMPLETE is missing lifecycle evidence,
+not success or proof of no effects. A missing journal likewise does not prove
+execution never started. Decode unknown findings with `nika explain NIKA-XXXX`.
 
-1. `nika trace show <trace>` — the verdict card. Then
-   `nika trace outputs <trace>` — per-task verb · duration · tokens ·
-   bounded preview. The FIRST red task is the root cause; downstream
-   reds are fallout.
-2. `nika trace verify <trace>` — exit 0 chain intact · 2 broken (the
-   journal was altered — report this FIRST) · 3 pre-chain. The verdict
-   names the highest tier honestly attained: chain OK · SEALED (the
-   run signature verifies against a custody key) · ANCHORED (the
-   detached sidecar verifies fully offline) · REPLAYED (`--replay`
-   compares a fresh run; verify never re-executes). A journal that
-   never reached a terminal frame verifies INCOMPLETE — report that
-   as the finding it is, never as a pass.
-3. Report in this order:
-   - **Verdict** — completed · failed at `<task>` · paused on
-     `<prompt>`.
-   - **Root cause** — the failing task, its finding code decoded via
-     `nika explain NIKA-XXXX` (fold the teaching in, never
-     paraphrase from memory).
-   - **Integrity** — chain intact or not.
-   - **Next command** — paused:
-     `nika run <file> --resume <trace> --answer <task>=<value>`
-     (confirm gates take booleans) · fixed upstream:
-     `nika run <file> --from <task-id>` · one flaky task:
-     `nika run <file> --task <task-id>`.
-4. Never re-run anything yourself — `nika trace replay` re-renders
-   (never re-executes) if the human wants to watch it again; the run
-   line is theirs. Dashboards? `nika trace export <trace>` emits
-   OTLP/JSON lines any OTel viewer reads. An auditor gets
-   `nika trace evidence <trace>` — journal + manifest + receipt + a
-   `VERIFY.md` that tells them exactly what to run.
+For recovery, provide the applicable command with original inputs, model, cap
+and scope preserved. Paused runs use `--resume <trace> --answer <task>=<value>`
+with the user's actual answer. `--from <task-id>` and `--task <task-id>` have
+execution consequences: reconcile partial effects before proposing a retry.
+This diagnostic command has no run tool; return execution to the coordinating
+conversation rather than claiming that only a human can launch it.
+
+`nika trace replay` re-renders existing records. `nika trace verify
+--replay <fresh-trace>` compares journals without re-executing. Use
+`nika trace evidence <trace>` when an auditor pack is requested and
+`nika trace export <trace>` when telemetry export is requested.

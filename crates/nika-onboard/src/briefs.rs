@@ -32,7 +32,15 @@ const AGENTS_MD: &str = r#"# AGENTS.md — Nika workflows in this repo
 Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
 **audited before they run**. (This guide is scaffolded by `nika init`.)
 
-## The loop
+## Scope and completion
+Use these instructions for workflow work, not unrelated application edits.
+Inspect the named file and affected dependencies; use broader workspace context
+only when the task needs it. Preserve the user's model, existing authorization,
+effect scope and budget. Continue through requested checks, repairs and
+execution. A missing business decision or human-gate answer remains a question;
+a clean checker result does not supply authorization or prove effects.
+
+## The workflow tools
 - **Author** · `nika new <template> <file>.nika.yaml` (or write one —
   the envelope is `nika: <id>` (kebab-case — the id lives ON the tag)
   + a `tasks:` MAP keyed by task id. A `tasks:` sequence refuses
@@ -59,7 +67,7 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
   `nika welcome` is the short mirror (machine · workspace · next commands).
 - **Context** · `nika welcome --deep --json` — the whole workspace truth in one
   call (every workflow audited · recent runs · costs · capped and says
-  so). Read it before proposing edits.
+  so). Use it when broad workspace context is needed.
 - **Explain** · `nika explain NIKA-XXXX` teaches one error code ·
   `nika explain <file>` narrates a workflow (waves · cost · touches · how
   to run) — read it before handing a workflow to a human.
@@ -73,7 +81,7 @@ element, run via execve · no implicit shell: pipes, redirects and globs go in
 `shell:` explicitly) · `invoke` (a `nika:` builtin or MCP tool) · `agent` (a
 multi-turn ReAct loop).
 
-## Hard rules (the validator enforces these — they catch ~90% of LLM errors)
+## Language constraints
 - One verb per task · the verb IS the task key (never a `verb:` field).
 - Values live in THREE authorities, a closed family: `inputs:` (typed ·
   caller-supplied · a deployment-supplied value is an input with
@@ -87,7 +95,8 @@ multi-turn ReAct loop).
 - `tasks.X` crosses a task boundary only through `with:` (the binding IS the
   data edge — the body reads `${{ with.<name> }}`, never `tasks.*` directly)
   or `after: {X: success}` (control · predicates `success` · `failure` ·
-  `skipped` · `terminal`). `depends_on` is dead (`check --fix` migrates).
+  `skipped` · `terminal` · `unwind`). Cleanup with `unwind` is best-effort
+  for a producer that started; process death can prevent it. `depends_on` is dead (`check --fix` migrates).
 - Quote any YAML scalar that STARTS with `${{` (an unquoted leading `${{`
   breaks the parse).
 - `invoke` nests BOTH its keys: `tool:` and `args:` sit INSIDE `invoke:`,
@@ -96,9 +105,11 @@ multi-turn ReAct loop).
   `NIKA-PARSE-005` on their first attempt (outside evaluation 2026-08-20).
 - A builtin needs BOTH grants: the tool in `permits.tools` AND whatever it
   touches in `permits.fs` / `permits.net`. A tool in the whitelist with no
-  matching grant is zero authority, and it refuses at RUN, not at check.
+  matching grant is zero authority. Static checks cover known values; runtime admission
+  rechecks values and effects that cannot be resolved statically.
 - `when:` is a `${{ }}` CEL boolean or the literal `true`/`false` — a bare
-  string is rejected. `size()` is the only CEL function.
+  string is rejected. CEL supports `size()`, `has()`, `.size()`,
+  `.contains()`, `.startsWith()` and `.endsWith()`; check the installed schema.
 - `nika:write` needs `content:` · `nika:done` is valid only inside `agent.tools`.
 - snake_case task ids · kebab-case workflow id (on `nika:`).
 
@@ -149,18 +160,25 @@ outputs:
 builtins. Copy, fill, check.
 
 ## Cost honesty (never hide unknown spend)
-- `nika check` prints the ceiling BEFORE any token · `≥ $X FLOOR` means an
-  unbounded task exists — name why, never round unknown to $0.
+- `nika check` estimates output-token cost before execution. Input billing
+  is not included; `≥ $X FLOOR` signals an unbounded or unpriced component.
+  Name the reason; never round unknown costs to $0.
 - A local model is unpriced compute, **never « free »**.
-- `nika run <file> --max-cost-usd <n>` blocks BEFORE the call that would
-  cross the cap.
+- `nika run <file> --max-cost-usd <n>` stops new admissions after crossing
+  the metered budget; already admitted calls can finish and overshoot.
+  A model override to `mock/echo` changes envelope inference only: per-task
+  model pins, tools, subprocesses and file/network effects remain real.
 
 ## Understand · replay · prove
 - `nika inspect <file>` — static anatomy: tasks · verbs · wave groups · cost.
 - `nika inspect <file> --format mermaid|dot|json` — the ONE graph projector.
-- `nika trace show|replay <run>` — the flight recorder (every run records).
+- `nika trace show|replay <run>` — inspect recorded execution. Recording is
+  enabled by default; pre-execution refusal, disabled recording or lost
+  ownership can leave no complete trace. Missing records do not prove no effects.
 - `nika trace verify <run>` — the journal is hash-chained: verify it after a
-  run that matters, cite the trace instead of trusting a memory of the run.
+  run that matters, cite the exact trace and actual proof tier. An intact
+  chain is not proof of lifecycle completion or producer honesty. Reconcile
+  partial effects before retrying an interrupted run.
 - `nika key init|trust|rotate` — the run-signing key: it seals journals and
   signs workflows (print the fingerprint with `nika key trust` to enroll it).
 - `nika sign <file>` — author-bind a workflow (detached `<file>.minisig`
@@ -277,6 +295,36 @@ const AGENT_SKILL: &str = include_str!(concat!(
     "/../../.agents/plugins/nika/skills/nika-authoring/SKILL.md"
 ));
 
+const AGENT_WORKSPACE_AND_EXAMPLES: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/skills/nika-authoring/references/workspace-and-examples.md"
+));
+
+const AGENT_LANGUAGE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/skills/nika-authoring/references/language.md"
+));
+
+const AGENT_VALIDATION_AND_EXECUTION: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/skills/nika-authoring/references/validation-and-execution.md"
+));
+
+const AGENT_NATIVE_AND_ARTIFACTS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/skills/nika-authoring/references/native-and-artifacts.md"
+));
+
+const AGENT_PAID_INFERENCE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/skills/nika-authoring/references/paid-inference.md"
+));
+
+const AGENT_COMPOSITION: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../.agents/plugins/nika/skills/nika-authoring/references/composition.md"
+));
+
 /// `.cursor/agents/nika-*.md` — the three kit subagents, project-side.
 /// Cursor's LOCAL plugin loader consumes MCP + skills ONLY (agents in a
 /// local plugin manifest are ignored; the marketplace path processes the
@@ -369,7 +417,7 @@ pub fn agents_md() -> &'static str {
 
 /// The scaffold set · (relative path, body). The ONE source of what `init`
 /// writes — `plan` and the docs both read it.
-pub(super) fn targets() -> [(&'static str, &'static str); 17] {
+pub(super) fn targets() -> [(&'static str, &'static str); 23] {
     [
         (".vscode/settings.json", VSCODE_SETTINGS),
         ("AGENTS.md", AGENTS_MD),
@@ -389,6 +437,30 @@ pub(super) fn targets() -> [(&'static str, &'static str); 17] {
         (".cursor/hooks-nika/check-on-edit.sh", HOOK_CHECK_ON_EDIT),
         (".cursor/hooks-nika/guard-run.sh", HOOK_GUARD_RUN),
         (".agents/skills/nika-authoring/SKILL.md", AGENT_SKILL),
+        (
+            ".agents/skills/nika-authoring/references/workspace-and-examples.md",
+            AGENT_WORKSPACE_AND_EXAMPLES,
+        ),
+        (
+            ".agents/skills/nika-authoring/references/language.md",
+            AGENT_LANGUAGE,
+        ),
+        (
+            ".agents/skills/nika-authoring/references/validation-and-execution.md",
+            AGENT_VALIDATION_AND_EXECUTION,
+        ),
+        (
+            ".agents/skills/nika-authoring/references/native-and-artifacts.md",
+            AGENT_NATIVE_AND_ARTIFACTS,
+        ),
+        (
+            ".agents/skills/nika-authoring/references/paid-inference.md",
+            AGENT_PAID_INFERENCE,
+        ),
+        (
+            ".agents/skills/nika-authoring/references/composition.md",
+            AGENT_COMPOSITION,
+        ),
         (".github/copilot-instructions.md", COPILOT_INSTRUCTIONS),
         ("CLAUDE.md", CLAUDE_MD),
     ]
@@ -534,7 +606,7 @@ mod tests {
                 ));
             }
         }
-        // The seventeen surfaces `nika init` WRITES into a user's repo
+        // The scaffolded surfaces `nika init` WRITES into a user's repo
         // (AGENTS.md · CLAUDE.md · the Cursor rules · Copilot · the
         // hooks · the skill) are teaching surfaces too — the first ones a
         // wired agent reads. They rode this walk from 2026-08-18: AGENTS.md
@@ -650,6 +722,10 @@ mod tests {
         "agents/nika-migrator.md",
         "agents/nika-author.md",
         "skills/nika-authoring/SKILL.md",
+        "skills/nika-authoring/references/language.md",
+        "init:.agents/skills/nika-authoring/references/language.md",
+        "skills/nika-authoring/references/native-and-artifacts.md",
+        "init:.agents/skills/nika-authoring/references/native-and-artifacts.md",
         "rules/nika-workflow-language.mdc",
         // The init surfaces whose subject IS the language: they name
         // `vars:` / `depends_on` as dead to inoculate a model with 0.105
@@ -862,7 +938,7 @@ mod tests {
         for needle in [
             "args:",                // invoke args under args:, not input:/params:
             "quote",                // quote any scalar that starts with ${{
-            "size()",               // the only CEL function in the v0.1 subset
+            "size()",               // a served CEL callable
             "content:",             // nika:write needs content:
             "`with:`",              // tasks.* crosses the boundary through with:
             "`after:",              // …and after: is the control door (W2 · the flow)
@@ -891,9 +967,52 @@ mod tests {
     /// wiring · contract · per-client briefs · skill · Cursor project
     /// equipment: subagents + delegation + the three seatbelts).
     #[test]
+    fn scaffolded_skill_links_resolve_to_shipped_resources() {
+        let emitted: std::collections::BTreeMap<_, _> = targets().into_iter().collect();
+        let root = std::path::Path::new(".agents/skills/nika-authoring");
+        let mut links = 0;
+        for (path, body) in &emitted {
+            if !path.starts_with(".agents/skills/nika-authoring/") {
+                continue;
+            }
+            for part in body.split("](").skip(1) {
+                let target = part.split(')').next().expect("a link target");
+                if target.starts_with("https:") || target.starts_with('#') {
+                    continue;
+                }
+                let target = target.split('#').next().expect("path before anchor");
+                let base = std::path::Path::new(path).parent().expect("skill parent");
+                let joined = base.join(target);
+                let mut normalized = std::path::PathBuf::new();
+                for component in joined.components() {
+                    match component {
+                        std::path::Component::ParentDir => {
+                            normalized.pop();
+                        }
+                        other => normalized.push(other.as_os_str()),
+                    }
+                }
+                assert!(
+                    normalized.starts_with(root),
+                    "{path}: link leaves skill: {target}"
+                );
+                assert!(
+                    emitted.contains_key(normalized.to_str().expect("utf-8 path")),
+                    "{path}: linked resource is not emitted: {target}"
+                );
+                links += 1;
+            }
+        }
+        assert!(
+            links >= 6,
+            "the routed skill must ship its referenced guidance"
+        );
+    }
+
+    #[test]
     fn targets_names_every_brief_family() {
         let t = targets();
-        assert_eq!(t.len(), 17);
+        assert_eq!(t.len(), 23);
         let paths: Vec<&str> = t.iter().map(|(p, _)| *p).collect();
         for expected in [
             ".vscode/settings.json",

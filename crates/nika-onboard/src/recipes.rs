@@ -164,7 +164,7 @@ fn readme(r: &Recipe) -> String {
         let _ = std::fmt::Write::write_fmt(
             &mut s,
             format_args!(
-                "## {} · {file}\n\n{tag}\n\n```sh\nnika check {rel}\nnika run {rel} --model mock/echo   # offline first — swap the model when ready\n```\n\n",
+                "## {} · {file}\n\n{tag}\n\n```sh\nnika check {rel}\nnika run {rel} --model mock/echo   # simulated envelope inference; tools and effects remain real\n```\n\n",
                 i + 1,
             ),
         );
@@ -215,7 +215,7 @@ pub(crate) fn scaffold_example(
     } else {
         let tag = crate::guided::tagline(clean, body);
         let text = format!(
-            "# workflows — founded from an example\n\n> Scaffolded by `nika init` (generated — regenerate by re-running\n> `nika init --example {clean}` with `--force`).\n\n## {base}.nika.yaml\n\n{tag}\n\n```sh\nnika check {rel}\nnika run {rel} --model mock/echo   # offline first — swap the model when ready\n```\n\nEvery finding teaches: `nika explain NIKA-XXXX`. The full contract\nlives in `AGENTS.md` at the repo root.\n"
+            "# workflows — founded from an example\n\n> Scaffolded by `nika init` (generated — regenerate by re-running\n> `nika init --example {clean}` with `--force`).\n\n## {base}.nika.yaml\n\n{tag}\n\n```sh\nnika check {rel}\nnika run {rel} --model mock/echo   # simulated envelope inference; tools and effects remain real\n```\n\nEvery finding teaches: `nika explain NIKA-XXXX`. The full contract\nlives in `AGENTS.md` at the repo root.\n"
         );
         match std::fs::write(&readme_dest, text) {
             Ok(()) => ScaffoldStatus::Created,
