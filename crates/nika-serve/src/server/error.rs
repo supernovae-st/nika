@@ -117,13 +117,25 @@ impl ApiError {
         }
     }
 
-    pub(crate) const fn unauthorized() -> Self {
+    pub(crate) const fn unauthorized(credential_presented: bool) -> Self {
         Self {
             status: StatusCode::UNAUTHORIZED,
             code: "unauthorized",
-            message: "authentication required",
+            message: if credential_presented {
+                "authentication failed: invalid or mismatched bearer token"
+            } else {
+                "authentication required: no bearer token presented"
+            },
             challenge: true,
         }
+    }
+
+    pub(crate) const fn route_not_found() -> Self {
+        Self::new(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "route not found; health is available at GET /health",
+        )
     }
 
     pub(crate) const fn job_not_found() -> Self {
