@@ -25,7 +25,7 @@ const INITIALIZED_FILE: &str = "initialized.json";
 const INITIALIZED_BODY: &str = "{\"schema\":\"nika/api-schedule-store-init@1\"}\n";
 const LOCK_FILE: &str = "store.lock";
 const STATE_FILE: &str = "state.json";
-const STATE_VERSION: u32 = 1;
+pub(crate) const STATE_VERSION: u32 = 1;
 
 /// Descriptor-rooted durable authority for API-origin resident schedules.
 ///

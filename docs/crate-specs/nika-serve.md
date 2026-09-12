@@ -86,7 +86,7 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 
 | method | route | authority | response allowlist |
 |---|---|---|---|
-| `GET` | `/health` | public | status, service, four `EngineIdentity` fields |
+| `GET` | `/health` | public | status, service, engine/protocol identity and `storeFormatVersion` for jobs and schedules |
 | `GET` | `/v1/workflows` | exactly one Bearer | contained `.nika.yaml` relative names |
 | `GET` | `/v1/workflows/{name}` | exactly one Bearer | `{ "workflow": "<contained name>" }` |
 | `POST` | `/v1/jobs` | exactly one Bearer + `Idempotency-Key` | opaque id + status · 422 `{error:{code,message}}` names the capture NIKA code when stamped · also 400/408/409/413/415/503/507 |

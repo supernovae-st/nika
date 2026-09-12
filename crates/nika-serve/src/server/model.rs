@@ -131,8 +131,16 @@ impl<'a> WorkflowMetadataResponse<'a> {
 pub(crate) struct HealthResponse {
     status: &'static str,
     service: &'static str,
+    #[serde(rename = "storeFormatVersion")]
+    store_format_version: StoreFormatVersion,
     #[serde(flatten)]
     identity: HttpAdapterIdentity,
+}
+
+#[derive(Debug, Serialize)]
+struct StoreFormatVersion {
+    jobs: u32,
+    schedules: u32,
 }
 
 const HTTP_ADAPTER_CAPABILITIES: &[&str] = &["check", "executionSnapshot", "eventStream", "cancel"];
@@ -200,6 +208,10 @@ impl HealthResponse {
         Self {
             status: "ok",
             service: "nika-serve",
+            store_format_version: StoreFormatVersion {
+                jobs: crate::job::STATE_VERSION,
+                schedules: crate::schedule::STATE_VERSION,
+            },
             identity: HttpAdapterIdentity::current(schedule_live),
         }
     }
