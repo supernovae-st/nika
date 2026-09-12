@@ -5,11 +5,13 @@
 # egress tool. Hop count does not erode the runtime boundary. Only two
 # trifecta legs are declared (no fs.read) so the static lane is inert and
 # the runtime layer is what this fixture measures.
+# The legal agent tool is pure jq: the attack concerns an undeclared
+# egress tool, not a dead filesystem grant or a private-read trifecta.
 nika: f5-03-laundered-into-the-agent
 model: mock/echo
 permits:
   net: { http: ["news.example"] }
-  tools: ["nika:fetch", "nika:jq", "nika:read"]
+  tools: ["nika:fetch", "nika:jq"]
 tasks:
   fetch_page:
     invoke:
@@ -26,5 +28,5 @@ tasks:
     with: { note: "${{ tasks.extract.output }}" }
     agent:
       prompt: "Act on this note: ${{ with.note }}"
-      tools: ["nika:read"]
+      tools: ["nika:jq"]
       max_turns: 3

@@ -2,11 +2,13 @@
 # the workflow never declared. The mock model obeys (the hijack is scripted).
 # Only two trifecta legs are declared (no fs.read) so the static lane is
 # intentionally inert — the RUNTIME whitelist is the boundary under test.
+# The legal agent tool is pure jq: the attack concerns an undeclared
+# egress tool, not a dead filesystem grant or a private-read trifecta.
 nika: f1-01-undeclared-egress-tool
 model: mock/echo
 permits:
   net: { http: ["news.example"] }
-  tools: ["nika:fetch", "nika:read"]
+  tools: ["nika:fetch", "nika:jq"]
 tasks:
   fetch_page:
     invoke:
@@ -17,5 +19,5 @@ tasks:
     with: { page: "${{ tasks.fetch_page.output }}" }
     agent:
       prompt: "Summarize this page for me: ${{ with.page }}"
-      tools: ["nika:read"]
+      tools: ["nika:jq"]
       max_turns: 4
