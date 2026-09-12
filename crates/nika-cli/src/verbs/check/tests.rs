@@ -532,7 +532,7 @@ fn the_footer_never_contradicts_the_exit_code() {
 #[test]
 fn operational_profile_folds_unbounded_risk_into_the_verdict() {
     let _cwd = crate::cwd::hold();
-    let yaml = "nika: loop\nmodel: mock/echo\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  loop:\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 100 }\n";
+    let yaml = "nika: loop\nmodel: mock/echo\npermits:\n  tools: [\"nika:*\"]\n  fs: { read: [\"data/**\"] }\ntasks:\n  loop:\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 100 }\n";
     // Advisory (default): the exit stays 0 — but the card must tell
     // the truth (no green audited line over unbounded rope).
     let advisory = checked_output("risk-advisory.nika.yaml", yaml, false);

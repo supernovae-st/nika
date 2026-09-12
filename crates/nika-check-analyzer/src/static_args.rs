@@ -11,7 +11,7 @@
 //! it): three rungs (PERMITS · the hints · `--infer-permits`) read these
 //! through one seam, and the seam reads the AST alone.
 
-use nika_schema::raw::{RawInvokeAction, RawWorkflow};
+use nika_schema::raw::{RawCommand, RawInvokeAction, RawWorkflow};
 
 /// The `const:` string values, resolved once per scan.
 ///
@@ -65,9 +65,8 @@ impl ConstStrings {
     /// what let a boundary escape through.
     #[must_use]
     pub fn resolve(&self, expr: &str) -> Option<&str> {
-        let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
-        let name = inner.strip_prefix("const.")?;
-        if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+        let (authority, name) = crate::static_ref::bare_static_ref(expr)?;
+        if authority != "const." {
             return None;
         }
         self.0
@@ -137,4 +136,36 @@ pub fn templated_url_host(raw: &str) -> Option<String> {
         return None;
     }
     url_host(prefix)
+}
+
+/// The statically-known program of an ARRAY-form command: `argv[0]` when it
+/// is a literal (argv is execve-direct — no shell expansion — so only a
+/// `${{ }}` island makes it dynamic). `None` for the shell-string form,
+/// which has no single static program to check against an allowlist — a
+/// pipeline can launch any program, so `check_exec` refuses it by FORM
+/// before ever asking for its program.
+#[must_use]
+pub fn static_program(command: &RawCommand) -> Option<&str> {
+    match command {
+        RawCommand::Argv(_) => command.argv_program().filter(|p| !p.contains("${{")),
+        RawCommand::Shell(_) => None,
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+        )]
+        other => unreachable!("unknown exec command form: {other:?}"),
+    }
+}
+
+/// Immutable const `argv[0]` is known even when later argv entries are computed.
+/// Input defaults remain replaceable by the run and cannot authorize a verdict.
+#[must_use]
+pub fn judgeable_program<'a>(command: &'a RawCommand, consts: &'a ConstStrings) -> Option<&'a str> {
+    static_program(command).or_else(|| {
+        let program = command.argv_program()?;
+        // Outside whitespace is literal argv data, not expression trivia.
+        (program == program.trim())
+            .then(|| consts.resolve(program))
+            .flatten()
+    })
 }

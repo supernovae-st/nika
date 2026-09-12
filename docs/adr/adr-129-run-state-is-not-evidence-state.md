@@ -49,8 +49,12 @@ ONE settlement; the evidence needed its own truth, kept apart from it.
    guesses. The lease dies with its journal (`trace rm` · retention).
 3. **The words.** `trace ls` prints `dead` (both faces · `liveness` on the
    machine one) for a running trace whose writer died; `running` for a
-   live writer or one this host cannot judge. The run state stays
-   `Running` — the word is about the evidence.
+   live writer. For a writer this host cannot judge, the human listing
+   prints `running?` (#1473); its JSON retains `state: running` alongside
+   `liveness: unknown`. The run state stays `Running` — the qualifier is
+   about the evidence. `trace outputs --json` likewise carries liveness
+   separately from its existing state and settlement; a recorded settlement
+   makes liveness null, regardless of a stale lease.
 4. **The exit.** `trace verify` exits `INCOMPLETE` (5) for a journal that
    never reached a terminal frame, and names the writer's liveness; FILE
    (2) stays the broken or forged chain, ENV (3) the missing input. The

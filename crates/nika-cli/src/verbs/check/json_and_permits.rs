@@ -32,7 +32,7 @@ fn infer_permits_on_a_red_file_is_not_exit_0() {
 }
 
 #[test]
-fn infer_permits_shell_form_names_sh_not_true() {
+fn infer_permits_shell_form_is_comment_only_until_rewritten() {
     let dir = std::env::temp_dir().join(format!("nika-b15-sh-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let path = dir.join("shell.nika.yaml");
@@ -48,10 +48,43 @@ fn infer_permits_shell_form_names_sh_not_true() {
         out.text
     );
     assert!(
-        out.text.contains("exec: [\"sh\"]") || out.text.contains("exec: [\"echo\"]"),
-        "B15 infers the binary: {}",
+        !out.text.lines().any(|line| line.starts_with("  exec:")),
+        "a program allowlist cannot admit the unchanged shell body: {}",
         out.text
     );
+    assert!(
+        out.text.contains("rewrite shell:") && out.text.contains("command:"),
+        "{}",
+        out.text
+    );
+    assert_inferred_boundary_parses(&out.text);
+    let json = run_infer_permits(path.to_str().expect("utf8"), true);
+    let payload: serde_json::Value = serde_json::from_str(&json.text).expect("JSON output");
+    let yaml = payload["permits_yaml"].as_str().expect("inferred YAML");
+    assert_inferred_boundary_parses(yaml);
+    assert!(
+        !yaml.lines().any(|line| line.starts_with("  exec:")),
+        "{yaml}"
+    );
+}
+
+fn assert_inferred_boundary_parses(yaml: &str) {
+    let workflow =
+        format!("nika: inferred\n{yaml}\ntasks:\n  t:\n    exec: {{ command: [\"echo\"] }}\n");
+    nika_schema::parser::parse(
+        &workflow,
+        nika_schema::source::FileId::new(0),
+        nika_schema::parser::ParseMode::Strict,
+    )
+    .expect("inferred boundary remains a schema-valid mapping");
+}
+
+#[test]
+fn infer_permits_omits_unknown_exec_but_retains_other_grants() {
+    let yaml = tighten_exec_yaml("permits:\n  fs:\n    read: [\"data.txt\"]\n  exec: true\n");
+    assert!(yaml.contains("  fs:\n    read:"));
+    assert!(!yaml.contains("exec: true"));
+    assert_inferred_boundary_parses(&yaml);
 }
 
 /// Persona 03: TTY used to stamp `NIKA-BUILTIN-001` on a ghost

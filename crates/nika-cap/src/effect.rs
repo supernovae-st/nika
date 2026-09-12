@@ -61,6 +61,21 @@ pub enum BuiltinEffect {
     },
 }
 
+/// Filesystem directions every valid call needs, independent of chosen paths.
+/// The pair is `(reads, writes)`. Optional input/idempotence reads are excluded.
+/// Unlike the single-path [`builtin_effect`] projection, `image_fx` requires a
+/// read of `input` AND a write of `out`; neither direction refers to both paths.
+#[must_use]
+pub fn required_fs_directions(tool: &str) -> Option<(bool, bool)> {
+    if tool == "nika:image_fx" {
+        return Some((true, true));
+    }
+    match builtin_effect(tool, None) {
+        Some(BuiltinEffect::Fs { reads, writes, .. }) => Some((reads, writes)),
+        _ => None,
+    }
+}
+
 /// Classify a builtin invoke's statically-checkable effect, `None` for
 /// pure-compute builtins (log · jq · hash · …) and for MCP tools (their
 /// effects are server-side — the `tools:` grant is the boundary).

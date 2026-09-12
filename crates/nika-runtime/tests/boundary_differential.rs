@@ -14,7 +14,7 @@
 //!
 //! * **static side** — a LITERAL `command[0]` is statically checkable, so
 //!   `check()` decides; `check`-accepts <=> `allows_program`.
-//! * **runtime side** — an INTERPOLATED `command[0]` is opaque to the static
+//! * **runtime side** — a COMPOSED `command[0]` expression is opaque to the static
 //!   ladder (the report is clean), so the runtime sink is the last gate;
 //!   `runtime`-allows <=> `allows_program`.
 //!
@@ -98,12 +98,16 @@ fn permits_block(exec: Option<&ExecPermit>) -> String {
     }
 }
 
-// -- runtime driver (no cleanliness assert -- the differential needs dirty runs
-//    to be possible; the interpolated form keeps the STATIC report clean) -----
+// -- runtime driver (composed expressions keep the STATIC report clean) -------
 
 async fn drive(yaml: &str, shell: MockShell) -> RunOutcome {
     let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
     let report = check(&wf);
+    assert!(
+        report.is_clean(),
+        "the runtime fixture must pass admission: {:?}",
+        report.findings
+    );
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
     let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
     let runtime = Runtime::new(
@@ -159,7 +163,7 @@ proptest! {
     #![proptest_config(ProptestConfig { cases: 96, ..ProptestConfig::default() })]
 
     // -- runtime leg ---------------------------------------------------------
-    // An INTERPOLATED program is opaque to the static ladder (the report stays
+    // A COMPOSED program expression is opaque to the static ladder (the report stays
     // clean), so the runtime exec sink is the last gate. It must allow exactly
     // when the reference boundary allows the resolved program. A denied program
     // fails the task with NIKA-SEC-004 before any spawn (the enqueued ok is
@@ -171,10 +175,11 @@ proptest! {
 {permits}
 const:
   prog: \"{program}\"
+  suffix: \"\"
 tasks:
   t:
     exec:
-      command: [\"${{{{ const.prog }}}}\", \"--version\"]
+      command: [\"${{{{ const.prog }}}}${{{{ const.suffix }}}}\", \"--version\"]
 ",
             permits = permits_block(exec.as_ref()),
         );
@@ -182,11 +187,14 @@ tasks:
             .enable_all()
             .build()
             .expect("tokio runtime");
-        let outcome = rt.block_on(drive(&yaml, MockShell::new().enqueue_ok("ok\n")));
-        let runtime_allows = outcome.records["t"]
-            .error
-            .as_ref()
-            .is_none_or(|e| e.code != "NIKA-SEC-004");
-        prop_assert_eq!(runtime_allows, permits_of(exec.as_ref()).allows_program(&program));
+        let shell = MockShell::new().enqueue_ok("ok\n");
+        let witness = shell.clone();
+        let outcome = rt.block_on(drive(&yaml, shell));
+        let allowed = permits_of(exec.as_ref()).allows_program(&program);
+        prop_assert_eq!(outcome.ok, allowed);
+        prop_assert_eq!(witness.executed_commands().len(), usize::from(allowed));
+        if !allowed {
+            prop_assert_eq!(outcome.records["t"].error.as_ref().map(|e| e.code.as_str()), Some("NIKA-SEC-004"));
+        }
     }
 }
