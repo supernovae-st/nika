@@ -65,9 +65,8 @@ impl ConstStrings {
     /// what let a boundary escape through.
     #[must_use]
     pub fn resolve(&self, expr: &str) -> Option<&str> {
-        let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
-        let name = inner.strip_prefix("const.")?;
-        if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+        let (authority, name) = crate::static_ref::bare_static_ref(expr)?;
+        if authority != "const." {
             return None;
         }
         self.0

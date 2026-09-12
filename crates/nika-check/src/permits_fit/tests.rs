@@ -7,6 +7,8 @@
 
 use super::*;
 
+mod exec_static;
+
 #[cfg(test)]
 mod fit {
     use super::*;

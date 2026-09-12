@@ -171,7 +171,7 @@ fn check_action(
     }
     let Some(permits) = permits else { return };
     match action {
-        RawAction::Exec(a) => check_exec(id, a, permits, out),
+        RawAction::Exec(a) => check_exec(id, a, permits, consts, out),
         RawAction::Invoke(a) => {
             let Some(tool) = a.tool() else {
                 // A `workflow:` call is not a tool grant — its authority
@@ -414,6 +414,7 @@ fn check_exec(
     id: &str,
     action: &RawExecAction,
     permits: &Permits,
+    consts: &ConstStrings,
     out: &mut Vec<CapabilityEscape>,
 ) {
     let command = &action.command;
@@ -437,7 +438,7 @@ fn check_exec(
             // for a Shell command would write a self-refusing boundary.
             fix: match command {
                 RawCommand::Argv(_) => {
-                    static_program(command).map(|p| format!("add \"{p}\" to permits.exec"))
+                    judgeable_program(command, consts).map(|p| format!("add \"{p}\" to permits.exec"))
                 }
                 RawCommand::Shell(_) => None,
             #[allow(
@@ -473,7 +474,7 @@ fn check_exec(
             });
             return;
         }
-        if let Some(program) = static_program(command)
+        if let Some(program) = judgeable_program(command, consts)
             && !permits.allows_program(program)
         {
             out.push(CapabilityEscape {
@@ -962,6 +963,18 @@ pub(super) fn static_program(command: &RawCommand) -> Option<&str> {
         )]
         other => unreachable!("unknown exec command form: {other:?}"),
     }
+}
+
+/// Immutable const argv[0] is known even when later argv entries are computed.
+/// Input defaults remain replaceable by the run and cannot authorize a verdict.
+fn judgeable_program<'a>(command: &'a RawCommand, consts: &'a ConstStrings) -> Option<&'a str> {
+    static_program(command).or_else(|| {
+        let program = command.argv_program()?;
+        // Outside whitespace is literal argv data, not expression trivia.
+        (program == program.trim())
+            .then(|| consts.resolve(program))
+            .flatten()
+    })
 }
 
 // `permits_fit/tests.rs`, not `permits_fit_tests.rs` behind a `#[path]`.
