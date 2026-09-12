@@ -817,9 +817,10 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: '*.tgz'
+      - name: Pin npm CLI
+        run: npm install --global npm@11.19.1
       - name: Converge npm by exact sha512 SRI
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.release-draft.outputs.version }}
         run: |
           set -euo pipefail

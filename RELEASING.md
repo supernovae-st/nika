@@ -257,10 +257,15 @@ without an explicit operator decision.
    **v0.116.2 is not retroactively atomic**, and its already-public registry
    history is not rewritten to pretend otherwise.
 
-   Before the first future stable train, configure both `NPM_TOKEN` (granular
-   automation token) and the repository-scoped `TAP_DEPLOY_KEY`. Missing npm
-   authority blocks an absent package version; missing tap authority blocks a
-   stable draft before visibility. Identical occupied npm bytes need no token.
+   npm authority is the package's **trusted publisher** on npmjs.com
+   (`@supernovae-st/nika-check-wasm` → GitHub Actions · `supernovae-st/nika` ·
+   `release.yml`): the job publishes through GitHub OIDC with `--provenance`
+   and carries no token. A granular automation token stopped publishing on
+   2026-09-12 (npm's 2FA-bypass restriction; the registry answers `E404` on
+   the PUT), which is how the v0.119.0 train first stopped at the barrier.
+   The repository-scoped `TAP_DEPLOY_KEY` stays. Missing npm authority blocks
+   an absent package version; missing tap authority blocks a stable draft
+   before visibility. Identical occupied npm bytes need no authority.
 
    The portable Agent Plugins mirror is downstream of this immutable tag.
    After the release assets are green, its release-heal lane runs

@@ -75,8 +75,8 @@ esac
   echo "npm barrier: package version is absent" >&2
   exit 73
 }
-[ -n "${NODE_AUTH_TOKEN:-}" ] || {
-  echo "npm barrier: NPM_TOKEN is required to publish an absent version" >&2
+[ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ] || {
+  echo "npm barrier: GitHub OIDC is required to publish an absent version · id-token: write on the job, and the package's trusted publisher names this repository and workflow" >&2
   exit 77
 }
 
