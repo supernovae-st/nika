@@ -304,6 +304,9 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
         push_retry_effects_hint(&mut hints, t);
     }
     push_silent_literal_hints(&mut hints, wf);
+    for (task, advice) in nika_check_analyzer::model_scope::scan(wf) {
+        hints.push(hint("envelope-model", &task, advice));
+    }
 
     // F-O8 · the old « no `permits:` boundary declared » advisory is
     // RETIRED: absent + effects is the NIKA-AUTH-006 ERROR now (the
@@ -331,17 +334,6 @@ fn push_infer_hints(
     envelope_ids: &BTreeSet<&str>,
     deep_referenced: &BTreeSet<String>,
 ) {
-    if a.model.is_some() {
-        hints.push(hint(
-            "envelope-model",
-            id,
-            format!(
-                "task-level `model:` on `{id}` is envelope-only at the CLI `--model` override — \
-             the pin stays live and metered; `--model mock/echo` does not descend into this task \
-             (B22 / issue 1277)"
-            ),
-        ));
-    }
     if a.max_tokens.is_none() {
         hints.push(hint("cost", id, format!(
             "declare `max_tokens` on `{id}` — the cost report becomes a hard ceiling instead of UNBOUNDED"

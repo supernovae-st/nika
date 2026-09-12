@@ -453,6 +453,13 @@ fn answered_leg(
     let wf = world.driver.workflow();
     let report = world.driver.report();
     let source = world.driver.root_source();
+    if let Some(notice) = nika_display::model_scope::notice(
+        report,
+        model_override,
+        !(json || output_json || mode == RenderMode::Quiet),
+    ) {
+        eprintln!("{notice}");
+    }
     let inputs = match inputs::validated_var_overrides(vars, wf, output_json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),

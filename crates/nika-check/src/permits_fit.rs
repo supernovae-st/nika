@@ -838,7 +838,10 @@ fn fs_escape(
         task: id.to_owned(),
         category: "fs",
         detail: format!(
-            "`{tool}` path `{path}` escapes the workspace — {declared} · widening \
+            "`{tool}` requested path `{path}` does not match permits.{cat} lexically — {declared}. \
+             This check does not resolve symlinks; path aliases can have different spellings \
+             (for example /tmp and /private/tmp on macOS). If both paths refer to the same \
+             intended location, use one consistent spelling before changing grants. Widening \
              permits.{cat} to an escaping path is a deliberate operator choice, never \
              the default repair"
         ),

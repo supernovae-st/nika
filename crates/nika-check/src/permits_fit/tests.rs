@@ -589,7 +589,12 @@ tasks:
             probe.fix, None,
             "no machine fix toward an escape — the shovel stays in the shed: {probe:?}"
         );
-        assert!(probe.detail.contains("escapes the workspace"), "{probe:?}");
+        assert!(
+            probe
+                .detail
+                .contains("does not match permits.fs.write lexically"),
+            "{probe:?}"
+        );
         assert!(
             probe
                 .detail

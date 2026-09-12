@@ -455,12 +455,10 @@ struct RunArgs {
     /// executed would be a lie).
     #[arg(long, conflicts_with = "output")]
     dry_run: bool,
-    /// Override the workflow's envelope `model:` only (`<provider>/<name>`).
-    /// Per-task `model:` pins stay live and metered — `--model` does not
-    /// descend into them (B22). Resolved through the SAME path as an
-    /// envelope model — a bad id fails loud when an infer/agent task
-    /// resolves it. `--model mock/echo` rehearses the envelope seat
-    /// offline (zero key · zero network).
+    /// Override only this workflow's default `model:` (`<provider>/<name>`).
+    /// Task `model:` pins and invoked child workflows keep their own models.
+    /// `mock/echo` does not make their calls or other effects offline.
+    /// A bad id refuses when an infer/agent task resolves it.
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
@@ -631,6 +629,7 @@ fn mirror_verb(json: bool, deep: bool, theme: Theme) -> u8 {
 /// precedent) — `--verbose` unfolds the healthy machine's advisory
 /// notes (B-8b · the human lane defaults to calm).
 fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
+    warn_about_home(!args.json && !std::io::stderr().is_terminal());
     emit(&verbs::doctor::run_with(
         args.ping,
         args.json,
@@ -638,6 +637,13 @@ fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
         theme,
         resident_finding(),
     ))
+}
+
+/// One emission seam for the front door and the typed command routes.
+fn warn_about_home(should_warn: bool) {
+    if should_warn && let Some(warning) = help_card::isolation_warning() {
+        eprintln!("{warning}");
+    }
 }
 
 /// Print a verb's text on the right stream and return its exit code.
@@ -736,6 +742,7 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     }
     match first {
         None => {
+            warn_about_home(!json && std::io::stderr().is_terminal());
             let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
             // ADR-125 · bare `nika` on an interactive terminal is the native
             // session; a pipe keeps the deterministic concierge (exit 0).
@@ -802,11 +809,6 @@ fn real_main() -> std::process::ExitCode {
         }
         None => {}
     }
-    if std::io::stderr().is_terminal()
-        && let Some(warning) = help_card::isolation_warning()
-    {
-        eprintln!("{warning}");
-    }
     if let Some(code) = front_door(&argv) {
         return code;
     }
@@ -821,6 +823,10 @@ fn real_main() -> std::process::ExitCode {
         argv
     };
     let cli = Cli::parse_from(std::iter::once(std::ffi::OsString::from("nika")).chain(argv));
+    warn_about_home(
+        std::io::stderr().is_terminal()
+            && !matches!(&cli.command, Some(Command::Doctor(doctor)) if doctor.json),
+    );
     let (color, link_when) = cli.presentation();
     let plain_theme = term_theme(
         color.with_no_color(false),
@@ -1448,9 +1454,12 @@ mod tests {
             .map(std::string::ToString::to_string)
             .unwrap_or_default();
         assert!(
-            model_help.contains("envelope")
+            model_help.contains("Override only this workflow's default")
+                && model_help.contains("Task `model:` pins")
+                && model_help.contains("invoked child workflows keep their own models")
+                && model_help.contains("does not make their calls or other effects offline")
                 && !model_help.to_ascii_lowercase().contains("any workflow"),
-            "B22 · `--model` help is envelope-only, not a preview of every task: {model_help}"
+            "B22 · `--model` help names the workflow default and retained live scopes: {model_help}"
         );
         let hidden = cmd
             .get_subcommands()

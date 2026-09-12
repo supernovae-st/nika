@@ -45,6 +45,7 @@ pub mod theme    { Theme · Role }
 pub mod format   { the ONE cost/duration/size formatter vocabulary }
 pub mod flow     { Interval · interval_of · lane_marks · heat_bucket }
 pub mod fruit    { written_files · last_said · cautions · rehearsal — the run's fruit + form-sanity reads }
+pub mod model_scope { notice — render admitted envelope-model hints for a human model override }
 pub mod shape    { bounded type-aware output summaries }
 pub mod snippet  { paint_span — rustc-grade span frames }
 pub mod vocab    { hint · arrow · at_least — the glyph/hint vocabulary }

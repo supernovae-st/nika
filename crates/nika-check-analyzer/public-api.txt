@@ -243,6 +243,8 @@ pub mod nika_check_analyzer::exec_read_path
 pub const nika_check_analyzer::exec_read_path::RULE: &str
 pub fn nika_check_analyzer::exec_read_path::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::exec_read_path::Site>
 pub type nika_check_analyzer::exec_read_path::Site = (alloc::string::String, &'static str, alloc::string::String)
+pub mod nika_check_analyzer::model_scope
+pub fn nika_check_analyzer::model_scope::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub mod nika_check_analyzer::native_first
 pub fn nika_check_analyzer::native_first::classify(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<(&'static str, alloc::string::String)>
 pub fn nika_check_analyzer::native_first::classify_all(command: &nika_schema::raw::action::RawCommand) -> alloc::vec::Vec<(&'static str, alloc::string::String)>
