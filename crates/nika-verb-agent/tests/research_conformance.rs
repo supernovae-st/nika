@@ -20,10 +20,12 @@
 use std::sync::{Arc, Mutex};
 
 use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason, TokenUsage, ToolDef};
+use nika_kernel::runtime::agent::AgentStopReason;
 use nika_kernel::runtime::tool_executor::ToolResult;
 use nika_kernel_mock::{MockProvider, MockToolDefinitionProvider, MockToolExecutor};
 use nika_verb_agent::{
-    AgentEvent, AgentInput, AgentObserver, AgentVerb, COMPOSE_TOOL, NudgeReason, VerbAgentError,
+    AgentEvent, AgentInput, AgentObserver, AgentVerb, COMPOSE_TOOL, DONE_TOOL, NudgeReason,
+    VerbAgentError,
 };
 use nika_verb_invoke::InvokeVerb;
 
@@ -259,14 +261,20 @@ async fn polling_with_changing_observations_never_trips_the_guard() {
 #[tokio::test]
 async fn routing_measurably_narrows_the_request_tool_list() {
     let r = rig(
-        MockProvider::new("mock").enqueue_response(text_response("done")),
+        MockProvider::new("mock").enqueue_response(tool_use(
+            "done",
+            DONE_TOOL,
+            serde_json::json!({"result": "done"}),
+        )),
         MockToolExecutor::new(),
         big_universe(),
     );
     let mut input = AgentInput::new("fetch the url and extract the page content");
     // `*` never crosses `/` (spec §3 canonical) — slashed MCP ids need `**`.
     input.tools = vec!["nika:*".to_owned(), "mcp:**".to_owned()];
-    let _ = r.verb.run(input).await.expect("single turn");
+    let out = r.verb.run(input).await.expect("explicit completion");
+    assert_eq!(out.turns, 1);
+    assert_eq!(out.stop_reason, AgentStopReason::ExplicitCompletion);
 
     // The decision is observable with the SAME numbers the request shows
     // (AgentOps: decisions, not just I/O) — the event is the source of
@@ -286,6 +294,8 @@ async fn routing_measurably_narrows_the_request_tool_list() {
         "routing must narrow: offered {offered} vs universe {universe}"
     );
     let reqs = r.provider.captured_requests();
+    assert_eq!(reqs.len(), 1);
+    assert!(reqs[0].tools.iter().any(|d| d.name == DONE_TOOL));
     assert_eq!(
         reqs[0].tools.len(),
         *offered as usize,
@@ -300,13 +310,19 @@ async fn routing_measurably_narrows_the_request_tool_list() {
 #[tokio::test]
 async fn zero_overlap_queries_fail_open_to_the_full_universe() {
     let r = rig(
-        MockProvider::new("mock").enqueue_response(text_response("ok")),
+        MockProvider::new("mock").enqueue_response(tool_use(
+            "done",
+            DONE_TOOL,
+            serde_json::json!({"result": "ok"}),
+        )),
         MockToolExecutor::new(),
         big_universe(),
     );
     let mut input = AgentInput::new("zzz qqq xxyyzz");
     input.tools = vec!["nika:*".to_owned(), "mcp:**".to_owned()];
-    let _ = r.verb.run(input).await.expect("single turn");
+    let out = r.verb.run(input).await.expect("explicit completion");
+    assert_eq!(out.turns, 1);
+    assert_eq!(out.stop_reason, AgentStopReason::ExplicitCompletion);
     let events = r.observer.events();
     let Some(AgentEvent::ToolsSelected {
         offered, universe, ..
@@ -321,6 +337,8 @@ async fn zero_overlap_queries_fail_open_to_the_full_universe() {
         "no lexical signal → ship the whole universe, never blind the model"
     );
     let reqs = r.provider.captured_requests();
+    assert_eq!(reqs.len(), 1);
+    assert!(reqs[0].tools.iter().any(|d| d.name == DONE_TOOL));
     assert_eq!(reqs[0].tools.len(), *universe as usize);
 }
 

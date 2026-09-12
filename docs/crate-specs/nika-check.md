@@ -50,6 +50,10 @@ filesystem refusals for `nika:read` and `nika:write`, including relative
 paths. It uses the category, task and boundary provenance; wording is
 copied only as the message. Missing authority retains `NIKA-AUTH-006`.
 
+Agent whitelist exclusions restrict the offered tools. They contribute no
+required authority to permit checks, inference or task capability projections;
+positive whitelist rules still require their declared boundary.
+
 ## Why L0, not L1
 
 The registry's mechanical sort (< 10 s): not the binary, not a

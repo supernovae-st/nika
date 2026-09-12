@@ -37,6 +37,16 @@ record() {
   RESULTS+=("$1|$2|$3")
 }
 
+# Only the first two separators belong to the record. Diagnostics may contain
+# newlines and pipes; `read` would silently discard every line after the first.
+unpack_result() {
+  local rest_record
+  n="${1%%|*}"
+  rest_record="${1#*|}"
+  s="${rest_record%%|*}"
+  d="${rest_record#*|}"
+}
+
 # Portable timeout wrapper — uses `timeout` on Linux, `gtimeout` on macOS (brew coreutils),
 # or falls back to running without timeout if neither is available.
 #
@@ -169,13 +179,13 @@ if [ "$FORMAT" = "json" ]; then
   printf '['
   first=1
   for line in "${RESULTS[@]}"; do
-    IFS='|' read -r n s d <<<"$line"
+    unpack_result "$line"
     [ $first -eq 0 ] && printf ','
     first=0
     printf '{"vector":%s,"status":"%s","detail":%s}' \
       "$(printf '%s' "$n" | sed 's/^ *//' | jq -R .)" \
       "$s" \
-      "$(printf '%s' "$d" | jq -R .)"
+      "$(printf '%s' "$d" | jq -Rs .)"
     case "$s" in green) g=$((g + 1)) ;; yellow) y=$((y + 1)) ;; red) r=$((r + 1)) ;; esac
   done
   printf ']\n'
@@ -183,7 +193,7 @@ else
   [ "$QUIET" -eq 0 ] && printf "\n%-28s %-8s %s\n" "VECTOR" "STATUS" "DETAIL"
   [ "$QUIET" -eq 0 ] && printf "%-28s %-8s %s\n" "─────────────────────────────" "──────" "────────────────────"
   for line in "${RESULTS[@]}"; do
-    IFS='|' read -r n s d <<<"$line"
+    unpack_result "$line"
     case "$s" in
       green)
         color=$GREEN
