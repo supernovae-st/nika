@@ -181,6 +181,31 @@
             "const": "ok",
             "type": "string"
           },
+          "storeFormatVersion": {
+            "additionalProperties": false,
+            "description": "Durable store formats this resident reads and writes; independent of the HTTP and event protocol versions.",
+            "properties": {
+              "jobs": {
+                "examples": [
+                  3
+                ],
+                "minimum": 1,
+                "type": "integer"
+              },
+              "schedules": {
+                "examples": [
+                  1
+                ],
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "jobs",
+              "schedules"
+            ],
+            "type": "object"
+          },
           "supportedCapabilities": {
             "items": {
               "type": "string"
@@ -208,6 +233,7 @@
           "checkReportVersion",
           "eventFormatVersion",
           "traceFormatVersion",
+          "storeFormatVersion",
           "supportedCapabilities"
         ],
         "type": "object"
@@ -912,7 +938,7 @@
   "info": {
     "description": "Authenticated loopback remote execution and declarative schedules. Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent.",
     "title": "nika serve",
-    "version": "0.118.7"
+    "version": "0.119.0"
   },
   "openapi": "3.1.0",
   "paths": {

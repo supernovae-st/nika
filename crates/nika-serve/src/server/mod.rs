@@ -273,6 +273,8 @@ pub trait ExecutionBackend: Send + Sync + 'static {
 }
 
 struct AppState {
+    #[cfg(test)]
+    before_named_capture: test_support::CaptureProbe,
     token: BearerToken,
     store: StoreHandle,
     /// The backend's journal directory (see
@@ -530,6 +532,8 @@ impl BoundServer {
             .await
             .map_err(|error| ServerError::Listener(error.kind()))?;
         let state = Arc::new(AppState {
+            #[cfg(test)]
+            before_named_capture: Arc::default(),
             token: prepared.token,
             store: authority.state.store.clone(),
             journal_dir: authority.state.backend.trace_journal_dir(),
@@ -1252,6 +1256,8 @@ fn execution_result(
     }
 }
 
+#[cfg(test)]
+mod admission_race_tests;
 #[cfg(test)]
 mod admission_tests;
 #[cfg(test)]

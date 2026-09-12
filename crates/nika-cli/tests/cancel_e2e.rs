@@ -8,23 +8,13 @@
 //! `workflow_cancelled` terminal, the trace seals, the exit is the cancelled
 //! class (130) · a second Ctrl-C aborts mid-flight and says so.
 
-use std::io::{BufRead as _, BufReader, Read as _};
-use std::process::{Child, ChildStdout, Command, Stdio};
+use std::process::Command;
 
-/// Three waves: `a` settles at once, `b` waits three seconds (the in-flight
-/// work the signal lands in), `c` never starts once the operator cancelled.
-const WAIT: &str = "nika: wait-probe
-permits: { tools: [\"nika:wait\", \"nika:jq\"] }
-tasks:
-  a:
-    invoke: { tool: \"nika:jq\", args: { input: 1, expression: \".\" } }
-  b:
-    with: { prev: \"${{ tasks.a.output }}\" }
-    invoke: { tool: \"nika:wait\", args: { duration: \"3s\" } }
-  c:
-    with: { prev: \"${{ tasks.b.output }}\" }
-    invoke: { tool: \"nika:jq\", args: { input: 2, expression: \".\" } }
-";
+use nix::sys::signal::Signal;
+
+#[path = "support/held_run.rs"]
+mod held_run;
+use held_run::{HeldRun, WORKFLOW};
 
 struct Rig {
     root: std::path::PathBuf,
@@ -37,7 +27,7 @@ impl Rig {
         for sub in ["home", "work"] {
             std::fs::create_dir_all(root.join(sub)).expect("rig dir");
         }
-        std::fs::write(root.join("work").join("wait.nika.yaml"), WAIT).expect("workflow");
+        std::fs::write(root.join("work").join("wait.nika.yaml"), WORKFLOW).expect("workflow");
         Self { root }
     }
 
@@ -54,73 +44,24 @@ impl Rig {
         cmd
     }
 
-    fn spawn_run(&self) -> Child {
-        self.command(&["run", "wait.nika.yaml", "--json", "--max-cost-usd", "0.01"])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("the binary spawns")
+    fn spawn_run(&self) -> HeldRun {
+        HeldRun::spawn(
+            self.command(&["run", "wait.nika.yaml", "--json", "--max-cost-usd", "0.01"]),
+            &self.root.join("work"),
+        )
     }
-}
-
-/// Read the child's stream until the frame of `kind` naming `task` appears;
-/// the lines read so far are returned, the rest is drained after the signal.
-/// The frames are journaled at SETTLE time (a wave dispatches concurrently
-/// and settles in order), so the first wave's `task_completed` is the sync
-/// point: from there the three-second wait is in flight, or about to be.
-fn read_until_frame(reader: &mut BufReader<ChildStdout>, kind: &str, task: &str) -> String {
-    let needle = format!("\"kind\":\"{kind}\"");
-    let task_needle = format!("\"value\":\"{task}\"");
-    let mut seen = String::new();
-    let mut line = String::new();
-    loop {
-        line.clear();
-        let n = reader.read_line(&mut line).expect("stdout readable");
-        assert!(n > 0, "the stream ended before {kind} of {task}:\n{seen}");
-        seen.push_str(&line);
-        if line.contains(&needle) && line.contains(&task_needle) {
-            return seen;
-        }
-    }
-}
-
-fn signal(child: &Child, sig: &str) {
-    let status = Command::new("kill")
-        .args([sig, &child.id().to_string()])
-        .status()
-        .expect("kill runs");
-    assert!(status.success(), "kill {sig} delivered");
-}
-
-fn finish(
-    mut child: Child,
-    mut stdout: BufReader<ChildStdout>,
-    head: String,
-) -> (i32, String, String) {
-    let mut rest = String::new();
-    stdout.read_to_string(&mut rest).expect("stdout drains");
-    let mut stderr = String::new();
-    child
-        .stderr
-        .take()
-        .expect("stderr piped")
-        .read_to_string(&mut stderr)
-        .expect("stderr drains");
-    let status = child.wait().expect("the child exits");
-    (status.code().unwrap_or(-1), head + &rest, stderr)
 }
 
 fn count(haystack: &str, needle: &str) -> usize {
     haystack.matches(needle).count()
 }
 
-fn cancels_at_the_boundary(name: &str, sig: &str) {
+fn cancels_at_the_boundary(name: &str, sig: Signal) {
     let rig = Rig::new(name);
     let mut child = rig.spawn_run();
-    let mut out = BufReader::new(child.stdout.take().expect("stdout piped"));
-    let head = read_until_frame(&mut out, "task_completed", "a");
-    signal(&child, sig);
-    let (code, stdout, stderr) = finish(child, out, head);
+    child.signal(sig);
+    child.wait_cancelling();
+    let (code, stdout, stderr) = child.finish(true);
     assert_eq!(code, 130, "the cancelled class · stderr:\n{stderr}");
     assert_eq!(
         count(&stdout, "\"kind\":\"workflow_cancelled\""),
@@ -184,24 +125,22 @@ fn cancels_at_the_boundary(name: &str, sig: &str) {
 
 #[test]
 fn a_first_ctrl_c_cancels_at_the_wave_boundary_with_a_sealed_terminal() {
-    cancels_at_the_boundary("int", "-INT");
+    cancels_at_the_boundary("int", Signal::SIGINT);
 }
 
 #[test]
 fn a_sigterm_cancels_like_the_first_ctrl_c() {
-    cancels_at_the_boundary("term", "-TERM");
+    cancels_at_the_boundary("term", Signal::SIGTERM);
 }
 
 #[test]
 fn a_second_ctrl_c_aborts_mid_flight_and_says_so() {
     let rig = Rig::new("abort");
     let mut child = rig.spawn_run();
-    let mut out = BufReader::new(child.stdout.take().expect("stdout piped"));
-    let head = read_until_frame(&mut out, "task_completed", "a");
-    signal(&child, "-INT");
-    std::thread::sleep(std::time::Duration::from_millis(500));
-    signal(&child, "-INT");
-    let (code, stdout, stderr) = finish(child, out, head);
+    child.signal(Signal::SIGINT);
+    child.wait_cancelling();
+    child.signal(Signal::SIGINT);
+    let (code, stdout, stderr) = child.finish(false);
     assert_eq!(code, 130, "the cancelled class · stderr:\n{stderr}");
     assert_eq!(
         count(&stdout, "\"kind\":\"workflow_cancelled\""),

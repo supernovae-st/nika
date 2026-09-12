@@ -17,6 +17,9 @@ mod binding;
 mod migration;
 mod stored_job;
 
+#[cfg(test)]
+mod format_tests;
+
 use binding::{
     attach_interrupted_receipt, ensure_receipt_matches, has_complete_execution_identity,
     hash_execution_identity, migrate_legacy_nonterminal_record, validate_identity_binding,
@@ -39,7 +42,7 @@ const LOCK_FILE: &str = "store.lock";
 const SERVER_LOCK_FILE: &str = "server.lock";
 const STATE_FILE: &str = "state.json";
 const LEGACY_STATE_VERSION: u32 = 2;
-const STATE_VERSION: u32 = 3;
+pub(crate) const STATE_VERSION: u32 = 3;
 const EVENT_HASH_DOMAIN: &[u8] = b"nika.job-event.chain\0v1\0";
 const IDENTITY_HASH_DOMAIN: &[u8] = b"nika.job-identity.binding\0v1\0";
 

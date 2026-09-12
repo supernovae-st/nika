@@ -31,7 +31,10 @@ pub(super) struct TestWorld {
 
 impl TestWorld {
     pub(super) fn new() -> Self {
-        let root = tempfile::tempdir().expect("test root");
+        Self::from_tempdir(tempfile::tempdir().expect("test root"))
+    }
+
+    fn from_tempdir(root: tempfile::TempDir) -> Self {
         let workflows = root.path().join("workflows");
         let state = root.path().join("state");
         let token = root.path().join("serve.token");
@@ -92,6 +95,17 @@ impl TestWorld {
         resident: ResidentConfig,
         http_root: &std::path::Path,
     ) -> TestServer {
+        self.start_with_capture_action(backend, resident, http_root, None)
+            .await
+    }
+
+    pub(super) async fn start_with_capture_action(
+        &self,
+        backend: Arc<dyn ExecutionBackend>,
+        resident: ResidentConfig,
+        http_root: &std::path::Path,
+        before_capture: Option<super::test_support::CaptureAction>,
+    ) -> TestServer {
         let authority = ResidentAuthority::open(resident, backend)
             .await
             .expect("authority");
@@ -101,6 +115,11 @@ impl TestWorld {
             &self.token,
         );
         let bound = BoundServer::attach(config, &authority).await.expect("bind");
+        *bound
+            .state
+            .before_named_capture
+            .lock()
+            .expect("capture probe") = before_capture;
         let address = bound.local_addr().expect("local address");
         let shutdown_probe = authority.state.store.shutdown_test_probe();
         let shutdown_observer = Arc::clone(&shutdown_probe);
@@ -433,6 +452,8 @@ mod durable_queue;
 mod pause_boundary;
 #[cfg(test)]
 mod request_lifecycle;
+#[cfg(test)]
+mod shutdown;
 #[cfg(test)]
 mod trace_journal;
 

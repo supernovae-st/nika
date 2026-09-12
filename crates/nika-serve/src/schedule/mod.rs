@@ -6,6 +6,7 @@ pub use model::{
     ScheduleApplyPrecondition, ScheduleStoreError,
 };
 pub(crate) use model::{ScheduleClaimEvidence, ScheduleDecisionRecord, ScheduleSlotAction};
+pub(crate) use store::STATE_VERSION;
 pub use store::ScheduleStore;
 
 #[cfg(test)]

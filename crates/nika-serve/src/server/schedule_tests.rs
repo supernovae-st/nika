@@ -367,6 +367,42 @@ fn put_request(id: &str, body: &str, precondition: &str, authenticated: bool) ->
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_zoneless_cadence_teaches_the_fix_in_the_public_wire_voice() {
+    let world = TestWorld::new();
+    let backend = Arc::new(CountingBackend::default());
+    let server = world.start(backend.clone(), limits()).await;
+    let request = json!({
+        "workflow": "root.nika.yaml",
+        "when": {"kind": "cadence", "expression": "0 9 * * *"},
+        "maxCostUsd": 0.01,
+        "missed": "skip"
+    });
+    let response = server
+        .request(&put_request(
+            "zoneless",
+            &request.to_string(),
+            "If-None-Match: *\r\n",
+            true,
+        ))
+        .await;
+    assert_eq!(response.status, 422, "{}", response.body);
+    assert_eq!(response.json()["findings"][0]["code"], "schedule.cadence");
+    assert_eq!(
+        response.json()["findings"][0]["detail"],
+        "cadence.tz-missing · cadence `0 9 * * *` has no time zone; include it in the expression: `TZ=<IANA zone> 0 9 * * *`"
+    );
+    assert_eq!(backend.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        server
+            .request(&get_request("/v1/schedules/zoneless"))
+            .await
+            .status,
+        404
+    );
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn create_get_lost_response_retry_and_exact_update_etag() {
     let world = TestWorld::new();
     let server = world.start(Arc::new(NoopBackend), limits()).await;

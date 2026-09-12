@@ -292,10 +292,14 @@ async fn admit_by_name(
     let project = Arc::clone(&state.project);
     let service = state.service;
     let lookup = name.to_owned();
+    #[cfg(test)]
+    let before_capture = Arc::clone(&state.before_named_capture);
     let admitted = tokio::task::spawn_blocking(move || {
         if !workflow_exists(&project, &lookup) {
             return Err(None);
         }
+        #[cfg(test)]
+        super::test_support::before_named_capture(&before_capture);
         service
             .admit(&project, std::path::Path::new(&lookup))
             .map_err(Some)
