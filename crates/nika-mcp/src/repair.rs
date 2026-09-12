@@ -446,4 +446,101 @@ mod tests {
             "the description says the caller writes the text back: {fix:#}"
         );
     }
+    fn dialect_payload(source: &str) -> Value {
+        let text = execute(
+            "nika_check",
+            &json!({"workflow": source, "fix": true, "native_strict": false}),
+        )
+        .unwrap_or_else(|error| error);
+        let start = text.find('{').expect("fix JSON");
+        serde_json::from_str(&text[start..]).expect("fix payload")
+    }
+
+    #[test]
+    fn oracle_repairs_dead_verb_fields_and_fanout_through_the_shared_ladder() {
+        for (before, expected) in [
+            (
+                "nika: legacy\npermits: {tools: [nika:log]}\ntasks:\n  say:\n    invoke: {tool: nika:log, params: {message: hi}}\n",
+                "nika: legacy\npermits: {tools: [nika:log]}\ntasks:\n  say:\n    invoke: {tool: nika:log, args: {message: hi}}\n",
+            ),
+            (
+                "nika: legacy\npermits: {exec: [echo]}\ntasks:\n  say:\n    exec: {argv: [echo, hi]}\n",
+                "nika: legacy\npermits: {exec: [echo]}\ntasks:\n  say:\n    exec: {command: [echo, hi]}\n",
+            ),
+            (
+                "nika: legacy\npermits: {tools: [nika:log]}\ntasks:\n  say:\n    for_each: [one, two] # keep\n    invoke: {tool: nika:log, args: {message: hi}}\n",
+                "nika: legacy\npermits: {tools: [nika:log]}\ntasks:\n  say:\n    for_each:\n      items: [one, two] # keep\n    invoke: {tool: nika:log, args: {message: hi}}\n",
+            ),
+        ] {
+            let payload = dialect_payload(before);
+            assert_eq!(payload["workflow"], expected, "{payload}");
+            assert_eq!(payload["applied"], 1, "{payload}");
+            assert_eq!(payload["clean"], true, "{payload}");
+            assert!(
+                execute(
+                    "nika_check",
+                    &json!({"workflow": expected, "native_strict": false})
+                )
+                .is_ok()
+            );
+            let again = dialect_payload(expected);
+            assert_eq!(again["workflow"], expected);
+            assert_eq!(again["changed"], false);
+            assert_eq!(again["applied"], 0);
+        }
+    }
+
+    #[test]
+    fn oracle_keeps_conflicting_and_escaped_verb_keys_unchanged() {
+        for body in [
+            "    invoke:\n      tool: nika:log\n      params: {message: first}\n# comment does not end the mapping\n      args: {message: second}\n",
+            "    invoke: {tool: nika:log, params: {}, \"ar\\u0067s\": {}}\n",
+            "    exec: {argv: [echo], \"comm\\u0061nd\": [echo]}\n",
+            "    exec: {argv: 'echo hi; touch sentinel'}\n",
+        ] {
+            let source = format!("nika: w\ntasks:\n  a:\n{body}");
+            let payload = dialect_payload(&source);
+            assert_eq!(payload["workflow"], source);
+            assert_eq!(payload["changed"], false);
+            assert_eq!(payload["applied"], 0);
+            assert!(
+                !payload["stops"].as_array().expect("stops").is_empty(),
+                "{payload}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_lot3_stop_preserves_and_reports_an_earlier_valid_prepass_repair() {
+        let conflict = "  conflict:\n    invoke: {tool: nika:log, params: {}, args: {}}\n";
+        let source = format!(
+            "nika: w\npermits: {{exec: [echo], tools: [nika:log]}}\ntasks:\n  say:\n    exec: echo hi\n{conflict}"
+        );
+        let payload = dialect_payload(&source);
+        let repaired = payload["workflow"].as_str().expect("workflow");
+        assert!(repaired.ends_with(conflict), "{repaired}");
+        assert!(
+            repaired.contains("command: [\"echo\", \"hi\"]"),
+            "{repaired}"
+        );
+        assert_eq!(payload["changed"], true);
+        assert_eq!(payload["applied"], 1);
+        assert_eq!(payload["repairs"][0]["kind"], "bare-exec");
+        assert!(!payload["stops"].as_array().expect("stops").is_empty());
+        assert_eq!(payload["clean"], false);
+    }
+
+    #[test]
+    fn oracle_does_not_rewrite_grammar_lookalikes_inside_invalid_scalar_tasks() {
+        for source in [
+            "nika: w\ntasks: |\n  a:\n    invoke:\n      params: {message: keep}\n",
+            "nika: w\ntasks:\n  a: |\n    invoke:\n      params: {message: keep}\n",
+        ] {
+            let payload = dialect_payload(source);
+            assert_eq!(payload["workflow"], source);
+            assert_eq!(payload["changed"], false);
+            assert_eq!(payload["applied"], 0);
+            assert!(payload["stops"].as_array().expect("stops").is_empty());
+        }
+    }
 }

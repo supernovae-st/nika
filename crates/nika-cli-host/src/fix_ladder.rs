@@ -58,7 +58,8 @@ impl Repair {
 pub struct StopNotes(pub Vec<String>);
 
 /// A round the loop REFUSED to commit: the transformed text no longer
-/// parsed as YAML although the text it started from did. The round is
+/// loaded as YAML (syntax or duplicate-key refusal) although the text it
+/// started from did. The round is
 /// rolled back to its savepoint (the file is never written from it) and
 /// this row says what was attempted and why it was refused — a typed
 /// refusal, never a silent write of a document `check` cannot read.
@@ -77,7 +78,7 @@ pub struct Refusal {
 }
 
 /// Judge one round's transformation: `Some(refusal)` when `after` fails
-/// to parse as YAML while `before` did not — the transformation broke
+/// to load as YAML, including duplicate keys, while `before` did not — it broke
 /// the document and must be rolled back. A document that was already
 /// unparsable stays the author's (the loop cannot repair what it cannot
 /// read; the arms never run on it). Pure: no I/O, the caller rolls back.
@@ -88,7 +89,9 @@ pub fn judge_round(before: &str, after: &str, attempted: Vec<String>) -> Option<
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     ) {
-        Err(SchemaError::YamlSyntax { message, .. }) => Some(message),
+        Err(
+            SchemaError::YamlSyntax { message, .. } | SchemaError::DuplicateKey { message, .. },
+        ) => Some(message),
         _ => None,
     };
     if yaml_broken(before).is_some() {
@@ -172,6 +175,18 @@ pub fn apply_dead_form_arm(
         {
             Some(apply_lot3(source, repairs, stop_notes))
         }
+        SchemaError::UnknownField {
+            field, location, ..
+        } if matches!(
+            (location.as_str(), field.as_str()),
+            ("`invoke:`", "params") | ("`exec:`", "argv")
+        ) =>
+        {
+            Some(apply_verb_dialect(source, repairs, stop_notes))
+        }
+        // The parser uses Validation for the retired scalar for_each.
+        // The codemod discovers grammar structure; it never scrapes prose.
+        SchemaError::Validation { .. } => Some(apply_lot3(source, repairs, stop_notes)),
         // W2 « the flow » dead form (PARSE-024) — the equivalence-or-
         // stop migration (spec 03 §depends_on): data → with: bindings ·
         // provably-strict control → after: {d: success} · every
@@ -267,6 +282,9 @@ fn apply_lot3(source: &mut String, repairs: &mut Vec<Repair>, stop_notes: &mut S
             *source = migrated;
             for rung in applied {
                 let (from, to) = match rung {
+                    "invoke-args" => ("invoke.params:", "invoke.args:"),
+                    "exec-command" => ("exec.argv:", "exec.command: [arguments]"),
+                    "for-each-items" => ("for_each: collection", "for_each: { items: collection }"),
                     "r3-extract" => ("output:", "extract:"),
                     "r4-fail-workflow" => {
                         ("on_error.fail_workflow: true", "the default IS the failure")
@@ -288,6 +306,20 @@ fn apply_lot3(source: &mut String, repairs: &mut Vec<Repair>, stop_notes: &mut S
         }
         nika_migrate::Lot3Outcome::Clean => false,
     }
+}
+
+// Unknown verb fields name the limits of this structural codemod when
+// no supported context was found. Canonical unvisited maps stay clean.
+fn apply_verb_dialect(
+    source: &mut String,
+    repairs: &mut Vec<Repair>,
+    stop_notes: &mut StopNotes,
+) -> bool {
+    let applied = apply_lot3(source, repairs, stop_notes);
+    if !applied && stop_notes.0.is_empty() {
+        stop_notes.0.push("the verb mapping is outside the proved block/single-line-flow repair shapes — write args: or command: [...] explicitly; unvisited contexts are unchanged".to_owned());
+    }
+    applied
 }
 
 /// The W1 dead-form arm — the shared map migration. `true` = applied.
@@ -752,6 +784,55 @@ mod tests {
             refusal.attempted,
             vec!["w1-map `envelope` → `map`".to_owned()]
         );
+    }
+
+    #[test]
+    fn judge_round_refuses_a_new_duplicate_key_even_after_a_valid_yaml_rename() {
+        let before = "nika: w\ntasks:\n  a:\n    invoke: {tool: nika:log, params: {}, args: {}}\n";
+        let after = before.replace("params:", "args:");
+        assert!(matches!(
+            nika_schema::parse(
+                before,
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict
+            ),
+            Err(SchemaError::UnknownField { .. })
+        ));
+        assert!(matches!(
+            nika_schema::parse(
+                &after,
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict
+            ),
+            Err(SchemaError::DuplicateKey { .. })
+        ));
+        assert!(judge_round(before, &after, vec!["params → args".to_owned()]).is_some());
+    }
+
+    #[test]
+    fn generic_validation_does_not_rewrite_scalar_task_payloads_or_canonical_flow() {
+        for source in [
+            "nika: w\ntasks: |\n  a:\n    invoke:\n      params: {message: keep}\n",
+            "nika: w\ntasks:\n  a: |\n    invoke:\n      params: {message: keep}\n",
+            "nika: w\ntasks: {a: {exec: {command: []}}}\n",
+        ] {
+            let error = nika_schema::parse(
+                source,
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            )
+            .expect_err("invalid document");
+            assert!(matches!(error, SchemaError::Validation { .. }), "{error:?}");
+            let mut actual = source.to_owned();
+            let mut repairs = Vec::new();
+            let mut stops = StopNotes(Vec::new());
+            assert_ne!(
+                apply_dead_form_arm(&error, &mut actual, &mut repairs, &mut stops),
+                Some(true)
+            );
+            assert_eq!(actual, source);
+            assert!(repairs.is_empty() && stops.0.is_empty());
+        }
     }
 
     #[test]

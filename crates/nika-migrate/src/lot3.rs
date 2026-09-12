@@ -5,14 +5,18 @@
 //! nine-key sweep of 2026-08-11 retired INSIDE a task, one rung each,
 //! all line-based and structure-aware like [`super::identity()`] (the R1 rung):
 //!
+//! - **Dialect repairs** `invoke.params:` → `args:` and sequence-shaped
+//!   `exec.argv:` → `command:` in block or single-line flow task mappings.
+//!   Payload keys are not grammar. Conflicts or opaque sibling keys STOP
+//!   the whole pass; unvisited layouts retain their original findings.
 //! - **R3** `output:` → `extract:` (same shape · the truthful word)
 //! - **R4** `on_error: { fail_workflow: true }` → the key is DELETED (the
 //!   default IS the failure · an `on_error:` left empty is deleted with it)
 //!   · `fail_workflow: false` is NOT mechanical (it meant « do not fail the
 //!   workflow » · `recover` or `skip`? · only the author knows) → STOP
 //! - **R2** task-level `max_parallel:` / `fail_fast:` → INSIDE the
-//!   `for_each:` block · a scalar `for_each: <expr>` becomes the block
-//!   `for_each:` + `items: <expr>` first · a task carrying the knobs with no
+//!   `for_each:` block · a scalar/list `for_each: <collection>` becomes the block
+//!   `for_each:` + `items: <collection>` even without knobs · a task with knobs but no
 //!   `for_each:` at all → STOP (they have no meaning without it)
 //! - **R5** `declassify:` (a `{from, to: trusted, because}` list) and
 //!   `inert: <reason>` → ONE `lift:` list · `{law: taint, from, because}`
@@ -25,6 +29,8 @@
 //! `output:` inside `args:` or a `with:` island is never renamed. Every
 //! other line is byte-identical; a document with none of the forms is
 //! [`Lot3Outcome::Clean`] (idempotent by contract).
+
+mod dialect;
 
 /// The outcome of one LOT 3 pass over one document.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,7 +52,7 @@ fn indent_of(line: &str) -> usize {
 
 /// The key of a `key:` / `key: value` line, when it is one.
 fn key_of(line: &str) -> Option<&str> {
-    let t = line.trim_start();
+    let t = line.trim_start().trim_end_matches('\r');
     if t.starts_with('#') || t.starts_with('-') {
         return None;
     }
@@ -65,7 +71,7 @@ fn key_of(line: &str) -> Option<&str> {
 
 /// The value text after `key:` (trimmed · trailing comment kept out).
 fn value_of(line: &str) -> String {
-    let t = line.trim_start();
+    let t = line.trim_start().trim_end_matches('\r');
     let colon = t.find(':').unwrap_or(0);
     let rest = t[colon + 1..].trim();
     // a `# comment` after a scalar is not the value
@@ -101,11 +107,15 @@ fn task_spans(lines: &[&str]) -> Vec<TaskSpan> {
     else {
         return spans;
     };
+    // A scalar/alias is data, not a block of task mappings.
+    if !value_of(lines[tasks_idx]).is_empty() {
+        return spans;
+    }
     // the tasks block ends at the next top-level key
     let mut block_end = tasks_idx + 1;
     while block_end < lines.len() {
         let l = lines[block_end];
-        if !l.trim().is_empty() && indent_of(l) == 0 {
+        if !l.trim().is_empty() && !l.trim_start().starts_with('#') && indent_of(l) == 0 {
             break;
         }
         block_end += 1;
@@ -125,7 +135,10 @@ fn task_spans(lines: &[&str]) -> Vec<TaskSpan> {
             let mut j = i + 1;
             while j < block_end {
                 let m = lines[j];
-                if !m.trim().is_empty() && indent_of(m) <= id_indent {
+                if !m.trim().is_empty()
+                    && !m.trim_start().starts_with('#')
+                    && indent_of(m) <= id_indent
+                {
                     break;
                 }
                 j += 1;
@@ -136,11 +149,18 @@ fn task_spans(lines: &[&str]) -> Vec<TaskSpan> {
                 .map(|l| indent_of(l))
                 .min()
                 .unwrap_or(id_indent + 2);
-            spans.push(TaskSpan {
-                header: i,
-                body_indent,
-                end: j,
-            });
+            let value = value_of(l);
+            let mapping_body = lines[i + 1..j]
+                .iter()
+                .find(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
+                .is_some_and(|line| key_of(line).is_some());
+            if value.starts_with('{') || value.is_empty() && mapping_body {
+                spans.push(TaskSpan {
+                    header: i,
+                    body_indent,
+                    end: j,
+                });
+            }
             i = j;
         } else {
             i += 1;
@@ -156,7 +176,7 @@ fn nested_end(lines: &[&str], header: usize, limit: usize) -> usize {
     let mut j = header + 1;
     while j < limit {
         let l = lines[j];
-        if l.trim().is_empty() || indent_of(l) > base {
+        if l.trim().is_empty() || l.trim_start().starts_with('#') || indent_of(l) > base {
             j += 1;
         } else {
             break;
@@ -324,6 +344,7 @@ struct TaskFacts {
     for_each_header: Option<usize>,
     for_each_scalar: Option<String>,
     for_each_flow: bool,
+    for_each_keys: Vec<String>,
     knobs: Vec<(usize, String, String)>,
     lift_entries: Vec<String>,
     lift_anchor: Option<usize>,
@@ -393,6 +414,54 @@ fn r4_block(lines: &[&str], idx: usize, end: usize, task: &str, edits: &mut Edit
     }
 }
 
+/// Record the collection shape and immediate keys before moving fan-out knobs.
+fn record_for_each(
+    lines: &[&str],
+    i: usize,
+    end: usize,
+    task: &str,
+    facts: &mut TaskFacts,
+    edits: &mut Edits,
+) {
+    facts.for_each_header = Some(i);
+    let l = lines[i];
+    let v = value_of(l);
+    if v.starts_with('{') {
+        facts.for_each_flow = true;
+    } else if !v.is_empty() {
+        let continuation = lines[i + 1..nested_end(lines, i, end)]
+            .iter()
+            .any(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'));
+        if v.starts_with(['*', '&', '!']) {
+            facts.for_each_flow = true;
+        } else if continuation
+            || !(v.starts_with('[') || unquote(&v).starts_with("${{"))
+            || !crate::flow_scan(&v).balanced
+        {
+            edits.notes.push(format!(
+                "task `{task}`: `for_each:` collection cannot be moved mechanically — write an explicit items: block"
+            ));
+        } else {
+            facts.for_each_scalar = l
+                .split_once(':')
+                .map(|(_, tail)| tail.trim_start().to_owned());
+        }
+    } else {
+        let children = &lines[i + 1..nested_end(lines, i, end)];
+        let indent = children
+            .iter()
+            .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
+            .map(|line| indent_of(line))
+            .min();
+        facts.for_each_keys = children
+            .iter()
+            .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
+            .filter(|line| Some(indent_of(line)) == indent)
+            .map(|line| dialect::field(line).map_or_else(String::new, |(key, _, _)| key.to_owned()))
+            .collect();
+    }
+}
+
 /// One task body · the line-local rungs fire as they are met, the
 /// body-wide facts (R2 · R5) are gathered for the settle step.
 fn migrate_task(lines: &[&str], span: &TaskSpan, edits: &mut Edits) {
@@ -419,17 +488,15 @@ fn migrate_task(lines: &[&str], span: &TaskSpan, edits: &mut Edits) {
                     r4_block(lines, i, nested_end(lines, i, span.end), &task, edits);
                 }
             }
-            Some("for_each") => {
-                facts.for_each_header = Some(i);
-                let v = value_of(l);
-                if v.starts_with('{') {
-                    facts.for_each_flow = true;
-                } else if !v.is_empty() {
-                    facts.for_each_scalar = Some(v);
-                }
-            }
+            Some("for_each") => record_for_each(lines, i, span.end, &task, &mut facts, edits),
             Some(k @ ("max_parallel" | "fail_fast")) => {
-                facts.knobs.push((i, k.to_owned(), value_of(l)));
+                facts.knobs.push((
+                    i,
+                    k.to_owned(),
+                    l.split_once(':')
+                        .map_or("", |(_, tail)| tail.trim_start())
+                        .to_owned(),
+                ));
             }
             Some("declassify") => {
                 let end = nested_end(lines, i, span.end);
@@ -486,7 +553,20 @@ fn settle_task(
         edits.insert_after.push((anchor.saturating_sub(1), block));
         edits.fired("r5-lift");
     }
-    if facts.knobs.is_empty() {
+    if facts.knobs.is_empty() && facts.for_each_scalar.is_none() {
+        return;
+    }
+    if facts
+        .knobs
+        .iter()
+        .any(|(_, key, _)| facts.for_each_keys.contains(key))
+        || !facts.knobs.is_empty()
+            && facts
+                .for_each_keys
+                .iter()
+                .any(|key| !dialect::simple_key(key))
+    {
+        edits.notes.push(format!("task `{task}`: an outer fan-out knob is already declared inside for_each: — choose one value by hand"));
         return;
     }
     let names = facts
@@ -500,12 +580,14 @@ fn settle_task(
             "task `{task}`: `{names}` has no meaning without `for_each:` — the task carries no fan-out · remove or restructure by hand"
         )),
         Some(_) if facts.for_each_flow => edits.notes.push(format!(
-            "task `{task}`: a flow-style `for_each: {{...}}` — `{names}` moves inside it by hand"
+            "task `{task}`: a flow-style or indirect `for_each:` value — `{names}` moves inside its block by hand"
         )),
         Some(fe) => {
             let mut block: Vec<String> = Vec::new();
+            let only_items = facts.knobs.is_empty();
             if let Some(items) = facts.for_each_scalar.take() {
-                edits.replace.push((fe, format!("{pad}for_each:")));
+                let eol = if items.ends_with('\r') { "\r" } else { "" };
+                edits.replace.push((fe, format!("{pad}for_each:{eol}")));
                 block.push(format!("{inner}items: {items}"));
             }
             for (idx, key, val) in &facts.knobs {
@@ -513,7 +595,7 @@ fn settle_task(
                 edits.delete.push(*idx);
             }
             edits.insert_after.push((fe, block));
-            edits.fired("r2-for-each");
+            edits.fired(if only_items { "for-each-items" } else { "r2-for-each" });
         }
     }
 }
@@ -528,7 +610,10 @@ pub fn lot3(source: &str) -> Lot3Outcome {
     }
     let mut edits = Edits::default();
     for span in &spans {
-        migrate_task(&lines, span, &mut edits);
+        dialect::migrate(&lines, span, &mut edits);
+        if !value_of(lines[span.header]).starts_with('{') {
+            migrate_task(&lines, span, &mut edits);
+        }
     }
     if !edits.notes.is_empty() {
         return Lot3Outcome::Stop(edits.notes);
@@ -672,3 +757,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod dialect_tests;
