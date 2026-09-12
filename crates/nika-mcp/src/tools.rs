@@ -1208,7 +1208,7 @@ mod tests {
             "the contract lesson rides MCP too: {b}"
         );
         // A builtin WITHOUT a contract entry keeps the namespace voice.
-        let generic = execute("nika_explain", &json!({ "code": "NIKA-BUILTIN-JQ-001" }))
+        let generic = execute("nika_explain", &json!({ "code": "NIKA-BUILTIN-FETCH-001" }))
             .expect("namespace teaches");
         assert!(
             generic.contains("per-builtin runtime diagnostic"),
@@ -1217,6 +1217,18 @@ mod tests {
         let p = execute("nika_explain", &json!({ "code": "NIKA-PROVIDER-007" }))
             .expect("provider namespace teaches");
         assert!(p.contains("provider-adapter"));
+    }
+
+    #[test]
+    fn explain_teaches_jq_value_input_through_the_shared_lesson() {
+        let out = execute("nika_explain", &json!({ "code": "NIKA-BUILTIN-JQ-001" }))
+            .expect("jq contract teaches");
+        assert!(
+            out.contains("Strings are valid input and stay strings"),
+            "{out}"
+        );
+        assert!(out.contains("expression: fromjson"), "{out}");
+        assert!(out.contains("specific cause"), "{out}");
     }
 
     #[test]
