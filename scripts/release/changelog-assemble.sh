@@ -272,7 +272,11 @@ fold_release() {
     cp -p "$frag" "$backup/fragments/$(basename "$frag")"
   done
 
-  mode="$(stat -f '%Lp' "$CHANGELOG" 2>/dev/null || stat -c '%a' "$CHANGELOG")"
+  # GNU stat -f can emit filesystem metadata before failing. Discard that
+  # partial stdout before capturing the fallback's permission bits.
+  if ! mode="$(stat -f '%Lp' "$CHANGELOG" 2>/dev/null)"; then
+    mode="$(stat -c '%a' "$CHANGELOG")"
+  fi
   chmod "$mode" "$tmp"
   if ! mv "$tmp" "$CHANGELOG"; then
     rm -f -- "$tmp"
