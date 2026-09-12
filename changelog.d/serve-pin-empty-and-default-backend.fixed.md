@@ -1,1 +1,0 @@
-- **Access pins fail closed.** Serve `access: ""` is NIKA-1802 (CLI vocabulary) and never becomes an unpinned job. A backend that does not override `execute_with_access` refuses a nonempty pin (NIKA-1801) instead of running unpinned.

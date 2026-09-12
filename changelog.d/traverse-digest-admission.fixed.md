@@ -1,1 +1,0 @@
-- **The crawl digest passes the same depth admission every HTML mode passes.** A depth-bomb page reaches no parser through `traverse:`: the root refuses loudly, a descendant becomes an honest `{url, status, error}` entry and the crawl continues. The digest used to go straight to the DOM parser.

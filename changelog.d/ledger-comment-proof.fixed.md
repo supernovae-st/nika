@@ -1,1 +1,0 @@
-- **Release proof lookup** now separates inline YAML comments from CI job names in the wiring ledger. Quoted hashes, missing proofs and unknown jobs remain refused; the hygiene suite exercises both acceptance and rejection.

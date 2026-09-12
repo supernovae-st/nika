@@ -1,1 +1,0 @@
-- **Keep project verdicts valid JSON.** Escape project paths, names and diagnostic strings with the JSON serializer, including control characters in filesystem paths. Preserve the compact envelope and field order for existing project verdicts.

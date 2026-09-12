@@ -16,6 +16,192 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.119.0](https://github.com/supernovae-st/nika/compare/v0.118.7..v0.119.0) - 2026-09-12
+
+### Added
+
+- **The card names the prompt side of the bill.** The totals row said ` · 1 tok` for a 5015-token prompt answered in one token, so a cold run and a warm-cache run were the same sight; it now prints ` · 5015 in · 4992 cached` beside the historical `tok` segment when the frame carries the split, and renders byte-identically to before when it does not.
+- **Executable file-read hints.** `nika check` hints when `grep`/`rg`/`ag` names a literal file operand: if that program opens the cwd-resolved path for reading, check `permits.fs.read`. `-e` patterns, `echo`, and `touch` stay silent. The hint does not assert a missing grant.
+- **The OTLP projection carries the `GenAI` usage counters.** `nika trace export` now emits `gen_ai.usage.input_tokens` · `gen_ai.usage.output_tokens` · `gen_ai.usage.cache_read.input_tokens` · `gen_ai.usage.cache_write.input_tokens` · `gen_ai.usage.reasoning.output_tokens` (semantic-conventions v1.37.0) with `nika.tokens.*` mirrors, plus `gen_ai.response.model` and `gen_ai.response.id` when the provider reported them. Counters only — an unreported meter is projected as nothing, never as a zero.
+- **Durable per-job access pins.** A `POST /v1/jobs` by-name body may carry `access`, the same pin as CLI `--access`. Absent, the job inherits the resident's unpinned plan. A pin is a pin: a failing seat is the job's refusal, never a silent substitute.
+- **Restore private project conversation history.** Bare `nika` restores the local project's conversation after reopening. Private history detects corruption, excludes concurrent writers and keeps interrupted operations visible; previous proposals and gates require fresh validation instead of replaying effects.
+- **Every shipped template now owns a declared-code counterexample.** The five existing negatives stay; nine skeletons (`chain`, `fanout`, `gate-and-act`, `agent-loop`, `api-upload-and-create`, `docker-report`, `etl-state`, `media-asset-pack`, `website-brief`) gain a specimen that fails for the law the skeleton actually teaches (DAG hoist, fan leash, secret egress, agent grant, argv exec, trifecta, undeclared write, SSRF). The family test requires a negative for every `nika_pack::template_names()` entry, not a hand-typed five-name list.
+- **The token usage split rides every metered trace frame.** `task_completed` and `task_failed` now carry `tokens_in` · `tokens_out` · `tokens_cache_read` · `tokens_cache_write` · `tokens_reasoning` · `model_served` · `response_id` beside the `tokens` they always carried (which keeps its meaning: the completion count). A reader can recompute `cost_usd` from the split × the pricing table the run pinned at boot, so a warm-cache call at `$0.000378` and a cold one at `$0.00075285` are no longer the same sight; an unreported meter stays absent, never a fabricated zero.
+
+### Changed
+
+- **« chosen over … » names the seat it beat.** The `nika check` ACCESS rung and the `nika run` announce list the outranked ready paths with the witness the plan built (``chosen over api (ready · ranked below `codex` (harness outranks api))``) instead of a bare count, so a user learns which seat lost — and why — without opening the JSON.
+
+### Fixed
+
+- **An ancestor `nika.yaml` this process may not read is a hint, never a
+  refusal.** A nested `nika check` under an exec sandbox (the Lab's own L0
+  campaign, a CI job in a monorepo) met the repository's root project file
+  with `EPERM` and exited 3 on `project.unreadable`, masking every finding
+  of the workflow itself; `nika run` refused the same way. The walk now
+  reports the unreachable ancestor (`↳ HINT [project] … is not readable from
+  here`, `project_unreachable` in `check --json`, a `project:` note on the
+  run's stderr) and that file's `ceiling:` simply does not govern from
+  there. A file that reads but will not parse, and every other read error,
+  keep their refusal (#1494). Closes #1547.
+- **The access-harness CI leg runs one process per test.** The feature battery now uses cargo-nextest like the tests leg, so a fixture that enters a temporary project cannot change the ambient context of a concurrent `check` test; the selection and `--lib` scope are unchanged.
+- **Model-proven access readiness.** A harness seat is ready only when proven for the model asked. Installed and signed-in are weaker rungs: they rank below a key-backed api for an unpinned model. A pin stays a pin.
+- **Typed access-refusal evidence.** `access_refused` on a terminal frame is a proven seat/access refusal (NIKA-1800..1805, an infer harness-access miss, or a harness error wrapped as agent inference). A tool, max-turns, or schema failure after a seat already ran is not a pin.
+- **`nika check` accepts cumulative agent budgets above a model's context
+  window.** `max_tokens_total` bounds usage across turns, while the context
+  window bounds one request. Comparing them rejected valid multi-turn
+  budgets, including 120,000 tokens on a 64,000-token seat (#1518).
+  Per-request `infer.max_tokens` capacity checks and the agent's runtime
+  token accounting remain unchanged; this does not certify that each
+  growing agent request fits the seat.
+- **A typed `agent:` task's `nika:done` definition keeps an internal `$ref`
+  resolvable on the wire.** The declared `schema:` rides nested under the
+  sentinel's `result` parameter, and a JSON pointer such as
+  `"$ref": "#/$defs/row"` resolves against the document root, which on the
+  wire is that wrapper: the definition now hoists the schema's
+  `$defs`/`definitions` to the wrapper's root and drops a `$schema` keyword,
+  so a seat that validates its tool input follows the pointer to the
+  definition instead of to nothing. A schema without definitions renders
+  exactly as before, and local validation is unchanged.
+- **Typed agent completion keeps definitions inside their schema resource.**
+  When the output schema has a resource `$id`, `nika:done` keeps its `$defs`
+  and `definitions` with that resource so local references resolve in the
+  exposed tool definition. Schemas without a resource ID retain the existing
+  wrapper projection; final-output validation is unchanged.
+- **Typed `agent:` final-text repairs respect `max_tokens_total`.** When
+  the final text does not match the task schema, each additional repair
+  checks the cumulative token budget, including usage from earlier
+  `nika:done` repairs. An exhausted budget returns `NIKA-AGENT-002` with
+  the last assistant text and observed usage instead of requesting another
+  answer. This partial output stays separate from the `nika:done` result
+  being validated and updates with each text repair. An empty current message
+  is preserved even when an earlier tool-loop reply contained text.
+  A conforming answer still succeeds at or above the budget. This also
+  covers result-less, string and null `nika:done` answers that need the
+  final-text repair path.
+- **An `agent:` loop no longer spends past `max_tokens_total` on `nika:done`
+  repairs.** A `result` that misses the declared `schema:` is fed back for a
+  repair, and that repair is one more provider request: when the tokens
+  already spent meet the budget, the request is not made and the run ends on
+  the budget verdict (`NIKA-AGENT-002`), the same gate a tool dispatch
+  passes. Previously the repair turns bypassed that gate, so a run could
+  exceed the author's budget by up to `DEFAULT_SCHEMA_RETRY_BUDGET` requests.
+- **An `agent:` task's `schema:` reaches the seat on the first request, and
+  a `nika:done` result that misses it is repaired instead of fatal.** The
+  loop-owned `nika:done` definition now carries the declared schema on its
+  `result` parameter, the one binding every wire sends verbatim (including
+  the seats whose API has no structured-output mode), so the model reads
+  the exact shape instead of guessing it from the prompt. A `result` that
+  fails validation goes back as that call's error observation and the
+  model finishes again, drawing on the same `DEFAULT_SCHEMA_RETRY_BUDGET`
+  the free-text re-ask uses, and the NIKA-464 verdict now says how many
+  repairs were tried. Previously the first request carried no schema, and
+  a non-conforming `nika:done` result died at once while a prose answer
+  got two repairs.
+- **An `agent:` task's `timeout:` now governs every provider call of its
+  native loop (#1516).** Each turn's request, the `nika:done` repair turns and the
+  final tools-off re-ask carry the task budget to the transport deadline,
+  the way an `infer:` task already did, so a slow seat is no longer cut at
+  the transport's 30 s cloud default on its first turn (measured on 0.118.7:
+  agent tasks declaring `timeout: "840s"` failed with `NIKA-INFER-001` at
+  30 002 ms while the same seat under `infer:` completed). Without a
+  `timeout:` the transport's per-provider default still applies; a seat-routed
+  (harness) agent is bounded by the task's own deadline, not per call.
+- **Bounded commit changelog preview.** The optional post-commit preview stops after a three-second work budget, with bounded child reaping, so a stalled git-cliff cannot hold the commit indefinitely. Missing tools and preview errors keep the hook optional.
+- **The failing `check` verdict carries the boundary summary too.** The one-line plain-words blast radius (tasks · waves · permits glance · est · hints · risk grade with its cause) was printed only once a file was already clean, so the over-broad workflow — the one an ops lead most needs summarised — got no boundary line and no grade at all; the red verdict now carries the same tail from the same derivation, still marked `✖`, never the word `audited`.
+- **`risk unbounded` names the grant it was graded on.** The audited line and the `--profile operational` footer blamed « no dollar meter for a local/unknown model » (and « uncapped autonomy ») on any Unbounded file, including a builtin-only `mock/echo` workflow whose only ceiling-less thing was `write: ["./out/**"]`; the handle now names the wildcard grant (`fs.write ./out/**` · `exec: true` · `net.http *`) with the `--infer-permits` door that narrows it, and speaks of a meter only when spend is unbounded (`nika_check::wildcard_grants` is the shared projection).
+- **`nika check --json` says `clean: false` whenever it exits 2.** Under `--native-strict` and `--profile operational` the lane's refusal is now a typed `findings[]` row (`kind: native_strict` with the hint's `native-first/00N` code, task and fix · `kind: operational` with the grade or the access blocker, each only when its own gate failed) and `clean` is computed from the same rows the exit code reads; `native_strict_clean` and `operational_clean` stay and repeat it. Measured on 0.118.7: a human-gated ship whose check ran `curl` answered `clean: true` beside exit 2, and the operational footer told a low-grade file with a refused access pin to cap its spend.
+- **`run ready` no longer reads `○` on a workflow that never dials.** A file with no `infer:`/`agent:` task shared its glyph with a file whose model only arrives at run time, so a workflow that ran 3/3 green was told `access ready ○ · run ready ○` with no blocker named and no flag able to move it; the moot question now reads `access ready n/a · nothing dials` and lets the three answered layers settle RUN READY, while the genuinely unjudged shape keeps `○` and defines it on the same line.
+- **Check reports invalid ambient project configuration.** Workflow checks
+  retain the nearest project's diagnostic and exit 3, including scaffold
+  and snapshot export callers. Valid project budgets and direct project
+  checks keep their existing behavior.
+- **Isolate the local test fallback.** Without cargo-nextest, run library tests serially so temporary project directories cannot change a concurrent test's ambient context. Nextest and the required CI test scope remain unchanged.
+- **`nika check` names a documentation host before the run refuses it.** A literal `nika:fetch` to `example.com` or a `.test`/`.invalid` name (RFC 2606/6761) carries a `documentation-host` hint at check that names `NIKA-BUILTIN-FETCH-001`; the boundary is unchanged, so `--infer-permits` still grants the host (the runtime allowlist judges it before the transport declines to dial it) and the inferred block re-checks clean.
+- **`--dry-run` previews the boundary, and its `blast` line no longer means something else.** The line labelled `blast` reported scheduling fan-out (`grab blocks 1` — how many tasks stall when one fails), which reads as blast radius to every operator who types the flag, and the preview printed no permits and no risk at all; the fan-out is now `stalls  \`grab\` fails → 1 task blocked · a blocked task never runs, so its effects never happen`, the capability escapes keep the name `escapes`, and a `boundary` line carries the check card's own permits glance and risk grade from the one shared derivation.
+- **Cancel owned exec process groups.** On Linux and macOS, cancellation, timeout and dropped exec futures now signal the command’s dedicated process group, including when a descendant holds output after its parent exits. The unreaped parent retains the group identity until collection ends. Cancellation registrations and post-confinement scratch are released on drop; this does not claim cleanup acknowledgement or containment of descendants that detach from the group.
+- **Confinement path diagnostics.** A seatbelt confinement refusal names a path only when stderr identifies it. `sandbox-exec` `file-read`/`file-write` evidence is distinct from a `prog: path: EPERM` line (class unknown). A named path is not proof a grant is missing (OS ACLs can deny a granted path). `nika explain NIKA-SEC-001` tells the author to check read/write authority and OS access; unknown stays unknown. A `unix://` URI on a denial line names the socket. The docker-report template does not promise Linux socket reachability.
+- **`nika explain` names the nearest code when yours is a typo.** A code no rung could serve printed the allocated ranges and stopped there, so a mistyped `NIKA-PARSE-01` left you guessing at a registry you cannot list; the 404 now ends with `did you mean \`NIKA-PARSE-001\`?` when the canon's own `error_codes` table holds a near neighbour, and stays silent when nothing is close enough (the engine's one `did_you_mean` metric decides — a wrong suggestion is worse than none).
+- **`nika explain` no longer suggests `--model mock/echo` over task-level pins.** On a file whose tasks pin their own `model:`, the run section prints the caveat the envelope-model hint already states instead of a rehearsal line that would leave the pinned seats live and metered.
+- **Explicit provider refusals stop before repair or tool dispatch.**
+  Buffered OpenAI and Anthropic refusals stop `agent:` and `infer:` after
+  recording incurred usage, even alongside valid structured content.
+  Ordinary text without a refusal signal keeps its existing behavior.
+- **`mode: article` extracts the same article in every process.** Readability broke candidate score ties by its hash map's per-process iteration order, so one page could yield two different articles from one run to the next (WCXB dev 0545: 40 identical runs through the door → 30/10; dev 0847: three variants). The engine pins a `dom_smoothie` revision that keeps candidates in their first-scored order (readability.js parity) until upstream releases it; 20 runs over the 1497-page dev split now agree byte for byte, and the F1 is unchanged (dev 0.7796 → 0.7797 · test 0.8225 → 0.8225).
+- **`mode: article` reads the server-rendered `<noscript>` fallback when the page itself is an empty shell.** With scripting enabled the HTML parser keeps a `<noscript>` subtree as raw text, so a JS-rendered page whose whole body ships in that fallback (the Discourse forum shape) extracted to nothing at all. The cascade now re-runs on that source when, and only when, all three stages starved on the served markup AND nothing of the served page would be lost — the fallback carries the served prose within it, or the page rendered no text in any content zone at all (a shell). A page that extracted cleanly is never overridden by its own "enable JavaScript" notice, and neither is a short-but-real one: a 170-character news brief beside a large notice keeps its body. Measured on the WCXB dev split (1,497 pages, the benchmark's own scorer): forum word-F1 0.487 to 0.628, overall 0.7799 to 0.7906, article and documentation unchanged; the guard above costs 0.0002 of that at the lane head (one page whose shell renders "Something went wrong" inside its own content zone — the server did render it, so it is kept). A page carrying no `<noscript>` at all no longer pays a second parse to find that out.
+- **`mode: article` stops trusting a content zone that carries a sliver of the page.** The rule cascade believed any semantic container clearing the 250-character floor, so a teaser `main` or a byline `article` on a long page won over the body itself and the extraction returned a few dozen words. A zone must now also carry at least 5% of the pruned page's visible text; below that the cascade abstains and readability scores the whole tree instead. Measured on the WCXB dev split (1,497 pages, the benchmark's own scorer): overall word-F1 0.7906 to 0.7982, article 0.914 to 0.925, service 0.742 to 0.763, documentation unchanged.
+- **The HTML depth guard stops refusing shallow pages.** It counted an element as still open until it met a matching close tag, so a page of SVG shapes (`<path … />` inside `<svg>`, the shape of every syntax-diagram page) or a long list written without `</li>` climbed thousands of levels and the whole document was refused as a DoS attempt, for every mode that parses HTML. The scan now acknowledges the self-closing marker in foreign content, closes the elements whose end tag HTML makes optional, and generates the implied end tags a close tag carries. Each rule is a strict subset of what the parser itself closes, so the count can only over-estimate depth, never under-estimate it: `<div/>` still nests, and a slash ending an unquoted attribute value is still not a marker. Each implied-end rule is now the intersection over insertion modes, measured against the pinned html5ever rather than recalled: `<option>` closes an open `option` and never its `optgroup`, `<optgroup>` closes only an `option` (outside a `<select>` the parser nests them, so a flood of `<optgroup>` is genuinely deep and is refused again), and a `<tbody>` closes an open `<thead>`. Two real pages in the WCXB dev split (sqlite.org documentation, stripe.com product) went from a refusal to an extraction.
+- **Briefs repeated in metadata are preserved.** Article extraction keeps short bodies repeated in a meta description instead of mistaking them for page furniture.
+- **`mode: article` recovers the body a sliver pick stranded, and shells stop posing as articles.** Three extraction-cascade fixes, each measured on WCXB dev (1,497 pages, official scorer) with the frozen test split (511) run once on the final candidate: **dev F1 0.7991 → 0.8124, test F1 0.8322 → 0.8504**. (1) The recall-floor override: the cascade's "first non-thin wins" rule stranded real content whenever a decorative container or a readability mis-grab barely cleared the 250-char floor; a boilerpipe reconstruction that is decisively richer (≥2×, flat over a measured 1.5–4.0 plateau) now wins instead — never a fallback past 30k trimmed chars, which is the template flooding back, not a recovered body. (2) The furniture veto: a thin extraction whose every word already lives in the page's own `<title>`/meta description is a shell's title bar, not a body — `article` now honestly reports empty instead of serving the masthead. (3) A page that merely HAS a search box (`role="search"` rides in most templates' headers) is no longer classified as a search-results page when real content structure exists.
+- **`NIKA-PARSE-024` and `nika check --fix` now read a `depends_on:` the same way, shape by shape.** One quote-aware predicate on both sides — `[a]`, `["a"]`, `['a']`, a `-` list and `[]` (an empty list declares no edge, so the dead line is dropped) are the migratable shapes, while a scalar, a map entry, a nested list or any other string is named as the author's to rewrite; the finding also says out loud that a readable shape still stops the whole file when a producer may skip (`when:` · `for_each:` · `on_error.skip`) or is read only through its status, and `nika explain NIKA-PARSE-024` tells the same story — the promise and the repair no longer contradict each other on one screen (wave 3 · persona 02).
+- **`nika:glob` says what it left out.** A pattern that also matched a directory (a folder named `item-07.md` under `*.md`) dropped it in silence: the batch fanned over 11 of 12 candidates and the trace read `succeeded`. The file list a consumer receives is unchanged; the task's terminal frame now carries the OBS-E `warning` naming the left-out directories (`nika:glob returns files only · 1 directory also matched …`), the run's close and `nika trace show` print it as `⚠ <task> · …`, and `nika trace outputs --json` projects it per task. The channel is the tool seam's own — `ToolResult::with_warning` and `InvokeOutput::warning`, additive, `None` for every existing tool.
+- **Approval evidence and plain run summaries.** Prompt answers reject conflicting duplicate flags and invalid shapes or choices with explicit diagnostics. Approval traces record the declared operator and the resolved question and answer. Piped run summaries retain task, wave, retry and token totals and the explore hint shown in the terminal.
+- **Vector 49 proves on macOS.** The hygiene self-test runner now shims GNU `sha256sum` with `shasum -a 256` when the binary is absent, and the publication-barrier fixture does the same in its fake PATH. Local pre-push no longer dies on a missing GNU hasher while the guards themselves still pass.
+- **Tool return contracts.** `invoke: tool` now checks its final output against
+  the task's `returns:` contract before publishing success. A violation raises
+  the recoverable, non-transient `NIKA-TYPE-101` error without discarding the
+  completed call's attestation or reported cost. An optional string field may
+  be absent, but a present null or number is rejected; tools without `returns:`
+  are unchanged.
+- **`nika:jq` and `nika:validate` explain JSON containers passed as strings
+  (#1520).** A type error on an encoded object or array now names the input
+  shape and teaches explicit `fromjson` decoding after `nika:read`, without
+  repeating the input's contents. String operations, string schemas and
+  explicit decoding retain their behavior; validation keeps its structured
+  report and error paths. No implicit parsing or file access is added.
+- **Release proof lookup** now separates inline YAML comments from CI job names in the wiring ledger. Quoted hashes, missing proofs and unknown jobs remain refused; the hygiene suite exercises both acceptance and rejection.
+- **Traversal robots certificates.** Fetch traversal certificates reserve both
+  seed-origin and landed-origin robots probes, so a cross-origin root redirect
+  cannot undercount logical GET calls.
+- **The OpenAI-compatible stream reads the same usage as the non-stream door.** The SSE translator built a bare prompt/completion pair and dropped `prompt_tokens_details.cached_tokens` and `completion_tokens_details.reasoning_tokens`, so a streamed cached prompt would have priced at the full input rate; both doors now share one parse. DeepSeek's top-level `prompt_cache_hit_tokens` lands in the cached split too, so a cached DeepSeek prompt prices at the catalog's cache-read rate instead of the input rate.
+- **The order-law refusal describes the route it actually walked.** `NIKA-SEC-015` fires over reachability (`with:` data edges ∪ `after:` control edges), but its card said `X shells on content Y fetched` and offered « cut the route so the fetched value never reaches `X` » even when the only thing joining the two was an `after:` entry and the shell's argv held no fetched value at all — a data-flow claim the judge never made, and a repair naming a route the file did not have; the refusal is unchanged (the law is unconditional) and the sentence now names the edge kinds the route crossed, states that no `with:` chain carries the producer's output into the sink when the graph holds none, and points at the hop to delete (`cut the `after:` edge `save` → `measure``), while a route whose every hop binds a value keeps the content claim — and is preferred as the witness wherever one exists, so the weaker sentence is never printed over a file where the value really does flow.
+- **The content-free OTLP projection carries no payload text.** Without `include_content`, a failed span's status keeps the error code alone (the `detail` message half stayed before), a success warning no longer rides, and the redacted evidence pack now masks a fan-out's `items` and the `warning` field like the other payload keys.
+- **`nika trace export` admits a journal before reading it.** A file past the writer's 256 MiB journal bound or a non-regular path is refused by size or shape, never read whole into memory; the export is published by rename so an interrupted write cannot leave a half-written file claiming to be complete.
+- **`nika trace peek` delivers the item table when the value was not checkpointed.** `nika trace peek <trace> <task>` on a fan-out whose aggregate value was never checkpointed (no resume stamp: a runtime collection, a secret in a rendered input) delivers the recorded item table (index · item · status · code · message) instead of refusing with « recorded no output (ok) »; the refusal that remains (`--raw`, or a task with no table) says the value was not checkpointed and why (wave 3 · persona 10).
+- **Permit purity and sandbox path identity.** Pure internal calls now keep their permit exemption under declared empty or unrelated permit blocks, while path-carrying decide bundles still require tool authority. macOS sandbox profiles resolve healthy ancestor aliases, reject protected-root aliases and unresolved ancestors, and preserve directory intent without granting adjacent SQLite sidecars. Existing and new exact files retain their journal family; final symlinks and special entries are refused for that extension. Canonical grant paths that cannot be represented exactly as UTF-8 fail closed instead of naming a replacement-character path.
+- **Share the isolated test runner with pre-push.** The local push gate now uses the same nextest selection and serial fallback as the test script, preserving its library-only scope and refusing failed tests before publication.
+- **Keep project verdicts valid JSON.** Escape project paths, names and diagnostic strings with the JSON serializer, including control characters in filesystem paths. Preserve the compact envelope and field order for existing project verdicts.
+- **Read argument errors no longer recover as missing files.** Check rejects
+  literal nonstring `path` and nonboolean `binary` values, while whole-value
+  bindings remain checked at runtime. Invalid arguments report
+  `NIKA-INVOKE-002`; `NIKA-BUILTIN-READ-001` remains exclusive to missing
+  files, preserving first-run recovery and the existing read permissions.
+- **Run JSON preserves error codes containing underscores.** Failed runs
+  retain codes such as `NIKA-BUILTIN-JSON_MERGE_PATCH-001` in `error.code`
+  when they appear in the diagnostic, so consumers can classify the refusal.
+- **The seam-discipline hygiene vector excludes `#[cfg(test)]`-declared module files.** It promised to mirror the house `rs_prod_files` rule and delivered only the `tests.rs` basename half, so a test module carved out of `lib.rs` into its own file read as unmarked `std::fs::` bypasses; both halves now, with a six-case self-test in throwaway repos (on the vector as it was, exactly the two cfg(test) cases fail).
+- **SECRETS findings print their wire code on the human lane.** A secret leak or an output egress now reads `[NIKA-SEC-006]` / `[NIKA-SEC-007] …` like every other rung, so `nika explain` can be pointed at it.
+- **Present access pins require strings.** A by-name job request rejects a present non-string access pin, including JSON null, before registry capture. Only an absent access field inherits the resident plan.
+- **An interrupted serve-door job closes its journal and releases its lease.** When a cancelled run outlived its grace the resident dropped the journal sink without a terminal frame, so the journal read `INCOMPLETE` with a dead-writer lease and the `.lock` sidecar survived beside it. The resident now writes the terminal settlement envelope (`run_settled` · `status: interrupted` · `cause: operator` when the operator asked) before the sink goes, so the chain walk reads a lifecycle end and the lease leaves with the sink; the runtime's own settlement is never invented.
+- **A serve-door run's journal is sealed at settlement.** The resident handed its journal sink to the execution driver, which dropped it unsealed: a door journal always read `UNSEALED — no run_sealed frame`, however the machine's run key stood. The resident now keeps the sink, seals it where the settlement is built (the same `seal_journal_with` the CLI's `surface_trace` calls, before the fsync, with the workflow hash and the teardown facts the door holds: proves · certificate · outcome · the settlement's budgets · the SDK receipt binding · the memory fold) and names the chain head on the job's receipt.
+- **Access pins fail closed.** Serve `access: ""` is NIKA-1802 (CLI vocabulary) and never becomes an unpinned job. A backend that does not override `execute_with_access` refuses a nonempty pin (NIKA-1801) instead of running unpinned.
+- **`GET /v1/jobs/{id}/trace/verify` verifies the journal the resident wrote.** The route used to answer `unavailable · trace_journal_unavailable` for every job without looking for a journal; it now locates the job's journal under the served project (by the job's execution and trace identity) and verifies it through the same verifier `nika trace verify --json` runs, answering the CLI's vocabulary (`ok` · `sealed` · `anchored` · `replayed` · `incomplete` with the writer's liveness · `tampered` · `broken` · the refusal classes) with the CLI's document beside it (`exit` · `chain` · `seal` · `anchor` · `replay` · `lines`); `unavailable` stays the honest answer only when no journal exists, and no filesystem path ever crosses the door (measured on the public 0.118.7 binary through the serve door).
+- **Bound and redact named session context.** The native session bounds context-file reads before allocation and redaction, and masks repeated credentials and private-key bodies in named context files.
+- **Observe the session's own workflow trace.** Return the exact trace from
+  the existing run path for initial and resumed executions. A newer unrelated
+  trace no longer hides the session result or its human gate. Real workflow
+  tests cover effect, observation and reopening without replay.
+- **Keep session diagnostics free of payloads and refuse FIFO histories.**
+  Persist only an outcome category beside the redacted dialogue; escaped Debug
+  text could otherwise retain a value masked in the raw reply. Contained file
+  opens reject a FIFO without waiting for a peer, so malformed history fails
+  visibly instead of freezing the terminal.
+- **Retire the signal listener when its run ends.** A terminal session joins
+  each run's listener on return or unwind, including after cancellation. An
+  old listener can no longer interpret a later run's first Ctrl-C as its own
+  second signal and abort the process without settling the current run.
+- **Report uncertainty after a failed file replacement.** The native session reports that a failed file write may already have changed its target, preserving confirmed earlier writes and stopping later files.
+- **The crawl digest passes the same depth admission every HTML mode passes.** A depth-bomb page reaches no parser through `traverse:`: the root refuses loudly, a descendant becomes an honest `{url, status, error}` entry and the crawl continues. The digest used to go straight to the DOM parser.
+- **Crawl discovery is no longer capped by the digest preview.** The frontier reads every link a page carries; the per-page `links` facet stays the ≤30 preview the spec fixes. The 31st link on a page used to be unreachable.
+- **A crawl reads its robots probe the way RFC 9309 does.** `nika:fetch` `traverse:` treats a 5xx or a transport failure on `robots.txt` as *unreachable* (§2.3.1.4 · complete disallow: the crawl refuses loudly before a page is spent, transiently) and only a 4xx as *unavailable* (allow-all); a root that lands on another origin re-reads that origin's robots before any descendant is enqueued. It used to read every non-2xx and every error as allow-all and to govern the landed host with the seed's rules.
+- **A lethal-trifecta refusal names a defaulted prompt as the reason no gate exists.** When the only `nika:prompt` on the path carries a `default:`, `NIKA-SEC-009` now says so and asks for the default to be removed (answer at launch with `--answer`), instead of asking for a gate the author had just added; the credited gate's own `headless-prompt` hint no longer recommends `default: false`. The two judges contradicted each other on one file.
+- **`N recovered` counts repaired items, not rows — on every door.** A fan-out that recovered two of twelve items now says `2` in the meter, the verdict card AND the run's settlement (`tasks_recovered` on `workflow_completed`, `--json` and `nika trace show`), the same number its task line prints; every one of them said `1` before.
+- **A task fed by untrusted content says where it was born, not « recovered ».** The run storyboard, `nika trace outputs` and `nika trace peek` now print `untrusted input from <origin>` for a task whose value carries the F-O1 integrity label (a fetch, an exec, an `inputs.<name>`); « recovered » stays reserved for a task an `on_error.recover` actually repaired. Four personas read the old wording as a repair on runs that repaired nothing.
+- **Local gate readiness** now resolves the effective hook path through Git, including linked worktrees and custom hook directories. Only an executable hook counts as reachable, and bootstrap verifies the installer's result before reporting success.
+- **Respect resolved fetch retry safety.** Direct `nika:fetch` failures now respect the resolved HTTP method and idempotency header names when applying task retries. A templated mutating request without an idempotency key stops after its first failed attempt even when `retry.on_codes` matches, preserving the error, metered spend and commit evidence.
+- **Preserve concurrently created files.** `nika:write` with `overwrite: false` now refuses a destination created after its initial absence check. Existing filesystem adapters compile with a refusing default and can implement exclusive publication; ordinary replacement writes retain their behavior.
+- **`nika:write` says a path names a directory instead of failing twice.** `out/replies/`, `.`/`..` and a name that already is a directory are refused before any filesystem effect with the file-inside form and `create_dirs: true` spelled out; the tool description now says it writes a FILE. The two verdicts were `path not found` then `Is a directory (os error 21)`, neither actionable.
+- **`nika:write` names the file standing where a directory is needed.** A write beneath a path that is a FILE (`out/replies/002.txt` when `out/replies` is an empty file an earlier call left behind) used to die `path already exists: out/replies` for the rest of the run, with and without `create_dirs`; it is now refused before any effect with the blocker, its size, the fact that `nika:write` never deletes, and the mistake that usually put it there (an empty write meant as a `mkdir`). The tool description teaches the same at call time.
 ## [0.118.7](https://github.com/supernovae-st/nika/compare/v0.118.6..v0.118.7) - 2026-09-05
 
 ### Fixed

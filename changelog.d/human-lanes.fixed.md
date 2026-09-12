@@ -1,1 +1,0 @@
-- **Approval evidence and plain run summaries.** Prompt answers reject conflicting duplicate flags and invalid shapes or choices with explicit diagnostics. Approval traces record the declared operator and the resolved question and answer. Piped run summaries retain task, wave, retry and token totals and the explore hint shown in the terminal.

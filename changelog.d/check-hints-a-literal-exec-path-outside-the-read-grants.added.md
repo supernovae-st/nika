@@ -1,1 +1,0 @@
-- **Executable file-read hints.** `nika check` hints when `grep`/`rg`/`ag` names a literal file operand: if that program opens the cwd-resolved path for reading, check `permits.fs.read`. `-e` patterns, `echo`, and `touch` stay silent. The hint does not assert a missing grant.
