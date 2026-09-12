@@ -4201,6 +4201,7 @@ dependencies = [
 name = "nika-cel"
 version = "0.119.0"
 dependencies = [
+ "nika-tmpl",
  "proptest",
  "serde_json",
  "thiserror 2.0.20",
@@ -4448,6 +4449,7 @@ dependencies = [
  "expect-test",
  "insta",
  "miette",
+ "nika-tmpl",
  "nika-types",
  "proptest",
  "rstest",

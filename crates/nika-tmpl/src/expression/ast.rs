@@ -39,7 +39,7 @@ pub enum Expr {
         /// The value when `cond` is false.
         else_: Box<Expr>,
     },
-    /// `size(x)` — free form · « the ONE v0.1 function ».
+    /// `size(x)` — free form.
     SizeCall(Box<Expr>),
     /// `has(x)` — the presence macro · `true` iff `x` resolves to a
     /// defined, non-`null` value. Boolean-shaped.

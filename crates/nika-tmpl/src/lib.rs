@@ -117,6 +117,9 @@ impl core::error::Error for ScanError {}
 // would re-anchor its intra-doc links at the crate root and break them).
 pub mod expression;
 
+/// The closed callable set used by parsing, evaluation and diagnostic help.
+pub mod callable;
+
 /// Scan every REAL (non-`\`-escaped) `${{ … }}` island, left to right.
 ///
 /// - **Quote-aware close**: a `}}` inside a `'…'` / `"…"` body string literal

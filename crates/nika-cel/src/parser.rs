@@ -9,6 +9,8 @@
 //! is NON-associative (at most one `relop` · `a < b < c` is
 //! NIKA-VAR-005). Every grammar violation is NIKA-VAR-005.
 
+use nika_tmpl::callable::{CALLABLE_HELP, GlobalFunction, Method};
+
 use serde_json::Value;
 
 use crate::ast::{Expr, Node, RelOp, Step};
@@ -262,12 +264,12 @@ impl Parser<'_> {
             return Ok(Step::Field(name));
         }
         // A method call.
-        let arity = match name.as_str() {
-            "size" => 0,
-            "contains" | "startsWith" | "endsWith" => 1,
+        let arity = match Method::from_name(&name) {
+            Some(Method::Size) => 0,
+            Some(Method::Contains | Method::StartsWith | Method::EndsWith) => 1,
             _ => {
                 return Err(CelError::static_err(
-                    format!("unknown method `.{name}()` — outside cel-subset/0.1"),
+                    format!("unknown method `.{name}()` — {CALLABLE_HELP}"),
                     span,
                 ));
             }
@@ -327,11 +329,9 @@ impl Parser<'_> {
         self.pos += 1;
         if self.eat(&Tok::LParen) {
             // Free calls are a CLOSED set.
-            if name != "size" && name != "has" {
+            if GlobalFunction::from_name(&name).is_none() {
                 return Err(CelError::static_err(
-                    format!(
-                        "unknown function `{name}()` — only `size` and `has` in cel-subset/0.1"
-                    ),
+                    format!("unknown function `{name}()` — {CALLABLE_HELP}"),
                     span,
                 ));
             }
@@ -367,6 +367,34 @@ impl Parser<'_> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unsupported_global_teaches_the_complete_callable_set() {
+        assert_callable_help("len(x)");
+    }
+
+    #[test]
+    fn unsupported_method_teaches_the_complete_callable_set() {
+        assert_callable_help("x.all(y)");
+    }
+
+    fn assert_callable_help(source: &str) {
+        let error = parse(source).expect_err("unsupported call");
+        let message = error.to_string();
+        for callable in [
+            "size(x)",
+            "has(x)",
+            "x.size()",
+            "x.contains(s)",
+            "x.startsWith(s)",
+            "x.endsWith(s)",
+        ] {
+            assert!(
+                message.contains(callable),
+                "{source}: missing {callable}: {message}"
+            );
+        }
+    }
 
     #[test]
     fn parses_a_simple_relation() {
@@ -411,6 +439,58 @@ mod tests {
     fn unknown_method_is_static() {
         let err = parse("vars.s.frobnicate('x')").expect_err("closed method set");
         assert_eq!(err.spec_code(), "NIKA-VAR-005");
+    }
+
+    #[test]
+    fn every_advertised_call_form_parses_and_computes() {
+        struct Values;
+        impl crate::Resolver for Values {
+            fn resolve_root(&self, name: &str) -> Option<Value> {
+                matches!(name, "x" | "s").then(|| Value::from("s"))
+            }
+        }
+        // Exercise the help's actual signatures through BOTH parsers and the
+        // evaluator: an advertised form must have a working implementation.
+        for source in CALLABLE_HELP.split('`').skip(1).step_by(2) {
+            assert!(
+                nika_tmpl::expression::parse_expression(source).is_ok(),
+                "{source}"
+            );
+            let expr = parse(source).expect("advertised call parses");
+            let value = crate::compute(&expr, &Values).expect("advertised call computes");
+            let expected = if source.contains("size") {
+                Value::from(1)
+            } else {
+                Value::from(true)
+            };
+            assert_eq!(value, expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn callable_positions_and_arities_stay_closed() {
+        for source in [
+            "contains(x)",
+            "startsWith(x)",
+            "endsWith(x)",
+            "x.has()",
+            "size()",
+            "has()",
+            "size(x, s)",
+            "has(x, s)",
+            "x.size(s)",
+            "x.contains()",
+            "x.startsWith()",
+            "x.endsWith()",
+            "x.contains(s, s)",
+        ] {
+            assert!(
+                nika_tmpl::expression::parse_expression(source).is_err(),
+                "{source}"
+            );
+            let error = parse(source).expect_err("call position or arity remains invalid");
+            assert_eq!(error.spec_code(), "NIKA-VAR-005", "{source}");
+        }
     }
 
     #[test]

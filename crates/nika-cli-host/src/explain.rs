@@ -413,6 +413,25 @@ mod tests {
     /// static fix names `--access claude-code` (the census-derived tail
     /// is gated in the host's `with_seat_tail`, pinned separately).
     #[test]
+    fn var_005_explain_uses_the_parser_owned_callable_lesson() {
+        let out = run("NIKA-VAR-005");
+        assert_eq!(out.code, exit::OK);
+        let lesson =
+            nika_error::codes::spec_contract_help("NIKA-VAR-005").expect("expression lesson");
+        assert!(out.text.contains(lesson), "{}", out.text);
+        for callable in [
+            "size(x)",
+            "has(x)",
+            "x.size()",
+            "x.contains(s)",
+            "x.startsWith(s)",
+            "x.endsWith(s)",
+        ] {
+            assert!(out.text.contains(callable), "{}", out.text);
+        }
+    }
+
+    #[test]
     fn infer_001_teaches_the_seat_escape() {
         let out = run("NIKA-INFER-001");
         assert_eq!(out.code, exit::OK, "{}", out.text);

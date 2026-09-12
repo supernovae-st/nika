@@ -614,6 +614,7 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
 #[must_use]
 pub fn spec_contract_help(code: &str) -> Option<&'static str> {
     match code {
+        "NIKA-VAR-005" => Some(nika_tmpl::callable::CALLABLE_HELP),
         "NIKA-PARSE-019" => Some(
             "  The field's YAML SHAPE is wrong. `tasks:` is a MAP keyed by \
              task id. An `invoke:` tool id is `nika:<path>` OR \
@@ -695,6 +696,21 @@ mod tests {
     /// The one-voice namespace teaching both explain surfaces consume:
     /// builtin and provider codes teach, everything else stays `None`
     /// (the caller keeps its own unknown-code finding).
+    #[test]
+    fn var_005_explain_teaches_the_complete_callable_set() {
+        let help = spec_contract_help("NIKA-VAR-005").expect("expression lesson");
+        for callable in [
+            "size(x)",
+            "has(x)",
+            "x.size()",
+            "x.contains(s)",
+            "x.startsWith(s)",
+            "x.endsWith(s)",
+        ] {
+            assert!(help.contains(callable), "missing {callable}: {help}");
+        }
+    }
+
     #[test]
     fn namespace_help_teaches_builtin_and_provider_codes() {
         let b = namespace_help("NIKA-BUILTIN-FETCH-001", "docs").expect("builtin namespace");
