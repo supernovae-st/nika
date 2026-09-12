@@ -268,7 +268,7 @@ fn observe(text: &str, timed_out: bool) -> Observed {
 }
 
 /// Check + run one workflow hermetically: a fresh tempdir per file, the
-/// mock model on BOTH sides (`check --model` is documented as the
+/// same mock model on BOTH sides (`check --model` is documented as the
 /// preview of `run --model`, so the two judge the same world), and the
 /// run's cwd inside the sandbox — the taught corpus contains
 /// `cargo test --workspace --lib` and `rm -rf ./target/tmp`, which must
@@ -284,12 +284,13 @@ fn probe(workflow: &Path, vars: &[(String, String)], envs: &[(String, String)]) 
     let root = sandbox.path();
     let local = root.join("w.nika.yaml");
     std::fs::copy(workflow, &local).expect("stage workflow");
+    let model = probe_model(&std::fs::read_to_string(&local).expect("staged workflow"));
 
     let mut check = Command::new(env!("CARGO_BIN_EXE_nika"));
     check
         .arg("check")
         .arg("--model")
-        .arg("mock/echo")
+        .arg(&model)
         .arg("w.nika.yaml")
         .current_dir(root);
     let (check_ok, check_text) =
@@ -298,7 +299,7 @@ fn probe(workflow: &Path, vars: &[(String, String)], envs: &[(String, String)]) 
     let mut run = Command::new(env!("CARGO_BIN_EXE_nika"));
     run.arg("run")
         .arg("--model")
-        .arg("mock/echo")
+        .arg(&model)
         .arg("--json")
         .arg("w.nika.yaml")
         .current_dir(root);
@@ -324,6 +325,37 @@ fn probe(workflow: &Path, vars: &[(String, String)], envs: &[(String, String)]) 
         check_ok,
         check_text,
         observed,
+    }
+}
+
+/// A fixture's root mock variant is part of its behavior: replacing
+/// `mock/text` with `mock/echo` makes a text-only budget probe call done.
+/// Live catalog models still get the offline echo override on both sides.
+fn probe_model(yaml: &str) -> String {
+    serde_yaml_bw::from_str::<serde_json::Value>(yaml)
+        .ok()
+        .and_then(|value| {
+            value["model"]
+                .as_str()
+                .filter(|model| model.starts_with("mock/"))
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| "mock/echo".to_owned())
+}
+
+#[test]
+fn probes_preserve_mock_variants_without_enabling_live_models() {
+    for (yaml, expected) in [
+        ("model: 'mock/text'", "mock/text"),
+        ("model: mock/echo", "mock/echo"),
+        ("model: mock/another-probe", "mock/another-probe"),
+        ("model: anthropic/claude-sonnet-4", "mock/echo"),
+        ("model: mock.example/model", "mock/echo"),
+        ("workflow: no-model", "mock/echo"),
+        ("model: [mock/text]", "mock/echo"),
+        ("model: [", "mock/echo"),
+    ] {
+        assert_eq!(probe_model(yaml), expected, "{yaml}");
     }
 }
 

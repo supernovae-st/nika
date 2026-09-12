@@ -79,19 +79,13 @@ tasks:
       goal: ${{ inputs.goal }}
       steps: ${{ tasks.plan.output.steps }}
     agent:
-      # Say what the JOB is. Do NOT describe the output shape.
-      #
-      # The engine binds `schema:` to the FINAL answer. A free-text answer
-      # that misses it is RE-ASKED with the schema wired, bounded by a retry
-      # budget (measured on ollama/qwen3.5:4b — this task, with zero shape
-      # instruction, returns a clean typed object). A `nika:done` result that
-      # misses it is judged AS IT IS on 0.118.7 — NIKA-INFER-002, attempts 1,
-      # the budget already spent (measured: two of five real seats died on one
-      # extra key beside `findings`); an engine that carries the schema on the
-      # `nika:done` definition repairs it through the same retry budget. On
-      # either engine, hand-instructing "reply with the object, then call
-      # nika:done" only makes that miss more likely (measured twice on that
-      # exact instruction). Let the engine own the shape.
+      # Describe the job in the prompt; declare its result shape in schema:.
+      # The granted nika:done sentinel is required to finish this loop.
+      # Text-only plans receive feedback within the turn/token budgets.
+      # The engine validates the final result and can request a schema
+      # repair within its configured retry allowance and task budgets.
+      # A valid result shape does not prove the promised work was performed;
+      # retain an independent check of the facts or artifacts you require.
       system: "You are a careful analyst. Work the plan step by step and report what you actually found."   # SLOT
       prompt: |
         Goal · ${{ with.goal }}
@@ -106,17 +100,13 @@ tasks:
         # `NIKA-SEC-004 · agent tool "nika:read" refused by the security
         # boundary` — measured, mid-loop, after the turns are paid for.
         - "nika:jq"
-        - "nika:done"               # the early-exit sentinel · loop-owned
+        - "nika:done"               # explicit completion · loop-owned
       max_turns: 15                 # SLOT: the loop bound
-      max_tokens_total: 80000       # SLOT: the spend bound
+      max_tokens_total: 80000       # SLOT: cumulative input + output tokens
       schema:                       # SLOT: the typed final-message contract
-        # Closed on purpose (`check` hints `strictness` on an open object):
-        # on 0.118.7 an extra key through `nika:done` is a verdict (above),
-        # so every field the answer may carry is named HERE, not in the prompt.
-        # Measured on a real seat with the goal bound in: it computed the
-        # answer and died on one key it added beside `findings`. On 0.118.7
-        # the trade is yours — open the object (one `strictness` hint) or
-        # name the key here; the fix is the engine's repair, not the prompt.
+        # Closed on purpose: declare every allowed result field here.
+        # Keep extra fields out of the result; schema repair is bounded,
+        # and exhausting that allowance is a failure.
         type: object
         additionalProperties: false
         required: [findings]
@@ -131,8 +121,8 @@ tasks:
       # The schema above already refuses an empty list and an empty string;
       # this assert is the trust boundary downstream code can SEE, and the
       # place for YOUR law once the goal fixes one (a count · a required id ·
-      # a value you computed by hand). `size` is the one callable in this
-      # expression language on 0.118.7 — a per-item rule belongs in the schema
+      # a value you computed by hand). `size` counts the collection in this
+      # expression here — a per-item rule belongs in the schema
       # (as above) or in a `nika:jq` law. No static law catches an INVENTED
       # answer: that gap closes upstream, by binding the goal into the agent.
       has_findings: ${{ size(tasks.execute.output.findings) > 0 }}   # the check crosses as ONE boundary expression · SLOT: your law

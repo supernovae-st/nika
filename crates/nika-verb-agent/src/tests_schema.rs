@@ -722,9 +722,13 @@ async fn the_done_repair_and_the_text_reask_share_one_budget() {
                 DONE_TOOL,
                 serde_json::json!({"result": {"score": "nine"}}),
             ))
-            // 2 · the model gives up on the tool and answers in prose →
-            //     the free-text path, which now has 1 repair left
-            .enqueue_response(text_response("the score is nine"))
+            // 2 · an explicit done with a string result enters the text
+            //     shaping path, which now has one schema repair left.
+            .enqueue_response(tool_use_response(
+                "c2",
+                DONE_TOOL,
+                serde_json::json!({"result": "the score is nine"}),
+            ))
             // 3 · the one remaining re-ask · still prose → verdict
             .enqueue_response(text_response("still nine, sorry"))
             // 4 · would be a SECOND allowance · must never be requested

@@ -149,15 +149,15 @@ pub(super) fn check_fetch_sink(
     ))
 }
 
-/// The agent half of the tools boundary: every entry of the declared
-/// `tools:` universe must fit `permits.tools` — one refusal for the
-/// whole task (the run-time half of the static `permits_fit` scan).
+/// The agent half of the tools boundary: every positive entry of the declared
+/// `tools:` universe must fit `permits.tools` — exclusions demand no authority.
+/// One refusal ends the task (the runtime half of the static `permits_fit` scan).
 pub(super) fn check_agent_tools_permits(
     permits: Option<&nika_schema::types::Permits>,
     tools: &[nika_schema::Spanned<String>],
     witness: &PermitWitness,
 ) -> Option<Dispatched> {
-    for tool in tools {
+    for tool in tools.iter().filter(|tool| !tool.value.starts_with('!')) {
         // No args at GRANT time — an agent's universe entry is a name.
         // `None` args means a tool whose effect is arg-conditional (decide)
         // stays exempt here; its actual CALLS route through
@@ -293,6 +293,39 @@ pub(super) fn env_passthrough_witnessed(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn agent_exclusions_do_not_demand_runtime_authority() {
+        let empty = Permits::default();
+        let mut granted = Permits::default();
+        granted.tools = Some(vec!["nika:*".to_owned()]);
+        for (boundary, names, allowed) in [
+            (None, vec!["!nika:done"], true),
+            (Some(&empty), vec!["!nika:read"], true),
+            (Some(&granted), vec!["nika:*", "!nika:done"], true),
+            (Some(&granted), vec!["!nika:done", "nika:done"], true),
+            (Some(&empty), vec!["!nika:done", "nika:write"], false),
+        ] {
+            let tools: Vec<_> = names
+                .iter()
+                .map(|name| {
+                    nika_schema::Spanned::new((*name).to_owned(), nika_schema::Span::default())
+                })
+                .collect();
+            let witness = PermitWitness::new();
+            assert_eq!(
+                check_agent_tools_permits(boundary, &tools, &witness).is_none(),
+                allowed,
+                "{names:?}"
+            );
+            assert!(
+                witness
+                    .take()
+                    .iter()
+                    .all(|entry| !entry.gate.starts_with('!'))
+            );
+        }
+    }
 
     /// The run half of the per-call exemption. Its check twin lives in
     /// `nika-check::permits_fit`; both read `is_pure_internal_call`, so

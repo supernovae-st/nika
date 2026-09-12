@@ -66,8 +66,9 @@ tasks:
         - "nika:read"   # open the file under review
       # Two independent stops, because they fail differently: a model that
       # ping-pongs forever hits `max_turns`, a model that reads something huge
-      # hits `max_tokens_total`. The loop also just ends when the model
-      # returns no tool call.
+      # hits `max_tokens_total` (input + output summed across requests).
+      # With nika:done granted, a text-only plan continues within these
+      # budgets; the model must call the sentinel to finish.
       max_turns: 8
       max_tokens_total: 8000
       system: |
@@ -77,8 +78,7 @@ tasks:
         starting with blocker/high/med/low. Then call nika:done.
       prompt: "Review ${{ const.target }} and report bugs and style issues."
 
-# The agent's final message. It is free text — an agent answer is prose unless
-# you constrain it, and constraining it is a separate job (see 04 for the
-# schema machinery).
+# The completed result. nika:done may return text or a structured result;
+# declare schema: when downstream tasks require a particular shape (see 04).
 outputs:
   findings: ${{ tasks.review.output }}

@@ -370,10 +370,24 @@ research:
 
 The agent loops · model response → if tool calls present, execute tools → feed results back to model → repeat. The loop terminates when ·
 
-1. Model returns a final response with no tool calls, OR
+1. Model returns a final response with no tool calls **and the effective
+   whitelist does not grant `nika:done`**, OR
 2. `max_turns` reached, OR
 3. `max_tokens_total` exhausted, OR
 4. A tool returns the canonical completion sentinel `nika:done` (the builtin tool · see [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md))
+
+When the effective whitelist grants `nika:done` (including through a glob,
+after applying exclusions), a text-only response MUST NOT complete the task.
+The engine MUST preserve that assistant turn and ask the model to continue
+using tools or call `nika:done` to finish. The next request MUST fit the
+existing turn and cumulative-token budgets; exhausted budgets retain their
+`NIKA-AGENT-001` / `NIKA-AGENT-002` failures and partial output. This
+continuation is not a schema-repair attempt. A task without the sentinel
+grant retains natural text completion, including at a budget boundary.
+
+Runtime fixtures: `agent/004-text-with-done-exhausts-turns`,
+`agent/005-text-without-done-completes`, and
+`agent/006-text-with-done-exhausts-tokens`.
 
 `nika:done` is **valid only inside an `agent:` loop's tool whitelist**: it is
 the loop-completion sentinel. Calling `nika:done` from a standalone `invoke:`

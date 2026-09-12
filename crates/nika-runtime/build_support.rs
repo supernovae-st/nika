@@ -43,9 +43,13 @@ pub(crate) fn matching_spec_sha<'a>(pin: &'a str, pack: &str) -> Result<&'a str,
 /// its `HEAD` names a branch ref stored in the common Git directory, not below
 /// the worktree-specific directory. Resolve every name through `--git-path` so
 /// Cargo sees branch advances without needing a clean build.
+/// A missing watch target is always dirty in Cargo. For a packed branch,
+/// watch the nearest existing ref directory until a loose ref appears;
+/// an absent packed-refs file is irrelevant while HEAD is loose or detached.
 pub(crate) fn git_watch_paths(
     mut resolve: impl FnMut(&str) -> Option<PathBuf>,
     mut read: impl FnMut(&Path) -> Option<String>,
+    mut exists: impl FnMut(&Path) -> bool,
 ) -> Vec<PathBuf> {
     let Some(head) = resolve("HEAD") else {
         return Vec::new();
@@ -54,10 +58,16 @@ pub(crate) fn git_watch_paths(
     if let Some(reference) = read(&head)
         .and_then(|body| body.trim().strip_prefix("ref: ").map(str::to_owned))
         .and_then(|reference| resolve(&reference))
+        .and_then(|reference| {
+            reference
+                .ancestors()
+                .find(|path| exists(path))
+                .map(Path::to_path_buf)
+        })
     {
         paths.push(reference);
     }
-    if let Some(packed_refs) = resolve("packed-refs") {
+    if let Some(packed_refs) = resolve("packed-refs").filter(|path| exists(path)) {
         paths.push(packed_refs);
     }
     paths.sort();
@@ -108,6 +118,7 @@ mod tests {
                 _ => None,
             },
             |path: &Path| (path == head).then(|| "ref: refs/heads/feature\n".to_owned()),
+            |path| [head.as_path(), branch.as_path(), packed.as_path()].contains(&path),
         );
 
         assert!(paths.contains(&head));
@@ -116,5 +127,41 @@ mod tests {
         assert!(!paths.contains(&PathBuf::from(
             "/repo/.git/worktrees/carrier/refs/heads/feature"
         )));
+    }
+
+    #[test]
+    fn detached_head_does_not_watch_an_absent_packed_refs_file() {
+        let head = PathBuf::from("/repo/.git/HEAD");
+        let paths = git_watch_paths(
+            |name| Some(PathBuf::from("/repo/.git").join(name)),
+            |path| (path == head).then(|| SHA.to_owned()),
+            |path| path == head,
+        );
+        assert_eq!(paths, vec![head]);
+    }
+
+    #[test]
+    fn a_packed_branch_watches_loose_ref_creation_in_an_existing_directory() {
+        let head = PathBuf::from("/repo/.git/HEAD");
+        let parent = PathBuf::from("/repo/.git/refs/heads");
+        let packed = PathBuf::from("/repo/.git/packed-refs");
+        let paths = git_watch_paths(
+            |name| Some(PathBuf::from("/repo/.git").join(name)),
+            |path| (path == head).then(|| "ref: refs/heads/topic/nested\n".to_owned()),
+            |path| [head.as_path(), parent.as_path(), packed.as_path()].contains(&path),
+        );
+        assert_eq!(paths, vec![head, packed, parent]);
+    }
+
+    #[test]
+    fn a_loose_branch_without_packed_refs_watches_only_existing_files() {
+        let head = PathBuf::from("/repo/.git/HEAD");
+        let branch = PathBuf::from("/repo/.git/refs/heads/main");
+        let paths = git_watch_paths(
+            |name| Some(PathBuf::from("/repo/.git").join(name)),
+            |path| (path == head).then(|| "ref: refs/heads/main\n".to_owned()),
+            |path| [head.as_path(), branch.as_path()].contains(&path),
+        );
+        assert_eq!(paths, vec![head, branch]);
     }
 }

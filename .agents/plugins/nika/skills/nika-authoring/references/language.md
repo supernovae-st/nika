@@ -137,3 +137,26 @@ then `beta at 1`. An example that only checks is half an example.
   is a parse error — two targets is two meanings
 - `agent:` — a bounded multi-turn loop (`prompt`, `tools` allowlist,
   `max_turns`, `max_tokens_total`)
+
+## Finish an agent task explicitly
+
+From the 0.120 development train, granting `nika:done` requires the agent to
+call it to finish. A text-only plan is fed back within the existing turn and
+token budgets. Without that grant, the agent can finish with text; whitelist
+exclusions also apply to `nika:done`.
+
+`max_tokens_total` sums reported input and output tokens across requests,
+including re-sent history. It can exceed the model's per-request context
+window; this does not prove that each request fits. Cache pricing discounts
+affect monetary accounting, not this token counter. For a currency budget,
+use the engine's monetary run cap and account for already admitted calls.
+
+Declare enough turns for tool observations and the final completion call.
+Use a final `schema:` when downstream tasks need a typed result. A valid
+`nika:done` result proves the declared result shape, not that a promised
+artifact exists: check the artifact or downstream task outcome separately.
+
+For an offline refusal probe, `mock/text` deliberately answers in text even
+when tools are offered. With `nika:done` granted, expect budget exhaustion;
+`mock/echo` remains the ordinary tool-call rehearsal. Model overrides leave
+other task effects and per-task model pins unchanged.

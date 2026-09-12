@@ -297,7 +297,8 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
             }
         },
         RawAction::Agent(a) => {
-            for tool in &a.tools {
+            // A negative whitelist rule cannot contribute a required capability.
+            for tool in a.tools.iter().filter(|tool| !tool.value.starts_with('!')) {
                 c.tools.insert(tool.value.clone());
             }
         }

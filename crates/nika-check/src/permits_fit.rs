@@ -207,7 +207,8 @@ fn check_action(
             }
         }
         RawAction::Agent(a) => {
-            for tool in &a.tools {
+            // Exclusions restrict the whitelist; only positive rules demand authority.
+            for tool in a.tools.iter().filter(|tool| !tool.value.starts_with('!')) {
                 // A whitelist has no call args: declared blocks exempt only
                 // names pure for every call; absence keeps runtime deferral.
                 if (undeclared && nika_cap::is_pure_internal(&tool.value))
