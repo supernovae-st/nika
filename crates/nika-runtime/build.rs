@@ -18,6 +18,10 @@ fn main() {
     println!("cargo:rerun-if-env-changed=NIKA_BUILD_SHA");
     watch_git();
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    println!(
+        "cargo:rerun-if-changed={}",
+        manifest.join("build_support.rs").display()
+    );
     let pin_path = manifest.join("../../SPEC_PIN");
     let pack_path = manifest.join("../nika-pack/pack/SPEC_SHA");
     println!("cargo:rerun-if-changed={}", pin_path.display());
@@ -78,6 +82,7 @@ fn watch_git() {
     for path in build_support::git_watch_paths(
         |name| git(&["rev-parse", "--git-path", name]).map(PathBuf::from),
         |path| std::fs::read_to_string(path).ok(),
+        Path::exists,
     ) {
         println!("cargo:rerun-if-changed={}", path.display());
     }
