@@ -404,7 +404,7 @@ fn scan_action(
                     clippy::unreachable,
                     reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
                 )]
-                other => unreachable!("unknown exec command form: {other:?}"),
+                _ => unreachable!("unknown exec command form"),
             }
             strings.extend(exec.cwd.as_ref());
             strings.extend(exec.stdin.as_ref());
