@@ -141,10 +141,11 @@ impl TraceMeta {
         self
     }
 
-    /// The state word every door prints: the settlement's word for a run
+    /// The machine state word: the settlement's word for a run
     /// that settled, `running` for a live writer (or one this host cannot
     /// judge), `dead` for a writer that died — the evidence is incomplete,
     /// the run never settled (ADR-129: never a verdict on the run).
+    /// Human listings may qualify unknown writers as `running?` (#1473).
     #[must_use]
     pub const fn state_word(&self) -> &'static str {
         match (self.state, self.liveness) {

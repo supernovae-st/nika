@@ -1410,8 +1410,8 @@ mod tools_permits_tests {
     #[tokio::test]
     async fn agent_universe_outside_tools_boundary_is_refused() {
         let (wf, report) = forged_clean_report(
-            "nika: agent-tools-deny\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\", \"nika:write\"]\n",
-            "permits: { tools: [\"nika:read\", \"nika:write\"] }",
+            "nika: agent-tools-deny\nmodel: mock/echo\npermits: { tools: [\"nika:read\"], fs: { read: [\"data/**\"], write: [\"out/**\"] } }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\", \"nika:write\"]\n",
+            "permits: { tools: [\"nika:read\", \"nika:write\"], fs: { read: [\"data/**\"], write: [\"out/**\"] } }",
         );
         let provider = MockProvider::new("mock").enqueue_text("never reached");
         let probe = provider.clone();
@@ -1435,7 +1435,7 @@ mod tools_permits_tests {
     #[tokio::test]
     async fn agent_universe_inside_tools_boundary_runs() {
         let wf = parse(
-            "nika: agent-tools-allow\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\"]\n",
+            "nika: agent-tools-allow\nmodel: mock/echo\npermits: { tools: [\"nika:read\"], fs: { read: [\"data/**\"] } }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\"]\n",
         );
         let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture fits its boundary");

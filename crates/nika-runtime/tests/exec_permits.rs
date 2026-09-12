@@ -6,10 +6,10 @@
 //!
 //! The static `nika check` (`permits_fit`) refuses statically-detectable
 //! escapes; this battery covers what only the runtime can decide — an
-//! INTERPOLATED `command[0]` that resolves to a program OUTSIDE the declared
-//! allowlist. `permits_fit`'s `static_program` returns `None` for an
-//! interpolated leading token, so the workflow passes the check and the exec
-//! sink is the last gate.
+//! COMPOSED `command[0]` expression that resolves OUTSIDE the declared allowlist.
+//! The checker resolves bare immutable const references, but leaves expression
+//! composition to the run. This trusted constant expression avoids introducing
+//! a separate input-taint gate, so the exec sink remains the boundary under test.
 
 use std::sync::Arc;
 
@@ -67,10 +67,11 @@ permits:
   exec: ["git"]
 const:
   prog: "rm"
+  suffix: ""
 tasks:
   danger:
     exec:
-      command: ["${{ const.prog }}", "-rf", "/tmp/x"]
+      command: ["${{ const.prog }}${{ const.suffix }}", "-rf", "/tmp/x"]
       capture: structured
 "#;
     // Plant a plausible structured result behind the authority boundary.
@@ -106,10 +107,11 @@ permits:
   exec: ["git"]
 const:
   prog: "git"
+  suffix: ""
 tasks:
   ok:
     exec:
-      command: ["${{ const.prog }}", "status"]
+      command: ["${{ const.prog }}${{ const.suffix }}", "status"]
 "#;
     let outcome = run(yaml, MockShell::new().enqueue_ok("clean\n")).await;
     assert!(outcome.ok, "an allowed program runs to success");

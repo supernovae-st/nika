@@ -62,10 +62,16 @@ pub fn outputs_json(trace: &str) -> VerbOutput {
         Err(out) => return out,
     };
     let projection = tasks_json(&view, &events);
+    // Writer liveness is evidence, never a replacement for a settlement.
+    let liveness = projection
+        .get("settlement")
+        .is_none()
+        .then(|| nika_dap::liveness::probe(std::path::Path::new(trace)).as_str());
     let mut document = serde_json::json!({
         "outputs_version": 1,
         "trace": trace,
         "state": projection["state"],
+        "liveness": liveness,
         "tasks": projection["tasks"],
     });
     // ADR-128 · the settlement rides whole when the journal reached one.
@@ -739,6 +745,9 @@ fn render_flow(edges: &[FlowEdge], theme: Theme) -> String {
     let _ = writeln!(out, "{}", theme.paint(Role::Dim, &totals));
     out
 }
+
+#[cfg(test)]
+mod outputs_liveness_tests;
 
 #[cfg(test)]
 mod tests {

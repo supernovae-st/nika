@@ -25,7 +25,16 @@ pub(crate) fn secret_flow_summary(report: &CheckReport) -> String {
         .map(|secret| secret.flows_to.len())
         .sum::<usize>();
     if declared_flows == 0 {
-        "no declared secret reaches an effect · model echo untracked".to_owned()
+        if report.data_journey.secrets_used.is_empty() {
+            "no declared secret reaches an effect · model echo untracked".to_owned()
+        } else {
+            // flows_to names external destinations, not every local effect.
+            // An exec sanction must never turn into a claim of no effect.
+            format!(
+                "declared secrets used · {} declared · model echo untracked",
+                crate::vocab::count(report.data_journey.consents.len(), "egress rule")
+            )
+        }
     } else {
         format!(
             "{} shown in JOURNEY · consent findings above · model echo untracked",

@@ -874,6 +874,47 @@ mod a_sanctioned_egress_is_stated_never_erased {
         )
     }
 
+    #[test]
+    fn output_secret_repair_names_both_choices_and_preserves_effect_sanctions() {
+        let yaml = "nika: output-repair\npermits: { exec: [echo] }\nsecrets:\n  api_key: { source: env, key: API_KEY, egress: [{ to: exec }] }\ntasks:\n  send:\n    exec: { command: [echo, '${{ secrets.api_key }}'] }\noutputs:\n  leaked: ${{ secrets.api_key }}\n";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture");
+        let report = nika_check::check(&wf);
+        assert!(report.secret_leaks.is_empty(), "exec is already sanctioned");
+        let finding = report
+            .findings
+            .iter()
+            .find(|f| f.kind == "secret_egress")
+            .expect("outputs refuse");
+        assert_eq!(finding.code.as_deref(), Some("NIKA-SEC-007"));
+        for sentence in [
+            "remove `outputs.leaked`",
+            "{ to: \"outputs\" }",
+            "secrets.api_key.egress",
+            "keep existing rules",
+        ] {
+            assert!(finding.message.contains(sentence), "{}", finding.message);
+            assert!(
+                console(yaml).contains(sentence),
+                "human output must teach the same repair"
+            );
+        }
+        for repaired in [
+            yaml.replace("outputs:\n  leaked: ${{ secrets.api_key }}\n", ""),
+            yaml.replace(
+                "egress: [{ to: exec }]",
+                "egress: [{ to: exec }, { to: outputs }]",
+            ),
+        ] {
+            let wf =
+                parse(&repaired, FileId::new(0), ParseMode::Strict).expect("printed repair parses");
+            let report = nika_check::check(&wf);
+            assert!(report.is_clean(), "{:?}", report.findings);
+            assert!(!console(&repaired).contains("no declared secret reaches an effect"));
+            assert!(console(&repaired).contains("declared secrets used"));
+            assert!(console(&repaired).contains("egress rule"));
+        }
+    }
+
     const EXFIL: &str = "\
 nika: g-sanctioned
 model: mock/echo

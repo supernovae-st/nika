@@ -7,6 +7,9 @@
 
 use super::*;
 
+mod agent_fs;
+mod exec_static;
+
 #[cfg(test)]
 mod fit {
     use super::*;

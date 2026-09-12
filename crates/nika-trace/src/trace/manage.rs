@@ -266,12 +266,19 @@ fn state_cell(trace: &store::TraceMeta, theme: Theme) -> String {
     if trace.state == TraceState::Succeeded && trace_has_recovered(&trace.path) {
         return theme.paint(Role::Warn, "recovered");
     }
+    if trace.state == TraceState::Running
+        && matches!(
+            trace.liveness,
+            Some(nika_dap::liveness::Liveness::Unknown) | None
+        )
+    {
+        return theme.paint(Role::Warn, "running?");
+    }
     let role = match (trace.state, trace.liveness) {
         (TraceState::Succeeded, _) => Role::Good,
         // ADR-129 · a running trace whose writer died reads `dead` (the
         // evidence is incomplete · never a verdict on the run) in the failure
-        // register; a live writer, or one this host cannot judge, reads
-        // `running`.
+        // register; only a live writer reads `running` without qualification.
         (TraceState::Failed, _)
         | (TraceState::Running, Some(nika_dap::liveness::Liveness::Dead { .. })) => Role::Bad,
         (TraceState::Paused, _) => Role::Warn,

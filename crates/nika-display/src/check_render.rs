@@ -1259,10 +1259,10 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
             t.paint(
                 Role::Dim,
                 if exec_open {
-                    "literal + const: args fit the boundary · computed paths + symlinks \
+                    "literal + const: args fit the boundary · computed programs, paths + symlinks \
                      are the RUN's verdict · exec outside the fs bounds"
                 } else {
-                    "literal + const: args fit the boundary · computed paths + symlinks \
+                    "literal + const: args fit the boundary · computed programs, paths + symlinks \
                      are the RUN's verdict"
                 }
             )
