@@ -24,6 +24,10 @@
 //! `nika:done` granted ⇒ the first tool stands and the loop exhausts
 //! honestly (agent/001). The witnesses are read off the request's own
 //! messages — the mock stays stateless, so determinism is untouched.
+//!
+//! `mock/text` is the deliberate text-only probe: it never emits tool calls,
+//! even when tools are offered, so completion and budget refusals can be
+//! exercised offline. Other mock model names retain the tool-call contract.
 
 use std::collections::VecDeque;
 use std::pin::Pin;
@@ -56,6 +60,7 @@ use crate::registry::ResolvedProvider;
 /// same tool, a granted `nika:done` is preferred ([`done_preference`]).
 pub(crate) fn infer<H>(rp: &ResolvedProvider<H>, request: &InferRequest) -> InferResponse {
     let called = match &request.tool_choice {
+        _ if rp.wire_model() == "text" => None,
         ToolChoice::None => None,
         ToolChoice::Specific(name) => request.tools.iter().find(|t| &t.name == name),
         _ => done_preference(request, request.tools.first()),
@@ -306,6 +311,27 @@ mod tests {
             panic!("expected text");
         };
         assert!(text.starts_with("mock(echo) · "), "{text}");
+    }
+
+    #[test]
+    fn text_probe_never_emits_an_offered_tool_call() {
+        let rp = ProviderRegistry::without_http(ProvidersConfig::new())
+            .resolve("mock/text")
+            .expect("mock text probe resolves");
+        let mut request = req("a plan without actions");
+        request.tools = vec![ToolDef::new("nika:done", "complete", serde_json::json!({}))];
+        for choice in [
+            ToolChoice::Auto,
+            ToolChoice::Specific("nika:done".to_owned()),
+            ToolChoice::None,
+        ] {
+            request.tool_choice = choice;
+            let response = infer(&rp, &request);
+            assert!(
+                matches!(&response.content[..], [ContentBlock::Text { text }] if text == "mock(text) · a plan without actions")
+            );
+            assert_eq!(response.stop_reason, StopReason::EndTurn);
+        }
     }
 
     #[test]
