@@ -81,13 +81,17 @@ pub(crate) fn load_checked_run_source(
 ) -> Result<(RawWorkflow, CheckReport), VerbOutput> {
     let wf = nika_schema::parse(source.source(), FileId::new(0), ParseMode::Strict)
         .map_err(|error| schema_refusal(&error, source))?;
-    // The composed lane (spec 14): child targets resolve against the
-    // file the operator named; the fs edge is the skills reader's twin.
-    let mut report = nika_check::check_composed(&wf, source.logical_path(), &mut |p| {
+    let report = check_workflow(&wf, source.logical_path());
+    Ok((wf, report))
+}
+
+/// Revalidate the effective workflow with its child and MCP registry context.
+pub(crate) fn check_workflow(wf: &RawWorkflow, path: &str) -> CheckReport {
+    let mut report = nika_check::check_composed(wf, path, &mut |p| {
         std::fs::read_to_string(p).map_err(|e| e.to_string())
     });
-    stamp_judged_semantic(&wf, &mut report);
-    Ok((wf, report))
+    stamp_judged_semantic(wf, &mut report);
+    report
 }
 
 /// The single CLI sink for every schema-facing refusal, whether acquisition

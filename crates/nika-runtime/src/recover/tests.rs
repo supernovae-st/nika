@@ -362,25 +362,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
         awaiting: std::collections::BTreeSet::from(["ghost".to_owned()]),
         with_ns: BTreeMap::new(),
     };
-    let finish = task::Finish {
-        id: "risky".to_owned(),
-        settle: task::SettleAs::Ran(Box::new(task::RanTask {
-            usage: None,
-            decisions: Vec::new(),
-            note: "exec · sh".to_owned(),
-            retries: Vec::new(),
-            agent_events: Vec::new(),
-            evidence: None,
-            duration_ms: 0,
-            items: None,
-            result: task::RunResult::PendingRecovery(Box::new(pending)),
-        })),
-        named: BTreeMap::new(),
-        resume: None,
-        integrity: nika_cap::Integrity::trusted(),
-        declassified: Vec::new(),
-        approval: None,
-    };
+    let finish = pending_exec_finish("risky", pending);
     let mut parked = crate::recover::ParkedRecoveries::new();
     // The streamed-wave shape: prior-wave records + the wave's side
     // map — both empty here (the downgrade needs neither).
@@ -714,4 +696,27 @@ tasks:
         .tasks
         .expect("the terminal frame carries the tally");
     assert_eq!((tally.total, tally.recovered), (1, 1));
+}
+
+fn pending_exec_finish(id: &str, pending: crate::recover::PendingRecovery) -> task::Finish {
+    task::Finish {
+        id: id.to_owned(),
+        settle: task::SettleAs::Ran(Box::new(task::RanTask {
+            usage: None,
+            decisions: Vec::new(),
+            cleanup_declassified: Vec::new(),
+            note: "exec · sh".to_owned(),
+            retries: Vec::new(),
+            agent_events: Vec::new(),
+            evidence: None,
+            duration_ms: 0,
+            items: None,
+            result: task::RunResult::PendingRecovery(Box::new(pending)),
+        })),
+        named: BTreeMap::new(),
+        resume: None,
+        integrity: nika_cap::Integrity::trusted(),
+        declassified: Vec::new(),
+        approval: None,
+    }
 }

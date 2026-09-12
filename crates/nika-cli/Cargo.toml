@@ -12,6 +12,7 @@ publish                = false  # Internal L4 interface crate (the binary ships,
 default-run            = "nika" # the one public executable (ADR-135) · `cargo run` and `--bin` know no other name
 
 [dependencies]
+tempfile = { workspace = true }  # each try owns a fresh room, removed after its cwd lease
 nika-event  = { path = "../nika-event", version = "0.119.0" }  # the REAL event taxonomy (the fold input)
 nika-cli-host = { path = "../nika-cli-host", version = "0.119.0" } # the host-integration member (the 15k wall · ADR-110 · one unit, two members)
 nika-session = { path = "../nika-session", version = "0.119.0", default-features = false }  # the native session (bare `nika` on a terminal · ADR-125)
@@ -90,7 +91,6 @@ path = "src/main.rs"
 [dev-dependencies]
 nika-arm = { path = "../nika-arm", version = "0.119.0", features = ["test-support"] }
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
-tempfile       = { workspace = true }                              # isolated filesystem fixtures across the CLI test estate
 minisign       = { workspace = true }                              # the tier tests' keypair fixtures + the memory-fold teardown test (custody lives in nika-dap)
 blake3         = { workspace = true }                              # the memory e2e's independent set-digest recompute (H13 fold shape)
 sha2           = { workspace = true }                              # integration fixtures independently recompute composition/resume digests

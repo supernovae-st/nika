@@ -671,3 +671,32 @@ fn mock_model_with_harness_pin_refuses_before_a_live_seat() {
         "mock/echo must refuse before any harness backend can be seated"
     );
 }
+
+/// A later registry change must not turn an already chosen refusal into exit 0.
+#[test]
+fn clean_gate_renders_the_report_that_refused_without_rechecking_files() {
+    let room = tempfile::tempdir().expect("room");
+    let _cwd = crate::cwd::enter(room.path()).expect("cwd lease");
+    let yaml = "nika: ghost\npermits: { tools: ['mcp:sandboxfs/write_file'] }\ntasks:\n  w:\n    invoke: { tool: 'mcp:sandboxfs/write_file', args: {} }\n";
+    let source = crate::verbs::RunSource::from_bytes("ghost.nika.yaml", yaml.as_bytes().to_vec())
+        .expect("source");
+    let (wf, report) = crate::verbs::load_checked_run_source(&source).expect("parsed");
+    assert!(!report.is_clean());
+    std::fs::create_dir(room.path().join(".nika")).expect("registry dir");
+    std::fs::write(
+        room.path().join(".nika/mcp_servers.json"),
+        r#"{"mcp_servers_format":1,"servers":{"sandboxfs":{}}}"#,
+    )
+    .expect("server appears after the check");
+    assert!(crate::verbs::check_workflow(&wf, source.logical_path()).is_clean());
+    let result = super::scoped_clean_gate(
+        wf,
+        report,
+        None,
+        &source,
+        true,
+        plain_theme(),
+        (false, None),
+    );
+    assert!(matches!(result, Err(code) if code == exit::FILE));
+}

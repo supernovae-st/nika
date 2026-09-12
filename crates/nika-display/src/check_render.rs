@@ -27,14 +27,6 @@ const BUILTIN_CONTRACT: &str = "NIKA-BUILTIN-001";
 /// Ghost `mcp:<server>/<tool>` calls share JSON's invoke code, not the builtin one.
 const INVOKE_CONTRACT: &str = "NIKA-INVOKE-001";
 
-fn unknown_tool_code(tool: &str) -> &'static str {
-    if tool.starts_with("mcp:") {
-        INVOKE_CONTRACT
-    } else {
-        BUILTIN_CONTRACT
-    }
-}
-
 /// Whether the checked bytes have a writable source. The CLI resolves a
 /// `registry:` coordinate to a cache path before parsing, so the original
 /// provenance must ride separately: a digest-pinned artifact is never a
@@ -437,20 +429,28 @@ fn gate_rows(report: &CheckReport) -> Vec<String> {
         .collect()
 }
 
-/// One row per `nika:` tool that names no canonical builtin.
+/// Keep builtin suggestions and the canonical MCP registry diagnostic.
 fn unknown_tool_rows(report: &CheckReport) -> Vec<String> {
     report
         .unknown_tools
         .iter()
+        .filter(|u| !u.tool.starts_with("mcp:"))
         .map(|u| {
             format!(
                 "[{}] `{}` (task `{}`) is not a canonical builtin{}",
-                unknown_tool_code(&u.tool),
+                BUILTIN_CONTRACT,
                 u.tool,
                 u.task,
                 fix_clause(u.suggestion.as_deref())
             )
         })
+        .chain(
+            report
+                .findings
+                .iter()
+                .filter(|f| f.kind == "unknown_tool" && f.code.as_deref() == Some(INVOKE_CONTRACT))
+                .map(|f| format!("[{INVOKE_CONTRACT}] {}", f.message)),
+        )
         .collect()
 }
 

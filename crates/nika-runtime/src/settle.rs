@@ -230,7 +230,7 @@ fn emit_declassified(
 ) {
     for entry in evidence {
         let mut fields = vec![
-            ("task", s(id)),
+            ("task", s(entry.task.as_deref().unwrap_or(id))),
             ("from", s(&entry.from)),
             ("because", s(&entry.because)),
         ];

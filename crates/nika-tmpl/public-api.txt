@@ -1,4 +1,80 @@
 pub mod nika_tmpl
+pub mod nika_tmpl::callable
+#[non_exhaustive] pub enum nika_tmpl::callable::GlobalFunction
+pub nika_tmpl::callable::GlobalFunction::Has
+pub nika_tmpl::callable::GlobalFunction::Size
+impl nika_tmpl::callable::GlobalFunction
+pub fn nika_tmpl::callable::GlobalFunction::from_name(name: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_tmpl::callable::GlobalFunction
+pub fn nika_tmpl::callable::GlobalFunction::clone(&self) -> nika_tmpl::callable::GlobalFunction
+impl core::cmp::Eq for nika_tmpl::callable::GlobalFunction
+impl core::cmp::PartialEq for nika_tmpl::callable::GlobalFunction
+pub fn nika_tmpl::callable::GlobalFunction::eq(&self, other: &nika_tmpl::callable::GlobalFunction) -> bool
+impl core::fmt::Debug for nika_tmpl::callable::GlobalFunction
+pub fn nika_tmpl::callable::GlobalFunction::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tmpl::callable::GlobalFunction
+impl core::marker::StructuralPartialEq for nika_tmpl::callable::GlobalFunction
+impl<T, U> core::convert::Into<U> for nika_tmpl::callable::GlobalFunction where U: core::convert::From<T>
+pub fn nika_tmpl::callable::GlobalFunction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tmpl::callable::GlobalFunction where U: core::convert::Into<T>
+pub type nika_tmpl::callable::GlobalFunction::Error = core::convert::Infallible
+pub fn nika_tmpl::callable::GlobalFunction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tmpl::callable::GlobalFunction where U: core::convert::TryFrom<T>
+pub type nika_tmpl::callable::GlobalFunction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tmpl::callable::GlobalFunction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tmpl::callable::GlobalFunction where T: core::clone::Clone
+pub type nika_tmpl::callable::GlobalFunction::Owned = T
+pub fn nika_tmpl::callable::GlobalFunction::clone_into(&self, target: &mut T)
+pub fn nika_tmpl::callable::GlobalFunction::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tmpl::callable::GlobalFunction where T: 'static + ?core::marker::Sized
+pub fn nika_tmpl::callable::GlobalFunction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tmpl::callable::GlobalFunction where T: ?core::marker::Sized
+pub fn nika_tmpl::callable::GlobalFunction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tmpl::callable::GlobalFunction where T: ?core::marker::Sized
+pub fn nika_tmpl::callable::GlobalFunction::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tmpl::callable::GlobalFunction where T: core::clone::Clone
+pub unsafe fn nika_tmpl::callable::GlobalFunction::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tmpl::callable::GlobalFunction
+pub fn nika_tmpl::callable::GlobalFunction::from(t: T) -> T
+#[non_exhaustive] pub enum nika_tmpl::callable::Method
+pub nika_tmpl::callable::Method::Contains
+pub nika_tmpl::callable::Method::EndsWith
+pub nika_tmpl::callable::Method::Size
+pub nika_tmpl::callable::Method::StartsWith
+impl nika_tmpl::callable::Method
+pub fn nika_tmpl::callable::Method::from_name(name: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_tmpl::callable::Method
+pub fn nika_tmpl::callable::Method::clone(&self) -> nika_tmpl::callable::Method
+impl core::cmp::Eq for nika_tmpl::callable::Method
+impl core::cmp::PartialEq for nika_tmpl::callable::Method
+pub fn nika_tmpl::callable::Method::eq(&self, other: &nika_tmpl::callable::Method) -> bool
+impl core::fmt::Debug for nika_tmpl::callable::Method
+pub fn nika_tmpl::callable::Method::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tmpl::callable::Method
+impl core::marker::StructuralPartialEq for nika_tmpl::callable::Method
+impl<T, U> core::convert::Into<U> for nika_tmpl::callable::Method where U: core::convert::From<T>
+pub fn nika_tmpl::callable::Method::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tmpl::callable::Method where U: core::convert::Into<T>
+pub type nika_tmpl::callable::Method::Error = core::convert::Infallible
+pub fn nika_tmpl::callable::Method::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tmpl::callable::Method where U: core::convert::TryFrom<T>
+pub type nika_tmpl::callable::Method::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tmpl::callable::Method::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tmpl::callable::Method where T: core::clone::Clone
+pub type nika_tmpl::callable::Method::Owned = T
+pub fn nika_tmpl::callable::Method::clone_into(&self, target: &mut T)
+pub fn nika_tmpl::callable::Method::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tmpl::callable::Method where T: 'static + ?core::marker::Sized
+pub fn nika_tmpl::callable::Method::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tmpl::callable::Method where T: ?core::marker::Sized
+pub fn nika_tmpl::callable::Method::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tmpl::callable::Method where T: ?core::marker::Sized
+pub fn nika_tmpl::callable::Method::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tmpl::callable::Method where T: core::clone::Clone
+pub unsafe fn nika_tmpl::callable::Method::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tmpl::callable::Method
+pub fn nika_tmpl::callable::Method::from(t: T) -> T
+pub const nika_tmpl::callable::CALLABLE_HELP: &str
 pub mod nika_tmpl::expression
 pub enum nika_tmpl::expression::Expr
 pub nika_tmpl::expression::Expr::And(alloc::boxed::Box<nika_tmpl::expression::Expr>, alloc::boxed::Box<nika_tmpl::expression::Expr>)

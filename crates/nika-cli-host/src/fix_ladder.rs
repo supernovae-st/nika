@@ -241,7 +241,7 @@ fn apply_identity(
         nika_migrate::IdentityOutcome::Changed(migrated) => {
             *source = migrated;
             repairs.push(Repair::applied(
-                "the fourteen-key identity (nika: v1 · workflow: {id, description})",
+                "the retired envelope identity (id + description)",
                 "nika: <id> · the description as a # comment above it",
                 "r1-identity",
             ));
@@ -296,8 +296,8 @@ fn apply_w1_map(source: &mut String, repairs: &mut Vec<Repair>) -> bool {
         Some(migrated) => {
             *source = migrated;
             repairs.push(Repair::applied(
-                "the pre-W1 envelope (workflow scalar · tasks list)",
-                "workflow object + task map",
+                "the pre-W1 tasks list",
+                "tasks: map keyed by task id",
                 "w1-map",
             ));
             true
@@ -724,6 +724,16 @@ fn has_needs_key(source: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_map_repair_teaches_only_the_task_shape_it_changes() {
+        let mut source = "nika: c14\ntasks:\n  - id: a\n    exec: { command: [true] }\n".to_owned();
+        let mut repairs = Vec::new();
+        assert!(apply_w1_map(&mut source, &mut repairs));
+        assert_eq!(repairs[0].new, "tasks: map keyed by task id");
+        assert!(!repairs[0].old.contains("workflow"));
+        assert!(source.contains("  a:"));
+    }
 
     /// The filed #905 corruption: `--fix` nested `description: |` one level
     /// deeper and left the block body at the old indent, so YAML died

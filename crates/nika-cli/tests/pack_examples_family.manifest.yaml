@@ -193,14 +193,7 @@ entries:
   - slug: snippets/delegate
     expect: { rc: 0 }
     needs: ollama-model
-  # release-train: drives a spec-repo-shaped cwd (VERSION + CHANGELOG +
-  # schemas + the conductor answer) and its measured terminal is an HONEST
-  # gate-red (NIKA-BUILTIN-ASSERT-001 on a façade changelog) — an operator
-  # rehearsal, not a green-or-die corpus row.
+  # #1544: the shipped try door stages its own demo release and reaches
+  # the human gate without supplying a production version or signing it.
   - slug: release-train
-    door: run
-    kit: [spec-repo]
-    vars: { version: "0.114.0" }
-    answers: { conductor: "true" }
-    expect: { finding: NIKA-BUILTIN-ASSERT-001 }
-    needs: manual
+    expect: { rc: 4 }

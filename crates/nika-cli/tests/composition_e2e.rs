@@ -481,12 +481,53 @@ tasks:
 "#;
     write_fixture(&dir, "child.nika.yaml", child);
     let pp = write_fixture(&dir, "parent.nika.yaml", parent);
-    let started = std::time::Instant::now();
     let (code, text) = run_in(&dir, &["run", pp.to_str().expect("utf8")]);
-    let elapsed = started.elapsed();
     assert_eq!(code, 1, "the parent settles a task failure:\n{text}");
+    // Judge the bounded task interval, excluding binary startup, project
+    // discovery and preflight, whose scheduling cost is unrelated to law 6.
+    let journals: Vec<_> = std::fs::read_dir(dir.join(".nika/traces"))
+        .expect("trace forest exists")
+        .map(|entry| entry.expect("journal entry").path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "ndjson")
+        })
+        .map(|path| walk(&path))
+        .collect();
+    let parent_events = &journals
+        .iter()
+        .find(|(_, id, _)| id == "impatient")
+        .expect("parent journal exists")
+        .2;
+    let failure = parent_events
+        .iter()
+        .find(|event| {
+            event["kind"] == "task_failed" && wire_field(event, "task").as_deref() == Some("call")
+        })
+        .expect("the parent call has a failure receipt");
     assert!(
-        elapsed < std::time::Duration::from_secs(4),
-        "the child cannot outlive its caller (law 6): took {elapsed:?}"
+        wire_field(failure, "detail")
+            .expect("failure detail")
+            .contains("NIKA-TIMEOUT-001"),
+        "a timeout, not an unrelated startup or invocation failure: {failure}"
+    );
+    let duration_ms: u64 = wire_field(failure, "duration_ms")
+        .expect("task duration")
+        .parse()
+        .expect("duration is milliseconds");
+    assert!(
+        duration_ms < 4_000,
+        "the 1s parent timeout must bound its 5s child, including cancellation grace: {duration_ms}ms"
+    );
+    let child_events = &journals
+        .iter()
+        .find(|(_, id, _)| id == "sleeper")
+        .expect("the real child began its own journal")
+        .2;
+    assert!(
+        !child_events
+            .iter()
+            .any(|event| event["kind"] == "task_completed"),
+        "the child cannot finish its sleep after the parent times out: {child_events:?}"
     );
 }

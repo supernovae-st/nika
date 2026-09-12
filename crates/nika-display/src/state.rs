@@ -228,7 +228,10 @@ pub struct RunView {
     rows: Vec<TaskRow>,
     index: BTreeMap<String, usize>,
     blocked_by: BTreeMap<String, String>,
+    cleanup: BTreeMap<String, Vec<cleanup::Attachment>>,
 }
+
+mod cleanup;
 
 impl RunView {
     /// Start an empty view (the fold's identity element).
@@ -279,37 +282,41 @@ impl RunView {
     pub fn recovered_count(&self) -> usize {
         self.rows
             .iter()
-            .filter(|r| r.recovered)
+            .filter(|r| !self.cleanup.contains_key(&r.id) && r.recovered)
             .map(recovered_items)
             .sum()
     }
 
-    /// How many rows reached a terminal state.
+    /// How many main-lane rows reached a terminal state (excluding cleanup).
     #[must_use]
     pub fn done_count(&self) -> usize {
         self.rows
             .iter()
             .filter(|r| {
-                matches!(
-                    r.state,
-                    TaskState::Ok | TaskState::Failed | TaskState::Skipped | TaskState::Cancelled
-                )
+                !self.cleanup.contains_key(&r.id)
+                    && matches!(
+                        r.state,
+                        TaskState::Ok
+                            | TaskState::Failed
+                            | TaskState::Skipped
+                            | TaskState::Cancelled
+                    )
             })
             .count()
     }
 
-    /// FAILED rows · rides the final meter beside `recovered` (same honesty
+    /// FAILED main-lane rows · rides the final meter beside `recovered` (same honesty
     /// style — `done` counts every terminal state, so a failing run's meter
     /// read byte-identical to a clean one · caught live 2026-07-10 · #393).
     #[must_use]
     pub fn failed_count(&self) -> usize {
         self.rows
             .iter()
-            .filter(|r| r.state == TaskState::Failed)
+            .filter(|r| !self.cleanup.contains_key(&r.id) && r.state == TaskState::Failed)
             .count()
     }
 
-    /// CANCELLED rows · rides the final meter beside `failed` (the same
+    /// CANCELLED main-lane rows · rides the final meter beside `failed` (the same
     /// #393 honesty style): one root failure cancelling 22 downstream
     /// tasks used to read `23/23 done · 1 failed` — the fallout count
     /// stayed invisible and the wall of `⊘` rows had no summary voice.
@@ -317,7 +324,7 @@ impl RunView {
     pub fn cancelled_count(&self) -> usize {
         self.rows
             .iter()
-            .filter(|r| r.state == TaskState::Cancelled)
+            .filter(|r| !self.cleanup.contains_key(&r.id) && r.state == TaskState::Cancelled)
             .count()
     }
 
@@ -338,7 +345,9 @@ impl RunView {
             }
             EventKind::TaskScheduled => {
                 self.touch(event, TaskState::Pending);
+                self.declare_cleanup(event);
             }
+            EventKind::PermitChecked => self.apply_cleanup(event),
             EventKind::TaskStarted => {
                 if let Some(i) = self.touch(event, TaskState::Running) {
                     let row = &mut self.rows[i];
@@ -553,6 +562,9 @@ impl RunView {
     /// the render reads the producer's outcome off the producer's own
     /// row.
     fn cancel_row(&mut self, event: &Event, ts: i64) {
+        if str_field(event, "task").is_some_and(|id| self.cleanup.contains_key(id)) {
+            return; // main-lane cancellation cannot overwrite cleanup evidence
+        }
         let culprit = str_field(event, "blocked_by").map(str::to_owned);
         if let Some(i) = self.touch(event, TaskState::Cancelled) {
             self.rows[i].ended_ms = Some(ts);

@@ -71,13 +71,14 @@ async fn health_is_public_and_contains_only_compile_bound_identity() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn every_invalid_credential_has_one_uniform_bounded_401_shape() {
+async fn presented_invalid_credentials_share_one_bounded_401_without_secrets() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend, limits()).await;
     let body = r#"{"workflow":"root.nika.yaml"}"#;
     let variants = [
-        String::new(),
+        "Authorization: Bearer \r\n".to_owned(),
+        "Authorization: Bearer short-token\r\n".to_owned(),
         "Authorization: Basic nope\r\n".to_owned(),
         "Authorization: Bearer wrong-wrong-wrong-wrong-wrong-wrong\r\n".to_owned(),
         format!("Authorization: Bearer {}\r\n", "x".repeat(513)),
@@ -100,6 +101,102 @@ async fn every_invalid_credential_has_one_uniform_bounded_401_shape() {
     assert!(signatures[0].1.len() < 160);
     assert!(signatures[0].2);
     assert!(!signatures[0].1.contains(TOKEN));
+    assert!(!signatures[0].1.contains("wrong-wrong"));
+    assert!(!signatures[0].1.contains("short-token"));
+    assert!(!signatures[0].1.contains("nope"));
+    assert_eq!(
+        serde_json::from_str::<Value>(&signatures[0].1).expect("error JSON")["error"]["message"],
+        "authentication failed: invalid or mismatched bearer token"
+    );
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn missing_wrong_and_correct_tokens_have_actionable_safe_responses() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    let missing = server
+        .request("GET /v1/workflows HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .await;
+    let wrong = server
+        .request("GET /v1/workflows HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer foreign-token-012345678901234567890123456789\r\nConnection: close\r\n\r\n")
+        .await;
+    for response in [&missing, &wrong] {
+        assert_eq!(response.status, 401);
+        assert!(response.challenge());
+        assert_eq!(response.json()["error"]["code"], "unauthorized");
+        assert_eq!(
+            response.json()["error"].as_object().expect("error").len(),
+            2
+        );
+        assert!(response.body.len() < 160);
+        assert!(!response.body.contains(TOKEN));
+        assert!(!response.body.contains("foreign-token"));
+        assert!(
+            !response
+                .body
+                .contains(world.token.to_string_lossy().as_ref())
+        );
+    }
+    assert_eq!(
+        missing.json()["error"]["message"],
+        "authentication required: no bearer token presented"
+    );
+    assert_eq!(
+        wrong.json()["error"]["message"],
+        "authentication failed: invalid or mismatched bearer token"
+    );
+    let correct = server.request(&get_request("/v1/workflows")).await;
+    assert_eq!(correct.status, 200);
+    assert!(!correct.challenge());
+    assert_eq!(
+        backend.calls(),
+        0,
+        "authentication and discovery never execute"
+    );
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn unknown_routes_teach_canonical_health_without_alias_or_disclosure() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend.clone(), limits()).await;
+    for request in [
+        "GET /private-path-sentinel HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+            .to_owned(),
+        get_request("/v1/health"),
+    ] {
+        let response = server.request(&request).await;
+        assert_eq!(response.status, 404);
+        assert_eq!(
+            response.json(),
+            json!({"error": {
+                "code": "not_found",
+                "message": "route not found; health is available at GET /health"
+            }})
+        );
+        assert!(!response.body.contains("private-path-sentinel"));
+        assert!(!response.body.contains(TOKEN));
+        assert!(
+            !response
+                .body
+                .contains(world.root.path().to_string_lossy().as_ref())
+        );
+    }
+    let protected = server
+        .request("GET /v1/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .await;
+    assert_eq!(
+        protected.status, 401,
+        "all /v1/ paths still authenticate first"
+    );
+    let canonical = server
+        .request("GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .await;
+    assert_eq!(canonical.status, 200);
+    assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");
 }
 

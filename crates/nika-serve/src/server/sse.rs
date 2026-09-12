@@ -38,8 +38,7 @@ pub(super) async fn handle(
 ) -> Response<ResponseBody> {
     let path = request.uri().path().to_owned();
     let Some(raw_id) = events_job_id(&path) else {
-        return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
-            .into_response();
+        return ApiError::route_not_found().into_response();
     };
     let after = match last_event_id(request.headers()) {
         Ok(after) => after,

@@ -30,6 +30,7 @@ pub mod guided;
 mod intent;
 pub mod project_file;
 pub mod recipes;
+pub mod rehearsal;
 pub mod routing;
 pub mod wizard;
 

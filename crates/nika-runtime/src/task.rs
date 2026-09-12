@@ -64,52 +64,13 @@ pub(crate) const VAR_TYPE_CODE: &str = "NIKA-VAR-006";
 mod declassify;
 mod failed;
 mod finally;
+mod finish;
+
+pub(crate) use finally::unwind_tasks_of;
+use finish::assemble_ran_finish;
 
 pub(crate) use declassify::{DeclassifyEvidence, declassify_evidence};
 pub(crate) use failed::FailedOutcome;
-
-/// Assemble the `Finish` of a RAN task (the output bindings spec 04 ·
-/// the resume filter · the F-O1 declassify evidence · the F-P4 approval
-/// attestation) — split out of `run_task_pipeline` for the 100-line fn
-/// ratchet · semantics unchanged.
-// REASON: the ran assembly threads the task + its computed parts — 10
-// params, each one a distinct pipeline product (same trade as the caller).
-#[allow(clippy::too_many_arguments)]
-fn assemble_ran_finish(
-    task: &RawTask,
-    id: String,
-    mut settle: SettleAs,
-    resume: Option<crate::resume::ResumeStamp>,
-    resume_ctx: &crate::resume::ResumeContext,
-    inputs: &BTreeMap<String, Value>,
-    records: &BTreeMap<String, TaskRecord>,
-    integrity: nika_cap::Integrity,
-    approval: Option<crate::approval::ApprovalAttestation>,
-    jq_clock: nika_cap::JqClock,
-) -> Finish {
-    // `output:` named bindings (spec 04 §Output binding) — evaluated
-    // over the task's FINAL raw output, BEFORE settle emits the
-    // terminal frame, so a binding error (NIKA-VAR-002/004) turns a
-    // success into a failure (the cascade) rather than landing after
-    // a `TaskCompleted`. The map carries one entry per declared
-    // binding (the value on success · `Null` on a non-success ·
-    // defined-null reads).
-    let named = bind_outputs(task, &mut settle, jq_clock);
-    let resume = filter_leaky_resume(resume, &settle, resume_ctx);
-    // F-O1 PR-3 · the task RAN — the door was used: the receipt
-    // carries one `declassify` event per declared entry (the settle
-    // spine emits them after `task_started`).
-    let declassified = declassify_evidence(task, inputs, records);
-    Finish {
-        id,
-        settle,
-        named,
-        resume,
-        integrity,
-        declassified,
-        approval,
-    }
-}
 
 pub(crate) struct Finish {
     pub id: String,
@@ -198,6 +159,9 @@ pub(crate) struct RanTask {
     /// The dispatch boundary's permit decisions across attempts (NEP-0007
     /// law 2 · spec 17) — one `permit_checked` frame each at settle.
     pub decisions: Vec<crate::witness::PermitDecision>,
+    /// Exercised cleanup lifts retain their own task identity and value
+    /// receipts even though their outcomes settle with the producer.
+    pub cleanup_declassified: Vec<DeclassifyEvidence>,
     /// F-P6 · the settling dispatch's binding evidence — `Fired` (the
     /// terminal frame carries both digests) or `Refused` (the finding
     /// rides even under an `on_error:` recovery — never a warn). `None`
@@ -644,7 +608,8 @@ where
             &finally_witness,
             run_start,
         );
-        nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
+        ran.cleanup_declassified =
+            nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(Box::new(ran))
@@ -679,11 +644,7 @@ where
         };
 
         let started = self.clock.now();
-        let fail_fast = task.fail_fast.as_ref().is_none_or(|f| f.value);
-        let cap = task
-            .max_parallel
-            .as_ref()
-            .map_or(items.len(), |m| (m.value as usize).max(1));
+        let (cap, fail_fast) = Self::fan_out_limits(task, items.len());
         let total = items.len();
         let mut stream = futures_util::stream::iter(
             items
@@ -729,6 +690,7 @@ where
             retries: acc.retries,
             agent_events: acc.agent_events,
             decisions: acc.decisions,
+            cleanup_declassified: Vec::new(),
             evidence: None,
             duration_ms: 0,
             items: Some(FanItems::new(item_terminals, acc.recovered)),
@@ -747,10 +709,19 @@ where
             &finally_witness,
             run_start,
         );
-        nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
+        ran.cleanup_declassified =
+            nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(Box::new(ran))
+    }
+
+    fn fan_out_limits(task: &RawTask, item_count: usize) -> (usize, bool) {
+        let cap = task
+            .max_parallel
+            .as_ref()
+            .map_or(item_count, |m| (m.value as usize).max(1));
+        (cap, task.fail_fast.as_ref().is_none_or(|f| f.value))
     }
 
     /// The `on_finally:` scope for a fan-out — `item`/`index` out of
@@ -798,6 +769,7 @@ where
                     retries: Vec::new(),
                     agent_events: Vec::new(),
                     decisions: Vec::new(),
+                    cleanup_declassified: Vec::new(),
                     evidence: None,
                     duration_ms: 0,
                     items: None,
@@ -941,6 +913,7 @@ where
             retries,
             agent_events: stamp_attempts(agent_buffer.into_events(), &attempt_marks),
             decisions: witness.take(),
+            cleanup_declassified: Vec::new(),
             evidence,
             duration_ms,
             items: None,

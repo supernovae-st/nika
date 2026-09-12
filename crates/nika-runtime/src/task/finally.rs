@@ -20,7 +20,7 @@ use crate::Runtime;
 use crate::expr::Scope;
 use crate::record::{TaskRecord, TaskStatus};
 
-use super::{RanTask, RunResult, eval_gate};
+use super::{RanTask, RunResult, eval_gate, render_boundary_with, runtime_error_record};
 
 /// Default per-cleanup-task timeout (spec 03 §`on_finally`).
 const CLEANUP_TIMEOUT: Duration = Duration::from_secs(30);
@@ -85,7 +85,10 @@ fn preview_record(ran: &RanTask) -> TaskRecord {
 /// Membership is read off the task's own `after:` — the same place the
 /// checker reads it — so the runtime and the graph can never disagree
 /// about what cleanup exists.
-fn unwind_tasks_of<'a>(wf: &'a RawWorkflow, producer: &str) -> Vec<&'a RawTask> {
+pub(crate) fn unwind_tasks_of<'a>(
+    wf: &'a RawWorkflow,
+    producer: &str,
+) -> Vec<(usize, &'a RawTask)> {
     wf.tasks
         .iter()
         .map(|t| &t.value)
@@ -94,6 +97,7 @@ fn unwind_tasks_of<'a>(wf: &'a RawWorkflow, producer: &str) -> Vec<&'a RawTask> 
                 target.value == producer && matches!(pred.value, AfterPredicate::Unwind)
             })
         })
+        .enumerate()
         .collect()
 }
 
@@ -118,13 +122,13 @@ where
         integrity: &nika_cap::Integrity,
         witness: &crate::witness::PermitWitness,
         run_start: nika_kernel::tool_executor::ToolRunStart,
-    ) {
+    ) -> Vec<super::DeclassifyEvidence> {
         // The cleanup bodies are TASKS now, joined by an `unwind` edge
         // (spec 03 §unwind). They run in DECLARATION order — the source
         // order of `tasks:` — so the sequence is stable across re-runs.
         let cleanups = unwind_tasks_of(wf, task.id.value.as_str());
         if cleanups.is_empty() {
-            return;
+            return Vec::new();
         }
         // The cleanup scope sees the PARENT's fresh status/error via a
         // one-record overlay (spec 03 · status/error routing).
@@ -149,11 +153,18 @@ where
         )
         // Locals are out of scope after fan-out; `on_finally` exec retains the
         // workflow capability boundary.
-        .with_task_context(scope.with_namespace(), None, None, scope.permits());
-        for (index, cleanup) in cleanups.iter().enumerate() {
-            self.run_one_cleanup(cleanup, &cleanup_scope, witness, index, run_start)
+        .with_task_context(None, None, None, scope.permits());
+        let mut receipts = Vec::new();
+        for (index, cleanup) in cleanups {
+            let mut entries = self
+                .run_one_cleanup(cleanup, &cleanup_scope, witness, index, run_start)
                 .await;
+            for entry in &mut entries {
+                entry.task = Some(cleanup.id.value.clone());
+            }
+            receipts.extend(entries);
         }
+        receipts
     }
 
     /// One cleanup TASK · its own `when:` + `timeout:` · outcome
@@ -169,22 +180,26 @@ where
         witness: &crate::witness::PermitWitness,
         index: usize,
         run_start: nika_kernel::tool_executor::ToolRunStart,
-    ) {
-        if let Some(gate) = cleanup.when.as_ref() {
-            // Closed gate OR eval error → the cleanup is skipped
-            // (a cleanup error never propagates) — and the skip is
-            // journaled: without this frame a gate-closed cleanup
-            // is pixel-identical to a dead trigger on the trace.
-            if !matches!(eval_gate(&gate.value, scope), Ok(true)) {
-                witness.record(
-                    "on_finally",
-                    format!("cleanup #{index}"),
-                    "skipped",
-                    "when: gate closed or errored — the cleanup did not run \
-                     (best-effort lane · spec 03 §unwind)",
-                );
-                return;
+    ) -> Vec<super::DeclassifyEvidence> {
+        // Cleanup is an ordinary task: materialize its own bindings before
+        // the gate, using the parent's fresh record and the run authorities.
+        // A boundary failure is journaled and never reaches the verb.
+        let with_ns = match render_boundary_with(
+            cleanup,
+            scope.records(),
+            scope.inputs(),
+            scope.consts(),
+            scope.secrets(),
+        ) {
+            Ok(ns) => ns,
+            Err(err) => {
+                Self::journal_cleanup_failure(witness, index, &runtime_error_record(&err));
+                return Vec::new();
             }
+        };
+        let scope = &scope.with_task_context(Some(&with_ns), None, None, scope.permits());
+        if !Self::cleanup_gate_open(cleanup, scope, witness, index) {
+            return Vec::new();
         }
         let limit = cleanup
             .timeout
@@ -195,10 +210,13 @@ where
         // dispatch seam; collecting it is a trigger-gated ratchet.
         let cleanup_buffer = crate::agent_events::BufferingObserver::new();
         // Mini-tasks carry no `returns:` (closed shape) — no contract.
-        // The re-gate oracle is the BARE one (a mini-task has no
-        // `with:`/`for_each` — the records + inputs lookups still label
-        // a tainted cleanup argv/arg · F-O1 PR-2).
-        let value_taint = crate::integrity::ValueTaint::bare();
+        // The cleanup's bindings retain their provenance through the same
+        // re-gate oracle as the main lane (F-O1 PR-2).
+        let value_taint = crate::integrity::ValueTaint::of_task(cleanup, scope.records());
+        // Resolve the receipt at the same boundary as the lift, including
+        // the parent's fresh value. A closed gate or failed binding above
+        // never exercises the door and therefore produces no receipt.
+        let declassified = super::declassify_evidence(cleanup, scope.inputs(), scope.records());
         // NEP-0007 law 2 (the final review's catch · 2026-07-23): the
         // cleanup lane's decisions are recorded into the PARENT's
         // witness — they settle with it as `permit_checked` frames (the
@@ -237,12 +255,45 @@ where
             futures_util::future::Either::Left((dispatched, _)) => {
                 if let Err(failed) = dispatched.result {
                     Self::journal_cleanup_failure(witness, index, &failed.record);
+                } else {
+                    witness.record(
+                        "on_finally",
+                        format!("cleanup #{index}"),
+                        "success",
+                        "cleanup completed successfully (best-effort lane)",
+                    );
                 }
             }
             futures_util::future::Either::Right(((), _)) => {
                 Self::journal_cleanup_timeout(witness, index, limit);
             }
         }
+        declassified
+    }
+
+    fn cleanup_gate_open(
+        cleanup: &RawTask,
+        scope: &Scope<'_>,
+        witness: &crate::witness::PermitWitness,
+        index: usize,
+    ) -> bool {
+        if let Some(gate) = cleanup.when.as_ref() {
+            // Closed gate OR eval error → the cleanup is skipped
+            // (a cleanup error never propagates) — and the skip is
+            // journaled: without this frame a gate-closed cleanup
+            // is pixel-identical to a dead trigger on the trace.
+            if !matches!(eval_gate(&gate.value, scope), Ok(true)) {
+                witness.record(
+                    "on_finally",
+                    format!("cleanup #{index}"),
+                    "skipped",
+                    "when: gate closed or errored — the cleanup did not run \
+                     (best-effort lane · spec 03 §unwind)",
+                );
+                return false;
+            }
+        }
+        true
     }
 
     /// The outcome never PROPAGATES (best-effort lane) but it is
@@ -250,9 +301,8 @@ where
     /// logged »): a failure rides the parent's witness as one more
     /// `permit_checked` frame on plane `on_finally`. A cleanup refused
     /// at the permit/sandbox boundary (NIKA-SEC-004) lands here with
-    /// its code — no longer pixel-identical to a dead trigger. A clean
-    /// finish stays silent: the cleanup's own effects are its
-    /// observability (e.g. `nika:emit` · spec 03).
+    /// its code — no longer pixel-identical to a dead trigger. Successful
+    /// dispatch carries its own explicit outcome witness above.
     fn journal_cleanup_failure(
         witness: &crate::witness::PermitWitness,
         index: usize,

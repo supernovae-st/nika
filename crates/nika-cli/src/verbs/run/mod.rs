@@ -808,45 +808,44 @@ fn scoped_clean_gate(
     theme: Theme,
     (output_json, model_override): (bool, Option<&str>),
 ) -> Result<(RawWorkflow, CheckReport, BTreeMap<String, String>), u8> {
-    let refuse = || {
-        let out = crate::verbs::check::run_source_with_profile(
-            source,
+    let refuse = |wf, report, skills| {
+        let out = crate::verbs::check::run_admitted_pair(
+            source.source(),
+            source.logical_path(),
+            source.repair_target(),
+            wf,
+            report,
+            skills,
             json,
-            false,
-            crate::verbs::check::Profile::Advisory,
-            (model_override, None),
             theme,
         );
         epilogue::emit_diagnostic(&out.text, output_json);
         out.code
     };
-    if !report.is_clean() {
-        return Err(refuse());
-    }
-    // Wave 2 · the MODELS rung's judgments (resolution · thinking ·
-    // capacity) refuse HERE too — `check` said red, the run used to run
-    // (the W1 rig measured it on a reasoning seat under a tiny cap).
-    // Judged on the EFFECTIVE model (`--model` applied), like `check`.
-    let judged = model_override.map_or_else(
-        || wf.clone(),
-        |model| crate::verbs::with_model_override(&wf, model),
-    );
-    let judged_report = if model_override.is_some() {
-        nika_check::check(&judged)
-    } else {
-        report.clone()
-    };
-    if !crate::verbs::check::models_rung::unresolvable_models(&judged_report, &judged)
-        .findings
-        .is_empty()
-        || !nika_check::thinking_findings(&judged).is_empty()
-        || !nika_check::capacity_findings(&judged).is_empty()
+    // Judge the effective model with the same file context as check; an
+    // override must neither erase an MCP/child refusal nor return Ok early.
+    let (wf, report) =
+        crate::verbs::check::overridden(wf, report, model_override, source.logical_path());
+    if !report.is_clean()
+        || !crate::verbs::check::models_rung::unresolvable_models(&report, &wf)
+            .findings
+            .is_empty()
+        || !nika_check::thinking_findings(&wf).is_empty()
+        || !nika_check::capacity_findings(&wf).is_empty()
     {
-        return Err(refuse());
+        let skills = crate::verbs::resolve_workflow_skills(
+            &wf,
+            crate::verbs::workflow_base(source.logical_path()),
+        );
+        return Err(refuse(&wf, &report, &skills));
     }
     let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;
     if !report.is_clean() {
-        return Err(refuse());
+        let skills = crate::verbs::resolve_workflow_skills(
+            &wf,
+            crate::verbs::workflow_base(source.logical_path()),
+        );
+        return Err(refuse(&wf, &report, &skills));
     }
     // `skills:` gate (#473 · pre-effect · the SAME rows check renders).
     let resolved = crate::verbs::resolve_workflow_skills(
@@ -854,7 +853,7 @@ fn scoped_clean_gate(
         crate::verbs::workflow_base(source.logical_path()),
     );
     if !resolved.findings.is_empty() {
-        return Err(refuse());
+        return Err(refuse(&wf, &report, &resolved));
     }
     Ok((wf, report, resolved.texts))
 }

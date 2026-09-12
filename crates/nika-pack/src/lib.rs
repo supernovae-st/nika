@@ -340,6 +340,55 @@ pub fn try_recover_hint(slug: &str) -> Option<RecoverHint> {
     }
 }
 
+/// The demo release `nika try release-train` rehearses (#1544): the
+/// `version` the door supplies, the `./VERSION` the first gate compares it
+/// with, and the `./CHANGELOG.md` the second gate greps for `[version]`.
+const RELEASE_TRAIN_VERSION: &str = "1.2.0";
+const RELEASE_TRAIN_VERSION_FILE: &str = "1.2.0\n";
+const RELEASE_TRAIN_CHANGELOG: &str = "# Changelog\n\n## [1.2.0]\n\n- The rehearsal's one entry: the second gate looks for this heading.\n";
+
+/// What `nika try <slug>` stages beyond the fixtures a body names: the
+/// inputs the door supplies when the operator passes none, and the files a
+/// job written to run from a repository root reads from its cwd. Encoded in
+/// Rust for the reason [`RecoverHint`] is — the vendored YAML stays
+/// byte-identical to `spec@SPEC_PIN` — and because the demo belongs to the
+/// rehearsal room, not the file: a `default:` in `release-train` would name
+/// a version its own first gate checks against the repository's real
+/// `./VERSION`. Only the try room takes a kit; `nika new` never plants one
+/// beside an operator's repository. Output-only: constructed solely by
+/// [`try_rehearsal_kit`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RehearsalKit {
+    /// `(key, value)` inputs the door adds unless the operator named the key.
+    pub vars: Vec<(&'static str, &'static str)>,
+    /// `(relative path, content)` planted at the room root before the run.
+    pub files: Vec<(&'static str, &'static str)>,
+}
+
+/// The rehearsal kit of `nika try <slug>` (#1544) — `None` for a job that
+/// rehearses on its own. `hello` aliases `01-hello`.
+///
+/// `release-train` is the one job whose `version` input is `required:` with
+/// no `default:` and whose three gates read the repository it ships from
+/// (`./VERSION` · `./CHANGELOG.md` · `./schemas/workflow.schema.json`): the
+/// room gets a release whose board is green, so the bare rehearsal reaches
+/// the conductor's gate instead of refusing at admission (NIKA-1708).
+#[must_use]
+pub fn try_rehearsal_kit(slug: &str) -> Option<RehearsalKit> {
+    match canonical_example_slug(slug) {
+        "release-train" => Some(RehearsalKit {
+            vars: vec![("version", RELEASE_TRAIN_VERSION)],
+            files: vec![
+                ("VERSION", RELEASE_TRAIN_VERSION_FILE),
+                ("CHANGELOG.md", RELEASE_TRAIN_CHANGELOG),
+                ("schemas/workflow.schema.json", schema_json()),
+            ],
+        }),
+        _ => None,
+    }
+}
+
 /// Every file under `examples/fixtures/` — (path relative to
 /// `examples/fixtures/`, raw bytes; photos are binary). The ingredients
 /// a take (`nika new <slug>`) delivers beside a recipe that reads them (gauntlet
@@ -565,5 +614,41 @@ mod tests {
                 "first-shelf `{slug}` must not need a host-toolchain recover hint"
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod rehearsal_tests {
+    #[test]
+    fn release_train_kit_matches_required_input_without_changing_the_example() {
+        let yaml: serde_yaml_bw::Value =
+            serde_yaml_bw::from_str(super::example("release-train").expect("canonical example"))
+                .expect("yaml");
+        let version = &yaml["inputs"]["version"];
+        assert_eq!(version["required"].as_bool(), Some(true));
+        assert!(version.get("default").is_none());
+        assert_eq!(yaml["inputs"]["depart"]["default"].as_bool(), Some(false));
+        let kit = super::try_rehearsal_kit("release-train").expect("kit");
+        let version = kit
+            .vars
+            .iter()
+            .find(|(key, _)| *key == "version")
+            .expect("demo version")
+            .1;
+        let file = |name| {
+            kit.files
+                .iter()
+                .find(|(path, _)| *path == name)
+                .expect("file")
+                .1
+        };
+        assert_eq!(file("VERSION").trim_end(), version);
+        assert!(file("CHANGELOG.md").contains(&format!("[{version}]")));
+        assert_eq!(file("schemas/workflow.schema.json"), super::schema_json());
+        assert_eq!(
+            super::try_rehearsal_kit("release-train.nika.yaml"),
+            Some(kit)
+        );
     }
 }

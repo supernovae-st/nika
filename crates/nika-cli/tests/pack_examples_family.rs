@@ -470,6 +470,15 @@ fn judge(entry: &Entry, o: &Outcome) -> Option<String> {
 #[test]
 fn the_manifest_covers_every_shipped_example() {
     let m = manifest();
+    let release = m
+        .entries
+        .iter()
+        .find(|e| e.slug == "release-train")
+        .expect("release train row");
+    assert!(release.door == Door::Try);
+    assert!(release.kit.is_empty() && release.vars.is_empty() && release.answers.is_empty());
+    assert!(release.needs.is_none() && release.known_fail.is_none());
+    assert_eq!(release.expect.rc, Some(4), "bare try reaches the conductor");
     let shipped: BTreeSet<String> = nika_pack::example_slugs().into_iter().collect();
     let named: BTreeSet<String> = m.entries.iter().map(|e| e.slug.clone()).collect();
     assert_eq!(
@@ -602,4 +611,68 @@ fn need_name(need: Need) -> &'static str {
         Need::OllamaModel => "ollama-model",
         Need::Manual => "manual",
     }
+}
+
+/// #1544: exercise the public try door, its staging and its actual run inputs.
+/// No answer means no departure; a false answer completes without waiting.
+#[test]
+fn release_train_try_rehearses_with_isolated_inputs() {
+    let room = Room::enter("release-train-regression");
+    std::fs::write(room.cwd.join("VERSION"), "operator-version\n").expect("operator version");
+    std::fs::write(room.cwd.join("CHANGELOG.md"), "operator notes\n").expect("operator notes");
+    for (slug, args, expected) in [
+        ("release-train", vec![], 4),
+        (
+            "release-train.nika.yaml",
+            vec!["--answer", "conductor=false"],
+            0,
+        ),
+        ("release-train", vec!["--var", "version=9.9.9"], 1),
+        ("release-train", vec!["--var", "hold_for=2s"], 4),
+    ] {
+        let mut cmd = nika();
+        cmd.args(["try", slug, "--no-progress"]).args(&args);
+        let outcome = launch(cmd, &room, 30);
+        assert!(!outcome.timed_out, "{slug} {args:?} timed out");
+        assert_eq!(
+            outcome.code,
+            Some(expected),
+            "{slug} {args:?}: {}\n{}",
+            outcome.out,
+            outcome.err
+        );
+        assert!(!outcome.err.contains("NIKA-1708"), "{}", outcome.err);
+        if expected == 1 {
+            assert!(
+                outcome.err.contains("NIKA-BUILTIN-ASSERT-001")
+                    || outcome.out.contains("NIKA-BUILTIN-ASSERT-001"),
+                "{}\n{}",
+                outcome.out,
+                outcome.err
+            );
+        }
+    }
+    assert_eq!(
+        std::fs::read_to_string(room.cwd.join("VERSION")).expect("version"),
+        "operator-version\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(room.cwd.join("CHANGELOG.md")).expect("notes"),
+        "operator notes\n"
+    );
+    assert_eq!(
+        std::fs::read_dir(room.path("tmp"))
+            .expect("try roots")
+            .filter_map(Result::ok)
+            .filter(|e| e
+                .file_name()
+                .to_string_lossy()
+                .starts_with("nika-rehearsal-"))
+            .count(),
+        0,
+        "every invocation removes its temporary root, including a refused run"
+    );
+    assert!(!room.cwd.join("schemas").exists());
+    assert!(!room.cwd.join(".nika").exists());
+    let _ = std::fs::remove_dir_all(room.root);
 }

@@ -106,6 +106,9 @@ pub type nika_onboard::project_file::Outcome::Output = T
 pub fn nika_onboard::project_file::ensure(dir: &str, force: bool) -> (alloc::string::String, nika_onboard::project_file::Outcome)
 pub fn nika_onboard::project_file::report(path: &str, outcome: &nika_onboard::project_file::Outcome) -> (char, alloc::string::String)
 pub mod nika_onboard::recipes
+pub mod nika_onboard::rehearsal
+pub fn nika_onboard::rehearsal::stage(slug: &str, room: &std::path::Path) -> core::io::error::Result<usize>
+pub fn nika_onboard::rehearsal::supplied_vars(slug: &str, operator: &[alloc::string::String]) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String>
 pub mod nika_onboard::routing
 pub enum nika_onboard::routing::RoutedEntry
 pub nika_onboard::routing::RoutedEntry::Clarify(alloc::vec::Vec<alloc::string::String>)

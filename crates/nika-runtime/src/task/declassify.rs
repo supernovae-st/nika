@@ -19,6 +19,8 @@ use crate::record::TaskRecord;
 /// the binding resolves at dispatch — an unresolvable binding records
 /// the door with `value_digest` absent, never a guess).
 pub(crate) struct DeclassifyEvidence {
+    /// A cleanup receipt names its own task rather than its producer.
+    pub task: Option<String>,
     /// The `from:` binding, verbatim (`inputs.p` · `tasks.dl.output`).
     pub from: String,
     /// The `because:` justification, verbatim.
@@ -46,6 +48,7 @@ pub(crate) fn declassify_evidence(
                 .map_or_else(String::new, |f| f.value.clone());
             let value = binding_value(&from, inputs, records);
             DeclassifyEvidence {
+                task: None,
                 from,
                 because: entry.because.value.clone(),
                 value_digest: value.and_then(crate::resume::jcs_blake3_hex),

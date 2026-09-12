@@ -324,7 +324,7 @@ pub fn verdict_card(view: &RunView, theme: &Theme, notes: &[String]) -> Vec<Stri
     let mut head = format!(
         "{}    {} · {} · {retries_cell}",
         dag_shape(view, theme),
-        crate::vocab::count(view.rows().len(), "task"),
+        crate::vocab::count(view.main_task_count(), "task"),
         crate::vocab::count(waves, "wave"),
     );
     if let Some(cell) = &recovered_cell {

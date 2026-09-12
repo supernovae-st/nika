@@ -12,6 +12,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import time
 import unittest
 
 
@@ -128,6 +129,51 @@ class PushDispatch(unittest.TestCase):
         self.assert_gate_refused(result)
         self.assertEqual(self.run_command("git", "ls-remote", "origin", "refs/tags/test-mixed").stdout, "")
         self.assertIn(self.sha, self.run_command("git", "ls-remote", "origin", "refs/heads/obsolete").stdout)
+
+    def test_signal_during_acquire_does_not_leave_an_ownerless_lease(self):
+        mkdir = self.root / "bin/mkdir"
+        mkdir.write_text(
+            "#!/bin/sh\n/bin/mkdir \"$@\" || exit $?\n"
+            "case \"$*\" in *nika-pre-push.lock) kill -TERM \"$PPID\";; esac\n"
+        )
+        mkdir.chmod(0o755)
+        result = self.run_command("bash", "scripts/pre-push/gate.sh", success=False, stdin="")
+        self.assertEqual(result.returncode, 143, result.stdout + result.stderr)
+        self.assertFalse((self.repo / ".git/nika-pre-push.lock").exists())
+        self.assertFalse((self.repo / "gate-observed").exists())
+
+    def test_terminated_gate_keeps_lease_until_child_finishes_then_exits(self):
+        cargo = self.root / "bin/cargo"
+        cargo.write_text(
+            "#!/bin/sh\ncase \"$1\" in test|nextest)\n"
+            "touch gate-observed\n"
+            "while [ ! -f release-child ]; do sleep 0.02; done\n"
+            "exit 0;; esac\ntouch post-cancel-leg\nexit 17\n"
+        )
+        process = subprocess.Popen(
+            ["bash", "scripts/pre-push/gate.sh"], cwd=self.repo, env=self.env,
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, start_new_session=True,
+        )
+        try:
+            deadline = time.monotonic() + 10
+            while not (self.repo / "gate-observed").exists():
+                self.assertIsNone(process.poll(), "gate exited before its child started")
+                self.assertLess(time.monotonic(), deadline, "child never started")
+                time.sleep(0.02)
+            process.send_signal(signal.SIGTERM)
+            # Bash defers this signal while the foreground test owns effects.
+            # The lease must stay held until that child can no longer run.
+            self.assertTrue((self.repo / ".git/nika-pre-push.lock").exists())
+            (self.repo / "release-child").touch()
+            stdout, stderr = process.communicate(timeout=10)
+            self.assertEqual(process.returncode, 143, stdout + stderr)
+            self.assertFalse((self.repo / "post-cancel-leg").exists())
+            self.assertFalse((self.repo / ".git/nika-pre-push.lock").exists())
+        finally:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.communicate(timeout=5)
 
     def test_force_guard_sees_refs_even_when_tree_has_no_difference(self):
         # A synthetic ref proposal to the installed hook, not a real force push.

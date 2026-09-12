@@ -11,6 +11,8 @@
 //! bool. Short-circuit `&&`/`||` (a false/true left does not compute
 //! the right).
 
+use nika_tmpl::callable::{GlobalFunction, Method};
+
 use serde_json::Value;
 
 use crate::ast::{Node, RelOp, Step};
@@ -189,22 +191,22 @@ fn eval_method(
     res: &dyn Resolver,
     depth: usize,
 ) -> Result<Value, CelError> {
-    match name {
-        "size" => size_of(recv).map(Value::from),
-        "contains" | "startsWith" | "endsWith" => {
+    match Method::from_name(name) {
+        Some(Method::Size) => size_of(recv).map(Value::from),
+        Some(method @ (Method::Contains | Method::StartsWith | Method::EndsWith)) => {
             let s = as_string(recv, "the receiver of a string test")?;
             let arg = eval_node(&args[0], res, depth)?;
             let needle = as_string(&arg, "the argument of a string test")?;
-            let hit = match name {
-                "contains" => s.contains(needle.as_str()),
-                "startsWith" => s.starts_with(needle.as_str()),
+            let hit = match method {
+                Method::Contains => s.contains(needle.as_str()),
+                Method::StartsWith => s.starts_with(needle.as_str()),
                 _ => s.ends_with(needle.as_str()),
             };
             Ok(Value::Bool(hit))
         }
         // The parser admits only the closed set · this arm is defensive.
-        other => Err(CelError::type_err(
-            format!("unknown method `.{other}()`"),
+        _ => Err(CelError::type_err(
+            format!("unknown method `.{name}()`"),
             (0, 0),
         )),
     }
@@ -218,12 +220,12 @@ fn eval_call(
     res: &dyn Resolver,
     depth: usize,
 ) -> Result<Value, CelError> {
-    match name {
-        "size" => {
+    match GlobalFunction::from_name(name) {
+        Some(GlobalFunction::Size) => {
             let v = eval_node(arg, res, depth)?;
             size_of(&v).map(Value::from)
         }
-        "has" => {
+        Some(GlobalFunction::Has) => {
             // has(x): true iff x resolves to a defined non-null value.
             // It NEVER raises NIKA-VAR-001 (a VAR-001 → false; a VAR-006
             // stays an error · `has` only converts the *presence* class).
@@ -234,8 +236,8 @@ fn eval_call(
                 Err(e) => Err(e),
             }
         }
-        other => Err(CelError::type_err(
-            format!("unknown function `{other}()`"),
+        _ => Err(CelError::type_err(
+            format!("unknown function `{name}()`"),
             span,
         )),
     }

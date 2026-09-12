@@ -113,7 +113,6 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     let verdict = super::check::run(path, false, native_strict, model, theme);
     let stops = render_stops(&stop_notes, theme);
     let refused = render_refusals(&refusals, theme);
-    sanitize_success_copy(&mut repairs);
     VerbOutput {
         text: format!(
             "{}{}{}{}",
@@ -123,23 +122,6 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
             verdict.text
         ),
         code: verdict.code,
-    }
-}
-
-/// C14 · the live envelope has no `workflow:` object. The host ladder's
-/// W1/R1 success copy still names the dead form; strip it here so the
-/// operator-facing line cannot invent one.
-fn sanitize_success_copy(repairs: &mut [Repair]) {
-    for r in repairs {
-        r.old = r
-            .old
-            .replace("workflow: {id, description}", "id + description");
-        r.old = r.old.replace("workflow scalar · ", "");
-        r.new = r
-            .new
-            .replace("workflow object + task map", "nine-key envelope + task map");
-        r.new = r.new.replace("workflow:", "nika:");
-        r.old = r.old.replace("workflow:", "nika:");
     }
 }
 

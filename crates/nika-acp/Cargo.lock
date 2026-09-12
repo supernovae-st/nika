@@ -2076,6 +2076,7 @@ dependencies = [
 name = "nika-cel"
 version = "0.119.0"
 dependencies = [
+ "nika-tmpl",
  "serde_json",
  "thiserror",
 ]
@@ -2147,6 +2148,7 @@ name = "nika-error"
 version = "0.119.0"
 dependencies = [
  "miette",
+ "nika-tmpl",
  "nika-types",
  "serde",
  "serde_json",

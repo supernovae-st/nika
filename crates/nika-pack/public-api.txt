@@ -148,6 +148,39 @@ impl<T> core::clone::CloneToUninit for nika_pack::RecoverHint where T: core::clo
 pub unsafe fn nika_pack::RecoverHint::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_pack::RecoverHint
 pub fn nika_pack::RecoverHint::from(t: T) -> T
+#[non_exhaustive] pub struct nika_pack::RehearsalKit
+pub nika_pack::RehearsalKit::files: alloc::vec::Vec<(&'static str, &'static str)>
+pub nika_pack::RehearsalKit::vars: alloc::vec::Vec<(&'static str, &'static str)>
+impl core::clone::Clone for nika_pack::RehearsalKit
+pub fn nika_pack::RehearsalKit::clone(&self) -> nika_pack::RehearsalKit
+impl core::cmp::Eq for nika_pack::RehearsalKit
+impl core::cmp::PartialEq for nika_pack::RehearsalKit
+pub fn nika_pack::RehearsalKit::eq(&self, other: &nika_pack::RehearsalKit) -> bool
+impl core::fmt::Debug for nika_pack::RehearsalKit
+pub fn nika_pack::RehearsalKit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_pack::RehearsalKit
+impl<T, U> core::convert::Into<U> for nika_pack::RehearsalKit where U: core::convert::From<T>
+pub fn nika_pack::RehearsalKit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_pack::RehearsalKit where U: core::convert::Into<T>
+pub type nika_pack::RehearsalKit::Error = core::convert::Infallible
+pub fn nika_pack::RehearsalKit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_pack::RehearsalKit where U: core::convert::TryFrom<T>
+pub type nika_pack::RehearsalKit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_pack::RehearsalKit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_pack::RehearsalKit where T: core::clone::Clone
+pub type nika_pack::RehearsalKit::Owned = T
+pub fn nika_pack::RehearsalKit::clone_into(&self, target: &mut T)
+pub fn nika_pack::RehearsalKit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_pack::RehearsalKit where T: 'static + ?core::marker::Sized
+pub fn nika_pack::RehearsalKit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_pack::RehearsalKit where T: ?core::marker::Sized
+pub fn nika_pack::RehearsalKit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_pack::RehearsalKit where T: ?core::marker::Sized
+pub fn nika_pack::RehearsalKit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_pack::RehearsalKit where T: core::clone::Clone
+pub unsafe fn nika_pack::RehearsalKit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_pack::RehearsalKit
+pub fn nika_pack::RehearsalKit::from(t: T) -> T
 pub fn nika_pack::canon() -> &'static str
 pub fn nika_pack::design_motion() -> core::option::Option<&'static str>
 pub fn nika_pack::design_tokens() -> &'static str
@@ -168,3 +201,4 @@ pub fn nika_pack::schema_json() -> &'static str
 pub fn nika_pack::template(name: &str) -> core::option::Option<&'static str>
 pub fn nika_pack::template_names() -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_pack::try_recover_hint(slug: &str) -> core::option::Option<nika_pack::RecoverHint>
+pub fn nika_pack::try_rehearsal_kit(slug: &str) -> core::option::Option<nika_pack::RehearsalKit>
