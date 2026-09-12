@@ -1,97 +1,39 @@
 ---
 name: crate-admit
-description: Guided 12-gate crate admission workflow. Runs each gate sequentially and stops on first failure. Use when you believe a crate is ready to join the workspace.
+description: Prepare and complete a named crate's admission to the Nika workspace under ADR-003. Use only when adding a crate to workspace membership.
 argument-hint: [crate-name]
 allowed-tools: Bash, Read, Edit, Grep
 ---
 
-# Crate admission — `$ARGUMENTS`
+# Admit a crate
 
-Authority: `.claude/rules/diamond-discipline.md` §12 gates,
-`docs/adr/adr-003-12-gate-admission.md`, `docs/architecture/forward-compat-invariants.md`.
-**No exception.** If a gate genuinely does not apply, document the exemption in
-`docs/crate-specs/$ARGUMENTS.md` with a 1-paragraph rationale BEFORE running
-this skill.
+Complete the requested admission under `docs/adr/adr-003-12-gate-admission.md`,
+`CONTRIBUTING.md` and the forward-compatibility invariants. The outcome is an
+implemented crate with all applicable gate evidence and one coherent admission
+commit. Publication follows the user's existing authorization.
 
-## Pre-flight (run first)
+Resolve the candidate, manifest, crate spec, HEAD and concurrent changes. Audit
+current evidence using [gate-check](../gate-check/SKILL.md). Implement missing
+work and fix failed gates within scope; a first red result is a diagnostic,
+not an instruction to abandon the task. A genuinely missing decision, tool or
+review remains a named blocker, not an invented pass.
 
-```bash
-# Grep-verify current state
-git log -1 --oneline
-ls crates/$ARGUMENTS/Cargo.toml 2>/dev/null || echo "NOT SCAFFOLDED"
-test -f docs/crate-specs/$ARGUMENTS.md || echo "SPEC MISSING — create it first"
-```
+Use an isolated checkout for any temporary workspace admission. Edit membership
+structurally and review the diff; do not use a shell trap that restores a shared
+Cargo.toml over another session's edits. Keep test-first evidence, mutation
+results and contract-supported N/A explanations in the crate's existing spec.
 
-If pre-flight fails → STOP. Scaffold + spec first.
+Gate 11 uses [.claude/agents/review-swarm.md](../../agents/review-swarm.md) for
+three independent perspectives. Give reviewers the candidate and relevant
+contract, retain actionable findings and resolve admission blockers before
+committing. Do not substitute a paid model or assume a named client tool exists.
 
-## The 12 gates, sequential
+Stage the exact crate, manifest/lockfile and affected documentation changes.
+Inspect the staged diff immediately before the atomic commit. Use the subject
+`feat(<crate>): admit to workspace — all 12 gates passed` only when the required
+preceding gates actually passed; include their evidence and the trailer
+`Co-Authored-By: Nika 🦋 <nika@supernovae.studio>`.
 
-Run `/gate-check $ARGUMENTS` first to see current state. Then for any FAIL:
-
-### Gate 1 — SPEC
-File `docs/crate-specs/$ARGUMENTS.md` exists with: Purpose, Layer, LOC budget,
-Public API, Dependencies, Exemptions (if any).
-
-### Gate 2 — TDD
-Verify test commits precede impl commits via `git log --oneline crates/$ARGUMENTS/`.
-Count tests in `crates/$ARGUMENTS/src/` and `crates/$ARGUMENTS/tests/`.
-
-### Gate 3 — IMPL
-`cargo test -p $ARGUMENTS --lib` must be all-green.
-
-### Gate 4 — CLIPPY 0
-`cargo clippy -p $ARGUMENTS --all-targets -- -D warnings` must produce 0 warnings.
-
-### Gate 5 — MUTATION ≥ 90 %
-`cargo mutants -p $ARGUMENTS --timeout 30`. Record the score in the crate spec.
-
-### Gate 6 — PROPERTY
-If the crate parses input, handles encoding, or touches security boundaries,
-it MUST have proptest tests. Otherwise mark N/A in the spec.
-
-### Gate 7 — BENCHMARKS
-If it's on a hot path, add `benches/` with criterion. Otherwise N/A
-(justify the exemption in the crate spec).
-
-### Gate 8 — DOCS
-`cargo doc --no-deps -p $ARGUMENTS` must emit 0 warnings. Every `pub` item
-needs a doc comment starting with `///`.
-
-### Gate 9 — CANARY E2E
-Add `tests/canary-$ARGUMENTS.nika.yaml` that exercises the crate end-to-end.
-If the crate is infra-only (kernel traits, mocks), mark N/A.
-
-### Gate 10 — PARITY LEGACY
-Create a golden test comparing diamond output to `git show brouillon:...` output
-for the same input. Diff must be empty or annotated.
-
-### Gate 11 — REVIEW SWARM (parallel)
-Launch `.claude/agents/review-swarm.md` with `$ARGUMENTS`. Address all P0/P1
-findings in the SAME session before proceeding.
-
-### Gate 12 — ATOMIC COMMIT
-When all 11 prior gates PASS, stage ONLY the files for this crate:
-
-```bash
-git add crates/$ARGUMENTS/ docs/crate-specs/$ARGUMENTS.md
-# NEVER `git add -A` or `git add .`
-```
-
-Commit message (exact form):
-```
-feat($ARGUMENTS): admit to workspace — all 12 gates passed
-
-Layer: L{0,0.5,1,2,3,4,5}
-LOC: N
-Tests: N
-Mutation killed: N%
-
-Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
-```
-
-## After commit — mandatory
-
-1. Do NOT push yet — user GO required.
-2. Run `./scripts/hygiene/check-all.sh` — all green expected.
-3. Update `MEMORY.md` Quick State: HEAD, crate count, LOC, tests.
-4. Report to user: commit SHA, metrics, any exemptions taken.
+Verify the resulting commit and report its revision, evidence and limitations.
+Refresh generated status only when needed with the documented generator; do not
+invent phase tags or ask again for a push the user already authorized.

@@ -76,14 +76,13 @@ LOC: <N> src | Tests: <N> | Mutation: <N>%
 Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
-## Significant DX/docs commit checklist
+## Related documentation
 
-Before committing docs or DX changes, verify:
-- [ ] CHANGELOG.md updated if code behavior changed
-- [ ] ROADMAP.md consistent with new state
-- [ ] constellation.mdx updated if crate count changed
-- [ ] status.mdx updated if phase/session changed
-- [ ] MEMORY.md Quick State HEAD updated after push
+Update documentation whose claims actually change. Runtime behavior may need a
+changelog entry; crate/layer changes may affect the roadmap and generated
+status. Do not update private memory, unrelated release pages or a second
+count table merely to complete a generic checklist. Keep canonical instruction
+changes and the resources/consumers they require in the same coherent change.
 
 ## Commit message style
 

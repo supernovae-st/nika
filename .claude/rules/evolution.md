@@ -1,66 +1,25 @@
-# Evolution Rules — comment notre DX évolue avec le projet
+# Maintain instruction sources and evidence
 
-## Quand mettre à jour QUOI
+Update the owning contract and its actual consumers when behavior changes.
+Use current source, manifests and executed checks at the named revision;
+historical handoffs and generated counts are not present-tense proof.
 
-```
-ÉVÉNEMENT                         →  MISE À JOUR
+- Crate admission: update its spec, membership, relevant roadmap/changelog and
+  generated status through the owning tools.
+- Architecture decision: update the affected ADR and invariants with the
+  decision's status; a proposal is not a ratified contract.
+- Skill change: edit the canonical kit, retain useful specialized references,
+  and include those resources in `nika init`. Release mirrors follow tags.
+- Documentation defect: repair active teaching and caller links; retain immutable
+  history and label obsolete evidence rather than quietly rewriting its facts.
 
-Crate admise au workspace         →  ROADMAP.md current-state section
-                                  →  STATE.md live numbers
-                                  →  MEMORY.md Quick State crate count
-                                  →  CHANGELOG.md [Unreleased]
+Reuse existing documents when they own the information. Create a new reference
+when it materially improves retrieval, and link it from its entrypoint. Do not
+create a completion memo merely because a session ended. Age or lack of access
+telemetry alone does not justify deleting or archiving an instruction: inspect
+its callers, replacement and still-valid contracts first.
 
-Gate trouvée verte (shadow zone)  →  PRE_LAUNCH_GATES.md (cocher la gate)
-                                  →  STATE.md shadow zones section
-
-Décision architecturale prise     →  POST_AUDIT_REVISIONS.md (si change plan)
-                                  →  .claude/rules/nika-invariants.md (si nouveau invariant)
-
-Bug / hallucination détecté       →  PRE_LAUNCH_GATES.md (si nouvelle shadow zone)
-                                  →  STATE.md progress section
-
-Fin de session de code            →  STATE.md live numbers (grep-verified)
-                                  →  MEMORY.md Quick State (HEAD + count)
-
-Fin de phase                      →  ROADMAP.md current state section
-                                  →  MEMORY.md Quick State
-                                  →  Archive des handoffs phase terminée
-```
-
-## Quand ARCHIVER
-
-Un fichier mémoire va dans `archive/` quand :
-- Son handoff est SUPERSEDED par un plus récent
-- Il mentionne un session number > 2 sessions old
-- Il n'a pas été lu depuis 3 sessions (grep access logs)
-- Il contredit POST_AUDIT_REVISIONS.md (autorité suprême)
-
-## Quand NE PAS créer de nouveau fichier
-
-STOP avant de créer un .md. Demande-toi :
-- Est-ce qu'un fichier existant couvre ce sujet ? → UPDATE, pas create
-- Est-ce que c'est éphémère (1 session) ? → NE PAS créer, répondre inline
-- Est-ce que ça va être lu dans 2 semaines ? → Si non, ne pas créer
-
-## Limite de fichiers mémoire
-
-Max 25 fichiers actifs dans memory/ (hors archive/).
-Si > 25 → archiver les plus anciens / moins lus.
-MEMORY.md reste sous 200 lignes TOUJOURS (limite Claude Code).
-
-## Rule of freshness
-
-Chaque fichier canonique porte un `lastUpdated` dans son frontmatter.
-Si `lastUpdated` > 2 semaines → re-vérifier grep avant de citer.
-Si `lastUpdated` > 1 mois → candidat archivage ou update.
-
-## Comment on CRAFT, pas "extract"
-
-Ce projet n'est PAS une extraction de code.
-C'est de l'artisanat : chaque crate est RÉÉCRITE proprement.
-
-- JAMAIS copy-paste du legacy main
-- TOUJOURS comprendre d'abord, réécrire ensuite
-- TOUJOURS tests d'abord (TDD), code ensuite
-- L'user apprend Rust en parallèle = expliquer le code
-- Prendre le temps. 11-12 mois. Pas de rush.
+Descriptions should select a distinct task; details should load only when they
+help it. Keep completion and authority clear across models and clients without
+inventing client capabilities or a model preference. A successful structural
+audit proves discoverability and packaging, not model behavior or business value.

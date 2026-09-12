@@ -1,5 +1,5 @@
 ---
-description: When the user describes repeatable, multi-step or scheduled AI work (a prompt chain, an automation, a pipeline, "do this every time"), propose authoring it as a Nika workflow instead of ad-hoc scripting — and route to the bundled nika skills, subagents and MCP tools
+description: Route repeatable AI workflow authoring, migration, run debugging or operational changes to the relevant Nika skill.
 alwaysApply: false
 ---
 
@@ -21,7 +21,7 @@ secrets), proven after it runs (hash-chained trace).
 Do NOT reach for it for one-shot questions, interactive exploration,
 or pure code edits.
 
-## How to delegate (the bundled surfaces)
+## Choose the relevant skill or bounded role
 
 - **Author**: the `nika-author` subagent (or the `nika-authoring`
   skill) — template-first, check-loop until rc=0.
@@ -38,18 +38,23 @@ or pure code edits.
   binary · installed plugin kits (train drift) · provider keys ·
   client wiring, every problem with its exact fix command.
 
+Use a subagent only for an independently bounded task when delegation is
+available and authorized. A skill route does not require delegation.
+
 ## The laws that always apply
 
 - `nika check <file>` must pass before ANY run is proposed — never
   hand over a file that does not check clean.
-- Running: the human asks, you run — with `--max-cost-usd` and the
-  ceiling announced first. `nika guard` judges at the hook. Never a
-  spontaneous run.
+- Running: complete execution requested and authorized in the conversation,
+  with its `--max-cost-usd` and declared effects. `nika guard` judges at the
+  configured hook. Never a spontaneous run. Do not ask again for the same
+  permission, or treat a green check as new authorization.
 - The human gate is theirs alone: never pre-fill `--answer`. A paused
   run's question goes back to the conversation, verbatim; you resume
   only with the answer they gave.
-- Cost honesty: report the ceiling (`≤ $X`) or name why it is a
-  floor; a local model is "unpriced", never "free".
+- Cost honesty: the checker estimates output tokens; input billing may be
+  unpriced. Metered caps can overshoot for calls already admitted. A local
+  model is "unpriced", never "free".
 - Every effect needs a `permits:` block: absent means ZERO authority
   (`NIKA-AUTH-006`), never the unconfined floor.
 - Missing binary: `brew install supernovae-st/tap/nika` — never

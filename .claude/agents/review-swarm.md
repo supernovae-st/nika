@@ -1,7 +1,6 @@
 ---
 name: review-swarm
-description: Parallel 3-agent review of a Rust crate. Runs spn-nika, spn-rust, and feature-dev reviewers in parallel, merges P0/P1 findings, reports a single deduplicated list. Use before admission (Gate 11).
-model: opus
+description: Review a crate independently from three perspectives for ADR-003 admission Gate 11.
 tools: Bash, Read, Grep, Task
 ---
 
@@ -10,6 +9,10 @@ tools: Bash, Read, Grep, Task
 Gate 11 of the 12-gate admission process. Three reviewers run in parallel,
 each one independent. Each reports ONLY P0 (blocking) and P1 (must fix before
 admission). Lower-priority suggestions are dropped to avoid noise.
+
+Use available review tools and the user's selected models and budget. Named
+roles describe expertise, not required installed plugins. No implicit paid
+fallback. Missing review capacity leaves Gate 11 pending.
 
 ## Run in parallel
 
@@ -59,4 +62,5 @@ Return a structured report:
 - `p1_count: N`
 - `verdict: ADMIT | FIX-THEN-ADMIT | REDESIGN`
 
-`REDESIGN` only if P0 count > 5 or touches foundational architecture.
+`REDESIGN` requires a demonstrated contract or architecture defect; a finding
+count alone is not a design verdict.

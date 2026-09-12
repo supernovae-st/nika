@@ -164,7 +164,7 @@ fn authoring_reads_local_workflows_before_creating_another() {
 /// forbidden and sends authors toward unnecessary glue.
 #[test]
 fn authoring_names_the_served_cel_callables() {
-    let skill = read("skills/nika-authoring/SKILL.md");
+    let skill = read("skills/nika-authoring/references/language.md");
     for callable in [
         "size()",
         "has()",
@@ -188,7 +188,7 @@ fn authoring_names_the_served_cel_callables() {
 /// human diagnostic instead of the JSON the pipe expects.
 #[test]
 fn authoring_paid_ready_probe_names_the_workflow() {
-    let skill = read("skills/nika-authoring/SKILL.md");
+    let skill = read("skills/nika-authoring/references/validation-and-execution.md");
     assert!(
         skill.contains("`nika check --json <file> | jq .paid_ready`"),
         "the paid-readiness probe must pass the workflow path"
@@ -203,7 +203,7 @@ fn authoring_paid_ready_probe_names_the_workflow() {
 /// the fresh trace path that the CLI requires instead of presenting a switch.
 #[test]
 fn authoring_replay_names_the_fresh_trace() {
-    let skill = read("skills/nika-authoring/SKILL.md");
+    let skill = read("skills/nika-authoring/references/validation-and-execution.md");
     assert!(
         skill.contains("`--replay <fresh-trace>`"),
         "replay verification must name its fresh trace"

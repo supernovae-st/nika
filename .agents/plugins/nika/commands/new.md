@@ -4,7 +4,8 @@ argument-hint: "[template] [file.nika.yaml]"
 allowed-tools: Bash(nika new:*), Bash(nika try:*), Bash(nika check:*), Read, Edit
 ---
 
-Scaffold from a template, never from scratch — then audit until clean.
+Create the requested workflow from an appropriate template, preserving an
+existing file if it already owns the task. Complete the check and repairs.
 
 Arguments: `$ARGUMENTS` (template + destination; either may be missing).
 
@@ -21,7 +22,8 @@ Arguments: `$ARGUMENTS` (template + destination; either may be missing).
    · any effect needs a `permits:` block (absent = zero authority).
 4. `nika check <file>` — repair from the diagnostics until exit 0, then
    `nika check <file> --native-strict` (any remaining `exec:` needs its
-   ledger entry). **Never hand the human a file that does not pass.**
-5. Close with the run lines: `nika run <file> --model mock/echo`
-   (offline preview · zero keys) and the real form with their model —
-   plus `--max-cost-usd <n>` when spend matters.
+   ledger entry). Return the exact unresolved finding if blocked; do not call that file ready.
+5. Return the checked artifact and applicable run line with the user's model
+   and authorized `--max-cost-usd <n>`. `mock/echo` changes envelope inference
+   only; task model pins and real effects remain. This command has no run
+   tool; the coordinating conversation handles already authorized execution.

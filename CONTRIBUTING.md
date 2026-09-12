@@ -155,7 +155,7 @@ Full rules: [`.claude/rules/commit-granularity.md`](.claude/rules/commit-granula
 - `--no-verify` on commits (fix the hook instead).
 - `git commit --amend` on pushed commits.
 - `Co-Authored-By: Claude` (always Nika).
-- `cargo test --test` (macOS Keychain popup — use `--lib`).
+- Running credential/Keychain/provider tests without inspecting their effects. Use `--lib` for local unit coverage and select hermetic integration tests when the changed contract requires them.
 
 ---
 

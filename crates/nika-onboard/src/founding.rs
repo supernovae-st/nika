@@ -640,7 +640,7 @@ mod tests {
     #[test]
     fn plan_creates_both_when_nothing_exists() {
         let p = plan(".", &|_| false, false);
-        assert_eq!(p.len(), 17);
+        assert_eq!(p.len(), 23);
         assert!(p.iter().all(|a| matches!(a, Action::Create { .. })));
         // Schema wiring + agent guide + per-client briefs are the targets.
         let paths: Vec<&str> = p

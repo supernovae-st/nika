@@ -672,7 +672,7 @@ pub(crate) fn model_menu() -> Vec<(String, &'static str)> {
     let export = nika_catalog::export::catalog_export();
     [
         ("ollama", ollama_note_for(ollama_endpoint_overridden())),
-        ("mock", "offline preview · zero key · always works"),
+        ("mock", "simulated inference · zero model key"),
         ("mistral", "EU · open-weight"),
         ("anthropic", ""),
         ("openai", ""),

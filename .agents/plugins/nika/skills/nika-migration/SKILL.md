@@ -1,6 +1,6 @@
 ---
 name: nika-migration
-description: Convert existing automation — shell scripts, Python glue, Makefile targets, CI jobs, prompt chains in docs — into checkable .nika.yaml workflows. Use when a script wraps LLM calls or HTTP/file plumbing, a prompt chain lives in a README or notebook, or ad-hoc automation needs audit, cost bounds and replayable traces.
+description: Convert existing scripts, CI jobs or prompt chains into .nika.yaml workflows while preserving behavior. Use when an existing automation is being ported.
 ---
 
 # Migrating existing automation to Nika
@@ -59,13 +59,14 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
    → `invoke: mcp:<server>/<tool>` → `exec:` last. Every surviving
    `exec:` gets its ledger row (task · command · why no native path ·
    unlock that removes it).
-4. **Shape under mock**: `model: mock/echo` while the structure
-   settles — `nika check <file>` after every change, repair from the
-   diagnostics until exit 0, then `--native-strict`.
+4. **Validate the intended model and structure**: `nika check <file>`
+   performs static checks without inference. Preserve the selected model;
+   use `mock/echo` only for a deliberate simulated rehearsal. Repair the
+   final candidate from diagnostics and require `--native-strict` readiness.
 5. **Declare the boundary**: `permits:` is mandatory — an effect under
    no block refuses `NIKA-AUTH-006` at check.
-   `nika check <file> --infer-permits` prints the tightest block;
-   paste it in. The script trusted its author; the workflow trusts
+   `nika check <file> --infer-permits` proposes a block;
+   review it against intended effects before applying it. The script trusted its author; the workflow trusts
    nobody by default (a pure-compute port still declares
    `permits: {}`).
 6. **Prove the intended parity** on controlled inputs and authorized
