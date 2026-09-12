@@ -343,3 +343,57 @@ fn serve_stops_cleanly_on_sigterm() {
         .expect("the kernel lease is released");
     drop(lease);
 }
+
+/// A refused registry must return before the HTTP listener can become resident.
+#[cfg(unix)]
+#[test]
+fn missing_project_refuses_before_binding_or_creating_resident_state() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = tempfile::tempdir().expect("isolated project");
+    std::fs::create_dir(dir.path().join("workflows")).expect("workflow shelf");
+    let token = dir.path().join("token");
+    std::fs::write(&token, "test-only-credential-material-0123456789").expect("token");
+    std::fs::set_permissions(&token, std::fs::Permissions::from_mode(0o600))
+        .expect("private token");
+    // Keep this port occupied: reaching bind would produce the wrong refusal.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("port canary");
+    let address = listener.local_addr().expect("local address").to_string();
+    let mut child = bin()
+        .args([
+            "serve",
+            "--bind",
+            &address,
+            "--workflows",
+            "workflows",
+            "--token-file",
+            "token",
+        ])
+        .current_dir(dir.path())
+        .env("NIKA_KEYCHAIN", "off")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn serve");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    while child.try_wait().expect("wait").is_none() {
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("a missing project left serve resident");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let out = child.wait_with_output().expect("collect refusal");
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(out.status.code(), Some(1), "{text}");
+    assert!(text.contains("nothing armed"), "{text}");
+    assert!(text.contains("nika init --project-file"), "{text}");
+    assert!(
+        !dir.path().join(".nika").exists(),
+        "refusal creates no resident state"
+    );
+}

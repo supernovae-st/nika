@@ -388,6 +388,12 @@ impl<W: Write> FoldSink<W> {
                 .and_then(|task| stream_settled_line(&self.view, task, &self.theme, self.outputs))
                 .into_iter()
                 .collect(),
+            EventKind::PermitChecked => self
+                .view
+                .cleanup_task(event)
+                .and_then(|task| stream_settled_line(&self.view, task, &self.theme, self.outputs))
+                .into_iter()
+                .collect(),
             _ => Vec::new(),
         };
         if lines.is_empty() {
@@ -973,4 +979,59 @@ fn anchor_line(path: &std::path::Path, count: usize, head: &str, sealed: bool) -
         "trace: {} · {count} events · chain {head}{proof}",
         path.display()
     )
+}
+
+#[cfg(test)]
+mod cleanup_tests {
+    use super::*;
+    use crate::display::demo;
+    #[test]
+    fn cleanup_witnesses_narrate_the_attributed_row_in_every_outcome() {
+        use nika_event::{Event, EventKind as K};
+        use nika_types::resource::{KeyValue, Value};
+        let ev = |kind, fields: &[(&str, &str)]| -> Event {
+            let mut e = demo::bare_event(kind, 10);
+            for (k, v) in fields {
+                e = e.with_field(KeyValue::new(*k, Value::String((*v).to_owned())));
+            }
+            e
+        };
+        for (decision, label) in [
+            ("success", "success"),
+            ("failure", "failed"),
+            ("skipped", "skipped"),
+            ("timeout", "timed out"),
+            ("attempt", "no outcome recorded"),
+        ] {
+            let mut sink = FoldSink::new(
+                Vec::new(),
+                Theme::new(false, true, false),
+                RenderMode::Plain,
+            );
+            sink.emit(ev(K::TaskScheduled, &[("task", "main")]));
+            sink.emit(ev(
+                K::TaskScheduled,
+                &[
+                    ("task", "sweep"),
+                    ("cleanup_parent", "main"),
+                    ("cleanup_gate", "cleanup #0"),
+                ],
+            ));
+            sink.emit(ev(
+                K::PermitChecked,
+                &[
+                    ("task", "main"),
+                    ("plane", "on_finally"),
+                    ("gate", "cleanup #0"),
+                    ("decision", decision),
+                ],
+            ));
+            let text = String::from_utf8(sink.writer).expect("utf8");
+            assert!(text.contains("sweep"), "{text}");
+            assert!(
+                text.contains("cleanup of main ·") && text.contains(label),
+                "{text}"
+            );
+        }
+    }
 }

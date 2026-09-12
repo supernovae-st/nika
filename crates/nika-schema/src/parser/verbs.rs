@@ -104,7 +104,11 @@ pub(super) fn parse_verb(
         })?;
     let Some(body) = body_node.as_mapping() else {
         return Err(SchemaError::Validation {
-            message: format!("`{verb}:` body must be a YAML mapping"),
+            message: if verb == "exec" {
+                nika_error::codes::EXEC_BODY_HELP.to_owned()
+            } else {
+                format!("`{verb}:` body must be a YAML mapping")
+            },
             span: cx.span(body_node.span()),
         });
     };
@@ -656,6 +660,25 @@ mod tests {
     use crate::raw::{RawAction, VisionInput};
     use crate::source::FileId;
     use crate::types::CaptureMode;
+
+    #[test]
+    fn scalar_exec_teaches_both_mapping_forms_and_migration() {
+        let err = parse_strict("nika: example\ntasks:\n  task:\n    exec: ls -la\n")
+            .expect_err("scalar refuses");
+        assert_eq!(err.spec_code().to_string(), "NIKA-PARSE-019");
+        let text = err.to_string();
+        assert!(matches!(&err, SchemaError::Validation { message, .. }
+            if message == nika_error::codes::EXEC_BODY_HELP));
+        for lesson in ["exec:", "command: [", "shell:", "nika check --fix"] {
+            assert!(text.contains(lesson), "{text}");
+        }
+        for body in ["{ command: [ls, -la] }", "{ shell: 'ls -la' }"] {
+            parse_strict(&format!(
+                "nika: example\ntasks:\n  task:\n    exec: {body}\n"
+            ))
+            .expect("taught shape parses");
+        }
+    }
 
     fn parse_strict(yaml: &str) -> Result<crate::raw::RawWorkflow, SchemaError> {
         parse(yaml, FileId::new(0), ParseMode::Strict)

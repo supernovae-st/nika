@@ -253,6 +253,7 @@ mod tests {
             settle: SettleAs::Ran(Box::new(RanTask {
                 usage: None,
                 decisions: Vec::new(),
+                cleanup_declassified: Vec::new(),
                 note: "invoke · nika:prompt".to_owned(),
                 retries: Vec::new(),
                 agent_events: Vec::new(),

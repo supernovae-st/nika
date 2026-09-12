@@ -388,6 +388,7 @@ mod tests {
             retries: Vec::new(),
             agent_events: Vec::new(),
             decisions: Vec::new(),
+            cleanup_declassified: Vec::new(),
             evidence: None,
             duration_ms: 0,
             items: None,

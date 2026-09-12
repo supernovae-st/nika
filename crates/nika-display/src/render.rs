@@ -139,7 +139,7 @@ fn header_lines(view: &RunView, theme: Theme, tasks: usize) -> Vec<String> {
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<String> {
     let mut lines = Vec::with_capacity(view.rows().len() + 6);
-    lines.extend(header_lines(view, *theme, view.rows().len()));
+    lines.extend(header_lines(view, *theme, view.main_task_count()));
 
     // Task rows — stable order, aligned ids, notes dimmed. Time and cost
     // are first-class columns: a settled row carries its REAL wall time
@@ -191,17 +191,8 @@ fn frame_impl(view: &RunView, theme: &Theme, tick: usize, outputs: bool) -> Vec<
     // The HUD bar under the meter — interactive surface only (the
     // sober registers keep the meter as their last line, byte-exact).
     if theme.accents {
-        let done = view
-            .rows()
-            .iter()
-            .filter(|r| {
-                matches!(
-                    r.state,
-                    TaskState::Ok | TaskState::Failed | TaskState::Skipped | TaskState::Cancelled
-                )
-            })
-            .count();
-        let total = view.rows().len();
+        let done = view.done_count();
+        let total = view.main_task_count();
         if total > 1 {
             lines.push(format!(
                 "  {} {}",
@@ -295,7 +286,7 @@ fn meter_line(view: &RunView, theme: &Theme) -> String {
     let meter = format!(
         "── {}/{} done · {failed}{blocked}{repaired}{cost} · elapsed {secs:.1}s ",
         view.done_count(),
-        view.rows().len(),
+        view.main_task_count(),
     );
     format!("  {}", theme.paint(Role::Dim, &pad_rule(&meter, 64)))
 }
@@ -314,7 +305,7 @@ pub fn stream_header(view: &RunView, theme: &Theme) -> Vec<String> {
         .plan()
         .map(|waves| waves.iter().map(Vec::len).sum())
         .filter(|n| *n > 0)
-        .unwrap_or_else(|| view.rows().len());
+        .unwrap_or_else(|| view.main_task_count());
     header_lines(view, *theme, tasks)
 }
 
@@ -404,7 +395,7 @@ fn plain_totals_line(view: &RunView, theme: &Theme) -> String {
     use std::fmt::Write as _;
     let mut row = format!(
         "{} · {} · {}",
-        crate::vocab::count(view.rows().len(), "task"),
+        crate::vocab::count(view.main_task_count(), "task"),
         crate::vocab::count(crate::flow::wave_sizes(view).len(), "wave"),
         crate::vocab::count(view.retries as usize, "retry"),
     );
@@ -454,7 +445,7 @@ fn display_note(row: &TaskRow, view: &RunView) -> String {
             let failed: Vec<&str> = view
                 .rows()
                 .iter()
-                .filter(|r| r.state == TaskState::Failed)
+                .filter(|r| !view.is_cleanup(&r.id) && r.state == TaskState::Failed)
                 .map(|r| r.id.as_str())
                 .collect();
             match failed.as_slice() {
@@ -576,7 +567,15 @@ fn task_line(
     };
     let mut line = format!(
         "  {} {chip}{:<id_w$}  {}",
-        row_glyph(row, theme, tick),
+        if view.is_cleanup(&row.id) {
+            format!(
+                "{}{}",
+                if theme.ascii { ">" } else { "↳" },
+                row_glyph(row, theme, tick)
+            )
+        } else {
+            row_glyph(row, theme, tick)
+        },
         row.id,
         theme.paint(Role::Dim, &note),
     );
@@ -691,9 +690,12 @@ pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
         "  {} {} · {} · {secs:.1}s · {cost}",
         glyph,
         theme.paint(Role::Strong, &view.workflow),
-        crate::vocab::count(view.rows().len(), "task"),
+        crate::vocab::count(view.main_task_count(), "task"),
     ));
     lines.extend(caution_lines(view, theme));
+    for row in view.rows().iter().filter(|row| view.is_cleanup(&row.id)) {
+        lines.extend(stream_settled_line(view, &row.id, theme, false));
+    }
 
     // Errors always (spec §3.5) — the same failure card the full frame emits,
     // appended so a quiet run still surfaces WHY it failed + the explain hint.

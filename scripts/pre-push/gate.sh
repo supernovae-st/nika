@@ -51,8 +51,19 @@ if [ "${NIKA_GATE_NO_LOCK:-}" != "1" ]; then
   # shellcheck source-path=SCRIPTDIR
   # shellcheck source=../hooks/_gate-lock.sh
   . "$(cd "$(dirname "$0")" && pwd)/../hooks/_gate-lock.sh"
-  trap gate_lock_release EXIT INT TERM
-  gate_lock_acquire "${NIKA_GATE_LOCK_WAIT:-2700}" || exit 1
+  trap gate_lock_release EXIT
+  # Defer exit during acquisition: mkdir may have succeeded before the
+  # shell records its ownership. Finish that bookkeeping before cleanup.
+  GATE_LOCK_SIGNAL_STATUS=""
+  trap 'GATE_LOCK_SIGNAL_STATUS=130' INT
+  trap 'GATE_LOCK_SIGNAL_STATUS=143' TERM
+  gate_lock_acquire "${NIKA_GATE_LOCK_WAIT:-2700}" || exit "${GATE_LOCK_SIGNAL_STATUS:-1}"
+  # A signal must stop the gate, not merely release its lease and continue
+  # with another heavy leg. Bash defers the trap until its foreground child
+  # returns, so EXIT releases only once that child no longer owns effects.
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  [ -z "$GATE_LOCK_SIGNAL_STATUS" ] || exit "$GATE_LOCK_SIGNAL_STATUS"
 fi
 
 set -e

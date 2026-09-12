@@ -550,6 +550,34 @@ fn builtin_code_name(code: &str) -> Option<(String, String)> {
 /// keeps the namespace teaching.
 fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
     match (name, num) {
+        ("jq", "001") => Some(
+            "  `nika:jq` takes `input:` as a JSON value, never a file path to read. \
+             Strings are valid input and stay strings. If an object or array was \
+             intended, pass the parsed value. \
+             To use JSON file contents as an object or array, use `nika:read` first, then `nika:jq` \
+             with `expression: fromjson` before indexing the object or array.\n\n  \
+             This code also covers argument, expression and output errors: \
+             read the runtime message for the specific cause. The expression \
+             must emit exactly one JSON value; wrap a stream in `[ ... ]`.\n",
+        ),
+        ("validate", "001") => Some(
+            "  `nika:validate` received invalid arguments or an invalid JSON Schema. \
+             With `format: json` (the default), `data:` is a JSON value, never \
+             a file path to read. Strings are valid data and stay strings. \
+             To use JSON file contents as an object or array, use `nika:read` first, then `nika:jq` \
+             with `expression: fromjson` and pass the parsed value as `data:`.\n\n  \
+             Data that does not match the schema returns `{valid: false, errors}`; \
+             it does not fail with this code. `format: yaml` explicitly decodes \
+             a YAML string; a YAML decoding failure is NIKA-BUILTIN-VALIDATE-002.\n",
+        ),
+        ("validate", "002") => Some(
+            "  `nika:validate` could not decode `data:` as YAML with `format: yaml`. \
+             Pass YAML text, never a file path to read; use `nika:read` first \
+             for file contents. With `format: json`, pass the parsed JSON value: \
+             use `nika:jq` with `expression: fromjson` to decode JSON text explicitly. \
+             Data that does not match the schema returns `{valid: false, errors}` \
+             instead of this decoding error.\n",
+        ),
         ("read", "001") => Some(
             "  `nika:read` found no file at the path it was given. Paths resolve \
              from the RUN's working directory (never the workflow file's own \
@@ -604,6 +632,16 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
     }
 }
 
+// One literal feeds both the parser refusal and the offline code lesson.
+macro_rules! exec_body_help {
+    () => {
+        "`exec:` body must be a YAML mapping. Choose exactly one form:\n\n  exec:\n    command: [ls, -la]\n\n  exec:\n    shell: \"ls -la\"\n\n`command:` is argv-only; pipes and redirects belong in explicit `shell:`. `nika check --fix` can migrate the old scalar form."
+    };
+}
+
+/// The shared exec-body shape lesson, consumed by parsing and offline explain.
+pub const EXEC_BODY_HELP: &str = exec_body_help!();
+
 /// The per-code contract lessons for the SPEC conformance codes — the
 /// high-traffic refusals whose registry row states WHAT while the user
 /// at the terminal needs the GRAMMAR (gauntlet 2026-07-31, twice: the
@@ -614,13 +652,12 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
 #[must_use]
 pub fn spec_contract_help(code: &str) -> Option<&'static str> {
     match code {
-        "NIKA-PARSE-019" => Some(
-            "  The field's YAML SHAPE is wrong. `tasks:` is a MAP keyed by \
-             task id. An `invoke:` tool id is `nika:<path>` OR \
-             `mcp:<server>/<tool>` (one colon · a slash inside `mcp:`). \
-             The finding names the field whose shape to fix — `nika explain` \
-             cites the same phrase `nika check` printed.\n",
-        ),
+        "NIKA-VAR-005" => Some(nika_tmpl::callable::CALLABLE_HELP),
+        "NIKA-PARSE-019" => Some(concat!(
+            "  The field's YAML shape is wrong. `tasks:` is a map keyed by task id.\n\n",
+            exec_body_help!(),
+            "\n\nAn `invoke:` tool id is `nika:<path>` or `mcp:<server>/<tool>` (one colon, a slash inside `mcp:`). The finding identifies the field to repair.\n",
+        )),
         "NIKA-INFER-004" => Some(
             "  A thinking model spent the `max_tokens` budget on its \
              reasoning trace and the visible answer is blank. `nika check` \
@@ -695,6 +732,44 @@ mod tests {
     /// The one-voice namespace teaching both explain surfaces consume:
     /// builtin and provider codes teach, everything else stays `None`
     /// (the caller keeps its own unknown-code finding).
+    #[test]
+    fn var_005_explain_teaches_the_complete_callable_set() {
+        let help = spec_contract_help("NIKA-VAR-005").expect("expression lesson");
+        for callable in [
+            "size(x)",
+            "has(x)",
+            "x.size()",
+            "x.contains(s)",
+            "x.startsWith(s)",
+            "x.endsWith(s)",
+        ] {
+            assert!(help.contains(callable), "missing {callable}: {help}");
+        }
+    }
+
+    #[test]
+    fn value_builtins_explain_explicit_decoding_without_claiming_every_error_is_shape() {
+        for code in [
+            "NIKA-BUILTIN-JQ-001",
+            "NIKA-BUILTIN-VALIDATE-001",
+            "NIKA-BUILTIN-VALIDATE-002",
+        ] {
+            let help = namespace_help(code, "docs").expect("contract lesson");
+            for lesson in ["never a file path", "nika:read", "nika:jq", "fromjson"] {
+                assert!(help.contains(lesson), "missing {lesson}: {help}");
+            }
+        }
+        let jq = namespace_help("NIKA-BUILTIN-JQ-001", "docs").expect("jq");
+        assert!(jq.contains("specific cause") && jq.contains("exactly one JSON value"));
+        let invalid_args = namespace_help("NIKA-BUILTIN-VALIDATE-001", "docs").expect("args");
+        assert!(invalid_args.contains("invalid arguments or an invalid JSON Schema"));
+        assert!(invalid_args.contains("it does not fail with this code"));
+        let yaml = namespace_help("NIKA-BUILTIN-VALIDATE-002", "docs").expect("yaml");
+        assert!(yaml.contains("could not decode") && yaml.contains("format: yaml"));
+        let unknown = namespace_help("NIKA-BUILTIN-VALIDATE-099", "docs").expect("namespace");
+        assert!(unknown.contains("per-builtin runtime diagnostic"));
+    }
+
     #[test]
     fn namespace_help_teaches_builtin_and_provider_codes() {
         let b = namespace_help("NIKA-BUILTIN-FETCH-001", "docs").expect("builtin namespace");

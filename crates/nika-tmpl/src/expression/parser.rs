@@ -11,6 +11,7 @@
 use super::ast::{Expr, Literal, RelOp, StringPredicate};
 use super::error::ExprError;
 use super::lexer::{Token, TokenKind, tokenize};
+use crate::callable::{GlobalFunction, Method};
 
 /// The maximum AST nesting depth the checker's parser will build before
 /// refusing. Mirrors the runtime engine's `nika_cel` cap (one shared limit,
@@ -205,8 +206,7 @@ impl Parser {
 
     /// `postfix = primary { "." IDENT [ "(" ")" ] | "[" expr "]" }`.
     ///
-    /// The only method form is `.size()` (0 args) — any other `.name()`
-    /// is [`ExprError::UnknownFunction`].
+    /// Method names are resolved through the shared callable definitions.
     fn postfix_expr(&mut self) -> Result<Expr, ExprError> {
         // Each `.field` / `[idx]` segment builds one `Expr::Member`/`Expr::Index`
         // nesting that a later walker (`analyzer::schema_paths` · `check::reach` ·
@@ -270,14 +270,15 @@ impl Parser {
         offset: usize,
     ) -> Result<Expr, ExprError> {
         self.advance(); // (
-        if name == "size" {
+        let callable = Method::from_name(name);
+        if callable == Some(Method::Size) {
             self.expect_token(&TokenKind::RParen, "`)` — `x.size()` takes no arguments")?;
             return Ok(Expr::SizeMethod(Box::new(base)));
         }
-        let method = match name {
-            "contains" => StringPredicate::Contains,
-            "startsWith" => StringPredicate::StartsWith,
-            "endsWith" => StringPredicate::EndsWith,
+        let method = match callable {
+            Some(Method::Contains) => StringPredicate::Contains,
+            Some(Method::StartsWith) => StringPredicate::StartsWith,
+            Some(Method::EndsWith) => StringPredicate::EndsWith,
             _ => {
                 return Err(ExprError::UnknownFunction {
                     name: name.to_owned(),
@@ -310,9 +311,9 @@ impl Parser {
             TokenKind::Ident(name) => {
                 if self.peek_kind() == &TokenKind::LParen {
                     // Free-call form · `size(expr)` and `has(expr)`.
-                    let ctor: fn(Box<Expr>) -> Expr = match name.as_str() {
-                        "size" => Expr::SizeCall,
-                        "has" => Expr::HasCall,
+                    let ctor: fn(Box<Expr>) -> Expr = match GlobalFunction::from_name(&name) {
+                        Some(GlobalFunction::Size) => Expr::SizeCall,
+                        Some(GlobalFunction::Has) => Expr::HasCall,
                         _ => {
                             return Err(ExprError::UnknownFunction {
                                 name,
@@ -383,6 +384,34 @@ mod tests {
     use proptest::prelude::*;
 
     // ── Spec §when valid examples (03-dag.md · verbatim) ────────────
+
+    #[test]
+    fn unsupported_global_teaches_the_complete_callable_set() {
+        assert_callable_help("len(x)");
+    }
+
+    #[test]
+    fn unsupported_method_teaches_the_complete_callable_set() {
+        assert_callable_help("x.all(y)");
+    }
+
+    fn assert_callable_help(source: &str) {
+        let error = parse_expression(source).expect_err("unsupported call");
+        let message = error.to_string();
+        for callable in [
+            "size(x)",
+            "has(x)",
+            "x.size()",
+            "x.contains(s)",
+            "x.startsWith(s)",
+            "x.endsWith(s)",
+        ] {
+            assert!(
+                message.contains(callable),
+                "{source}: missing {callable}: {message}"
+            );
+        }
+    }
 
     #[test]
     fn spec_when_valid_examples_parse() {

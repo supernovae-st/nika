@@ -64,6 +64,9 @@ gate_lock_acquire() {
   lock="$(gate_lock_path)"
 
   while :; do
+    # The gate defers exiting on signals while acquisition owns a mkdir
+    # result. A waiting gate can stop here without touching another lease.
+    [ -z "${GATE_LOCK_SIGNAL_STATUS:-}" ] || return 1
     if mkdir "$lock" 2>/dev/null; then
       # Won it. Record the owner AFTER the atomic act, never before — the
       # mkdir is the lock; this file is only how a waiter judges liveness.

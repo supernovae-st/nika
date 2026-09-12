@@ -194,6 +194,21 @@ sorted by `(path, line)`. `pattern:` is a **Rust-regex-class** expression
 (RE2-compatible · no backreferences · the portable subset). Throws ·
 `NIKA-BUILTIN-GREP-001` (invalid pattern · `validation_error`).
 
+The read grants cover both the directory being walked and the files read
+inside it. A literal directory grant does not grant its children. For the
+recursive example above, declare the root and the descendant glob:
+
+```yaml
+permits:
+  tools: ["nika:grep"]
+  fs: { read: ["./src", "./src/**"] }
+```
+
+For one level of files, `./src/*` covers those files while `./src` still
+covers the walk root. The root grant alone does not authorize their
+contents; a file read outside the declared boundary is a permission
+refusal, not evidence that the pattern has no matches.
+
 ---
 
 ## Data builtins (8) · `jq` is THE data language

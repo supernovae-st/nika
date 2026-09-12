@@ -448,7 +448,7 @@ printf '%s\n' "$assets_job" | grep -q 'stage "\$REPO" "\$RELEASE_ID" "\$TAG" "\$
 # shellcheck disable=SC2016
 printf '%s\n' "$assets_job" | grep -q 'verify "\$REPO" "\$RELEASE_ID" "\$TAG" "\$RELEASE_SHA"' \
   || fail 'asset convergence does not reverify the immutable release identity'
-for artifact in nika-\* release-native-manifest release-provenance npm-tarball; do
+for artifact in release-payload release-provenance; do
   printf '%s\n' "$assets_job" | grep -q "$artifact" \
     || fail "asset convergence does not download ${artifact}"
 done
@@ -487,7 +487,7 @@ for proof in \
 done
 printf '%s\n' "$final_proof_job" | grep -q 'sha256sum -c SHA256SUMS' \
   || fail 'read-only final proof omits checksum verification'
-for artifact in nika-\* release-native-manifest release-provenance npm-tarball; do
+for artifact in release-payload release-provenance; do
   printf '%s\n' "$final_proof_job" | grep -q "$artifact" \
     || fail "read-only final proof does not download ${artifact}"
 done
@@ -496,8 +496,8 @@ finalizer="$(sed -n '/^  finalize:/,/^  move-latest:/p' \
   "$ROOT/.github/workflows/release.yml")"
 printf '%s\n' "$finalizer" | grep -q 'if: always()' \
   || fail 'finalizer can be skipped by a failed prerequisite'
-printf '%s\n' "$finalizer" | grep -q '^    needs: \[release-draft, release-final-proof\]' \
-  || fail 'finalizer does not depend only on draft identity and read-only proof'
+printf '%s\n' "$finalizer" | grep -q '^    needs: \[release-draft, release-final-proof, release-payload\]' \
+  || fail 'finalizer does not depend on draft identity, selected payload and read-only proof'
 printf '%s\n' "$finalizer" | grep -q '^      contents: write' \
   || fail 'finalizer lacks release write authority'
 printf '%s\n' "$finalizer" | grep -q '^      discussions: write' \
@@ -509,7 +509,7 @@ printf '%s\n' "$finalizer" | grep -q 'finalize-release.sh' \
   || fail 'finalizer bypasses the idempotent release-ID transition helper'
 printf '%s\n' "$finalizer" | grep -q 'transitioned:' \
   || fail 'finalizer does not expose whether this run published the draft'
-for artifact in nika-\* release-native-manifest release-provenance npm-tarball; do
+for artifact in release-payload release-provenance; do
   printf '%s\n' "$finalizer" | grep -q "$artifact" \
     || fail "finalizer does not download ${artifact}"
 done
@@ -616,7 +616,7 @@ printf '%s\n' "$docker_job" | grep -q 'verify-oci-payload.sh' \
   || fail 'the candidate digest is not payload-bound before persistence'
 proof_job="$(sed -n '/^  oci-proof:/,/^  oci-marker:/p' \
   "$ROOT/.github/workflows/release.yml")"
-printf '%s\n' "$proof_job" | grep -q '^    needs: \[release-draft, docker\]' \
+printf '%s\n' "$proof_job" | grep -q '^    needs: \[release-draft, docker, release-payload\]' \
   || fail 'pre-marker OCI proof does not depend on digest construction'
 printf '%s\n' "$proof_job" | grep -q '^      contents: read' \
   || fail 'pre-marker OCI proof lacks read-only contents authority'
@@ -691,10 +691,14 @@ bash "$ROOT/scripts/release/tests/immutable-assets.test.sh" >/dev/null \
   || fail 'the immutable asset replay regression failed'
 bash "$ROOT/scripts/release/tests/publication-barrier.test.sh" >/dev/null \
   || fail 'the cross-registry publication barrier regression failed'
+bash "$ROOT/scripts/release/tests/npm-oidc-diagnostic.test.sh" >/dev/null \
+  || fail 'the npm OIDC diagnostic regression failed'
 bash "$ROOT/scripts/release/tests/finalize-release.test.sh" >/dev/null \
   || fail 'the write-only finalizer barrier regression failed'
 python3 "$ROOT/scripts/release/tests/test-draft-authority.py" \
   || fail 'draft access escaped its owner or replay input admission failed'
+python3 "$ROOT/scripts/release/tests/test-release-payload.py" \
+  || fail 'replay payload selection or immutable asset admission failed'
 python3 "$ROOT/scripts/release/tests/test-oci-index.py" \
   || fail 'OCI runnable platforms or attestation bindings were not judged'
 bash "$ROOT/scripts/release/tests/next-tag-estate.test.sh" >/dev/null \

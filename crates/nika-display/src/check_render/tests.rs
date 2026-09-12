@@ -1320,6 +1320,16 @@ mod builtin_contract_code_on_tools_and_args {
             !out.contains("[NIKA-BUILTIN-001]"),
             "a ghost MCP server is not a builtin miss:\n{out}"
         );
+        let finding = report
+            .findings
+            .iter()
+            .find(|f| f.code.as_deref() == Some("NIKA-INVOKE-001"))
+            .expect("MCP finding");
+        assert!(
+            out.contains(&finding.message),
+            "human keeps the canonical diagnostic: {out}"
+        );
+        assert!(!out.contains("not a canonical builtin"), "{out}");
     }
 
     #[test]

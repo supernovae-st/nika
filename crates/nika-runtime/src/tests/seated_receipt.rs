@@ -14,6 +14,7 @@ fn seated_infer_receipt_exposes_no_numeric_or_responder_identity() {
     let ran = task::RanTask {
         usage: None,
         decisions: Vec::new(),
+        cleanup_declassified: Vec::new(),
         note: NOTE.to_owned(),
         retries: Vec::new(),
         agent_events: Vec::new(),

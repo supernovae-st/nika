@@ -8,8 +8,8 @@
 //! file spans and wrap into their own error types.
 //!
 //! Display + Error are hand-written (FCI-019 · the crate's zero-dep
-//! law — same pattern as the scanner's own errors), byte-identical to
-//! the `thiserror` renderings this file carried before descending.
+//! law — same pattern as the scanner's own errors). Callable help comes
+//! from the definitions used by the parsers and runtime dispatch.
 
 use std::fmt;
 
@@ -48,8 +48,7 @@ pub enum ExprError {
         offset: usize,
     },
 
-    /// A call to anything but `size` (spec side constraint 1 · « The
-    /// only callable is `size` »).
+    /// A call outside the parser-owned callable set.
     UnknownFunction {
         /// The attempted function name.
         name: String,
@@ -104,7 +103,8 @@ impl fmt::Display for ExprError {
             ),
             Self::UnknownFunction { name, offset } => write!(
                 f,
-                "unknown function `{name}` at offset {offset} — `size` is the only v0.1 callable"
+                "unknown function `{name}` at offset {offset} — {}",
+                crate::callable::CALLABLE_HELP
             ),
             Self::TrailingInput { offset } => write!(
                 f,
@@ -143,12 +143,9 @@ mod tests {
         assert!(err.to_string().contains('7'));
     }
 
-    /// The hand-written Display renders the EXACT strings the
-    /// `thiserror` derive produced pre-descent — consumers match on
-    /// message text (the checker's diagnostics), so the descent must
-    /// be invisible in every rendering.
+    /// Pin error wording and offsets, including the corrected callable help.
     #[test]
-    fn display_is_byte_identical_to_the_pre_descent_renderings() {
+    fn display_preserves_error_wording_and_offsets() {
         let cases: Vec<(ExprError, &str)> = vec![
             (
                 ExprError::UnexpectedChar { ch: '@', offset: 3 },
@@ -175,7 +172,7 @@ mod tests {
                     name: "len".to_owned(),
                     offset: 2,
                 },
-                "unknown function `len` at offset 2 — `size` is the only v0.1 callable",
+                "unknown function `len` at offset 2 — global functions: `size(x)`, `has(x)`; methods: `x.size()`, `x.contains(s)`, `x.startsWith(s)`, `x.endsWith(s)`",
             ),
             (
                 ExprError::TrailingInput { offset: 11 },

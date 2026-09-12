@@ -112,14 +112,17 @@ pub(crate) async fn handle(
     } else if request.uri().path().starts_with("/v1/") {
         protected(request, state).await
     } else {
-        ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found").into_response()
+        ApiError::route_not_found().into_response()
     };
     Ok(response)
 }
 
 async fn protected(request: Request<Incoming>, state: Arc<AppState>) -> Response<ResponseBody> {
     if !state.token.authorizes(request.headers()) {
-        return ApiError::unauthorized().into_response();
+        return ApiError::unauthorized(
+            request.headers().contains_key(hyper::header::AUTHORIZATION),
+        )
+        .into_response();
     }
     if content_length(&request).is_err() {
         return body_too_large().into_response();
@@ -159,8 +162,7 @@ async fn route_authenticated(
     match (request.method(), path.as_str()) {
         (&Method::PUT, path) if path.starts_with("/v1/schedules/") => {
             let Some(id) = schedule_route(path) else {
-                return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
-                    .into_response();
+                return ApiError::route_not_found().into_response();
             };
             super::schedule_http::put(request, id.to_owned(), state).await
         }
@@ -176,14 +178,13 @@ async fn route_authenticated(
         }
         (&Method::GET, path) if path.starts_with("/v1/schedules/") => {
             let Some(id) = schedule_route(path) else {
-                return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
-                    .into_response();
+                return ApiError::route_not_found().into_response();
             };
             super::schedule_http::get(id.to_owned(), &state).await
         }
         (&Method::GET, path) if path.ends_with("/trace/verify") => verify_trace(path, &state).await,
         (&Method::GET, _) => get_job(&path, &state).await,
-        _ => ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found").into_response(),
+        _ => ApiError::route_not_found().into_response(),
     }
 }
 
@@ -556,32 +557,27 @@ async fn list_registry(state: &AppState) -> Response<ResponseBody> {
 
 async fn workflow_metadata(path: &str, state: &AppState) -> Response<ResponseBody> {
     let Some(name) = path.strip_prefix("/v1/workflows/") else {
-        return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
-            .into_response();
+        return ApiError::route_not_found().into_response();
     };
     if name.is_empty()
         || !valid_workflow_name(name)
         || !within_scope(state.registry_scope.as_deref(), name)
     {
-        return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
-            .into_response();
+        return ApiError::route_not_found().into_response();
     }
     let project = Arc::clone(&state.project);
     let lookup = name.to_owned();
     let exists = tokio::task::spawn_blocking(move || workflow_exists(&project, &lookup)).await;
     match exists {
         Ok(true) => json_response(StatusCode::OK, &WorkflowMetadataResponse::new(name)),
-        Ok(false) => {
-            ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found").into_response()
-        }
+        Ok(false) => ApiError::route_not_found().into_response(),
         Err(_) => internal_error(),
     }
 }
 
 async fn get_job(path: &str, state: &AppState) -> Response<ResponseBody> {
     let Some((id, status_only)) = job_route(path) else {
-        return ApiError::new(StatusCode::NOT_FOUND, "not_found", "route not found")
-            .into_response();
+        return ApiError::route_not_found().into_response();
     };
     let Ok(id) = JobId::parse(id) else {
         return job_not_found();

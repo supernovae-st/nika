@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to rebuild; dispatch this workflow from main, never from the tag'
+        description: 'Existing tag to replay with its original signed assets; select main, never the tag'
         required: true
 
 permissions:
@@ -354,14 +354,19 @@ jobs:
             scripts/release/prepare-draft-release.sh
             scripts/release/read-release-state.sh
             scripts/release/read-release-provenance.sh
+            scripts/release/read-release-payload.sh
+            scripts/release/release-payload.py
             scripts/release/release-digest-marker.sh
             scripts/release/resolve-release-tag.sh
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: github.event_name == 'push'
         with:
+          pattern: nika-*
           path: artifacts
           merge-multiple: true
       - name: Aggregate checksums + version
+        if: github.event_name == 'push'
         id: meta
         env:
           REF_NAME: ${{ needs.coordinate.outputs.tag }}
@@ -378,9 +383,12 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'push'
         with:
-          name: release-native-manifest
-          path: artifacts/SHA256SUMS
+          name: release-native-source
+          path: |
+            artifacts/nika-*.tar.gz
+            artifacts/SHA256SUMS
           if-no-files-found: error
       - name: Create or reuse the GitHub draft
         id: release
@@ -421,7 +429,7 @@ jobs:
           [ "$state" -eq 44 ] || exit "$state"
           echo "build=true" >> "$GITHUB_OUTPUT"
           echo "digest=" >> "$GITHUB_OUTPUT"
-      - name: Fetch the existing replay statement without verifier authority
+      - name: Fetch original replay payload and statement with draft authority
         if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -431,6 +439,9 @@ jobs:
           TAG: ${{ needs.coordinate.outputs.tag }}
         run: |
           set -euo pipefail
+          # Refuse incomplete originals; rebuilding cannot reproduce signed bytes.
+          bash .release-tooling/scripts/release/read-release-payload.sh \
+            "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" replay-payload
           mkdir replay-provenance
           bash .release-tooling/scripts/release/read-release-provenance.sh \
             "$REPO" "$RELEASE_ID" "$TAG" "$RELEASE_SHA" \
@@ -441,12 +452,19 @@ jobs:
           name: release-provenance-source
           path: replay-provenance/multiple.intoto.jsonl
           if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: release-replay-source
+          path: replay-payload/*
+          if-no-files-found: error
+
   native-attest:
     # Native attestation generation is tag-context-only and deliberately has no
     # release-write token. A manual replay verifies existing attestations in the
     # read-only final proof instead of minting branch-context replacements.
     name: attest native release archives
-    needs: release-draft
+    needs: [release-draft, release-payload]
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
@@ -456,9 +474,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: nika-*
+          name: release-payload
           path: artifacts
-          merge-multiple: true
       - name: Attest build provenance (verifiable via `gh attestation verify`)
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -503,7 +520,7 @@ jobs:
 
   provenance-publish:
     name: verify push slsa provenance
-    needs: [release-draft, provenance]
+    needs: [release-draft, provenance, release-payload]
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
@@ -523,9 +540,8 @@ jobs:
           path: artifacts
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: nika-*
+          name: release-payload
           path: artifacts
-          merge-multiple: true
       - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
       - name: Normalize the generated statement name
         env:
@@ -556,7 +572,7 @@ jobs:
 
   provenance-replay-check:
     name: verify existing slsa provenance on replay
-    needs: release-draft
+    needs: [release-draft, release-payload]
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
@@ -571,9 +587,8 @@ jobs:
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: nika-*
+          name: release-payload
           path: artifacts
-          merge-multiple: true
       - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -630,8 +645,8 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
+          name: release-payload
           path: artifacts
-          merge-multiple: true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.workflow_sha }}
@@ -777,6 +792,64 @@ jobs:
             crates/nika-check-wasm/dist-npm/*.tgz.sha256
           if-no-files-found: error
 
+  release-payload:
+    name: select exact release payload bytes
+    needs: [release-draft, npm-wasm-pack]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tooling
+          persist-credentials: false
+          sparse-checkout: scripts/release
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: github.event_name == 'push'
+        with:
+          name: release-native-source
+          path: native-source
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: github.event_name == 'push'
+        with:
+          name: npm-tarball
+          path: npm-source
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: release-replay-source
+          path: replay-source
+      - name: Select payload without rebuilding or repacking signed bytes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+        run: |
+          python3 .release-tooling/scripts/release/release-payload.py select \
+            "$EVENT_NAME" "$TAG" native-source npm-source replay-source artifacts
+      - name: Verify existing tag attestations before replay bytes reach consumers
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-draft.outputs.tag }}
+          RELEASE_SHA: ${{ needs.release-draft.outputs.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          bash .release-tooling/scripts/release/resolve-release-tag.sh \
+            "$TAG" "$REPO" "$RELEASE_SHA" >/dev/null
+          bash .release-tooling/scripts/release/verify-release-attestations.sh \
+            "$TAG" "$RELEASE_SHA" "$REPO" artifacts
+          bash .release-tooling/scripts/release/resolve-release-tag.sh \
+            "$TAG" "$REPO" "$RELEASE_SHA" >/dev/null
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-payload
+          path: artifacts/*
+          if-no-files-found: error
+
   npm-wasm-publish:
     # The ELEVATED half — runs zero third-party code: download, gh, npm on
     # a pinned toolchain, plus the one first-party immutable-upload helper
@@ -784,7 +857,7 @@ jobs:
     # on tag push and its exact SRI is proven before the finalizer can expose
     # the draft.
     name: npm publish (nika-check-wasm)
-    needs: [release-draft, npm-wasm-pack]
+    needs: [release-draft, release-payload]
     runs-on: ubuntu-24.04
     permissions:
       contents: read # sparse checkout only; release assets belong to finalizer
@@ -802,7 +875,7 @@ jobs:
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: npm-tarball
+          name: release-payload
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           # node 24 bundles npm ≥ 11.5.1 — npm is the component that
@@ -846,7 +919,7 @@ jobs:
     # SECURITY: the only run: step reads VERSION through env: (tag-derived,
     # cf the header contract) — no event text reaches a shell.
     name: build ghcr digest
-    needs: release-draft
+    needs: [release-draft, release-payload]
     runs-on: ubuntu-24.04
     permissions:
       contents: read # checkout the Dockerfile
@@ -875,8 +948,8 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
+          name: release-payload
           path: artifacts
-          merge-multiple: true
       - name: Stage per-arch binaries into the build context
         if: needs.release-draft.outputs.oci-build == 'true'
         # Docker arch names (amd64 · arm64) ≠ release tarball arch names
@@ -930,7 +1003,7 @@ jobs:
     # All pre-marker Docker actions run with read-only contents/packages.
     # No third-party Docker action receives release-body write authority.
     name: prove ghcr digest payload
-    needs: [release-draft, docker]
+    needs: [release-draft, docker, release-payload]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -947,8 +1020,8 @@ jobs:
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
+          name: release-payload
           path: artifacts
-          merge-multiple: true
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -1056,11 +1129,11 @@ jobs:
     # workflow-SHA tooling only: no provenance, npm, Docker, package token, or
     # deploy key shares its contents-write authority.
     name: converge exact github release assets
-    needs: [release-draft, provenance-result, npm-wasm-pack]
+    needs: [release-draft, provenance-result, npm-wasm-pack, release-payload]
     # The event selector deliberately skips one provenance ancestor. GitHub
     # propagates that skip through the dependency chain unless this rejoin has
     # a status function. A successful selector is required, never a skip waiver.
-    if: ${{ always() && needs.release-draft.result == 'success' && needs.provenance-result.result == 'success' && needs.npm-wasm-pack.result == 'success' }}
+    if: ${{ always() && needs.release-draft.result == 'success' && needs.provenance-result.result == 'success' && needs.npm-wasm-pack.result == 'success' && needs.release-payload.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -1074,20 +1147,11 @@ jobs:
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: nika-*
-          path: artifacts
-          merge-multiple: true
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: release-native-manifest
+          name: release-payload
           path: artifacts
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-provenance
-          path: artifacts
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: npm-tarball
           path: artifacts
       - name: Stage and verify exactly eight immutable assets
         env:
@@ -1121,6 +1185,7 @@ jobs:
     name: prove complete release without write authority
     needs:
       - release-draft
+      - release-payload
       - release-assets-converge
       - native-attest
       - provenance-result
@@ -1142,6 +1207,7 @@ jobs:
           DRAFT_RESULT: ${{ needs.release-draft.result }}
           EVENT_NAME: ${{ github.event_name }}
           NATIVE_ATTEST_RESULT: ${{ needs.native-attest.result }}
+          PAYLOAD_RESULT: ${{ needs.release-payload.result }}
           NPM_RESULT: ${{ needs.npm-wasm-publish.result }}
           OCI_RESULT: ${{ needs.oci-version.result }}
           PROVENANCE_RESULT: ${{ needs.provenance-result.result }}
@@ -1150,7 +1216,7 @@ jobs:
           set -euo pipefail
           for result in \
             "$ASSETS_RESULT" "$DRAFT_RESULT" "$NPM_RESULT" "$OCI_RESULT" \
-            "$PROVENANCE_RESULT" "$WASM_PACK_RESULT"; do
+            "$PROVENANCE_RESULT" "$WASM_PACK_RESULT" "$PAYLOAD_RESULT"; do
             [ "$result" = success ] || {
               echo "::error::release prerequisite result is ${result}, not success"
               exit 73
@@ -1170,20 +1236,11 @@ jobs:
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: nika-*
-          path: artifacts
-          merge-multiple: true
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: release-native-manifest
+          name: release-payload
           path: artifacts
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-provenance
-          path: artifacts
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: npm-tarball
           path: artifacts
       - uses: slsa-framework/slsa-verifier/actions/installer@ea584f4502babc6f60d9bc799dbbb13c1caa9ee6 # v2.7.1
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
@@ -1242,7 +1299,7 @@ jobs:
     # The final writer invokes only first-party GitHub-state tooling. Immutable
     # registry/provenance facts arrive as the read-only proof job's digest.
     name: publish complete release
-    needs: [release-draft, release-final-proof]
+    needs: [release-draft, release-final-proof, release-payload]
     if: always()
     runs-on: ubuntu-24.04
     permissions:
@@ -1258,11 +1315,12 @@ jobs:
     steps:
       - name: Refuse incomplete or skipped prerequisites
         env:
+          PAYLOAD_RESULT: ${{ needs.release-payload.result }}
           DRAFT_RESULT: ${{ needs.release-draft.result }}
           PROOF_RESULT: ${{ needs.release-final-proof.result }}
         run: |
           set -euo pipefail
-          for result in "$DRAFT_RESULT" "$PROOF_RESULT"; do
+          for result in "$DRAFT_RESULT" "$PROOF_RESULT" "$PAYLOAD_RESULT"; do
             [ "$result" = success ] || {
               echo "::error::release prerequisite result is ${result}, not success"
               exit 73
@@ -1277,20 +1335,11 @@ jobs:
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: nika-*
-          path: artifacts
-          merge-multiple: true
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: release-native-manifest
+          name: release-payload
           path: artifacts
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-provenance
-          path: artifacts
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: npm-tarball
           path: artifacts
       - name: Resolve tap readiness without sharing the deploy key
         id: tap
