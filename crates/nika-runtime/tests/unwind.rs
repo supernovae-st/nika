@@ -71,7 +71,11 @@ async fn run_to_events(
     config: RuntimeConfig,
 ) -> (RunOutcome, Vec<Event>) {
     let (wf, report) = parse_and_check(yaml);
-    assert!(report.is_clean(), "fixture passes the ladder");
+    assert!(
+        report.is_clean(),
+        "fixture passes the ladder: {:?}",
+        report.findings
+    );
     let runtime = runtime_with_tools(shell, tools, provider, config);
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
@@ -90,6 +94,158 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 }
 
 // ─── the battery ─────────────────────────────────────────────────────────
+
+/// #1546: cleanup bindings belong to the cleanup, and materialize before
+/// its gate. Both terminal paths expose the parent's fresh record.
+#[tokio::test]
+async fn unwind_resolves_own_with_before_gate_on_success_and_failure() {
+    let yaml = r#"
+nika: cleanup-bindings
+const: { p: cleanup }
+inputs:
+  suffix: { type: string, default: input }
+permits: { exec: [work], tools: ["nika:log"] }
+tasks:
+  main:
+    with: { p: parent }
+    exec: { command: [work, "${{ with.p }}"] }
+  cleanup:
+    after: { main: unwind }
+    with:
+      p: "${{ const.p }}"
+      suffix: "${{ inputs.suffix }}"
+      status: "${{ tasks.main.status }}"
+    when: ${{ with.p == 'cleanup' }}
+    invoke:
+      tool: nika:log
+      args: { message: "${{ with.p }}-${{ with.suffix }}-${{ with.status }}" }
+"#;
+    for (shell, status) in [
+        (MockShell::new().enqueue_ok("worked\n"), "success"),
+        (MockShell::new().enqueue_fail(1, "failed"), "failure"),
+    ] {
+        let tools = MockToolExecutor::new()
+            .enqueue_ok(nika_kernel::tool_executor::ToolResult::success("log", "ok"));
+        let (outcome, events) = run_to_events(
+            yaml,
+            shell,
+            tools.clone(),
+            MockProvider::new("mock"),
+            RuntimeConfig::default(),
+        )
+        .await;
+        assert_eq!(outcome.ok, status == "success");
+        let calls = tools.captured_calls();
+        assert_eq!(calls.len(), 1, "cleanup must dispatch: {events:?}");
+        assert_eq!(calls[0].input["message"], format!("cleanup-input-{status}"));
+    }
+}
+
+/// A dynamic binding failure is journaled before dispatch, even if unused
+/// by the verb, and does not prevent the next cleanup from running.
+#[tokio::test]
+async fn unwind_invalid_with_is_journaled_and_next_cleanup_runs() {
+    let yaml = r#"
+nika: cleanup-invalid-binding
+permits: { exec: [work, cleanup] }
+tasks:
+  main:
+    exec: { command: [work] }
+  invalid:
+    after: { main: unwind }
+    with: { p: "${{ tasks.main.output.missing }}" }
+    exec: { command: [cleanup, invalid] }
+  valid:
+    after: { main: unwind }
+    with: { p: "${{ tasks.main.output }}" }
+    exec: { command: [cleanup, "${{ with.p }}"] }
+"#;
+    let shell = MockShell::new()
+        .enqueue_ok("worked\n")
+        .enqueue_ok("cleaned\n");
+    let (outcome, events) = run_to_events(
+        yaml,
+        shell.clone(),
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+    assert!(
+        outcome.ok,
+        "binding failure must not replace parent success"
+    );
+    let commands = shell.executed_commands();
+    assert_eq!(commands.len(), 2);
+    assert_eq!(commands[1].args, ["worked"]);
+    assert!(
+        events.iter().any(|e| {
+            e.kind == EventKind::PermitChecked
+                && str_field(e, "plane") == Some("on_finally")
+                && str_field(e, "gate") == Some("cleanup #0")
+                && str_field(e, "decision") == Some("failure")
+                && str_field(e, "why").is_some_and(|why| why.contains("NIKA-VAR-001"))
+        }),
+        "invalid binding must leave its diagnostic: {events:?}"
+    );
+}
+
+/// Binding resolution must retain both the permit and the input's taint:
+/// a covered path reaches the mock runner; traversal and options do not.
+#[tokio::test]
+async fn unwind_with_retains_permissions_and_value_taint() {
+    for (payload, allowed) in [
+        ("datasets/report.csv", true),
+        ("datasets/../../../etc/passwd", false),
+        ("--checkpoint-action=exec=sh id", false),
+    ] {
+        let yaml = format!(
+            r#"
+nika: cleanup-binding-permits
+inputs:
+  p: {{ type: string, default: "{payload}" }}
+permits:
+  exec: [work, tar]
+  fs: {{ read: ["datasets/**"] }}
+tasks:
+  main:
+    exec: {{ command: [work] }}
+  cleanup:
+    after: {{ main: unwind }}
+    with: {{ p: "${{{{ inputs.p }}}}" }}
+    exec: {{ command: [tar, -xf, "${{{{ with.p }}}}"] }}
+"#
+        );
+        let shell = MockShell::new()
+            .enqueue_ok("worked\n")
+            .enqueue_ok("cleaned\n");
+        let (outcome, events) = run_to_events(
+            &yaml,
+            shell.clone(),
+            MockToolExecutor::new(),
+            MockProvider::new("mock"),
+            RuntimeConfig::default(),
+        )
+        .await;
+        assert!(outcome.ok);
+        assert_eq!(shell.executed_commands().len(), if allowed { 2 } else { 1 });
+        let failure = events.iter().find(|e| {
+            e.kind == EventKind::PermitChecked
+                && str_field(e, "plane") == Some("on_finally")
+                && str_field(e, "decision") == Some("failure")
+        });
+        if allowed {
+            assert!(failure.is_none(), "covered binding runs: {events:?}");
+        } else {
+            assert!(
+                failure
+                    .and_then(|e| str_field(e, "why"))
+                    .is_some_and(|why| why.contains("NIKA-SEC-004")),
+                "resolved binding must be refused by the permit: {events:?}"
+            );
+        }
+    }
+}
 
 #[tokio::test]
 async fn unwind_runs_on_success_and_failure_and_routes_on_status() {

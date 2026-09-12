@@ -20,7 +20,7 @@ use crate::Runtime;
 use crate::expr::Scope;
 use crate::record::{TaskRecord, TaskStatus};
 
-use super::{RanTask, RunResult, eval_gate};
+use super::{RanTask, RunResult, eval_gate, render_boundary_with, runtime_error_record};
 
 /// Default per-cleanup-task timeout (spec 03 §`on_finally`).
 const CLEANUP_TIMEOUT: Duration = Duration::from_secs(30);
@@ -149,7 +149,7 @@ where
         )
         // Locals are out of scope after fan-out; `on_finally` exec retains the
         // workflow capability boundary.
-        .with_task_context(scope.with_namespace(), None, None, scope.permits());
+        .with_task_context(None, None, None, scope.permits());
         for (index, cleanup) in cleanups.iter().enumerate() {
             self.run_one_cleanup(cleanup, &cleanup_scope, witness, index, run_start)
                 .await;
@@ -170,6 +170,23 @@ where
         index: usize,
         run_start: nika_kernel::tool_executor::ToolRunStart,
     ) {
+        // Cleanup is an ordinary task: materialize its own bindings before
+        // the gate, using the parent's fresh record and the run authorities.
+        // A boundary failure is journaled and never reaches the verb.
+        let with_ns = match render_boundary_with(
+            cleanup,
+            scope.records(),
+            scope.inputs(),
+            scope.consts(),
+            scope.secrets(),
+        ) {
+            Ok(ns) => ns,
+            Err(err) => {
+                Self::journal_cleanup_failure(witness, index, &runtime_error_record(&err));
+                return;
+            }
+        };
+        let scope = &scope.with_task_context(Some(&with_ns), None, None, scope.permits());
         if let Some(gate) = cleanup.when.as_ref() {
             // Closed gate OR eval error → the cleanup is skipped
             // (a cleanup error never propagates) — and the skip is
@@ -195,10 +212,9 @@ where
         // dispatch seam; collecting it is a trigger-gated ratchet.
         let cleanup_buffer = crate::agent_events::BufferingObserver::new();
         // Mini-tasks carry no `returns:` (closed shape) — no contract.
-        // The re-gate oracle is the BARE one (a mini-task has no
-        // `with:`/`for_each` — the records + inputs lookups still label
-        // a tainted cleanup argv/arg · F-O1 PR-2).
-        let value_taint = crate::integrity::ValueTaint::bare();
+        // The cleanup's bindings retain their provenance through the same
+        // re-gate oracle as the main lane (F-O1 PR-2).
+        let value_taint = crate::integrity::ValueTaint::of_task(cleanup, scope.records());
         // NEP-0007 law 2 (the final review's catch · 2026-07-23): the
         // cleanup lane's decisions are recorded into the PARENT's
         // witness — they settle with it as `permit_checked` frames (the
