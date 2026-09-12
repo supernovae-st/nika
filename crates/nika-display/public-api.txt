@@ -642,6 +642,9 @@ pub fn nika_display::state::RunView::plan(&self) -> core::option::Option<&[alloc
 pub fn nika_display::state::RunView::recovered_count(&self) -> usize
 pub fn nika_display::state::RunView::rows(&self) -> &[nika_display::state::TaskRow]
 pub fn nika_display::state::RunView::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
+impl nika_display::state::RunView
+pub fn nika_display::state::RunView::cleanup_task(&self, event: &nika_event::event::Event) -> core::option::Option<&str>
+pub fn nika_display::state::RunView::main_task_count(&self) -> usize
 impl core::default::Default for nika_display::state::RunView
 pub fn nika_display::state::RunView::default() -> nika_display::state::RunView
 impl core::fmt::Debug for nika_display::state::RunView

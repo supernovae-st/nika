@@ -66,6 +66,7 @@ mod failed;
 mod finally;
 mod finish;
 
+pub(crate) use finally::unwind_tasks_of;
 use finish::assemble_ran_finish;
 
 pub(crate) use declassify::{DeclassifyEvidence, declassify_evidence};

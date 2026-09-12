@@ -552,3 +552,162 @@ tasks:
         "the skip frame says why"
     );
 }
+
+#[tokio::test]
+async fn cleanup_declarations_and_outcomes_do_not_emit_main_settlements() {
+    for (gate, result, decision) in [
+        ("", true, "success"),
+        ("", false, "failure"),
+        ("    when: ${{ false }}\n", true, "skipped"),
+    ] {
+        let yaml = format!(
+            "nika: cleanup-evidence\npermits: {{ exec: true }}\ntasks:\n  main:\n    exec: {{ command: [work] }}\n  cleanup:\n    after: {{ main: unwind }}\n{gate}    exec: {{ command: [sweep] }}\n"
+        );
+        let shell = MockShell::new().enqueue_ok("main");
+        let shell = if result {
+            shell.enqueue_ok("cleaned")
+        } else {
+            shell.enqueue_fail(1, "failed")
+        };
+        let (outcome, events) = run_to_events(
+            &yaml,
+            shell,
+            MockToolExecutor::new(),
+            MockProvider::new("mock"),
+            RuntimeConfig::default(),
+        )
+        .await;
+        assert!(outcome.ok, "cleanup must not fail the main lane");
+        let declaration = events
+            .iter()
+            .find(|e| e.kind == EventKind::TaskScheduled && str_field(e, "task") == Some("cleanup"))
+            .expect("declaration");
+        assert_eq!(str_field(declaration, "cleanup_parent"), Some("main"));
+        assert_eq!(str_field(declaration, "cleanup_gate"), Some("cleanup #0"));
+        let outcomes: Vec<_> = events
+            .iter()
+            .filter(|e| {
+                e.kind == EventKind::PermitChecked
+                    && str_field(e, "plane") == Some("on_finally")
+                    && str_field(e, "decision") != Some("attempt")
+            })
+            .collect();
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(str_field(outcomes[0], "task"), Some("main"));
+        assert_eq!(str_field(outcomes[0], "decision"), Some(decision));
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| matches!(e.kind, EventKind::TaskCompleted | EventKind::TaskFailed))
+                .count(),
+            1
+        );
+    }
+}
+
+struct HangingCleanup;
+impl nika_kernel::tool_executor::ToolExecuteDyn for HangingCleanup {
+    async fn execute(
+        &self,
+        _call: nika_kernel::tool_executor::ToolCall,
+    ) -> Result<nika_kernel::tool_executor::ToolResult, nika_kernel::tool_executor::ToolExecError>
+    {
+        std::future::pending().await
+    }
+}
+
+#[tokio::test]
+async fn cleanup_timeout_has_no_success_witness_or_main_failure() {
+    let (wf, report) = parse_and_check(
+        "nika: cleanup-timeout\npermits: { exec: true, tools: [nika:log] }\ntasks:\n  main:\n    exec: { command: [work] }\n  cleanup:\n    after: { main: unwind }\n    timeout: 1ms\n    invoke: { tool: nika:log, args: { message: slow } }\n",
+    );
+    assert!(report.is_clean());
+    let runtime = runtime_with_tools(
+        MockShell::new().enqueue_ok("main"),
+        HangingCleanup,
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    );
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(&wf, &report, &mut DeterministicStamper::new(), &mut sink)
+        .await
+        .expect("run");
+    assert!(outcome.ok);
+    let decisions: Vec<_> = sink
+        .events()
+        .iter()
+        .filter(|e| {
+            e.kind == EventKind::PermitChecked && str_field(e, "plane") == Some("on_finally")
+        })
+        .filter_map(|e| str_field(e, "decision"))
+        .collect();
+    assert_eq!(decisions, ["attempt", "timeout"]);
+}
+
+#[tokio::test]
+async fn shared_cleanup_declarations_follow_execution_indices_for_each_parent() {
+    let yaml = "nika: shared-cleanup\npermits: { exec: true }\ntasks:\n  a:\n    exec: { command: [work] }\n  b:\n    exec: { command: [work] }\n  shared:\n    after: { a: unwind, b: unwind }\n    exec: { command: [sweep] }\n  a_tail:\n    after: { a: unwind }\n    exec: { command: [sweep] }\n  b_tail:\n    after: { b: unwind }\n    exec: { command: [sweep] }\n";
+    let shell = MockShell::new()
+        .enqueue_ok("a")
+        .enqueue_fail(1, "shared a failed")
+        .enqueue_ok("a tail")
+        .enqueue_ok("b")
+        .enqueue_ok("shared b succeeded")
+        .enqueue_fail(1, "b tail failed");
+    let (outcome, events) = run_to_events(
+        yaml,
+        shell,
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::new(NonZeroUsize::new(1), 0),
+    )
+    .await;
+    assert!(outcome.ok);
+    let links = |id| -> serde_json::Value {
+        let declaration = events
+            .iter()
+            .find(|e| e.kind == EventKind::TaskScheduled && str_field(e, "task") == Some(id))
+            .expect("declaration");
+        serde_json::from_str(
+            str_field(declaration, "cleanup_attachments").expect("attachment metadata"),
+        )
+        .expect("json")
+    };
+    assert_eq!(
+        links("shared"),
+        serde_json::json!([{"parent":"a","gate":"cleanup #0"},{"parent":"b","gate":"cleanup #0"}])
+    );
+    assert_eq!(
+        links("a_tail"),
+        serde_json::json!([{"parent":"a","gate":"cleanup #1"}])
+    );
+    assert_eq!(
+        links("b_tail"),
+        serde_json::json!([{"parent":"b","gate":"cleanup #1"}])
+    );
+    let decisions: Vec<_> = events
+        .iter()
+        .filter(|e| {
+            e.kind == EventKind::PermitChecked
+                && str_field(e, "plane") == Some("on_finally")
+                && str_field(e, "decision") != Some("attempt")
+        })
+        .map(|e| {
+            (
+                str_field(e, "task"),
+                str_field(e, "gate"),
+                str_field(e, "decision"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        decisions,
+        [
+            (Some("a"), Some("cleanup #0"), Some("failure")),
+            (Some("a"), Some("cleanup #1"), Some("success")),
+            (Some("b"), Some("cleanup #0"), Some("success")),
+            (Some("b"), Some("cleanup #1"), Some("failure"))
+        ]
+    );
+}

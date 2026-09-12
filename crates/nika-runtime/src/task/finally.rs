@@ -85,7 +85,10 @@ fn preview_record(ran: &RanTask) -> TaskRecord {
 /// Membership is read off the task's own `after:` — the same place the
 /// checker reads it — so the runtime and the graph can never disagree
 /// about what cleanup exists.
-fn unwind_tasks_of<'a>(wf: &'a RawWorkflow, producer: &str) -> Vec<&'a RawTask> {
+pub(crate) fn unwind_tasks_of<'a>(
+    wf: &'a RawWorkflow,
+    producer: &str,
+) -> Vec<(usize, &'a RawTask)> {
     wf.tasks
         .iter()
         .map(|t| &t.value)
@@ -94,6 +97,7 @@ fn unwind_tasks_of<'a>(wf: &'a RawWorkflow, producer: &str) -> Vec<&'a RawTask> 
                 target.value == producer && matches!(pred.value, AfterPredicate::Unwind)
             })
         })
+        .enumerate()
         .collect()
 }
 
@@ -151,7 +155,7 @@ where
         // workflow capability boundary.
         .with_task_context(None, None, None, scope.permits());
         let mut receipts = Vec::new();
-        for (index, cleanup) in cleanups.iter().enumerate() {
+        for (index, cleanup) in cleanups {
             let mut entries = self
                 .run_one_cleanup(cleanup, &cleanup_scope, witness, index, run_start)
                 .await;
@@ -264,6 +268,13 @@ where
             futures_util::future::Either::Left((dispatched, _)) => {
                 if let Err(failed) = dispatched.result {
                     Self::journal_cleanup_failure(witness, index, &failed.record);
+                } else {
+                    witness.record(
+                        "on_finally",
+                        format!("cleanup #{index}"),
+                        "success",
+                        "cleanup completed successfully (best-effort lane)",
+                    );
                 }
             }
             futures_util::future::Either::Right(((), _)) => {
@@ -278,9 +289,8 @@ where
     /// logged »): a failure rides the parent's witness as one more
     /// `permit_checked` frame on plane `on_finally`. A cleanup refused
     /// at the permit/sandbox boundary (NIKA-SEC-004) lands here with
-    /// its code — no longer pixel-identical to a dead trigger. A clean
-    /// finish stays silent: the cleanup's own effects are its
-    /// observability (e.g. `nika:emit` · spec 03).
+    /// its code — no longer pixel-identical to a dead trigger. Successful
+    /// dispatch carries its own explicit outcome witness above.
     fn journal_cleanup_failure(
         witness: &crate::witness::PermitWitness,
         index: usize,
