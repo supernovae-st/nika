@@ -67,6 +67,7 @@ fn started_fields_full(
         project_root_fingerprint,
         origins,
         resume_compat,
+        None,
         resume_unverified,
         max_cost_usd,
         model_override,
@@ -440,5 +441,61 @@ fn prologue_journals_the_model_override_only_when_declared() {
         get(&bare, "model_override"),
         None,
         "no override = nothing journaled"
+    );
+}
+
+/// #1462 — a resumed leg's boot manifest names the trace it continues
+/// (`resumed_from`, beside the engine crossing); a fresh run journals no
+/// such claim.
+#[test]
+fn prologue_names_the_trace_a_leg_resumed() {
+    let yaml = "nika: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let book = crate::approval::ApprovalBook::new();
+    let opening_stamp = stamper.next();
+    emit_prologue(
+        &wf,
+        "pay",
+        None,
+        None,
+        None,
+        None,
+        false,
+        None,
+        &BTreeMap::new(),
+        None,
+        Some("c0ffee"),
+        None,
+        None,
+        None,
+        Vec::new(),
+        None,
+        &book,
+        opening_stamp,
+        &mut stamper,
+        &mut sink,
+    );
+    let started = &sink.events()[0];
+    let linked = started
+        .fields
+        .iter()
+        .find(|f| f.key == "resumed_from")
+        .map(|f| f.value.clone());
+    assert_eq!(
+        linked,
+        Some(nika_types::resource::Value::String("c0ffee".to_owned())),
+        "the continuation link rides the opening frame"
+    );
+    assert_eq!(
+        get(&started_fields(yaml, None), "resumed_from"),
+        None,
+        "a fresh run: no claim"
     );
 }

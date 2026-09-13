@@ -13,6 +13,7 @@
 use std::collections::BTreeMap;
 
 use nika_dap::resume::ResumeRequest;
+use nika_runtime::approval::PausedApproval;
 use nika_runtime::resume::{ResumePlan, ResumeUnverified};
 use nika_schema::raw::RawWorkflow;
 use serde_json::Value;
@@ -29,7 +30,7 @@ pub(super) struct ResumeSetup {
     pub answers: BTreeMap<String, Value>,
     /// The F-P4 resume authority (NEP-0013) — the approval ticket folded
     /// from the paused trace (`None` on a fresh run or a pre-F-P4 trace).
-    pub paused: Option<nika_runtime::approval::PausedApproval>,
+    pub paused: Option<PausedApproval>,
     /// The F-P21 declared compat (NEP-0014 law 4) — the recorded engine
     /// version the operator allowed the crossing from (`Some` only when
     /// a cross-version resume proceeds under `--resume-compat`).
@@ -39,19 +40,32 @@ pub(super) struct ResumeSetup {
     /// chainless compat), journaled on the boot manifest so no unverified
     /// ancestor launders silently. `None` = the chain verified (or no resume).
     pub unverified: Option<ResumeUnverified>,
+    /// The trace this run CONTINUES (#1462) — the resumed journal's own
+    /// trace id, attested on the boot manifest and the settlement so a
+    /// continuation renders as one. `None` = a fresh run.
+    pub resumed_from: Option<String>,
 }
 
-/// The folded parts of one `--resume <trace>` — a named return: the
-/// four-tuple it replaces had grown past readability.
-struct LoadedResume {
-    /// The folded skip plan (possibly empty — honest degradation).
-    plan: ResumePlan,
-    /// The F-P4 paused ticket (`None` on a pause-free or pre-F-P4 trace).
-    paused: Option<nika_runtime::approval::PausedApproval>,
-    /// The F-P21 declared compat (`Some` on a discharged crossing).
-    compat: Option<String>,
-    /// The trust attestation (`None` = the chain verified).
-    unverified: Option<ResumeUnverified>,
+impl ResumeSetup {
+    /// A fresh run (no trace to fold) — the answers ride in later.
+    const fn fresh() -> Self {
+        Self {
+            plan: None,
+            answers: BTreeMap::new(),
+            paused: None,
+            compat: None,
+            unverified: None,
+            resumed_from: None,
+        }
+    }
+}
+
+/// The ENV-class refusal, one voice: said on stderr, enveloped on the
+/// machine face, and the exit code returned for `?`.
+fn refuse_env(message: &str, output_json: bool) -> u8 {
+    eprintln!("nika run: {message}");
+    epilogue::emit_error_envelope(message, output_json);
+    exit::ENV
 }
 
 /// Validate + fold the whole `--resume` surface (plan · `--from` ·
@@ -69,56 +83,26 @@ pub(super) fn resume_setup(
     access: (&nika_providers::ExecutionAccessPlan, Option<&str>),
     output_json: bool,
 ) -> Result<ResumeSetup, u8> {
-    let loaded = match resume {
-        None => None,
-        Some(req) => match req.trace.as_deref() {
-            // The answers-only form (F4): no trace, no plan — the answers
-            // below ride into the gate map and wait for the ask.
-            None => None,
-            Some(trace) => Some(load_resume_plan(
-                req,
-                trace,
-                wf,
-                source,
-                model_override,
-                access,
-                output_json,
-            )?),
-        },
+    // The answers-only form (F4): no trace, no plan — the answers below
+    // ride into the gate map and wait for the ask.
+    let mut setup = match resume.and_then(|req| req.trace.as_deref().map(|t| (req, t))) {
+        None => ResumeSetup::fresh(),
+        Some((req, trace)) => {
+            load_resume_plan(req, trace, wf, source, model_override, access, output_json)?
+        }
     };
     let pairs = resume.map_or(&[][..], |r| r.answers.as_slice());
-    let answers = nika_dap::resume::parse_answers(pairs, wf).map_err(|message| {
-        eprintln!("nika run: {message}");
-        epilogue::emit_error_envelope(&message, output_json);
-        exit::ENV
-    })?;
+    setup.answers = nika_dap::resume::parse_answers(pairs, wf)
+        .map_err(|message| refuse_env(&message, output_json))?;
     // #1067 · a journaled success is a decision. `--answer` on resume
     // used to force the prompt to re-run (ADR-099 F4 "operator intent");
     // that turned a recorded NO into a shipment. Paused gates are not in
     // the plan (they never completed), so they still accept answers.
-    if let Some(ref l) = loaded {
-        nika_dap::resume::refuse_reopened_settled_gates(&l.plan, &answers).map_err(|message| {
-            eprintln!("nika run: {message}");
-            epilogue::emit_error_envelope(&message, output_json);
-            exit::ENV
-        })?;
+    if let Some(plan) = &setup.plan {
+        nika_dap::resume::refuse_reopened_settled_gates(plan, &setup.answers)
+            .map_err(|message| refuse_env(&message, output_json))?;
     }
-    Ok(match loaded {
-        Some(l) => ResumeSetup {
-            plan: Some(l.plan),
-            answers,
-            paused: l.paused,
-            compat: l.compat,
-            unverified: l.unverified,
-        },
-        None => ResumeSetup {
-            plan: None,
-            answers,
-            paused: None,
-            compat: None,
-            unverified: None,
-        },
-    })
+    Ok(setup)
 }
 
 /// Read + fold the `--resume` trace into the runtime skip plan (ADR-099)
@@ -148,19 +132,14 @@ fn load_resume_plan(
     model_override: Option<&str>,
     access: (&nika_providers::ExecutionAccessPlan, Option<&str>),
     output_json: bool,
-) -> Result<LoadedResume, u8> {
+) -> Result<ResumeSetup, u8> {
     let label = trace.display().to_string();
-    let refuse = |message: String| {
-        eprintln!("nika run: {message}");
-        epilogue::emit_error_envelope(&message, output_json);
-        exit::ENV
-    };
+    let refuse = |message: String| refuse_env(&format!("--resume: {message}"), output_json);
     let raw = read_trace(trace, &label, output_json)?;
     // ADR-099 trust amendment — the chain verdict BEFORE the fold (own
     // fn: the 100-line wall, and the judgment belongs to itself).
     let unverified = gate_trust(&raw, &label, req.allow_unverified, output_json)?;
-    let recovered =
-        recover_events(&raw, &label).map_err(|message| refuse(format!("--resume: {message}")))?;
+    let recovered = recover_events(&raw, &label).map_err(|e| refuse(e.to_string()))?;
     if let Some(note) = &recovered.truncated_note {
         eprintln!("nika run: {note}");
     }
@@ -168,6 +147,11 @@ fn load_resume_plan(
     // written by another project has nothing else to judge, and no notice
     // below may describe a run that never happens.
     judge_project(&recovered.events, unverified.is_some(), output_json)?;
+    // The workflow judgment NEXT (#1586): a journal written by another
+    // WORKFLOW is as foreign as another project's — and every notice
+    // below (version · seat · access) describes the recording, so a
+    // foreign one must not get that far.
+    judge_source(&recovered.events, wf, source, &label, output_json)?;
     // F-P21 (NEP-0014 law 4) — the version judgment BEFORE the fold:
     // judged, never assumed (the silent cross-version degradation dies).
     let judgment = nika_dap::resume::judge_version(&recovered.events, env!("CARGO_PKG_VERSION"));
@@ -183,22 +167,14 @@ fn load_resume_plan(
             }
             compat_with
         }
-        nika_dap::resume::CompatVerdict::Refuse(message) => {
-            return Err(refuse(format!("--resume: {message}")));
-        }
+        nika_dap::resume::CompatVerdict::Refuse(message) => return Err(refuse(message)),
         #[allow(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and caller ship together; fail loud beats silently-wrong output"
         )]
         other => unreachable!("unknown compat verdict: {other:?}"),
     };
-    judge_seat(
-        &recovered.events,
-        source,
-        model_override,
-        &label,
-        output_json,
-    )?;
+    judge_seat(&recovered.events, model_override, output_json)?;
     judge_access(&recovered.events, access, &label, output_json)?;
     let fold = nika_dap::resume::fold_plan(&recovered.events);
     if fold.plan.is_empty() {
@@ -214,39 +190,54 @@ fn load_resume_plan(
     let mut plan = fold.plan;
     reask_gates_when_unverified(&mut plan, wf, unverified.is_some());
     if let Some(from) = &req.from {
-        nika_dap::resume::apply_from(&mut plan, wf, from)
-            .map_err(|message| refuse(format!("--resume: {message}")))?;
+        nika_dap::resume::apply_from(&mut plan, wf, from).map_err(refuse)?;
     }
-    let paused = fold
-        .paused
-        .map(|approval| {
-            let home = std::env::home_dir().ok_or_else(|| {
-                    refuse(
-                        "--resume: HOME is unavailable; the durable approval claim store cannot be opened"
-                            .to_owned(),
-                    )
-                })?;
-            approval.with_durable_claim_root(&home).map_err(|error| {
-                refuse(format!(
-                    "--resume: cannot open the durable approval claim store: {error}"
-                ))
-            })
-        })
-        .transpose()?;
-    Ok(LoadedResume {
-        plan,
-        paused,
+    Ok(ResumeSetup {
+        plan: Some(plan),
+        answers: BTreeMap::new(),
+        paused: durable_paused(fold.paused, output_json)?,
         compat,
         unverified,
+        // #1462 · the continuation link: this leg names the trace it folded.
+        resumed_from: nika_dap::resume::trace_run_id(&recovered.events),
     })
 }
 
-fn read_trace(trace: &std::path::Path, label: &str, output_json: bool) -> Result<String, u8> {
-    let refuse = |message: String| {
-        eprintln!("nika run: {message}");
-        epilogue::emit_error_envelope(&message, output_json);
-        exit::ENV
+/// Bind the folded ticket to the durable claim store (`$HOME/.nika/
+/// approval-claims` · the replay guard) — and prune the claims that
+/// outlived every trace on the way in (#1466): the store is touched only
+/// here, so this is where it stays bounded. Pruning is fail-open and
+/// speaks exactly one line when anything was removed (D2 · never silent).
+fn durable_paused(
+    paused: Option<PausedApproval>,
+    output_json: bool,
+) -> Result<Option<PausedApproval>, u8> {
+    let Some(approval) = paused else {
+        return Ok(None);
     };
+    let home = std::env::home_dir().ok_or_else(|| {
+        refuse_env(
+            "--resume: HOME is unavailable; the durable approval claim store cannot be opened",
+            output_json,
+        )
+    })?;
+    let (cfg, _notes) = nika_dap::retention::RetentionConfig::from_env();
+    if let Some(n) = nika_dap::retention::prune_claims(&home, &cfg, std::time::SystemTime::now()) {
+        eprintln!("nika run: approval claims gc · removed {n} expired claim(s)");
+    }
+    approval
+        .with_durable_claim_root(&home)
+        .map(Some)
+        .map_err(|error| {
+            refuse_env(
+                &format!("--resume: cannot open the durable approval claim store: {error}"),
+                output_json,
+            )
+        })
+}
+
+fn read_trace(trace: &std::path::Path, label: &str, output_json: bool) -> Result<String, u8> {
+    let refuse = |message: String| refuse_env(&message, output_json);
     // The freeze audit · a run in flight cannot be resumed: its writer
     // holds the journal's lease, and a second execution over a partial
     // journal would re-run and re-spend its in-flight tasks (ADR-129 · the
@@ -327,15 +318,13 @@ fn gate_trust(
         // TrustVerdict is #[non_exhaustive]: a class newer than this CLI
         // refuses — fail closed, never a guessed trust (the `trace
         // verify` unknown-verdict posture).
-        _ => {
-            let message = format!(
+        _ => Err(refuse_env(
+            &format!(
                 "--resume: {label}: unknown chain verdict class — the forensics library is \
                  newer than this CLI"
-            );
-            eprintln!("nika run: {message}");
-            epilogue::emit_error_envelope(&message, output_json);
-            Err(exit::ENV)
-        }
+            ),
+            output_json,
+        )),
     }
 }
 
@@ -386,10 +375,39 @@ fn judge_project(
     }
     match nika_dap::resume::judge_project(events, here.as_deref()) {
         nika_dap::resume::ProjectVerdict::Refuse(message) => {
-            let message = format!("--resume: {message}");
-            eprintln!("nika run: {message}");
-            epilogue::emit_error_envelope(&message, output_json);
-            Err(exit::ENV)
+            Err(refuse_env(&format!("--resume: {message}"), output_json))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// The trace's WORKFLOW against this one (#1586): a journal written by
+/// another `nika:` id is FOREIGN — refused naming both workflows and both
+/// content hashes (« file CHANGED » was the wrong sentence: nothing was
+/// edited, and the operator burned a live run they thought was a cache
+/// hit). The same id with changed bytes keeps the notice: the current
+/// file stays the source of truth (ADR-099 · an edit re-runs, it never
+/// serves a stale output). The comparator is the replay session's,
+/// content-aware: a CRLF/BOM re-encode is not a change.
+fn judge_source(
+    events: &[nika_event::Event],
+    wf: &RawWorkflow,
+    source: &str,
+    label: &str,
+    output_json: bool,
+) -> Result<(), u8> {
+    let id = wf.workflow.as_ref().map(|w| w.value.as_str());
+    match nika_dap::resume::judge_source(events, id, source) {
+        nika_dap::resume::SourceVerdict::Foreign(message) => {
+            Err(refuse_env(&format!("--resume: {message}"), output_json))
+        }
+        nika_dap::resume::SourceVerdict::Changed => {
+            eprintln!(
+                "nika run: --resume: the workflow file CHANGED since {label} recorded it — the \
+                 current bytes are what runs (an edited `model:` moves the seat, and edited tasks \
+                 re-run instead of serving the recorded output)"
+            );
+            Ok(())
         }
         _ => Ok(()),
     }
@@ -422,12 +440,10 @@ fn judge_access(
             }
             Ok(())
         }
-        nika_dap::resume::AccessVerdict::Refuse(message) => {
-            let message = format!("--resume: {} · {message}", nika_error::codes::NIKA_1807);
-            eprintln!("nika run: {message}");
-            epilogue::emit_error_envelope(&message, output_json);
-            Err(exit::ENV)
-        }
+        nika_dap::resume::AccessVerdict::Refuse(message) => Err(refuse_env(
+            &format!("--resume: {} · {message}", nika_error::codes::NIKA_1807),
+            output_json,
+        )),
         #[allow(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and caller ship together; fail loud beats silently-wrong output"
@@ -436,29 +452,16 @@ fn judge_access(
     }
 }
 
-/// The two judgments about WHICH SEAT the resumed legs will run on —
-/// extracted from [`load_resume_plan`] at the 100-line fn wall, and they
-/// belong together anyway: both answer "is the model this resume uses
-/// the model the recording ran on?", one from the flag and one from the
-/// file.
-///
-/// - **The flag** (issue 772) · a run recorded under `--model` must never
-///   SILENTLY resume on the envelope model — the mock-previewed run that
-///   comes back on a priced seat. Explicit argv wins; silence REFUSES,
-///   naming the recorded seat and the exact flag.
-/// - **The file** (adversarial review 2026-08-03) · the flag judgment
-///   alone was not enough: the envelope `model:` is one line in a file
-///   the operator can edit between the pause and the resume, and the seat
-///   moves with it, no flag involved. The file stays the source of truth
-///   (ADR-099 · an explicit edit re-runs, it never serves a stale
-///   output), so this NOTICES rather than refuses — but it does notice.
-///   The comparator is the replay session's, content-aware: a CRLF/BOM
-///   re-encode is not a change.
+/// The judgment about WHICH SEAT the resumed legs will run on — the
+/// flag (issue 772): a run recorded under `--model` must never SILENTLY
+/// resume on the envelope model — the mock-previewed run that comes
+/// back on a priced seat. Explicit argv wins; silence REFUSES, naming
+/// the recorded seat and the exact flag. (The file half — the envelope
+/// `model:` edited between the pause and the resume — is
+/// [`judge_source`]'s CHANGED notice.)
 fn judge_seat(
     events: &[nika_event::Event],
-    source: &str,
     model_override: Option<&str>,
-    label: &str,
     output_json: bool,
 ) -> Result<(), u8> {
     match nika_dap::resume::judge_model(
@@ -472,12 +475,10 @@ fn judge_seat(
                      under --model {recorded}, this resume runs --model {declared}"
                 );
             }
+            Ok(())
         }
         nika_dap::resume::ModelVerdict::Refuse(message) => {
-            let message = format!("--resume: {message}");
-            eprintln!("nika run: {message}");
-            epilogue::emit_error_envelope(&message, output_json);
-            return Err(exit::ENV);
+            Err(refuse_env(&format!("--resume: {message}"), output_json))
         }
         #[allow(
             clippy::unreachable,
@@ -485,12 +486,71 @@ fn judge_seat(
         )]
         other => unreachable!("unknown model verdict: {other:?}"),
     }
-    if nika_dap::resume::source_drifted(source, events) == Some(true) {
-        eprintln!(
-            "nika run: --resume: the workflow file CHANGED since {label} recorded it — the \
-             current bytes are what runs (an edited `model:` moves the seat, and edited tasks \
-             re-run instead of serving the recorded output)"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nika_event::{Event, EventKind};
+    use nika_types::id::EventId;
+    use nika_types::resource::{KeyValue, Value as FieldValue};
+    use nika_types::timestamp::Timestamp;
+
+    /// A journal's boot manifest naming `workflow` and the hash of `yaml`.
+    fn journal_of(workflow: &str, yaml: &str) -> Vec<Event> {
+        let started = Event::new(
+            EventId::new(uuid::Uuid::nil()),
+            Timestamp::from_unix_ms(0),
+            EventKind::WorkflowStarted,
+        )
+        .with_field(KeyValue::new(
+            "workflow",
+            FieldValue::String(workflow.to_owned()),
+        ))
+        .with_field(KeyValue::new(
+            "workflow_sha256",
+            FieldValue::String(nika_event::source_id::sha256_hex(yaml.as_bytes())),
+        ));
+        vec![started]
+    }
+
+    fn parsed(yaml: &str) -> RawWorkflow {
+        nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("a valid fixture")
+    }
+
+    /// #1586 · the CLI face of the workflow judgment: a foreign journal
+    /// is the ENV class (exit 3 · the cross-project posture), an edited
+    /// file of the same id is a notice (Ok), an untouched one is silent.
+    #[test]
+    fn a_foreign_journal_refuses_env_and_an_edited_file_only_notices() {
+        const HELLO: &str =
+            "nika: hello\nmodel: mock/echo\ntasks:\n  greet:\n    infer:\n      prompt: hi\n";
+        const BRIEF: &str = "nika: compose-brief\nmodel: mock/echo\ntasks:\n  draft:\n    infer:\n      prompt: hi\n";
+        let hello = parsed(HELLO);
+        assert_eq!(
+            judge_source(
+                &journal_of("compose-brief", BRIEF),
+                &hello,
+                HELLO,
+                "t",
+                true
+            ),
+            Err(exit::ENV),
+            "another `nika:` id refuses like another project"
+        );
+        assert_eq!(
+            judge_source(&journal_of("hello", BRIEF), &hello, HELLO, "t", true),
+            Ok(()),
+            "the same id with other bytes is the CHANGED notice, never a refusal"
+        );
+        assert_eq!(
+            judge_source(&journal_of("hello", HELLO), &hello, HELLO, "t", true),
+            Ok(())
         );
     }
-    Ok(())
 }

@@ -648,6 +648,13 @@ impl AuthorizedRuntime {
         self
     }
 
+    /// Attach the trace this leg continues (#1462 · `--resume`).
+    #[must_use]
+    pub fn with_resumed_from(mut self, resumed_from: Option<String>) -> Self {
+        self.runtime = self.runtime.with_resumed_from(resumed_from);
+        self
+    }
+
     /// Attach the effective model override.
     #[must_use]
     pub fn with_model_override(mut self, model: Option<String>) -> Self {
@@ -734,6 +741,13 @@ impl AuthorizedRuntime {
     #[must_use]
     pub fn access_plan(&self) -> Option<&ExecutionAccessPlan> {
         self.runtime.access_plan()
+    }
+
+    /// The trace this leg continues (#1462), when the composer stamped one
+    /// — the settlement frame says it beside the lanes.
+    #[must_use]
+    pub fn resumed_from(&self) -> Option<&str> {
+        self.runtime.resumed_from()
     }
 
     /// Attach the verified resume plan.
