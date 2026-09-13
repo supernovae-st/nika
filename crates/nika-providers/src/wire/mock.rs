@@ -25,6 +25,15 @@
 //! honestly (agent/001). The witnesses are read off the request's own
 //! messages — the mock stays stateless, so determinism is untouched.
 //!
+//! The filesystem lane (#1256): a tool whose parameters carry a `path`
+//! reaches `permits.fs`, and the mock cannot read the lane a workflow
+//! declared — every path it could invent (`"mock"`) is a boundary probe the
+//! loop refuses HARD (NIKA-SEC-004 · never an error it can feed back). So
+//! the mock never invents a path: a first-granted fs-lane tool defers to a
+//! granted `nika:done` on turn one, and with no `nika:done` granted the
+//! mock answers in text (the loop completes naturally · text without a
+//! granted sentinel). Tools without a `path` keep the M1 contract as is.
+//!
 //! `mock/text` is the deliberate text-only probe: it never emits tool calls,
 //! even when tools are offered, so completion and budget refusals can be
 //! exercised offline. Other mock model names retain the tool-call contract.
@@ -57,7 +66,9 @@ use crate::registry::ResolvedProvider;
 /// changing the next call (NIKA-467 — the contract broke
 /// templates/agent-loop and the research/review examples at rehearsal).
 /// So after the FIRST errored or byte-identical repeated call to the
-/// same tool, a granted `nika:done` is preferred ([`done_preference`]).
+/// same tool, a granted `nika:done` is preferred ([`done_preference`]) —
+/// and a first tool that [`reaches_fs_lane`] is never called with a
+/// made-up path at all (#1256).
 pub(crate) fn infer<H>(rp: &ResolvedProvider<H>, request: &InferRequest) -> InferResponse {
     let called = match &request.tool_choice {
         _ if rp.wire_model() == "text" => None,
@@ -159,14 +170,32 @@ fn done_preference<'a>(
     first: Option<&'a ToolDef>,
 ) -> Option<&'a ToolDef> {
     let tool = first?;
-    if tool.name == "nika:done" || !stalled_on(request, tool) {
+    if tool.name == "nika:done" {
         return first;
     }
-    request
-        .tools
-        .iter()
-        .find(|t| t.name == "nika:done")
-        .or(first)
+    let done = request.tools.iter().find(|t| t.name == "nika:done");
+    if reaches_fs_lane(tool) {
+        // #1256 · never a path the mock made up: a granted `nika:done`
+        // closes the loop on turn one; none granted ⇒ `None` ⇒ the echo,
+        // and the loop completes naturally instead of dying NIKA-SEC-004.
+        return done;
+    }
+    if stalled_on(request, tool) {
+        return done.or(first);
+    }
+    first
+}
+
+/// A tool whose parameters name a `path` reaches `permits.fs` — the lane
+/// whose refusal is fatal to the loop and whose bounds the mock cannot
+/// read off the request. Optional or required makes no difference: an
+/// omitted `path` falls to the tool's own default (`nika:grep` searches
+/// `.`), which a narrow lane refuses just the same.
+fn reaches_fs_lane(tool: &ToolDef) -> bool {
+    tool.parameters
+        .get("properties")
+        .and_then(serde_json::Value::as_object)
+        .is_some_and(|properties| properties.contains_key("path"))
 }
 
 /// Has the conversation already seen `tool` called in a way the next
@@ -518,6 +547,84 @@ mod tests {
         let history = after_call("nika:wait", serde_json::json!({ "ms": 42 }), false);
         let request = tool_request(vec![wait_def(), done_def()], history);
         assert_eq!(called_name(&infer(&rp, &request)), "nika:wait");
+    }
+
+    // ─── #1256 · the fs lane · never a path the mock made up ─────────
+
+    fn read_def() -> ToolDef {
+        ToolDef::new(
+            "nika:read",
+            "read",
+            serde_json::json!({ "type": "object", "required": ["path"], "properties": { "path": { "type": "string" } } }),
+        )
+    }
+
+    /// `nika:read` first with a granted `nika:done` ⇒ done on turn one,
+    /// schema-shaped — never a `path: "mock"` the fs boundary refuses HARD
+    /// (the pr-review-fanout swarm's shape).
+    #[test]
+    fn an_fs_lane_tool_first_defers_to_a_granted_done_on_turn_one() {
+        let rp = resolved();
+        let request = tool_request(
+            vec![read_def(), done_def()],
+            vec![Message::text(Role::User, "review ./src/change.txt")],
+        );
+        let a = infer(&rp, &request);
+        let ContentBlock::ToolUse { name, input, .. } = &a.content[0] else {
+            panic!("expected a tool call, got {:?}", a.content[0]);
+        };
+        assert_eq!(name, "nika:done");
+        assert_eq!(input["result"], "mock", "the schema-shaped result rides");
+    }
+
+    /// snippets/delegate's shape: `nika:read` + `nika:fetch`, no `nika:done`
+    /// granted — the mock answers in text (the loop completes naturally on
+    /// text without a granted sentinel) instead of probing the lane.
+    #[test]
+    fn an_fs_lane_tool_first_without_done_answers_in_text() {
+        let rp = resolved();
+        let fetch = ToolDef::new(
+            "nika:fetch",
+            "fetch",
+            serde_json::json!({ "type": "object", "required": ["url"], "properties": { "url": { "type": "string" } } }),
+        );
+        let request = tool_request(
+            vec![read_def(), fetch],
+            vec![Message::text(Role::User, "Find every dead link in ./docs")],
+        );
+        let a = infer(&rp, &request);
+        let ContentBlock::Text { text } = &a.content[0] else {
+            panic!("expected the echo, got {:?}", a.content[0]);
+        };
+        assert_eq!(text, "mock(echo) · Find every dead link in ./docs");
+        assert_eq!(a.stop_reason, StopReason::EndTurn);
+        let b = infer(&rp, &request);
+        assert_eq!(
+            serde_json::to_value(&a.content[0]).expect("serializes"),
+            serde_json::to_value(&b.content[0]).expect("serializes"),
+            "byte-stable"
+        );
+    }
+
+    /// An OPTIONAL `path` is still the fs lane (`nika:grep` defaults its
+    /// root to `.`); a tool without one keeps the M1 contract.
+    #[test]
+    fn an_optional_path_still_marks_the_fs_lane() {
+        let grep = ToolDef::new(
+            "nika:grep",
+            "grep",
+            serde_json::json!({ "type": "object", "required": ["pattern"], "properties": { "pattern": { "type": "string" }, "path": { "type": "string" } } }),
+        );
+        assert!(reaches_fs_lane(&grep));
+        assert!(reaches_fs_lane(&read_def()));
+        assert!(!reaches_fs_lane(&wait_def()));
+        assert!(!reaches_fs_lane(&done_def()));
+        let rp = resolved();
+        let request = tool_request(
+            vec![grep, done_def()],
+            vec![Message::text(Role::User, "sweep the debt")],
+        );
+        assert_eq!(called_name(&infer(&rp, &request)), "nika:done");
     }
 
     #[tokio::test]
