@@ -410,6 +410,21 @@ fn models_finding(models: &ModelsProbe) -> Vec<Finding> {
     }
 }
 
+/// The local-backend clause the image and tts rows share (#1581):
+/// doctor never probes the media planes, so an unset URL is named as
+/// UNSET — the engine's silent fallback disclosed, never printed as a
+/// listener — and a set one is « configured », never « reachable ».
+fn media_local_part(url: Option<&str>, var: &str) -> String {
+    url.map_or_else(
+        || {
+            format!(
+                "local backend unset · {var} (engine fallback http://localhost:8080 · unprobed)"
+            )
+        },
+        |u| format!("local → {} (configured · unprobed)", redact_userinfo(u)),
+    )
+}
+
 /// The image plane (`nika:image_generate`) — mock always works; this
 /// names what ELSE is wired. Informational, never fatal (media is a
 /// builtin, not the inference path).
@@ -424,13 +439,7 @@ fn image_finding(img: &ImageProbe) -> Finding {
     if img.xai_key {
         wired.push("xai");
     }
-    let local_part = img.local_url.as_deref().map_or_else(
-        || {
-            "local → http://localhost:8080 default (set NIKA_IMAGE_LOCAL_URL to point elsewhere)"
-                .to_owned()
-        },
-        |url| format!("local → {}", redact_userinfo(url)),
-    );
+    let local_part = media_local_part(img.local_url.as_deref(), "NIKA_IMAGE_LOCAL_URL");
     Finding {
         level: Level::Ok,
         label: "image".to_owned(),
@@ -512,13 +521,7 @@ fn tts_finding(tts: &TtsProbe) -> Finding {
     if tts.elevenlabs_key {
         wired.push("elevenlabs");
     }
-    let local_part = tts.local_url.as_deref().map_or_else(
-        || {
-            "local → http://localhost:8080 default (set NIKA_TTS_LOCAL_URL to point elsewhere)"
-                .to_owned()
-        },
-        |url| format!("local → {}", redact_userinfo(url)),
-    );
+    let local_part = media_local_part(tts.local_url.as_deref(), "NIKA_TTS_LOCAL_URL");
     Finding {
         level: Level::Ok,
         label: "tts".to_owned(),
@@ -1181,6 +1184,8 @@ pub fn run_with(
 
 #[cfg(test)]
 mod json_tests;
+#[cfg(test)]
+mod media_tests;
 #[cfg(test)]
 mod pricing_tests;
 #[cfg(test)]
