@@ -21,7 +21,7 @@
 //! requirement) — the determinism contract of the event stream
 //! extends to the retry delays for free.
 
-use nika_schema::raw::RawTask;
+use nika_schema::raw::{RawAction, RawInvokeTarget, RawTask};
 use nika_schema::types::OnError;
 use nika_schema::types::{BackoffStrategy, RetryConfig};
 
@@ -124,14 +124,67 @@ pub(crate) fn jitter_key(task: &RawTask, scope: &Scope<'_>) -> String {
 }
 
 /// `retry:` eligibility (spec 05 · transient-only unless `on_codes`).
-fn retry_eligible(task: &RawTask, error: &TaskErrorRecord) -> bool {
+///
+/// `destructive` is the effect classifier's MCP arm (#1470 ·
+/// [`destructive_mcp_target`]): a tool whose vendored manifest hint says
+/// `destructiveHint` is NEVER transient — the failure may have landed the
+/// effect, and a blind replay doubles it — so the transient door stays
+/// shut for it. `on_codes:` is the author's explicit choice (the freeze
+/// decision) and still fires; the `nika:fetch` twin of this law is the
+/// dispatch veto (`retry_forbidden`), judged one seam earlier.
+fn retry_eligible(task: &RawTask, error: &TaskErrorRecord, destructive: bool) -> bool {
     let Some(retry) = task.retry.as_ref() else {
         return false;
     };
     if retry.value.on_codes.is_empty() {
-        error.transient
+        error.transient && !destructive
     } else {
         retry.value.on_codes.iter().any(|c| c == &error.code)
+    }
+}
+
+/// Does this task invoke an `mcp:<server>/<tool>` the catalog's vendored
+/// manifest marks destructive? `false` for every other verb and target,
+/// and for a tool with no vendored hint (no claim · never « safe »).
+fn destructive_mcp_target(task: &RawTask) -> bool {
+    let RawAction::Invoke(invoke) = &task.action else {
+        return false;
+    };
+    let RawInvokeTarget::Tool(tool) = &invoke.target else {
+        return false;
+    };
+    mcp_destructive_hint(&tool.value) == Some(true)
+}
+
+/// The catalog's vendored effect hint for one `mcp:<server>/<tool>`
+/// reference (#1470): the server segment is looked up as a catalog id or
+/// alias (a server the project named differently has no vendored hint —
+/// no claim). `None` = unknown server, unknown tool, or a manifest that
+/// annotated neither hint; the catalog's own rule is that absence never
+/// reads as « safe », so `None` leaves today's law untouched.
+pub(crate) fn mcp_destructive_hint(tool: &str) -> Option<bool> {
+    let (server, name) = tool.strip_prefix("mcp:")?.split_once('/')?;
+    let hints = nika_catalog::find_mcp_server(server)?
+        .effect_hints
+        .iter()
+        .find(|h| h.tool == name)?;
+    destructive_by_hints(hints.read_only, hints.destructive)
+}
+
+/// The MCP spec's reading of the two tool annotations: `readOnlyHint:
+/// true` settles it (nothing to replay) · an explicit `destructiveHint`
+/// speaks for itself · a tool declared NOT read-only with no destructive
+/// hint is destructive by the spec's own default · neither annotated =
+/// no claim.
+pub(crate) fn destructive_by_hints(
+    read_only: Option<bool>,
+    destructive: Option<bool>,
+) -> Option<bool> {
+    match (read_only, destructive) {
+        (Some(true), _) => Some(false),
+        (_, Some(d)) => Some(d),
+        (Some(false), None) => Some(true),
+        (None, None) => None,
     }
 }
 
@@ -210,7 +263,8 @@ where
         max_attempts: u32,
         jitter_key: &str,
     ) -> Option<u64> {
-        let eligible = attempt < max_attempts && retry_eligible(task, error);
+        let eligible =
+            attempt < max_attempts && retry_eligible(task, error, destructive_mcp_target(task));
         let cfg = task.retry.as_ref().filter(|_| eligible).map(|r| &r.value)?;
         Some(delay_ms(
             cfg,
@@ -225,6 +279,76 @@ where
 #[allow(clippy::float_cmp)] // exact-sample determinism IS the assertion (pure fn · same inputs)
 mod tests {
     use super::*;
+
+    /// One parsed task under `probe:` (the retry law reads the raw task).
+    fn task(body: &str) -> RawTask {
+        let yaml = format!("nika: t\ntasks:\n  probe:\n{body}");
+        let wf = nika_schema::parse(
+            &yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        wf.tasks.into_iter().next().expect("one task").value
+    }
+
+    const MCP_INVOKE: &str =
+        "    invoke:\n      tool: \"mcp:github/delete_repo\"\n      args: { name: x }\n";
+
+    /// #1470 · the MCP spec's own defaults, spelled once: read-only wins,
+    /// an explicit destructive hint speaks, not-read-only alone means
+    /// destructive, and neither annotated makes no claim.
+    #[test]
+    fn hints_read_per_the_mcp_spec_defaults() {
+        assert_eq!(destructive_by_hints(Some(true), None), Some(false));
+        assert_eq!(destructive_by_hints(Some(true), Some(true)), Some(false));
+        assert_eq!(destructive_by_hints(None, Some(true)), Some(true));
+        assert_eq!(destructive_by_hints(Some(false), Some(false)), Some(false));
+        assert_eq!(destructive_by_hints(Some(false), None), Some(true));
+        assert_eq!(destructive_by_hints(None, None), None);
+    }
+
+    /// #1470 · a destructive tool is never transient: the plain `retry:`
+    /// stays shut for it even on a transient failure, while `on_codes:`
+    /// (the author's explicit choice) still fires — and a non-destructive
+    /// target keeps today's transient law.
+    #[test]
+    fn a_destructive_mcp_tool_is_never_transient_but_on_codes_stays_explicit() {
+        let transient = TaskErrorRecord::new("NIKA-MCP-002", "server went away", true);
+        let plain = task(&format!("    retry: {{ max_attempts: 3 }}\n{MCP_INVOKE}"));
+        assert!(retry_eligible(&plain, &transient, false));
+        assert!(!retry_eligible(&plain, &transient, true));
+        let explicit = task(&format!(
+            "    retry: {{ max_attempts: 3, on_codes: [NIKA-MCP-002] }}\n{MCP_INVOKE}"
+        ));
+        assert!(retry_eligible(&explicit, &transient, true));
+        let terminal = TaskErrorRecord::new("NIKA-MCP-003", "tool refused", false);
+        assert!(!retry_eligible(&plain, &terminal, false));
+    }
+
+    /// The catalog lookup makes NO claim where it has no vendored hint: an
+    /// unknown server, a malformed reference, a non-MCP tool, and a known
+    /// server whose manifest is not vendored yet all read `None` — never a
+    /// « safe » that widens the retry door.
+    #[test]
+    fn the_catalog_lookup_claims_nothing_without_a_vendored_hint() {
+        assert_eq!(mcp_destructive_hint("mcp:no-such-server-xyz/delete"), None);
+        assert_eq!(mcp_destructive_hint("mcp:github"), None);
+        assert_eq!(mcp_destructive_hint("nika:fetch"), None);
+        let known = nika_catalog::all_mcp_servers()
+            .iter()
+            .find(|s| s.effect_hints.is_empty())
+            .expect("a catalog server without vendored hints");
+        assert_eq!(
+            mcp_destructive_hint(&format!("mcp:{}/anything", known.id)),
+            None
+        );
+        // The raw-task arm follows the lookup: no hint → not destructive.
+        assert!(!destructive_mcp_target(&task(MCP_INVOKE)));
+        assert!(!destructive_mcp_target(&task(
+            "    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com\", method: POST }\n"
+        )));
+    }
 
     fn cfg(strategy: BackoffStrategy, jitter: bool) -> RetryConfig {
         let mut c = RetryConfig::new(5);
