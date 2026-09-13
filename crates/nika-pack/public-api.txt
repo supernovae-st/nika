@@ -199,6 +199,7 @@ pub fn nika_pack::pack_version() -> &'static str
 pub fn nika_pack::quickstart() -> &'static str
 pub fn nika_pack::schema_json() -> &'static str
 pub fn nika_pack::template(name: &str) -> core::option::Option<&'static str>
+pub fn nika_pack::template_example(name: &str) -> core::option::Option<&'static str>
 pub fn nika_pack::template_names() -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_pack::try_recover_hint(slug: &str) -> core::option::Option<nika_pack::RecoverHint>
 pub fn nika_pack::try_rehearsal_kit(slug: &str) -> core::option::Option<nika_pack::RehearsalKit>
