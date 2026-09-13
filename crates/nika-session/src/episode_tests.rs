@@ -177,6 +177,53 @@ fn refused(outcome: TurnOutcome) -> Refusal {
 const ASK: &str =
     "make a brief report from the pages under pages/ and save it in the project as out/brief.md";
 
+/// Exactly the brief more in the tree, and under `.nika/` exactly the
+/// session's own durable files — nothing else was written.
+fn assert_landed_beside_evidence(world: &World, before: Vec<(PathBuf, Vec<u8>)>, own: &[&str]) {
+    let mut expected = before;
+    expected.push((PathBuf::from("brief.nika.yaml"), BRIEF.as_bytes().to_vec()));
+    expected.sort();
+    let (evidence, tree): (Vec<_>, Vec<_>) = listing(world.root())
+        .into_iter()
+        .partition(|(path, _)| path.starts_with(".nika"));
+    assert_eq!(
+        tree, expected,
+        "exactly one file more outside the session's own evidence"
+    );
+    assert_eq!(
+        evidence
+            .iter()
+            .map(|(path, _)| path.clone())
+            .collect::<Vec<_>>(),
+        own.iter().map(PathBuf::from).collect::<Vec<_>>(),
+        "the session's own durable files, nothing else"
+    );
+}
+
+/// The consent's durable evidence (#1465): one journal line naming the
+/// proposal, the witness of the exact bytes the human saw, what landed.
+fn assert_consent_evidence(world: &World, id: &ProposalId) {
+    let consents = crate::consent::ConsentRecord::read_all(world.root()).expect("the journal");
+    assert_eq!(consents.len(), 1, "one consent, one line");
+    assert_eq!(consents[0].proposal, id.as_str());
+    assert_eq!(
+        consents[0].decision,
+        crate::consent::ConsentDecision::Applied
+    );
+    assert_eq!(consents[0].written, [PathBuf::from("brief.nika.yaml")]);
+    assert_eq!(consents[0].witnesses.len(), 1);
+    assert_eq!(
+        consents[0].witnesses[0].before, None,
+        "a create witnessed absence"
+    );
+    assert_eq!(
+        consents[0].witnesses[0].after,
+        Witness::of(BRIEF.as_bytes()).0,
+        "the exact bytes the human saw"
+    );
+    assert_eq!(consents[0].run, Some(PathBuf::from("brief.nika.yaml")));
+}
+
 /// The information suffices: the brief is proposed from the exact bytes,
 /// previewed with its effects, landed on a consent that names it, checked
 /// clean, and the run the human asked for is handed back as data — the
@@ -231,10 +278,17 @@ fn the_brief_lands_on_a_named_consent_and_the_run_stays_data() {
         !world.at("out").exists(),
         "the session never runs: the door would"
     );
-    let mut expected = before;
-    expected.push((PathBuf::from("brief.nika.yaml"), BRIEF.as_bytes().to_vec()));
-    expected.sort();
-    assert_eq!(listing(world.root()), expected, "exactly one file more");
+    assert_landed_beside_evidence(&world, before, &[".nika/consents.ndjson"]);
+    assert_consent_evidence(&world, &id);
+    assert!(
+        s.intent
+            .decisions
+            .iter()
+            .any(|d| d.starts_with(&format!("applied proposal {id}"))
+                && d.contains("brief.nika.yaml")),
+        "the decision joins the durable intent: {:?}",
+        s.intent.decisions
+    );
     assert_eq!(
         refused(s.consent_to(&id, "yes")).class,
         RefusalClass::AlreadyConsumed

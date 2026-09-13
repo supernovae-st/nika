@@ -25,6 +25,7 @@
 
 pub mod broker;
 pub mod change;
+pub mod consent;
 pub mod facts;
 pub mod guard;
 pub mod identity;
@@ -47,6 +48,7 @@ pub use change::{
     Applied, ChangeError, PendingGate, ProjectChange, ProjectChangeSet, RunRequest, Witness,
     WorkflowAudit,
 };
+pub use consent::{ConsentDecision, ConsentRecord, ConsentWitness};
 pub use guard::{Finding, KnownWorld};
 pub use intelligence::{
     DataLocus, IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence,

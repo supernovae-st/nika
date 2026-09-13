@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Durable boundaries around the existing session operations.
+//! Durable boundaries around the existing session operations: the
+//! conversation history under the home (the transcript) and the consent
+//! journal under the project (#1465 · `.nika/consents.ndjson`).
 
 use super::history::{
     AuthorityState, EffectState, History, HistoryMode, Operation, RunState, Saved,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::{IntentDraft, Refusal, RefusalClass, SessionRuntime, TurnOutcome};
+use crate::change::{Applied, ApplyAttempt, ProjectChangeSet};
+use crate::consent::{CONSENTS_FILE, ConsentDecision, ConsentRecord};
+use crate::intelligence::now_rfc3339;
+use crate::outcome::ProposalId;
 
 impl SessionRuntime {
     /// Enable private, project-bound conversation history below `home/.nika`.
@@ -85,6 +91,58 @@ impl SessionRuntime {
         self.recorded(Operation::Observation, "(run observation)", |s| {
             s.observe_run_unrecorded(exit, trace)
         })
+    }
+
+    /// The durable evidence of a consent that landed every change (#1465),
+    /// and the decision it is: the empty string, or the warning line the
+    /// report must carry when the journal refused.
+    pub(super) fn evidence_applied(
+        &mut self,
+        set: &ProjectChangeSet,
+        id: &ProposalId,
+        applied: &Applied,
+    ) -> String {
+        self.witness_consent(set, id, ConsentDecision::Applied, &applied.written)
+    }
+
+    /// The durable evidence of a consent whose later write was refused
+    /// after earlier ones landed (#1465): exactly the write loop's record.
+    pub(super) fn evidence_partial(
+        &mut self,
+        set: &ProjectChangeSet,
+        id: &ProposalId,
+        attempt: &ApplyAttempt,
+    ) -> String {
+        self.witness_consent(set, id, ConsentDecision::Partial, &attempt.written)
+    }
+
+    fn witness_consent(
+        &mut self,
+        set: &ProjectChangeSet,
+        id: &ProposalId,
+        decision: ConsentDecision,
+        written: &[PathBuf],
+    ) -> String {
+        let paths: Vec<String> = written
+            .iter()
+            .map(|p| format!("`{}`", p.display()))
+            .collect();
+        self.intent.decisions.push(match decision {
+            ConsentDecision::Applied => {
+                format!("applied proposal {id} · wrote {}", paths.join(" · "))
+            }
+            ConsentDecision::Partial => format!(
+                "proposal {id} landed partially · wrote {} · left undecided",
+                paths.join(" · ")
+            ),
+        });
+        let record = ConsentRecord::of(set, id, decision, written, now_rfc3339());
+        match record.append(&self.snapshot.root) {
+            Ok(()) => String::new(),
+            Err(error) => format!(
+                "\n  ⚠ the consent's evidence was not written (.nika/{CONSENTS_FILE}): {error}"
+            ),
+        }
     }
 
     pub(super) fn recorded(
