@@ -48,6 +48,7 @@ pub mod exec_read_path;
 mod jq_lint;
 pub mod model_scope;
 pub mod native_first;
+pub mod read_paths;
 mod scan;
 mod schema_lint;
 mod schema_paths;
