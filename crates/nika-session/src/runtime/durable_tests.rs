@@ -895,3 +895,149 @@ mod fifo_history_regression {
         );
     }
 }
+
+/// #1464 · the project's structured record: nothing is written before the
+/// consent; the consent writes the goal and the decision under the
+/// project's `.nika/`; a fresh runtime over the same root reads them back
+/// at open without the transcript and without asking the reasoner; the
+/// consent's evidence (#1465) rides beside it, one line per consent.
+#[test]
+fn the_project_record_is_written_at_the_consent_and_read_at_open() {
+    let root = tempfile::tempdir().expect("project");
+    let (mut first, seen) = open(root.path(), &[PROPOSAL]);
+    assert!(
+        first.restore_state().is_none(),
+        "no record before any session"
+    );
+    let TurnOutcome::Proposal { id, .. } = first.turn(GOAL) else {
+        panic!("the scripted reply proposes a file");
+    };
+    assert!(
+        !root.path().join(".nika").exists(),
+        "nothing is written before the consent"
+    );
+    assert!(matches!(
+        first.consent_to(&id, "yes"),
+        TurnOutcome::Facts(_)
+    ));
+    let state = crate::state::SessionState::load(root.path())
+        .expect("readable")
+        .expect("written at the consent");
+    assert_eq!(state.goal.as_deref(), Some(GOAL));
+    assert_eq!(state.decisions.len(), 1);
+    assert!(
+        state.decisions[0].starts_with(&format!("applied proposal {id}"))
+            && state.decisions[0].contains("daily.nika.yaml"),
+        "{:?}",
+        state.decisions
+    );
+    assert_eq!(state.pending, None);
+    let consents = crate::consent::ConsentRecord::read_all(root.path()).expect("journal");
+    assert_eq!(consents.len(), 1);
+    assert_eq!(consents[0].proposal, id.as_str());
+    drop(first);
+
+    let (mut resumed, seen_after) = open(root.path(), &["never asked"]);
+    let notice = resumed.restore_state().expect("a record restores");
+    assert!(notice.contains("session record restored"), "{notice}");
+    assert_eq!(resumed.intent.goal.as_deref(), Some(GOAL));
+    assert_eq!(resumed.intent.decisions, state.decisions);
+    assert!(
+        resumed.pending_proposal().is_none(),
+        "a proposal never survives a close"
+    );
+    assert!(
+        seen.lock().expect("record").len() == 1 && seen_after.lock().expect("record").is_empty(),
+        "restoring asks no reasoner"
+    );
+
+    std::fs::write(root.path().join(".nika/session-state.json"), "{ broken").expect("damage");
+    let (mut damaged, _) = open(root.path(), &[]);
+    let notice = damaged.restore_state().expect("named");
+    assert!(notice.contains("session record unreadable"), "{notice}");
+    assert_eq!(damaged.intent, crate::runtime::IntentDraft::default());
+    assert_eq!(
+        std::fs::read_to_string(root.path().join(".nika/session-state.json")).expect("kept"),
+        "{ broken",
+        "never rewritten"
+    );
+}
+
+/// #1464 · a run that paused leaves the gate it waits on in the record; a
+/// fresh runtime reads the record, waits on the engine's own paused trace
+/// again, and the answer that resumes is a decision of the record.
+#[test]
+fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() {
+    let root = tempfile::tempdir().expect("project");
+    let traces = root.path().join(".nika/traces");
+    std::fs::create_dir_all(&traces).expect("traces");
+    let trace = traces.join("daily.ndjson");
+    std::fs::write(
+        &trace,
+        "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"approve\"},{\"key\":\"message\",\"value\":\"ship it?\"},{\"key\":\"mode\",\"value\":\"confirm\"}]}\n",
+    )
+    .expect("the paused trace");
+    let (mut first, _) = open(root.path(), &[PROPOSAL]);
+    let TurnOutcome::Proposal { id, .. } = first.turn("write daily.nika.yaml and run it once")
+    else {
+        panic!("a proposal");
+    };
+    let TurnOutcome::RunRequested { run, .. } = first.consent_to(&id, "yes") else {
+        panic!("a clean check requests the run");
+    };
+    assert_eq!(run.workflow, PathBuf::from("daily.nika.yaml"));
+    let TurnOutcome::GateAsk { id: gate, question } = first.observe_run(4, Some(&trace)) else {
+        panic!("a pause with a gate asks");
+    };
+    assert!(question.contains("ship it?"), "{question}");
+    let state = crate::state::SessionState::load(root.path())
+        .expect("readable")
+        .expect("written at the observation");
+    assert_eq!(
+        state.pending,
+        Some(crate::state::Pending::Gate {
+            workflow: PathBuf::from("daily.nika.yaml"),
+            trace: trace.clone(),
+            task: "approve".to_owned(),
+            mode: "confirm".to_owned(),
+        })
+    );
+    drop(first);
+
+    let (mut resumed, _) = open(root.path(), &[]);
+    let notice = resumed.restore_state().expect("a record restores");
+    assert!(notice.contains("ship it?"), "the gate asks again: {notice}");
+    assert_eq!(resumed.waiting_gate(), Some(gate.clone()));
+    let TurnOutcome::ResumeRequested { answer, .. } = resumed.answer_gate_for(&gate, "yes") else {
+        panic!("the answer resumes");
+    };
+    assert_eq!(answer, "approve=true");
+    let state = crate::state::SessionState::load(root.path())
+        .expect("readable")
+        .expect("written at the answer");
+    assert_eq!(state.pending, None, "the answered gate no longer waits");
+    assert!(
+        state
+            .decisions
+            .iter()
+            .any(|d| d.contains("answered the gate") && d.contains("approve=true")),
+        "{:?}",
+        state.decisions
+    );
+
+    // the gate's trace vanished before the next open: the record names it,
+    // nothing waits, nothing is invented
+    let mut orphaned = crate::state::SessionState::new("2026-09-13T19:09:09Z".to_owned());
+    orphaned.pending = Some(crate::state::Pending::Gate {
+        workflow: PathBuf::from("daily.nika.yaml"),
+        trace: trace.clone(),
+        task: "approve".to_owned(),
+        mode: "confirm".to_owned(),
+    });
+    std::fs::remove_file(&trace).expect("the trace is gone");
+    orphaned.save(root.path()).expect("a record with a gate");
+    let (mut later, _) = open(root.path(), &[]);
+    let notice = later.restore_state().expect("restores");
+    assert!(notice.contains("no longer waits"), "{notice}");
+    assert!(later.waiting_gate().is_none());
+}

@@ -34,6 +34,7 @@ pub mod outcome;
 pub mod reasoner;
 pub mod runtime;
 pub mod snapshot;
+pub mod state;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
@@ -58,3 +59,4 @@ pub use outcome::{GateId, ProposalId, Refusal, RefusalClass};
 pub use reasoner::{ReasonError, Reply, ScriptedReasoner, SessionReasoner};
 pub use runtime::{SessionRuntime, TurnOutcome};
 pub use snapshot::ProjectSnapshot;
+pub use state::{Pending, SessionState};

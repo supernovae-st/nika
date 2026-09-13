@@ -278,17 +278,25 @@ fn the_brief_lands_on_a_named_consent_and_the_run_stays_data() {
         !world.at("out").exists(),
         "the session never runs: the door would"
     );
-    assert_landed_beside_evidence(&world, before, &[".nika/consents.ndjson"]);
+    assert_landed_beside_evidence(
+        &world,
+        before,
+        &[".nika/consents.ndjson", ".nika/session-state.json"],
+    );
     assert_consent_evidence(&world, &id);
+    let state = crate::state::SessionState::load(world.root())
+        .expect("readable")
+        .expect("written at the consent (#1464)");
     assert!(
-        s.intent
+        state
             .decisions
             .iter()
             .any(|d| d.starts_with(&format!("applied proposal {id}"))
                 && d.contains("brief.nika.yaml")),
-        "the decision joins the durable intent: {:?}",
-        s.intent.decisions
+        "{:?}",
+        state.decisions
     );
+    assert_eq!(state.pending, None, "nothing waits after the consent");
     assert_eq!(
         refused(s.consent_to(&id, "yes")).class,
         RefusalClass::AlreadyConsumed
