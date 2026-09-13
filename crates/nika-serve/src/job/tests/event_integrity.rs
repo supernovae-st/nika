@@ -482,3 +482,71 @@ fn named_admission_is_the_restart_schedule() {
     let queued = store.queued_jobs().expect("queued");
     assert_eq!(queued.len(), 1, "empty workflow is not rescheduled");
 }
+
+/// #1463 · every appended event is dated by the store's clock, OUTSIDE the
+/// hash chain: an edited date still validates the chain and reads back as
+/// edited, a date that is not an instant fails closed, and the clock is
+/// the resident's own (a scripted one dates the journal it writes).
+#[test]
+fn appended_events_are_dated_outside_the_hash_chain() {
+    #[derive(Debug)]
+    struct FixedClock(jiff::Zoned);
+    impl crate::ResidentClock for FixedClock {
+        fn now(&self) -> jiff::Zoned {
+            self.0.clone()
+        }
+
+        fn sleep(
+            &self,
+            _: std::time::Duration,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+            Box::pin(std::future::ready(()))
+        }
+    }
+    let root = tempfile::tempdir().expect("root");
+    let at = "2026-09-13T19:09:09Z"
+        .parse::<jiff::Timestamp>()
+        .expect("instant")
+        .to_zoned(jiff::tz::TimeZone::UTC);
+    let store = JobStore::open(root.path())
+        .expect("store")
+        .with_clock(std::sync::Arc::new(FixedClock(at)));
+    let record = admitted_record(
+        store
+            .create_or_replay(key("request-dated"), digest(21))
+            .expect("create"),
+    );
+    let appended = store
+        .append_events(record.id(), &[json!({"n": 1})])
+        .expect("append");
+    assert_eq!(appended[0].at(), Some("2026-09-13T19:09:09Z"));
+    let read = store
+        .events_after(record.id(), 0, page_limit(1))
+        .expect("page");
+    assert_eq!(read[0].at(), Some("2026-09-13T19:09:09Z"));
+    let hash = read[0].hash().to_owned();
+    drop(store);
+
+    let path = root.path().join("jobs/state.json");
+    let text = std::fs::read_to_string(&path).expect("state");
+    assert!(text.contains("\"at\":\"2026-09-13T19:09:09Z\""), "{text}");
+    std::fs::write(
+        &path,
+        text.replace("2026-09-13T19:09:09Z", "2026-09-14T00:00:00Z"),
+    )
+    .expect("edit the date");
+    let store = JobStore::open(root.path()).expect("the chain validates: the date is no preimage");
+    let read = store
+        .events_after(record.id(), 0, page_limit(1))
+        .expect("page");
+    assert_eq!(read[0].at(), Some("2026-09-14T00:00:00Z"));
+    assert_eq!(read[0].hash(), hash, "the hash never covered the date");
+    drop(store);
+
+    let text = std::fs::read_to_string(&path).expect("state");
+    std::fs::write(&path, text.replace("2026-09-14T00:00:00Z", "yesterday")).expect("damage");
+    assert!(matches!(
+        JobStore::open(root.path()).expect_err("not an instant"),
+        JobStoreError::Corrupt(_)
+    ));
+}

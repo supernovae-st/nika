@@ -675,7 +675,10 @@ async fn cancel_queued_job(
             execution_id,
             trace_id,
             snapshot_digest,
-            serde_json::json!({"kind": "execution.cancelled", "status": "cancelled"}),
+            serde_json::json!({
+                "kind": crate::JobEventKind::Cancelled,
+                "status": crate::JobStatus::Cancelled
+            }),
             receipt,
         )
         .await

@@ -803,8 +803,8 @@ fn serve_control(
         }
         ControlCommand::Interrupt { id, reply } => {
             let payload = serde_json::json!({
-                "kind": "execution.interrupted",
-                "status": "interrupted"
+                "kind": crate::JobEventKind::Interrupted,
+                "status": crate::JobStatus::Interrupted
             });
             let result = store.interrupt_running(&id, incarnation, &payload);
             notify_persisted(&result, events);

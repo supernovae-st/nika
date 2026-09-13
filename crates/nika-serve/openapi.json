@@ -315,6 +315,11 @@
       "JobEvent": {
         "additionalProperties": false,
         "properties": {
+          "at": {
+            "description": "When the resident admitted the event (RFC 3339 · UTC). Outside the event's hash chain; absent on an event written before the journal was dated.",
+            "format": "date-time",
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
@@ -322,10 +327,27 @@
             "$ref": "#/components/schemas/JournalEvidence"
           },
           "kind": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "enum": [
+                  "execution.queued",
+                  "execution.started",
+                  "execution.prepared",
+                  "execution.requeued",
+                  "execution.settled",
+                  "execution.cancelled",
+                  "execution.interrupted",
+                  "execution.refused",
+                  "execution.aborted_before_claim",
+                  "approval_decided"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The resident's event vocabulary: execution.<word> (queued · started · prepared · requeued · settled · cancelled · interrupted · refused · aborted_before_claim), plus the approval_decided frame the journal admits. Null on a payload that carries no kind."
           },
           "message": {
             "type": "string"

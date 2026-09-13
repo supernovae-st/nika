@@ -1,4 +1,5 @@
 use super::*;
+use crate::JobEventKind as Kind;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -102,17 +103,18 @@ fn validate_legacy_terminal_event(job: &LegacyStoredJobV2) -> Result<(), JobStor
     let event = job.events.last().ok_or_else(|| {
         JobStoreError::Corrupt("legacy terminal job has no terminal event".to_owned())
     })?;
-    let kind = event.payload.get("kind").and_then(Value::as_str);
+    let kind = Kind::of(&event.payload);
+    // The v2 store spelled an interruption with the bare word.
+    let legacy_interrupted =
+        event.payload.get("kind").and_then(Value::as_str) == Some("interrupted");
     let status = event.payload.get("status").and_then(Value::as_str);
     let valid = match job.record.status {
-        JobStatus::Succeeded => kind == Some("execution.settled") && status == Some("succeeded"),
+        JobStatus::Succeeded => kind == Some(Kind::Settled) && status == Some("succeeded"),
         JobStatus::Failed => {
-            matches!(kind, Some("execution.settled" | "execution.refused"))
-                && status == Some("failed")
+            matches!(kind, Some(Kind::Settled | Kind::Refused)) && status == Some("failed")
         }
         JobStatus::Interrupted => {
-            matches!(kind, Some("execution.interrupted" | "interrupted"))
-                && status == Some("interrupted")
+            (kind == Some(Kind::Interrupted) || legacy_interrupted) && status == Some("interrupted")
         }
         JobStatus::Queued | JobStatus::Running | JobStatus::Paused | JobStatus::Cancelled => false,
     };

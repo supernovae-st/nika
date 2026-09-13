@@ -771,6 +771,11 @@ pub struct JobEvent {
     pub(crate) payload: Value,
     pub(crate) previous_hash: Option<EventHash>,
     pub(crate) hash: EventHash,
+    /// When the resident admitted the event (#1463) — OUTSIDE the hash
+    /// chain, so the chain is what it was; absent on events written before
+    /// the field existed (a v3 store stays additive).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) at: Option<EventInstant>,
 }
 
 impl JobEvent {
@@ -778,6 +783,13 @@ impl JobEvent {
     #[must_use]
     pub fn sequence(&self) -> u64 {
         self.sequence
+    }
+
+    /// Return when the resident admitted the event (RFC 3339 · UTC), or
+    /// `None` for an event written before the resident dated its journal.
+    #[must_use]
+    pub fn at(&self) -> Option<&str> {
+        self.at.as_ref().map(EventInstant::as_str)
     }
 
     /// Return the event payload exactly as admitted.
@@ -796,6 +808,34 @@ impl JobEvent {
     #[must_use]
     pub fn hash(&self) -> &str {
         self.hash.as_str()
+    }
+}
+
+/// The instant the resident admitted an event (RFC 3339 · UTC · #1463),
+/// validated on read, never part of a hash preimage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub(crate) struct EventInstant(String);
+
+impl EventInstant {
+    pub(crate) fn from_timestamp(at: jiff::Timestamp) -> Self {
+        Self(at.to_string())
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for EventInstant {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let text = String::deserialize(deserializer)?;
+        text.parse::<jiff::Timestamp>()
+            .map_err(|_| serde::de::Error::custom("event instant is not RFC 3339"))?;
+        Ok(Self(text))
     }
 }
 

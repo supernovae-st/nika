@@ -91,7 +91,9 @@ impl UserIntelligencePreference {
     }
 }
 
-fn now_rfc3339() -> String {
+/// The clock's stamp (RFC 3339 · UTC · whole seconds) — the one the
+/// session's durable files carry.
+pub(crate) fn now_rfc3339() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())

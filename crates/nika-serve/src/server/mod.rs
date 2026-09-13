@@ -637,9 +637,10 @@ struct PreparedHttp {
 async fn prepare_authority(config: &ResidentConfig) -> Result<PreparedAuthority, ServerError> {
     let state_root = config.state_root().to_owned();
     let workflow_root = config.workflow_root().map(Path::to_owned);
+    let clock = Arc::clone(config.clock());
     tokio::task::spawn_blocking(move || {
         ensure_state_root(&state_root)?;
-        let store = Arc::new(JobStore::open_fail_fast(&state_root)?);
+        let store = Arc::new(JobStore::open_fail_fast(&state_root)?.with_clock(clock));
         let schedules = ScheduleStore::open(&state_root).map_err(ServerError::ScheduleStore)?;
         let project = workflow_root
             .map(|root| {
@@ -1022,8 +1023,8 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
                 .refuse_queued(
                     task.id.clone(),
                     json!({
-                        "kind": "execution.refused",
-                        "status": "failed",
+                        "kind": crate::JobEventKind::Refused,
+                        "status": JobStatus::Failed,
                         "code": code,
                         "message": message
                     }),
@@ -1080,7 +1081,7 @@ async fn start_running(
             admitted.execution_id().to_string(),
             admitted.trace_id().to_string(),
             admitted.snapshot().digest().to_owned(),
-            json!({"kind": "execution.started", "status": "running"}),
+            json!({"kind": crate::JobEventKind::Started, "status": JobStatus::Running}),
         )
         .await
     {
@@ -1165,9 +1166,9 @@ async fn settle_disposition(
     // Preserve the runtime's actual status, including success or failure
     // racing cancellation. The route never writes an active run's result.
     let kind = if status == JobStatus::Cancelled {
-        "execution.cancelled"
+        crate::JobEventKind::Cancelled
     } else {
-        "execution.settled"
+        crate::JobEventKind::Settled
     };
     let mut event = json!({"kind": kind, "status": status});
     // ADR-128 · the settlement rides the terminal event whole (status ·
