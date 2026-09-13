@@ -8,6 +8,7 @@ pub nika_providers::census::AccessCensus::seats_ready: alloc::vec::Vec<alloc::st
 impl nika_providers::census::AccessCensus
 pub fn nika_providers::census::AccessCensus::collect(config: nika_providers::registry::ProvidersConfig) -> Self
 pub fn nika_providers::census::AccessCensus::from_parts(probes: &[nika_providers::probe::ProviderProbe], seats: alloc::vec::Vec<nika_providers::census::SeatFact>) -> Self
+pub fn nika_providers::census::AccessCensus::harness_ready(&self) -> alloc::vec::Vec<&str>
 pub fn nika_providers::census::AccessCensus::seat_escape(&self) -> core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_providers::census::AccessCensus
 pub fn nika_providers::census::AccessCensus::clone(&self) -> nika_providers::census::AccessCensus
@@ -1231,6 +1232,7 @@ pub nika_providers::AccessCensus::seats_ready: alloc::vec::Vec<alloc::string::St
 impl nika_providers::census::AccessCensus
 pub fn nika_providers::census::AccessCensus::collect(config: nika_providers::registry::ProvidersConfig) -> Self
 pub fn nika_providers::census::AccessCensus::from_parts(probes: &[nika_providers::probe::ProviderProbe], seats: alloc::vec::Vec<nika_providers::census::SeatFact>) -> Self
+pub fn nika_providers::census::AccessCensus::harness_ready(&self) -> alloc::vec::Vec<&str>
 pub fn nika_providers::census::AccessCensus::seat_escape(&self) -> core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_providers::census::AccessCensus
 pub fn nika_providers::census::AccessCensus::clone(&self) -> nika_providers::census::AccessCensus

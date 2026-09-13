@@ -147,7 +147,14 @@ pub struct AccessCensus {
     pub paths: Vec<AccessPath>,
     /// The harness seats (empty when built without `access-harness`).
     pub seats: Vec<SeatFact>,
-    /// Seat pin tokens a run can start on, in the ratified G-3 order.
+    /// Every path a run can start on TODAY, in the sovereign order: the
+    /// ready harness seats first (signed in AND the adapter on PATH ·
+    /// the ratified G-3 order), then the configured keyed cloud paths
+    /// (`api` · `oauth` · census order). ONE list for every surface that
+    /// answers « can `nika run` start here? » (#1581 · #1585: a present
+    /// `XAI_API_KEY` read `[]` while `best` named it). A keyless local
+    /// seed is a catalog fact, never a path here — and nothing here is
+    /// VERIFIED: a key is present, a seat's login is judged at run.
     pub seats_ready: Vec<String>,
     /// The strongest CONFIGURED non-seed path: a ready seat outranks a
     /// metered key (the sovereign order — the operator's own plan
@@ -162,18 +169,24 @@ impl AccessCensus {
     pub fn from_parts(probes: &[ProviderProbe], seats: Vec<SeatFact>) -> Self {
         let mut paths: Vec<AccessPath> = probes.iter().map(path_from_probe).collect();
         paths.extend(seats.iter().map(SeatFact::as_path));
-        let seats_ready = seats_ready(&seats);
+        let mut seats_ready = harness_ready(&seats);
+        seats_ready.extend(
+            paths
+                .iter()
+                .filter(|p| {
+                    p.configured && matches!(p.class, AccessClass::Api | AccessClass::Oauth)
+                })
+                .map(|p| p.id.clone()),
+        );
+        // The strongest path IS the head of the list: a seat row when the
+        // head is a seat, the keyed provider row otherwise.
         let best = seats_ready
             .first()
             .and_then(|id| {
+                let is_seat = seats.iter().any(|s| &s.id == id);
                 paths
                     .iter()
-                    .find(|p| p.class == AccessClass::Harness && &p.id == id)
-            })
-            .or_else(|| {
-                paths.iter().find(|p| {
-                    p.configured && matches!(p.class, AccessClass::Api | AccessClass::Oauth)
-                })
+                    .find(|p| &p.id == id && (p.class == AccessClass::Harness) == is_seat)
             })
             .cloned();
         Self {
@@ -198,9 +211,23 @@ impl AccessCensus {
     /// printed only when it is TRUE, and it names the LIVE pin token.
     #[must_use]
     pub fn seat_escape(&self) -> Option<String> {
-        self.seats_ready
+        self.harness_ready()
             .first()
             .map(|seat| format!("or use a seat present on this machine: `--access {seat}` (its login is judged at run)"))
+    }
+
+    /// The `--access` PINS inside [`Self::seats_ready`] — the harness
+    /// seats a session can start on, ratified order. A keyed cloud path
+    /// is a path a run can start on, never a pin (NIKA-1802): the
+    /// ladder's seat rung and the refusal tail read THIS; the machine
+    /// lanes print the whole list.
+    #[must_use]
+    pub fn harness_ready(&self) -> Vec<&str> {
+        self.seats_ready
+            .iter()
+            .map(String::as_str)
+            .filter(|id| self.seats.iter().any(|s| s.id == *id))
+            .collect()
     }
 }
 
@@ -248,10 +275,10 @@ fn path_from_probe(p: &ProviderProbe) -> AccessPath {
     }
 }
 
-/// The seats a run can start on, ordered by the ratified runtime order
-/// (G-3) so two reads never disagree; an id outside the vocabulary
-/// ranks last, codepoint-stable.
-fn seats_ready(seats: &[SeatFact]) -> Vec<String> {
+/// The harness seats a run can start on, ordered by the ratified
+/// runtime order (G-3) so two reads never disagree; an id outside the
+/// vocabulary ranks last, codepoint-stable.
+fn harness_ready(seats: &[SeatFact]) -> Vec<String> {
     let mut ready: Vec<&SeatFact> = seats.iter().filter(|s| s.ready()).collect();
     ready.sort_by_key(|s| {
         HarnessRuntime::ALL
@@ -396,6 +423,37 @@ mod tests {
             keyed.best.as_ref().map(|p| p.id.as_str()),
             Some("anthropic")
         );
+    }
+
+    /// #1581 · #1585 — a present key IS a path a run can start on:
+    /// `seats_ready` names it beside `best` (doctor and welcome read
+    /// this ONE list), the pin list stays harness-only, and an unset
+    /// key or a keyless seed never enters.
+    #[test]
+    fn a_configured_key_is_a_path_a_run_can_start_on() {
+        let census = AccessCensus::from_parts(
+            &[
+                local_row("ollama"),
+                api_row("mistral", false, "MISTRAL_API_KEY"),
+                api_row("xai", true, "XAI_API_KEY"),
+            ],
+            vec![],
+        );
+        assert_eq!(census.seats_ready, ["xai"]);
+        assert_eq!(census.best.as_ref().map(|p| p.id.as_str()), Some("xai"));
+        assert!(
+            census.harness_ready().is_empty(),
+            "a key is a path, never an `--access` pin"
+        );
+        assert_eq!(census.seat_escape(), None, "no pin, no seat tail");
+        // A ready seat LEADS the list (the sovereign order), the key follows.
+        let both = AccessCensus::from_parts(
+            &[api_row("xai", true, "XAI_API_KEY")],
+            vec![seat("claude-code", true, true, true)],
+        );
+        assert_eq!(both.seats_ready, ["claude-code", "xai"]);
+        assert_eq!(both.harness_ready(), ["claude-code"]);
+        assert!(both.seat_escape().is_some(), "the pin keeps its tail");
     }
 
     #[test]

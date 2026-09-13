@@ -290,6 +290,31 @@ fn the_seat_rung_is_earned_by_the_census_never_recomputed() {
     );
 }
 
+/// #1581 · #1585 — `seats_ready` carries a configured key too (the
+/// machine lanes answer « can a run start here? »), but the seat RUNG
+/// is a pin fact: a key alone climbs to `KeyPresent`, never
+/// `SeatReady`, and the mirror prints the key.
+#[test]
+fn a_configured_key_rides_seats_ready_without_earning_the_seat_rung() {
+    let mut keyed = ladder_probe();
+    keyed.providers[1].key_present = true;
+    keyed.providers[1].readiness.configured = true;
+    keyed.census = AccessCensus::from_parts(&keyed.providers, vec![]);
+    keyed.recorded_runs = 2;
+    assert_eq!(keyed.census.seats_ready, ["mistral"]);
+    assert_eq!(adoption_state(&keyed), AdoptionState::RealReady);
+    assert!(
+        AdoptionState::RealReady
+            .metric(&keyed)
+            .contains("path configured"),
+        "a key is a path, never a seat"
+    );
+    keyed.recorded_runs = 0;
+    assert_eq!(adoption_state(&keyed), AdoptionState::KeyPresent);
+    let json = environment_json(&keyed);
+    assert_eq!(json["seats_ready"][0], "mistral");
+}
+
 /// The enum is exhaustive over the ladder and every rung owns its
 /// own label, metric and CTA — no two states render the same line.
 #[test]

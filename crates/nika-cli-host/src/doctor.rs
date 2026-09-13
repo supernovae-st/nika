@@ -247,8 +247,8 @@ fn provider_findings(probe: &Probe, out: &mut Vec<Finding>) {
     // The ONE Fail that drives exit 3 · no inference path AT ALL (a broken or
     // empty catalog). A merely-unset cloud key is a ⚠ above, never fatal —
     // and a signed-in harness seat IS an inference path (R4 · the census
-    // joins what the provider rows alone never saw; the ladder's SeatReady
-    // rung reads the same `seats_ready`).
+    // joins what the provider rows alone never saw; `seats_ready` carries
+    // the configured keys too since #1581, so an empty list is zero paths).
     if cloud_keys == 0 && local_ids.is_empty() && probe.census.seats_ready.is_empty() {
         out.push(Finding {
             level: Level::Fail,
