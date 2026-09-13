@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The starter `nika.yaml` — laid ONLY on an explicit yes
-//! (D-2026-08-11-N5). Never silently: the wizard asks (Enter skips,
-//! an offer never a toll), the scripted lane has exactly one door
-//! (`--project-file`), and the file itself says so — its examples
-//! ride commented, so a laid starter governs NOTHING until the human
-//! uncomments it (absence IS the defaults, ratchet-pinned in
-//! [`nika_vocab::project`]).
+//! The starter `nika.yaml` — laid by default at founding (#1283 · the
+//! team's shared ceiling and retention is THE team file, so a scaffold
+//! that omits it is not a team scaffold). Never a toll: the wizard asks
+//! (Enter lays, `n` skips), the scripted lane lays it with its receipt,
+//! and the file itself says what it does — its examples ride commented,
+//! so a laid starter governs NOTHING until the human uncomments it
+//! (absence IS the defaults, ratchet-pinned in [`nika_vocab::project`]).
 //!
 //! The adds-only law is the `.gitignore` row's sibling: an existing
 //! file is SKIPPED (`--force` overrides), the write creates parents
@@ -31,9 +31,8 @@ pub enum Outcome {
     Failed(String),
 }
 
-/// Lay `dir/nika.yaml` when absent — the explicit-yes write. `force`
-/// overwrites (the founding law's one override); every other path is
-/// adds-only.
+/// Lay `dir/nika.yaml` when absent. `force` overwrites (the founding
+/// law's one override); every other path is adds-only.
 #[must_use]
 pub fn ensure(dir: &str, force: bool) -> (String, Outcome) {
     let path = Path::new(dir)
@@ -64,11 +63,14 @@ fn ensure_inner(path: &str, force: bool) -> std::io::Result<Outcome> {
 
 /// The report row for one outcome — the founding register's ✔/·/✖
 /// vocabulary, `path` caller-shaped (joined in the scripted lane ·
-/// project-relative in the wizard).
+/// project-relative in the wizard); a created row says WHY (#1283).
 #[must_use]
 pub fn report(path: &str, outcome: &Outcome) -> (char, String) {
     match outcome {
-        Outcome::Created => ('✔', format!("created {path}")),
+        Outcome::Created => (
+            '✔',
+            format!("created {path} — {}", crate::briefs::purpose(FILE_NAME)),
+        ),
         Outcome::Skipped => ('·', format!("skipped {path} (exists · --force)")),
         Outcome::Failed(e) => ('✖', format!("{path}: {e}")),
     }
@@ -149,9 +151,11 @@ mod tests {
     /// The report rows speak the founding register.
     #[test]
     fn report_rows_speak_the_founding_register() {
-        assert_eq!(
-            report("nika.yaml", &Outcome::Created),
-            ('✔', "created nika.yaml".to_owned())
+        let (mark, msg) = report("nika.yaml", &Outcome::Created);
+        assert_eq!(mark, '✔');
+        assert!(
+            msg.starts_with("created nika.yaml — team defaults"),
+            "the why rides the row: {msg}"
         );
         let (mark, msg) = report("nika.yaml", &Outcome::Skipped);
         assert_eq!(mark, '·');

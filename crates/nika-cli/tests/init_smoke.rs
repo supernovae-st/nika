@@ -268,9 +268,10 @@ fn init_recipe_scaffolds_the_curriculum_and_audits_it() {
 
 #[test]
 fn init_plain_yes_keeps_file_receipts_and_the_handoff() {
-    // `--yes` with ZERO new flags must render
-    // the exact pre-wizard shape (report rows + the classic next block)
-    // — scripts have parsed it since #158.
+    // `--yes` with ZERO new flags renders the report rows, lays the
+    // project file and the hello lesson (#1283) and hands over to THAT
+    // file; `--recipe minimal` keeps the classic pre-wizard block scripts
+    // have parsed since #158.
     let dir = workspace_tmp_dir("nika-init-stable-smoke");
     let out = bin()
         .arg("init")
@@ -283,14 +284,28 @@ fn init_plain_yes_keeps_file_receipts_and_the_handoff() {
     let stdout = String::from_utf8(out.stdout).expect("utf8");
     assert!(stdout.contains("✔ created"), "{stdout}");
     assert!(
-        stdout.contains("nika try 01-hello"),
-        "the classic hand-off survives: {stdout}"
+        stdout.contains("nika.yaml — team defaults") && dir.join("nika.yaml").is_file(),
+        "the project file is laid by default, with its why: {stdout}"
     );
     assert!(
-        !stdout.contains("workflows/"),
-        "no recipe means no workflow set: {stdout}"
+        stdout.contains("created workflows/01-hello.nika.yaml — ")
+            && stdout.contains("nika run workflows/01-hello.nika.yaml --model mock/echo"),
+        "the hand-off names the founded lesson: {stdout}"
     );
     assert!(!stdout.contains('\x1b'), "piped init stays escape-free");
+    let minimal = bin()
+        .arg("init")
+        .arg(&dir)
+        .args(["--yes", "--recipe", "minimal"])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("binary runs");
+    assert_eq!(minimal.status.code(), Some(0));
+    let stdout = String::from_utf8(minimal.stdout).expect("utf8");
+    assert!(
+        stdout.contains("nika try 01-hello") && !stdout.contains("workflows/"),
+        "minimal keeps the classic hand-off and scaffolds no workflow: {stdout}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 

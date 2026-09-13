@@ -28,7 +28,7 @@ use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled
 use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
 use nika_cli::verbs::{self, VerbOutput};
 
-use arms::{check_arm, inspect_arm, test_arm};
+use arms::{check_arm, file_near_miss, help_page, inspect_arm, test_arm};
 use init_args::{InitArgs, init_verb};
 use lazy::run_lazy;
 pub(crate) use nika_cli_host::help_card;
@@ -102,12 +102,7 @@ enum ColorWhenArg {
 }
 
 impl ColorWhenArg {
-    /// Fold a verb's legacy `--no-color` sugar into the tri-state: an
-    /// explicit off wins (both flags together = the conservative read).
-    fn with_no_color(self, no_color: bool) -> ColorChoice {
-        if no_color {
-            return ColorChoice::Never;
-        }
+    fn choice(self) -> ColorChoice {
         match self {
             Self::Always => ColorChoice::Always,
             Self::Never => ColorChoice::Never,
@@ -524,7 +519,7 @@ struct RunArgs {
     /// block move): the full workflow still audits (spans · findings stay
     /// whole-file faithful), then execution scopes to the ancestor
     /// sub-DAG and the plan/cost re-derive for exactly what will run.
-    /// Workflow `outputs:` are skipped (they may read unscoped tasks).
+    /// Workflow `outputs:` give way to the scoped tasks' own results, keyed by id.
     #[arg(long, value_name = "TASK_ID", conflicts_with = "resume")]
     task: Option<String>,
     /// Skip the run journal (`.nika/traces/<ts>-<id>.ndjson` · spec §3.3).
@@ -594,35 +589,6 @@ pub(crate) fn parse_budget_usd(raw: &str) -> Result<f64, String> {
     Ok(value)
 }
 
-impl Cli {
-    /// `--plain` folds the whole sober story BEFORE any resolution —
-    /// the downstream chains then see an explicit `never` at the top
-    /// rung (colour · links); the ASCII/no-progress halves ride the
-    /// same bool at each verb's own seam.
-    fn presentation(&self) -> (ColorWhenArg, LinkChoice) {
-        if self.plain {
-            (ColorWhenArg::Never, LinkChoice::Never)
-        } else {
-            (self.color, self.hyperlink.choice())
-        }
-    }
-}
-
-/// Bare `nika` on a terminal is the CONCIERGE: the welcome card (what
-/// this machine has · where you are · the next gesture) — the first
-/// keystroke answers with a gesture, not a wall. Pipes/scripts keep the
-/// full usage + exit 2 (a bare `nika` in a script is a usage error; the
-/// sober register never changes shape).
-/// The mirror's two depths — the greeting, or the whole workspace
-/// truth (the old `context` verb, one roof).
-fn mirror_verb(json: bool, deep: bool, theme: Theme) -> u8 {
-    if deep {
-        emit(&verbs::context::run(json, theme))
-    } else {
-        emit(&verbs::welcome::run(json, theme))
-    }
-}
-
 /// The `wire` door (H7): clap's flags plus the terminal fact `all`'s
 /// consent gate reads (a terminal asks · a pipe needs `--yes`).
 /// The doctor arm, extracted under the fn-length law (the `wire_verb`
@@ -630,13 +596,14 @@ fn mirror_verb(json: bool, deep: bool, theme: Theme) -> u8 {
 /// notes (B-8b · the human lane defaults to calm).
 fn doctor_verb(args: &DoctorArgs, theme: Theme) -> u8 {
     warn_about_home(!args.json && !std::io::stderr().is_terminal());
-    emit(&verbs::doctor::run_with(
+    let out = verbs::doctor::run_with(
         args.ping,
         args.json,
         args.verbose,
         theme,
         resident_finding(),
-    ))
+    );
+    emit(&out)
 }
 
 /// One emission seam for the front door and the typed command routes.
@@ -661,38 +628,30 @@ fn emit(out: &VerbOutput) -> u8 {
 }
 
 fn wire_verb(target: verbs::wire::WireTarget, dir: &str, dry_run: bool, yes: bool) -> u8 {
-    let interactive = std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
-    emit(&verbs::wire::run_with(
-        target,
-        dir,
-        verbs::wire::WireOptions {
-            dry_run,
-            yes,
-            interactive,
-        },
-    ))
+    let options = verbs::wire::WireOptions {
+        dry_run,
+        yes,
+        interactive: std::io::stdin().is_terminal() && std::io::stderr().is_terminal(),
+    };
+    emit(&verbs::wire::run_with(target, dir, options))
 }
 
-fn concierge(plain_theme: Theme) -> std::process::ExitCode {
-    emit(&verbs::welcome::run(false, plain_theme)).into()
-}
-
-fn concierge_json(plain_theme: Theme) -> std::process::ExitCode {
-    emit(&verbs::welcome::run(true, plain_theme)).into()
+/// Bare `nika` on a pipe is the CONCIERGE: the welcome card (what this machine
+/// has · where you are · the next gesture), never a wall; `--json` its machine twin.
+fn concierge(json: bool, plain_theme: Theme) -> std::process::ExitCode {
+    emit(&verbs::welcome::run(json, plain_theme)).into()
 }
 
 /// Machine-only pre-clap adapter used by SDKs before any workflow effect.
 fn sdk_identity() -> std::process::ExitCode {
     match serde_json::to_string(nika_runtime::engine_identity()) {
-        Ok(identity) => {
-            println!("{identity}");
-            std::process::ExitCode::SUCCESS
-        }
+        Ok(identity) => println!("{identity}"),
         Err(error) => {
             eprintln!("nika: cannot serialize engine identity: {error}");
-            std::process::ExitCode::from(3)
+            return std::process::ExitCode::from(3);
         }
     }
+    std::process::ExitCode::SUCCESS
 }
 
 /// Bare `nika` (the session on a terminal · the concierge on a pipe), `nika --json`, `nika version` — decided
@@ -708,28 +667,14 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             skip_value = false;
             continue;
         }
-        if arg == "--json" {
-            json = true;
-            continue;
+        match arg.to_str() {
+            Some("--json") => json = true,
+            Some("--plain" | "--ascii") => ascii = true,
+            Some("--fix") => saw_fix = true,
+            Some("--color" | "--hyperlink") => skip_value = true,
+            Some(s) if s.starts_with("--color=") || s.starts_with("--hyperlink=") => {}
+            _ => positional.push(arg),
         }
-        if arg == "--plain" || arg == "--ascii" {
-            ascii = true;
-            continue;
-        }
-        if arg == "--fix" {
-            saw_fix = true;
-            continue;
-        }
-        if arg == "--color" || arg == "--hyperlink" {
-            skip_value = true;
-            continue;
-        }
-        if let Some(s) = arg.to_str()
-            && (s.starts_with("--color=") || s.starts_with("--hyperlink="))
-        {
-            continue;
-        }
-        positional.push(arg);
     }
     let first = positional.first().and_then(|a| a.to_str());
     if first == Some("permits") {
@@ -750,10 +695,8 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
                 !json && std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
             Some(if interactive {
                 std::process::ExitCode::from(verbs::session::run(interactive_theme(theme)))
-            } else if json {
-                concierge_json(theme)
             } else {
-                concierge(theme)
+                concierge(json, theme)
             })
         }
         Some("version") if positional.len() == 1 => {
@@ -804,7 +747,7 @@ fn real_main() -> std::process::ExitCode {
             return std::process::ExitCode::SUCCESS;
         }
         Some(help_card::HelpKind::Short) => {
-            print!("{}", help_card::human_help());
+            print!("{}", help_page());
             return std::process::ExitCode::SUCCESS;
         }
         None => {}
@@ -822,19 +765,28 @@ fn real_main() -> std::process::ExitCode {
     } else {
         argv
     };
+    // A first word that is no verb but LOOKS like a file gets the door
+    // named instead of clap's dead end (#1249 · `nika notes.yaml`).
+    if let Some(text) = argv.first().and_then(|a| file_near_miss(a)) {
+        eprintln!("{text}");
+        return std::process::ExitCode::from(verbs::exit::FILE);
+    }
     let cli = Cli::parse_from(std::iter::once(std::ffi::OsString::from("nika")).chain(argv));
     warn_about_home(
         std::io::stderr().is_terminal()
             && !matches!(&cli.command, Some(Command::Doctor(doctor)) if doctor.json),
     );
-    let (color, link_when) = cli.presentation();
-    let plain_theme = term_theme(
-        color.with_no_color(false),
-        cli.ascii || cli.plain,
-        link_when,
-    );
+    // `--plain` folds the whole sober story BEFORE any resolution — the
+    // chains below see an explicit `never` at the top rung (colour · links);
+    // the ASCII/no-progress halves ride the same bool at each verb's seam.
+    let (color, link_when) = if cli.plain {
+        (ColorWhenArg::Never, LinkChoice::Never)
+    } else {
+        (cli.color, cli.hyperlink.choice())
+    };
+    let plain_theme = term_theme(color.choice(), cli.ascii || cli.plain, link_when);
     let Some(command) = cli.command else {
-        return concierge(plain_theme);
+        return concierge(false, plain_theme);
     };
     let code = dispatch_verb(command, plain_theme, color, link_when, cli.plain, cli.ascii);
     std::process::ExitCode::from(code)
@@ -861,7 +813,12 @@ fn dispatch_verb(
             case,
         } => test_arm(file, update, &answer, (&var, case.as_deref()), plain_theme),
         Command::Inspect { file, format } => inspect_arm(&file, format, plain_theme),
-        Command::Welcome { json, deep } => mirror_verb(json, deep, plain_theme),
+        // The mirror's two depths — the greeting, or the whole workspace truth.
+        Command::Welcome { json, deep } => emit(&if deep {
+            verbs::context::run(json, plain_theme)
+        } else {
+            verbs::welcome::run(json, plain_theme)
+        }),
         Command::Explain {
             code,
             json,
@@ -885,13 +842,11 @@ fn dispatch_verb(
             schema,
             project,
         } => emit(&verbs::pack_surface::spec_or_schema(canon, schema, project)),
-        Command::Catalog { json, tools } => {
-            if tools {
-                emit(&verbs::tools::run(json, plain_theme))
-            } else {
-                emit(&verbs::catalog::run(json, plain_theme))
-            }
-        }
+        Command::Catalog { json, tools } => emit(&if tools {
+            verbs::tools::run(json, plain_theme)
+        } else {
+            verbs::catalog::run(json, plain_theme)
+        }),
         Command::Try(a) => try_args::listing(&a, plain_theme)
             .map_or_else(|| try_args::rehearse(&a, plain_theme), |o| emit(&o)),
         Command::New {
@@ -908,12 +863,9 @@ fn dispatch_verb(
             write_completions(shell, &mut std::io::stdout());
             0
         }
-        Command::Trace { action } => nika_trace::dispatch::trace_verb(
-            action,
-            plain_theme,
-            color.with_no_color(false),
-            link_when,
-        ),
+        Command::Trace { action } => {
+            nika_trace::dispatch::trace_verb(action, plain_theme, color.choice(), link_when)
+        }
         Command::Guard(args) => guard_verb(&args, plain_theme),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
@@ -923,13 +875,13 @@ fn dispatch_verb(
         Command::Dap => nika_dap::run_stdio(),
         Command::Lsp {
             client_process_id, ..
-        } => match nika_lsp::run_stdio_watching(client_process_id) {
-            Ok(()) => verbs::exit::OK,
-            Err(err) => {
+        } => nika_lsp::run_stdio_watching(client_process_id).map_or_else(
+            |err| {
                 eprintln!("nika lsp: {err}");
                 1
-            }
-        },
+            },
+            |()| verbs::exit::OK,
+        ),
         // The MCP server OWNS stdout (JSON-RPC · like `lsp` · never `emit`) —
         // exit 0 on clean EOF, 1 on transport failure; verify/approve are
         // ordinary verbs and DO go through emit.
@@ -985,8 +937,16 @@ fn run_verb(
             allow_unverified: args.resume_unverified,
         }
     });
-    let mode = resolve_run_mode(args.quiet, args.no_progress || plain);
-    let mut theme = term_theme(color.with_no_color(false), ascii || plain, link_when);
+    // The render surface (spec §3.5): `--quiet` = the verdict card only ·
+    // `--no-progress`/`--plain`/a pipe = the plain storyboard · else Live.
+    let mode = if args.quiet {
+        verbs::run::RenderMode::Quiet
+    } else if args.no_progress || plain || !std::io::stdout().is_terminal() {
+        verbs::run::RenderMode::Plain
+    } else {
+        verbs::run::RenderMode::Live
+    };
+    let mut theme = term_theme(color.choice(), ascii || plain, link_when);
     // The duration accents ride the interactive surface ONLY — the
     // sober registers (piped · --no-progress · --quiet) keep their
     // exact bytes.
@@ -1021,27 +981,11 @@ fn run_verb(
     )
 }
 
-/// Resolve the live-render surface for `run` (spec §3.5 reduced surfaces):
-/// `--quiet` wins → the compact verdict card only; `--no-progress` OR a piped
-/// stdout → the plain final storyboard (no animation · CI-stable); otherwise
-/// the rich in-place repaint.
-fn resolve_run_mode(quiet: bool, no_progress: bool) -> verbs::run::RenderMode {
-    use verbs::run::RenderMode;
-    if quiet {
-        RenderMode::Quiet
-    } else if no_progress || !std::io::stdout().is_terminal() {
-        RenderMode::Plain
-    } else {
-        RenderMode::Live
-    }
-}
-
 /// Write shell completions attached to the PUBLIC binary name — `nika`,
 /// never the seed crate's file name (`#compdef nika-cli` would wire
 /// completions to a command users never type · found live 2026-07-05).
 fn write_completions(shell: clap_complete::Shell, out: &mut dyn std::io::Write) {
-    let mut cmd = Cli::command();
-    clap_complete::generate(shell, &mut cmd, "nika", out);
+    clap_complete::generate(shell, &mut Cli::command(), "nika", out);
 }
 
 /// Collect the colour-relevant environment facts once (the pure priority

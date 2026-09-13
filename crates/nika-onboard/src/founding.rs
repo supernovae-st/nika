@@ -21,7 +21,7 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use crate::recipes::{self, ScaffoldStatus};
-use crate::{Audit, Outcome, Wire, briefs, codes, gitignore};
+use crate::{Audit, Outcome, Wire, briefs, codes, gitignore, project_file};
 
 pub use briefs::agents_md;
 
@@ -29,10 +29,16 @@ pub use briefs::agents_md;
 /// the register by test so the two can never drift.
 pub const RECIPE_NAMES: [&str; 5] = ["agentic", "starter", "ship", "content", "minimal"];
 
+/// The workflow a plain `nika init` founds around (#1283): the hello
+/// lesson `nika try` rehearses — one file that audits clean on this
+/// binary and runs offline under `--model mock/echo`. `--recipe minimal`
+/// is the explicit no-workflow door.
+pub const DEFAULT_EXAMPLE: &str = "01-hello";
+
 /// The `--theme` vocabulary — `nika.dag.theme`'s own enum (the VS Code
 /// extension's canvas skin), stamped into `.vscode/settings.json`. The
-/// composition root mirrors this as its clap `ValueEnum`; here it stays
-/// plain (no CLI-framework dependency below the root).
+/// composition root hands the clap word to [`CanvasTheme::parse`]; here
+/// it stays plain (no CLI-framework dependency below the root).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CanvasTheme {
     /// The brand skin — engineered black · verb hues.
@@ -45,6 +51,10 @@ pub enum CanvasTheme {
     Auto,
 }
 
+/// The `--theme` vocabulary for clap (`value_parser`), in [`CanvasTheme`]
+/// order — pinned against [`CanvasTheme::parse`] by test.
+pub const CANVAS_THEMES: [&str; 4] = ["nika", "editor", "phosphor", "auto"];
+
 impl CanvasTheme {
     /// The wire word `nika.dag.theme` speaks.
     #[must_use]
@@ -55,6 +65,15 @@ impl CanvasTheme {
             Self::Phosphor => "phosphor",
             Self::Auto => "auto",
         }
+    }
+
+    /// The wire word back to the skin (`--theme` arrives as a clap string
+    /// at the root · the wizard's menu resolves its own way).
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        [Self::Nika, Self::Editor, Self::Phosphor, Self::Auto]
+            .into_iter()
+            .find(|c| c.as_str() == word)
     }
 }
 
@@ -102,8 +121,10 @@ pub(crate) fn render(lines: &[(char, String)]) -> String {
 /// The beginner's next move · init used to end SILENTLY (the 2026-07-05
 /// beginner walk: « you init and… sit there ») — an onboarding surface
 /// must hand over to the next command. Golden path: offline proof in
-/// 10s → scaffold → audit-before-tokens. Byte-stable: this is the exact
-/// non-interactive shape scripts have seen since #158.
+/// 10s → scaffold → audit-before-tokens. The shape scripts have seen
+/// since #158, now the hand-off of the workflow-less founds only
+/// (`--recipe minimal` · a headless `starter`): a plain init founds
+/// around [`DEFAULT_EXAMPLE`] and hands over to THAT file (#1283).
 pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika try 01-hello   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token";
 
 /// The scriptable path — briefs report with purposes, then each
@@ -130,15 +151,17 @@ pub fn scripted_run(
         };
     }
     let rows = apply_briefs(dir, force, canvas);
-    // The trace cover rides the same report — adds-only
-    // (`gitignore.rs`), so a re-run or the human's own entry is a calm
-    // skip row, and its write failure is the same exit-3 class as a
-    // brief's.
+    // The trace cover and the project file ride the same report —
+    // adds-only (`gitignore.rs` · `project_file.rs`), so a re-run or the
+    // human's own entry is a calm skip row, and a write failure is the
+    // same exit-3 class as a brief's.
     let git = gitignore::ensure(dir);
+    let project = project_file::ensure(dir, force);
     let failed = rows
         .iter()
         .any(|(_, o)| matches!(o, BriefOutcome::Failed(_)))
-        || matches!(git.1, gitignore::Outcome::Failed(_));
+        || matches!(git.1, gitignore::Outcome::Failed(_))
+        || matches!(project.1, project_file::Outcome::Failed(_));
     // Keep joined paths and receipt prefixes; explain each newly created
     // brief so the transcript helps humans review the generated setup.
     let mut lines: Vec<(char, String)> = rows
@@ -156,6 +179,7 @@ pub fn scripted_run(
         })
         .collect();
     lines.push(gitignore::report(&git.0, &git.1));
+    lines.push(project_file::report(&project.0, &project.1));
     let mut text = render(&lines);
     if failed {
         return Outcome::env(text);
@@ -184,7 +208,7 @@ pub fn scripted_run(
 
     let wiring = wire_receipts(dir, wires, wire);
     text.push_str(&wiring.text);
-    text.push_str("\nteam ·\n  nika init --project-file --yes   # optional shared budget and trace settings\n  Git: commit reviewed workflows, goldens, guides and shared settings.\n  Keep credentials, signing private keys and raw traces local; review artifacts.\n  Read NIKA.md for the file map and first workflow.\n");
+    text.push_str("\nteam ·\n  nika.yaml                        # shared cost ceiling + trace retention · commented until your team edits it\n  Git: commit reviewed workflows, goldens, guides, nika.yaml and shared settings.\n  Keep credentials, signing private keys and raw traces local; review artifacts.\n  Read NIKA.md for the file map and first workflow.\n");
 
     let next = first_workflow.map_or_else(
         || NEXT_BLOCK.to_owned(),
@@ -211,8 +235,9 @@ pub fn scripted_run(
 ///
 /// The example lane (a verbatim lesson) and a recipe (a template set)
 /// are two doors to the same ladder — the report and proof below are
-/// byte-identical between them. Neither door taken (plain `--yes`) is
-/// the historical shape: briefs only, nothing scaffolded.
+/// byte-identical between them. Neither door taken (plain `--yes`)
+/// founds around [`DEFAULT_EXAMPLE`] (#1283 · a project with zero
+/// workflows taught nothing); `--recipe minimal` is the briefs-only door.
 ///
 /// `Err` carries the honest refusal an unknown recipe earns on a direct
 /// lib call — clap's `value_parser` guards the CLI door, not this one.
@@ -238,7 +263,7 @@ fn found_from_source(
             };
             recipes::scaffold(dir, r, None, force)
         }
-        (None, None) => return Ok((None, codes::OK, false)),
+        (None, None) => recipes::scaffold_example(dir, DEFAULT_EXAMPLE, force),
     };
     scaffold_report(dir, &scaffolded, audit, text)
 }
@@ -257,7 +282,7 @@ fn scaffold_report(
         let rel = rel_to(dir, path);
         match status {
             ScaffoldStatus::Created => {
-                let _ = writeln!(text, "✔ created {rel}");
+                let _ = writeln!(text, "✔ created {rel} — {}", briefs::purpose(&rel));
                 // The proof ladder audits WORKFLOWS — the generated
                 // index rides the report but never the check.
                 if path.ends_with(".nika.yaml") {
@@ -460,6 +485,19 @@ mod tests {
         Outcome::ok(format!("{client}: wired (stub)"))
     }
 
+    /// The clap vocabulary and the enum cannot drift: every word parses
+    /// to the skin that speaks it, and nothing else parses.
+    #[test]
+    fn canvas_theme_words_round_trip_through_the_register() {
+        for word in CANVAS_THEMES {
+            assert_eq!(
+                CanvasTheme::parse(word).map(CanvasTheme::as_str),
+                Some(word)
+            );
+        }
+        assert_eq!(CanvasTheme::parse("neon"), None);
+    }
+
     #[test]
     fn scripted_init_preserves_a_wire_refusal() {
         let dir =
@@ -633,8 +671,9 @@ mod tests {
     fn successful_init_hands_over_to_the_next_command() {
         // The 2026-07-05 beginner walk: init ended SILENTLY (4 files ·
         // no workflow · no next step). An onboarding surface must hand
-        // over — the ok-path text carries the golden path.
+        // over — the ok-path text hands over to the founded workflow.
         let tmp = std::env::temp_dir().join(format!("nika-init-handover-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
         std::fs::create_dir_all(&tmp).expect("mkdir");
         let out = run(
             tmp.to_str().expect("utf8"),
@@ -648,8 +687,59 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
         assert_eq!(out.code, codes::OK);
         assert!(out.text.contains("next ·"), "{}", out.text);
-        assert!(out.text.contains("nika try 01-hello"));
-        assert!(out.text.contains("nika check"));
+        assert!(out.text.contains("nika check workflows/01-hello.nika.yaml"));
+        assert!(
+            out.text
+                .contains("nika run workflows/01-hello.nika.yaml --model mock/echo")
+        );
+    }
+
+    /// #1283 · a plain scripted init founds a COMPLETE project: the
+    /// project file (adds-only · the skip row on a re-run) and the hello
+    /// lesson as the first workflow, every created row saying why it
+    /// exists; `--recipe minimal` stays the briefs-only door with the
+    /// classic hand-off.
+    #[test]
+    fn plain_init_lays_the_project_file_and_the_hello_lesson() {
+        let tmp = std::env::temp_dir().join(format!("nika-init-default-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        std::fs::create_dir_all(&tmp).expect("mkdir");
+        let d = tmp.to_str().expect("utf8");
+        let out = run(d, false, true, None, None, &[], PLAIN);
+        assert_eq!(out.code, codes::OK, "{}", out.text);
+        assert!(
+            out.text
+                .lines()
+                .any(|l| l.starts_with("✔ created ") && l.contains("nika.yaml — team defaults")),
+            "the project file row says why: {}",
+            out.text
+        );
+        assert!(
+            out.text
+                .contains("✔ created workflows/01-hello.nika.yaml — a workflow"),
+            "the workflow row says why: {}",
+            out.text
+        );
+        assert!(
+            tmp.join("nika.yaml").exists() && tmp.join("workflows/01-hello.nika.yaml").exists()
+        );
+        assert!(
+            !out.text.contains(NEXT_BLOCK) && !out.text.contains("--project-file"),
+            "the hand-off is the founded file, the team block names the laid file: {}",
+            out.text
+        );
+        let again = run(d, false, true, None, None, &[], PLAIN);
+        assert!(
+            again
+                .text
+                .lines()
+                .any(|l| l.starts_with("· skipped ") && l.contains("nika.yaml (exists")),
+            "adds-only on a re-run: {}",
+            again.text
+        );
+        let minimal = run(d, false, true, Some("minimal"), None, &[], PLAIN);
+        assert!(minimal.text.contains(NEXT_BLOCK), "{}", minimal.text);
+        std::fs::remove_dir_all(&tmp).ok();
     }
 
     /// `--yes` (and any non-terminal) keeps the scriptable file report —
@@ -662,7 +752,7 @@ mod tests {
             tmp.to_str().expect("utf8"),
             false,
             true,
-            None,
+            Some("minimal"),
             None,
             &[],
             PLAIN,

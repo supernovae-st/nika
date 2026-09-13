@@ -357,7 +357,7 @@ fn execute_and_ask(
     max_cost_usd: Option<f64>,
     theme: Theme,
     mode: RenderMode,
-    (json, output_json, no_trace_file, no_outputs): (bool, bool, bool, bool),
+    (json, output_json, no_trace_file, no_outputs, scoped): (bool, bool, bool, bool, bool),
     cancel: &nika_types::cancel::CancelCtx,
     world: &AdmittedWorld,
 ) -> RunVerdict {
@@ -383,6 +383,7 @@ fn execute_and_ask(
         !no_outputs,
         model_override,
         &carry,
+        scoped,
     );
     let mut verdict = thread::block_on_run(&rt, future, cancel);
     let mut legs = 0usize;
@@ -416,7 +417,7 @@ fn execute_and_ask(
             max_cost_usd,
             theme,
             mode,
-            (json, output_json, no_trace_file, !no_outputs),
+            (json, output_json, no_trace_file, !no_outputs, scoped),
             &rt,
             cancel,
             world,
@@ -441,7 +442,7 @@ fn answered_leg(
     max_cost_usd: Option<f64>,
     theme: Theme,
     mode: RenderMode,
-    (json, output_json, no_trace_file, outputs): (bool, bool, bool, bool),
+    (json, output_json, no_trace_file, outputs, scoped): (bool, bool, bool, bool, bool),
     rt: &tokio::runtime::Runtime,
     cancel: &nika_types::cancel::CancelCtx,
     previous_world: &AdmittedWorld,
@@ -511,6 +512,7 @@ fn answered_leg(
         outputs,
         model_override,
         &carry,
+        scoped,
     );
     session
         .complete(thread::block_on_run(rt, future, cancel))
@@ -920,6 +922,7 @@ async fn execute(
     outputs: bool,
     model_override: Option<&str>,
     carry: &str,
+    scoped: bool,
 ) -> RunVerdict {
     // F-P3 · the run: declaration picks the event-identity seam:
     // `entropy: none | seeded(N)` mints deterministic stamps (replayable
@@ -936,6 +939,7 @@ async fn execute(
             trace,
             identity.0,
             carry,
+            scoped,
         )
         .await
     } else if json {
@@ -948,6 +952,7 @@ async fn execute(
             trace,
             identity,
             carry,
+            scoped,
         )
         .await
     } else {
@@ -963,6 +968,7 @@ async fn execute(
             identity.0,
             model_override,
             carry,
+            scoped,
         )
         .await
     }
@@ -986,6 +992,7 @@ async fn execute_output_json_lane(
     trace: TraceFileSink,
     execution: nika_types::id::ExecutionId,
     carry: &str,
+    scoped: bool,
 ) -> RunVerdict {
     let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
     fold.set_plan(plan_waves(wf, report));
@@ -993,7 +1000,7 @@ async fn execute_output_json_lane(
     fold.set_source_path(file);
     let tee = Tee::new(fold, trace);
     let mut events = ExecutionSink::new(tee, execution);
-    let (code, outcome) = drive(runtime, stamper, &mut events).await;
+    let (code, outcome) = drive(runtime, stamper, &mut events, scoped).await;
     let (mut sink, mut trace) = events.into_inner().into_parts();
     sink.print_final();
     // R4 — the auth-class tail rides stderr (stdout stays the clean
@@ -1074,10 +1081,11 @@ async fn execute_json_lane(
     trace: TraceFileSink,
     identity: (nika_types::id::ExecutionId, &str),
     carry: &str,
+    scoped: bool,
 ) -> RunVerdict {
     let tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
     let mut events = ExecutionSink::new(tee, identity.0);
-    let (code, outcome) = drive(runtime, stamper, &mut events).await;
+    let (code, outcome) = drive(runtime, stamper, &mut events, scoped).await;
     let (mut sink, mut trace) = events.into_inner().into_parts();
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
@@ -1164,6 +1172,7 @@ async fn execute_fold_lane(
     execution: nika_types::id::ExecutionId,
     model_override: Option<&str>,
     carry: &str,
+    scoped: bool,
 ) -> RunVerdict {
     let plan = plan_waves(wf, report);
     let map = (mode == RenderMode::Live && theme.accents)
@@ -1188,7 +1197,7 @@ async fn execute_fold_lane(
         trace,
     );
     let mut events = ExecutionSink::new(tee, execution);
-    let (code, outcome) = drive(runtime, stamper, &mut events).await;
+    let (code, outcome) = drive(runtime, stamper, &mut events, scoped).await;
     // The run settled: stop riders before the epilogue.
     if let Some(ticker) = &ticker {
         ticker.abort();
@@ -1375,8 +1384,13 @@ async fn drive(
     runtime: &AuthorizedRuntime,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
+    scoped: bool,
 ) -> (u8, RunOutcome) {
-    map_run_result(runtime.run(stamper, sink).await)
+    let (code, mut outcome) = map_run_result(runtime.run(stamper, sink).await);
+    if scoped {
+        outcome.outputs = epilogue::scoped_outputs(&outcome);
+    }
+    (code, outcome)
 }
 
 /// The runtime's verdict mapped to the exit code and the outcome — a launch

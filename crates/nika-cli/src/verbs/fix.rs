@@ -27,8 +27,16 @@ use crate::verbs::{VerbOutput, exit};
 /// back — repairs and stop notes included — and reported as a typed
 /// refusal; the file is written once, atomically, from committed text
 /// only, and never from text `check` could not read.
+///
+/// `json` (#1580): the same ladder, then the post-repair JSON report.
 #[must_use]
-pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -> VerbOutput {
+pub fn run(
+    path: &str,
+    json: bool,
+    native_strict: bool,
+    model: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
     let Ok(original) = std::fs::read_to_string(path) else {
         return VerbOutput::env(format!("cannot read {path}"));
     };
@@ -110,7 +118,13 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     }
     // The final truth is the NORMAL check of what is now on disk —
     // --fix is check plus a pen, never a different audit.
-    let verdict = super::check::run(path, false, native_strict, model, theme);
+    let verdict = super::check::run(path, json, native_strict, model, theme);
+    if json {
+        return VerbOutput {
+            text: with_repairs(&verdict.text, &repairs, &refusals, &stop_notes),
+            code: verdict.code,
+        };
+    }
     let stops = render_stops(&stop_notes, theme);
     let refused = render_refusals(&refusals, theme);
     VerbOutput {
@@ -123,6 +137,26 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
         ),
         code: verdict.code,
     }
+}
+
+/// The `--fix --json` document (#1580): the post-repair report plus
+/// `repairs[]` (`{kind, old, new, applied}`), `repair_refusals[]` (rounds
+/// rolled back) and `repair_stops[]`; prose (an unreadable file) rides as is.
+fn with_repairs(text: &str, repairs: &[Repair], refused: &[Refusal], stops: &StopNotes) -> String {
+    let Ok(serde_json::Value::Object(mut doc)) = serde_json::from_str::<serde_json::Value>(text)
+    else {
+        return text.to_owned();
+    };
+    let rows = repairs.iter().map(
+        |r| serde_json::json!({ "kind": r.kind, "old": r.old, "new": r.new, "applied": r.applied }),
+    );
+    let rolled = refused
+        .iter()
+        .map(|r| serde_json::json!({ "attempted": r.attempted, "reason": r.reason }));
+    doc.insert("repairs".to_owned(), rows.collect());
+    doc.insert("repair_refusals".to_owned(), rolled.collect());
+    doc.insert("repair_stops".to_owned(), serde_json::json!(stops.0));
+    serde_json::to_string_pretty(&doc).unwrap_or_else(|_| text.to_owned())
 }
 
 /// One round's savepoint — the text and the bookkeeping the round may
@@ -162,7 +196,7 @@ fn rollback_if_broken(
 }
 
 /// The env-shaped refusals for `--fix` combinations the loop cannot
-/// honor (stdin · `--json`'s immutable audit · multi-file).
+/// honor (stdin · `--infer-permits` · multi-file).
 #[must_use]
 pub fn refuse(reason: &str) -> VerbOutput {
     VerbOutput {
@@ -206,6 +240,7 @@ mod tests {
         let out = run(
             path.to_str().expect("utf8 path"),
             false,
+            false,
             None,
             Theme::new(false, true, false),
         );
@@ -229,6 +264,57 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// #1580 · the machine door: `--fix --json` applies the same ladder
+    /// through the check dispatch (no refusal), rewrites the file, and
+    /// prints the post-repair `report_version: 1` document with the
+    /// `repairs[]` rider — one JSON object, never the glyph report.
+    #[test]
+    fn fix_json_applies_the_repairs_and_reports_them_in_the_document() {
+        let dir = std::env::temp_dir().join(format!("nika-fix-json-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("typo.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: w\nmodel: mock/echo\npermits: {}\ntasks:\n  think:\n    infer: { promt: \"hi\", max_tokens: 10 }\noutputs:\n  said: \"${{ tasks.think.output }}\"\n",
+        )
+        .expect("write fixture");
+        let flags = super::super::check::CheckFlags {
+            json: true,
+            infer_permits: false,
+            native_strict: false,
+            profile: super::super::check::Profile::Advisory,
+        };
+        let out = super::super::check::dispatch(
+            &[path.to_string_lossy().into_owned()],
+            &flags,
+            true,
+            (None, None),
+            Theme::new(false, true, false),
+        );
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        let doc: serde_json::Value = serde_json::from_str(&out.text).expect("one JSON document");
+        assert_eq!(doc["report_version"], 1, "{}", out.text);
+        assert_eq!(doc["clean"], true, "{}", out.text);
+        let repairs = doc["repairs"].as_array().expect("the repairs rider");
+        assert!(
+            repairs.iter().any(|r| r["kind"] == "field"
+                && r["old"] == "promt"
+                && r["new"] == "prompt"
+                && r["applied"] == true),
+            "{}",
+            out.text
+        );
+        assert_eq!(doc["repair_refusals"], serde_json::json!([]));
+        assert_eq!(doc["repair_stops"], serde_json::json!([]));
+        assert!(
+            std::fs::read_to_string(&path)
+                .expect("re-read")
+                .contains("prompt:"),
+            "the file was rewritten"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
     fn fix_without_applicable_repairs_leaves_the_file_alone() {
         // A structural finding (missing required arg) has no rename —
@@ -240,6 +326,7 @@ mod tests {
         std::fs::write(&path, body).expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
+            false,
             false,
             None,
             Theme::new(false, true, false),
@@ -278,6 +365,7 @@ mod tests {
         .expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
+            false,
             false,
             None,
             Theme::new(false, true, false),
@@ -342,6 +430,7 @@ mod tests {
             std::fs::write(&path, body).expect("write fixture");
             let out = run(
                 path.to_str().expect("utf8 path"),
+                false,
                 false,
                 None,
                 Theme::new(false, true, false),
@@ -468,11 +557,11 @@ mod tests {
         .expect("write fixture");
         let p = path.to_str().expect("utf8 path");
         let theme = Theme::new(false, true, false);
-        let first = run(p, false, None, theme);
+        let first = run(p, false, false, None, theme);
         assert!(first.text.contains("1 repair applied"), "{}", first.text);
         let healed = std::fs::read_to_string(&path).expect("re-read");
         // idempotence: the second run touches nothing
-        let second = run(p, false, None, theme);
+        let second = run(p, false, false, None, theme);
         assert!(
             second.text.contains("no machine-applicable repairs"),
             "{}",
@@ -515,6 +604,7 @@ mod tests {
         let out = run(
             path.to_str().expect("utf8 path"),
             false,
+            false,
             None,
             Theme::new(false, true, false),
         );
@@ -542,6 +632,7 @@ mod tests {
         let out = run(
             path.to_str().expect("utf8 path"),
             false,
+            false,
             None,
             Theme::new(false, true, false),
         );
@@ -568,6 +659,7 @@ mod tests {
         std::fs::write(&path, body).expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
+            false,
             false,
             None,
             Theme::new(false, true, false),
@@ -610,6 +702,7 @@ mod tests {
         let out = run(
             path.to_str().expect("utf8 path"),
             false,
+            false,
             None,
             Theme::new(false, true, false),
         );
@@ -648,6 +741,7 @@ mod tests {
         .expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
+            false,
             false,
             None,
             Theme::new(false, true, false),
@@ -694,6 +788,7 @@ mod tests {
         let out = run(
             path.to_str().expect("utf8 path"),
             false,
+            false,
             None,
             Theme::new(false, true, false),
         );
@@ -720,6 +815,7 @@ mod tests {
         .expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
+            false,
             false,
             None,
             Theme::new(false, true, false),
@@ -756,6 +852,7 @@ mod tests {
         let out = run(
             path.to_str().expect("utf8 path"),
             false,
+            false,
             None,
             Theme::new(false, true, false),
         );
@@ -790,6 +887,7 @@ mod tests {
         .expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
+            false,
             false,
             None,
             Theme::new(false, true, false),
@@ -838,6 +936,7 @@ mod tests {
         let out = run(
             path.to_str().expect("utf8 path"),
             false,
+            false,
             None,
             Theme::new(false, true, false),
         );
@@ -875,6 +974,7 @@ mod tests {
         let out = run(
             path.to_str().expect("utf8 path"),
             false,
+            false,
             None,
             Theme::new(false, true, false),
         );
@@ -901,6 +1001,7 @@ mod tests {
         .expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
+            false,
             false,
             None,
             Theme::new(false, true, false),
@@ -933,6 +1034,7 @@ mod tests {
         .expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
+            false,
             false,
             None,
             Theme::new(false, true, false),
@@ -977,6 +1079,7 @@ mod tests {
         let out = run(
             path.to_str().expect("utf8 path"),
             false,
+            false,
             None,
             Theme::new(false, true, false),
         );
@@ -1005,6 +1108,7 @@ mod tests {
         .expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
+            false,
             false,
             None,
             Theme::new(false, true, false),

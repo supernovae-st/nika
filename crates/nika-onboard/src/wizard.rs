@@ -59,8 +59,8 @@ struct Choices {
     model: Option<String>,
     canvas: Option<CanvasTheme>,
     wires: Vec<&'static str>,
-    /// `true` = the human took the project-file offer (D-2026-08-11-N5)
-    /// — lay the starter `nika.yaml` at founding.
+    /// `false` = the human declined the project file (`n` at the offer ·
+    /// #1283 flipped the default: Enter lays the starter `nika.yaml`).
     project_file: bool,
 }
 
@@ -248,10 +248,12 @@ fn ask_wires(
     Ok(Some(wires))
 }
 
-/// The project-file beat (D-2026-08-11-N5) — the ONE offer question:
-/// `y` lays a starter `nika.yaml`, Enter skips (the file is optional;
-/// absence IS the defaults — an offer, never a toll). A prose answer
-/// is said and re-asked (the P0-8 loop discipline, every menu beat).
+/// The project-file beat — the ONE offer question, default flipped by
+/// #1283 (the D-2026-08-11-N5 offer stays an offer, never a toll): Enter
+/// lays the starter `nika.yaml` — the team's shared ceiling and
+/// retention, commented so it governs nothing until edited — and `n`
+/// skips. A prose answer is said and re-asked (the P0-8 loop
+/// discipline, every menu beat).
 fn ask_project_file(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
@@ -267,18 +269,16 @@ fn ask_project_file(
         out,
         theme,
         &format!(
-            "`y` to lay it, or Enter to skip {}",
-            theme.paint(Role::Dim, "[skip]")
+            "Enter to lay it, or `n` to skip {}",
+            theme.paint(Role::Dim, "[lay]")
         ),
-        "`y` lays it · Enter skips",
-        |raw| {
-            matches!(
-                raw.trim().to_ascii_lowercase().as_str(),
-                "y" | "yes" | "o" | "oui"
-            )
-            .then_some(true)
+        "Enter lays it · `n` skips",
+        |raw| match raw.trim().to_ascii_lowercase().as_str() {
+            "y" | "yes" | "o" | "oui" => Some(true),
+            "n" | "no" | "non" => Some(false),
+            _ => None,
         },
-        || false,
+        || true,
     )
 }
 
@@ -332,9 +332,9 @@ fn found(
     failed |= matches!(git_outcome, gitignore::Outcome::Failed(_));
     let (mark, msg) = gitignore::report(&relative(dir, &git_path), &git_outcome);
     writeln!(out, "{}", brief_line(theme, mark, &msg)).ok();
-    // The starter `nika.yaml` — ONLY when the offer was taken, riding
-    // the same adds-only report (D-2026-08-11-N5 · the gitignore row's
-    // sibling: existing = skip · --force overrides).
+    // The starter `nika.yaml` — unless the human declined, riding the
+    // same adds-only report (the gitignore row's sibling: existing =
+    // skip · --force overrides).
     if choices.project_file {
         failed |= lay_project_file(dir, force, theme, out);
     }
@@ -349,7 +349,11 @@ fn found(
     for (path, status) in &scaffolded {
         let rel = relative(dir, path);
         let line = match status {
-            ScaffoldStatus::Created => brief_line(theme, '✔', &format!("created {rel}")),
+            ScaffoldStatus::Created => brief_line(
+                theme,
+                '✔',
+                &format!("created {rel} — {}", crate::briefs::purpose(&rel)),
+            ),
             ScaffoldStatus::Skipped => {
                 brief_line(theme, '·', &format!("skipped {rel} (exists · --force)"))
             }
@@ -409,9 +413,9 @@ fn found(
     }
 }
 
-/// The starter `nika.yaml` row — laid ONLY when the offer was taken,
+/// The starter `nika.yaml` row — laid unless the human declined,
 /// riding the same adds-only report as the gitignore cover
-/// (D-2026-08-11-N5). Returns `true` when the write FAILED (init's
+/// (#1283). Returns `true` when the write FAILED (init's
 /// one environment error), so `found` folds it into its early exit
 /// (extracted under the 100-line fn law).
 fn lay_project_file(dir: &str, force: bool, theme: Theme, out: &mut dyn std::io::Write) -> bool {
@@ -739,16 +743,16 @@ mod tests {
         std::fs::remove_dir_all(dir).expect("remove owned fixture");
     }
 
-    /// Two Enters + skip + skip + skip = the golden path: agentic
-    /// curriculum · offline mock · no canvas stamp · no wires · no
-    /// project file — briefs + 4 workflows on disk, every one audited,
-    /// the panel handed back.
+    /// Five Enters = the golden path: agentic curriculum · offline mock
+    /// · no canvas stamp · no wires · the project file laid (#1283) —
+    /// briefs + nika.yaml + 4 workflows on disk, every one audited, the
+    /// panel handed back.
     #[test]
     fn golden_path_founds_the_agentic_project() {
         let dir = fresh_dir("golden");
         let d = dir.to_str().expect("utf8");
         // recipe Enter (agentic) · model Enter (mock) · canvas Enter
-        // (skip) · agents Enter (skip) · project file Enter (skip)
+        // (skip) · agents Enter (skip) · project file Enter (lay)
         let mut input = std::io::Cursor::new(b"\n\n\n\n\n".to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
@@ -777,6 +781,7 @@ mod tests {
         );
         for rel in [
             "AGENTS.md",
+            "nika.yaml",
             "workflows/01-hello-chain.nika.yaml",
             "workflows/04-agent-loop.nika.yaml",
         ] {
@@ -1039,13 +1044,13 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// Enter SKIPS the offer — never laid silently, nothing on disk.
+    /// `n` SKIPS the offer — nothing on disk, and the row says nothing.
     #[test]
-    fn enter_skips_the_offer_and_nothing_is_laid() {
+    fn n_skips_the_offer_and_nothing_is_laid() {
         let dir = fresh_dir("offer-skip");
         let d = dir.to_str().expect("utf8");
-        // recipe 5 · canvas Enter · agents Enter · project file Enter
-        let mut input = std::io::Cursor::new(b"5\n\n\n\n".to_vec());
+        // recipe 5 · canvas Enter · agents Enter · project file `n`
+        let mut input = std::io::Cursor::new(b"5\n\n\nn\n".to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
             d,
@@ -1063,7 +1068,7 @@ mod tests {
             !shown.contains("created nika.yaml"),
             "no lay row on a skip: {shown}"
         );
-        assert!(!dir.join("nika.yaml").exists(), "never laid silently");
+        assert!(!dir.join("nika.yaml").exists(), "declined = not laid");
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -1135,8 +1140,8 @@ mod tests {
         let dir = fresh_dir("offer-reask");
         let d = dir.to_str().expect("utf8");
         // recipe 5 · canvas Enter · agents Enter · project file
-        // « peut-être » (invalid → re-asked) · Enter (skip)
-        let mut input = std::io::Cursor::new("5\n\n\npeut-être\n\n".as_bytes().to_vec());
+        // « peut-être » (invalid → re-asked) · `n` (skip)
+        let mut input = std::io::Cursor::new("5\n\n\npeut-être\nn\n".as_bytes().to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
             d,
