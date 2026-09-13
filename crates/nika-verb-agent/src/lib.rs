@@ -1069,11 +1069,13 @@ where
         if whitelist.is_empty() {
             return Ok(Vec::new()); // pure conversation · skip the seam
         }
-        let universe = self
+        let mut universe = self
             .tool_defs
             .tool_defs()
             .await
             .map_err(|source| VerbAgentError::ToolDefs { source })?;
+        // #1575 · the approved `mcp:` defs the invoke seam's plane offers.
+        universe.extend(self.invoke.mcp_tool_defs());
         let mut defs: Vec<ToolDef> = universe
             .into_iter()
             // Drop every LOOP-OWNED name a source supplied (the loop

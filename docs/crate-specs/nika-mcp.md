@@ -5,8 +5,8 @@
 | Status | **WIP → ADMISSION** (Phase B announce-ladder · `nika mcp` v0.1 IN-BINARY · D-2026-06-10-N6 launch floor · ADR-003 12 gates). In `workspace.metadata.diamond.wip` until this admission lands. |
 | Layer | **L4 — interface** (operator/agent surface) · gated on L0 only (pure static analysis over `nika-schema` + `nika-error` + `nika-pack`) · **sync · stdio** |
 | Sub-tier | L4-surface — the **agent surface**. A hand-rolled MCP server that exposes Nika's STATIC, read-only tools (9 · `nika_check` · `nika_inspect` · `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` · `nika_canon` · `nika_catalog` · `nika_tools`) to any connecting client (Cursor · Claude Desktop · Zed · an agent) over newline-delimited JSON-RPC 2.0 on stdio. Reachable the day `nika --help` lists `mcp`. |
-| Design | ONE crate, **zero SDK**. The transport is hand-rolled newline-delimited JSON-RPC 2.0 over stdio (`serde_json` the only wire dep) — the same « talk the protocol directly » discipline Diamond uses for provider wire formats. The protocol dispatch (`handle`) is a **PURE function**; the crate is split into `protocol` (the pure dispatcher · version negotiation · batch) + `tools` (the pure static-analysis catalog) + `lib` (the stdio I/O pump). Running a workflow is **NOT** exposed — that needs the effect-permits boundary, so the MCP surface is read-only by construction (`nika run` stays the gated, audited effectful path). |
-| LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) · **current ≈540 src** (lib 92 · protocol 283 · tools 200) |
+| Design | ONE crate, **zero SDK**. The transport is hand-rolled newline-delimited JSON-RPC 2.0 over stdio (`serde_json` the only wire dep) — the same « talk the protocol directly » discipline Diamond uses for provider wire formats. The protocol dispatch (`handle`) is a **PURE function**; the server half is split into `protocol` (the pure dispatcher · version negotiation · batch) + `tools` (the pure static-analysis catalog) + `lib` (the stdio I/O pump). Running a workflow is **NOT** exposed — that needs the effect-permits boundary, so the MCP surface is read-only by construction (`nika run` stays the gated, audited effectful path). The **client half** (§6) is `client` (the registry + the pin flow) · `session` (one confined stdio server · handshake · bounded `tools/list` / `tools/call`) · `pin` (the approved-definitions lockfile) · `dispatch` (the runtime plane a run rides · approved tools only) · `sandbox` (the confinement the spawn rides). |
+| LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) · the server half ≈540 src (lib · protocol · tools) · the client half split at the file cap 2026-09-13 (`client` 1139 → `client` + `session`) |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` (Foundation crate · ADR-017) |
 | ADRs | ADR-003 (12-gate admission) · **ADR-080 (MCP stdio · CVE · sandbox)** · D-2026-06-10-N6 (launch-surface-complete · MCP at announce) |
 | Error range | **none user-facing** — protocol errors travel IN-BAND as JSON-RPC error replies (`-32601` method not found · `-32602` invalid params · `-32700` parse error · all JSON-RPC 2.0 standard). The crate's own `McpError` is an internal `thiserror` enum for a **dead transport** only (a broken stdio pipe) · NOT a `NIKA-XXXX` range (transport failures never reach the workflow author). A TOOL failure is a successful reply with `isError: true` (the model SEES it · MCP law). |
@@ -75,6 +75,47 @@ workflow ever RUNS through MCP. That purity is the structural guarantee that
 makes a tool safe to expose to any connecting client (ADR-080 · MCP stdio CVE
 sandbox). The effectful `run` path is gated behind `permits:` and lives in
 `nika-cli`/`nika-runtime`, never here.
+
+## 6. The client half — registry · pins · runtime dispatch
+
+The crate also speaks MCP as a **client**, for the servers a workflow
+invokes (`invoke: { tool: "mcp:<server>/<tool>" }`). The operator guide is
+`docs/ops/mcp-servers.md`; the contract:
+
+- **`client`** — the registry `.nika/mcp_servers.json` (`mcp_servers_format: 1`
+  · `servers.<name>.{command, args, network}` · strict, teaching parse) and
+  the pin flow over the `ToolsListDyn` seam: `approve_server` (the operator
+  re-pin · `nika mcp approve <server>`) and `connect_verified` (TOFU enroll ·
+  verify · drift refusal). `StdioMcpClient` is the one-shot production
+  `tools/list` (open a session, ask, drop).
+- **`session`** — `StdioSession`: spawn CONFINED (the exec verb's
+  `CommandSandbox` · fs = the project tree · net = the entry's arm · env =
+  the runner floor), handshake, bounded request/reply, SIGKILL on drop
+  (INV-011). The child's **stderr tail** (4 KiB) and the confinement note
+  ride every transport failure (#1376 · a launcher dying under the sandbox
+  reads its own cause). Two seams: `McpConnectDyn` (entry → session) and
+  `McpSessionDyn` (`tools_list` · `tools_call` → `CallOutcome` = text
+  blocks · `structuredContent` · `isError`).
+- **`pin`** — `.nika/mcp_pins.json` (`mcp_pins_format: 1`): one blake3 pin
+  per tool over `{name, description, inputSchema}` + the snapshot, keyed by
+  the server's identity (command + args · re-pointing is drift). A
+  hand-edited lockfile is `NIKA-MCP-004`, never re-anchored.
+- **`dispatch`** — `McpToolPlane`, the runtime plane (#1575), handed to the
+  invoke verb as `nika_runtime::McpPlane` via `dispatch::run_plane`. The law
+  is **approved tools only**, judged before each effect: server in the
+  registry (else `NotFound` → `NIKA-INVOKE-001`) → tool in the approved pin
+  set (else `NIKA-MCP-006`, no spawn) → live `tools/list` matches the pins
+  (else `NIKA-MCP-003`, session dropped) → `tools/call` (an MCP `isError` is
+  `NIKA-MCP-002` · a dead pipe is `NIKA-MCP-001` transient, the session is
+  reopened on the next call). One session per server per plane; the
+  registry + lockfile are read once, lazily. `tool_defs()` offers the
+  approved definitions (from the lockfile · no spawn) under their
+  `mcp:<server>/<tool>` names to the agent universe.
+
+Codes: `NIKA-MCP-001` (not reachable · not configured) and `NIKA-MCP-002`
+(the tool call failed) are the spec's; `003` drift · `004` corrupt lockfile
+· `005` sandbox refusal · `006` unapproved are the pin family's own, each
+naming its remedy in the text.
 
 ---
 

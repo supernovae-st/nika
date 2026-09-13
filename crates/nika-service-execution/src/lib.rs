@@ -599,6 +599,13 @@ impl AuthorizedRuntime {
         self
     }
 
+    /// Attach the MCP plane (`mcp:<server>/<tool>` resolution · #1575).
+    #[must_use]
+    pub fn with_mcp_plane(mut self, plane: nika_runtime::McpPlane) -> Self {
+        self.runtime = self.runtime.with_mcp_plane(plane);
+        self
+    }
+
     /// Enable durable prompt pauses.
     #[must_use]
     pub fn with_prompt_pause(mut self, pause: bool) -> Self {

@@ -285,6 +285,19 @@ pub enum PinError {
         /// The OS error.
         why: String,
     },
+    /// A run named a tool the operator never approved (NIKA-MCP-006 · the
+    /// approved-only law of the runtime dispatch): the server has no pins
+    /// at all, or the named tool is outside its pinned set. Refused BEFORE
+    /// any spawn — `nika mcp approve <server>` is the remediation.
+    Unapproved {
+        /// The configured server name.
+        server: String,
+        /// The tool the run named.
+        tool: String,
+        /// The tool names currently pinned for the server (empty = never
+        /// approved).
+        pinned: Vec<String>,
+    },
 }
 
 impl PinError {
@@ -297,6 +310,7 @@ impl PinError {
             Self::Drift(_) => Some("NIKA-MCP-003"),
             Self::Corrupt { .. } => Some("NIKA-MCP-004"),
             Self::Sandbox { .. } => Some("NIKA-MCP-005"),
+            Self::Unapproved { .. } => Some("NIKA-MCP-006"),
             Self::Io { .. } => None,
         }
     }
@@ -338,6 +352,25 @@ impl std::fmt::Display for PinError {
             Self::Io { path, why } => {
                 write!(f, "cannot use {}: {why}", path.display())
             }
+            Self::Unapproved {
+                server,
+                tool,
+                pinned,
+            } if pinned.is_empty() => write!(
+                f,
+                "[NIKA-MCP-006] MCP server `{server}` is declared but not approved — no tool definition is pinned, so `{tool}` cannot run\n  \
+                 review its tools and approve them: nika mcp approve {server}"
+            ),
+            Self::Unapproved {
+                server,
+                tool,
+                pinned,
+            } => write!(
+                f,
+                "[NIKA-MCP-006] MCP tool `{tool}` is not in the approved pin set of server `{server}` (pinned: {})\n  \
+                 if the server now serves it, review and re-pin: nika mcp approve {server}",
+                pinned.join(" · ")
+            ),
         }
     }
 }
@@ -548,6 +581,25 @@ impl PinStore {
         );
         self.write_atomic()?;
         Ok(pinned_at)
+    }
+
+    /// The APPROVED definitions recorded for `server` (name · description ·
+    /// inputSchema, the pinned snapshot) — what the runtime dispatch offers
+    /// and gates on without spawning anything; `None` = never approved.
+    pub(crate) fn pinned_defs(&self, server: &str) -> Option<Vec<McpToolDef>> {
+        self.file.servers.get(server).map(|entry| {
+            entry
+                .tools
+                .iter()
+                .map(|(name, tool)| {
+                    McpToolDef::new(
+                        name.clone(),
+                        tool.description.clone(),
+                        tool.input_schema.clone(),
+                    )
+                })
+                .collect()
+        })
     }
 
     /// The pins currently recorded for `server` (for the approve receipt).

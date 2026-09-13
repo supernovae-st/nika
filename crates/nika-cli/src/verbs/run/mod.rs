@@ -649,6 +649,10 @@ fn composed_runtime(
                 // manifest journals where every bound input came from.
                 .with_input_origins(origins)
                 .with_max_cost_usd(max_cost_usd)
+                // #1575 · the MCP plane: `mcp:<server>/<tool>` resolves
+                // against the project registry + approved pins (run lane
+                // only · `nika test` keeps every mcp: refused).
+                .with_mcp_plane(nika_mcp::dispatch::run_plane("."))
                 // ADR-099 rider — ALWAYS armed: a blocked `nika:prompt`
                 // pauses durably on EVERY lane; the old `json ||
                 // output_json` proxy left a headless TEXT run dying at
