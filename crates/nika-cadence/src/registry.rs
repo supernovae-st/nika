@@ -11,7 +11,10 @@
 //! determinism, and this crate simply holds no maps · no `Vec` in
 //! public returns (FCI-014) — accessors hand out slices or iterators.
 
+use std::collections::BTreeMap;
+
 use serde::Deserialize;
+use serde::de::{self, Deserializer, MapAccess, Visitor};
 
 use crate::cron::CronSpec;
 
@@ -137,6 +140,19 @@ pub struct Beat {
     /// what authorizes; a merge arms nothing).
     #[serde(default)]
     pub par: Option<String>,
+    /// Per-beat inputs (#1370) — the `--var KEY=VALUE` pairs every fire
+    /// binds to the workflow's declared `inputs:`, so a tenant-
+    /// parameterized workflow is armed once per tenant instead of
+    /// rendered once per tenant. One SCALAR per key (string · number ·
+    /// bool), carried as its `--var` text: the workflow's declared type
+    /// drives the coercion at admission, exactly as a run's `--var`
+    /// does (a typed array input takes its JSON text in quotes). Key-
+    /// sorted (a `BTreeMap`): the generation hashes it deterministically.
+    /// Absent reads as EMPTY — the beat it always was. The key SHAPE is
+    /// judged by the validator; the membership (declared or not) is the
+    /// fire edge's, which alone opens the workflow.
+    #[serde(default, deserialize_with = "scalar_inputs")]
+    pub inputs: BTreeMap<String, String>,
     /// Refused in round 1: signature verification is ②'s (`serve`) —
     /// we claim nothing we cannot prove.
     #[serde(default)]
@@ -170,6 +186,94 @@ impl Beat {
     #[must_use]
     pub fn is_active(&self) -> bool {
         self.actif.unwrap_or(true)
+    }
+
+    /// The inputs in the `--var` shape (`KEY=VALUE`), key-sorted — the
+    /// run edge hands them to the same door a run's `--var` enters, so
+    /// unknown keys, declared types and `required:` are judged there,
+    /// once, by the workflow's own declaration.
+    pub fn input_vars(&self) -> impl Iterator<Item = String> + '_ {
+        self.inputs
+            .iter()
+            .map(|(key, value)| format!("{key}={value}"))
+    }
+}
+
+/// `inputs:` — a mapping of SCALARS, each carried as its `--var` text.
+/// A list, a map or a null refuses at parse, naming the key and the
+/// spelling a typed collection input accepts (its JSON text, quoted).
+fn scalar_inputs<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<BTreeMap<String, String>, D::Error> {
+    struct Inputs;
+
+    impl<'de> Visitor<'de> for Inputs {
+        type Value = BTreeMap<String, String>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("inputs: a mapping of scalar values (string · number · bool)")
+        }
+
+        fn visit_map<A: MapAccess<'de>>(self, mut access: A) -> Result<Self::Value, A::Error> {
+            let mut out = BTreeMap::new();
+            while let Some(key) = access.next_key::<String>()? {
+                let value = access
+                    .next_value::<ScalarText>()
+                    .map_err(|e| de::Error::custom(format!("inputs.{key}: {e}")))?;
+                if out.insert(key.clone(), value.0).is_some() {
+                    // Never last-wins: two values for one `--var KEY` is a
+                    // guess about which tenant fires.
+                    return Err(de::Error::custom(format!(
+                        "inputs.{key}: written twice — one value per key"
+                    )));
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    deserializer.deserialize_map(Inputs)
+}
+
+/// One scalar as the text `--var` would carry: strings verbatim, numbers
+/// and booleans in their shortest spelling.
+struct ScalarText(String);
+
+impl<'de> Deserialize<'de> for ScalarText {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Scalar;
+
+        impl Visitor<'_> for Scalar {
+            type Value = ScalarText;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str(
+                    "one scalar (string · number · bool) — a list or map input is written as its JSON text in quotes ('[\"a\",\"b\"]')",
+                )
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                Ok(ScalarText(v.to_owned()))
+            }
+
+            fn visit_bool<E: de::Error>(self, v: bool) -> Result<Self::Value, E> {
+                Ok(ScalarText(v.to_string()))
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                Ok(ScalarText(v.to_string()))
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                Ok(ScalarText(v.to_string()))
+            }
+
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<Self::Value, E> {
+                Ok(ScalarText(v.to_string()))
+            }
+        }
+
+        deserializer.deserialize_any(Scalar)
     }
 }
 

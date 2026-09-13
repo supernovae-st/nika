@@ -26,7 +26,7 @@ pub fn parse_registry(text: &str) -> Result<ArmRegistry, CadenceError> {
         CadenceError::file(
             CadenceErrorKind::Grammar,
             format!("le registre ne se lit pas · {e}"),
-            "la grammaire est fermée · clés connues : nika · ceiling · arm (workflow · cadence · où · plafond · manqué · chevauchement · après_saut · actif · raison · jusqu_au · tolérance · décalage · par)",
+            "la grammaire est fermée · clés connues : nika · ceiling · arm (workflow · cadence · où · plafond · manqué · chevauchement · après_saut · actif · raison · jusqu_au · tolérance · décalage · par · inputs)",
         )
     })
 }
@@ -122,6 +122,31 @@ fn validate_beat(beat: &Beat, faults: &mut Vec<CadenceError>) {
         ));
     }
     validate_beat_guards(beat, faults);
+    validate_beat_inputs(beat, faults);
+}
+
+/// The input KEY law (#1370): a key is the `--var KEY` the run edge
+/// re-spells as `KEY=VALUE` and splits at the first `=` after trimming —
+/// an empty key, a key carrying `=`, whitespace or a control character
+/// cannot round-trip through that door. The membership judgment
+/// (declared by the workflow or not) is the fire edge's: this grammar
+/// never opens the workflow file.
+fn validate_beat_inputs(beat: &Beat, faults: &mut Vec<CadenceError>) {
+    for key in beat.inputs.keys() {
+        if key.is_empty()
+            || key.contains('=')
+            || key.chars().any(|c| c.is_whitespace() || c.is_control())
+        {
+            faults.push(CadenceError::beat(
+                &beat.workflow,
+                CadenceErrorKind::InputName,
+                format!(
+                    "inputs: `{key}` · a key is the `--var KEY` — non-empty, no `=`, no whitespace"
+                ),
+                "inputs: { tenant: acme } — the workflow's declared input name, as `${{ inputs.tenant }}` reads it",
+            ));
+        }
+    }
 }
 
 /// The conditional laws of one beat — each refuses its own broken
