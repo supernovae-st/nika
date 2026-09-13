@@ -80,7 +80,10 @@
 //!   sovereign: the engine's own `nika-bm25` satellite, zero LLM calls);
 //! - **stall guard** (`guard` · private) — windowed cycle detection
 //!   over action+observation turn signatures, with a bounded Reflexion
-//!   nudge before the NIKA-467 stop;
+//!   nudge before the NIKA-467 stop — and the **effect memory** (#1470):
+//!   an effectful call that settled this run (a keyless `nika:fetch`
+//!   POST · a destructive MCP tool) is never re-issued with the same
+//!   arguments, the model is told why instead;
 //! - **intrinsics** (`intrinsic` · private) — `nika:compose` drafts a
 //!   Nika workflow and gets the full `nika check` verdict back in-turn
 //!   (« generation is not permission »: composition yields an artifact
@@ -103,6 +106,7 @@ pub mod errors;
 pub mod observe;
 pub mod whitelist;
 
+mod batch;
 mod guard;
 #[cfg(feature = "access-harness")]
 pub mod harness_path;
@@ -128,6 +132,7 @@ use nika_types::blame::BlamePolarity;
 use nika_types::cost::SpendOnFailure;
 use nika_verb_invoke::{InvokeInput, InvokeVerb, VerbInvokeError};
 
+use crate::batch::{BatchOutcome, Resolved};
 use crate::guard::{Guard, GuardVerdict};
 use crate::request::{build_request, joined_text, opening_messages, routing_query, schema_request};
 use crate::router::ToolRouter;
@@ -803,7 +808,7 @@ where
         run_start: Option<ToolRunStart>,
     ) -> Result<(String, f64), VerbAgentError> {
         let batch = self
-            .run_batch(observer, turn, tool_uses, router, run_start)
+            .run_batch(observer, turn, tool_uses, router, guard, run_start)
             .await?;
         // Consult the guard BEFORE pushing, so a nudge rides INSIDE the
         // same user message as the tool results — never a second adjacent
@@ -881,14 +886,25 @@ where
         turn: u32,
         tool_uses: Vec<ToolUse>,
         router: &mut ToolRouter,
+        guard: &mut Guard,
         run_start: Option<ToolRunStart>,
     ) -> Result<BatchOutcome, VerbAgentError> {
         use futures_util::{StreamExt, TryStreamExt};
         let cap = self.config.max_parallel_tools.max(1);
+        // #1470 · the effect memory judges BEFORE phase 1: a replayed
+        // effectful call is refused in place (never dispatched), so the
+        // batch keeps request order and the model reads why.
+        let gated: Vec<(ToolUse, guard::EffectGate)> = tool_uses
+            .into_iter()
+            .map(|u| {
+                let gate = guard.effect_gate(&u.name, &u.args);
+                (u, gate)
+            })
+            .collect();
         let resolved: Vec<Resolved> = futures_util::stream::iter(
-            tool_uses
+            gated
                 .into_iter()
-                .map(|u| self.resolve_tool(u, run_start)),
+                .map(|(u, gate)| self.resolve_tool(u, gate, run_start)),
         )
         .buffered(cap)
         .try_collect()
@@ -914,12 +930,25 @@ where
             // loop-served, never a tool invocation, so it must not surface
             // as one on the stream (a `tool_invoked` for a call that never
             // hit the executor would mislead every reader).
+            // An effectful call that settled (either way) is remembered; a
+            // refused replay is a decision, never a dispatch (no
+            // `tool_invoked` for a call that never hit the executor).
+            match r.gate {
+                guard::EffectGate::Fresh(sig) => guard.remember_effect(sig),
+                guard::EffectGate::Replay => observer.on_event(&AgentEvent::EffectReplayRefused {
+                    turn,
+                    name: r.name.clone(),
+                }),
+                guard::EffectGate::Free => {}
+            }
             if let Some(outcome) = r.compose {
                 observer.on_event(&AgentEvent::ComposeChecked {
                     turn,
                     valid: outcome.valid,
                     violations: outcome.violations,
                 });
+            } else if r.gate == guard::EffectGate::Replay {
+                // refused in place · the block still shapes the turn signature
             } else if let ContentBlock::ToolResult { is_error, .. } = &r.block {
                 had_dispatch = true;
                 all_dispatch_errors &= *is_error;
@@ -966,32 +995,38 @@ where
     async fn resolve_tool(
         &self,
         u: ToolUse,
+        gate: guard::EffectGate,
         run_start: Option<ToolRunStart>,
     ) -> Result<Resolved, VerbAgentError> {
+        if gate == guard::EffectGate::Replay {
+            // #1470 · refused in place: the executor never sees a replay.
+            let block = ContentBlock::ToolResult {
+                tool_use_id: u.id,
+                content: guard::effect_replay_text(&u.name),
+                is_error: true,
+            };
+            return Ok(Resolved::new(block, u.name, u.args, None, None, gate));
+        }
         if let Some(intrinsic) = intrinsic::Intrinsic::parse(&u.name) {
             let (content, is_error, outcome) = self.run_intrinsic(intrinsic, u.args.clone()).await;
-            Ok(Resolved {
-                block: ContentBlock::ToolResult {
-                    tool_use_id: u.id,
-                    content,
-                    is_error,
-                },
-                name: u.name,
-                args: u.args,
-                cost_usd: None,
-                compose: Some(outcome),
-            })
+            let block = ContentBlock::ToolResult {
+                tool_use_id: u.id,
+                content,
+                is_error,
+            };
+            Ok(Resolved::new(
+                block,
+                u.name,
+                u.args,
+                None,
+                Some(outcome),
+                gate,
+            ))
         } else {
             let (block, cost_usd) = self
                 .dispatch(&u.id, &u.name, u.args.clone(), run_start)
                 .await?;
-            Ok(Resolved {
-                block,
-                name: u.name,
-                args: u.args,
-                cost_usd,
-                compose: None,
-            })
+            Ok(Resolved::new(block, u.name, u.args, cost_usd, None, gate))
         }
     }
 
@@ -1132,33 +1167,6 @@ where
             }
         }
     }
-}
-
-/// One resolved tool call (phase-1 output · ADR-097): the result block
-/// plus what the fold needs (name + args for the signature/router · the
-/// compose outcome for its telemetry).
-struct Resolved {
-    block: ContentBlock,
-    name: String,
-    args: serde_json::Value,
-    /// Real spend the tool reported (top-level `cost_usd` in its
-    /// structured output) — summed into the batch.
-    cost_usd: Option<f64>,
-    compose: Option<intrinsic::ComposeOutcome>,
-}
-
-/// What one dispatched batch produced (results + the guard's evidence).
-struct BatchOutcome {
-    /// The tool-result blocks, in dispatch order.
-    results: Vec<ContentBlock>,
-    /// Σ of the batch's tool-reported real spend (0.0 = none reported).
-    tools_cost_usd: f64,
-    /// Turn signature over actions + observations (see `guard`).
-    signature: u64,
-    /// A bounded digest of the observations, for the next routing query.
-    observations_digest: String,
-    /// Whether EVERY call in the batch errored.
-    all_errors: bool,
 }
 
 /// identity: tool spend absent (never zero) when nothing reported ·
@@ -1463,6 +1471,8 @@ mod tests;
 mod tests_budgets;
 #[cfg(test)]
 mod tests_completion;
+#[cfg(test)]
+mod tests_effects;
 #[cfg(test)]
 mod tests_refusal;
 #[cfg(test)]

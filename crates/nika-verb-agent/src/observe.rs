@@ -179,6 +179,16 @@ pub enum AgentEvent {
         /// The task's `max_tokens_total`, when set.
         budget: Option<u64>,
     },
+    /// The effect memory refused a replay (#1470): an effectful tool
+    /// call (a keyless `nika:fetch` POST · a destructive MCP tool) whose
+    /// exact arguments already settled this run was NOT re-issued — the
+    /// refusal rode back to the model as an error block instead.
+    EffectReplayRefused {
+        /// 1-based turn counter.
+        turn: u32,
+        /// The tool the model tried to replay.
+        name: String,
+    },
     /// The loop ended successfully.
     Finished {
         /// Total turns run.
