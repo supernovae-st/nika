@@ -171,7 +171,7 @@ showcase:
   - file: examples/pr-review-fanout.nika.yaml
     name: pr-review-fanout
     constructs: [agent_tools, fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, when, with]
-    sha256_16: 5aa3b133425ece0f
+    sha256_16: f2c2f063f23a46dd
   - file: examples/price-watch.nika.yaml
     name: price-watch
     constructs: [extract, on_error, outputs, secrets, when, with]
@@ -228,4 +228,4 @@ snippets:
   - file: examples/snippets/use-a-tool.nika.yaml
     sha256_16: 1c3ba3787698b765
   - file: examples/snippets/weekly-radar.nika.yaml
-    sha256_16: f9f5a9ffdf1c31d8
+    sha256_16: d3b81e4ee14aaaba

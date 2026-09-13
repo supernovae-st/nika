@@ -16,9 +16,16 @@
 #   - `with:` · value edges into one `infer:` with `retry:`
 #   - `const:` + typed `inputs:` with defaults · two of the three value authorities in use
 #   - `permits:` · fs read/write, one host, one program, four tools
+#   - `on_error: recover:` · Git refused or absent degrades to an explicit
+#     « history unavailable » value, never an empty week
 #
 # Needs · ollama with the model pulled · `ollama pull qwen3.5:4b`.
 #   No ollama? `--model mock/echo` rehearses the whole file keyless.
+# Needs · a git repo for `repo_log`. The confined `exec:` cannot read a `.git`
+#   no `permits.fs.read` names (macOS seatbelt: status 128 even inside a real
+#   repository), and granting that read would complete the NIKA-SEC-009
+#   trifecta the gate below exists to dominate — so a refused Git recovers an
+#   explicit value the radar repeats, and no commit fact is invented.
 #
 # Run · nika run examples/snippets/weekly-radar.nika.yaml
 nika: weekly-radar
@@ -74,6 +81,10 @@ tasks:
     when: ${{ with.go == true }}
     exec:
       command: ["git", "log", "--since=1 week"]
+    on_error:
+      # Not an empty log: the value says the history could not be read, and
+      # the prompt below repeats it instead of reporting a quiet week.
+      recover: "Git history unavailable: the command failed or was refused. No commit facts were collected."
 
   read_notes:
     with:
@@ -93,7 +104,7 @@ tasks:
       max_attempts: 3
       backoff_ms: 1000
     infer:
-      prompt: "One weekly radar on ${{ inputs.topic }}, five bullets: ${{ with.news }} ${{ with.log }} ${{ with.notes }}"
+      prompt: "One weekly radar on ${{ inputs.topic }}, five bullets: ${{ with.news }} ${{ with.log }} ${{ with.notes }} If the git log says history is unavailable, say so and invent no commit facts."
       max_tokens: 3000   # the house seat THINKS first — think block + five bullets both count
 
   save:
@@ -107,3 +118,4 @@ tasks:
 
 outputs:
   brief: ${{ tasks.digest.output }}
+  log: ${{ tasks.repo_log.output }}
