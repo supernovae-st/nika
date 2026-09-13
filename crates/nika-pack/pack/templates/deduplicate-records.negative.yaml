@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · A named admission gate must exist.
+# Expected · NIKA-DAG-002.
+nika: deduplicate-records
+const:
+  dataset: orders
+  records:
+  - id: a
+    amount: 10
+  - id: a
+    amount: 10
+  - id: b
+    amount: 20
+permits:
+  tools:
+  - nika:assert
+  - nika:jq
+  - nika:validate
+tasks:
+  validate:
+    invoke:
+      tool: nika:validate
+      args:
+        data: ${{ const.records }}
+        format: json
+        schema:
+          type: array
+          maxItems: 8
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - id
+            - amount
+            properties:
+              id:
+                type: string
+                minLength: 1
+                maxLength: 64
+              amount:
+                type: integer
+                minimum: 0
+                maximum: 1000000
+  admit:
+    with:
+      valid: ${{ tasks.validate.output.valid }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.valid }}
+        message: Input violates the declared shape or size bound
+  consistent:
+    after:
+      admit: success
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ const.records }}
+        expression: group_by(.id) | all(.[]; (map(.amount) | unique | length) == 1)
+  agree:
+    with:
+      consistent: ${{ tasks.consistent.output }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.consistent }}
+        message: Conflicting records share an id; do not silently keep the first
+  deduplicate:
+    after:
+      missing_gate: success
+    invoke:
+      tool: nika:jq
+      args:
+        input:
+          dataset: ${{ const.dataset }}
+          records: ${{ const.records }}
+        expression: '{dataset, records: (.records | unique_by(.id))}'
+outputs:
+  result: ${{ tasks.deduplicate.output }}

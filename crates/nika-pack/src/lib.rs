@@ -458,6 +458,16 @@ pub fn template(name: &str) -> Option<&'static str> {
     file_str(&format!("templates/{name}.nika.yaml"))
 }
 
+/// The filled lesson generated from a skeleton, when the pack supplies one.
+/// The tab-separated map is projected by the spec from `rehearsals.yaml`.
+#[must_use]
+pub fn template_example(name: &str) -> Option<&'static str> {
+    file_str("templates/rehearsals.tsv")?
+        .lines()
+        .filter_map(|line| line.split_once('\t'))
+        .find_map(|(template, example)| (template == name).then_some(example))
+}
+
 /// Every template name, sorted.
 #[must_use]
 pub fn template_names() -> Vec<String> {

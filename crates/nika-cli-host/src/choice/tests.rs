@@ -281,12 +281,9 @@ fn skeletons_name_only_the_cascade_alias_or_are_stamped() {
     let mut scanned = 0;
     for entry in std::fs::read_dir(&dir).expect("templates") {
         let path = entry.expect("entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
-            continue;
-        }
-        if path
+        if !path
             .file_name()
-            .is_some_and(|n| n.to_string_lossy().contains("negative"))
+            .is_some_and(|n| n.to_string_lossy().ends_with(".nika.yaml"))
         {
             continue;
         }
@@ -301,7 +298,8 @@ fn skeletons_name_only_the_cascade_alias_or_are_stamped() {
             .map(|l| l.trim_start_matches("model: ").trim().trim_matches('\''));
         assert!(
             model == Some(want.as_str()),
-            "a skeleton kept a model the cascade did not stamp"
+            "{} kept a model the cascade did not stamp",
+            path.display()
         );
         assert!(
             !stamped
@@ -310,7 +308,11 @@ fn skeletons_name_only_the_cascade_alias_or_are_stamped() {
             "a stamped skeleton must not use a Hub id as its model"
         );
     }
-    assert!(scanned >= 8, "scanned {scanned} skeletons");
+    assert_eq!(
+        scanned,
+        nika_pack::template_names().len(),
+        "scan the native skeleton set, excluding metadata"
+    );
 }
 
 #[test]

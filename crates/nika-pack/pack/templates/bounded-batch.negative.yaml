@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · Zero concurrency is not a runnable batch bound.
+# Expected · NIKA-PARSE-019.
+nika: bounded-batch
+model: ollama/qwen3.5:4b
+run:
+  clock: system
+const:
+  brief: Summarize the item in one sentence.
+  items:
+  - first note
+  - second note
+permits:
+  tools:
+  - nika:assert
+  - nika:validate
+tasks:
+  validate:
+    invoke:
+      tool: nika:validate
+      args:
+        data: ${{ const.items }}
+        format: json
+        schema:
+          type: array
+          maxItems: 8
+          items:
+            type: string
+            minLength: 1
+            maxLength: 4000
+  admit:
+    with:
+      valid: ${{ tasks.validate.output.valid }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.valid }}
+        message: Input violates the declared shape or size bound
+  process:
+    after:
+      admit: success
+    for_each:
+      items: ${{ const.items }}
+      max_parallel: 0
+      fail_fast: true
+    timeout: 30s
+    infer:
+      prompt: '${{ const.brief }}
+
+        Item: ${{ item }}'
+      max_tokens: 2048
+      schema:
+        type: object
+        additionalProperties: false
+        required:
+        - summary
+        properties:
+          summary:
+            type: string
+            minLength: 1
+            maxLength: 4000
+outputs:
+  results: '${{ tasks.process.output == null ? [] : tasks.process.output }}'

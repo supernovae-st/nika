@@ -245,17 +245,23 @@ fn instantiate_skeleton(
     // A ROUTED file is a draft by construction (P0-10): the intent was
     // interpreted, not understood — the message says « draft », never
     // « ready », and hands over to `nika check` before any run.
-    let text = if contract.is_some() {
+    let mut text = if contract.is_some() {
         format!(
-            "{dest} ← {routing}template `{name}` — a DRAFT scaffold · fill the `# SLOT:` lines, then `nika check {q}` before any run",
+            "{dest} ← {routing}template `{name}` — a DRAFT scaffold · fill the `<SLOT: …>` values, review the `# SLOT:` choices, then `nika check {q}` before any run",
             q = shell_quote(dest)
         )
     } else {
         format!(
-            "{dest} ← template `{name}` · fill the `# SLOT:` lines then `nika check {q}`",
+            "{dest} ← template `{name}` · fill the `<SLOT: …>` values, review the `# SLOT:` choices, then `nika check {q}`",
             q = shell_quote(dest)
         )
     };
+    if let Some(example) = nika_pack::template_example(name) {
+        let _ = write!(
+            text,
+            "\n  filled example of this skeleton: nika new {example} example.nika.yaml"
+        );
+    }
     let out = Outcome {
         text,
         code: codes::OK,
@@ -469,6 +475,9 @@ fn discovery() -> Outcome {
     for name in &names {
         let tag = nika_pack::template(name).map_or_else(String::new, |b| tagline(name, b));
         let _ = writeln!(text, "  {name:<18} {tag}");
+        if let Some(example) = nika_pack::template_example(name) {
+            let _ = writeln!(text, "    filled lesson · {example}");
+        }
     }
     let _ = write!(text, "\nembedded set: {}", names.join(" · "));
     text.push_str(

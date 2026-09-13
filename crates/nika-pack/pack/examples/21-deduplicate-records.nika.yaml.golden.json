@@ -1,0 +1,15 @@
+{
+  "result": {
+    "dataset": "orders",
+    "records": [
+      {
+        "id": "a",
+        "amount": 10
+      },
+      {
+        "id": "b",
+        "amount": 20
+      }
+    ]
+  }
+}

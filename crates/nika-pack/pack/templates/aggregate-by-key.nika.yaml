@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · aggregate-by-key · group validated integer amounts with exact totals
+#
+# At most eight rows, finite region vocabulary and nonnegative integer minor units. Empty input returns no groups and total zero; no model computes the arithmetic.
+# Demonstrates · explicit input admission, narrow permits and typed results.
+# Needs · fill the SLOT; no services or credentials for mock rehearsal.
+# Run · nika run <file> --model mock/echo
+nika: aggregate-by-key
+const:
+  currency: '<SLOT: the currency code>'
+  records:
+  - region: north
+    amount: 10
+  - region: south
+    amount: 20
+  - region: north
+    amount: 5
+permits:
+  tools:
+  - nika:assert
+  - nika:jq
+  - nika:validate
+tasks:
+  validate:
+    invoke:
+      tool: nika:validate
+      args:
+        data: ${{ const.records }}
+        format: json
+        schema:
+          type: array
+          maxItems: 8
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - region
+            - amount
+            properties:
+              region:
+                type: string
+                enum:
+                - north
+                - south
+              amount:
+                type: integer
+                minimum: 0
+                maximum: 1000000
+  admit:
+    with:
+      valid: ${{ tasks.validate.output.valid }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.valid }}
+        message: Input violates the declared shape or size bound
+  aggregate:
+    after:
+      admit: success
+    invoke:
+      tool: nika:jq
+      args:
+        input:
+          currency: ${{ const.currency }}
+          records: ${{ const.records }}
+        expression: '{currency, groups: (.records | group_by(.region) | map({region: .[0].region, count:
+          length, total: (map(.amount) | add)})), total: ([.records[].amount] | add // 0)}'
+outputs:
+  report: ${{ tasks.aggregate.output }}

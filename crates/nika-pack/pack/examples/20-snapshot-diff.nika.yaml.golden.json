@@ -1,0 +1,14 @@
+{
+  "diff": {
+    "resource": "enabled-features",
+    "added": [
+      "gamma"
+    ],
+    "removed": [
+      "alpha"
+    ],
+    "kept": [
+      "beta"
+    ]
+  }
+}

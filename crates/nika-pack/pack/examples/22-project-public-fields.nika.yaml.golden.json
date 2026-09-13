@@ -1,0 +1,7 @@
+{
+  "public": {
+    "topic": "queue latency",
+    "severity": 2
+  },
+  "summary": "mock"
+}

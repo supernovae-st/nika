@@ -124,6 +124,20 @@ fn example_index() -> Result<String, String> {
 /// `nika_template` — list the canonical skeleton names, or return one
 /// skeleton's source (copy · fill the `# SLOT:` lines · never invent shape).
 pub(crate) fn template(args: &Value) -> Result<String, String> {
+    if args.get("filled").and_then(Value::as_bool) == Some(true) {
+        let name = args
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or("filled requires an exact template name from nika_template")?;
+        let example = nika_pack::template_example(name).ok_or_else(|| {
+            format!(
+                "no filled lesson for template `{name}` — use nika_examples for other precedents"
+            )
+        })?;
+        return nika_pack::example(example)
+            .map(str::to_owned)
+            .ok_or_else(|| format!("pack is missing filled lesson `{example}`"));
+    }
     match args.get("name").and_then(Value::as_str) {
         None => Ok(nika_pack::template_names().join("\n")),
         Some(name) => match nika_pack::template(name) {
@@ -160,6 +174,44 @@ mod tests {
     use serde_json::{Value, json};
 
     use crate::tools::execute;
+
+    #[test]
+    fn filled_template_returns_the_canonical_lesson_without_side_effects() {
+        let source = execute(
+            "nika_template",
+            &json!({"name": "bounded-batch", "filled": true}),
+        )
+        .expect("paired lesson");
+        assert_eq!(
+            Some(source.as_str()),
+            nika_pack::example("18-bounded-batch")
+        );
+        assert!(!source.contains("<SLOT:"));
+        let skeleton =
+            execute("nika_template", &json!({"name": "bounded-batch"})).expect("skeleton");
+        assert_eq!(
+            Some(skeleton.as_str()),
+            nika_pack::template("bounded-batch")
+        );
+        for args in [
+            json!({"filled": true}),
+            json!({"name": "chain", "filled": true}),
+            json!({"name": "../bounded-batch", "filled": true}),
+        ] {
+            assert!(execute("nika_template", &args).is_err(), "{args}");
+        }
+        let catalog = crate::tools::catalog();
+        let tool = catalog
+            .as_array()
+            .expect("tools")
+            .iter()
+            .find(|row| row["name"] == "nika_template")
+            .expect("template tool");
+        assert_eq!(
+            tool["inputSchema"]["properties"]["filled"]["type"],
+            "boolean"
+        );
+    }
 
     /// A naive whole-token scan of the embedded bodies — the oracle's
     /// answer must match it slug for slug, so the route can never

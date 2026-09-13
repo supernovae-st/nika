@@ -144,3 +144,26 @@ The judgment layer (after validity) is the 12 patterns ·
 docs `guides/patterns` — deterministic core · parallel by default ·
 typed boundaries · leashed fan-outs · the three gates · sovereignty ·
 budgets · evidence lands · jq once · callable outputs · mock-first.
+
+
+## Bounded workflow precedents
+
+Use [the generated index](INDEX.md) to find a skeleton and its filled lesson.
+For a batch, `bounded-batch` separates admission (`maxItems` and bounded item
+strings), terminal refusal (`nika:assert`) and execution (`after: admit:
+success`). Its concurrency limit does not cap item count. These checks run
+after loading the input; they do not provide a streaming ingress bound.
+
+`validate-records`, `snapshot-diff`, `deduplicate-records` and `aggregate-by-key`
+keep numeric and set rules deterministic. `project-public-fields` exposes only
+an explicit field allowlist to inference; it does not identify sensitive prose
+inside an allowed field or remove source data from local traces.
+`parallel-review` proves its conjunction on every boolean pair before either
+model call. `recover-optional-file` bounds attempts and time while recovering
+only a missing file; permission and timeout errors must remain visible.
+
+Check a changed workflow using its intended model. Token ceilings include
+reasoning output where applicable; a per-attempt timeout is not a total retry
+deadline. Rehearse on mock to prove wiring, then evaluate model quality and
+external integrations separately. Change one boundary at a time and verify the
+refusal trace, not only the final exit code.

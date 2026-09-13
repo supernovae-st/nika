@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · project-public-fields · select allowed fields before sending data to a model
+#
+# A closed source schema and an explicit field allowlist bound the prompt. This is structural minimization, not free-text PII detection. Source data remains in local traces.
+# Demonstrates · explicit input admission, narrow permits and typed results.
+# Needs · fill the SLOT; no services or credentials for mock rehearsal.
+# Run · nika run <file> --model mock/echo
+nika: project-public-fields
+model: ollama/qwen3.5:4b
+run:
+  clock: system
+const:
+  instruction: '<SLOT: the public summary instruction>'
+  record:
+    topic: queue latency
+    severity: 2
+    email: private@example.invalid
+    internal_note: internal-only-fixture
+permits:
+  tools:
+  - nika:assert
+  - nika:jq
+  - nika:validate
+tasks:
+  validate:
+    invoke:
+      tool: nika:validate
+      args:
+        data: ${{ const.record }}
+        format: json
+        schema:
+          type: object
+          additionalProperties: false
+          required:
+          - topic
+          - severity
+          - email
+          - internal_note
+          properties:
+            topic:
+              type: string
+              minLength: 1
+              maxLength: 4000
+            severity:
+              type: integer
+              minimum: 0
+              maximum: 5
+            email:
+              type: string
+              minLength: 1
+              maxLength: 4000
+            internal_note:
+              type: string
+              minLength: 1
+              maxLength: 4000
+  admit:
+    with:
+      valid: ${{ tasks.validate.output.valid }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.valid }}
+        message: Input violates the declared shape or size bound
+  public:
+    after:
+      admit: success
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ const.record }}
+        expression: '{topic, severity}'
+  summarize:
+    with:
+      public: ${{ tasks.public.output }}
+    timeout: 30s
+    infer:
+      prompt: '${{ const.instruction }}
+
+        Allowed fields only: ${{ with.public }}'
+      max_tokens: 2048
+      schema:
+        type: object
+        additionalProperties: false
+        required:
+        - summary
+        properties:
+          summary:
+            type: string
+            minLength: 1
+            maxLength: 4000
+outputs:
+  public: ${{ tasks.public.output }}
+  summary: ${{ tasks.summarize.output.summary }}

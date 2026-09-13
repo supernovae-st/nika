@@ -355,6 +355,28 @@ fn first_shelf_is_hello_brief_image_fetch_notify() {
     );
 }
 
+#[test]
+fn paired_template_lessons_resolve_and_contain_no_value_slots() {
+    let mut paired = 0;
+    for name in nika_pack::template_names() {
+        if let Some(slug) = nika_pack::template_example(&name) {
+            let example = nika_pack::example(slug).expect("paired lesson exists");
+            assert!(!example.contains("<SLOT:"), "{slug}");
+            assert!(
+                nika_pack::template(&name)
+                    .expect("template")
+                    .contains("<SLOT:")
+            );
+            paired += 1;
+        }
+    }
+    assert!(
+        paired > 0,
+        "the map must not silently disappear from the pack"
+    );
+    assert_eq!(nika_pack::template_example("../bounded-batch"), None);
+}
+
 /// B06 · missing cargo is a recovered red suite, not an opaque NIKA-SEC-001.
 /// The spec YAML does not carry `on_error: recover` — the hint lives in Rust.
 #[test]

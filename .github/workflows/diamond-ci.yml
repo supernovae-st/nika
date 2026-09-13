@@ -195,6 +195,26 @@ jobs:
           python3 scripts/ci/test-loom-cancel.py
           bash scripts/ci/check-loom-cancel.sh
 
+      - name: Native authoring gauntlet (scaffolds, goldens and refusal traces)
+        if: matrix.job == 'tests'
+        timeout-minutes: 10
+        env:
+          NIKA_SPEC_DIR: ${{ github.workspace }}/nika-spec
+        run: |
+          python3 -m venv "$RUNNER_TEMP/authoring-python"
+          "$RUNNER_TEMP/authoring-python/bin/pip" install -r nika-spec/conformance/requirements.txt
+          cargo build --locked -p nika-cli --bin nika
+          "$RUNNER_TEMP/authoring-python/bin/python" scripts/authoring-gauntlet.py \
+            --binary target/debug/nika --out "$RUNNER_TEMP/authoring-gauntlet"
+      - name: Preserve authoring evidence
+        if: always() && matrix.job == 'tests'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-authoring-gauntlet
+          path: ${{ runner.temp }}/authoring-gauntlet
+          if-no-files-found: ignore
+          retention-days: 7
+
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest

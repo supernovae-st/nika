@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# Slot answers for the generated, runnable lessons; workflow logic stays in templates.
+rehearsals:
+- template: bounded-batch
+  example: 18-bounded-batch
+  fill: Summarize the item in one sentence.
+- template: validate-records
+  example: 19-validate-records
+  fill: daily-orders
+- template: snapshot-diff
+  example: 20-snapshot-diff
+  fill: enabled-features
+- template: deduplicate-records
+  example: 21-deduplicate-records
+  fill: orders
+- template: project-public-fields
+  example: 22-project-public-fields
+  fill: Summarize the incident using only the allowed fields.
+- template: parallel-review
+  example: 23-parallel-review
+  fill: The service processes jobs in order.
+- template: recover-optional-file
+  example: 24-recover-optional-file
+  fill: No optional configuration supplied.
+- template: aggregate-by-key
+  example: 25-aggregate-by-key
+  fill: EUR

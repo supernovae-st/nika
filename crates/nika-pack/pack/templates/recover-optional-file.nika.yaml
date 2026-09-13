@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · recover-optional-file · recover a missing optional file without hiding other failures
+#
+# The read has two attempts and a 5s per-attempt timeout. Only not-found recovers; permission, decoding and timeout failures remain failures. The content check occurs after reading, not before allocation.
+# Demonstrates · explicit input admission, narrow permits and typed results.
+# Needs · fill the SLOT; no services or credentials for mock rehearsal.
+# Run · nika run <file> --model mock/echo
+nika: recover-optional-file
+run:
+  clock: system
+const:
+  fallback: '<SLOT: the explicit fallback content>'
+permits:
+  tools:
+  - nika:assert
+  - nika:jq
+  - nika:read
+  - nika:validate
+  fs:
+    read:
+    - ./optional.txt
+tasks:
+  read:
+    invoke:
+      tool: nika:read
+      args:
+        path: ./optional.txt
+    timeout: 5s
+    retry:
+      max_attempts: 2
+      backoff_strategy: exponential
+      jitter: false
+    on_error:
+      on_codes:
+      - NIKA-BUILTIN-READ-001
+      recover: ${{ const.fallback }}
+  validate:
+    with:
+      content: ${{ tasks.read.output }}
+    invoke:
+      tool: nika:validate
+      args:
+        data: ${{ with.content }}
+        format: json
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 4000
+  admit:
+    with:
+      valid: ${{ tasks.validate.output.valid }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.valid }}
+        message: Content must be nonempty and at most 4000 characters
+  result:
+    after:
+      admit: success
+    with:
+      content: ${{ tasks.read.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ with.content }}
+        expression: .
+outputs:
+  content: ${{ tasks.result.output }}

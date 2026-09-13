@@ -106,10 +106,53 @@ pub(crate) const ALIASES: &[(&str, &[&str])] = &[
 /// · `template`) lists the set instead of spuriously routing (every template
 /// shares `workflow:`/`tasks:`/… so those terms separate nothing).
 pub(crate) const STOPWORDS: &[&str] = &[
-    "a", "an", "and", "the", "to", "of", "in", "on", "for", "with", "that", "this", "then", "than",
-    "into", "from", "by", "as", "at", "is", "are", "be", "it", "its", "or", "i", "me", "my", "we",
-    "you", "no", "such", "nika", "workflow", "model", "vars", "tasks", "id", "template", "slot",
-    "kebab", "case",
+    "a",
+    "an",
+    "and",
+    "the",
+    "to",
+    "of",
+    "in",
+    "on",
+    "for",
+    "with",
+    "that",
+    "this",
+    "then",
+    "than",
+    "into",
+    "from",
+    "by",
+    "as",
+    "at",
+    "is",
+    "are",
+    "be",
+    "it",
+    "its",
+    "or",
+    "i",
+    "me",
+    "my",
+    "we",
+    "you",
+    "no",
+    "such",
+    "nika",
+    "workflow",
+    "model",
+    "vars",
+    "tasks",
+    "id",
+    "template",
+    "slot",
+    "kebab",
+    "case",
+    "do",
+    "stuff",
+    "thing",
+    "things",
+    "something",
 ];
 
 /// A capability a template can carry — or an utterance can demand. The
@@ -800,6 +843,21 @@ fn route_impl(intent: &str, names: &[String], tau: f64) -> RoutingOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generic_filler_never_becomes_routing_evidence_as_the_corpus_grows() {
+        for query in ["do stuff with things", "do something", "the thing"] {
+            assert_eq!(expand_query(query), None, "{query}");
+            assert!(matches!(
+                route(query),
+                RoutingOutcome::NeedsClarification { .. }
+            ));
+        }
+        assert_eq!(
+            expand_query("do snapshot diff"),
+            Some("snapshot diff".to_owned())
+        );
+    }
 
     /// The audit fixture (ux-fixtures/semantic-cases.jsonl · audit UX
     /// 2026-07-30), copied VERBATIM into the crate so the ratchet runs

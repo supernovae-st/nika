@@ -2,6 +2,26 @@ use super::*;
 
 const PLAIN: Theme = Theme::new(false, false, false);
 
+#[test]
+fn skeleton_handoff_names_its_generated_filled_lesson() {
+    let dir = fresh_base("paired-lesson");
+    let path = dir.join("batch.nika.yaml");
+    let output = run("bounded-batch", path.to_str(), false);
+    assert_eq!(output.code, codes::OK);
+    assert!(output.text.contains("<SLOT: …>"));
+    assert!(
+        output
+            .text
+            .contains("nika new 18-bounded-batch example.nika.yaml")
+    );
+    assert!(
+        discovery()
+            .text
+            .contains("filled lesson · 18-bounded-batch")
+    );
+    std::fs::remove_dir_all(dir).expect("cleanup");
+}
+
 /// The test audit stub — the ladder's SHAPE without the ladder
 /// (integration against the real check lives at the composition
 /// root and in nika-onboard's own dev-dep ratchets).
