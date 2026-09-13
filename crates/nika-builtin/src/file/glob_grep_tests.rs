@@ -366,11 +366,12 @@ fn simple_glob_is_polynomial_on_adversarial_patterns() {
 }
 
 #[tokio::test]
-async fn grep_on_a_file_path_names_the_directory_contract() {
-    // The low-priority DX fix: grep is a recursive DIRECTORY walk · a
-    // `path:` naming a FILE used to surface the cryptic "Not a directory
-    // (os error 20)". It now names the real contract. Proven on the REAL
-    // fs (MockFs is a HashMap · never raises ENOTDIR).
+async fn grep_on_a_file_path_searches_that_one_file() {
+    // #1576 · a `path:` naming a FILE used to die at run (ENOTDIR, then
+    // the "must be a directory" contract) after a green check. It now
+    // searches exactly that file. Proven on the REAL fs — MockFs is a
+    // HashMap and never raised ENOTDIR, so only TokioFs shows the walk
+    // is no longer attempted on a file.
     use nika_fs::TokioFs;
     let dir = std::env::temp_dir().join(format!(
         "nika-grep-enotdir-{}-{}",
@@ -391,12 +392,46 @@ async fn grep_on_a_file_path_names_the_directory_contract() {
         })),
     )
     .await;
-    assert!(
-        matches!(&out, Err(f) if f.code == "NIKA-BUILTIN-GREP-001"
-            && f.message.contains("must be a directory")),
-        "grep on a file names the directory contract: {out:?}"
+    let hits = out.expect("a file path is a one-file search");
+    assert_eq!(
+        hits,
+        serde_json::json!([{ "path": file.to_string_lossy(), "line": 1, "match": "hello" }]),
+        "the one file is searched, nothing else"
     );
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn grep_honors_a_single_file_grant_and_still_refuses_the_directory() {
+    // #1577 · least privilege for « grep this one file » is the file grant
+    // + the file path — nothing wider. The directory path under the same
+    // tight grant stays refused (the walk would open siblings the grant
+    // never named), so the narrow spelling is the only green one.
+    let fs = MockFs::new()
+        .with_file("data/note.md", "NIKA lives here\nplain line\n")
+        .with_file("data/sibling.md", "NIKA too\n");
+    let boundary = FsBoundary::declared(vec!["data/note.md".to_owned()], Vec::new());
+    let hits = grep(
+        &fs,
+        &boundary,
+        &args(serde_json::json!({ "pattern": "NIKA", "path": "data/note.md" })),
+    )
+    .await
+    .expect("the granted file is searchable");
+    assert_eq!(
+        hits,
+        serde_json::json!([{ "path": "data/note.md", "line": 1, "match": "NIKA lives here" }])
+    );
+    let walk = grep(
+        &fs,
+        &boundary,
+        &args(serde_json::json!({ "pattern": "NIKA", "path": "data" })),
+    )
+    .await;
+    assert!(
+        walk.is_err(),
+        "a tree walk under a one-file grant reaches an ungranted sibling: {walk:?}"
+    );
 }
 
 fn finite_words(alphabet: &[u8], maximum_length: usize) -> Vec<String> {

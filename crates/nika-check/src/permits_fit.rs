@@ -780,15 +780,8 @@ fn check_builtin_effect(
     }
 }
 
-/// One fs boundary escape — and the shovel stays in the shed (user
-/// gauntlet 2026-07-31 · G-09: on a deliberate `../../pwned.md` probe
-/// the printed fix taught ADDING the escape path to `permits.fs.write`
-/// — "the checker hands the junior the shovel along with the hole").
-/// A path that ESCAPES the workspace (absolute · `..`-traversal out of
-/// the root) carries NO machine fix — the agent repair loop must never
-/// auto-widen a boundary toward an escape (the floor-escape precedent:
-/// no permits entry is the honest repair) — and the detail teaches the
-/// narrow way first, the widening named as the deliberate second.
+/// A computed host-path operand of a file-plumbing program — no literal
+/// to judge, so the run's refusal is named and the narrow way taught.
 fn computed_plumbing_escape(id: &str, program: &str) -> CapabilityEscape {
     CapabilityEscape {
         task: id.to_owned(),
@@ -803,6 +796,20 @@ fn computed_plumbing_escape(id: &str, program: &str) -> CapabilityEscape {
     }
 }
 
+/// One fs boundary escape — and the shovel stays in the shed (user
+/// gauntlet 2026-07-31 · G-09 · #1267): the printed repair NEVER widens
+/// a declared boundary. G-09 first withheld the fix from a path that
+/// ESCAPES the workspace (absolute · `..`-traversal out of the root);
+/// #1267 measured the interior spelling of the same intent —
+/// `./data/../outside.txt` under `read: ["./data/**"]` — printed as
+/// `add "./data/../outside.txt"`, pasted verbatim, green, and reading
+/// the file. So every path outside a DECLARED direction is taught the
+/// containment first (the entries by name · the lexical fold shown when
+/// `..` hid where the path lands), and the widening is named as the
+/// deliberate second — an operator's act, `nika check --infer-permits`
+/// its out-loud door. Only an EMPTY direction keeps the machine fix: the
+/// first entry is a declaration, not a widening (the beginner's first
+/// grant · the floor-escape precedent's honest repair).
 fn fs_escape(
     id: &str,
     tool: &str,
@@ -811,42 +818,52 @@ fn fs_escape(
     permits: &Permits,
     dir_writes: bool,
 ) -> CapabilityEscape {
-    if !path_escapes_workspace(path) {
-        return CapabilityEscape {
-            task: id.to_owned(),
-            category: "fs",
-            detail: format!("`{tool}` path `{path}` is outside permits.{cat}"),
-            fix: Some(format!("add \"{path}\" to permits.{cat}")),
-            floor: false,
-            undeclared: false,
-        };
-    }
     let declared = permits
         .fs
         .as_ref()
         .map(|f| if dir_writes { &f.write } else { &f.read })
         .filter(|list| !list.is_empty())
-        .map_or_else(
-            || format!("declare the {cat} boundary you mean"),
-            |list| {
+        .map(|list| list.join(" · "));
+    let escapes = path_escapes_workspace(path);
+    let (detail, fix) = match (declared, escapes) {
+        (None, false) => (
+            format!("`{tool}` path `{path}` is outside permits.{cat}"),
+            Some(format!("add \"{path}\" to permits.{cat}")),
+        ),
+        (declared, _) => {
+            let keep = declared.map_or_else(
+                || format!("declare the {cat} boundary you mean"),
+                |list| format!("keep the path inside the declared {cat} ({list})"),
+            );
+            let detail = if escapes {
                 format!(
-                    "keep the path inside the declared {cat} ({})",
-                    list.join(" · ")
+                    "`{tool}` requested path `{path}` does not match permits.{cat} lexically — {keep}. \
+                     This check does not resolve symlinks; path aliases can have different spellings \
+                     (for example /tmp and /private/tmp on macOS). If both paths refer to the same \
+                     intended location, use one consistent spelling before changing grants. Widening \
+                     permits.{cat} to an escaping path is a deliberate operator choice, never \
+                     the default repair"
                 )
-            },
-        );
+            } else {
+                let lands = if path.split(['/', '\\']).any(|seg| seg == "..") {
+                    format!(" (lands at `{}`)", nika_cap::lexically_normalize(path))
+                } else {
+                    String::new()
+                };
+                format!(
+                    "`{tool}` path `{path}`{lands} is outside permits.{cat} — {keep}; widening \
+                     permits.{cat} to admit it is a deliberate operator choice, never the default \
+                     repair (`nika check --infer-permits` re-derives the boundary out loud)"
+                )
+            };
+            (detail, None)
+        }
+    };
     CapabilityEscape {
         task: id.to_owned(),
         category: "fs",
-        detail: format!(
-            "`{tool}` requested path `{path}` does not match permits.{cat} lexically — {declared}. \
-             This check does not resolve symlinks; path aliases can have different spellings \
-             (for example /tmp and /private/tmp on macOS). If both paths refer to the same \
-             intended location, use one consistent spelling before changing grants. Widening \
-             permits.{cat} to an escaping path is a deliberate operator choice, never \
-             the default repair"
-        ),
-        fix: None,
+        detail,
+        fix,
         floor: false,
         undeclared: false,
     }

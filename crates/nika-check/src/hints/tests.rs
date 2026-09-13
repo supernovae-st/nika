@@ -633,7 +633,9 @@ fn task_text_fields_collects_every_action_text_surface() {
 
 #[test]
 fn collect_json_strings_into_gathers_all_nested_string_leaves() {
-    // Direct unit on collect_json_strings_into. Feed
+    // Direct unit on the shared string-leaf walker (`flow.rs` owns the ONE
+    // copy since #1590 · the hint scan reads it through
+    // `collect_json_strings`). Feed
     // {"a":"x","b":["y",{"c":"z"}]} → ALL of x,y,z must be collected.
     //   - String arm deleted → top-level "x" (and nested) dropped
     //   - Array arm deleted → "y" and the object under it dropped
@@ -641,8 +643,7 @@ fn collect_json_strings_into_gathers_all_nested_string_leaves() {
     //     (top object) dropped
     //   - whole fn → () → nothing collected
     let value = serde_json::json!({ "a": "x", "b": ["y", { "c": "z" }] });
-    let mut out = Vec::new();
-    collect_json_strings_into(&value, &mut out);
+    let mut out = crate::flow::collect_json_strings(&value);
     out.sort_unstable();
     assert_eq!(out, vec!["x", "y", "z"], "all nested leaves: {out:?}");
 }
@@ -653,8 +654,7 @@ fn collect_json_strings_into_array_arm_descends() {
     // Deleting the Array arm drops both leaves; the String/Object arms
     // alone cannot reach them.
     let value = serde_json::json!(["one", "two"]);
-    let mut out = Vec::new();
-    collect_json_strings_into(&value, &mut out);
+    let mut out = crate::flow::collect_json_strings(&value);
     out.sort_unstable();
     assert_eq!(out, vec!["one", "two"], "{out:?}");
 }
@@ -664,8 +664,7 @@ fn collect_json_strings_into_object_arm_descends() {
     // Targeted at the Object match arm: a flat object. Deleting the
     // Object arm drops the leaf entirely.
     let value = serde_json::json!({ "k": "deep" });
-    let mut out = Vec::new();
-    collect_json_strings_into(&value, &mut out);
+    let out = crate::flow::collect_json_strings(&value);
     assert_eq!(out, vec!["deep"], "{out:?}");
 }
 
@@ -674,8 +673,7 @@ fn collect_json_strings_into_string_arm_pushes_the_leaf() {
     // Targeted at the String match arm: a bare string value. Deleting
     // the String arm drops it; the `_ => {}` catch-all would swallow it.
     let value = serde_json::json!("bare");
-    let mut out = Vec::new();
-    collect_json_strings_into(&value, &mut out);
+    let out = crate::flow::collect_json_strings(&value);
     assert_eq!(out, vec!["bare"], "{out:?}");
 }
 
@@ -684,8 +682,7 @@ fn collect_json_strings_into_ignores_non_string_scalars() {
     // numbers/bools/null contribute nothing (the `_ => {}` arm). This
     // pins the boundary the deleted-arm mutants must not cross.
     let value = serde_json::json!({ "n": 1, "b": true, "z": null, "s": "keep" });
-    let mut out = Vec::new();
-    collect_json_strings_into(&value, &mut out);
+    let out = crate::flow::collect_json_strings(&value);
     assert_eq!(out, vec!["keep"], "{out:?}");
 }
 

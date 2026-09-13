@@ -183,6 +183,7 @@ pub use hints::{
     Hint, PAID_RUN_KINDS, compiled, hint_help, paid_blockers, paid_ready, stamp_paid_ready,
 };
 pub use lift::LiftFinding;
+pub use nika_check_analyzer::read_paths::static_read_paths;
 pub use order::OrderFinding;
 pub use permit_taint::{PermitTaint, PermitTaintKind};
 pub use permits_fit::CapabilityEscape;
@@ -197,7 +198,6 @@ pub use schema_typing::{SchemaTypeFinding, UnverifiableOutputRef};
 pub use secrets::{SecretEgress, SecretLeak};
 pub use slots::{MARKER_OPEN, SlotFinding};
 pub use tools::{MissingArg, UnknownArg, UnknownTool};
-pub use walk::static_read_paths;
 
 // The analyzer's surface at the crate root — the shape `nika-schema`
 // re-exported pre-split (substrate descent 2026-08-25 · ADR-115's direction).

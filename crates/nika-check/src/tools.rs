@@ -144,7 +144,7 @@ pub(super) fn scan_unknown_args(wf: &RawWorkflow) -> Vec<UnknownArg> {
         let id = &task.value.id.value;
         collect_args(id, &task.value.action, &mut findings);
         collect_read_types(id, &task.value.action, &mut findings);
-        collect_notify_channel(id, &task.value.action, &mut findings);
+        collect_closed_literals(id, &task.value.action, &mut findings);
     }
     findings
 }
@@ -309,42 +309,56 @@ fn collect_missing(site: &str, action: &RawAction, out: &mut Vec<MissingArg>) {
     }
 }
 
-/// C05 — a literal `nika:notify` `channel:` that is not `webhook` will
-/// throw `NIKA-BUILTIN-NOTIFY-001` at run (v0.1 webhook only). Check
-/// fail-closes on the same literal so the rung is not theatre.
-fn collect_notify_channel(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
+/// The builtin args whose LITERAL value must sit in a closed set — the
+/// run refuses anything else as `NIKA-BUILTIN-<TOOL>-001`, and check
+/// fail-closes on the same literal so the rung is not theatre: `(tool ·
+/// arg · the set · a teaching clause the finding repeats)`. C05 (issue
+/// 1300) opened it with the v0.1 webhook-only `channel:`; #1590 added
+/// `nika:inspect view:` after five wrong views checked green and died at
+/// run. An absent arg is the builtin's default (or `scan_missing_args`'
+/// finding) and a templated one is the run's to judge — both silent.
+const CLOSED_LITERALS: &[(&str, &str, &[&str], &str)] = &[
+    (
+        "nika:notify",
+        "channel",
+        &["webhook"],
+        "v0.1 engines MUST support webhook only",
+    ),
+    (
+        "nika:inspect",
+        "view",
+        &["cost", "records", "dag_info", "threads"],
+        "the four live views (stdlib §inspect)",
+    ),
+];
+
+fn collect_closed_literals(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
     let RawAction::Invoke(a) = action else {
         return;
     };
-    if a.tool().is_none_or(|t| t.value != "nika:notify") {
+    let Some(tool) = a.tool().map(|t| t.value.as_str()) else {
         return;
-    }
-    let args = a.args.as_ref().map(|spanned| &spanned.value);
-    let Some(channel) = literal_notify_channel(args) else {
-        return; // missing = webhook default · templated = run's to judge
     };
-    if channel == "webhook" {
-        return;
-    }
-    out.push(UnknownArg {
-        task: site.to_owned(),
-        tool: "nika:notify".to_owned(),
-        arg: "channel".to_owned(),
-        suggestion: None,
-        declared: vec![
-            "webhook".to_owned(),
-            "v0.1 engines MUST support webhook only".to_owned(),
-        ],
-        invalid_value: Some(channel.to_owned()),
-    });
-}
-
-/// The literal channel string, when one is statically visible.
-fn literal_notify_channel(args: Option<&serde_json::Value>) -> Option<&str> {
-    match args.and_then(|v| v.get("channel")) {
-        None => Some("webhook"),
-        Some(serde_json::Value::String(s)) => Some(s.as_str()),
-        _ => None,
+    for (rule_tool, arg, allowed, note) in CLOSED_LITERALS {
+        let literal = (tool == *rule_tool)
+            .then(|| a.args.as_ref()?.value.get(*arg)?.as_str())
+            .flatten();
+        let Some(value) = literal.filter(|v| !v.contains("${{") && !allowed.contains(v)) else {
+            continue;
+        };
+        out.push(UnknownArg {
+            task: site.to_owned(),
+            tool: tool.to_owned(),
+            arg: (*arg).to_owned(),
+            suggestion: did_you_mean(value, allowed.iter().copied()).map(str::to_owned),
+            declared: allowed
+                .iter()
+                .copied()
+                .chain(std::iter::once(*note))
+                .map(str::to_owned)
+                .collect(),
+            invalid_value: Some(value.to_owned()),
+        });
     }
 }
 
@@ -617,6 +631,46 @@ mod tests {
             "nika: w\ntasks:\n  t:\n    invoke: { tool: \"mcp:browser/navigate\", args: { whatever: 1 } }\n",
         );
         assert!(f.is_empty(), "server-defined args are not validated");
+    }
+
+    /// #1590 · `nika:inspect view:` is a closed set the run refuses
+    /// (`permits` · `tools` · `waves` · `tasks` · `receipt` all checked
+    /// green and died NIKA-BUILTIN-INSPECT-001). A literal outside the
+    /// four live views is caught with the set as the teaching; the four
+    /// views and a templated view stay silent (the run judges the value).
+    #[test]
+    fn inspect_view_outside_the_closed_set_is_caught_live_views_pass() {
+        let f = arg_findings_of(
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:inspect\", args: { view: permits } }\n",
+        );
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].tool, "nika:inspect");
+        assert_eq!(f[0].arg, "view");
+        assert_eq!(f[0].invalid_value.as_deref(), Some("permits"));
+        assert_eq!(f[0].suggestion, None, "no near view to guess");
+        assert!(
+            ["cost", "records", "dag_info", "threads"]
+                .iter()
+                .all(|v| f[0].declared.iter().any(|d| d == v)),
+            "the four live views are the teaching: {:?}",
+            f[0].declared
+        );
+        let typo = arg_findings_of(
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:inspect\", args: { view: recods } }\n",
+        );
+        assert_eq!(typo[0].suggestion.as_deref(), Some("records"));
+        for view in [
+            "cost",
+            "records",
+            "dag_info",
+            "threads",
+            "${{ inputs.view }}",
+        ] {
+            let f = arg_findings_of(&format!(
+                "nika: w\ninputs: {{ view: {{ type: string, required: true }} }}\ntasks:\n  t:\n    invoke: {{ tool: \"nika:inspect\", args: {{ view: \"{view}\" }} }}\n",
+            ));
+            assert!(f.is_empty(), "`{view}` must stay silent: {f:?}");
+        }
     }
 
     #[test]
