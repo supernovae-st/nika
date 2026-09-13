@@ -111,22 +111,44 @@ fn runtime_trace_fixtures_hold_their_verify_verdict() {
             }
             other => panic!("{name}: unknown fixture verdict {other}"),
         }
-        if let Some(cost) = expected["cost_replay"].as_str() {
-            let marker = match cost {
-                "replayed" => "COST-REPLAY — the pinned pricing table is this engine's",
-                "refused" => "COST-REPLAY — REFUSED",
-                "unrecorded" => "COST-REPLAY — unrecorded",
-                other => panic!("{name}: unknown cost_replay claim {other}"),
-            };
-            assert!(
-                out.text.contains(marker),
-                "{name}: cost_replay `{cost}` renders `{marker}`: {}",
-                out.text
-            );
+        assert_cost_projection(&expected, &out.text, &name);
+        if let Some(items) = expected["items"].as_object() {
+            assert_item_projection(&trace, &name, items);
         }
     }
     assert!(
-        seen >= 7,
-        "the spec runtime/trace corpus has >= 7 fixtures (saw {seen})"
+        seen >= 9,
+        "the spec runtime/trace corpus has >= 9 fixtures (saw {seen})"
     );
+}
+
+fn assert_item_projection(
+    trace: &std::path::Path,
+    name: &str,
+    items: &serde_json::Map<String, serde_json::Value>,
+) {
+    let outputs = nika_cli::verbs::trace::outputs_json(&trace.to_string_lossy());
+    assert_eq!(outputs.code, 0, "{name}: {}", outputs.text);
+    let document: serde_json::Value =
+        serde_json::from_str(&outputs.text).expect("trace outputs JSON");
+    let tasks = document["tasks"].as_array().expect("task projections");
+    for (id, rows) in items {
+        let task = tasks.iter().find(|task| task["id"] == *id).expect("task");
+        assert_eq!(&task["items"], rows, "{name}: {id} item evidence");
+    }
+}
+
+fn assert_cost_projection(expected: &serde_json::Value, text: &str, name: &str) {
+    if let Some(cost) = expected["cost_replay"].as_str() {
+        let marker = match cost {
+            "replayed" => "COST-REPLAY — the pinned pricing table is this engine's",
+            "refused" => "COST-REPLAY — REFUSED",
+            "unrecorded" => "COST-REPLAY — unrecorded",
+            other => panic!("{name}: unknown cost_replay claim {other}"),
+        };
+        assert!(
+            text.contains(marker),
+            "{name}: cost_replay `{cost}` renders `{marker}`: {text}"
+        );
+    }
 }

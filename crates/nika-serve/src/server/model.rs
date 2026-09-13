@@ -43,6 +43,8 @@ pub(crate) struct JobResponse<'a> {
     receipt: Option<&'a JobReceipt>,
     #[serde(skip_serializing_if = "Option::is_none")]
     settlement: Option<&'a Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    evidence: Option<crate::JournalEvidence>,
 }
 
 #[derive(Debug, Serialize)]
@@ -66,6 +68,7 @@ impl<'a> From<&'a JobRecord> for JobResponse<'a> {
             outputs: record.outputs(),
             receipt: record.receipt(),
             settlement: record.settlement(),
+            evidence: record.evidence(),
         }
     }
 }

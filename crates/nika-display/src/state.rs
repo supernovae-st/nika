@@ -226,6 +226,7 @@ pub struct RunView {
     /// side information the run verb injects; the fold never derives it.
     plan_waves: Option<Vec<Vec<String>>>,
     rows: Vec<TaskRow>,
+    item_pages: BTreeMap<String, crate::item_pages::Pages>,
     index: BTreeMap<String, usize>,
     blocked_by: BTreeMap<String, String>,
     cleanup: BTreeMap<String, Vec<cleanup::Attachment>>,
@@ -337,6 +338,7 @@ impl RunView {
 
         match event.kind {
             EventKind::WorkflowStarted => {
+                self.item_pages.clear();
                 str_field(event, "workflow")
                     .unwrap_or("workflow")
                     .clone_into(&mut self.workflow);
@@ -348,16 +350,9 @@ impl RunView {
                 self.declare_cleanup(event);
             }
             EventKind::PermitChecked => self.apply_cleanup(event),
-            EventKind::TaskStarted => {
-                if let Some(i) = self.touch(event, TaskState::Running) {
-                    let row = &mut self.rows[i];
-                    row.started_ms = Some(ts);
-                    if row.started_note.is_none() && !row.note.is_empty() {
-                        row.started_note = Some(row.note.clone());
-                    }
-                }
-            }
+            EventKind::TaskStarted => self.apply_task_started(event, ts),
             EventKind::TaskCompleted => self.apply_task_completed(event, ts),
+            EventKind::TaskItems => self.apply_task_items(event),
             // ADR-099 `--resume` — a rehydrated success: the row reads Ok
             // with the "cache hit" note the frame carries (VISIBLE, never
             // silent); zero duration/spend (the task never ran here). The
@@ -491,9 +486,45 @@ impl RunView {
         }
     }
 
+    fn apply_task_started(&mut self, event: &Event, ts: i64) {
+        if let Some(task) = str_field(event, "task") {
+            self.item_pages.remove(task);
+        }
+        if let Some(i) = self.touch(event, TaskState::Running) {
+            let row = &mut self.rows[i];
+            row.started_ms = Some(ts);
+            row.items_json = None;
+            if row.started_note.is_none() && !row.note.is_empty() {
+                row.started_note = Some(row.note.clone());
+            }
+        }
+    }
+
+    fn apply_task_items(&mut self, event: &Event) {
+        if let Some(task) = str_field(event, "task") {
+            self.item_pages
+                .entry(task.to_owned())
+                .or_default()
+                .push(event);
+        }
+    }
+
     /// Stamp a ran-to-terminal row (completed · failed): the end stamp,
     /// the runtime-measured duration, the per-task spend.
     fn stamp_terminal(&mut self, i: usize, ts: i64, event: &Event, usd: Option<f64>) {
+        let pages = str_field(event, "task").and_then(|task| self.item_pages.remove(task));
+        let items =
+            if pages.is_some() || event.fields.iter().any(|field| field.key == "items_pages") {
+                // A terminal cannot claim both encodings or bypass a broken page
+                // set by supplying a second, inline representation.
+                if str_field(event, "items").is_some() {
+                    None
+                } else {
+                    pages.and_then(|pages| pages.finish(event))
+                }
+            } else {
+                str_field(event, "items").map(str::to_owned)
+            };
         let row = &mut self.rows[i];
         row.ended_ms = Some(ts);
         if let Some(d) = int_field(event, "duration_ms") {
@@ -522,9 +553,7 @@ impl RunView {
         row.tokens_cache_write = meter(event, "tokens_cache_write").or(row.tokens_cache_write);
         row.tokens_reasoning = meter(event, "tokens_reasoning").or(row.tokens_reasoning);
         // #1276 · #1397 · a fan-out's item table survives to the readers.
-        if let Some(items) = str_field(event, "items") {
-            row.items_json = Some(items.to_owned());
-        }
+        row.items_json = items;
         // F-O1 · a task whose value is untrusted names its born origin on
         // every prose surface, not only in the JSON.
         if str_field(event, "integrity") == Some("untrusted")
@@ -677,7 +706,7 @@ fn float_field(event: &Event, key: &str) -> Option<f64> {
     }
 }
 
-fn int_field(event: &Event, key: &str) -> Option<i64> {
+pub(crate) fn int_field(event: &Event, key: &str) -> Option<i64> {
     match value_of(event, key) {
         Some(Value::Int(i)) => Some(*i),
         _ => None,

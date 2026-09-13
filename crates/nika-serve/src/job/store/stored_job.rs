@@ -89,6 +89,11 @@ impl StoredJob {
                 .and_then(|index| usize::try_from(index).ok())
                 .and_then(|index| self.events.get(index))
         };
+        self.record.evidence = event
+            .and_then(|event| event.payload.get("evidence"))
+            .map(|value| serde_json::from_value(value.clone()))
+            .transpose()
+            .map_err(|_| JobStoreError::Corrupt("journal evidence is invalid".to_owned()))?;
         self.record.settlement = event
             .and_then(|event| event.payload.get("settlement"))
             .map(|settlement| {
@@ -125,6 +130,17 @@ impl StoredJob {
                 receipt.validate()?;
                 ensure_receipt_matches(&self.record, receipt)?;
             }
+        }
+        if self.record.evidence.is_some()
+            && self
+                .record
+                .receipt()
+                .and_then(super::JobReceipt::chain_head)
+                .is_some()
+        {
+            return Err(JobStoreError::Corrupt(
+                "lost mirror cannot advertise a journal chain head".to_owned(),
+            ));
         }
         Ok(())
     }

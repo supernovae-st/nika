@@ -193,7 +193,7 @@ pub(crate) fn emit_completed(
     // · code · message) — failures 2..N and the recovered ones reach the
     // journal, not only the first casualty.
     if let Some(items) = items {
-        fields.push(("items", s(items)));
+        crate::emit_items::push(&mut fields, id, items, stamper, sink);
     }
     // Spec 13 · trace_format: 2 — every terminal task event carries the
     // outcome (class · cause · payload per class).

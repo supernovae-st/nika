@@ -10,6 +10,61 @@ use super::*;
 type StateEdit = (&'static str, fn(&mut serde_json::Value));
 
 #[test]
+fn malformed_or_contradictory_mirror_evidence_cannot_mutate_durable_state() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    let created = admitted_record(
+        store
+            .create_or_replay(key("evidence"), digest(93))
+            .expect("create"),
+    );
+    let snapshot = digest(94).as_str().to_owned();
+    store
+        .start_execution(
+            created.id(),
+            "leg".into(),
+            "trace".into(),
+            snapshot.clone(),
+            &[json!({"kind": "execution.started"})],
+        )
+        .expect("start");
+    let before = std::fs::read(root.path().join("jobs/state.json")).expect("before");
+    for (evidence, head) in [
+        (json!({"status": "healthy"}), None),
+        (
+            json!({"status": "mirror_lost", "reason": "raw OS path"}),
+            None,
+        ),
+        (
+            json!({"status": "mirror_lost", "reason": "write_failed"}),
+            Some("chain"),
+        ),
+    ] {
+        let receipt = JobReceipt::new(
+            created.id().clone(),
+            "leg",
+            "trace",
+            &snapshot,
+            head.map(str::to_owned),
+        )
+        .expect("receipt");
+        assert!(matches!(store.settle_with_events(
+            created.id(), JobStatus::Succeeded,
+            &[json!({"kind": "execution.settled", "status": "succeeded", "evidence": evidence})],
+            None, Some(receipt),
+        ), Err(JobStoreError::Corrupt(_))));
+        assert_eq!(
+            std::fs::read(root.path().join("jobs/state.json")).expect("after"),
+            before
+        );
+        assert_eq!(
+            store.get(created.id()).expect("get").expect("job").status(),
+            JobStatus::Running
+        );
+    }
+}
+
+#[test]
 fn queued_refusal_and_run_claim_preserve_the_first_transition_in_both_orders() {
     for claim_first in [true, false] {
         let root = tempfile::tempdir().expect("root");
@@ -74,15 +129,19 @@ fn settlement_is_a_terminal_event_projection_across_reopen_and_later_events() {
         transition(&store, created.id(), JobStatus::Running);
         let settlement =
             json!({"status": status.to_string(), "cause": "normal", "future": {"known": false}});
+        let evidence = JournalEvidence::mirror_lost(JournalFailure::WriteFailed);
         let terminal = store.transition_with_events(created.id(), status, &[json!({
             "kind": "execution.settled", "status": status.to_string(), "settlement": settlement,
+            "evidence": evidence,
         })]).expect("terminal");
         assert_eq!(terminal.record().settlement(), Some(&settlement));
+        assert_eq!(terminal.record().evidence(), Some(evidence));
         store
             .append_events(
                 created.id(),
                 &[json!({
                     "kind": "annotation", "settlement": {"cause": "not the terminal"},
+                    "evidence": JournalEvidence::mirror_lost(JournalFailure::RecordRefused),
                 })],
             )
             .expect("later event");
@@ -94,6 +153,7 @@ fn settlement_is_a_terminal_event_projection_across_reopen_and_later_events() {
             persisted["jobs"][0]["record"].get("settlement").is_none(),
             "one durable authority: the terminal event"
         );
+        assert!(persisted["jobs"][0]["record"].get("evidence").is_none());
         drop(store);
         let reopened = JobStore::open(root.path()).expect("reopen");
         assert_eq!(
@@ -110,6 +170,13 @@ fn settlement_is_a_terminal_event_projection_across_reopen_and_later_events() {
                 .expect("replay"),
         );
         assert_eq!(replay.settlement(), Some(&settlement));
+        assert_eq!(replay.evidence(), Some(evidence));
+        assert_eq!(
+            crate::inspect_resident(root.path())
+                .expect("resident")
+                .mirror_losses,
+            Some(1)
+        );
     }
 }
 
@@ -139,17 +206,20 @@ fn paused_leg_projects_its_result_then_clears_it_on_resume() {
     let receipt = JobReceipt::new(created.id().clone(), "leg-1", "trace-1", &snapshot, None)
         .expect("receipt");
     let settlement = json!({"status": "paused", "cause": "human_gate"});
+    let evidence = JournalEvidence::mirror_lost(JournalFailure::WriteFailed);
     let paused = store
         .transition_with_events(
             created.id(),
             JobStatus::Paused,
             &[json!({
                 "kind": "execution.settled", "status": "paused", "settlement": settlement,
+                "evidence": evidence,
         "outputs": {"answer": "pending", "large": "x".repeat(MAX_EVENT_PAYLOAD_BYTES)}, "receipt": receipt,
             })],
         )
         .expect("pause");
     assert_eq!(paused.record().receipt(), Some(&receipt));
+    assert_eq!(paused.record().evidence(), Some(evidence));
     assert_eq!(
         paused.record().outputs().expect("outputs")["large"]
             .as_str()
@@ -200,6 +270,7 @@ fn paused_leg_projects_its_result_then_clears_it_on_resume() {
         .expect("resume");
     assert_eq!(resumed.record().status(), JobStatus::Running);
     assert!(resumed.record().settlement().is_none());
+    assert!(resumed.record().evidence().is_none());
     assert!(resumed.record().outputs().is_none());
     assert!(resumed.record().receipt().is_none());
     drop(store);

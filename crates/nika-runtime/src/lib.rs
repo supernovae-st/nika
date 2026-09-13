@@ -56,6 +56,7 @@ pub mod child;
 pub mod compose;
 pub mod config;
 mod dispatch;
+mod emit_items;
 mod emit_task;
 pub(crate) mod harness_seat;
 mod ledger;

@@ -262,6 +262,32 @@ fn payload_journal(canary: &str) -> (String, String, String) {
     (raw, head, outcome)
 }
 
+#[test]
+fn item_pages_export_hashes_instead_of_payload_content() {
+    let items = json!([{
+        "index": 0, "item": "CANARY-item", "status": "failed",
+        "code": "NIKA-TEST-001", "message": "CANARY-message"
+    }])
+    .to_string();
+    let page = event(EventKind::TaskItems, &[("task", "fan"), ("items", &items)])
+        .with_field(KeyValue::new("page", FieldValue::Int(0)));
+    let (raw, _) = chained(&[started_v2(&wf_semantic()), page, completed()]);
+    let (out, pack) = pack_over("redacted-item-page", &raw, None, &[]);
+    let projected = std::fs::read_to_string(out.join("journal.ndjson")).expect("projection");
+    assert!(!projected.contains("CANARY"));
+    assert_eq!(pack["redaction"]["placeholders"], 1);
+    let page: Value =
+        serde_json::from_str(projected.lines().nth(1).expect("page")).expect("page JSON");
+    assert_eq!(page["kind"], "task_items");
+    assert_eq!(field(&page, "task")["value"], "fan");
+    assert_eq!(field(&page, "page")["value"], 0);
+    assert_eq!(
+        field(&page, "items")["value"]["sha256"],
+        sha256_hex(items.as_bytes())
+    );
+    let _ = std::fs::remove_dir_all(out.parent().expect("parent"));
+}
+
 /// The field entry of one projection line, by key.
 fn field<'v>(line: &'v Value, key: &str) -> &'v Value {
     line["fields"]

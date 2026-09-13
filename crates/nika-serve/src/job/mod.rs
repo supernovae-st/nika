@@ -1,6 +1,8 @@
+mod evidence;
 mod model;
 mod store;
 
+pub use evidence::{JournalEvidence, JournalFailure};
 pub use model::{
     Admission, ApprovalHistoryError, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobMutation,
     JobOrigin, JobReceipt, JobRecord, JobStatus, JobStoreError,

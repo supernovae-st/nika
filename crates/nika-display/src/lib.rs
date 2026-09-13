@@ -31,6 +31,7 @@ pub mod demo;
 pub mod flow;
 pub mod format;
 pub mod fruit;
+mod item_pages;
 pub mod model_scope;
 pub mod project_render;
 pub mod render;
