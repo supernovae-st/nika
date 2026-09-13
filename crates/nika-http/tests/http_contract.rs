@@ -373,6 +373,42 @@ async fn allowlist_is_rechecked_on_every_redirect_hop() {
 }
 
 #[tokio::test]
+async fn redirect_hop_outside_the_boundary_is_refused_before_any_contact() {
+    // #1582 · the objective in one sentence: EVERY redirect target is
+    // judged against the declared `permits.net.http` BEFORE it is
+    // followed. The initial host is allowed; its 301 bounces to
+    // `localhost` — a NAME the boundary (`127.0.0.1` exact · loopback
+    // declassification is name-exact, #395) does not cover — where a
+    // RECORDING server waits. The refusal is NIKA-SEC-004's
+    // `HostNotAllowed` for the HOP host, and that server sees ZERO
+    // connections: the hop was never contacted (`vet` gates the
+    // boundary before resolution, so not even a DNS lookup leaks).
+    let _net = net_guard();
+    let (target, heads, _methods) = serve_recording_full(vec![ok_response("never", "")]).await;
+    let hop1 = serve(vec![redirect_response(&format!(
+        "http://localhost:{}/final",
+        target.port()
+    ))])
+    .await;
+    let client = mechanics_client_with(|c| {
+        c.net = NetBoundary::Declared(vec!["127.0.0.1".to_owned()]);
+    });
+    let err = client
+        .get(HttpRequest::get(format!("http://{hop1}/start")))
+        .await
+        .expect_err("the hop outside the boundary must be refused");
+    assert!(
+        matches!(err, HttpError::HostNotAllowed { ref host } if host == "localhost"),
+        "expected HostNotAllowed(localhost), got {err:?}"
+    );
+    assert!(
+        heads.lock().unwrap().is_empty(),
+        "the hop host must never be contacted: {:?}",
+        heads.lock().unwrap()
+    );
+}
+
+#[tokio::test]
 async fn follow_redirects_false_returns_the_3xx() {
     let _net = net_guard();
     let addr = serve(vec![redirect_response("http://example.invalid/never")]).await;

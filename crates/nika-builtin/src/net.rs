@@ -40,6 +40,51 @@ pub(crate) fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
     }
 }
 
+/// [`net_security_failure`] knowing the URL written in the file — the one
+/// `nika check` audited. When the refused host is a DIFFERENT one, the
+/// boundary was crossed by a redirect hop the static audit cannot see
+/// (#1582 · check green ≠ run): the message then names the audited host
+/// and the exact grant, so the run explains the green check instead of
+/// contradicting it. `fetch` + `notify` (the two file-named URLs) map
+/// through this door; the traverse family keeps the plain mapper.
+pub(crate) fn net_security_failure_for(e: &HttpError, requested: &str) -> Option<BuiltinFailure> {
+    let mut failure = net_security_failure(e)?;
+    if let HttpError::HostNotAllowed { host } = e
+        && let Some(audited) = redirect_origin(requested, host)
+    {
+        failure.message = format!(
+            "{refusal} · reached by a redirect from `{audited}` — `nika check` audits the \
+             URL written in the file, a hop is judged here at run · to admit it add \
+             `{host}` to permits.net.http",
+            refusal = failure.message
+        );
+    }
+    Some(failure)
+}
+
+/// The connect host of a parsed URL, normalized the way `permits.net.http`
+/// is written — the SAME extraction as the transport (`nika-http`'s
+/// `host_of`: bracket-free IPv6 · FQDN trailing dot stripped) and the static
+/// checker, pinned by [`nika_types::net::HOST_EXTRACTION_VECTORS`] in this
+/// crate's tests too, so the three readers of one host can never drift.
+fn url_host(url: &url::Url) -> Option<String> {
+    match url.host()? {
+        url::Host::Domain(d) => Some(d.trim_end_matches('.').to_owned()),
+        url::Host::Ipv4(a) => Some(a.to_string()),
+        url::Host::Ipv6(a) => Some(a.to_string()),
+    }
+}
+
+/// The host `nika check` audited (the one written in the file) when the
+/// refused host is a DIFFERENT one — a declared boundary refuses a host the
+/// file never named only through a redirect hop (#1582). Same extractor as
+/// the transport's per-hop vet, so a spelling difference (case · FQDN dot ·
+/// IPv6 brackets · `\@` userinfo) is never mistaken for a hop.
+fn redirect_origin(requested: &str, refused: &str) -> Option<String> {
+    let audited = url_host(&url::Url::parse(requested).ok()?)?;
+    (audited != refused).then_some(audited)
+}
+
 /// The #1371 effect-safe retry verdict for one prepared request (spec 05
 /// §the effect-safe retry law): a keyless effect-capable call (POST ·
 /// PUT · DELETE · PATCH without an `idempotency-key` header) types EVERY
@@ -123,7 +168,7 @@ pub(crate) async fn fetch_with_clock<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn +
         // A security-boundary error (permits.net.http → SEC-004 · SSRF floor
         // → SEC-005) takes its spec-plane code; otherwise it's a transport
         // failure whose retryability follows the spec status table.
-        net_security_failure(&e).unwrap_or_else(|| {
+        net_security_failure_for(&e, url).unwrap_or_else(|| {
             // #1371: a keyless effect-capable call never earns the
             // transport-transient classification (the ambiguous commit).
             let transient =
@@ -545,7 +590,7 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
         // The webhook `target:` rides the SAME net security boundary as
         // fetch (SEC-004 permits / SEC-005 SSRF · shared helper); anything
         // else is a delivery failure.
-        net_security_failure(&e)
+        net_security_failure_for(&e, target)
             .unwrap_or_else(|| BuiltinFailure::new(C2, format!("delivery failed: {e}")))
     })?;
     if (200..300).contains(&response.status) {
@@ -1162,6 +1207,8 @@ mod tests {
         );
         assert!(!fail.transient, "a capability denial is never retryable");
         assert!(fail.message.contains("net.http"), "{}", fail.message);
+        // The refused host IS the one written in the file: no hop to name.
+        assert!(!fail.message.contains("redirect"), "{}", fail.message);
 
         // notify's webhook `target:` rides the very same boundary.
         let http = MockHttp::new().enqueue_err(HttpError::HostNotAllowed {
@@ -1174,6 +1221,83 @@ mod tests {
         .await
         .expect_err("notify target outside permits.net.http");
         assert_eq!(fail.code, "NIKA-SEC-004", "notify honors the same boundary");
+    }
+
+    #[tokio::test]
+    async fn sec_004_on_a_redirect_hop_names_the_host_check_audited() {
+        // #1582 · check green ≠ run: `nika check` audits the URL written in
+        // the file; a 3xx hop onto another host is judged at run. The refusal
+        // bridges the two doors: the audited host and the exact grant.
+        let http = MockHttp::new().enqueue_err(HttpError::HostNotAllowed {
+            host: "files-03.restcountries.com".to_owned(),
+        });
+        let fail = fetch(
+            &http,
+            &args(serde_json::json!({ "url": "https://restcountries.com/v3.1/name/france" })),
+        )
+        .await
+        .expect_err("redirect hop outside permits.net.http");
+        assert_eq!(fail.code, "NIKA-SEC-004", "a hop escape is the same code");
+        assert!(!fail.transient, "never retryable");
+        let msg = &fail.message;
+        assert!(msg.contains("redirect from `restcountries.com`"), "{msg}");
+        assert!(
+            msg.contains("add `files-03.restcountries.com` to permits.net.http"),
+            "{msg}"
+        );
+
+        // notify's webhook `target:` rides the same door.
+        let http = MockHttp::new().enqueue_err(HttpError::HostNotAllowed {
+            host: "hooks.example.net".to_owned(),
+        });
+        let fail = notify(
+            &http,
+            &args(serde_json::json!({ "target": "https://example.net/hook", "message": "x" })),
+        )
+        .await
+        .expect_err("notify redirect hop outside permits.net.http");
+        assert_eq!(fail.code, "NIKA-SEC-004");
+        assert!(
+            fail.message.contains("redirect from `example.net`"),
+            "{}",
+            fail.message
+        );
+    }
+
+    #[tokio::test]
+    async fn sec_004_direct_refusal_is_never_called_a_redirect() {
+        // Normalization parity with the transport (`nika-http`'s `host_of`):
+        // case · FQDN dot · IPv6 brackets · `\@` userinfo — a spelling
+        // difference is the SAME host the file names, never a hop.
+        for (requested, refused) in [
+            ("https://ALLOWED.com./x", "allowed.com"),
+            ("http://[::1]:8080/x", "::1"),
+            (r"https://evil.com\@allowed.com/x", "evil.com"),
+        ] {
+            let http = MockHttp::new().enqueue_err(HttpError::HostNotAllowed {
+                host: refused.to_owned(),
+            });
+            let fail = fetch(&http, &args(serde_json::json!({ "url": requested })))
+                .await
+                .expect_err("host outside permits.net.http");
+            assert_eq!(fail.code, "NIKA-SEC-004");
+            assert!(
+                !fail.message.contains("redirect"),
+                "{requested}: {}",
+                fail.message
+            );
+        }
+    }
+
+    #[test]
+    fn url_host_agrees_with_the_transport_on_the_pinned_vectors() {
+        // The hop detector reads the file's host the way the transport does
+        // — pinned by the shared vector table so check · run · this bridge
+        // can never drift (a drift would call a spelling a redirect).
+        for (raw, expected) in nika_types::net::HOST_EXTRACTION_VECTORS {
+            let got = url::Url::parse(raw).ok().and_then(|u| url_host(&u));
+            assert_eq!(got.as_deref(), *expected, "vector {raw:?}");
+        }
     }
 
     #[tokio::test]
