@@ -179,6 +179,7 @@ pub(crate) fn ls_json_in(dir: &Path) -> VerbOutput {
                 "state": t.state_word(),
                 "liveness": t.liveness.map(nika_dap::liveness::Liveness::as_str),
                 "paused_task": t.paused_task,
+                "resumed_from": t.resumed_from,
                 "bytes": t.bytes,
                 "modified_unix": modified,
                 "newest": newest.contains(&i),
@@ -624,7 +625,27 @@ mod tests {
                 "{trace}"
             );
             assert_eq!(trace["newest"], true, "one trace per workflow: {trace}");
+            assert!(
+                trace["resumed_from"].is_null(),
+                "a fresh run continues nothing: {trace}"
+            );
         }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// #1462 · `ls --json` names the trace a resumed leg continued
+    /// (`resumed_from`), so a listing renders a continuation as one.
+    #[test]
+    fn ls_json_names_the_trace_a_leg_resumed() {
+        use nika_types::resource::{KeyValue, Value};
+        let dir = temp_store("ls-json-resumed");
+        let mut leg2 = run_events("gatey", Some(EventKind::WorkflowCompleted));
+        leg2[0] = leg2[0]
+            .clone()
+            .with_field(KeyValue::new("resumed_from", Value::String("a".repeat(32))));
+        stage_trace(&dir, "leg2.ndjson", &ndjson(&leg2), Duration::from_secs(60));
+        let doc: serde_json::Value = serde_json::from_str(&ls_json_in(&dir).text).expect("json");
+        assert_eq!(doc["traces"][0]["resumed_from"], "a".repeat(32), "{doc}");
         let _ = std::fs::remove_dir_all(dir);
     }
 

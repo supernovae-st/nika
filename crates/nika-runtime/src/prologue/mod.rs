@@ -224,6 +224,7 @@ pub(crate) fn emit_prologue(
     project_root_fingerprint: Option<&str>,
     input_origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
+    resumed_from: Option<&str>,
     resume_unverified: Option<&crate::resume::ResumeUnverified>,
     max_cost_usd: Option<f64>,
     model_override: Option<&str>,
@@ -261,6 +262,11 @@ pub(crate) fn emit_prologue(
     opening.extend(sandbox_policy_fields(sandbox_policy, sandbox_waived));
     // F-P13 + F-P21 · the NEP-0014 attestation fields (own helper).
     opening.extend(nep_0014_fields(input_origins, resume_compat));
+    // #1462 · the continuation link: the trace this leg resumed, beside
+    // the engine it crossed from (absent on a fresh run — no claim).
+    if let Some(trace_id) = resumed_from {
+        opening.push(("resumed_from", s(trace_id)));
+    }
     // ADR-099 trust amendment (2026-08-08) · the unverified-trust
     // attestation (own helper).
     opening.extend(trust_amendment_fields(resume_unverified));

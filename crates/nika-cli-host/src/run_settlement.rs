@@ -192,6 +192,10 @@ struct RunSettledFrame<'a, T> {
     receipt: Option<LocalRunReceipt<'a>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     access_plan: Option<&'a [serde_json::Value]>,
+    /// #1462 · the trace this leg CONTINUED (`--resume`): said on the
+    /// settlement so a continuation renders as one — absent on a fresh run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resumed_from: Option<&'a str>,
 }
 
 /// Append exactly one terminal NDJSON document to a machine stream.
@@ -215,6 +219,7 @@ pub fn write_run_settlement<T: Serialize>(
             outputs,
             receipt,
             access_plan: None,
+            resumed_from: None,
         },
     )
     .map_err(std::io::Error::from)?;
@@ -234,6 +239,7 @@ pub fn write_local_run_settlement<T: Serialize, W: Write>(
     snapshot_digest: &str,
     evidence: LocalEvidence<'_>,
     access_plan: Option<&[serde_json::Value]>,
+    resumed_from: Option<&str>,
 ) -> std::io::Result<()> {
     let execution_id = execution.to_string();
     let trace_id = nika_types::id::TraceId::from(execution).to_string();
@@ -260,6 +266,7 @@ pub fn write_local_run_settlement<T: Serialize, W: Write>(
         outputs,
         receipt,
         access_plan,
+        resumed_from,
     })
 }
 
@@ -369,6 +376,7 @@ mod tests {
                 "snapshot",
                 LocalEvidence::None,
                 None,
+                None,
             )
             .expect("settlement writes");
         }
@@ -398,6 +406,7 @@ mod tests {
                 execution,
                 "snapshot",
                 LocalEvidence::of(Some(Path::new(".nika/traces/torn.ndjson")), None, true),
+                None,
                 None,
             )
             .expect("settlement writes");
@@ -460,6 +469,7 @@ mod tests {
             "snapshot",
             LocalEvidence::of(Some(&path), None, failed),
             None,
+            None,
         )
         .expect("settlement still writes");
         assert!(primary.into_error().is_none());
@@ -503,6 +513,7 @@ mod tests {
                     path: Path::new(".nika/traces/exact.ndjson"),
                     proof: &proof,
                 },
+                None,
                 None,
             )
             .expect("settlement writes");
@@ -562,6 +573,38 @@ mod tests {
         assert!(
             first_failure(&budget).is_none(),
             "no task record for a run-level cause"
+        );
+    }
+    /// #1462 · a resumed leg's settlement names the trace it continued
+    /// (`resumed_from`); a fresh run's frame carries no such key — absent,
+    /// never null.
+    #[test]
+    fn a_continuation_names_the_trace_it_resumed() {
+        let settlement = RunSettlement::new(RunState::Succeeded, RunCause::Normal);
+        let mut out = Vec::new();
+        {
+            let mut writer = nika_dap::journal::JsonSink::new(&mut out);
+            write_local_run_settlement(
+                &mut writer,
+                &settlement,
+                &json!({}),
+                nika_types::id::ExecutionId::nil(),
+                "snapshot",
+                LocalEvidence::None,
+                None,
+                Some("c0ffee"),
+            )
+            .expect("settlement writes");
+        }
+        let value: serde_json::Value = serde_json::from_slice(&out).expect("valid JSON");
+        assert_eq!(value["resumed_from"], "c0ffee", "{value}");
+
+        let mut fresh = Vec::new();
+        write_run_settlement(&mut fresh, &settlement, &json!({}), None).expect("writes");
+        let value: serde_json::Value = serde_json::from_slice(&fresh).expect("valid JSON");
+        assert!(
+            value.get("resumed_from").is_none(),
+            "a fresh run continues nothing: {value}"
         );
     }
 }

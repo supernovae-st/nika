@@ -40,6 +40,10 @@ pub(super) struct ResumeSetup {
     /// chainless compat), journaled on the boot manifest so no unverified
     /// ancestor launders silently. `None` = the chain verified (or no resume).
     pub unverified: Option<ResumeUnverified>,
+    /// The trace this run CONTINUES (#1462) — the resumed journal's own
+    /// trace id, attested on the boot manifest and the settlement so a
+    /// continuation renders as one. `None` = a fresh run.
+    pub resumed_from: Option<String>,
 }
 
 impl ResumeSetup {
@@ -51,6 +55,7 @@ impl ResumeSetup {
             paused: None,
             compat: None,
             unverified: None,
+            resumed_from: None,
         }
     }
 }
@@ -193,6 +198,8 @@ fn load_resume_plan(
         paused: durable_paused(fold.paused, output_json)?,
         compat,
         unverified,
+        // #1462 · the continuation link: this leg names the trace it folded.
+        resumed_from: nika_dap::resume::trace_run_id(&recovered.events),
     })
 }
 

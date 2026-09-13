@@ -52,6 +52,20 @@ pub fn trace_workflow(events: &[Event]) -> Option<&str> {
     str_field(started, WORKFLOW_FIELD)
 }
 
+/// The journal's own run identity (#1462) — the execution id its opening
+/// frame carries, rendered as the trace id the receipt speaks: the
+/// continuation link a resumed leg journals as `resumed_from`. `None`
+/// on a journal whose opening frame names no execution.
+#[must_use]
+pub fn trace_run_id(events: &[Event]) -> Option<String> {
+    let started = events
+        .iter()
+        .find(|e| matches!(e.kind, EventKind::WorkflowStarted))?;
+    started
+        .execution
+        .map(|execution| nika_types::id::TraceId::from(execution).to_string())
+}
+
 /// Judge the current workflow (its `nika:` id · its bytes) against the
 /// journal's boot manifest. The id is judged FIRST: a different id is
 /// foreign whatever the bytes say. An absent id on either side is no
@@ -229,6 +243,20 @@ mod tests {
             SourceVerdict::Unbound
         );
         assert_eq!(trace_workflow(&idless), None);
+    }
+
+    /// #1462 · the continuation link: the opening frame's execution id,
+    /// rendered as the receipt's trace id; an id-less frame is no claim.
+    #[test]
+    fn the_run_id_is_the_opening_frames_execution() {
+        let execution = nika_types::id::ExecutionId::nil();
+        let events = vec![started(Some("hello"), None).with_execution(execution)];
+        assert_eq!(
+            trace_run_id(&events),
+            Some(nika_types::id::TraceId::from(execution).to_string())
+        );
+        assert_eq!(trace_run_id(&[started(None, None)]), None);
+        assert_eq!(trace_run_id(&[]), None);
     }
 
     /// The comparator is content-aware: a CRLF re-encode of the recorded

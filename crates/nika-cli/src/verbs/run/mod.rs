@@ -626,6 +626,7 @@ fn composed_runtime(
         paused,
         compat,
         unverified,
+        resumed_from,
     } = setup;
     let inputs::ValidatedInputs {
         values: overrides,
@@ -663,6 +664,8 @@ fn composed_runtime(
                 // ADR-099 trust amendment · the unverified-trust
                 // posture, attested on the boot manifest.
                 .with_resume_unverified(unverified)
+                // #1462 · the trace this leg continues, attested beside it.
+                .with_resumed_from(resumed_from)
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
@@ -1137,6 +1140,7 @@ async fn execute_json_lane(
         identity.1,
         evidence,
         lanes.as_deref(),
+        runtime.resumed_from(),
     ) {
         eprintln!("nika run: settlement write failed: {e}");
         return RunVerdict::renderer_failed(trace_path, e.kind());

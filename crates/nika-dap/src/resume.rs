@@ -28,7 +28,7 @@ use nika_schema::raw::RawWorkflow;
 use nika_types::resource::Value as FieldValue;
 
 mod source;
-pub use source::{SourceVerdict, judge_source, source_drifted, trace_workflow};
+pub use source::{SourceVerdict, judge_source, source_drifted, trace_run_id, trace_workflow};
 
 /// The `--resume` request as parsed from the CLI surface.
 #[derive(Debug, Clone)]
