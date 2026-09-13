@@ -16,37 +16,44 @@ use super::Cx;
 use super::tasks::parse_bool_field;
 use super::value::json_value;
 
-/// The parsed `for_each:` block — the collection plus the two knobs that
-/// have no meaning without it.
+/// The parsed `for_each:` block — the collection plus the three knobs
+/// that have no meaning without it (`max_parallel` · `max_items` ·
+/// `fail_fast`).
 type ForEach = (
     Option<Spanned<ForEachValue>>,
+    Option<Spanned<u32>>,
     Option<Spanned<u32>>,
     Option<Spanned<bool>>,
 );
 
 /// `for_each:` — ONE block, so the concurrency is visible where the
-/// fan-out is declared (spec 03 §`for_each`). `max_parallel` and
-/// `fail_fast` live INSIDE it because they mean nothing without it; as
-/// task-level siblings they read as general knobs and were silently
-/// inert on a task that never fans out.
+/// fan-out is declared (spec 03 §`for_each`). `max_parallel`,
+/// `max_items` and `fail_fast` live INSIDE it because they mean nothing
+/// without it; as task-level siblings they read as general knobs and
+/// were silently inert on a task that never fans out.
 ///
-/// The IR keeps the three flat on [`crate::raw::RawTask`]: the GRAMMAR
-/// nests them,
-/// the internal shape does not need to, and flattening leaves the resume
-/// wire keys (`max_parallel` · `fail_fast`) exactly where they are —
-/// a wire rename needs its own version bump, not a grammar change.
+/// The IR keeps the four flat on [`crate::raw::RawTask`]: the GRAMMAR
+/// nests them, the internal shape does not need to, and flattening
+/// leaves the resume wire keys (`max_parallel` · `fail_fast`) exactly
+/// where they are — a wire rename needs its own version bump, not a
+/// grammar change.
+///
+/// `max_items` (#1510) is the fan's hard ceiling on the count axis: the
+/// run refuses a longer collection before its first item, so a LITERAL
+/// list longer than the cap is a contradiction the file already shows —
+/// refused here, at parse, rather than at the wave.
 pub(super) fn parse_for_each(
     cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
 ) -> Result<ForEach, SchemaError> {
-    const KEYS: &[&str] = &["items", "max_parallel", "fail_fast"];
+    const KEYS: &[&str] = &["items", "max_parallel", "max_items", "fail_fast"];
     let Some(node) = mapping.get_node("for_each") else {
-        return Ok((None, None, None));
+        return Ok((None, None, None, None));
     };
     let Some(block) = node.as_mapping() else {
         return Err(SchemaError::Validation {
             message: "`for_each` must be a block with `items:` (plus optional \
-                      `max_parallel:` / `fail_fast:`)"
+                      `max_parallel:` / `max_items:` / `fail_fast:`)"
                 .to_owned(),
             span: cx.span(node.span()),
         });
@@ -70,30 +77,48 @@ pub(super) fn parse_for_each(
             span: cx.span(items.span()),
         });
     };
-    let max_parallel = parse_max_parallel(cx, block)?;
+    let max_parallel = parse_positive_u32(cx, block, "max_parallel")?;
+    let max_items = parse_positive_u32(cx, block, "max_items")?;
     let fail_fast = parse_bool_field(cx, block, "fail_fast")?;
-    Ok((Some(collection), max_parallel, fail_fast))
+    if let (ForEachValue::List(list), Some(cap)) = (&collection.value, &max_items)
+        && let Some(count) = list.as_array().map(Vec::len)
+        && count > cap.value as usize
+    {
+        return Err(SchemaError::Validation {
+            message: format!(
+                "`for_each.items` lists {count} items but `max_items: {}` caps the fan — the \
+                 run refuses the {}th item rather than truncating; raise the cap or shorten \
+                 the list",
+                cap.value,
+                cap.value + 1
+            ),
+            span: Some(cap.span),
+        });
+    }
+    Ok((Some(collection), max_parallel, max_items, fail_fast))
 }
 
-/// `max_parallel:` — positive integer ≥ 1 (spec 03 §`max_parallel` ·
-/// « **Positive integer** · `1` to `n`. `1` = sequential »).
-fn parse_max_parallel(
+/// `max_parallel:` / `max_items:` — positive integer ≥ 1 (spec 03
+/// §`max_parallel` · « **Positive integer** · `1` to `n`. `1` =
+/// sequential » · `max_items` is the same shape on the count axis).
+fn parse_positive_u32(
     cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
+    key: &str,
 ) -> Result<Option<Spanned<u32>>, SchemaError> {
-    let Some(node) = mapping.get_node("max_parallel") else {
+    let Some(node) = mapping.get_node(key) else {
         return Ok(None);
     };
     let value = node
         .as_scalar()
         .and_then(marked_yaml::types::MarkedScalarNode::as_u32)
         .ok_or_else(|| SchemaError::Validation {
-            message: "`max_parallel` must be a positive integer".to_owned(),
+            message: format!("`{key}` must be a positive integer"),
             span: cx.span(node.span()),
         })?;
     if value == 0 {
         return Err(SchemaError::Validation {
-            message: "`max_parallel` must be ≥ 1".to_owned(),
+            message: format!("`{key}` must be ≥ 1"),
             span: cx.span(node.span()),
         });
     }

@@ -15,9 +15,12 @@ use crate::errors::RuntimeError;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 
-/// Collection over item-free boundary bindings. Empty → `skipped`.
+/// Collection over item-free boundary bindings. Empty → `skipped`. A
+/// collection longer than `max_items` → refused before the first item
+/// (#1510).
 pub(super) fn resolve_fan_out_items(
     collection: &ForEachValue,
+    max_items: Option<u32>,
     boundary_with: &BTreeMap<String, Value>,
     inputs: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
@@ -26,7 +29,7 @@ pub(super) fn resolve_fan_out_items(
     let empty_records = BTreeMap::new();
     let scope = Scope::workflow_with_value_authorities(&empty_records, inputs, consts, secrets)
         .with_task_context(Some(boundary_with), None, None, None);
-    let items = resolve_collection(collection, &scope)?;
+    let items = resolve_collection(collection, max_items, &scope)?;
     if items.is_empty() {
         return Err(Box::new(SettleAs::SkippedGate {
             note: "for_each · empty collection",
@@ -174,8 +177,14 @@ fn fold_spend(
     }
 }
 
+/// The collection, resolved and fitted to the declared fan shape. The
+/// ONE emission site of the evaluation-plane code for a `for_each`
+/// collection: not an array, or longer than `max_items` (#1510 — the
+/// cap is the fan's `maxItems`, and a collection that exceeds it is
+/// refused HERE, before the first item, never truncated in silence).
 fn resolve_collection(
     collection: &ForEachValue,
+    max_items: Option<u32>,
     scope: &Scope<'_>,
 ) -> Result<Vec<Value>, Box<SettleAs>> {
     let resolved = match collection {
@@ -187,7 +196,22 @@ fn resolve_collection(
     }
     .map_err(RuntimeError::from);
     match resolved {
-        Ok(Value::Array(items)) => Ok(items),
+        Ok(Value::Array(items)) => match max_items {
+            Some(cap) if items.len() > cap as usize => Err(Box::new(SettleAs::FailedBeforeStart {
+                stage: "for_each",
+                error: TaskErrorRecord::new(
+                    VAR_TYPE_CODE,
+                    format!(
+                        "for_each collection has {} items but `max_items: {cap}` caps the fan — \
+                         refused before the first item (never a silent truncation); raise the \
+                         cap or narrow the collection",
+                        items.len()
+                    ),
+                    false,
+                ),
+            })),
+            _ => Ok(items),
+        },
         Ok(other) => Err(Box::new(SettleAs::FailedBeforeStart {
             stage: "for_each",
             error: TaskErrorRecord::new(

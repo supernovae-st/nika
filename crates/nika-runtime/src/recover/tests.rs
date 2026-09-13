@@ -674,6 +674,46 @@ tasks:
     );
 }
 
+/// #1510 · `for_each.max_items` is a hard ceiling the run refuses to
+/// exceed — before the first item, never a silent truncation: the shell
+/// is never called, the task fails before start under the collection's
+/// evaluation-plane code, and the message names the count and the cap.
+/// A collection AT the cap runs every item.
+#[tokio::test]
+async fn a_fan_out_over_max_items_is_refused_before_the_first_item() {
+    let yaml = |cap: u32| {
+        format!(
+            "nika: fan-cap\npermits: {{ exec: true }}\nconst:\n  items: [\"i01\", \"i02\", \"i03\"]\ntasks:\n  process:\n    for_each: {{ items: \"${{{{ const.items }}}}\", max_items: {cap} }}\n    exec: {{ command: [\"do\", \"${{{{ item }}}}\"] }}\n"
+        )
+    };
+    let (outcome, events) = run_yaml(&yaml(2), MockShell::new(), None).await;
+    assert!(!outcome.ok, "three items over a cap of two is a refusal");
+    let record = &outcome.records["process"];
+    assert_ne!(record.status, TaskStatus::Success);
+    let error = record
+        .error
+        .as_ref()
+        .expect("the refusal is the task's error");
+    assert_eq!(error.code, "NIKA-VAR-006");
+    assert!(
+        error.message.contains("3 items") && error.message.contains("`max_items: 2`"),
+        "count and cap are named: {}",
+        error.message
+    );
+    assert!(
+        !events.iter().any(|e| e.kind == EventKind::TaskStarted
+            && e.fields.iter().any(
+                |f| matches!(&f.value, FieldValue::String(s) if f.key == "task" && s == "process")
+            )),
+        "refused before the first item — the task never started"
+    );
+
+    let shell = (0..3).fold(MockShell::new(), |shell, _| shell.enqueue_ok("ok\n"));
+    let (outcome, _) = run_yaml(&yaml(3), shell, None).await;
+    assert!(outcome.ok, "a collection at the cap runs every item");
+    assert_eq!(outcome.records["process"].status, TaskStatus::Success);
+}
+
 /// #1498 review B1 (the other side) · a plain recovered task is exactly
 /// ONE repair — the item-aware tally must not lose the single-row case.
 #[tokio::test]

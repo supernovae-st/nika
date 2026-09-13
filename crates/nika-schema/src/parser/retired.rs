@@ -80,10 +80,10 @@ pub(super) fn task(key: &str) -> Option<&'static str> {
              door, not two spellings; `lift:` names which law the task opens and \
              why (spec 10 §the authored doors)",
         ),
-        "max_parallel" | "fail_fast" => Some(
-            "the two fan-out knobs live INSIDE the `for_each:` block now \
-             (`for_each: { items: …, max_parallel: N, fail_fast: false }`) — they \
-             have no meaning without it (spec 03 §for_each)",
+        "max_parallel" | "max_items" | "fail_fast" => Some(
+            "the fan-out knobs live INSIDE the `for_each:` block \
+             (`for_each: { items: …, max_parallel: N, max_items: N, fail_fast: false }`) \
+             — they have no meaning without it (spec 03 §for_each)",
         ),
         _ => None,
     }
@@ -434,6 +434,10 @@ mod tests {
         assert!(
             sees("fail_fast", "false").contains("`for_each:`"),
             "`fail_fast:` lives in the block"
+        );
+        assert!(
+            sees("max_items", "4").contains("`for_each:`"),
+            "`max_items:` lives in the block (#1510)"
         );
     }
 

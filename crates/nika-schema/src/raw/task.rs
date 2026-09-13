@@ -83,6 +83,12 @@ pub struct RawTask {
     pub for_each: Option<Spanned<ForEachValue>>,
     /// `max_parallel:` — cap concurrent `for_each` iterations (≥ 1).
     pub max_parallel: Option<Spanned<u32>>,
+    /// `max_items:` — the fan's hard item ceiling (≥ 1 · #1510): a
+    /// collection longer than this is REFUSED before the first item runs
+    /// (never a silent truncation), and the cost estimator multiplies by
+    /// it when the count is not static. `max_parallel`'s sibling on the
+    /// count axis; a literal list longer than the cap is a parse refusal.
+    pub max_items: Option<Spanned<u32>>,
     /// `fail_fast:` — abort-on-error policy for `for_each` (default true).
     pub fail_fast: Option<Spanned<bool>>,
     /// `retry:` — transient-error retry policy (spec 05).
@@ -130,6 +136,7 @@ impl RawTask {
             when: None,
             for_each: None,
             max_parallel: None,
+            max_items: None,
             fail_fast: None,
             retry: None,
             on_error: None,
@@ -194,6 +201,7 @@ mod tests {
         assert!(task.when.is_none());
         assert!(task.for_each.is_none());
         assert!(task.max_parallel.is_none());
+        assert!(task.max_items.is_none());
         assert!(task.fail_fast.is_none());
         assert!(task.retry.is_none());
         assert!(task.on_error.is_none());

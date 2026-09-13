@@ -634,6 +634,7 @@ where
     ) -> SettleAs {
         let items = match fan_out::resolve_fan_out_items(
             collection,
+            task.max_items.as_ref().map(|m| m.value),
             boundary_with,
             inputs,
             consts,
