@@ -168,48 +168,64 @@ fn drive<R: BufRead, W: Write>(
         } else {
             session.turn(&line)
         };
-        match outcome {
-            TurnOutcome::Quit => return Ok(exit::OK),
-            TurnOutcome::Reply(text) | TurnOutcome::Facts(text) | TurnOutcome::Help(text) => {
-                if !text.is_empty() {
-                    writeln!(output, "{text}")?;
-                }
-            }
-            TurnOutcome::Ask(screen) => {
-                choosing = true;
-                writeln!(output, "{screen}")?;
-            }
-            TurnOutcome::Proposal { preview, .. } | TurnOutcome::Held { preview, .. } => {
-                writeln!(output, "{preview}")?;
-            }
-            TurnOutcome::RunRequested { report, run } => {
-                writeln!(output, "{report}")?;
-                writeln!(
-                    output,
-                    "running `{}` once · ceiling ${:.2}",
-                    run.workflow.display(),
-                    run.max_cost_usd
-                )?;
-                output.flush()?;
-                let (code, trace) = run_once(&session.snapshot.root, &run, theme);
-                observed(output, session.observe_run(code, trace.as_deref()))?;
-            }
-            TurnOutcome::GateAsk { question, .. } => writeln!(output, "{question}")?,
-            TurnOutcome::ResumeRequested {
-                workflow,
-                trace,
-                answer,
-            } => {
-                writeln!(output, "resuming `{}` with your answer", workflow.display())?;
-                output.flush()?;
-                let (code, newest) =
-                    run_resume(&session.snapshot.root, &workflow, &trace, &answer, theme);
-                observed(output, session.observe_run(code, newest.as_deref()))?;
-            }
-            TurnOutcome::Refusal(text) => writeln!(output, "✖ {text}")?,
-            _ => {}
+        if handle_outcome(output, &mut session, outcome, &mut choosing, theme)? {
+            return Ok(exit::OK);
         }
     }
+}
+
+/// Print one turn's outcome and act on it (a run the turn requested is
+/// driven here, its observation fed back). Answers `true` only for
+/// `Quit` — the door closes with `exit::OK`.
+fn handle_outcome<W: Write>(
+    output: &mut W,
+    session: &mut SessionRuntime,
+    outcome: TurnOutcome,
+    choosing: &mut bool,
+    theme: Theme,
+) -> std::io::Result<bool> {
+    match outcome {
+        TurnOutcome::Quit => return Ok(true),
+        TurnOutcome::Reply(text) | TurnOutcome::Facts(text) | TurnOutcome::Help(text) => {
+            if !text.is_empty() {
+                writeln!(output, "{text}")?;
+            }
+        }
+        TurnOutcome::Ask(screen) => {
+            *choosing = true;
+            writeln!(output, "{screen}")?;
+        }
+        TurnOutcome::Proposal { preview, .. } | TurnOutcome::Held { preview, .. } => {
+            writeln!(output, "{preview}")?;
+        }
+        TurnOutcome::RunRequested { report, run } => {
+            writeln!(output, "{report}")?;
+            writeln!(
+                output,
+                "running `{}` once · ceiling ${:.2}",
+                run.workflow.display(),
+                run.max_cost_usd
+            )?;
+            output.flush()?;
+            let (code, trace) = run_once(&session.snapshot.root, &run, theme);
+            observed(output, session.observe_run(code, trace.as_deref()))?;
+        }
+        TurnOutcome::GateAsk { question, .. } => writeln!(output, "{question}")?,
+        TurnOutcome::ResumeRequested {
+            workflow,
+            trace,
+            answer,
+        } => {
+            writeln!(output, "resuming `{}` with your answer", workflow.display())?;
+            output.flush()?;
+            let (code, newest) =
+                run_resume(&session.snapshot.root, &workflow, &trace, &answer, theme);
+            observed(output, session.observe_run(code, newest.as_deref()))?;
+        }
+        TurnOutcome::Refusal(text) => writeln!(output, "✖ {text}")?,
+        _ => {}
+    }
+    Ok(false)
 }
 
 /// A line source that takes its lock INSIDE each read and releases it

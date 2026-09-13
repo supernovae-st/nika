@@ -132,7 +132,7 @@ use nika_types::blame::BlamePolarity;
 use nika_types::cost::SpendOnFailure;
 use nika_verb_invoke::{InvokeInput, InvokeVerb, VerbInvokeError};
 
-use crate::batch::{BatchOutcome, Resolved};
+use crate::batch::{BatchFold, BatchOutcome, Resolved};
 use crate::guard::{Guard, GuardVerdict};
 use crate::request::{build_request, joined_text, opening_messages, routing_query, schema_request};
 use crate::router::ToolRouter;
@@ -910,82 +910,11 @@ where
         .try_collect()
         .await?;
 
-        let mut results: Vec<ContentBlock> = Vec::with_capacity(resolved.len());
-        let mut sig_calls: Vec<(String, serde_json::Value)> = Vec::with_capacity(resolved.len());
-        let mut sig_results: Vec<(String, bool)> = Vec::with_capacity(resolved.len());
-        // The error STREAK counts real tool failures only — a compose
-        // verdict of `invalid` is the EXPECTED feedback of the draft→repair
-        // loop, never a tool fault, so it must not arm the error-streak
-        // nudge (which would spend the one reflection budget during normal
-        // repair). Tracked separately from the per-block is_error.
-        let mut all_dispatch_errors = true;
-        let mut had_dispatch = false;
-        let mut tools_cost_usd = 0.0_f64;
+        let mut fold = BatchFold::new(resolved.len());
         for r in resolved {
-            if let Some(cost) = r.cost_usd {
-                tools_cost_usd += cost;
-            }
-            // An intrinsic reports ComposeChecked; a real dispatch reports
-            // ToolCompleted. They are NOT both — `nika:compose` is
-            // loop-served, never a tool invocation, so it must not surface
-            // as one on the stream (a `tool_invoked` for a call that never
-            // hit the executor would mislead every reader).
-            // An effectful call that settled (either way) is remembered; a
-            // refused replay is a decision, never a dispatch (no
-            // `tool_invoked` for a call that never hit the executor).
-            match r.gate {
-                guard::EffectGate::Fresh(sig) => guard.remember_effect(sig),
-                guard::EffectGate::Replay => observer.on_event(&AgentEvent::EffectReplayRefused {
-                    turn,
-                    name: r.name.clone(),
-                }),
-                guard::EffectGate::Free => {}
-            }
-            if let Some(outcome) = r.compose {
-                observer.on_event(&AgentEvent::ComposeChecked {
-                    turn,
-                    valid: outcome.valid,
-                    violations: outcome.violations,
-                });
-            } else if r.gate == guard::EffectGate::Replay {
-                // refused in place · the block still shapes the turn signature
-            } else if let ContentBlock::ToolResult { is_error, .. } = &r.block {
-                had_dispatch = true;
-                all_dispatch_errors &= *is_error;
-                observer.on_event(&AgentEvent::ToolCompleted {
-                    turn,
-                    name: r.name.clone(),
-                    is_error: *is_error,
-                });
-            }
-            // The guard signature reads EVERY observation (compose
-            // included — a repeating compose draft is still a no-progress
-            // loop) regardless of which event reported it.
-            if let ContentBlock::ToolResult {
-                content, is_error, ..
-            } = &r.block
-            {
-                sig_results.push((content.clone(), *is_error));
-            }
-            router.note_used(&r.name, turn);
-            sig_calls.push((r.name, r.args));
-            results.push(r.block);
+            fold.accept(observer, turn, r, guard, router);
         }
-        // ' '-joined so adjacent results don't fuse into phantom seam tokens
-        // ("…statusfetch…") in the next turn's BM25 query.
-        let observations_digest = sig_results
-            .iter()
-            .flat_map(|(content, _)| content.chars().take(512).chain(std::iter::once(' ')))
-            .take(2048)
-            .collect();
-        Ok(BatchOutcome {
-            signature: guard::turn_signature(&sig_calls, &sig_results),
-            results,
-            tools_cost_usd,
-            observations_digest,
-            // No real dispatch this turn (compose-only) ⇒ no error streak.
-            all_errors: had_dispatch && all_dispatch_errors,
-        })
+        Ok(fold.finish())
     }
 
     /// Resolve ONE tool call to its result block (phase-1 unit — pure

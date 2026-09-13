@@ -45,70 +45,7 @@ pub fn run(
     let mut stop_notes = StopNotes(Vec::new());
     let mut refusals: Vec<Refusal> = Vec::new();
     apply_prepass(&mut source, &mut repairs, &mut stop_notes);
-
-    for _ in 0..MAX_ROUNDS {
-        // The savepoint: what this round may be rolled back to.
-        let before = source.clone();
-        let repairs_before = repairs.clone();
-        let stops_before = stop_notes.clone();
-        let mut round_applied = false;
-        match nika_schema::parse(&source, nika_schema::FileId::new(0), ParseMode::Strict) {
-            Err(e) => {
-                // The ONE typed rename door (`rename_repair`): a near-miss
-                // key splices; a teaching-only refusal offers no rename
-                // and is never scraped (the sentence-as-key corruption).
-                if let Some((old, new)) = e.rename_repair() {
-                    round_applied |= splice(&mut source, &old, &new, "field", &mut repairs);
-                    // A parse-fatal we cannot splice (ambiguous token): the
-                    // loop cannot progress past parse — stop honestly.
-                    if !round_applied {
-                        break;
-                    }
-                } else {
-                    match apply_dead_form_arm(&e, &mut source, &mut repairs, &mut stop_notes) {
-                        Some(true) => {}             // a migration applied — the round restarts
-                        Some(false) | None => break, // STOP, or not rename-shaped — check will tell
-                    }
-                }
-            }
-            Ok(wf) => {
-                let report = nika_check::check(&wf);
-                if let Some(stop_or_continue) =
-                    try_w2_hoist(&report, &mut source, &mut repairs, &mut stop_notes)
-                {
-                    if !stop_or_continue {
-                        break;
-                    }
-                } else {
-                    // Collect this round's typed renames FIRST (splicing
-                    // invalidates nothing — each token is unique by the gate).
-                    for (old, new, kind) in collect_typed_renames(&report) {
-                        round_applied |= splice(&mut source, &old, &new, kind, &mut repairs);
-                    }
-                    if !round_applied {
-                        break; // converged — nothing left this loop can repair
-                    }
-                }
-            }
-        }
-        // COMMIT or ROLL BACK. Whatever this round announced, if it turned
-        // a document that parsed into one that does not, it was not a
-        // repair — the savepoint wins and the round is reported refused.
-        let savepoint = Savepoint {
-            source: before,
-            repairs: repairs_before,
-            stop_notes: stops_before,
-        };
-        if rollback_if_broken(
-            savepoint,
-            &mut source,
-            &mut repairs,
-            &mut stop_notes,
-            &mut refusals,
-        ) {
-            break;
-        }
-    }
+    converge(&mut source, &mut repairs, &mut stop_notes, &mut refusals);
 
     let applied = repairs.iter().filter(|r| r.applied).count();
     if applied > 0
@@ -136,6 +73,73 @@ pub fn run(
             verdict.text
         ),
         code: verdict.code,
+    }
+}
+
+/// The repair loop: at most [`MAX_ROUNDS`] rounds over `source`, each a
+/// TRANSACTION (see [`run`]) — a round that breaks the document is rolled
+/// back and recorded in `refusals`; the loop stops on convergence, on a
+/// refusal, or on anything it cannot repair (the final `check` tells).
+fn converge(
+    source: &mut String,
+    repairs: &mut Vec<Repair>,
+    stop_notes: &mut StopNotes,
+    refusals: &mut Vec<Refusal>,
+) {
+    for _ in 0..MAX_ROUNDS {
+        // The savepoint: what this round may be rolled back to.
+        let before = source.clone();
+        let repairs_before = repairs.clone();
+        let stops_before = stop_notes.clone();
+        let mut round_applied = false;
+        match nika_schema::parse(&*source, nika_schema::FileId::new(0), ParseMode::Strict) {
+            Err(e) => {
+                // The ONE typed rename door (`rename_repair`): a near-miss
+                // key splices; a teaching-only refusal offers no rename
+                // and is never scraped (the sentence-as-key corruption).
+                if let Some((old, new)) = e.rename_repair() {
+                    round_applied |= splice(source, &old, &new, "field", repairs);
+                    // A parse-fatal we cannot splice (ambiguous token): the
+                    // loop cannot progress past parse — stop honestly.
+                    if !round_applied {
+                        break;
+                    }
+                } else {
+                    match apply_dead_form_arm(&e, source, repairs, stop_notes) {
+                        Some(true) => {}             // a migration applied — the round restarts
+                        Some(false) | None => break, // STOP, or not rename-shaped — check will tell
+                    }
+                }
+            }
+            Ok(wf) => {
+                let report = nika_check::check(&wf);
+                if let Some(stop_or_continue) = try_w2_hoist(&report, source, repairs, stop_notes) {
+                    if !stop_or_continue {
+                        break;
+                    }
+                } else {
+                    // Collect this round's typed renames FIRST (splicing
+                    // invalidates nothing — each token is unique by the gate).
+                    for (old, new, kind) in collect_typed_renames(&report) {
+                        round_applied |= splice(source, &old, &new, kind, repairs);
+                    }
+                    if !round_applied {
+                        break; // converged — nothing left this loop can repair
+                    }
+                }
+            }
+        }
+        // COMMIT or ROLL BACK. Whatever this round announced, if it turned
+        // a document that parsed into one that does not, it was not a
+        // repair — the savepoint wins and the round is reported refused.
+        let savepoint = Savepoint {
+            source: before,
+            repairs: repairs_before,
+            stop_notes: stops_before,
+        };
+        if rollback_if_broken(savepoint, source, repairs, stop_notes, refusals) {
+            break;
+        }
     }
 }
 

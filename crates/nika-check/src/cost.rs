@@ -21,7 +21,7 @@
 //! emit fewer tokens than `max_tokens`, so the cheapest-path figure is
 //! the floor of your *exposure*, not of the actual spend.
 
-use nika_schema::raw::{ForEachValue, RawAction, RawWorkflow};
+use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 
 /// Per-task cost envelope.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -187,35 +187,7 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
         };
         let model = model_override.or_else(|| default_model.clone());
 
-        // `for_each` fan-out: a literal list is N calls (known multiplier);
-        // an expression source is an unknown count → unbounded.
-        let iterations = match task.value.for_each.as_ref().map(|f| &f.value) {
-            None => Some(1),
-            Some(ForEachValue::List(arr)) => Some(arr.as_array().map_or(1, Vec::len) as u64),
-            // An expression source is unknown EXCEPT when it is a bare
-            // `${{ <authority>.<name> }}` over a literal array — that count is
-            // statically known, so the cost is bounded (parity with a List).
-            Some(ForEachValue::Expression(expr)) => static_vars_array_len(wf, expr),
-            #[allow(
-                clippy::unreachable,
-                reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-            )]
-            other => unreachable!("unknown for_each form: {other:?}"),
-        };
-        // `for_each.max_items` (#1510): the fan's declared ceiling. An
-        // unknown count becomes the cap (the run refuses the (cap+1)th
-        // item before the first runs, so no more than `cap` calls can
-        // ever spend); a known count above the cap spends nothing at all
-        // (refused before the first item), so `min` stays a ceiling on
-        // both sides.
-        let iterations = match (
-            iterations,
-            task.value.max_items.as_ref().map(|m| u64::from(m.value)),
-        ) {
-            (Some(n), Some(cap)) => Some(n.min(cap)),
-            (None, cap) => cap,
-            (n, None) => n,
-        };
+        let iterations = iteration_count(wf, &task.value);
         // every retry attempt can spend the full per-call budget
         let attempts = task
             .value
@@ -264,6 +236,41 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
         min_path_total_usd,
         has_unbounded,
         composed: Vec::new(),
+    }
+}
+
+/// A task's `for_each` fan-out multiplier — the count the pricing arm
+/// multiplies the per-call budget by (`None` = statically unknown →
+/// [`UnboundedReason::UnknownIterations`]).
+fn iteration_count(wf: &RawWorkflow, task: &RawTask) -> Option<u64> {
+    // `for_each` fan-out: a literal list is N calls (known multiplier);
+    // an expression source is an unknown count → unbounded.
+    let iterations = match task.for_each.as_ref().map(|f| &f.value) {
+        None => Some(1),
+        Some(ForEachValue::List(arr)) => Some(arr.as_array().map_or(1, Vec::len) as u64),
+        // An expression source is unknown EXCEPT when it is a bare
+        // `${{ <authority>.<name> }}` over a literal array — that count is
+        // statically known, so the cost is bounded (parity with a List).
+        Some(ForEachValue::Expression(expr)) => static_vars_array_len(wf, expr),
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+        )]
+        other => unreachable!("unknown for_each form: {other:?}"),
+    };
+    // `for_each.max_items` (#1510): the fan's declared ceiling. An
+    // unknown count becomes the cap (the run refuses the (cap+1)th
+    // item before the first runs, so no more than `cap` calls can
+    // ever spend); a known count above the cap spends nothing at all
+    // (refused before the first item), so `min` stays a ceiling on
+    // both sides.
+    match (
+        iterations,
+        task.max_items.as_ref().map(|m| u64::from(m.value)),
+    ) {
+        (Some(n), Some(cap)) => Some(n.min(cap)),
+        (None, cap) => cap,
+        (n, None) => n,
     }
 }
 

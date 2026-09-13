@@ -1273,6 +1273,74 @@ fn an_untrusted_row_names_its_origin_and_never_says_recovered() {
     }
 }
 
+/// #1281 · the leash loop's fixed cast — `agent · mock/echo` at
+/// `task: work` inside workflow `leash`: the brackets, the start, and
+/// the max-turns failure (which names NEITHER turns nor tokens — the
+/// journaled checkpoint carries them).
+struct LeashCast {
+    opened: nika_event::Event,
+    started: nika_event::Event,
+    failed: nika_event::Event,
+    closed: nika_event::Event,
+}
+
+fn leash_cast() -> LeashCast {
+    use nika_event::EventKind;
+    use nika_types::resource::{KeyValue, Value};
+    let s = |v: &str| Value::String(v.to_owned());
+    let ev = |kind: EventKind, ms: u64, fields: &[(&str, Value)]| {
+        let mut event = demo::bare_event(kind, ms);
+        for (k, v) in fields {
+            event = event.with_field(KeyValue::new(*k, v.clone()));
+        }
+        event
+    };
+    LeashCast {
+        opened: ev(EventKind::WorkflowStarted, 0, &[("workflow", s("leash"))]),
+        started: ev(
+            EventKind::TaskStarted,
+            10,
+            &[("task", s("work")), ("note", s("agent · mock/echo"))],
+        ),
+        failed: ev(
+            EventKind::TaskFailed,
+            30,
+            &[
+                ("task", s("work")),
+                ("note", s("agent · mock/echo")),
+                (
+                    "detail",
+                    s(
+                        "NIKA-AGENT-001 · agent hit max_turns (1) without completing · blame: by-the-caller",
+                    ),
+                ),
+            ],
+        ),
+        closed: ev(EventKind::WorkflowFailed, 40, &[("workflow", s("leash"))]),
+    }
+}
+
+/// #1281 · the journaled `agent_budget_checkpoint` for `task: work` —
+/// `budget: None` = a budget-less loop (the count alone).
+fn leash_checkpoint(turn: i64, tokens: i64, budget: Option<i64>) -> nika_event::Event {
+    use nika_event::EventKind;
+    use nika_types::resource::{KeyValue, Value};
+    let mut fields = vec![
+        ("task", Value::String("work".to_owned())),
+        ("turn", Value::Int(turn)),
+        ("total_tokens", Value::Int(tokens)),
+        ("attempt", Value::Int(1)),
+    ];
+    if let Some(b) = budget {
+        fields.push(("budget", Value::Int(b)));
+    }
+    let mut event = demo::bare_event(EventKind::AgentBudgetCheckpoint, 20);
+    for (k, v) in fields {
+        event = event.with_field(KeyValue::new(k, v));
+    }
+    event
+}
+
 /// #1281 · a leash-stopped loop's row and card say how far it got: the
 /// journaled `agent_budget_checkpoint` (turns · counted tokens · budget)
 /// reaches the human surfaces — the failed terminal names neither. The
@@ -1280,56 +1348,14 @@ fn an_untrusted_row_names_its_origin_and_never_says_recovered() {
 /// checkpoint without a started row invents nothing.
 #[test]
 fn a_leash_stopped_agent_row_and_card_carry_its_turns_and_tokens() {
-    use nika_event::EventKind;
-    use nika_types::resource::{KeyValue, Value};
-    let ev = |kind: EventKind, ms: u64, fields: &[(&str, Value)]| {
-        let mut e = demo::bare_event(kind, ms);
-        for (k, v) in fields {
-            e = e.with_field(KeyValue::new(*k, v.clone()));
-        }
-        e
-    };
-    let s = |v: &str| Value::String(v.to_owned());
-    let checkpoint = |turn: i64, tokens: i64, budget: Option<i64>| {
-        let mut fields = vec![
-            ("task", s("work")),
-            ("turn", Value::Int(turn)),
-            ("total_tokens", Value::Int(tokens)),
-            ("attempt", Value::Int(1)),
-        ];
-        if let Some(b) = budget {
-            fields.push(("budget", Value::Int(b)));
-        }
-        ev(EventKind::AgentBudgetCheckpoint, 20, &fields)
-    };
-    let failed = ev(
-        EventKind::TaskFailed,
-        30,
-        &[
-            ("task", s("work")),
-            ("note", s("agent · mock/echo")),
-            (
-                "detail",
-                s(
-                    "NIKA-AGENT-001 · agent hit max_turns (1) without completing · blame: by-the-caller",
-                ),
-            ),
-        ],
-    );
-    let started = ev(
-        EventKind::TaskStarted,
-        10,
-        &[("task", s("work")), ("note", s("agent · mock/echo"))],
-    );
-    let opened = ev(EventKind::WorkflowStarted, 0, &[("workflow", s("leash"))]);
-    let closed = ev(EventKind::WorkflowFailed, 40, &[("workflow", s("leash"))]);
+    let cast = leash_cast();
 
     let view = fold(&[
-        opened.clone(),
-        started.clone(),
-        checkpoint(1, 15, Some(4000)),
-        failed.clone(),
-        closed.clone(),
+        cast.opened.clone(),
+        cast.started.clone(),
+        leash_checkpoint(1, 15, Some(4000)),
+        cast.failed.clone(),
+        cast.closed.clone(),
     ]);
     let lines = frame(&view, &UNICODE, 0);
     let row = lines
@@ -1355,12 +1381,12 @@ fn a_leash_stopped_agent_row_and_card_carry_its_turns_and_tokens() {
 
     // The LAST checkpoint wins · no budget → the count alone.
     let view = fold(&[
-        opened.clone(),
-        started.clone(),
-        checkpoint(1, 15, None),
-        checkpoint(3, 47, None),
-        failed.clone(),
-        closed.clone(),
+        cast.opened.clone(),
+        cast.started.clone(),
+        leash_checkpoint(1, 15, None),
+        leash_checkpoint(3, 47, None),
+        cast.failed.clone(),
+        cast.closed.clone(),
     ]);
     assert_eq!(
         view.rows()[0].agent,
@@ -1377,6 +1403,10 @@ fn a_leash_stopped_agent_row_and_card_carry_its_turns_and_tokens() {
     );
 
     // A checkpoint with no started row invents nothing.
-    let view = fold(&[opened, checkpoint(1, 15, Some(4000)), closed]);
+    let view = fold(&[
+        cast.opened,
+        leash_checkpoint(1, 15, Some(4000)),
+        cast.closed,
+    ]);
     assert!(view.rows().is_empty());
 }
