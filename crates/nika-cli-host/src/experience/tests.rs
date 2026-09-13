@@ -28,6 +28,16 @@ fn chat_without_folder_discovers_and_never_scans() {
     assert!(action.alternatives.contains(&"choose_project"));
 }
 
+/// #1585 — `nothing_has_run` is the journal's word, not the router's:
+/// the surface that counted `.nika/traces` folds it in.
+#[test]
+fn recorded_runs_flip_nothing_has_run() {
+    let action = route(&workspace_state());
+    assert!(action.nothing_has_run, "the router holds no journal");
+    assert!(!action.clone().with_recorded_runs(1).nothing_has_run);
+    assert!(action.with_recorded_runs(0).nothing_has_run);
+}
+
 #[test]
 fn chat_only_with_a_repeated_task_chooses_a_project_first() {
     let state = ExperienceStateV1 {

@@ -802,6 +802,10 @@ pub fn environment_json(probe: &Probe) -> serde_json::Value {
         // #1585 — a present key read `[]` here while doctor's `best`
         // named it). The census owns the list; this prints it.
         "seats_ready": probe.census.seats_ready,
+        // #1585 — the journal count the ladder climbs on rides the
+        // mirror (additive): the shallow door says whether runs are on
+        // record instead of leaving `nothing_has_run` to a constant.
+        "recorded_runs": probe.recorded_runs,
     })
 }
 

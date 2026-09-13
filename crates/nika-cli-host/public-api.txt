@@ -978,6 +978,8 @@ pub nika_cli_host::experience::NextActionV1::label: &'static str
 pub nika_cli_host::experience::NextActionV1::nothing_has_run: bool
 pub nika_cli_host::experience::NextActionV1::preview_required: bool
 pub nika_cli_host::experience::NextActionV1::why_now: &'static str
+impl nika_cli_host::experience::NextActionV1
+pub fn nika_cli_host::experience::NextActionV1::with_recorded_runs(self, recorded_runs: usize) -> Self
 impl core::clone::Clone for nika_cli_host::experience::NextActionV1
 pub fn nika_cli_host::experience::NextActionV1::clone(&self) -> nika_cli_host::experience::NextActionV1
 impl core::cmp::Eq for nika_cli_host::experience::NextActionV1
