@@ -385,6 +385,20 @@ fn admission_refusal(error: &nika_execution::ExecutionError, output_json: bool) 
     RunVerdict::bare(code)
 }
 
+/// The ONE project root the `.nika/` convention anchors at — the launch
+/// cwd, pinned EAGERLY as an absolute path so the plane's lazy first read
+/// (the registry + lockfile load on the first `mcp:` call) can never
+/// re-anchor at a moved cwd the way a bare `"."` would. Every sibling
+/// surface holds the same root: `nika mcp approve` writes
+/// `.nika/mcp_pins.json` there, the trace store writes `.nika/traces/`
+/// beside it, the #1367 resume fingerprint judges it, and
+/// `production_runtime` pins the sandbox to it. An unresolvable cwd
+/// degrades to `.` — the calm fallback the ceiling ladder takes (a
+/// broken cwd must never block a run).
+pub(super) fn mcp_project_root() -> std::path::PathBuf {
+    std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
