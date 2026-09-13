@@ -631,12 +631,9 @@ where
                     source,
                     spend: Box::default(), // decorated at the return seam
                 })?;
-        *total_tokens = total_tokens.saturating_add(
-            response
-                .usage
-                .input_tokens
-                .saturating_add(response.usage.output_tokens),
-        );
+        // The budget scalar follows what the run SPENDS (#1518): the
+        // re-sent prefix a provider served from its cache weighs zero.
+        *total_tokens = total_tokens.saturating_add(turn::budget_weight(&response.usage));
         // The pricing-grade fold — every meter (cache · reasoning ·
         // thinking), not just the budget scalar above.
         usage_acc.absorb(&response.usage);

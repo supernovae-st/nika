@@ -47,6 +47,21 @@ pub(crate) fn feed_done_repair(
     ));
 }
 
+/// What ONE provider call weighs on `max_tokens_total` (#1518): the
+/// prompt tokens the provider served from its cache neither fill the
+/// window anew nor bill at full rate, so they weigh ZERO — the budget
+/// counts fresh prompt tokens + output tokens. `cache_read_tokens` is a
+/// subset of `input_tokens` (the `OTel` convention the wires normalize to),
+/// so the subtraction saturates on a wire that mis-reports the split.
+/// The pricing-grade fold (`TokenUsage::absorb`) keeps every meter; only
+/// this scalar discounts.
+pub(crate) fn budget_weight(usage: &nika_kernel::ai::provider::TokenUsage) -> u64 {
+    usage
+        .input_tokens
+        .saturating_sub(usage.cache_read_tokens.unwrap_or(0))
+        .saturating_add(usage.output_tokens)
+}
+
 /// Stop before another request when the cumulative token budget is met.
 /// Tool feedback, done-result repairs and final-text repairs all pass
 /// this gate; an already valid conclusion returns before reaching it.
@@ -111,7 +126,9 @@ pub(crate) struct LoopState {
     pub(crate) messages: Vec<Message>,
     /// Turns spent so far.
     pub(crate) turns: u32,
-    /// Tokens spent so far, across every provider call of the run.
+    /// Tokens spent so far, across every provider call of the run —
+    /// the budget arithmetic ([`budget_weight`]: fresh prompt + output;
+    /// cache reads weigh zero), never the billed sum.
     pub(crate) total_tokens: u64,
     /// The model's most recent non-empty words.
     pub(crate) last_text: String,

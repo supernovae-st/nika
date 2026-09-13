@@ -167,7 +167,10 @@ pub enum AgentEvent {
         /// How many times the cycle repeated.
         repeats: u32,
     },
-    /// Per-turn budget snapshot (after the turn's spend was counted).
+    /// Per-turn budget snapshot (after the turn's spend was counted) —
+    /// `total_tokens` is the budget arithmetic (#1518: fresh prompt +
+    /// output per call, cache reads weigh zero), the number
+    /// `max_tokens_total` is compared against.
     BudgetCheckpoint {
         /// 1-based turn counter.
         turn: u32,

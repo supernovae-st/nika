@@ -92,7 +92,18 @@ async fn refusal_precedes_output_tools_and_exhausted_budgets() {
                             _ => None,
                         })
                         .collect();
-                    assert_eq!(checkpoints, (1..=calls).map(|n| n * 15).collect::<Vec<_>>());
+                    // Every earlier call weighs 10 + 5; the refused one weighs
+                    // 10 − 3 (its cache reads · #1518) + 5 = 12 on the budget.
+                    let expected: Vec<u64> = (1..=calls)
+                        .map(|n| {
+                            if n == calls {
+                                (n - 1) * 15 + 12
+                            } else {
+                                n * 15
+                            }
+                        })
+                        .collect();
+                    assert_eq!(checkpoints, expected);
                     assert!(
                         !events
                             .iter()
