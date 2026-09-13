@@ -243,7 +243,7 @@ patterns:
 - glob: "changelog.d/**"
   class: authored
   match_count: 52
-  aggregate_sha256: 68234ced2c158f6a1111216ddedcaa3131c3abba2811af145b3992088621847b
+  aggregate_sha256: cdbbbc10d8b5121bb5238f53b0ac95805898a88ed8c76a167780639e2debbd1f
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
