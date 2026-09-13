@@ -10,10 +10,14 @@
 //! ## Shape
 //!
 //! - **Dispatcher injected, never owned** — the verb rides the kernel
-//!   `ToolExecuteDyn` seam: production wiring injects the engine's
-//!   builtin+MCP dispatcher (resolves `nika:*` against the closed builtin
-//!   set + `mcp:*` against the configured server registry); tests inject a
-//!   mock executor. NO Cargo dep on `nika-builtin` / `nika-mcp`.
+//!   `ToolExecuteDyn` seam: production wiring injects the engine's builtin
+//!   dispatcher (resolves `nika:*` against the closed builtin set); tests
+//!   inject a mock executor. NO Cargo dep on `nika-builtin` / `nika-mcp`.
+//! - **The MCP plane, installed once** — `mcp:<server>/<tool>` rides the
+//!   [`McpPlane`] seam ([`mcp`] · two closures over kernel types) the
+//!   composition root installs on the run lane; the plane resolves the
+//!   name against the project registry + the approved pins. No plane =
+//!   the executor answers (and resolves none · the rehearsal lane).
 //! - **The closed-namespace contract (spec §invoke)** — the tool-ref
 //!   namespace set is CLOSED at v1: `nika:` and `mcp:` only. `mcp:` REQUIRES
 //!   the slash (`mcp:postgres` alone is unresolvable). The verb does this
@@ -48,13 +52,16 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 mod errors;
+pub mod mcp;
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 
+use nika_kernel::ai::provider::ToolDef;
 use nika_kernel::tool_executor::{ToolCall, ToolExecuteDyn, ToolRunStart};
 
 pub use errors::VerbInvokeError;
+pub use mcp::McpPlane;
 
 // The closed namespace set moved to `nika_vocab::tool_ref::ToolNamespace`
 // with the rest of the grammar — a second copy here is how the two readers
@@ -144,13 +151,33 @@ impl InvokeOutput {
 #[derive(Debug)]
 pub struct InvokeVerb<T> {
     executor: Arc<T>,
+    /// The MCP plane, installed once by the composition root (the verb is
+    /// shared behind an `Arc` with the agent loop, so the slot is set
+    /// through `&self`). Empty = every `mcp:` name reaches the executor.
+    mcp: OnceLock<McpPlane>,
 }
 
 impl<T> InvokeVerb<T> {
     /// Create the verb over an injected tool executor.
     #[must_use]
     pub fn new(executor: Arc<T>) -> Self {
-        Self { executor }
+        Self {
+            executor,
+            mcp: OnceLock::new(),
+        }
+    }
+
+    /// Install the MCP plane — once. Returns `false` (and keeps the first)
+    /// when a plane is already installed.
+    pub fn install_mcp_plane(&self, plane: McpPlane) -> bool {
+        self.mcp.set(plane).is_ok()
+    }
+
+    /// The approved `mcp:` tool definitions the installed plane offers (an
+    /// agent universe extends itself with them) — empty without a plane.
+    #[must_use]
+    pub fn mcp_tool_defs(&self) -> Vec<ToolDef> {
+        self.mcp.get().map(McpPlane::tool_defs).unwrap_or_default()
     }
 }
 
@@ -205,11 +232,17 @@ where
             call = call.with_run_start(run_start);
         }
 
-        let result = self
-            .executor
-            .execute(call)
-            .await
-            .map_err(map_dispatch_error)?;
+        // An `mcp:` name rides the installed plane (offloaded · the plane
+        // is sync); everything else — and every name without a plane —
+        // rides the executor.
+        let result = match self.mcp.get().filter(|_| input.tool.starts_with("mcp:")) {
+            Some(plane) => {
+                let plane = plane.clone();
+                mcp::offload(move || plane.call(call)).await
+            }
+            None => self.executor.execute(call).await,
+        }
+        .map_err(map_dispatch_error)?;
 
         if result.is_error {
             // Carry the tool's OWN failure metadata when it surfaced any
@@ -282,13 +315,26 @@ fn derive_call_id(tool: &str) -> String {
 
 /// Map the kernel dispatcher error onto the verb surface. `NotFound` is a
 /// resolution failure (NIKA-450); the rest are dispatch failures (452).
+///
+/// An unresolved `mcp:` name names its remedy: the server must be in the
+/// project registry (the check's C04 verdict) and approved — the bare
+/// « resolved no such tool » left a declared server's operator guessing
+/// (#1376).
 fn map_dispatch_error(source: nika_kernel::tool_executor::ToolExecError) -> VerbInvokeError {
     use nika_kernel::tool_executor::ToolExecError;
     match source {
-        ToolExecError::NotFound { name } => VerbInvokeError::UnresolvableTool {
-            tool: name,
-            detail: "the dispatcher resolved no such tool".to_owned(),
-        },
+        ToolExecError::NotFound { name } => {
+            let detail = match name
+                .strip_prefix("mcp:")
+                .and_then(|rest| rest.split_once('/'))
+            {
+                Some((server, _)) => format!(
+                    "no configured MCP server resolved it — declare `{server}` in .nika/mcp_servers.json, then approve its tools: nika mcp approve {server}"
+                ),
+                None => "the dispatcher resolved no such tool".to_owned(),
+            };
+            VerbInvokeError::UnresolvableTool { tool: name, detail }
+        }
         other => VerbInvokeError::Dispatch { source: other },
     }
 }
@@ -554,6 +600,104 @@ mod tests {
         .await
         .expect_err("not found");
         assert!(matches!(err, VerbInvokeError::UnresolvableTool { .. }));
+        assert!(err.to_string().contains("resolved no such tool"), "{err}");
+    }
+
+    /// #1376 · an unresolved `mcp:` name teaches the registry AND the
+    /// approve step — the two doors a declared-but-dark server needs.
+    #[tokio::test]
+    async fn an_unresolved_mcp_name_names_the_registry_and_the_approve_step() {
+        let err = verb(MockTool::dispatch_err(ToolExecError::NotFound {
+            name: "mcp:owned/ping".to_owned(),
+        }))
+        .run(InvokeInput::new("mcp:owned/ping"))
+        .await
+        .expect_err("not found");
+        let text = err.to_string();
+        assert!(text.contains(".nika/mcp_servers.json"), "{text}");
+        assert!(text.contains("nika mcp approve owned"), "{text}");
+        assert_eq!(err.spec_code(), "NIKA-INVOKE-001");
+    }
+
+    /// The installed plane owns every `mcp:` name; `nika:` names and the
+    /// no-plane case keep the executor (#1575).
+    #[tokio::test]
+    async fn an_installed_plane_routes_mcp_names_and_leaves_nika_to_the_executor() {
+        let mock = Arc::new(MockTool::ok("builtin answer"));
+        let verb = InvokeVerb::new(Arc::clone(&mock));
+        assert!(verb.mcp_tool_defs().is_empty(), "no plane, no defs");
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let log = Arc::clone(&seen);
+        let plane = McpPlane::new(
+            Arc::new(move |call: ToolCall| {
+                log.lock()
+                    .unwrap()
+                    .push((call.name.clone(), call.input.clone()));
+                Ok(ToolResult::success(call.id.to_string(), "pong")
+                    .with_structured(serde_json::json!({"who": "x"})))
+            }),
+            Arc::new(|| {
+                vec![nika_kernel::ai::provider::ToolDef::new(
+                    "mcp:owned/ping",
+                    "Echo",
+                    serde_json::json!({}),
+                )]
+            }),
+        );
+        assert!(verb.install_mcp_plane(plane.clone()), "first install lands");
+        assert!(
+            !verb.install_mcp_plane(plane),
+            "a second install is refused"
+        );
+        let mut input = InvokeInput::new("mcp:owned/ping");
+        input.args = serde_json::json!({"who": "nika"});
+        input.call_id = Some("engine-tc-7".to_owned());
+        let out = verb.run(input).await.expect("the plane answers");
+        assert_eq!(out.content, "pong");
+        assert_eq!(out.structured, Some(serde_json::json!({"who": "x"})));
+        assert_eq!(
+            seen.lock().unwrap().as_slice(),
+            &[(
+                "mcp:owned/ping".to_owned(),
+                serde_json::json!({"who": "nika"})
+            )]
+        );
+        assert!(
+            mock.seen.lock().unwrap().is_empty(),
+            "the executor never saw the mcp: call"
+        );
+        let builtin = verb
+            .run(InvokeInput::new("nika:read"))
+            .await
+            .expect("executor");
+        assert_eq!(builtin.content, "builtin answer");
+        assert_eq!(mock.seen.lock().unwrap().len(), 1);
+        assert_eq!(verb.mcp_tool_defs()[0].name, "mcp:owned/ping");
+    }
+
+    /// A plane refusal (an unapproved tool · a drifted server) is the
+    /// tool's OWN coded error — `on_codes:` filters on it.
+    #[tokio::test]
+    async fn a_plane_refusal_carries_its_mcp_code() {
+        let verb = InvokeVerb::new(Arc::new(MockTool::ok("unused")));
+        verb.install_mcp_plane(McpPlane::new(
+            Arc::new(|call: ToolCall| {
+                Ok(
+                    ToolResult::error(call.id.to_string(), "[NIKA-MCP-006] not approved")
+                        .with_error_meta(ToolErrorMeta::new(
+                            Some("NIKA-MCP-006".to_owned()),
+                            false,
+                        )),
+                )
+            }),
+            Arc::new(Vec::new),
+        ));
+        let err = verb
+            .run(InvokeInput::new("mcp:owned/ping"))
+            .await
+            .expect_err("refused");
+        assert_eq!(err.spec_code(), "NIKA-MCP-006");
+        assert!(!err.is_transient());
     }
 
     #[tokio::test]

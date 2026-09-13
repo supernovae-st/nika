@@ -2,28 +2,22 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! `nika mcp approve <server>` — the operator surface of the MCP
-//! tool-pinning defence: after a drift refusal (or a deliberate server
-//! upgrade), re-pin the server's CURRENT tool definitions and print the
-//! new pin set as the receipt. The server resolves from
-//! `.nika/mcp_servers.json` against the workspace CWD (the `.nika/`
-//! convention); every decision is the library's ([`nika_mcp::client`] ·
-//! [`nika_mcp::pin`]) — this module maps the outcome to text + the spec §4
-//! exit codes. The connect flow (`connect_verified`: TOFU enroll · quiet
-//! match · fail-closed drift diff) is library-side in `nika-mcp`, awaiting
-//! the runtime MCP dispatch; this verb drives the same seam.
+//! tool-pinning defence: review a server's CURRENT tool definitions, pin
+//! them, print the pin set as the receipt. The server resolves from
+//! `.nika/mcp_servers.json` against the workspace CWD; every decision is
+//! the library's ([`nika_mcp::client`] · [`nika_mcp::pin`]) — this module
+//! maps the outcome to text + the spec §4 exit codes. A run reaches ONLY
+//! what was approved here ([`nika_mcp::dispatch`] · NIKA-MCP-006).
 
-/// Operator-facing honesty card for `nika mcp --help` (C02 · issue 1303).
-/// The server is a read-only authoring oracle; running a workflow is
-/// `nika run`. Tool names here must stay ⊆ the nine the oracle serves.
+/// Operator-facing honesty card for `nika mcp --help` (C02 · issue 1303): a
+/// read-only oracle, `nika run` executes · names ⊆ the nine the oracle serves.
 pub const OPERATOR_HELP: &str = "\
 This MCP server is a read-only authoring oracle.
 Tools: nika_check · nika_inspect · nika_explain · nika_schema · nika_examples · nika_template · nika_canon · nika_catalog · nika_tools
 It never writes a file and never runs a workflow. To execute: nika run.";
 
-/// The MCP subcommand surface — `approve` (the tool-pinning
-/// remediation) or serve (stdio · streamable HTTP). Descended from the
-/// bin's dispatcher 2026-07-21 (the 1500-line file cap — the bin
-/// composes, the verbs own their routing).
+/// The MCP subcommand surface — `approve` (the tool-pinning remediation)
+/// or serve (stdio · streamable HTTP) · descended from the bin 2026-07-21.
 #[derive(Clone, clap::Subcommand)]
 pub enum McpAction {
     /// Re-pin the server's CURRENT tool definitions after human review
@@ -43,15 +37,12 @@ pub enum McpTransportArg {
     Http,
 }
 
-/// The `nika mcp` routing: the client subcommand dispatches to the pins
-/// layer; the server surfaces bind + serve forever (the composition the
-/// bin handed down). The banner + errors ride stderr verbatim (the
-/// `resolve_trace` precedent — no re-prefixing).
+/// The `nika mcp` routing: `approve` dispatches to the pins layer; the
+/// server surfaces bind + serve forever. Banner + errors ride stderr.
 ///
 /// # Errors
 ///
-/// `verbs::exit::OK` on a clean serve; `1` when the server itself fails
-/// (the MCP surface's own failure voice, not the spec §4 taxonomy).
+/// `verbs::exit::OK` on a clean serve; `1` when the server itself fails.
 #[allow(clippy::disallowed_macros, clippy::print_stderr)]
 #[must_use]
 pub fn mcp_verb(
@@ -105,8 +96,7 @@ pub fn mcp_verb(
 
 /// Print a verb's text on the right stream and return its exit code
 /// (the bin's `emit` — findings and successes go to stdout, only
-/// environment errors to stderr).
-// The MCP surface owns its streams (the resolve_trace precedent).
+/// environment errors to stderr · the MCP surface owns its streams).
 #[allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 fn emit(out: &VerbOutput) -> u8 {
     if out.code == crate::verbs::exit::ENV {
@@ -147,8 +137,15 @@ pub(crate) fn approve_with<C: ToolsListDyn + ?Sized>(
         Ok(report) => {
             use std::fmt::Write as _;
             let mut text = format!(
-                "approved {} tool(s) from MCP server `{}` — the lockfile now pins the CURRENT definitions\n  \
+                "{}approved {} tool(s) from MCP server `{}` — the lockfile now pins the CURRENT definitions\n  \
                  lockfile: {PINS_PATH} · pinned_at {}",
+                report
+                    .confinement
+                    .as_deref()
+                    .map_or_else(String::new, |note| format!(
+                        "mcp `{}`: {note}\n",
+                        report.server
+                    )),
                 report.pins.len(),
                 report.server,
                 report.pinned_at
@@ -165,8 +162,7 @@ pub(crate) fn approve_with<C: ToolsListDyn + ?Sized>(
     }
 }
 
-/// Resolve one configured server — the teaching error when the registry
-/// does not know the name (NIKA-MCP-001 class · exit 3).
+/// Resolve one configured server — a teaching env error (exit 3) when the registry lacks it.
 fn resolve_config(server: &str, dir: &Path) -> Result<McpServerConfig, VerbOutput> {
     let configs = load_server_configs(dir).map_err(|e| pin_error_output(&e))?;
     configs
@@ -180,8 +176,7 @@ fn resolve_config(server: &str, dir: &Path) -> Result<McpServerConfig, VerbOutpu
         })
 }
 
-/// Pin failures are environment-class (spec §4 · exit 3); the text is the
-/// error's own Display — one voice, authored in `nika_mcp::pin`.
+/// Pin failures are environment-class (spec §4 · exit 3) · one voice: the error's own Display.
 fn pin_error_output(err: &PinError) -> VerbOutput {
     VerbOutput::env(format!("{err}"))
 }
@@ -300,6 +295,34 @@ mod tests {
         assert_eq!(out.code, exit::ENV, "{}", out.text);
         assert!(out.text.contains("not configured"), "{}", out.text);
         assert!(out.text.contains(".nika/mcp_servers.json"), "{}", out.text);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The receipt names the confinement the server ran under FIRST — the
+    /// production client reports it; a mock has none and the receipt
+    /// starts at the approval line.
+    #[test]
+    fn the_receipt_names_the_confinement_first() {
+        struct Confined(Mock);
+        impl ToolsListDyn for Confined {
+            fn tools_list(&self) -> Result<Vec<McpToolDef>, PinError> {
+                self.0.tools_list()
+            }
+            fn confinement(&self) -> Option<String> {
+                Some("sandboxed (seatbelt · net deny)".to_owned())
+            }
+        }
+        let dir = tmp("confined");
+        let out = approve_with(&config(), &Confined(Mock { tools: tools() }), &dir, 1);
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(
+            out.text
+                .starts_with("mcp `postgres`: sandboxed (seatbelt · net deny)\napproved 1 tool(s)"),
+            "{}",
+            out.text
+        );
+        let bare = approve_with(&config(), &Mock { tools: tools() }, &dir, 1);
+        assert!(bare.text.starts_with("approved 1 tool(s)"), "{}", bare.text);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

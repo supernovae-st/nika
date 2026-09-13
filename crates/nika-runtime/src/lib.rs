@@ -144,6 +144,7 @@ pub use errors::RuntimeError;
 pub use identity::{
     EngineIdentity, MACHINE_PROTOCOL_VERSION, MACHINE_SNAPSHOT_FORMAT_VERSION, engine_identity,
 };
+pub use nika_verb_invoke::McpPlane;
 pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
 // Descended to `nika-dataflow` at the 15k wall — paths preserved. The three
@@ -437,6 +438,16 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_inspect(mut self, cell: Arc<nika_builtin::LiveInspect>) -> Self {
         self.inspect = Some(cell);
+        self
+    }
+
+    /// Install the MCP plane on the invoke seam (#1575): from now on an
+    /// `mcp:<server>/<tool>` task resolves against the project registry +
+    /// the approved pins instead of the builtin dispatcher. Installed once;
+    /// a second plane is ignored (the verb keeps the first).
+    #[must_use]
+    pub fn with_mcp_plane(self, plane: McpPlane) -> Self {
+        let _installed = self.invoke.install_mcp_plane(plane);
         self
     }
 

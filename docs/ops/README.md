@@ -19,3 +19,6 @@ Bare `nika serve` stays the resident ARM firer.
 - `Caddyfile.nika-serve` — TLS + unbuffered SSE. Caddy terminates TLS;
   `nika doctor` never claims TLS from a proxy guess.
 - Cancel and artifacts stay 404 until those authorities exist.
+
+MCP servers a workflow invokes — the registry, the approve step, the
+confinement: [mcp-servers.md](mcp-servers.md).
