@@ -51,7 +51,14 @@ zoneless) · `dom`+`dow` restricted together refused (the Vixie OR trap)
 the DEFAULTS (law ⑥): `où: local` · `chevauchement: sauter` ·
 `après_saut: prochain-créneau` · `actif: false` requires `raison:` +
 `jusqu_au:` · round 1 refuses by name: `signature:` · `budget:` ·
-every unknown key (`deny_unknown_fields`). The project's other rungs
+every unknown key (`deny_unknown_fields`) · `inputs:` (#1370) binds the
+workflow's declared `inputs:` per beat — one scalar per key, carried as
+the `--var KEY=VALUE` text the run edge already judges (declared type ·
+`required:`), a key the grammar cannot spell as `--var KEY` refused here
+(`cadence.input-name`), a key the workflow never declared refused by the
+fire edge BEFORE the claim; the pair enters the generation and the
+schedule revision only when bound, so a beat without inputs keeps its
+historical identity. The project's other rungs
 (`traces:` · `registry:` — `nika_vocab::project`'s, consumed by the
 retention ladder and the provenance gate) are admitted OPAQUE and judged
 there: two readers of one file must never disagree about a key only one

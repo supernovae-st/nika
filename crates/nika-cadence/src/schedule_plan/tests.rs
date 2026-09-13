@@ -38,6 +38,7 @@ fn draft(when: ScheduleWhenDraft, missed: MissPolicy) -> ScheduleDraft {
         active: None,
         pause_reason: None,
         pause_until: None,
+        inputs: std::collections::BTreeMap::new(),
     }
 }
 

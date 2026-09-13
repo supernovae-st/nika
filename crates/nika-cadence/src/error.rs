@@ -83,6 +83,9 @@ pub enum CadenceErrorKind {
     ToleranceSyntaxe,
     /// `décalage:` other than `hash`.
     DecalageInconnu,
+    /// An `inputs:` key that is not a `--var KEY` (empty · `=` ·
+    /// whitespace · a control character).
+    InputName,
 }
 
 impl CadenceErrorKind {
@@ -115,6 +118,7 @@ impl CadenceErrorKind {
             Self::EcheanceSyntaxe => "cadence.echeance-syntaxe",
             Self::ToleranceSyntaxe => "cadence.tolerance-syntaxe",
             Self::DecalageInconnu => "cadence.decalage-inconnu",
+            Self::InputName => "cadence.input-name",
         }
     }
 }

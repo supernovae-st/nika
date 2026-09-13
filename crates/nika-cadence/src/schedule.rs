@@ -7,6 +7,8 @@
 //! [`ScheduleDefinition`] may enter durable state. No clock, I/O or timer lives
 //! in this module.
 
+use std::collections::BTreeMap;
+
 use jiff::Timestamp;
 use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
 
@@ -85,6 +87,10 @@ pub struct ScheduleDraft {
     pub active: Option<bool>,
     pub pause_reason: Option<String>,
     pub pause_until: Option<String>,
+    /// Per-schedule inputs (#1370) — the `--var KEY=VALUE` pairs every
+    /// fire binds, one scalar text per key, key-sorted. Empty when the
+    /// declaration carries none.
+    pub inputs: BTreeMap<String, String>,
 }
 
 impl ScheduleDraft {
@@ -114,6 +120,7 @@ impl ScheduleDraft {
             active: None,
             pause_reason: None,
             pause_until: None,
+            inputs: BTreeMap::new(),
         }
     }
 
@@ -166,6 +173,7 @@ impl ScheduleDraft {
             active: beat.actif,
             pause_reason: beat.raison.clone(),
             pause_until: beat.jusqu_au.clone(),
+            inputs: beat.inputs.clone(),
         })
     }
 
@@ -203,6 +211,7 @@ impl ScheduleDraft {
             self.pause_reason.as_deref(),
             self.pause_until.as_deref(),
         )?;
+        validate_inputs(&self.inputs)?;
         Ok(ScheduleDefinition {
             id: self.id,
             workflow: self.workflow,
@@ -217,6 +226,7 @@ impl ScheduleDraft {
             active,
             pause_reason: self.pause_reason,
             pause_until: self.pause_until,
+            inputs: self.inputs,
         })
     }
 }
@@ -237,6 +247,7 @@ pub struct ScheduleDefinition {
     active: bool,
     pause_reason: Option<String>,
     pause_until: Option<String>,
+    inputs: BTreeMap<String, String>,
 }
 
 impl ScheduleDefinition {
@@ -293,6 +304,13 @@ impl ScheduleDefinition {
         self.pause_until.as_deref()
     }
 
+    /// The bound inputs (#1370), key-sorted — `(key, --var text)` pairs.
+    pub fn inputs(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.inputs
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+    }
+
     #[must_use]
     pub fn revision(&self) -> ScheduleRevision {
         ScheduleRevision::compute(self)
@@ -305,7 +323,7 @@ impl ScheduleDefinition {
             ScheduleWhen::Cadence { expression } => format!("cadence:{}", quoted(expression)),
             ScheduleWhen::Webhook => "webhook".to_owned(),
         };
-        [
+        let mut lines = vec![
             format!("id={}", quoted(&self.id)),
             format!("workflow={}", quoted(&self.workflow)),
             format!("when={when}"),
@@ -334,8 +352,19 @@ impl ScheduleDefinition {
                 "pause_until={}",
                 optional(self.pause_until.as_deref().map(quoted))
             ),
-        ]
-        .join("\n")
+        ];
+        // ONLY when bound (#1370): a declaration without inputs keeps the
+        // exact revision it carried before the key existed — a durable
+        // schedule never re-arms on an engine upgrade.
+        if !self.inputs.is_empty() {
+            let pairs: Vec<String> = self
+                .inputs
+                .iter()
+                .map(|(key, value)| format!("{}={}", quoted(key), quoted(value)))
+                .collect();
+            lines.push(format!("inputs={}", pairs.join(",")));
+        }
+        lines.join("\n")
     }
 }
 
@@ -379,6 +408,7 @@ pub enum ScheduleFindingKind {
     Tolerance,
     Pause,
     UnsupportedLocus,
+    Inputs,
 }
 
 impl ScheduleFindingKind {
@@ -396,6 +426,7 @@ impl ScheduleFindingKind {
             Self::Tolerance => "schedule.tolerance",
             Self::Pause => "schedule.pause",
             Self::UnsupportedLocus => "schedule.unsupported-locus",
+            Self::Inputs => "schedule.inputs",
         }
     }
 }
@@ -517,6 +548,24 @@ fn validate_pause(
     Ok(())
 }
 
+/// The input KEY law (#1370), the same one `nika_cadence::validate`
+/// applies to a project beat: a key is the `--var KEY` — non-empty, no
+/// `=`, no whitespace, no control character. Values are opaque texts;
+/// the workflow's declared type judges them at admission.
+fn validate_inputs(inputs: &BTreeMap<String, String>) -> Result<(), ScheduleFinding> {
+    if let Some(key) = inputs.keys().find(|key| {
+        key.is_empty()
+            || key.contains('=')
+            || key.chars().any(|c| c.is_whitespace() || c.is_control())
+    }) {
+        return Err(ScheduleFinding::new(
+            ScheduleFindingKind::Inputs,
+            format!("inputs key `{key}` is not a --var KEY (non-empty, no `=`, no whitespace)"),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_when(when: ScheduleWhenDraft) -> Result<ScheduleWhen, ScheduleFinding> {
     match when {
         ScheduleWhenDraft::Once { at } => at
@@ -615,6 +664,7 @@ mod tests {
             active: None,
             pause_reason: None,
             pause_until: None,
+            inputs: BTreeMap::new(),
         }
     }
 
@@ -654,6 +704,63 @@ mod tests {
         .validate()
         .expect("utc");
         assert_eq!(a.revision(), b.revision());
+    }
+
+    /// #1370 · a project beat's `inputs:` lower into the schedule, ride
+    /// the definition as `--var` pairs, and enter the revision ONLY when
+    /// bound — a schedule without inputs keeps its historical revision.
+    #[test]
+    fn inputs_lower_from_the_beat_and_enter_the_revision_only_when_bound() {
+        let registry = crate::parse_registry(
+            "nika: proj\narm:\n  - workflow: workflows/report.nika.yaml\n    cadence: \"TZ=UTC 0 9 * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme, limit: 5 }\n",
+        )
+        .expect("registry");
+        let beat = registry.beats().next().expect("beat");
+        let bound = ScheduleDraft::from_project("report", beat)
+            .expect("draft")
+            .validate()
+            .expect("lawful");
+        let pairs: Vec<(&str, &str)> = bound.inputs().collect();
+        assert_eq!(pairs, [("limit", "5"), ("tenant", "acme")]);
+        let mut plain = draft(ScheduleWhenDraft::Cadence {
+            expression: "TZ=UTC 0 9 * * *".into(),
+        });
+        plain.id = "report".into();
+        plain.max_lateness_seconds = None;
+        plain.jitter = None;
+        let plain = plain.validate().expect("lawful");
+        assert!(plain.inputs().next().is_none());
+        assert_ne!(
+            plain.revision(),
+            bound.revision(),
+            "bound inputs are declared"
+        );
+        // The historical canonical form, pinned from without: no
+        // `inputs=` line at all when nothing is bound.
+        assert!(!plain.canonical().contains("inputs="));
+        assert!(
+            bound
+                .canonical()
+                .ends_with("\ninputs=\"limit\"=\"5\",\"tenant\"=\"acme\""),
+            "{}",
+            bound.canonical()
+        );
+    }
+
+    /// The key law refuses by kind — the same `--var KEY` shape the
+    /// project grammar enforces, so the two lowering doors agree.
+    #[test]
+    fn an_input_key_that_is_not_a_var_key_refuses() {
+        for key in ["", "a b", "a=b", "tab\tkey"] {
+            let mut bad = draft(ScheduleWhenDraft::Webhook);
+            bad.inputs.insert(key.to_owned(), "x".to_owned());
+            assert_eq!(
+                bad.validate().expect_err(key).kind(),
+                ScheduleFindingKind::Inputs,
+                "{key:?}"
+            );
+        }
+        assert_eq!(ScheduleFindingKind::Inputs.spec_code(), "schedule.inputs");
     }
 
     #[test]

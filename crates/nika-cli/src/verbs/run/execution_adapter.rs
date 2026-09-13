@@ -112,16 +112,16 @@ impl CliExecutionRequest<'_> {
 }
 
 /// ARM's in-process adapter over exact service-admitted bytes; it never reopens
-/// workflows, scans a latest trace, shells to the CLI, or crosses HTTP.
+/// workflows, scans a latest trace, shells to the CLI, or crosses HTTP. The
+/// beat's `inputs:` enter as the shot's `--var` pairs (#1370).
 pub(crate) fn run_arm_context(
     context: nika_execution::ExecutionContext<'_>,
-    file: &str,
-    display_root: std::path::PathBuf,
-    max_cost_usd: f64,
+    shot: &nika_arm::fire::RunShot,
 ) -> RunVerdict {
     run_start_gc(false, false);
+    let vars: Vec<String> = shot.input_vars().collect();
     let request = CliExecutionRequest {
-        file,
+        file: shot.workflow(),
         repair_target: nika_display::check_render::RepairTarget::WorkspaceFile,
         json: false,
         output_json: false,
@@ -130,14 +130,14 @@ pub(crate) fn run_arm_context(
         dry_run: false,
         model_override: None,
         access_pin: None,
-        vars: &[],
+        vars: &vars,
         resume: None,
         no_trace_file: false,
         task_filter: None,
         no_outputs: false,
-        max_cost_usd: Some(max_cost_usd),
+        max_cost_usd: Some(shot.ceiling()),
     };
-    run_admitted_context(context, &request, display_root)
+    run_admitted_context(context, &request, shot.root().to_path_buf())
 }
 
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
