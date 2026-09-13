@@ -168,6 +168,17 @@ without an explicit operator decision.
    fails rather than downgrading a floating pointer.
    There is an unavoidable short post-public window before the downstream
    Homebrew commit lands, because the formula cannot safely point at a draft.
+   The Homebrew leg reads its four digests from the payload's `SHA256SUMS`
+   manifest (proof 1, the file a user verifies), never from the per-build
+   `.tar.gz.sha256` sidecars, which stay in the build artifacts: v0.119.0
+   went public on 2026-09-13 and then died on that sidecar lookup, leaving the
+   tap one version behind until a stable replay converged it. While a tag's
+   release is still a draft, `releases/latest` names the previous release
+   and `releases/download/<tag>/…` answers 404: `install.sh --version`
+   pinned to that tag fails at the download (#1574), which is the barrier
+   holding, not a lost asset. The installer lives in the site repository
+   (`public/install.sh`); its early refusal names the latest published
+   release before any byte is fetched.
    The replay
    helper comes from the exact workflow commit, so a historical tag does not
    need to contain future release tooling. SLSA provenance is created only by
