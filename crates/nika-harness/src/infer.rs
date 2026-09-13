@@ -13,7 +13,7 @@
 //!
 //! Admission ([`meet_infer_grade`]) reads the static row; execution
 //! re-attests the binary at spawn (#1253): `codex --version` must name the
-//! product and sit inside [`CODEX_VERSION_PIN`] before any prompt is written
+//! product and sit inside `CODEX_VERSION_PIN` before any prompt is written
 //! to its stdin. PATH presence admits a seat, it never proves one — a shim
 //! that only speaks the event shape is refused here, not believed.
 
@@ -474,7 +474,7 @@ fn refused(witness: String) -> InferGradeError {
 }
 
 /// The pure half of the spawn-time attestation: the answer must carry a
-/// version inside [`CODEX_VERSION_PIN`] AND name [`CODEX_PRODUCT`] — the
+/// version inside `CODEX_VERSION_PIN` AND name `CODEX_PRODUCT` — the
 /// same two-sided judgement the ACP handshake applies to `agentInfo.name`
 /// and `agentInfo.version`, read off `--version` because `codex exec` has
 /// no initialize.
