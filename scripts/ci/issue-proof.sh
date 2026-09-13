@@ -11,7 +11,8 @@
 # pin it: see `waived_reason` below and test-issue-proof.sh.
 #
 # Usage:
-#   issue-proof.sh --issue N
+#   issue-proof.sh --issue N [--fetch]
+# --fetch reads one current GitHub issue snapshot for a manual recheck.
 # Env:
 #   ISSUE_BODY          the issue body (passed via env, never interpolated)
 #   ISSUE_STATE_REASON  GitHub close reason — completed | not_planned | duplicate
@@ -24,6 +25,7 @@
 set -euo pipefail
 
 ISSUE=""
+FETCH_ISSUE=false
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 GH_REPO="${GH_REPO:-supernovae-st/nika}"
 
@@ -113,6 +115,10 @@ while [ $# -gt 0 ]; do
       ISSUE="${2:-}"
       shift 2
       ;;
+    --fetch)
+      FETCH_ISSUE=true
+      shift
+      ;;
     -h | --help)
       sed -n '2,16p' "$0"
       exit 0
@@ -124,10 +130,33 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ -n "$ISSUE" ] || {
-  printf 'issue-proof: --issue N is required\n' >&2
+[[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || {
+  printf 'issue-proof: --issue requires a positive issue number\n' >&2
   exit 2
 }
+
+# A workflow_dispatch event has no issue body, labels or close reason. Read
+# one snapshot instead of judging empty event fields and reopening a proven
+# issue. Fetch/shape failures are inability to judge, never a proof refusal.
+if [ "$FETCH_ISSUE" = true ]; then
+  if ! snapshot="$(gh issue view "$ISSUE" --repo "$GH_REPO" --json number,body,state,stateReason,labels)"; then
+    printf 'issue-proof: cannot fetch issue #%s · no verdict or mutation\n' "$ISSUE" >&2
+    exit 2
+  fi
+  if ! printf '%s' "$snapshot" | jq -e --argjson number "$ISSUE" '
+    .number == $number and .state == "CLOSED"
+    and (.body == null or (.body | type) == "string")
+    and (.stateReason == null or (.stateReason | type) == "string")
+    and (.labels | type) == "array"
+    and all(.labels[]; (.name | type) == "string")
+  ' >/dev/null; then
+    printf 'issue-proof: expected the requested closed issue snapshot · no verdict or mutation\n' >&2
+    exit 2
+  fi
+  ISSUE_BODY="$(printf '%s' "$snapshot" | jq -r '.body // ""')"
+  ISSUE_STATE_REASON="$(printf '%s' "$snapshot" | jq -r '(.stateReason // "") | ascii_downcase')"
+  ISSUE_LABELS="$(printf '%s' "$snapshot" | jq -r '[.labels[].name] | join(",")')"
+fi
 
 # The closer's opt-out is read BEFORE the ledger: a `not_planned` close has
 # no capability to look up, so it must not depend on wiring.yaml existing.

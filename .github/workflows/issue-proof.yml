@@ -56,6 +56,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           ISSUE_BODY: ${{ github.event.issue.body || '' }}
           ISSUE_NUM: ${{ github.event.issue.number || github.event.inputs.issue }}
+          ISSUE_EVENT: ${{ github.event_name }}
           # The CLOSER's act, not the filer's. `not_planned` / `duplicate` is
           # GitHub's own vocabulary for "this delivered nothing", so an honest
           # close needs no bespoke label — and a merge auto-close, the event
@@ -64,4 +65,8 @@ jobs:
           ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
         run: |
           set -euo pipefail
-          bash scripts/ci/issue-proof.sh --issue "$ISSUE_NUM"
+          args=(--issue "$ISSUE_NUM")
+          if [ "$ISSUE_EVENT" = workflow_dispatch ]; then
+            args+=(--fetch)
+          fi
+          bash scripts/ci/issue-proof.sh "${args[@]}"

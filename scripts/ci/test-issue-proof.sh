@@ -151,3 +151,4 @@ jobs_are 'rust' 'an indented marker still counts' \
 
 printf '\n%d case(s) · %d failure(s)\n' "$cases" "$fails"
 [ "$fails" -eq 0 ] || exit 1
+python3 "$HERE/test-issue-proof-fetch.py"
