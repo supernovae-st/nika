@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 71
-  aggregate_sha256: 529eb0e37712c5846e5d6a45866a4c186d9ff54894da6c96de2c06401bf90c32
+  aggregate_sha256: 0b142470716fda3c13bf0dcb3e0669e0e229aab3fc255f03b7c8ef9a3c5a969a
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
