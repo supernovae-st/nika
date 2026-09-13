@@ -835,9 +835,9 @@ impl JobStore {
                     }
                     let payload = serde_json::json!({
                         "incarnation_generation": current_generation,
-                        "kind": "execution.requeued",
+                        "kind": crate::JobEventKind::Requeued,
                         "previous_incarnation_generation": prior_generation,
-                        "status": "queued",
+                        "status": JobStatus::Queued,
                     });
                     let batch =
                         ValidatedEventBatch::for_transition(std::slice::from_ref(&payload))?;
@@ -1273,7 +1273,7 @@ impl<'a> ValidatedEventBatch<'a> {
             // A paused result lives in its immutable event, whereas a final
             // result lives in the record. Both obey the whole-store bound;
             // moving the result must not shrink outputs to an ordinary event.
-            let maximum = if payload["kind"] == "execution.settled"
+            let maximum = if crate::JobEventKind::Settled.is(payload)
                 && payload["status"] == "paused"
                 && payload.get("outputs").is_some()
             {
@@ -1322,8 +1322,12 @@ impl<'a> ValidatedEventBatch<'a> {
     }
 }
 
+/// The one run-vocabulary word the journal admits beside the resident's
+/// own kinds (NEP-0013), spelled by its owner.
+const APPROVAL_DECIDED: &str = nika_event::EventKind::ApprovalDecided.as_str();
+
 fn validate_approval_event(payload: &Value) -> Result<(), JobStoreError> {
-    if payload.get("kind").and_then(Value::as_str) != Some("approval_decided") {
+    if payload.get("kind").and_then(Value::as_str) != Some(APPROVAL_DECIDED) {
         return Ok(());
     }
     let valid = approval_digest(payload).is_some_and(|digest| RequestDigest::new(digest).is_ok());
@@ -1334,7 +1338,7 @@ fn validate_approval_event(payload: &Value) -> Result<(), JobStoreError> {
 }
 
 fn approval_digest(payload: &Value) -> Option<&str> {
-    if payload.get("kind").and_then(Value::as_str) != Some("approval_decided") {
+    if payload.get("kind").and_then(Value::as_str) != Some(APPROVAL_DECIDED) {
         return None;
     }
     payload.get("digest").and_then(Value::as_str)

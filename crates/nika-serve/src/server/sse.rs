@@ -20,7 +20,7 @@ use tokio::sync::TryAcquireError;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use crate::{JobEvent, JobId, JobReceipt, JobRecord, JobStatus, JobStoreError};
+use crate::{JobEvent, JobEventKind, JobId, JobReceipt, JobRecord, JobStatus, JobStoreError};
 
 use super::error::{ApiError, ResponseBody};
 use super::store::EventPage;
@@ -141,7 +141,7 @@ fn observation_ended(status: JobStatus) -> bool {
 }
 
 fn is_pause_boundary(event: &JobEvent) -> bool {
-    string_field(event.payload(), "kind") == Some("execution.settled")
+    JobEventKind::Settled.is(event.payload())
         && string_field(event.payload(), "status") == Some("paused")
 }
 

@@ -212,13 +212,28 @@ fn workflow_metadata_schema() -> Value {
     })
 }
 
+/// The `kind` enumeration is GENERATED from [`crate::JobEventKind`] (#1471):
+/// the resident's own words, plus the one run-vocabulary frame the journal
+/// admits beside them (`approval_decided` · NEP-0013), spelled by its owner.
+fn job_event_kind_schema() -> Value {
+    let mut kinds: Vec<&str> = crate::JobEventKind::ALL
+        .iter()
+        .map(|kind| kind.as_str())
+        .collect();
+    kinds.push(nika_event::EventKind::ApprovalDecided.as_str());
+    json!({
+        "description": "The resident's event vocabulary: execution.<word> (queued · started · prepared · requeued · settled · cancelled · interrupted · refused · aborted_before_claim), plus the approval_decided frame the journal admits. Null on a payload that carries no kind.",
+        "anyOf": [{"type": "string", "enum": kinds}, {"type": "null"}]
+    })
+}
+
 fn job_event_schema() -> Value {
     json!({
         "type": "object", "additionalProperties": false,
         "required": ["sequence", "kind", "status"],
         "properties": {
             "sequence": {"type": "integer", "minimum": 1},
-            "kind": {"type": ["string", "null"]},
+            "kind": job_event_kind_schema(),
             "status": {"anyOf": [{"$ref": "#/components/schemas/JobStatus"}, {"type": "null"}]},
             "code": {"type": "string"},
             "message": {"type": "string"},

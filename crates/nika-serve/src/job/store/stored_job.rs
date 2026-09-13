@@ -79,9 +79,10 @@ impl StoredJob {
             // A pause closes an execution leg, not the resumable job.
             // Its result stays in the event payload so starting another leg
             // cannot invalidate a terminal hash bound to the mutable record.
-            self.events.iter().rev().find(|event| {
-                event.payload["kind"] == "execution.settled" && event.payload["status"] == "paused"
-            })
+            self.events
+                .iter()
+                .rev()
+                .find(|event| is_pause_payload(&event.payload))
         } else {
             self.terminal_sequence
                 .filter(|_| self.record.status.is_settled())
@@ -147,7 +148,7 @@ impl StoredJob {
 }
 
 fn is_pause_payload(payload: &serde_json::Value) -> bool {
-    payload["kind"] == "execution.settled" && payload["status"] == "paused"
+    crate::JobEventKind::Settled.is(payload) && payload["status"] == "paused"
 }
 
 /// Historical legs are checked against their own receipt, not a later leg's

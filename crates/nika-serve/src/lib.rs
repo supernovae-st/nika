@@ -18,10 +18,11 @@ pub use writer::WriterStamp;
 
 pub use job::{
     Admission, ApprovalHistory, ApprovalHistoryError, EventPageLimit, IdempotencyKey, JobEvent,
-    JobId, JobMutation, JobOrigin, JobReceipt, JobRecord, JobStatus, JobStore, JobStoreError,
-    JournalEvidence, JournalFailure, MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES, MAX_EVENT_BATCH_LEN,
-    MAX_EVENT_PAGE_LEN, MAX_EVENT_PAYLOAD_BYTES, MAX_EXECUTION_SNAPSHOT_METADATA_BYTES,
-    MAX_EXECUTION_SNAPSHOT_PATH_BYTES, MAX_JOB_SNAPSHOT_BYTES, RequestDigest, ServerIncarnation,
+    JobEventKind, JobId, JobMutation, JobOrigin, JobReceipt, JobRecord, JobStatus, JobStore,
+    JobStoreError, JournalEvidence, JournalFailure, MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES,
+    MAX_EVENT_BATCH_LEN, MAX_EVENT_PAGE_LEN, MAX_EVENT_PAYLOAD_BYTES,
+    MAX_EXECUTION_SNAPSHOT_METADATA_BYTES, MAX_EXECUTION_SNAPSHOT_PATH_BYTES,
+    MAX_JOB_SNAPSHOT_BYTES, RequestDigest, ServerIncarnation,
 };
 pub use schedule::{
     MAX_API_SCHEDULES, MAX_ENCODED_SCHEDULE_BYTES, MAX_SCHEDULE_STORE_BYTES, ScheduleApplyOutcome,

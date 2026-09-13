@@ -1022,8 +1022,8 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
                 .refuse_queued(
                     task.id.clone(),
                     json!({
-                        "kind": "execution.refused",
-                        "status": "failed",
+                        "kind": crate::JobEventKind::Refused,
+                        "status": JobStatus::Failed,
                         "code": code,
                         "message": message
                     }),
@@ -1080,7 +1080,7 @@ async fn start_running(
             admitted.execution_id().to_string(),
             admitted.trace_id().to_string(),
             admitted.snapshot().digest().to_owned(),
-            json!({"kind": "execution.started", "status": "running"}),
+            json!({"kind": crate::JobEventKind::Started, "status": JobStatus::Running}),
         )
         .await
     {
@@ -1165,9 +1165,9 @@ async fn settle_disposition(
     // Preserve the runtime's actual status, including success or failure
     // racing cancellation. The route never writes an active run's result.
     let kind = if status == JobStatus::Cancelled {
-        "execution.cancelled"
+        crate::JobEventKind::Cancelled
     } else {
-        "execution.settled"
+        crate::JobEventKind::Settled
     };
     let mut event = json!({"kind": kind, "status": status});
     // ADR-128 · the settlement rides the terminal event whole (status ·

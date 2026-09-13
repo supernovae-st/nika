@@ -11,6 +11,7 @@ use std::path::Path;
 
 use serde::Deserialize;
 
+use crate::JobEventKind;
 use crate::writer::WriterStamp;
 
 const JOBS_STATE: &str = "jobs/state.json";
@@ -93,7 +94,10 @@ pub fn inspect(state_root: &Path) -> Option<ResidentReport> {
                     job.events.iter().any(|event| matches!(
                         &event.payload,
                         PayloadProbe::Loss { kind, evidence: crate::JournalEvidence::MirrorLost { .. } }
-                            if matches!(kind.as_str(), "execution.settled" | "execution.cancelled")
+                            if matches!(
+                                JobEventKind::parse(kind),
+                                Some(JobEventKind::Settled | JobEventKind::Cancelled)
+                            )
                     ))
                 })
                 .count()

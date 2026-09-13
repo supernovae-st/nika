@@ -180,7 +180,11 @@ impl ResidentExecutionCoordinator {
             execution_id,
             trace_id,
             snapshot_digest,
-            json!({"kind": "execution.prepared", "origin": event_origin, "status": "running"}),
+            json!({
+                "kind": crate::JobEventKind::Prepared,
+                "origin": event_origin,
+                "status": JobStatus::Running
+            }),
         )?;
         match admission {
             Admission::Created(record) => Ok(PreparedScheduledRun::created(
@@ -251,9 +255,9 @@ impl ResidentExecutionCoordinator {
             JobStatus::Failed,
             json!({
                 "code": "scheduled_claim_aborted",
-                "kind": "execution.aborted_before_claim",
+                "kind": crate::JobEventKind::AbortedBeforeClaim,
                 "message": "prepared schedule admission lost its ARM claim",
-                "status": "failed"
+                "status": JobStatus::Failed
             }),
             None,
             Some(receipt),

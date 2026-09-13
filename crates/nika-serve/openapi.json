@@ -322,10 +322,27 @@
             "$ref": "#/components/schemas/JournalEvidence"
           },
           "kind": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "enum": [
+                  "execution.queued",
+                  "execution.started",
+                  "execution.prepared",
+                  "execution.requeued",
+                  "execution.settled",
+                  "execution.cancelled",
+                  "execution.interrupted",
+                  "execution.refused",
+                  "execution.aborted_before_claim",
+                  "approval_decided"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The resident's event vocabulary: execution.<word> (queued · started · prepared · requeued · settled · cancelled · interrupted · refused · aborted_before_claim), plus the approval_decided frame the journal admits. Null on a payload that carries no kind."
           },
           "message": {
             "type": "string"
