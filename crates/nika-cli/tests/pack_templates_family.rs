@@ -57,8 +57,15 @@ fn plant_as_shipped(dir: &std::path::Path, name: &str) -> String {
 
 /// The same skeleton with its slots answered — what an author holds a
 /// minute later, and the state every claim below about auditing and
-/// running is about.
+/// running is about. Use the canonical filled lesson when one exists:
+/// its committed golden includes the declared slot answers. Older
+/// templates retain their original generic-answer convention.
 fn plant(dir: &std::path::Path, name: &str) -> String {
+    if let Some(slug) = nika_pack::template_example(name) {
+        let body = nika_pack::example(slug)
+            .unwrap_or_else(|| panic!("template `{name}` links to missing lesson `{slug}`"));
+        return write_at(dir, name, body);
+    }
     let body = nika_pack::template(name).unwrap_or_else(|| panic!("pack carries `{name}`"));
     write_at(dir, name, &fill_slots(body))
 }
