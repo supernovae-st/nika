@@ -14,8 +14,8 @@
 //! The examples FAMILY traversal — every shipped example is LAUNCHED, not
 //! just listed.
 //!
-//! `pack_templates_family.rs` is the sibling for the 14 skeletons; this is
-//! the 53-example half. The R1 corpus sweep (2026-08-25) measured the dead
+//! `pack_templates_family.rs` is the sibling for skeletons. The R1 corpus
+//! sweep (2026-08-25) measured the dead
 //! angle: 50 of 53 examples were launched by NO gate — and 8 of them were
 //! red through the showroom door itself, invisible because nothing ran
 //! them. A listing test (`verbs_static.rs` proves `try` NAMES each slug)
@@ -252,6 +252,7 @@ fn hermetic(cmd: &mut Command, room: &Room) {
     }
     cmd.env("HOME", room.cwd.join("home"))
         .env("TMPDIR", room.path("tmp"))
+        .env("NIKA_KEYCHAIN", "off")
         .env("NO_COLOR", "1")
         .current_dir(&room.cwd);
 }

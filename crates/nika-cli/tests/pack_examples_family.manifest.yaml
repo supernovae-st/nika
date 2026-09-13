@@ -1,6 +1,6 @@
 # pack_examples_family manifest — the run contract for every shipped example.
 #
-# One row per `pack/examples/**.nika.yaml` slug (53 today). The harness
+# One row per `pack/examples/**.nika.yaml` slug. The harness
 # (`pack_examples_family.rs`) refuses a corpus/example drift: a slug with no
 # row, or a row naming no slug, fails the completeness test.
 #
@@ -58,6 +58,14 @@ entries:
   - { slug: 15-compose-self-check, expect: { rc: 0 } }
   - { slug: 16-inspect-self, expect: { rc: 0 } }
   - { slug: 17-tts-self, expect: { rc: 0 } }
+  - { slug: 18-bounded-batch, expect: { rc: 0 } }
+  - { slug: 19-validate-records, expect: { rc: 0 } }
+  - { slug: 20-snapshot-diff, expect: { rc: 0 } }
+  - { slug: 21-deduplicate-records, expect: { rc: 0 } }
+  - { slug: 22-project-public-fields, expect: { rc: 0 } }
+  - { slug: 23-parallel-review, expect: { rc: 0 } }
+  - { slug: 24-recover-optional-file, expect: { rc: 0 } }
+  - { slug: 25-aggregate-by-key, expect: { rc: 0 } }
   - { slug: bookmark-triage, expect: { rc: 0 } }
   - { slug: competitor-radar, expect: { rc: 0 } }
   - { slug: corpus-digest, expect: { rc: 0 } }
