@@ -37,6 +37,7 @@
 //! run is PARKED with its trace (`paused … · trace …`), never resumed,
 //! never answered by the firer.
 
+use std::collections::BTreeMap;
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -332,6 +333,7 @@ fn beats_match(left: &Beat, right: &Beat) -> bool {
         && left.tolerance == right.tolerance
         && left.decalage == right.decalage
         && left.par == right.par
+        && left.inputs == right.inputs
 }
 
 fn same_float(left: Option<f64>, right: Option<f64>) -> bool {
@@ -368,6 +370,7 @@ pub struct RunShot {
     decision: ScheduleDecision,
     scheduled_for: jiff::Timestamp,
     fired_at: jiff::Timestamp,
+    inputs: BTreeMap<String, String>,
 }
 
 impl RunShot {
@@ -437,6 +440,23 @@ impl RunShot {
     #[must_use]
     pub const fn fired_at(&self) -> jiff::Timestamp {
         self.fired_at
+    }
+
+    /// The beat's bound inputs (#1370), key-sorted — `(key, --var text)`.
+    pub fn inputs(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.inputs
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+    }
+
+    /// The bound inputs in the `--var KEY=VALUE` shape the run edge
+    /// already judges (declared type · `required:`) — every key was
+    /// verified DECLARED before the claim ([`fire_beat`]), so the run
+    /// edge can only refuse a value, never a name.
+    pub fn input_vars(&self) -> impl Iterator<Item = String> + '_ {
+        self.inputs
+            .iter()
+            .map(|(key, value)| format!("{key}={value}"))
     }
 }
 
@@ -837,6 +857,7 @@ fn claim_run_receipt(
         decision: schedule_decision(slots),
         scheduled_for: slot.timestamp(),
         fired_at: ctx.now.timestamp(),
+        inputs: beat.inputs.clone(),
     };
     let (execution, run): (ExecutionLink, Box<dyn FnOnce() -> RunUpshot + '_>) = match &ctx.run {
         RunAdapter::Coordinated(prepare) => match prepare(pinned.admitted, &request) {
@@ -969,7 +990,46 @@ fn admit_due_workflow(ctx: &FireCtx) -> Result<(&Beat, f64, PinnedExecution), Fi
         Ok(pinned) => pinned,
         Err(error) => return Err(record_refused(ctx, &error)),
     };
+    refuse_undeclared_inputs(ctx, beat, &pinned.admitted)?;
     Ok((beat, plafond, pinned))
+}
+
+/// The beat's `inputs:` keys against the admitted workflow's declared
+/// `inputs:` (#1370) — the same membership law a run's `--var` meets,
+/// judged BEFORE the claim: a key the workflow never declared is a
+/// registry defect (exit 2, no claim, no receipt), named with the
+/// declared set so the fix is one edit away. Values are the run edge's
+/// to coerce by the declared type; only the NAME is judged here.
+fn refuse_undeclared_inputs(
+    ctx: &FireCtx,
+    beat: &Beat,
+    admitted: &AdmittedExecution,
+) -> Result<(), FireVerdict> {
+    let declared: Vec<&str> = admitted
+        .workflow()
+        .inputs
+        .iter()
+        .map(|(name, _)| name.value.as_str())
+        .collect();
+    let Some(unknown) = beat
+        .inputs
+        .keys()
+        .find(|key| !declared.contains(&key.as_str()))
+    else {
+        return Ok(());
+    };
+    let teaches = if declared.is_empty() {
+        "this workflow declares no `inputs:`".to_owned()
+    } else {
+        format!("the workflow declares: {}", declared.join(" · "))
+    };
+    Err(FireVerdict {
+        line: format!(
+            "failed {} · inputs.{unknown}: unknown input — {teaches}",
+            ctx.label
+        ),
+        code: exit::FILE,
+    })
 }
 
 /// Fold the run's terminal lifecycle before the receipt speaks its kind.
@@ -1201,7 +1261,10 @@ mod tests {
             decision: ScheduleDecision::CatchUp,
             scheduled_for,
             fired_at,
+            inputs: BTreeMap::from([("tenant".to_owned(), "acme".to_owned())]),
         };
+        assert_eq!(shot.inputs().collect::<Vec<_>>(), [("tenant", "acme")]);
+        assert_eq!(shot.input_vars().collect::<Vec<_>>(), ["tenant=acme"]);
         assert_eq!(shot.root(), project.path());
         assert_eq!(shot.workflow(), "workflows/doctor.nika.yaml");
         assert_eq!(shot.source(), "nika: doctor\ntasks: {}\n");
