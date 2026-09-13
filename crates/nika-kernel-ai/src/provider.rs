@@ -410,6 +410,14 @@ pub type InferEventStream = Pin<Box<dyn Stream<Item = Result<InferEvent, Provide
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum ProviderError {
+    /// A transport connection failed or ended before the response completed.
+    /// Retry eligibility does not establish whether the provider billed the call.
+    #[error("provider connection interrupted: {reason}")]
+    Connection {
+        /// Transport diagnosis, including the endpoint when available.
+        reason: String,
+    },
+
     /// API error with status code.
     #[error("provider API error ({status}): {message}")]
     Api {
@@ -460,7 +468,8 @@ impl ProviderError {
     pub fn is_transient(&self) -> bool {
         matches!(
             self,
-            Self::RateLimited { .. }
+            Self::Connection { .. }
+                | Self::RateLimited { .. }
                 | Self::Api {
                     status: 500..=599,
                     ..

@@ -951,3 +951,116 @@ async fn unparseable_url_maps_to_other() {
         .unwrap_err();
     assert!(matches!(err, HttpError::Other { .. }), "got {err:?}");
 }
+
+// #1362: a provider can disappear after accepting the request or after headers.
+#[tokio::test]
+async fn premature_response_close_is_connection_on_buffered_and_streaming_doors() {
+    let _guard = net_guard();
+    for body in [
+        "",
+        "HTTP/1.1 200 OK\r\nContent-Length: 32\r\nConnection: close\r\n\r\npartial",
+    ] {
+        let addr = serve(vec![body.to_owned()]).await;
+        let url = format!("http://{addr}/private-path?token=owned-canary");
+        let client = mechanics_client();
+        let err = client
+            .post(HttpRequest::post(&url))
+            .await
+            .expect_err("truncated response");
+        assert_connection_diagnostic(&err, addr);
+        match client.send_streaming(HttpRequest::post(&url)).await {
+            Err(err) => assert_connection_diagnostic(&err, addr),
+            Ok(mut response) => {
+                let mut errors = 0;
+                while let Some(chunk) =
+                    std::future::poll_fn(|cx| response.body.as_mut().poll_next(cx)).await
+                {
+                    if let Err(err) = chunk {
+                        assert_connection_diagnostic(&err, addr);
+                        errors += 1;
+                    }
+                }
+                assert_eq!(errors, 1, "one terminal error, then fused");
+            }
+        }
+    }
+}
+
+fn assert_connection_diagnostic(err: &HttpError, addr: SocketAddr) {
+    assert!(matches!(err, HttpError::Connection { .. }), "{err:?}");
+    let text = err.to_string();
+    assert!(text.contains(&format!("http://{addr}")), "{text}");
+    assert!(text.contains("connection closed"), "{text}");
+    for private in ["private-path", "owned-canary", "token="] {
+        assert!(!text.contains(private), "{text}");
+    }
+}
+
+#[tokio::test]
+async fn malformed_http_and_compression_are_not_connection_failures() {
+    let _guard = net_guard();
+    for response in [
+        "THIS IS NOT HTTP\r\n\r\n".to_owned(),
+        ok_response("invalid gzip bytes", "Content-Encoding: gzip\r\n"),
+    ] {
+        let addr = serve(vec![response]).await;
+        let err = mechanics_client()
+            .get(HttpRequest::get(format!("http://{addr}")))
+            .await
+            .expect_err("malformed response");
+        assert!(matches!(err, HttpError::Other { .. }), "{err:?}");
+    }
+}
+
+#[tokio::test]
+async fn buffered_body_timeout_keeps_the_requested_deadline() {
+    let _guard = net_guard();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        drain_head(&mut socket).await;
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 32\r\n\r\npartial")
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    });
+    let mut request = HttpRequest::get(format!("http://{addr}"));
+    request.timeout = Some(Duration::from_millis(60));
+    let error = mechanics_client()
+        .get(request)
+        .await
+        .expect_err("body stalls");
+    server.abort();
+    assert!(
+        matches!(error, HttpError::Timeout { duration_ms: 60 }),
+        "{error:?}"
+    );
+}
+
+#[tokio::test]
+async fn compression_eof_with_complete_http_body_is_not_a_connection_outage() {
+    let _guard = net_guard();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        drain_head(&mut socket).await;
+        let compressed: &[u8] = &[
+            31, 139, 8, 0, 0, 0, 0, 0, 2, 255, 203, 47, 207, 75, 77, 1, 0, 45, 83, 180,
+        ];
+        let head = format!(
+            "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            compressed.len()
+        );
+        socket.write_all(head.as_bytes()).await.unwrap();
+        socket.write_all(compressed).await.unwrap();
+    });
+    let error = mechanics_client()
+        .get(HttpRequest::get(format!("http://{addr}")))
+        .await
+        .expect_err("gzip trailer missing");
+    server.await.unwrap();
+    assert!(matches!(error, HttpError::Other { .. }), "{error:?}");
+}

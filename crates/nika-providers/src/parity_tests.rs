@@ -538,3 +538,79 @@ async fn every_wired_profile_carries_the_transport_deadline() {
         );
     }
 }
+
+/// Every wire preserves a connection failure at open and mid-stream. The kernel
+/// mock supplies the transport fault; actual socket mechanics live in nika-http.
+#[tokio::test]
+async fn every_wire_keeps_connection_failures_transient_and_streams_fused() {
+    use nika_kernel::http::{
+        HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
+    };
+    struct Interrupted {
+        mid_stream: bool,
+    }
+    fn failure() -> HttpError {
+        HttpError::Connection {
+            reason: "http://127.0.0.1:8123: connection reset by peer".into(),
+        }
+    }
+    impl HttpPostDyn for Interrupted {
+        async fn post(&self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+            Err(failure())
+        }
+        async fn send_streaming(
+            &self,
+            request: HttpRequest,
+        ) -> Result<HttpStreamResponse, HttpError> {
+            if !self.mid_stream {
+                return Err(failure());
+            }
+            Ok(HttpStreamResponse::new(
+                200,
+                std::collections::BTreeMap::new(),
+                request.url,
+                None,
+                Box::pin(crate::test_support::ChunkStream(
+                    std::collections::VecDeque::from([Err(failure())]),
+                )),
+            ))
+        }
+    }
+    for (id, _, key) in wired_http_profiles() {
+        for mid_stream in [false, true] {
+            let config = if key {
+                ProvidersConfig::new().with_key(id, Secret::new("owned-fixture"))
+            } else {
+                ProvidersConfig::new()
+            };
+            let provider = ProviderRegistry::new(Arc::new(Interrupted { mid_stream }), config)
+                .resolve(&format!("{id}/test-model"))
+                .expect("profile");
+            let error = provider.infer(request()).await.expect_err("interrupted");
+            assert!(
+                matches!(error, ProviderError::Connection { .. }),
+                "{id}: {error:?}"
+            );
+            assert!(error.is_transient(), "{id}: {error}");
+            let error = match provider.infer_stream(request()).await {
+                Err(error) => error,
+                Ok(stream) => {
+                    let mut events = collect(stream).await;
+                    assert_eq!(events.len(), 1, "{id}: no synthetic Done after an error");
+                    events.pop().expect("one event").expect_err("interrupted")
+                }
+            };
+            assert!(error.is_transient(), "{id}: {error}");
+            let message = error.to_string();
+            for expected in [
+                "127.0.0.1:8123",
+                "connection reset",
+                "retry.max_attempts",
+                "unknown, not zero",
+                "mock/echo",
+            ] {
+                assert!(message.contains(expected), "{id}: {message}");
+            }
+        }
+    }
+}

@@ -1119,6 +1119,8 @@ pub nika_kernel_ai::provider::ProviderError::Api::message: alloc::string::String
 pub nika_kernel_ai::provider::ProviderError::Api::status: u16
 pub nika_kernel_ai::provider::ProviderError::AuthFailed
 pub nika_kernel_ai::provider::ProviderError::AuthFailed::reason: alloc::string::String
+pub nika_kernel_ai::provider::ProviderError::Connection
+pub nika_kernel_ai::provider::ProviderError::Connection::reason: alloc::string::String
 pub nika_kernel_ai::provider::ProviderError::ModelNotFound
 pub nika_kernel_ai::provider::ProviderError::ModelNotFound::model: alloc::string::String
 pub nika_kernel_ai::provider::ProviderError::Other
