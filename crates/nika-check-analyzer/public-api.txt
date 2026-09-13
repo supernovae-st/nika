@@ -249,6 +249,8 @@ pub mod nika_check_analyzer::native_first
 pub fn nika_check_analyzer::native_first::classify(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<(&'static str, alloc::string::String)>
 pub fn nika_check_analyzer::native_first::classify_all(command: &nika_schema::raw::action::RawCommand) -> alloc::vec::Vec<(&'static str, alloc::string::String)>
 pub fn nika_check_analyzer::native_first::scan_sites(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, &'static str, alloc::string::String)>
+pub mod nika_check_analyzer::read_paths
+pub fn nika_check_analyzer::read_paths::static_read_paths(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub mod nika_check_analyzer::schema_value
 pub fn nika_check_analyzer::schema_value::json_matches_type(value: &serde_json::value::Value, type_name: &str) -> bool
 pub fn nika_check_analyzer::schema_value::kind(v: &serde_json::value::Value) -> &'static str

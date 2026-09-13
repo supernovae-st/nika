@@ -432,6 +432,7 @@ pub nika_cadence::error::CadenceErrorKind::FieldRange
 pub nika_cadence::error::CadenceErrorKind::FieldSyntax
 pub nika_cadence::error::CadenceErrorKind::Grammar
 pub nika_cadence::error::CadenceErrorKind::Identity
+pub nika_cadence::error::CadenceErrorKind::InputName
 pub nika_cadence::error::CadenceErrorKind::ManqueMissing
 pub nika_cadence::error::CadenceErrorKind::PhraseSyntax
 pub nika_cadence::error::CadenceErrorKind::PlafondMissing
@@ -1733,6 +1734,7 @@ pub nika_cadence::registry::Beat::apres_saut: core::option::Option<nika_cadence:
 pub nika_cadence::registry::Beat::cadence: alloc::string::String
 pub nika_cadence::registry::Beat::chevauchement: core::option::Option<nika_cadence::registry::Overlap>
 pub nika_cadence::registry::Beat::decalage: core::option::Option<alloc::string::String>
+pub nika_cadence::registry::Beat::inputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_cadence::registry::Beat::jusqu_au: core::option::Option<alloc::string::String>
 pub nika_cadence::registry::Beat::manque: core::option::Option<nika_cadence::registry::MissPolicy>
 pub nika_cadence::registry::Beat::ou: core::option::Option<nika_cadence::registry::Locus>
@@ -1743,6 +1745,7 @@ pub nika_cadence::registry::Beat::tolerance: core::option::Option<alloc::string:
 pub nika_cadence::registry::Beat::workflow: alloc::string::String
 impl nika_cadence::registry::Beat
 pub fn nika_cadence::registry::Beat::after_skip(&self) -> nika_cadence::registry::AfterSkip
+pub fn nika_cadence::registry::Beat::input_vars(&self) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + '_
 pub fn nika_cadence::registry::Beat::is_active(&self) -> bool
 pub fn nika_cadence::registry::Beat::locus(&self) -> nika_cadence::registry::Locus
 pub fn nika_cadence::registry::Beat::overlap(&self) -> nika_cadence::registry::Overlap
@@ -1778,6 +1781,7 @@ pub nika_cadence::schedule::ScheduleFindingKind::AfterSkip
 pub nika_cadence::schedule::ScheduleFindingKind::Cadence
 pub nika_cadence::schedule::ScheduleFindingKind::Cost
 pub nika_cadence::schedule::ScheduleFindingKind::Id
+pub nika_cadence::schedule::ScheduleFindingKind::Inputs
 pub nika_cadence::schedule::ScheduleFindingKind::Jitter
 pub nika_cadence::schedule::ScheduleFindingKind::Missed
 pub nika_cadence::schedule::ScheduleFindingKind::Pause
@@ -2019,6 +2023,7 @@ pub type nika_cadence::schedule::ScheduleWhenDraft::Output = T
 impl nika_cadence::schedule::ScheduleDefinition
 pub const fn nika_cadence::schedule::ScheduleDefinition::after_skip(&self) -> nika_cadence::registry::AfterSkip
 pub fn nika_cadence::schedule::ScheduleDefinition::id(&self) -> &str
+pub fn nika_cadence::schedule::ScheduleDefinition::inputs(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &str)>
 pub const fn nika_cadence::schedule::ScheduleDefinition::is_active(&self) -> bool
 pub const fn nika_cadence::schedule::ScheduleDefinition::jitter(&self) -> core::option::Option<nika_cadence::schedule::ScheduleJitter>
 pub const fn nika_cadence::schedule::ScheduleDefinition::max_cost_usd(&self) -> f64
@@ -2069,6 +2074,7 @@ pub type nika_cadence::schedule::ScheduleDefinition::Output = T
 pub nika_cadence::schedule::ScheduleDraft::active: core::option::Option<bool>
 pub nika_cadence::schedule::ScheduleDraft::after_skip: core::option::Option<nika_cadence::registry::AfterSkip>
 pub nika_cadence::schedule::ScheduleDraft::id: alloc::string::String
+pub nika_cadence::schedule::ScheduleDraft::inputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_cadence::schedule::ScheduleDraft::jitter: core::option::Option<nika_cadence::schedule::ScheduleJitter>
 pub nika_cadence::schedule::ScheduleDraft::max_cost_usd: f64
 pub nika_cadence::schedule::ScheduleDraft::max_lateness_seconds: core::option::Option<u64>
@@ -2768,6 +2774,7 @@ pub nika_cadence::CadenceErrorKind::FieldRange
 pub nika_cadence::CadenceErrorKind::FieldSyntax
 pub nika_cadence::CadenceErrorKind::Grammar
 pub nika_cadence::CadenceErrorKind::Identity
+pub nika_cadence::CadenceErrorKind::InputName
 pub nika_cadence::CadenceErrorKind::ManqueMissing
 pub nika_cadence::CadenceErrorKind::PhraseSyntax
 pub nika_cadence::CadenceErrorKind::PlafondMissing
@@ -3331,6 +3338,7 @@ pub nika_cadence::ScheduleFindingKind::AfterSkip
 pub nika_cadence::ScheduleFindingKind::Cadence
 pub nika_cadence::ScheduleFindingKind::Cost
 pub nika_cadence::ScheduleFindingKind::Id
+pub nika_cadence::ScheduleFindingKind::Inputs
 pub nika_cadence::ScheduleFindingKind::Jitter
 pub nika_cadence::ScheduleFindingKind::Missed
 pub nika_cadence::ScheduleFindingKind::Pause
@@ -3851,6 +3859,7 @@ pub nika_cadence::Beat::apres_saut: core::option::Option<nika_cadence::registry:
 pub nika_cadence::Beat::cadence: alloc::string::String
 pub nika_cadence::Beat::chevauchement: core::option::Option<nika_cadence::registry::Overlap>
 pub nika_cadence::Beat::decalage: core::option::Option<alloc::string::String>
+pub nika_cadence::Beat::inputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_cadence::Beat::jusqu_au: core::option::Option<alloc::string::String>
 pub nika_cadence::Beat::manque: core::option::Option<nika_cadence::registry::MissPolicy>
 pub nika_cadence::Beat::ou: core::option::Option<nika_cadence::registry::Locus>
@@ -3861,6 +3870,7 @@ pub nika_cadence::Beat::tolerance: core::option::Option<alloc::string::String>
 pub nika_cadence::Beat::workflow: alloc::string::String
 impl nika_cadence::registry::Beat
 pub fn nika_cadence::registry::Beat::after_skip(&self) -> nika_cadence::registry::AfterSkip
+pub fn nika_cadence::registry::Beat::input_vars(&self) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + '_
 pub fn nika_cadence::registry::Beat::is_active(&self) -> bool
 pub fn nika_cadence::registry::Beat::locus(&self) -> nika_cadence::registry::Locus
 pub fn nika_cadence::registry::Beat::overlap(&self) -> nika_cadence::registry::Overlap
@@ -4428,6 +4438,7 @@ pub type nika_cadence::schedule_plan::ScheduleDecisionState::Output = T
 impl nika_cadence::schedule::ScheduleDefinition
 pub const fn nika_cadence::schedule::ScheduleDefinition::after_skip(&self) -> nika_cadence::registry::AfterSkip
 pub fn nika_cadence::schedule::ScheduleDefinition::id(&self) -> &str
+pub fn nika_cadence::schedule::ScheduleDefinition::inputs(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &str)>
 pub const fn nika_cadence::schedule::ScheduleDefinition::is_active(&self) -> bool
 pub const fn nika_cadence::schedule::ScheduleDefinition::jitter(&self) -> core::option::Option<nika_cadence::schedule::ScheduleJitter>
 pub const fn nika_cadence::schedule::ScheduleDefinition::max_cost_usd(&self) -> f64
@@ -4478,6 +4489,7 @@ pub type nika_cadence::schedule::ScheduleDefinition::Output = T
 pub nika_cadence::ScheduleDraft::active: core::option::Option<bool>
 pub nika_cadence::ScheduleDraft::after_skip: core::option::Option<nika_cadence::registry::AfterSkip>
 pub nika_cadence::ScheduleDraft::id: alloc::string::String
+pub nika_cadence::ScheduleDraft::inputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_cadence::ScheduleDraft::jitter: core::option::Option<nika_cadence::schedule::ScheduleJitter>
 pub nika_cadence::ScheduleDraft::max_cost_usd: f64
 pub nika_cadence::ScheduleDraft::max_lateness_seconds: core::option::Option<u64>
