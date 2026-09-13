@@ -117,8 +117,8 @@ fn runtime_trace_fixtures_hold_their_verify_verdict() {
         }
     }
     assert!(
-        seen >= 7,
-        "the spec runtime/trace corpus has >= 7 fixtures (saw {seen})"
+        seen >= 9,
+        "the spec runtime/trace corpus has >= 9 fixtures (saw {seen})"
     );
 }
 

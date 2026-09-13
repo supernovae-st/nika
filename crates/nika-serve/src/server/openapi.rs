@@ -56,6 +56,37 @@ fn components() -> Value {
     })
 }
 
+fn job_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status"],
+        "properties": {
+            "id": {"type": "string", "format": "uuid"},
+            "status": {"$ref": "#/components/schemas/JobStatus"},
+            "execution_id": {"type": "string"},
+            "trace_id": {"type": "string"},
+            "outputs": {
+                "type": "object",
+                "description": "Declared workflow outputs; present only after settlement when supplied by the execution adapter",
+                "additionalProperties": true
+            },
+            "receipt": {"$ref": "#/components/schemas/JobReceipt"},
+            "settlement": {"$ref": "#/components/schemas/RunSettlement"},
+            "evidence": {"$ref": "#/components/schemas/JournalEvidence"},
+            "error": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["code", "message"],
+                "properties": {
+                    "code": {"type": "string"},
+                    "message": {"type": "string"}
+                }
+            }
+        }
+    })
+}
+
 fn schemas() -> Value {
     json!({
             "Health": health_schema(),
@@ -66,34 +97,7 @@ fn schemas() -> Value {
                 "description": "queued and running: the resident owns the execution. interrupted: execution ownership was lost and effect settlement is unknown — an EVIDENCE state (the journal is INCOMPLETE), never a run state (ADR-129). paused, succeeded, failed and cancelled: the run's own settlement, the words its terminal frame carries (ADR-128).",
                 "enum": ["queued", "running", "interrupted", "paused", "succeeded", "failed", "cancelled"]
             },
-            "Job": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["id", "status"],
-                "properties": {
-                    "id": {"type": "string", "format": "uuid"},
-                    "status": {"$ref": "#/components/schemas/JobStatus"},
-                    "execution_id": {"type": "string"},
-                    "trace_id": {"type": "string"},
-                    "outputs": {
-                        "type": "object",
-                        "description": "Declared workflow outputs; present only after settlement when supplied by the execution adapter",
-                        "additionalProperties": true
-                    },
-                    "receipt": {"$ref": "#/components/schemas/JobReceipt"},
-                    "settlement": {"$ref": "#/components/schemas/RunSettlement"},
-                    "evidence": {"$ref": "#/components/schemas/JournalEvidence"},
-                    "error": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": ["code", "message"],
-                        "properties": {
-                            "code": {"type": "string"},
-                            "message": {"type": "string"}
-                        }
-                    }
-                }
-            },
+            "Job": job_schema(),
             "JobOrigin": job_origin_schema(),
             "JobReceipt": job_receipt_schema(),
             "JobEvent": job_event_schema(),

@@ -350,28 +350,9 @@ impl RunView {
                 self.declare_cleanup(event);
             }
             EventKind::PermitChecked => self.apply_cleanup(event),
-            EventKind::TaskStarted => {
-                if let Some(task) = str_field(event, "task") {
-                    self.item_pages.remove(task);
-                }
-                if let Some(i) = self.touch(event, TaskState::Running) {
-                    let row = &mut self.rows[i];
-                    row.started_ms = Some(ts);
-                    row.items_json = None;
-                    if row.started_note.is_none() && !row.note.is_empty() {
-                        row.started_note = Some(row.note.clone());
-                    }
-                }
-            }
+            EventKind::TaskStarted => self.apply_task_started(event, ts),
             EventKind::TaskCompleted => self.apply_task_completed(event, ts),
-            EventKind::TaskItems => {
-                if let Some(task) = str_field(event, "task") {
-                    self.item_pages
-                        .entry(task.to_owned())
-                        .or_default()
-                        .push(event);
-                }
-            }
+            EventKind::TaskItems => self.apply_task_items(event),
             // ADR-099 `--resume` — a rehydrated success: the row reads Ok
             // with the "cache hit" note the frame carries (VISIBLE, never
             // silent); zero duration/spend (the task never ran here). The
@@ -502,6 +483,29 @@ impl RunView {
         }
         if let Some(total) = float_field(event, "total_cost_usd") {
             self.cost_usd = total;
+        }
+    }
+
+    fn apply_task_started(&mut self, event: &Event, ts: i64) {
+        if let Some(task) = str_field(event, "task") {
+            self.item_pages.remove(task);
+        }
+        if let Some(i) = self.touch(event, TaskState::Running) {
+            let row = &mut self.rows[i];
+            row.started_ms = Some(ts);
+            row.items_json = None;
+            if row.started_note.is_none() && !row.note.is_empty() {
+                row.started_note = Some(row.note.clone());
+            }
+        }
+    }
+
+    fn apply_task_items(&mut self, event: &Event) {
+        if let Some(task) = str_field(event, "task") {
+            self.item_pages
+                .entry(task.to_owned())
+                .or_default()
+                .push(event);
         }
     }
 
