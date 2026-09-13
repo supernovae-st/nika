@@ -197,8 +197,10 @@ fn load_resume_plan(
 }
 
 /// Bind the folded ticket to the durable claim store (`$HOME/.nika/
-/// approval-claims` · the replay guard) — extracted from
-/// [`load_resume_plan`] at the 100-line wall.
+/// approval-claims` · the replay guard) — and prune the claims that
+/// outlived every trace on the way in (#1466): the store is touched only
+/// here, so this is where it stays bounded. Pruning is fail-open and
+/// speaks exactly one line when anything was removed (D2 · never silent).
 fn durable_paused(
     paused: Option<PausedApproval>,
     output_json: bool,
@@ -212,6 +214,10 @@ fn durable_paused(
             output_json,
         )
     })?;
+    let (cfg, _notes) = nika_dap::retention::RetentionConfig::from_env();
+    if let Some(n) = nika_dap::retention::prune_claims(&home, &cfg, std::time::SystemTime::now()) {
+        eprintln!("nika run: approval claims gc · removed {n} expired claim(s)");
+    }
     approval
         .with_durable_claim_root(&home)
         .map(Some)
