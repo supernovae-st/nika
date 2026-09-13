@@ -318,7 +318,9 @@ pub trait ToolsListDyn {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ConnectOutcome {
-    /// First contact: the pins were just written (enroll loudly).
+    /// First contact under [`connect_verified`]: the pins were just
+    /// written (enroll loudly). The `nika run` lane never reaches this
+    /// arm — its dispatch refuses an unpinned server (NIKA-MCP-006).
     Enrolled {
         /// The server name.
         server: String,
@@ -337,7 +339,7 @@ pub enum ConnectOutcome {
 }
 
 impl ConnectOutcome {
-    /// The tool count (the TOFU/verify receipt line).
+    /// The tool count (the enroll/verify receipt line).
     #[must_use]
     pub fn tool_count(&self) -> usize {
         match self {
@@ -361,9 +363,15 @@ pub struct ApproveReport {
     pub confinement: Option<String>,
 }
 
-/// The pin-gated connect — THE flow every MCP connect must run:
-/// `tools/list` → load the lockfile → enroll (first contact) · proceed
-/// silently (match) · refuse with the drift diff (any change).
+/// The enrollment-capable connect (TOFU semantics, for embedders that
+/// opt in): `tools/list` → load the lockfile → enroll on first contact
+/// (loudly) · proceed silently (match) · refuse with the drift diff
+/// (any change).
+///
+/// This is NOT the `nika run` lane: the runtime dispatch
+/// (`crate::dispatch`) refuses an unapproved server BEFORE spawn with
+/// NIKA-MCP-006 — only [`approve_server`] writes pins, so nothing is
+/// written on first contact at run time.
 ///
 /// `now_epoch` is injected (INV-027 hermeticity) and only written on
 /// enrollment. A corrupt lockfile stops here — NEVER a silent re-TOFU.

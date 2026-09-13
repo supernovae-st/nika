@@ -653,8 +653,9 @@ fn composed_runtime(
                 .with_max_cost_usd(max_cost_usd)
                 // #1575 · the MCP plane: `mcp:<server>/<tool>` resolves
                 // against the project registry + approved pins (run lane
-                // only · `nika test` keeps every mcp: refused).
-                .with_mcp_plane(nika_mcp::dispatch::run_plane("."))
+                // only · `nika test` keeps every mcp: refused) — anchored
+                // at the ONE project root (`mcp_project_root`).
+                .with_mcp_plane(nika_mcp::dispatch::run_plane(mcp_project_root()))
                 // ADR-099 rider — ALWAYS armed: a blocked `nika:prompt`
                 // pauses durably on EVERY lane; the old `json ||
                 // output_json` proxy left a headless TEXT run dying at
@@ -700,6 +701,20 @@ fn composed_runtime(
             output_json,
         )),
     }
+}
+
+/// The ONE project root the `.nika/` convention anchors at — the launch
+/// cwd, pinned EAGERLY as an absolute path so the plane's lazy first read
+/// (the registry + lockfile load on the first `mcp:` call) can never
+/// re-anchor at a moved cwd the way a bare `"."` would. Every sibling
+/// surface holds the same root: `nika mcp approve` writes
+/// `.nika/mcp_pins.json` there, the trace store writes `.nika/traces/`
+/// beside it, the #1367 resume fingerprint judges it, and
+/// `production_runtime` pins the sandbox to it. An unresolvable cwd
+/// degrades to `.` — the calm fallback the ceiling ladder takes (a
+/// broken cwd must never block a run).
+fn mcp_project_root() -> std::path::PathBuf {
+    std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
 }
 
 /// Execute a CHECKED workflow with the MOCK provider and capture the typed

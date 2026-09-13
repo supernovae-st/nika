@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! MCP **tool pinning** — the anti-rug-pull defence for configured MCP
-//! servers (trust-on-first-use, then fail-closed forever).
+//! servers (approve-gated enrollment, then fail-closed forever).
 //!
 //! The attack class: a workflow author approves an MCP server once (its
 //! `tools/list` looked honest), and the server — compromised, updated, or
@@ -24,8 +24,13 @@
 //!    15-line function would invert the dependency budget (the proof layer
 //!    itself pins the same `serde_json` serialization law: this workspace
 //!    keeps `preserve_order` OFF, so map order IS sorted order).
-//! 2. **First contact (TOFU)** — connecting to an unpinned server WRITES
-//!    the pins, loudly (server · tool count). First use enrolls.
+//! 2. **Enrollment is explicit** — declaring the server in
+//!    `.nika/mcp_servers.json` and running `nika mcp approve <server>`
+//!    writes the pins after human review (see `client::approve_server`).
+//!    NOTHING is written on first contact at run time: the runtime
+//!    dispatch refuses an unapproved server BEFORE spawn
+//!    ([`PinError::Unapproved`] · NIKA-MCP-006), naming the approve
+//!    remediation.
 //! 3. **Every connect re-verifies** — after `tools/list`, pins are
 //!    recomputed and compared. A match proceeds silently; ANY drift fails
 //!    closed: [`PinError::Drift`] carries a human-readable diff and NO tool
@@ -335,7 +340,8 @@ impl std::fmt::Display for PinError {
                 "[NIKA-MCP-004] the MCP pin lockfile cannot be trusted: {why}\n  \
                  file: {}\n  \
                  it was NOT rewritten and nothing was re-pinned — a corrupt or hand-edited lockfile is itself a tamper signal.\n  \
-                 to re-enroll from scratch, delete that file deliberately and re-run",
+                 to re-enroll, delete that file deliberately,\n  \
+                 then re-approve every server: nika mcp approve <server>",
                 path.display()
             ),
             Self::Unsupported { server, why } => write!(
@@ -417,7 +423,8 @@ struct PinFile {
 /// The verdict of comparing a fresh `tools/list` against the lockfile.
 #[derive(Debug)]
 pub(crate) enum Verify {
-    /// No pins recorded for this server — first contact (enroll, loudly).
+    /// No pins recorded for this server — never approved: the run lane
+    /// refuses (NIKA-MCP-006); only `approve_server` enrolls.
     Unpinned,
     /// Every pinned tool is served with an identical definition.
     Clean,
