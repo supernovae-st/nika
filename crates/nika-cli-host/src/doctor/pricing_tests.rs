@@ -38,6 +38,15 @@ fn pricing_line_names_the_snapshot_identity() {
     );
     assert!(f.detail.contains("10 providers priced"), "{}", f.detail);
     assert!(f.detail.contains("2026-07-07"), "{}", f.detail);
+    // #1581 · the age rides EVERY level — a 47-day snapshot read as
+    // « current » while only the stale branch spoke its age.
+    assert!(f.detail.contains("3 days old"), "{}", f.detail);
+    assert!(
+        pricing_finding(&pricing(None))
+            .detail
+            .contains("age unknown"),
+        "an uncomputable age is said, never dropped"
+    );
     assert!(f.detail.contains("d31a39603aa5419d"), "{}", f.detail);
     assert!(
         f.detail.contains("list rates"),

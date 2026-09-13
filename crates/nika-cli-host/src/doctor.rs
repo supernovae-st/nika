@@ -453,9 +453,11 @@ fn image_finding(img: &ImageProbe) -> Finding {
 const PRICING_STALE_DAYS: u32 = 120;
 
 /// The pricing-catalog line — identity always (which snapshot prices
-/// this binary's cost reports), a staleness ⚠ past the threshold. The
-/// age warning is the gap no surveyed tool closes (2026-07): a stale
-/// vendored price table silently mis-prices every report.
+/// this binary's cost reports, and HOW OLD it is · #1581: a 47-day
+/// snapshot read as current when only the stale branch spoke its
+/// age), a staleness ⚠ past the threshold. The age warning is the gap
+/// no surveyed tool closes (2026-07): a stale vendored price table
+/// silently mis-prices every report.
 fn pricing_finding(p: &PricingProbe) -> Finding {
     // LIST RATES said here on purpose: private/proxy/negotiated pricing
     // is not reflected (the override file is the roadmapped answer) —
@@ -468,15 +470,24 @@ fn pricing_finding(p: &PricingProbe) -> Finding {
     // NAMES its facet (RAMS-12 · A-06), and the facet here is the
     // snapshot's rate table: several patterns can price one model, and
     // a pattern can price models this catalog never lists.
+    let age = p.age_days.map_or_else(
+        || "age unknown".to_owned(),
+        |d| {
+            format!(
+                "{} old",
+                crate::text::count(usize::try_from(d).unwrap_or(usize::MAX), "day")
+            )
+        },
+    );
     let identity = format!(
-        "{} price rules · {} providers priced · snapshot {} · {} · list rates (public catalog)",
+        "{} price rules · {} providers priced · snapshot {} · {age} · {} · list rates (public catalog)",
         p.rules, p.providers, p.as_of, p.sha
     );
     match p.age_days {
         Some(age) if age > PRICING_STALE_DAYS => Finding {
             level: Level::Warn,
             label: "pricing".to_owned(),
-            detail: format!("{identity} — {age} days old · cost reports may drift"),
+            detail: format!("{identity} — past {PRICING_STALE_DAYS} days · cost reports may drift"),
             fix: Some(
                 "upgrade nika — the pricing snapshot ships with releases \
                  (from source: bash scripts/refresh-pricing.sh)"
