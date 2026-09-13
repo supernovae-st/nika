@@ -6,6 +6,7 @@
 //! `nika doctor`'s `resident` line is this report, rendered; nothing here
 //! takes a lease the resident could need.
 
+use std::io::Read as _;
 use std::path::Path;
 
 use serde::Deserialize;
@@ -31,6 +32,10 @@ pub struct ResidentReport {
     pub schedules_writer: Option<WriterStamp>,
     /// Whether a resident holds the server lease on this host right now.
     pub alive: bool,
+    /// Jobs with at least one recorded mirror loss. This is a bounded
+    /// metadata census, not verification of the journals themselves.
+    /// `None` means the job snapshot could not be read.
+    pub mirror_losses: Option<usize>,
 }
 
 impl ResidentReport {
@@ -46,6 +51,27 @@ impl ResidentReport {
 struct StampProbe {
     #[serde(default)]
     writer: Option<WriterStamp>,
+    jobs: Option<Vec<JobProbe>>,
+}
+
+#[derive(Deserialize)]
+struct JobProbe {
+    events: Vec<EventProbe>,
+}
+
+#[derive(Deserialize)]
+struct EventProbe {
+    payload: PayloadProbe,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum PayloadProbe {
+    Loss {
+        kind: String,
+        evidence: crate::JournalEvidence,
+    },
+    Other(serde::de::IgnoredAny),
 }
 
 /// Read the resident's report under `state_root` (the `--state-root` ·
@@ -57,20 +83,45 @@ pub fn inspect(state_root: &Path) -> Option<ResidentReport> {
     if !jobs.exists() && !schedules.exists() {
         return None;
     }
+    let jobs = read_probe(&jobs);
+    let mirror_losses = jobs
+        .as_ref()
+        .and_then(|probe| probe.jobs.as_ref())
+        .map(|jobs| {
+            jobs.iter()
+                .filter(|job| {
+                    job.events.iter().any(|event| matches!(
+                        &event.payload,
+                        PayloadProbe::Loss { kind, evidence: crate::JournalEvidence::MirrorLost { .. } }
+                            if matches!(kind.as_str(), "execution.settled" | "execution.cancelled")
+                    ))
+                })
+                .count()
+        });
     Some(ResidentReport {
-        jobs_writer: read_stamp(&jobs),
-        schedules_writer: read_stamp(&schedules),
+        jobs_writer: jobs.and_then(|probe| probe.writer),
+        schedules_writer: read_probe(&schedules).and_then(|probe| probe.writer),
         alive: lease_held(&state_root.join(SERVER_LOCK)),
+        mirror_losses,
     })
 }
 
-fn read_stamp(path: &Path) -> Option<WriterStamp> {
+fn read_probe(path: &Path) -> Option<StampProbe> {
     let meta = std::fs::symlink_metadata(path).ok()?;
     if !meta.is_file() || meta.len() > MAX_PROBE_BYTES {
         return None;
     }
-    let text = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str::<StampProbe>(&text).ok()?.writer
+    // Bound the read itself too: the snapshot can grow after the stat.
+    let mut text = String::new();
+    std::fs::File::open(path)
+        .ok()?
+        .take(MAX_PROBE_BYTES + 1)
+        .read_to_string(&mut text)
+        .ok()?;
+    if text.len() as u64 > MAX_PROBE_BYTES {
+        return None;
+    }
+    serde_json::from_str(&text).ok()
 }
 
 /// Whether a resident holds the server lease: a live resident holds it
@@ -100,6 +151,35 @@ fn lease_held(path: &Path) -> bool {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unrelated_payload_shapes_do_not_hide_the_writer_or_recorded_losses() {
+        let root = tempfile::tempdir().expect("root");
+        let path = root.path().join("state.json");
+        let writer = WriterStamp::this_engine();
+        std::fs::write(
+            &path,
+            serde_json::json!({
+                "writer": writer,
+                "jobs": [{"events": [
+                    {"payload": null}, {"payload": [1, 2]},
+                    {"payload": {"kind": 42, "evidence": "unrelated"}},
+                    {"payload": {"kind": "execution.settled", "evidence": {
+                        "status": "mirror_lost", "reason": "write_failed"
+                    }}}
+                ]}]
+            })
+            .to_string(),
+        )
+        .expect("snapshot");
+        let probe = read_probe(&path).expect("readable metadata");
+        assert_eq!(probe.writer, Some(writer));
+        let jobs = probe.jobs.expect("jobs");
+        assert!(matches!(
+            &jobs[0].events[3].payload,
+            PayloadProbe::Loss { .. }
+        ));
+    }
 
     /// No store → no report; a fresh store → this engine's stamp on both
     /// stores and no resident alive; a claimed incarnation → alive.

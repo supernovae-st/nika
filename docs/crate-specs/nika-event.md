@@ -16,6 +16,16 @@
 
 ---
 
+
+## Paged item event
+
+`EventKind::TaskItems` is the additive `task_items` wire event. It belongs to
+`EventClass::Task` and is neither terminal nor failure. Its fields carry a
+task id, zero-based page index and whole item rows as JSON array text. The
+terminal closes the page set with counts, as specified in spec 17. The event
+itself changes neither execution state nor spend.
+
+
 ## 1. Purpose
 
 `nika-event` is the **engine runtime chronicle surface**. It provides the

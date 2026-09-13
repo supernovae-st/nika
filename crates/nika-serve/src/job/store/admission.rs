@@ -265,6 +265,7 @@ impl JobStore {
             outputs: None,
             receipt: None,
             settlement: None,
+            evidence: None,
             paused_outputs: None,
             paused_receipt: None,
         };

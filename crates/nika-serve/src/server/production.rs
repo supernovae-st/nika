@@ -282,8 +282,10 @@ fn run_admitted_resident_job(
                 snapshot_digest: &snapshot_digest,
                 display_root: &display_root,
             };
-            if let Some(head) = settle_journal(&journal, seal.as_ref(), &facts) {
-                mapped = mapped.with_chain_head(head);
+            match settle_journal(&journal, seal.as_ref(), &facts) {
+                Ok(Some(head)) => mapped = mapped.with_chain_head(head),
+                Err(evidence) => mapped = mapped.with_evidence(evidence),
+                Ok(None) => {}
             }
             mapped
         }
@@ -331,14 +333,20 @@ struct SealFacts<'a> {
 /// Settle the journal the way the CLI's `surface_trace` does — the seal
 /// FIRST, then the durability point, so the seal's own bytes are covered by
 /// the fsync — and hand back the chain head the receipt names. `None` when
-/// no journal was opened (a refusal before any event) or the lane died.
+/// no journal was opened (a refusal before any event). A failed lane returns
+/// a path-free loss record, including an error before the first file opened.
 fn settle_journal(
     journal: &Mutex<TraceFileSink>,
     seal: &dyn JournalSeal,
     facts: &SealFacts<'_>,
-) -> Option<String> {
+) -> Result<Option<String>, crate::JournalEvidence> {
     let mut trace = journal_guard(journal);
-    trace.path()?;
+    if let Some(error) = trace.error() {
+        return Err(crate::JournalEvidence::from_error(error));
+    }
+    if trace.path().is_none() {
+        return Ok(None);
+    }
     // The workflow hash the CLI seals under (`seal_hash`): the per-task
     // Merkle root of the admitted workflow.
     let workflow_hash = nika_runtime::proof::ir::merkle_by_task(facts.driver.workflow())
@@ -346,10 +354,10 @@ fn settle_journal(
     let teardown = resident_teardown(facts);
     seal.seal(&mut trace, workflow_hash.as_deref(), Some(&teardown));
     trace.finalize();
-    if trace.error().is_some() {
-        return None;
+    if let Some(error) = trace.error() {
+        return Err(crate::JournalEvidence::from_error(error));
     }
-    Some(trace.chain_head().to_owned())
+    Ok(Some(trace.chain_head().to_owned()))
 }
 
 /// The teardown facts the seal binds (spec 17 §the end of the run) — the

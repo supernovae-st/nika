@@ -161,6 +161,8 @@ struct ProjectedEvent<'a> {
     /// ADR-128 · the runtime's settlement, whole, on the terminal frame.
     #[serde(skip_serializing_if = "Option::is_none")]
     settlement: Option<&'a Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    evidence: Option<crate::JournalEvidence>,
 }
 
 fn projected<'a>(
@@ -200,6 +202,10 @@ fn projected<'a>(
             None
         },
         settlement: event.payload().get("settlement"),
+        evidence: event
+            .payload()
+            .get("evidence")
+            .and_then(|value| serde_json::from_value(value.clone()).ok()),
     }
 }
 
@@ -613,6 +619,7 @@ mod tests {
             outputs: None,
             receipt: None,
             settlement: None,
+            evidence: None,
         }
     }
 

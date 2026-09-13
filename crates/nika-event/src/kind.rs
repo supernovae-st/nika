@@ -35,6 +35,9 @@ pub enum EventKind {
     TaskStarted,
     /// A task finished successfully.
     TaskCompleted,
+    /// One ordered page of a fan-out's item evidence, before its terminal.
+    /// The terminal's `items_pages` and `items_total` close the page set.
+    TaskItems,
     /// A task aborted on an error.
     TaskFailed,
     /// A task was skipped (`when:` gate false · empty `for_each`
@@ -217,6 +220,7 @@ impl EventKind {
             Self::TaskScheduled => "task_scheduled",
             Self::TaskStarted => "task_started",
             Self::TaskCompleted => "task_completed",
+            Self::TaskItems => "task_items",
             Self::TaskFailed => "task_failed",
             Self::TaskSkipped => "task_skipped",
             Self::VerbInvoked => "verb_invoked",
@@ -305,6 +309,7 @@ impl EventKind {
             Self::TaskScheduled
             | Self::TaskStarted
             | Self::TaskCompleted
+            | Self::TaskItems
             | Self::TaskFailed
             | Self::TaskSkipped
             | Self::TaskRetrying
@@ -379,6 +384,7 @@ mod tests {
         EventKind::TaskScheduled,
         EventKind::TaskStarted,
         EventKind::TaskCompleted,
+        EventKind::TaskItems,
         EventKind::TaskFailed,
         EventKind::TaskSkipped,
         EventKind::VerbInvoked,
@@ -420,6 +426,7 @@ mod tests {
                 | EventKind::TaskScheduled
                 | EventKind::TaskStarted
                 | EventKind::TaskCompleted
+                | EventKind::TaskItems
                 | EventKind::TaskFailed
                 | EventKind::TaskSkipped
                 | EventKind::VerbInvoked
@@ -448,7 +455,7 @@ mod tests {
                 | EventKind::NotifyFailed => {}
             }
         }
-        assert_eq!(ALL.len(), 32, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 33, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the

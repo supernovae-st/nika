@@ -17,6 +17,17 @@
 
 ---
 
+
+## Paged item projection
+
+`RunView` accumulates `task_items` by task and observation. A task start clears
+its pending pages; a terminal exposes the reconstructed table only if page
+order, global row indexes and all terminal counters agree. Missing, duplicate,
+reordered or malformed pages yield no complete table. This fold is shared by
+live rendering and trace outputs/replay; it never rewrites physical frames or
+substitutes for the independent chain verifier.
+
+
 ## 1. Purpose
 
 `nika-display` is the **run-comprehension surface**: everything between a

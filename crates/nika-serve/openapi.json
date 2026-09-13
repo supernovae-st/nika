@@ -257,6 +257,9 @@
             ],
             "type": "object"
           },
+          "evidence": {
+            "$ref": "#/components/schemas/JournalEvidence"
+          },
           "execution_id": {
             "type": "string"
           },
@@ -314,6 +317,9 @@
         "properties": {
           "code": {
             "type": "string"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/JournalEvidence"
           },
           "kind": {
             "type": [
@@ -493,6 +499,28 @@
         },
         "required": [
           "status"
+        ],
+        "type": "object"
+      },
+      "JournalEvidence": {
+        "additionalProperties": false,
+        "description": "Reported journal delivery loss, independent of execution status. The reason classifies the mirror's first error without exposing OS text or paths. Absence is not a claim that a journal exists.",
+        "properties": {
+          "reason": {
+            "enum": [
+              "write_failed",
+              "record_refused"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "const": "mirror_lost",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason"
         ],
         "type": "object"
       },
@@ -938,7 +966,7 @@
   "info": {
     "description": "Authenticated loopback remote execution and declarative schedules. Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent.",
     "title": "nika serve",
-    "version": "0.119.0"
+    "version": "0.120.0-dev"
   },
   "openapi": "3.1.0",
   "paths": {

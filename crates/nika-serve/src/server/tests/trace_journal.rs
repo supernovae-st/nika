@@ -15,6 +15,8 @@ use nika_trace::trace_verify::{VerifyOptions, verify_with};
 use super::*;
 use crate::server::production::{JournalSeal, ResidentExecutionBackend};
 
+mod mirror_loss;
+
 /// A run the operator's cancel cannot reach at a wave boundary: one task,
 /// one long wait — the resident's grace expires and it interrupts the run.
 const SLOW_WORKFLOW: &str = "nika: slow\npermits:\n  tools: [\"nika:wait\"]\ntasks:\n  linger:\n    invoke:\n      tool: nika:wait\n      args: { duration: \"25s\" }\n";
@@ -158,6 +160,16 @@ async fn verify_route_reports_the_cli_verdict_for_the_jobs_journal() {
     assert_eq!(
         job["receipt"]["chain_head"], expected["chain"]["head"],
         "the receipt names the head the verifier recomputed: {job}"
+    );
+    assert!(
+        job.get("evidence").is_none(),
+        "healthy journal has no loss: {job}"
+    );
+    assert_eq!(
+        crate::inspect_resident(&world.state)
+            .expect("resident")
+            .mirror_losses,
+        Some(0)
     );
     assert!(
         files_with(&journal_dir(&world), "lock").is_empty(),

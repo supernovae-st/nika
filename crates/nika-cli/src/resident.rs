@@ -61,5 +61,42 @@ pub(crate) fn resident_finding() -> Vec<Finding> {
             fix: Some("restart the resident from this binary: it stamps the stores".to_owned()),
         },
     };
-    vec![finding]
+    let mut findings = vec![finding];
+    if let Some(loss) = mirror_loss_finding(report.mirror_losses) {
+        findings.push(loss);
+    }
+    findings
+}
+
+fn mirror_loss_finding(count: Option<usize>) -> Option<Finding> {
+    let count = count.filter(|count| *count > 0)?;
+    Some(Finding {
+        level: Level::Warn,
+        label: "resident journals".to_owned(),
+        detail: format!("{count} jobs report lost journal mirrors; their execution status is unchanged"),
+        fix: Some("inspect each job's evidence and trace verdict; repair journal storage before the next run (do not replay effects just to replace a missing journal)".to_owned()),
+    })
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mirror_loss_warning_counts_reported_jobs_without_inventing_missing_facts() {
+        assert!(mirror_loss_finding(None).is_none());
+        assert!(mirror_loss_finding(Some(0)).is_none());
+        let Some(finding) = mirror_loss_finding(Some(2)) else {
+            panic!("reported losses must be visible");
+        };
+        assert_eq!(finding.level, Level::Warn);
+        assert!(finding.detail.starts_with("2 jobs"));
+        assert!(
+            finding
+                .fix
+                .as_deref()
+                .is_some_and(|fix| fix.contains("do not replay effects"))
+        );
+    }
 }

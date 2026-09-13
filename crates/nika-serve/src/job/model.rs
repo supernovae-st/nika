@@ -526,6 +526,9 @@ pub struct JobRecord {
     /// persisted settlement. Rebuilt after validation and event mutation.
     #[serde(skip)]
     pub(crate) settlement: Option<Value>,
+    /// Read projection of the same hash-bound observation event.
+    #[serde(skip)]
+    pub(crate) evidence: Option<super::JournalEvidence>,
     #[serde(skip)]
     pub(crate) paused_outputs: Option<BTreeMap<String, Value>>,
     #[serde(skip)]
@@ -629,6 +632,12 @@ impl JobRecord {
     #[must_use]
     pub fn settlement(&self) -> Option<&Value> {
         self.settlement.as_ref()
+    }
+
+    /// Journal loss reported by this observation leg, when recorded.
+    #[must_use]
+    pub const fn evidence(&self) -> Option<super::JournalEvidence> {
+        self.evidence
     }
 }
 

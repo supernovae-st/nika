@@ -80,6 +80,7 @@ pub struct ExecutionOutcome {
     error_message: Option<String>,
     outputs: Option<BTreeMap<String, serde_json::Value>>,
     chain_head: Option<String>,
+    evidence: Option<crate::JournalEvidence>,
     settlement: Option<Box<nika_event::settlement::RunSettlement>>,
 }
 
@@ -106,6 +107,7 @@ impl From<ExecutionDisposition> for ExecutionOutcome {
             error_message: None,
             outputs: None,
             chain_head: None,
+            evidence: None,
             settlement: None,
         }
     }
@@ -121,6 +123,7 @@ impl ExecutionOutcome {
             error_message: Some(message.into()),
             outputs: None,
             chain_head: None,
+            evidence: None,
             settlement: None,
         }
     }
@@ -150,7 +153,18 @@ impl ExecutionOutcome {
     /// Attach the trace chain head when the execution lane exposes one.
     #[must_use]
     pub fn with_chain_head(mut self, chain_head: impl Into<String>) -> Self {
-        self.chain_head = Some(chain_head.into());
+        if self.evidence.is_none() {
+            self.chain_head = Some(chain_head.into());
+        }
+        self
+    }
+
+    /// Report lost journal delivery while preserving the execution result.
+    /// A failed mirror cannot advertise a complete journal's chain head.
+    #[must_use]
+    pub fn with_evidence(mut self, evidence: crate::JournalEvidence) -> Self {
+        self.evidence = Some(evidence);
+        self.chain_head = None;
         self
     }
 
@@ -1167,6 +1181,9 @@ async fn settle_disposition(
     if let Some((code, message)) = outcome.error() {
         event["code"] = json!(code);
         event["message"] = json!(message);
+    }
+    if let Some(evidence) = outcome.evidence {
+        event["evidence"] = json!(evidence);
     }
     let observation_ended = status.is_settled() || status == JobStatus::Paused;
     let receipt = observation_ended

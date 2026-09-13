@@ -19,6 +19,19 @@
 > parent's record visible to the cleanup gate) are unchanged; only the
 > spelling an author writes moved.
 
+
+## Paged fan-out evidence
+
+`emit_items` owns both successful and failed fan-out item emission. Small
+arrays retain their inline bytes. Larger tables emit ordered `task_items`
+frames before the task terminal, which closes the set with page, row and
+status counts. The internal 64 KiB target measures the doubly encoded JSON
+text and leaves space for the event envelope. An unpageable individual row
+falls back to the full inline representation; the writer still refuses an
+oversized record. No item is silently truncated, and journal bounds are not
+raised. The wire contract is spec 17's paged item evidence section.
+
+
 ## 1 · Role
 
 Execute one **checked** workflow wave-by-wave through the four verb

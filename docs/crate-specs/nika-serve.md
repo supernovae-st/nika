@@ -14,6 +14,20 @@
 | Dependencies | `nika-execution` · `nika-runtime` identity · `nika-fs` · Hyper/Tokio · `http-body-util` · SHA-256 + `subtle` · `zeroize` · `nix` · Serde · `thiserror` · `uuid` |
 | NIKA codes | **none** — `JobStoreError` is an L4 transport-surface error, never a workflow/verb error; the HTTP adapter maps it to bounded response classes. |
 
+
+### Journal mirror evidence
+
+The resident inspects the trace writer's first error before and after sealing
+and finalization. A completed execution with a failed mirror keeps its runtime
+status and carries `JournalEvidence::MirrorLost` (`write_failed` or
+`record_refused`). The same terminal event owns this metadata in durable state,
+GET job and SSE. Raw I/O text and paths are never projected; a lost mirror
+cannot advertise a receipt chain head. An absent field makes no health claim.
+Resuming clears the current-leg projection while retaining the previous
+pause's evidence in its event. The read-only resident report counts jobs with
+recorded losses for `nika doctor`; that census does not verify journals.
+
+
 ## 1. Boundary
 
 `nika-serve` is the L4 network projection over the shared execution

@@ -82,6 +82,7 @@ fn schemas() -> Value {
                     },
                     "receipt": {"$ref": "#/components/schemas/JobReceipt"},
                     "settlement": {"$ref": "#/components/schemas/RunSettlement"},
+                    "evidence": {"$ref": "#/components/schemas/JournalEvidence"},
                     "error": {
                         "type": "object",
                         "additionalProperties": false,
@@ -97,6 +98,7 @@ fn schemas() -> Value {
             "JobReceipt": job_receipt_schema(),
             "JobEvent": job_event_schema(),
             "RunSettlement": run_settlement_schema(),
+            "JournalEvidence": journal_evidence_schema(),
             "TraceVerification": trace_verification_schema(),
             "JobStatusOnly": {
                 "type": "object",
@@ -218,7 +220,8 @@ fn job_event_schema() -> Value {
             "message": {"type": "string"},
             "outputs": {"type": "object", "additionalProperties": true},
             "receipt": {"$ref": "#/components/schemas/JobReceipt"},
-            "settlement": {"$ref": "#/components/schemas/RunSettlement"}
+            "settlement": {"$ref": "#/components/schemas/RunSettlement"},
+            "evidence": {"$ref": "#/components/schemas/JournalEvidence"}
         }
     })
 }
@@ -292,6 +295,18 @@ fn error_schema() -> Value {
                     "message": {"type": "string"}
                 }
             }
+        }
+    })
+}
+
+fn journal_evidence_schema() -> Value {
+    json!({
+        "type": "object", "additionalProperties": false,
+        "description": "Reported journal delivery loss, independent of execution status. The reason classifies the mirror's first error without exposing OS text or paths. Absence is not a claim that a journal exists.",
+        "required": ["status", "reason"],
+        "properties": {
+            "status": {"type": "string", "const": "mirror_lost"},
+            "reason": {"type": "string", "enum": ["write_failed", "record_refused"]}
         }
     })
 }

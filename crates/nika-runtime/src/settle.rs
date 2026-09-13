@@ -670,7 +670,7 @@ fn settle_failed_terminal(
     push_commit_fields(&mut fields, evidence);
     // #1276 · #1397 · a hard-failed fan-out names every item's terminal.
     if let Some(fan) = items {
-        fields.push(("items", s(&fan.json)));
+        crate::emit_items::push(&mut fields, id, &fan.json, stamper, sink);
     }
     fields.push(("outcome", s(&record::outcome_json(record))));
     emit_task::push_integrity_fields(&mut fields, record);

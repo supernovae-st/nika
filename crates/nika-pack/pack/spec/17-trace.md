@@ -113,7 +113,7 @@ re-meant:
 
 `workflow_started` · `workflow_completed` · `workflow_failed` ·
 `workflow_cancelled` · `workflow_paused` · `task_scheduled` ·
-`task_started` · `task_completed` · `task_failed` · `task_skipped` ·
+`task_started` · `task_completed` · `task_failed` · `task_skipped` · `task_items` ·
 `task_retrying` · `task_recovered` · `task_cancelled` ·
 `task_cache_hit` · `verb_invoked` · `tool_invoked` ·
 `checkpoint_written` · `cost_incurred` · `infer_chunk` ·
@@ -126,7 +126,7 @@ Per-task terminal frames carry the task's witness fields (the observed
 `input_hash` · `output` · `outcome` · the outcome record serialized).
 
 A `for_each` task's terminal frame (`task_completed` · `task_failed`)
-additionally carries **`items`** (additive · reference engine 0.118): ONE
+additionally carries **`items`** inline (additive · reference engine 0.118): ONE
 JSON array text · one row per item in input order · `index` · `item` (the
 item's identity, bounded) · `status` ∈ `ok` · `recovered` · `failed` ·
 `never_started` · `code` and `message` when an error was recorded. Failures
@@ -141,6 +141,42 @@ reference engine 0.118) beside the cost fields (`total_cost_usd` ·
 `tasks_total` · `tasks_ok` · `tasks_failed` · `tasks_recovered` ·
 `tasks_skipped` · `tasks_cancelled` · what a human card computes, so a
 machine reader never re-derives it from the task frames.
+
+### Paged item evidence
+
+A large item table MAY instead be emitted as ordered **`task_items`**
+frames before its task terminal. Each page carries `task`, a zero-based
+integer `page`, and `items` as JSON array text containing whole rows with
+the same shape and global indexes as the inline table. Each page is a
+normal event with its own identity and chain link. It is not a task
+terminal and does not change task state, spend or execution authority.
+
+The terminal then omits inline `items` and closes the page set with:
+
+| Field | Meaning |
+|---|---|
+| `items_pages` | Number of pages, indexed contiguously from zero |
+| `items_total` | Number of rows, indexed contiguously from zero |
+| `items_ok` | Rows whose status is `ok` or `recovered` |
+| `items_recovered` | Recovered rows, a subset of `items_ok` |
+| `items_failed` | Failed rows |
+| `items_never_started` | Rows that never started |
+
+A reader folds pages by task and observation leg, preserving input order.
+It exposes a complete table only after a terminal whose page count, row
+count and status counts match the collected rows. Missing, repeated,
+reordered or malformed pages must not become a complete table. A new task
+start clears pending pages for that task; pages cannot leak into a resumed
+observation. The chain walk still judges the original physical frames;
+materializing a table never rewrites or rehashes those frames.
+
+The implementation chooses when to page. Every encoded page still obeys
+the journal's line bound in [15 §the verifier is a fortress](./15-proof.md),
+including JSON escaping and the event envelope. Paging does not relax the
+limits for an individual oversized row, a task output or the whole journal;
+it never truncates rows to manufacture complete evidence. Inline tables
+remain valid. An older verifier can ignore the new kind and still check
+the chain; an older item reader may report the paged table as unrecorded.
 
 ## The permit witness (normative · REQUIRED · NEP-0007)
 
