@@ -11,11 +11,18 @@
 #   - `exec:` · the running verb, argv form
 #   - `permits.exec` · the program allowlist the verb answers to
 #
+# This starter prints a literal message with the system printf. It needs no
+# Cargo project or Rust toolchain. Replace the argv and permit together when
+# adapting it; real builds also need their workspace and toolchain fs grants.
+#
 # Run · nika run examples/snippets/run.nika.yaml
 nika: run
 permits:
-  exec: ["cargo"]
+  exec: ["printf"]
 tasks:
-  build:
+  hello:
     exec:
-      command: ["cargo", "build", "--release"]
+      command: ["printf", "%s\n", "Hello from a confined program"]
+
+outputs:
+  message: ${{ tasks.hello.output }}

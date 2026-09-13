@@ -19,7 +19,9 @@
 #
 # Needs · a git repo with commits since yesterday — the digest reads YOUR
 #   history. Run it from a repo you have been working in; an empty range is
-#   green and produces an empty note, which is honest but dull.
+#   green and produces an empty note. If Git is unavailable or confined, the
+#   fallback explicitly says history is unavailable: it is NOT an empty log
+#   and never claims that no commits were made. No permissions are widened.
 #
 # Run · nika run examples/standup-digest.nika.yaml
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
@@ -43,6 +45,8 @@ tasks:
   history:
     exec:
       command: ["git", "log", "--since=yesterday", "--oneline", "--no-merges"]
+    on_error:
+      recover: "Git history unavailable: the command failed or was refused. No commit facts were collected."
 
   digest:
     with:
@@ -56,7 +60,8 @@ tasks:
         ${{ with.history }}
 
         Write my standup note · 3 bullets · done / doing / blocked.
-        Plain words · no fluff. If there are no commits, say so in one line.
+        Plain words · no fluff. If history is unavailable, say that and invent no
+        done / doing / blocked facts. Only an empty successful log means no commits.
 
   save:
     with:
@@ -69,4 +74,5 @@ tasks:
         content: "${{ with.digest }}"
 
 outputs:
+  history: ${{ tasks.history.output }}
   note: ${{ tasks.digest.output }}

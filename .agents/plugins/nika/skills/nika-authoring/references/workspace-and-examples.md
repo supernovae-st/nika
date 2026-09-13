@@ -37,7 +37,7 @@ four are the decisions that cost rounds when guessed instead of copied.
 |---|---|
 | one model call, nothing around it | `01-hello` |
 | independent steps, then a merge | `02-parallel-fanout` |
-| shell out to a real binary (git · docker) | `03-exec-pipeline` |
+| run a confined program and branch on its exit status | `03-exec-pipeline` |
 | a model must return JSON fitting a shape | `04-schema-retry` |
 | fetch a URL and shape what comes back | `05-fetch-chain` |
 | open-ended work, step count unknown up front | `06-code-review` |

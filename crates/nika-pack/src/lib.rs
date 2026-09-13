@@ -25,7 +25,7 @@
 //! assert!(nika_pack::example("01-hello").is_some());
 //! assert_eq!(nika_pack::example("hello"), nika_pack::example("01-hello"));
 //! assert_eq!(nika_pack::first_shelf().len(), 5);
-//! assert!(nika_pack::try_recover_hint("03-exec-pipeline").is_some());
+//! assert!(nika_pack::try_recover_hint("standup-digest").is_some());
 //! assert!(nika_pack::template("chain").is_some());
 //! assert!(nika_pack::schema_json().contains("\"nika\""));
 //! ```
@@ -290,8 +290,8 @@ pub fn example(slug: &str) -> Option<&'static str> {
 /// the rest of the corpus lives behind `try --all`.
 ///
 /// hello · brief · image · fetch · notify — in that order. Numbered
-/// lessons that need a host toolchain (`03-exec-pipeline`) and git-repo
-/// jobs (`standup-digest`) stay off this shelf so a weekend first-run
+/// lessons (`03-exec-pipeline`) and git-repo jobs (`standup-digest`) stay
+/// off this shelf so a weekend first-run
 /// is five green rehearsals, not an opaque sandbox red.
 #[must_use]
 pub fn first_shelf() -> &'static [&'static str] {
@@ -304,37 +304,25 @@ pub fn first_shelf() -> &'static [&'static str] {
     ]
 }
 
-/// What `nika try` should recover when a job's host toolchain is missing.
-/// Encoded in Rust so the vendored YAML stays byte-identical to `spec@SPEC_PIN`
-/// (overnight `on_error: recover` forks in the pack are a vendor-law fail).
-/// The CLI consumes this later; this crate does not rewrite YAML.
+/// Context for a confined example's dependency failure. This does not diagnose
+/// a missing installation or claim that the runtime recovered the task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecoverHint {
-    /// Program whose absence this recovery is for (`cargo` · `git`).
+    /// Program named by the example's command.
     pub missing: &'static str,
-    /// Named substitute so the rehearsal is a red suite / empty log, not an
-    /// opaque sandbox failure (`exit 127` · `empty log`).
+    /// The example's explicitly declared fallback, if reached.
     pub recovered_as: &'static str,
 }
 
-/// Recover hint for `nika try <slug>` when the spec YAML does not itself
-/// recover a missing host tool. `hello` aliases `01-hello`. First-shelf
-/// jobs have none — they must rehearse green without a host toolchain.
-///
-/// B06 · `03-exec-pipeline` needs `cargo`; without it the try sandbox is
-/// an opaque NIKA-SEC-001. Recover as exit 127 (a red suite).
-/// C06 · `standup-digest` needs `git`; outside a repo the sandbox is
-/// seatbelt 128. Recover as an empty log (a dull note).
+/// Dependency context for `nika try <slug>`. The exec lessons use only system
+/// programs and need no Cargo hint. Standup declares its own Git fallback;
+/// if a refusal escapes recovery, the CLI must preserve the actual finding.
 #[must_use]
 pub fn try_recover_hint(slug: &str) -> Option<RecoverHint> {
     match canonical_example_slug(slug) {
-        "03-exec-pipeline" => Some(RecoverHint {
-            missing: "cargo",
-            recovered_as: "exit 127",
-        }),
         "standup-digest" => Some(RecoverHint {
             missing: "git",
-            recovered_as: "empty log",
+            recovered_as: "history unavailable",
         }),
         _ => None,
     }
@@ -603,18 +591,14 @@ mod tests {
     }
 
     #[test]
-    fn recover_hint_names_cargo_and_git_only() {
-        let cargo = try_recover_hint("03-exec-pipeline").expect("B06");
-        assert_eq!(cargo.missing, "cargo");
-        assert_eq!(cargo.recovered_as, "exit 127");
-        assert_eq!(
-            try_recover_hint("03-exec-pipeline.nika.yaml"),
-            Some(cargo),
-            "suffix-stripped slug shares the hint"
-        );
+    fn recover_hint_preserves_declared_git_context_without_inventing_cargo() {
+        assert!(try_recover_hint("03-exec-pipeline").is_none());
+        assert!(try_recover_hint("03-exec-pipeline.nika.yaml").is_none());
+        assert!(try_recover_hint("snippets/run").is_none());
         let git = try_recover_hint("standup-digest").expect("C06");
         assert_eq!(git.missing, "git");
-        assert_eq!(git.recovered_as, "empty log");
+        assert_eq!(git.recovered_as, "history unavailable");
+        assert_eq!(try_recover_hint("standup-digest.nika.yaml"), Some(git));
         assert_eq!(try_recover_hint("hello"), try_recover_hint("01-hello"));
         assert!(try_recover_hint("01-hello").is_none());
         assert!(try_recover_hint("05-fetch-chain").is_none());

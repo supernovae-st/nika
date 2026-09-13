@@ -3,7 +3,8 @@
 #
 # 03 · exec pipeline — shell, a conditional gate, cleanup on every outcome.
 #
-# Run the tests; ship only if they pass; release the build lock either way.
+# Rehearse a test gate; announce a simulated deploy only if the suite passes.
+# The suite and cleanup are demonstrations: no build or deployment is run.
 # The interesting part is what "pass" means here: a red suite is not a broken
 # workflow, it is a NUMBER the next task reads. The pipeline succeeds at
 # finding out the tests failed.
@@ -19,10 +20,13 @@
 #     STARTED producer (success · fail · timeout · cancel) · a producer that
 #     never started unwinds nothing
 #
-# Runs green anywhere the suite is not passing — no Cargo.toml, or no cargo at
-# all, is a non-zero exit: the gate closes, the deploy is skipped, the notice
-# fires. Exactly the story a red suite tells. Run it inside a repo whose tests
-# DO pass and the gate opens onto `./deploy.sh`, which is yours to supply.
+# The sample suite deliberately exits 1: the gate closes, the simulated deploy
+# skips, the notice fires, and cleanup runs. Change `exit 1` to `exit 0` to
+# exercise the other branch. Both paths need only the system shell and printf.
+# To adapt this to real CI, replace the sample command, cleanup and deploy
+# with YOUR operations and declare their filesystem/toolchain requirements.
+# A sandbox refusal is an authority failure, not a failed test suite: it must
+# stay red and cannot be converted into a passing `capture: structured` task.
 #
 # Run · nika run examples/03-exec-pipeline.nika.yaml
 
@@ -41,7 +45,7 @@ permits:
   # program allowlist (a pipeline can launch any program) — use the array
   # form ». `test` below wants a shell line, so the allowlist is off the table
   # for this file. A workflow whose steps are all `command:` arrays can — and
-  # should — write the tight form instead: `exec: ["cargo", "rm"]`.
+  # should — write the tight form instead: `exec: ["printf"]`.
   exec: true
 
 tasks:
@@ -50,18 +54,16 @@ tasks:
     exec:
       # Door 1 · a shell line. Pipes, globs and `&&` work; a program allowlist
       # cannot bound it.
-      shell: "cargo test --workspace --lib"
-      cwd: "."             # the directory you ran `nika` from, not the file's
+      shell: "printf 'sample suite: one failing test\n'; exit 1"
       capture: structured  # → { stdout, stderr, exit_code }
 
   release_lock:
-    # ALWAYS runs · best-effort · an error here is logged, never propagated.
-    # A lock outlives the thing that took it unless something like this
-    # releases it on the failure and timeout paths too. Cleanup is a TASK on
-    # an `unwind` edge — one grammar, so it is greppable and testable.
+    # The rehearsal announces cleanup; it creates or removes no real lock.
+    # In real CI replace this with the matching release operation. The unwind
+    # edge runs after every outcome of a STARTED producer, including failure.
     after: { test: unwind }
     exec:
-      command: ["rm", "-f", "./.build.lock"]
+      command: ["printf", "sample cleanup: release the build lock\n"]
 
   deploy:
     with:
@@ -75,8 +77,7 @@ tasks:
     exec:
       # Door 2 · an argv array. No shell, no word-splitting, and every program
       # in it is checkable against `permits.exec`.
-      command: ["./deploy.sh"]
-      cwd: "."
+      command: ["printf", "sample deploy: the suite passed\n"]
 
   no_ship_notice:
     # The third edge kind. `with:` carries DATA and `when:` reads it; `after:`
@@ -90,13 +91,11 @@ tasks:
     after:
       deploy: skipped
     exec:
-      command: ["echo", "deploy skipped · the suite was red"]
+      command: ["printf", "deploy skipped: the sample suite was red\n"]
 
-# Both halves of the story, so a reader can see them disagree · read with
-# `--output json`. In an empty directory with no cargo on PATH, measured:
-#   {"suite_exit_code": 127, "task_status": "success"}
-# The number is whatever the command returned — 127 is the shell saying
-# `cargo` was not found, and even that is just a number the gate reads.
+# The task succeeded at running a deliberately failing sample suite:
+#   {"suite_exit_code": 1, "task_status": "success"}
+# Replacing `exit 1` with `exit 0` reports 0 and opens the simulated deploy.
 outputs:
   suite_exit_code: ${{ tasks.test.output.exit_code }}
   task_status: ${{ tasks.test.status }}
