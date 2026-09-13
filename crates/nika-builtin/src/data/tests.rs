@@ -547,6 +547,30 @@ fn convert_round_trips_and_rejects_identity() {
     assert!(matches!(bad_parse, Err(f) if f.code == "NIKA-BUILTIN-CONVERT-002"));
 }
 
+/// #1584 · `from: json` on a STRING input reads it as JSON text — the way
+/// every other `from:` format reads its text — so an exec/read/recover
+/// string that IS a JSON document converts; a string that is not JSON
+/// text stays the string value it always was.
+#[test]
+fn convert_from_json_parses_json_text_input() {
+    let csv = convert(&args(serde_json::json!({
+        "input": r#"[{"sku":"NIKA-CLI","qty":2},{"sku":"AUDIT","qty":1}]"#,
+        "from": "json", "to": "csv"
+    })))
+    .expect("JSON text is parsed");
+    assert_eq!(csv, serde_json::json!("qty,sku\n2,NIKA-CLI\n1,AUDIT\n"));
+    let yaml = convert(&args(serde_json::json!({
+        "input": r#"{"a": 1}"#, "from": "json", "to": "yaml"
+    })))
+    .expect("ok");
+    assert_eq!(yaml, serde_json::json!("a: 1\n"));
+    let plain = convert(&args(serde_json::json!({
+        "input": "hello", "from": "json", "to": "yaml"
+    })))
+    .expect("a non-JSON string is still a string value");
+    assert_eq!(plain, serde_json::json!("hello\n"));
+}
+
 #[test]
 fn convert_has_header_is_a_strict_bool_not_silently_coerced() {
     // F1 · the silent-data-corruption footgun: a non-bool `has_header`

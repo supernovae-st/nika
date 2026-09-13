@@ -511,7 +511,13 @@ fn parse_format(
             .ok_or_else(|| format!("`input:` must be a string for from: {from}"))
     };
     match from {
-        "json" => Ok(input.clone()),
+        // A STRING input is JSON text, read like every other `from:` text
+        // (an exec stdout · a `nika:read` · a recover literal); one that is
+        // not JSON stays the string value it always was (#1584).
+        "json" => Ok(input
+            .as_str()
+            .and_then(|text| serde_json::from_str(text).ok())
+            .unwrap_or_else(|| input.clone())),
         "yaml" => serde_yaml_bw::from_str(&as_text()?).map_err(|e| format!("invalid YAML: {e}")),
         "toml" => {
             let parsed: toml_convert::Value =
