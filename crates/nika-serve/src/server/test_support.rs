@@ -24,7 +24,7 @@ pub(super) fn assert_allowlisted(event: &Value) {
             && object.contains_key("status")
             && object.keys().all(|key| matches!(
                 key.as_str(),
-                "sequence" | "kind" | "status" | "code" | "message" | "outputs" | "receipt"
+                "sequence" | "at" | "kind" | "status" | "code" | "message" | "outputs" | "receipt"
             )),
         "{event}"
     );

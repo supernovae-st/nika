@@ -233,6 +233,7 @@ fn job_event_schema() -> Value {
         "required": ["sequence", "kind", "status"],
         "properties": {
             "sequence": {"type": "integer", "minimum": 1},
+            "at": {"type": "string", "format": "date-time", "description": "When the resident admitted the event (RFC 3339 · UTC). Outside the event's hash chain; absent on an event written before the journal was dated."},
             "kind": job_event_kind_schema(),
             "status": {"anyOf": [{"$ref": "#/components/schemas/JobStatus"}, {"type": "null"}]},
             "code": {"type": "string"},

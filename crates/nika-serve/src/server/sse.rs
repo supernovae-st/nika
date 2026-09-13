@@ -148,6 +148,10 @@ fn is_pause_boundary(event: &JobEvent) -> bool {
 #[derive(Debug, Serialize)]
 struct ProjectedEvent<'a> {
     sequence: u64,
+    /// #1463 · when the resident admitted the event (RFC 3339 · UTC);
+    /// absent on an event written before the journal was dated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    at: Option<&'a str>,
     kind: Option<&'a str>,
     status: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -173,6 +177,7 @@ fn projected<'a>(
     let terminal = terminal_sequence == Some(event.sequence());
     ProjectedEvent {
         sequence: event.sequence(),
+        at: event.at(),
         kind: string_field(event.payload(), "kind"),
         status: string_field(event.payload(), "status"),
         code: string_field(event.payload(), "code"),
@@ -473,6 +478,12 @@ mod tests {
                     .expect("project event")
             })
             .collect::<Vec<_>>();
+        assert!(
+            projected.iter().all(|frame| frame["at"]
+                .as_str()
+                .is_some_and(|at| at.parse::<jiff::Timestamp>().is_ok())),
+            "every frame the resident dated carries its instant (#1463): {projected:?}"
+        );
         assert!(projected[0].get("outputs").is_none());
         assert!(projected[0].get("receipt").is_none());
         assert_eq!(projected[1]["outputs"]["answer"], 58);
@@ -612,6 +623,7 @@ mod tests {
     fn projected_from(payload: &serde_json::Value, sequence: u64) -> ProjectedEvent<'_> {
         ProjectedEvent {
             sequence,
+            at: None,
             kind: string_field(payload, "kind"),
             status: string_field(payload, "status"),
             code: string_field(payload, "code"),

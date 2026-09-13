@@ -315,6 +315,11 @@
       "JobEvent": {
         "additionalProperties": false,
         "properties": {
+          "at": {
+            "description": "When the resident admitted the event (RFC 3339 · UTC). Outside the event's hash chain; absent on an event written before the journal was dated.",
+            "format": "date-time",
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },

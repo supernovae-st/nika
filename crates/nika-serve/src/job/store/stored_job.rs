@@ -4,8 +4,8 @@
 //! Mutate the event spine; project its committed terminal without refolding it.
 
 use super::{
-    JobEvent, JobStatus, JobStoreError, StoredJob, ValidatedEventBatch, ensure_receipt_matches,
-    hash_event,
+    EventInstant, JobEvent, JobStatus, JobStoreError, StoredJob, ValidatedEventBatch,
+    ensure_receipt_matches, hash_event,
 };
 
 impl StoredJob {
@@ -20,9 +20,12 @@ impl StoredJob {
             .ok_or_else(|| JobStoreError::SequenceExhausted(self.record.id.clone()))
     }
 
+    /// Every event of the batch is dated `at` (#1463) — the store's clock,
+    /// read once per batch, outside every hash preimage.
     pub(super) fn append_payloads(
         &mut self,
         batch: &ValidatedEventBatch<'_>,
+        at: &EventInstant,
     ) -> Result<Vec<JobEvent>, JobStoreError> {
         for (index, payload) in batch.payloads().iter().enumerate() {
             if is_pause_payload(payload) {
@@ -55,6 +58,7 @@ impl StoredJob {
                 payload: payload.clone(),
                 previous_hash,
                 hash,
+                at: Some(at.clone()),
             };
             next = next
                 .checked_add(1)

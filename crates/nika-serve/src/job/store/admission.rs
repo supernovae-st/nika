@@ -89,7 +89,7 @@ impl JobStore {
         job.record.receipt = None;
         job.identity_digest = Some(hash_execution_identity(&job.record)?);
         job.terminal_sequence = None;
-        let events = job.append_payloads(&batch)?;
+        let events = job.append_payloads(&batch, &self.now())?;
         let record = job.record.clone();
         self.persist_event_mutation(&state, &batch)?;
         Ok(JobMutation { record, events })
@@ -157,7 +157,7 @@ impl JobStore {
         job.record.receipt = Some(receipt);
         job.identity_digest = Some(hash_execution_identity(&job.record)?);
         job.terminal_sequence = Some(job.final_sequence_after(&batch)?);
-        let events = job.append_payloads(&batch)?;
+        let events = job.append_payloads(&batch, &self.now())?;
         let record = job.record.clone();
         self.persist_event_mutation(&state, &batch)?;
         Ok(JobMutation { record, events })
@@ -278,7 +278,7 @@ impl JobStore {
             identity_digest,
             terminal_sequence: None,
         };
-        stored.append_payloads(&batch)?;
+        stored.append_payloads(&batch, &self.now())?;
         self.dir.write_atomic(&world_file(&record.id), world)?;
         state.jobs.push(stored);
         self.persist(&state)?;
