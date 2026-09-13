@@ -29,6 +29,13 @@ const MAX_JQ_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
 /// Run a jq `expression:` over `input:` — and emit EXACTLY ONE output
 /// value (the 04-variables.md:347 binding law applied to the tool: a
 /// stream that isn't a single value is a `[ … ]`-collect authoring bug).
+///
+/// An OBJECT input also binds each identifier-shaped key as a jq variable
+/// (`$rows` · `$batch` · the `jq --argjson` shape), so « stamp a sibling
+/// onto every row » is `$rows | map(. + {batch: $batch})` — never the
+/// silent `null` of `.batch` read inside `map` (#1578). `.` stays the
+/// whole input; the check-side lint binds the same keys of a literal
+/// object input.
 pub(crate) fn jq_with_clock(args: &Args, clock: JqClock) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-JQ-001";
     let program = req_str(args, "expression", C)?;
@@ -37,9 +44,8 @@ pub(crate) fn jq_with_clock(args: &Args, clock: JqClock) -> BuiltinOutcome {
         .cloned()
         .unwrap_or(serde_json::Value::Null);
 
-    let bytes = serde_json::to_vec(&input).map_err(|e| BuiltinFailure::new(C, e.to_string()))?;
-    let val = read::parse_single(&bytes)
-        .map_err(|e| BuiltinFailure::new(C, format!("input is not valid JSON: {e}")))?;
+    let val = to_val(&input)?;
+    let (var_names, var_vals) = input_variables(&input)?;
 
     let defs = jaq_core::defs()
         .chain(
@@ -69,7 +75,9 @@ pub(crate) fn jq_with_clock(args: &Args, clock: JqClock) -> BuiltinOutcome {
         })?;
     let filter = Compiler::default()
         .with_funs(funs)
-        .with_global_vars([nika_cap::JQ_RUN_START_VAR])
+        .with_global_vars(
+            std::iter::once(nika_cap::JQ_RUN_START_VAR).chain(var_names.iter().map(String::as_str)),
+        )
         .compile(modules)
         .map_err(|errs| {
             BuiltinFailure::new(
@@ -80,7 +88,7 @@ pub(crate) fn jq_with_clock(args: &Args, clock: JqClock) -> BuiltinOutcome {
 
     let ctx = Ctx::<jaq_data::JustLut<Val>>::new(
         &filter.lut,
-        Vars::new([Val::from(clock.unix_seconds())]),
+        Vars::new(std::iter::once(Val::from(clock.unix_seconds())).chain(var_vals)),
     );
     let mut single: Option<serde_json::Value> = None;
     for result in filter.id.run((ctx, val.clone())) {
@@ -121,6 +129,41 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
             1_700_000_000_125_000_000,
         )),
     )
+}
+
+/// A serde value as a jaq value — the one bridge (`read::parse_single`
+/// over compact JSON) for the input and every bound variable.
+fn to_val(value: &serde_json::Value) -> Result<Val, BuiltinFailure> {
+    const C: &str = "NIKA-BUILTIN-JQ-001";
+    let bytes = serde_json::to_vec(value).map_err(|e| BuiltinFailure::new(C, e.to_string()))?;
+    read::parse_single(&bytes)
+        .map_err(|e| BuiltinFailure::new(C, format!("input is not valid JSON: {e}")))
+}
+
+/// The variables an OBJECT input binds (names WITH the `$`, values in the
+/// same order): one per key that is a jq identifier (`[A-Za-z_][A-Za-z0-9_]*`
+/// · a dashed key is reachable only as `.["a-b"]`), never the reserved
+/// run-start clock name. Any other input binds nothing.
+fn input_variables(input: &serde_json::Value) -> Result<(Vec<String>, Vec<Val>), BuiltinFailure> {
+    let mut names = Vec::new();
+    let mut vals = Vec::new();
+    for (key, value) in input.as_object().into_iter().flatten() {
+        let name = format!("${key}");
+        if name == nika_cap::JQ_RUN_START_VAR || !is_jq_identifier(key) {
+            continue;
+        }
+        names.push(name);
+        vals.push(to_val(value)?);
+    }
+    Ok((names, vals))
+}
+
+fn is_jq_identifier(key: &str) -> bool {
+    let mut chars = key.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 fn unwrap_without_exit(
@@ -511,7 +554,13 @@ fn parse_format(
             .ok_or_else(|| format!("`input:` must be a string for from: {from}"))
     };
     match from {
-        "json" => Ok(input.clone()),
+        // A STRING input is JSON text, read like every other `from:` text
+        // (an exec stdout · a `nika:read` · a recover literal); one that is
+        // not JSON stays the string value it always was (#1584).
+        "json" => Ok(input
+            .as_str()
+            .and_then(|text| serde_json::from_str(text).ok())
+            .unwrap_or_else(|| input.clone())),
         "yaml" => serde_yaml_bw::from_str(&as_text()?).map_err(|e| format!("invalid YAML: {e}")),
         "toml" => {
             let parsed: toml_convert::Value =

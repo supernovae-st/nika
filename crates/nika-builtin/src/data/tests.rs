@@ -72,6 +72,72 @@ fn jq_json_string_input_does_not_relabel_unrelated_errors() {
     }
 }
 
+/// #1578 · the keys of an OBJECT `input:` are bound as jq variables
+/// (`$rows` · `$batch`), so the n8n/Zapier « stamp a sibling onto every
+/// row » shape compiles — while `.` stays the whole input and `.batch`
+/// inside `map` keeps jq's meaning (the element's own field).
+#[test]
+fn jq_binds_object_input_keys_as_variables() {
+    let input = serde_json::json!({ "rows": [{"a": 1}, {"a": 2}], "batch": "B1", "n": 2 });
+    for (expression, expected) in [
+        (
+            "$rows | map(. + {batch: $batch})",
+            serde_json::json!([{"a": 1, "batch": "B1"}, {"a": 2, "batch": "B1"}]),
+        ),
+        ("$batch", serde_json::json!("B1")),
+        ("($rows | length) == $n", serde_json::json!(true)),
+        (
+            ".rows | map(. + {batch: .batch}) | .[0].batch",
+            serde_json::Value::Null,
+        ),
+        ("keys", serde_json::json!(["batch", "n", "rows"])),
+    ] {
+        let out = jq(&args(
+            serde_json::json!({ "input": input, "expression": expression }),
+        ))
+        .unwrap_or_else(|e| panic!("{expression}: {e:?}"));
+        assert_eq!(out, expected, "{expression}");
+    }
+}
+
+/// Only identifier-shaped keys become variables · a non-object input binds
+/// nothing · the run-start clock variable is never shadowed by a key.
+#[test]
+fn jq_binds_only_identifier_keys_and_never_shadows_the_clock() {
+    for (input, expression, undefined) in [
+        (
+            serde_json::json!({ "batch-id": 1 }),
+            "$batch_id",
+            "$batch_id",
+        ),
+        (serde_json::json!([1]), "$rows", "$rows"),
+        (serde_json::json!({ "rows": [1] }), "$rowz", "$rowz"),
+    ] {
+        let err = jq(&args(
+            serde_json::json!({ "input": input, "expression": expression }),
+        ))
+        .expect_err(expression);
+        assert_eq!(err.code, "NIKA-BUILTIN-JQ-001");
+        assert!(
+            err.message
+                .contains(&format!("undefined filter or variable `{undefined}`")),
+            "{err:?}"
+        );
+    }
+    let clock = |input: serde_json::Value| {
+        jq(&args(
+            serde_json::json!({ "input": input, "expression": "$nika_run_start" }),
+        ))
+        .expect("the clock variable is always bound")
+    };
+    let unshadowed = clock(serde_json::json!(1));
+    assert_ne!(unshadowed, serde_json::json!(0));
+    assert_eq!(
+        clock(serde_json::json!({ "nika_run_start": 0 })),
+        unshadowed
+    );
+}
+
 #[test]
 fn validate_json_string_input_reports_shape_and_preserves_error_handles() {
     for (data, kind) in [
@@ -545,6 +611,30 @@ fn convert_round_trips_and_rejects_identity() {
         serde_json::json!({ "input": "not: : toml", "from": "toml", "to": "json" }),
     ));
     assert!(matches!(bad_parse, Err(f) if f.code == "NIKA-BUILTIN-CONVERT-002"));
+}
+
+/// #1584 · `from: json` on a STRING input reads it as JSON text — the way
+/// every other `from:` format reads its text — so an exec/read/recover
+/// string that IS a JSON document converts; a string that is not JSON
+/// text stays the string value it always was.
+#[test]
+fn convert_from_json_parses_json_text_input() {
+    let csv = convert(&args(serde_json::json!({
+        "input": r#"[{"sku":"NIKA-CLI","qty":2},{"sku":"AUDIT","qty":1}]"#,
+        "from": "json", "to": "csv"
+    })))
+    .expect("JSON text is parsed");
+    assert_eq!(csv, serde_json::json!("qty,sku\n2,NIKA-CLI\n1,AUDIT\n"));
+    let yaml = convert(&args(serde_json::json!({
+        "input": r#"{"a": 1}"#, "from": "json", "to": "yaml"
+    })))
+    .expect("ok");
+    assert_eq!(yaml, serde_json::json!("a: 1\n"));
+    let plain = convert(&args(serde_json::json!({
+        "input": "hello", "from": "json", "to": "yaml"
+    })))
+    .expect("a non-JSON string is still a string value");
+    assert_eq!(plain, serde_json::json!("hello\n"));
 }
 
 #[test]
