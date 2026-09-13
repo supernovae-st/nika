@@ -117,11 +117,13 @@ fn static_string_arg(wf: &RawWorkflow, value: &serde_json::Value) -> Option<Stri
     static_literal_of(wf, trimmed)?.as_str().map(str::to_owned)
 }
 
-/// Every `nika:read` whose `path` arg resolves STATICALLY — the pure
-/// half of the missing-input lint (V-arc F1 2026-07-09): the analyzer
-/// names the (task · path) pairs, the CALLER decides what existence
-/// means on its side of the I/O boundary (the CLI checks the local
-/// filesystem; a server might check an artifact store).
+/// Every `nika:read` / `nika:grep` whose `path` arg resolves STATICALLY
+/// — the pure half of the missing-input lint (V-arc F1 2026-07-09): the
+/// analyzer names the (task · path) pairs, the CALLER decides what
+/// existence means on its side of the I/O boundary (the CLI checks the
+/// local filesystem; a server might check an artifact store). A grep
+/// `path:` names the file or tree the run opens (#1576 · a file is a
+/// one-file search since 0.120), so its absence is the same wave failure.
 #[must_use]
 pub fn static_read_paths(wf: &RawWorkflow) -> Vec<(String, String)> {
     let mut out = Vec::new();
@@ -129,7 +131,10 @@ pub fn static_read_paths(wf: &RawWorkflow) -> Vec<(String, String)> {
         let RawAction::Invoke(invoke) = &task.value.action else {
             continue;
         };
-        if invoke.tool().map(|t| t.value.as_str()) != Some("nika:read") {
+        if !matches!(
+            invoke.tool().map(|t| t.value.as_str()),
+            Some("nika:read" | "nika:grep")
+        ) {
             continue;
         }
         let Some(args) = &invoke.args else { continue };
@@ -220,6 +225,27 @@ mod tests {
         )?;
         assert!(consumed_outputs(&wf).is_empty());
         assert!(deeply_referenced(&wf).is_empty());
+        Ok(())
+    }
+
+    /// #1576 — a grep `path:` is a read the run opens (a file since 0.120,
+    /// a tree before), so the missing-input lint names it beside `nika:read`;
+    /// a templated path stays the run's (the lint never guesses).
+    #[test]
+    fn static_read_paths_name_grep_targets_beside_reads() -> Result<(), String> {
+        let wf = parse(
+            "nika: reads\ntasks:\n  r:\n    invoke: { tool: 'nika:read', args: { path: './in.md' } }\n  g:\n    invoke: { tool: 'nika:grep', args: { path: './notes/brief.md', pattern: 'x' } }\n  d:\n    invoke: { tool: 'nika:grep', args: { path: '${{ tasks.r.output }}', pattern: 'x' } }\n",
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .map_err(|errors| format!("{errors:?}"))?;
+        assert_eq!(
+            static_read_paths(&wf),
+            vec![
+                ("r".to_owned(), "./in.md".to_owned()),
+                ("g".to_owned(), "./notes/brief.md".to_owned()),
+            ]
+        );
         Ok(())
     }
 }
