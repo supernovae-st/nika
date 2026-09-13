@@ -247,8 +247,8 @@ fn provider_findings(probe: &Probe, out: &mut Vec<Finding>) {
     // The ONE Fail that drives exit 3 · no inference path AT ALL (a broken or
     // empty catalog). A merely-unset cloud key is a ⚠ above, never fatal —
     // and a signed-in harness seat IS an inference path (R4 · the census
-    // joins what the provider rows alone never saw; the ladder's SeatReady
-    // rung reads the same `seats_ready`).
+    // joins what the provider rows alone never saw; `seats_ready` carries
+    // the configured keys too since #1581, so an empty list is zero paths).
     if cloud_keys == 0 && local_ids.is_empty() && probe.census.seats_ready.is_empty() {
         out.push(Finding {
             level: Level::Fail,
@@ -410,6 +410,21 @@ fn models_finding(models: &ModelsProbe) -> Vec<Finding> {
     }
 }
 
+/// The local-backend clause the image and tts rows share (#1581):
+/// doctor never probes the media planes, so an unset URL is named as
+/// UNSET — the engine's silent fallback disclosed, never printed as a
+/// listener — and a set one is « configured », never « reachable ».
+fn media_local_part(url: Option<&str>, var: &str) -> String {
+    url.map_or_else(
+        || {
+            format!(
+                "local backend unset · {var} (engine fallback http://localhost:8080 · unprobed)"
+            )
+        },
+        |u| format!("local → {} (configured · unprobed)", redact_userinfo(u)),
+    )
+}
+
 /// The image plane (`nika:image_generate`) — mock always works; this
 /// names what ELSE is wired. Informational, never fatal (media is a
 /// builtin, not the inference path).
@@ -424,13 +439,7 @@ fn image_finding(img: &ImageProbe) -> Finding {
     if img.xai_key {
         wired.push("xai");
     }
-    let local_part = img.local_url.as_deref().map_or_else(
-        || {
-            "local → http://localhost:8080 default (set NIKA_IMAGE_LOCAL_URL to point elsewhere)"
-                .to_owned()
-        },
-        |url| format!("local → {}", redact_userinfo(url)),
-    );
+    let local_part = media_local_part(img.local_url.as_deref(), "NIKA_IMAGE_LOCAL_URL");
     Finding {
         level: Level::Ok,
         label: "image".to_owned(),
@@ -453,9 +462,11 @@ fn image_finding(img: &ImageProbe) -> Finding {
 const PRICING_STALE_DAYS: u32 = 120;
 
 /// The pricing-catalog line — identity always (which snapshot prices
-/// this binary's cost reports), a staleness ⚠ past the threshold. The
-/// age warning is the gap no surveyed tool closes (2026-07): a stale
-/// vendored price table silently mis-prices every report.
+/// this binary's cost reports, and HOW OLD it is · #1581: a 47-day
+/// snapshot read as current when only the stale branch spoke its
+/// age), a staleness ⚠ past the threshold. The age warning is the gap
+/// no surveyed tool closes (2026-07): a stale vendored price table
+/// silently mis-prices every report.
 fn pricing_finding(p: &PricingProbe) -> Finding {
     // LIST RATES said here on purpose: private/proxy/negotiated pricing
     // is not reflected (the override file is the roadmapped answer) —
@@ -468,15 +479,24 @@ fn pricing_finding(p: &PricingProbe) -> Finding {
     // NAMES its facet (RAMS-12 · A-06), and the facet here is the
     // snapshot's rate table: several patterns can price one model, and
     // a pattern can price models this catalog never lists.
+    let age = p.age_days.map_or_else(
+        || "age unknown".to_owned(),
+        |d| {
+            format!(
+                "{} old",
+                crate::text::count(usize::try_from(d).unwrap_or(usize::MAX), "day")
+            )
+        },
+    );
     let identity = format!(
-        "{} price rules · {} providers priced · snapshot {} · {} · list rates (public catalog)",
+        "{} price rules · {} providers priced · snapshot {} · {age} · {} · list rates (public catalog)",
         p.rules, p.providers, p.as_of, p.sha
     );
     match p.age_days {
         Some(age) if age > PRICING_STALE_DAYS => Finding {
             level: Level::Warn,
             label: "pricing".to_owned(),
-            detail: format!("{identity} — {age} days old · cost reports may drift"),
+            detail: format!("{identity} — past {PRICING_STALE_DAYS} days · cost reports may drift"),
             fix: Some(
                 "upgrade nika — the pricing snapshot ships with releases \
                  (from source: bash scripts/refresh-pricing.sh)"
@@ -501,13 +521,7 @@ fn tts_finding(tts: &TtsProbe) -> Finding {
     if tts.elevenlabs_key {
         wired.push("elevenlabs");
     }
-    let local_part = tts.local_url.as_deref().map_or_else(
-        || {
-            "local → http://localhost:8080 default (set NIKA_TTS_LOCAL_URL to point elsewhere)"
-                .to_owned()
-        },
-        |url| format!("local → {}", redact_userinfo(url)),
-    );
+    let local_part = media_local_part(tts.local_url.as_deref(), "NIKA_TTS_LOCAL_URL");
     Finding {
         level: Level::Ok,
         label: "tts".to_owned(),
@@ -1170,6 +1184,8 @@ pub fn run_with(
 
 #[cfg(test)]
 mod json_tests;
+#[cfg(test)]
+mod media_tests;
 #[cfg(test)]
 mod pricing_tests;
 #[cfg(test)]

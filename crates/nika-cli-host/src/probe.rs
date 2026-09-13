@@ -797,10 +797,15 @@ pub fn environment_json(probe: &Probe) -> serde_json::Value {
         "models_bytes": probe.models.bytes,
         "cloud_keys_present": present,
         "cloud_keys_total": total,
-        // R4 — the seats a run can start on ride the mirrors too
-        // (additive): a signed-in seat is an inference path, and the
-        // machine lanes must say so.
+        // R4 — every path a run can start on rides the mirrors
+        // (additive): the ready seats AND the configured keys (#1581 ·
+        // #1585 — a present key read `[]` here while doctor's `best`
+        // named it). The census owns the list; this prints it.
         "seats_ready": probe.census.seats_ready,
+        // #1585 — the journal count the ladder climbs on rides the
+        // mirror (additive): the shallow door says whether runs are on
+        // record instead of leaving `nothing_has_run` to a constant.
+        "recorded_runs": probe.recorded_runs,
     })
 }
 
@@ -829,8 +834,8 @@ fn recorded_run_count() -> usize {
 /// operator already pays for — was invisible to it, and the first
 /// screen said « installed · no inference path » while a seat sat
 /// ready. The `SeatReady` rung (between `KeyPresent` and `RealReady`)
-/// is earned by the CENSUS (`probe.census.seats_ready`: signed in AND
-/// the ACP adapter a session spawns on PATH), never re-derived here.
+/// is earned by the CENSUS (`probe.census.harness_ready()`: signed in
+/// AND the ACP adapter a session spawns on PATH), never re-derived here.
 ///
 /// Two rungs of the audited scale are deliberately ABSENT, and the
 /// absence is the honesty law applied:
@@ -861,8 +866,8 @@ pub enum AdoptionState {
     /// « verified »: cloud endpoints are never pinged, by design.
     KeyPresent,
     /// A signed-in harness seat can serve a run TODAY (R4 · the census
-    /// `seats_ready` lane: the sign-in witness AND the ACP adapter on
-    /// PATH). Outranks a bare metered key — the operator's own plan is
+    /// `harness_ready()` pins: the sign-in witness AND the ACP adapter
+    /// on PATH). Outranks a bare metered key — the operator's own plan is
     /// the sovereign path. Never « verified »: the session judges the
     /// seat's own auth at run (NIKA-1805).
     SeatReady,
@@ -943,9 +948,10 @@ impl AdoptionState {
             Self::SeatReady => {
                 let seat = probe
                     .census
-                    .seats_ready
+                    .harness_ready()
                     .first()
-                    .map_or("a seat", String::as_str);
+                    .copied()
+                    .unwrap_or("a seat");
                 format!("seat ready · {seat} present (its login is judged at run)")
             }
             Self::RealReady => {
@@ -955,7 +961,7 @@ impl AdoptionState {
                     .any(|(_, _, s)| matches!(s, PingState::Reachable(_)))
                 {
                     "endpoint answered"
-                } else if probe.census.seats_ready.is_empty() {
+                } else if probe.census.harness_ready().is_empty() {
                     "path configured"
                 } else {
                     "seat ready"
@@ -1001,7 +1007,7 @@ pub fn adoption_state(probe: &Probe) -> AdoptionState {
     // R4 — a ready seat is a live path today: it earns RealReady beside
     // a key or a verified endpoint, and outranks a bare metered key
     // (the operator's own plan is the sovereign path).
-    let seat_ready = !probe.census.seats_ready.is_empty();
+    let seat_ready = !probe.census.harness_ready().is_empty();
     if (cloud_configured || local_reachable || seat_ready) && probe.recorded_runs > 0 {
         return AdoptionState::RealReady;
     }

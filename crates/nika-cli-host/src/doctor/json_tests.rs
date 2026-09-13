@@ -42,6 +42,42 @@ fn doctor_json_serializes_the_adoption_state() {
     }
 }
 
+/// #1581 — a present key rides `seats_ready` beside `best`: the lane
+/// answers « can `nika run --model xai/…` start here? » without a
+/// second probe, and the row's `configured` no longer stands alone.
+#[test]
+fn doctor_json_names_a_configured_key_in_seats_ready() {
+    use nika_providers::probe::{AccessClass, ExecutionLocus, ProviderProbe, ProviderReadiness};
+    let xai = ProviderProbe::new(
+        "xai",
+        true,
+        true,
+        "XAI_API_KEY",
+        true,
+        ProviderReadiness::new(
+            true,
+            true,
+            None,
+            None,
+            true,
+            ExecutionLocus::Cloud,
+            AccessClass::Api,
+        ),
+        "https://api.x.ai/v1/chat/completions",
+    );
+    let census = AccessCensus::from_parts(&[xai], vec![]);
+    let json: serde_json::Value = serde_json::from_str(&render_json(
+        &findings(),
+        AdoptionState::KeyPresent,
+        &[],
+        &census,
+    ))
+    .expect("valid JSON");
+    assert_eq!(json["access"]["seats_ready"][0], "xai");
+    assert_eq!(json["access"]["best"], "xai");
+    assert_eq!(json["access"]["paths"][0]["custody"], "XAI_API_KEY");
+}
+
 /// R4 — the machine lane renders the CENSUS (one read, never
 /// recomputed): every path with its class · custody · fix, the ready
 /// seats, the best path. The pre-census fields stay verbatim.

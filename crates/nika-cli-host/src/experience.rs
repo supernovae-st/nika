@@ -201,7 +201,11 @@ pub struct NextActionV1 {
     pub blocked_by: Vec<&'static str>,
     /// At most two safe exits beside the primary.
     pub alternatives: Vec<&'static str>,
-    /// Always `true` from this router: selecting an action runs nothing.
+    /// No run journal is on record for this workspace — the SAME
+    /// `.nika/traces` count the adoption ladder reads, folded in by
+    /// [`Self::with_recorded_runs`]. The router itself executes
+    /// nothing; this says whether the PROJECT ever has (#1585: a
+    /// constant `true` sent an agent to `nika new` over 284 traces).
     pub nothing_has_run: bool,
 }
 
@@ -217,6 +221,15 @@ impl NextActionV1 {
             alternatives: Vec::new(),
             nothing_has_run: true,
         }
+    }
+
+    /// Fold the workspace's run record in (#1585): `true` only while the
+    /// trace store is empty. `route()` starts at `true` because the
+    /// router holds no journal — the surface that counted one calls this.
+    #[must_use]
+    pub fn with_recorded_runs(mut self, recorded_runs: usize) -> Self {
+        self.nothing_has_run = recorded_runs == 0;
+        self
     }
 
     fn preview_gated(mut self) -> Self {
