@@ -291,16 +291,15 @@ fn example_tip(
         return None;
     }
     let failure = verdict.failure.as_ref()?;
-    // B06/C06: the try sandbox is not a cargo tree and not a git repo.
-    // `--model` cannot conjure either, so this arm fires before the
-    // override short-circuit (a mock rehearsal still hits seatbelt).
+    // A confinement refusal does not establish that a tool is absent.
+    // Keep the original finding and name only the example dependency.
     if failure.code == "NIKA-SEC-001"
         && let Some(hint) = nika_pack::try_recover_hint(slug)
     {
         let slug = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
         return Some(format!(
-            "tip: try sandbox has no `{}` ({}) · this job is off the first shelf.\n        to own a real workspace: nika new {slug}",
-            hint.missing, hint.recovered_as
+            "tip: this example calls `{}` inside its declared sandbox; inspect the refusal above.\n        to inspect and adapt the workflow: nika new {slug}",
+            hint.missing
         ));
     }
     if override_given {
@@ -466,10 +465,9 @@ mod tests {
         assert!(example_tip("01-hello", &bare_fail, false, "ollama/llama3.1").is_none());
     }
 
-    /// B06/C06: seatbelt in the try sandbox names cargo/git, even when
-    /// `--model mock/echo` was passed (a model swap cannot conjure them).
+    /// A sandbox refusal must not invent a missing binary or exit status.
     #[test]
-    fn example_tip_seatbelt_names_the_missing_host_tool() {
+    fn example_tip_seatbelt_preserves_the_actual_cause() {
         let belt = failed(
             "NIKA-SEC-001",
             "command blocked: seatbelt refused the confined process (status 128)",
@@ -478,9 +476,11 @@ mod tests {
             .expect("C06 must teach even under --model");
         assert!(git.contains("`git`"), "{git}");
         assert!(git.contains("nika new standup-digest"), "{git}");
-        let cargo = example_tip("03-exec-pipeline", &belt, true, "mock/echo")
-            .expect("B06 must teach even under --model");
-        assert!(cargo.contains("`cargo`"), "{cargo}");
+        assert!(!git.contains("has no"), "{git}");
+        assert!(!git.contains("exit 127"), "{git}");
+        assert!(!git.contains("empty log"), "{git}");
+        assert!(example_tip("03-exec-pipeline", &belt, true, "mock/echo").is_none());
+        assert!(example_tip("snippets/run", &belt, true, "mock/echo").is_none());
         assert!(
             example_tip("01-hello", &belt, true, "mock/echo").is_none(),
             "first-shelf jobs have no recover hint"

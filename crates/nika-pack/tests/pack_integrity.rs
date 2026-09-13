@@ -377,30 +377,23 @@ fn paired_template_lessons_resolve_and_contain_no_value_slots() {
     assert_eq!(nika_pack::template_example("../bounded-batch"), None);
 }
 
-/// B06 · missing cargo is a recovered red suite, not an opaque NIKA-SEC-001.
-/// The spec YAML does not carry `on_error: recover` — the hint lives in Rust.
+/// The execution proof lives in the CLI `first_run_examples` suite. This guard
+/// only checks the embedded teaching contract, not a simulated recovery.
 #[test]
-fn exec_pipeline_recovers_when_cargo_is_missing() {
-    let body = nika_pack::example("03-exec-pipeline").expect("embedded");
-    assert!(
-        body.to_ascii_lowercase().contains("cargo"),
-        "03-exec-pipeline still names cargo (the host tool)"
-    );
-    let hint = nika_pack::try_recover_hint("03-exec-pipeline").expect("B06 hint");
-    assert_eq!(hint.missing, "cargo");
-    assert_eq!(hint.recovered_as, "exit 127");
+fn exec_starters_do_not_require_a_host_toolchain() {
+    for slug in ["03-exec-pipeline", "snippets/run"] {
+        let body = nika_pack::example(slug).expect("embedded");
+        assert!(body.contains("printf"), "{slug}");
+        assert!(!body.contains("cargo test") && !body.contains("cargo build"));
+        assert!(nika_pack::try_recover_hint(slug).is_none());
+    }
 }
 
-/// C06 · not-a-git-repo is a recovered empty history, not seatbelt 128.
-/// The spec YAML does not carry `on_error: recover` — the hint lives in Rust.
 #[test]
-fn standup_digest_recovers_when_git_is_missing() {
+fn standup_declares_unavailable_history_instead_of_an_empty_log() {
     let body = nika_pack::example("standup-digest").expect("embedded");
-    assert!(
-        body.contains("git"),
-        "standup-digest still names git (the host tool)"
-    );
-    let hint = nika_pack::try_recover_hint("standup-digest").expect("C06 hint");
+    assert!(body.contains("recover: \"Git history unavailable"));
+    let hint = nika_pack::try_recover_hint("standup-digest").expect("C06 context");
     assert_eq!(hint.missing, "git");
-    assert_eq!(hint.recovered_as, "empty log");
+    assert_eq!(hint.recovered_as, "history unavailable");
 }
