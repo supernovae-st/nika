@@ -1,0 +1,18 @@
+{
+  "report": {
+    "currency": "EUR",
+    "groups": [
+      {
+        "region": "north",
+        "count": 2,
+        "total": 15
+      },
+      {
+        "region": "south",
+        "count": 1,
+        "total": 20
+      }
+    ],
+    "total": 35
+  }
+}

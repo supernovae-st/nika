@@ -1,0 +1,7 @@
+{
+  "report": {
+    "batch": "daily-orders",
+    "count": 2,
+    "total": 30
+  }
+}

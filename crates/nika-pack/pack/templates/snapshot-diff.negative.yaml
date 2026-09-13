@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · Both snapshots must resolve from declared values.
+# Expected · NIKA-VAR-001.
+nika: snapshot-diff
+const:
+  resource: enabled-features
+  before:
+  - alpha
+  - beta
+  after:
+  - beta
+  - gamma
+permits:
+  tools:
+  - nika:assert
+  - nika:jq
+  - nika:validate
+tasks:
+  validate:
+    invoke:
+      tool: nika:validate
+      args:
+        data:
+          before: ${{ const.before }}
+          after: ${{ const.after }}
+        format: json
+        schema:
+          type: object
+          additionalProperties: false
+          required:
+          - before
+          - after
+          properties:
+            before:
+              type: array
+              maxItems: 8
+              items:
+                type: string
+                minLength: 1
+                maxLength: 4000
+            after:
+              type: array
+              maxItems: 8
+              items:
+                type: string
+                minLength: 1
+                maxLength: 4000
+  admit:
+    with:
+      valid: ${{ tasks.validate.output.valid }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.valid }}
+        message: Input violates the declared shape or size bound
+  diff:
+    after:
+      admit: success
+    invoke:
+      tool: nika:jq
+      args:
+        input:
+          resource: ${{ const.resource }}
+          before: ${{ const.before }}
+          after: ${{ const.missing_snapshot }}
+        expression: '{resource, added: ((.after - .before) | unique), removed: ((.before - .after) | unique),
+          kept: ([.after[] as $id | select(.before | index($id)) | $id] | unique)}'
+outputs:
+  diff: ${{ tasks.diff.output }}

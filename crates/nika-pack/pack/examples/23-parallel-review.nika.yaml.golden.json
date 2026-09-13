@@ -1,0 +1,15 @@
+{
+  "verdict": {
+    "ready": false,
+    "reviews": [
+      {
+        "ready": false,
+        "reason": "mock"
+      },
+      {
+        "ready": false,
+        "reason": "mock"
+      }
+    ]
+  }
+}

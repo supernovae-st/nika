@@ -4,7 +4,7 @@
 # Consumers · the reference engine embeds this pack (nika try ·
 # nika spec) · docs + website render projections of the same files.
 pack_version: 0.1.0-draft
-workflow_count: 53
+workflow_count: 61
 foundation:
   - file: examples/01-hello.nika.yaml
     sha256_16: 74663e469b461b92
@@ -42,17 +42,39 @@ foundation:
     sha256_16: 17acfa8335f711fc
   - file: examples/17-tts-self.nika.yaml
     sha256_16: 37d15028add0d76f
+  - file: examples/18-bounded-batch.nika.yaml
+    sha256_16: 563c11f84f611c97
+  - file: examples/19-validate-records.nika.yaml
+    sha256_16: a6b661ce018b8347
+  - file: examples/20-snapshot-diff.nika.yaml
+    sha256_16: 23efe743f9fea9eb
+  - file: examples/21-deduplicate-records.nika.yaml
+    sha256_16: 05f1df531e6b9406
+  - file: examples/22-project-public-fields.nika.yaml
+    sha256_16: 140c4e51dad3153c
+  - file: examples/23-parallel-review.nika.yaml
+    sha256_16: 61b2048186af38bf
+  - file: examples/24-recover-optional-file.nika.yaml
+    sha256_16: 7a9edfa98599d11a
+  - file: examples/25-aggregate-by-key.nika.yaml
+    sha256_16: fdf06a683a40cbce
 templates:
   - file: templates/agent-loop.nika.yaml
     sha256_16: eb548e36322fc953
+  - file: templates/aggregate-by-key.nika.yaml
+    sha256_16: 714a78d386265c64
   - file: templates/api-upload-and-create.nika.yaml
     sha256_16: 8eabba636cbba999
+  - file: templates/bounded-batch.nika.yaml
+    sha256_16: 2f35945bb4c17e27
   - file: templates/chain.nika.yaml
     sha256_16: b119cf4d30583cb1
   - file: templates/classify-and-route.nika.yaml
     sha256_16: 3508a4ecda80da2f
   - file: templates/corpus-qa.nika.yaml
     sha256_16: 564b25bc17f9d180
+  - file: templates/deduplicate-records.nika.yaml
+    sha256_16: 101c3cc378e078d5
   - file: templates/docker-report.nika.yaml
     sha256_16: 92f9c240939def46
   - file: templates/document-to-fields.nika.yaml
@@ -69,6 +91,16 @@ templates:
     sha256_16: ea79920ec5520013
   - file: templates/media-asset-pack.nika.yaml
     sha256_16: 3d133b951fc2b855
+  - file: templates/parallel-review.nika.yaml
+    sha256_16: c924312a828603bf
+  - file: templates/project-public-fields.nika.yaml
+    sha256_16: 6607e1b487903ca8
+  - file: templates/recover-optional-file.nika.yaml
+    sha256_16: 77adf231ac84377d
+  - file: templates/snapshot-diff.nika.yaml
+    sha256_16: a884012fdda25d63
+  - file: templates/validate-records.nika.yaml
+    sha256_16: 9ba6e1415af8bf5f
   - file: templates/website-brief.nika.yaml
     sha256_16: c62d5e2345c011cd
 showcase:

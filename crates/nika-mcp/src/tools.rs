@@ -213,14 +213,19 @@ fn learn_tools() -> Value {
             "name": "nika_template",
             "description": "The canonical workflow skeletons (chain · gate-and-act · \
                             fanout · …). Without `name`: the list. With `name`: that \
-                            skeleton's source — copy it, fill the SLOT lines, never \
-                            invent structure.",
+                            skeleton's source. Fill value slots and check it. With \
+                            `filled: true` and an exact name: the runnable lesson \
+                            generated from that skeleton, when available.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "name": {
                         "type": "string",
                         "description": "A template name from the list (e.g. `chain`)."
+                    },
+                    "filled": {
+                        "type": "boolean",
+                        "description": "Return the paired filled lesson instead of the skeleton. Requires an exact name; missing pairs fail explicitly."
                     }
                 }
             }
