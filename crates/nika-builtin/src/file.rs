@@ -621,9 +621,18 @@ fn simple_glob(pattern: &str, text: &str) -> bool {
     reached[t.len()]
 }
 
-/// `nika:grep` — recursive regex search · `{path,line,match}` sorted by
-/// `(path, line)` (stdlib §grep · RE2-class via the `regex` crate).
-pub(crate) async fn grep<F: FsReadDyn + FsListDyn>(
+/// `nika:grep` — regex search over the tree `path:` names, or over the
+/// ONE file it names · `{path,line,match}` sorted by `(path, line)`
+/// (stdlib §grep · RE2-class via the `regex` crate).
+///
+/// A file `path:` is the least-privilege shape (#1576 · #1577): the
+/// author grants exactly `permits.fs.read: ["data/note.md"]` and greps
+/// exactly that file — no parent directory is opened, so no sibling has
+/// to be granted. The old directory-only contract made that intent
+/// inexpressible (a file path died at run as GREP-001 after a green
+/// check · the directory path failed SEC-004 against the tight grant),
+/// and the only check-clean spelling widened the boundary to the tree.
+pub(crate) async fn grep<F: FsReadDyn + FsListDyn + FsMetaDyn>(
     fs: &F,
     boundary: &FsBoundary,
     args: &Args,
@@ -637,18 +646,18 @@ pub(crate) async fn grep<F: FsReadDyn + FsListDyn>(
     let regex = build_regex(pattern, strict_bool(args, "case_insensitive", false, C)?)
         .map_err(|e| BuiltinFailure::new(C, format!("invalid pattern: {e}")))?;
 
-    let files = fs.glob(Path::new(root), "**").await.map_err(|e| {
-        // grep is a recursive DIRECTORY walk · a `path:` that names a FILE
-        // makes `read_dir` fail with ENOTDIR ("Not a directory (os error
-        // 20)") — a cryptic OS error. Name the real contract instead.
-        match e {
-            FsError::Io { .. } if is_not_a_directory(&e) => BuiltinFailure::new(
-                C,
-                format!("`path:` `{root}` must be a directory — grep walks a tree, not a file"),
-            ),
-            other => BuiltinFailure::new(C, format!("walk failed: {other}")),
-        }
-    })?;
+    // The metadata probe decides the shape: an existing non-directory is
+    // the one file to search (the walk would die with ENOTDIR · "Not a
+    // directory (os error 20)"); everything else — a directory, an absent
+    // path, a refused probe — is the walk's to judge, so its own error
+    // (NotFound · the boundary refusal) keeps naming the cause.
+    let files = if matches!(fs.metadata(Path::new(root)).await, Ok(meta) if !meta.is_dir) {
+        vec![std::path::PathBuf::from(root)]
+    } else {
+        fs.glob(Path::new(root), "**")
+            .await
+            .map_err(|e| BuiltinFailure::new(C, format!("walk failed: {e}")))?
+    };
     let mut hits = Vec::new();
     for file in files {
         // Re-enforce the boundary PER MATCHED FILE. The walk yields a symlink's
@@ -696,21 +705,6 @@ fn build_regex(pattern: &str, case_insensitive: bool) -> Result<regex::Regex, re
     regex::RegexBuilder::new(pattern)
         .case_insensitive(case_insensitive)
         .build()
-}
-
-/// Whether an [`FsError::Io`] is the ENOTDIR class (a `read_dir` on a
-/// file). The kernel folds ENOTDIR into the generic `Io` arm (no typed
-/// variant · adding one is a Gate-12 kernel change), so this matches the
-/// reason text — the std display (`"Not a directory"`) OR the raw unix
-/// code (`os error 20`). Friendly-message-only: a miss just falls back to
-/// the generic "walk failed", never a wrong verdict.
-fn is_not_a_directory(e: &FsError) -> bool {
-    match e {
-        FsError::Io { reason } => {
-            reason.contains("Not a directory") || reason.contains("os error 20")
-        }
-        _ => false,
-    }
 }
 
 #[cfg(test)]
