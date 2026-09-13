@@ -538,7 +538,7 @@ mod tests {
     /// by task id — never the `{}` the cut left behind.
     #[test]
     fn scoped_outputs_are_the_records_keyed_by_task_id() {
-        use nika_runtime::{TaskRecord, TaskStatus, TerminalCause};
+        use nika_runtime::{RunOutcome, TaskRecord, TaskStatus, TerminalCause};
         let mut records = BTreeMap::new();
         for (id, out) in [("call", json!("sum")), ("wrap", json!({"chars": 3}))] {
             let mut record = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
