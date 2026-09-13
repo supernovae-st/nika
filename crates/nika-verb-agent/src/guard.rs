@@ -21,8 +21,10 @@
 //! occurrences → stop the run as NIKA-467 (spending more turns on a
 //! proven no-progress cycle is pure budget burn).
 
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
+
+use serde_json::Value;
 
 use crate::config::GuardConfig;
 use crate::observe::NudgeReason;
@@ -57,14 +59,34 @@ pub(crate) enum GuardVerdict {
     },
 }
 
+/// One tool call's standing with the effect memory (#1470), judged
+/// BEFORE dispatch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EffectGate {
+    /// Replays nothing the loop can tell — dispatch, remember nothing.
+    Free,
+    /// An effectful call not seen this run — dispatch, then remember its
+    /// signature once it settles (success or error alike).
+    Fresh(u64),
+    /// The exact effectful call already settled this run — refuse in
+    /// place, never dispatched: its effect may have landed, a replay
+    /// could double it.
+    Replay,
+}
+
 /// The per-run stall guard. Owns the signature window + the reflection
-/// budget + the error streak counter.
+/// budget + the error streak counter + the effect memory.
 #[derive(Debug)]
 pub(crate) struct Guard {
     cfg: GuardConfig,
     window: VecDeque<u64>,
     reflections_used: u32,
     error_streak: u32,
+    /// Effect memory (#1470): the call signatures of every EFFECTFUL tool
+    /// call this run settled. The lower layer never retries such a call
+    /// (the `nika:fetch` dispatch veto · the MCP hint in the runtime's
+    /// retry classifier); the loop must not let the model do it either.
+    settled_effects: BTreeSet<u64>,
 }
 
 impl Guard {
@@ -84,7 +106,22 @@ impl Guard {
             window: VecDeque::with_capacity(capacity),
             reflections_used: 0,
             error_streak: 0,
+            settled_effects: BTreeSet::new(),
         }
+    }
+
+    /// Judge one call against the effect memory before it is dispatched.
+    pub(crate) fn effect_gate(&self, name: &str, args: &Value) -> EffectGate {
+        match effect_signature(name, args) {
+            None => EffectGate::Free,
+            Some(sig) if self.settled_effects.contains(&sig) => EffectGate::Replay,
+            Some(sig) => EffectGate::Fresh(sig),
+        }
+    }
+
+    /// Remember a settled effectful call (its [`EffectGate::Fresh`] signature).
+    pub(crate) fn remember_effect(&mut self, signature: u64) {
+        self.settled_effects.insert(signature);
     }
 
     /// Observe one completed tool turn (its signature + whether EVERY
@@ -191,6 +228,84 @@ pub(crate) fn nudge_text(reason: NudgeReason, period: u32) -> String {
     }
 }
 
+/// The refusal fed back in place of a replayed effectful call (#1470) —
+/// deterministic text, the `[loop-guard]` register.
+pub(crate) fn effect_replay_text(name: &str) -> String {
+    format!(
+        "[effect-guard] `{name}` with these exact arguments already settled earlier in \
+         this run; its effect may have landed, so the call was NOT re-issued (a replay \
+         could double it). Read the earlier result, change the arguments if a new effect \
+         is intended, or finish with your best answer."
+    )
+}
+
+/// ONE call's effect signature (name + key-order-canonical args) when the
+/// call is EFFECTFUL — `None` for a call whose replay is free as far as
+/// the loop can tell. Its own domain tag keeps it apart from the turn
+/// signature's hash family.
+pub(crate) fn effect_signature(name: &str, args: &Value) -> Option<u64> {
+    if !replays_an_effect(name, args) {
+        return None;
+    }
+    let mut hasher = DefaultHasher::new();
+    0xE5_u8.hash(&mut hasher); // domain tag
+    name.hash(&mut hasher);
+    hash_canonical(args, &mut hasher);
+    Some(hasher.finish())
+}
+
+/// The two arms the loop can judge from the call alone (#1470): a
+/// `nika:fetch` whose method replays effects without an `idempotency-key`
+/// header (the #1371 law — `nika_types::net::retry_is_effect_safe`, the
+/// predicate the runtime's dispatch veto judges) and an `mcp:<server>/
+/// <tool>` the catalog's vendored manifest marks destructive. A
+/// non-string method makes no claim (the builtin refuses it). Everything
+/// else replays free as far as the loop can tell.
+fn replays_an_effect(name: &str, args: &Value) -> bool {
+    if name == "nika:fetch" {
+        let method = match args.get("method") {
+            None => "GET".to_owned(),
+            Some(Value::String(method)) => method.to_uppercase(),
+            Some(_) => return false,
+        };
+        let headers = args.get("headers").and_then(Value::as_object);
+        return !nika_types::net::retry_is_effect_safe(
+            &method,
+            headers
+                .into_iter()
+                .flat_map(|headers| headers.keys().map(String::as_str)),
+        );
+    }
+    mcp_destructive_hint(name) == Some(true)
+}
+
+/// The catalog's vendored effect hint for one `mcp:<server>/<tool>`
+/// reference — the server segment looked up as a catalog id or alias;
+/// `None` = no vendored hint (never « safe »). The twin of the runtime
+/// retry classifier's lookup (`nika-runtime/src/retry.rs`): the shared
+/// home is the catalog, a later move.
+fn mcp_destructive_hint(tool: &str) -> Option<bool> {
+    let (server, name) = tool.strip_prefix("mcp:")?.split_once('/')?;
+    let hints = nika_catalog::find_mcp_server(server)?
+        .effect_hints
+        .iter()
+        .find(|h| h.tool == name)?;
+    destructive_by_hints(hints.read_only, hints.destructive)
+}
+
+/// The MCP spec's reading of the two tool annotations: `readOnlyHint:
+/// true` settles it · an explicit `destructiveHint` speaks for itself ·
+/// not read-only with no destructive hint is destructive by the spec's
+/// default · neither annotated = no claim.
+fn destructive_by_hints(read_only: Option<bool>, destructive: Option<bool>) -> Option<bool> {
+    match (read_only, destructive) {
+        (Some(true), _) => Some(false),
+        (_, Some(d)) => Some(d),
+        (Some(false), None) => Some(true),
+        (None, None) => None,
+    }
+}
+
 /// One turn's signature: every tool call (name + key-order-canonical
 /// args) and every observation (result content + error flag), hashed in
 /// dispatch order with type tags so adjacent fields can't collide by
@@ -259,6 +374,84 @@ fn hash_canonical(value: &serde_json::Value, hasher: &mut DefaultHasher) {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    /// #1470 · the effect memory judges the call, not the tool name: a
+    /// keyless POST is effectful, the same POST under an `idempotency-key`
+    /// is not, a GET (or the fetch default) is not, a `nika:read` is not,
+    /// and an MCP tool with no vendored hint makes no claim.
+    #[test]
+    fn effect_signature_follows_the_effect_safe_law() {
+        let post =
+            serde_json::json!({"url": "https://x.example/a", "method": "post", "body": {"a": 1}});
+        assert!(effect_signature("nika:fetch", &post).is_some());
+        let keyed = serde_json::json!({"url": "https://x.example/a", "method": "POST",
+            "headers": {"Idempotency-Key": "k1"}, "body": {"a": 1}});
+        assert_eq!(effect_signature("nika:fetch", &keyed), None);
+        let get = serde_json::json!({"url": "https://x.example/a"});
+        assert_eq!(effect_signature("nika:fetch", &get), None);
+        let odd = serde_json::json!({"url": "https://x.example/a", "method": 7});
+        assert_eq!(
+            effect_signature("nika:fetch", &odd),
+            None,
+            "a non-string method claims nothing"
+        );
+        assert_eq!(
+            effect_signature("nika:read", &serde_json::json!({"path": "a"})),
+            None
+        );
+        assert_eq!(
+            effect_signature("mcp:no-such-server-xyz/drop", &serde_json::json!({})),
+            None
+        );
+        assert_eq!(
+            effect_signature("mcp:malformed", &serde_json::json!({})),
+            None
+        );
+    }
+
+    /// The signature is the CALL's identity: key order is canonical, the
+    /// tool name and every argument value count.
+    #[test]
+    fn effect_signature_is_canonical_over_key_order_and_sensitive_to_values() {
+        let a = serde_json::json!({"url": "https://x.example/a", "method": "POST", "body": {"a": 1, "b": 2}});
+        let b = serde_json::json!({"body": {"b": 2, "a": 1}, "method": "POST", "url": "https://x.example/a"});
+        assert_eq!(
+            effect_signature("nika:fetch", &a),
+            effect_signature("nika:fetch", &b)
+        );
+        let c = serde_json::json!({"url": "https://x.example/a", "method": "POST", "body": {"a": 1, "b": 3}});
+        assert_ne!(
+            effect_signature("nika:fetch", &a),
+            effect_signature("nika:fetch", &c)
+        );
+    }
+
+    #[test]
+    fn the_memory_gates_fresh_then_replay() {
+        let mut g = Guard::new(GuardConfig::new());
+        let post = serde_json::json!({"url": "https://x.example/a", "method": "POST"});
+        let EffectGate::Fresh(sig) = g.effect_gate("nika:fetch", &post) else {
+            panic!("an unseen effectful call is fresh");
+        };
+        assert_eq!(
+            g.effect_gate("nika:fetch", &post),
+            EffectGate::Fresh(sig),
+            "not yet settled"
+        );
+        g.remember_effect(sig);
+        assert_eq!(g.effect_gate("nika:fetch", &post), EffectGate::Replay);
+        let get = serde_json::json!({"url": "https://x.example/a"});
+        assert_eq!(g.effect_gate("nika:fetch", &get), EffectGate::Free);
+    }
+
+    #[test]
+    fn hints_read_per_the_mcp_spec_defaults() {
+        assert_eq!(destructive_by_hints(Some(true), Some(true)), Some(false));
+        assert_eq!(destructive_by_hints(None, Some(true)), Some(true));
+        assert_eq!(destructive_by_hints(Some(false), Some(false)), Some(false));
+        assert_eq!(destructive_by_hints(Some(false), None), Some(true));
+        assert_eq!(destructive_by_hints(None, None), None);
+    }
 
     fn guard(nudge_after: u32, stall_after: u32, max_reflections: u32) -> Guard {
         let mut cfg = GuardConfig::new();

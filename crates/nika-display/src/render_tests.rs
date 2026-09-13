@@ -1272,3 +1272,111 @@ fn an_untrusted_row_names_its_origin_and_never_says_recovered() {
         );
     }
 }
+
+/// #1281 · a leash-stopped loop's row and card say how far it got: the
+/// journaled `agent_budget_checkpoint` (turns · counted tokens · budget)
+/// reaches the human surfaces — the failed terminal names neither. The
+/// last checkpoint wins, a budget-less loop says the count alone, and a
+/// checkpoint without a started row invents nothing.
+#[test]
+fn a_leash_stopped_agent_row_and_card_carry_its_turns_and_tokens() {
+    use nika_event::EventKind;
+    use nika_types::resource::{KeyValue, Value};
+    let ev = |kind: EventKind, ms: u64, fields: &[(&str, Value)]| {
+        let mut e = demo::bare_event(kind, ms);
+        for (k, v) in fields {
+            e = e.with_field(KeyValue::new(*k, v.clone()));
+        }
+        e
+    };
+    let s = |v: &str| Value::String(v.to_owned());
+    let checkpoint = |turn: i64, tokens: i64, budget: Option<i64>| {
+        let mut fields = vec![
+            ("task", s("work")),
+            ("turn", Value::Int(turn)),
+            ("total_tokens", Value::Int(tokens)),
+            ("attempt", Value::Int(1)),
+        ];
+        if let Some(b) = budget {
+            fields.push(("budget", Value::Int(b)));
+        }
+        ev(EventKind::AgentBudgetCheckpoint, 20, &fields)
+    };
+    let failed = ev(
+        EventKind::TaskFailed,
+        30,
+        &[
+            ("task", s("work")),
+            ("note", s("agent · mock/echo")),
+            (
+                "detail",
+                s(
+                    "NIKA-AGENT-001 · agent hit max_turns (1) without completing · blame: by-the-caller",
+                ),
+            ),
+        ],
+    );
+    let started = ev(
+        EventKind::TaskStarted,
+        10,
+        &[("task", s("work")), ("note", s("agent · mock/echo"))],
+    );
+    let opened = ev(EventKind::WorkflowStarted, 0, &[("workflow", s("leash"))]);
+    let closed = ev(EventKind::WorkflowFailed, 40, &[("workflow", s("leash"))]);
+
+    let view = fold(&[
+        opened.clone(),
+        started.clone(),
+        checkpoint(1, 15, Some(4000)),
+        failed.clone(),
+        closed.clone(),
+    ]);
+    let lines = frame(&view, &UNICODE, 0);
+    let row = lines
+        .iter()
+        .find(|l| l.contains(" work "))
+        .expect("the task row");
+    assert!(
+        row.contains("agent · mock/echo · 1 turn · 15/4000 tok"),
+        "row: {row}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.trim() == "agent · 1 turn · 15/4000 tok"),
+        "card line: {lines:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.contains("fix: nika explain NIKA-AGENT-001")),
+        "the explain hint survives: {lines:?}"
+    );
+
+    // The LAST checkpoint wins · no budget → the count alone.
+    let view = fold(&[
+        opened.clone(),
+        started.clone(),
+        checkpoint(1, 15, None),
+        checkpoint(3, 47, None),
+        failed.clone(),
+        closed.clone(),
+    ]);
+    assert_eq!(
+        view.rows()[0].agent,
+        Some(crate::state::AgentProgress {
+            turns: 3,
+            tokens: 47,
+            budget: None,
+        })
+    );
+    let lines = frame(&view, &UNICODE, 0);
+    assert!(
+        lines.iter().any(|l| l.contains("3 turns · 47 tok")),
+        "{lines:?}"
+    );
+
+    // A checkpoint with no started row invents nothing.
+    let view = fold(&[opened, checkpoint(1, 15, Some(4000)), closed]);
+    assert!(view.rows().is_empty());
+}

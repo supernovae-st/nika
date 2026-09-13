@@ -547,3 +547,84 @@ async fn the_last_ordinary_turn_never_dispatches_an_unconsumed_tool() {
     assert_eq!(events.checkpoints(), [(1, 17)]);
     assert!(events.finished().is_empty());
 }
+
+// ── #1518 · the budget weighs cache-read prompt tokens at zero ────────
+
+/// Three turns whose second request re-sends the prefix: `cached` says
+/// how many of its 100 prompt tokens the provider served from its cache.
+fn cached_prefix_rig(cached: Option<u64>) -> crate::tests::Rig {
+    let mut second = tool_use_response("call-2", "nika:read", serde_json::json!({"path": "b"}));
+    second.usage = usage(100, 5);
+    second.usage.cache_read_tokens = cached;
+    rig(
+        MockProvider::new("mock")
+            .enqueue_response(metered(
+                tool_use_response("call-1", "nika:read", serde_json::json!({"path": "a"})),
+                11,
+                6,
+            ))
+            .enqueue_response(second)
+            .enqueue_response(metered(text_response("both read"), 10, 5)),
+        MockToolExecutor::new()
+            .enqueue_ok(ToolResult::success("call-1", "A"))
+            .enqueue_ok(ToolResult::success("call-2", "B")),
+        vec![def("nika:read")],
+    )
+}
+
+fn cached_prefix_input() -> AgentInput {
+    let mut input = AgentInput::new("read a then b");
+    input.tools = vec!["nika:read".to_owned()];
+    input.max_tokens_total = Some(40);
+    input
+}
+
+/// #1518 · `max_tokens_total` tracks what the run SPENDS: a prompt prefix
+/// the provider served from its cache neither fills the window anew nor
+/// bills at full rate, so the counter weighs `cache_read_tokens` at zero
+/// — 17 + (100 − 90 + 5) + 15 = 47 under a budget of 40 that only the
+/// second turn's continuation must clear (32 < 40). The pricing-grade
+/// fold keeps every billed meter untouched.
+#[tokio::test]
+async fn cache_read_prompt_tokens_do_not_weigh_on_the_budget() {
+    let r = cached_prefix_rig(Some(90));
+    let events = Recording::default();
+    let out = r
+        .verb
+        .run_observed(cached_prefix_input(), &events)
+        .await
+        .expect("a cached prefix never exhausts the budget");
+    assert_eq!(out.turns, 3);
+    assert_eq!(out.total_tokens, 47, "17 + (100 − 90 + 5) + 15");
+    assert_eq!(events.checkpoints(), [(1, 17), (2, 32), (3, 47)]);
+    assert_eq!(events.finished(), [(3, 47)]);
+    assert_eq!(r.tools.captured_calls().len(), 2);
+    // The billed fold is the whole prompt, cache reads named apart.
+    assert_eq!(out.usage.input_tokens, 121);
+    assert_eq!(out.usage.cache_read_tokens, Some(90));
+    assert_eq!(out.usage.output_tokens, 16);
+}
+
+/// The negative control: the SAME turns with no cache read cross the
+/// budget on the second turn (17 + 105 = 122 ≥ 40) — the stop is the
+/// budget verdict, the second tool call is never dispatched, and the
+/// verdict says which arithmetic it followed.
+#[tokio::test]
+async fn full_weight_prompt_tokens_still_exhaust_the_budget() {
+    let r = cached_prefix_rig(None);
+    let events = Recording::default();
+    let err = r
+        .verb
+        .run_observed(cached_prefix_input(), &events)
+        .await
+        .expect_err("an uncached re-sent prefix counts at full weight");
+    assert_token_stop(&err, 122, 111, 11);
+    assert_eq!(r.tools.captured_calls().len(), 1);
+    assert_eq!(events.checkpoints(), [(1, 17), (2, 122)]);
+    assert!(events.finished().is_empty());
+    let rendered = err.to_string();
+    assert!(
+        rendered.contains("122") && rendered.contains("cache"),
+        "the verdict names the count and the cache arithmetic: {rendered}"
+    );
+}

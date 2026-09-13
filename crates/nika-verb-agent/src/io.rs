@@ -127,7 +127,9 @@ pub struct AgentOutput {
     pub stop_reason: AgentStopReason,
     /// How many model turns ran.
     pub turns: u32,
-    /// Cumulative tokens across all turns (input + output).
+    /// Cumulative tokens across all turns as the budget counts them
+    /// (#1518): fresh prompt + output per call, cache reads weighing zero
+    /// — `usage` carries the billed split.
     pub total_tokens: u64,
     /// Real spend reported by the loop's TOOLS (a tool whose structured
     /// output carries a top-level numeric `cost_usd` — the image builtin
