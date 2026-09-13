@@ -19,15 +19,17 @@ use super::{
     ArmEntry, ArmLocus, MissPolicy, Project, ProjectError, ProjectErrorKind, ProvenanceFloor,
     RegistryPolicy, TOP_LEVEL_KEYS, TracesPolicy, is_kebab_id,
 };
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 /// The closed `traces:` key set.
 pub(crate) const TRACES_KEYS: &[&str] = &["keep"];
 /// The closed `registry:` key set.
 pub(crate) const REGISTRY_KEYS: &[&str] = &["floor"];
-/// The closed `arm:` entry key set — the registry's THIRTEEN keys
+/// The closed `arm:` entry key set — the registry's FOURTEEN keys
 /// (the cadence arc's `Beat` defines them; this gate accepts them all
-/// and judges only the five that are its own).
+/// and judges only the five that are its own · `inputs:` joined
+/// 2026-09-13, #1370).
 pub(crate) const ARM_ENTRY_KEYS: &[&str] = &[
     "workflow",
     "cadence",
@@ -42,6 +44,7 @@ pub(crate) const ARM_ENTRY_KEYS: &[&str] = &[
     "tolérance",
     "décalage",
     "par",
+    "inputs",
 ];
 
 /// Parse the project file text (syntax + shape laws — no I/O, no
@@ -266,6 +269,7 @@ fn parse_arm_entry(node: &Node) -> Result<ArmEntry, ProjectError> {
     let mut tolerance = None;
     let mut decalage = None;
     let mut par = None;
+    let mut inputs = None;
     for (key, value) in mapping.iter() {
         let name = key.as_str();
         match name {
@@ -282,6 +286,7 @@ fn parse_arm_entry(node: &Node) -> Result<ArmEntry, ProjectError> {
             "tolérance" => tolerance = Some(verbatim(value, name)?),
             "décalage" => decalage = Some(verbatim(value, name)?),
             "par" => par = Some(verbatim(value, name)?),
+            "inputs" => inputs = Some(inputs_map(value)?),
             _ => return Err(unknown_key(name, ARM_ENTRY_KEYS, key.span())),
         }
     }
@@ -331,7 +336,25 @@ fn parse_arm_entry(node: &Node) -> Result<ArmEntry, ProjectError> {
         tolerance,
         decalage,
         par,
+        inputs: inputs.unwrap_or_default(),
     })
+}
+
+/// `inputs:` (#1370) — a mapping of SCALARS, each stored verbatim as the
+/// `--var` text it becomes (`limit: 5` rides as `"5"`; the workflow's
+/// declared type coerces it at admission). The key law and the
+/// membership judgment are the cadence arc's and the fire edge's; this
+/// plane judges the SHAPE: a mapping, scalars inside.
+fn inputs_map(value: &Node) -> Result<BTreeMap<String, String>, ProjectError> {
+    let mut out = BTreeMap::new();
+    for (key, entry) in mapping_of(value, "inputs")?.iter() {
+        let name = key.as_str();
+        let text = scalar(entry, &format!("inputs.{name}"))?
+            .as_str()
+            .to_owned();
+        out.insert(name.to_owned(), text);
+    }
+    Ok(out)
 }
 
 /// `workflow:` — a non-empty `*.nika.yaml` path (shape only; the

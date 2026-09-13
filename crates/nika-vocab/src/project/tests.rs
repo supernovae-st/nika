@@ -378,7 +378,39 @@ fn the_thirteen_beat_keys_are_reachable_through_the_project_file() {
     assert_eq!(err.kind(), ProjectErrorKind::BadValue, "{err}");
 }
 
-/// The closed set still bites: a FOURTEENTH key, outside the thirteen,
+/// `inputs:` (#1370) — the per-beat `--var` pairs pass this gate as a
+/// mapping of verbatim scalars (`limit: 5` rides as `"5"`, the declared
+/// type coerces it downstream); a block value refuses its SHAPE here,
+/// and an absent key reads as empty.
+#[test]
+fn beat_inputs_ride_as_verbatim_scalars() {
+    let src = "nika: proj\narm:\n  - workflow: t.nika.yaml\n    cadence: \"TZ=UTC 0 9 * * 1\"\n    plafond: 0.10\n    manqué: sauter\n    inputs:\n      tenant: acme\n      limit: 5\n      dry: true\n";
+    let project = parse(src).expect("inputs are the shape");
+    let beat = &project.arm()[0];
+    let pairs: Vec<(&str, &str)> = beat
+        .inputs
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    assert_eq!(pairs, [("dry", "true"), ("limit", "5"), ("tenant", "acme")]);
+    let plain = parse("nika: proj\narm:\n  - workflow: t.nika.yaml\n    cadence: on-webhook\n    plafond: 0.10\n    manqué: sauter\n")
+        .expect("no inputs");
+    assert!(plain.arm()[0].inputs.is_empty());
+    // A list or a nested map is not a `--var` value: the shape refuses,
+    // naming the key.
+    let err = parse(&src.replace("limit: 5", "limit: [5]")).unwrap_err();
+    assert_eq!(err.kind(), ProjectErrorKind::BadValue, "{err}");
+    assert!(err.detail().contains("inputs.limit"), "{err}");
+    // `inputs:` itself must be a mapping.
+    let err = parse(&src.replace(
+        "inputs:\n      tenant: acme\n      limit: 5\n      dry: true\n",
+        "inputs: acme\n",
+    ))
+    .unwrap_err();
+    assert_eq!(err.kind(), ProjectErrorKind::BadValue, "{err}");
+}
+
+/// The closed set still bites: a FIFTEENTH key, outside the fourteen,
 /// refuses by name with its line — widening the grammar never meant
 /// opening it.
 #[test]
@@ -391,8 +423,8 @@ fn a_fourteenth_key_still_refuses_by_name() {
     assert_eq!(err.line(), Some(7));
     assert!(err.detail().contains("quatorze"), "{err}");
     assert!(
-        err.remedy().contains("chevauchement"),
-        "the remedy now names the thirteen: {err}"
+        err.remedy().contains("chevauchement") && err.remedy().contains("inputs"),
+        "the remedy now names the fourteen: {err}"
     );
 }
 
