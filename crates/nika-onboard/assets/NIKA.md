@@ -1,16 +1,19 @@
 # Nika in this project
 
-Workflows are `*.nika.yaml` files. Start with an offline lesson, then create
-and check your own file:
+Workflows are `*.nika.yaml` files. A plain `nika init` founds the project
+around the hello lesson, `workflows/01-hello.nika.yaml` (the file
+`nika try 01-hello` rehearses). Audit it, run it offline, then create and
+check your own file:
 
 ```sh
-nika try 01-hello
+nika check workflows/01-hello.nika.yaml
+nika run workflows/01-hello.nika.yaml --model mock/echo
 nika new 01-hello my-first.nika.yaml
 nika check my-first.nika.yaml
-nika run my-first.nika.yaml
 ```
 
-The hello lesson uses `mock/echo`. For a read-and-infer skeleton, use
+The hello lesson names a small local model; `--model mock/echo` rehearses it
+with no key and no network. For a read-and-infer skeleton, use
 `nika new chain chain.nika.yaml`, fill its `<SLOT: …>` prompt and provide
 the `README.md` it reads before checking and running it.
 
@@ -20,14 +23,17 @@ workflow's permits and model pins before running a different template.
 `nika test <file>` compares a simulated run with an existing golden;
 `--update` records a new expectation and is not a regression check.
 
-Plain `nika init --yes` equips the project without creating a workflow.
-`nika init --recipe agentic --yes` adds a workflow curriculum. `starter`
-uses a conversation on a terminal; headless callers can use `nika new`.
+Plain `nika init --yes` lays the project files, `nika.yaml` and the hello
+lesson. `nika init --recipe agentic --yes` founds around a workflow
+curriculum instead, and `--recipe minimal` lays the project files only.
+`starter` uses a conversation on a terminal; headless callers can use
+`nika new`.
 
 ## Team settings
 
-`nika init --project-file --yes` offers the scripted way to create `nika.yaml`.
-Review its commented budget and trace-retention options with your team.
+`nika init` lays `nika.yaml`, the project file. Its budget ceiling and
+trace-retention lines ride commented, so it governs nothing until your team
+edits it; review those options together.
 Project settings do not grant a workflow extra authority or authorize a run.
 Existing files are preserved; `--force` explicitly replaces generated files.
 To upgrade an existing setup, generate into a separate directory and merge
@@ -47,6 +53,8 @@ the changes you want.
   workflow edits and judge shell execution. The client must load these settings
   and find `nika` on its PATH. Review Claude's `/hooks` view after configuration
   changes. A skipped settings file may still need the new hooks merged into it.
+- `workflows/README.md` indexes the scaffolded workflows with their check
+  and run commands.
 - `.gitignore` keeps `.nika/traces/` out of Git. Traces can contain prompts,
   outputs and sensitive context; review them before sharing.
 

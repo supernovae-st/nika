@@ -33,18 +33,17 @@ pub(crate) struct InitArgs {
     #[arg(long, value_name = "SLUG", conflicts_with = "recipe")]
     example: Option<String>,
     /// Stamp the VS Code DAG canvas skin (`nika.dag.theme`) into the
-    /// created `.vscode/settings.json`.
-    #[arg(long, value_enum)]
-    theme: Option<verbs::init::CanvasTheme>,
+    /// created `.vscode/settings.json` (`nika` the brand skin · `editor`
+    /// adaptive · `phosphor` terminal green · `auto` lets the extension decide).
+    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(verbs::init::CANVAS_THEMES))]
+    theme: Option<String>,
     /// Wire agent clients to the MCP oracle after the scaffold
     /// (comma-separated · the same targets as `nika wire`).
     #[arg(long, value_enum, value_delimiter = ',')]
     wire: Vec<verbs::wire::WireTarget>,
-    /// Lay a starter `nika.yaml` (the project file — ceiling +
-    /// retention examples, commented so the starter governs nothing
-    /// until you edit it). The ONLY scripted door; the wizard lane
-    /// asks instead. An existing file is skipped, `--force` overrides.
-    #[arg(long)]
+    /// Lay the starter `nika.yaml` — every scripted init does since #1283
+    /// (existing skipped · `--force` overrides); kept so older scripts work.
+    #[arg(long, hide = true)]
     project_file: bool,
 }
 
@@ -56,7 +55,7 @@ pub(crate) fn init_verb(args: &InitArgs, plain_theme: Theme) -> VerbOutput {
         args.yes,
         args.recipe.as_deref(),
         args.example.as_deref(),
-        args.theme,
+        args.theme.as_deref(),
         &args.wire,
         args.project_file,
         plain_theme,

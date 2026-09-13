@@ -311,6 +311,7 @@ fn run_admitted_context(
             request.output_json,
             request.no_trace_file,
             request.no_outputs,
+            request.task_filter.is_some(),
         ),
         &cancel,
         &world,

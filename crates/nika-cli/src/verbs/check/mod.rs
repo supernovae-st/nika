@@ -124,11 +124,9 @@ pub fn dispatch_targets(
         profile,
     } = *flags;
     if fix {
-        // --fix rewrites one regular workspace file.
-        if json || infer_permits {
-            return crate::verbs::fix::refuse(
-                "--fix pairs with the plain audit only (not --json / --infer-permits)",
-            );
+        // --fix rewrites one regular workspace file (`--json` rides the repaired report · #1580).
+        if infer_permits {
+            return crate::verbs::fix::refuse("--fix pairs with the audit, not --infer-permits");
         }
         return match targets {
             [target] if target.is_registry_artifact() => crate::verbs::fix::refuse(
@@ -138,7 +136,7 @@ pub fn dispatch_targets(
                 "a device, FIFO, or other non-regular source cannot be rewritten — save or copy it into a regular workspace file, then fix the copy",
             ),
             [target] if !target.is_stdin() => {
-                crate::verbs::fix::run(&target.path, native_strict, model, theme)
+                crate::verbs::fix::run(&target.path, json, native_strict, model, theme)
             }
             [_] => {
                 crate::verbs::fix::refuse("stdin (`-`) has no file to rewrite — name a real path")
@@ -155,20 +153,18 @@ pub fn dispatch_targets(
             run_target_with_profile(target, json, native_strict, profile, (model, access), theme)
         }
     } else if json || infer_permits {
-        VerbOutput {
-            text: "check: --json and --infer-permits report ONE file per call \
-                   (report_version 1 is a per-file contract)\n  fix: loop the \
-                   files, one check per call\n"
+        VerbOutput::env(
+            "check: --json and --infer-permits report ONE file per call \
+             (report_version 1 is a per-file contract)\n  fix: loop the \
+             files, one check per call\n"
                 .to_owned(),
-            code: crate::verbs::exit::ENV,
-        }
+        )
     } else if targets.iter().any(CheckTarget::is_stdin) {
-        VerbOutput {
-            text: "check: stdin (`-`) cannot join a multi-file audit\n  fix: \
-                   pipe one call per stream, or name the files\n"
+        VerbOutput::env(
+            "check: stdin (`-`) cannot join a multi-file audit\n  fix: \
+             pipe one call per stream, or name the files\n"
                 .to_owned(),
-            code: crate::verbs::exit::ENV,
-        }
+        )
     } else {
         run_many_targets(targets, native_strict, profile, (model, access), theme)
     }

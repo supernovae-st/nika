@@ -1415,13 +1415,29 @@ fn nika_version_equals_dash_dash_version() {
     assert_eq!(ta.trim(), tb.trim(), "nika version == nika --version");
 }
 
+/// #1249 · the six-line postcard leads, then EVERY verb the tree carries
+/// (hidden ones too), the file-as-command gesture and the deeper doors.
 #[test]
-fn default_help_is_at_most_six_lines() {
+fn default_help_leads_with_the_postcard_and_names_every_verb() {
     let out = bin().arg("--help").output().expect("help");
     assert_eq!(out.status.code(), Some(0));
     let text = String::from_utf8_lossy(&out.stdout);
-    let n = text.lines().filter(|l| !l.is_empty()).count();
-    assert!(n <= 6, "human help ≤ 6 lines, got {n}:\n{text}");
+    let lines: Vec<&str> = text.lines().filter(|l| !l.is_empty()).collect();
+    assert!(lines.len() > 6 && lines[0].starts_with("nika "), "{text}");
+    for verb in [
+        "try", "new", "run", "check", "doctor", "init", "wire", "trace", "explain", "spec",
+        "catalog", "test", "arm", "key", "sign", "guard", "mcp", "lsp", "dap", "serve", "model",
+        "list", "welcome", "inspect", "completions",
+    ] {
+        assert!(
+            text.contains(&format!("nika {verb} ")),
+            "`nika {verb}` missing from --help:\n{text}"
+        );
+    }
+    assert!(
+        text.contains("nika x.nika.yaml") && text.contains("nika --help --all"),
+        "{text}"
+    );
 }
 
 /// A clean machine (`HOME` empty · no vendor keys) still gets a file

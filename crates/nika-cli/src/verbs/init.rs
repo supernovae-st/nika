@@ -13,48 +13,26 @@
 
 use std::io::IsTerminal;
 
+use clap::ValueEnum as _;
+
 use crate::display::theme::Theme;
 use crate::verbs::VerbOutput;
 use crate::verbs::wire::WireTarget;
 
 pub use nika_onboard::founding::agents_md;
 
-/// The `--recipe` vocabulary for clap — the member's register, re-exported.
-pub use nika_onboard::founding::RECIPE_NAMES;
-
-/// The `--theme` vocabulary — the member's plain enum mirrored as a clap
-/// `ValueEnum` (the CLI-framework dependency stays at the root).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
-pub enum CanvasTheme {
-    /// The brand skin — engineered black · verb hues.
-    Nika,
-    /// Adaptive — follows the editor's colors.
-    Editor,
-    /// Terminal green.
-    Phosphor,
-    /// Let the extension decide.
-    Auto,
-}
-
-impl From<CanvasTheme> for nika_onboard::founding::CanvasTheme {
-    fn from(c: CanvasTheme) -> Self {
-        match c {
-            CanvasTheme::Nika => Self::Nika,
-            CanvasTheme::Editor => Self::Editor,
-            CanvasTheme::Phosphor => Self::Phosphor,
-            CanvasTheme::Auto => Self::Auto,
-        }
-    }
-}
+/// The `--recipe` and `--theme` vocabularies for clap — the member's
+/// registers, re-exported (strings cross the seam; the CLI-framework
+/// dependency stays at the root).
+pub use nika_onboard::founding::{CANVAS_THEMES, CanvasTheme, RECIPE_NAMES};
 
 /// Scaffold `dir` (default `.`). Bare on a terminal (no `--yes`, no
 /// recipe/theme/wire flag) the founding wizard runs; anything scripted
 /// keeps file receipts with purposes followed by the next commands.
 ///
-/// `project_file` — `--project-file` (D-2026-08-11-N5): the scripted
-/// twin of the wizard's offer question. It routes to the scripted lane
-/// (a flag is a script), and lays the starter AFTER the scaffold with
-/// its receipt before the hand-off — never silently, never without the flag.
+/// `project_file` — `--project-file`: the starter `nika.yaml` is laid by
+/// default since #1283 (the member's scripted lane owns the receipt); the
+/// flag is kept so older scripts keep working, and routes to the scripted lane.
 #[must_use]
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)] // the clap surface, unpacked — one struct-shaped seam
 pub fn run(
@@ -63,7 +41,7 @@ pub fn run(
     yes: bool,
     recipe: Option<&str>,
     example: Option<&str>,
-    canvas: Option<CanvasTheme>,
+    canvas: Option<&str>,
     wires: &[WireTarget],
     project_file: bool,
     theme: Theme,
@@ -94,39 +72,21 @@ pub fn run(
         || canvas.is_some()
         || !wires.is_empty()
         || project_file
-        || !interactive();
+        // Both ends a terminal — the only state any nika surface may prompt in.
+        || !(std::io::stdin().is_terminal() && std::io::stdout().is_terminal());
     let out = if scripted {
         let wire_names: Vec<String> = wires.iter().copied().map(wire_name).collect();
         let wire_refs: Vec<&str> = wire_names.iter().map(String::as_str).collect();
-        let out = nika_onboard::founding::scripted_run(
+        nika_onboard::founding::scripted_run(
             dir,
             force,
             recipe,
             example,
-            canvas.map(Into::into),
+            canvas.and_then(CanvasTheme::parse),
             &wire_refs,
             &audit,
             &wire,
-        );
-        // The scripted twin of the wizard's offer — the flag is the
-        // ONLY scripted door (never laid silently), and the receipt
-        // joins the file report before the hand-off (the adds-only law · one law,
-        // two doors).
-        if project_file {
-            let (path, outcome) = nika_onboard::project_file::ensure(dir, force);
-            let failed = matches!(outcome, nika_onboard::project_file::Outcome::Failed(_));
-            let (mark, msg) = nika_onboard::project_file::report(&path, &outcome);
-            nika_onboard::Outcome {
-                text: format!("{mark} {msg}\n{}", out.text),
-                code: if failed {
-                    nika_onboard::codes::ENV
-                } else {
-                    out.code
-                },
-            }
-        } else {
-            out
-        }
+        )
     } else {
         let stdin = std::io::stdin();
         nika_onboard::wizard::wizard_io(
@@ -145,24 +105,16 @@ pub fn run(
     }
 }
 
-/// Both ends of the conversation are a terminal — the only state in
-/// which any nika surface may prompt (clig.dev interactivity rule).
-fn interactive() -> bool {
-    std::io::stdin().is_terminal() && std::io::stdout().is_terminal()
-}
-
 /// The member speaks client WORDS; the root resolves them onto the real
 /// `WireTarget` register (clap already validated the `--wire` flag —
 /// this covers the wizard's free-text lane).
 fn wire_target(client: &str) -> Option<WireTarget> {
-    use clap::ValueEnum as _;
     WireTarget::from_str(client, true).ok()
 }
 
 /// Carry the exact clap target through the member's injected wire seam.
 /// A second client list must never turn `detected` into the broader `all`.
 fn wire_name(target: WireTarget) -> String {
-    use clap::ValueEnum as _;
     target
         .to_possible_value()
         .map(|value| value.get_name().to_owned())
@@ -199,7 +151,7 @@ mod tests {
             true,
             Some("ship"),
             None,
-            Some(CanvasTheme::Editor),
+            Some("editor"),
             &[],
             false,
             PLAIN,
@@ -213,8 +165,8 @@ mod tests {
         let settings = std::fs::read_to_string(tmp.join(".vscode/settings.json")).expect("written");
         assert!(settings.contains("\"nika.dag.theme\": \"editor\""));
         assert!(
-            !tmp.join("nika.yaml").exists(),
-            "no flag, no project file — never laid silently"
+            tmp.join("nika.yaml").exists(),
+            "the project file is laid by default (#1283)"
         );
         std::fs::remove_dir_all(&tmp).ok();
     }
@@ -251,11 +203,11 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
     }
 
-    /// `--project-file` (D-2026-08-11-N5): the ONE scripted door — it
-    /// routes to the scripted lane, lays the starter after the
-    /// scaffold with a file receipt before the hand-off, and respects the skip law.
+    /// The starter `nika.yaml` is laid by default (#1283) with its
+    /// receipt in the file report, and respects the skip law; the
+    /// `--project-file` flag of older scripts still routes here.
     #[test]
-    fn the_project_file_flag_is_the_only_scripted_door() {
+    fn the_project_file_is_laid_by_default_adds_only() {
         let tmp = std::env::temp_dir().join(format!("nika-init-projfile-{}", std::process::id()));
         std::fs::remove_dir_all(&tmp).ok();
         std::fs::create_dir_all(&tmp).expect("mkdir");
@@ -267,15 +219,14 @@ mod tests {
             None,
             None,
             &[],
-            true,
+            false,
             PLAIN,
         );
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(
             out.text
                 .lines()
-                .next()
-                .is_some_and(|l| l.starts_with("✔ created ") && l.ends_with("nika.yaml")),
+                .any(|l| l.starts_with("✔ created ") && l.contains("nika.yaml — team defaults")),
             "the receipt rides the report (joined path, the scripted register): {}",
             out.text
         );

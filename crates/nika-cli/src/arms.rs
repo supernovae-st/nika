@@ -4,19 +4,64 @@
 //! The per-verb arms folded out of `main.rs` at the 1500-line file wall:
 //! the dispatch seam stays one line per verb, the plumbing lives here.
 
+use clap::CommandFactory as _;
 use nika_cli::Theme;
 use nika_cli::verbs;
 
 use crate::lazy::{check_lazy, resolve_lazy_target};
-use crate::{emit, interactive_theme};
+use crate::{Cli, emit, help_card, interactive_theme};
 
-/// The check arm's plumbing — folded out of the dispatch so the seam
-/// stays one line per verb.
-#[allow(
-    clippy::fn_params_excessive_bools,
-    clippy::too_many_arguments,
-    clippy::needless_pass_by_value
-)]
+/// `nika --help` (#1249): the postcard, then EVERY verb the tree carries
+/// (hidden ones too — a door the help never names is never opened), the
+/// file-as-command gesture and the deeper doors. Derived from the tree.
+pub(crate) fn help_page() -> String {
+    use std::fmt::Write as _;
+    let card = help_card::human_help();
+    let mut page = format!(
+        "{card}nika x.nika.yaml the file IS the command · the same as `nika run x.nika.yaml`\n\nalso ·\n"
+    );
+    let tree = Cli::command();
+    let mut rows: Vec<&clap::Command> = tree
+        .get_subcommands()
+        .filter(|s| s.get_name() != "help" && !card.contains(&format!("nika {} ", s.get_name())))
+        .collect();
+    rows.sort_by_key(|s| (s.get_display_order(), s.get_name()));
+    for s in rows {
+        // The first clause only — `nika <verb> --help` keeps the paragraph.
+        let about = s.get_about().map(ToString::to_string).unwrap_or_default();
+        let mut short = about.as_str();
+        for sep in [" · ", " — ", ". ", " ("] {
+            short = short.split_once(sep).map_or(short, |(head, _)| head);
+        }
+        let _ = writeln!(page, "nika {:<12} {short}", s.get_name());
+    }
+    page += "\nnika <verb> --help   its flags · nika --help --all   the whole tree with flags\n";
+    page
+}
+
+/// `nika notes.yaml` · `nika missing.nika.yaml` (#1249): a first word that
+/// is no verb but looks like a file (on disk, or a `.yaml`/`.yml` name) gets
+/// the door named instead of clap's dead end; a typo'd verb keeps clap's own.
+pub(crate) fn file_near_miss(first: &std::ffi::OsStr) -> Option<String> {
+    let s = first.to_str()?;
+    let ext = std::path::Path::new(s)
+        .extension()
+        .map(std::ffi::OsStr::to_ascii_lowercase);
+    let yaml = ext.as_deref().is_some_and(|e| e == "yaml" || e == "yml");
+    let file = std::path::Path::new(s).is_file();
+    if s.starts_with('-') || (!yaml && !file) || Cli::command().find_subcommand(s).is_some() {
+        return None;
+    }
+    let why = match (file, s.ends_with(".nika.yaml") || s.ends_with(".nika.yml")) {
+        (false, _) => "\n  no such file here — `nika list` names the workflows below",
+        (true, false) => "\n  `*.nika.yaml` is the workflow suffix — then the bare name runs it",
+        (true, true) => "",
+    };
+    Some(format!(
+        "nika: `{s}` is not a command\n  did you mean: nika run {s}{why}"
+    ))
+}
+
 /// The `test` arm — resolve the lazy target, then run the goldens.
 pub(crate) fn test_arm(
     file: Option<String>,
@@ -43,6 +88,8 @@ pub(crate) fn inspect_arm(
     }
 }
 
+/// The check arm's plumbing — folded out of the dispatch so the seam
+/// stays one line per verb.
 pub(crate) fn check_arm(args: verbs::check::CheckArgs, plain_theme: Theme) -> u8 {
     if args.sdk_snapshot {
         let output = match args.files.as_slice() {
@@ -57,11 +104,9 @@ pub(crate) fn check_arm(args: verbs::check::CheckArgs, plain_theme: Theme) -> u8
             {
                 verbs::check::run_snapshot_export(file, interactive_theme(plain_theme))
             }
-            _ => verbs::VerbOutput {
-                text: "check: --sdk-snapshot requires exactly one file and --json, with no other check overrides\n"
-                    .to_owned(),
-                code: verbs::exit::ENV,
-            },
+            _ => verbs::VerbOutput::env(
+                "check: --sdk-snapshot requires exactly one file and --json, with no other check overrides\n".to_owned(),
+            ),
         };
         return emit(&output);
     }
@@ -78,4 +123,52 @@ pub(crate) fn check_arm(args: verbs::check::CheckArgs, plain_theme: Theme) -> u8
         (args.model.as_deref(), args.access.as_deref()),
         interactive_theme(plain_theme),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+    use super::*;
+
+    /// #1249 · the postcard leads, then every verb the tree carries (the
+    /// hidden ones too), the file-as-command gesture and the deeper doors.
+    #[test]
+    fn the_help_page_names_every_verb_and_the_file_gesture() {
+        let page = help_page();
+        assert!(page.starts_with(help_card::human_help()), "{page}");
+        for sub in Cli::command().get_subcommands() {
+            let name = sub.get_name();
+            assert!(
+                name == "help" || page.contains(&format!("nika {name} ")),
+                "`nika {name}` is missing from --help:\n{page}"
+            );
+        }
+        assert!(page.contains("nika x.nika.yaml"), "{page}");
+        assert!(page.contains("nika --help --all"), "{page}");
+    }
+
+    /// #1249 · a file-shaped first word names the run door; a verb, a
+    /// typo'd verb, a flag and `help` keep clap's own answer.
+    #[test]
+    fn a_file_shaped_first_word_names_the_run_door_and_a_verb_does_not() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let other = dir.path().join("notes.yaml");
+        std::fs::write(&other, "nika: notes\n").expect("write");
+        let text = file_near_miss(other.as_os_str()).expect("a .yaml on disk is a near-miss");
+        assert!(
+            text.contains(&format!("nika run {}", other.display())) && text.contains("*.nika.yaml"),
+            "{text}"
+        );
+        let missing = file_near_miss(std::ffi::OsStr::new("missing.nika.yaml")).expect("missing");
+        assert!(
+            missing.contains("nika run missing.nika.yaml") && missing.contains("nika list"),
+            "{missing}"
+        );
+        for word in ["check", "run", "chek", "--json", "help", "thread"] {
+            assert!(
+                file_near_miss(std::ffi::OsStr::new(word)).is_none(),
+                "`{word}` keeps clap's answer"
+            );
+        }
+    }
 }
