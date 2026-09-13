@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 3ed8d7f292857d8bba99af248592160e9734fed7cfdfdb0599765ffb62bd9c54
+  sha256: 625004f7c1ffbf95af93216f58c6fa6b055cb9001a861340f1ecf2fc70752a1c
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 151
-  aggregate_sha256: c2eae8c6c11046e47e29e9440b808be3ced686b1f919f478342f1eef3e4c714a
+  aggregate_sha256: d5c841d48d84ce5666083ef58d7d8b4595505f528d5e50c3c5859c0b79df5544
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
