@@ -19,14 +19,22 @@
 #   - `after: {…: unwind}` · cleanup as a TASK · runs on every outcome of a
 #     STARTED producer (success · fail · timeout · cancel) · a producer that
 #     never started unwinds nothing
+#   - `on_error: recover:` · the house rule for rehearsal files: the run
+#     stays GREEN even where the sandbox refuses the confined program
 #
 # The sample suite deliberately exits 1: the gate closes, the simulated deploy
 # skips, the notice fires, and cleanup runs. Change `exit 1` to `exit 0` to
 # exercise the other branch. Both paths need only the system shell and printf.
 # To adapt this to real CI, replace the sample command, cleanup and deploy
 # with YOUR operations and declare their filesystem/toolchain requirements.
-# A sandbox refusal is an authority failure, not a failed test suite: it must
-# stay red and cannot be converted into a passing `capture: structured` task.
+#
+# House rule · a rehearsal file ALWAYS stays green: a task the sandbox can
+# refuse (macOS seatbelt · the `nika test` mock plane, which refuses every
+# exec by design) carries a catch-all `on_error: recover:`. The stand-in is
+# LABELLED and never impersonates a result: a sandbox refusal is an authority
+# failure, not a failed test suite, so the recovered capture says "no suite
+# ran" and keeps its code non-zero — the gate reads the same key and stays
+# CLOSED. A refusal must never read as a passing suite.
 #
 # Run · nika run examples/03-exec-pipeline.nika.yaml
 
@@ -56,11 +64,21 @@ tasks:
       # cannot bound it.
       shell: "printf 'sample suite: one failing test\n'; exit 1"
       capture: structured  # → { stdout, stderr, exit_code }
+    on_error:
+      # The house rule the header states. Catch-all ON PURPOSE — never
+      # `on_codes: [NIKA-SEC-001]`: naming only the security code reads as
+      # forgiving refusals specifically (templates/human-gated-ship §check_b
+      # argues the same). The stand-in MIRRORS `capture: structured` and
+      # keeps the code non-zero, so the gate below reads `exit_code`, finds
+      # no green, and stays closed — the refusal can never open it.
+      recover: { stdout: "no suite ran: the sandbox refused the confined shell\n", stderr: "", exit_code: 1 }
 
   release_lock:
     # The rehearsal announces cleanup; it creates or removes no real lock.
     # In real CI replace this with the matching release operation. The unwind
-    # edge runs after every outcome of a STARTED producer, including failure.
+    # edge runs after every outcome of a STARTED producer, including failure —
+    # and an unwind task's OWN failure is logged, never propagated (03 §unwind
+    # guarantees), which is why this task needs no `on_error:` of its own.
     after: { test: unwind }
     exec:
       command: ["printf", "sample cleanup: release the build lock\n"]
@@ -76,7 +94,10 @@ tasks:
     when: ${{ with.exit_code == 0 }}   # red → skipped · green → ship
     exec:
       # Door 2 · an argv array. No shell, no word-splitting, and every program
-      # in it is checkable against `permits.exec`.
+      # in it is checkable against `permits.exec`. No `on_error:` here ON
+      # PURPOSE: the gate above only opens on a measured 0, so this task never
+      # starts where the suite could not run — and a REAL deploy must fail
+      # loud, never recover (release-train's `ship` teaches the same law).
       command: ["printf", "sample deploy: the suite passed\n"]
 
   no_ship_notice:
@@ -92,10 +113,19 @@ tasks:
       deploy: skipped
     exec:
       command: ["printf", "deploy skipped: the sample suite was red\n"]
+    on_error:
+      # The house rule, again: on a refusing sandbox this notice is the one
+      # main-path task still to run, and its failure would turn the rehearsal
+      # red. The labelled stand-in keeps it green without claiming the notice
+      # left the machine.
+      recover: "deploy skipped: the sample suite was red (recovered — the sandbox refused the notice printf, no notice left the machine)\n"
 
 # The task succeeded at running a deliberately failing sample suite:
 #   {"suite_exit_code": 1, "task_status": "success"}
 # Replacing `exit 1` with `exit 0` reports 0 and opens the simulated deploy.
+# Where the sandbox refuses the confined shell the outputs read the SAME
+# 1 / success — the trace says `task_recovered`, and the stand-in's stdout
+# says no suite ran.
 outputs:
   suite_exit_code: ${{ tasks.test.output.exit_code }}
   task_status: ${{ tasks.test.status }}

@@ -23,9 +23,14 @@
 # --resume, rehydrated rows say "cached" — a latency that was not
 # re-measured is never re-printed as fresh.
 #
-# Needs · ollama running with the three seats pulled (qwen2.5:14b ·
-# llama3.2:3b · qwen2.5:0.5b) — per-task `model:` seats are the bench,
-# the CLI --model override deliberately doesn't touch them.
+# Needs · REAL SEATS — ollama running with the three contenders pulled
+# (qwen2.5:14b · llama3.2:3b · qwen2.5:0.5b). There is NO offline rehearsal
+# for this file: per-task `model:` seats ARE the bench, the CLI --model
+# override deliberately doesn't touch them, and the file declares no
+# envelope `model:` a mock could stand in for. `nika try model-bench`
+# needs the same real seats — the default mock rehearsal cannot preview
+# this one (measured: the per-task pins refuse NIKA-INFER-001 on a seat
+# that is not pulled).
 #
 # Run · nika run examples/model-bench.nika.yaml
 #       models · ollama pull qwen2.5:14b · llama3.2:3b · qwen2.5:0.5b
@@ -37,7 +42,12 @@
 
 nika: model-bench
 
-model: ollama/qwen3.5:4b # the house default · contenders below pick their own seats
+# NO envelope `model:` on purpose — a default seat would be the one model
+# this file never calls: every contender pins its own `infer.model:` below,
+# and the bench IS the seats. The absence is load-bearing honesty: with no
+# default to override, nothing can claim the mock rehearsal previews this
+# file (measured · the offline rescue tip fires only for a file that HAS
+# an envelope model to swap).
 
 const:
   question:

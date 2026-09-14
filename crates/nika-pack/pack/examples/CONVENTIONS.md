@@ -308,14 +308,37 @@ Offline-runnable is the default expectation. Reach for it in this order:
    host resolves nowhere, a literal recovery value mirroring the API's shape
    takes over, and the same `extract:` bindings work on both paths.
 
+**House rule · a rehearsal file ALWAYS stays green.** A task the sandbox can
+refuse — a confined `exec:` the macOS seatbelt or the `nika test` mock plane
+stops (NIKA-SEC-001) — carries a catch-all `on_error: recover:`, and the file
+header says so. Three disciplines keep the arm honest:
+
+- **catch-all, never `on_codes: [NIKA-SEC-001]`** — naming only the security
+  code reads as forgiving refusals specifically; the catch-all says "this
+  task may not run in a rehearsal, whatever stops it"
+  (`templates/human-gated-ship` §check_b argues it in place).
+- **the stand-in is LABELLED** — it says what did not run; it never
+  impersonates a real result (a recovered capture keeps its `exit_code`
+  non-zero so a gate downstream stays closed: `03-exec-pipeline`).
+- **the arm is rehearsal-only by comment** — "delete this once the real
+  dependency is there" (`templates/docker-report`).
+
+An `unwind` cleanup needs no arm: its own failure is logged, never
+propagated (03 §unwind guarantees). A ship-shaped task needs no arm either:
+its gate never opens on the refusal path, and a real deploy must fail loud
+(`release-train`'s `ship`).
+
 When an effect genuinely prevents it, the header says **exactly which one**,
 in one sentence, on the `Needs ·` line. Not "requires setup" — the effect:
 
 ```
 # Needs · a git repo (the digest reads YOUR yesterday's commits).
-# Needs · ollama running with the three seats pulled (qwen2.5:14b · llama3.2:3b
-#   · qwen2.5:0.5b) — per-task `model:` seats ARE the bench, so the CLI
-#   --model override deliberately doesn't touch them.
+# Needs · REAL SEATS — ollama running with the three contenders pulled
+#   (qwen2.5:14b · llama3.2:3b · qwen2.5:0.5b). There is NO offline
+#   rehearsal for this file: per-task `model:` seats ARE the bench, the CLI
+#   --model override deliberately doesn't touch them, and no envelope
+#   `model:` stands in for a mock (model-bench — the shelf cannot claim a
+#   mock preview the pins refuse).
 # Needs · a REAL sitemap URL (--var competitor_sitemap=https://…/sitemap.xml
 #   — the placeholder domain resolves nowhere).
 ```
