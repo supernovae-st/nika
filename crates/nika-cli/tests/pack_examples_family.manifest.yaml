@@ -128,29 +128,20 @@ entries:
   - { slug: snippets/run, expect: { rc: 0 } }
   - { slug: standup-digest, expect: { rc: 0 } }
 
-  # Two remaining Git consumers still need their #1254 repair.
+  # #1254 healed on both OSes (recover names the failure instead of dying
+  # on the git/seatbelt trifecta) — plain expectations now.
   - slug: snippets/weekly-radar
     door: run
     kit: [fixtures, git-repo]
     model: mock/echo
     answers: { approve: "true" }
     expect: { rc: 0 }
-    known_fail:
-      on: [darwin, linux]
-      class: GIT-SEATBELT
-      finding: NIKA-EXEC-001
-      issue: nika#1254
   - slug: pr-review-fanout
     door: run
     kit: [git-repo]
     model: mock/echo
     answers: { approve: "true" }
     expect: { rc: 0 }
-    known_fail:
-      on: [darwin, linux]
-      class: GIT-SEATBELT
-      finding: NIKA-EXEC-001
-      issue: nika#1254
 
   # ── The honest skips — launched by no hermetic gate, named and counted ──
   # model-bench: per-task `model:` seats escape the envelope override (the
