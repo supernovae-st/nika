@@ -16,6 +16,7 @@ pub nika_onboard::founding::CanvasTheme::Nika
 pub nika_onboard::founding::CanvasTheme::Phosphor
 impl nika_onboard::founding::CanvasTheme
 pub fn nika_onboard::founding::CanvasTheme::as_str(self) -> &'static str
+pub fn nika_onboard::founding::CanvasTheme::parse(word: &str) -> core::option::Option<Self>
 impl core::clone::Clone for nika_onboard::founding::CanvasTheme
 pub fn nika_onboard::founding::CanvasTheme::clone(&self) -> nika_onboard::founding::CanvasTheme
 impl core::cmp::Eq for nika_onboard::founding::CanvasTheme
@@ -65,6 +66,8 @@ impl<T> tracing::instrument::Instrument for nika_onboard::founding::CanvasTheme
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::founding::CanvasTheme
 impl<T> typenum::type_operators::Same for nika_onboard::founding::CanvasTheme
 pub type nika_onboard::founding::CanvasTheme::Output = T
+pub const nika_onboard::founding::CANVAS_THEMES: [&str; 4]
+pub const nika_onboard::founding::DEFAULT_EXAMPLE: &str
 pub const nika_onboard::founding::RECIPE_NAMES: [&str; 5]
 pub fn nika_onboard::founding::agents_md() -> &'static str
 pub fn nika_onboard::founding::scripted_run(dir: &str, force: bool, recipe: core::option::Option<&str>, example: core::option::Option<&str>, canvas: core::option::Option<nika_onboard::founding::CanvasTheme>, wires: &[&str], audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome

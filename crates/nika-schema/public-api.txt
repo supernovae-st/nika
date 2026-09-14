@@ -982,6 +982,7 @@ pub nika_schema::raw::task::RawTask::for_each: core::option::Option<nika_source:
 pub nika_schema::raw::task::RawTask::group: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 pub nika_schema::raw::task::RawTask::id: nika_source::span::Spanned<alloc::string::String>
 pub nika_schema::raw::task::RawTask::lift: alloc::vec::Vec<nika_schema::raw::task::LiftEntry>
+pub nika_schema::raw::task::RawTask::max_items: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::task::RawTask::max_parallel: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::task::RawTask::on_error: core::option::Option<nika_source::span::Spanned<nika_vocab::on_error::OnError>>
 pub nika_schema::raw::task::RawTask::retry: core::option::Option<nika_source::span::Spanned<nika_vocab::retry::RetryConfig>>
@@ -1489,6 +1490,7 @@ pub nika_schema::raw::RawTask::for_each: core::option::Option<nika_source::span:
 pub nika_schema::raw::RawTask::group: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 pub nika_schema::raw::RawTask::id: nika_source::span::Spanned<alloc::string::String>
 pub nika_schema::raw::RawTask::lift: alloc::vec::Vec<nika_schema::raw::task::LiftEntry>
+pub nika_schema::raw::RawTask::max_items: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::RawTask::max_parallel: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::RawTask::on_error: core::option::Option<nika_source::span::Spanned<nika_vocab::on_error::OnError>>
 pub nika_schema::raw::RawTask::retry: core::option::Option<nika_source::span::Spanned<nika_vocab::retry::RetryConfig>>

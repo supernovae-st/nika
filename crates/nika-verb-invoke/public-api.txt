@@ -1,4 +1,40 @@
 pub mod nika_verb_invoke
+pub mod nika_verb_invoke::mcp
+pub struct nika_verb_invoke::mcp::McpPlane
+impl nika_verb_invoke::mcp::McpPlane
+pub fn nika_verb_invoke::mcp::McpPlane::new(call: alloc::sync::Arc<nika_verb_invoke::mcp::McpCallFn>, defs: alloc::sync::Arc<nika_verb_invoke::mcp::McpDefsFn>) -> Self
+pub fn nika_verb_invoke::mcp::McpPlane::tool_defs(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
+impl core::clone::Clone for nika_verb_invoke::mcp::McpPlane
+pub fn nika_verb_invoke::mcp::McpPlane::clone(&self) -> nika_verb_invoke::mcp::McpPlane
+impl core::fmt::Debug for nika_verb_invoke::mcp::McpPlane
+pub fn nika_verb_invoke::mcp::McpPlane::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_invoke::mcp::McpPlane
+impl<T, U> core::convert::Into<U> for nika_verb_invoke::mcp::McpPlane where U: core::convert::From<T>
+pub fn nika_verb_invoke::mcp::McpPlane::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_invoke::mcp::McpPlane where U: core::convert::Into<T>
+pub type nika_verb_invoke::mcp::McpPlane::Error = core::convert::Infallible
+pub fn nika_verb_invoke::mcp::McpPlane::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_invoke::mcp::McpPlane where U: core::convert::TryFrom<T>
+pub type nika_verb_invoke::mcp::McpPlane::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_invoke::mcp::McpPlane::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_invoke::mcp::McpPlane where T: core::clone::Clone
+pub type nika_verb_invoke::mcp::McpPlane::Owned = T
+pub fn nika_verb_invoke::mcp::McpPlane::clone_into(&self, target: &mut T)
+pub fn nika_verb_invoke::mcp::McpPlane::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_invoke::mcp::McpPlane where T: 'static + ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::McpPlane::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_invoke::mcp::McpPlane where T: ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::McpPlane::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_invoke::mcp::McpPlane where T: ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::McpPlane::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_invoke::mcp::McpPlane where T: core::clone::Clone
+pub unsafe fn nika_verb_invoke::mcp::McpPlane::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_invoke::mcp::McpPlane
+pub fn nika_verb_invoke::mcp::McpPlane::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_invoke::mcp::McpPlane where T: 'static
+pub fn nika_verb_invoke::mcp::McpPlane::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub type nika_verb_invoke::mcp::McpCallFn = (dyn core::ops::function::Fn(nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError> + core::marker::Send + core::marker::Sync)
+pub type nika_verb_invoke::mcp::McpDefsFn = (dyn core::ops::function::Fn() -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef> + core::marker::Send + core::marker::Sync)
 #[non_exhaustive] pub enum nika_verb_invoke::VerbInvokeError
 pub nika_verb_invoke::VerbInvokeError::Dispatch
 pub nika_verb_invoke::VerbInvokeError::Dispatch::source: nika_kernel_runtime::tool_executor::ToolExecError
@@ -127,6 +163,8 @@ impl<T> nika_verb_invoke::InvokeVerb<T> where T: nika_kernel_runtime::tool_execu
 pub async fn nika_verb_invoke::InvokeVerb<T>::run(&self, input: nika_verb_invoke::InvokeInput) -> core::result::Result<nika_verb_invoke::InvokeOutput, nika_verb_invoke::VerbInvokeError>
 pub async fn nika_verb_invoke::InvokeVerb<T>::run_at(&self, input: nika_verb_invoke::InvokeInput, run_start: nika_kernel_runtime::tool_executor::ToolRunStart) -> core::result::Result<nika_verb_invoke::InvokeOutput, nika_verb_invoke::VerbInvokeError>
 impl<T> nika_verb_invoke::InvokeVerb<T>
+pub fn nika_verb_invoke::InvokeVerb<T>::install_mcp_plane(&self, plane: nika_verb_invoke::mcp::McpPlane) -> bool
+pub fn nika_verb_invoke::InvokeVerb<T>::mcp_tool_defs(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
 pub fn nika_verb_invoke::InvokeVerb<T>::new(executor: alloc::sync::Arc<T>) -> Self
 impl<T: core::fmt::Debug> core::fmt::Debug for nika_verb_invoke::InvokeVerb<T>
 pub fn nika_verb_invoke::InvokeVerb<T>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -149,3 +187,36 @@ impl<T> core::convert::From<T> for nika_verb_invoke::InvokeVerb<T>
 pub fn nika_verb_invoke::InvokeVerb<T>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_invoke::InvokeVerb<T> where T: 'static
 pub fn nika_verb_invoke::InvokeVerb<T>::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_verb_invoke::McpPlane
+impl nika_verb_invoke::mcp::McpPlane
+pub fn nika_verb_invoke::mcp::McpPlane::new(call: alloc::sync::Arc<nika_verb_invoke::mcp::McpCallFn>, defs: alloc::sync::Arc<nika_verb_invoke::mcp::McpDefsFn>) -> Self
+pub fn nika_verb_invoke::mcp::McpPlane::tool_defs(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
+impl core::clone::Clone for nika_verb_invoke::mcp::McpPlane
+pub fn nika_verb_invoke::mcp::McpPlane::clone(&self) -> nika_verb_invoke::mcp::McpPlane
+impl core::fmt::Debug for nika_verb_invoke::mcp::McpPlane
+pub fn nika_verb_invoke::mcp::McpPlane::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_invoke::mcp::McpPlane
+impl<T, U> core::convert::Into<U> for nika_verb_invoke::mcp::McpPlane where U: core::convert::From<T>
+pub fn nika_verb_invoke::mcp::McpPlane::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_invoke::mcp::McpPlane where U: core::convert::Into<T>
+pub type nika_verb_invoke::mcp::McpPlane::Error = core::convert::Infallible
+pub fn nika_verb_invoke::mcp::McpPlane::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_invoke::mcp::McpPlane where U: core::convert::TryFrom<T>
+pub type nika_verb_invoke::mcp::McpPlane::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_invoke::mcp::McpPlane::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_invoke::mcp::McpPlane where T: core::clone::Clone
+pub type nika_verb_invoke::mcp::McpPlane::Owned = T
+pub fn nika_verb_invoke::mcp::McpPlane::clone_into(&self, target: &mut T)
+pub fn nika_verb_invoke::mcp::McpPlane::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_invoke::mcp::McpPlane where T: 'static + ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::McpPlane::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_invoke::mcp::McpPlane where T: ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::McpPlane::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_invoke::mcp::McpPlane where T: ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::McpPlane::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_invoke::mcp::McpPlane where T: core::clone::Clone
+pub unsafe fn nika_verb_invoke::mcp::McpPlane::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_invoke::mcp::McpPlane
+pub fn nika_verb_invoke::mcp::McpPlane::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_invoke::mcp::McpPlane where T: 'static
+pub fn nika_verb_invoke::mcp::McpPlane::as_any(&self) -> &(dyn core::any::Any + 'static)

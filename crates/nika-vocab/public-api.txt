@@ -661,6 +661,7 @@ pub nika_vocab::project::ArmEntry::apres_saut: core::option::Option<alloc::strin
 pub nika_vocab::project::ArmEntry::cadence: alloc::string::String
 pub nika_vocab::project::ArmEntry::chevauchement: core::option::Option<alloc::string::String>
 pub nika_vocab::project::ArmEntry::decalage: core::option::Option<alloc::string::String>
+pub nika_vocab::project::ArmEntry::inputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_vocab::project::ArmEntry::jusqu_au: core::option::Option<alloc::string::String>
 pub nika_vocab::project::ArmEntry::manque: nika_vocab::project::MissPolicy
 pub nika_vocab::project::ArmEntry::ou: core::option::Option<nika_vocab::project::ArmLocus>
