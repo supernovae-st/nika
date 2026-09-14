@@ -136,66 +136,96 @@ fn drive<R: BufRead, W: Write>(
     if let Some(notice) = recovered {
         writeln!(output, "{notice}")?;
     }
-    let mut next = Next::Turn;
+    if let Some(notice) = session.restore_state() {
+        writeln!(output, "{notice}")?;
+    }
+    // The line goes where the MACHINE's state says (ADR-133 · #1464): the
+    // runtime owns what waits — a proposal, a gate — and the door keeps
+    // only the one bit that is its own, the first screen it asked again.
+    let mut choosing = false;
     loop {
-        write!(output, "\n{}", next.prompt())?;
+        let prompt = if choosing {
+            "› "
+        } else if session.pending_proposal().is_some() {
+            "apply? › "
+        } else if session.waiting_gate().is_some() {
+            "answer › "
+        } else {
+            "nika › "
+        };
+        write!(output, "\n{prompt}")?;
         output.flush()?;
         let mut line = String::new();
         if input.read_line(&mut line)? == 0 {
             return Ok(exit::OK);
         }
-        let outcome = match std::mem::replace(&mut next, Next::Turn) {
-            Next::Turn => session.turn(&line),
-            Next::Choice => session.choose(line.trim()),
-            Next::Consent => session.consent(line.trim()),
-            Next::Gate => session.answer_gate(line.trim()),
+        let outcome = if std::mem::take(&mut choosing) {
+            session.choose(line.trim())
+        } else if session.pending_proposal().is_some() {
+            session.consent(line.trim())
+        } else if session.waiting_gate().is_some() {
+            session.answer_gate(line.trim())
+        } else {
+            session.turn(&line)
         };
-        match outcome {
-            TurnOutcome::Quit => return Ok(exit::OK),
-            TurnOutcome::Reply(text) | TurnOutcome::Facts(text) | TurnOutcome::Help(text) => {
-                if !text.is_empty() {
-                    writeln!(output, "{text}")?;
-                }
-            }
-            TurnOutcome::Ask(screen) => {
-                next = Next::Choice;
-                writeln!(output, "{screen}")?;
-            }
-            TurnOutcome::Proposal { preview, .. } | TurnOutcome::Held { preview, .. } => {
-                next = Next::Consent;
-                writeln!(output, "{preview}")?;
-            }
-            TurnOutcome::RunRequested { report, run } => {
-                writeln!(output, "{report}")?;
-                writeln!(
-                    output,
-                    "running `{}` once · ceiling ${:.2}",
-                    run.workflow.display(),
-                    run.max_cost_usd
-                )?;
-                output.flush()?;
-                let (code, trace) = run_once(&session.snapshot.root, &run, theme);
-                next = observed(output, session.observe_run(code, trace.as_deref()))?;
-            }
-            TurnOutcome::GateAsk { question, .. } => {
-                next = Next::Gate;
-                writeln!(output, "{question}")?;
-            }
-            TurnOutcome::ResumeRequested {
-                workflow,
-                trace,
-                answer,
-            } => {
-                writeln!(output, "resuming `{}` with your answer", workflow.display())?;
-                output.flush()?;
-                let (code, newest) =
-                    run_resume(&session.snapshot.root, &workflow, &trace, &answer, theme);
-                next = observed(output, session.observe_run(code, newest.as_deref()))?;
-            }
-            TurnOutcome::Refusal(text) => writeln!(output, "✖ {text}")?,
-            _ => {}
+        if handle_outcome(output, &mut session, outcome, &mut choosing, theme)? {
+            return Ok(exit::OK);
         }
     }
+}
+
+/// Print one turn's outcome and act on it (a run the turn requested is
+/// driven here, its observation fed back). Answers `true` only for
+/// `Quit` — the door closes with `exit::OK`.
+fn handle_outcome<W: Write>(
+    output: &mut W,
+    session: &mut SessionRuntime,
+    outcome: TurnOutcome,
+    choosing: &mut bool,
+    theme: Theme,
+) -> std::io::Result<bool> {
+    match outcome {
+        TurnOutcome::Quit => return Ok(true),
+        TurnOutcome::Reply(text) | TurnOutcome::Facts(text) | TurnOutcome::Help(text) => {
+            if !text.is_empty() {
+                writeln!(output, "{text}")?;
+            }
+        }
+        TurnOutcome::Ask(screen) => {
+            *choosing = true;
+            writeln!(output, "{screen}")?;
+        }
+        TurnOutcome::Proposal { preview, .. } | TurnOutcome::Held { preview, .. } => {
+            writeln!(output, "{preview}")?;
+        }
+        TurnOutcome::RunRequested { report, run } => {
+            writeln!(output, "{report}")?;
+            writeln!(
+                output,
+                "running `{}` once · ceiling ${:.2}",
+                run.workflow.display(),
+                run.max_cost_usd
+            )?;
+            output.flush()?;
+            let (code, trace) = run_once(&session.snapshot.root, &run, theme);
+            observed(output, session.observe_run(code, trace.as_deref()))?;
+        }
+        TurnOutcome::GateAsk { question, .. } => writeln!(output, "{question}")?,
+        TurnOutcome::ResumeRequested {
+            workflow,
+            trace,
+            answer,
+        } => {
+            writeln!(output, "resuming `{}` with your answer", workflow.display())?;
+            output.flush()?;
+            let (code, newest) =
+                run_resume(&session.snapshot.root, &workflow, &trace, &answer, theme);
+            observed(output, session.observe_run(code, newest.as_deref()))?;
+        }
+        TurnOutcome::Refusal(text) => writeln!(output, "✖ {text}")?,
+        _ => {}
+    }
+    Ok(false)
 }
 
 /// A line source that takes its lock INSIDE each read and releases it
@@ -252,46 +282,14 @@ where
     }
 }
 
-/// What the next line the human types is for.
-enum Next {
-    /// A turn of the conversation.
-    Turn,
-    /// The answer to the first screen (`/intelligence`).
-    Choice,
-    /// The consent to a proposal (`yes` lands it; anything else discards).
-    Consent,
-    /// The answer to a human gate the run paused on.
-    Gate,
-}
-
-impl Next {
-    fn prompt(&self) -> &'static str {
-        match self {
-            Self::Turn => "nika › ",
-            Self::Choice => "› ",
-            Self::Consent => "apply? › ",
-            Self::Gate => "answer › ",
-        }
-    }
-}
-
-/// Print what the session observed of a run; a gate's question makes the
-/// next line the human's answer.
-fn observed<W: Write>(output: &mut W, outcome: TurnOutcome) -> std::io::Result<Next> {
+/// Print what the session observed of a run; a gate's question is printed
+/// too — the machine now waits for the answer, and the prompt says so.
+fn observed<W: Write>(output: &mut W, outcome: TurnOutcome) -> std::io::Result<()> {
     match outcome {
-        TurnOutcome::GateAsk { question, .. } => {
-            writeln!(output, "{question}")?;
-            Ok(Next::Gate)
-        }
-        TurnOutcome::Facts(line) => {
-            writeln!(output, "{line}")?;
-            Ok(Next::Turn)
-        }
-        TurnOutcome::Refusal(why) => {
-            writeln!(output, "{why}")?;
-            Ok(Next::Turn)
-        }
-        _ => Ok(Next::Turn),
+        TurnOutcome::GateAsk { question, .. } => writeln!(output, "{question}"),
+        TurnOutcome::Facts(line) => writeln!(output, "{line}"),
+        TurnOutcome::Refusal(why) => writeln!(output, "{why}"),
+        _ => Ok(()),
     }
 }
 

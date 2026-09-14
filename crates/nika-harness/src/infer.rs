@@ -10,17 +10,39 @@
 //! the requested model identity. Numeric usage is parsed from the terminal
 //! `turn.completed` event as protocol evidence and never leaves this
 //! module.
+//!
+//! Admission ([`meet_infer_grade`]) reads the static row; execution
+//! re-attests the binary at spawn (#1253): `codex --version` must name the
+//! product and sit inside `CODEX_VERSION_PIN` before any prompt is written
+//! to its stdin. PATH presence admits a seat, it never proves one — a shim
+//! that only speaks the event shape is refused here, not believed.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
+use std::io::Write as _;
+
 use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(300);
 const MAX_EVENT_BYTES: usize = 8 * 1024 * 1024;
+
+/// The accepted `codex --version` range. 0.149 is the release the
+/// `exec --json` flag shape was proven against (2026-08-25 · the registry's
+/// current release that day); an older CLI lacks `--ephemeral`,
+/// `--ignore-user-config` and `--ignore-rules`. A new major is a new dialect.
+const CODEX_VERSION_PIN: crate::probe::VersionPin = crate::probe::VersionPin::new((0, 149), 0);
+/// The product token the real CLI prints (`codex-cli 0.153.4`). A shim
+/// answering a bare number is not the seat it claims to be.
+const CODEX_PRODUCT: &str = "codex-cli";
+/// A `--version` is a millisecond operation; a probe that needs longer is a
+/// wrapper resolving something, not the seat answering.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Combined stdout + stderr a version probe may print.
+const MAX_PROBE_BYTES: usize = 64 * 1024;
 
 /// Structured-output strength an `infer:` task needs or a seat proves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -69,7 +91,7 @@ impl InferGradeAttestation {
             no_implicit_tools: true,
             structured_output: StructuredOutputGrade::JsonSchema,
             model_identity_observable: true,
-            proof: "scripted fake codex · one turn · tool-event refusal · schema argv · terminal usage",
+            proof: "scripted fake codex · one turn · tool-event refusal · schema argv · terminal usage · spawn-time --version identity",
         }
     }
 
@@ -194,6 +216,9 @@ pub struct HarnessInferOutcome {
     pub requested_model: String,
     /// A terminal usage object was parsed. Its numbers stay private.
     pub usage_observed: bool,
+    /// The `MAJOR.MINOR` the seat's own `--version` answered at spawn — the
+    /// runtime attestation the receipt can carry, never the static row.
+    pub attested_version: (u32, u32),
 }
 
 /// The only admitted P4 adapter.
@@ -232,10 +257,55 @@ impl CodexExec {
         InferGradeAttestation::codex_exec()
     }
 
+    /// Re-attest the binary at spawn (#1253). `<command> --version` runs with
+    /// the same composed env as the one-shot, a null stdin, a bounded answer
+    /// and a deadline; the answer is judged by [`judge_identity`]. Nothing of
+    /// the request reaches the child before this passes.
+    async fn probe_identity(&self) -> Result<(u32, u32), InferGradeError> {
+        let child = tokio::process::Command::new(&self.command)
+            .arg("--version")
+            .env_clear()
+            .envs(codex_env())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|e| {
+                execution(format!(
+                    "cannot spawn `{} --version`: {e}",
+                    self.command.display()
+                ))
+            })?;
+        let output = tokio::time::timeout(PROBE_TIMEOUT, child.wait_with_output())
+            .await
+            .map_err(|_| {
+                refused(format!(
+                    "spawn-time attestation of `{}`: `--version` did not answer in {}s",
+                    self.command.display(),
+                    PROBE_TIMEOUT.as_secs()
+                ))
+            })?
+            .map_err(|e| execution(format!("version probe wait: {e}")))?;
+        if output.stdout.len() > MAX_PROBE_BYTES || output.stderr.len() > MAX_PROBE_BYTES {
+            return Err(refused(format!(
+                "spawn-time attestation of `{}`: `--version` printed more than {MAX_PROBE_BYTES} bytes",
+                self.command.display()
+            )));
+        }
+        let answer = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        judge_identity(&self.command, &answer)
+    }
+
     async fn run(
         &self,
         request: HarnessInferRequest,
     ) -> Result<HarnessInferOutcome, InferGradeError> {
+        let attested_version = self.probe_identity().await?;
         let scratch = tempfile::tempdir().map_err(|e| execution(format!("scratch dir: {e}")))?;
         let schema_path = write_schema(scratch.path(), request.schema.as_ref())?;
         let mut command = tokio::process::Command::new(&self.command);
@@ -313,6 +383,7 @@ impl CodexExec {
             output: observed.final_text,
             requested_model: request.requested_model,
             usage_observed: true,
+            attested_version,
         })
     }
 }
@@ -398,6 +469,37 @@ fn execution(detail: String) -> InferGradeError {
     }
 }
 
+fn refused(witness: String) -> InferGradeError {
+    InferGradeError::Refused { witness }
+}
+
+/// The pure half of the spawn-time attestation: the answer must carry a
+/// version inside `CODEX_VERSION_PIN` AND name `CODEX_PRODUCT` — the
+/// same two-sided judgement the ACP handshake applies to `agentInfo.name`
+/// and `agentInfo.version`, read off `--version` because `codex exec` has
+/// no initialize.
+fn judge_identity(command: &Path, answer: &str) -> Result<(u32, u32), InferGradeError> {
+    let seen = crate::probe::judge_version("codex", answer, &CODEX_VERSION_PIN).map_err(|e| {
+        refused(format!(
+            "spawn-time attestation of `{}`: {e}",
+            command.display()
+        ))
+    })?;
+    if !answer.lines().any(|line| line.contains(CODEX_PRODUCT)) {
+        return Err(refused(format!(
+            "spawn-time attestation of `{}`: `--version` answered {}.{} without naming \
+             `{CODEX_PRODUCT}` ({:?}) — this binary is not the seat it claims to be",
+            command.display(),
+            seen.0,
+            seen.1,
+            answer.lines().next().unwrap_or("").trim()
+        )));
+    }
+    Ok(seen)
+}
+
+/// The schema lands private to the seat (0600 · #1253): the scratch dir is
+/// `$TMPDIR`, which a shared Linux `/tmp` makes world-readable.
 fn write_schema(dir: &Path, schema: Option<&Value>) -> Result<Option<PathBuf>, InferGradeError> {
     let Some(schema) = schema else {
         return Ok(None);
@@ -405,7 +507,18 @@ fn write_schema(dir: &Path, schema: Option<&Value>) -> Result<Option<PathBuf>, I
     let path = dir.join("output-schema.json");
     let bytes = serde_json::to_vec(schema)
         .map_err(|e| execution(format!("output schema serialization: {e}")))?;
-    std::fs::write(&path, bytes).map_err(|e| execution(format!("output schema write: {e}")))?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options
+        .open(&path)
+        .map_err(|e| execution(format!("output schema write: {e}")))?;
+    file.write_all(&bytes)
+        .map_err(|e| execution(format!("output schema write: {e}")))?;
     Ok(Some(path))
 }
 
@@ -587,10 +700,20 @@ mod tests {
 
     use super::*;
 
+    /// The real CLI's `--version` answer, scripted: every fixture below
+    /// passes the spawn-time attestation with it and exercises the exec
+    /// contract past it. [`scripted_codex_with`] swaps it out.
+    const VERSION_PRELUDE: &str =
+        r#"if [ "${1:-}" = --version ]; then printf '%s\n' 'codex-cli 0.153.4'; exit 0; fi"#;
+
     fn scripted_codex(body: &str) -> (tempfile::TempDir, PathBuf) {
+        scripted_codex_with(VERSION_PRELUDE, body)
+    }
+
+    fn scripted_codex_with(prelude: &str, body: &str) -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().expect("tempdir");
         let bin = dir.path().join("codex");
-        std::fs::write(&bin, format!("#!/bin/sh\nset -eu\n{body}\n")).expect("script");
+        std::fs::write(&bin, format!("#!/bin/sh\nset -eu\n{prelude}\n{body}\n")).expect("script");
         let mut permissions = std::fs::metadata(&bin).expect("metadata").permissions();
         permissions.set_mode(0o755);
         std::fs::set_permissions(&bin, permissions).expect("chmod");
@@ -671,6 +794,144 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":91,"cached_input
         assert_eq!(out.output, r#"{"label":"safe"}"#);
         assert_eq!(out.requested_model, "openai/gpt-5.5");
         assert!(out.usage_observed, "turn.completed usage was read");
+        assert_eq!(
+            out.attested_version,
+            (0, 153),
+            "the outcome carries what the seat answered at spawn, not the row"
+        );
+    }
+
+    /// #1253 · the probe's own repro: an 8-line shell script ahead of PATH
+    /// named `codex` that captures the prompt and answers a crafted event.
+    /// It is refused at the spawn-time attestation — and the capture stays
+    /// EMPTY, because nothing of the request is written before the probe.
+    #[tokio::test]
+    async fn the_eight_line_fake_from_the_issue_is_refused_before_the_prompt_reaches_it() {
+        let body = r#"
+capture="$(dirname "$0")/prompt-capture.txt"
+cat > "$capture"
+printf '%s' '{"type":"done","result":"arbitrary"}'
+"#;
+        let (dir, bin) = scripted_codex_with("", body);
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::JsonSchema,
+            CodexExec::with_command(bin),
+        )
+        .expect("the static row admits the name");
+        let err = seat.run(request()).await.expect_err("the shim is refused");
+        assert!(matches!(err, InferGradeError::Refused { .. }), "{err}");
+        let witness = err.to_string();
+        assert!(witness.contains("spawn-time attestation"), "{witness}");
+        assert!(witness.contains("printed no version"), "{witness}");
+        assert!(
+            witness.contains("not the adapter it claims to be"),
+            "{witness}"
+        );
+        let captured = std::fs::read(dir.path().join("prompt-capture.txt")).unwrap_or_default();
+        assert!(
+            captured.is_empty(),
+            "the prompt reached the shim: {captured:?}"
+        );
+    }
+
+    /// A shim that learned to print a version but not the product name is
+    /// still not the seat: identity is two-sided, like the ACP handshake.
+    #[tokio::test]
+    async fn a_bare_version_number_without_the_product_name_is_refused() {
+        let (_dir, bin) = scripted_codex_with(
+            r#"if [ "${1:-}" = --version ]; then echo '0.153.4'; exit 0; fi"#,
+            "IFS= read -r _p\nexit 3",
+        );
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::Text,
+            CodexExec::with_command(bin),
+        )
+        .expect("meet");
+        let err = seat
+            .run(HarnessInferRequest::new("hi", "openai/gpt-5.5"))
+            .await
+            .expect_err("no product name refuses");
+        let witness = err.to_string();
+        assert!(witness.contains("without naming `codex-cli`"), "{witness}");
+        assert!(witness.contains("0.153"), "{witness}");
+    }
+
+    #[tokio::test]
+    async fn a_version_below_the_floor_is_refused_with_both_sides_named() {
+        let (_dir, bin) = scripted_codex_with(
+            r#"if [ "${1:-}" = --version ]; then echo 'codex-cli 0.148.0'; exit 0; fi"#,
+            "IFS= read -r _p\nexit 3",
+        );
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::Text,
+            CodexExec::with_command(bin),
+        )
+        .expect("meet");
+        let err = seat
+            .run(HarnessInferRequest::new("hi", "openai/gpt-5.5"))
+            .await
+            .expect_err("below the floor refuses");
+        let witness = err.to_string();
+        assert!(witness.contains("0.148"), "{witness}");
+        assert!(witness.contains("0.149"), "{witness}");
+    }
+
+    /// The pure judge, off the real CLI's prose and the shim shapes.
+    #[test]
+    fn judge_identity_reads_the_product_line_and_refuses_the_shims() {
+        let cmd = Path::new("codex");
+        assert_eq!(
+            judge_identity(cmd, "codex-cli 0.153.4\n").expect("the real line"),
+            (0, 153)
+        );
+        assert_eq!(
+            judge_identity(cmd, "\ncodex-cli 0.149.1 (build abc)\n").expect("stderr side"),
+            (0, 149)
+        );
+        assert!(judge_identity(cmd, "").is_err(), "silence is not a seat");
+        assert!(
+            judge_identity(cmd, "0.153.4").is_err(),
+            "a bare number is not a seat"
+        );
+        assert!(
+            judge_identity(cmd, "codex-cli 1.0.0").is_err(),
+            "a new major is a new dialect"
+        );
+        assert!(
+            judge_identity(cmd, r#"{"type":"done","result":"arbitrary"}"#).is_err(),
+            "the crafted event is not a version"
+        );
+    }
+
+    /// #1253 adjacent · the schema the seat reads is private to it (0600),
+    /// witnessed by the scripted seat itself: it answers with the mode bits
+    /// of the `--output-schema` file it was handed.
+    #[tokio::test]
+    async fn the_output_schema_lands_private_to_the_seat() {
+        let body = r#"
+previous=
+mode=none
+for arg in "$@"; do
+  if [ "$previous" = schema ]; then mode="$(ls -l "$arg" | cut -c1-10)"; previous=; continue; fi
+  case "$arg" in --output-schema) previous=schema ;; esac
+done
+IFS= read -r _prompt
+printf '%s\n' '{"type":"turn.started"}'
+printf '%s\n' "{\"type\":\"item.completed\",\"item\":{\"id\":\"m\",\"type\":\"agent_message\",\"text\":\"$mode\"}}"
+printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}'
+"#;
+        let (_dir, bin) = scripted_codex(body);
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::JsonSchema,
+            CodexExec::with_command(bin),
+        )
+        .expect("meet");
+        let out = seat.run(request()).await.expect("scripted run");
+        assert_eq!(out.output, "-rw-------", "0600 · owner-only");
     }
 
     #[tokio::test]

@@ -24,6 +24,11 @@
 //!   chevauchement · `après_saut` · actif · raison · `jusqu_au` ·
 //!   tolérance · décalage · par), one `key=value` line each — strings
 //!   quoted, the absent `null`, floats in shortest roundtrip (`{f64:?}`
+//!   — and, ONLY when the beat declares `inputs:` (#1370), one last
+//!   `inputs=` line of quoted `"key"="value"` pairs, key-sorted and
+//!   comma-joined: a beat without inputs keeps the exact generation it
+//!   minted before the key existed, so the ledger's pinned evidence stays
+//!   interpretable without a domain bump
 //!   — deterministic for a given toolchain; an engine upgrade that
 //!   moved the formatting would read as a new generation, the cautious
 //!   direction) — the resident serve hashes its `ScheduleRevision`. The
@@ -696,11 +701,19 @@ fn canonical_beat(beat: &Beat) -> String {
         ("décalage", null(beat.decalage.as_deref().map(quoted))),
         ("par", null(beat.par.as_deref().map(quoted))),
     ];
-    fields
+    let mut lines: Vec<String> = fields
         .iter()
         .map(|(key, value)| format!("{key}={value}"))
-        .collect::<Vec<_>>()
-        .join("\n")
+        .collect();
+    if !beat.inputs.is_empty() {
+        let pairs: Vec<String> = beat
+            .inputs
+            .iter()
+            .map(|(key, value)| format!("{}={}", quoted(key), quoted(value)))
+            .collect();
+        lines.push(format!("inputs={}", pairs.join(",")));
+    }
+    lines.join("\n")
 }
 
 /// The wire words of the beat's enums (the serde vocabulary, pinned).

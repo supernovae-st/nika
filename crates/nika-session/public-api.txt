@@ -578,6 +578,184 @@ impl<T> typenum::type_operators::Same for nika_session::change::WorkflowAudit
 pub type nika_session::change::WorkflowAudit::Output = T
 pub fn nika_session::change::check_on_disk(root: &std::path::Path, path: &std::path::Path) -> nika_session::change::WorkflowAudit
 pub fn nika_session::change::prose_outside_blocks(reply: &str) -> alloc::string::String
+pub mod nika_session::consent
+#[non_exhaustive] pub enum nika_session::consent::ConsentDecision
+pub nika_session::consent::ConsentDecision::Applied
+pub nika_session::consent::ConsentDecision::Partial
+impl core::clone::Clone for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::clone(&self) -> nika_session::consent::ConsentDecision
+impl core::cmp::Eq for nika_session::consent::ConsentDecision
+impl core::cmp::PartialEq for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::eq(&self, other: &nika_session::consent::ConsentDecision) -> bool
+impl core::fmt::Debug for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::consent::ConsentDecision
+impl core::marker::StructuralPartialEq for nika_session::consent::ConsentDecision
+impl serde_core::ser::Serialize for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session::consent::ConsentDecision
+impl<Q, K> equivalent::Equivalent<K> for nika_session::consent::ConsentDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::consent::ConsentDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::consent::ConsentDecision where U: core::convert::From<T>
+pub fn nika_session::consent::ConsentDecision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::consent::ConsentDecision where U: core::convert::Into<T>
+pub type nika_session::consent::ConsentDecision::Error = core::convert::Infallible
+pub fn nika_session::consent::ConsentDecision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::consent::ConsentDecision where U: core::convert::TryFrom<T>
+pub type nika_session::consent::ConsentDecision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::consent::ConsentDecision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::consent::ConsentDecision where T: core::clone::Clone
+pub type nika_session::consent::ConsentDecision::Owned = T
+pub fn nika_session::consent::ConsentDecision::clone_into(&self, target: &mut T)
+pub fn nika_session::consent::ConsentDecision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::consent::ConsentDecision where T: 'static + ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::consent::ConsentDecision where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::consent::ConsentDecision where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::consent::ConsentDecision where T: core::clone::Clone
+pub unsafe fn nika_session::consent::ConsentDecision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::consent::ConsentDecision where T: core::clone::Clone
+pub fn nika_session::consent::ConsentDecision::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::consent::ConsentDecision where T: 'static
+pub fn nika_session::consent::ConsentDecision::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::consent::ConsentDecision where T: core::marker::Copy
+pub fn nika_session::consent::ConsentDecision::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> serde_core::de::DeserializeOwned for nika_session::consent::ConsentDecision where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::consent::ConsentDecision where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::consent::ConsentDecision::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::consent::ConsentDecision
+impl<T> tracing::instrument::WithSubscriber for nika_session::consent::ConsentDecision
+impl<T> typenum::type_operators::Same for nika_session::consent::ConsentDecision
+pub type nika_session::consent::ConsentDecision::Output = T
+#[non_exhaustive] pub struct nika_session::consent::ConsentRecord
+pub nika_session::consent::ConsentRecord::at: alloc::string::String
+pub nika_session::consent::ConsentRecord::decision: nika_session::consent::ConsentDecision
+pub nika_session::consent::ConsentRecord::proposal: alloc::string::String
+pub nika_session::consent::ConsentRecord::run: core::option::Option<std::path::PathBuf>
+pub nika_session::consent::ConsentRecord::version: u8
+pub nika_session::consent::ConsentRecord::witnesses: alloc::vec::Vec<nika_session::consent::ConsentWitness>
+pub nika_session::consent::ConsentRecord::written: alloc::vec::Vec<std::path::PathBuf>
+impl nika_session::consent::ConsentRecord
+pub const nika_session::consent::ConsentRecord::VERSION: u8
+pub fn nika_session::consent::ConsentRecord::append(&self, root: &std::path::Path) -> core::io::error::Result<()>
+pub fn nika_session::consent::ConsentRecord::of(set: &nika_session::change::ProjectChangeSet, id: &nika_session::outcome::ProposalId, decision: nika_session::consent::ConsentDecision, written: &[std::path::PathBuf], at: alloc::string::String) -> Self
+pub fn nika_session::consent::ConsentRecord::read_all(root: &std::path::Path) -> core::io::error::Result<alloc::vec::Vec<Self>>
+impl core::clone::Clone for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::clone(&self) -> nika_session::consent::ConsentRecord
+impl core::cmp::Eq for nika_session::consent::ConsentRecord
+impl core::cmp::PartialEq for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::eq(&self, other: &nika_session::consent::ConsentRecord) -> bool
+impl core::fmt::Debug for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::consent::ConsentRecord
+impl serde_core::ser::Serialize for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session::consent::ConsentRecord
+impl<Q, K> equivalent::Equivalent<K> for nika_session::consent::ConsentRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::consent::ConsentRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::consent::ConsentRecord where U: core::convert::From<T>
+pub fn nika_session::consent::ConsentRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::consent::ConsentRecord where U: core::convert::Into<T>
+pub type nika_session::consent::ConsentRecord::Error = core::convert::Infallible
+pub fn nika_session::consent::ConsentRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::consent::ConsentRecord where U: core::convert::TryFrom<T>
+pub type nika_session::consent::ConsentRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::consent::ConsentRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::consent::ConsentRecord where T: core::clone::Clone
+pub type nika_session::consent::ConsentRecord::Owned = T
+pub fn nika_session::consent::ConsentRecord::clone_into(&self, target: &mut T)
+pub fn nika_session::consent::ConsentRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::consent::ConsentRecord where T: 'static + ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::consent::ConsentRecord where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::consent::ConsentRecord where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::consent::ConsentRecord where T: core::clone::Clone
+pub unsafe fn nika_session::consent::ConsentRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::consent::ConsentRecord where T: core::clone::Clone
+pub fn nika_session::consent::ConsentRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::consent::ConsentRecord where T: 'static
+pub fn nika_session::consent::ConsentRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session::consent::ConsentRecord where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::consent::ConsentRecord where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::consent::ConsentRecord::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::consent::ConsentRecord
+impl<T> tracing::instrument::WithSubscriber for nika_session::consent::ConsentRecord
+impl<T> typenum::type_operators::Same for nika_session::consent::ConsentRecord
+pub type nika_session::consent::ConsentRecord::Output = T
+#[non_exhaustive] pub struct nika_session::consent::ConsentWitness
+pub nika_session::consent::ConsentWitness::after: alloc::string::String
+pub nika_session::consent::ConsentWitness::before: core::option::Option<alloc::string::String>
+pub nika_session::consent::ConsentWitness::path: std::path::PathBuf
+impl core::clone::Clone for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::clone(&self) -> nika_session::consent::ConsentWitness
+impl core::cmp::Eq for nika_session::consent::ConsentWitness
+impl core::cmp::PartialEq for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::eq(&self, other: &nika_session::consent::ConsentWitness) -> bool
+impl core::fmt::Debug for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::consent::ConsentWitness
+impl serde_core::ser::Serialize for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session::consent::ConsentWitness
+impl<Q, K> equivalent::Equivalent<K> for nika_session::consent::ConsentWitness where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::consent::ConsentWitness where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::consent::ConsentWitness where U: core::convert::From<T>
+pub fn nika_session::consent::ConsentWitness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::consent::ConsentWitness where U: core::convert::Into<T>
+pub type nika_session::consent::ConsentWitness::Error = core::convert::Infallible
+pub fn nika_session::consent::ConsentWitness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::consent::ConsentWitness where U: core::convert::TryFrom<T>
+pub type nika_session::consent::ConsentWitness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::consent::ConsentWitness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::consent::ConsentWitness where T: core::clone::Clone
+pub type nika_session::consent::ConsentWitness::Owned = T
+pub fn nika_session::consent::ConsentWitness::clone_into(&self, target: &mut T)
+pub fn nika_session::consent::ConsentWitness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::consent::ConsentWitness where T: 'static + ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::consent::ConsentWitness where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::consent::ConsentWitness where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::consent::ConsentWitness where T: core::clone::Clone
+pub unsafe fn nika_session::consent::ConsentWitness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::consent::ConsentWitness where T: core::clone::Clone
+pub fn nika_session::consent::ConsentWitness::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::consent::ConsentWitness where T: 'static
+pub fn nika_session::consent::ConsentWitness::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session::consent::ConsentWitness where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::consent::ConsentWitness where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::consent::ConsentWitness::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::consent::ConsentWitness
+impl<T> tracing::instrument::WithSubscriber for nika_session::consent::ConsentWitness
+impl<T> typenum::type_operators::Same for nika_session::consent::ConsentWitness
+pub type nika_session::consent::ConsentWitness::Output = T
+pub const nika_session::consent::CONSENTS_FILE: &str
 pub mod nika_session::facts
 pub fn nika_session::facts::answer(input: &str, snapshot: &nika_session::snapshot::ProjectSnapshot, root: &std::path::Path) -> core::option::Option<alloc::string::String>
 pub mod nika_session::guard
@@ -1584,6 +1762,8 @@ pub fn nika_session::runtime::IntentDraft::clone(&self) -> nika_session::runtime
 impl core::cmp::Eq for nika_session::runtime::IntentDraft
 impl core::cmp::PartialEq for nika_session::runtime::IntentDraft
 pub fn nika_session::runtime::IntentDraft::eq(&self, other: &nika_session::runtime::IntentDraft) -> bool
+impl core::default::Default for nika_session::runtime::IntentDraft
+pub fn nika_session::runtime::IntentDraft::default() -> nika_session::runtime::IntentDraft
 impl core::fmt::Debug for nika_session::runtime::IntentDraft
 pub fn nika_session::runtime::IntentDraft::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_session::runtime::IntentDraft
@@ -1625,6 +1805,9 @@ impl<T> tracing::instrument::Instrument for nika_session::runtime::IntentDraft
 impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::IntentDraft
 impl<T> typenum::type_operators::Same for nika_session::runtime::IntentDraft
 pub type nika_session::runtime::IntentDraft::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session::runtime::IntentDraft where T: core::default::Default
+pub type nika_session::runtime::IntentDraft::NoneType = T
+pub fn nika_session::runtime::IntentDraft::null_value() -> T
 pub struct nika_session::runtime::SessionRuntime
 pub nika_session::runtime::SessionRuntime::intelligence: nika_session::intelligence::ResolvedSessionIntelligence
 pub nika_session::runtime::SessionRuntime::intent: nika_session::runtime::IntentDraft
@@ -1635,6 +1818,7 @@ pub fn nika_session::runtime::SessionRuntime::choose(&mut self, answer: &str) ->
 pub fn nika_session::runtime::SessionRuntime::consent(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::enable_history(&mut self, home: &std::path::Path) -> core::result::Result<core::option::Option<alloc::string::String>, nika_session::outcome::Refusal>
 pub fn nika_session::runtime::SessionRuntime::observe_run(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::restore_state(&mut self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::runtime::SessionRuntime::turn(&mut self, input: &str) -> nika_session::runtime::TurnOutcome
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &nika_session::outcome::GateId, line: &str) -> nika_session::runtime::TurnOutcome
@@ -1781,6 +1965,128 @@ impl<T> tracing::instrument::Instrument for nika_session::snapshot::WorkflowSeen
 impl<T> tracing::instrument::WithSubscriber for nika_session::snapshot::WorkflowSeen
 impl<T> typenum::type_operators::Same for nika_session::snapshot::WorkflowSeen
 pub type nika_session::snapshot::WorkflowSeen::Output = T
+pub mod nika_session::state
+#[non_exhaustive] pub enum nika_session::state::Pending
+pub nika_session::state::Pending::Gate
+pub nika_session::state::Pending::Gate::mode: alloc::string::String
+pub nika_session::state::Pending::Gate::task: alloc::string::String
+pub nika_session::state::Pending::Gate::trace: std::path::PathBuf
+pub nika_session::state::Pending::Gate::workflow: std::path::PathBuf
+impl core::clone::Clone for nika_session::state::Pending
+pub fn nika_session::state::Pending::clone(&self) -> nika_session::state::Pending
+impl core::cmp::Eq for nika_session::state::Pending
+impl core::cmp::PartialEq for nika_session::state::Pending
+pub fn nika_session::state::Pending::eq(&self, other: &nika_session::state::Pending) -> bool
+impl core::fmt::Debug for nika_session::state::Pending
+pub fn nika_session::state::Pending::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::state::Pending
+impl serde_core::ser::Serialize for nika_session::state::Pending
+pub fn nika_session::state::Pending::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session::state::Pending
+pub fn nika_session::state::Pending::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session::state::Pending
+impl<Q, K> equivalent::Equivalent<K> for nika_session::state::Pending where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::state::Pending::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::state::Pending where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::state::Pending::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::state::Pending where U: core::convert::From<T>
+pub fn nika_session::state::Pending::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::state::Pending where U: core::convert::Into<T>
+pub type nika_session::state::Pending::Error = core::convert::Infallible
+pub fn nika_session::state::Pending::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::state::Pending where U: core::convert::TryFrom<T>
+pub type nika_session::state::Pending::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::state::Pending::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::state::Pending where T: core::clone::Clone
+pub type nika_session::state::Pending::Owned = T
+pub fn nika_session::state::Pending::clone_into(&self, target: &mut T)
+pub fn nika_session::state::Pending::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::state::Pending where T: 'static + ?core::marker::Sized
+pub fn nika_session::state::Pending::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::state::Pending where T: ?core::marker::Sized
+pub fn nika_session::state::Pending::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::state::Pending where T: ?core::marker::Sized
+pub fn nika_session::state::Pending::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::state::Pending where T: core::clone::Clone
+pub unsafe fn nika_session::state::Pending::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::state::Pending
+pub fn nika_session::state::Pending::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::state::Pending where T: core::clone::Clone
+pub fn nika_session::state::Pending::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::state::Pending where T: 'static
+pub fn nika_session::state::Pending::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session::state::Pending where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::state::Pending where T: ?core::marker::Sized
+pub fn nika_session::state::Pending::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::state::Pending::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::state::Pending
+impl<T> tracing::instrument::WithSubscriber for nika_session::state::Pending
+impl<T> typenum::type_operators::Same for nika_session::state::Pending
+pub type nika_session::state::Pending::Output = T
+#[non_exhaustive] pub struct nika_session::state::SessionState
+pub nika_session::state::SessionState::decisions: alloc::vec::Vec<alloc::string::String>
+pub nika_session::state::SessionState::goal: core::option::Option<alloc::string::String>
+pub nika_session::state::SessionState::pending: core::option::Option<nika_session::state::Pending>
+pub nika_session::state::SessionState::unresolved: alloc::vec::Vec<alloc::string::String>
+pub nika_session::state::SessionState::updated_at: alloc::string::String
+pub nika_session::state::SessionState::version: u8
+impl nika_session::state::SessionState
+pub const nika_session::state::SessionState::VERSION: u8
+pub fn nika_session::state::SessionState::load(root: &std::path::Path) -> core::io::error::Result<core::option::Option<Self>>
+pub fn nika_session::state::SessionState::new(updated_at: alloc::string::String) -> Self
+pub fn nika_session::state::SessionState::save(&self, root: &std::path::Path) -> core::io::error::Result<()>
+impl core::clone::Clone for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::clone(&self) -> nika_session::state::SessionState
+impl core::cmp::Eq for nika_session::state::SessionState
+impl core::cmp::PartialEq for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::eq(&self, other: &nika_session::state::SessionState) -> bool
+impl core::fmt::Debug for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::state::SessionState
+impl serde_core::ser::Serialize for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session::state::SessionState
+impl<Q, K> equivalent::Equivalent<K> for nika_session::state::SessionState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::state::SessionState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::state::SessionState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::state::SessionState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::state::SessionState where U: core::convert::From<T>
+pub fn nika_session::state::SessionState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::state::SessionState where U: core::convert::Into<T>
+pub type nika_session::state::SessionState::Error = core::convert::Infallible
+pub fn nika_session::state::SessionState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::state::SessionState where U: core::convert::TryFrom<T>
+pub type nika_session::state::SessionState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::state::SessionState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::state::SessionState where T: core::clone::Clone
+pub type nika_session::state::SessionState::Owned = T
+pub fn nika_session::state::SessionState::clone_into(&self, target: &mut T)
+pub fn nika_session::state::SessionState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::state::SessionState where T: 'static + ?core::marker::Sized
+pub fn nika_session::state::SessionState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::state::SessionState where T: ?core::marker::Sized
+pub fn nika_session::state::SessionState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::state::SessionState where T: ?core::marker::Sized
+pub fn nika_session::state::SessionState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::state::SessionState where T: core::clone::Clone
+pub unsafe fn nika_session::state::SessionState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::state::SessionState where T: core::clone::Clone
+pub fn nika_session::state::SessionState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::state::SessionState where T: 'static
+pub fn nika_session::state::SessionState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session::state::SessionState where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::state::SessionState where T: ?core::marker::Sized
+pub fn nika_session::state::SessionState::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::state::SessionState::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::state::SessionState
+impl<T> tracing::instrument::WithSubscriber for nika_session::state::SessionState
+impl<T> typenum::type_operators::Same for nika_session::state::SessionState
+pub type nika_session::state::SessionState::Output = T
+pub const nika_session::state::STATE_FILE: &str
 pub enum nika_session::ChangeError
 pub nika_session::ChangeError::Io(alloc::string::String, alloc::string::String)
 pub nika_session::ChangeError::OutsideRoot(alloc::string::String)
@@ -1821,6 +2127,63 @@ impl<T> tracing::instrument::Instrument for nika_session::change::ChangeError
 impl<T> tracing::instrument::WithSubscriber for nika_session::change::ChangeError
 impl<T> typenum::type_operators::Same for nika_session::change::ChangeError
 pub type nika_session::change::ChangeError::Output = T
+#[non_exhaustive] pub enum nika_session::ConsentDecision
+pub nika_session::ConsentDecision::Applied
+pub nika_session::ConsentDecision::Partial
+impl core::clone::Clone for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::clone(&self) -> nika_session::consent::ConsentDecision
+impl core::cmp::Eq for nika_session::consent::ConsentDecision
+impl core::cmp::PartialEq for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::eq(&self, other: &nika_session::consent::ConsentDecision) -> bool
+impl core::fmt::Debug for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session::consent::ConsentDecision
+impl core::marker::StructuralPartialEq for nika_session::consent::ConsentDecision
+impl serde_core::ser::Serialize for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session::consent::ConsentDecision
+impl<Q, K> equivalent::Equivalent<K> for nika_session::consent::ConsentDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::consent::ConsentDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::consent::ConsentDecision where U: core::convert::From<T>
+pub fn nika_session::consent::ConsentDecision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::consent::ConsentDecision where U: core::convert::Into<T>
+pub type nika_session::consent::ConsentDecision::Error = core::convert::Infallible
+pub fn nika_session::consent::ConsentDecision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::consent::ConsentDecision where U: core::convert::TryFrom<T>
+pub type nika_session::consent::ConsentDecision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::consent::ConsentDecision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::consent::ConsentDecision where T: core::clone::Clone
+pub type nika_session::consent::ConsentDecision::Owned = T
+pub fn nika_session::consent::ConsentDecision::clone_into(&self, target: &mut T)
+pub fn nika_session::consent::ConsentDecision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::consent::ConsentDecision where T: 'static + ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::consent::ConsentDecision where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::consent::ConsentDecision where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::consent::ConsentDecision where T: core::clone::Clone
+pub unsafe fn nika_session::consent::ConsentDecision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::consent::ConsentDecision
+pub fn nika_session::consent::ConsentDecision::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::consent::ConsentDecision where T: core::clone::Clone
+pub fn nika_session::consent::ConsentDecision::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::consent::ConsentDecision where T: 'static
+pub fn nika_session::consent::ConsentDecision::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session::consent::ConsentDecision where T: core::marker::Copy
+pub fn nika_session::consent::ConsentDecision::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> serde_core::de::DeserializeOwned for nika_session::consent::ConsentDecision where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::consent::ConsentDecision where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentDecision::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::consent::ConsentDecision::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::consent::ConsentDecision
+impl<T> tracing::instrument::WithSubscriber for nika_session::consent::ConsentDecision
+impl<T> typenum::type_operators::Same for nika_session::consent::ConsentDecision
+pub type nika_session::consent::ConsentDecision::Output = T
 #[non_exhaustive] pub enum nika_session::DataLocus
 pub nika_session::DataLocus::Local
 pub nika_session::DataLocus::Metered
@@ -1994,6 +2357,63 @@ impl<T> tracing::instrument::Instrument for nika_session::intelligence::Intellig
 impl<T> tracing::instrument::WithSubscriber for nika_session::intelligence::IntelligenceKind
 impl<T> typenum::type_operators::Same for nika_session::intelligence::IntelligenceKind
 pub type nika_session::intelligence::IntelligenceKind::Output = T
+#[non_exhaustive] pub enum nika_session::Pending
+pub nika_session::Pending::Gate
+pub nika_session::Pending::Gate::mode: alloc::string::String
+pub nika_session::Pending::Gate::task: alloc::string::String
+pub nika_session::Pending::Gate::trace: std::path::PathBuf
+pub nika_session::Pending::Gate::workflow: std::path::PathBuf
+impl core::clone::Clone for nika_session::state::Pending
+pub fn nika_session::state::Pending::clone(&self) -> nika_session::state::Pending
+impl core::cmp::Eq for nika_session::state::Pending
+impl core::cmp::PartialEq for nika_session::state::Pending
+pub fn nika_session::state::Pending::eq(&self, other: &nika_session::state::Pending) -> bool
+impl core::fmt::Debug for nika_session::state::Pending
+pub fn nika_session::state::Pending::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::state::Pending
+impl serde_core::ser::Serialize for nika_session::state::Pending
+pub fn nika_session::state::Pending::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session::state::Pending
+pub fn nika_session::state::Pending::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session::state::Pending
+impl<Q, K> equivalent::Equivalent<K> for nika_session::state::Pending where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::state::Pending::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::state::Pending where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::state::Pending::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::state::Pending where U: core::convert::From<T>
+pub fn nika_session::state::Pending::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::state::Pending where U: core::convert::Into<T>
+pub type nika_session::state::Pending::Error = core::convert::Infallible
+pub fn nika_session::state::Pending::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::state::Pending where U: core::convert::TryFrom<T>
+pub type nika_session::state::Pending::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::state::Pending::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::state::Pending where T: core::clone::Clone
+pub type nika_session::state::Pending::Owned = T
+pub fn nika_session::state::Pending::clone_into(&self, target: &mut T)
+pub fn nika_session::state::Pending::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::state::Pending where T: 'static + ?core::marker::Sized
+pub fn nika_session::state::Pending::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::state::Pending where T: ?core::marker::Sized
+pub fn nika_session::state::Pending::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::state::Pending where T: ?core::marker::Sized
+pub fn nika_session::state::Pending::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::state::Pending where T: core::clone::Clone
+pub unsafe fn nika_session::state::Pending::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::state::Pending
+pub fn nika_session::state::Pending::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::state::Pending where T: core::clone::Clone
+pub fn nika_session::state::Pending::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::state::Pending where T: 'static
+pub fn nika_session::state::Pending::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session::state::Pending where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::state::Pending where T: ?core::marker::Sized
+pub fn nika_session::state::Pending::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::state::Pending::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::state::Pending
+impl<T> tracing::instrument::WithSubscriber for nika_session::state::Pending
+impl<T> typenum::type_operators::Same for nika_session::state::Pending
+pub type nika_session::state::Pending::Output = T
 pub enum nika_session::ProjectChange
 pub nika_session::ProjectChange::CreateProjectFile
 pub nika_session::ProjectChange::CreateProjectFile::content: alloc::string::String
@@ -2279,6 +2699,125 @@ impl<T> tracing::instrument::Instrument for nika_session::change::Applied
 impl<T> tracing::instrument::WithSubscriber for nika_session::change::Applied
 impl<T> typenum::type_operators::Same for nika_session::change::Applied
 pub type nika_session::change::Applied::Output = T
+#[non_exhaustive] pub struct nika_session::ConsentRecord
+pub nika_session::ConsentRecord::at: alloc::string::String
+pub nika_session::ConsentRecord::decision: nika_session::consent::ConsentDecision
+pub nika_session::ConsentRecord::proposal: alloc::string::String
+pub nika_session::ConsentRecord::run: core::option::Option<std::path::PathBuf>
+pub nika_session::ConsentRecord::version: u8
+pub nika_session::ConsentRecord::witnesses: alloc::vec::Vec<nika_session::consent::ConsentWitness>
+pub nika_session::ConsentRecord::written: alloc::vec::Vec<std::path::PathBuf>
+impl nika_session::consent::ConsentRecord
+pub const nika_session::consent::ConsentRecord::VERSION: u8
+pub fn nika_session::consent::ConsentRecord::append(&self, root: &std::path::Path) -> core::io::error::Result<()>
+pub fn nika_session::consent::ConsentRecord::of(set: &nika_session::change::ProjectChangeSet, id: &nika_session::outcome::ProposalId, decision: nika_session::consent::ConsentDecision, written: &[std::path::PathBuf], at: alloc::string::String) -> Self
+pub fn nika_session::consent::ConsentRecord::read_all(root: &std::path::Path) -> core::io::error::Result<alloc::vec::Vec<Self>>
+impl core::clone::Clone for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::clone(&self) -> nika_session::consent::ConsentRecord
+impl core::cmp::Eq for nika_session::consent::ConsentRecord
+impl core::cmp::PartialEq for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::eq(&self, other: &nika_session::consent::ConsentRecord) -> bool
+impl core::fmt::Debug for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::consent::ConsentRecord
+impl serde_core::ser::Serialize for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session::consent::ConsentRecord
+impl<Q, K> equivalent::Equivalent<K> for nika_session::consent::ConsentRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::consent::ConsentRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::consent::ConsentRecord where U: core::convert::From<T>
+pub fn nika_session::consent::ConsentRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::consent::ConsentRecord where U: core::convert::Into<T>
+pub type nika_session::consent::ConsentRecord::Error = core::convert::Infallible
+pub fn nika_session::consent::ConsentRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::consent::ConsentRecord where U: core::convert::TryFrom<T>
+pub type nika_session::consent::ConsentRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::consent::ConsentRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::consent::ConsentRecord where T: core::clone::Clone
+pub type nika_session::consent::ConsentRecord::Owned = T
+pub fn nika_session::consent::ConsentRecord::clone_into(&self, target: &mut T)
+pub fn nika_session::consent::ConsentRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::consent::ConsentRecord where T: 'static + ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::consent::ConsentRecord where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::consent::ConsentRecord where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::consent::ConsentRecord where T: core::clone::Clone
+pub unsafe fn nika_session::consent::ConsentRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::consent::ConsentRecord
+pub fn nika_session::consent::ConsentRecord::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::consent::ConsentRecord where T: core::clone::Clone
+pub fn nika_session::consent::ConsentRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::consent::ConsentRecord where T: 'static
+pub fn nika_session::consent::ConsentRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session::consent::ConsentRecord where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::consent::ConsentRecord where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentRecord::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::consent::ConsentRecord::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::consent::ConsentRecord
+impl<T> tracing::instrument::WithSubscriber for nika_session::consent::ConsentRecord
+impl<T> typenum::type_operators::Same for nika_session::consent::ConsentRecord
+pub type nika_session::consent::ConsentRecord::Output = T
+#[non_exhaustive] pub struct nika_session::ConsentWitness
+pub nika_session::ConsentWitness::after: alloc::string::String
+pub nika_session::ConsentWitness::before: core::option::Option<alloc::string::String>
+pub nika_session::ConsentWitness::path: std::path::PathBuf
+impl core::clone::Clone for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::clone(&self) -> nika_session::consent::ConsentWitness
+impl core::cmp::Eq for nika_session::consent::ConsentWitness
+impl core::cmp::PartialEq for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::eq(&self, other: &nika_session::consent::ConsentWitness) -> bool
+impl core::fmt::Debug for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::consent::ConsentWitness
+impl serde_core::ser::Serialize for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session::consent::ConsentWitness
+impl<Q, K> equivalent::Equivalent<K> for nika_session::consent::ConsentWitness where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::consent::ConsentWitness where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::consent::ConsentWitness where U: core::convert::From<T>
+pub fn nika_session::consent::ConsentWitness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::consent::ConsentWitness where U: core::convert::Into<T>
+pub type nika_session::consent::ConsentWitness::Error = core::convert::Infallible
+pub fn nika_session::consent::ConsentWitness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::consent::ConsentWitness where U: core::convert::TryFrom<T>
+pub type nika_session::consent::ConsentWitness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::consent::ConsentWitness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::consent::ConsentWitness where T: core::clone::Clone
+pub type nika_session::consent::ConsentWitness::Owned = T
+pub fn nika_session::consent::ConsentWitness::clone_into(&self, target: &mut T)
+pub fn nika_session::consent::ConsentWitness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::consent::ConsentWitness where T: 'static + ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::consent::ConsentWitness where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::consent::ConsentWitness where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::consent::ConsentWitness where T: core::clone::Clone
+pub unsafe fn nika_session::consent::ConsentWitness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::consent::ConsentWitness
+pub fn nika_session::consent::ConsentWitness::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::consent::ConsentWitness where T: core::clone::Clone
+pub fn nika_session::consent::ConsentWitness::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::consent::ConsentWitness where T: 'static
+pub fn nika_session::consent::ConsentWitness::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session::consent::ConsentWitness where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::consent::ConsentWitness where T: ?core::marker::Sized
+pub fn nika_session::consent::ConsentWitness::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::consent::ConsentWitness::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::consent::ConsentWitness
+impl<T> tracing::instrument::WithSubscriber for nika_session::consent::ConsentWitness
+impl<T> typenum::type_operators::Same for nika_session::consent::ConsentWitness
+pub type nika_session::consent::ConsentWitness::Output = T
 #[non_exhaustive] pub struct nika_session::ContextBroker
 pub nika_session::ContextBroker::max_snippet_bytes: usize
 pub nika_session::ContextBroker::root: std::path::PathBuf
@@ -3028,6 +3567,7 @@ pub fn nika_session::runtime::SessionRuntime::choose(&mut self, answer: &str) ->
 pub fn nika_session::runtime::SessionRuntime::consent(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::enable_history(&mut self, home: &std::path::Path) -> core::result::Result<core::option::Option<alloc::string::String>, nika_session::outcome::Refusal>
 pub fn nika_session::runtime::SessionRuntime::observe_run(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::restore_state(&mut self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::runtime::SessionRuntime::turn(&mut self, input: &str) -> nika_session::runtime::TurnOutcome
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &nika_session::outcome::GateId, line: &str) -> nika_session::runtime::TurnOutcome
@@ -3065,6 +3605,69 @@ impl<T> tracing::instrument::Instrument for nika_session::runtime::SessionRuntim
 impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::SessionRuntime
 impl<T> typenum::type_operators::Same for nika_session::runtime::SessionRuntime
 pub type nika_session::runtime::SessionRuntime::Output = T
+#[non_exhaustive] pub struct nika_session::SessionState
+pub nika_session::SessionState::decisions: alloc::vec::Vec<alloc::string::String>
+pub nika_session::SessionState::goal: core::option::Option<alloc::string::String>
+pub nika_session::SessionState::pending: core::option::Option<nika_session::state::Pending>
+pub nika_session::SessionState::unresolved: alloc::vec::Vec<alloc::string::String>
+pub nika_session::SessionState::updated_at: alloc::string::String
+pub nika_session::SessionState::version: u8
+impl nika_session::state::SessionState
+pub const nika_session::state::SessionState::VERSION: u8
+pub fn nika_session::state::SessionState::load(root: &std::path::Path) -> core::io::error::Result<core::option::Option<Self>>
+pub fn nika_session::state::SessionState::new(updated_at: alloc::string::String) -> Self
+pub fn nika_session::state::SessionState::save(&self, root: &std::path::Path) -> core::io::error::Result<()>
+impl core::clone::Clone for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::clone(&self) -> nika_session::state::SessionState
+impl core::cmp::Eq for nika_session::state::SessionState
+impl core::cmp::PartialEq for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::eq(&self, other: &nika_session::state::SessionState) -> bool
+impl core::fmt::Debug for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session::state::SessionState
+impl serde_core::ser::Serialize for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session::state::SessionState
+impl<Q, K> equivalent::Equivalent<K> for nika_session::state::SessionState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::state::SessionState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session::state::SessionState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session::state::SessionState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session::state::SessionState where U: core::convert::From<T>
+pub fn nika_session::state::SessionState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::state::SessionState where U: core::convert::Into<T>
+pub type nika_session::state::SessionState::Error = core::convert::Infallible
+pub fn nika_session::state::SessionState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::state::SessionState where U: core::convert::TryFrom<T>
+pub type nika_session::state::SessionState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::state::SessionState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::state::SessionState where T: core::clone::Clone
+pub type nika_session::state::SessionState::Owned = T
+pub fn nika_session::state::SessionState::clone_into(&self, target: &mut T)
+pub fn nika_session::state::SessionState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::state::SessionState where T: 'static + ?core::marker::Sized
+pub fn nika_session::state::SessionState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::state::SessionState where T: ?core::marker::Sized
+pub fn nika_session::state::SessionState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::state::SessionState where T: ?core::marker::Sized
+pub fn nika_session::state::SessionState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::state::SessionState where T: core::clone::Clone
+pub unsafe fn nika_session::state::SessionState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::state::SessionState
+pub fn nika_session::state::SessionState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::state::SessionState where T: core::clone::Clone
+pub fn nika_session::state::SessionState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::state::SessionState where T: 'static
+pub fn nika_session::state::SessionState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session::state::SessionState where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::state::SessionState where T: ?core::marker::Sized
+pub fn nika_session::state::SessionState::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::state::SessionState::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::state::SessionState
+impl<T> tracing::instrument::WithSubscriber for nika_session::state::SessionState
+impl<T> typenum::type_operators::Same for nika_session::state::SessionState
+pub type nika_session::state::SessionState::Output = T
 #[non_exhaustive] pub struct nika_session::Snippet
 pub nika_session::Snippet::path: alloc::string::String
 pub nika_session::Snippet::provenance: alloc::string::String

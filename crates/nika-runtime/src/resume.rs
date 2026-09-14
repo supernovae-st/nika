@@ -632,7 +632,7 @@ fn skill_paths(task: &RawTask) -> Vec<&str> {
 /// semantic hash it generalizes (spec 15 · "seed: the `ResumeKey`'s
 /// JCS+blake3 definition hash, generalized").
 pub(crate) fn definition_value(task: &RawTask) -> Option<Value> {
-    Some(json!({
+    let mut definition = json!({
         "after": task.after.iter()
             .map(|(target, pred)| json!([target.value, pred.value.as_str()]))
             .collect::<Vec<_>>(),
@@ -648,7 +648,14 @@ pub(crate) fn definition_value(task: &RawTask) -> Option<Value> {
             .map(|(name, program)| (name.value.clone(), Value::String(program.value.clone())))
             .collect::<serde_json::Map<_, _>>(),
         "action": action_value(&task.action, None)?,
-    }))
+    });
+    // `max_items` (#1510) changes what the fan REFUSES, so it is identity
+    // — keyed only when declared, so every pre-existing definition hash
+    // (and the journals that carry them) stays byte-identical.
+    if let Some(cap) = &task.max_items {
+        definition["max_items"] = json!(cap.value);
+    }
+    Some(definition)
 }
 
 fn when_value(when: Option<&Spanned<WhenGate>>) -> Value {

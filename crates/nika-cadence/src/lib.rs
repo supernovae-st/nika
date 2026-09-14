@@ -53,6 +53,11 @@
 //!   without an expiry is a forgotten one.
 //! - Round 1 refuses by name: `signature:` (verification is ②'s),
 //!   `budget:` (waits for a measured lack), every unknown key.
+//! - `inputs:` (#1370) binds the workflow's declared `inputs:` per beat
+//!   — one scalar per key, carried as the `--var KEY=VALUE` text the run
+//!   edge already judges (unknown key · declared type · `required:`), so
+//!   a tenant-parameterized workflow is armed once per tenant, never
+//!   rendered once per tenant.
 //!
 //! The three traps, as constraints (§2quinquies):
 //!

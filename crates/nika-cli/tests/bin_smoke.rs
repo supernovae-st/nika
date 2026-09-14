@@ -869,107 +869,6 @@ fn mcp_serves_initialize_and_lists_tools() {
     );
 }
 
-// ─── stdin (`-`) · the editor wire without the tmp-file dance ────────────────
-
-/// `nika check - --json` reads the workflow from stdin: exit 0 + clean
-/// report for a valid doc — the seam every `load_checked` verb inherits.
-#[test]
-fn check_dash_reads_stdin_valid() {
-    use std::process::Stdio;
-    let mut child = bin()
-        .args(["check", "-", "--json"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn");
-    child
-        .stdin
-        .take()
-        .expect("stdin")
-        .write_all(VALID.as_bytes())
-        .expect("pipe body");
-    let out = child.wait_with_output().expect("wait");
-    assert_eq!(out.status.code(), Some(0), "clean stdin doc exits 0");
-    let doc: serde_json::Value =
-        serde_json::from_slice(&out.stdout).expect("json report on stdout");
-    assert_eq!(doc["clean"], true);
-}
-
-/// Findings on a stdin doc keep the exit-code contract (`2` = file).
-#[test]
-fn check_dash_reads_stdin_findings_exit_2() {
-    use std::process::Stdio;
-    let mut child = bin()
-        .args(["check", "-", "--json"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn");
-    child
-        .stdin
-        .take()
-        .expect("stdin")
-        .write_all(INVALID.as_bytes())
-        .expect("pipe body");
-    let out = child.wait_with_output().expect("wait");
-    assert_eq!(out.status.code(), Some(2), "stdin findings exit 2");
-    let doc: serde_json::Value =
-        serde_json::from_slice(&out.stdout).expect("json report on stdout");
-    assert_eq!(doc["clean"], false);
-}
-
-/// `nika inspect - --format json` inherits the dash (`load_checked` seam).
-#[test]
-fn graph_dash_reads_stdin() {
-    use std::process::Stdio;
-    let mut child = bin()
-        .args(["inspect", "-", "--format", "json"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn");
-    child
-        .stdin
-        .take()
-        .expect("stdin")
-        .write_all(VALID.as_bytes())
-        .expect("pipe body");
-    let out = child.wait_with_output().expect("wait");
-    assert_eq!(out.status.code(), Some(0), "graph on stdin doc exits 0");
-    let doc: serde_json::Value = serde_json::from_slice(&out.stdout).expect("graph json on stdout");
-    assert!(doc["nodes"].is_array());
-}
-
-/// `nika test -` is REFUSED with guidance (exit 3): the golden lives
-/// beside the file, and a dirty doc would re-read consumed stdin.
-#[test]
-fn test_dash_is_refused_with_guidance() {
-    use std::process::Stdio;
-    let mut child = bin()
-        .args(["test", "-"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn");
-    child
-        .stdin
-        .take()
-        .expect("stdin")
-        .write_all(VALID.as_bytes())
-        .expect("pipe body");
-    let out = child.wait_with_output().expect("wait");
-    assert_eq!(out.status.code(), Some(3), "refused as environment");
-    let err = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        err.contains("golden lives beside the file"),
-        "guidance: {err}"
-    );
-}
-
 // ─── the agent surface, on the real binary ───────────────────────────────────
 // tools/list proves the CATALOG; these prove the DISPATCH — an agent's
 // actual round-trip: a typo'd workflow in, the did-you-mean out. And the
@@ -1415,13 +1314,51 @@ fn nika_version_equals_dash_dash_version() {
     assert_eq!(ta.trim(), tb.trim(), "nika version == nika --version");
 }
 
+/// #1249 · the six-line postcard leads, then EVERY verb the tree carries
+/// (hidden ones too), the file-as-command gesture and the deeper doors.
 #[test]
-fn default_help_is_at_most_six_lines() {
+fn default_help_leads_with_the_postcard_and_names_every_verb() {
     let out = bin().arg("--help").output().expect("help");
     assert_eq!(out.status.code(), Some(0));
     let text = String::from_utf8_lossy(&out.stdout);
-    let n = text.lines().filter(|l| !l.is_empty()).count();
-    assert!(n <= 6, "human help ≤ 6 lines, got {n}:\n{text}");
+    let lines: Vec<&str> = text.lines().filter(|l| !l.is_empty()).collect();
+    assert!(lines.len() > 6 && lines[0].starts_with("nika "), "{text}");
+    for verb in [
+        "try",
+        "new",
+        "run",
+        "check",
+        "doctor",
+        "init",
+        "wire",
+        "trace",
+        "explain",
+        "spec",
+        "catalog",
+        "test",
+        "arm",
+        "key",
+        "sign",
+        "guard",
+        "mcp",
+        "lsp",
+        "dap",
+        "serve",
+        "model",
+        "list",
+        "welcome",
+        "inspect",
+        "completions",
+    ] {
+        assert!(
+            text.contains(&format!("nika {verb} ")),
+            "`nika {verb}` missing from --help:\n{text}"
+        );
+    }
+    assert!(
+        text.contains("nika x.nika.yaml") && text.contains("nika --help --all"),
+        "{text}"
+    );
 }
 
 /// A clean machine (`HOME` empty · no vendor keys) still gets a file

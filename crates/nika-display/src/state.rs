@@ -132,6 +132,37 @@ pub struct TaskRow {
     /// were conflated in prose once (#1444) and a wave of eight personas
     /// read « input from recovered » on runs that repaired nothing.
     pub integrity_source: Option<String>,
+    /// The agent loop's LAST journaled budget checkpoint (#1281) — how
+    /// far a loop got, folded from the `agent_budget_checkpoint` frames
+    /// the settle pass emits between `task_started` and the terminal.
+    /// A leash-stopped agent's `task_failed` names neither its turns nor
+    /// its tokens; this is where the row and the failure card read them.
+    /// `None` on every non-agent row.
+    pub agent: Option<AgentProgress>,
+}
+
+/// One agent loop's standing at its last journaled checkpoint (#1281).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AgentProgress {
+    /// Turns spent when the checkpoint was journaled.
+    pub turns: u32,
+    /// Tokens counted against `max_tokens_total` so far — the budget
+    /// arithmetic the engine journals, not the billed sum.
+    pub tokens: u64,
+    /// The task's `max_tokens_total`, when it set one.
+    pub budget: Option<u64>,
+}
+
+impl AgentProgress {
+    /// The human reading: `1 turn · 15/4000 tok` (`15 tok` without a budget).
+    #[must_use]
+    pub fn describe(&self) -> String {
+        let turns = crate::vocab::count(usize::try_from(self.turns).unwrap_or(usize::MAX), "turn");
+        match self.budget {
+            Some(budget) => format!("{turns} · {}/{budget} tok", self.tokens),
+            None => format!("{turns} · {} tok", self.tokens),
+        }
+    }
 }
 
 impl TaskRow {
@@ -418,11 +449,32 @@ impl RunView {
                 self.paused_task = Some(task);
                 self.paused_mode = str_field(event, "mode").map(str::to_owned);
             }
-            // Dispatch + checkpoint + cost/stream/permit kinds carry no
-            // row state today. `#[non_exhaustive]` future kinds render
-            // nothing rather than lying.
+            EventKind::AgentBudgetCheckpoint => self.apply_agent_checkpoint(event),
+            // Dispatch + cost/stream/permit kinds carry no row state
+            // today. `#[non_exhaustive]` future kinds render nothing
+            // rather than lying.
             _ => {}
         }
+    }
+
+    /// The agent loop's budget checkpoint (#1281): the LAST one wins — it
+    /// is the loop's final standing when a leash stops it. Folded onto an
+    /// existing row only (the settle pass emits it after `task_started`);
+    /// a checkpoint with no row renders nothing rather than inventing one.
+    fn apply_agent_checkpoint(&mut self, event: &Event) {
+        let Some(&i) = str_field(event, "task").and_then(|task| self.index.get(task)) else {
+            return;
+        };
+        let (Some(turn), Some(tokens)) =
+            (int_field(event, "turn"), int_field(event, "total_tokens"))
+        else {
+            return;
+        };
+        self.rows[i].agent = Some(AgentProgress {
+            turns: u32::try_from(turn).unwrap_or(u32::MAX),
+            tokens: u64::try_from(tokens).unwrap_or(0),
+            budget: int_field(event, "budget").and_then(|b| u64::try_from(b).ok()),
+        });
     }
 
     /// The operator's cancellation at a wave boundary (#1438): a decision,
@@ -640,6 +692,7 @@ impl RunView {
                 warning: None,
                 items_json: None,
                 integrity_source: None,
+                agent: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);

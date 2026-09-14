@@ -357,7 +357,7 @@ fn execute_and_ask(
     max_cost_usd: Option<f64>,
     theme: Theme,
     mode: RenderMode,
-    (json, output_json, no_trace_file, no_outputs): (bool, bool, bool, bool),
+    (json, output_json, no_trace_file, no_outputs, scoped): (bool, bool, bool, bool, bool),
     cancel: &nika_types::cancel::CancelCtx,
     world: &AdmittedWorld,
 ) -> RunVerdict {
@@ -383,6 +383,7 @@ fn execute_and_ask(
         !no_outputs,
         model_override,
         &carry,
+        scoped,
     );
     let mut verdict = thread::block_on_run(&rt, future, cancel);
     let mut legs = 0usize;
@@ -416,7 +417,7 @@ fn execute_and_ask(
             max_cost_usd,
             theme,
             mode,
-            (json, output_json, no_trace_file, !no_outputs),
+            (json, output_json, no_trace_file, !no_outputs, scoped),
             &rt,
             cancel,
             world,
@@ -441,7 +442,7 @@ fn answered_leg(
     max_cost_usd: Option<f64>,
     theme: Theme,
     mode: RenderMode,
-    (json, output_json, no_trace_file, outputs): (bool, bool, bool, bool),
+    (json, output_json, no_trace_file, outputs, scoped): (bool, bool, bool, bool, bool),
     rt: &tokio::runtime::Runtime,
     cancel: &nika_types::cancel::CancelCtx,
     previous_world: &AdmittedWorld,
@@ -511,6 +512,7 @@ fn answered_leg(
         outputs,
         model_override,
         &carry,
+        scoped,
     );
     session
         .complete(thread::block_on_run(rt, future, cancel))
@@ -626,6 +628,7 @@ fn composed_runtime(
         paused,
         compat,
         unverified,
+        resumed_from,
     } = setup;
     let inputs::ValidatedInputs {
         values: overrides,
@@ -644,10 +647,14 @@ fn composed_runtime(
         Ok(rt) => {
             let rt = rt
                 .with_var_overrides(overrides)
-                // F-P13 · the input origins (NEP-0014 law 2) — the boot
-                // manifest journals where every bound input came from.
+                // F-P13 · the input origins (NEP-0014 law 2), journaled on the boot manifest.
                 .with_input_origins(origins)
                 .with_max_cost_usd(max_cost_usd)
+                // #1575 · the MCP plane: `mcp:<server>/<tool>` resolves against
+                // the project registry + approved pins (run lane only) at the ONE root.
+                .with_mcp_plane(nika_mcp::dispatch::run_plane(
+                    execution_adapter::mcp_project_root(),
+                ))
                 // ADR-099 rider — ALWAYS armed: a blocked `nika:prompt`
                 // pauses durably on EVERY lane; the old `json ||
                 // output_json` proxy left a headless TEXT run dying at
@@ -663,6 +670,8 @@ fn composed_runtime(
                 // ADR-099 trust amendment · the unverified-trust
                 // posture, attested on the boot manifest.
                 .with_resume_unverified(unverified)
+                // #1462 · the trace this leg continues, attested beside it.
+                .with_resumed_from(resumed_from)
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
@@ -920,6 +929,7 @@ async fn execute(
     outputs: bool,
     model_override: Option<&str>,
     carry: &str,
+    scoped: bool,
 ) -> RunVerdict {
     // F-P3 · the run: declaration picks the event-identity seam:
     // `entropy: none | seeded(N)` mints deterministic stamps (replayable
@@ -936,6 +946,7 @@ async fn execute(
             trace,
             identity.0,
             carry,
+            scoped,
         )
         .await
     } else if json {
@@ -948,6 +959,7 @@ async fn execute(
             trace,
             identity,
             carry,
+            scoped,
         )
         .await
     } else {
@@ -963,6 +975,7 @@ async fn execute(
             identity.0,
             model_override,
             carry,
+            scoped,
         )
         .await
     }
@@ -986,6 +999,7 @@ async fn execute_output_json_lane(
     trace: TraceFileSink,
     execution: nika_types::id::ExecutionId,
     carry: &str,
+    scoped: bool,
 ) -> RunVerdict {
     let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
     fold.set_plan(plan_waves(wf, report));
@@ -993,7 +1007,7 @@ async fn execute_output_json_lane(
     fold.set_source_path(file);
     let tee = Tee::new(fold, trace);
     let mut events = ExecutionSink::new(tee, execution);
-    let (code, outcome) = drive(runtime, stamper, &mut events).await;
+    let (code, outcome) = drive(runtime, stamper, &mut events, scoped).await;
     let (mut sink, mut trace) = events.into_inner().into_parts();
     sink.print_final();
     // R4 — the auth-class tail rides stderr (stdout stays the clean
@@ -1074,10 +1088,11 @@ async fn execute_json_lane(
     trace: TraceFileSink,
     identity: (nika_types::id::ExecutionId, &str),
     carry: &str,
+    scoped: bool,
 ) -> RunVerdict {
     let tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
     let mut events = ExecutionSink::new(tee, identity.0);
-    let (code, outcome) = drive(runtime, stamper, &mut events).await;
+    let (code, outcome) = drive(runtime, stamper, &mut events, scoped).await;
     let (mut sink, mut trace) = events.into_inner().into_parts();
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
@@ -1137,6 +1152,7 @@ async fn execute_json_lane(
         identity.1,
         evidence,
         lanes.as_deref(),
+        runtime.resumed_from(),
     ) {
         eprintln!("nika run: settlement write failed: {e}");
         return RunVerdict::renderer_failed(trace_path, e.kind());
@@ -1164,6 +1180,7 @@ async fn execute_fold_lane(
     execution: nika_types::id::ExecutionId,
     model_override: Option<&str>,
     carry: &str,
+    scoped: bool,
 ) -> RunVerdict {
     let plan = plan_waves(wf, report);
     let map = (mode == RenderMode::Live && theme.accents)
@@ -1188,7 +1205,7 @@ async fn execute_fold_lane(
         trace,
     );
     let mut events = ExecutionSink::new(tee, execution);
-    let (code, outcome) = drive(runtime, stamper, &mut events).await;
+    let (code, outcome) = drive(runtime, stamper, &mut events, scoped).await;
     // The run settled: stop riders before the epilogue.
     if let Some(ticker) = &ticker {
         ticker.abort();
@@ -1375,8 +1392,13 @@ async fn drive(
     runtime: &AuthorizedRuntime,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
+    scoped: bool,
 ) -> (u8, RunOutcome) {
-    map_run_result(runtime.run(stamper, sink).await)
+    let (code, mut outcome) = map_run_result(runtime.run(stamper, sink).await);
+    if scoped {
+        outcome.outputs = epilogue::scoped_outputs(&outcome);
+    }
+    (code, outcome)
 }
 
 /// The runtime's verdict mapped to the exit code and the outcome — a launch

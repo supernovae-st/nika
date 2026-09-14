@@ -6,15 +6,12 @@
 //!
 //! [`ToolsListDyn`] is the seam: the pin flow ([`connect_verified`] ·
 //! [`approve_server`]) is generic over it, tests inject a mock, and the one
-//! production implementation is [`StdioMcpClient`] — a synchronous,
-//! zero-SDK, newline-delimited JSON-RPC 2.0 client that spawns the
-//! configured command, handshakes (`initialize` ·
-//! `notifications/initialized`), and reads one bounded reply. It is the
-//! deliberate second subprocess-spawn site in the engine (the first is
-//! `nika-exec-runner`, the shell effect): an MCP stdio session is a
-//! persistent bidirectional pipe, a shape the one-shot `ShellRunDyn` seam
-//! cannot express — and the async process seam is unavailable to this crate
-//! by dependency law (tokio is not on `nika-mcp`'s wrapper list).
+//! production implementation is [`StdioMcpClient`] — one confined
+//! [`crate::session::StdioSession`] (spawn · handshake · one bounded
+//! `tools/list`), dropped after the answer. The process itself — the
+//! deliberate second subprocess-spawn site in the engine — lives in
+//! [`crate::session`]; the runtime plane that CALLS a tool lives in
+//! [`crate::dispatch`].
 //!
 //! Servers are configured per project in `.nika/mcp_servers.json` (the
 //! `.nika/` convention) — the engine-side MCP registry the language spec
@@ -44,40 +41,22 @@
 //! ignore unknown entry fields (serde's posture), so no envelope bump is
 //! honest.
 
-use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-// The `std::process` / `std::thread::spawn` exemption below is deliberate and
-// scoped: an MCP stdio session is a PERSISTENT bidirectional pipe — a shape
-// the one-shot kernel `ShellRunDyn` seam cannot express — and tokio is
-// unavailable to this crate by dependency law (`nika-mcp` is not on
-// deny.toml's wrapper list), so the std-only reader thread is the one
-// mechanism for a BOUNDED pipe read. INV-011 is honored by `KillOnDrop`.
-#[allow(clippy::disallowed_types)]
-use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
-use std::sync::mpsc;
 use std::time::Duration;
 
 use nika_kernel::command_sandbox::CommandSandbox;
-use nika_kernel::process::{EgressAllowlist, NetPolicy, ShellCommand};
+use nika_kernel::process::{EgressAllowlist, NetPolicy};
 use serde::Deserialize;
-use serde_json::{Value, json};
 
 use crate::pin::{McpToolDef, PinError, PinStore, ServerIdentity, Verify};
+use crate::session::{McpConnectDyn, StdioConnector};
 
 /// The server-registry location, relative to the project root.
 pub const SERVERS_PATH: &str = ".nika/mcp_servers.json";
 
 /// The registry envelope version.
 pub const SERVERS_FORMAT: u32 = 1;
-
-/// The protocol revision this client requests (newest broadly-deployed —
-/// the server's own negotiation echoes a supported choice).
-const CLIENT_PROTOCOL_VERSION: &str = "2025-11-25";
-
-/// The default per-reply ceiling — an unresponsive server must never hang
-/// an operator command forever (kill-on-drop still bounds the child).
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// One configured MCP server (the engine-side registry entry).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -325,6 +304,12 @@ pub trait ToolsListDyn {
     /// mid-handshake · [`PinError::Malformed`] when its answer is not
     /// vettable.
     fn tools_list(&self) -> Result<Vec<McpToolDef>, PinError>;
+
+    /// The confinement the fetch rode (`sandboxed (seatbelt · net deny)`
+    /// style) — the approve receipt names it; a mock has none.
+    fn confinement(&self) -> Option<String> {
+        None
+    }
 }
 
 /// The outcome of a pin-gated connect — on the `Ok` arm the tools MAY be
@@ -333,7 +318,9 @@ pub trait ToolsListDyn {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ConnectOutcome {
-    /// First contact: the pins were just written (enroll loudly).
+    /// First contact under [`connect_verified`]: the pins were just
+    /// written (enroll loudly). The `nika run` lane never reaches this
+    /// arm — its dispatch refuses an unpinned server (NIKA-MCP-006).
     Enrolled {
         /// The server name.
         server: String,
@@ -352,7 +339,7 @@ pub enum ConnectOutcome {
 }
 
 impl ConnectOutcome {
-    /// The tool count (the TOFU/verify receipt line).
+    /// The tool count (the enroll/verify receipt line).
     #[must_use]
     pub fn tool_count(&self) -> usize {
         match self {
@@ -371,11 +358,20 @@ pub struct ApproveReport {
     pub pinned_at: String,
     /// The new pin set (tool name · `blake3:` pin), sorted by name.
     pub pins: Vec<(String, String)>,
+    /// The confinement the server ran under while it was read
+    /// ([`ToolsListDyn::confinement`]) — the receipt's first line.
+    pub confinement: Option<String>,
 }
 
-/// The pin-gated connect — THE flow every MCP connect must run:
-/// `tools/list` → load the lockfile → enroll (first contact) · proceed
-/// silently (match) · refuse with the drift diff (any change).
+/// The enrollment-capable connect (TOFU semantics, for embedders that
+/// opt in): `tools/list` → load the lockfile → enroll on first contact
+/// (loudly) · proceed silently (match) · refuse with the drift diff
+/// (any change).
+///
+/// This is NOT the `nika run` lane: the runtime dispatch
+/// (`crate::dispatch`) refuses an unapproved server BEFORE spawn with
+/// NIKA-MCP-006 — only [`approve_server`] writes pins, so nothing is
+/// written on first contact at run time.
 ///
 /// `now_epoch` is injected (INV-027 hermeticity) and only written on
 /// enrollment. A corrupt lockfile stops here — NEVER a silent re-TOFU.
@@ -441,6 +437,7 @@ pub fn approve_server<C: ToolsListDyn + ?Sized>(
         server: config.name.clone(),
         pinned_at,
         pins,
+        confinement: client.confinement(),
     })
 }
 
@@ -457,53 +454,14 @@ fn refuse_remote(config: &McpServerConfig) -> Result<(), PinError> {
     Ok(())
 }
 
-/// What the reader thread yields per line (or why it stopped).
-enum Line {
-    Text(String),
-    Failed(String),
-    Eof,
-}
-
-/// The INV-011 guard for a std child (std's `Command` has no
-/// `kill_on_drop` — that is a tokio method): dropping the session SIGKILLs
-/// the server and reaps it, so a failed handshake or a drift refusal never
-/// leaks a running subprocess.
-#[allow(clippy::disallowed_types)] // see the import-site exemption note
-struct KillOnDrop(Child);
-
-impl KillOnDrop {
-    /// Borrow the child for pipe writes.
-    #[allow(clippy::disallowed_types)] // see the import-site exemption note
-    fn child(&mut self) -> &mut Child {
-        &mut self.0
-    }
-}
-
-impl Drop for KillOnDrop {
-    fn drop(&mut self) {
-        let _ = self.0.kill(); // SIGKILL · idempotent on an already-dead child
-        let _ = self.0.wait(); // reap the zombie
-    }
-}
-
-/// The production seam: spawn the configured command — CONFINED by the OS
-/// sandbox (the `CommandSandbox` seam · see [`crate::sandbox`]), with a
-/// scrubbed environment — handshake, one bounded `tools/list`. Synchronous
-/// (this crate is tokio-free by dependency law) — a single reader thread
-/// drains the child's stdout into a channel so every reply wait carries a
-/// timeout.
+/// The production `tools/list` seam over one configured server: opens a
+/// confined [`crate::session::StdioSession`] (spawn · handshake), asks
+/// once, and drops it (SIGKILL · INV-011). The runtime dispatch keeps its
+/// sessions instead ([`crate::dispatch::McpToolPlane`]); this one-shot shape
+/// is the operator flow's (`nika mcp approve <server>`).
 pub struct StdioMcpClient {
     config: McpServerConfig,
-    timeout: Duration,
-    /// The OS-confinement backend — ALWAYS present: there is no unsandboxed
-    /// construction, so the unconfined fallback cannot exist as an accident
-    /// (the deliberate `NoopSandbox` case is named loudly by
-    /// [`Self::sandbox_note`]). Injected by [`crate::sandbox::platform_sandbox`]
-    /// at [`Self::new`]; [`Self::with_sandbox`] overrides (tests · a wiring
-    /// layer carrying its own backend).
-    sandbox: Arc<dyn CommandSandbox>,
-    /// The fs-boundary anchor — the project dir the registry belongs to.
-    project_dir: PathBuf,
+    connector: StdioConnector,
 }
 
 impl StdioMcpClient {
@@ -514,16 +472,14 @@ impl StdioMcpClient {
     pub fn new(config: &McpServerConfig) -> Self {
         Self {
             config: config.clone(),
-            timeout: DEFAULT_TIMEOUT,
-            sandbox: crate::sandbox::platform_sandbox(),
-            project_dir: PathBuf::from("."),
+            connector: StdioConnector::new("."),
         }
     }
 
     /// Override the per-reply timeout (tests · slow servers).
     #[must_use]
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
+        self.connector = self.connector.with_timeout(timeout);
         self
     }
 
@@ -531,7 +487,7 @@ impl StdioMcpClient {
     /// wiring layer carrying its own `CommandSandbox`.
     #[must_use]
     pub fn with_sandbox(mut self, sandbox: Arc<dyn CommandSandbox>) -> Self {
-        self.sandbox = sandbox;
+        self.connector = self.connector.with_sandbox(sandbox);
         self
     }
 
@@ -539,263 +495,25 @@ impl StdioMcpClient {
     /// loaded from (when it is not the process cwd).
     #[must_use]
     pub fn with_project_dir(mut self, project_dir: impl Into<PathBuf>) -> Self {
-        self.project_dir = project_dir.into();
+        self.connector = StdioConnector::new(project_dir);
         self
     }
 
     /// The one-line sandbox mode note — `sandboxed (seatbelt · net deny)`
-    /// style — printed on every connect/verify (see [`crate::sandbox`]).
+    /// style — the approve receipt's first line (see [`crate::sandbox`]).
     #[must_use]
     pub fn sandbox_note(&self) -> String {
-        crate::sandbox::sandbox_note(self.sandbox.backend(), &self.config.network)
-    }
-
-    /// Spawn the child + reader thread — through the OS sandbox FIRST
-    /// (fail-closed): the configured command is confined to the derived
-    /// boundary ([`McpServerConfig::sandbox_spec`]) and a confine refusal is
-    /// [`PinError::Sandbox`] with NO process started (never a silent
-    /// unconfined fallback). The child rides a [`KillOnDrop`] guard
-    /// (INV-011): dropping the session SIGKILLs the server, and the reader
-    /// thread ends itself on the resulting pipe EOF.
-    #[allow(clippy::disallowed_types, clippy::disallowed_methods)] // import-site note: persistent pipe · tokio unavailable here
-    fn spawn(&self) -> Result<(KillOnDrop, mpsc::Receiver<Line>), PinError> {
-        let transport = |why: String| PinError::Transport {
-            server: self.config.name.clone(),
-            why,
-        };
-        let command = self.config.command.as_deref().ok_or_else(|| {
-            transport("no `command` configured (a url entry is refused upstream)".to_owned())
-        })?;
-        // OS confinement (ADR-095 Layer 6): the SAME seam the exec runner
-        // uses — the confine transform is pure; a refusal is terminal.
-        let mut inner = ShellCommand::new(command);
-        inner.args.clone_from(&self.config.args);
-        inner.cwd = Some(self.project_dir.clone());
-        let spec = self.config.sandbox_spec(&self.project_dir);
-        let confined = self
-            .sandbox
-            .confine(&spec, inner)
-            .map_err(|e| PinError::Sandbox {
-                server: self.config.name.clone(),
-                why: e.to_string(),
-            })?;
-        let mut cmd = Command::new(&confined.program);
-        cmd.args(&confined.args);
-        apply_env_scrub(&mut cmd);
-        if let Some(cwd) = &confined.cwd {
-            cmd.current_dir(cwd);
-        }
-        let mut child = cmd
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| transport(format!("cannot spawn `{command}`: {e}")))?;
-        // The receipt line rides every LIVE confined server (printed only
-        // once the spawn succeeded — a failed spawn reports its own error).
-        print_sandbox_note(&self.config.name, &self.sandbox_note());
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| transport("the child's stdout was not piped".to_owned()))?;
-        let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move || pump_lines(stdout, &tx));
-        Ok((KillOnDrop(child), rx))
-    }
-
-    /// Write one JSON-RPC message (one compact line · flushed).
-    fn send(&self, child: &mut KillOnDrop, msg: &Value) -> Result<(), PinError> {
-        let transport = |why: String| PinError::Transport {
-            server: self.config.name.clone(),
-            why,
-        };
-        let line = serde_json::to_string(msg).unwrap_or_default();
-        let stdin = child
-            .child()
-            .stdin
-            .as_mut()
-            .ok_or_else(|| transport("the child's stdin was not piped".to_owned()))?;
-        writeln!(stdin, "{line}")
-            .and_then(|()| stdin.flush())
-            .map_err(|e| transport(format!("cannot write to the server: {e}")))
-    }
-
-    /// Wait for the reply carrying `want_id`, skipping notifications and
-    /// stray ids (a server may interleave) — bounded by the timeout.
-    fn await_reply(&self, rx: &mpsc::Receiver<Line>, want_id: u64) -> Result<Value, PinError> {
-        let transport = |why: String| PinError::Transport {
-            server: self.config.name.clone(),
-            why,
-        };
-        for _ in 0..16 {
-            match rx.recv_timeout(self.timeout) {
-                Ok(Line::Text(text)) => {
-                    let msg: Value = serde_json::from_str(&text)
-                        .map_err(|e| transport(format!("a reply is not JSON: {e}")))?;
-                    if msg.get("id").and_then(Value::as_u64) == Some(want_id) {
-                        return Ok(msg);
-                    }
-                }
-                Ok(Line::Failed(why)) => return Err(transport(why)),
-                Ok(Line::Eof) => {
-                    return Err(transport(
-                        "the server closed the pipe before answering".to_owned(),
-                    ));
-                }
-                Err(_) => {
-                    return Err(transport(format!(
-                        "no reply within {}s",
-                        self.timeout.as_secs()
-                    )));
-                }
-            }
-        }
-        Err(transport(
-            "the server sent 16 messages without answering the request".to_owned(),
-        ))
-    }
-
-    /// One request → its `result` payload (a JSON-RPC error reply is a
-    /// transport-class failure for a handshake this minimal).
-    fn call(
-        &self,
-        child: &mut KillOnDrop,
-        rx: &mpsc::Receiver<Line>,
-        id: u64,
-        method: &str,
-        params: &Value,
-    ) -> Result<Value, PinError> {
-        self.send(
-            child,
-            &json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params}),
-        )?;
-        let reply = self.await_reply(rx, id)?;
-        if let Some(error) = reply.get("error") {
-            return Err(PinError::Transport {
-                server: self.config.name.clone(),
-                why: format!("the server refused `{method}`: {error}"),
-            });
-        }
-        Ok(reply.get("result").cloned().unwrap_or(Value::Null))
+        self.connector.sandbox_note(&self.config)
     }
 }
 
 impl ToolsListDyn for StdioMcpClient {
     fn tools_list(&self) -> Result<Vec<McpToolDef>, PinError> {
-        let (mut child, rx) = self.spawn()?;
-        self.call(
-            &mut child,
-            &rx,
-            1,
-            "initialize",
-            &json!({
-                "protocolVersion": CLIENT_PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": { "name": "nika", "version": env!("CARGO_PKG_VERSION") },
-            }),
-        )?;
-        self.send(
-            &mut child,
-            &json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
-        )?;
-        let result = self.call(&mut child, &rx, 2, "tools/list", &json!({}))?;
-        McpToolDef::from_list_value(
-            &self.config.name,
-            &result.get("tools").cloned().unwrap_or(Value::Null),
-        )
+        self.connector.connect(&self.config)?.tools_list()
     }
-}
 
-/// Scrub the child's environment: `env_clear` drops EVERY ambient value the
-/// engine holds (provider API keys, session tokens, the whole
-/// env-var-injection class), then ONLY the curated names a server
-/// legitimately needs are re-admitted — the runner floor
-/// ([`nika_kernel::process::RUNNER_FLOOR_ENV_VARS`]) minus the
-/// [`DANGEROUS_ENV_VARS`](nika_kernel::process::DANGEROUS_ENV_VARS)
-/// floor, which wins even over those. MCP config values reach the server
-/// via argv, never via ambient env inheritance.
-#[allow(clippy::disallowed_types, clippy::disallowed_methods)] // import-site exemption note · reading the operator's ambient env to re-admit a curated subset to the child is the spawn site's duty, not a secret lookup
-fn apply_env_scrub(cmd: &mut Command) {
-    // ONE composition, shared with the exec runner. This used to walk
-    // the floor itself and re-check the dangerous list — a second
-    // implementation of the same law, under a doc that says both spawn
-    // families run the SAME function (2026-08-02 · an adversarial pass
-    // caught the doc telling the truth about an intent the code had
-    // stopped honouring).
-    //
-    // It was equivalent, and equivalence is exactly what nothing
-    // guaranteed: a protective rule added to `compose_child_env` had no
-    // structural path into this copy. The MCP stdio child still gets
-    // the STRICTEST call — no passthrough grants, no authored map, so
-    // only the floor minus the dangerous names survives, which is what
-    // this crate's own module doc promises.
-    let env = nika_kernel::process::compose_child_env(
-        |name| std::env::var(name).ok(),
-        &[],
-        &std::collections::BTreeMap::new(),
-    );
-    cmd.env_clear();
-    for (name, value) in env {
-        cmd.env(name, value);
-    }
-}
-
-/// Print the one-line sandbox receipt on the connect/verify stream (the
-/// `sandboxed (seatbelt · net deny)` note — see
-/// [`StdioMcpClient::sandbox_note`]). `eprintln!` is clippy-banned
-/// workspace-wide in favor of tracing, but this crate carries no tracing
-/// dep — the direct print is the nika-cli `main.rs` `print_stderr`
-/// precedent for operator-facing output, scoped to this one call.
-#[allow(clippy::disallowed_macros, clippy::print_stderr)]
-fn print_sandbox_note(server: &str, note: &str) {
-    eprintln!("mcp `{server}`: {note}");
-}
-
-/// Drain the child's stdout into the channel, one bounded line at a time
-/// (the same 8 MiB ceiling as the server pump — a runaway line is a
-/// transport failure, never an unbounded allocation). The sender is owned
-/// by the reader thread and borrowed here so a disconnected client simply
-/// ends the loop.
-fn pump_lines(stdout: impl Read, tx: &mpsc::Sender<Line>) {
-    let mut reader = BufReader::new(stdout);
-    let mut buf: Vec<u8> = Vec::new();
-    loop {
-        buf.clear();
-        let n = match (&mut reader)
-            .take(crate::MAX_MSG_BYTES + 1)
-            .read_until(b'\n', &mut buf)
-        {
-            Ok(0) => {
-                let _ = tx.send(Line::Eof);
-                return;
-            }
-            Ok(n) => n,
-            Err(e) => {
-                let _ = tx.send(Line::Failed(format!("cannot read the server: {e}")));
-                return;
-            }
-        };
-        if buf.last() != Some(&b'\n') && n as u64 > crate::MAX_MSG_BYTES {
-            let _ = tx.send(Line::Failed(format!(
-                "a reply exceeds the {}-byte line ceiling",
-                crate::MAX_MSG_BYTES
-            )));
-            return;
-        }
-        while matches!(buf.last(), Some(b'\n' | b'\r')) {
-            buf.pop();
-        }
-        match String::from_utf8(buf.clone()) {
-            Ok(text) => {
-                if tx.send(Line::Text(text)).is_err() {
-                    return; // the client went away — stop quietly
-                }
-            }
-            Err(e) => {
-                let _ = tx.send(Line::Failed(format!("a reply is not UTF-8: {e}")));
-                return;
-            }
-        }
+    fn confinement(&self) -> Option<String> {
+        Some(self.sandbox_note())
     }
 }
 
@@ -803,6 +521,8 @@ fn pump_lines(stdout: impl Read, tx: &mpsc::Sender<Line>) {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use std::path::PathBuf;
+
+    use serde_json::json;
 
     use super::*;
     use crate::pin::{PINS_PATH, ServerDrift};

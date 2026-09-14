@@ -24,8 +24,14 @@ use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
 
 /// A `codex exec --json` that answers one turn and never reads a key.
+/// #1253 · spawn-time attestation asks `--version` before any stdin: the
+/// shim must prove itself (product + pinned version) like the real seat.
 const FAKE_CODEX: &str = r#"#!/bin/sh
 set -eu
+if [ "${1-}" = "--version" ]; then
+    printf '%s\n' 'codex-cli 0.153.4'
+    exit 0
+fi
 if [ "${1-}" = login ] && [ "${2-}" = status ]; then
     exit 0
 fi

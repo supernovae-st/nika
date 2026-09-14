@@ -490,6 +490,13 @@ fn display_note(row: &TaskRow, view: &RunView) -> String {
         // ingress task · `inputs.<name>`). Never « recovered »: that word
         // belongs to the `task_recovered` frame, and a wave of personas
         // read it as a repair on runs that repaired nothing.
+        // #1281 · a leash-stopped loop's row says how far it got — the
+        // failed terminal's note is the start note (`agent · <model>`),
+        // the journaled checkpoint carries the turns and the count.
+        (TaskState::Failed, _) if row.agent.is_some() => match row.agent {
+            Some(progress) => format!("{} · {}", row.note, progress.describe()),
+            None => row.note.clone(),
+        },
         _ => match row.integrity_source.as_deref() {
             Some(source) => format!("{} · untrusted input from {source}", row.note),
             None => row.note.clone(),
@@ -804,6 +811,14 @@ fn append_failure_card(lines: &mut Vec<String>, view: &RunView, theme: &Theme) {
                 theme.glyph(TaskState::Failed, 0),
                 theme.paint(Role::Strong, &detail),
             ));
+            // #1281 · « my cap worked » reads from the turns and the count,
+            // not from the code alone.
+            if let Some(progress) = row.agent {
+                lines.push(format!(
+                    "    {}",
+                    theme.paint(Role::Dim, &format!("agent · {}", progress.describe()))
+                ));
+            }
             if let Some(code) = detail.split_whitespace().find(|w| w.starts_with("NIKA-")) {
                 lines.push(format!(
                     "    {}",

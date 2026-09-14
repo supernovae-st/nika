@@ -709,4 +709,96 @@ if grep -q 'HOMEBREW_TAP_TOKEN' "$ROOT/docs/RELEASING.md"; then
   fail 'the operator guide still names the retired Homebrew PAT secret'
 fi
 
+# The Homebrew leg reads the payload artifact, which carries the published
+# SHA256SUMS manifest and never the per-build `.tar.gz.sha256` sidecars:
+# v0.119.0 published, then died on `missing checksum` (2026-09-13). The
+# formula pins the digest the manifest records and refuses bytes that
+# disagree with it. The sidecar stays the hand-run fallback.
+digest_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{ print $1 }'
+  else
+    shasum -a 256 "$1" | awk '{ print $1 }'
+  fi
+}
+formula_sha_for() {
+  awk -v plat="$2" '
+    index($0, "nika-" plat "-") { hit = 1; next }
+    hit && /sha256 "/ { gsub(/.*sha256 "|".*/, ""); print; exit }
+  ' "$1"
+}
+write_formula() {
+  cat >"$1" <<'RUBY'
+class Nika < Formula
+  version "0.118.7"
+  on_macos do
+    on_arm do
+      url "https://example.invalid/v#{version}/nika-macos-arm64-#{version}.tar.gz"
+      sha256 "1111111111111111111111111111111111111111111111111111111111111111"
+    end
+    on_intel do
+      url "https://example.invalid/v#{version}/nika-macos-x64-#{version}.tar.gz"
+      sha256 "2222222222222222222222222222222222222222222222222222222222222222"
+    end
+  end
+  on_linux do
+    on_arm do
+      url "https://example.invalid/v#{version}/nika-linux-arm64-#{version}.tar.gz"
+      sha256 "3333333333333333333333333333333333333333333333333333333333333333"
+    end
+    on_intel do
+      url "https://example.invalid/v#{version}/nika-linux-x64-#{version}.tar.gz"
+      sha256 "4444444444444444444444444444444444444444444444444444444444444444"
+    end
+  end
+end
+RUBY
+}
+TAP="$TEST_ROOT/tap"
+PAYLOAD="$TEST_ROOT/payload"
+SIDECARS="$TEST_ROOT/sidecars"
+mkdir -p "$TAP" "$PAYLOAD" "$SIDECARS" "$TEST_ROOT/empty"
+: >"$PAYLOAD/SHA256SUMS"
+for platform in macos-arm64 macos-x64 linux-arm64 linux-x64; do
+  tarball="nika-${platform}-0.119.0.tar.gz"
+  printf 'bytes for %s\n' "$platform" >"$PAYLOAD/$tarball"
+  printf '%s  %s\n' "$(digest_of "$PAYLOAD/$tarball")" "$tarball" \
+    | tee -a "$PAYLOAD/SHA256SUMS" >"$SIDECARS/$tarball.sha256"
+done
+write_formula "$TAP/nika.rb"
+bash "$ROOT/scripts/release/update-formula.sh" "$TAP/nika.rb" 0.119.0 "$PAYLOAD" >/dev/null \
+  || fail 'the formula bump refuses the payload artifact (SHA256SUMS, no sidecars)'
+grep -q '^  version "0.119.0"$' "$TAP/nika.rb" \
+  || fail 'the formula bump did not move the version line'
+for platform in macos-arm64 macos-x64 linux-arm64 linux-x64; do
+  [ "$(formula_sha_for "$TAP/nika.rb" "$platform")" = \
+    "$(digest_of "$PAYLOAD/nika-${platform}-0.119.0.tar.gz")" ] \
+    || fail "the formula does not pin the manifest digest for $platform"
+done
+write_formula "$TAP/nika.rb"
+bash "$ROOT/scripts/release/update-formula.sh" "$TAP/nika.rb" 0.119.0 "$SIDECARS" >/dev/null \
+  || fail 'the hand-run formula bump refuses the sidecar layout'
+[ "$(formula_sha_for "$TAP/nika.rb" linux-x64)" = \
+  "$(digest_of "$PAYLOAD/nika-linux-x64-0.119.0.tar.gz")" ] \
+  || fail 'the sidecar layout did not pin its digest'
+write_formula "$TAP/nika.rb"
+cp -R "$PAYLOAD" "$TEST_ROOT/short"
+grep -v 'nika-linux-arm64-' "$PAYLOAD/SHA256SUMS" >"$TEST_ROOT/short/SHA256SUMS"
+if bash "$ROOT/scripts/release/update-formula.sh" "$TAP/nika.rb" 0.119.0 "$TEST_ROOT/short" \
+  >/dev/null 2>&1; then
+  fail 'a manifest missing one platform still bumped the formula'
+fi
+grep -q '^  version "0.118.7"$' "$TAP/nika.rb" \
+  || fail 'a refused bump left a partially rewritten formula'
+cp -R "$PAYLOAD" "$TEST_ROOT/drift"
+printf 'other bytes\n' >"$TEST_ROOT/drift/nika-macos-x64-0.119.0.tar.gz"
+if bash "$ROOT/scripts/release/update-formula.sh" "$TAP/nika.rb" 0.119.0 "$TEST_ROOT/drift" \
+  >/dev/null 2>&1; then
+  fail 'a tarball that disagrees with its manifest digest still bumped the formula'
+fi
+if bash "$ROOT/scripts/release/update-formula.sh" "$TAP/nika.rb" 0.119.0 "$TEST_ROOT/empty" \
+  >/dev/null 2>&1; then
+  fail 'an artifacts directory with no checksum source still bumped the formula'
+fi
+
 echo 'release-tooling.test: PASS'

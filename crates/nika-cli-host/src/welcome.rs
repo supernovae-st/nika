@@ -968,8 +968,9 @@ fn learn_line(s: &mut String, theme: Theme) {
 /// ladder. Honest floors of this projection, stated not hidden:
 /// `findings` is 0 (the gate carries a verdict, not a count),
 /// paused/failed traces are the deep lens's knowledge (not folded
-/// yet), `journey` has no local persistence (always `orientation`),
-/// and `intent` is unknowable at a greeting.
+/// yet — only their COUNT rides `action.nothing_has_run`, #1585),
+/// `journey` has no local persistence (always `orientation`), and
+/// `intent` is unknowable at a greeting.
 fn experience_block(
     probe: &Probe,
     envelope: &ContextEnvelope,
@@ -1063,7 +1064,8 @@ fn experience_block(
             .any(|k| probe::train_differs(&k.version, &probe.version)),
         ..ExperienceStateV1::chat_only()
     };
-    let action = route(&state);
+    // #1585 — the journal's word, never the router's constant.
+    let action = route(&state).with_recorded_runs(probe.recorded_runs);
     serde_json::json!({ "state": state, "action": action })
 }
 

@@ -27,13 +27,14 @@ use binding::{
 };
 use migration::decode_state;
 
-use super::model::{EventHash, IncarnationGeneration};
+use super::model::{EventHash, EventInstant, IncarnationGeneration};
 use super::{
     Admission, ApprovalHistoryError, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobMutation,
     JobReceipt, JobRecord, JobStatus, JobStoreError, MAX_ENCODED_EXECUTION_SNAPSHOT_BYTES,
     MAX_EVENT_BATCH_LEN, MAX_EVENT_PAYLOAD_BYTES, MAX_JOB_SNAPSHOT_BYTES, RequestDigest,
     ServerIncarnation,
 };
+use crate::ResidentClock;
 
 const JOBS_DIR: &str = "jobs";
 const INITIALIZED_FILE: &str = "initialized.json";
@@ -85,6 +86,8 @@ pub struct JobStore {
     approval_history: Option<Arc<dyn ApprovalHistory>>,
     local: Mutex<()>,
     fail_fast_lease: bool,
+    /// The clock every appended event's `at` reads (#1463).
+    clock: Arc<dyn ResidentClock>,
     #[cfg(test)]
     fail_next_persist: AtomicBool,
 }
@@ -149,6 +152,7 @@ impl JobStore {
             approval_history,
             local: Mutex::new(()),
             fail_fast_lease,
+            clock: Arc::new(crate::SystemResidentClock),
             #[cfg(test)]
             fail_next_persist: AtomicBool::new(false),
         };
@@ -158,6 +162,20 @@ impl JobStore {
             store.initialize_or_load()?;
         }
         Ok(store)
+    }
+
+    /// Replace the clock every appended event's `at` reads (#1463): the
+    /// resident hands its own, so a rehearsal's scripted time dates the
+    /// journal it writes exactly as it dates its schedules.
+    #[must_use]
+    pub fn with_clock(mut self, clock: Arc<dyn ResidentClock>) -> Self {
+        self.clock = clock;
+        self
+    }
+
+    /// The instant the next batch is dated with (read once per batch).
+    fn now(&self) -> EventInstant {
+        EventInstant::from_timestamp(self.clock.now().timestamp())
     }
 
     /// ADR-132 · the RESIDENT becomes the store's writer once it holds the
@@ -601,7 +619,7 @@ impl JobStore {
         } else {
             None
         };
-        let events = job.append_payloads(&batch)?;
+        let events = job.append_payloads(&batch, &self.now())?;
         let record = job.record.clone();
         self.persist_event_mutation(&state, &batch)?;
         Ok(JobMutation { record, events })
@@ -627,7 +645,7 @@ impl JobStore {
             .iter_mut()
             .find(|job| job.record.id == *id)
             .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
-        let appended = job.append_payloads(&batch)?;
+        let appended = job.append_payloads(&batch, &self.now())?;
         if !appended.is_empty() {
             self.persist_event_mutation(&state, &batch)?;
         }
@@ -824,7 +842,7 @@ impl JobStore {
                     job.record.status = JobStatus::Interrupted;
                     attach_interrupted_receipt(&mut job.record)?;
                     job.terminal_sequence = Some(job.final_sequence_after(&batch)?);
-                    job.append_payloads(&batch)?;
+                    job.append_payloads(&batch, &self.now())?;
                     settled += 1;
                 } else {
                     if job.record.workflow.is_empty() {
@@ -835,9 +853,9 @@ impl JobStore {
                     }
                     let payload = serde_json::json!({
                         "incarnation_generation": current_generation,
-                        "kind": "execution.requeued",
+                        "kind": crate::JobEventKind::Requeued,
                         "previous_incarnation_generation": prior_generation,
-                        "status": "queued",
+                        "status": JobStatus::Queued,
                     });
                     let batch =
                         ValidatedEventBatch::for_transition(std::slice::from_ref(&payload))?;
@@ -845,7 +863,7 @@ impl JobStore {
                     job.record.outputs = None;
                     job.record.receipt = None;
                     job.terminal_sequence = None;
-                    job.append_payloads(&batch)?;
+                    job.append_payloads(&batch, &self.now())?;
                 }
             }
         }
@@ -890,7 +908,7 @@ impl JobStore {
         job.record.status = JobStatus::Interrupted;
         attach_interrupted_receipt(&mut job.record)?;
         job.terminal_sequence = Some(job.final_sequence_after(&batch)?);
-        job.append_payloads(&batch)?;
+        job.append_payloads(&batch, &self.now())?;
         let record = job.record.clone();
         self.persist_event_mutation(&state, &batch)?;
         Ok(record)
@@ -1273,7 +1291,7 @@ impl<'a> ValidatedEventBatch<'a> {
             // A paused result lives in its immutable event, whereas a final
             // result lives in the record. Both obey the whole-store bound;
             // moving the result must not shrink outputs to an ordinary event.
-            let maximum = if payload["kind"] == "execution.settled"
+            let maximum = if crate::JobEventKind::Settled.is(payload)
                 && payload["status"] == "paused"
                 && payload.get("outputs").is_some()
             {
@@ -1322,8 +1340,12 @@ impl<'a> ValidatedEventBatch<'a> {
     }
 }
 
+/// The one run-vocabulary word the journal admits beside the resident's
+/// own kinds (NEP-0013), spelled by its owner.
+const APPROVAL_DECIDED: &str = nika_event::EventKind::ApprovalDecided.as_str();
+
 fn validate_approval_event(payload: &Value) -> Result<(), JobStoreError> {
-    if payload.get("kind").and_then(Value::as_str) != Some("approval_decided") {
+    if payload.get("kind").and_then(Value::as_str) != Some(APPROVAL_DECIDED) {
         return Ok(());
     }
     let valid = approval_digest(payload).is_some_and(|digest| RequestDigest::new(digest).is_ok());
@@ -1334,7 +1356,7 @@ fn validate_approval_event(payload: &Value) -> Result<(), JobStoreError> {
 }
 
 fn approval_digest(payload: &Value) -> Option<&str> {
-    if payload.get("kind").and_then(Value::as_str) != Some("approval_decided") {
+    if payload.get("kind").and_then(Value::as_str) != Some(APPROVAL_DECIDED) {
         return None;
     }
     payload.get("digest").and_then(Value::as_str)

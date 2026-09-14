@@ -110,14 +110,7 @@ pub(crate) fn prod_run(
     let Ok(_room) = enter_room(shot.project(), shot.root()) else {
         return RunUpshot::new(exit::ENV, None);
     };
-    let Ok(receipt) = run_quietly(|| {
-        verbs::run::run_arm_context(
-            execution,
-            shot.workflow(),
-            shot.root().to_path_buf(),
-            shot.ceiling(),
-        )
-    }) else {
+    let Ok(receipt) = run_quietly(|| verbs::run::run_arm_context(execution, shot)) else {
         return RunUpshot::new(exit::ENV, None);
     };
     RunUpshot::new(

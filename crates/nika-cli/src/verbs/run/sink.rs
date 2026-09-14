@@ -230,10 +230,14 @@ impl<W: Write> FoldSink<W> {
             // the run materialized + the model's last word — composed
             // here (sizes are a stat, the display crate holds no I/O).
             RenderMode::Plain => {
+                // Only a staged try room is a rehearsal to own — a workspace
+                // path printed « to own the file: nika new <path> » (#1587).
                 let notes = super::epilogue::fruit_notes(
                     &self.view,
                     self.trace_recorded,
-                    self.source_path.as_deref(),
+                    self.source_path
+                        .as_deref()
+                        .and_then(super::example::try_rehearsal_slug),
                 );
                 let mut lines = stream_summary(&self.view, &self.theme, &notes);
                 // #1244 · the explore hint closes the pipe story too.
@@ -451,6 +455,31 @@ mod tests {
         assert!(
             line.ends_with(&head),
             "the head is printed whole, byte-comparable against trace verify's"
+        );
+    }
+
+    /// #1587 — a workspace run is not a rehearsal to own: the plain close
+    /// names `nika new <slug>` ONLY for a staged try room, never for the
+    /// file the operator already owns (a billed xAI run printed it).
+    #[test]
+    fn plain_close_names_the_own_door_only_for_a_try_room() {
+        let close = |path: &str| {
+            let mut buf = Vec::new();
+            let mut sink =
+                FoldSink::new(&mut buf, Theme::new(false, true, false), RenderMode::Plain);
+            sink.set_source_path(path);
+            for ev in demo::success() {
+                sink.emit(ev);
+            }
+            sink.print_final();
+            String::from_utf8(buf).expect("utf8")
+        };
+        let owned = close("workflows/61-xai-hello.nika.yaml");
+        assert!(!owned.contains("to own the file"), "{owned}");
+        let staged = close("/tmp/nika-try-01-hello/01-hello.nika.yaml");
+        assert!(
+            staged.contains("to own the file: nika new 01-hello"),
+            "{staged}"
         );
     }
 

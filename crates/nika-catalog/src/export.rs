@@ -300,6 +300,22 @@ mod tests {
         );
     }
 
+    /// #1579 — a provider tag is a claim about the LISTED models: a
+    /// `vision` tag over a list with no image-capable model sent an
+    /// author to `xai/grok-4` off the prose.
+    #[test]
+    fn a_vision_tagged_provider_lists_an_image_capable_model() {
+        for p in &catalog_export().providers {
+            if p.tags.contains(&"vision") {
+                assert!(
+                    p.models.iter().any(|m| m.capabilities.vision),
+                    "provider `{}` is tagged vision but lists no image-capable model",
+                    p.id
+                );
+            }
+        }
+    }
+
     /// B18 / issue 1306: the human cell prints pasteable ids (`xai/grok-3`),
     /// not only a count, and gpt-4o-mini has entered the openai row.
     #[test]

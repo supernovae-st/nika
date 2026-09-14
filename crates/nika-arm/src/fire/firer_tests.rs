@@ -1089,3 +1089,116 @@ fn a_truncated_ledger_refuses_before_the_decision() {
         "the corrupt bytes remain untouched"
     );
 }
+
+// ── inputs · the per-beat `--var` pairs (#1370) ────────────────────
+
+/// A workflow that DECLARES two inputs — the shape a tenant-parameterized
+/// schedule arms once per tenant.
+const TENANT_WORKFLOW: &str = "nika: doctor\ninputs:\n  tenant: { type: string, required: true }\n  limit: { type: integer, default: 3 }\npermits: {}\ntasks:\n  answer:\n    infer: { prompt: \"${{ inputs.tenant }} · ${{ inputs.limit }}\" }\n";
+
+fn tenant_project(tag: &str) -> tempfile::TempDir {
+    let dir = project(tag);
+    std::fs::write(
+        dir.path().join("workflows/doctor.nika.yaml"),
+        TENANT_WORKFLOW,
+    )
+    .expect("tenant workflow");
+    dir
+}
+
+/// The beat's `inputs:` ride the shot as the `--var` pairs the run edge
+/// binds — key-sorted, scalars as their text — and the fire goes through.
+#[test]
+fn a_beat_binds_its_inputs_on_the_shot_as_var_pairs() {
+    let dir = tenant_project("inputs-bound");
+    let seen = Rc::new(RefCell::new(Vec::<String>::new()));
+    let sink = Rc::clone(&seen);
+    let run: ExecutionRunSeam = Rc::new(move |_, shot: &RunShot| {
+        let pairs: Vec<(&str, &str)> = shot.inputs().collect();
+        assert_eq!(pairs, [("limit", "5"), ("tenant", "acme")]);
+        sink.borrow_mut().extend(shot.input_vars());
+        RunUpshot::new(exit::OK, None)
+    });
+    let ctx = ctx(
+        dir.path(),
+        registry_with("    manqué: sauter\n    inputs:\n      tenant: acme\n      limit: 5\n"),
+        "2026-08-19T03:02:00Z",
+        instant_wait(),
+        run,
+    );
+    let verdict = fire_beat(&ctx);
+    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+    assert!(
+        verdict.line.starts_with("fired doctor · "),
+        "{}",
+        verdict.line
+    );
+    assert_eq!(*seen.borrow(), ["limit=5", "tenant=acme"]);
+}
+
+/// A key the workflow never declared is a REGISTRY defect: refused by
+/// name with the declared set, BEFORE the claim — no history, no receipt,
+/// exit 2 (the same class as a refused schedule identity).
+#[test]
+fn an_undeclared_beat_input_refuses_before_the_claim() {
+    // Against a workflow with a declared set …
+    let dir = tenant_project("inputs-undeclared");
+    let (count, run) = run_counter();
+    let declared = ctx(
+        dir.path(),
+        registry_with("    manqué: sauter\n    inputs:\n      tenant: acme\n      ghost: x\n"),
+        "2026-08-19T03:02:00Z",
+        instant_wait(),
+        run,
+    );
+    let verdict = fire_beat(&declared);
+    assert_eq!(verdict.code, exit::FILE, "{}", verdict.line);
+    assert_eq!(
+        verdict.line,
+        "failed doctor · inputs.ghost: unknown input — the workflow declares: tenant · limit"
+    );
+    assert_eq!(count.get(), 0, "the run never started");
+    assert!(
+        !dir.path().join(".nika/arm/doctor/history.ndjson").exists(),
+        "no claim was appended"
+    );
+    // … and against a workflow that declares none.
+    let dir = project("inputs-none-declared");
+    let (count, run) = run_counter();
+    let none = ctx(
+        dir.path(),
+        registry_with("    manqué: sauter\n    inputs:\n      tenant: acme\n"),
+        "2026-08-19T03:02:00Z",
+        instant_wait(),
+        run,
+    );
+    let verdict = fire_beat(&none);
+    assert_eq!(verdict.code, exit::FILE, "{}", verdict.line);
+    assert_eq!(
+        verdict.line,
+        "failed doctor · inputs.tenant: unknown input — this workflow declares no `inputs:`"
+    );
+    assert_eq!(count.get(), 0);
+}
+
+/// The inputs are part of the registry's identity: a supplied registry
+/// whose inputs differ from the held `nika.yaml` does not belong to the
+/// project (the custody check that guards every other declared field).
+#[test]
+fn a_registry_whose_inputs_differ_from_the_held_file_is_refused() {
+    let dir = tenant_project("inputs-custody");
+    let (held, _) = registry_with("    manqué: sauter\n    inputs: { tenant: acme }\n");
+    std::fs::write(dir.path().join("nika.yaml"), held).expect("held registry");
+    let (_, supplied) = registry_with("    manqué: sauter\n    inputs: { tenant: globex }\n");
+    let error = FireCtx::new_with_execution(
+        dir.path().to_path_buf(),
+        supplied,
+        0,
+        at("2026-08-19T03:02:00Z"),
+        std::process::id(),
+        Rc::new(|_, _| RunUpshot::new(exit::OK, None)),
+    )
+    .err()
+    .expect("refused at construction");
+    assert!(error.to_string().contains("does not belong"), "{error}");
+}

@@ -447,6 +447,9 @@ pub(crate) fn purpose(path: &str) -> &'static str {
             "connect the Nika MCP oracle"
         }
         ".github/copilot-instructions.md" => "Copilot workflow instructions",
+        "nika.yaml" => "team defaults: cost ceiling and trace retention, commented until edited",
+        "workflows/README.md" => "index of the scaffolded workflows",
+        _ if path.ends_with(".nika.yaml") => "a workflow to audit, then run",
         _ if path.ends_with("/session-context.sh") => {
             "session context and binary version diagnosis"
         }

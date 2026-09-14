@@ -599,6 +599,13 @@ impl AuthorizedRuntime {
         self
     }
 
+    /// Attach the MCP plane (`mcp:<server>/<tool>` resolution · #1575).
+    #[must_use]
+    pub fn with_mcp_plane(mut self, plane: nika_runtime::McpPlane) -> Self {
+        self.runtime = self.runtime.with_mcp_plane(plane);
+        self
+    }
+
     /// Enable durable prompt pauses.
     #[must_use]
     pub fn with_prompt_pause(mut self, pause: bool) -> Self {
@@ -645,6 +652,13 @@ impl AuthorizedRuntime {
         unverified: Option<nika_runtime::resume::ResumeUnverified>,
     ) -> Self {
         self.runtime = self.runtime.with_resume_unverified(unverified);
+        self
+    }
+
+    /// Attach the trace this leg continues (#1462 · `--resume`).
+    #[must_use]
+    pub fn with_resumed_from(mut self, resumed_from: Option<String>) -> Self {
+        self.runtime = self.runtime.with_resumed_from(resumed_from);
         self
     }
 
@@ -734,6 +748,13 @@ impl AuthorizedRuntime {
     #[must_use]
     pub fn access_plan(&self) -> Option<&ExecutionAccessPlan> {
         self.runtime.access_plan()
+    }
+
+    /// The trace this leg continues (#1462), when the composer stamped one
+    /// — the settlement frame says it beside the lanes.
+    #[must_use]
+    pub fn resumed_from(&self) -> Option<&str> {
+        self.runtime.resumed_from()
     }
 
     /// Attach the verified resume plan.

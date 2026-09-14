@@ -24,17 +24,22 @@
 //! and hands the repaired text back — it never writes a file (#1270).
 //!
 //! The crate also owns the CLIENT side of the protocol: [`client`] is the
-//! `tools/list` seam over configured servers (`.nika/mcp_servers.json`) and
-//! [`pin`] is the anti-rug-pull defence — per-tool pins over
-//! `{name, description, inputSchema}` in `.nika/mcp_pins.json`, enrolled on
-//! first contact (TOFU), re-verified on EVERY connect, and failed closed
-//! with a human-readable diff on any drift (`nika mcp approve <server>`
-//! re-pins after human review). Every spawned server rides the OS sandbox
-//! ([`sandbox`] — the same Seatbelt/bwrap confinement the `exec` verb uses):
-//! confined to the project tree, network denied unless the registry opts in,
-//! environment scrubbed, and never a silent unconfined fallback.
+//! registry (`.nika/mcp_servers.json`) + the pin flow over a configured
+//! server's `tools/list`; [`session`] is the confined stdio session
+//! (spawn · handshake · bounded `tools/list` / `tools/call`); [`pin`] is the
+//! anti-rug-pull defence — per-tool pins over `{name, description,
+//! inputSchema}` in `.nika/mcp_pins.json`, approved by the operator
+//! (`nika mcp approve <server>`), re-verified on EVERY connect, and failed
+//! closed with a human-readable diff on any drift; [`dispatch`] is the
+//! runtime plane a run rides — `mcp:<server>/<tool>` reaches ONLY an
+//! approved, verified tool, over a session kept for the run. Every spawned
+//! server rides the OS sandbox ([`sandbox`] — the same Seatbelt/bwrap
+//! confinement the `exec` verb uses): confined to the project tree, network
+//! denied unless the registry opts in, environment scrubbed, and never a
+//! silent unconfined fallback.
 
 pub mod client;
+pub mod dispatch;
 mod http;
 mod learn;
 pub mod pin;
@@ -42,6 +47,7 @@ mod prompts;
 mod protocol;
 mod repair;
 pub mod sandbox;
+pub mod session;
 mod tools;
 
 pub use http::HttpServer;

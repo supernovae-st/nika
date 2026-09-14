@@ -55,11 +55,17 @@ pub enum VerbAgentError {
         spend: Box<SpendOnFailure>,
     },
 
-    /// The loop exhausted `max_tokens_total` (NIKA-461).
-    #[error("agent exhausted max_tokens_total ({total_tokens} spent)")]
+    /// The loop exhausted `max_tokens_total` (NIKA-461). The count is
+    /// the budget arithmetic (#1518): fresh prompt tokens + output tokens
+    /// per call, a cache-read prefix weighing zero — the verdict SAYS so,
+    /// because an author sizing the budget must know which sum it follows.
+    #[error(
+        "agent exhausted max_tokens_total ({total_tokens} counted · fresh prompt + output \
+         tokens per turn, cache reads weigh 0)"
+    )]
     #[diagnostic(code(nika::verb::agent_max_tokens))]
     MaxTokens {
-        /// Cumulative tokens at the stop.
+        /// Cumulative budget-weighted tokens at the stop.
         total_tokens: u64,
         /// The last assistant text (the spec's `partial_output`).
         partial_output: String,

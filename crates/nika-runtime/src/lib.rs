@@ -144,6 +144,7 @@ pub use errors::RuntimeError;
 pub use identity::{
     EngineIdentity, MACHINE_PROTOCOL_VERSION, MACHINE_SNAPSHOT_FORMAT_VERSION, engine_identity,
 };
+pub use nika_verb_invoke::McpPlane;
 pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
 // Descended to `nika-dataflow` at the 15k wall — paths preserved. The three
@@ -370,6 +371,12 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// manifest (`resume_unverified: <posture>` + the finding). `None` =
     /// the resume's chain verified (or no resume at all).
     resume_unverified: Option<resume::ResumeUnverified>,
+    /// #1462 — the trace this leg CONTINUES: the recorded journal's trace
+    /// id (the composer folds it from `--resume <trace>`), attested on the
+    /// boot manifest as `resumed_from` and projected on `run_settled`, so
+    /// a continuation renders as one — never inferred from a nonce.
+    /// `None` = a fresh run.
+    resumed_from: Option<String>,
 }
 
 /// One wave's read-only value scope — (`inputs` · `const` · `secrets` ·
@@ -423,6 +430,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
 
             resume_compat: None,
             resume_unverified: None,
+            resumed_from: None,
             access_pin: None,
             access_probes: Vec::new(),
             boot_access_fields: Vec::new(),
@@ -437,6 +445,16 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_inspect(mut self, cell: Arc<nika_builtin::LiveInspect>) -> Self {
         self.inspect = Some(cell);
+        self
+    }
+
+    /// Install the MCP plane on the invoke seam (#1575): from now on an
+    /// `mcp:<server>/<tool>` task resolves against the project registry +
+    /// the approved pins instead of the builtin dispatcher. Installed once;
+    /// a second plane is ignored (the verb keeps the first).
+    #[must_use]
+    pub fn with_mcp_plane(self, plane: McpPlane) -> Self {
+        let _installed = self.invoke.install_mcp_plane(plane);
         self
     }
 
@@ -655,6 +673,22 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     pub fn with_resume_unverified(mut self, unverified: Option<resume::ResumeUnverified>) -> Self {
         self.resume_unverified = unverified;
         self
+    }
+
+    /// Stamp the trace this leg continues (#1462): the recorded journal's
+    /// trace id the composer folded from `--resume <trace>`. Journaled on
+    /// the boot manifest (`resumed_from`) — `None` (a fresh run) journals
+    /// no claim.
+    #[must_use]
+    pub fn with_resumed_from(mut self, resumed_from: Option<String>) -> Self {
+        self.resumed_from = resumed_from;
+        self
+    }
+
+    /// The trace this leg continues (#1462), when the composer stamped one.
+    #[must_use]
+    pub fn resumed_from(&self) -> Option<&str> {
+        self.resumed_from.as_deref()
     }
 
     /// Enable the ADR-099 pause rider: a blocking `nika:prompt` with no
@@ -918,6 +952,7 @@ where
             self.config.project_root_fingerprint.as_deref(),
             &self.input_origins,
             self.resume_compat.as_deref(),
+            self.resumed_from.as_deref(),
             self.resume_unverified.as_ref(),
             self.config.max_cost_usd,
             self.model_override.as_deref(),

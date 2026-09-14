@@ -570,15 +570,17 @@ tasks:
         assert_eq!(e[1].fix, None, "phantom builtin → rename owns the repair");
     }
 
-    /// THE LAW (A-1d · user gauntlet 2026-07-31 · G-09 · Nina): the
-    /// checker never hands the shovel with the hole. A path that
+    /// THE LAW (A-1d · user gauntlet 2026-07-31 · G-09 · Nina · #1267):
+    /// the checker never hands the shovel with the hole. A path that
     /// ESCAPES the workspace earns NO machine fix (the agent repair
     /// loop must never auto-widen a boundary toward an escape) and the
     /// detail teaches the narrow way first — the declared entries by
     /// name — with the widening named as the deliberate second. An
-    /// in-tree path keeps the classic grant fix, byte-identical.
+    /// in-tree miss outside a DECLARED direction gets the same voice
+    /// (#1267): containment first, the widening an operator's act, no
+    /// pasteable `add` line.
     #[test]
-    fn escaping_path_earns_no_shovel_in_tree_path_keeps_the_grant_fix() {
+    fn escaping_and_in_tree_misses_earn_no_shovel_against_a_declared_boundary() {
         let y = "nika: w\npermits: { tools: [\"nika:write\"], fs: { write: [\"report.md\"] } }\ntasks:\n  probe:\n    invoke: { tool: \"nika:write\", args: { path: \"../../pwned.md\", content: \"x\" } }\n  neighbor:\n    invoke: { tool: \"nika:write\", args: { path: \"out/notes.md\", content: \"y\" } }\n";
         let e = escapes_of(y);
         assert_eq!(e.len(), 2, "{e:?}");
@@ -611,9 +613,47 @@ tasks:
             .find(|c| c.detail.contains("out/notes.md"))
             .expect("the in-tree row");
         assert_eq!(
-            neighbor.fix.as_deref(),
-            Some("add \"out/notes.md\" to permits.fs.write"),
-            "an in-tree miss keeps the one machine idiom"
+            neighbor.fix, None,
+            "an in-tree miss outside a declared boundary is not a pasteable widening: {neighbor:?}"
+        );
+        assert!(
+            neighbor
+                .detail
+                .contains("keep the path inside the declared fs.write (report.md)")
+                && neighbor.detail.contains("deliberate operator choice")
+                && neighbor.detail.contains("--infer-permits"),
+            "containment first, the widening an operator's act: {neighbor:?}"
+        );
+    }
+
+    /// #1267 — the interior `..` spelling of an escape from the DECLARED
+    /// boundary (`./data/../outside.txt` under `./data/**`) used to print
+    /// `add "./data/../outside.txt"`: pasted verbatim, the grant checked
+    /// green and the run read the file. The row now folds the path so the
+    /// author sees where it lands, teaches containment, and carries no
+    /// fix. An EMPTY direction keeps the declaration fix — the first
+    /// entry is not a widening.
+    #[test]
+    fn interior_dotdot_outside_the_declared_grant_is_taught_not_widened() {
+        let y = "nika: w\npermits: { tools: [\"nika:read\"], fs: { read: [\"./data/**\"] } }\ntasks:\n  loot:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/../outside.txt\" } }\n";
+        let e = escapes_of(y);
+        assert_eq!(e.len(), 1, "{e:?}");
+        assert_eq!(e[0].fix, None, "no widening to paste: {:?}", e[0]);
+        for expected in [
+            "lands at `./outside.txt`",
+            "keep the path inside the declared fs.read (./data/**)",
+            "deliberate operator choice",
+        ] {
+            assert!(e[0].detail.contains(expected), "`{expected}` in {:?}", e[0]);
+        }
+        let undeclared = escapes_of(
+            "nika: w\npermits: { tools: [\"nika:read\"] }\ntasks:\n  first:\n    invoke: { tool: \"nika:read\", args: { path: \"./in.md\" } }\n",
+        );
+        assert!(
+            undeclared
+                .iter()
+                .any(|c| c.fix.as_deref() == Some("add \"./in.md\" to permits.fs.read")),
+            "the first entry of an empty direction is a declaration: {undeclared:?}"
         );
     }
 

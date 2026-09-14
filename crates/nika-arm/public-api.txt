@@ -147,6 +147,8 @@ pub fn nika_arm::fire::RunShot::ceiling(&self) -> f64
 pub const fn nika_arm::fire::RunShot::decision(&self) -> nika_cadence::tick::ScheduleDecision
 pub const fn nika_arm::fire::RunShot::fired_at(&self) -> jiff::timestamp::Timestamp
 pub fn nika_arm::fire::RunShot::generation(&self) -> &nika_cadence::firing::ArmGeneration
+pub fn nika_arm::fire::RunShot::input_vars(&self) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + '_
+pub fn nika_arm::fire::RunShot::inputs(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &str)>
 pub fn nika_arm::fire::RunShot::project(&self) -> &nika_fs::owned_dir::OwnedDir
 pub fn nika_arm::fire::RunShot::root(&self) -> &std::path::Path
 pub fn nika_arm::fire::RunShot::schedule_id(&self) -> &str
@@ -721,6 +723,8 @@ pub fn nika_arm::fire::RunShot::ceiling(&self) -> f64
 pub const fn nika_arm::fire::RunShot::decision(&self) -> nika_cadence::tick::ScheduleDecision
 pub const fn nika_arm::fire::RunShot::fired_at(&self) -> jiff::timestamp::Timestamp
 pub fn nika_arm::fire::RunShot::generation(&self) -> &nika_cadence::firing::ArmGeneration
+pub fn nika_arm::fire::RunShot::input_vars(&self) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + '_
+pub fn nika_arm::fire::RunShot::inputs(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &str)>
 pub fn nika_arm::fire::RunShot::project(&self) -> &nika_fs::owned_dir::OwnedDir
 pub fn nika_arm::fire::RunShot::root(&self) -> &std::path::Path
 pub fn nika_arm::fire::RunShot::schedule_id(&self) -> &str

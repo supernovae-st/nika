@@ -80,7 +80,10 @@
 //!   sovereign: the engine's own `nika-bm25` satellite, zero LLM calls);
 //! - **stall guard** (`guard` · private) — windowed cycle detection
 //!   over action+observation turn signatures, with a bounded Reflexion
-//!   nudge before the NIKA-467 stop;
+//!   nudge before the NIKA-467 stop — and the **effect memory** (#1470):
+//!   an effectful call that settled this run (a keyless `nika:fetch`
+//!   POST · a destructive MCP tool) is never re-issued with the same
+//!   arguments, the model is told why instead;
 //! - **intrinsics** (`intrinsic` · private) — `nika:compose` drafts a
 //!   Nika workflow and gets the full `nika check` verdict back in-turn
 //!   (« generation is not permission »: composition yields an artifact
@@ -103,6 +106,7 @@ pub mod errors;
 pub mod observe;
 pub mod whitelist;
 
+mod batch;
 mod guard;
 #[cfg(feature = "access-harness")]
 pub mod harness_path;
@@ -128,6 +132,7 @@ use nika_types::blame::BlamePolarity;
 use nika_types::cost::SpendOnFailure;
 use nika_verb_invoke::{InvokeInput, InvokeVerb, VerbInvokeError};
 
+use crate::batch::{BatchFold, BatchOutcome, Resolved};
 use crate::guard::{Guard, GuardVerdict};
 use crate::request::{build_request, joined_text, opening_messages, routing_query, schema_request};
 use crate::router::ToolRouter;
@@ -631,12 +636,9 @@ where
                     source,
                     spend: Box::default(), // decorated at the return seam
                 })?;
-        *total_tokens = total_tokens.saturating_add(
-            response
-                .usage
-                .input_tokens
-                .saturating_add(response.usage.output_tokens),
-        );
+        // The budget scalar follows what the run SPENDS (#1518): the
+        // re-sent prefix a provider served from its cache weighs zero.
+        *total_tokens = total_tokens.saturating_add(turn::budget_weight(&response.usage));
         // The pricing-grade fold — every meter (cache · reasoning ·
         // thinking), not just the budget scalar above.
         usage_acc.absorb(&response.usage);
@@ -806,7 +808,7 @@ where
         run_start: Option<ToolRunStart>,
     ) -> Result<(String, f64), VerbAgentError> {
         let batch = self
-            .run_batch(observer, turn, tool_uses, router, run_start)
+            .run_batch(observer, turn, tool_uses, router, guard, run_start)
             .await?;
         // Consult the guard BEFORE pushing, so a nudge rides INSIDE the
         // same user message as the tool results — never a second adjacent
@@ -884,82 +886,35 @@ where
         turn: u32,
         tool_uses: Vec<ToolUse>,
         router: &mut ToolRouter,
+        guard: &mut Guard,
         run_start: Option<ToolRunStart>,
     ) -> Result<BatchOutcome, VerbAgentError> {
         use futures_util::{StreamExt, TryStreamExt};
         let cap = self.config.max_parallel_tools.max(1);
+        // #1470 · the effect memory judges BEFORE phase 1: a replayed
+        // effectful call is refused in place (never dispatched), so the
+        // batch keeps request order and the model reads why.
+        let gated: Vec<(ToolUse, guard::EffectGate)> = tool_uses
+            .into_iter()
+            .map(|u| {
+                let gate = guard.effect_gate(&u.name, &u.args);
+                (u, gate)
+            })
+            .collect();
         let resolved: Vec<Resolved> = futures_util::stream::iter(
-            tool_uses
+            gated
                 .into_iter()
-                .map(|u| self.resolve_tool(u, run_start)),
+                .map(|(u, gate)| self.resolve_tool(u, gate, run_start)),
         )
         .buffered(cap)
         .try_collect()
         .await?;
 
-        let mut results: Vec<ContentBlock> = Vec::with_capacity(resolved.len());
-        let mut sig_calls: Vec<(String, serde_json::Value)> = Vec::with_capacity(resolved.len());
-        let mut sig_results: Vec<(String, bool)> = Vec::with_capacity(resolved.len());
-        // The error STREAK counts real tool failures only — a compose
-        // verdict of `invalid` is the EXPECTED feedback of the draft→repair
-        // loop, never a tool fault, so it must not arm the error-streak
-        // nudge (which would spend the one reflection budget during normal
-        // repair). Tracked separately from the per-block is_error.
-        let mut all_dispatch_errors = true;
-        let mut had_dispatch = false;
-        let mut tools_cost_usd = 0.0_f64;
+        let mut fold = BatchFold::new(resolved.len());
         for r in resolved {
-            if let Some(cost) = r.cost_usd {
-                tools_cost_usd += cost;
-            }
-            // An intrinsic reports ComposeChecked; a real dispatch reports
-            // ToolCompleted. They are NOT both — `nika:compose` is
-            // loop-served, never a tool invocation, so it must not surface
-            // as one on the stream (a `tool_invoked` for a call that never
-            // hit the executor would mislead every reader).
-            if let Some(outcome) = r.compose {
-                observer.on_event(&AgentEvent::ComposeChecked {
-                    turn,
-                    valid: outcome.valid,
-                    violations: outcome.violations,
-                });
-            } else if let ContentBlock::ToolResult { is_error, .. } = &r.block {
-                had_dispatch = true;
-                all_dispatch_errors &= *is_error;
-                observer.on_event(&AgentEvent::ToolCompleted {
-                    turn,
-                    name: r.name.clone(),
-                    is_error: *is_error,
-                });
-            }
-            // The guard signature reads EVERY observation (compose
-            // included — a repeating compose draft is still a no-progress
-            // loop) regardless of which event reported it.
-            if let ContentBlock::ToolResult {
-                content, is_error, ..
-            } = &r.block
-            {
-                sig_results.push((content.clone(), *is_error));
-            }
-            router.note_used(&r.name, turn);
-            sig_calls.push((r.name, r.args));
-            results.push(r.block);
+            fold.accept(observer, turn, r, guard, router);
         }
-        // ' '-joined so adjacent results don't fuse into phantom seam tokens
-        // ("…statusfetch…") in the next turn's BM25 query.
-        let observations_digest = sig_results
-            .iter()
-            .flat_map(|(content, _)| content.chars().take(512).chain(std::iter::once(' ')))
-            .take(2048)
-            .collect();
-        Ok(BatchOutcome {
-            signature: guard::turn_signature(&sig_calls, &sig_results),
-            results,
-            tools_cost_usd,
-            observations_digest,
-            // No real dispatch this turn (compose-only) ⇒ no error streak.
-            all_errors: had_dispatch && all_dispatch_errors,
-        })
+        Ok(fold.finish())
     }
 
     /// Resolve ONE tool call to its result block (phase-1 unit — pure
@@ -969,32 +924,38 @@ where
     async fn resolve_tool(
         &self,
         u: ToolUse,
+        gate: guard::EffectGate,
         run_start: Option<ToolRunStart>,
     ) -> Result<Resolved, VerbAgentError> {
+        if gate == guard::EffectGate::Replay {
+            // #1470 · refused in place: the executor never sees a replay.
+            let block = ContentBlock::ToolResult {
+                tool_use_id: u.id,
+                content: guard::effect_replay_text(&u.name),
+                is_error: true,
+            };
+            return Ok(Resolved::new(block, u.name, u.args, None, None, gate));
+        }
         if let Some(intrinsic) = intrinsic::Intrinsic::parse(&u.name) {
             let (content, is_error, outcome) = self.run_intrinsic(intrinsic, u.args.clone()).await;
-            Ok(Resolved {
-                block: ContentBlock::ToolResult {
-                    tool_use_id: u.id,
-                    content,
-                    is_error,
-                },
-                name: u.name,
-                args: u.args,
-                cost_usd: None,
-                compose: Some(outcome),
-            })
+            let block = ContentBlock::ToolResult {
+                tool_use_id: u.id,
+                content,
+                is_error,
+            };
+            Ok(Resolved::new(
+                block,
+                u.name,
+                u.args,
+                None,
+                Some(outcome),
+                gate,
+            ))
         } else {
             let (block, cost_usd) = self
                 .dispatch(&u.id, &u.name, u.args.clone(), run_start)
                 .await?;
-            Ok(Resolved {
-                block,
-                name: u.name,
-                args: u.args,
-                cost_usd,
-                compose: None,
-            })
+            Ok(Resolved::new(block, u.name, u.args, cost_usd, None, gate))
         }
     }
 
@@ -1037,11 +998,13 @@ where
         if whitelist.is_empty() {
             return Ok(Vec::new()); // pure conversation · skip the seam
         }
-        let universe = self
+        let mut universe = self
             .tool_defs
             .tool_defs()
             .await
             .map_err(|source| VerbAgentError::ToolDefs { source })?;
+        // #1575 · the approved `mcp:` defs the invoke seam's plane offers.
+        universe.extend(self.invoke.mcp_tool_defs());
         let mut defs: Vec<ToolDef> = universe
             .into_iter()
             // Drop every LOOP-OWNED name a source supplied (the loop
@@ -1135,33 +1098,6 @@ where
             }
         }
     }
-}
-
-/// One resolved tool call (phase-1 output · ADR-097): the result block
-/// plus what the fold needs (name + args for the signature/router · the
-/// compose outcome for its telemetry).
-struct Resolved {
-    block: ContentBlock,
-    name: String,
-    args: serde_json::Value,
-    /// Real spend the tool reported (top-level `cost_usd` in its
-    /// structured output) — summed into the batch.
-    cost_usd: Option<f64>,
-    compose: Option<intrinsic::ComposeOutcome>,
-}
-
-/// What one dispatched batch produced (results + the guard's evidence).
-struct BatchOutcome {
-    /// The tool-result blocks, in dispatch order.
-    results: Vec<ContentBlock>,
-    /// Σ of the batch's tool-reported real spend (0.0 = none reported).
-    tools_cost_usd: f64,
-    /// Turn signature over actions + observations (see `guard`).
-    signature: u64,
-    /// A bounded digest of the observations, for the next routing query.
-    observations_digest: String,
-    /// Whether EVERY call in the batch errored.
-    all_errors: bool,
 }
 
 /// identity: tool spend absent (never zero) when nothing reported ·
@@ -1466,6 +1402,8 @@ mod tests;
 mod tests_budgets;
 #[cfg(test)]
 mod tests_completion;
+#[cfg(test)]
+mod tests_effects;
 #[cfg(test)]
 mod tests_refusal;
 #[cfg(test)]

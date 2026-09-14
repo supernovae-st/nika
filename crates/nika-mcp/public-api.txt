@@ -39,6 +39,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_mcp::client::ConnectOutcome
 impl<T> typenum::type_operators::Same for nika_mcp::client::ConnectOutcome
 pub type nika_mcp::client::ConnectOutcome::Output = T
 #[non_exhaustive] pub struct nika_mcp::client::ApproveReport
+pub nika_mcp::client::ApproveReport::confinement: core::option::Option<alloc::string::String>
 pub nika_mcp::client::ApproveReport::pinned_at: alloc::string::String
 pub nika_mcp::client::ApproveReport::pins: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub nika_mcp::client::ApproveReport::server: alloc::string::String
@@ -136,6 +137,7 @@ pub fn nika_mcp::client::StdioMcpClient::with_project_dir(self, project_dir: imp
 pub fn nika_mcp::client::StdioMcpClient::with_sandbox(self, sandbox: alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>) -> Self
 pub fn nika_mcp::client::StdioMcpClient::with_timeout(self, timeout: core::time::Duration) -> Self
 impl nika_mcp::client::ToolsListDyn for nika_mcp::client::StdioMcpClient
+pub fn nika_mcp::client::StdioMcpClient::confinement(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_mcp::client::StdioMcpClient::tools_list(&self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
 impl<D> owo_colors::OwoColorize for nika_mcp::client::StdioMcpClient
 impl<T, U> core::convert::Into<U> for nika_mcp::client::StdioMcpClient where U: core::convert::From<T>
@@ -166,12 +168,50 @@ pub type nika_mcp::client::StdioMcpClient::Output = T
 pub const nika_mcp::client::SERVERS_FORMAT: u32
 pub const nika_mcp::client::SERVERS_PATH: &str
 pub trait nika_mcp::client::ToolsListDyn
+pub fn nika_mcp::client::ToolsListDyn::confinement(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_mcp::client::ToolsListDyn::tools_list(&self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
 impl nika_mcp::client::ToolsListDyn for nika_mcp::client::StdioMcpClient
+pub fn nika_mcp::client::StdioMcpClient::confinement(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_mcp::client::StdioMcpClient::tools_list(&self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
 pub fn nika_mcp::client::approve_server<C: nika_mcp::client::ToolsListDyn + ?core::marker::Sized>(config: &nika_mcp::client::McpServerConfig, client: &C, project_dir: &std::path::Path, now_epoch: u64) -> core::result::Result<nika_mcp::client::ApproveReport, nika_mcp::pin::PinError>
 pub fn nika_mcp::client::connect_verified<C: nika_mcp::client::ToolsListDyn + ?core::marker::Sized>(config: &nika_mcp::client::McpServerConfig, client: &C, project_dir: &std::path::Path, now_epoch: u64) -> core::result::Result<nika_mcp::client::ConnectOutcome, nika_mcp::pin::PinError>
 pub fn nika_mcp::client::load_server_configs(project_dir: &std::path::Path) -> core::result::Result<alloc::vec::Vec<nika_mcp::client::McpServerConfig>, nika_mcp::pin::PinError>
+pub mod nika_mcp::dispatch
+pub struct nika_mcp::dispatch::McpToolPlane
+impl nika_mcp::dispatch::McpToolPlane
+pub fn nika_mcp::dispatch::McpToolPlane::call(&self, call: &nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
+pub fn nika_mcp::dispatch::McpToolPlane::lazy(project_dir: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_mcp::dispatch::McpToolPlane::tool_defs(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
+pub fn nika_mcp::dispatch::McpToolPlane::with_connector(project_dir: impl core::convert::Into<std::path::PathBuf>, connector: alloc::boxed::Box<dyn nika_mcp::session::McpConnectDyn>) -> Self
+impl core::fmt::Debug for nika_mcp::dispatch::McpToolPlane
+pub fn nika_mcp::dispatch::McpToolPlane::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_mcp::dispatch::McpToolPlane
+impl<T, U> core::convert::Into<U> for nika_mcp::dispatch::McpToolPlane where U: core::convert::From<T>
+pub fn nika_mcp::dispatch::McpToolPlane::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::dispatch::McpToolPlane where U: core::convert::Into<T>
+pub type nika_mcp::dispatch::McpToolPlane::Error = core::convert::Infallible
+pub fn nika_mcp::dispatch::McpToolPlane::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::dispatch::McpToolPlane where U: core::convert::TryFrom<T>
+pub type nika_mcp::dispatch::McpToolPlane::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::dispatch::McpToolPlane::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_mcp::dispatch::McpToolPlane where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::dispatch::McpToolPlane::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::dispatch::McpToolPlane where T: ?core::marker::Sized
+pub fn nika_mcp::dispatch::McpToolPlane::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::dispatch::McpToolPlane where T: ?core::marker::Sized
+pub fn nika_mcp::dispatch::McpToolPlane::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_mcp::dispatch::McpToolPlane
+pub fn nika_mcp::dispatch::McpToolPlane::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_mcp::dispatch::McpToolPlane where T: 'static
+pub fn nika_mcp::dispatch::McpToolPlane::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::dispatch::McpToolPlane where T: ?core::marker::Sized
+pub fn nika_mcp::dispatch::McpToolPlane::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::dispatch::McpToolPlane::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::dispatch::McpToolPlane
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::dispatch::McpToolPlane
+impl<T> typenum::type_operators::Same for nika_mcp::dispatch::McpToolPlane
+pub type nika_mcp::dispatch::McpToolPlane::Output = T
+pub fn nika_mcp::dispatch::run_plane(project_dir: impl core::convert::Into<std::path::PathBuf>) -> nika_verb_invoke::mcp::McpPlane
 pub mod nika_mcp::pin
 #[non_exhaustive] pub enum nika_mcp::pin::PinError
 pub nika_mcp::pin::PinError::Corrupt
@@ -190,6 +230,10 @@ pub nika_mcp::pin::PinError::Sandbox::why: alloc::string::String
 pub nika_mcp::pin::PinError::Transport
 pub nika_mcp::pin::PinError::Transport::server: alloc::string::String
 pub nika_mcp::pin::PinError::Transport::why: alloc::string::String
+pub nika_mcp::pin::PinError::Unapproved
+pub nika_mcp::pin::PinError::Unapproved::pinned: alloc::vec::Vec<alloc::string::String>
+pub nika_mcp::pin::PinError::Unapproved::server: alloc::string::String
+pub nika_mcp::pin::PinError::Unapproved::tool: alloc::string::String
 pub nika_mcp::pin::PinError::Unsupported
 pub nika_mcp::pin::PinError::Unsupported::server: alloc::string::String
 pub nika_mcp::pin::PinError::Unsupported::why: alloc::string::String
@@ -408,6 +452,142 @@ pub const nika_mcp::pin::PINS_FORMAT: u32
 pub const nika_mcp::pin::PINS_PATH: &str
 pub mod nika_mcp::sandbox
 pub fn nika_mcp::sandbox::platform_sandbox() -> alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>
+pub mod nika_mcp::session
+#[non_exhaustive] pub struct nika_mcp::session::CallOutcome
+pub nika_mcp::session::CallOutcome::content: alloc::string::String
+pub nika_mcp::session::CallOutcome::is_error: bool
+pub nika_mcp::session::CallOutcome::structured: core::option::Option<serde_json::value::Value>
+impl nika_mcp::session::CallOutcome
+pub fn nika_mcp::session::CallOutcome::from_result(result: &serde_json::value::Value) -> Self
+pub fn nika_mcp::session::CallOutcome::new(content: impl core::convert::Into<alloc::string::String>, structured: core::option::Option<serde_json::value::Value>, is_error: bool) -> Self
+impl core::clone::Clone for nika_mcp::session::CallOutcome
+pub fn nika_mcp::session::CallOutcome::clone(&self) -> nika_mcp::session::CallOutcome
+impl core::cmp::Eq for nika_mcp::session::CallOutcome
+impl core::cmp::PartialEq for nika_mcp::session::CallOutcome
+pub fn nika_mcp::session::CallOutcome::eq(&self, other: &nika_mcp::session::CallOutcome) -> bool
+impl core::fmt::Debug for nika_mcp::session::CallOutcome
+pub fn nika_mcp::session::CallOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_mcp::session::CallOutcome
+impl<D> owo_colors::OwoColorize for nika_mcp::session::CallOutcome
+impl<Q, K> equivalent::Equivalent<K> for nika_mcp::session::CallOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::session::CallOutcome::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::session::CallOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::session::CallOutcome::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_mcp::session::CallOutcome where U: core::convert::From<T>
+pub fn nika_mcp::session::CallOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::session::CallOutcome where U: core::convert::Into<T>
+pub type nika_mcp::session::CallOutcome::Error = core::convert::Infallible
+pub fn nika_mcp::session::CallOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::session::CallOutcome where U: core::convert::TryFrom<T>
+pub type nika_mcp::session::CallOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::session::CallOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_mcp::session::CallOutcome where T: core::clone::Clone
+pub type nika_mcp::session::CallOutcome::Owned = T
+pub fn nika_mcp::session::CallOutcome::clone_into(&self, target: &mut T)
+pub fn nika_mcp::session::CallOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_mcp::session::CallOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::session::CallOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::session::CallOutcome where T: ?core::marker::Sized
+pub fn nika_mcp::session::CallOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::session::CallOutcome where T: ?core::marker::Sized
+pub fn nika_mcp::session::CallOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_mcp::session::CallOutcome where T: core::clone::Clone
+pub unsafe fn nika_mcp::session::CallOutcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_mcp::session::CallOutcome
+pub fn nika_mcp::session::CallOutcome::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_mcp::session::CallOutcome where T: core::clone::Clone
+pub fn nika_mcp::session::CallOutcome::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_mcp::session::CallOutcome where T: 'static
+pub fn nika_mcp::session::CallOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::session::CallOutcome where T: ?core::marker::Sized
+pub fn nika_mcp::session::CallOutcome::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::session::CallOutcome::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::session::CallOutcome
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::session::CallOutcome
+impl<T> typenum::type_operators::Same for nika_mcp::session::CallOutcome
+pub type nika_mcp::session::CallOutcome::Output = T
+pub struct nika_mcp::session::StdioConnector
+impl nika_mcp::session::StdioConnector
+pub fn nika_mcp::session::StdioConnector::new(project_dir: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_mcp::session::StdioConnector::sandbox_note(&self, config: &nika_mcp::client::McpServerConfig) -> alloc::string::String
+pub fn nika_mcp::session::StdioConnector::with_call_timeout(self, timeout: core::time::Duration) -> Self
+pub fn nika_mcp::session::StdioConnector::with_sandbox(self, sandbox: alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>) -> Self
+pub fn nika_mcp::session::StdioConnector::with_timeout(self, timeout: core::time::Duration) -> Self
+impl nika_mcp::session::McpConnectDyn for nika_mcp::session::StdioConnector
+pub fn nika_mcp::session::StdioConnector::connect(&self, config: &nika_mcp::client::McpServerConfig) -> core::result::Result<alloc::boxed::Box<dyn nika_mcp::session::McpSessionDyn>, nika_mcp::pin::PinError>
+impl<D> owo_colors::OwoColorize for nika_mcp::session::StdioConnector
+impl<T, U> core::convert::Into<U> for nika_mcp::session::StdioConnector where U: core::convert::From<T>
+pub fn nika_mcp::session::StdioConnector::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::session::StdioConnector where U: core::convert::Into<T>
+pub type nika_mcp::session::StdioConnector::Error = core::convert::Infallible
+pub fn nika_mcp::session::StdioConnector::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::session::StdioConnector where U: core::convert::TryFrom<T>
+pub type nika_mcp::session::StdioConnector::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::session::StdioConnector::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_mcp::session::StdioConnector where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::session::StdioConnector::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::session::StdioConnector where T: ?core::marker::Sized
+pub fn nika_mcp::session::StdioConnector::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::session::StdioConnector where T: ?core::marker::Sized
+pub fn nika_mcp::session::StdioConnector::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_mcp::session::StdioConnector
+pub fn nika_mcp::session::StdioConnector::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_mcp::session::StdioConnector where T: 'static
+pub fn nika_mcp::session::StdioConnector::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::session::StdioConnector where T: ?core::marker::Sized
+pub fn nika_mcp::session::StdioConnector::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::session::StdioConnector::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::session::StdioConnector
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::session::StdioConnector
+impl<T> typenum::type_operators::Same for nika_mcp::session::StdioConnector
+pub type nika_mcp::session::StdioConnector::Output = T
+pub struct nika_mcp::session::StdioSession
+impl nika_mcp::session::StdioSession
+pub fn nika_mcp::session::StdioSession::open(config: &nika_mcp::client::McpServerConfig, sandbox: &alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>, project_dir: &std::path::Path, timeout: core::time::Duration, call_timeout: core::time::Duration) -> core::result::Result<Self, nika_mcp::pin::PinError>
+impl nika_mcp::session::McpSessionDyn for nika_mcp::session::StdioSession
+pub fn nika_mcp::session::StdioSession::tools_call(&mut self, tool: &str, arguments: &serde_json::value::Value) -> core::result::Result<nika_mcp::session::CallOutcome, nika_mcp::pin::PinError>
+pub fn nika_mcp::session::StdioSession::tools_list(&mut self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
+pub fn nika_mcp::session::StdioSession::unconfined_note(&self) -> core::option::Option<alloc::string::String>
+impl<D> owo_colors::OwoColorize for nika_mcp::session::StdioSession
+impl<T, U> core::convert::Into<U> for nika_mcp::session::StdioSession where U: core::convert::From<T>
+pub fn nika_mcp::session::StdioSession::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::session::StdioSession where U: core::convert::Into<T>
+pub type nika_mcp::session::StdioSession::Error = core::convert::Infallible
+pub fn nika_mcp::session::StdioSession::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::session::StdioSession where U: core::convert::TryFrom<T>
+pub type nika_mcp::session::StdioSession::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::session::StdioSession::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_mcp::session::StdioSession where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::session::StdioSession::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::session::StdioSession where T: ?core::marker::Sized
+pub fn nika_mcp::session::StdioSession::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::session::StdioSession where T: ?core::marker::Sized
+pub fn nika_mcp::session::StdioSession::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_mcp::session::StdioSession
+pub fn nika_mcp::session::StdioSession::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_mcp::session::StdioSession where T: 'static
+pub fn nika_mcp::session::StdioSession::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::session::StdioSession where T: ?core::marker::Sized
+pub fn nika_mcp::session::StdioSession::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::session::StdioSession::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::session::StdioSession
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::session::StdioSession
+impl<T> typenum::type_operators::Same for nika_mcp::session::StdioSession
+pub type nika_mcp::session::StdioSession::Output = T
+pub const nika_mcp::session::DEFAULT_CALL_TIMEOUT: core::time::Duration
+pub const nika_mcp::session::DEFAULT_TIMEOUT: core::time::Duration
+pub trait nika_mcp::session::McpConnectDyn: core::marker::Send + core::marker::Sync
+pub fn nika_mcp::session::McpConnectDyn::connect(&self, config: &nika_mcp::client::McpServerConfig) -> core::result::Result<alloc::boxed::Box<dyn nika_mcp::session::McpSessionDyn>, nika_mcp::pin::PinError>
+impl nika_mcp::session::McpConnectDyn for nika_mcp::session::StdioConnector
+pub fn nika_mcp::session::StdioConnector::connect(&self, config: &nika_mcp::client::McpServerConfig) -> core::result::Result<alloc::boxed::Box<dyn nika_mcp::session::McpSessionDyn>, nika_mcp::pin::PinError>
+pub trait nika_mcp::session::McpSessionDyn: core::marker::Send
+pub fn nika_mcp::session::McpSessionDyn::tools_call(&mut self, tool: &str, arguments: &serde_json::value::Value) -> core::result::Result<nika_mcp::session::CallOutcome, nika_mcp::pin::PinError>
+pub fn nika_mcp::session::McpSessionDyn::tools_list(&mut self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
+pub fn nika_mcp::session::McpSessionDyn::unconfined_note(&self) -> core::option::Option<alloc::string::String>
+impl nika_mcp::session::McpSessionDyn for nika_mcp::session::StdioSession
+pub fn nika_mcp::session::StdioSession::tools_call(&mut self, tool: &str, arguments: &serde_json::value::Value) -> core::result::Result<nika_mcp::session::CallOutcome, nika_mcp::pin::PinError>
+pub fn nika_mcp::session::StdioSession::tools_list(&mut self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
+pub fn nika_mcp::session::StdioSession::unconfined_note(&self) -> core::option::Option<alloc::string::String>
 #[non_exhaustive] pub enum nika_mcp::McpError
 pub nika_mcp::McpError::Transport(core::io::error::Error)
 impl core::convert::From<core::io::error::Error> for nika_mcp::McpError

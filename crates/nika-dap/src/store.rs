@@ -106,6 +106,10 @@ pub struct TraceMeta {
     /// while the trace is `Running` — alive, dead, or unknown when this
     /// host cannot say.
     pub liveness: Option<Liveness>,
+    /// The trace this run CONTINUED (#1462 · `--resume`): the recorded
+    /// journal's trace id, read from the opening frame's `resumed_from`
+    /// field. `None` on a fresh run (or a journal older than the link).
+    pub resumed_from: Option<String>,
 }
 
 impl TraceMeta {
@@ -131,6 +135,7 @@ impl TraceMeta {
             bytes,
             modified,
             liveness: None,
+            resumed_from: None,
         }
     }
 
@@ -138,6 +143,13 @@ impl TraceMeta {
     #[must_use]
     pub const fn with_liveness(mut self, liveness: Liveness) -> Self {
         self.liveness = Some(liveness);
+        self
+    }
+
+    /// Attach the continuation link (#1462 · a resumed leg only).
+    #[must_use]
+    pub fn with_resumed_from(mut self, resumed_from: Option<String>) -> Self {
+        self.resumed_from = resumed_from;
         self
     }
 
@@ -192,6 +204,14 @@ fn read_meta(path: &Path) -> Option<TraceMeta> {
     // not a trace we can reason about — skipped, never collected.
     let recovered = recover_events(&raw, &name).ok()?;
     let (workflow, state, paused_task) = fold_facts(&recovered.events);
+    // #1462 · the continuation link the opening frame carries (a resumed
+    // leg names the trace it continued; a fresh run names none).
+    let resumed_from = recovered
+        .events
+        .iter()
+        .find(|e| e.kind == EventKind::WorkflowStarted)
+        .and_then(|e| str_field(e, "resumed_from"))
+        .map(str::to_owned);
     let mut facts = TraceMeta::new(
         path.to_path_buf(),
         name,
@@ -200,7 +220,8 @@ fn read_meta(path: &Path) -> Option<TraceMeta> {
         paused_task,
         meta.len(),
         modified,
-    );
+    )
+    .with_resumed_from(resumed_from);
     // A running trace asks its lease (ADR-129): alive · dead · unknown.
     if state == TraceState::Running {
         facts = facts.with_liveness(crate::liveness::probe(path));
@@ -331,6 +352,38 @@ pub(crate) mod tests {
             body.push('\n');
         }
         body
+    }
+
+    /// #1462 · a resumed leg's journal names the trace it continued on
+    /// its opening frame; the store reads the link, and a fresh run has
+    /// none (absent, never a guess).
+    #[test]
+    fn scan_reads_the_continuation_link() {
+        let dir = temp_store("resumed-from");
+        let mut leg2 = run_events("w", Some(EventKind::WorkflowCompleted));
+        leg2[0] = leg2[0]
+            .clone()
+            .with_field(KeyValue::new("resumed_from", Value::String("c".repeat(32))));
+        stage_trace(&dir, "leg2.ndjson", &ndjson(&leg2), Duration::from_secs(1));
+        stage_trace(
+            &dir,
+            "leg1.ndjson",
+            &ndjson(&run_events("w", Some(EventKind::WorkflowPaused))),
+            Duration::from_secs(60),
+        );
+        let traces = scan(&dir);
+        let of = |name: &str| traces.iter().find(|t| t.name == name).expect(name);
+        assert_eq!(
+            of("leg2.ndjson").resumed_from.as_deref(),
+            Some("c".repeat(32).as_str()),
+            "the continuation names the trace it resumed"
+        );
+        assert_eq!(
+            of("leg1.ndjson").resumed_from,
+            None,
+            "a fresh run: no claim"
+        );
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     /// The journal of one run: started(workflow) · a task · a terminal.

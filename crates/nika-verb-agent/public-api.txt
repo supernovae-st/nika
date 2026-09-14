@@ -207,6 +207,9 @@ pub nika_verb_agent::observe::AgentEvent::ComposeChecked
 pub nika_verb_agent::observe::AgentEvent::ComposeChecked::turn: u32
 pub nika_verb_agent::observe::AgentEvent::ComposeChecked::valid: bool
 pub nika_verb_agent::observe::AgentEvent::ComposeChecked::violations: u32
+pub nika_verb_agent::observe::AgentEvent::EffectReplayRefused
+pub nika_verb_agent::observe::AgentEvent::EffectReplayRefused::name: alloc::string::String
+pub nika_verb_agent::observe::AgentEvent::EffectReplayRefused::turn: u32
 pub nika_verb_agent::observe::AgentEvent::Finished
 pub nika_verb_agent::observe::AgentEvent::Finished::total_tokens: u64
 pub nika_verb_agent::observe::AgentEvent::Finished::turns: u32
@@ -507,6 +510,9 @@ pub nika_verb_agent::AgentEvent::ComposeChecked
 pub nika_verb_agent::AgentEvent::ComposeChecked::turn: u32
 pub nika_verb_agent::AgentEvent::ComposeChecked::valid: bool
 pub nika_verb_agent::AgentEvent::ComposeChecked::violations: u32
+pub nika_verb_agent::AgentEvent::EffectReplayRefused
+pub nika_verb_agent::AgentEvent::EffectReplayRefused::name: alloc::string::String
+pub nika_verb_agent::AgentEvent::EffectReplayRefused::turn: u32
 pub nika_verb_agent::AgentEvent::Finished
 pub nika_verb_agent::AgentEvent::Finished::total_tokens: u64
 pub nika_verb_agent::AgentEvent::Finished::turns: u32

@@ -20,9 +20,10 @@
 //! Split 2026-08-19 (the 1,500-line file cap): the mirror
 //! (`prev_before`) and the planner (`due`) pins live in
 //! [`mod@planner`]. The W3 renderer (« LE PONT » — the OS units) is pinned
-//! in [`mod@emit`].
+//! in [`mod@emit`]; the per-beat `inputs:` law (#1370) in [`mod@inputs`].
 
 mod emit;
+mod inputs;
 mod planner;
 mod tick;
 
@@ -399,6 +400,7 @@ fn every_refusal_class_carries_its_own_distinct_slug() {
         K::EcheanceSyntaxe,
         K::ToleranceSyntaxe,
         K::DecalageInconnu,
+        K::InputName,
     ];
     for k in all {
         #[allow(clippy::match_same_arms)]
@@ -425,7 +427,8 @@ fn every_refusal_class_carries_its_own_distinct_slug() {
             | K::SuspensionSansEcheance
             | K::EcheanceSyntaxe
             | K::ToleranceSyntaxe
-            | K::DecalageInconnu => {}
+            | K::DecalageInconnu
+            | K::InputName => {}
         }
     }
 

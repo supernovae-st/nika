@@ -167,7 +167,10 @@ pub enum AgentEvent {
         /// How many times the cycle repeated.
         repeats: u32,
     },
-    /// Per-turn budget snapshot (after the turn's spend was counted).
+    /// Per-turn budget snapshot (after the turn's spend was counted) —
+    /// `total_tokens` is the budget arithmetic (#1518: fresh prompt +
+    /// output per call, cache reads weigh zero), the number
+    /// `max_tokens_total` is compared against.
     BudgetCheckpoint {
         /// 1-based turn counter.
         turn: u32,
@@ -175,6 +178,16 @@ pub enum AgentEvent {
         total_tokens: u64,
         /// The task's `max_tokens_total`, when set.
         budget: Option<u64>,
+    },
+    /// The effect memory refused a replay (#1470): an effectful tool
+    /// call (a keyless `nika:fetch` POST · a destructive MCP tool) whose
+    /// exact arguments already settled this run was NOT re-issued — the
+    /// refusal rode back to the model as an error block instead.
+    EffectReplayRefused {
+        /// 1-based turn counter.
+        turn: u32,
+        /// The tool the model tried to replay.
+        name: String,
     },
     /// The loop ended successfully.
     Finished {

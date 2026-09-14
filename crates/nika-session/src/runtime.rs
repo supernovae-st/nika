@@ -31,7 +31,7 @@ mod durable_tests;
 mod history;
 
 /// The durable half of the conversation — decisions, not chat.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct IntentDraft {
     /// The goal, as first stated.
@@ -172,11 +172,7 @@ impl SessionRuntime {
         Self {
             snapshot,
             intelligence,
-            intent: IntentDraft {
-                goal: None,
-                decisions: Vec::new(),
-                unresolved: Vec::new(),
-            },
+            intent: IntentDraft::default(),
             reasoner,
             broker,
             known,
@@ -439,12 +435,11 @@ impl SessionRuntime {
             // The account is the write loop's record, not a tree scan;
             // the proposal stays undecided.
             Err(attempt) => {
-                let text = attempt.refusal_text(&set);
+                let evidence = self.evidence_partial(&set, &id, &attempt);
+                let text = format!("{}{evidence}", attempt.refusal_text(&set));
                 self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
-                return TurnOutcome::Refusal(Refusal::new(
-                    Refusal::from_change(&attempt.error).class,
-                    text,
-                ));
+                let class = Refusal::from_change(&attempt.error).class;
+                return TurnOutcome::Refusal(Refusal::new(class, text));
             }
         };
         self.report_landed(set, &applied, id)
@@ -460,13 +455,14 @@ impl SessionRuntime {
         applied: &Applied,
         id: ProposalId,
     ) -> TurnOutcome {
+        let evidence = self.evidence_applied(&set, &id, applied);
         self.decided = Some(id);
         let written: Vec<String> = applied
             .written
             .iter()
             .map(|p| format!("`{}`", p.display()))
             .collect();
-        let mut report = format!("applied · wrote {}", written.join(" · "));
+        let mut report = format!("applied · wrote {}{evidence}", written.join(" · "));
         let mut all_clean = true;
         for wf in set.workflows() {
             let audit = check_on_disk(&set.root, &wf);

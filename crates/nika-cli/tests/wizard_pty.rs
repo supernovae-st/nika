@@ -315,7 +315,7 @@ fn init_example_lane_founds_around_one_lesson() {
     p.expect("agents").expect("the wire step");
     p.send_line("").expect("skip");
     p.expect("project file").expect("the project-file beat");
-    p.send_line("").expect("Enter = skip");
+    p.send_line("").expect("Enter = lay it (#1283)");
     p.expect("created AGENTS.md").expect("briefs land");
     p.expect("workflows/01-hello.nika.yaml")
         .expect("the lesson lands verbatim");
@@ -335,13 +335,12 @@ fn init_example_lane_founds_around_one_lesson() {
         dir.join("workflows/README.md").is_file(),
         "generated index written"
     );
-    // The INTERACTIVE half of « never laid silently » (D-2026-08-11-N5).
-    // The flag's lane is unit-tested (`verbs::init` · the scripted door);
-    // the Enter-skips-it default had no test at all, which is how the
-    // prompt shipped and left three PTY tests hanging on it.
+    // The INTERACTIVE half of the project-file beat: #1283 flipped the
+    // default — Enter lays the starter (the team file is part of a team
+    // scaffold), `n` skips it (unit-tested in `nika-onboard::wizard`).
     assert!(
-        !dir.join("nika.yaml").exists(),
-        "Enter skipped the project file — never laid silently"
+        dir.join("nika.yaml").is_file(),
+        "Enter kept the project-file default — the starter is laid"
     );
 }
 

@@ -99,6 +99,17 @@
           "par": {
             "type": "string",
             "description": "Who armed the beat, verbatim (a name, a handle) — the provenance line the ledger reads."
+          },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "description": "Per-beat inputs: the `--var KEY=VALUE` pairs every fire binds to the workflow's declared `inputs:` — one scalar per key, coerced by the declared type at admission (a typed array input takes its JSON text in quotes). A key the workflow does not declare refuses before the claim."
           }
         }
       }

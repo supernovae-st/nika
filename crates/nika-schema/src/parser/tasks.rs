@@ -188,9 +188,11 @@ fn parse_task(
 
     task.after = parse_after(cx, mapping, &task_label)?;
     task.when = parse_when(cx, mapping)?;
-    let (for_each, max_parallel, fail_fast) = super::for_each::parse_for_each(cx, mapping)?;
+    let (for_each, max_parallel, max_items, fail_fast) =
+        super::for_each::parse_for_each(cx, mapping)?;
     task.for_each = for_each;
     task.max_parallel = max_parallel;
+    task.max_items = max_items;
     task.fail_fast = fail_fast;
     task.retry = parse_retry(cx, mapping)?;
     task.on_error = parse_on_error(cx, mapping)?;
@@ -978,6 +980,51 @@ tasks:
         let task = one_task(yaml);
         assert_eq!(task.max_parallel.expect("max_parallel").value, 5);
         assert!(!task.fail_fast.expect("fail_fast").value);
+    }
+
+    /// #1510 — `max_items` is the fan's ceiling on the count axis: it
+    /// parses beside `max_parallel`, and a LITERAL list longer than it is
+    /// refused at parse (the run would refuse the (cap+1)th item anyway,
+    /// so the contradiction is named where the file shows it).
+    #[test]
+    fn max_items_parses_and_refuses_a_longer_literal_list() {
+        let yaml = "\
+tasks:
+  scrape_all:
+    for_each:
+      items: \"${{ inputs.urls }}\"
+      max_items: 3
+    exec: { command: [echo] }
+";
+        let task = one_task(yaml);
+        assert_eq!(task.max_items.expect("max_items").value, 3);
+        let longer = "\
+tasks:
+  x:
+    for_each:
+      items: [1, 2, 3, 4]
+      max_items: 3
+    exec: { command: [echo] }
+";
+        let err = parse_strict(longer).expect_err("four items over a cap of three");
+        assert!(
+            matches!(&err, SchemaError::Validation { message, .. }
+                if message.contains("lists 4 items") && message.contains("`max_items: 3`")),
+            "{err:?}"
+        );
+        let zero = "\
+tasks:
+  x:
+    for_each:
+      items: [1]
+      max_items: 0
+    exec: { command: [echo] }
+";
+        let err = parse_strict(zero).expect_err("zero");
+        assert!(
+            matches!(&err, SchemaError::Validation { message, .. } if message.contains("`max_items` must be ≥ 1")),
+            "{err:?}"
+        );
     }
 
     #[test]

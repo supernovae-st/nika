@@ -288,6 +288,12 @@ pub struct ArmEntry {
     /// `par:` — DECLARES the human (N3 — proves NOTHING: the machine's
     /// key is what authorizes).
     pub par: Option<String>,
+    /// `inputs:` (#1370) — the per-beat `--var KEY=VALUE` pairs, each
+    /// scalar stored verbatim as its `--var` text (the workflow's
+    /// declared type coerces it at admission · the key law is the
+    /// cadence arc's · the membership is the fire edge's). Empty when
+    /// absent.
+    pub inputs: std::collections::BTreeMap<String, String>,
 }
 
 /// `où:` — the deployment locus (`local | cloud`). Mirrors the

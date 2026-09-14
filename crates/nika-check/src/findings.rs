@@ -533,23 +533,27 @@ fn fold_unknown_arg(a: &crate::UnknownArg) -> UnifiedFinding {
         f.task = Some(a.task.clone());
         return f;
     }
-    if a.tool == "nika:notify"
-        && a.arg == "channel"
-        && let Some(value) = &a.invalid_value
-    {
+    // A literal outside the builtin's closed value set (C05 · #1590) —
+    // the run's own arg-plane code (`NIKA-BUILTIN-<TOOL>-001`), so check
+    // and run name ONE refusal, and the set itself is the teaching.
+    if let Some(value) = &a.invalid_value {
+        let code = format!(
+            "NIKA-BUILTIN-{}-001",
+            a.tool.trim_start_matches("nika:").to_ascii_uppercase()
+        );
         let mut f = UnifiedFinding::new(
             "unknown_arg",
             "ARGS",
             format!(
-                "channel `{value}` is not configured (v0.1 engines MUST support `webhook`) (task `{}`)",
+                "`{}` `{}: {value}` is outside the closed set — {} (task `{}`)",
+                a.tool,
+                a.arg,
+                a.declared.join(" · "),
                 a.task
             ),
         );
-        f.code = Some("NIKA-BUILTIN-NOTIFY-001".to_owned());
-        f.docs_url = Some(format!(
-            "{}/NIKA-BUILTIN-NOTIFY-001",
-            super::ERROR_DOCS_BASE
-        ));
+        f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
+        f.code = Some(code);
         f.task = Some(a.task.clone());
         return f;
     }
@@ -1094,6 +1098,34 @@ tasks:
             hit.message
         );
         assert_eq!(hit.code.as_deref(), Some("NIKA-BUILTIN-NOTIFY-001"));
+    }
+
+    /// #1590 — a literal `view:` outside `nika:inspect`'s closed set fails
+    /// check under the run's OWN code, with the four live views named in
+    /// the same sentence as the refusal.
+    #[test]
+    fn check_fails_closed_on_an_inspect_view_outside_the_closed_set() {
+        let r = report(
+            "nika: w\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  peek:\n    invoke: { tool: \"nika:inspect\", args: { view: permits } }\n",
+        );
+        assert!(
+            !r.is_clean(),
+            "a dead view must fail check: {:#?}",
+            r.findings
+        );
+        let hit = r
+            .findings
+            .iter()
+            .find(|f| f.code.as_deref() == Some("NIKA-BUILTIN-INSPECT-001"))
+            .unwrap_or_else(|| panic!("expected the run's inspect code, got {:#?}", r.findings));
+        for word in ["permits", "cost", "records", "dag_info", "threads"] {
+            assert!(
+                hit.message.contains(word),
+                "`{word}` missing: {}",
+                hit.message
+            );
+        }
+        assert_eq!(hit.task.as_deref(), Some("peek"));
     }
 
     /// C05 / W01 — webhook + a public test URL stays check-green.

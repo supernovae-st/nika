@@ -386,12 +386,125 @@ pub fn collect(dir: &Path, cfg: &RetentionConfig, now: SystemTime) -> Option<GcR
     ))
 }
 
+/// The durable approval claim store (#1466) — `$HOME/.nika/approval-claims`,
+/// the path `nika_runtime::approval::PausedApproval::with_durable_claim_root`
+/// creates (the owner of the layout; this reader mirrors it, never a
+/// second store).
+const CLAIMS_DIR: [&str; 2] = [".nika", "approval-claims"];
+/// One decided gate = one `.nika-approval-<digest>.claimed` file, written
+/// once (the replay guard) and, until this pruner, never removed.
+const CLAIM_PREFIX: &str = ".nika-approval-";
+const CLAIM_SUFFIX: &str = ".claimed";
+
+/// Prune the approval claims that outlived every trace (#1466): a claim
+/// whose ticket expired more than the retention window ago can never be
+/// replayed (the ticket re-mints past its TTL), so it is garbage; a
+/// younger claim is a live replay guard and stays. The claim file carries
+/// only the digest, so its mtime — the decision instant, inside the
+/// ticket's TTL of the mint — bounds the ticket: a claim older than
+/// `max_age + TTL` is past `minted_at + ttl` by the whole window.
+///
+/// Fail-open per file (the same law as [`collect`]): a missing store, an
+/// unreadable entry or a removal that errors is skipped, never a veto on
+/// the run. `None` when nothing was removed; `Some(n)` when the pass
+/// removed `n` claims — the caller MUST speak its line (D2).
+#[must_use = "a successful pruning MUST speak its line (D2) — dropping the count is silent deletion"]
+pub fn prune_claims(home: &Path, cfg: &RetentionConfig, now: SystemTime) -> Option<usize> {
+    let dir = CLAIMS_DIR.iter().fold(home.to_path_buf(), |p, c| p.join(c));
+    let entries = std::fs::read_dir(dir).ok()?;
+    let ttl = Duration::from_secs(u64::from(nika_runtime::approval::APPROVAL_TTL_SECONDS));
+    let horizon = cfg.max_age.saturating_add(ttl);
+    let removed = entries
+        .flatten()
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .is_some_and(|n| n.starts_with(CLAIM_PREFIX) && n.ends_with(CLAIM_SUFFIX))
+        })
+        .filter(|entry| {
+            entry.metadata().ok().is_some_and(|meta| {
+                meta.is_file()
+                    && meta.modified().is_ok_and(|modified| {
+                        now.duration_since(modified).unwrap_or_default() > horizon
+                    })
+            })
+        })
+        .filter(|entry| std::fs::remove_file(entry.path()).is_ok())
+        .count();
+    (removed > 0).then_some(removed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::store::tests::{ndjson, run_events, stage_trace, temp_store};
     use nika_event::EventKind;
     use std::path::PathBuf;
+
+    /// #1466 · the claim pruner: a claim past the window (plus the ticket
+    /// TTL) is removed, a younger one stays, a stranger file in the store
+    /// is never touched, a missing store is silence, and a second pass
+    /// finds nothing (idempotent).
+    #[test]
+    fn expired_claims_prune_and_live_ones_survive() {
+        let home = temp_store("claims-home");
+        let store = home.join(".nika").join("approval-claims");
+        std::fs::create_dir_all(&store).expect("store dir");
+        let claim = |digest: &str| format!("{CLAIM_PREFIX}{digest}{CLAIM_SUFFIX}");
+        let cfg = RetentionConfig::default();
+        // Past the window + TTL → garbage.
+        stage_trace(
+            &store,
+            &claim("aaaa"),
+            "aaaa\n",
+            Duration::from_secs(31 * DAY),
+        );
+        // Inside the window → a live replay guard.
+        stage_trace(
+            &store,
+            &claim("bbbb"),
+            "bbbb\n",
+            Duration::from_secs(29 * DAY),
+        );
+        // Exactly at the window: the TTL margin keeps it (never a claim
+        // the window could still cover).
+        stage_trace(
+            &store,
+            &claim("cccc"),
+            "cccc\n",
+            Duration::from_secs(30 * DAY),
+        );
+        // A stranger file, however old, is not a claim.
+        stage_trace(
+            &store,
+            "notes.txt",
+            "keep\n",
+            Duration::from_secs(400 * DAY),
+        );
+
+        assert_eq!(
+            prune_claims(&home, &cfg, SystemTime::now()),
+            Some(1),
+            "exactly the expired claim is removed"
+        );
+        assert!(!store.join(claim("aaaa")).exists(), "expired → pruned");
+        assert!(store.join(claim("bbbb")).exists(), "young → kept");
+        assert!(store.join(claim("cccc")).exists(), "at the window → kept");
+        assert!(store.join("notes.txt").exists(), "a stranger is untouched");
+        assert_eq!(
+            prune_claims(&home, &cfg, SystemTime::now()),
+            None,
+            "a quiet store stays quiet"
+        );
+        let nowhere = home.join("nobody");
+        assert_eq!(
+            prune_claims(&nowhere, &cfg, SystemTime::now()),
+            None,
+            "a missing store is silence, never an error"
+        );
+        let _ = std::fs::remove_dir_all(home);
+    }
 
     /// A synthetic trace fact for the PURE policy tests (no fs).
     fn meta(name: &str, workflow: &str, state: TraceState, bytes: u64, age_s: u64) -> TraceMeta {

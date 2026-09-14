@@ -814,7 +814,7 @@ fn task_text_fields(t: &nika_schema::raw::RawTask) -> Vec<&str> {
         }
         RawAction::Invoke(a) => {
             if let Some(args) = a.args.as_ref() {
-                collect_json_strings_into(&args.value, &mut fields);
+                fields.extend(crate::flow::collect_json_strings(&args.value));
             }
         }
         RawAction::Infer(a) => {
@@ -836,27 +836,9 @@ fn task_text_fields(t: &nika_schema::raw::RawTask) -> Vec<&str> {
         other => unreachable!("unknown action: {other:?}"),
     }
     for (_, v) in &t.with {
-        collect_json_strings_into(&v.value, &mut fields);
+        fields.extend(crate::flow::collect_json_strings(&v.value));
     }
     fields
-}
-
-/// Every string leaf of a JSON value (with-values · invoke args).
-fn collect_json_strings_into<'a>(value: &'a serde_json::Value, out: &mut Vec<&'a str>) {
-    match value {
-        serde_json::Value::String(s) => out.push(s.as_str()),
-        serde_json::Value::Array(items) => {
-            for it in items {
-                collect_json_strings_into(it, out);
-            }
-        }
-        serde_json::Value::Object(map) => {
-            for v in map.values() {
-                collect_json_strings_into(v, out);
-            }
-        }
-        _ => {}
-    }
 }
 
 /// The retry-safety hint (class `retry-effects`): `retry:` replays the

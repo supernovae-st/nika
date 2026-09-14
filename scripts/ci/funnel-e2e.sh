@@ -97,7 +97,10 @@ if grep -q '<SLOT:' first.nika.yaml; then
 fi
 run check 0 -- "$BIN" check first.nika.yaml
 need check "audited"
-need check "[inputs]" # the scaffold's input trap is taught BEFORE the run
+# #1269 · the audit no longer predicts an input failure the file OWNS
+# (the scaffold's `on_error: recover:` rehearses green in an empty
+# directory) — what it still teaches is the declared boundary itself.
+need check "read:./README.md" # the declared input trap is taught BEFORE the run
 need check "risk "    # the risk rung names the autonomy class on the verdict line
 need check "JOURNEY"  # the data journey rung renders on every audit
 # Provision the input the scaffold DECLARES (./README.md since the

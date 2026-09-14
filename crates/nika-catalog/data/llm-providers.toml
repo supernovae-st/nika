@@ -193,9 +193,12 @@ env_var = "XAI_API_KEY"
 default_model = "grok-3"
 cheap_model = "grok-3-mini-fast"
 requires_key = true
-description = "Grok models (Grok-3, Grok-4)."
+# #1579 · the prose and the tags describe the LISTED models: grok-3 and
+# grok-3-mini-fast are text-only (xAI docs · model-capabilities.toml), so
+# no `vision` tag and no Grok-4 promise until a listed model carries them.
+description = "Grok models (grok-3, grok-3-mini-fast)."
 api_dialect = "openai-chat"
-tags = ["frontier", "function-calling", "reasoning", "streaming", "structured-output", "vision", "web-search"]
+tags = ["frontier", "function-calling", "reasoning", "streaming", "structured-output", "web-search"]
 # No-train (enterprise ToS · de-identified-data caveat) · ZDR on team/enterprise.
 data_policy = { trains = "no", retention = "30 · indirect corroboration (primary page 403) — re-verify", zdr = "enterprise-only", source = "https://x.ai/legal/terms-of-service-enterprise (403) + https://docs.x.ai/build/enterprise · 2026-07-29" }
 

@@ -178,12 +178,17 @@ fn human_guide_first_workflow_runs_offline_and_project_receipt_precedes_next() {
     let init = nika(home.path(), &project, &["init", "--yes", "--project-file"]);
     assert!(init.status.success(), "{}", transcript(&init));
     let text = transcript(&init);
-    assert!(
-        text.lines()
-            .next()
-            .is_some_and(|line| line.starts_with("✔ created ") && line.ends_with("nika.yaml")),
-        "{text}"
-    );
+    // #1283 · the project file is laid by default: its receipt rides the
+    // report with its purpose, before the `next ·` hand-off.
+    let receipt = text
+        .lines()
+        .position(|line| line.starts_with("✔ created ") && line.contains("nika.yaml — "))
+        .expect("the project-file receipt rides the report");
+    let next = text
+        .lines()
+        .position(|line| line.starts_with("next ·"))
+        .expect("the hand-off block");
+    assert!(receipt < next, "{text}");
     assert_eq!(
         std::fs::read_to_string(project.join("README.md")).expect("readme retained"),
         "existing project readme\n"

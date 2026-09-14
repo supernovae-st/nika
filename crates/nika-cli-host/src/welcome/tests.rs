@@ -820,6 +820,12 @@ fn the_experience_block_routes_from_the_concierge_facts() {
     assert_eq!(block["state"]["workflow"], "clean");
     assert_eq!(block["action"]["action_id"], "open_workflow");
     assert_eq!(block["action"]["nothing_has_run"], true);
+    // #1585 — the journal decides, never a constant: runs on record
+    // flip it (the same count the adoption ladder climbs on).
+    let mut ran = synthetic_probe();
+    ran.recorded_runs = 2;
+    let block = experience_block(&ran, &workspace, one_clean, Some(&clean_gate));
+    assert_eq!(block["action"]["nothing_has_run"], false);
 
     // Kit drift degrades every richer move (UX107-02) — but a PATCH is
     // not a train (probe::train_differs, the same law the human line
@@ -885,6 +891,8 @@ fn json_mirror_is_versioned_additive_and_value_free() {
     assert_eq!(v["machine"]["cloud_keys_present"], 1);
     assert_eq!(v["machine"]["cloud_keys_total"], 2);
     assert_eq!(v["machine"]["clients"][0]["wired"], true);
+    // #1585 — the shallow door names the runs on record.
+    assert_eq!(v["machine"]["recorded_runs"], 0);
     assert_eq!(v["workspace"]["workflows"], 0);
     assert_eq!(v["workspace"]["inventory_complete"], true);
     assert_eq!(v["engine"]["verbs"], 4);

@@ -93,6 +93,7 @@ pub fn nika_harness::infer::StructuredOutputGrade::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::StructuredOutputGrade where T: 'static
 pub fn nika_harness::infer::StructuredOutputGrade::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::infer::HarnessInferOutcome
+pub nika_harness::infer::HarnessInferOutcome::attested_version: (u32, u32)
 pub nika_harness::infer::HarnessInferOutcome::output: alloc::string::String
 pub nika_harness::infer::HarnessInferOutcome::requested_model: alloc::string::String
 pub nika_harness::infer::HarnessInferOutcome::usage_observed: bool
@@ -1199,6 +1200,7 @@ pub fn nika_harness::spawn::HarnessAdapter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::spawn::HarnessAdapter where T: 'static
 pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::HarnessInferOutcome
+pub nika_harness::HarnessInferOutcome::attested_version: (u32, u32)
 pub nika_harness::HarnessInferOutcome::output: alloc::string::String
 pub nika_harness::HarnessInferOutcome::requested_model: alloc::string::String
 pub nika_harness::HarnessInferOutcome::usage_observed: bool

@@ -30,6 +30,15 @@ fn version_three_golden_reads_and_roundtrips_without_rewriting_evidence() {
     assert_eq!(decoded.state.jobs[1].record.status(), JobStatus::Queued);
     assert_eq!(decoded.state.jobs[0].terminal_sequence, Some(1));
     assert_eq!(decoded.state.jobs[1].terminal_sequence, None);
+    assert!(
+        decoded
+            .state
+            .jobs
+            .iter()
+            .flat_map(|job| job.events.iter())
+            .all(|event| event.at().is_none()),
+        "a v3 journal written before #1463 is undated, and stays so"
+    );
     assert_eq!(
         prepare_snapshot(&decoded.state).expect("encode").as_str(),
         V3
