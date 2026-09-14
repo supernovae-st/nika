@@ -125,6 +125,19 @@ providers.
 
 ## §3 · Security posture
 
+Connection interruptions preserve the typed `ProviderError::Connection` across
+all HTTP wires, including failures after a stream opens. It uses the existing
+NIKA-339 provider transport/other range and remains `NIKA-INFER-001` at the infer
+verb. Both error-trait and inherent `is_transient()` agree. The runtime may retry
+only under the authored attempt/backoff/timeout policy; the provider layer never
+replays independently. The timeout adapter retains its existing API-408 terminal
+policy. A missing response does not prove that no tokens were generated or billed.
+Streaming yields the error once and does not synthesize a successful `Done`.
+For an agent, a connection failure after any tool completed suppresses automatic
+whole-task replay, including an `on_codes` override. The transport remains
+transient; evidence of prior effects vetoes replay. This conservative guard does
+not claim per-tool idempotency or solve the wider effect-classifier work (#1470).
+
 - **SSRF interplay** · cloud profiles target pinned `https://` hosts (catalog
   rows · not attacker-influenced). Local profiles (ollama `127.0.0.1:11434` …)
   are **operator-configured endpoints** — the provider call path constructs

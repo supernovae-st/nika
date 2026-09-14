@@ -112,8 +112,8 @@ pub enum VerbAgentError {
         #[source]
         source: ProviderError,
         /// The spend of the turns that DID run before this call failed
-        /// (the failing call itself reports no usage — providers do not
-        /// bill errored requests).
+        /// (the failing call reports no usage; generated tokens and any
+        /// provider billing for that interrupted call remain unknown).
         spend: Box<SpendOnFailure>,
     },
 

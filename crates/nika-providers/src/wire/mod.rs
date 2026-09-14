@@ -107,6 +107,14 @@ pub(crate) fn transport_deadline(
 /// Transport-layer failure → provider error (no HTTP status yet).
 pub(crate) fn map_http_err(e: &HttpError) -> ProviderError {
     match e {
+        HttpError::Connection { reason } => ProviderError::Connection {
+            reason: format!(
+                "{reason}; check the provider endpoint and service, then use an authored \
+                 retry.max_attempts with bounded backoff if appropriate. The provider may \
+                 have generated or billed tokens before the interruption; missing usage \
+                 is unknown, not zero. For an offline rehearsal, choose mock/echo."
+            ),
+        },
         HttpError::Timeout { .. } => ProviderError::Api {
             status: 408,
             message: format!(
@@ -474,7 +482,8 @@ mod tests {
         let other = map_http_err(&HttpError::Connection {
             reason: "refused".into(),
         });
-        assert!(matches!(other, ProviderError::Other { .. }));
+        assert!(matches!(other, ProviderError::Connection { .. }));
+        assert!(other.is_transient());
     }
 
     struct Q(std::collections::VecDeque<Result<Bytes, HttpError>>);

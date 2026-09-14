@@ -137,6 +137,14 @@ cannot reach up for it.
 
 ### 3.1 Waves + bounded concurrency + ordered settlement
 
+**Emission timing (#1362)**: `task_started` and the task's terminal frame are
+stamped together during ordered settlement. Their timestamps are emission time;
+the terminal `duration_ms` carries measured task duration. The CLI/SDK event
+stream therefore cannot serve as a live provider heartbeat. `trace ls --json`
+observes the writer lease separately, which proves writer liveness only. Workflow
+`infer:` uses the buffered provider door; the kernel provider streaming API is
+separate. This preserves the deterministic event ordering described below.
+
 - `CheckReport.waves` is the schedule (the checker owns topology · the
   runtime never re-sorts · a bad index is NIKA-1701). Wave-barrier
   (BSP) execution is a deliberate v0 trade: bounded makespan loss at

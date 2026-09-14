@@ -104,6 +104,15 @@ POST cancel-safety follows the kernel contract verbatim (NOT
 cancel-safe at the application layer — idempotency is the caller's
 concern). GET is cancel-safe (idempotent by spec).
 
+**Interrupted responses (#1362)**: send, buffered body reads and streaming
+body reads share one classifier. Typed socket reset/abort/EOF and Hyper's
+incomplete-message/closed conditions become `HttpError::Connection`; a generic
+reqwest request or decode error alone is insufficient. Malformed HTTP and
+compression remain `Other`, while timeout, SSRF, authority and size refusals keep
+their own variants. Diagnostics identify the final endpoint's origin and the
+known connection cause, without reproducing URL credentials, path or query.
+This classifies transport only; consumers still own effect-safe retry policy.
+
 **Timeout scope (documented)**: `timeout` is PER-HOP, so a redirect
 chain's worst case is `(max_redirects + 1) × timeout + DNS`. Per-hop is
 the conservative choice (each network operation gets its full budget);

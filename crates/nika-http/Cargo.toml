@@ -16,6 +16,7 @@ nika-types   = { path = "../nika-types", version = "0.120.0-dev" }   # net::host
 bytes        = { workspace = true }   # kernel body payloads
 futures-core = { workspace = true }   # HttpStreamResponse body stream
 reqwest      = { workspace = true, features = ["stream"] }   # the HTTP backend (rustls · no default features) · `stream` powers send_streaming
+hyper        = { workspace = true }   # typed incomplete-message causes inside reqwest; no second transport
 url          = { workspace = true }   # SSRF parse + redirect Location join
 # tokio::net::lookup_host powers the SSRF DNS-resolve check; reqwest rides
 # the same runtime. `net` on top of the workspace base set (rt · macros · time).

@@ -99,7 +99,7 @@ impl HttpPostDyn for FakeHttp {
     }
 }
 
-struct ChunkStream(VecDeque<Result<Bytes, HttpError>>);
+pub(crate) struct ChunkStream(pub(crate) VecDeque<Result<Bytes, HttpError>>);
 
 impl Stream for ChunkStream {
     type Item = Result<Bytes, HttpError>;
