@@ -302,6 +302,17 @@ clients:
     proof: "skills.sh live + e2e-proven (2 skills · 17 clients · listings.yaml skills.sh entry) · official catalog PR NousResearch/hermes-agent#61632 pending"
     docs: integrations/hermes.mdx
 
+  - id: omp
+    name: Oh My Pi (OMP)
+    class: B
+    status: wired
+    install: "nika wire omp  (~/.omp/agent/mcp.json)"
+    components: {manifest: agent-plugin, skills: agent-plugin, mcp: wire}
+    class_gap: "OMP's agent-plugins provider loads skills + MCP only — commands, agents and hooks stay dark even when those files sit on disk · no native OMP package is shipped · rules, presentation and scaffold are not OMP loader surfaces"
+    wire: omp
+    docs: "pending · the page ships at proven"
+    notes: "the portable Agent-Plugins kit at .agents/plugins/nika is the one declared surface · MCP oracle is the wire door · doctor receipt is oracle-only until hooks exist"
+
   # ── CLASS C · generic doors (AGENTS.md readers + raw MCP clients) ──
   - id: goose
     name: goose (Block)

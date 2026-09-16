@@ -35,6 +35,10 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 | guard-run hook | pre-run judgment with findings on refusal (Cursor `beforeShellExecution` · Claude Code `PreToolUse`); installation and availability boundaries below |
 | MCP oracle (9 tools) | `nika_check` · `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` · `nika_canon` · `nika_catalog` · `nika_tools` · `nika_inspect` — read-only, by design |
 
+Claude Code, Codex and Cursor load the full table. Oh My Pi's
+`agent-plugins` provider loads the portable surface only — see
+[Oh My Pi](#oh-my-pi-omp).
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/supernovae-st/nika-vscode/main/media/check-as-you-type.gif" alt="nika check findings appearing as you type" width="640">
 </p>
@@ -52,6 +56,31 @@ A check, run result and integrity verdict are different evidence.
 No plugin store to audit on the workflow side either: everything
 callable is a tool under `invoke:`, and the engine ships its own
 [builtin library](https://nika.sh/tools).
+
+## Oh My Pi (OMP)
+
+This Agent Plugins package (`.agents/plugins/nika`) is Nika's single
+OMP surface. OMP's `agent-plugins` provider loads skills and MCP from
+it; commands, agents and hooks in the tree stay host-specific and dark.
+There is no second, native OMP package.
+
+```sh
+omp plugin marketplace add supernovae-st/nika
+omp plugin install nika@nika
+nika wire omp --dry-run
+nika wire omp
+```
+
+`nika wire omp` merges `mcpServers.nika = {"command":"nika","args":["mcp"]}`
+into `$HOME/.omp/agent/mcp.json`, preserves unrelated keys and servers,
+and is idempotent. `nika doctor` names that repair when OMP is present
+and unwired. The capability receipt stays `oracle-only` until hooks
+exist.
+
+The oracle is nine read-only tools: `nika_check` · `nika_explain` ·
+`nika_schema` · `nika_examples` · `nika_template` · `nika_canon` ·
+`nika_catalog` · `nika_tools` · `nika_inspect`. Do not treat a
+membership prompt against skill names as proof that skills loaded.
 
 ## Good to know
 

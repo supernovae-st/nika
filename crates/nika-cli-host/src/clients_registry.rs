@@ -24,7 +24,9 @@ const VENDORED: &str = include_str!("../data/clients.registry.yaml");
 /// The wire targets doctor has a CONCRETE config probe for, in the
 /// historical doctor row order (the render order is load-bearing —
 /// findings and receipts ride probe order).
-pub const PROBE_MECHANISMS: &[&str] = &["cursor", "windsurf", "claude", "zed", "hermes", "vscode"];
+pub const PROBE_MECHANISMS: &[&str] = &[
+    "cursor", "windsurf", "claude", "zed", "hermes", "vscode", "omp",
+];
 
 /// The wire targets whose kit landing doctor can read (class A today),
 /// in the historical kit row order. Consumed by the matrix-coherence
