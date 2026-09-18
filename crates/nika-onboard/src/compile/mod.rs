@@ -10,6 +10,9 @@
 //! Unsupported intent stays incomplete, without guessed topology or hidden model calls.
 //! Re-emission refuses source whose literal semantics cannot be proven stable.
 //! Top-level answer objects with both `type` and `value` are refused in this slice.
+//! An integer answer outside the canonical reader's exact `i64` range is refused
+//! before decoding can round it, at any depth; fraction and exponent answers are
+//! floats, and quoted digits stay text. This is not arbitrary precision.
 //!
 //! `compile()` does not materialize files, execute workflows, probe credentials,
 //! resolve connections or grant permits. [`materialize_ready`] is the opt-in
@@ -377,6 +380,22 @@ fn literal_answer(raw: Option<&str>, key: &str, out: &mut CompileOutcome) -> Opt
             return None;
         }
     };
+    // Judge the answer's own text: `value` already holds the rounded f64, so
+    // every later comparison would agree with the rounding.
+    if let Some(token) = edit::inexact_integer(raw) {
+        out.status = CompileStatus::Refused;
+        finding(
+            out,
+            DiagnosticKind::Refused,
+            key,
+            format!(
+                "Integer `{token}` is outside the exact integer range {} to {}; accepting it would silently round the answer. No value was applied.",
+                i64::MIN,
+                i64::MAX
+            ),
+        );
+        return None;
+    }
     if value.get("type").is_some() && value.get("value").is_some() {
         out.status = CompileStatus::Refused;
         finding(

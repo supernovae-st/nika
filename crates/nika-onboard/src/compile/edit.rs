@@ -51,6 +51,46 @@ pub(super) fn has_expression(value: &Value) -> bool {
     }
 }
 
+/// The first integer token the canonical reader cannot hold exactly. Its integer
+/// domain is `i64`; past it that reader rounds to f64, as `serde_json` does past
+/// `u64`. `json` was already accepted as JSON, so outside a string a number can only
+/// begin at `-` or a digit. Lexical only: fraction and exponent tokens are floats
+/// and keep their f64 contract; digits inside strings and keys are text.
+pub(super) fn inexact_integer(json: &str) -> Option<&str> {
+    let mut rest = json;
+    loop {
+        let at = rest.find(|c: char| c == '"' || c == '-' || c.is_ascii_digit())?;
+        let (_, tail) = rest.split_at(at);
+        if let Some(body) = tail.strip_prefix('"') {
+            rest = after_string(body);
+            continue;
+        }
+        let end = tail
+            .find(|c: char| !(c.is_ascii_digit() || matches!(c, '-' | '+' | '.' | 'e' | 'E')))
+            .unwrap_or(tail.len());
+        let (token, after) = tail.split_at(end);
+        if !token.contains(['.', 'e', 'E']) && token.parse::<i64>().is_err() {
+            return Some(token);
+        }
+        rest = after;
+    }
+}
+
+/// The text after a JSON string's closing quote; an escape consumes one character.
+fn after_string(body: &str) -> &str {
+    let mut chars = body.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                chars.next();
+            }
+            '"' => break,
+            _ => {}
+        }
+    }
+    chars.as_str()
+}
+
 /// Locate the existing node only. Typed constants retain their declaration.
 pub(super) fn literal_at<'a>(doc: &'a mut Value, path: &str) -> Option<&'a mut Value> {
     let mut node = doc;
