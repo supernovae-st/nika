@@ -29,18 +29,18 @@ fn fixtures() -> tempfile::TempDir {
     let w = |name: &str, body: &str| {
         std::fs::write(dir.path().join(name), body).expect("fixture written");
     };
-    w("good.nika.yaml", GOOD);
-    w("bad.nika.yaml", BAD);
-    w("priced.nika.yaml", PRICED);
-    w("my wf.nika.yaml", BAD);
-    w("broken.nika.yaml", "nika: v1\nworkflow: oops\n");
+    w("good.nika", GOOD);
+    w("bad.nika", BAD);
+    w("priced.nika", PRICED);
+    w("my wf.nika", BAD);
+    w("broken.nika", "nika: v1\nworkflow: oops\n");
     for sub in ["sole_bad", "sole_good", "multi", "empty"] {
         std::fs::create_dir(dir.path().join(sub)).expect("subdir");
     }
-    w("sole_bad/bad.nika.yaml", BAD);
-    w("sole_good/good.nika.yaml", GOOD);
-    w("multi/good.nika.yaml", GOOD);
-    w("multi/bad.nika.yaml", BAD);
+    w("sole_bad/bad.nika", BAD);
+    w("sole_good/good.nika", GOOD);
+    w("multi/good.nika", GOOD);
+    w("multi/bad.nika", BAD);
     dir
 }
 
@@ -64,12 +64,12 @@ type Row = (String, &'static str, Want);
 fn bypass_cases(d: &str) -> Vec<Row> {
     vec![
         (
-            format!("nika run {d}/bad.nika.yaml"),
+            format!("nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("/usr/local/bin/nika run {d}/bad.nika.yaml"),
+            format!("/usr/local/bin/nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
@@ -77,42 +77,42 @@ fn bypass_cases(d: &str) -> Vec<Row> {
         // invoking the debug build rode past the guard as no-opinion
         // (gauntlet 08-01 — the uncapped-priced-run deny never fired).
         (
-            format!("nika-cli run {d}/bad.nika.yaml"),
+            format!("nika-cli run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("/tmp/target/debug/nika-cli run {d}/bad.nika.yaml"),
+            format!("/tmp/target/debug/nika-cli run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("nika --plain run {d}/bad.nika.yaml"),
+            format!("nika --plain run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("nika --color never run {d}/bad.nika.yaml"),
+            format!("nika --color never run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("sh -c 'nika run {d}/bad.nika.yaml'"),
+            format!("sh -c 'nika run {d}/bad.nika'"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("bash -lc 'nika run {d}/bad.nika.yaml'"),
+            format!("bash -lc 'nika run {d}/bad.nika'"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("cd {d} && nika run bad.nika.yaml"),
+            format!("cd {d} && nika run bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("cd {d}; nika run \"my wf.nika.yaml\""),
+            format!("cd {d}; nika run \"my wf.nika\""),
             "empty",
             Want::Deny("nika check"),
         ),
@@ -122,32 +122,32 @@ fn bypass_cases(d: &str) -> Vec<Row> {
             Want::Unavailable("variable"),
         ),
         (
-            "nika run *.nika.yaml".to_owned(),
+            "nika run *.nika".to_owned(),
             "empty",
             Want::Unavailable("glob"),
         ),
         (
-            format!("nika run {d}/good.nika.yaml && nika run {d}/bad.nika.yaml"),
+            format!("nika run {d}/good.nika && nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("nika run {d}/good.nika.yaml; nika run {d}/bad.nika.yaml"),
+            format!("nika run {d}/good.nika; nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("echo hi | nika run {d}/bad.nika.yaml"),
+            format!("echo hi | nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("nika run {d}/bad.nika.yaml --resume t.ndjson"),
+            format!("nika run {d}/bad.nika --resume t.ndjson"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("nika run {d}/missing.nika.yaml"),
+            format!("nika run {d}/missing.nika"),
             "empty",
             Want::Unavailable("read"),
         ),
@@ -173,12 +173,12 @@ fn indirection_cases(sb: &str) -> Vec<Row> {
         ("nika run -h".to_owned(), "empty", Want::Allow),
         ("nika run --version".to_owned(), "multi", Want::Allow),
         (
-            "nika run bad.nika.yaml --help".to_owned(),
+            "nika run bad.nika --help".to_owned(),
             "sole_bad",
             Want::Allow,
         ),
         (
-            "cd $SOMEWHERE && nika run bad.nika.yaml".to_owned(),
+            "cd $SOMEWHERE && nika run bad.nika".to_owned(),
             "empty",
             Want::Unavailable("cd"),
         ),
@@ -209,82 +209,82 @@ fn failopen_cases(d: &str) -> Vec<Row> {
     vec![
         // Finding 1 · the attached `-c` forms (real getopt semantics).
         (
-            format!("sh -c'nika run {d}/bad.nika.yaml'"),
+            format!("sh -c'nika run {d}/bad.nika'"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("bash -xc'nika run {d}/bad.nika.yaml'"),
+            format!("bash -xc'nika run {d}/bad.nika'"),
             "empty",
             Want::Deny("nika check"),
         ),
         // Finding 2 · group/body openers strip and re-dispatch.
         (
-            format!("( nika run {d}/bad.nika.yaml )"),
+            format!("( nika run {d}/bad.nika )"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("if true; then nika run {d}/bad.nika.yaml; fi"),
+            format!("if true; then nika run {d}/bad.nika; fi"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("! nika run {d}/bad.nika.yaml"),
+            format!("! nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         // Finding 2 · the value-free wrappers unwrap to the command.
         (
-            format!("time nika run {d}/bad.nika.yaml"),
+            format!("time nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("command nika run {d}/bad.nika.yaml"),
+            format!("command nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("sudo nika run {d}/bad.nika.yaml"),
+            format!("sudo nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("sudo -u root nika run {d}/bad.nika.yaml"),
+            format!("sudo -u root nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("nice -n 10 nika run {d}/bad.nika.yaml"),
+            format!("nice -n 10 nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("nohup nika run {d}/bad.nika.yaml"),
+            format!("nohup nika run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         // Finding 2 · `eval` with a static string judges the string.
         (
-            format!("eval \"nika run {d}/bad.nika.yaml\""),
+            format!("eval \"nika run {d}/bad.nika\""),
             "empty",
             Want::Deny("nika check"),
         ),
         // Finding 2 · a dynamic command word is unknowable, VISIBLE.
         (
-            format!("$(echo nika) run {d}/bad.nika.yaml"),
+            format!("$(echo nika) run {d}/bad.nika"),
             "empty",
             Want::Unavailable("expansion"),
         ),
         (
-            format!("$N run {d}/bad.nika.yaml"),
+            format!("$N run {d}/bad.nika"),
             "empty",
             Want::Unavailable("expansion"),
         ),
         // Finding 2 · stdin/expression-driven executors: unjudgeable.
         (
-            format!("echo {d}/bad.nika.yaml | xargs nika run"),
+            format!("echo {d}/bad.nika | xargs nika run"),
             "empty",
             Want::Unavailable("xargs"),
         ),
@@ -310,34 +310,34 @@ fn failopen_feed_cases(d: &str) -> Vec<Row> {
     vec![
         // Finding 3 · `env -S` splits its argument into argv.
         (
-            format!("env -S 'FOO=1 nika run {d}/bad.nika.yaml'"),
+            format!("env -S 'FOO=1 nika run {d}/bad.nika'"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("env -S'FOO=1 nika run {d}/bad.nika.yaml'"),
+            format!("env -S'FOO=1 nika run {d}/bad.nika'"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("env --split-string 'FOO=1 nika run {d}/bad.nika.yaml'"),
+            format!("env --split-string 'FOO=1 nika run {d}/bad.nika'"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("env --split-string='FOO=1 nika run {d}/bad.nika.yaml'"),
+            format!("env --split-string='FOO=1 nika run {d}/bad.nika'"),
             "empty",
             Want::Deny("nika check"),
         ),
         // Finding 4 · a script rides the pipe / the heredoc — the
         // guard cannot see those bytes, so it says so VISIBLY.
         (
-            format!("printf 'nika run {d}/bad.nika.yaml' | sh"),
+            format!("printf 'nika run {d}/bad.nika' | sh"),
             "empty",
             Want::Unavailable("pipe"),
         ),
         (
-            format!("sh <<EOF\nnika run {d}/bad.nika.yaml\nEOF"),
+            format!("sh <<EOF\nnika run {d}/bad.nika\nEOF"),
             "empty",
             Want::Unavailable("heredoc"),
         ),
@@ -346,17 +346,17 @@ fn failopen_feed_cases(d: &str) -> Vec<Row> {
         // after `S` IS the split string, or the next word when `S`
         // closes the cluster).
         (
-            format!("env -iS'nika run {d}/bad.nika.yaml'"),
+            format!("env -iS'nika run {d}/bad.nika'"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("env -iS 'nika run {d}/bad.nika.yaml'"),
+            format!("env -iS 'nika run {d}/bad.nika'"),
             "empty",
             Want::Deny("nika check"),
         ),
         (
-            format!("env -iS'nika run {d}/good.nika.yaml'"),
+            format!("env -iS'nika run {d}/good.nika'"),
             "empty",
             Want::Allow,
         ),
@@ -375,21 +375,17 @@ fn failopen_feed_cases(d: &str) -> Vec<Row> {
         ),
         // Finding 7 · APFS is case-insensitive: `NIKA` executes nika.
         (
-            format!("NIKA run {d}/bad.nika.yaml"),
+            format!("NIKA run {d}/bad.nika"),
             "empty",
             Want::Deny("nika check"),
         ),
         // …and the wrappers AUDIT a clean run instead of denying it.
         (
-            format!("command nika run {d}/good.nika.yaml"),
+            format!("command nika run {d}/good.nika"),
             "empty",
             Want::Allow,
         ),
-        (
-            format!("! nika run {d}/good.nika.yaml"),
-            "empty",
-            Want::Allow,
-        ),
+        (format!("! nika run {d}/good.nika"), "empty", Want::Allow),
     ]
 }
 
@@ -399,75 +395,67 @@ fn failopen_feed_cases(d: &str) -> Vec<Row> {
 fn flow_cases(d: &str) -> Vec<Row> {
     vec![
         (
-            format!("echo nika run {d}/bad.nika.yaml"),
+            format!("echo nika run {d}/bad.nika"),
             "empty",
             Want::NotOurs,
         ),
         (
-            "echo \"nika run bad.nika.yaml\"".to_owned(),
+            "echo \"nika run bad.nika\"".to_owned(),
             "empty",
             Want::NotOurs,
         ),
-        (
-            "# nika run bad.nika.yaml".to_owned(),
-            "empty",
-            Want::NotOurs,
-        ),
+        ("# nika run bad.nika".to_owned(), "empty", Want::NotOurs),
         ("git status".to_owned(), "empty", Want::NotOurs),
-        (
-            format!("nika check {d}/bad.nika.yaml"),
-            "empty",
-            Want::NotOurs,
-        ),
-        (format!("nika run {d}/good.nika.yaml"), "empty", Want::Allow),
+        (format!("nika check {d}/bad.nika"), "empty", Want::NotOurs),
+        (format!("nika run {d}/good.nika"), "empty", Want::Allow),
         ("nika run".to_owned(), "sole_good", Want::Allow),
         (
-            format!("nika run {d}/good.nika.yaml --model mock/echo"),
+            format!("nika run {d}/good.nika --model mock/echo"),
             "empty",
             Want::Allow,
         ),
         (
-            format!("nika run {d}/good.nika.yaml --model openai/gpt-4o-mini --max-cost-usd 1"),
+            format!("nika run {d}/good.nika --model openai/gpt-4o-mini --max-cost-usd 1"),
             "empty",
             Want::Allow,
         ),
         (
-            format!("nika run {d}/priced.nika.yaml --max-cost-usd 2"),
+            format!("nika run {d}/priced.nika --max-cost-usd 2"),
             "empty",
             Want::Allow,
         ),
         (
-            format!("nika run {d}/good.nika.yaml 2>/dev/null"),
+            format!("nika run {d}/good.nika 2>/dev/null"),
             "empty",
             Want::Allow,
         ),
         (
-            format!("nika run {d}/good.nika.yaml --model $MODEL --max-cost-usd 1"),
+            format!("nika run {d}/good.nika --model $MODEL --max-cost-usd 1"),
             "empty",
             Want::Allow,
         ),
         (
-            format!("nika run {d}/good.nika.yaml --model openai/gpt-4o-mini"),
+            format!("nika run {d}/good.nika --model openai/gpt-4o-mini"),
             "empty",
             Want::Deny("--max-cost-usd"),
         ),
         (
-            format!("nika run {d}/good.nika.yaml --model=openai/gpt-4o-mini"),
+            format!("nika run {d}/good.nika --model=openai/gpt-4o-mini"),
             "empty",
             Want::Deny("--max-cost-usd"),
         ),
         (
-            format!("nika run {d}/priced.nika.yaml"),
+            format!("nika run {d}/priced.nika"),
             "empty",
             Want::Deny("--max-cost-usd"),
         ),
         (
-            format!("nika run {d}/good.nika.yaml --model $MODEL"),
+            format!("nika run {d}/good.nika --model $MODEL"),
             "empty",
             Want::Unavailable("model"),
         ),
         (
-            format!("nika run {d}/broken.nika.yaml"),
+            format!("nika run {d}/broken.nika"),
             "empty",
             Want::Deny("PARSE"),
         ),
@@ -503,13 +491,13 @@ fn resume_is_judged_never_substring_allowed() {
     let dir = fixtures();
     let d = dir.path().display().to_string();
     let got = judge_line(
-        &format!("nika run {d}/bad.nika.yaml --resume trace.ndjson"),
+        &format!("nika run {d}/bad.nika --resume trace.ndjson"),
         Some(dir.path()),
     );
     assert!(matches!(got, Verdict::Deny(_)), "{got:?}");
     // …and a clean resumed run flows.
     let got = judge_line(
-        &format!("nika run {d}/good.nika.yaml --resume trace.ndjson"),
+        &format!("nika run {d}/good.nika --resume trace.ndjson"),
         Some(dir.path()),
     );
     assert!(matches!(got, Verdict::Allow(_)), "{got:?}");
@@ -527,7 +515,7 @@ fn claude_dialect_shapes() {
     let dir = fixtures();
     let d = dir.path().display().to_string();
     let payload = format!(
-        r#"{{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{{"command":"nika run {d}/bad.nika.yaml"}},"cwd":"{d}"}}"#
+        r#"{{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{{"command":"nika run {d}/bad.nika"}},"cwd":"{d}"}}"#
     );
     let input = parse_payload(&payload).expect("payload parses");
     assert!(input.dialect == Dialect::Claude);
@@ -555,7 +543,7 @@ fn claude_dialect_shapes() {
 fn cursor_dialect_shapes() {
     let dir = fixtures();
     let d = dir.path().display().to_string();
-    let payload = format!(r#"{{"command":"nika run {d}/bad.nika.yaml","cwd":"{d}"}}"#);
+    let payload = format!(r#"{{"command":"nika run {d}/bad.nika","cwd":"{d}"}}"#);
     let input = parse_payload(&payload).expect("payload parses");
     assert!(input.dialect == Dialect::Generic);
     let out = evaluate(&input, false, plain());
@@ -609,7 +597,7 @@ fn p0_7_priced_model_without_cap_is_denied() {
     let dir = fixtures();
     let d = dir.path().display().to_string();
     let payload = format!(
-        r#"{{"hook_event_name":"PreToolUse","tool_input":{{"command":"nika run {d}/good.nika.yaml --model openai/gpt-5-mini"}},"cwd":"{d}"}}"#
+        r#"{{"hook_event_name":"PreToolUse","tool_input":{{"command":"nika run {d}/good.nika --model openai/gpt-5-mini"}},"cwd":"{d}"}}"#
     );
     let input = parse_payload(&payload).expect("payload parses");
     let out = evaluate(&input, false, plain());
@@ -626,8 +614,7 @@ fn p0_7_priced_model_without_cap_is_denied() {
 fn dialect_sniff_ignores_the_marker_inside_the_command_text() {
     let dir = fixtures();
     let d = dir.path().display().to_string();
-    let payload =
-        format!(r#"{{"command":"nika run {d}/bad.nika.yaml # hook_event_name","cwd":"{d}"}}"#);
+    let payload = format!(r#"{{"command":"nika run {d}/bad.nika # hook_event_name","cwd":"{d}"}}"#);
     let input = parse_payload(&payload).expect("payload parses");
     assert!(
         input.dialect == Dialect::Generic,
@@ -686,7 +673,7 @@ fn infrastructure_failure_is_a_visible_guard_unavailable() {
     // A file the judge cannot read: unavailable, deny-shaped.
     let dir = fixtures();
     let d = dir.path().display().to_string();
-    let payload = format!(r#"{{"command":"nika run {d}/ghost.nika.yaml","cwd":"{d}"}}"#);
+    let payload = format!(r#"{{"command":"nika run {d}/ghost.nika","cwd":"{d}"}}"#);
     let input = parse_payload(&payload).expect("payload parses");
     let out = evaluate(&input, false, plain());
     assert_eq!(out.code, exit::ENV, "{}", out.text);
@@ -708,7 +695,7 @@ fn human_mode_reads_plainly() {
     let dir = fixtures();
     let d = dir.path().display().to_string();
     let input = Input {
-        line: format!("nika run {d}/bad.nika.yaml"),
+        line: format!("nika run {d}/bad.nika"),
         cwd: Some(dir.path().to_path_buf()),
         dialect: Dialect::Generic,
     };
@@ -792,7 +779,7 @@ fn shim_pipes_the_payload_and_returns_the_verdict() {
     let dir = tempfile::tempdir().expect("dir");
     let bin = stub_nika(dir.path());
     let capture = dir.path().join("capture.json");
-    let payload = r#"{"command":"nika run x.nika.yaml","cwd":"/tmp"}"#;
+    let payload = r#"{"command":"nika run x.nika","cwd":"/tmp"}"#;
     let path = format!("{}:/bin:/usr/bin", bin.display());
     let (stdout, stderr, rc) = run_shim(
         dir.path(),
@@ -818,8 +805,8 @@ fn shim_absent_binary_is_a_visible_guard_unavailable() {
     let dir = tempfile::tempdir().expect("dir");
     let path = "/bin:/usr/bin".to_owned();
     for payload in [
-        r#"{"command":"nika run x.nika.yaml","cwd":"/tmp"}"#,
-        r#"{"hook_event_name":"PreToolUse","tool_input":{"command":"nika run x.nika.yaml"},"cwd":"/tmp"}"#,
+        r#"{"command":"nika run x.nika","cwd":"/tmp"}"#,
+        r#"{"hook_event_name":"PreToolUse","tool_input":{"command":"nika run x.nika"},"cwd":"/tmp"}"#,
         r#"{"command":"n\u0069ka run x.yaml","cwd":"/tmp"}"#,
         r#"{"command":"n'ik'a run x.yaml","cwd":"/tmp"}"#,
         r#"{"command":"ls","cwd":"/tmp"}"#,
@@ -878,7 +865,7 @@ fn shim_broken_binary_is_a_visible_guard_unavailable() {
     let path = format!("{}:/bin:/usr/bin", bin.display());
     let (stdout, stderr, rc) = run_shim(
         dir.path(),
-        r#"{"command":"nika run x.nika.yaml","cwd":"/tmp"}"#,
+        r#"{"command":"nika run x.nika","cwd":"/tmp"}"#,
         &[
             ("PATH", &path),
             ("CAPTURE", capture.to_str().expect("utf8")),
@@ -913,7 +900,7 @@ fn an_unreadable_payload_never_grants_no_opinion() {
     // The same unreadable shapes, now naming a run: the degradation is
     // ours to report, and it stays deny-shaped.
     for payload in [
-        r#"{"shell_command":"nika run x.nika.yaml","working_directory":"/tmp"}"#,
+        r#"{"shell_command":"nika run x.nika","working_directory":"/tmp"}"#,
         r#"{"tool":{"input":{"cmd":"nika run x"}}}"#,
         "garbage nika run x",
     ] {

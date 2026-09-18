@@ -21,7 +21,7 @@ fn native_strict_json_payload_agrees_with_the_exit_code() {
     // check-expect mktemp collision, #376).
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("native-strict-json.nika.yaml");
+    let path = dir.join("native-strict-json.nika");
     std::fs::write(&path, helper).expect("fixture body");
     let theme = Theme::new(false, true, false);
     let out = run(path.to_str().expect("utf8 path"), true, true, None, theme);
@@ -99,7 +99,7 @@ fn lane_rows<'a>(payload: &'a serde_json::Value, kind: &str) -> Vec<&'a serde_js
 fn a_gated_ship_with_a_curl_check_is_red_on_both_strict_surfaces() {
     let _cwd = crate::cwd::hold();
     let gated = "nika: gated\nmodel: mock/echo\npermits:\n  exec: [\"curl\", \"echo\"]\n  tools: [\"nika:prompt\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  check_a:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n  human:\n    after: { check_a: success }\n    invoke: { tool: \"nika:prompt\", args: { message: \"Proceed?\", default: false } }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: \"${{ with.go == true }}\"\n    exec: { command: [\"echo\", \"shipped\"] }\n";
-    let human = checked_output("gated-curl.nika.yaml", gated, true);
+    let human = checked_output("gated-curl.nika", gated, true);
     assert_eq!(
         human.code, 2,
         "strict refuses the curl check: {}",
@@ -110,7 +110,7 @@ fn a_gated_ship_with_a_curl_check_is_red_on_both_strict_surfaces() {
         "{}",
         human.text
     );
-    let (out, payload) = checked_json_with("gated-curl.nika.yaml", true, Profile::Advisory);
+    let (out, payload) = checked_json_with("gated-curl.nika", true, Profile::Advisory);
     assert_eq!(out.code, 2, "the machine twin refuses too: {}", out.text);
     assert_eq!(payload["clean"], false, "{payload:#}");
     assert_eq!(payload["native_strict_clean"], false, "{payload:#}");
@@ -119,9 +119,9 @@ fn a_gated_ship_with_a_curl_check_is_red_on_both_strict_surfaces() {
     assert_eq!(rows[0]["code"], "native-first/001", "{payload:#}");
     assert_eq!(rows[0]["task"], "check_a", "{payload:#}");
     // The default profile: exit 0 and `clean: true` on both surfaces.
-    let human = checked_output("gated-curl.nika.yaml", gated, false);
+    let human = checked_output("gated-curl.nika", gated, false);
     assert_eq!(human.code, 0, "advisory by default: {}", human.text);
-    let (out, payload) = checked_json_with("gated-curl.nika.yaml", false, Profile::Advisory);
+    let (out, payload) = checked_json_with("gated-curl.nika", false, Profile::Advisory);
     assert_eq!(out.code, 0, "{}", out.text);
     assert_eq!(payload["clean"], true, "{payload:#}");
     assert!(
@@ -130,13 +130,13 @@ fn a_gated_ship_with_a_curl_check_is_red_on_both_strict_surfaces() {
     );
     // The native twin: clean under strict, on both surfaces, no row.
     let native = "nika: gated\nmodel: mock/echo\npermits:\n  tools: [\"nika:fetch\", \"nika:prompt\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  check_a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://acme.test\" } }\n  human:\n    after: { check_a: success }\n    invoke: { tool: \"nika:prompt\", args: { message: \"Proceed?\", default: false } }\n";
-    let human = checked_output("gated-native.nika.yaml", native, true);
+    let human = checked_output("gated-native.nika", native, true);
     assert_eq!(
         human.code, 0,
         "the native twin passes strict: {}",
         human.text
     );
-    let (out, payload) = checked_json_with("gated-native.nika.yaml", true, Profile::Advisory);
+    let (out, payload) = checked_json_with("gated-native.nika", true, Profile::Advisory);
     assert_eq!(out.code, 0, "{}", out.text);
     assert_eq!(payload["clean"], true, "{payload:#}");
     assert_eq!(payload["native_strict_clean"], true, "{payload:#}");
@@ -158,7 +158,7 @@ fn the_operational_lane_names_only_the_gate_that_failed() {
         "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n";
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("op-access.nika.yaml");
+    let path = dir.join("op-access.nika");
     std::fs::write(&path, yaml).expect("fixture body");
     let path = path.to_str().expect("utf8 path");
     let theme = Theme::new(false, true, false);
@@ -215,7 +215,7 @@ fn json_keeps_each_native_hint_site_with_its_stable_code() {
     let yaml = "nika: sites\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  first:\n    exec: { command: [\"curl\", \"https://acme.test/a\"] }\n  second:\n    exec: { command: [\"curl\", \"https://acme.test/b\"] }\n";
     let dir = std::env::temp_dir().join(format!("nika-cli-hint-sites-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("sites.nika.yaml");
+    let path = dir.join("sites.nika");
     std::fs::write(&path, yaml).expect("fixture body");
     let out = run(
         path.to_str().expect("utf8 path"),
@@ -257,7 +257,7 @@ fn json_payload_names_paid_ready_without_failing_clean() {
     let judge = "nika: w\nmodel: mock/echo\ntasks:\n  judge:\n    infer:\n      prompt: |\n        Read the note and assign a belt.\n      max_tokens: 32\noutputs:\n  r: ${{ tasks.judge.output }}\n";
     let dir = std::env::temp_dir().join(format!("nika-cli-paidready-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("paid-ready.nika.yaml");
+    let path = dir.join("paid-ready.nika");
     std::fs::write(&path, judge).expect("fixture body");
     let theme = Theme::new(false, true, false);
     let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
@@ -292,7 +292,7 @@ fn native_strict_fails_on_native_first_hints_only() {
     // net.http rides along: post-D1 the exec URL is a net USE —
     // undeclared it would be a PERMITS escape, not a hint-only file.
     let helper = "nika: helper\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
-    let default_run = checked_output("native-default.nika.yaml", helper, false);
+    let default_run = checked_output("native-default.nika", helper, false);
     assert_eq!(
         default_run.code, 0,
         "advisory by default: {}",
@@ -304,7 +304,7 @@ fn native_strict_fails_on_native_first_hints_only() {
         default_run.text
     );
 
-    let strict = checked_output("native-strict.nika.yaml", helper, true);
+    let strict = checked_output("native-strict.nika", helper, true);
     assert_eq!(
         strict.code, 2,
         "strict promotes to failure: {}",
@@ -317,7 +317,7 @@ fn native_strict_fails_on_native_first_hints_only() {
     );
 
     let native_twin = "nika: native\npermits: { tools: [\"nika:fetch\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://acme.test\" } }\n";
-    let twin = checked_output("native-twin.nika.yaml", native_twin, true);
+    let twin = checked_output("native-twin.nika", native_twin, true);
     assert_eq!(twin.code, 0, "the native twin passes strict: {}", twin.text);
     assert!(!twin.text.contains("native-strict ·"), "{}", twin.text);
 }
@@ -342,7 +342,7 @@ fn the_strict_refusal_does_not_sell_the_ledger_as_an_escape() {
     // net.http rides along: post-D1 the exec URL is a net USE —
     // undeclared it would be a PERMITS escape, not a hint-only file.
     let ledgered = "# EXEC LEDGER ·\n# | task | command | why no native path | unlock |\n# | crawl | curl | legacy auth | nika:fetch oauth |\nnika: ledgered\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
-    let out = checked_output("ledgered.nika.yaml", ledgered, true);
+    let out = checked_output("ledgered.nika", ledgered, true);
     assert_eq!(
         out.code, 2,
         "a ledger does not clear the strict gate: {}",
@@ -367,7 +367,7 @@ fn the_strict_refusal_does_not_sell_the_ledger_as_an_escape() {
 fn cost_section_names_each_unbounded_reason() {
     let _cwd = crate::cwd::hold();
     let text = checked_text(
-        "cost-reasons.nika.yaml",
+        "cost-reasons.nika",
         "nika: cost-reasons\ninputs:\n  items: { type: { array: string }, required: true }\ntasks:\n  a:\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  b:\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  c:\n    for_each: { items: \"${{ inputs.items }}\" }\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
         true,
     );
@@ -389,7 +389,7 @@ fn cost_section_names_each_unbounded_reason() {
 fn clean_report_marks_every_section() {
     let _cwd = crate::cwd::hold();
     let text = checked_text(
-        "clean-one.nika.yaml",
+        "clean-one.nika",
         "nika: clean-one\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         false,
     );
@@ -425,7 +425,7 @@ fn clean_report_marks_every_section() {
 fn clean_verdict_is_the_audited_card_line() {
     let _cwd = crate::cwd::hold();
     let yaml = "nika: card\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"echo\", \"bye\"] }\n";
-    let text = checked_text("audited-card.nika.yaml", yaml, false);
+    let text = checked_text("audited-card.nika", yaml, false);
     assert!(
             text.contains(
                 "✔ audited · 2 tasks · 2 waves · permits exec:echo · est out ≤$0.0000 · 0 hints · risk supervised"
@@ -436,7 +436,7 @@ fn clean_verdict_is_the_audited_card_line() {
         !text.contains("est ≥"),
         "the card must not claim a floor it cannot hold: {text}"
     );
-    let ascii = checked_text("audited-card-ascii.nika.yaml", yaml, true);
+    let ascii = checked_text("audited-card-ascii.nika", yaml, true);
     assert!(
         ascii.contains("ok audited") && ascii.contains("est out <=$0.0000"),
         "ascii parity (ok · <=): {ascii}"
@@ -472,7 +472,7 @@ fn the_report_never_teaches_a_doubled_brace() {
     let _cwd = crate::cwd::hold();
     let pure = "nika: pure\ntasks:\n  j:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        expr: \".n\"\n        input: { n: 1 }\n";
     for ascii in [false, true] {
-        let text = checked_text("doubled-brace.nika.yaml", pure, ascii);
+        let text = checked_text("doubled-brace.nika", pure, ascii);
         assert!(
             text.contains("`permits: {}` states it"),
             "the zero-authority line names the form YAML accepts (ascii={ascii}): {text}"
@@ -491,7 +491,7 @@ fn the_report_never_teaches_a_doubled_brace() {
 fn plan_prints_wave_membership_with_verbs_and_targets() {
     let _cwd = crate::cwd::hold();
     let text = checked_text(
-        "plan-membership.nika.yaml",
+        "plan-membership.nika",
         "nika: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  think:\n    infer: { prompt: hi }\n  after:\n    after:\n      think: success\n    exec:\n      command: [\"echo\", \"x\"]\n",
         true,
     );
@@ -510,7 +510,7 @@ fn plan_prints_wave_membership_with_verbs_and_targets() {
 fn plan_announces_the_skip_when_conformance_fails() {
     let _cwd = crate::cwd::hold();
     let text = checked_text(
-        "plan-skip.nika.yaml",
+        "plan-skip.nika",
         "nika: bad-ref\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.nope }}\"] }\n",
         true,
     );
@@ -538,7 +538,7 @@ fn plan_announces_the_skip_when_conformance_fails() {
 fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
     const LEAK: &str = "nika: leak\nsecrets:\n  key: { source: env, key: K }\npermits: { exec: [\"curl\"], net: { http: [\"x.example.com\"] }, fs: { read: [\"data/**\"] } }\ntasks:\n  send:\n    with: { k: \"${{ secrets.key }}\" }\n    exec: { command: [\"curl\", \"-d\", \"${{ with.k }}\", \"https://x.example.com\"] }\n";
     let _cwd = crate::cwd::hold();
-    let analyzable = checked_text("lanes-analyzable.nika.yaml", LEAK, false);
+    let analyzable = checked_text("lanes-analyzable.nika", LEAK, false);
     assert!(
         analyzable.contains("leak into exec (task `send`)"),
         "the lane really does find this leak when the DAG resolves: {analyzable}"
@@ -548,7 +548,7 @@ fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
     let broken = format!(
         "{LEAK}  ghost:\n    with: {{ z: \"${{{{ tasks.nope.output }}}}\" }}\n    exec: {{ command: [\"curl\", \"${{{{ with.z }}}}\"] }}\n"
     );
-    let text = checked_text("lanes-skip.nika.yaml", &broken, false);
+    let text = checked_text("lanes-skip.nika", &broken, false);
     for lane in ["SECRETS", "GATES", "TRIFECTA", "ORDER"] {
         // The placeholder makes ONE assert cover both failure shapes:
         // the lane vanished, or it printed a verdict it never computed.
@@ -579,9 +579,9 @@ fn the_failing_verdict_has_an_ascii_twin() {
     const BAD: &str =
         "nika: typo\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { path: \"x\" } }\n";
     let _cwd = crate::cwd::hold();
-    let uni = checked_text("verdict-unicode.nika.yaml", BAD, false);
+    let uni = checked_text("verdict-unicode.nika", BAD, false);
     assert!(uni.contains("✖ findings above"), "{uni}");
-    let ascii = checked_text("verdict-ascii.nika.yaml", BAD, true);
+    let ascii = checked_text("verdict-ascii.nika", BAD, true);
     assert!(
         ascii.contains("findings above") && !ascii.contains('✖'),
         "the failing verdict speaks ascii too: {ascii}"
@@ -596,7 +596,7 @@ fn the_failing_verdict_has_an_ascii_twin() {
 fn unused_declaration_is_hinted_and_the_exit_stays_green() {
     let _cwd = crate::cwd::hold();
     let out = checked_output(
-        "drift-unused.nika.yaml",
+        "drift-unused.nika",
         "nika: w\nconst:\n  ghost: \"x\"\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         false,
     );
@@ -622,7 +622,7 @@ fn drift_hint_rides_the_json_projection() {
     // Per-PROCESS dir (the check-expect mktemp collision class, #376).
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("drift-json.nika.yaml");
+    let path = dir.join("drift-json.nika");
     std::fs::write(
             &path,
             "nika: w\nconst:\n  ghost: \"x\"\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
@@ -660,7 +660,7 @@ fn drift_hint_rides_the_json_projection() {
 fn unresolved_reference_never_also_drifts() {
     let _cwd = crate::cwd::hold();
     let out = checked_output(
-        "drift-no-dup.nika.yaml",
+        "drift-no-dup.nika",
         "nika: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.ghost }}\"] }\n",
         false,
     );
@@ -679,10 +679,8 @@ fn unresolved_reference_never_also_drifts() {
 #[test]
 fn the_welcome_sample_is_a_real_workflow_that_checks_clean() {
     let _cwd = crate::cwd::hold();
-    let path = std::env::temp_dir().join(format!(
-        "nika-welcome-sample-{}.nika.yaml",
-        std::process::id()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("nika-welcome-sample-{}.nika", std::process::id()));
     std::fs::write(&path, format!("{}\n", crate::verbs::welcome::SAMPLE)).expect("sample written");
     let out = crate::verbs::check::run(
         path.to_str().expect("utf8"),
@@ -765,7 +763,7 @@ fn infer_permits_output_cannot_depend_on_the_disk() {
     let dir = std::env::temp_dir().join(format!("nika-i774-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let target = dir.join("news.json");
-    let path = dir.join("pin.nika.yaml");
+    let path = dir.join("pin.nika");
     std::fs::write(
         &path,
         format!(
@@ -809,7 +807,7 @@ fn check_json_carries_the_typed_engine_identity() {
     let _cwd = crate::cwd::hold();
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("provenance.nika.yaml");
+    let path = dir.join("provenance.nika");
     std::fs::write(
         &path,
         "nika: w\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
@@ -879,7 +877,7 @@ fn snapshot_export_is_explicit_machine_only_and_round_trips() {
     let _cwd = crate::cwd::hold();
     let dir = std::env::temp_dir().join(format!("nika-cli-snapshot-export-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("snapshot-export.nika.yaml");
+    let path = dir.join("snapshot-export.nika");
     std::fs::write(
         &path,
         "nika: snapshot-export\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n",
@@ -901,7 +899,7 @@ fn snapshot_export_is_explicit_machine_only_and_round_trips() {
         .readmit_snapshot(snapshot)
         .expect("readmit export");
 
-    assert_eq!(root, "snapshot-export.nika.yaml");
+    assert_eq!(root, "snapshot-export.nika");
     assert_eq!(admitted.snapshot().root(), root);
     assert_eq!(
         payload["snapshotFormatVersion"],
@@ -933,7 +931,7 @@ fn the_long_version_keeps_the_bare_version_first() {
 /// The naming note fires on the ACCIDENT and stays silent on the
 /// deliberate — and it never touches the verdict.
 ///
-/// The accidental shape is a copy: `bar.nika.yaml` still carrying
+/// The accidental shape is a copy: `bar.nika` still carrying
 /// `nika: foo`, so every trace and journal event says `foo` while the
 /// file says `bar`. The deliberate shapes are the ordering prefix (the
 /// numbered teaching path) and plain agreement — 62 of this house's 80
@@ -947,11 +945,11 @@ fn the_naming_note_fires_on_a_copy_and_not_on_an_ordering_prefix() {
     let theme = Theme::new(false, true, false);
 
     let mut accident = String::new();
-    naming_note(&mut accident, theme, "bar.nika.yaml", &wf);
+    naming_note(&mut accident, theme, "bar.nika", &wf);
     assert!(accident.contains("`bar`"), "the file: {accident}");
     assert!(accident.contains("`foo`"), "the name: {accident}");
 
-    for deliberate in ["01-foo.nika.yaml", "17_foo.nika.yaml", "foo.nika.yaml"] {
+    for deliberate in ["01-foo.nika", "17_foo.nika", "foo.nika"] {
         let mut out = String::new();
         naming_note(&mut out, theme, deliberate, &wf);
         assert!(out.is_empty(), "{deliberate} must stay silent: {out}");

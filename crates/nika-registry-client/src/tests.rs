@@ -22,7 +22,7 @@ fn kind_code(err: &RegistryError) -> Option<&'static str> {
 fn detects_registry_refs() {
     assert!(is_registry_ref("registry:acme/greet"));
     assert!(is_registry_ref("registry:acme/greet@0.1.0"));
-    assert!(!is_registry_ref("flows/greet.nika.yaml"));
+    assert!(!is_registry_ref("flows/greet.nika"));
     assert!(!is_registry_ref("Registry:acme/greet")); // exact scheme, like every CLI literal
     assert!(!is_registry_ref("-"));
 }
@@ -117,7 +117,7 @@ fn artifact_json(
         "source": {
             "repo": format!("{owner}/flows"),
             "rev": REV,
-            "path": format!("flows/{name}.nika.yaml"),
+            "path": format!("flows/{name}.nika"),
         },
         "advisories": advisories,
         "description": "One line.",
@@ -145,7 +145,7 @@ spec = "nika/v1"
 [source]
 repo = "{owner}/flows"
 rev = "{REV}"
-path = "flows/{name}.nika.yaml"
+path = "flows/{name}.nika"
 
 [integrity]
 sha256 = "{digest}"
@@ -204,7 +204,7 @@ fn fetches_verifies_and_caches_a_versioned_ref() {
         "the cached file is the verified bytes"
     );
     assert!(
-        got.path.ends_with("acme/greet/0.1.0.nika.yaml"),
+        got.path.ends_with("acme/greet/0.1.0.nika"),
         "one canonical cache layout · got {}",
         got.path.display()
     );
@@ -216,7 +216,7 @@ fn fetches_verifies_and_caches_a_versioned_ref() {
         vec![
             format!("{INDEX_BASE}/index.json"),
             format!("{INDEX_BASE}/registry/workflows/acme/greet/0.1.0.toml"),
-            format!("{RAW_BASE}/acme/flows/{REV}/flows/greet.nika.yaml"),
+            format!("{RAW_BASE}/acme/flows/{REV}/flows/greet.nika"),
         ]
     );
 
@@ -327,10 +327,7 @@ fn a_signature_mismatch_refuses_and_writes_nothing() {
     let err = resolve(&client, "registry:acme/greet@0.1.0").expect_err("refused");
     assert_eq!(err.code(), Some("NIKA-REG-006"));
     assert!(
-        !client
-            .cache_root
-            .join("acme/greet/0.1.0.nika.yaml")
-            .exists(),
+        !client.cache_root.join("acme/greet/0.1.0.nika").exists(),
         "nothing was written"
     );
 }
@@ -388,10 +385,7 @@ fn a_rekeyed_publisher_is_refused_by_the_tofu_record() {
     let err = resolve(&client2, "registry:acme/greet@0.2.0").expect_err("re-key refused");
     assert_eq!(err.code(), Some("NIKA-REG-007"));
     assert!(
-        !client1
-            .cache_root
-            .join("acme/greet/0.2.0.nika.yaml")
-            .exists(),
+        !client1.cache_root.join("acme/greet/0.2.0.nika").exists(),
         "nothing was written"
     );
 }

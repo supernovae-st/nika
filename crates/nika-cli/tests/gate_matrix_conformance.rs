@@ -104,7 +104,7 @@ fn gate_matrix_cells_match_the_model_authored_expectations() {
     let mut dirs: Vec<PathBuf> = std::fs::read_dir(&gates)
         .expect("read gates dir")
         .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| p.join("input.nika.yaml").is_file())
+        .filter(|p| p.join("input.nika").is_file())
         .collect();
     dirs.sort();
 
@@ -115,7 +115,7 @@ fn gate_matrix_cells_match_the_model_authored_expectations() {
             .expect("dir name")
             .to_string_lossy()
             .to_string();
-        let input = dir.join("input.nika.yaml");
+        let input = dir.join("input.nika");
         let (observed, run_ok) = run_observed(&input);
 
         let expected: serde_json::Value = serde_json::from_str(

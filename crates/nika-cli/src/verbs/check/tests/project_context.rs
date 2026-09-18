@@ -49,7 +49,7 @@ fn assert_ambient_refusal(out: &VerbOutput, json: bool, err: &nika_vocab::projec
 #[test]
 fn ambient_refusals_survive_json_strict_and_operational_routes() {
     let room = tempfile::tempdir().expect("room");
-    std::fs::write(room.path().join("value.nika.yaml"), WORKFLOW).expect("workflow");
+    std::fs::write(room.path().join("value.nika"), WORKFLOW).expect("workflow");
     let _cwd = crate::cwd::enter(room.path()).expect("cwd lease");
     for yaml in [
         "nika: project\nceiling: 0\n",
@@ -63,7 +63,7 @@ fn ambient_refusals_survive_json_strict_and_operational_routes() {
             for strict in [false, true] {
                 for profile in [Profile::Advisory, Profile::Operational] {
                     let out = run_with_profile(
-                        "value.nika.yaml",
+                        "value.nika",
                         json,
                         strict,
                         profile,
@@ -80,17 +80,13 @@ fn ambient_refusals_survive_json_strict_and_operational_routes() {
 #[test]
 fn an_unreadable_ambient_project_names_the_project_in_both_routes() {
     let room = tempfile::tempdir().expect("room");
-    std::fs::write(room.path().join("value.nika.yaml"), WORKFLOW).expect("workflow");
+    std::fs::write(room.path().join("value.nika"), WORKFLOW).expect("workflow");
     std::fs::create_dir(room.path().join("nika.yaml")).expect("unreadable project");
     let _cwd = crate::cwd::enter(room.path()).expect("cwd lease");
     let err = nika_vocab::project::discover_from_cwd().expect_err("project refusal");
     assert_eq!(err.kind().spec_code(), "project.unreadable");
     for json in [false, true] {
-        assert_ambient_refusal(
-            &run("value.nika.yaml", json, false, None, theme()),
-            json,
-            &err,
-        );
+        assert_ambient_refusal(&run("value.nika", json, false, None, theme()), json, &err);
     }
 }
 
@@ -98,15 +94,15 @@ fn an_unreadable_ambient_project_names_the_project_in_both_routes() {
 fn scaffold_slot_admission_cannot_promote_an_ambient_refusal() {
     let room = tempfile::tempdir().expect("room");
     std::fs::write(
-        room.path().join("draft.nika.yaml"),
+        room.path().join("draft.nika"),
         "nika: draft\nmodel: mock/echo\ntasks:\n  think:\n    infer:\n      prompt: \"<SLOT: the one model job>\"\n      max_tokens: 10\n",
     )
     .expect("unfilled scaffold");
     std::fs::write(room.path().join("nika.yaml"), "nika: project\n").expect("valid boundary");
     let _cwd = crate::cwd::enter(room.path()).expect("cwd lease");
-    let ordinary = run("draft.nika.yaml", false, false, None, theme());
+    let ordinary = run("draft.nika", false, false, None, theme());
     assert_eq!(ordinary.code, exit::FILE, "{}", ordinary.text);
-    let scaffold = run_scaffold("draft.nika.yaml", theme());
+    let scaffold = run_scaffold("draft.nika", theme());
     assert_eq!(
         scaffold.code,
         exit::OK,
@@ -115,7 +111,7 @@ fn scaffold_slot_admission_cannot_promote_an_ambient_refusal() {
     );
     std::fs::write("nika.yaml", INVALID_PROJECT).expect("invalid project");
     let err = nika_vocab::project::discover_from_cwd().expect_err("project refusal");
-    assert_ambient_refusal(&run_scaffold("draft.nika.yaml", theme()), false, &err);
+    assert_ambient_refusal(&run_scaffold("draft.nika", theme()), false, &err);
 }
 
 #[test]
@@ -126,7 +122,7 @@ fn admitted_pair_preserves_the_ambient_refusal_for_its_callers() {
     let wf = parse_wf(WORKFLOW);
     let report = nika_check::check(&wf);
     let skills = crate::verbs::resolve_workflow_skills(&wf, room.path());
-    let target = CheckTarget::workspace("value.nika.yaml");
+    let target = CheckTarget::workspace("value.nika");
     let err = nika_vocab::project::discover_from_cwd().expect_err("project refusal");
     for json in [false, true] {
         let out = run_admitted_pair(
@@ -146,27 +142,27 @@ fn admitted_pair_preserves_the_ambient_refusal_for_its_callers() {
 #[test]
 fn snapshot_export_returns_the_ambient_refusal_without_snapshot_bytes() {
     let room = tempfile::tempdir().expect("room");
-    std::fs::write(room.path().join("value.nika.yaml"), WORKFLOW).expect("workflow");
+    std::fs::write(room.path().join("value.nika"), WORKFLOW).expect("workflow");
     std::fs::write(room.path().join("nika.yaml"), "nika: project\n").expect("valid boundary");
     let _cwd = crate::cwd::enter(room.path()).expect("cwd lease");
-    let control = run_snapshot_export("value.nika.yaml", theme());
+    let control = run_snapshot_export("value.nika", theme());
     assert_eq!(control.code, exit::OK, "{}", control.text);
     let payload: serde_json::Value = serde_json::from_str(&control.text).expect("snapshot json");
     assert!(payload["execution_snapshot"].is_string(), "{payload}");
     std::fs::write("nika.yaml", INVALID_PROJECT).expect("invalid project");
     let err = nika_vocab::project::discover_from_cwd().expect_err("project refusal");
-    assert_ambient_refusal(&run_snapshot_export("value.nika.yaml", theme()), true, &err);
+    assert_ambient_refusal(&run_snapshot_export("value.nika", theme()), true, &err);
 }
 
 #[test]
 fn multifile_check_keeps_the_ambient_environment_exit() {
     let room = tempfile::tempdir().expect("room");
-    for name in ["a.nika.yaml", "b.nika.yaml"] {
+    for name in ["a.nika", "b.nika"] {
         std::fs::write(room.path().join(name), WORKFLOW).expect("workflow");
     }
     std::fs::write(room.path().join("nika.yaml"), INVALID_PROJECT).expect("invalid project");
     let _cwd = crate::cwd::enter(room.path()).expect("cwd lease");
-    let paths = ["a.nika.yaml".to_owned(), "b.nika.yaml".to_owned()];
+    let paths = ["a.nika".to_owned(), "b.nika".to_owned()];
     let out = run_many(&paths, true, Profile::Operational, None, theme());
     assert_eq!(out.code, exit::ENV, "{}", out.text);
     assert_eq!(
@@ -183,7 +179,7 @@ fn valid_ambient_budget_and_bare_boundary_keep_their_existing_projections() {
     let child = room.path().join("child");
     std::fs::create_dir(&child).expect("child");
     std::fs::write(room.path().join("nika.yaml"), "nika: root\nceiling: 0.50\n").expect("ancestor");
-    std::fs::write(child.join("value.nika.yaml"), WORKFLOW).expect("workflow");
+    std::fs::write(child.join("value.nika"), WORKFLOW).expect("workflow");
     let _cwd = crate::cwd::enter(&child).expect("cwd lease");
     for (yaml, amount) in [
         ("nika: child\nceiling: 0.01\n", Some(0.01)),
@@ -191,14 +187,7 @@ fn valid_ambient_budget_and_bare_boundary_keep_their_existing_projections() {
     ] {
         std::fs::write("nika.yaml", yaml).expect("valid project");
         for profile in [Profile::Advisory, Profile::Operational] {
-            let human = run_with_profile(
-                "value.nika.yaml",
-                false,
-                true,
-                profile,
-                (None, None),
-                theme(),
-            );
+            let human = run_with_profile("value.nika", false, true, profile, (None, None), theme());
             assert_eq!(human.code, exit::OK, "{}", human.text);
             assert_eq!(
                 human.text.contains("BUDGET"),
@@ -206,14 +195,7 @@ fn valid_ambient_budget_and_bare_boundary_keep_their_existing_projections() {
                 "{}",
                 human.text
             );
-            let out = run_with_profile(
-                "value.nika.yaml",
-                true,
-                true,
-                profile,
-                (None, None),
-                theme(),
-            );
+            let out = run_with_profile("value.nika", true, true, profile, (None, None), theme());
             assert_eq!(out.code, exit::OK, "{}", out.text);
             let payload: serde_json::Value = serde_json::from_str(&out.text).expect("check json");
             assert_eq!(payload["clean"], true, "{payload}");
@@ -266,16 +248,12 @@ fn an_ambient_path_with_control_characters_stays_machine_readable() {
     let room = tempfile::tempdir().expect("room");
     let child = room.path().join("project\u{1b}context");
     std::fs::create_dir(&child).expect("project directory");
-    std::fs::write(child.join("value.nika.yaml"), WORKFLOW).expect("workflow");
+    std::fs::write(child.join("value.nika"), WORKFLOW).expect("workflow");
     std::fs::write(child.join("nika.yaml"), INVALID_PROJECT).expect("invalid project");
     let _cwd = crate::cwd::enter(&child).expect("cwd lease");
     let err = nika_vocab::project::discover_from_cwd().expect_err("project refusal");
-    assert_ambient_refusal(
-        &run("value.nika.yaml", true, false, None, theme()),
-        true,
-        &err,
-    );
-    assert_ambient_refusal(&run_snapshot_export("value.nika.yaml", theme()), true, &err);
+    assert_ambient_refusal(&run("value.nika", true, false, None, theme()), true, &err);
+    assert_ambient_refusal(&run_snapshot_export("value.nika", theme()), true, &err);
 }
 
 /// #1547 · the room's project file is unreadable (the sandboxed nested
@@ -287,7 +265,7 @@ fn an_ambient_path_with_control_characters_stays_machine_readable() {
 fn an_unreadable_ancestor_project_is_a_hint_never_a_refusal() {
     use std::os::unix::fs::PermissionsExt as _;
     let room = tempfile::tempdir().expect("room");
-    std::fs::write(room.path().join("value.nika.yaml"), WORKFLOW).expect("workflow");
+    std::fs::write(room.path().join("value.nika"), WORKFLOW).expect("workflow");
     let project = room.path().join("nika.yaml");
     std::fs::write(&project, "nika: root\nceiling: 0.50\n").expect("valid project");
     std::fs::set_permissions(&project, std::fs::Permissions::from_mode(0o000)).expect("chmod");
@@ -295,7 +273,7 @@ fn an_unreadable_ancestor_project_is_a_hint_never_a_refusal() {
         return; // root reads through 0o000 — nothing to measure here
     }
     let _cwd = crate::cwd::enter(room.path()).expect("cwd lease");
-    let human = run("value.nika.yaml", false, false, None, theme());
+    let human = run("value.nika", false, false, None, theme());
     assert_eq!(human.code, exit::OK, "{}", human.text);
     assert!(
         human.text.contains("[project]") && human.text.contains("is not readable from here"),
@@ -303,7 +281,7 @@ fn an_unreadable_ancestor_project_is_a_hint_never_a_refusal() {
         human.text
     );
     assert!(!human.text.contains("BUDGET"), "{}", human.text);
-    let json = run("value.nika.yaml", true, false, None, theme());
+    let json = run("value.nika", true, false, None, theme());
     assert_eq!(json.code, exit::OK, "{}", json.text);
     let payload: serde_json::Value = serde_json::from_str(&json.text).expect("check json");
     assert_eq!(payload["clean"], true, "{payload}");

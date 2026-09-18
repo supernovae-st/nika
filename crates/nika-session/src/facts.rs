@@ -182,7 +182,7 @@ const VOCABULARY: &[(&str, &str)] = &[
     ),
     (
         "job",
-        "a `task`, or a whole workflow file invoked as a child (`invoke: { workflow: ./child.nika.yaml }`)",
+        "a `task`, or a whole workflow file invoked as a child (`invoke: { workflow: ./child.nika }`)",
     ),
     (
         "trigger",
@@ -266,7 +266,7 @@ const VOCABULARY: &[(&str, &str)] = &[
     ),
     (
         "pipeline",
-        "a workflow · one `.nika.yaml` file · nine envelope keys · `tasks:` a map · four verbs",
+        "a workflow · one `.nika` file · nine envelope keys · `tasks:` a map · four verbs",
     ),
     (
         "function",
@@ -318,7 +318,7 @@ const VOCABULARY: &[(&str, &str)] = &[
     ),
     (
         "invoke",
-        "the verb for a builtin (`nika:<name>`) · an MCP tool (`mcp:<server>/<tool>`) · or a child workflow (`workflow: ./x.nika.yaml`)",
+        "the verb for a builtin (`nika:<name>`) · an MCP tool (`mcp:<server>/<tool>`) · or a child workflow (`workflow: ./x.nika`)",
     ),
     (
         "agent",
@@ -470,12 +470,12 @@ mod tests {
     fn tree() -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("tmp");
         std::fs::write(
-            dir.path().join("alpha.nika.yaml"),
+            dir.path().join("alpha.nika"),
             "nika: alpha\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
         )
         .expect("a");
         std::fs::write(
-            dir.path().join("curl.nika.yaml"),
+            dir.path().join("curl.nika"),
             "nika: curl\nmodel: mock/echo\npermits: { exec: [\"curl\"], net: { http: [\"example.com\"] } }\ntasks:\n  fetch:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n",
         )
         .expect("c");
@@ -492,7 +492,7 @@ mod tests {
         assert!(
             answer("what workflows are here?", &snap, root)
                 .expect("workflows")
-                .contains("alpha.nika.yaml")
+                .contains("alpha.nika")
         );
         let builtins = answer("which builtins exist?", &snap, root).expect("builtins");
         assert!(
@@ -506,7 +506,7 @@ mod tests {
         );
         let verdict = answer("is alpha valid? check it", &snap, root).expect("verdict");
         assert!(
-            verdict.contains("`alpha.nika.yaml` · clean") && verdict.contains("valid ✔"),
+            verdict.contains("`alpha.nika` · clean") && verdict.contains("valid ✔"),
             "{verdict}"
         );
         assert!(

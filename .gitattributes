@@ -39,3 +39,7 @@
 #   arm    · bash scripts/dev/bootstrap.sh
 #   verify · bash scripts/hygiene/check-clone-armed.sh   (hygiene vector 51)
 /estate.yaml merge=ours
+
+# GitHub Linguist has no Nika language entry; map programs to YAML for
+# display only. This is not a Nika semantic claim (#1684).
+*.nika linguist-language=YAML

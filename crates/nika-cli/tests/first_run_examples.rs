@@ -47,12 +47,12 @@ impl Rig {
     }
 
     fn run(&self, yaml: &str) -> Output {
-        std::fs::write(self.work.join("lesson.nika.yaml"), yaml).expect("lesson");
-        let checked = self.nika(&["check", "lesson.nika.yaml", "--json", "--native-strict"]);
+        std::fs::write(self.work.join("lesson.nika"), yaml).expect("lesson");
+        let checked = self.nika(&["check", "lesson.nika", "--json", "--native-strict"]);
         assert!(checked.status.success(), "{}", transcript(&checked));
         self.nika(&[
             "run",
-            "lesson.nika.yaml",
+            "lesson.nika",
             "--model",
             "mock/echo",
             "--output",
@@ -170,15 +170,15 @@ fn structured_capture_preserves_denial_without_exposing_file_contents() {
     // The deliberate cat probe earns a native-first hint; ordinary check
     // admits the workflow so the OS, rather than the static linter, judges it.
     std::fs::write(
-        rig.work.join("lesson.nika.yaml"),
+        rig.work.join("lesson.nika"),
         serde_yaml_bw::to_string(&doc).expect("YAML"),
     )
     .expect("negative probe");
-    let check = rig.nika(&["check", "lesson.nika.yaml", "--json"]);
+    let check = rig.nika(&["check", "lesson.nika", "--json"]);
     assert!(check.status.success(), "{}", transcript(&check));
     let out = rig.nika(&[
         "run",
-        "lesson.nika.yaml",
+        "lesson.nika",
         "--model",
         "mock/echo",
         "--output",

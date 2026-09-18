@@ -71,7 +71,7 @@ tasks:
 
 #[test]
 fn clean_exec_workflow_runs_and_exits_zero() {
-    let wf = fixture("ok.nika.yaml", OK_EXEC);
+    let wf = fixture("ok.nika", OK_EXEC);
     let out = bin()
         .arg("run")
         .arg(&wf)
@@ -101,7 +101,7 @@ fn clean_exec_workflow_runs_and_exits_zero() {
 
 #[test]
 fn a_failing_command_exits_one() {
-    let wf = fixture("fail.nika.yaml", FAILING);
+    let wf = fixture("fail.nika", FAILING);
     let out = bin()
         .arg("run")
         .arg(&wf)
@@ -120,7 +120,7 @@ fn a_failing_command_exits_one() {
 
 #[test]
 fn a_dirty_workflow_never_executes_and_exits_two() {
-    let wf = fixture("cycle.nika.yaml", CYCLE);
+    let wf = fixture("cycle.nika", CYCLE);
     let out = bin()
         .arg("run")
         .arg(&wf)
@@ -144,7 +144,7 @@ fn a_dirty_workflow_never_executes_and_exits_two() {
 fn an_unreadable_file_is_an_environment_error() {
     let out = bin()
         .arg("run")
-        .arg("/nonexistent/ghost.nika.yaml")
+        .arg("/nonexistent/ghost.nika")
         .output()
         .expect("binary runs");
     assert_eq!(
@@ -156,7 +156,7 @@ fn an_unreadable_file_is_an_environment_error() {
 
 #[test]
 fn an_infer_workflow_runs_over_mock_echo_without_network() {
-    let wf = fixture("infer.nika.yaml", INFER);
+    let wf = fixture("infer.nika", INFER);
     let out = bin()
         .arg("run")
         .arg(&wf)
@@ -182,7 +182,7 @@ fn the_plain_lane_narrates_cleanly_when_piped() {
     // Non-TTY (piped): the fold NARRATES (#321 — header at start · one
     // storyboard line per settle · the meter as the close) with ZERO
     // cursor escapes in the captured output (the CI-capture contract).
-    let wf = fixture("ok2.nika.yaml", OK_EXEC);
+    let wf = fixture("ok2.nika", OK_EXEC);
     let out = bin()
         .arg("run")
         .arg(&wf)
@@ -282,7 +282,7 @@ fn a_missing_required_input_is_refused_before_any_task_event() {
         .join("nika-run-verb")
         .join("req-input-missing-out.txt");
     let _ = std::fs::remove_file(&out_file);
-    let wf = fixture("req-input-missing.nika.yaml", &required_input_wf(&out_file));
+    let wf = fixture("req-input-missing.nika", &required_input_wf(&out_file));
     let out = bin()
         .arg("run")
         .arg(&wf)
@@ -336,10 +336,7 @@ fn a_var_override_satisfies_the_required_input() {
         .join("nika-run-verb")
         .join("req-input-satisfied-out.txt");
     let _ = std::fs::remove_file(&out_file);
-    let wf = fixture(
-        "req-input-satisfied.nika.yaml",
-        &required_input_wf(&out_file),
-    );
+    let wf = fixture("req-input-satisfied.nika", &required_input_wf(&out_file));
     let out = bin()
         .arg("run")
         .arg(&wf)
@@ -384,7 +381,7 @@ tasks:
       tools: ["nika:wait", "nika:done"]
       max_turns: 5
 "#;
-    let wf = fixture("agent-wait-done.nika.yaml", WAIT_DONE);
+    let wf = fixture("agent-wait-done.nika", WAIT_DONE);
     let out = bin()
         .arg("run")
         .arg(&wf)

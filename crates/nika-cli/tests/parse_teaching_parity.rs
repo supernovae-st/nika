@@ -19,7 +19,7 @@ fn assert_teaching(source: &str, code: &str) {
     let room = tempfile::tempdir().expect("isolated room");
     let home = room.path().join("home");
     std::fs::create_dir(&home).expect("home");
-    std::fs::write(room.path().join("source-frame-only.nika.yaml"), source).expect("fixture");
+    std::fs::write(room.path().join("source-frame-only.nika"), source).expect("fixture");
     let call = |args: &[&str]| {
         Command::new(env!("CARGO_BIN_EXE_nika"))
             .args(args)
@@ -32,13 +32,13 @@ fn assert_teaching(source: &str, code: &str) {
             .output()
             .expect("isolated CLI")
     };
-    let human = call(&["check", "source-frame-only.nika.yaml"]);
+    let human = call(&["check", "source-frame-only.nika"]);
     assert_eq!(human.status.code(), Some(2));
     assert!(
         String::from_utf8_lossy(&human.stdout).contains(&lesson),
         "{human:?}"
     );
-    let machine = call(&["check", "source-frame-only.nika.yaml", "--json"]);
+    let machine = call(&["check", "source-frame-only.nika", "--json"]);
     assert_eq!(machine.status.code(), Some(2));
     let payload: serde_json::Value = serde_json::from_slice(&machine.stdout).expect("finding JSON");
     let finding = &payload["findings"][0];

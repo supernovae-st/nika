@@ -26,8 +26,8 @@
 # the operator surface exports it — the artifact is written by the CLI,
 # outside the workflow's boundary, which is where that authority belongs:
 #
-#   nika check workflows/catalog/drift-watch.nika.yaml
-#   nika run --output json workflows/catalog/drift-watch.nika.yaml \
+#   nika check workflows/catalog/drift-watch.nika
+#   nika run --output json workflows/catalog/drift-watch.nika \
 #     > ./target/catalog-drift-watch.json
 #
 # WHAT IT DOES NOT DO. It does not refresh anything. A drift verdict is a

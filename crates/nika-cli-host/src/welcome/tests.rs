@@ -120,45 +120,30 @@ fn the_one_next_lets_a_verdict_overrule_the_listing() {
         ..complete
     };
     let gate = |proposable, priced| RunGate {
-        path: "a.nika.yaml".to_owned(),
+        path: "a.nika".to_owned(),
         proposable,
         priced,
     };
     let ws = ContextMode::Workspace;
     // No verdict to overrule it: the door stands as the listing wrote it.
     assert_eq!(
-        next_command(ws, complete, None, "nika run a.nika.yaml"),
-        "nika run a.nika.yaml"
+        next_command(ws, complete, None, "nika run a.nika"),
+        "nika run a.nika"
     );
     // P0-3 — red outranks everything, and names the exact file.
     assert_eq!(
-        next_command(
-            ws,
-            complete,
-            Some(&gate(false, false)),
-            "nika run a.nika.yaml"
-        ),
-        "nika check a.nika.yaml"
+        next_command(ws, complete, Some(&gate(false, false)), "nika run a.nika"),
+        "nika check a.nika"
     );
     // LOI-3 — a clean PRICED file still runs, capped.
     assert_eq!(
-        next_command(
-            ws,
-            complete,
-            Some(&gate(true, true)),
-            "nika run a.nika.yaml"
-        ),
-        "nika run a.nika.yaml --max-cost-usd <usd>"
+        next_command(ws, complete, Some(&gate(true, true)), "nika run a.nika"),
+        "nika run a.nika --max-cost-usd <usd>"
     );
     // …and an unpriced one carries no placeholder to fill.
     assert_eq!(
-        next_command(
-            ws,
-            complete,
-            Some(&gate(true, false)),
-            "nika run a.nika.yaml"
-        ),
-        "nika run a.nika.yaml"
+        next_command(ws, complete, Some(&gate(true, false)), "nika run a.nika"),
+        "nika run a.nika"
     );
     // P0-4 — a walk that died may not hand out a founding CTA.
     assert_eq!(
@@ -167,18 +152,13 @@ fn the_one_next_lets_a_verdict_overrule_the_listing() {
     );
     // …but it may still point at a file it can SEE in this directory.
     assert_eq!(
-        next_command(ws, partial, None, "nika run a.nika.yaml"),
-        "nika run a.nika.yaml"
+        next_command(ws, partial, None, "nika run a.nika"),
+        "nika run a.nika"
     );
     // Chat-only claims no folder at all: the isolated example is the
     // one real answer reachable without one.
     assert_eq!(
-        next_command(
-            ContextMode::ChatOnly,
-            complete,
-            None,
-            "nika run a.nika.yaml"
-        ),
+        next_command(ContextMode::ChatOnly, complete, None, "nika run a.nika"),
         "nika try 01-hello"
     );
 }
@@ -233,7 +213,7 @@ fn the_json_front_door_answers_the_same_next_as_the_screen() {
     let read_next = |raw: &str| -> serde_json::Value {
         serde_json::from_str::<serde_json::Value>(raw).expect("json")
     };
-    for expected in ["nika new hello", "nika run hello.nika.yaml"] {
+    for expected in ["nika new hello", "nika run hello.nika"] {
         let text = screen(Some(dir.path()), plain());
         let block = text.split("Next:").nth(1).expect("a Next: block");
         assert!(
@@ -257,7 +237,7 @@ fn the_json_front_door_answers_the_same_next_as_the_screen() {
         }
         // …now write the file the first door told us to, and go round
         // again: a second `nika new hello` dies on `--force` (P15).
-        std::fs::write(dir.path().join("hello.nika.yaml"), CLEAN_WORKFLOW).expect("seed");
+        std::fs::write(dir.path().join("hello.nika"), CLEAN_WORKFLOW).expect("seed");
     }
 }
 
@@ -286,7 +266,7 @@ const CLEAN_WORKFLOW: &str =
 /// that they could disagree at all was #1187.
 #[test]
 fn one_red_workflow_gets_check_never_run() {
-    let dir = scratch(&[("AGENTS.md", "x"), ("bad.nika.yaml", RED_WORKFLOW)]);
+    let dir = scratch(&[("AGENTS.md", "x"), ("bad.nika", RED_WORKFLOW)]);
     let (g, sole) = glance(dir.path(), 4000);
     assert_eq!(g.workflows, 1, "the scratch holds exactly one file");
     assert!(g.agents_md);
@@ -297,7 +277,7 @@ fn one_red_workflow_gets_check_never_run() {
     );
     let text = screen(Some(dir.path()), plain());
     assert!(
-        text.contains("nika check bad.nika.yaml"),
+        text.contains("nika check bad.nika"),
         "a red file is audited, never run:\n{text}"
     );
     assert!(
@@ -306,8 +286,8 @@ fn one_red_workflow_gets_check_never_run() {
     );
     let raw = front_door_json(Some(dir.path()));
     let v: serde_json::Value = serde_json::from_str(&raw).expect("json");
-    assert_eq!(v["next"], "nika check bad.nika.yaml", "{raw}");
-    assert_eq!(v["start"][0], "nika check bad.nika.yaml", "{raw}");
+    assert_eq!(v["next"], "nika check bad.nika", "{raw}");
+    assert_eq!(v["start"][0], "nika check bad.nika", "{raw}");
     assert!(
         !raw.contains("nika run"),
         "the JSON mirror carries no run CTA on a red file: {raw}"
@@ -320,7 +300,7 @@ fn one_red_workflow_gets_check_never_run() {
 /// is merely uncapped by the absence of a price).
 #[test]
 fn one_clean_mock_workflow_keeps_the_run_cta_uncapped() {
-    let dir = scratch(&[("AGENTS.md", "x"), ("good.nika.yaml", CLEAN_WORKFLOW)]);
+    let dir = scratch(&[("AGENTS.md", "x"), ("good.nika", CLEAN_WORKFLOW)]);
     let (g, sole) = glance(dir.path(), 4000);
     assert_eq!(g.workflows, 1);
     let gate = sole.as_deref().map(|rel| run_gate(dir.path(), rel));
@@ -331,7 +311,7 @@ fn one_clean_mock_workflow_keeps_the_run_cta_uncapped() {
     );
     let text = screen(Some(dir.path()), plain());
     assert!(
-        text.contains("nika run good.nika.yaml"),
+        text.contains("nika run good.nika"),
         "clean + unpriced → the file runs:\n{text}"
     );
     assert!(
@@ -353,7 +333,7 @@ fn one_clean_priced_workflow_carries_the_loi3_cap() {
     let dir = scratch(&[
         ("AGENTS.md", "x"),
         (
-            "priced.nika.yaml",
+            "priced.nika",
             "nika: priced\nmodel: openai/gpt-4o-mini\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
         ),
     ]);
@@ -805,7 +785,7 @@ fn the_experience_block_routes_from_the_concierge_facts() {
     let chat = context_envelope::resolve(None, &EnvFacts::default());
     assert_eq!(chat.mode, ContextMode::ChatOnly);
     let clean_gate = RunGate {
-        path: "wf.nika.yaml".to_owned(),
+        path: "wf.nika".to_owned(),
         proposable: true,
         priced: false,
     };
@@ -955,7 +935,7 @@ fn glance_marks_a_budget_killed_scan_incomplete() {
         std::fs::write(dir.path().join(format!("noise-{i}.txt")), "x").expect("write");
     }
     std::fs::create_dir(dir.path().join("z")).expect("mkdir");
-    std::fs::write(dir.path().join("z/flow.nika.yaml"), "x").expect("write");
+    std::fs::write(dir.path().join("z/flow.nika"), "x").expect("write");
     let (g, sole) = glance(dir.path(), 3); // dies in the noise
     assert_eq!(g.workflows, 0, "the workflow was never reached");
     assert!(!g.complete, "a killed scan is partial, never « zero »");
@@ -973,14 +953,14 @@ fn glance_counts_workflows_skips_heavy_dirs_and_sees_git() {
     std::fs::create_dir_all(&nested).expect("mkdir");
     std::fs::create_dir_all(&heavy).expect("mkdir");
     std::fs::create_dir_all(tmp.join(".git")).expect("mkdir");
-    std::fs::write(tmp.join("a.nika.yaml"), "x").expect("write");
-    std::fs::write(nested.join("b.nika.yml"), "x").expect("write");
-    std::fs::write(heavy.join("c.nika.yaml"), "x").expect("write");
+    std::fs::write(tmp.join("a.nika"), "x").expect("write");
+    std::fs::write(nested.join("b.nika"), "x").expect("write");
+    std::fs::write(heavy.join("c.nika"), "x").expect("write");
     std::fs::write(tmp.join("AGENTS.md"), "x").expect("write");
     let (g, sole) = glance(&tmp, 4000);
     std::fs::remove_dir_all(&tmp).ok();
     assert!(g.git, "sees the .git ancestor");
-    assert_eq!(g.workflows, 2, "counts a.nika.yaml + flows/b.nika.yml only");
+    assert_eq!(g.workflows, 2, "counts a.nika + flows/b.nika only");
     assert!(g.agents_md);
     assert!(sole.is_none(), "two files → no sole audit target");
 }

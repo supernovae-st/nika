@@ -24,7 +24,7 @@ pub fn spec(canon: bool) -> VerbOutput {
     ))
 }
 
-/// `nika spec --schema` — the JSON Schema for `*.nika.yaml` (machine surface).
+/// `nika spec --schema` — the JSON Schema for `*.nika` (machine surface).
 #[must_use]
 pub fn schema() -> VerbOutput {
     VerbOutput::ok(nika_pack::schema_json().to_owned())

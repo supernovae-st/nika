@@ -56,7 +56,7 @@ async fn a_manual_job_runs_under_the_server_default_budget_ceiling() {
         .await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "manual-default-ceiling",
             &auth_header(),
         ))
@@ -85,7 +85,7 @@ async fn an_explicitly_disarmed_default_leaves_a_manual_job_unceilinged() {
         .await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "manual-disarmed-ceiling",
             &auth_header(),
         ))

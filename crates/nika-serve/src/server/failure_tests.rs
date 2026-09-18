@@ -33,7 +33,7 @@ async fn failed_job_get_and_sse_name_the_redacted_nika_code() {
     let server = world.start(Arc::new(FailingBackend), limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "fail-code",
             &auth_header(),
         ))
@@ -93,7 +93,7 @@ async fn succeeded_job_omits_error_object() {
     let server = world.start(Arc::new(SucceedingBackend), limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "ok-no-error",
             &auth_header(),
         ))
@@ -113,7 +113,7 @@ async fn succeeded_job_omits_error_object() {
 async fn parse_fatal_post_names_the_nika_parse_code() {
     let world = TestWorld::new();
     std::fs::write(
-        world.workflows.join("bad.nika.yaml"),
+        world.workflows.join("bad.nika"),
         "nika: v1\nworkflow: nope\n",
     )
     .expect("parse-fatal fixture");
@@ -138,7 +138,7 @@ async fn parse_fatal_post_names_the_nika_parse_code() {
 async fn check_fatal_post_names_the_nika_analysis_code() {
     let world = TestWorld::new();
     std::fs::write(
-        world.workflows.join("boom.nika.yaml"),
+        world.workflows.join("boom.nika"),
         "nika: boom\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
     )
     .expect("check-fatal fixture");

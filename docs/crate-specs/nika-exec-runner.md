@@ -156,7 +156,7 @@ AND stderr) is therefore capped at **64 MiB** (`MAX_OUTPUT_BYTES`):
 | 6 PROPERTY | ✅ | security unit-battery: each normalization layer (NFKC/zero-width/quote/basename) blocked · shell-expansion bypasses ($IFS/$VAR/$()/backtick/fullwidth-$) refused · safe commands + plain pipes allowed |
 | 7 BENCH | N/A | subprocess-bound, no algorithmic hot path (justified) |
 | 8 DOCS | ✅ | `RUSTDOCFLAGS=-D warnings cargo doc --no-deps` 0 warnings · private-item rustdoc clean (vector 28) · per-method CANCEL SAFETY + §3 |
-| 9 CANARY | N/A | L1 effect, no `.nika.yaml` surface until L2 verb-exec (step 11) (justified) |
+| 9 CANARY | N/A | L1 effect, no `.nika` surface until L2 verb-exec (step 11) (justified) |
 | 10 PARITY | ✅ | all brouillon blocklist bypass vectors re-asserted (quote · NFKC · zero-width · absolute-path · full-string-scan · priv-esc · reverse-shell · Windows) · Diamond ADDS registry cancel-by-pid (drops brouillon's removed `command.cancel` token · ADR-016) + the shell-expansion-refusal P1 hardening |
 | 11 REVIEW | ✅ | adversarial security review (spn-nika:code-reviewer) found **2 P1 blocklist bypasses** ($IFS-expansion + env-var-indirection in shell:true) → BOTH FIXED same-session (shell-expansion-char refusal) + regression-pinned. rust-pro + feature-dev hit the session reset; their dimensions self-verified (the security reviewer's notes cross-confirmed: std-Mutex never across await · kill_on_drop pre-spawn · try_join concurrent drain INV-012 · register-after-cancel window acceptable since kill_on_drop is primary). P2s documented §3 (over-blocks · pre_validated pub field · cancel-vs-completion race) — Round-2 ratchet candidates (all safe-side). |
 | 12 ATOMIC | ✅ | 1 commit · Nika 🦋 trailer |

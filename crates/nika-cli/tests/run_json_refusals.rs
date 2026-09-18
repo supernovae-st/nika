@@ -20,16 +20,9 @@ fn execute(source: &str, extra: &[&str]) -> (tempfile::TempDir, Output) {
         "http://{}/v1/messages",
         canary.local_addr().expect("address")
     );
-    std::fs::write(dir.path().join("case.nika.yaml"), source).expect("fixture");
+    std::fs::write(dir.path().join("case.nika"), source).expect("fixture");
     let result = Command::new(env!("CARGO_BIN_EXE_nika"))
-        .args([
-            "run",
-            "case.nika.yaml",
-            "--json",
-            "--no-gc",
-            "--color",
-            "never",
-        ])
+        .args(["run", "case.nika", "--json", "--no-gc", "--color", "never"])
         .args(extra)
         .env_clear()
         .env("HOME", dir.path())

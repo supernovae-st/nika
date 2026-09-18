@@ -51,7 +51,7 @@ impl Room {
         } else {
             String::new()
         };
-        std::fs::write(dir.path().join("workflow.nika.yaml"), format!(
+        std::fs::write(dir.path().join("workflow.nika"), format!(
             "nika: interrupted-provider\nmodel: anthropic/claude-sonnet-5\npermits: {{}}\nrun: {{ clock: system }}\ntasks:\n  answer:\n    timeout: 3s\n{policy}    infer: {{ prompt: fixture, max_tokens: 256 }}\noutputs:\n  answer: \"${{{{ tasks.answer.output }}}}\"\n"
         )).expect("workflow");
         Self {
@@ -85,7 +85,7 @@ impl Room {
 
     fn run(&self) -> (Output, Vec<Value>) {
         let output = self
-            .command(&["run", "workflow.nika.yaml", "--json"])
+            .command(&["run", "workflow.nika", "--json"])
             .output()
             .expect("CLI run");
         let text = String::from_utf8_lossy(&output.stdout);
@@ -306,8 +306,7 @@ fn an_agent_connection_failure_after_a_tool_never_replays_the_task() {
         let workflow = format!(
             "nika: agent-interrupted\nmodel: anthropic/claude-sonnet-5\npermits: {{ tools: [\"nika:write\"], fs: {{ write: [\"./evidence.txt\"] }} }}\ntasks:\n  answer:\n    timeout: 3s\n    retry: {{ max_attempts: 3, backoff_ms: 1, jitter: false{on_codes} }}\n    agent: {{ prompt: fixture, tools: [\"nika:write\"], max_turns: 3, max_tokens_total: 2048 }}\n"
         );
-        std::fs::write(room.dir.path().join("workflow.nika.yaml"), workflow)
-            .expect("agent workflow");
+        std::fs::write(room.dir.path().join("workflow.nika"), workflow).expect("agent workflow");
         let (output, events) = room.run();
         assert_eq!(
             output.status.code(),
@@ -348,7 +347,7 @@ fn an_agent_connection_failure_after_a_tool_never_replays_the_task() {
 #[test]
 fn an_agent_without_prior_tools_can_retry_a_connection_failure() {
     let mut room = Room::new(Fault::Recover, true, 3);
-    let file = room.dir.path().join("workflow.nika.yaml");
+    let file = room.dir.path().join("workflow.nika");
     let workflow = std::fs::read_to_string(&file).expect("fixture").replace(
         "infer: { prompt: fixture, max_tokens: 256 }",
         "agent: { prompt: fixture, tools: [], max_turns: 3, max_tokens_total: 2048 }",

@@ -39,7 +39,7 @@ impl TestWorld {
         std::fs::create_dir(&workflows).expect("workflow root");
         std::fs::create_dir(&state).expect("state root");
         std::fs::write(
-            workflows.join("root.nika.yaml"),
+            workflows.join("root.nika"),
             "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n",
         )
         .expect("workflow");
@@ -248,7 +248,7 @@ fn secure_file(_path: &Path) {}
 fn admitted(world: &TestWorld) -> AdmittedExecution {
     let project = OwnedDir::open(&world.workflows).expect("held workflows");
     ExecutionService::new(SnapshotLimits::default())
-        .admit(&project, Path::new("root.nika.yaml"))
+        .admit(&project, Path::new("root.nika"))
         .expect("admitted workflow")
 }
 
@@ -399,7 +399,7 @@ async fn http_and_arm_share_one_max_concurrent_lane() {
     let server = world.start(backend.clone(), shared_limits).await;
     let response = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "manual-capacity",
             &auth_header(),
         ))
@@ -486,7 +486,7 @@ async fn losing_claim_aborts_prepared_runs_and_origin_namespaces_do_not_collide(
 
     let manual = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "capacity-released",
             &auth_header(),
         ))
@@ -686,7 +686,7 @@ async fn restart_drains_more_queued_jobs_than_live_channel_capacity() {
                     [u8::try_from(index).expect("test queue count fits one byte"); 32],
                 ),
                 QUEUED,
-                "root.nika.yaml".to_owned(),
+                "root.nika".to_owned(),
                 &encoded,
             )
             .expect("queued durable run");

@@ -53,7 +53,7 @@ const GATE: &str = "nika: gate-probe\n\ntasks:\n  \
                     message: \"Deploy to production?\"\n";
 
 fn write_gate(dir: &std::path::Path) {
-    std::fs::write(dir.join("gate.nika.yaml"), GATE).expect("fixture");
+    std::fs::write(dir.join("gate.nika"), GATE).expect("fixture");
 }
 
 /// The single trace the run wrote.
@@ -92,7 +92,7 @@ fn no_config_no_notify_kinds() {
     write_gate(&dir);
     let status = bin()
         .current_dir(&dir)
-        .args(["run", "gate.nika.yaml", "--json"])
+        .args(["run", "gate.nika", "--json"])
         .status()
         .expect("binary runs");
     assert_eq!(status.code(), Some(4), "the run pauses");
@@ -169,7 +169,7 @@ fn delivery_is_a_signed_cloudevents_post_journaled_before_the_seal() {
             "NIKA_NOTIFY_SECRET",
             "whsec_bmlrYS10ZXN0LXNlY3JldC0zMi1ieXRlcy1sb25nISE=",
         )
-        .args(["run", "gate.nika.yaml", "--json"])
+        .args(["run", "gate.nika", "--json"])
         .status()
         .expect("binary runs");
     assert_eq!(status.code(), Some(4), "delivery never changes the verdict");
@@ -239,7 +239,7 @@ fn metadata_range_refuses_at_the_ssrf_floor() {
     let status = bin()
         .current_dir(&dir)
         .env("NIKA_NOTIFY_URL", "http://169.254.169.254/latest/meta-data")
-        .args(["run", "gate.nika.yaml", "--json"])
+        .args(["run", "gate.nika", "--json"])
         .status()
         .expect("binary runs");
     assert_eq!(status.code(), Some(4), "refusal never changes the verdict");
@@ -262,7 +262,7 @@ fn unreachable_target_is_journaled_never_fatal() {
     let status = bin()
         .current_dir(&dir)
         .env("NIKA_NOTIFY_URL", "http://127.0.0.1:9/hook")
-        .args(["run", "gate.nika.yaml", "--json"])
+        .args(["run", "gate.nika", "--json"])
         .status()
         .expect("binary runs");
     assert_eq!(

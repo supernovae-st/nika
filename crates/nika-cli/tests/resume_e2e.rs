@@ -140,7 +140,7 @@ outputs:
 
 #[test]
 fn kill_midrun_resume_completes_the_remainder() {
-    let wf = fixture("chain.nika.yaml", CHAIN);
+    let wf = fixture("chain.nika", CHAIN);
 
     // The uninterrupted baseline — the outputs the resumed run must match.
     let full = bin()
@@ -242,7 +242,7 @@ tasks:
 
 #[test]
 fn input_change_rehashes_and_reruns_only_the_consumer() {
-    let wf = fixture("fork.nika.yaml", FORK);
+    let wf = fixture("fork.nika", FORK);
     let run = bin()
         .args([
             "run",
@@ -334,7 +334,7 @@ tasks:
 
 #[test]
 fn paused_prompt_rearms_and_an_answer_completes_the_run() {
-    let wf = fixture("gated.nika.yaml", GATED);
+    let wf = fixture("gated.nika", GATED);
 
     // Non-interactive run hits the default-less prompt → paused (exit 4),
     // the trace carries workflow_paused + the prompt payload.
@@ -460,7 +460,7 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
 /// a text pipe died at its own gate in 13ms with 22 cancelled rows.)
 #[test]
 fn a_headless_text_run_pauses_at_the_gate_and_teaches_the_resume() {
-    let wf = fixture("gated-text.nika.yaml", GATED);
+    let wf = fixture("gated-text.nika", GATED);
     let dir = std::env::temp_dir().join("nika-resume-e2e");
     let run = bin()
         .current_dir(&dir)
@@ -535,7 +535,7 @@ tasks:
       tool: "nika:prompt"
       args: { mode: "confirm", message: "auto?", default: true }
 "#;
-    let wf = fixture("defaulted.nika.yaml", DEFAULTED);
+    let wf = fixture("defaulted.nika", DEFAULTED);
     let run = bin()
         .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
         .output()
@@ -555,7 +555,7 @@ tasks:
 /// and journals the deny. The gate never re-asks: it refuses.
 #[test]
 fn an_answer_against_edited_content_halts_with_content_mismatch() {
-    let wf = fixture("gated.nika.yaml", GATED);
+    let wf = fixture("gated.nika", GATED);
 
     let run = bin()
         .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
@@ -567,7 +567,7 @@ fn an_answer_against_edited_content_halts_with_content_mismatch() {
 
     // The question changes under the operator's feet (message edit).
     let edited = fixture(
-        "gated-edited.nika.yaml",
+        "gated-edited.nika",
         &GATED.replace("ship it?", "ship it NOW?"),
     );
     let resumed = bin()
@@ -662,7 +662,7 @@ tasks:
     after:
       before: success
     invoke:
-      workflow: "./child.nika.yaml"
+      workflow: "./child.nika"
       args: { name: "composition" }
     returns: { object: { greeting: string } }
 outputs:
@@ -718,8 +718,8 @@ fn comp_outputs(dir: &std::path::Path, parent: &std::path::Path, extra: &[&str])
 #[test]
 fn resume_across_a_composition_cache_hits_the_call() {
     let dir = comp_dir("comp-hit");
-    write_in(&dir, "child.nika.yaml", COMP_CHILD);
-    let parent = write_in(&dir, "parent.nika.yaml", COMP_PARENT);
+    write_in(&dir, "child.nika", COMP_CHILD);
+    let parent = write_in(&dir, "parent.nika", COMP_PARENT);
 
     let baseline = comp_outputs(&dir, &parent, &[]);
     let stream = comp_run_json(&dir, &parent, &[]);
@@ -750,8 +750,8 @@ fn resume_across_a_composition_cache_hits_the_call() {
 #[test]
 fn an_edited_child_reruns_the_call_instead_of_serving_stale_output() {
     let dir = comp_dir("comp-edit");
-    write_in(&dir, "child.nika.yaml", COMP_CHILD);
-    let parent = write_in(&dir, "parent.nika.yaml", COMP_PARENT);
+    write_in(&dir, "child.nika", COMP_CHILD);
+    let parent = write_in(&dir, "parent.nika", COMP_PARENT);
 
     let stream = comp_run_json(&dir, &parent, &[]);
     let trace = write_in(&dir, "before-edit.ndjson", &stream);
@@ -759,7 +759,7 @@ fn an_edited_child_reruns_the_call_instead_of_serving_stale_output() {
     // The child's behavior changes under the trace's feet.
     write_in(
         &dir,
-        "child.nika.yaml",
+        "child.nika",
         &COMP_CHILD.replace("hello ${{ inputs.name }}", "goodbye ${{ inputs.name }}"),
     );
 
@@ -805,7 +805,7 @@ nika: mid
 permits: { exec: ["echo"] }
 tasks:
   descend:
-    invoke: { workflow: "./leaf.nika.yaml" }
+    invoke: { workflow: "./leaf.nika" }
     returns: { object: { word: string } }
 outputs:
   relayed: { value: "${{ tasks.descend.output.word }}", type: string }
@@ -815,20 +815,20 @@ nika: root
 permits: { exec: ["echo"] }
 tasks:
   call:
-    invoke: { workflow: "./mid.nika.yaml" }
+    invoke: { workflow: "./mid.nika" }
     returns: { object: { relayed: string } }
 outputs:
   heard: { value: "${{ tasks.call.output.relayed }}", type: string }
 "#;
-    write_in(&dir, "leaf.nika.yaml", leaf);
-    write_in(&dir, "mid.nika.yaml", mid);
-    let root = write_in(&dir, "root.nika.yaml", parent);
+    write_in(&dir, "leaf.nika", leaf);
+    write_in(&dir, "mid.nika", mid);
+    let root = write_in(&dir, "root.nika", parent);
 
     let stream = comp_run_json(&dir, &root, &[]);
     let trace = write_in(&dir, "grand.ndjson", &stream);
 
     // Only the LEAF changes — two files above it, the call must re-run.
-    write_in(&dir, "leaf.nika.yaml", &leaf.replace("leaf-v1", "leaf-v2"));
+    write_in(&dir, "leaf.nika", &leaf.replace("leaf-v1", "leaf-v2"));
 
     let resumed = comp_run_json(&dir, &root, &["--resume", trace.to_str().expect("utf8")]);
     assert!(
@@ -849,8 +849,8 @@ outputs:
 #[test]
 fn a_composition_torn_mid_child_reruns_the_child_whole() {
     let dir = comp_dir("comp-torn");
-    write_in(&dir, "child.nika.yaml", COMP_CHILD);
-    let parent = write_in(&dir, "parent.nika.yaml", COMP_PARENT);
+    write_in(&dir, "child.nika", COMP_CHILD);
+    let parent = write_in(&dir, "parent.nika", COMP_PARENT);
 
     let stream = comp_run_json(&dir, &parent, &[]);
     let mut kept = Vec::new();
@@ -916,7 +916,7 @@ fn trace_with_engine_version(trace: &str, version: &str) -> String {
 /// compat token is its own named refusal (never a blanket force).
 #[test]
 fn a_cross_version_resume_refuses_naming_both_versions() {
-    let wf = fixture("fork.nika.yaml", FORK);
+    let wf = fixture("fork.nika", FORK);
     let run = bin()
         .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
         .output()
@@ -1000,7 +1000,7 @@ fn a_cross_version_resume_refuses_naming_both_versions() {
 /// (`resumed_from_engine` + `resume_compat: declared`).
 #[test]
 fn a_declared_compat_resumes_and_attests_the_crossing() {
-    let wf = fixture("fork.nika.yaml", FORK);
+    let wf = fixture("fork.nika", FORK);
     let run = bin()
         .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
         .output()
@@ -1051,7 +1051,7 @@ fn a_declared_compat_resumes_and_attests_the_crossing() {
 /// the `unrecorded` token; declared, it proceeds (the same law).
 #[test]
 fn a_versionless_trace_is_judged_with_the_unrecorded_token() {
-    let wf = fixture("fork.nika.yaml", FORK);
+    let wf = fixture("fork.nika", FORK);
     let run = bin()
         .args(["run", &wf.to_string_lossy(), "--json", "--color", "never"])
         .output()
@@ -1140,10 +1140,10 @@ fn staged_tampered_trace(
     let dir =
         std::env::temp_dir().join(format!("nika-resume-launder-{name}-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("run dir");
-    let wf = dir.join("chain.nika.yaml");
+    let wf = dir.join("chain.nika");
     std::fs::write(&wf, CHAIN).expect("workflow");
     let run = bin()
-        .args(["run", "chain.nika.yaml"])
+        .args(["run", "chain.nika"])
         .current_dir(&dir)
         .output()
         .expect("binary runs");
@@ -1399,9 +1399,9 @@ fn the_named_opt_out_proceeds_loudly_and_attests() {
 fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
     let dir = std::env::temp_dir().join(format!("nika-resume-capture-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("run dir");
-    std::fs::write(dir.join("chain.nika.yaml"), CHAIN).expect("workflow");
+    std::fs::write(dir.join("chain.nika"), CHAIN).expect("workflow");
     let run = bin()
-        .args(["run", "chain.nika.yaml", "--json", "--color", "never"])
+        .args(["run", "chain.nika", "--json", "--color", "never"])
         .current_dir(&dir)
         .output()
         .expect("binary runs");
@@ -1436,7 +1436,7 @@ fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
     let resumed = bin()
         .args([
             "run",
-            &dir.join("chain.nika.yaml").to_string_lossy(),
+            &dir.join("chain.nika").to_string_lossy(),
             "--resume",
             &capture.to_string_lossy(),
             "--json",
@@ -1476,7 +1476,7 @@ fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
     let refused = bin()
         .args([
             "run",
-            &dir.join("chain.nika.yaml").to_string_lossy(),
+            &dir.join("chain.nika").to_string_lossy(),
             "--resume",
             &forged.to_string_lossy(),
             "--json",

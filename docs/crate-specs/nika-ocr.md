@@ -122,7 +122,7 @@ pub enum OcrError { /* ModelNotFound(1101) .. TaskJoinFailed(1109) */ }
 | 6 | PROPERTY | ✅ | proptest · `validate_region` in-bounds origin roundtrip + `crop_rgba` output-length invariant (`recognize.rs`) |
 | 7 | BENCHMARKS | ⚪ N/A | thin `ocrs` adapter · inference latency is model + CPU-bound, not a Nika hot path (exempt · ADR-003 Rule 2) |
 | 8 | DOCS | ✅ | `cargo doc --no-deps` 0 warnings · all pub items documented |
-| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika.yaml` workflow surface · real inference needs operator-provisioned `.rten` weights (never bundled · sovereignty Rule 1) |
+| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika` workflow surface · real inference needs operator-provisioned `.rten` weights (never bundled · sovereignty Rule 1) |
 | 10 | PARITY | ⚪ N/A | NEW computer-use crate (M2.2) · no v0.79 brouillon `ocrs` equivalent to golden-test against |
 | 11 | REVIEW SWARM | ✅ | 3-lens review 2026-05-25 · sub-agents hit the 1M-context credit wall → **Foreman-direct** per `orchestrator-autonomous-v6.md` PE-5.1 (`model-context-required` fallback) · rust-pro + Diamond-discipline + bug-hunt lenses · all verdict ADMIT · 1 P1 (stale `lib.rs` module doc) fixed · independent-agent re-review can run when 1M credits are enabled |
 | 12 | ATOMIC COMMIT | ✅ | the admission commit |

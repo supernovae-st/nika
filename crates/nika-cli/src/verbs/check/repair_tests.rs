@@ -7,7 +7,7 @@ fn registry_cache_provenance_survives_acquisition_into_the_footer() {
         std::process::id()
     ));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("cached.nika.yaml");
+    let path = dir.join("cached.nika");
     std::fs::write(
         &path,
         "nika: cached\npermits: { exec: [date] }\ntasks:\n  clock:\n    exec: { command: [date] }\n",
@@ -64,7 +64,7 @@ fn direct_cache_path_is_never_a_repair_target_or_footer_command() {
     let cache_root = root.join(".nika/registry");
     let dir = cache_root.join("acme/report");
     std::fs::create_dir_all(&dir).expect("cache-shaped dirs");
-    let path = dir.join("cached.nika.yaml");
+    let path = dir.join("cached.nika");
     std::fs::write(
         &path,
         "nika: cached\npermits: { exec: [date] }\ntasks:\n  clock:\n    exec: { command: [date] }\n",
@@ -145,9 +145,9 @@ fn stream_sources_refuse_fix_while_regular_workspace_symlinks_remain_files() {
     symlink("/dev/stdin", &device_alias).expect("device symlink");
     assert!(CheckTarget::workspace(device_alias.to_string_lossy()).is_non_regular_source());
 
-    let regular = root.join("regular.nika.yaml");
+    let regular = root.join("regular.nika");
     std::fs::write(&regular, "nika: regular\ntasks: {}\n").expect("regular fixture");
-    let regular_alias = root.join("regular-alias.nika.yaml");
+    let regular_alias = root.join("regular-alias.nika");
     let _ = std::fs::remove_file(&regular_alias);
     symlink(&regular, &regular_alias).expect("regular symlink");
     let target = CheckTarget::workspace(regular_alias.to_string_lossy());
@@ -165,11 +165,11 @@ fn atomic_fix_of_a_scratch_hardlink_never_mutates_the_cache_inode() {
     let scratch_dir = root.join("scratch");
     std::fs::create_dir_all(&cache_dir).expect("cache dirs");
     std::fs::create_dir_all(&scratch_dir).expect("scratch dir");
-    let cached = cache_dir.join("cached.nika.yaml");
+    let cached = cache_dir.join("cached.nika");
     let original =
         "nika: w\nmodel: mock/echo\ntasks:\n  think:\n    infer: { promt: hi, max_tokens: 10 }\n";
     std::fs::write(&cached, original).expect("cache fixture");
-    let scratch = scratch_dir.join("copy.nika.yaml");
+    let scratch = scratch_dir.join("copy.nika");
     let _ = std::fs::remove_file(&scratch);
     std::fs::hard_link(&cached, &scratch).expect("scratch hardlink");
 

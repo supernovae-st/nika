@@ -192,7 +192,7 @@ pub enum EmitRefusal {
 }
 
 /// The beat labels, in file order (D4): the workflow file's radical —
-/// `workflows/doctor.nika.yaml` → `doctor` — a collision taking `-2`,
+/// `workflows/doctor.nika` → `doctor` — a collision taking `-2`,
 /// `-3`. The ONE identity both consumers read: the firer (`nika arm
 /// fire <label>` delegates here) and the units (`nika.arm.<label>`).
 #[must_use]
@@ -202,7 +202,7 @@ pub fn labels(reg: &ArmRegistry) -> Vec<String> {
         let radical = radical_of(&beat.workflow);
         let mut candidate = radical.clone();
         let mut n = 1u32;
-        // Uniqueness is the law (`doctor-2.nika.yaml` arming next to
+        // Uniqueness is the law (`doctor-2.nika` arming next to
         // two `doctor` must never hand two beats one label).
         while out.contains(&candidate) {
             n += 1;
@@ -213,15 +213,11 @@ pub fn labels(reg: &ArmRegistry) -> Vec<String> {
     out
 }
 
-/// The radical of a workflow path: the basename minus the `.nika.yaml`
-/// the grammar guarantees (a bare `*.yaml` loses its last extension).
+/// The radical of a workflow path: the basename minus the `.nika`
+/// suffix the grammar guarantees (`support.v2.nika` → `support.v2`).
 fn radical_of(workflow: &str) -> String {
     let base = workflow.rsplit('/').next().unwrap_or(workflow);
-    if let Some(radical) = base.strip_suffix(".nika.yaml") {
-        return radical.to_owned();
-    }
-    base.rsplit_once('.')
-        .map_or_else(|| base.to_owned(), |(stem, _)| stem.to_owned())
+    nika_source::program_stem(base).unwrap_or(base).to_owned()
 }
 
 /// Render the units for `target` + `mode`. Per-beat: one unit per

@@ -18,6 +18,7 @@ nika-cli-host = { path = "../nika-cli-host", version = "0.120.0-dev" } # the hos
 nika-session = { path = "../nika-session", version = "0.120.0-dev", default-features = false }  # the native session (bare `nika` on a terminal · ADR-125)
 nika-types  = { path = "../nika-types", version = "0.120.0-dev" }  # Timestamp · KeyValue · ids
 nika-schema = { path = "../nika-schema", version = "0.120.0-dev" } # parse (check · inspect · graph · run)
+nika-source = { path = "../nika-source", version = "0.120.0-dev" } # lexical program-source naming (#1684)
 nika-vocab  = { path = "../nika-vocab", version = "0.120.0-dev" }
 nika-cadence = { path = "../nika-cadence", version = "0.120.0-dev" }  # the arm: grammar + the pure next-slot calculator (L4→L0)
 nika-arm     = { path = "../nika-arm", version = "0.120.0-dev" }      # descriptor-rooted ARM custody + the one firer (L4→L4)
@@ -57,7 +58,7 @@ nika-dap         = { path = "../nika-dap", version = "0.120.0-dev" }           #
 nika-trace       = { path = "../nika-trace", version = "0.120.0-dev" }         # the flight-recorder reader (trace verbs · evidence · receipt · forecast · the bin's trace arm — descended 2026-08-11 · re-exported at the old verb paths)
 nika-mcp         = { path = "../nika-mcp", version = "0.120.0-dev" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
 nika-models      = { path = "../nika-models", version = "0.120.0-dev" }        # `nika model` — the local-models unit (ONE dir · Hub pull · serve glue · descended 2026-07-12)
-nika-migrate     = { path = "../nika-migrate", version = "0.120.0-dev" }       # the .nika.yaml envelope migrations (W1 map · W2 flow) — the fix verb's repairs (descended 2026-07-15 · size-cap · pure std)
+nika-migrate     = { path = "../nika-migrate", version = "0.120.0-dev" }       # the .nika envelope migrations (W1 map · W2 flow) — the fix verb's repairs (descended 2026-07-15 · size-cap · pure std)
 tokio            = { workspace = true }                                   # the bin's async entry (block the run on the executor)
 
 [features]

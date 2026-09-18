@@ -75,7 +75,7 @@ files:
   evidence: "in-file marker '── GENERATED · do not hand-edit' + [meta] source=https://models.dev/api.json · as_of · source_sha256_16 — a vendored snapshot, refreshed at maintenance time, never a runtime fetch"
   derivation:
     tool: "bash scripts/refresh-pricing.sh (emission laws matched to src/data/models.rs lookup semantics)"
-    gate: "NONE. catalog-verify.yml probes embeddings + mcp servers only (all_embeddings, all_mcp_servers) and never a pricing rule, so this snapshot is UNWATCHED. Two guards EXIST and neither runs: drift-watch.nika.yaml hashes upstream against [meta].sha256 (no cron calls it) and pricing-differential.py cross-checks models.dev against LiteLLM (its workflow has no schedule)."
+    gate: "NONE. catalog-verify.yml probes embeddings + mcp servers only (all_embeddings, all_mcp_servers) and never a pricing rule, so this snapshot is UNWATCHED. Two guards EXIST and neither runs: drift-watch.nika hashes upstream against [meta].sha256 (no cron calls it) and pricing-differential.py cross-checks models.dev against LiteLLM (its workflow has no schedule)."
     inputs:
     - "https://models.dev/api.json (MIT · sst/models.dev)"
 - path: "docs/adr/index.toml"
@@ -126,7 +126,7 @@ patterns:
   class: testimonial
   match_count: 32
   aggregate_sha256: 2132ef0c2b58817d11d9f7e2e0860e15a57e3c946f4a116efa5d27e9efef1a04
-  evidence: "attack.nika.yaml + expected.json pairs consumed by crates/nika-runtime/src/adversarial/tests.rs — the injection red-team battery owned by the runtime"
+  evidence: "attack.nika + expected.json pairs consumed by crates/nika-runtime/src/adversarial/tests.rs — the injection red-team battery owned by the runtime"
 - glob: "fuzz/corpus/**"
   class: testimonial
   match_count: 2659
@@ -136,7 +136,7 @@ patterns:
   class: testimonial
   match_count: 5
   aggregate_sha256: d3a7120f7ce9d497abf6a37131c4a522b596f50350744b7fd8fe284fba3956b4
-  evidence: "manifest.tsv + s*.nika.yaml scenarios consumed by scripts/test/structured-live-battery.sh (Rail C · the LIVE provider rail)"
+  evidence: "manifest.tsv + s*.nika scenarios consumed by scripts/test/structured-live-battery.sh (Rail C · the LIVE provider rail)"
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 71
@@ -260,8 +260,8 @@ patterns:
 unverified:
 - "action/README.md"
 - "action/action.yml"
-- "workflows/catalog-pricing-probe.nika.yaml"
-- "workflows/catalog/deprecated-models.nika.yaml"
-- "workflows/catalog/drift-watch.nika.yaml"
-- "workflows/catalog/ingest-catalog.nika.yaml"
-- "workflows/catalog/upstream-shape.nika.yaml"
+- "workflows/catalog-pricing-probe.nika"
+- "workflows/catalog/deprecated-models.nika"
+- "workflows/catalog/drift-watch.nika"
+- "workflows/catalog/ingest-catalog.nika"
+- "workflows/catalog/upstream-shape.nika"

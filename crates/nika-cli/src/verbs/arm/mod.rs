@@ -342,11 +342,11 @@ mod tests {
     const TWO_BEATS: &str = concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/weekly.nika.yaml\n",
+        "  - workflow: workflows/weekly.nika\n",
         "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
         "    plafond: 0.25\n",
         "    manqué: sauter\n",
-        "  - workflow: workflows/nightly.nika.yaml\n",
+        "  - workflow: workflows/nightly.nika\n",
         "    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n",
         "    plafond: 1.0\n",
         "    manqué: rattraper\n",
@@ -448,7 +448,7 @@ mod tests {
         let body = concat!(
             "nika: proj\n",
             "arm:\n",
-            "  - workflow: workflows/prouve.nika.yaml\n",
+            "  - workflow: workflows/prouve.nika\n",
             "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
             "    plafond: 0.25\n",
             "    manqué: sauter\n",
@@ -457,7 +457,7 @@ mod tests {
             "    jusqu_au: \"2099-12-31\"\n",
             "    tolérance: \"3/4\"\n",
             "    par: \"thibaut\"\n",
-            "  - workflow: workflows/declare.nika.yaml\n",
+            "  - workflow: workflows/declare.nika\n",
             "    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n",
             "    plafond: 1.0\n",
             "    manqué: rattraper-une-fois\n",
@@ -529,7 +529,7 @@ mod tests {
         let body = concat!(
             "nika: proj\n",
             "arm:\n",
-            "  - workflow: workflows/doctor.nika.yaml\n",
+            "  - workflow: workflows/doctor.nika\n",
             "    cadence: \"TZ=UTC 0 3 * * *\"\n",
             "    plafond: 0.25\n",
             "    manqué: sauter\n",
@@ -575,7 +575,7 @@ mod tests {
         let body = concat!(
             "nika: proj\n",
             "arm:\n",
-            "  - workflow: workflows/doctor.nika.yaml\n",
+            "  - workflow: workflows/doctor.nika\n",
             "    cadence: \"TZ=UTC 0 3 * * *\"\n",
             "    plafond: 0.25\n",
             "    manqué: sauter\n",
@@ -589,7 +589,7 @@ mod tests {
             .expect("slot")
             .to_zoned(jiff::tz::TimeZone::UTC);
         let slot_id =
-            nika_cadence::SlotId::derive("workflows/doctor.nika.yaml", "TZ=UTC 0 3 * * *", &slot);
+            nika_cadence::SlotId::derive("workflows/doctor.nika", "TZ=UTC 0 3 * * *", &slot);
         let short = slot_id.short().to_owned();
         let claim = state::Claim::new(
             slot_id,
@@ -617,7 +617,7 @@ mod tests {
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(out.text.contains("2 beats"), "the count: {}", out.text);
         assert!(
-            out.text.contains("workflows/weekly.nika.yaml"),
+            out.text.contains("workflows/weekly.nika"),
             "the workflow: {}",
             out.text
         );
@@ -641,7 +641,7 @@ mod tests {
             concat!(
                 "nika: proj\n",
                 "arm:\n",
-                "  - workflow: w.nika.yaml\n",
+                "  - workflow: w.nika\n",
                 "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
                 "    manqué: sauter\n",
             ),
@@ -682,7 +682,7 @@ mod tests {
         let body = concat!(
             "nika: proj\n",
             "arm:\n",
-            "  - workflow: w.nika.yaml\n",
+            "  - workflow: w.nika\n",
             "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
             "    où: local\n",
             "    plafond: 0.25\n",

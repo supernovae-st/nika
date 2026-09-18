@@ -26,7 +26,7 @@ fn at(text: &str) -> Zoned {
 
 fn registry_with(body: &str) -> ArmRegistry {
     let text = format!(
-        "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
+        "nika: proj\narm:\n  - workflow: workflows/doctor.nika\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
     );
     let registry = crate::parse_registry(&text).expect("parse");
     assert!(
@@ -191,7 +191,7 @@ fn a_webhook_beat_skips_the_clock() {
     let text = concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/doctor.nika.yaml\n",
+        "  - workflow: workflows/doctor.nika\n",
         "    cadence: \"on-webhook\"\n",
         "    plafond: 0.25\n",
         "    manqué: sauter\n",
@@ -208,19 +208,19 @@ fn the_v0_unsupported_policies_refuse_with_teaching() {
     for (extra, line) in [
         (
             "    manqué: sauter\n    chevauchement: remplacer\n",
-            "arm fire workflows/doctor.nika.yaml · chevauchement: remplacer — arrive avec serve v0.2 · aujourd'hui: sauter (le défaut) ou file",
+            "arm fire workflows/doctor.nika · chevauchement: remplacer — arrive avec serve v0.2 · aujourd'hui: sauter (le défaut) ou file",
         ),
         (
             "    manqué: sauter\n    chevauchement: sauter\n    après_saut: à-complétion\n",
-            "arm fire workflows/doctor.nika.yaml · après_saut: à-complétion — arrive avec serve v0.2 · aujourd'hui: prochain-créneau (le défaut)",
+            "arm fire workflows/doctor.nika · après_saut: à-complétion — arrive avec serve v0.2 · aujourd'hui: prochain-créneau (le défaut)",
         ),
         (
             "    manqué: sauter\n    décalage: hash\n",
-            "arm fire workflows/doctor.nika.yaml · décalage: — arrive avec serve v0.2 · aujourd'hui le créneau tire à l'instant dit",
+            "arm fire workflows/doctor.nika · décalage: — arrive avec serve v0.2 · aujourd'hui le créneau tire à l'instant dit",
         ),
         (
             "    manqué: rattraper\n",
-            "arm fire workflows/doctor.nika.yaml · manqué: rattraper — arrive avec serve v0.2 · aujourd'hui: rattraper-une-fois ou sauter",
+            "arm fire workflows/doctor.nika · manqué: rattraper — arrive avec serve v0.2 · aujourd'hui: rattraper-une-fois ou sauter",
         ),
     ] {
         let registry = registry_with(extra);
@@ -247,7 +247,7 @@ fn emit_and_tick_share_the_same_v0_policy_set() {
         TickDecision::Refuse { line } => {
             assert_eq!(
                 line,
-                "arm fire workflows/doctor.nika.yaml · chevauchement: remplacer — arrive avec serve v0.2 · aujourd'hui: sauter (le défaut) ou file"
+                "arm fire workflows/doctor.nika · chevauchement: remplacer — arrive avec serve v0.2 · aujourd'hui: sauter (le défaut) ou file"
             );
             assert!(line.contains(what), "{line}");
             assert!(line.contains(arrives), "{line}");

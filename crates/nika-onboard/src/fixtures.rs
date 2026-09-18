@@ -15,7 +15,7 @@
 
 use std::path::Path;
 
-/// Relative `workflow: "./foo.nika.yaml"` children a body invokes.
+/// Relative `workflow: "./foo.nika"` children a body invokes.
 /// `nika try 10-compose-pipeline` staged the parent alone and check
 /// died on NIKA-COMP-001 (the child is an ingredient, same class as a
 /// fixture file). Only `./` static pack slugs — templated targets
@@ -33,7 +33,10 @@ fn composition_siblings(body: &str) -> Vec<String> {
             .chars()
             .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
             .collect();
-        if name.ends_with(".nika.yaml") && !out.iter().any(|p| p == &name) {
+        if (nika_source::is_canonical_program_file_name(&name)
+            || nika_source::is_retired_program_file_name(&name))
+            && !out.iter().any(|p| p == &name)
+        {
             out.push(name);
         }
     }
@@ -79,7 +82,10 @@ pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
     let base = dest.parent().unwrap_or_else(|| Path::new(""));
     let (mut written, mut kept) = (0, 0);
     for name in &siblings {
-        let slug = name.strip_suffix(".nika.yaml").unwrap_or(name);
+        let slug = nika_source::program_stem(name)
+            .or_else(|| name.strip_suffix(".nika.yaml"))
+            .or_else(|| name.strip_suffix(".nika.yml"))
+            .unwrap_or(name);
         let Some(child) = nika_pack::example(slug) else {
             continue;
         };
@@ -144,7 +150,7 @@ mod tests {
             ));
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(&dir).expect("tmpdir");
-            let dest = dir.join("taken.nika.yaml");
+            let dest = dir.join("taken.nika");
             std::fs::write(&dest, body).expect("take the body");
             let (written, _kept) = materialize(body, &dest).expect("ingredients follow");
             assert!(written > 0, "{slug}: reads {prefixes:?}, wrote nothing");
@@ -164,25 +170,29 @@ mod tests {
     }
 
     /// `nika try 10-compose-pipeline` must stage the child it invokes
-    /// (`./10-compose-child.nika.yaml`) or check dies NIKA-COMP-001 in
+    /// (`./10-compose-child.nika`) or check dies NIKA-COMP-001 in
     /// the rehearsal room (measured 2026-08-22 · e2e S2 17/18).
     #[test]
     fn a_compose_parent_takes_its_child_along() {
         let body = nika_pack::example("10-compose-pipeline").expect("pack");
         let siblings = composition_siblings(body);
         assert!(
-            siblings.iter().any(|s| s == "10-compose-child.nika.yaml"),
+            siblings
+                .iter()
+                .any(|s| nika_source::typed_stem(s) == "10-compose-child"
+                    || s.starts_with("10-compose-child.")),
             "the parent names the child: {siblings:?}"
         );
         let dir = std::env::temp_dir().join(format!("nika-compose-sib-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let dest = dir.join("10-compose-pipeline.nika.yaml");
+        let dest = dir.join("10-compose-pipeline.nika");
         std::fs::write(&dest, body).expect("parent");
         let (written, _) = materialize(body, &dest).expect("child follows");
         assert!(written >= 1, "wrote the child");
         assert!(
-            dir.join("10-compose-child.nika.yaml").exists(),
+            dir.join("10-compose-child.nika").exists()
+                || dir.join("10-compose-child.nika.yaml").exists(),
             "the rehearsal room has the sibling"
         );
         let _ = std::fs::remove_dir_all(&dir);
@@ -195,7 +205,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("nika-fixtures-kept-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("tmpdir");
-        let dest = dir.join("t.nika.yaml");
+        let dest = dir.join("t.nika");
         assert_eq!(
             materialize("nika: v1\n", &dest).expect("clean"),
             (0, 0),

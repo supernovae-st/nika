@@ -98,7 +98,7 @@ async fn cancel_held_result(state: RunState, cause: RunCause) {
     let server = world.start(backend.clone(), cancellation_limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "cancel-race",
             &auth_header(),
         ))
@@ -185,7 +185,7 @@ async fn cancellation_grace_without_a_runtime_result_is_interrupted() {
         .await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "cancel-grace",
             &auth_header(),
         ))

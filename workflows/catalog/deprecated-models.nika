@@ -27,8 +27,8 @@
 # unless a blocking human prompt dominates the write. The verdict rides
 # the typed `outputs:` and the operator surface exports it:
 #
-#   nika check workflows/catalog/deprecated-models.nika.yaml
-#   nika run --output json workflows/catalog/deprecated-models.nika.yaml \
+#   nika check workflows/catalog/deprecated-models.nika
+#   nika run --output json workflows/catalog/deprecated-models.nika \
 #     > ./target/catalog-deprecated-models.json
 # join upstream model status against the rows we price and the ids we teach
 nika: catalog-deprecated-models

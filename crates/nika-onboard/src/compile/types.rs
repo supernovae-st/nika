@@ -198,7 +198,7 @@ pub struct CompileProvenance {
 pub struct CompileOutcome {
     /// Whether authoring completed under the supported semantics.
     pub status: CompileStatus,
-    /// Ordinary `.nika.yaml` source in memory; may still be incomplete.
+    /// Ordinary `.nika` source in memory; may still be incomplete. Path-free.
     pub candidate: Option<String>,
     /// Mandatory holes; callers recompile with explicit answers.
     pub questions: Vec<CompileQuestion>,

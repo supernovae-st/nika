@@ -335,7 +335,7 @@ mod tests {
             ),
             ev(5, EventKind::WorkflowCompleted, &[("workflow", "demo")]),
         ];
-        ReplaySession::from_parts("/w.nika.yaml", YAML, &events).expect("session builds")
+        ReplaySession::from_parts("/w.nika", YAML, &events).expect("session builds")
     }
 
     #[test]
@@ -408,7 +408,7 @@ mod tests {
                 ),
                 ev(2, EventKind::TaskCompleted, &[("task", "alpha")]),
             ];
-            ReplaySession::from_parts("/w.nika.yaml", YAML, &events).expect("builds")
+            ReplaySession::from_parts("/w.nika", YAML, &events).expect("builds")
         };
         assert_eq!(make(&sha).drifted, Some(false));
         assert_eq!(make(&"ab".repeat(32)).drifted, Some(true));
@@ -463,7 +463,7 @@ mod tests {
         // own helper, the last line torn.
         let dir = std::env::temp_dir().join(format!("nika-dap-torn-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmp dir");
-        let wf = dir.join("t.nika.yaml");
+        let wf = dir.join("t.nika");
         std::fs::write(&wf, YAML).expect("wf");
         let journal = dir.join("torn.ndjson");
         let lines = [
@@ -483,7 +483,7 @@ mod tests {
     #[test]
     fn a_journal_without_settles_is_refused() {
         let only_start = vec![ev(1, EventKind::WorkflowStarted, &[("workflow", "demo")])];
-        assert!(ReplaySession::from_parts("/w.nika.yaml", YAML, &only_start).is_err());
+        assert!(ReplaySession::from_parts("/w.nika", YAML, &only_start).is_err());
     }
 
     #[test]
@@ -523,7 +523,7 @@ mod tests {
             ev(3, EventKind::TaskCancelled, &[("task", "beta")]),
             ev(4, EventKind::TaskCacheHit, &[("task", "gamma")]),
         ];
-        let s = ReplaySession::from_parts("/w.nika.yaml", YAML, &events).expect("builds");
+        let s = ReplaySession::from_parts("/w.nika", YAML, &events).expect("builds");
         let kinds: Vec<&str> = s.stops.iter().map(|st| st.kind).collect();
         assert_eq!(kinds, ["failed", "cancelled", "cache hit"]);
     }

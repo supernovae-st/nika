@@ -710,7 +710,7 @@ fn best_same_facet_runner(qualified: &[(String, f64)]) -> f64 {
 /// not an intent to rank. `hello` is the 01-hello lesson (B01).
 fn exact_catalog_hit(intent: &str) -> Option<String> {
     let t = intent.trim();
-    let t = t.strip_suffix(".nika.yaml").unwrap_or(t);
+    let t = t.strip_suffix(".nika").unwrap_or(t);
     if t.is_empty() || t.contains(char::is_whitespace) {
         return None;
     }
@@ -972,7 +972,7 @@ mod tests {
                 );
             }
             let dest = std::env::temp_dir().join(format!(
-                "nika-intent-{}-{}.nika.yaml",
+                "nika-intent-{}-{}.nika",
                 std::process::id(),
                 case.id
             ));

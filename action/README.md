@@ -1,6 +1,6 @@
 # Run Nika Workflow · GitHub Action
 
-Runs one `.nika.yaml` in CI the way Nika always runs: **audited before a
+Runs one `.nika` in CI the way Nika always runs: **audited before a
 token is spent** (`nika check` gates the job), **cost-bounded while it
 runs** (`--max-cost-usd` is required, not optional), **hash-chain traced
 after** (the trace path is an output — upload it as an artifact and the
@@ -17,7 +17,7 @@ jobs:
         id: nika
         uses: supernovae-st/nika/action@main
         with:
-          file: workflows/pr-review.nika.yaml
+          file: workflows/pr-review.nika
           max-cost-usd: "0.50"
           args: --var pr=${{ github.event.number }}
 

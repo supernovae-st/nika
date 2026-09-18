@@ -11,7 +11,7 @@ fn infer_permits_on_a_red_file_is_not_exit_0() {
     // B15: a file with findings must not look paste-ready-and-green.
     let dir = std::env::temp_dir().join(format!("nika-b15-red-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("red.nika.yaml");
+    let path = dir.join("red.nika");
     std::fs::write(
         &path,
         "nika: red\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    after: { ghost: success }\n    exec: { command: [\"echo\", \"hi\"] }\n",
@@ -35,7 +35,7 @@ fn infer_permits_on_a_red_file_is_not_exit_0() {
 fn infer_permits_shell_form_is_comment_only_until_rewritten() {
     let dir = std::env::temp_dir().join(format!("nika-b15-sh-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("shell.nika.yaml");
+    let path = dir.join("shell.nika");
     std::fs::write(
         &path,
         "nika: sh\npermits: { exec: true }\ntasks:\n  t:\n    exec: { shell: \"echo hi\" }\n",
@@ -93,7 +93,7 @@ fn infer_permits_omits_unknown_exec_but_retains_other_grants() {
 fn ghost_mcp_tool_uses_the_same_code_on_tty_and_json() {
     let dir = std::env::temp_dir().join(format!("nika-mcp-ghost-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("spotify.nika.yaml");
+    let path = dir.join("spotify.nika");
     std::fs::write(
         &path,
         "nika: spotify-search\npermits:\n  tools: [\"mcp:spotify/search\"]\ntasks:\n  s:\n    invoke:\n      tool: mcp:spotify/search\n      args: { q: x }\n",

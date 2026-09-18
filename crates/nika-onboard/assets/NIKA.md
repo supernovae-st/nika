@@ -1,20 +1,20 @@
 # Nika in this project
 
-Workflows are `*.nika.yaml` files. A plain `nika init` founds the project
-around the hello lesson, `workflows/01-hello.nika.yaml` (the file
+Workflows are `*.nika` files. A plain `nika init` founds the project
+around the hello lesson, `workflows/01-hello.nika` (the file
 `nika try 01-hello` rehearses). Audit it, run it offline, then create and
 check your own file:
 
 ```sh
-nika check workflows/01-hello.nika.yaml
-nika run workflows/01-hello.nika.yaml --model mock/echo
-nika new 01-hello my-first.nika.yaml
-nika check my-first.nika.yaml
+nika check workflows/01-hello.nika
+nika run workflows/01-hello.nika --model mock/echo
+nika new 01-hello my-first.nika
+nika check my-first.nika
 ```
 
 The hello lesson names a small local model; `--model mock/echo` rehearses it
 with no key and no network. For a read-and-infer skeleton, use
-`nika new chain chain.nika.yaml`, fill its `<SLOT: …>` prompt and provide
+`nika new chain chain.nika`, fill its `<SLOT: …>` prompt and provide
 the `README.md` it reads before checking and running it.
 
 A model override only mocks inference;

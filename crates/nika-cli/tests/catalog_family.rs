@@ -113,7 +113,7 @@ const UNWIRED: &[&str] = &[
 fn plant(seat: &str, slug: &str) -> String {
     let dir = std::env::temp_dir().join("nika-cli-catalog-family");
     std::fs::create_dir_all(&dir).expect("temp dir");
-    let path = dir.join(format!("seat-{slug}.nika.yaml"));
+    let path = dir.join(format!("seat-{slug}.nika"));
     std::fs::write(&path, fixture(seat)).expect("write fixture");
     path.to_str().expect("utf8 path").to_owned()
 }

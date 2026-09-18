@@ -400,7 +400,7 @@ fn agent_completion_fixtures_match_their_run_contract() {
         )
         .expect("expected outcome");
         let observed = run_observed(
-            &fixture.join("input.nika.yaml"),
+            &fixture.join("input.nika"),
             &[("NIKA_KEYCHAIN".to_owned(), "off".to_owned())],
             &[],
         );
@@ -445,7 +445,7 @@ fn deferred_fixtures_match_their_run_contract_and_are_witnessed() {
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-        let input = dir.join("input.nika.yaml");
+        let input = dir.join("input.nika");
         if !input.is_file() {
             continue;
         }
@@ -574,7 +574,7 @@ fn e_diff_runtime_fs_leg() {
         let yaml = format!(
             "nika: ediff-fs\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{path}\" }}\n"
         );
-        let wf = root.join(format!("{name}.nika.yaml"));
+        let wf = root.join(format!("{name}.nika"));
         std::fs::write(&wf, yaml).expect("write workflow");
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
         cmd.arg("run").arg(&wf).arg("--json").current_dir(&root);
@@ -633,7 +633,7 @@ fn e_diff_runtime_net_leg() {
         let yaml = format!(
             "nika: ediff-net\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"{url}\" }}\n"
         );
-        let wf = root.join(format!("{name}.nika.yaml"));
+        let wf = root.join(format!("{name}.nika"));
         std::fs::write(&wf, yaml).expect("write workflow");
         let observed = run_observed(&wf, &[], &[]);
         if observed.ok {

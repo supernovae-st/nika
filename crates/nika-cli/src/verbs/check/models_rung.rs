@@ -55,7 +55,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("tmp dir");
         let theme = crate::Theme::new(false, true, false);
 
-        let bad = dir.join("thinking-budget-at-cap.nika.yaml");
+        let bad = dir.join("thinking-budget-at-cap.nika");
         std::fs::write(
             &bad,
             infer_wf("mock/echo", "100", "{ enabled: true, budget_tokens: 100 }"),
@@ -74,7 +74,7 @@ mod tests {
         );
 
         // Control: the legal twin stays green through the same verb.
-        let ok_path = dir.join("thinking-budget-under-cap.nika.yaml");
+        let ok_path = dir.join("thinking-budget-under-cap.nika");
         std::fs::write(
             &ok_path,
             infer_wf("mock/echo", "100", "{ enabled: true, budget_tokens: 50 }"),

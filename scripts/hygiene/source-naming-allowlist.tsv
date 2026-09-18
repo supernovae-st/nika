@@ -1,0 +1,19 @@
+# path-prefix	category	reason	owner
+# Categories: historical | frozen-artifact | negative-test | ratchet | generated-pending
+crates/nika-source/src/naming.rs	negative-test	lexical owner of retired suffixes and hostile-case table	nika-source
+crates/nika-cli-host/src/source.rs	negative-test	disk acquisition refusals for retired suffixes	nika-cli-host
+crates/nika-onboard/src/compile/materialize.rs	negative-test	compile adapter refuses a retired destination	nika-onboard
+crates/nika-onboard/src/fixtures.rs	generated-pending	pack dual-read of retired child names until SPEC_PIN	nika-onboard
+crates/nika-pack/src/lib.rs	generated-pending	unpublished dual-read of vendored pack until SPEC_PIN migrates	nika-pack
+crates/nika-pack/pack/	generated-pending	vendored spec snapshot; replace via scripts/sync-pack.sh, never hand-edit	nika-pack
+CHANGELOG.md	historical	immutable release notes describing the old suffix	docs
+docs/adr/	historical	architecture records of the previous naming law	docs
+docs/plans/	historical	dated plans	docs
+docs/findings/	historical	dated findings	docs
+docs/perf/	historical	dated perf notes	docs
+media/raw/	historical	immutable captured demo transcripts	media
+fuzz/corpus/	frozen-artifact	fuzz inputs must remain authentic historical bytes	fuzz
+crates/nika-tui-core/tests/proptest.proptest-regressions	frozen-artifact	proptest shrink record of a historical filename	nika-tui-core
+scripts/hygiene/check-source-naming.sh	ratchet	forbidden-pattern data for this gate	hygiene
+scripts/hygiene/source-naming-allowlist.tsv	ratchet	this allowlist names the retired suffixes	hygiene
+scripts/hygiene/tests/source-naming.test.sh	ratchet	mutation proof plants a retired suffix on purpose	hygiene

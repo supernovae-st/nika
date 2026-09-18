@@ -21,8 +21,8 @@
 # declared instead. drift-watch, which cannot avoid reading the TOML,
 # carries that judgement in full.
 #
-#   nika check  workflows/catalog/upstream-shape.nika.yaml
-#   nika run    workflows/catalog/upstream-shape.nika.yaml
+#   nika check  workflows/catalog/upstream-shape.nika
+#   nika run    workflows/catalog/upstream-shape.nika
 # census the upstream model fields · mark the ones our import reads
 nika: catalog-upstream-shape
 

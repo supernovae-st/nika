@@ -251,7 +251,7 @@ impl std::fmt::Display for ProvenanceFloor {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ArmEntry {
-    /// `workflow:` — a repo-relative `*.nika.yaml` path (its EXISTENCE
+    /// `workflow:` — a repo-relative `*.nika` path (its EXISTENCE
     /// is judged at the consuming edge, never here — zero I/O law).
     pub workflow: String,
     /// `cadence:` — the expression verbatim (`"dimanche 18h07"` · a

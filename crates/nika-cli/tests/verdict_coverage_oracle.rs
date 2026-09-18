@@ -282,7 +282,7 @@ struct Probe {
 fn probe(workflow: &Path, vars: &[(String, String)], envs: &[(String, String)]) -> Probe {
     let sandbox = tempfile::tempdir().expect("tempdir");
     let root = sandbox.path();
-    let local = root.join("w.nika.yaml");
+    let local = root.join("w.nika");
     std::fs::copy(workflow, &local).expect("stage workflow");
     let model = probe_model(&std::fs::read_to_string(&local).expect("staged workflow"));
 
@@ -291,7 +291,7 @@ fn probe(workflow: &Path, vars: &[(String, String)], envs: &[(String, String)]) 
         .arg("check")
         .arg("--model")
         .arg(&model)
-        .arg("w.nika.yaml")
+        .arg("w.nika")
         .current_dir(root);
     let (check_ok, check_text) =
         output_with_timeout(check, root, RUN_TIMEOUT_SECS).unwrap_or((false, String::new()));
@@ -301,7 +301,7 @@ fn probe(workflow: &Path, vars: &[(String, String)], envs: &[(String, String)]) 
         .arg("--model")
         .arg(&model)
         .arg("--json")
-        .arg("w.nika.yaml")
+        .arg("w.nika")
         .current_dir(root);
     for (k, v) in vars {
         run.arg("--var").arg(format!("{k}={v}"));
@@ -377,7 +377,7 @@ fn workflows_in(dir: &Path) -> Vec<PathBuf> {
     };
     let mut files: Vec<PathBuf> = read
         .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| p.to_string_lossy().ends_with(".nika.yaml"))
+        .filter(|p| p.to_string_lossy().ends_with(".nika"))
         .collect();
     files.sort();
     files
@@ -434,7 +434,7 @@ fn compare_run_contract(
 
 /// `check_run_equivalence.rs` applies the DEFER law to
 /// `runtime/permits` (7 fixtures). Every other runtime tier carries the
-/// same `input.nika.yaml` + `expected-run.json` contract and is never
+/// same `input.nika` + `expected-run.json` contract and is never
 /// fed through it: `runtime/errors`, `runtime/for-each` and
 /// `runtime/agent` are referenced by NO engine test at all, and
 /// `runtime/gates` has its RUN half checked by
@@ -469,7 +469,7 @@ fn every_runtime_tier_honors_the_equivalence_law() {
                 "{tier_name}/{}",
                 dir.file_name().unwrap_or_default().to_string_lossy()
             );
-            let input = dir.join("input.nika.yaml");
+            let input = dir.join("input.nika");
             let contract = dir.join("expected-run.json");
             if !input.is_file() || !contract.is_file() {
                 continue; // a tier without a run contract (runtime/trace) owes nothing here
@@ -743,7 +743,7 @@ fn the_detector_fires_on_an_authority_deny_and_only_on_that() {
 /// only in the detector's own synthesized-journal test above.
 ///
 /// The original firing arm is RETIRED BY LAW, not flipped: it was the
-/// shipped `templates/api-upload-and-create.nika.yaml` shape —
+/// shipped `templates/api-upload-and-create.nika` shape —
 ///
 /// ```text
 ///   url: "https://api.example.com/upload"      → check REFUSES (rc=2)
@@ -812,7 +812,7 @@ fn the_oracle_is_observed_both_firing_and_staying_silent() {
     let mut verdicts: Vec<String> = Vec::new();
     let mut failures: Vec<String> = Vec::new();
     for (name, permits, body, must_fire, expect_check_ok) in arms {
-        let wf = root.join(format!("{name}.nika.yaml"));
+        let wf = root.join(format!("{name}.nika"));
         std::fs::write(&wf, format!("nika: oracle-control-{name}\n{permits}{body}"))
             .expect("write arm");
 

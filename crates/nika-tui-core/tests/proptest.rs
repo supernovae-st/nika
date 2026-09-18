@@ -24,7 +24,7 @@ fn arb_workflow() -> impl Strategy<Value = Workflow> {
         prop::collection::vec(prop::collection::vec(0usize..n, 0..3), n..=n).prop_map(
             move |needs| {
                 Workflow::new(
-                    "prop.nika.yaml".to_owned(),
+                    "prop.nika".to_owned(),
                     "test".to_owned(),
                     String::new(),
                     Vec::new(),

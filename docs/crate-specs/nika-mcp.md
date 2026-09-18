@@ -25,7 +25,7 @@ and **learn an error code**, without a network round-trip to a hosted service
 The server surface is **read-only by construction**. Two tools, both PURE static
 analysis:
 
-- **`nika_check`** — statically audit a `*.nika.yaml` (schema · DAG · CEL ·
+- **`nika_check`** — statically audit a `*.nika` (schema · DAG · CEL ·
   effects · permits · cost) and return the full check report, or a clean
   verdict. Auditable before a token is spent.
 - **`nika_inspect`** — project the DAG as the canonical `graph_format: 3`

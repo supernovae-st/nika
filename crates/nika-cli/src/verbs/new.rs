@@ -97,12 +97,12 @@ fn stamp_written(out: &nika_onboard::Outcome, dest: Option<&str>) {
 }
 
 fn written_dest(text: &str, dest: Option<&str>) -> Option<std::path::PathBuf> {
-    if let Some(d) = dest.filter(|d| d.ends_with(".nika.yaml") || d.ends_with(".nika.yml")) {
+    if let Some(d) = dest.filter(|d| nika_source::is_canonical_program_path(d)) {
         return Some(std::path::PathBuf::from(d));
     }
     text.split_whitespace()
         .next()
-        .filter(|t| t.ends_with(".nika.yaml") || t.ends_with(".nika.yml"))
+        .filter(|t| nika_source::is_canonical_program_path(t))
         .map(std::path::PathBuf::from)
 }
 
@@ -114,38 +114,32 @@ mod tests {
     fn hello_is_the_first_wow_slug() {
         assert!(crate::verbs::welcome::is_first_wow(Some("hello"), None));
         assert!(crate::verbs::welcome::is_first_wow(
-            Some("hello.nika.yaml"),
+            Some("hello.nika"),
             None
         ));
         assert!(crate::verbs::welcome::is_first_wow(
             None,
-            Some("hello.nika.yaml")
+            Some("hello.nika")
         ));
         assert!(!crate::verbs::welcome::is_first_wow(
             Some("chain"),
-            Some("out.nika.yaml")
+            Some("out.nika")
         ));
         assert!(!crate::verbs::welcome::is_first_wow(Some("01-hello"), None));
-        assert_eq!(
-            crate::verbs::welcome::first_wow_dest(None),
-            "hello.nika.yaml"
-        );
+        assert_eq!(crate::verbs::welcome::first_wow_dest(None), "hello.nika");
         assert_eq!(
             crate::verbs::welcome::first_wow_dest(Some("hello")),
-            "hello.nika.yaml"
+            "hello.nika"
         );
         assert_eq!(
-            crate::verbs::welcome::first_wow_dest(Some("out.nika.yaml")),
-            "out.nika.yaml"
+            crate::verbs::welcome::first_wow_dest(Some("out.nika")),
+            "out.nika"
         );
     }
 
     #[test]
     fn written_dest_reads_the_receipt_head() {
-        let path = written_dest("hello.nika.yaml ← template `chain`", None);
-        assert_eq!(
-            path.as_deref(),
-            Some(std::path::Path::new("hello.nika.yaml"))
-        );
+        let path = written_dest("hello.nika ← template `chain`", None);
+        assert_eq!(path.as_deref(), Some(std::path::Path::new("hello.nika")));
     }
 }

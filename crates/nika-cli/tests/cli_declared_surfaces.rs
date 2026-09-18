@@ -278,34 +278,28 @@ fn key_lifecycle_preserves_existing_custody_and_retires_public_keys() {
 #[test]
 fn sign_verifies_exact_bytes_and_refuses_missing_custody_and_tampering() {
     let home = tempfile::tempdir().expect("scratch HOME");
-    let workflow = home.path().join("signed.nika.yaml");
-    let sidecar = home.path().join("signed.nika.yaml.minisig");
+    let workflow = home.path().join("signed.nika");
+    let sidecar = home.path().join("signed.nika.minisig");
     let original = b"nika: signature-probe\ntasks: {}\n";
     std::fs::write(&workflow, original).expect("unsigned fixture");
-    expect_code(&run(home.path(), &["sign", "signed.nika.yaml"]), 3);
+    expect_code(&run(home.path(), &["sign", "signed.nika"]), 3);
     assert!(!sidecar.exists(), "no custody must not mint a sidecar");
-    expect_code(
-        &run(home.path(), &["sign", "signed.nika.yaml", "--check"]),
-        3,
-    );
+    expect_code(&run(home.path(), &["sign", "signed.nika", "--check"]), 3);
     expect_code(&run(home.path(), &["key", "init"]), 0);
-    expect_code(&run(home.path(), &["sign", "signed.nika.yaml"]), 0);
+    expect_code(&run(home.path(), &["sign", "signed.nika"]), 0);
     assert!(sidecar.is_file());
     assert_eq!(std::fs::read(&workflow).expect("signed workflow"), original);
-    let valid = run(home.path(), &["sign", "signed.nika.yaml", "--check"]);
+    let valid = run(home.path(), &["sign", "signed.nika", "--check"]);
     expect_code(&valid, 0);
     assert!(text(&valid).contains("valid signature"));
     std::fs::write(&workflow, b"nika: tampered\ntasks: {}\n").expect("tamper fixture");
-    let invalid = run(home.path(), &["sign", "signed.nika.yaml", "--check"]);
+    let invalid = run(home.path(), &["sign", "signed.nika", "--check"]);
     expect_finding(&invalid, "INVALID signature");
     std::fs::write(&workflow, original).expect("restore signed bytes");
-    expect_code(
-        &run(home.path(), &["sign", "signed.nika.yaml", "--check"]),
-        0,
-    );
+    expect_code(&run(home.path(), &["sign", "signed.nika", "--check"]), 0);
     std::fs::write(sidecar, b"not a minisign sidecar\n").expect("corrupt signature");
     expect_finding(
-        &run(home.path(), &["sign", "signed.nika.yaml", "--check"]),
+        &run(home.path(), &["sign", "signed.nika", "--check"]),
         "INVALID signature",
     );
 }

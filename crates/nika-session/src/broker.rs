@@ -68,7 +68,7 @@ impl ContextBroker {
     }
 
     /// Build the bundle for one turn: the facts, the named files (only
-    /// `.nika.yaml` and `nika.yaml`, only inside the root), the grounding.
+    /// `.nika` and `nika.yaml`, only inside the root), the grounding.
     #[must_use]
     pub fn bundle(
         &self,
@@ -156,7 +156,7 @@ impl ContextBroker {
             return None;
         }
         let file = canonical.file_name()?.to_str()?;
-        if !(file.ends_with(".nika.yaml") || file == "nika.yaml") {
+        if !(nika_source::is_canonical_program_file_name(file) || file == "nika.yaml") {
             return None;
         }
         Some(canonical)
@@ -348,7 +348,7 @@ mod tests {
     fn tree() -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("tmp");
         std::fs::write(
-            dir.path().join("a.nika.yaml"),
+            dir.path().join("a.nika"),
             "nika: alpha\nmodel: mock/echo\nsecrets:\n  k: { source: env, key: OPENAI_API_KEY }\ntasks:\n  t:\n    infer: { prompt: \"key sk-live-ABCDEFGH123456 here\", max_tokens: 10 }\n",
         )
         .expect("a");
@@ -365,14 +365,14 @@ mod tests {
         let snap = ProjectSnapshot::observe(dir.path());
         let broker = ContextBroker::new(dir.path().to_path_buf());
         let named = vec![
-            "a.nika.yaml".to_owned(),
+            "a.nika".to_owned(),
             "notes.txt".to_owned(),
-            "../outside.nika.yaml".to_owned(),
-            "missing.nika.yaml".to_owned(),
+            "../outside.nika".to_owned(),
+            "missing.nika".to_owned(),
         ];
         let bundle = broker.bundle(&snap, Some("summarize"), &named, "local · private");
         assert_eq!(bundle.selected_snippets.len(), 1, "{bundle:?}");
-        assert_eq!(bundle.selected_snippets[0].path, "a.nika.yaml");
+        assert_eq!(bundle.selected_snippets[0].path, "a.nika");
         assert!(
             bundle
                 .diagnostics
@@ -384,7 +384,7 @@ mod tests {
             bundle
                 .diagnostics
                 .iter()
-                .any(|d| d.contains("outside.nika.yaml")),
+                .any(|d| d.contains("outside.nika")),
             "{bundle:?}"
         );
         let prompt = ContextBroker::prompt(&bundle, &[], "what does alpha do?");
@@ -501,12 +501,12 @@ mod tests {
     fn named_workflow_private_material_never_reaches_the_reasoner_prompt() {
         let dir = tree();
         let input = "nika: private-fixture\nconst:\n  key: |\n    -----BEGIN PRIVATE KEY-----\n    FAKE_PRIVATE_MATERIAL\n    -----END PRIVATE KEY-----\n";
-        std::fs::write(dir.path().join("a.nika.yaml"), input).expect("fixture");
+        std::fs::write(dir.path().join("a.nika"), input).expect("fixture");
         let snapshot = ProjectSnapshot::observe(dir.path());
         for cap in [8, 8192] {
             let mut broker = ContextBroker::new(dir.path().to_path_buf());
             broker.max_snippet_bytes = cap;
-            let bundle = broker.bundle(&snapshot, None, &["a.nika.yaml".to_owned()], "local");
+            let bundle = broker.bundle(&snapshot, None, &["a.nika".to_owned()], "local");
             let prompt = ContextBroker::prompt(&bundle, &[], "inspect the named workflow");
             assert_eq!(bundle.selected_snippets.len(), 1);
             assert!(bundle.redactions.contains(&"private key".to_owned()));
@@ -519,10 +519,9 @@ mod tests {
     fn oversized_named_files_are_omitted_with_a_visible_reason() {
         let dir = tree();
         let snapshot = ProjectSnapshot::observe(dir.path());
-        std::fs::write(dir.path().join("a.nika.yaml"), "x".repeat(256 * 1024 + 1))
-            .expect("fixture");
+        std::fs::write(dir.path().join("a.nika"), "x".repeat(256 * 1024 + 1)).expect("fixture");
         let broker = ContextBroker::new(dir.path().to_path_buf());
-        let bundle = broker.bundle(&snapshot, None, &["a.nika.yaml".to_owned()], "local");
+        let bundle = broker.bundle(&snapshot, None, &["a.nika".to_owned()], "local");
         assert!(bundle.selected_snippets.is_empty());
         assert!(bundle.diagnostics.iter().any(|d| d.contains("read limit")));
     }
@@ -531,14 +530,9 @@ mod tests {
     fn non_regular_workflow_paths_are_not_read() {
         let dir = tree();
         let snapshot = ProjectSnapshot::observe(dir.path());
-        std::fs::create_dir(dir.path().join("directory.nika.yaml")).expect("fixture");
+        std::fs::create_dir(dir.path().join("directory.nika")).expect("fixture");
         let broker = ContextBroker::new(dir.path().to_path_buf());
-        let bundle = broker.bundle(
-            &snapshot,
-            None,
-            &["directory.nika.yaml".to_owned()],
-            "local",
-        );
+        let bundle = broker.bundle(&snapshot, None, &["directory.nika".to_owned()], "local");
         assert!(bundle.selected_snippets.is_empty());
         assert!(
             bundle

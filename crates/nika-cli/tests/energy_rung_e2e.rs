@@ -39,7 +39,7 @@ fn check(yaml: &str) -> (i32, String) {
     let dir = base.join(format!("energy-{}-{seq}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let path = dir.join("wf.nika.yaml");
+    let path = dir.join("wf.nika");
     let mut f = std::fs::File::create(&path).expect("fixture file");
     f.write_all(yaml.as_bytes()).expect("fixture body");
     let out = Command::new(env!("CARGO_BIN_EXE_nika"))

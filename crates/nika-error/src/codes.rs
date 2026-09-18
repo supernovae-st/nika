@@ -262,7 +262,7 @@ pub fn code_help(code: NikaCode) -> &'static str {
             "MCP tool call failed. Check tool name, parameters, and MCP server availability."
         }
         280..=329 => {
-            "Schema/workflow validation failed. Check the `.nika.yaml` envelope, task ids, verbs, and field values against the spec."
+            "Schema/workflow validation failed. Check the `.nika` envelope, task ids, verbs, and field values against the spec."
         }
         330..=379 => {
             "AI provider error. Check the model name, API credentials, rate limits, and provider connectivity."
@@ -486,7 +486,7 @@ pub fn resident_help(code: &str) -> Option<String> {
         ),
         "not_found" => (
             "no route, job or served workflow by that name",
-            "GET /v1/workflows lists the names this resident admits (project-root-relative · `.nika.yaml`)",
+            "GET /v1/workflows lists the names this resident admits (project-root-relative · `.nika`)",
         ),
         _ => return None,
     };

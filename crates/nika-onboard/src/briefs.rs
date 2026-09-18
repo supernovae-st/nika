@@ -8,14 +8,14 @@
 //! cannot drift from it. Orchestration lives in the parent `init::`
 //! module; this file is bytes.
 
-/// `.vscode/settings.json` — wire `*.nika.yaml` to the canonical schema so any
+/// `.vscode/settings.json` — wire `*.nika` to the canonical schema so any
 /// editor (the YAML language server) validates workflows as you type.
 const VSCODE_SETTINGS: &str = r#"{
   "yaml.schemas": {
-    "https://nika.sh/spec/v1/workflow.schema.json": "*.nika.yaml"
+    "https://nika.sh/spec/v1/workflow.schema.json": "*.nika"
   },
   "files.associations": {
-    "*.nika.yaml": "yaml"
+    "*.nika": "yaml"
   }
 }
 "#;
@@ -29,7 +29,7 @@ const VSCODE_SETTINGS: &str = r#"{
 /// parity, derived from the tree itself.
 const AGENTS_MD: &str = r#"# AGENTS.md — Nika workflows in this repo
 
-Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
+Nika is a sovereign AI workflow engine. Workflows are `*.nika` files,
 **audited before they run**. (This guide is scaffolded by `nika init`.)
 
 ## Scope and completion
@@ -50,7 +50,7 @@ releases. `nika doctor` diagnoses installed plugin drift; init preserves existin
 files, so review a fresh scaffold in a separate directory before updating them.
 
 ## The workflow tools
-- **Author** · `nika new <template> <file>.nika.yaml` (or write one —
+- **Author** · `nika new <template> <file>.nika` (or write one —
   the envelope is `nika: <id>` (kebab-case — the id lives ON the tag)
   + a `tasks:` MAP keyed by task id. A `tasks:` sequence refuses
   `NIKA-PARSE-022`).
@@ -230,7 +230,7 @@ prints the build recipe).
 /// surface still duplicated as a literal, and it is the one that drifted:
 /// the kit copy still taught `vars:`/`${{ env.X }}`/`succeeded` three
 /// releases after the engine refused them (2026-07-28 audit). Kept compact
-/// so it stays cheap enough to auto-load on every `.nika.yaml` edit.
+/// so it stays cheap enough to auto-load on every `.nika` edit.
 const CURSOR_RULES: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../.agents/plugins/nika/rules/nika-workflow-language.mdc"
@@ -255,7 +255,7 @@ const MCP_SERVERS: &str =
 /// `.github/copilot-instructions.md` — the GitHub Copilot repo brief.
 /// Compact on purpose: the loop + the four hard rules that catch most
 /// LLM authoring errors; AGENTS.md carries the full contract.
-const COPILOT_INSTRUCTIONS: &str = r"# Nika workflows (`*.nika.yaml`) — Copilot brief
+const COPILOT_INSTRUCTIONS: &str = r"# Nika workflows (`*.nika`) — Copilot brief
 
 Nika workflows are audited BEFORE they run. The loop: author from a
 skeleton (`nika new '?'` lists them) → `nika check <file>` after
@@ -449,7 +449,7 @@ pub(crate) fn purpose(path: &str) -> &'static str {
         ".github/copilot-instructions.md" => "Copilot workflow instructions",
         "nika.yaml" => "team defaults: cost ceiling and trace retention, commented until edited",
         "workflows/README.md" => "index of the scaffolded workflows",
-        _ if path.ends_with(".nika.yaml") => "a workflow to audit, then run",
+        _ if nika_source::is_canonical_program_path(path) => "a workflow to audit, then run",
         _ if path.ends_with("/session-context.sh") => {
             "session context and binary version diagnosis"
         }
@@ -630,12 +630,12 @@ mod tests {
             "secrets guidance must teach the declared block"
         );
         assert!(
-            CURSOR_RULES.contains("`.nika.yaml` (canonical) and `.nika.yml`"),
-            "prose must name both extensions the globs match"
+            CURSOR_RULES.contains("`.nika` suffix"),
+            "prose must name the canonical program suffix"
         );
         assert!(
-            CURSOR_RULES.contains("**/*.nika.yml"),
-            "the yml glob stays — the prose now matches it"
+            CURSOR_RULES.contains("**/*.nika"),
+            "the language glob matches canonical program files"
         );
     }
 
@@ -974,7 +974,7 @@ mod tests {
             v.get("yaml.schemas")
                 .and_then(|s| s.get("https://nika.sh/spec/v1/workflow.schema.json"))
                 .is_some(),
-            "wires *.nika.yaml to the canonical schema"
+            "wires *.nika to the canonical schema"
         );
         assert!(
             AGENTS_MD.contains("nika check"),
@@ -1226,7 +1226,7 @@ mod tests {
         // capabilities presented as equals. They moved behind Continue.
         for retired in [
             "Turn this repeatable task into a checked Nika workflow.",
-            "Validate this .nika.yaml file and repair every finding.",
+            "Validate this .nika file and repair every finding.",
             "Diagnose this failed Nika run from its trace.",
         ] {
             assert!(

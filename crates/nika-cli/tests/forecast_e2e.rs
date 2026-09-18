@@ -110,7 +110,7 @@ fn arena(events: &[Event], runs: usize) -> (std::sync::MutexGuard<'static, ()>, 
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = tempfile::tempdir().expect("arena");
-    std::fs::write(dir.path().join("fc-e2e.nika.yaml"), WORKFLOW).expect("wf written");
+    std::fs::write(dir.path().join("fc-e2e.nika"), WORKFLOW).expect("wf written");
     stage_runs(dir.path(), events, runs);
     std::env::set_current_dir(dir.path()).expect("cwd into arena");
     (guard, dir)
@@ -121,7 +121,7 @@ async fn six_runs_earn_bands_and_the_json_twin_tags_the_rung() {
     let events = one_run().await;
     let _arena = arena(&events, 6);
 
-    let out = nika_cli::verbs::explain_file::run("fc-e2e.nika.yaml", false, true);
+    let out = nika_cli::verbs::explain_file::run("fc-e2e.nika", false, true);
     for needle in [
         "FORECAST",
         "based on last 6 runs",
@@ -143,7 +143,7 @@ async fn six_runs_earn_bands_and_the_json_twin_tags_the_rung() {
         out.text
     );
 
-    let json = nika_cli::verbs::explain_file::run("fc-e2e.nika.yaml", true, true);
+    let json = nika_cli::verbs::explain_file::run("fc-e2e.nika", true, true);
     let v: serde_json::Value = serde_json::from_str(&json.text).expect("json parses");
     assert_eq!(v["forecast"]["run_duration"]["kind"], "bands");
     assert_eq!(v["forecast"]["runs"]["total"], 6);
@@ -158,7 +158,7 @@ async fn three_runs_stay_a_range_and_arrive_unprompted() {
 
     // n = 3 crosses the auto threshold: the section arrives WITHOUT the
     // flag, and speaks range vocabulary only — never a percentile.
-    let out = nika_cli::verbs::explain_file::run("fc-e2e.nika.yaml", false, false);
+    let out = nika_cli::verbs::explain_file::run("fc-e2e.nika", false, false);
     assert!(
         out.text.contains("based on last 3 runs"),
         "auto-section at n=3:\n{}",
@@ -170,7 +170,7 @@ async fn three_runs_stay_a_range_and_arrive_unprompted() {
         out.text
     );
 
-    let json = nika_cli::verbs::explain_file::run("fc-e2e.nika.yaml", true, false);
+    let json = nika_cli::verbs::explain_file::run("fc-e2e.nika", true, false);
     let v: serde_json::Value = serde_json::from_str(&json.text).expect("json parses");
     assert_eq!(v["forecast"]["run_duration"]["kind"], "range");
 }

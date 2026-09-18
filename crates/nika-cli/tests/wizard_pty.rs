@@ -93,7 +93,7 @@ fn golden_path_lands_an_audited_draft() {
     p.expect("what should it do?").expect("q1");
     p.send_line("").expect("enter");
     p.expect("template `chain`").expect("routed to the default");
-    p.expect("my-first.nika.yaml]").expect("file default shown");
+    p.expect("my-first.nika]").expect("file default shown");
     p.send_line("").expect("enter");
     p.expect("a number, or any provider/model")
         .expect("model menu");
@@ -102,7 +102,7 @@ fn golden_path_lands_an_audited_draft() {
         .expect("offline default echoed");
     p.expect("stamped workflow `my-first`").expect("summary");
     // The wow contract: the audit ladder runs INSIDE the wizard.
-    p.expect("nika check · my-first.nika.yaml")
+    p.expect("nika check · my-first.nika")
         .expect("embedded ladder");
     p.expect("not a workflow yet").expect("names the draft");
     p.expect("scriptable form").expect("teaches its flags form");
@@ -116,7 +116,7 @@ fn golden_path_lands_an_audited_draft() {
     // DEEP: the artifact stands on its own — a second binary run names
     // the same unfinished slots instead of pretending the draft is ready.
     let check = Command::new(bin())
-        .args(["check", "my-first.nika.yaml"])
+        .args(["check", "my-first.nika"])
         .current_dir(dir)
         .output()
         .expect("check runs");
@@ -152,8 +152,7 @@ fn intent_routes_and_the_file_is_stamped() {
     assert_eq!(exit_code(&mut p), 2, "the routed template is a draft");
 
     // DEEP: the three stamps landed in the file itself.
-    let written =
-        std::fs::read_to_string(dir.join("review-batch.nika.yaml")).expect("file written");
+    let written = std::fs::read_to_string(dir.join("review-batch.nika")).expect("file written");
     assert!(
         written.contains("nika: review-batch"),
         "the id is stamped on the envelope's one identity key"
@@ -196,16 +195,16 @@ fn no_model_skeleton_completes_in_two_answers() {
 
 #[test]
 fn dest_hint_door_honors_the_given_name() {
-    // The third door (V5 grammar): `nika new some-name.nika.yaml` bare on
+    // The third door (V5 grammar): `nika new some-name.nika` bare on
     // a terminal — the extension marks a DESTINATION, not an intent. The
     // wizard runs with the GIVEN name as the file default, Enter keeps it.
     let dir = fresh_dir("hint");
     let dir = dir.path();
-    let mut p = spawn_pty(dir, &["new", "team-standup.nika.yaml"], true);
+    let mut p = spawn_pty(dir, &["new", "team-standup.nika"], true);
 
     p.expect("what should it do?").expect("q1");
     p.send_line("").expect("enter");
-    p.expect("[team-standup.nika.yaml]")
+    p.expect("[team-standup.nika]")
         .expect("the hint IS the default");
     p.send_line("").expect("enter");
     p.expect("a number, or any provider/model").expect("q3");
@@ -214,20 +213,20 @@ fn dest_hint_door_honors_the_given_name() {
         .expect("id from the hint");
     p.expect(Eof).expect("ends");
     assert_eq!(exit_code(&mut p), 2, "the template is a draft");
-    assert!(dir.join("team-standup.nika.yaml").is_file());
+    assert!(dir.join("team-standup.nika").is_file());
 }
 
 #[test]
 fn collision_walk_defaults_to_my_second() {
     let dir = fresh_dir("collide");
     let dir = dir.path();
-    std::fs::write(dir.join("my-first.nika.yaml"), "taken").expect("seed");
+    std::fs::write(dir.join("my-first.nika"), "taken").expect("seed");
     let mut p = spawn_pty(dir, &["new"], true);
 
     p.expect("what should it do?").expect("q1");
     p.send_line("").expect("enter");
     // The default walked past the taken name BEFORE asking.
-    p.expect("my-second.nika.yaml]")
+    p.expect("my-second.nika]")
         .expect("collision-aware default");
     p.send_line("").expect("enter");
     p.expect("a number, or any provider/model").expect("q3");
@@ -235,12 +234,9 @@ fn collision_walk_defaults_to_my_second() {
     p.expect(Eof).expect("ends");
     assert_eq!(exit_code(&mut p), 2, "the template is a draft");
 
-    assert!(
-        dir.join("my-second.nika.yaml").is_file(),
-        "written next door"
-    );
+    assert!(dir.join("my-second.nika").is_file(), "written next door");
     assert_eq!(
-        std::fs::read_to_string(dir.join("my-first.nika.yaml")).expect("read"),
+        std::fs::read_to_string(dir.join("my-first.nika")).expect("read"),
         "taken",
         "the taken file is untouched"
     );
@@ -267,7 +263,7 @@ fn init_founding_wizard_golden_path_lands_the_curriculum() {
     p.send_line("").expect("Enter = skip");
     // Then the writes + the proof + the panel.
     p.expect("created AGENTS.md").expect("scaffold report");
-    p.expect("workflows/01-hello-chain.nika.yaml")
+    p.expect("workflows/01-hello-chain.nika")
         .expect("the curriculum scaffolds");
     p.expect("proof").expect("the audit step announces itself");
     p.expect("audited").expect("the ladder ran");
@@ -282,10 +278,10 @@ fn init_founding_wizard_golden_path_lands_the_curriculum() {
         "wiring written"
     );
     for rel in [
-        "workflows/01-hello-chain.nika.yaml",
-        "workflows/02-parallel-fanout.nika.yaml",
-        "workflows/03-gated-ship.nika.yaml",
-        "workflows/04-agent-loop.nika.yaml",
+        "workflows/01-hello-chain.nika",
+        "workflows/02-parallel-fanout.nika",
+        "workflows/03-gated-ship.nika",
+        "workflows/04-agent-loop.nika",
     ] {
         assert!(dir.join(rel).is_file(), "{rel} written");
     }
@@ -317,7 +313,7 @@ fn init_example_lane_founds_around_one_lesson() {
     p.expect("project file").expect("the project-file beat");
     p.send_line("").expect("Enter = lay it (#1283)");
     p.expect("created AGENTS.md").expect("briefs land");
-    p.expect("workflows/01-hello.nika.yaml")
+    p.expect("workflows/01-hello.nika")
         .expect("the lesson lands verbatim");
     p.expect("proof").expect("the audit step");
     p.expect("audited").expect("the ladder ran");
@@ -326,7 +322,7 @@ fn init_example_lane_founds_around_one_lesson() {
     assert_eq!(exit_code(&mut p), 0, "init accepts its taught draft class");
 
     let body =
-        std::fs::read_to_string(dir.join("workflows/01-hello.nika.yaml")).expect("lesson written");
+        std::fs::read_to_string(dir.join("workflows/01-hello.nika")).expect("lesson written");
     assert!(
         body.contains("nika: hello"),
         "verbatim example body: {body}"
@@ -363,18 +359,18 @@ fn init_starter_recipe_hands_over_to_the_guided_flow() {
     p.expect("your first workflow")
         .expect("the guided flow took over");
     p.send_line("").expect("intent Enter (chain)");
-    p.expect("my-first.nika.yaml]").expect("file default");
+    p.expect("my-first.nika]").expect("file default");
     p.send_line("").expect("enter");
     p.expect("a number, or any provider/model")
         .expect("model menu");
     p.send_line("").expect("enter");
-    p.expect("nika check · my-first.nika.yaml")
+    p.expect("nika check · my-first.nika")
         .expect("its ladder ran");
     p.expect(Eof).expect("ends");
     assert_eq!(exit_code(&mut p), 0, "init accepts its taught draft class");
 
     assert!(dir.join("AGENTS.md").is_file(), "scaffold written");
-    assert!(dir.join("my-first.nika.yaml").is_file(), "workflow written");
+    assert!(dir.join("my-first.nika").is_file(), "workflow written");
 }
 
 #[test]
@@ -413,7 +409,7 @@ fn eof_cancels_without_writing() {
         .expect("dir")
         .filter_map(Result::ok)
         .map(|e| e.file_name().to_string_lossy().into_owned())
-        .filter(|n| n.ends_with(".nika.yaml"))
+        .filter(|n| n.ends_with(".nika"))
         .collect();
     assert!(leftovers.is_empty(), "nothing written: {leftovers:?}");
 }

@@ -31,7 +31,7 @@ async fn a_settled_queue_duplicate_does_not_reopen_its_world() {
         .admit_manual(
             crate::IdempotencyKey::new("stale-queue-entry".to_owned()).expect("key"),
             crate::RequestDigest::from_bytes(Sha256::digest(encoded.as_bytes()).into()),
-            "root.nika.yaml".to_owned(),
+            "root.nika".to_owned(),
             encoded,
             None,
         )
@@ -125,7 +125,7 @@ async fn a_running_queue_duplicate_keeps_the_owners_cancellation_registration() 
         .admit_manual(
             crate::IdempotencyKey::new("running-queue-entry".to_owned()).expect("key"),
             crate::RequestDigest::from_bytes(Sha256::digest(encoded.as_bytes()).into()),
-            "root.nika.yaml".to_owned(),
+            "root.nika".to_owned(),
             encoded,
             None,
         )
@@ -196,7 +196,7 @@ async fn a_served_workflow_is_admitted_by_name_and_runs() {
     let server = world.start(backend.clone(), limits()).await;
     let response = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "by-name",
             &auth_header(),
         ))
@@ -215,7 +215,7 @@ async fn a_served_workflow_is_admitted_by_name_and_runs() {
     );
     let unknown = server
         .request(&post_request(
-            r#"{"workflow":"nowhere.nika.yaml"}"#,
+            r#"{"workflow":"nowhere.nika"}"#,
             "by-name-unknown",
             &auth_header(),
         ))
@@ -275,7 +275,7 @@ async fn a_digest_less_snapshot_is_admitted_with_the_engines_digest() {
 async fn machine_check_and_job_admission_judge_identical_caller_bytes_not_server_paths() {
     let world = TestWorld::new();
     std::fs::write(
-        world.workflows.join("root.nika.yaml"),
+        world.workflows.join("root.nika"),
         "nika: divergent-server-copy\ntasks: {}\n",
     )
     .expect("divergent server-local path");
@@ -359,7 +359,7 @@ async fn the_terminal_event_carries_the_runtimes_settlement() {
         .await;
     let response = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "settles",
             &auth_header(),
         ))
@@ -401,7 +401,7 @@ async fn the_terminal_event_carries_the_runtimes_settlement() {
     );
     let replay = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "settles",
             &auth_header(),
         ))
@@ -425,7 +425,7 @@ async fn a_retry_replays_its_job_before_the_registry_is_read_again() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend.clone(), limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
+    let body = r#"{"workflow":"root.nika"}"#;
     let first = server
         .request(&post_request(body, "retry-k", &auth_header()))
         .await;
@@ -436,7 +436,7 @@ async fn a_retry_replays_its_job_before_the_registry_is_read_again() {
         .expect("the job settles");
     // The file changes on disk (another valid workflow under the same name).
     std::fs::write(
-        world.workflows.join("root.nika.yaml"),
+        world.workflows.join("root.nika"),
         WORKFLOW.replace("value:", "other:"),
     )
     .expect("the workflow mutates");
@@ -446,7 +446,7 @@ async fn a_retry_replays_its_job_before_the_registry_is_read_again() {
     assert_eq!(retry.status, 200, "{}", retry.body);
     assert_eq!(retry.json()["id"], id, "the ORIGINAL job replays");
     // The file vanishes: the retry still finds its job, never a 404.
-    std::fs::remove_file(world.workflows.join("root.nika.yaml")).expect("the workflow vanishes");
+    std::fs::remove_file(world.workflows.join("root.nika")).expect("the workflow vanishes");
     let again = server
         .request(&post_request(body, "retry-k", &auth_header()))
         .await;
@@ -456,7 +456,7 @@ async fn a_retry_replays_its_job_before_the_registry_is_read_again() {
     // The same key with other bytes is a typed conflict, still capture-free.
     let conflict = server
         .request(&post_request(
-            r#"{"workflow":"other.nika.yaml"}"#,
+            r#"{"workflow":"other.nika"}"#,
             "retry-k",
             &auth_header(),
         ))

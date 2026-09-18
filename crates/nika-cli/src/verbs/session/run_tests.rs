@@ -26,8 +26,8 @@ fn theme() -> Theme {
 }
 
 fn foreign_latest(root: &Path) -> PathBuf {
-    std::fs::write(root.join("foreign.nika.yaml"), ECHO).expect("fixture");
-    let (code, trace) = run_once(root, &request("foreign.nika.yaml"), theme());
+    std::fs::write(root.join("foreign.nika"), ECHO).expect("fixture");
+    let (code, trace) = run_once(root, &request("foreign.nika"), theme());
     assert_eq!(code, exit::OK);
     let trace = trace.expect("foreign trace");
     let future = SystemTime::now() + Duration::from_secs(3600);
@@ -45,11 +45,11 @@ fn run_observes_its_exact_trace_even_when_another_sorts_first() {
     let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
     let foreign = foreign_latest(root.path());
     std::fs::write(
-        root.path().join("own.nika.yaml"),
+        root.path().join("own.nika"),
         ECHO.replace("exact-session-result", "only-this-session-result"),
     )
     .expect("workflow");
-    let (code, trace) = run_once(root.path(), &request("own.nika.yaml"), theme());
+    let (code, trace) = run_once(root.path(), &request("own.nika"), theme());
     assert_eq!(code, exit::OK);
     let trace = trace.expect("this execution's trace, independent of latest");
     assert_ne!(trace, foreign);
@@ -63,7 +63,7 @@ fn refused_run_never_borrows_an_existing_trace() {
     let root = tempfile::tempdir().expect("project");
     let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
     let foreign = foreign_latest(root.path());
-    let (code, trace) = run_once(root.path(), &request("missing.nika.yaml"), theme());
+    let (code, trace) = run_once(root.path(), &request("missing.nika"), theme());
     assert_eq!(code, exit::ENV);
     assert!(trace.is_none());
     assert_eq!(nika_trace::trace::manage::latest(), Some(foreign));
@@ -74,14 +74,14 @@ fn paused_and_resumed_legs_return_their_own_traces() {
     let root = tempfile::tempdir().expect("project");
     let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
     let foreign = foreign_latest(root.path());
-    std::fs::write(root.path().join("gate.nika.yaml"), GATE).expect("workflow");
-    let (code, trace) = run_once(root.path(), &request("gate.nika.yaml"), theme());
+    std::fs::write(root.path().join("gate.nika"), GATE).expect("workflow");
+    let (code, trace) = run_once(root.path(), &request("gate.nika"), theme());
     assert_eq!(code, exit::PAUSED);
     let paused = trace.expect("exact paused trace");
     assert_ne!(paused, foreign);
     let (code, trace) = run_resume(
         root.path(),
-        Path::new("gate.nika.yaml"),
+        Path::new("gate.nika"),
         &paused,
         "ask=true",
         theme(),
@@ -106,7 +106,7 @@ fn durable_conversation_runs_a_real_effect_and_reopens_without_replaying_it() {
     let root = tempfile::tempdir().expect("project");
     let home = tempfile::tempdir().expect("history home");
     let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
-    let reply = "```yaml path=write.nika.yaml\nnika: remembered-write\npermits:\n  tools: [\"nika:write\"]\n  fs: { write: [\"./result.txt\"] }\ntasks:\n  save:\n    invoke: { tool: \"nika:write\", args: { path: \"./result.txt\", content: \"first execution\" } }\n```\n";
+    let reply = "```yaml path=write.nika\nnika: remembered-write\npermits:\n  tools: [\"nika:write\"]\n  fs: { write: [\"./result.txt\"] }\ntasks:\n  save:\n    invoke: { tool: \"nika:write\", args: { path: \"./result.txt\", content: \"first execution\" } }\n```\n";
     let mut census = IntelligenceCensus::empty();
     census.locals.push("ollama".to_owned());
     let preference = UserIntelligencePreference::new(

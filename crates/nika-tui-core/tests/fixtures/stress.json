@@ -1,7 +1,7 @@
 {
   "name": "stress",
   "workflow": {
-    "file": "localiser-la-doc.nika.yaml",
+    "file": "localiser-la-doc.nika",
     "engine": "0.108.0",
     "prompt": "traduis la doc dans les douze langues et publie",
     "permits": [

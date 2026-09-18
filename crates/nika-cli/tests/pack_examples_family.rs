@@ -315,7 +315,7 @@ fn launch(mut cmd: Command, room: &Room, timeout: u64) -> Outcome {
 /// FIXTURE-CWD / repo-shape classes.
 fn stage_run_room(room: &Room, entry: &Entry, body: &str) -> PathBuf {
     let stem = entry.slug.replace('/', "-");
-    let path = room.cwd.join(format!("{stem}.nika.yaml"));
+    let path = room.cwd.join(format!("{stem}.nika"));
     std::fs::write(&path, body).expect("plant the example");
     for kit in &entry.kit {
         match kit {
@@ -623,11 +623,7 @@ fn release_train_try_rehearses_with_isolated_inputs() {
     std::fs::write(room.cwd.join("CHANGELOG.md"), "operator notes\n").expect("operator notes");
     for (slug, args, expected) in [
         ("release-train", vec![], 4),
-        (
-            "release-train.nika.yaml",
-            vec!["--answer", "conductor=false"],
-            0,
-        ),
+        ("release-train.nika", vec!["--answer", "conductor=false"], 0),
         ("release-train", vec!["--var", "version=9.9.9"], 1),
         ("release-train", vec!["--var", "hold_for=2s"], 4),
     ] {

@@ -792,7 +792,7 @@ mod tests {
 
     use super::*;
 
-    const WORKFLOW: &str = "workflows/doctor.nika.yaml";
+    const WORKFLOW: &str = "workflows/doctor.nika";
     const CADENCE: &str = "TZ=UTC 0 3 * * *";
 
     fn at(text: &str) -> jiff::Zoned {
@@ -838,7 +838,7 @@ mod tests {
         let expected = format!(
             "{:x}",
             sha2::Sha256::digest(
-                b"nika/arm-slot@1\nworkflows/doctor.nika.yaml\nTZ=UTC 0 3 * * *\n2026-08-19T03:00:00Z"
+                b"nika/arm-slot@1\nworkflows/doctor.nika\nTZ=UTC 0 3 * * *\n2026-08-19T03:00:00Z"
             )
         );
         assert_eq!(

@@ -900,7 +900,7 @@ mod tests {
             "\"git commit -m 'x'\"",
             "[\"qrt\", \"product\", \"create\", \"--json\"]",
             "\"make release\"",
-            "\"nika run subroutine.nika.yaml\"",
+            "\"nika run subroutine.nika\"",
             "\"${{ inputs.tool }} --flag\"",
         ] {
             let hints = hints_of(&exec_wf(command));

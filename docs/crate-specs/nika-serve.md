@@ -33,7 +33,7 @@ recorded losses for `nika doctor`; that census does not verify journals.
 `nika-serve` is the L4 network projection over the shared execution
 authority required by ADR-117. W05 established its state plane. W06 adds a
 real Hyper/Tokio TCP listener, deny-by-default Bearer authentication, a
-held `.nika.yaml` registry, `ExecutionService` admission, an injected
+held `.nika` registry, `ExecutionService` admission, an injected
 `ExecutionBackend` seam, and the first job/workflow routes. W07 projects
 the durable job journal over `GET /v1/jobs/{id}/events` as SSE. It does not
 import `nika-cli`. Default `nika serve` remains the resident ARM firer.
@@ -102,7 +102,7 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | method | route | authority | response allowlist |
 |---|---|---|---|
 | `GET` | `/health` | public | status, service, engine/protocol identity and `storeFormatVersion` for jobs and schedules |
-| `GET` | `/v1/workflows` | exactly one Bearer | contained `.nika.yaml` relative names |
+| `GET` | `/v1/workflows` | exactly one Bearer | contained `.nika` relative names |
 | `GET` | `/v1/workflows/{name}` | exactly one Bearer | `{ "workflow": "<contained name>" }` |
 | `POST` | `/v1/jobs` | exactly one Bearer + `Idempotency-Key` | opaque id + status · 422 `{error:{code,message}}` names the capture NIKA code when stamped · also 400/408/409/413/415/503/507 |
 | `GET` | `/v1/jobs/{id}` | exactly one Bearer | opaque id + status · optional `{error:{code,message}}` on `failed` |

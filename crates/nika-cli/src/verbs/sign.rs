@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika sign <workflow.nika.yaml>` — author-binding: ONE detached
+//! `nika sign <workflow.nika>` — author-binding: ONE detached
 //! minisign over the EXACT bytes → `<file>.minisig` (the workflow itself
 //! never changes; v1 signs raw bytes · canonical-YAML is a later wave).
 
@@ -10,7 +10,7 @@ use clap::Args;
 
 #[derive(Args)]
 pub struct SignArgs {
-    /// Workflow file (`*.nika.yaml`) to sign — or to verify with `--check`.
+    /// Workflow file (`*.nika`) to sign — or to verify with `--check`.
     pub file: String,
     /// Verify the `<file>.minisig` sidecar instead of minting it
     /// (exits: 0 valid · 2 FILE invalid/forged · 3 ENV missing/none).
@@ -54,7 +54,7 @@ mod tests {
     #[test]
     fn check_without_a_sidecar_is_env() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         std::fs::write(&wf, "nika: v1\n").expect("fixture");
         let out = run(&args(&wf, true));
         assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
@@ -66,9 +66,9 @@ mod tests {
     #[test]
     fn check_a_garbage_sidecar_is_file() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         std::fs::write(&wf, "nika: v1\n").expect("fixture");
-        std::fs::write(dir.path().join("flow.nika.yaml.minisig"), "garbage\n").expect("sidecar");
+        std::fs::write(dir.path().join("flow.nika.minisig"), "garbage\n").expect("sidecar");
         let out = run(&args(&wf, true));
         assert_eq!(out.code, super::super::exit::FILE, "{}", out.text);
         assert!(out.text.contains("INVALID signature"), "{}", out.text);
@@ -81,11 +81,11 @@ mod tests {
     #[test]
     fn sign_either_mints_the_sidecar_or_names_the_fix() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         std::fs::write(&wf, "nika: v1\n").expect("fixture");
         let out = run(&args(&wf, false));
         if out.code == super::super::exit::OK {
-            assert!(dir.path().join("flow.nika.yaml.minisig").exists());
+            assert!(dir.path().join("flow.nika.minisig").exists());
         } else {
             assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
             assert!(out.text.contains("key"), "{}", out.text);

@@ -5,7 +5,7 @@
 //! — ONE detached minisign over the EXACT workflow bytes →
 //! `<file>.minisig`, verified against the enrolled keys (the current
 //! pub · every `retired.pub` ledger line) with a 16-hex key-id match.
-//! A swapped `.nika.yaml` in a repo is a supply-chain vector; this is
+//! A swapped `.nika` in a repo is a supply-chain vector; this is
 //! the compute half — the verb (`verbs::sign`) and the run gate keep
 //! the clap surface + the exit-code rendering and delegate here.
 //! Descended from `nika-cli`'s `seal.rs` 2026-07-21 (the 15k wall —
@@ -177,7 +177,7 @@ mod tests {
     fn workflow_sign_then_check_round_trips() {
         let dir = tempfile::tempdir().expect("tempdir");
         let (pk, sk) = keypair();
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         let bytes = b"nika: signed\n";
         std::fs::write(&wf, bytes).expect("fixture");
 
@@ -189,7 +189,7 @@ mod tests {
             "the workflow file never changes (canonical bytes stay hashable)"
         );
         let sidecar = sidecar_path(&wf);
-        assert!(sidecar.ends_with("flow.nika.yaml.minisig"));
+        assert!(sidecar.ends_with("flow.nika.minisig"));
         let text = std::fs::read_to_string(&sidecar).expect("sidecar written");
         assert!(
             text.contains("trusted comment: nika-fp:"),
@@ -207,7 +207,7 @@ mod tests {
     fn tampered_workflow_is_rejected_as_bad_signature() {
         let dir = tempfile::tempdir().expect("tempdir");
         let (pk, sk) = keypair();
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         std::fs::write(&wf, b"nika: honest\n").expect("fixture");
         sign_workflow_with(&wf, &sk, pk.trim()).expect("signs");
         let text = std::fs::read_to_string(sidecar_path(&wf)).expect("sidecar");
@@ -228,7 +228,7 @@ mod tests {
     fn signature_gate_verifies_captured_b_not_reread_pathname_a() {
         let dir = tempfile::tempdir().expect("tempdir");
         let (pk, sk) = keypair();
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         let captured = Arc::new(Barrier::new(2));
         let replaced = Arc::new(Barrier::new(2));
         std::fs::write(&wf, b"nika: B\n").expect("write B");
@@ -266,7 +266,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let (pk_a, sk_a) = keypair();
         let (pk_b, _) = keypair();
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         std::fs::write(&wf, b"nika: v1\n").expect("fixture");
         sign_workflow_with(&wf, &sk_a, pk_a.trim()).expect("signs");
         let text = std::fs::read_to_string(sidecar_path(&wf)).expect("sidecar");
@@ -295,7 +295,7 @@ mod tests {
             WorkflowSig::NoEnrolledKey
         ));
         let dir = tempfile::tempdir().expect("tempdir");
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         std::fs::write(&wf, b"nika: v1\n").expect("fixture");
         assert!(matches!(check_workflow(&wf), WorkflowSig::MissingSidecar));
     }

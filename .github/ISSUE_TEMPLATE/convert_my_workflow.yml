@@ -1,5 +1,5 @@
 name: Convert my workflow
-description: Describe an AI task you repeat — we convert the best ones into runnable .nika.yaml examples, credited to you.
+description: Describe an AI task you repeat — we convert the best ones into runnable .nika examples, credited to you.
 title: "[workflow] "
 labels: ["workflow-request"]
 body:
@@ -8,7 +8,7 @@ body:
       value: |
         Do you repeat an AI task every week — in ChatGPT, Claude, Cursor,
         Codex, or scripts? Describe it below. We convert the best ones into
-        runnable `.nika.yaml` examples in the public gallery, credited to you.
+        runnable `.nika` examples in the public gallery, credited to you.
   - type: textarea
     id: task
     attributes:

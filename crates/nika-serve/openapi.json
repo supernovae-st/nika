@@ -314,7 +314,7 @@
       },
       "JobByName": {
         "additionalProperties": false,
-        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies reject both access and inputs overlays, including null or empty maps. Optional inputs are literal JSON values checked against declared keys, types and required values before a job exists; strings are never CLI @env instructions or expressions.",
+        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies reject both access and inputs overlays, including null or empty maps. Optional inputs are literal JSON values checked against declared keys, types and required values before a job exists; strings are never CLI @env instructions or expressions.",
         "properties": {
           "access": {
             "description": "Access pin, same vocabulary as `--access` (class or harness id). A pin never silently substitutes a metered seat.",
@@ -831,7 +831,7 @@
           },
           "workflow": {
             "maxLength": 1024,
-            "pattern": "^[^/].*\\.nika\\.yaml$",
+            "pattern": "^[^/].*\\.nika$",
             "type": "string"
           }
         },
@@ -1720,7 +1720,7 @@
                 }
               }
             },
-            "description": "Project-relative .nika.yaml names under the served registry (--workflows)"
+            "description": "Project-relative .nika names under the served registry (--workflows)"
           },
           "401": {
             "content": {

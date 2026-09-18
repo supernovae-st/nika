@@ -17,11 +17,11 @@ fn assert_fix(before: &str, expected: &str) {
     let room = tempfile::tempdir().expect("isolated room");
     let home = room.path().join("home");
     std::fs::create_dir(&home).expect("home");
-    let path = room.path().join("legacy.nika.yaml");
+    let path = room.path().join("legacy.nika");
     std::fs::write(&path, before).expect("fixture");
     let call = || {
         Command::new(env!("CARGO_BIN_EXE_nika"))
-            .args(["check", "legacy.nika.yaml", "--fix"])
+            .args(["check", "legacy.nika", "--fix"])
             .env_clear()
             .env("PATH", "/usr/bin:/bin")
             .env("HOME", &home)
@@ -82,10 +82,10 @@ fn fix_preserves_conflicting_keys_and_scalar_task_payloads_on_disk() {
         let home = room.path().join("home");
         std::fs::create_dir(&home).expect("home");
         let source = format!("nika: legacy\ntasks:\n{body}");
-        let path = room.path().join("legacy.nika.yaml");
+        let path = room.path().join("legacy.nika");
         std::fs::write(&path, &source).expect("fixture");
         let output = Command::new(env!("CARGO_BIN_EXE_nika"))
-            .args(["check", "legacy.nika.yaml", "--fix"])
+            .args(["check", "legacy.nika", "--fix"])
             .env_clear()
             .env("PATH", "/usr/bin:/bin")
             .env("HOME", &home)

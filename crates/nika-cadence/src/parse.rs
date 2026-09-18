@@ -86,13 +86,13 @@ fn validate_beat(beat: &Beat, faults: &mut Vec<CadenceError>) {
     let w = beat.workflow.as_str();
     // The path's SHAPE is judged here — the law says « relatif au
     // registre »: no absolute prefix, no `..` segment, a real basename
-    // before the `.nika.yaml` suffix. Existence is the L4 edge's.
+    // before the `.nika` suffix. Existence is the L4 edge's.
     if !valid_workflow_path(w) {
         faults.push(CadenceError::beat(
             w,
             CadenceErrorKind::WorkflowPath,
-            "workflow: · un chemin `*.nika.yaml` relatif au registre (ni absolu, ni `..`, un vrai basename)",
-            "workflow: audits/site-audit.nika.yaml — le chemin part du dossier du registre",
+            "workflow: · un chemin `*.nika` relatif au registre (ni absolu, ni `..`, un vrai basename)",
+            "workflow: audits/site-audit.nika — le chemin part du dossier du registre",
         ));
     }
     if let Err(fault) = Cadence::parse(&beat.cadence) {
@@ -240,14 +240,10 @@ pub(crate) fn valid_tolerance(text: &str) -> bool {
 
 pub(crate) fn valid_workflow_path(path: &str) -> bool {
     !path.is_empty()
-        && path.ends_with(".nika.yaml")
+        && nika_source::is_canonical_program_path(path)
         && !path.starts_with('/')
         && !path.contains(':')
         && !path.split('/').any(|segment| segment == "..")
-        && path
-            .rsplit('/')
-            .next()
-            .is_some_and(|base| base != ".nika.yaml")
 }
 
 impl Cadence {

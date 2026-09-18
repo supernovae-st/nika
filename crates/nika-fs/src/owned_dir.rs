@@ -610,24 +610,20 @@ mod tests {
         let root = tempfile::tempdir().expect("root");
         let project = OwnedDir::open(root.path()).expect("project");
         std::fs::create_dir_all(root.path().join("workflows/nested")).expect("directories");
-        std::fs::write(
-            root.path().join("workflows/nested/a.nika.yaml"),
-            "nika: a\n",
-        )
-        .expect("workflow");
+        std::fs::write(root.path().join("workflows/nested/a.nika"), "nika: a\n").expect("workflow");
         std::fs::write(root.path().join("plain"), "file").expect("plain file");
         symlink(root.path().join("workflows"), root.path().join("redirect"))
             .expect("child symlink");
 
         let mut source = project
-            .open_relative(Path::new("workflows/nested/a.nika.yaml"))
+            .open_relative(Path::new("workflows/nested/a.nika"))
             .expect("contained workflow");
         let mut text = String::new();
         source.read_to_string(&mut text).expect("read workflow");
         assert_eq!(text, "nika: a\n");
         assert!(
             project
-                .open_relative(Path::new("redirect/nested/a.nika.yaml"))
+                .open_relative(Path::new("redirect/nested/a.nika"))
                 .is_err()
         );
         assert_eq!(

@@ -18,7 +18,7 @@ pub(crate) fn help_page() -> String {
     use std::fmt::Write as _;
     let card = help_card::human_help();
     let mut page = format!(
-        "{card}nika x.nika.yaml the file IS the command · the same as `nika run x.nika.yaml`\n\nalso ·\n"
+        "{card}nika x.nika the file IS the command · the same as `nika run x.nika`\n\nalso ·\n"
     );
     let tree = Cli::command();
     let mut rows: Vec<&clap::Command> = tree
@@ -39,23 +39,41 @@ pub(crate) fn help_page() -> String {
     page
 }
 
-/// `nika notes.yaml` · `nika missing.nika.yaml` (#1249): a first word that
-/// is no verb but looks like a file (on disk, or a `.yaml`/`.yml` name) gets
-/// the door named instead of clap's dead end; a typo'd verb keeps clap's own.
+/// `nika notes.yaml` · `nika missing.nika` (#1249): a first word that
+/// is no verb but looks like a file (on disk, or a program/project name)
+/// gets the door named instead of clap's dead end; a typo'd verb keeps
+/// clap's own.
 pub(crate) fn file_near_miss(first: &std::ffi::OsStr) -> Option<String> {
     let s = first.to_str()?;
+    let name = nika_source::path_file_name(s).unwrap_or(s);
+    let kind = nika_source::classify_file_name(name);
     let ext = std::path::Path::new(s)
         .extension()
         .map(std::ffi::OsStr::to_ascii_lowercase);
     let yaml = ext.as_deref().is_some_and(|e| e == "yaml" || e == "yml");
+    let looks_like_source = matches!(
+        kind,
+        nika_source::SourceNameKind::CanonicalProgram
+            | nika_source::SourceNameKind::RetiredProgram
+            | nika_source::SourceNameKind::ProjectFile
+    ) || yaml;
     let file = std::path::Path::new(s).is_file();
-    if s.starts_with('-') || (!yaml && !file) || Cli::command().find_subcommand(s).is_some() {
+    if s.starts_with('-')
+        || (!looks_like_source && !file)
+        || Cli::command().find_subcommand(s).is_some()
+    {
         return None;
     }
-    let why = match (file, s.ends_with(".nika.yaml") || s.ends_with(".nika.yml")) {
+    if kind == nika_source::SourceNameKind::RetiredProgram {
+        let hint = nika_source::retired_rename_hint(name).unwrap_or_else(|| {
+            format!("`{s}` uses a retired Nika program suffix; rename to `*.nika`")
+        });
+        return Some(format!("nika: `{s}` is not a command\n  {hint}"));
+    }
+    let why = match (file, kind) {
         (false, _) => "\n  no such file here — `nika list` names the workflows below",
-        (true, false) => "\n  `*.nika.yaml` is the workflow suffix — then the bare name runs it",
-        (true, true) => "",
+        (true, nika_source::SourceNameKind::CanonicalProgram) => "",
+        _ => "\n  `*.nika` is the workflow suffix — then the bare name runs it",
     };
     Some(format!(
         "nika: `{s}` is not a command\n  did you mean: nika run {s}{why}"
@@ -143,7 +161,7 @@ mod tests {
                 "`nika {name}` is missing from --help:\n{page}"
             );
         }
-        assert!(page.contains("nika x.nika.yaml"), "{page}");
+        assert!(page.contains("nika x.nika"), "{page}");
         assert!(page.contains("nika --help --all"), "{page}");
     }
 
@@ -156,12 +174,12 @@ mod tests {
         std::fs::write(&other, "nika: notes\n").expect("write");
         let text = file_near_miss(other.as_os_str()).expect("a .yaml on disk is a near-miss");
         assert!(
-            text.contains(&format!("nika run {}", other.display())) && text.contains("*.nika.yaml"),
+            text.contains(&format!("nika run {}", other.display())) && text.contains("*.nika"),
             "{text}"
         );
-        let missing = file_near_miss(std::ffi::OsStr::new("missing.nika.yaml")).expect("missing");
+        let missing = file_near_miss(std::ffi::OsStr::new("missing.nika")).expect("missing");
         assert!(
-            missing.contains("nika run missing.nika.yaml") && missing.contains("nika list"),
+            missing.contains("nika run missing.nika") && missing.contains("nika list"),
             "{missing}"
         );
         for word in ["check", "run", "chek", "--json", "help", "thread"] {

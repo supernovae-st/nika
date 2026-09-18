@@ -37,7 +37,7 @@ pub const MAX_RUN_DEPTH: u32 = 8;
 /// site, handed to the injected [`ChildRunner`].
 #[derive(Debug, Clone)]
 pub struct ChildCall {
-    /// The static target as written (`./child.nika.yaml` ·
+    /// The static target as written (`./child.nika` ·
     /// `registry:owner/name@version`) — check proved it resolvable
     /// (`NIKA-COMP-001`); the runner resolves it relative to the PARENT
     /// workflow's own location.
@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn summary_json_carries_the_forest_row() {
         let s = ChildRunSummary::new(
-            "./child.nika.yaml",
+            "./child.nika",
             true,
             (
                 Some("run-1".to_owned()),
@@ -185,7 +185,7 @@ mod tests {
             ),
         );
         let v = s.json();
-        assert_eq!(v["target"], "./child.nika.yaml");
+        assert_eq!(v["target"], "./child.nika");
         assert_eq!(v["chain_head"], "abc123");
         assert_eq!(v["outcome"], "success");
     }

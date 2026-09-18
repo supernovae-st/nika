@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The workspace inventory — which `*.nika.yaml` files exist and how
+//! The workspace inventory — which `*.nika` files exist and how
 //! each one AUDITS (the parse + check-ladder fold to verdict facts).
 //! Descended from `nika-cli`'s `verbs::context` (2026-07-21 · the 15k
 //! wall — the drift family's sibling: drift audits one file's
@@ -38,7 +38,7 @@ pub const WALK_BUDGET: usize = 20_000;
 /// silent — the K8s limit/continue rule).
 pub const MAX_WORKFLOWS: usize = 100;
 
-/// Bounded workspace walk: collect root-relative `*.nika.yaml` paths
+/// Bounded workspace walk: collect root-relative `*.nika` paths
 /// (depth- and budget-capped · dot/dep dirs skipped). The ONE walk the
 /// mirror family shares — welcome counts it, context audits it.
 ///
@@ -87,7 +87,7 @@ pub fn collect_workflow_paths(
                 continue;
             }
             truncated |= collect_workflow_paths(root, &path, depth - 1, budget, out);
-        } else if name.ends_with(".nika.yaml") || name.ends_with(".nika.yml") {
+        } else if nika_source::is_canonical_program_file_name(&name) {
             out.push(path.strip_prefix(root).unwrap_or(&path).to_path_buf());
         }
     }
@@ -179,7 +179,7 @@ pub struct Rollups {
 }
 
 /// Walk the root (bounded · dot/dep dirs skipped) and audit every
-/// `*.nika.yaml` through the in-process check ladder. Returns the facts,
+/// `*.nika` through the in-process check ladder. Returns the facts,
 /// the `MAX_WORKFLOWS` cap flag, the total found, and the walk's own
 /// truncation flag (P0-4: a budget-killed or unreadable tree is reported
 /// exactly like the cap, never read as « zero »).
@@ -296,7 +296,7 @@ mod tests {
             std::fs::write(dir.path().join(format!("noise-{i}.txt")), "x").expect("write");
         }
         std::fs::create_dir(dir.path().join("z")).expect("mkdir");
-        std::fs::write(dir.path().join("z/flow.nika.yaml"), "x").expect("write");
+        std::fs::write(dir.path().join("z/flow.nika"), "x").expect("write");
 
         let mut out = Vec::new();
         let mut budget = 3; // dies inside the noise — z/ is never entered
@@ -309,7 +309,7 @@ mod tests {
         let mut budget = WALK_BUDGET;
         let truncated = collect_workflow_paths(dir.path(), dir.path(), 4, &mut budget, &mut out);
         assert!(!truncated, "a full walk is complete");
-        assert_eq!(out, vec![PathBuf::from("z/flow.nika.yaml")]);
+        assert_eq!(out, vec![PathBuf::from("z/flow.nika")]);
     }
 
     /// A directory the walk cannot READ may hide workflows — silence here
@@ -330,12 +330,7 @@ mod tests {
     /// prints what the walk returns — the stable sort lives here, once).
     #[test]
     fn the_walk_order_is_fs_invariant() {
-        let names = [
-            "b.nika.yaml",
-            "a.nika.yaml",
-            "sub/c.nika.yaml",
-            "sub/a.nika.yaml",
-        ];
+        let names = ["b.nika", "a.nika", "sub/c.nika", "sub/a.nika"];
         let layout = |order: &[usize]| {
             let dir = tempfile::tempdir().expect("scratch");
             std::fs::create_dir(dir.path().join("sub")).expect("mkdir");

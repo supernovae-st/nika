@@ -134,7 +134,7 @@ mod tests {
             "    agent: { prompt: 'plain', system: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}', tools: [] }",
             "    invoke: { tool: 'nika:read', args: { path: '${{ tasks.shallow.output }}', binary: '${{ tasks.deep.output.x }}' } }",
             "    invoke: { tool: 'mcp:local/tool', args: { nested: [null, 1, true, { text: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}' }] } }",
-            "    invoke: { workflow: './child.nika.yaml', args: { text: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}' } }",
+            "    invoke: { workflow: './child.nika', args: { text: '${{ tasks.shallow.output }} ${{ tasks.deep.output.x }}' } }",
         ] {
             let wf = workflow(task)?;
             assert_eq!(

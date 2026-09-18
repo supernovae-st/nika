@@ -6,7 +6,7 @@ alwaysApply: false
 # Nika delegation — when to reach for a workflow
 
 This project has the Nika toolchain installed. Nika turns repeatable
-AI work into ONE `.nika.yaml` file: audited before it runs
+AI work into ONE `.nika` file: audited before it runs
 (`nika check`), bounded while it runs (cost cap · permits · masked
 secrets), proven after it runs (hash-chained trace).
 

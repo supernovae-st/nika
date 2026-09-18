@@ -87,7 +87,7 @@ pub fn flow_verb(
         }
         _ => {
             eprintln!(
-                "nika trace: flow needs the workflow file — `nika trace flow [trace] <workflow.nika.yaml>` (the trace records values, the definition records the bindings)"
+                "nika trace: flow needs the workflow file — `nika trace flow [trace] <workflow.nika>` (the trace records values, the definition records the bindings)"
             );
             return Err(crate::exit::ENV);
         }

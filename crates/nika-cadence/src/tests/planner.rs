@@ -132,7 +132,7 @@ const DUE_DAILY: &str = "
 nika: proj
 ceiling: 0.50
 arm:
-  - workflow: workflows/nightly.nika.yaml
+  - workflow: workflows/nightly.nika
     cadence: TZ=Europe/Paris 0 3 * * *
     plafond: 0.10
     manqué: sauter
@@ -148,7 +148,7 @@ fn due_an_on_time_slot_is_due_once() {
     assert_eq!(plan[0].index, 0);
     assert_eq!(plan[0].kind, DueKind::OnTime);
     assert_eq!(plan[0].slot.civil.to_string(), "2026-08-18T03:00:00");
-    assert_eq!(plan[0].beat.workflow, "workflows/nightly.nika.yaml");
+    assert_eq!(plan[0].beat.workflow, "workflows/nightly.nika");
 }
 
 #[test]
@@ -171,14 +171,14 @@ fn due_an_idle_or_cloud_beat_is_never_due() {
         "
 nika: proj
 arm:
-  - workflow: workflows/suspended.nika.yaml
+  - workflow: workflows/suspended.nika
     cadence: TZ=Europe/Paris 0 3 * * *
     plafond: 0.10
     manqué: sauter
     actif: false
     raison: pause estivale
     jusqu_au: 2026-09-01
-  - workflow: workflows/cloud.nika.yaml
+  - workflow: workflows/cloud.nika
     cadence: TZ=Europe/Paris 0 3 * * *
     plafond: 0.10
     manqué: sauter
@@ -205,11 +205,11 @@ fn earliest_next_is_the_soonest_of_the_armed_beats() {
         "
 nika: proj
 arm:
-  - workflow: workflows/weekly.nika.yaml
+  - workflow: workflows/weekly.nika
     cadence: TZ=Europe/Paris lundi 9h07
     plafond: 0.25
     manqué: sauter
-  - workflow: workflows/nightly.nika.yaml
+  - workflow: workflows/nightly.nika
     cadence: TZ=Europe/Paris 0 3 * * *
     plafond: 0.10
     manqué: rattraper
@@ -235,11 +235,11 @@ fn earliest_next_a_tie_keeps_the_first_beat() {
         "
 nika: proj
 arm:
-  - workflow: workflows/a.nika.yaml
+  - workflow: workflows/a.nika
     cadence: TZ=Europe/Paris 0 3 * * *
     plafond: 0.10
     manqué: sauter
-  - workflow: workflows/b.nika.yaml
+  - workflow: workflows/b.nika
     cadence: TZ=Europe/Paris 0 3 * * *
     plafond: 0.20
     manqué: sauter
@@ -353,7 +353,7 @@ fn a_webhook_beat_is_never_due_nor_next() {
         "
 nika: proj
 arm:
-  - workflow: workflows/hooked.nika.yaml
+  - workflow: workflows/hooked.nika
     cadence: on-webhook
     plafond: 0.10
     manqué: sauter
@@ -374,7 +374,7 @@ fn due_a_cadence_that_breaks_the_law_refuses_the_plan() {
         "
 nika: proj
 arm:
-  - workflow: workflows/nightly.nika.yaml
+  - workflow: workflows/nightly.nika
     cadence: 0 3 * * *
     plafond: 0.10
     manqué: sauter

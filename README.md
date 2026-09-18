@@ -11,7 +11,7 @@
 
 <p align="center">
   Nika turns repeatable AI work into files you can inspect, run and share.<br>
-  Your instructions, tools and rules stay in a readable <code>.nika.yaml</code> file.
+  Your instructions, tools and rules stay in a readable <code>.nika</code> file.
 </p>
 
 <p align="center">
@@ -135,7 +135,7 @@ promise for every agent CLI. A refused access path never silently becomes a mock
 
 ## Make it yours
 
-Open `meeting-actions.nika.yaml` when you want to change what gets extracted.
+Open `meeting-actions.nika` when you want to change what gets extracted.
 Its four steps read the transcript, ask the model for structured action items,
 save the JSON and report the output path. Review a diff, keep a history in Git,
 or send a teammate the file.

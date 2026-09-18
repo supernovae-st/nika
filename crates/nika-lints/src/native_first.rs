@@ -78,7 +78,7 @@ mod tests {
         );
 
         let silent = lints_of(
-            "nika: build\ntasks:\n  test:\n    exec: { command: [\"cargo\", \"test\", \"--workspace\", \"--lib\"] }\n  nested:\n    after: { test: success }\n    exec: { command: [\"nika\", \"run\", \"subroutine.nika.yaml\"] }\n",
+            "nika: build\ntasks:\n  test:\n    exec: { command: [\"cargo\", \"test\", \"--workspace\", \"--lib\"] }\n  nested:\n    after: { test: success }\n    exec: { command: [\"nika\", \"run\", \"subroutine.nika\"] }\n",
         );
         assert!(silent.is_empty(), "{silent:?}");
     }

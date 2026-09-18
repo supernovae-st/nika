@@ -31,15 +31,15 @@ impl Room {
             "agent" => format!(
                 "agent: {{ model: {SEAT}, prompt: hi, max_tokens_total: 1024, max_turns: 1 }}"
             ),
-            "child" => "invoke: { workflow: ./child.nika.yaml }".to_owned(),
+            "child" => "invoke: { workflow: ./child.nika }".to_owned(),
             _ => format!("infer: {{ model: {SEAT}, prompt: hi, max_tokens: 1024 }}"),
         };
         std::fs::write(
-            dir.path().join("parent.nika.yaml"),
+            dir.path().join("parent.nika"),
             format!("nika: scope\nmodel: mock/echo\ntasks:\n  inherited:\n    infer: {{ prompt: inherited, max_tokens: 1024 }}\n  selected:\n    timeout: 3s\n    {action}\n"),
         ).expect("parent");
         std::fs::write(
-            dir.path().join("child.nika.yaml"),
+            dir.path().join("child.nika"),
             format!("nika: child\nmodel: {SEAT}\ntasks:\n  answer:\n    timeout: 3s\n    infer: {{ prompt: child, max_tokens: 1024 }}\n"),
         ).expect("child");
         Self { dir, listener }
@@ -153,7 +153,7 @@ fn human_notice_is_visible_to_the_provider_handler_and_models_stay_selected() {
     for kind in ["infer", "agent", "child"] {
         let room = Room::new(kind);
         let server = room.serve_once();
-        let out = room.call(&["run", "parent.nika.yaml", "--model", "mock/echo"]);
+        let out = room.call(&["run", "parent.nika", "--model", "mock/echo"]);
         let (request, early_stderr) = server.join().expect("canary");
         assert!(out.status.success(), "{kind}: {}", room.stderr());
         assert_eq!(request["model"], "claude-sonnet-5", "{kind}");
@@ -171,7 +171,7 @@ fn check_explains_pins_and_children_on_human_and_json_doors_without_io() {
     for kind in ["infer", "agent", "child"] {
         let room = Room::new(kind);
         for json in [false, true] {
-            let mut args = vec!["check", "parent.nika.yaml", "--model", "mock/echo"];
+            let mut args = vec!["check", "parent.nika", "--model", "mock/echo"];
             if json {
                 args.push("--json");
             }
@@ -203,7 +203,7 @@ fn both_machine_run_outputs_stay_parseable_and_keep_the_pinned_model() {
     for flags in [&["--json"][..], &["--output", "json"][..]] {
         let room = Room::new("infer");
         let server = room.serve_once();
-        let mut args = vec!["run", "parent.nika.yaml", "--model", "mock/echo"];
+        let mut args = vec!["run", "parent.nika", "--model", "mock/echo"];
         args.extend_from_slice(flags);
         let out = room.call(&args);
         let (request, early_stderr) = server.join().expect("canary");
@@ -229,7 +229,7 @@ fn task_scope_excludes_an_unused_pin_and_dry_run_never_calls_the_provider() {
     let room = Room::new("infer");
     let scoped = room.call(&[
         "run",
-        "parent.nika.yaml",
+        "parent.nika",
         "--model",
         "mock/echo",
         "--task",
@@ -238,13 +238,7 @@ fn task_scope_excludes_an_unused_pin_and_dry_run_never_calls_the_provider() {
     assert!(scoped.status.success(), "{}", room.stderr());
     assert!(!room.stderr().contains("model override:"));
     room.no_request();
-    let preview = room.call(&[
-        "run",
-        "parent.nika.yaml",
-        "--model",
-        "mock/echo",
-        "--dry-run",
-    ]);
+    let preview = room.call(&["run", "parent.nika", "--model", "mock/echo", "--dry-run"]);
     assert!(preview.status.success(), "{}", room.stderr());
     assert!(room.stderr().contains(PREFIX));
     room.no_request();
@@ -255,7 +249,7 @@ fn no_override_and_quiet_mode_preserve_the_existing_announcement_policy() {
     for quiet in [false, true] {
         let room = Room::new("infer");
         let server = room.serve_once();
-        let mut args = vec!["run", "parent.nika.yaml"];
+        let mut args = vec!["run", "parent.nika"];
         if quiet {
             args.extend(["--model", "mock/echo", "--quiet"]);
         }

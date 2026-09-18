@@ -170,6 +170,7 @@ run_check "50 release-gate-envelope" "check-release-gate-envelope.sh"
 # merge=ours` a no-op IN SILENCE, and an uninstalled lefthook makes every gate
 # above it inert with no message at all.
 run_check "51 clone-armed          " "check-clone-armed.sh"
+run_check "52 source-naming        " "check-source-naming.sh"
 
 # --- Output ---
 g=0

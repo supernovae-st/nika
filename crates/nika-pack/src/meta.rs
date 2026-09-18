@@ -9,7 +9,7 @@
 
 /// What one embedded example says about itself (derived, never stored).
 pub struct ExampleMeta {
-    /// The full teaching filename (`01-hello.nika.yaml`).
+    /// The full teaching filename (`01-hello.nika`).
     pub file: String,
     /// The header title/pitch line, cleaned (`Hello world — the
     /// smallest useful Nika workflow`).
@@ -24,7 +24,7 @@ pub struct ExampleMeta {
 #[must_use]
 pub fn meta(slug: &str, body: &str) -> ExampleMeta {
     ExampleMeta {
-        file: format!("{slug}.nika.yaml"),
+        file: format!("{slug}.nika"),
         title: title_of(slug, body),
         verbs: verbs_of(body),
         tasks: task_key_count(body),

@@ -14,9 +14,9 @@ fn run_many_audits_every_file_and_keeps_the_worst_exit() {
     let clean =
         "nika: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
     let broken = "nika: bad\ntasks:\n  t:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 10, model: \"mock/echo\" }\n";
-    let a = dir.join("many-a.nika.yaml");
-    let b = dir.join("many-broken.nika.yaml");
-    let c = dir.join("many-c.nika.yaml");
+    let a = dir.join("many-a.nika");
+    let b = dir.join("many-broken.nika");
+    let c = dir.join("many-c.nika");
     std::fs::write(&a, clean).expect("fixture a");
     std::fs::write(&b, broken).expect("fixture b");
     std::fs::write(&c, clean).expect("fixture c");
@@ -35,20 +35,16 @@ fn run_many_audits_every_file_and_keeps_the_worst_exit() {
 
     assert_eq!(out.code, 2, "the broken middle file's exit survives");
     // The report header names its file by BASENAME (`nika check · f`).
-    for name in [
-        "many-a.nika.yaml",
-        "many-broken.nika.yaml",
-        "many-c.nika.yaml",
-    ] {
+    for name in ["many-a.nika", "many-broken.nika", "many-c.nika"] {
         assert!(
             out.text.contains(name),
             "every report present (headers name their file): missing {name}\n{}",
             out.text
         );
     }
-    let after = out.text.split_once("many-broken.nika.yaml").map(|s| s.1);
+    let after = out.text.split_once("many-broken.nika").map(|s| s.1);
     assert!(
-        after.is_some_and(|tail| tail.contains("many-c.nika.yaml")),
+        after.is_some_and(|tail| tail.contains("many-c.nika")),
         "the file AFTER the failure still audited: {}",
         out.text
     );
@@ -63,8 +59,8 @@ fn run_many_is_clean_when_every_file_is() {
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let clean =
         "nika: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
-    let a = dir.join("clean-a.nika.yaml");
-    let b = dir.join("clean-b.nika.yaml");
+    let a = dir.join("clean-a.nika");
+    let b = dir.join("clean-b.nika");
     std::fs::write(&a, clean).expect("fixture a");
     std::fs::write(&b, clean).expect("fixture b");
     let paths: Vec<String> = [&a, &b]
@@ -347,7 +343,7 @@ fn order_law_renders_its_row_in_the_human_lane() {
     // it looked at — the repair the finding teaches, rendered.
     const GAP_BESIDE_FETCH: &str = "nika: beat\npermits:\n  exec: [\"sleep\"]\n  tools: [\"nika:fetch\"]\n  net:\n    http: [\"export.arxiv.org\"]\ntasks:\n  pull:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://export.arxiv.org/api/query?search_query=nika\", mode: text } }\n  gap:\n    exec: { command: [\"sleep\", \"3\"] }\n";
     let _cwd = crate::cwd::hold();
-    let text = assert_every_wire_code_renders("order-gap-after-fetch.nika.yaml", GAP_AFTER_FETCH);
+    let text = assert_every_wire_code_renders("order-gap-after-fetch.nika", GAP_AFTER_FETCH);
     let row = text
         .lines()
         .find(|l| l.contains("ORDER"))
@@ -361,7 +357,7 @@ fn order_law_renders_its_row_in_the_human_lane() {
         "a refused route is never a green row: {row}"
     );
 
-    let text = checked_text("order-gap-beside-fetch.nika.yaml", GAP_BESIDE_FETCH, true);
+    let text = checked_text("order-gap-beside-fetch.nika", GAP_BESIDE_FETCH, true);
     let row = text
         .lines()
         .find(|l| l.contains("ORDER"))
@@ -383,7 +379,7 @@ fn idle_door_renders_its_row_in_the_human_lane_and_a_doorless_file_has_no_row() 
     const IDLE_DOOR: &str = "nika: doors\ninputs:\n  p: { type: string, default: \"x\" }\npermits:\n  exec: [\"echo\"]\ntasks:\n  say:\n    lift:\n      - { law: taint, from: inputs.p, because: \"reviewed 2026-08-19\" }\n    exec: { command: [\"echo\", \"hello\"] }\n";
     const NO_DOOR: &str = "nika: plain\npermits:\n  exec: [\"echo\"]\ntasks:\n  say:\n    exec: { command: [\"echo\", \"hello\"] }\n";
     let _cwd = crate::cwd::hold();
-    let text = assert_every_wire_code_renders("lift-idle-door.nika.yaml", IDLE_DOOR);
+    let text = assert_every_wire_code_renders("lift-idle-door.nika", IDLE_DOOR);
     let row = text
         .lines()
         .find(|l| l.contains("LIFT"))
@@ -393,7 +389,7 @@ fn idle_door_renders_its_row_in_the_human_lane_and_a_doorless_file_has_no_row() 
         "the LIFT row names the code, the task and the repair: `{row}` in: {text}"
     );
 
-    let text = checked_text("lift-no-door.nika.yaml", NO_DOOR, true);
+    let text = checked_text("lift-no-door.nika", NO_DOOR, true);
     assert!(
         !text.lines().any(|l| l.contains("LIFT")),
         "a file with no authored door renders no LIFT row: {text}"
@@ -468,7 +464,7 @@ pub(crate) fn checked_json_with(
 fn models_rung_reds_a_cataloged_but_unresolvable_provider() {
     let _cwd = crate::cwd::hold();
     let out = checked_output(
-        "models-azure.nika.yaml",
+        "models-azure.nika",
         "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
         false,
     );
@@ -483,7 +479,7 @@ fn models_rung_reds_a_cataloged_but_unresolvable_provider() {
         out.text
     );
     // #761: cataloged-but-unresolvable is engine-local — no spec code.
-    let (json_out, payload) = checked_json("models-azure.nika.yaml");
+    let (json_out, payload) = checked_json("models-azure.nika");
     assert_eq!(json_out.code, 2, "{}", json_out.text);
     assert_eq!(payload["model_findings"][0]["model"], "azure/gpt-4o");
     assert!(
@@ -504,7 +500,7 @@ fn models_rung_reds_a_cataloged_but_unresolvable_provider() {
 fn the_footer_never_contradicts_the_exit_code() {
     let _cwd = crate::cwd::hold();
     let out = checked_output(
-        "footer-verdict.nika.yaml",
+        "footer-verdict.nika",
         "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
         false,
     );
@@ -535,7 +531,7 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
     let yaml = "nika: loop\nmodel: mock/echo\npermits:\n  tools: [\"nika:*\"]\n  fs: { read: [\"data/**\"] }\ntasks:\n  loop:\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 100 }\n";
     // Advisory (default): the exit stays 0 — but the card must tell
     // the truth (no green audited line over unbounded rope).
-    let advisory = checked_output("risk-advisory.nika.yaml", yaml, false);
+    let advisory = checked_output("risk-advisory.nika", yaml, false);
     assert_eq!(
         advisory.code, 0,
         "the advisory posture does not gate: {}",
@@ -553,12 +549,8 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
     );
     // Operational: the SAME file fails readiness — grade ≥ High
     // folds into the exit-2 verdict, and the refusal line says why.
-    let operational = checked_output_profile(
-        "risk-operational.nika.yaml",
-        yaml,
-        false,
-        Profile::Operational,
-    );
+    let operational =
+        checked_output_profile("risk-operational.nika", yaml, false, Profile::Operational);
     assert_eq!(
         operational.code, 2,
         "the operational profile blocks grade ≥ High: {}",
@@ -577,7 +569,7 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
     // The JSON twin agrees — the one verdict on every surface: exit
     // 2 · `operational_clean: false` · the grade on the payload.
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
-    let path = dir.join("risk-operational.nika.yaml");
+    let path = dir.join("risk-operational.nika");
     let out = run_with_profile(
         path.to_str().expect("utf8 path"),
         true,
@@ -628,7 +620,7 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
 fn the_card_names_the_grade_on_every_rung() {
     let _cwd = crate::cwd::hold();
     let high = checked_output(
-        "risk-high.nika.yaml",
+        "risk-high.nika",
         "nika: h\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 256 }\n",
         false,
     );
@@ -639,7 +631,7 @@ fn the_card_names_the_grade_on_every_rung() {
         high.text
     );
     let low = checked_output(
-        "risk-low.nika.yaml",
+        "risk-low.nika",
         "nika: l\nmodel: anthropic/claude-sonnet-4-6\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 256 }\n",
         false,
     );
@@ -657,7 +649,7 @@ fn the_card_names_the_grade_on_every_rung() {
 fn models_rung_reds_a_bare_model_id_and_never_conjures_a_price() {
     let _cwd = crate::cwd::hold();
     let out = checked_output(
-        "models-bare.nika.yaml",
+        "models-bare.nika",
         "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
         false,
     );
@@ -676,7 +668,7 @@ fn models_rung_reds_a_bare_model_id_and_never_conjures_a_price() {
     // live 2026-07-10 — the same fixed-temp-name class as the
     // check-expect mktemp collision, #376).
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
-    let path = dir.join("models-bare.nika.yaml");
+    let path = dir.join("models-bare.nika");
     let theme = Theme::new(false, true, false);
     let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
     assert_eq!(out.code, 2);
@@ -705,12 +697,12 @@ fn models_rung_reds_a_bare_model_id_and_never_conjures_a_price() {
 fn models_rung_stamps_nika_provider_on_an_unknown_prefix() {
     let _cwd = crate::cwd::hold();
     let out = checked_output(
-        "models-unknown-prefix.nika.yaml",
+        "models-unknown-prefix.nika",
         "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"not-a-provider/gpt-4\" }\n",
         false,
     );
     assert_eq!(out.code, 2, "unknown prefix is a finding: {}", out.text);
-    let (json_out, payload) = checked_json("models-unknown-prefix.nika.yaml");
+    let (json_out, payload) = checked_json("models-unknown-prefix.nika");
     assert_eq!(json_out.code, 2, "{}", json_out.text);
     assert_eq!(
         payload["model_findings"][0]["model"], "not-a-provider/gpt-4",
@@ -729,7 +721,7 @@ fn models_rung_stamps_nika_provider_on_an_unknown_prefix() {
 fn models_rung_is_green_when_every_model_resolves() {
     let _cwd = crate::cwd::hold();
     let out = checked_output(
-        "models-green.nika.yaml",
+        "models-green.nika",
         "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
         false,
     );
@@ -756,7 +748,7 @@ fn models_rung_judges_a_templated_models_declared_default() {
     // at the task — the parameterization pattern in its simplest
     // canonical form.
     let out = checked_output(
-        "models-param.nika.yaml",
+        "models-param.nika",
         "nika: p\nconst:\n  model: \"anthropic/claude-sonnet-4-6\"\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 256, model: \"${{ const.model }}\" }\n",
         false,
     );
@@ -777,7 +769,7 @@ fn models_rung_judges_a_templated_models_declared_default() {
     );
     // The teeth stay on what IS statically decidable.
     let literal = checked_output(
-        "models-param-teeth.nika.yaml",
+        "models-param-teeth.nika",
         "nika: p\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
         false,
     );
@@ -799,7 +791,7 @@ fn models_rung_judges_a_templated_models_declared_default() {
 fn models_rung_reds_a_templated_models_refusable_default() {
     let _cwd = crate::cwd::hold();
     let out = checked_output(
-        "models-param-bad.nika.yaml",
+        "models-param-bad.nika",
         "nika: p\nconst:\n  model: { type: string, value: \"gpt-5-turbo\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
         false,
     );
@@ -832,7 +824,7 @@ fn models_rung_reds_a_templated_models_refusable_default() {
 fn models_rung_never_guesses_inside_a_literal_object_const() {
     let _cwd = crate::cwd::hold();
     let out = checked_output(
-        "models-param-object.nika.yaml",
+        "models-param-object.nika",
         "nika: p\nconst:\n  model: { type: string, default: \"gpt-5-turbo\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
         false,
     );
@@ -857,7 +849,7 @@ fn models_rung_never_guesses_inside_a_literal_object_const() {
 fn models_rung_makes_no_claim_over_a_defaultless_run_time_model() {
     let _cwd = crate::cwd::hold();
     let out = checked_output(
-        "models-param-runtime.nika.yaml",
+        "models-param-runtime.nika",
         "nika: p\ninputs:\n  model: { type: string, required: true }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ inputs.model }}\" }\n",
         false,
     );

@@ -123,7 +123,7 @@ async fn verify_route_reports_the_cli_verdict_for_the_jobs_journal() {
     // The custody seal runs inside the run's execution ceiling: on a machine
     // holding a run key its KDF takes seconds, so the ceiling is the long one.
     let server = world.start(backend, long_execution_limits()).await;
-    let id = run_by_name(&server, "root.nika.yaml", "journal-verdict").await;
+    let id = run_by_name(&server, "root.nika", "journal-verdict").await;
     wait_for_settled(&server, &id, "succeeded")
         .await
         .expect("settled");
@@ -217,7 +217,7 @@ async fn a_door_run_seals_its_journal_at_settlement() {
     // The production admission may probe installed seats. This test judges
     // sealing, so use the full-driver budget rather than the mock 2 s limit.
     let server = world.start(backend, long_execution_limits()).await;
-    let id = run_by_name(&server, "root.nika.yaml", "journal-seal").await;
+    let id = run_by_name(&server, "root.nika", "journal-seal").await;
     wait_for_settled(&server, &id, "succeeded")
         .await
         .expect("settled");
@@ -256,10 +256,10 @@ async fn a_door_run_seals_its_journal_at_settlement() {
 #[tokio::test(flavor = "multi_thread")]
 async fn an_interrupted_door_job_closes_its_journal_and_releases_its_lease() {
     let world = TestWorld::new();
-    std::fs::write(world.workflows.join("slow.nika.yaml"), SLOW_WORKFLOW).expect("slow");
+    std::fs::write(world.workflows.join("slow.nika"), SLOW_WORKFLOW).expect("slow");
     let backend = Arc::new(ResidentExecutionBackend::new(&world.workflows));
     let server = world.start(backend, long_execution_limits()).await;
-    let id = run_by_name(&server, "slow.nika.yaml", "journal-interrupt").await;
+    let id = run_by_name(&server, "slow.nika", "journal-interrupt").await;
     wait_for_status(&server, &id, "running")
         .await
         .expect("running");

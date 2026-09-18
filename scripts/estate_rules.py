@@ -85,7 +85,7 @@ FILES = [
             # and never reads a pricing rule. The old string here named it as
             # this snapshot's gate, which made every reader believe the price
             # was watched. A claimed-but-unfired gate is worse than no gate.
-            "gate": "NONE. catalog-verify.yml probes embeddings + mcp servers only (all_embeddings, all_mcp_servers) and never a pricing rule, so this snapshot is UNWATCHED. Two guards EXIST and neither runs: drift-watch.nika.yaml hashes upstream against [meta].sha256 (no cron calls it) and pricing-differential.py cross-checks models.dev against LiteLLM (its workflow has no schedule).",
+            "gate": "NONE. catalog-verify.yml probes embeddings + mcp servers only (all_embeddings, all_mcp_servers) and never a pricing rule, so this snapshot is UNWATCHED. Two guards EXIST and neither runs: drift-watch.nika hashes upstream against [meta].sha256 (no cron calls it) and pricing-differential.py cross-checks models.dev against LiteLLM (its workflow has no schedule).",
             "inputs": ["https://models.dev/api.json (MIT · sst/models.dev)"],
         },
     },
@@ -125,7 +125,7 @@ PATTERNS = [
     {
         "glob": "crates/nika-runtime/fixtures/adversarial/**",
         "class": "testimonial",
-        "evidence": "attack.nika.yaml + expected.json pairs consumed by crates/nika-runtime/src/adversarial/tests.rs — the injection red-team battery owned by the runtime",
+        "evidence": "attack.nika + expected.json pairs consumed by crates/nika-runtime/src/adversarial/tests.rs — the injection red-team battery owned by the runtime",
     },
     {
         "glob": "fuzz/corpus/**",
@@ -135,7 +135,7 @@ PATTERNS = [
     {
         "glob": "scripts/test/battery/**",
         "class": "testimonial",
-        "evidence": "manifest.tsv + s*.nika.yaml scenarios consumed by scripts/test/structured-live-battery.sh (Rail C · the LIVE provider rail)",
+        "evidence": "manifest.tsv + s*.nika scenarios consumed by scripts/test/structured-live-battery.sh (Rail C · the LIVE provider rail)",
     },
     {
         "glob": "crates/*/public-api.txt",

@@ -179,7 +179,7 @@ fn check_sidecar(fx: &Fixture, want_family: &str) {
 
 mod fixtures {
     //! The fixture plane of the adversarial suite (see `mod.rs` for the threat
-    //! model): on-disk attack workflows (`attack.nika.yaml`) plus their
+    //! model): on-disk attack workflows (`attack.nika`) plus their
     //! expected-verdict sidecars (`expected.json`), walked from
     //! `fixtures/adversarial/<family-dir>/<slug>/`.
     //!
@@ -214,7 +214,7 @@ mod fixtures {
         pub(crate) family_dir: &'static str,
         /// The sidecar contract.
         pub(crate) sidecar: Sidecar,
-        /// The `attack.nika.yaml` source.
+        /// The `attack.nika` source.
         pub(crate) yaml: String,
     }
 
@@ -455,11 +455,11 @@ mod fixtures {
         out
     }
 
-    /// Load one fixture directory (`attack.nika.yaml` + `expected.json`).
+    /// Load one fixture directory (`attack.nika` + `expected.json`).
     fn load(family_dir: &'static str, dir: &Path) -> Fixture {
         let yaml =
-        std::fs::read_to_string(dir.join("attack.nika.yaml")) // seam-bypass-ok: test-only fixture read from the crate dir — no engine I/O
-            .unwrap_or_else(|e| panic!("{}: attack.nika.yaml reads: {e}", dir.display()));
+        std::fs::read_to_string(dir.join("attack.nika")) // seam-bypass-ok: test-only fixture read from the crate dir — no engine I/O
+            .unwrap_or_else(|e| panic!("{}: attack.nika reads: {e}", dir.display()));
         let raw = std::fs::read_to_string(dir.join("expected.json")) // seam-bypass-ok: test-only fixture read from the crate dir — no engine I/O
         .unwrap_or_else(|e| panic!("{}: expected.json reads: {e}", dir.display()));
         let sidecar: Sidecar = serde_json::from_str(&raw)
@@ -527,7 +527,7 @@ mod harness {
     /// Parse (Strict) + check — the shared preflight of both lanes.
     fn preflight(fx: &Fixture) -> (RawWorkflow, CheckReport) {
         let wf = parse(&fx.yaml, FileId::new(0), ParseMode::Strict)
-            .unwrap_or_else(|e| panic!("{}: attack.nika.yaml parses (Strict): {e}", fx.id()));
+            .unwrap_or_else(|e| panic!("{}: attack.nika parses (Strict): {e}", fx.id()));
         let report = check(&wf);
         (wf, report)
     }

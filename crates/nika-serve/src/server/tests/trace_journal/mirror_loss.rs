@@ -34,7 +34,7 @@ async fn assert_mirror_loss(open_failure: bool, reason: &str) {
         ResidentExecutionBackend::new(&world.workflows).with_journal_seal(Arc::new(RefusedSeal)),
     );
     let server = world.start(backend, long_execution_limits()).await;
-    let id = run_by_name(&server, "root.nika.yaml", "mirror-loss").await;
+    let id = run_by_name(&server, "root.nika", "mirror-loss").await;
     wait_for_settled(&server, &id, "succeeded")
         .await
         .expect("execution succeeded");

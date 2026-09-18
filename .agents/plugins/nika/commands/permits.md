@@ -1,6 +1,6 @@
 ---
 description: Reconcile a workflow's declared permits with its intended effects.
-argument-hint: <file.nika.yaml>
+argument-hint: <file.nika>
 allowed-tools: Bash(nika check:*), Read, Edit, Glob
 ---
 
@@ -9,7 +9,7 @@ in a diff, default-deny once declared. An ABSENT block is not the
 unconfined floor: it is ZERO authority, and any effect under it
 refuses `NIKA-AUTH-006` at check, before a token is spent.
 
-Target: `$ARGUMENTS` (no argument? `Glob` for `*.nika.yaml` — one
+Target: `$ARGUMENTS` (no argument? `Glob` for `*.nika` — one
 match runs, several ask).
 
 1. `nika check $ARGUMENTS --infer-permits` — the engine prints the

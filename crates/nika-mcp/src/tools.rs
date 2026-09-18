@@ -131,7 +131,7 @@ fn validate_tools() -> Value {
                     },
                     "workflow": {
                         "type": "string",
-                        "description": "The *.nika.yaml workflow source."
+                        "description": "The *.nika workflow source."
                     }
                 },
                 "required": ["workflow"]
@@ -153,7 +153,7 @@ fn validate_tools() -> Value {
                 "properties": {
                     "workflow": {
                         "type": "string",
-                        "description": "The *.nika.yaml workflow source."
+                        "description": "The *.nika workflow source."
                     }
                 },
                 "required": ["workflow"]
@@ -181,7 +181,7 @@ fn learn_tools() -> Value {
     json!([
         {
             "name": "nika_schema",
-            "description": "The embedded JSON Schema for *.nika.yaml — the structural \
+            "description": "The embedded JSON Schema for *.nika — the structural \
                             contract (verbs · fields · shapes) an agent authors against.",
             "inputSchema": { "type": "object", "properties": {} }
         },
@@ -484,7 +484,7 @@ fn check(args: &Value) -> Result<String, String> {
     let yaml = args
         .get("workflow")
         .and_then(Value::as_str)
-        .ok_or("missing `workflow` (the *.nika.yaml source)")?;
+        .ok_or("missing `workflow` (the *.nika source)")?;
     let native_strict = args
         .get("native_strict")
         .and_then(Value::as_bool)
@@ -613,7 +613,7 @@ fn inspect(args: &Value) -> Result<String, String> {
     let yaml = args
         .get("workflow")
         .and_then(Value::as_str)
-        .ok_or("missing `workflow` (the *.nika.yaml source)")?;
+        .ok_or("missing `workflow` (the *.nika source)")?;
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),

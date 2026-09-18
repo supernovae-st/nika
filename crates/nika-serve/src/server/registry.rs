@@ -14,7 +14,7 @@ pub(crate) fn valid_workflow_name(value: &str) -> bool {
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'_' | b'-'))
         && !value.contains('\\')
-        && value.ends_with(".nika.yaml")
+        && nika_source::is_canonical_program_path(value)
         && !path.is_absolute()
         && path
             .components()
@@ -86,7 +86,7 @@ fn collect(
         } else {
             format!("{prefix}/{name}")
         };
-        if name.ends_with(".nika.yaml") {
+        if nika_source::is_canonical_program_file_name(&name) {
             if dir.exists(&name).unwrap_or(false) {
                 out.push(relative);
             }

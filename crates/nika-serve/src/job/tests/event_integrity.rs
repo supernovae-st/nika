@@ -464,15 +464,15 @@ fn named_admission_is_the_restart_schedule() {
                 key("request-named"),
                 digest(33),
                 usize::MAX,
-                "root.nika.yaml".to_owned(),
+                "root.nika".to_owned(),
             )
             .expect("create"),
     );
-    assert_eq!(created.workflow(), "root.nika.yaml");
+    assert_eq!(created.workflow(), "root.nika");
     let queued = store.queued_jobs().expect("queued");
     assert_eq!(queued.len(), 1);
     assert_eq!(queued[0].0, created.id().clone());
-    assert_eq!(queued[0].1, "root.nika.yaml");
+    assert_eq!(queued[0].1, "root.nika");
     let anonymous = admitted_record(
         store
             .create_or_replay(key("request-anonymous"), digest(34))

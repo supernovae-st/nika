@@ -19,7 +19,7 @@ permits: {}
 tasks:
   audit:
     invoke:
-      workflow: "./audits/site-audit.nika.yaml"   # sibling of tool:, not a tool
+      workflow: "./audits/site-audit.nika"   # sibling of tool:, not a tool
       args:
         url: "${{ inputs.target }}"
 ```

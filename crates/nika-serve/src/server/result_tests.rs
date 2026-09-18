@@ -51,7 +51,7 @@ async fn unavailable_adapter_outputs_remain_absent_without_losing_receipt_identi
     let server = world.start(Arc::new(AbsentResultBackend), limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "absent-result",
             &auth_header(),
         ))
@@ -89,7 +89,7 @@ async fn supplied_outputs_and_receipt_appear_only_on_terminal_get_and_sse() {
     let server = world.start(Arc::new(ResultBackend), limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "terminal-result",
             &auth_header(),
         ))

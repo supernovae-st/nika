@@ -22,8 +22,8 @@
 # ORDER and REFUSAL, not re-implementation. The boundary is honest about
 # that: `permits.exec` names the three interpreters and nothing else.
 #
-#   nika check workflows/catalog/ingest-catalog.nika.yaml
-#   nika run workflows/catalog/ingest-catalog.nika.yaml   # the ceremony ·
+#   nika check workflows/catalog/ingest-catalog.nika
+#   nika run workflows/catalog/ingest-catalog.nika   # the ceremony ·
 #     network + tree mutation — run it from a clean tree, review the
 #     diff it leaves, commit with the snapshot date in the message
 #

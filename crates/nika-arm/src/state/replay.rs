@@ -619,7 +619,7 @@ mod tests {
         let (dir, state) = state("deadline-boundary");
         let claim = Claim::new(
             SlotId::derive(
-                "doctor.nika.yaml",
+                "doctor.nika",
                 "TZ=UTC 0 3 * * *",
                 &ts("2026-08-19T03:00:00Z").to_zoned(jiff::tz::TimeZone::UTC),
             ),

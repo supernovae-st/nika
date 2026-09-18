@@ -58,7 +58,7 @@
 //!
 //! ## Verdict classes and the honesty rule
 //!
-//! Each fixture is an `attack.nika.yaml` plus an `expected.json` sidecar
+//! Each fixture is an `attack.nika` plus an `expected.json` sidecar
 //! declaring one of three verdicts:
 //!
 //! - `static-deny` — `nika check` refuses (conformance must be empty: the

@@ -281,9 +281,12 @@ fn skeletons_name_only_the_cascade_alias_or_are_stamped() {
     let mut scanned = 0;
     for entry in std::fs::read_dir(&dir).expect("templates") {
         let path = entry.expect("entry").path();
-        if !path
+        let name = path
             .file_name()
-            .is_some_and(|n| n.to_string_lossy().ends_with(".nika.yaml"))
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
+        if !(nika_source::is_canonical_program_file_name(name)
+            || nika_source::is_retired_program_file_name(name))
         {
             continue;
         }
@@ -505,7 +508,7 @@ fn local_unready_first_wow_runs_on_mock_echo() {
     );
     assert_parses(&yaml);
     let dir = tempfile::tempdir().expect("tmp");
-    let dest = dir.path().join("hello.nika.yaml");
+    let dest = dir.path().join("hello.nika");
     let out = write_first_wow_from(&dest, false, &choice);
     assert_eq!(out.code, 0, "{}", out.text);
     assert!(out.text.contains("nika run"), "{}", out.text);
@@ -514,7 +517,7 @@ fn local_unready_first_wow_runs_on_mock_echo() {
 #[test]
 fn write_first_wow_refuses_without_force() {
     let dir = tempfile::tempdir().expect("tmp");
-    let dest = dir.path().join("hello.nika.yaml");
+    let dest = dir.path().join("hello.nika");
     let existing = "secrets:\n  token: nika-test-secret-do-not-log\n";
     std::fs::write(&dest, existing).expect("seed");
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
@@ -531,7 +534,7 @@ fn write_first_wow_refuses_without_force() {
 #[test]
 fn write_first_wow_lands_a_file_and_names_run() {
     let dir = tempfile::tempdir().expect("tmp");
-    let dest = dir.path().join("hello.nika.yaml");
+    let dest = dir.path().join("hello.nika");
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     let out = write_first_wow_from(&dest, false, &choice);
     assert_eq!(out.code, 0, "{}", out.text);
@@ -561,7 +564,7 @@ fn stamp_does_not_switch_hello_onto_a_cascade_key() {
         "nika: chain\nmodel: mock/echo\npermits: {}\ntasks: {}\n"
     ));
     let dir = tempfile::tempdir().expect("tmp");
-    let dest = dir.path().join("01-hello.nika.yaml");
+    let dest = dir.path().join("01-hello.nika");
     std::fs::write(&dest, pack).expect("seed");
     stamp_model_file(&dest).expect("stamp");
     let body = std::fs::read_to_string(&dest).expect("body");
@@ -608,7 +611,7 @@ fn pull_repo_dir_strips_the_quant() {
 #[test]
 fn first_wow_slug_is_not_the_lesson_pack() {
     assert!(!is_first_wow(Some("01-hello"), None));
-    assert!(!is_first_wow(Some("chain"), Some("hello.nika.yaml")));
+    assert!(!is_first_wow(Some("chain"), Some("hello.nika")));
     assert_eq!(first_wow_dest(None), FIRST_WOW_DEST);
     assert_eq!(first_wow_dest(Some("hello")), FIRST_WOW_DEST);
 }
@@ -640,14 +643,14 @@ fn next_for_a_ready_harness_is_new_hello() {
 /// the function's exact image. Run the real thing on real directories.
 #[test]
 fn door_shapes_mirror_the_real_door() {
-    let placeholder = |door: String| door.replace("hello.nika.yaml", "<file>");
+    let placeholder = |door: String| door.replace("hello.nika", "<file>");
     let dir = tempfile::tempdir().expect("tmp");
     let empty = placeholder(front_door_next(Some(dir.path())));
-    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("hello");
+    std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("hello");
     let one = placeholder(front_door_next(Some(dir.path())));
-    std::fs::write(dir.path().join("a.nika.yaml"), "nika: a\n").expect("a");
-    std::fs::remove_file(dir.path().join("hello.nika.yaml")).expect("drop hello");
-    std::fs::write(dir.path().join("b.nika.yaml"), "nika: b\n").expect("b");
+    std::fs::write(dir.path().join("a.nika"), "nika: a\n").expect("a");
+    std::fs::remove_file(dir.path().join("hello.nika")).expect("drop hello");
+    std::fs::write(dir.path().join("b.nika"), "nika: b\n").expect("b");
     let many = placeholder(front_door_next(Some(dir.path())));
     let measured = [empty, one, many];
     for shape in DOOR_SHAPES {
@@ -693,11 +696,11 @@ fn next_block(human: &str) -> &str {
 fn next_after_hello_exists_is_run_not_new() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
-    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("seed");
+    std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("seed");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
-        after.contains("nika run hello.nika.yaml"),
+        after.contains("nika run hello.nika"),
         "a file already here is the next door:\n{human}"
     );
     assert!(
@@ -710,11 +713,11 @@ fn next_after_hello_exists_is_run_not_new() {
 fn next_after_hello_with_harness_is_run_not_a_pin() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
-    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("seed");
+    std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("seed");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
-        after.contains("nika run hello.nika.yaml"),
+        after.contains("nika run hello.nika"),
         "a file already here is the next door:\n{human}"
     );
     assert!(
@@ -732,12 +735,12 @@ fn next_after_hello_with_harness_is_run_not_a_pin() {
 fn next_prefers_hello_when_other_workflows_sit_beside_it() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
-    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("hello");
-    std::fs::write(dir.path().join("other.nika.yaml"), "nika: other\n").expect("other");
+    std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("hello");
+    std::fs::write(dir.path().join("other.nika"), "nika: other\n").expect("other");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
-        after.contains("nika run hello.nika.yaml"),
+        after.contains("nika run hello.nika"),
         "first-wow stays the one Next when it is here:\n{human}"
     );
 }
@@ -746,8 +749,8 @@ fn next_prefers_hello_when_other_workflows_sit_beside_it() {
 fn next_with_two_non_hello_files_is_bare_run() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
-    std::fs::write(dir.path().join("a.nika.yaml"), "nika: a\n").expect("a");
-    std::fs::write(dir.path().join("b.nika.yaml"), "nika: b\n").expect("b");
+    std::fs::write(dir.path().join("a.nika"), "nika: a\n").expect("a");
+    std::fs::write(dir.path().join("b.nika"), "nika: b\n").expect("b");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(

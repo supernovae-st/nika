@@ -18,7 +18,7 @@ fn a_beat_carries_scalar_inputs_as_var_pairs() {
         "
 nika: proj
 arm:
-  - workflow: workflows/tenant-report.nika.yaml
+  - workflow: workflows/tenant-report.nika
     cadence: TZ=Europe/Paris 0 9 * * 1
     plafond: 0.35
     manqué: sauter
@@ -59,7 +59,7 @@ fn a_beat_input_is_one_scalar_never_a_collection_or_a_null() {
         ("~", "a tilde null"),
     ] {
         let yaml = format!(
-            "nika: proj\narm:\n  - workflow: workflows/a.nika.yaml\n    cadence: on-webhook\n    \
+            "nika: proj\narm:\n  - workflow: workflows/a.nika\n    cadence: on-webhook\n    \
              plafond: 0.35\n    manqué: sauter\n    inputs:\n      flags: {value}\n"
         );
         let err = parse_registry(&yaml).expect_err(what);
@@ -73,7 +73,7 @@ fn a_beat_input_is_one_scalar_never_a_collection_or_a_null() {
     // A key written twice never last-wins: two values for one `--var
     // KEY` would be a guess about which tenant fires.
     let err = parse_registry(
-        "nika: proj\narm:\n  - workflow: workflows/a.nika.yaml\n    cadence: on-webhook\n    \
+        "nika: proj\narm:\n  - workflow: workflows/a.nika\n    cadence: on-webhook\n    \
          plafond: 0.35\n    manqué: sauter\n    inputs:\n      tenant: acme\n      tenant: globex\n",
     )
     .expect_err("a duplicate key");
@@ -82,7 +82,7 @@ fn a_beat_input_is_one_scalar_never_a_collection_or_a_null() {
     // The quoted JSON text IS the spelling for a typed array/object
     // input (`--var flags=["a","b"]` — the declared type coerces it).
     let reg = parse_registry(
-        "nika: proj\narm:\n  - workflow: workflows/a.nika.yaml\n    cadence: on-webhook\n    \
+        "nika: proj\narm:\n  - workflow: workflows/a.nika\n    cadence: on-webhook\n    \
          plafond: 0.35\n    manqué: sauter\n    inputs:\n      flags: '[\"a\",\"b\"]'\n",
     )
     .expect("json text is a string scalar");
@@ -101,7 +101,7 @@ fn a_beat_input_is_one_scalar_never_a_collection_or_a_null() {
 fn a_beat_input_key_is_the_var_key_shape() {
     for key in ["\"\"", "\"a b\"", "\"a=b\"", "\"tab\\tkey\"", "\" lead\""] {
         let yaml = format!(
-            "nika: proj\narm:\n  - workflow: workflows/a.nika.yaml\n    cadence: on-webhook\n    \
+            "nika: proj\narm:\n  - workflow: workflows/a.nika\n    cadence: on-webhook\n    \
              plafond: 0.35\n    manqué: sauter\n    inputs:\n      {key}: x\n"
         );
         let faults = kinds(&yaml);
@@ -115,7 +115,7 @@ fn a_beat_input_key_is_the_var_key_shape() {
     // fire edge's — this grammar never opens the workflow file, so a
     // well-shaped key it cannot see the declaration of passes here.
     let faults = kinds(
-        "nika: proj\narm:\n  - workflow: workflows/a.nika.yaml\n    cadence: on-webhook\n    \
+        "nika: proj\narm:\n  - workflow: workflows/a.nika\n    cadence: on-webhook\n    \
          plafond: 0.35\n    manqué: sauter\n    inputs:\n      tenant_id: acme\n      Region: eu\n      \
          k-1: v\n",
     );
@@ -127,7 +127,7 @@ fn a_beat_input_key_is_the_var_key_shape() {
 #[test]
 fn the_known_keys_message_names_inputs() {
     let err = parse_registry(
-        "nika: proj\narm:\n  - workflow: workflows/a.nika.yaml\n    cadence: on-webhook\n    \
+        "nika: proj\narm:\n  - workflow: workflows/a.nika\n    cadence: on-webhook\n    \
          plafond: 0.35\n    manqué: sauter\n    input: { tenant: acme }\n",
     )
     .expect_err("clé inconnue");
@@ -147,7 +147,7 @@ fn the_known_keys_message_names_inputs() {
 #[test]
 fn the_inputs_enter_the_generation_only_when_present() {
     use sha2::Digest as _;
-    let head = "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    \
+    let head = "nika: proj\narm:\n  - workflow: workflows/doctor.nika\n    \
                 cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n    manqué: sauter\n";
     let digest = "f".repeat(64);
     let plain = parse_registry(head).expect("parse");
@@ -170,7 +170,7 @@ fn the_inputs_enter_the_generation_only_when_present() {
     );
     // The pre-#1370 canonical form, byte for byte, still hashes the
     // plain beat.
-    let mut preimage = "nika/arm-gen@2\nworkflow=\"workflows/doctor.nika.yaml\"\ncadence=\"TZ=UTC 0 3 * * *\"\noù=null\nplafond=0.25\nmanqué=\"sauter\"\nchevauchement=null\naprès_saut=null\nactif=null\nraison=null\njusqu_au=null\ntolérance=null\ndécalage=null\npar=null".to_owned().into_bytes();
+    let mut preimage = "nika/arm-gen@2\nworkflow=\"workflows/doctor.nika\"\ncadence=\"TZ=UTC 0 3 * * *\"\noù=null\nplafond=0.25\nmanqué=\"sauter\"\nchevauchement=null\naprès_saut=null\nactif=null\nraison=null\njusqu_au=null\ntolérance=null\ndécalage=null\npar=null".to_owned().into_bytes();
     preimage.push(0);
     preimage.extend_from_slice(digest.as_bytes());
     let expected = format!("{:x}", sha2::Sha256::digest(&preimage));
@@ -182,7 +182,7 @@ fn the_inputs_enter_the_generation_only_when_present() {
     // With inputs: ONE extra line, `inputs=` + quoted key=value pairs,
     // key-sorted, comma-joined — the canonical spelling pinned from
     // without.
-    let mut preimage = "nika/arm-gen@2\nworkflow=\"workflows/doctor.nika.yaml\"\ncadence=\"TZ=UTC 0 3 * * *\"\noù=null\nplafond=0.25\nmanqué=\"sauter\"\nchevauchement=null\naprès_saut=null\nactif=null\nraison=null\njusqu_au=null\ntolérance=null\ndécalage=null\npar=null\ninputs=\"tenant\"=\"acme\"".to_owned().into_bytes();
+    let mut preimage = "nika/arm-gen@2\nworkflow=\"workflows/doctor.nika\"\ncadence=\"TZ=UTC 0 3 * * *\"\noù=null\nplafond=0.25\nmanqué=\"sauter\"\nchevauchement=null\naprès_saut=null\nactif=null\nraison=null\njusqu_au=null\ntolérance=null\ndécalage=null\npar=null\ninputs=\"tenant\"=\"acme\"".to_owned().into_bytes();
     preimage.push(0);
     preimage.extend_from_slice(digest.as_bytes());
     let expected = format!("{:x}", sha2::Sha256::digest(&preimage));

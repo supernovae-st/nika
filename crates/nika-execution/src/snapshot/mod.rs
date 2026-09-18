@@ -641,6 +641,14 @@ impl<'a, S: ByteSource> SnapshotBuilder<'a, S> {
         kind: SnapshotUnitKind,
         depth: usize,
     ) -> Result<(), ExecutionError> {
+        if matches!(kind, SnapshotUnitKind::Root | SnapshotUnitKind::Child)
+            && logical_path != "-"
+            && !nika_source::is_canonical_program_path(logical_path)
+        {
+            return Err(ExecutionError::InvalidLogicalPath {
+                path: logical_path.to_owned(),
+            });
+        }
         if depth > self.limits.depth {
             return Err(ExecutionError::DepthLimit {
                 logical_path: logical_path.to_owned(),

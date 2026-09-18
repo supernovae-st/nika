@@ -15,7 +15,7 @@ use std::path::Path;
 let fs = TokioFs;                       // zero-size, Copy
 fs.write(Path::new("out/report.md"), b"# done").await?;   // atomic temp+rename · parents auto-created
 let text = fs.read_to_string(Path::new("out/report.md")).await?;
-let workflows = fs.glob(Path::new("."), "**/*.nika.yaml").await?;  // sorted · hidden dirs skipped
+let workflows = fs.glob(Path::new("."), "**/*.nika").await?;  // sorted · hidden dirs skipped
 # Ok(())
 # }
 ```

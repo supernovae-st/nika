@@ -30,7 +30,7 @@
 //!    (1 MiB cap) · `sha256(bytes)` MUST equal the pinned digest, else
 //!    hard refuse and NOTHING is written (`NIKA-REG-003`).
 //! 5. **Cache** — the verified bytes land under ONE canonical dir
-//!    (`~/.nika/registry/<owner>/<name>/<version>.nika.yaml`) beside a
+//!    (`~/.nika/registry/<owner>/<name>/<version>.nika`) beside a
 //!    digest record; a cache hit re-verifies and runs OFFLINE. A bare
 //!    ref writes a pin record so later bare refs never float
 //!    (ADR-106 "pin by default").
@@ -614,7 +614,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
         floor: ProvenanceTier,
     ) -> Result<Option<Resolved>, RegistryError> {
         let dir = self.dir_of(r);
-        let artifact = dir.join(format!("{version}.nika.yaml"));
+        let artifact = dir.join(format!("{version}.nika"));
         let meta_path = dir.join(format!("{version}.meta.json"));
         let arte = std::fs::read(&artifact); // seam-bypass-ok: local cache · #512 follow-up
         let meta = std::fs::read(&meta_path); // seam-bypass-ok: local cache · #512 follow-up
@@ -818,7 +818,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
         };
         let meta_json = serde_json::to_string_pretty(&meta)
             .map_err(|e| RegistryError::env(format!("cannot encode the digest record: {e}")))?;
-        let artifact = dir.join(format!("{}.nika.yaml", art.version));
+        let artifact = dir.join(format!("{}.nika", art.version));
         write_atomic(&artifact, &fetched.bytes)?;
         write_atomic(
             &dir.join(format!("{}.meta.json", art.version)),

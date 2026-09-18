@@ -208,7 +208,7 @@ fn undeclared_names_the_missing_permit() {
     lit.origin = Some(Origin::Builtin);
     lit.touches = Some(vec![Touch::FsRead, Touch::Tools]);
     let wf = Workflow::new(
-        "gap.nika.yaml".to_owned(),
+        "gap.nika".to_owned(),
         "test".to_owned(),
         String::new(),
         vec!["exec: [\"gh\"]".to_owned()],
@@ -276,7 +276,7 @@ fn the_wasm_doors_answer_with_content() {
 /// Build a workflow and a run from bare ids, needs and (start, dur).
 fn bench(tasks: &[(&str, Vec<&str>)], steps: &[(&str, f64, f64)]) -> (Workflow, Run) {
     let wf = serde_json::json!({
-        "file": "b.nika.yaml", "engine": "test", "prompt": "", "permits": [], "missing": "",
+        "file": "b.nika", "engine": "test", "prompt": "", "permits": [], "missing": "",
         "tasks": tasks.iter().map(|(id, needs)| serde_json::json!({
             "id": id, "verb": "infer", "glyph": "◇", "needs": needs,
         })).collect::<Vec<_>>(),
@@ -425,7 +425,7 @@ fn the_slowest_of_a_tie_is_the_first_member() {
 #[test]
 fn a_step_that_never_started_never_waited() {
     let wf: Workflow = serde_json::from_value(serde_json::json!({
-        "file": "c.nika.yaml", "engine": "test", "prompt": "",
+        "file": "c.nika", "engine": "test", "prompt": "",
         "permits": [], "missing": "",
         "tasks": [
             { "id": "real", "verb": "infer", "glyph": "◇", "needs": [] },
@@ -496,7 +496,7 @@ fn a_step_that_never_started_never_waited() {
 fn a_different_verb_breaks_the_grouping_signature() {
     let three = |third_verb: &str| -> Workflow {
         serde_json::from_value(serde_json::json!({
-            "file": "g.nika.yaml", "engine": "test", "prompt": "",
+            "file": "g.nika", "engine": "test", "prompt": "",
             "permits": [], "missing": "",
             "tasks": [
                 { "id": "traduire-fr", "verb": "infer", "glyph": "◇", "needs": [] },
@@ -562,7 +562,7 @@ fn the_four_verbs_spell_themselves() {
 #[test]
 fn a_step_that_never_ran_cannot_extend_its_wave() {
     let wf: nika_tui_core::model::Workflow = serde_json::from_value(serde_json::json!({
-        "file": "w.nika.yaml", "engine": "test", "prompt": "", "permits": [], "missing": "",
+        "file": "w.nika", "engine": "test", "prompt": "", "permits": [], "missing": "",
         "tasks": [
             {"id": "real",  "verb": "infer", "glyph": "◇", "needs": []},
             {"id": "ghost", "verb": "infer", "glyph": "◇", "needs": []},
@@ -667,7 +667,7 @@ fn the_batch_derivations_answer_exactly_what_the_singular_ones_do() {
     // A synthetic case pins what no fixture carries: a step that did NOT run
     // sharing a wave with one that did, and arithmetic no constant can fake.
     let wf: nika_tui_core::model::Workflow = serde_json::from_value(serde_json::json!({
-        "file": "b.nika.yaml", "engine": "test", "prompt": "", "permits": [], "missing": "",
+        "file": "b.nika", "engine": "test", "prompt": "", "permits": [], "missing": "",
         "tasks": [
             {"id": "a", "verb": "infer", "glyph": "◇", "needs": []},
             {"id": "b", "verb": "infer", "glyph": "◇", "needs": []},

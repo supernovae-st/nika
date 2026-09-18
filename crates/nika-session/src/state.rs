@@ -151,7 +151,7 @@ mod tests {
             .push("applied proposal 0123456789ab".to_owned());
         state.unresolved.push("the closing line".to_owned());
         state.pending = Some(Pending::Gate {
-            workflow: PathBuf::from("x.nika.yaml"),
+            workflow: PathBuf::from("x.nika"),
             trace: PathBuf::from(".nika/traces/x.ndjson"),
             task: "gate".to_owned(),
             mode: "confirm".to_owned(),

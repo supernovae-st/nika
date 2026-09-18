@@ -18,7 +18,7 @@ fn dry_run_help_names_the_budget_exemption_that_the_real_run_does_not_take() {
         canary.local_addr().expect("address")
     );
     std::fs::write(
-        room.path().join("budget.nika.yaml"),
+        room.path().join("budget.nika"),
         "nika: budget-preview\nmodel: anthropic/claude-sonnet-5\ntasks:\n  say:\n    timeout: 2s\n    infer: { prompt: hi, max_tokens: 1000 }\n",
     )
     .expect("fixture");
@@ -42,7 +42,7 @@ fn dry_run_help_names_the_budget_exemption_that_the_real_run_does_not_take() {
     };
     let preview = call(&[
         "run",
-        "budget.nika.yaml",
+        "budget.nika",
         "--dry-run",
         "--json",
         "--max-cost-usd",
@@ -62,7 +62,7 @@ fn dry_run_help_names_the_budget_exemption_that_the_real_run_does_not_take() {
             .kind(),
         std::io::ErrorKind::WouldBlock
     );
-    let run = call(&["run", "budget.nika.yaml", "--max-cost-usd", "0.000001"]);
+    let run = call(&["run", "budget.nika", "--max-cost-usd", "0.000001"]);
     assert_eq!(run.status.code(), Some(2), "{run:?}");
     assert!(
         String::from_utf8_lossy(&run.stdout).contains("NIKA-1709"),

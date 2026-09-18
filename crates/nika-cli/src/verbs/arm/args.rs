@@ -71,7 +71,7 @@ pub enum ArmSub {
 #[derive(Debug, clap::Args)]
 pub struct FireArgs {
     /// The beat label — the workflow file radical
-    /// (`workflows/doctor.nika.yaml` → `doctor`; a radical collision in
+    /// (`workflows/doctor.nika` → `doctor`; a radical collision in
     /// file order takes `-2`, `-3`).
     pub label: String,
     /// Inject the decision instant (RFC 3339) instead of reading the

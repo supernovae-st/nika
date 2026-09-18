@@ -39,6 +39,19 @@ fn file_str(path: &str) -> Option<&'static str> {
     PACK.get_file(path).and_then(|f| f.contents_utf8())
 }
 
+/// Typed slug: `hello` or `hello.nika`. Retired suffixes are not a live alias.
+fn program_slug(slug: &str) -> &str {
+    nika_source::typed_stem(slug)
+}
+
+/// Embedded pack lookup. Canonical `.nika` first; `.nika.yaml` is the
+/// unpublished dual-read of the current vendored snapshot and dies when
+/// `scripts/sync-pack.sh` lands the migrated spec pin (#1684).
+fn pack_program(dir: &str, slug: &str) -> Option<&'static str> {
+    let slug = program_slug(slug);
+    file_str(&format!("{dir}/{slug}.nika")).or_else(|| file_str(&format!("{dir}/{slug}.nika.yaml")))
+}
+
 /// The vendored motion SSOT (`design/motion.yaml` · spec #65) — the
 /// per-verb motion identities every surface derives from.
 #[must_use]
@@ -270,7 +283,7 @@ pub fn quickstart() -> &'static str {
 /// Bare `hello` is the 01-hello lesson — one file, one model, three doors
 /// (`nika new hello` · `nika new 01-hello` · `nika try hello` / `01-hello`).
 fn canonical_example_slug(slug: &str) -> &str {
-    let slug = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+    let slug = program_slug(slug);
     match slug {
         "hello" => "01-hello",
         other => other,
@@ -278,12 +291,11 @@ fn canonical_example_slug(slug: &str) -> &str {
 }
 
 /// One example by slug (`01-hello` or `showcase/t1-standup-digest` —
-/// the `.nika.yaml` suffix is optional). `hello` is an alias of `01-hello`.
+/// the `.nika` suffix is optional). `hello` is an alias of `01-hello`.
 #[must_use]
 pub fn example(slug: &str) -> Option<&'static str> {
     let slug = canonical_example_slug(slug);
-    file_str(&format!("examples/{slug}.nika.yaml"))
-        .or_else(|| file_str(&format!("examples/showcase/{slug}.nika.yaml")))
+    pack_program("examples", slug).or_else(|| pack_program("examples/showcase", slug))
 }
 
 /// The five first-run jobs (UX-1). Bare `nika try` should show these;
@@ -426,9 +438,9 @@ fn collect_yaml_slugs(dir: &Dir<'static>) -> Vec<String> {
         match entry {
             include_dir::DirEntry::File(f) => {
                 if let Some(name) = f.path().to_str()
-                    && let Some(slug) = name
-                        .strip_prefix("examples/")
-                        .and_then(|n| n.strip_suffix(".nika.yaml"))
+                    && let Some(slug) = name.strip_prefix("examples/").and_then(|n| {
+                        nika_source::program_stem(n).or_else(|| n.strip_suffix(".nika.yaml"))
+                    })
                 {
                     out.push(slug.to_owned());
                 }
@@ -442,8 +454,7 @@ fn collect_yaml_slugs(dir: &Dir<'static>) -> Vec<String> {
 /// One instantiable template by name (`chain` · `fanout` · …).
 #[must_use]
 pub fn template(name: &str) -> Option<&'static str> {
-    let name = name.strip_suffix(".nika.yaml").unwrap_or(name);
-    file_str(&format!("templates/{name}.nika.yaml"))
+    pack_program("templates", name)
 }
 
 /// The filled lesson generated from a skeleton, when the pack supplies one.
@@ -464,7 +475,9 @@ pub fn template_names() -> Vec<String> {
         .map(|d| {
             d.files()
                 .filter_map(|f| f.path().file_name()?.to_str())
-                .filter_map(|n| n.strip_suffix(".nika.yaml"))
+                .filter_map(|n| {
+                    nika_source::program_stem(n).or_else(|| n.strip_suffix(".nika.yaml"))
+                })
                 .map(str::to_owned)
                 .collect()
         })
@@ -593,12 +606,12 @@ mod tests {
     #[test]
     fn recover_hint_preserves_declared_git_context_without_inventing_cargo() {
         assert!(try_recover_hint("03-exec-pipeline").is_none());
-        assert!(try_recover_hint("03-exec-pipeline.nika.yaml").is_none());
+        assert!(try_recover_hint("03-exec-pipeline.nika").is_none());
         assert!(try_recover_hint("snippets/run").is_none());
         let git = try_recover_hint("standup-digest").expect("C06");
         assert_eq!(git.missing, "git");
         assert_eq!(git.recovered_as, "history unavailable");
-        assert_eq!(try_recover_hint("standup-digest.nika.yaml"), Some(git));
+        assert_eq!(try_recover_hint("standup-digest.nika"), Some(git));
         assert_eq!(try_recover_hint("hello"), try_recover_hint("01-hello"));
         assert!(try_recover_hint("01-hello").is_none());
         assert!(try_recover_hint("05-fetch-chain").is_none());
@@ -640,9 +653,6 @@ mod rehearsal_tests {
         assert_eq!(file("VERSION").trim_end(), version);
         assert!(file("CHANGELOG.md").contains(&format!("[{version}]")));
         assert_eq!(file("schemas/workflow.schema.json"), super::schema_json());
-        assert_eq!(
-            super::try_rehearsal_kit("release-train.nika.yaml"),
-            Some(kit)
-        );
+        assert_eq!(super::try_rehearsal_kit("release-train.nika"), Some(kit));
     }
 }

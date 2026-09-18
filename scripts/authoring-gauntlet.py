@@ -55,11 +55,11 @@ def main():
                 row["passed"] = False
                 row.setdefault("failures", []).append(reason)
 
-        for source in sorted(templates.glob("*.nika.yaml")):
-            name = source.name.removesuffix(".nika.yaml")
+        for source in sorted(templates.glob("*.nika")):
+            name = source.name.removesuffix(".nika")
             directory = root / (name + " project")
             directory.mkdir()
-            path = directory / "workflow with spaces.nika.yaml"
+            path = directory / "workflow with spaces.nika"
             if args.source_only:
                 shutil.copyfile(source, path)
             else:
@@ -104,7 +104,7 @@ def main():
             directory.mkdir()
             for name, content in (files or {}).items():
                 (directory / name).write_text(content)
-            path = directory / "workflow.nika.yaml"
+            path = directory / "workflow.nika"
             path.write_text(yaml.safe_dump(body, sort_keys=False))
             proc, row = run(case, ["run", path.name, "--json", "--model", "mock/echo"], directory, 1 if blocked else 0)
             events = [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
@@ -122,13 +122,13 @@ def main():
 
         for pair in rehearsals:
             example = pair["example"]
-            source = pack / "examples" / (example + ".nika.yaml")
+            source = pack / "examples" / (example + ".nika")
             body = yaml.safe_load(source.read_text())
             if not args.source_only:
                 directory = root / (example + "-take")
                 directory.mkdir()
-                _, row = run(example + "-take", ["new", example, "example.nika.yaml"], directory)
-                path = directory / "example.nika.yaml"
+                _, row = run(example + "-take", ["new", example, "example.nika"], directory)
+                path = directory / "example.nika"
                 require(row, path.is_file(), "native take did not produce a file")
                 if path.is_file():
                     taken = yaml.safe_load(path.read_text())
@@ -140,12 +140,12 @@ def main():
                     require(row, {k: v for k, v in taken.items() if k != "model"} == expected_body,
                             "native lesson changed more than the envelope model")
                     body = taken
-            expected = json.loads((templates / (pair["template"] + ".nika.yaml.golden.json")).read_text())
+            expected = json.loads((templates / (pair["template"] + ".nika.golden.json")).read_text())
             execute_case(example + "-run", body, expected)
 
         for case in json.loads((templates / "rehearsal-cases.json").read_text())["cases"]:
             pair = pairs[case["template"]]
-            body = yaml.safe_load((pack / "examples" / (pair["example"] + ".nika.yaml")).read_text())
+            body = yaml.safe_load((pack / "examples" / (pair["example"] + ".nika")).read_text())
             body["const"].update(copy.deepcopy(case["const"]))
             execute_case(case["template"] + "-" + case["case"], body,
                          case.get("outputs"), case.get("blocked", ()), case.get("files"))
@@ -157,8 +157,8 @@ def main():
             for pair in rehearsals:
                 for filled in (False, True):
                     identifier = len(requests)
-                    path = (pack / "examples" / (pair["example"] + ".nika.yaml") if filled else
-                            templates / (pair["template"] + ".nika.yaml"))
+                    path = (pack / "examples" / (pair["example"] + ".nika") if filled else
+                            templates / (pair["template"] + ".nika"))
                     arguments = {"name": pair["template"], "filled": filled}
                     requests.append({"jsonrpc": "2.0", "id": identifier, "method": "tools/call",
                                      "params": {"name": "nika_template", "arguments": arguments}})

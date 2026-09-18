@@ -709,14 +709,14 @@ fn yaml_scalar(value: &str) -> String {
 /// The first-wow slug `nika new hello` writes.
 pub(crate) const FIRST_WOW_SLUG: &str = "hello";
 /// Default dest for the first-wow file.
-pub(crate) const FIRST_WOW_DEST: &str = "hello.nika.yaml";
+pub(crate) const FIRST_WOW_DEST: &str = "hello.nika";
 
 const FIRST_WOW_MODELINE: &str =
     "# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json\n";
 const FIRST_WOW_PROMPT: &str =
     "Reply with one short sentence confirming you can hear me. No preamble.";
 
-/// `nika new hello` / `nika new hello.nika.yaml` — the one-shot first file.
+/// `nika new hello` / `nika new hello.nika` — the one-shot first file.
 #[must_use]
 pub(crate) fn is_first_wow(from: Option<&str>, dest: Option<&str>) -> bool {
     matches!(from, Some(FIRST_WOW_SLUG | FIRST_WOW_DEST))
@@ -753,7 +753,7 @@ pub(crate) fn write_first_wow_from(
         ));
     }
     let dest_s = dest.display().to_string();
-    let body = first_wow_yaml(choice).replace("examples/01-hello.nika.yaml", &dest_s);
+    let body = first_wow_yaml(choice).replace("examples/01-hello.nika", &dest_s);
     match std::fs::write(dest, body) {
         Ok(()) => crate::output::VerbOutput::ok(format!(
             "wrote {} · {}",
@@ -809,7 +809,7 @@ fn cwd_workflows(cwd: &Path) -> Vec<String> {
         .filter_map(|e| {
             let name = e.file_name();
             let name = name.to_string_lossy();
-            if name.ends_with(".nika.yaml") || name.ends_with(".nika.yml") {
+            if nika_source::is_canonical_program_file_name(&name) {
                 Some(name.into_owned())
             } else {
                 None

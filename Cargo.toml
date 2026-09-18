@@ -211,12 +211,12 @@ layers.nika-schema = "L0"
 layers.nika-check = "L0"
 layers.nika-check-analyzer = "L0"
 layers.nika-source = "L0"
-# nika-vocab · the .nika.yaml configuration vocabulary (capture/decode/retry/
+# nika-vocab · the .nika configuration vocabulary (capture/decode/retry/
 # duration/secret/var+output declarations) · third member of the nika-schema
 # architectural unit (size-cap split · D-2026-07-09-N1 · the nika-source
 # precedent) — re-exported wholesale at nika_schema::types.
 layers.nika-vocab = "L0"
-# nika-migrate · the .nika.yaml envelope migrations (W1 map · W2 equivalence-
+# nika-migrate · the .nika envelope migrations (W1 map · W2 equivalence-
 # or-stop flow) · the repairs `check --fix` applies · split from nika-cli's
 # src/migrate.rs 2026-07-15 (the crate-size cap · the nika-source/nika-vocab
 # precedent) — pure std, zero deps, consumed by nika-cli's fix verb.

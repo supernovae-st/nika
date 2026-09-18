@@ -502,7 +502,7 @@ fn validate_workflow(workflow: &str) -> Result<(), ScheduleFinding> {
     if workflow.len() > MAX_SCHEDULE_WORKFLOW_BYTES || !valid_workflow_path(workflow) {
         return Err(ScheduleFinding::new(
             ScheduleFindingKind::Workflow,
-            "workflow is not a contained relative *.nika.yaml path",
+            "workflow is not a contained relative *.nika path",
         ));
     }
     Ok(())
@@ -652,7 +652,7 @@ mod tests {
     fn draft(when: ScheduleWhenDraft) -> ScheduleDraft {
         ScheduleDraft {
             id: "daily-report".into(),
-            workflow: "workflows/report.nika.yaml".into(),
+            workflow: "workflows/report.nika".into(),
             when,
             max_cost_usd: 0.25,
             missed: MissPolicy::RattraperUneFois,
@@ -712,7 +712,7 @@ mod tests {
     #[test]
     fn inputs_lower_from_the_beat_and_enter_the_revision_only_when_bound() {
         let registry = crate::parse_registry(
-            "nika: proj\narm:\n  - workflow: workflows/report.nika.yaml\n    cadence: \"TZ=UTC 0 9 * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme, limit: 5 }\n",
+            "nika: proj\narm:\n  - workflow: workflows/report.nika\n    cadence: \"TZ=UTC 0 9 * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme, limit: 5 }\n",
         )
         .expect("registry");
         let beat = registry.beats().next().expect("beat");
@@ -766,7 +766,7 @@ mod tests {
     #[test]
     fn boundaries_fail_closed_and_origins_do_not_collide() {
         let mut bad = draft(ScheduleWhenDraft::Webhook);
-        bad.workflow = "../../outside.nika.yaml".into();
+        bad.workflow = "../../outside.nika".into();
         assert_eq!(
             bad.validate().expect_err("path").kind(),
             ScheduleFindingKind::Workflow

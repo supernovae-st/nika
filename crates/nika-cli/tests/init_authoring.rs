@@ -133,7 +133,7 @@ fn claude_hooks_execute_from_a_nested_directory_and_preserve_user_settings() {
             .contains("nika")
     );
 
-    let workflow = project.join("dirty.nika.yaml");
+    let workflow = project.join("dirty.nika");
     std::fs::write(&workflow, "nika: dirty\npermits: {}\ntasks:\n  read:\n    invoke:\n      tool: nika:read\n      args: {path: secret.txt}\n").expect("negative workflow");
     let edit = hook(
         home.path(),
@@ -149,7 +149,7 @@ fn claude_hooks_execute_from_a_nested_directory_and_preserve_user_settings() {
         &project,
         &nested,
         command("PreToolUse"),
-        &serde_json::json!({"hook_event_name": "PreToolUse", "tool_input": {"command": "nika run dirty.nika.yaml"}, "cwd": project}),
+        &serde_json::json!({"hook_event_name": "PreToolUse", "tool_input": {"command": "nika run dirty.nika"}, "cwd": project}),
     );
     assert!(
         guard.status.success(),

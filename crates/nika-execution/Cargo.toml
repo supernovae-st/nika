@@ -14,6 +14,7 @@ publish                = false
 nika-types  = { path = "../nika-types", version = "0.120.0-dev" }
 nika-fs     = { path = "../nika-fs", version = "0.120.0-dev" }
 nika-schema = { path = "../nika-schema", version = "0.120.0-dev" }
+nika-source = { path = "../nika-source", version = "0.120.0-dev" } # lexical program-source naming (#1684)
 nika-check  = { path = "../nika-check", version = "0.120.0-dev" }
 nika-providers = { path = "../nika-providers", version = "0.120.0-dev" } # shared pure model-resolution judgment
 serde       = { workspace = true }

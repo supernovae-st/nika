@@ -107,11 +107,11 @@ fn fs_witnesses(frames: &[serde_json::Value]) -> Vec<&serde_json::Value> {
 fn a_permitted_builtin_read_journals_an_allow_witness() {
     let dir = std::env::temp_dir().join(format!("nika-witness-allow-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("scratch");
-    std::fs::write(dir.join("wf.nika.yaml"), WF_ALLOW).expect("workflow");
+    std::fs::write(dir.join("wf.nika"), WF_ALLOW).expect("workflow");
     std::fs::write(dir.join("allowed.txt"), "IN-BOUNDS\n").expect("honest file");
 
     let run = bin()
-        .args(["run", "wf.nika.yaml", "--json", "--color", "never"])
+        .args(["run", "wf.nika", "--json", "--color", "never"])
         .current_dir(&dir)
         .output()
         .expect("binary runs");
@@ -158,12 +158,12 @@ fn a_permitted_builtin_read_journals_an_allow_witness() {
 fn a_refused_builtin_read_journals_a_deny_witness_before_the_failure() {
     let dir = std::env::temp_dir().join(format!("nika-witness-deny-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("scratch");
-    std::fs::write(dir.join("wf.nika.yaml"), WF_DENY).expect("workflow");
+    std::fs::write(dir.join("wf.nika"), WF_DENY).expect("workflow");
     std::fs::write(dir.join("allowed.txt"), "IN-BOUNDS\n").expect("honest file");
     std::fs::write(dir.join("secret.txt"), "THE-SECRET\n").expect("secret");
 
     let run = bin()
-        .args(["run", "wf.nika.yaml", "--json", "--color", "never"])
+        .args(["run", "wf.nika", "--json", "--color", "never"])
         .current_dir(&dir)
         .output()
         .expect("binary runs");

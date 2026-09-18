@@ -177,7 +177,7 @@ pub enum TraceAction {
     Session {
         /// Trace NDJSON path (one `nika-event` Event per line).
         trace: PathBuf,
-        /// The workflow file the run executed (`*.nika.yaml`).
+        /// The workflow file the run executed (`*.nika`).
         workflow: String,
     },
     /// The data waterfall: which output fed which task, with recorded
@@ -187,7 +187,7 @@ pub enum TraceAction {
         /// Trace NDJSON path (default: the workspace's latest trace —
         /// `nika trace flow <workflow>` alone reads the last run).
         trace: Option<PathBuf>,
-        /// The workflow file the run executed (`*.nika.yaml`) — the
+        /// The workflow file the run executed (`*.nika`) — the
         /// trace records values, the definition records the bindings.
         workflow: Option<String>,
     },

@@ -190,7 +190,7 @@ tasks:
 
 fn nika_run(dir: &Path, envs: &[(String, String)]) -> Output {
     bin()
-        .args(["run", "w.nika.yaml", "--json", "--color", "never"])
+        .args(["run", "w.nika", "--json", "--color", "never"])
         .current_dir(dir)
         .envs(envs.iter().map(|(k, v)| (k, v)))
         .output()
@@ -235,7 +235,7 @@ fn sealed_covers(journal: &Path) -> serde_json::Value {
 fn the_seal_covers_carry_the_memory_fold() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let (pair, envs) = signing_key(tmp.path());
-    std::fs::write(tmp.path().join("w.nika.yaml"), WF).expect("workflow");
+    std::fs::write(tmp.path().join("w.nika"), WF).expect("workflow");
 
     // Seed the store: one honest entry…
     let dir = store_dir(&tmp.path().join(MEMORY_ROOT), "default").expect("the store dir");
@@ -327,7 +327,7 @@ fn the_seal_covers_carry_the_memory_fold() {
 fn a_run_without_a_memory_store_seals_no_memory_key() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let (_pair, envs) = signing_key(tmp.path());
-    std::fs::write(tmp.path().join("w.nika.yaml"), WF).expect("workflow");
+    std::fs::write(tmp.path().join("w.nika"), WF).expect("workflow");
     let run = nika_run(tmp.path(), &envs);
     assert_eq!(
         run.status.code(),
@@ -349,7 +349,7 @@ fn a_run_without_a_memory_store_seals_no_memory_key() {
 fn a_planted_file_at_the_memory_root_is_named_never_absent() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let (_pair, envs) = signing_key(tmp.path());
-    std::fs::write(tmp.path().join("w.nika.yaml"), WF).expect("workflow");
+    std::fs::write(tmp.path().join("w.nika"), WF).expect("workflow");
     // The plant: a regular file where the memory root must be a dir.
     std::fs::create_dir_all(tmp.path().join(".nika")).expect("the .nika dir");
     std::fs::write(tmp.path().join(MEMORY_ROOT), "not a directory").expect("the plant lands");

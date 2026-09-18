@@ -80,7 +80,7 @@ tasks:
     exec: { shell: "sleep 1" }
   call:
     after: { hold: success }
-    invoke: { workflow: "./child.nika.yaml" }
+    invoke: { workflow: "./child.nika" }
 "#;
 
 const RELATIVE_CHILD: &str = r#"
@@ -134,7 +134,7 @@ tasks:
     exec: { shell: "sleep 1" }
   child:
     after: { hold: success }
-    invoke: { workflow: "./child.nika.yaml" }
+    invoke: { workflow: "./child.nika" }
   review:
     after: { child: success }
     agent: { prompt: "apply captured guidance", skills: ["skill.md"] }
@@ -144,7 +144,7 @@ tasks:
 const DAILY_3AM: &str = concat!(
     "nika: proj\n",
     "arm:\n",
-    "  - workflow: workflows/doctor.nika.yaml\n",
+    "  - workflow: workflows/doctor.nika\n",
     "    cadence: \"TZ=UTC 0 3 * * *\"\n",
     "    plafond: 0.05\n",
     "    manqué: sauter\n",
@@ -249,7 +249,7 @@ fn assert_one_line(what: &std::process::Output) -> String {
 
 #[test]
 fn fire_runs_a_due_beat_and_records_it() {
-    let dir = project("due", DAILY_3AM, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("due", DAILY_3AM, &[("doctor.nika", TRUE)]);
     let out = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
         .current_dir(&dir)
@@ -327,16 +327,10 @@ fn direct_cli_projects_one_execution_identity_to_json_and_physical_trace() {
     let dir = project(
         "direct-execution-identity",
         DAILY_3AM,
-        &[("doctor.nika.yaml", TRUE)],
+        &[("doctor.nika", TRUE)],
     );
     let out = bin()
-        .args([
-            "run",
-            "workflows/doctor.nika.yaml",
-            "--json",
-            "--color",
-            "never",
-        ])
+        .args(["run", "workflows/doctor.nika", "--json", "--color", "never"])
         .current_dir(&dir)
         .output()
         .expect("spawn direct run");
@@ -381,7 +375,7 @@ fn forbidden_effect_fails_without_side_effect_and_keeps_exact_trace_identity() {
     let dir = project(
         "forbidden-effect",
         DAILY_3AM,
-        &[("doctor.nika.yaml", FORBIDDEN_WRITE)],
+        &[("doctor.nika", FORBIDDEN_WRITE)],
     );
     let out = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
@@ -449,10 +443,9 @@ fn direct_run_with_broken_output_pipe_returns_141_with_finalized_trace() {
             std::env::temp_dir().join(format!("nika-direct-pipe-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("workflows")).expect("workflows dir");
-        std::fs::write(dir.join("workflows/doctor.nika.yaml"), CLOSED_STDOUT)
-            .expect("workflow file");
+        std::fs::write(dir.join("workflows/doctor.nika"), CLOSED_STDOUT).expect("workflow file");
         let mut cmd = bin();
-        cmd.args(["run", "workflows/doctor.nika.yaml"])
+        cmd.args(["run", "workflows/doctor.nika"])
             .args(extra)
             .current_dir(&dir)
             .stdout(std::process::Stdio::piped())
@@ -486,7 +479,7 @@ fn closed_stdout_never_corrupts_trace_or_orphans_claim() {
     let dir = project(
         "closed-stdout-preflight",
         DAILY_3AM,
-        &[("doctor.nika.yaml", CLOSED_STDOUT)],
+        &[("doctor.nika", CLOSED_STDOUT)],
     );
     let out = bin_with_stream_setup("exec 1>&-; exec \"$@\"")
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
@@ -517,7 +510,7 @@ fn arm_fire_with_broken_run_pipe_settles_exact_trace() {
     let dir = project(
         "arm-broken-run-pipe",
         DAILY_3AM,
-        &[("doctor.nika.yaml", CLOSED_STDOUT)],
+        &[("doctor.nika", CLOSED_STDOUT)],
     );
     let mut child = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
@@ -558,13 +551,13 @@ fn arm_fire_with_broken_run_pipe_settles_exact_trace() {
 
 #[test]
 fn fire_keeps_pinned_parent_bytes_and_their_original_relative_child_base() {
-    let registry = DAILY_3AM.replace("doctor.nika.yaml", "parent.nika.yaml");
+    let registry = DAILY_3AM.replace("doctor.nika", "parent.nika");
     let dir = project(
         "relative-child-source-replacement",
         &registry,
         &[
-            ("parent.nika.yaml", RELATIVE_CHILD_PARENT),
-            ("child.nika.yaml", RELATIVE_CHILD),
+            ("parent.nika", RELATIVE_CHILD_PARENT),
+            ("child.nika", RELATIVE_CHILD),
         ],
     );
     let child = bin()
@@ -586,7 +579,7 @@ fn fire_keeps_pinned_parent_bytes_and_their_original_relative_child_base() {
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     let replacement = "nika: replacement\npermits: { exec: true }\ntasks:\n  fail:\n    exec: { shell: \"false\" }\n";
-    std::fs::write(dir.join("workflows/parent.nika.yaml"), replacement)
+    std::fs::write(dir.join("workflows/parent.nika"), replacement)
         .expect("replace source after claim");
     let out = child.wait_with_output().expect("fire settles");
     assert_eq!(
@@ -598,7 +591,7 @@ fn fire_keeps_pinned_parent_bytes_and_their_original_relative_child_base() {
     let line = assert_one_line(&out);
     assert!(line.starts_with("fired parent ·"), "{line}");
     assert_eq!(
-        std::fs::read_to_string(dir.join("workflows/parent.nika.yaml")).expect("replacement"),
+        std::fs::read_to_string(dir.join("workflows/parent.nika")).expect("replacement"),
         replacement,
         "the successful run came from the captured bytes, not a second file read"
     );
@@ -606,13 +599,13 @@ fn fire_keeps_pinned_parent_bytes_and_their_original_relative_child_base() {
 
 #[test]
 fn actual_arm_runner_uses_captured_child_and_skill_after_durable_claim() {
-    let registry = DAILY_3AM.replace("doctor.nika.yaml", "parent.nika.yaml");
+    let registry = DAILY_3AM.replace("doctor.nika", "parent.nika");
     let dir = project(
         "captured-child-skill-mutation",
         &registry,
         &[
-            ("parent.nika.yaml", CAPTURED_WORLD_PARENT),
-            ("child.nika.yaml", RELATIVE_CHILD),
+            ("parent.nika", CAPTURED_WORLD_PARENT),
+            ("child.nika", RELATIVE_CHILD),
             (
                 "skill.md",
                 "---\nname: captured\ndescription: captured guidance\n---\nOriginal.\n",
@@ -635,7 +628,7 @@ fn actual_arm_runner_uses_captured_child_and_skill_after_durable_claim() {
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     std::fs::write(
-        dir.join("workflows/child.nika.yaml"),
+        dir.join("workflows/child.nika"),
         "not: a valid nika workflow\n",
     )
     .expect("mutate child after claim");
@@ -657,11 +650,11 @@ fn actual_arm_runner_uses_captured_child_and_skill_after_durable_claim() {
 
 #[test]
 fn fire_resolves_relative_skills_from_the_declared_workflow_path() {
-    let registry = DAILY_3AM.replace("doctor.nika.yaml", "skilled.nika.yaml");
+    let registry = DAILY_3AM.replace("doctor.nika", "skilled.nika");
     let dir = project(
         "relative-skill",
         &registry,
-        &[("skilled.nika.yaml", RELATIVE_SKILL)],
+        &[("skilled.nika", RELATIVE_SKILL)],
     );
     std::fs::write(
         dir.join("workflows/skill.md"),
@@ -688,11 +681,11 @@ fn concurrent_labels_record_their_own_exact_trace_paths() {
     let registry = concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/alpha.nika.yaml\n",
+        "  - workflow: workflows/alpha.nika\n",
         "    cadence: \"TZ=UTC 0 3 * * *\"\n",
         "    plafond: 0.05\n",
         "    manqué: sauter\n",
-        "  - workflow: workflows/beta.nika.yaml\n",
+        "  - workflow: workflows/beta.nika\n",
         "    cadence: \"TZ=UTC 0 3 * * *\"\n",
         "    plafond: 0.05\n",
         "    manqué: sauter\n",
@@ -702,7 +695,7 @@ fn concurrent_labels_record_their_own_exact_trace_paths() {
     let dir = project(
         "concurrent-trace-identity",
         registry,
-        &[("alpha.nika.yaml", alpha), ("beta.nika.yaml", beta)],
+        &[("alpha.nika", alpha), ("beta.nika", beta)],
     );
     let spawn = |label: &str| {
         bin()
@@ -739,7 +732,7 @@ fn concurrent_labels_record_their_own_exact_trace_paths() {
 
 #[test]
 fn fire_skips_a_missed_slot_when_manque_is_sauter() {
-    let dir = project("missed", DAILY_3AM, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("missed", DAILY_3AM, &[("doctor.nika", TRUE)]);
     seed_fire(&dir, "doctor", "2026-08-18T03:02:00Z");
     let out = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T10:00:00Z"])
@@ -766,11 +759,11 @@ fn fire_refuses_an_unknown_label_and_names_the_known_ones() {
     let registry = concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/doctor.nika.yaml\n",
+        "  - workflow: workflows/doctor.nika\n",
         "    cadence: \"TZ=UTC 0 3 * * *\"\n",
         "    plafond: 0.05\n",
         "    manqué: sauter\n",
-        "  - workflow: workflows/nightly.nika.yaml\n",
+        "  - workflow: workflows/nightly.nika\n",
         "    cadence: \"TZ=UTC 0 4 * * *\"\n",
         "    plafond: 0.05\n",
         "    manqué: sauter\n",
@@ -778,7 +771,7 @@ fn fire_refuses_an_unknown_label_and_names_the_known_ones() {
     let dir = project(
         "unknown",
         registry,
-        &[("doctor.nika.yaml", TRUE), ("nightly.nika.yaml", TRUE)],
+        &[("doctor.nika", TRUE), ("nightly.nika", TRUE)],
     );
     let out = bin()
         .args(["arm", "fire", "bogus", "--now", "2026-08-19T03:02:00Z"])
@@ -794,7 +787,7 @@ fn fire_refuses_an_unknown_label_and_names_the_known_ones() {
 
 #[test]
 fn fire_skips_when_the_lock_is_held_by_a_living_owner() {
-    let dir = project("locked", DAILY_3AM, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("locked", DAILY_3AM, &[("doctor.nika", TRUE)]);
     let _lock = seed_lock(&dir, "doctor");
     let out = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
@@ -823,13 +816,13 @@ fn fire_with_file_policy_times_out_at_the_next_slot() {
     let registry = concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/doctor.nika.yaml\n",
+        "  - workflow: workflows/doctor.nika\n",
         "    cadence: \"TZ=UTC * * * * *\"\n",
         "    plafond: 0.05\n",
         "    manqué: sauter\n",
         "    chevauchement: file\n",
     );
-    let dir = project("queue", registry, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("queue", registry, &[("doctor.nika", TRUE)]);
     let _lock = seed_lock(&dir, "doctor");
     // 03:02:59.9 — the 03:02 slot is 59.9s old (on time), the next one
     // lands in 100ms: the queue waits the 100ms, then gives up.
@@ -855,7 +848,7 @@ fn fire_with_file_policy_times_out_at_the_next_slot() {
 fn fire_prints_exactly_one_stdout_line() {
     // The cheap branches, each pinning D8 (the run-bearing branches
     // assert the same in their own tests).
-    let dir = project("oneline", DAILY_3AM, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("oneline", DAILY_3AM, &[("doctor.nika", TRUE)]);
 
     // not-due: no state, the window long gone (N2 invents no backlog).
     let out = bin()
@@ -883,13 +876,13 @@ fn fire_refuses_the_v0_unsupported_policies_with_teaching() {
     let registry = concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/doctor.nika.yaml\n",
+        "  - workflow: workflows/doctor.nika\n",
         "    cadence: \"TZ=UTC 0 3 * * *\"\n",
         "    plafond: 0.05\n",
         "    manqué: sauter\n",
         "    chevauchement: remplacer\n",
     );
-    let dir = project("refuse", registry, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("refuse", registry, &[("doctor.nika", TRUE)]);
     let out = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
         .current_dir(&dir)
@@ -904,7 +897,7 @@ fn fire_refuses_the_v0_unsupported_policies_with_teaching() {
 
 #[test]
 fn a_paused_run_is_parked_never_answered() {
-    let dir = project("paused", DAILY_3AM, &[("doctor.nika.yaml", GATED)]);
+    let dir = project("paused", DAILY_3AM, &[("doctor.nika", GATED)]);
     let out = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
         .current_dir(&dir)
@@ -941,12 +934,12 @@ fn rattraper_une_fois_fires_one_run_for_the_whole_silence() {
     let registry = concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/doctor.nika.yaml\n",
+        "  - workflow: workflows/doctor.nika\n",
         "    cadence: \"TZ=UTC 0 3 * * *\"\n",
         "    plafond: 0.05\n",
         "    manqué: rattraper-une-fois\n",
     );
-    let dir = project("catchup", registry, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("catchup", registry, &[("doctor.nika", TRUE)]);
     seed_fire(&dir, "doctor", "2026-08-17T03:02:00Z");
     let out = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])

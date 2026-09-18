@@ -5,14 +5,14 @@ const PLAIN: Theme = Theme::new(false, false, false);
 #[test]
 fn skeleton_handoff_names_its_generated_filled_lesson() {
     let dir = fresh_base("paired-lesson");
-    let path = dir.join("batch.nika.yaml");
+    let path = dir.join("batch.nika");
     let output = run("bounded-batch", path.to_str(), false);
     assert_eq!(output.code, codes::OK);
     assert!(output.text.contains("<SLOT: …>"));
     assert!(
         output
             .text
-            .contains("nika new 18-bounded-batch example.nika.yaml")
+            .contains("nika new 18-bounded-batch example.nika")
     );
     assert!(
         discovery()
@@ -34,14 +34,11 @@ fn shell_quote_wraps_only_when_needed() {
     // A kebab path stays bare (the common case · no visual noise);
     // a spaced path is single-quoted so `nika run <it>` survives the
     // copy-paste (a wizard hand-off must not emit a broken command).
-    assert_eq!(shell_quote("my-flow.nika.yaml"), "my-flow.nika.yaml");
-    assert_eq!(shell_quote("a/b/c.nika.yaml"), "a/b/c.nika.yaml");
-    assert_eq!(
-        shell_quote("My Cool Flow.nika.yaml"),
-        "'My Cool Flow.nika.yaml'"
-    );
+    assert_eq!(shell_quote("my-flow.nika"), "my-flow.nika");
+    assert_eq!(shell_quote("a/b/c.nika"), "a/b/c.nika");
+    assert_eq!(shell_quote("My Cool Flow.nika"), "'My Cool Flow.nika'");
     // The `'` escape is the total POSIX form (close · escaped · open).
-    assert_eq!(shell_quote("it's.nika.yaml"), r"'it'\''s.nika.yaml'");
+    assert_eq!(shell_quote("it's.nika"), r"'it'\''s.nika'");
     // Shell metacharacters (a `;`/`$`/`&` in a pasted name) are quoted.
     assert_eq!(shell_quote("a;rm -rf.yaml"), "'a;rm -rf.yaml'");
 }
@@ -57,7 +54,7 @@ fn fresh_base(tag: &str) -> std::path::PathBuf {
 
 fn dest(tag: &str) -> String {
     std::env::temp_dir()
-        .join(format!("nika-new-{}-{tag}.nika.yaml", std::process::id()))
+        .join(format!("nika-new-{}-{tag}.nika", std::process::id()))
         .to_string_lossy()
         .into_owned()
 }
@@ -80,7 +77,7 @@ fn example_sources_land_verbatim_through_new() {
     let dir = std::env::temp_dir().join(format!("nika-new-example-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("mkdir");
-    let dest = dir.join("mine.nika.yaml");
+    let dest = dir.join("mine.nika");
     let dest_s = dest.to_string_lossy().into_owned();
 
     let out = run("01-hello", Some(&dest_s), false);
@@ -98,14 +95,14 @@ fn example_sources_land_verbatim_through_new() {
             == stamp(
                 &nika_pack::example("01-hello")
                     .expect("embedded")
-                    .replace("examples/01-hello.nika.yaml", &dest_s),
+                    .replace("examples/01-hello.nika", &dest_s),
                 "hello",
                 Some("mock/echo"),
             ),
         "B01 rehearsal take, self-reference re-pointed to the owned dest"
     );
     assert!(
-        !landed.contains("examples/01-hello.nika.yaml"),
+        !landed.contains("examples/01-hello.nika"),
         "no taught command may name the pack-only path"
     );
     // Filename form resolves too; overwrite refuses. FLIP
@@ -115,10 +112,7 @@ fn example_sources_land_verbatim_through_new() {
     // because the OLD router silently mis-routed the dead slug to a
     // template (exit 0 — the P0-1 bug class). It now probes a slug
     // that EXISTS and asserts the verbatim landing, like 01-hello.
-    assert_eq!(
-        run("01-hello.nika.yaml", Some(&dest_s), true).code,
-        codes::OK
-    );
+    assert_eq!(run("01-hello.nika", Some(&dest_s), true).code, codes::OK);
     assert_eq!(run("01-hello", Some(&dest_s), false).code, codes::ENV);
     let show = run("price-watch", Some(&dest_s), true);
     assert_eq!(show.code, codes::OK);
@@ -126,7 +120,7 @@ fn example_sources_land_verbatim_through_new() {
         std::fs::read_to_string(&dest).expect("written")
             == nika_pack::example("price-watch")
                 .expect("embedded")
-                .replace("examples/price-watch.nika.yaml", &dest_s),
+                .replace("examples/price-watch.nika", &dest_s),
         "verbatim, self-reference re-pointed — a flat-corpus example"
     );
 
@@ -143,7 +137,7 @@ fn a_routed_cadence_intent_carries_the_schedule_note() {
     let dir = std::env::temp_dir().join(format!("nika-cadence-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("mkdir");
-    let dest = dir.join("lundi.nika.yaml");
+    let dest = dir.join("lundi.nika");
     let dest_s = dest.to_string_lossy().into_owned();
 
     let out = run(
@@ -162,7 +156,7 @@ fn a_routed_cadence_intent_carries_the_schedule_note() {
     );
 
     // No cadence — no note (the note never becomes noise).
-    let dest2 = dir.join("plain.nika.yaml");
+    let dest2 = dir.join("plain.nika");
     let out = run(
         "analyser les tickets support et produire les priorités",
         Some(&dest2.to_string_lossy()),
@@ -423,9 +417,9 @@ fn resolve_model_accepts_only_a_menu_number_or_a_wire_id() {
 
 #[test]
 fn workflow_id_is_a_kebab_of_the_file_name() {
-    assert_eq!(workflow_id("my-first.nika.yaml"), "my-first");
-    assert_eq!(workflow_id("dir/Sub/PR Review.nika.yaml"), "pr-review");
-    assert_eq!(workflow_id(".nika.yaml"), "my-first");
+    assert_eq!(workflow_id("my-first.nika"), "my-first");
+    assert_eq!(workflow_id("dir/Sub/PR Review.nika"), "pr-review");
+    assert_eq!(workflow_id(".nika"), "my-first");
 }
 
 #[test]
@@ -598,8 +592,8 @@ fn new_hello_equals_new_01_hello_and_rehearses_on_mock_echo() {
     let dir = std::env::temp_dir().join(format!("nika-one-hello-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("mkdir");
-    let a = dir.join("a.nika.yaml");
-    let b = dir.join("b.nika.yaml");
+    let a = dir.join("a.nika");
+    let b = dir.join("b.nika");
     let a_s = a.to_string_lossy().into_owned();
     let b_s = b.to_string_lossy().into_owned();
     let out_a = run("hello", Some(&a_s), true);
@@ -694,7 +688,7 @@ fn read_wizard_three_enters_is_the_golden_path() {
     .expect("io ok")
     .expect("not cancelled");
     assert_eq!(w.template, "chain");
-    assert_eq!(w.dest, "my-first.nika.yaml");
+    assert_eq!(w.dest, "my-first.nika");
     assert!(w.model.as_deref().is_some_and(|m| m.starts_with("mock/")));
     let shown = String::from_utf8(out);
     assert!(shown.is_ok(), "wizard output must be UTF-8");
@@ -745,12 +739,12 @@ fn read_wizard_skips_the_model_question_when_the_template_takes_none() {
 fn wizard_default_dest_walks_past_collisions() {
     let base = fresh_base("collide");
     let b = base.to_str().expect("utf8");
-    assert_eq!(wizard_default_dest(b), "my-first.nika.yaml");
-    std::fs::write(base.join("my-first.nika.yaml"), "x").expect("seed");
-    assert_eq!(wizard_default_dest(b), "my-second.nika.yaml");
-    std::fs::write(base.join("my-second.nika.yaml"), "x").expect("seed");
-    std::fs::write(base.join("my-third.nika.yaml"), "x").expect("seed");
-    assert_eq!(wizard_default_dest(b), "my-4.nika.yaml");
+    assert_eq!(wizard_default_dest(b), "my-first.nika");
+    std::fs::write(base.join("my-first.nika"), "x").expect("seed");
+    assert_eq!(wizard_default_dest(b), "my-second.nika");
+    std::fs::write(base.join("my-second.nika"), "x").expect("seed");
+    std::fs::write(base.join("my-third.nika"), "x").expect("seed");
+    assert_eq!(wizard_default_dest(b), "my-4.nika");
     std::fs::remove_dir_all(&base).ok();
 }
 
@@ -785,7 +779,7 @@ fn read_wizard_routes_and_cancels_honestly() {
     .expect("io ok")
     .expect("not cancelled");
     assert_eq!(w.template, "fanout");
-    assert_eq!(w.dest, "batch.nika.yaml", "the suffix is appended");
+    assert_eq!(w.dest, "batch.nika", "the suffix is appended");
 
     let mut eof = std::io::Cursor::new(Vec::new());
     let mut out2 = Vec::new();
@@ -811,7 +805,7 @@ fn read_wizard_routes_and_cancels_honestly() {
 #[test]
 fn wizard_io_refuses_a_typed_existing_dest_and_force_overrides() {
     let base = fresh_base("refuse");
-    std::fs::write(base.join("my-first.nika.yaml"), "taken").expect("seed");
+    std::fs::write(base.join("my-first.nika"), "taken").expect("seed");
 
     let mut input = std::io::Cursor::new(b"\nmy-first\n\n".to_vec());
     let mut out = Vec::new();
@@ -827,7 +821,7 @@ fn wizard_io_refuses_a_typed_existing_dest_and_force_overrides() {
     assert_eq!(v.code, codes::ENV);
     assert!(v.text.contains("--force"), "must teach the override");
     assert!(
-        std::fs::read_to_string(base.join("my-first.nika.yaml")).expect("read") == "taken",
+        std::fs::read_to_string(base.join("my-first.nika")).expect("read") == "taken",
         "refused destination must stay untouched"
     );
 
@@ -844,7 +838,7 @@ fn wizard_io_refuses_a_typed_existing_dest_and_force_overrides() {
     );
     assert_eq!(v2.code, codes::OK);
     assert!(
-        std::fs::read_to_string(base.join("my-first.nika.yaml"))
+        std::fs::read_to_string(base.join("my-first.nika"))
             .expect("read")
             .contains("nika: my-first"),
         "--force overwrote with the stamped template"
@@ -873,7 +867,7 @@ fn wizard_io_materializes_a_stamped_file() {
     // The wow contract: the wizard SHOWS the audit ladder — the file
     // arrives already checked, not with a suggestion to check.
     assert!(v.text.contains("audited"), "the ladder must run");
-    let written = std::fs::read_to_string(dir.join("first.nika.yaml")).expect("file written");
+    let written = std::fs::read_to_string(dir.join("first.nika")).expect("file written");
     assert!(written.contains("nika: first"));
     std::fs::remove_dir_all(&dir).ok();
 }
@@ -963,7 +957,7 @@ fn taught_lines_survive_the_paste_back() {
         .unwrap_or("");
     if nika_pack::template(name).is_some() {
         assert!(
-            taught.ends_with("<dest>.nika.yaml"),
+            taught.ends_with("<dest>.nika"),
             "a skeleton hint must teach its destination"
         );
     } else {
@@ -984,7 +978,7 @@ fn taught_lines_survive_the_paste_back() {
     assert_eq!(out.code, codes::ENV);
     assert!(
         out.text
-            .contains("nika new 'report on my running docker containers' <dest>.nika.yaml"),
+            .contains("nika new 'report on my running docker containers' <dest>.nika"),
         "the taught paste-back must be one shell argument"
     );
 }

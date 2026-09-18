@@ -369,7 +369,7 @@ workflows on its own.
 - `nika-author` subagent: route the intent to a template, fill the
   `# SLOT:` markers, loop `nika check` until rc=0 — read-only, never
   runs the workflow.
-- check-on-edit hook (Cursor): every agent edit to a `*.nika.yaml` is
+- check-on-edit hook (Cursor): every agent edit to a `*.nika` is
   audited immediately; findings in the hook log, never a block.
 - The language rule ships as a bundled file (byte-identical to the
   `nika init` template) and the brand logo replaces the generic tile.

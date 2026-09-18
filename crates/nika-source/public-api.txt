@@ -1,4 +1,41 @@
 pub mod nika_source
+#[non_exhaustive] pub enum nika_source::SourceNameKind
+pub nika_source::SourceNameKind::CanonicalProgram
+pub nika_source::SourceNameKind::Other
+pub nika_source::SourceNameKind::ProjectFile
+pub nika_source::SourceNameKind::RetiredProgram
+pub nika_source::SourceNameKind::RuntimeDir
+impl core::clone::Clone for nika_source::SourceNameKind
+pub fn nika_source::SourceNameKind::clone(&self) -> nika_source::SourceNameKind
+impl core::cmp::Eq for nika_source::SourceNameKind
+impl core::cmp::PartialEq for nika_source::SourceNameKind
+pub fn nika_source::SourceNameKind::eq(&self, other: &nika_source::SourceNameKind) -> bool
+impl core::fmt::Debug for nika_source::SourceNameKind
+pub fn nika_source::SourceNameKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_source::SourceNameKind
+impl core::marker::StructuralPartialEq for nika_source::SourceNameKind
+impl<T, U> core::convert::Into<U> for nika_source::SourceNameKind where U: core::convert::From<T>
+pub fn nika_source::SourceNameKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_source::SourceNameKind where U: core::convert::Into<T>
+pub type nika_source::SourceNameKind::Error = never
+pub fn nika_source::SourceNameKind::try_from(value: U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for nika_source::SourceNameKind where U: core::convert::TryFrom<T>
+pub type nika_source::SourceNameKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_source::SourceNameKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_source::SourceNameKind where T: core::clone::Clone
+pub type nika_source::SourceNameKind::Owned = T
+pub fn nika_source::SourceNameKind::clone_into(&self, target: &mut T)
+pub fn nika_source::SourceNameKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_source::SourceNameKind where T: 'static + ?core::marker::Sized
+pub fn nika_source::SourceNameKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_source::SourceNameKind where T: ?core::marker::Sized
+pub fn nika_source::SourceNameKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_source::SourceNameKind where T: ?core::marker::Sized
+pub fn nika_source::SourceNameKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_source::SourceNameKind where T: core::clone::Clone
+pub unsafe fn nika_source::SourceNameKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_source::SourceNameKind
+pub fn nika_source::SourceNameKind::from(t: T) -> T
 #[non_exhaustive] pub struct nika_source::ByteOffset(pub u32)
 impl nika_source::ByteOffset
 pub fn nika_source::ByteOffset::as_usize(self) -> usize
@@ -29,8 +66,8 @@ pub fn nika_source::ByteOffset::deserialize<__D>(__deserializer: __D) -> core::r
 impl<T, U> core::convert::Into<U> for nika_source::ByteOffset where U: core::convert::From<T>
 pub fn nika_source::ByteOffset::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_source::ByteOffset where U: core::convert::Into<T>
-pub type nika_source::ByteOffset::Error = core::convert::Infallible
-pub fn nika_source::ByteOffset::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+pub type nika_source::ByteOffset::Error = never
+pub fn nika_source::ByteOffset::try_from(value: U) -> core::result::Result<T, never>
 impl<T, U> core::convert::TryInto<U> for nika_source::ByteOffset where U: core::convert::TryFrom<T>
 pub type nika_source::ByteOffset::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_source::ByteOffset::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -76,8 +113,8 @@ pub fn nika_source::FileId::deserialize<__D>(__deserializer: __D) -> core::resul
 impl<T, U> core::convert::Into<U> for nika_source::FileId where U: core::convert::From<T>
 pub fn nika_source::FileId::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_source::FileId where U: core::convert::Into<T>
-pub type nika_source::FileId::Error = core::convert::Infallible
-pub fn nika_source::FileId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+pub type nika_source::FileId::Error = never
+pub fn nika_source::FileId::try_from(value: U) -> core::result::Result<T, never>
 impl<T, U> core::convert::TryInto<U> for nika_source::FileId where U: core::convert::TryFrom<T>
 pub type nika_source::FileId::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_source::FileId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -121,8 +158,8 @@ pub fn nika_source::LineCol::deserialize<__D>(__deserializer: __D) -> core::resu
 impl<T, U> core::convert::Into<U> for nika_source::LineCol where U: core::convert::From<T>
 pub fn nika_source::LineCol::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_source::LineCol where U: core::convert::Into<T>
-pub type nika_source::LineCol::Error = core::convert::Infallible
-pub fn nika_source::LineCol::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+pub type nika_source::LineCol::Error = never
+pub fn nika_source::LineCol::try_from(value: U) -> core::result::Result<T, never>
 impl<T, U> core::convert::TryInto<U> for nika_source::LineCol where U: core::convert::TryFrom<T>
 pub type nika_source::LineCol::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_source::LineCol::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -154,8 +191,8 @@ pub fn nika_source::SourceFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> 
 impl<T, U> core::convert::Into<U> for nika_source::SourceFile where U: core::convert::From<T>
 pub fn nika_source::SourceFile::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_source::SourceFile where U: core::convert::Into<T>
-pub type nika_source::SourceFile::Error = core::convert::Infallible
-pub fn nika_source::SourceFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+pub type nika_source::SourceFile::Error = never
+pub fn nika_source::SourceFile::try_from(value: U) -> core::result::Result<T, never>
 impl<T, U> core::convert::TryInto<U> for nika_source::SourceFile where U: core::convert::TryFrom<T>
 pub type nika_source::SourceFile::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_source::SourceFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -188,8 +225,8 @@ pub fn nika_source::SourceRegistry::fmt(&self, f: &mut core::fmt::Formatter<'_>)
 impl<T, U> core::convert::Into<U> for nika_source::SourceRegistry where U: core::convert::From<T>
 pub fn nika_source::SourceRegistry::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_source::SourceRegistry where U: core::convert::Into<T>
-pub type nika_source::SourceRegistry::Error = core::convert::Infallible
-pub fn nika_source::SourceRegistry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+pub type nika_source::SourceRegistry::Error = never
+pub fn nika_source::SourceRegistry::try_from(value: U) -> core::result::Result<T, never>
 impl<T, U> core::convert::TryInto<U> for nika_source::SourceRegistry where U: core::convert::TryFrom<T>
 pub type nika_source::SourceRegistry::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_source::SourceRegistry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -232,8 +269,8 @@ pub fn nika_source::Span::deserialize<__D>(__deserializer: __D) -> core::result:
 impl<T, U> core::convert::Into<U> for nika_source::Span where U: core::convert::From<T>
 pub fn nika_source::Span::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_source::Span where U: core::convert::Into<T>
-pub type nika_source::Span::Error = core::convert::Infallible
-pub fn nika_source::Span::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+pub type nika_source::Span::Error = never
+pub fn nika_source::Span::try_from(value: U) -> core::result::Result<T, never>
 impl<T, U> core::convert::TryInto<U> for nika_source::Span where U: core::convert::TryFrom<T>
 pub type nika_source::Span::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_source::Span::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -270,8 +307,8 @@ pub fn nika_source::Spanned<T>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> 
 impl<T, U> core::convert::Into<U> for nika_source::Spanned<T> where U: core::convert::From<T>
 pub fn nika_source::Spanned<T>::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_source::Spanned<T> where U: core::convert::Into<T>
-pub type nika_source::Spanned<T>::Error = core::convert::Infallible
-pub fn nika_source::Spanned<T>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+pub type nika_source::Spanned<T>::Error = never
+pub fn nika_source::Spanned<T>::try_from(value: U) -> core::result::Result<T, never>
 impl<T, U> core::convert::TryInto<U> for nika_source::Spanned<T> where U: core::convert::TryFrom<T>
 pub type nika_source::Spanned<T>::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_source::Spanned<T>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -289,3 +326,19 @@ impl<T> core::clone::CloneToUninit for nika_source::Spanned<T> where T: core::cl
 pub unsafe fn nika_source::Spanned<T>::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_source::Spanned<T>
 pub fn nika_source::Spanned<T>::from(t: T) -> T
+pub const nika_source::PROGRAM_GLOB: &str
+pub const nika_source::PROGRAM_GLOB_RECURSIVE: &str
+pub const nika_source::PROGRAM_SUFFIX: &str
+pub const nika_source::PROJECT_FILE_NAME: &str
+pub const nika_source::RETIRED_PROGRAM_SUFFIXES: [&str; 2]
+pub const nika_source::RUNTIME_DIR_NAME: &str
+pub fn nika_source::classify_file_name(name: &str) -> nika_source::SourceNameKind
+pub fn nika_source::classify_path(path: &str) -> nika_source::SourceNameKind
+pub fn nika_source::is_canonical_program_file_name(name: &str) -> bool
+pub fn nika_source::is_canonical_program_path(path: &str) -> bool
+pub fn nika_source::is_retired_program_file_name(name: &str) -> bool
+pub fn nika_source::path_file_name(path: &str) -> core::option::Option<&str>
+pub fn nika_source::program_stem(file_name: &str) -> core::option::Option<&str>
+pub fn nika_source::retired_rename_hint(file_name: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_source::typed_stem(name: &str) -> &str
+pub fn nika_source::with_program_suffix(path: &str) -> core::option::Option<alloc::string::String>

@@ -1,7 +1,7 @@
 {
   "name": "sonde-neverborn",
   "workflow": {
-    "file": "sonde-neverborn.nika.yaml",
+    "file": "sonde-neverborn.nika",
     "engine": "0.108.0",
     "prompt": "sonde",
     "permits": [],

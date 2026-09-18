@@ -3,7 +3,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 #![allow(clippy::disallowed_methods)]
 
-//! Every published spec example (`nika-spec/examples/*.nika.yaml`)
+//! Every published spec example (`nika-spec/examples/*.nika`)
 //! parses + analyzes VALID in strict mode — the examples are normative
 //! showcase code; an engine that rejects them is non-conformant.
 
@@ -29,7 +29,7 @@ fn all_spec_examples_are_valid_strict() {
     let mut entries: Vec<PathBuf> = std::fs::read_dir(&examples)
         .expect("read examples dir")
         .map(|e| e.expect("dir entry").path())
-        .filter(|p| p.to_string_lossy().ends_with(".nika.yaml"))
+        .filter(|p| p.to_string_lossy().ends_with(".nika"))
         .collect();
     entries.sort();
 

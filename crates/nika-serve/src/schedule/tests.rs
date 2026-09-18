@@ -12,7 +12,7 @@ use super::*;
 
 fn draft(id: impl Into<String>, workflow: impl Into<String>) -> ScheduleDraft {
     let registry = parse_registry(
-        "nika: store-tests\narm:\n  - workflow: base.nika.yaml\n    cadence: on-webhook\n    plafond: 0.25\n    manqué: rattraper-une-fois\n",
+        "nika: store-tests\narm:\n  - workflow: base.nika\n    cadence: on-webhook\n    plafond: 0.25\n    manqué: rattraper-une-fois\n",
     )
     .expect("registry");
     let beat = registry.beats().next().expect("beat");
@@ -97,13 +97,13 @@ fn same_create_apply_twice_is_unchanged() {
 
     let first = store
         .apply(
-            draft("daily", "daily.nika.yaml"),
+            draft("daily", "daily.nika"),
             ScheduleApplyPrecondition::Create,
         )
         .expect("create");
     let second = store
         .apply(
-            draft("daily", "daily.nika.yaml"),
+            draft("daily", "daily.nika"),
             ScheduleApplyPrecondition::Create,
         )
         .expect("retry");
@@ -116,11 +116,11 @@ fn same_create_apply_twice_is_unchanged() {
 fn equivalent_cadence_forms_are_one_normalized_spec() {
     let root = tempfile::tempdir().expect("root");
     let store = ScheduleStore::open(root.path()).expect("store");
-    let mut readable = draft("weekly", "weekly.nika.yaml");
+    let mut readable = draft("weekly", "weekly.nika");
     readable.when = ScheduleWhenDraft::Cadence {
         expression: "TZ=Europe/Paris lundi 9h00".to_owned(),
     };
-    let mut cron = draft("weekly", "weekly.nika.yaml");
+    let mut cron = draft("weekly", "weekly.nika");
     cron.when = ScheduleWhenDraft::Cadence {
         expression: " TZ=Europe/Paris  0 9 * * 1 ".to_owned(),
     };
@@ -143,29 +143,25 @@ async fn two_revision_a_updates_have_one_winner() {
     let second_store = Arc::new(ScheduleStore::open(root.path()).expect("second store"));
     let revision = created_revision(
         first_store
-            .apply(
-                draft("daily", "a.nika.yaml"),
-                ScheduleApplyPrecondition::Create,
-            )
+            .apply(draft("daily", "a.nika"), ScheduleApplyPrecondition::Create)
             .expect("create"),
     )
     .expect("created outcome");
     let barrier = Arc::new(tokio::sync::Barrier::new(3));
 
-    let handles =
-        [(first_store, "b.nika.yaml"), (second_store, "c.nika.yaml")].map(|(store, workflow)| {
-            let barrier = Arc::clone(&barrier);
-            let revision = revision.clone();
-            tokio::spawn(async move {
-                barrier.wait().await;
-                store
-                    .apply(
-                        draft("daily", workflow),
-                        ScheduleApplyPrecondition::Revision(revision),
-                    )
-                    .expect("apply")
-            })
-        });
+    let handles = [(first_store, "b.nika"), (second_store, "c.nika")].map(|(store, workflow)| {
+        let barrier = Arc::clone(&barrier);
+        let revision = revision.clone();
+        tokio::spawn(async move {
+            barrier.wait().await;
+            store
+                .apply(
+                    draft("daily", workflow),
+                    ScheduleApplyPrecondition::Revision(revision),
+                )
+                .expect("apply")
+        })
+    });
     barrier.wait().await;
     let mut outcomes = Vec::new();
     for handle in handles {
@@ -194,23 +190,20 @@ fn lost_update_response_retries_as_unchanged() {
     let store = ScheduleStore::open(root.path()).expect("store");
     let revision = created_revision(
         store
-            .apply(
-                draft("daily", "a.nika.yaml"),
-                ScheduleApplyPrecondition::Create,
-            )
+            .apply(draft("daily", "a.nika"), ScheduleApplyPrecondition::Create)
             .expect("create"),
     )
     .expect("created outcome");
 
     let updated = store
         .apply(
-            draft("daily", "b.nika.yaml"),
+            draft("daily", "b.nika"),
             ScheduleApplyPrecondition::Revision(revision.clone()),
         )
         .expect("update");
     let retried = store
         .apply(
-            draft("daily", "b.nika.yaml"),
+            draft("daily", "b.nika"),
             ScheduleApplyPrecondition::Revision(revision),
         )
         .expect("retry");
@@ -225,7 +218,7 @@ fn restart_recovers_and_replays() {
     let store = ScheduleStore::open(root.path()).expect("store");
     store
         .apply(
-            draft("daily", "daily.nika.yaml"),
+            draft("daily", "daily.nika"),
             ScheduleApplyPrecondition::Create,
         )
         .expect("create");
@@ -234,7 +227,7 @@ fn restart_recovers_and_replays() {
     let reopened = ScheduleStore::open(root.path()).expect("reopen");
     let outcome = reopened
         .apply(
-            draft("daily", "daily.nika.yaml"),
+            draft("daily", "daily.nika"),
             ScheduleApplyPrecondition::Create,
         )
         .expect("replay");
@@ -248,7 +241,7 @@ fn consumed_once_and_origin_collision_survive_restart() {
     let api = created_definition(
         store
             .apply(
-                once_draft("same", "base.nika.yaml"),
+                once_draft("same", "base.nika"),
                 ScheduleApplyPrecondition::Create,
             )
             .expect("create"),
@@ -311,14 +304,14 @@ fn mutation_immediately_before_claim_invalidates_stale_candidate() {
     let old = created_definition(
         store
             .apply(
-                once_draft("near-fire", "base.nika.yaml"),
+                once_draft("near-fire", "base.nika"),
                 ScheduleApplyPrecondition::Create,
             )
             .expect("create"),
     )
     .expect("created definition");
     let slot = due_once(&old);
-    let updated = once_draft("near-fire", "changed.nika.yaml");
+    let updated = once_draft("near-fire", "changed.nika");
     assert!(matches!(
         store
             .apply(updated, ScheduleApplyPrecondition::Revision(old.revision()))
@@ -352,7 +345,7 @@ fn durable_decisions_are_monotone_and_have_a_fixed_count_ceiling() {
     let root = tempfile::tempdir().expect("root");
     let store = ScheduleStore::open(root.path()).expect("store");
     let decided_at: Timestamp = "2026-09-01T10:00:01Z".parse().expect("decision time");
-    let newer = once_draft("monotone", "base.nika.yaml")
+    let newer = once_draft("monotone", "base.nika")
         .validate()
         .expect("newer definition");
     let newer_slot = due_once(&newer);
@@ -369,7 +362,7 @@ fn durable_decisions_are_monotone_and_have_a_fixed_count_ceiling() {
             )
             .expect("newer claim")
     );
-    let mut older_draft = once_draft("monotone", "base.nika.yaml");
+    let mut older_draft = once_draft("monotone", "base.nika");
     older_draft.when = ScheduleWhenDraft::Once {
         at: "2026-08-01T09:00:00Z".to_owned(),
     };
@@ -399,7 +392,7 @@ fn durable_decisions_are_monotone_and_have_a_fixed_count_ceiling() {
     );
 
     for index in 1..super::model::MAX_DURABLE_SCHEDULE_DECISIONS {
-        let definition = once_draft(&format!("bounded-{index}"), "base.nika.yaml")
+        let definition = once_draft(&format!("bounded-{index}"), "base.nika")
             .validate()
             .expect("bounded definition");
         let slot = due_once(&definition);
@@ -417,7 +410,7 @@ fn durable_decisions_are_monotone_and_have_a_fixed_count_ceiling() {
                 .expect("within decision bound")
         );
     }
-    let excess = once_draft("one-decision-too-many", "base.nika.yaml")
+    let excess = once_draft("one-decision-too-many", "base.nika")
         .validate()
         .expect("excess definition");
     let excess_slot = due_once(&excess);
@@ -440,7 +433,7 @@ fn durable_decisions_are_monotone_and_have_a_fixed_count_ceiling() {
 fn unknown_persisted_decision_enum_refuses_recovery() {
     let root = tempfile::tempdir().expect("root");
     let store = ScheduleStore::open(root.path()).expect("store");
-    let definition = once_draft("closed-decision", "base.nika.yaml")
+    let definition = once_draft("closed-decision", "base.nika")
         .validate()
         .expect("definition");
     let slot = due_once(&definition);
@@ -521,7 +514,7 @@ fn oversized_id_spec_and_count_refuse_without_mutation() {
     let store = ScheduleStore::open(root.path()).expect("store");
     let bad_id = store
         .apply(
-            draft("x".repeat(256), "x.nika.yaml"),
+            draft("x".repeat(256), "x.nika"),
             ScheduleApplyPrecondition::Create,
         )
         .expect_err("id");
@@ -531,7 +524,7 @@ fn oversized_id_spec_and_count_refuse_without_mutation() {
             if finding.kind() == ScheduleFindingKind::Id
     ));
 
-    let mut oversized = draft("oversized", format!("{}.nika.yaml", "w".repeat(1014)));
+    let mut oversized = draft("oversized", format!("{}.nika", "w".repeat(1014)));
     oversized.active = Some(false);
     oversized.pause_reason = Some("\0".repeat(1_024));
     oversized.pause_until = Some("2026-12-31".to_owned());
@@ -543,13 +536,13 @@ fn oversized_id_spec_and_count_refuse_without_mutation() {
     for index in 0..MAX_API_SCHEDULES {
         store
             .apply(
-                draft(format!("item-{index}"), "x.nika.yaml"),
+                draft(format!("item-{index}"), "x.nika"),
                 ScheduleApplyPrecondition::Create,
             )
             .expect("within count");
     }
     assert!(matches!(
-        store.apply(draft("one-too-many", "x.nika.yaml"), ScheduleApplyPrecondition::Create),
+        store.apply(draft("one-too-many", "x.nika"), ScheduleApplyPrecondition::Create),
         Err(ScheduleStoreError::ScheduleLimit { maximum }) if maximum == MAX_API_SCHEDULES
     ));
 }
@@ -559,7 +552,7 @@ fn non_finite_and_non_positive_costs_refuse_through_canonical_validation() {
     let root = tempfile::tempdir().expect("root");
     let store = ScheduleStore::open(root.path()).expect("store");
     for cost in [f64::NAN, -1.0, f64::INFINITY] {
-        let mut candidate = draft("cost", "x.nika.yaml");
+        let mut candidate = draft("cost", "x.nika");
         candidate.max_cost_usd = cost;
         assert!(matches!(
             store.apply(candidate, ScheduleApplyPrecondition::Create),
@@ -575,12 +568,12 @@ fn representation_is_deterministic_across_apply_order() {
     let right = tempfile::tempdir().expect("right");
     let left_store = ScheduleStore::open(left.path()).expect("left store");
     let right_store = ScheduleStore::open(right.path()).expect("right store");
-    for candidate in [draft("b", "b.nika.yaml"), draft("a", "a.nika.yaml")] {
+    for candidate in [draft("b", "b.nika"), draft("a", "a.nika")] {
         left_store
             .apply(candidate, ScheduleApplyPrecondition::Create)
             .expect("left apply");
     }
-    for candidate in [draft("a", "a.nika.yaml"), draft("b", "b.nika.yaml")] {
+    for candidate in [draft("a", "a.nika"), draft("b", "b.nika")] {
         right_store
             .apply(candidate, ScheduleApplyPrecondition::Create)
             .expect("right apply");
@@ -598,7 +591,7 @@ fn stale_and_absent_update_revisions_cannot_overwrite() {
     let store = ScheduleStore::open(root.path()).expect("store");
     let absent = store
         .apply(
-            draft("missing", "x.nika.yaml"),
+            draft("missing", "x.nika"),
             ScheduleApplyPrecondition::Revision(
                 ScheduleRevision::from_wire(&format!("sha256:{}", "0".repeat(64)))
                     .expect("revision"),
@@ -612,23 +605,20 @@ fn stale_and_absent_update_revisions_cannot_overwrite() {
 
     let original = created_revision(
         store
-            .apply(
-                draft("daily", "a.nika.yaml"),
-                ScheduleApplyPrecondition::Create,
-            )
+            .apply(draft("daily", "a.nika"), ScheduleApplyPrecondition::Create)
             .expect("create"),
     )
     .expect("created outcome");
     let changed = store
         .apply(
-            draft("daily", "b.nika.yaml"),
+            draft("daily", "b.nika"),
             ScheduleApplyPrecondition::Revision(original.clone()),
         )
         .expect("change");
     assert!(matches!(changed, ScheduleApplyOutcome::Updated(_)));
     let conflict = store
         .apply(
-            draft("daily", "c.nika.yaml"),
+            draft("daily", "c.nika"),
             ScheduleApplyPrecondition::Revision(original),
         )
         .expect("conflict");
@@ -644,7 +634,7 @@ fn persisted_schema_refuses_secret_fields() {
     let store = ScheduleStore::open(root.path()).expect("store");
     store
         .apply(
-            draft("daily", "daily.nika.yaml"),
+            draft("daily", "daily.nika"),
             ScheduleApplyPrecondition::Create,
         )
         .expect("create");

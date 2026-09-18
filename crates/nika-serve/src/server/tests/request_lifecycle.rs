@@ -89,7 +89,7 @@ async fn presented_invalid_credentials_share_one_bounded_401_without_secrets() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend, limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
+    let body = r#"{"workflow":"root.nika"}"#;
     let variants = [
         "Authorization: Bearer \r\n".to_owned(),
         "Authorization: Bearer short-token\r\n".to_owned(),
@@ -272,7 +272,7 @@ async fn a_job_access_pin_is_the_cli_pin_and_absence_inherits_the_resident() {
 
     let pinned = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml","access":"mock"}"#,
+            r#"{"workflow":"root.nika","access":"mock"}"#,
             "pin-mock",
             &auth_header(),
         ))
@@ -289,7 +289,7 @@ async fn a_job_access_pin_is_the_cli_pin_and_absence_inherits_the_resident() {
 
     let unpinned = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "pin-absent",
             &auth_header(),
         ))
@@ -312,7 +312,7 @@ async fn non_string_access_is_refused_before_registry_capture() {
     for (index, access) in ["null", "false", "42", "[]", "{}"].iter().enumerate() {
         // The absent name proves validation happens before registry capture:
         // a valid request for it would instead return not_found.
-        for name in ["root.nika.yaml", "missing.nika.yaml"] {
+        for name in ["root.nika", "missing.nika"] {
             let body = format!(r#"{{"workflow":"{name}","access":{access}}}"#);
             let response = server
                 .request(&post_request(
@@ -339,7 +339,7 @@ async fn an_empty_access_pin_is_nika_1802_and_never_reaches_the_backend() {
 
     let empty = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml","access":""}"#,
+            r#"{"workflow":"root.nika","access":""}"#,
             "pin-empty",
             &auth_header(),
         ))
@@ -358,7 +358,7 @@ async fn an_empty_access_pin_is_nika_1802_and_never_reaches_the_backend() {
 
     let blank = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml","access":"   "}"#,
+            r#"{"workflow":"root.nika","access":"   "}"#,
             "pin-blank",
             &auth_header(),
         ))
@@ -377,7 +377,7 @@ async fn a_backend_that_does_not_honor_access_refuses_the_pin_unpinned() {
 
     let pinned = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml","access":"mock"}"#,
+            r#"{"workflow":"root.nika","access":"mock"}"#,
             "pin-default-backend",
             &auth_header(),
         ))
@@ -407,7 +407,7 @@ async fn create_read_and_status_use_real_loopback_and_execution_service() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend.clone(), limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
+    let body = r#"{"workflow":"root.nika"}"#;
 
     let created = server
         .request(&post_request(body, "create-read", &auth_header()))
@@ -443,7 +443,7 @@ async fn paused_is_preserved_by_both_job_response_types() {
     let server = world.start(backend, limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "paused-job",
             &auth_header(),
         ))
@@ -495,12 +495,12 @@ async fn traversal_extension_confusion_and_oversize_never_execute() {
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend.clone(), limits()).await;
     for (index, workflow) in [
-        "../root.nika.yaml",
-        "/tmp/root.nika.yaml",
-        "root.nika.yml",
-        "nested\\root.nika.yaml",
-        "root.nika.yaml%2fchild.nika.yaml",
-        "ghost.nika.yaml",
+        "../root.nika",
+        "/tmp/root.nika",
+        "root.nika",
+        "nested\\root.nika",
+        "root.nika%2fchild.nika",
+        "ghost.nika",
     ]
     .into_iter()
     .enumerate()
@@ -605,12 +605,12 @@ async fn symlinked_workflow_refuses_before_backend_execution() {
     let world = TestWorld::new();
     let outside = tempfile::NamedTempFile::new().expect("outside workflow");
     std::fs::write(outside.path(), WORKFLOW).expect("outside bytes");
-    symlink(outside.path(), world.workflows.join("linked.nika.yaml")).expect("workflow symlink");
+    symlink(outside.path(), world.workflows.join("linked.nika")).expect("workflow symlink");
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend.clone(), limits()).await;
     let response = server
         .request(&post_request(
-            r#"{"workflow":"linked.nika.yaml"}"#,
+            r#"{"workflow":"linked.nika"}"#,
             "symlinked-workflow",
             &auth_header(),
         ))
@@ -733,7 +733,7 @@ async fn active_and_queue_boundaries_refuse_the_first_excess_job() {
     let world = TestWorld::new();
     let backend = Arc::new(GatedBackend::new());
     let server = world.start(backend.clone(), bounded_queue_limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
+    let body = r#"{"workflow":"root.nika"}"#;
     let mut accepted = Vec::new();
 
     for index in 0..4 {
@@ -777,7 +777,7 @@ async fn durable_job_capacity_is_stable_and_replay_remains_available() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend, one_job_limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
+    let body = r#"{"workflow":"root.nika"}"#;
     let first = server
         .request(&post_request(body, "capacity-first", &auth_header()))
         .await;
@@ -823,7 +823,7 @@ async fn execution_deadline_interrupts_without_outliving_the_server() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::hangs());
     let server = world.start(backend.clone(), short_execution_limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
+    let body = r#"{"workflow":"root.nika"}"#;
     let created = server
         .request(&post_request(body, "execution-timeout", &auth_header()))
         .await;
@@ -843,7 +843,7 @@ async fn concurrent_identical_posts_start_exactly_one_execution() {
     let server = world.start(backend.clone(), limits()).await;
     let address = server.address;
     let request = post_request(
-        r#"{"workflow":"root.nika.yaml"}"#,
+        r#"{"workflow":"root.nika"}"#,
         "concurrent-replay",
         &auth_header(),
     );
@@ -876,7 +876,7 @@ async fn restart_settles_running_job_and_replay_never_reexecutes() {
     let world = TestWorld::new();
     let hanging = Arc::new(TestBackend::hangs());
     let first = world.start(hanging.clone(), short_shutdown_limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
+    let body = r#"{"workflow":"root.nika"}"#;
     let created = first
         .request(&post_request(body, "restart-interrupted", &auth_header()))
         .await;
@@ -980,7 +980,7 @@ async fn shutdown_contention_joins_owner_and_next_startup_settles_running() {
     let server = world.start(backend, short_shutdown_limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "shutdown-contention",
             &auth_header(),
         ))

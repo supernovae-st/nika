@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn a_quoted_frontmatter_hint_reaches_the_client_unquoted() {
-        // `new` carries `argument-hint: "[template] [file.nika.yaml]"` —
+        // `new` carries `argument-hint: "[template] [file.nika]"` —
         // the quotes are YAML syntax (a bare `[` would be a flow sequence),
         // and a client that renders them shows stray punctuation.
         let catalog = catalog();
@@ -217,13 +217,13 @@ mod tests {
 
     #[test]
     fn render_substitutes_the_argument_into_the_body() {
-        let args = json!({ "arguments": "flow.nika.yaml" });
+        let args = json!({ "arguments": "flow.nika" });
         let got = render("check", Some(&args)).expect("check renders");
         let text = got["messages"][0]["content"]["text"]
             .as_str()
             .expect("a text block");
         assert!(
-            text.contains("flow.nika.yaml"),
+            text.contains("flow.nika"),
             "the argument never reached the body"
         );
         assert!(

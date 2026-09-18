@@ -57,13 +57,13 @@ Given a crate `nika-<role>`, ask these questions in order:
 │ nika-source               [axes: none]      Spans + file registry (the   │
 │                                             schema unit's 2nd member ·   │
 │                                             size-cap split D-07-09-N1)   │
-│ nika-vocab                [axes: none]      .nika.yaml config vocabulary │
+│ nika-vocab                [axes: none]      .nika config vocabulary │
 │                                             (schema unit's 3rd member ·  │
 │                                             size-cap split D-07-09-N1) + │
 │                                             the nika.yaml PROJECT file   │
 │                                             (D-2026-08-11-N5 ·           │
 │                                             ceiling/traces/registry/arm) │
-│ nika-migrate              [axes: none]      .nika.yaml fix migrations    │
+│ nika-migrate              [axes: none]      .nika fix migrations    │
 │                                             (W1 map · W2 flow · from     │
 │                                             nika-cli · size-cap D-07)    │
 │ nika-event                [axes: none]      ~22 scoped sub-enums +        │

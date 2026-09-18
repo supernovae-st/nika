@@ -2,7 +2,7 @@
 # and homebrew hero). Governed replacement for the July 2 hand recording
 # (asciinema · pre-flag-day output): every command exists in the released
 # CLI, every line of output is the binary's own, and the workflow shown
-# is scripts/media/fixtures/meeting-actions.nika.yaml — checked green by
+# is scripts/media/fixtures/meeting-actions.nika — checked green by
 # validate-media.sh, run offline on mock/echo.
 #
 # Rendered by scripts/media/render-tape.sh nika-hero (VHS) in the staged
@@ -33,14 +33,14 @@ Show
 Type "# audit BEFORE it spends · plan, permits, cost, secrets, types"
 Enter
 Sleep 700ms
-Type "nika check meeting-actions.nika.yaml"
+Type "nika check meeting-actions.nika"
 Enter
 Sleep 4600ms
 
 Type "# clean — run it (mock/echo: offline · or ollama, mistral, any provider)"
 Enter
 Sleep 800ms
-Type "nika run meeting-actions.nika.yaml"
+Type "nika run meeting-actions.nika"
 Enter
 Sleep 5200ms
 Sleep 1400ms

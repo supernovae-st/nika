@@ -86,7 +86,7 @@ permits: { exec: ["echo"] }
 tasks:
   call:
     invoke:
-      workflow: "./child.nika.yaml"
+      workflow: "./child.nika"
       args: { name: "composition" }
     returns: { object: { greeting: string } }
 outputs:
@@ -102,8 +102,8 @@ outputs:
 #[test]
 fn child_runs_for_real_and_typed_outputs_remount() {
     let dir = tmp_dir("comp-real-run");
-    write_fixture(&dir, "child.nika.yaml", CHILD);
-    let parent = write_fixture(&dir, "parent.nika.yaml", PARENT);
+    write_fixture(&dir, "child.nika", CHILD);
+    let parent = write_fixture(&dir, "parent.nika", PARENT);
     let (code, text) = run_in(
         &dir,
         &["run", parent.to_str().expect("utf8"), "--output", "json"],
@@ -164,8 +164,8 @@ fn walk(path: &std::path::Path) -> (String, String, Vec<serde_json::Value>) {
 #[test]
 fn trace_forest_two_chains_and_the_parent_commits_to_the_child() {
     let dir = tmp_dir("comp-forest");
-    write_fixture(&dir, "child.nika.yaml", CHILD);
-    let parent = write_fixture(&dir, "parent.nika.yaml", PARENT);
+    write_fixture(&dir, "child.nika", CHILD);
+    let parent = write_fixture(&dir, "parent.nika", PARENT);
     let (code, text) = run_in(&dir, &["run", parent.to_str().expect("utf8")]);
     assert_eq!(code, 0, "{text}");
 
@@ -199,7 +199,7 @@ fn trace_forest_two_chains_and_the_parent_commits_to_the_child() {
         .find_map(|e| wire_field(e, "child"))
         .expect("the parent frame records the child row");
     let row: serde_json::Value = serde_json::from_str(&child_row).expect("child row is JSON");
-    assert_eq!(row["target"], "./child.nika.yaml");
+    assert_eq!(row["target"], "./child.nika");
     assert_eq!(row["outcome"], "success");
     // …whose chain head IS the child journal's independently-walked head
     // AT COMMIT TIME. The child journal gains its own terminal frames
@@ -234,16 +234,16 @@ fn static_cycle_is_refused_at_check() {
 nika: a
 tasks:
   go:
-    invoke: { workflow: "./b.nika.yaml" }
+    invoke: { workflow: "./b.nika" }
 "#;
     let b = r#"
 nika: b
 tasks:
   back:
-    invoke: { workflow: "./a.nika.yaml" }
+    invoke: { workflow: "./a.nika" }
 "#;
-    let pa = write_fixture(&dir, "a.nika.yaml", a);
-    write_fixture(&dir, "b.nika.yaml", b);
+    let pa = write_fixture(&dir, "a.nika", a);
+    write_fixture(&dir, "b.nika", b);
     let (code, text) = run_in(&dir, &["check", pa.to_str().expect("utf8")]);
     assert_eq!(code, 2, "file findings:\n{text}");
     assert!(text.contains("NIKA-COMP-003"), "{text}");
@@ -266,11 +266,11 @@ permits:
 tasks:
   call:
     invoke:
-      workflow: "./child.nika.yaml"
+      workflow: "./child.nika"
       args: { name: "x" }
 "#;
-    write_fixture(&dir, "child.nika.yaml", CHILD); // child does EXEC
-    let pp = write_fixture(&dir, "parent.nika.yaml", parent);
+    write_fixture(&dir, "child.nika", CHILD); // child does EXEC
+    let pp = write_fixture(&dir, "parent.nika", parent);
     let (code, text) = run_in(&dir, &["check", pp.to_str().expect("utf8")]);
     assert_eq!(code, 2, "{text}");
     assert!(text.contains("NIKA-COMP-002"), "{text}");
@@ -287,9 +287,9 @@ const:
   which: "a"
 tasks:
   call:
-    invoke: { workflow: "./sub-${{ const.which }}.nika.yaml" }
+    invoke: { workflow: "./sub-${{ const.which }}.nika" }
 "#;
-    let pp = write_fixture(&dir, "parent.nika.yaml", parent);
+    let pp = write_fixture(&dir, "parent.nika", parent);
     let (code, text) = run_in(&dir, &["check", pp.to_str().expect("utf8")]);
     assert_eq!(code, 2, "{text}");
     assert!(text.contains("NIKA-COMP-001"), "{text}");
@@ -299,14 +299,14 @@ tasks:
 #[test]
 fn missing_required_child_input_is_refused_at_check() {
     let dir = tmp_dir("comp-args");
-    write_fixture(&dir, "child.nika.yaml", CHILD); // requires `name`
+    write_fixture(&dir, "child.nika", CHILD); // requires `name`
     let parent = r#"
 nika: p
 tasks:
   call:
-    invoke: { workflow: "./child.nika.yaml" }
+    invoke: { workflow: "./child.nika" }
 "#;
-    let pp = write_fixture(&dir, "parent.nika.yaml", parent);
+    let pp = write_fixture(&dir, "parent.nika", parent);
     let (code, text) = run_in(&dir, &["check", pp.to_str().expect("utf8")]);
     assert_eq!(code, 2, "{text}");
     assert!(text.contains("NIKA-COMP-004"), "{text}");
@@ -338,14 +338,14 @@ nika: f{i}
 permits: {{ exec: [\"echo\"] }}
 tasks:
   descend:
-    invoke: {{ workflow: \"./f{}.nika.yaml\" }}
+    invoke: {{ workflow: \"./f{}.nika\" }}
 ",
                 i + 1
             )
         };
-        write_fixture(&dir, &format!("f{i}.nika.yaml"), &body);
+        write_fixture(&dir, &format!("f{i}.nika"), &body);
     }
-    let root = dir.join("f0.nika.yaml");
+    let root = dir.join("f0.nika");
     // Static check: ACYCLIC — green (the cycle law has nothing to say).
     let (code, text) = run_in(&dir, &["check", root.to_str().expect("utf8")]);
     assert_eq!(code, 0, "an acyclic chain checks clean:\n{text}");
@@ -386,10 +386,10 @@ tasks:
              invoke: {{ workflow: \"./{child}\" }}\n"
         )
     };
-    write_fixture(&dir, "priced-child.nika.yaml", priced);
-    write_fixture(&dir, "unpriced-child.nika.yaml", &unpriced);
-    let p_priced = write_fixture(&dir, "p1.nika.yaml", &parent_of("priced-child.nika.yaml"));
-    let p_unpriced = write_fixture(&dir, "p2.nika.yaml", &parent_of("unpriced-child.nika.yaml"));
+    write_fixture(&dir, "priced-child.nika", priced);
+    write_fixture(&dir, "unpriced-child.nika", &unpriced);
+    let p_priced = write_fixture(&dir, "p1.nika", &parent_of("priced-child.nika"));
+    let p_unpriced = write_fixture(&dir, "p2.nika", &parent_of("unpriced-child.nika"));
 
     // (a) the composed floor refuses the run before it starts.
     let (code, text) = run_in(
@@ -428,7 +428,7 @@ tasks:
         &dir,
         &[
             "run",
-            dir.join("priced-child.nika.yaml").to_str().expect("utf8"),
+            dir.join("priced-child.nika").to_str().expect("utf8"),
             "--max-cost-usd",
             "0.0001",
         ],
@@ -476,11 +476,11 @@ nika: impatient
 permits: { exec: ["sleep"] }
 tasks:
   call:
-    invoke: { workflow: "./child.nika.yaml" }
+    invoke: { workflow: "./child.nika" }
     timeout: 1s
 "#;
-    write_fixture(&dir, "child.nika.yaml", child);
-    let pp = write_fixture(&dir, "parent.nika.yaml", parent);
+    write_fixture(&dir, "child.nika", child);
+    let pp = write_fixture(&dir, "parent.nika", parent);
     let (code, text) = run_in(&dir, &["run", pp.to_str().expect("utf8")]);
     assert_eq!(code, 1, "the parent settles a task failure:\n{text}");
     // Judge the bounded task interval, excluding binary startup, project

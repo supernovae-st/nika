@@ -170,7 +170,7 @@ pub enum ChangeError {
     /// The path is neither a workflow, the project file, nor a file the
     /// human named.
     #[error(
-        "`{0}` is not a workflow (`*.nika.yaml`), the project file (`nika.yaml`) or a file you named — name it, and the session may write it"
+        "`{0}` is not a workflow (`*.nika`), the project file (`nika.yaml`) or a file you named — name it, and the session may write it"
     )]
     Unnamed(String),
     /// The bytes changed since the preview.
@@ -371,7 +371,7 @@ impl ProjectChangeSet {
             let is_workflow = rel
                 .file_name()
                 .and_then(|n| n.to_str())
-                .is_some_and(|n| n.ends_with(".nika.yaml"));
+                .is_some_and(nika_source::is_canonical_program_file_name);
             let is_project = rel == Path::new(PROJECT_FILE);
             let is_named = named.iter().any(|n| Path::new(n) == rel);
             if !(is_workflow || is_project || is_named) {
@@ -931,7 +931,7 @@ mod tests {
         let set = ProjectChangeSet::from_reply(
             dir.path(),
             "a daily digest",
-            &reply_with("daily.nika.yaml", WORKFLOW),
+            &reply_with("daily.nika", WORKFLOW),
             &[],
             None,
         )
@@ -939,7 +939,7 @@ mod tests {
         .expect("a block");
         assert_eq!(set.changes.len(), 1);
         assert!(
-            matches!(&set.changes[0], ProjectChange::CreateWorkflow { path, content } if path == Path::new("daily.nika.yaml") && content == WORKFLOW)
+            matches!(&set.changes[0], ProjectChange::CreateWorkflow { path, content } if path == Path::new("daily.nika") && content == WORKFLOW)
         );
         let preview = set.preview();
         for line in WORKFLOW.lines() {
@@ -948,9 +948,9 @@ mod tests {
                 "exact bytes in the preview: {line}"
             );
         }
-        assert!(preview.contains("creates `daily.nika.yaml`"), "{preview}");
+        assert!(preview.contains("creates `daily.nika`"), "{preview}");
         assert!(
-            preview.contains("check of these bytes · `daily.nika.yaml` · clean ✔"),
+            preview.contains("check of these bytes · `daily.nika` · clean ✔"),
             "{preview}"
         );
         assert!(
@@ -972,20 +972,20 @@ mod tests {
             "{preview}"
         );
         let applied = set.apply().expect("applied");
-        assert_eq!(applied.written, vec![PathBuf::from("daily.nika.yaml")]);
-        let on_disk = std::fs::read_to_string(dir.path().join("daily.nika.yaml")).expect("landed");
+        assert_eq!(applied.written, vec![PathBuf::from("daily.nika")]);
+        let on_disk = std::fs::read_to_string(dir.path().join("daily.nika")).expect("landed");
         assert_eq!(on_disk, WORKFLOW, "byte for byte");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt as _;
-            let mode = std::fs::metadata(dir.path().join("daily.nika.yaml"))
+            let mode = std::fs::metadata(dir.path().join("daily.nika"))
                 .expect("meta")
                 .permissions()
                 .mode()
                 & 0o777;
             assert_eq!(mode, 0o644, "a project file, not private state");
         }
-        assert!(check_on_disk(dir.path(), Path::new("daily.nika.yaml")).clean);
+        assert!(check_on_disk(dir.path(), Path::new("daily.nika")).clean);
     }
 
     /// The freeze audit · the check after apply is the one `nika check`
@@ -995,20 +995,20 @@ mod tests {
     #[test]
     fn the_check_after_apply_judges_the_composed_world() {
         let dir = tempfile::tempdir().expect("tmp");
-        let parent = "nika: parent\nmodel: mock/echo\npermits: {}\ntasks:\n  child:\n    invoke: { workflow: ./child.nika.yaml }\noutputs:\n  out: ${{ tasks.child.output }}\n";
-        std::fs::write(dir.path().join("parent.nika.yaml"), parent).expect("seed");
-        let missing = check_on_disk(dir.path(), Path::new("parent.nika.yaml"));
+        let parent = "nika: parent\nmodel: mock/echo\npermits: {}\ntasks:\n  child:\n    invoke: { workflow: ./child.nika }\noutputs:\n  out: ${{ tasks.child.output }}\n";
+        std::fs::write(dir.path().join("parent.nika"), parent).expect("seed");
+        let missing = check_on_disk(dir.path(), Path::new("parent.nika"));
         assert!(
             !missing.clean,
             "a missing child is a finding here as at the terminal: {:?}",
             missing.findings
         );
         std::fs::write(
-            dir.path().join("child.nika.yaml"),
+            dir.path().join("child.nika"),
             "nika: child\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\noutputs:\n  said: ${{ tasks.t.output }}\n",
         )
         .expect("the child");
-        let present = check_on_disk(dir.path(), Path::new("parent.nika.yaml"));
+        let present = check_on_disk(dir.path(), Path::new("parent.nika"));
         assert!(present.clean, "{:?}", present.findings);
     }
 
@@ -1017,11 +1017,11 @@ mod tests {
     #[test]
     fn a_stale_witness_applies_nothing() {
         let dir = tempfile::tempdir().expect("tmp");
-        std::fs::write(dir.path().join("daily.nika.yaml"), "nika: old\n").expect("seed");
+        std::fs::write(dir.path().join("daily.nika"), "nika: old\n").expect("seed");
         let set = ProjectChangeSet::from_reply(
             dir.path(),
             "update",
-            &reply_with("daily.nika.yaml", WORKFLOW),
+            &reply_with("daily.nika", WORKFLOW),
             &[],
             None,
         )
@@ -1030,19 +1030,15 @@ mod tests {
         assert!(
             matches!(&set.changes[0], ProjectChange::UpdateWorkflow { before, .. } if *before == Witness::of(b"nika: old\n"))
         );
-        assert!(set.preview().contains("replaces `daily.nika.yaml` whole"));
-        std::fs::write(
-            dir.path().join("daily.nika.yaml"),
-            "nika: changed-meanwhile\n",
-        )
-        .expect("race");
+        assert!(set.preview().contains("replaces `daily.nika` whole"));
+        std::fs::write(dir.path().join("daily.nika"), "nika: changed-meanwhile\n").expect("race");
         let err = set.apply().expect_err("stale");
         assert!(
-            matches!(err, ChangeError::Stale(ref p) if p == "daily.nika.yaml"),
+            matches!(err, ChangeError::Stale(ref p) if p == "daily.nika"),
             "{err}"
         );
         assert_eq!(
-            std::fs::read_to_string(dir.path().join("daily.nika.yaml")).expect("still"),
+            std::fs::read_to_string(dir.path().join("daily.nika")).expect("still"),
             "nika: changed-meanwhile\n",
             "nothing was applied"
         );
@@ -1056,7 +1052,7 @@ mod tests {
         let outside = ProjectChangeSet::from_reply(
             dir.path(),
             "g",
-            &reply_with("../evil.nika.yaml", "nika: x\n"),
+            &reply_with("../evil.nika", "nika: x\n"),
             &[],
             None,
         );
@@ -1100,7 +1096,7 @@ mod tests {
     /// The prose above the preview is the reply without its fences.
     #[test]
     fn the_prose_outside_the_blocks_is_kept() {
-        let reply = reply_with("daily.nika.yaml", WORKFLOW);
+        let reply = reply_with("daily.nika", WORKFLOW);
         let prose = prose_outside_blocks(&reply);
         assert_eq!(
             prose,
@@ -1125,10 +1121,10 @@ mod tests {
             .expect("legal")
             .is_none()
         );
-        let set = ProjectChangeSet::from_reply(dir.path(), "g", "```yaml\n# path: out/daily.nika.yaml\nnika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n```\n", &[], None)
+        let set = ProjectChangeSet::from_reply(dir.path(), "g", "```yaml\n# path: out/daily.nika\nnika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n```\n", &[], None)
             .expect("legal")
             .expect("named on the first line");
-        assert_eq!(set.changes[0].path(), PathBuf::from("out/daily.nika.yaml"));
+        assert_eq!(set.changes[0].path(), PathBuf::from("out/daily.nika"));
         assert!(
             !set.changes[0].content().contains("# path:"),
             "the naming line is not part of the bytes"
@@ -1141,15 +1137,10 @@ mod tests {
     fn the_ladder_repairs_before_the_preview_and_says_so() {
         let dir = tempfile::tempdir().expect("tmp");
         let dead = "nika: d\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  say:\n    exec: \"echo hi\"\n";
-        let set = ProjectChangeSet::from_reply(
-            dir.path(),
-            "g",
-            &reply_with("d.nika.yaml", dead),
-            &[],
-            None,
-        )
-        .expect("legal")
-        .expect("a block");
+        let set =
+            ProjectChangeSet::from_reply(dir.path(), "g", &reply_with("d.nika", dead), &[], None)
+                .expect("legal")
+                .expect("a block");
         assert!(
             !set.repairs.is_empty(),
             "a repair landed: {:?}",
@@ -1177,7 +1168,7 @@ mod tests {
             "{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"gated\"}]}\n{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"workflow\",\"value\":\"gated\"},{\"key\":\"task\",\"value\":\"gate\"},{\"key\":\"mode\",\"value\":\"confirm\"},{\"key\":\"message\",\"value\":\"Ship the digest to the team?\"}]}\n",
         )
         .expect("trace");
-        let gate = PendingGate::from_trace(Path::new("gated.nika.yaml"), &trace).expect("a gate");
+        let gate = PendingGate::from_trace(Path::new("gated.nika"), &trace).expect("a gate");
         assert_eq!(gate.task, "gate");
         assert!(
             gate.question().contains("Ship the digest to the team?")
@@ -1187,7 +1178,7 @@ mod tests {
         assert_eq!(gate.answer_arg("No"), "gate=false");
         std::fs::write(&trace, "{\"kind\":\"workflow_completed\",\"fields\":[]}\n").expect("trace");
         assert!(
-            PendingGate::from_trace(Path::new("gated.nika.yaml"), &trace).is_none(),
+            PendingGate::from_trace(Path::new("gated.nika"), &trace).is_none(),
             "no pause, no gate"
         );
     }
@@ -1205,7 +1196,7 @@ mod tests {
         let set = ProjectChangeSet::from_reply(
             dir.path(),
             "g",
-            &reply_with("daily.nika.yaml", WORKFLOW),
+            &reply_with("daily.nika", WORKFLOW),
             &[],
             Some(run),
         )
@@ -1213,11 +1204,11 @@ mod tests {
         .expect("a block");
         assert_eq!(
             set.run.as_ref().map(|r| r.workflow.clone()),
-            Some(PathBuf::from("daily.nika.yaml"))
+            Some(PathBuf::from("daily.nika"))
         );
         assert!(
             set.preview()
-                .contains("run `daily.nika.yaml` once (--max-cost-usd 0.05 ·")
+                .contains("run `daily.nika` once (--max-cost-usd 0.05 ·")
         );
     }
 
@@ -1278,7 +1269,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt as _;
         const SECRET: &str = "nika: secret-on-disk\n";
         let dir = tempfile::tempdir().expect("tmp");
-        let path = dir.path().join("secret.nika.yaml");
+        let path = dir.path().join("secret.nika");
         std::fs::write(&path, SECRET).expect("seed");
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
         let restore = RestorePerms {
@@ -1292,7 +1283,7 @@ mod tests {
         let err = ProjectChangeSet::from_reply(
             dir.path(),
             "g",
-            &reply_with("secret.nika.yaml", WORKFLOW),
+            &reply_with("secret.nika", WORKFLOW),
             &[],
             None,
         )
@@ -1303,7 +1294,7 @@ mod tests {
         );
         let text = err.to_string();
         assert!(
-            text.contains("secret.nika.yaml")
+            text.contains("secret.nika")
                 && (text.contains("cannot be witnessed") || text.contains("unreadable")),
             "the refusal names that the target exists and was not seen: {text}"
         );
@@ -1329,7 +1320,7 @@ mod tests {
         let set = ProjectChangeSet::from_reply(
             dir.path(),
             "g",
-            &reply_with("daily.nika.yaml", WORKFLOW),
+            &reply_with("daily.nika", WORKFLOW),
             &[],
             None,
         )
@@ -1339,7 +1330,7 @@ mod tests {
             &set.changes[0],
             ProjectChange::CreateWorkflow { .. }
         ));
-        let path = dir.path().join("daily.nika.yaml");
+        let path = dir.path().join("daily.nika");
         std::fs::write(&path, SECRET).expect("appeared");
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
         let restore = RestorePerms {
@@ -1352,7 +1343,7 @@ mod tests {
         }
         let err = set.apply().expect_err("stale");
         assert!(
-            matches!(err, ChangeError::Stale(ref p) if p == "daily.nika.yaml"),
+            matches!(err, ChangeError::Stale(ref p) if p == "daily.nika"),
             "unreadable-now is stale, not a silent create: {err}"
         );
         drop(restore);
@@ -1379,8 +1370,8 @@ mod tests {
             dir.path(),
             "two files",
             &format!(
-                "{}\n```yaml path=locked/note.nika.yaml\n{WORKFLOW}```\n",
-                reply_with("brief.nika.yaml", WORKFLOW)
+                "{}\n```yaml path=locked/note.nika\n{WORKFLOW}```\n",
+                reply_with("brief.nika", WORKFLOW)
             ),
             &[],
             None,
@@ -1402,12 +1393,12 @@ mod tests {
         };
         assert_eq!(
             attempt.written,
-            vec![PathBuf::from("brief.nika.yaml")],
+            vec![PathBuf::from("brief.nika")],
             "the write loop's own record, not a tree scan"
         );
         let err = attempt.error;
-        let brief = dir.path().join("brief.nika.yaml");
-        let note = locked.join("note.nika.yaml");
+        let brief = dir.path().join("brief.nika");
+        let note = locked.join("note.nika");
         assert_eq!(
             std::fs::read_to_string(&brief).expect("first landed"),
             WORKFLOW,
@@ -1420,7 +1411,7 @@ mod tests {
             "a write-time refusal, not a stale preflight: {err}"
         );
         assert!(
-            text.contains("brief.nika.yaml")
+            text.contains("brief.nika")
                 && (text.contains("written before") || text.contains("kept")),
             "the refusal names what landed: {text}"
         );

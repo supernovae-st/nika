@@ -803,7 +803,7 @@ fn named_files(input: &str) -> Vec<String> {
                 || c == '('
                 || c == ')'
         })
-        .filter(|t| t.ends_with(".nika.yaml") || *t == "nika.yaml")
+        .filter(|t| nika_source::is_canonical_program_file_name(t) || *t == "nika.yaml")
         .map(str::to_owned)
         .collect()
 }
@@ -834,7 +834,7 @@ mod tests {
     fn tree() -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("tmp");
         std::fs::write(
-            dir.path().join("alpha.nika.yaml"),
+            dir.path().join("alpha.nika"),
             "nika: alpha\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: \"sk-live-ABCDEFGH123456\", max_tokens: 10 }\n",
         )
         .expect("a");
@@ -873,7 +873,7 @@ mod tests {
             .map(|e| e.path())
             .collect();
         let _ = s.turn("what workflows are here?");
-        let _ = s.turn("explain what alpha.nika.yaml does");
+        let _ = s.turn("explain what alpha.nika does");
         assert!(
             matches!(s.turn("/help"), TurnOutcome::Help(ref card) if card.contains("no AI asked") && card.contains("what Nika calls")),
             "the card names the shapes that answer without a model"
@@ -893,11 +893,8 @@ mod tests {
     #[test]
     fn the_reasoner_receives_only_the_bundle() {
         let dir = tree();
-        std::fs::write(
-            dir.path().join("secret.nika.yaml"),
-            "nika: hidden\ntasks: {}\n",
-        )
-        .expect("hidden");
+        std::fs::write(dir.path().join("secret.nika"), "nika: hidden\ntasks: {}\n")
+            .expect("hidden");
         let mut s = SessionRuntime::open(
             dir.path(),
             ready(
@@ -910,7 +907,7 @@ mod tests {
             ),
             Box::new(ScriptedReasoner::new(vec!["It reads a file.".to_owned()])),
         );
-        let out = s.turn("what does alpha.nika.yaml do?");
+        let out = s.turn("what does alpha.nika do?");
         assert!(
             matches!(out, TurnOutcome::Reply(ref t) if t.contains("It reads a file.")),
             "{out:?}"
@@ -923,20 +920,17 @@ mod tests {
         let bundle = broker.bundle(
             &snapshot,
             Some("goal"),
-            &["alpha.nika.yaml".to_owned()],
+            &["alpha.nika".to_owned()],
             "metered",
         );
-        let prompt = ContextBroker::prompt(&bundle, &[], "what does alpha.nika.yaml do?");
+        let prompt = ContextBroker::prompt(&bundle, &[], "what does alpha.nika do?");
         let _ = probe.reason(&prompt);
         let seen = &probe.seen[0];
         assert!(
             seen.contains("Never invent Nika syntax"),
             "the identity core rides"
         );
-        assert!(
-            seen.contains("File `alpha.nika.yaml`"),
-            "the named file rides"
-        );
+        assert!(seen.contains("File `alpha.nika`"), "the named file rides");
         assert!(
             !seen.contains("nika: hidden"),
             "an unnamed file never rides"
@@ -1013,7 +1007,7 @@ mod tests {
         );
     }
 
-    const PROPOSED: &str = "Here it is.\n\n```yaml path=daily.nika.yaml\nnika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\noutputs:\n  said: ${{ tasks.t.output }}\n```\n";
+    const PROPOSED: &str = "Here it is.\n\n```yaml path=daily.nika\nnika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\noutputs:\n  said: ${{ tasks.t.output }}\n```\n";
 
     fn ready_with(dir: &Path, replies: Vec<&str>) -> SessionRuntime {
         let seated = ResolvedSessionIntelligence {
@@ -1056,11 +1050,11 @@ mod tests {
             "the header names this turn's request: {preview}"
         );
         assert!(
-            preview.contains("creates `daily.nika.yaml`") && preview.contains("clean ✔"),
+            preview.contains("creates `daily.nika`") && preview.contains("clean ✔"),
             "{preview}"
         );
         assert!(
-            !dir.path().join("daily.nika.yaml").exists(),
+            !dir.path().join("daily.nika").exists(),
             "nothing written before consent"
         );
         assert!(matches!(s.consent("no"), TurnOutcome::Facts(ref t) if t.contains("discarded")));
@@ -1068,10 +1062,7 @@ mod tests {
             matches!(s.turn("1"), TurnOutcome::Facts(ref t) if t.contains("already chosen")),
             "a bare digit is the first-screen reflex, never a message for the seat"
         );
-        assert!(
-            !dir.path().join("daily.nika.yaml").exists(),
-            "no means nothing"
-        );
+        assert!(!dir.path().join("daily.nika").exists(), "no means nothing");
         assert!(
             matches!(s.consent("yes"), TurnOutcome::Refusal(ref r) if r.text.contains("nothing is pending"))
         );
@@ -1092,10 +1083,10 @@ mod tests {
             panic!("applied");
         };
         assert!(
-            report.contains("applied · wrote `daily.nika.yaml`") && report.contains("clean ✔"),
+            report.contains("applied · wrote `daily.nika`") && report.contains("clean ✔"),
             "{report}"
         );
-        let on_disk = std::fs::read_to_string(dir.path().join("daily.nika.yaml")).expect("landed");
+        let on_disk = std::fs::read_to_string(dir.path().join("daily.nika")).expect("landed");
         assert!(
             on_disk.starts_with("nika: daily\n") && on_disk.ends_with("${{ tasks.t.output }}\n"),
             "exact bytes"
@@ -1104,7 +1095,7 @@ mod tests {
             s.snapshot
                 .workflows
                 .iter()
-                .any(|w| w.path.ends_with("daily.nika.yaml")),
+                .any(|w| w.path.ends_with("daily.nika")),
             "the snapshot sees it"
         );
     }
@@ -1139,9 +1130,9 @@ mod tests {
             text.contains("not a consent") && text.contains("still waits"),
             "{text}"
         );
-        assert!(!dir.path().join("daily.nika.yaml").exists());
+        assert!(!dir.path().join("daily.nika").exists());
         assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
-        assert!(dir.path().join("daily.nika.yaml").exists());
+        assert!(dir.path().join("daily.nika").exists());
     }
 
     /// After a run in a git repository, the missing ignore line is named
@@ -1170,16 +1161,16 @@ mod tests {
     #[test]
     fn a_run_is_requested_only_on_a_clean_check() {
         let dir = tree();
-        let dirty = "```yaml path=bad.nika.yaml\nnika: bad\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
+        let dirty = "```yaml path=bad.nika\nnika: bad\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
         let mut s = ready_with(dir.path(), vec![PROPOSED, dirty]);
         assert!(
-            matches!(s.turn("create a digest and run it once"), TurnOutcome::Proposal { ref preview, .. } if preview.contains("run `daily.nika.yaml` once"))
+            matches!(s.turn("create a digest and run it once"), TurnOutcome::Proposal { ref preview, .. } if preview.contains("run `daily.nika` once"))
         );
         let TurnOutcome::RunRequested { report, run } = s.consent("yes") else {
             panic!("a clean check requests the run");
         };
         assert!(report.contains("clean ✔"), "{report}");
-        assert_eq!(run.workflow, PathBuf::from("daily.nika.yaml"));
+        assert_eq!(run.workflow, PathBuf::from("daily.nika"));
         assert!((run.max_cost_usd - DEFAULT_CEILING_USD).abs() < f64::EPSILON);
         assert_eq!(
             ceiling_in("create it and run it once with a ceiling of 0.05"),
@@ -1215,7 +1206,7 @@ mod tests {
             "{report}"
         );
         assert!(
-            dir.path().join("bad.nika.yaml").exists(),
+            dir.path().join("bad.nika").exists(),
             "the bytes landed; the run did not start"
         );
     }
@@ -1257,7 +1248,7 @@ mod tests {
         else {
             panic!("the resume");
         };
-        assert_eq!(workflow, PathBuf::from("daily.nika.yaml"));
+        assert_eq!(workflow, PathBuf::from("daily.nika"));
         assert_eq!(t, trace);
         assert_eq!(answer, "gate=true");
         assert!(
@@ -1275,8 +1266,8 @@ mod tests {
     #[test]
     fn a_repair_round_updates_the_witnessed_file_to_clean() {
         let dir = tree();
-        let dirty = "```yaml path=bad.nika.yaml\nnika: bad\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
-        let repaired = "Adding the boundary.\n\n```yaml path=bad.nika.yaml\nnika: bad\npermits: { exec: [\"curl\"], net: { http: [\"example.com\"] } }\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
+        let dirty = "```yaml path=bad.nika\nnika: bad\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
+        let repaired = "Adding the boundary.\n\n```yaml path=bad.nika\nnika: bad\npermits: { exec: [\"curl\"], net: { http: [\"example.com\"] } }\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
         let mut s = ready_with(dir.path(), vec![dirty, repaired]);
         assert!(matches!(
             s.turn("make a curl one"),
@@ -1293,7 +1284,7 @@ mod tests {
             panic!("a repair proposal");
         };
         assert!(
-            preview.contains("replaces `bad.nika.yaml` whole") && preview.contains("clean ✔"),
+            preview.contains("replaces `bad.nika` whole") && preview.contains("clean ✔"),
             "{preview}"
         );
         let TurnOutcome::Facts(report) = s.consent("yes") else {
@@ -1304,7 +1295,7 @@ mod tests {
             "{report}"
         );
         assert!(
-            std::fs::read_to_string(dir.path().join("bad.nika.yaml"))
+            std::fs::read_to_string(dir.path().join("bad.nika"))
                 .expect("landed")
                 .contains("permits:")
         );
@@ -1314,7 +1305,7 @@ mod tests {
     #[test]
     fn a_path_outside_the_root_is_refused_before_preview() {
         let dir = tree();
-        let evil = "```yaml path=../evil.nika.yaml\nnika: evil\n```\n";
+        let evil = "```yaml path=../evil.nika\nnika: evil\n```\n";
         let mut s = ready_with(dir.path(), vec![evil]);
         assert!(
             matches!(s.turn("write one"), TurnOutcome::Refusal(ref r) if r.text.contains("not a path inside the project root"))
@@ -1417,13 +1408,13 @@ mod tests {
         let TurnOutcome::Proposal { id, .. } = s.turn("write me a daily digest workflow") else {
             panic!("a proposal");
         };
-        std::fs::write(dir.path().join("daily.nika.yaml"), "nika: raced\n").expect("the race");
+        std::fs::write(dir.path().join("daily.nika"), "nika: raced\n").expect("the race");
         let TurnOutcome::Refusal(stale) = s.consent_to(&id, "yes") else {
             panic!("stale");
         };
         assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
         assert_eq!(
-            std::fs::read_to_string(dir.path().join("daily.nika.yaml")).expect("still there"),
+            std::fs::read_to_string(dir.path().join("daily.nika")).expect("still there"),
             "nika: raced\n",
             "nothing was applied"
         );
@@ -1460,7 +1451,7 @@ mod tests {
             "a stale consent leaves the proposal waiting"
         );
         assert!(
-            !dir.path().join("daily.nika.yaml").exists(),
+            !dir.path().join("daily.nika").exists(),
             "nothing was applied"
         );
         assert!(matches!(

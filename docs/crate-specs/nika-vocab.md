@@ -4,7 +4,7 @@
 |---|---|
 | Status | **ADMITTED 2026-07-15** — the second size-cap split of the `nika-schema` unit (W-COMP « the composition » needs parser + check headroom while the crate sat at exactly 15 000 prod LOC; per the unit-target discipline, D-2026-07-09-N1, one architectural unit may span N workspace members — `nika-schema` stays the unit's front door). |
 | Layer | **L0** — pure, zero I/O, zero async. |
-| Design | The `.nika.yaml` configuration vocabulary: capture/decode modes, retry + backoff, Go-style durations, secret sources + egress rules, `when:` gates, `after:` predicates, var/output declarations, the schema-version marker. The closed value-type set both the raw AST (parser output) and the analyzed AST consume. |
+| Design | The `.nika` configuration vocabulary: capture/decode modes, retry + backoff, Go-style durations, secret sources + egress rules, `when:` gates, `after:` predicates, var/output declarations, the schema-version marker. The closed value-type set both the raw AST (parser output) and the analyzed AST consume. |
 | Name | `nika-vocab` (honest: the *vocabulary* of the language, not its grammar). |
 | LOC budget | ≤1500 src (admitted at ~1160). ≤1500/file, ≤100/fn. |
 | Deps | `nika-source` (Spanned/Span carriers) · `nika-cap` (permits/policy vocab re-exported at the original module path) · `serde` · `serde_json`. |

@@ -21,7 +21,7 @@
 #   mkdir -p dist/linux/arm64 && tar -xzf "nika-linux-${a}-${v}.tar.gz" -C dist/linux/arm64 nika
 #   docker build -t nika .
 #
-# Run:  docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika check flow.nika.yaml
+# Run:  docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika check flow.nika
 # MCP:  docker run -i --rm ghcr.io/supernovae-st/nika mcp
 
 FROM ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90

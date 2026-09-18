@@ -32,22 +32,14 @@ pub(crate) const RECIPES: [Recipe; 5] = [
         name: "agentic",
         tagline: "learn the 4 patterns — chain · fan-out · gate · agent loop",
         workflows: &[
-            ("chain", "workflows/01-hello-chain.nika.yaml", "hello-chain"),
+            ("chain", "workflows/01-hello-chain.nika", "hello-chain"),
             (
                 "fanout",
-                "workflows/02-parallel-fanout.nika.yaml",
+                "workflows/02-parallel-fanout.nika",
                 "parallel-fanout",
             ),
-            (
-                "gate-and-act",
-                "workflows/03-gated-ship.nika.yaml",
-                "gated-ship",
-            ),
-            (
-                "agent-loop",
-                "workflows/04-agent-loop.nika.yaml",
-                "agent-loop",
-            ),
+            ("gate-and-act", "workflows/03-gated-ship.nika", "gated-ship"),
+            ("agent-loop", "workflows/04-agent-loop.nika", "agent-loop"),
         ],
     },
     Recipe {
@@ -61,12 +53,12 @@ pub(crate) const RECIPES: [Recipe; 5] = [
         workflows: &[
             (
                 "human-gated-ship",
-                "workflows/01-gated-release.nika.yaml",
+                "workflows/01-gated-release.nika",
                 "gated-release",
             ),
             (
                 "docker-report",
-                "workflows/02-docker-report.nika.yaml",
+                "workflows/02-docker-report.nika",
                 "docker-report",
             ),
         ],
@@ -77,12 +69,12 @@ pub(crate) const RECIPES: [Recipe; 5] = [
         workflows: &[
             (
                 "website-brief",
-                "workflows/01-website-brief.nika.yaml",
+                "workflows/01-website-brief.nika",
                 "website-brief",
             ),
             (
                 "media-asset-pack",
-                "workflows/02-media-asset-pack.nika.yaml",
+                "workflows/02-media-asset-pack.nika",
                 "media-asset-pack",
             ),
         ],
@@ -181,9 +173,9 @@ pub(crate) fn scaffold_example(
     slug: &str,
     force: bool,
 ) -> Vec<(String, ScaffoldStatus)> {
-    let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+    let clean = slug.strip_suffix(".nika").unwrap_or(slug);
     let base = clean.rsplit('/').next().unwrap_or(clean);
-    let rel = format!("workflows/{base}.nika.yaml");
+    let rel = format!("workflows/{base}.nika");
     let dest = Path::new(dir).join(&rel).to_string_lossy().into_owned();
     let Some(body) = nika_pack::example(slug) else {
         return vec![(
@@ -215,7 +207,7 @@ pub(crate) fn scaffold_example(
     } else {
         let tag = crate::guided::tagline(clean, body);
         let text = format!(
-            "# workflows — founded from an example\n\n> Scaffolded by `nika init` (generated — regenerate by re-running\n> `nika init --example {clean}` with `--force`).\n\n## {base}.nika.yaml\n\n{tag}\n\n```sh\nnika check {rel}\nnika run {rel} --model mock/echo   # simulated envelope inference; tools and effects remain real\n```\n\nEvery finding teaches: `nika explain NIKA-XXXX`. The full contract\nlives in `AGENTS.md` at the repo root.\n"
+            "# workflows — founded from an example\n\n> Scaffolded by `nika init` (generated — regenerate by re-running\n> `nika init --example {clean}` with `--force`).\n\n## {base}.nika\n\n{tag}\n\n```sh\nnika check {rel}\nnika run {rel} --model mock/echo   # simulated envelope inference; tools and effects remain real\n```\n\nEvery finding teaches: `nika explain NIKA-XXXX`. The full contract\nlives in `AGENTS.md` at the repo root.\n"
         );
         match std::fs::write(&readme_dest, text) {
             Ok(()) => ScaffoldStatus::Created,
@@ -285,7 +277,7 @@ mod tests {
                     r.name
                 );
                 assert!(
-                    dest.starts_with("workflows/") && dest.ends_with(".nika.yaml"),
+                    dest.starts_with("workflows/") && nika_source::is_canonical_program_path(dest),
                     "recipe `{}` dest `{dest}` breaks the layout law",
                     r.name
                 );

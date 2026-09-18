@@ -101,12 +101,12 @@ fn run_case(count: usize, fails: bool, fail_fast: bool) {
     let room = tempfile::tempdir().expect("isolated room");
     std::fs::create_dir(room.path().join("home")).expect("isolated home");
     std::fs::write(
-        room.path().join("fan.nika.yaml"),
+        room.path().join("fan.nika"),
         workflow(count, fails, fail_fast),
     )
     .expect("workflow");
     let output = command(room.path())
-        .args(["run", "fan.nika.yaml", "--json", "--max-cost-usd", "0.01"])
+        .args(["run", "fan.nika", "--json", "--max-cost-usd", "0.01"])
         .output()
         .expect("real run");
     assert_eq!(
@@ -170,7 +170,7 @@ fn run_case(count: usize, fails: bool, fail_fast: bool) {
     assert_items(room.path(), &trace, count, fails, fail_fast);
     if !fails && count > 1000 {
         let resumed = command(room.path())
-            .args(["run", "fan.nika.yaml", "--json", "--resume"])
+            .args(["run", "fan.nika", "--json", "--resume"])
             .arg(&trace)
             .output()
             .expect("resume");

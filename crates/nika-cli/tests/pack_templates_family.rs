@@ -73,7 +73,7 @@ fn plant(dir: &std::path::Path, name: &str) -> String {
 fn copy_committed_golden(name: &str, workflow: &str) {
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../nika-pack/pack/templates")
-        .join(format!("{name}.nika.yaml.golden.json"));
+        .join(format!("{name}.nika.golden.json"));
     let target = format!("{workflow}.golden.json");
     std::fs::copy(&source, &target).unwrap_or_else(|e| {
         panic!(
@@ -92,7 +92,7 @@ fn committed_golden_names() -> Vec<String> {
             entry
                 .file_name()
                 .to_str()
-                .and_then(|name| name.strip_suffix(".nika.yaml.golden.json"))
+                .and_then(|name| name.strip_suffix(".nika.golden.json"))
                 .map(str::to_owned)
         })
         .collect();
@@ -101,7 +101,7 @@ fn committed_golden_names() -> Vec<String> {
 }
 
 fn write_at(dir: &std::path::Path, name: &str, body: &str) -> String {
-    let path = dir.join(format!("{name}.nika.yaml"));
+    let path = dir.join(format!("{name}.nika"));
     std::fs::write(&path, body).expect("write template");
     path.to_str().expect("utf8 path").to_owned()
 }

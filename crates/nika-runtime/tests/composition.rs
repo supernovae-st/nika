@@ -180,7 +180,7 @@ const:
 tasks:
   audit:
     invoke:
-      workflow: \"./child.nika.yaml\"
+      workflow: \"./child.nika\"
       args: { url: \"${{ const.target_url }}\", depth: 2 }
 ";
 
@@ -275,7 +275,7 @@ async fn args_render_and_outputs_become_the_task_value() {
     // args rendered: ${{ const.target_url }} → the literal
     let seen = calls.lock().expect("lock");
     assert_eq!(seen.len(), 1);
-    assert_eq!(seen[0].target, "./child.nika.yaml");
+    assert_eq!(seen[0].target, "./child.nika");
     assert_eq!(seen[0].depth, 1, "root is 0 · its child is 1");
     assert_eq!(
         seen[0].args,
@@ -299,13 +299,13 @@ async fn args_render_and_outputs_become_the_task_value() {
         .expect("task_completed");
     let child_row = str_field(completed, "child").expect("child field rides the frame");
     let row: Value = serde_json::from_str(child_row).expect("child row is JSON");
-    assert_eq!(row["target"], "./child.nika.yaml");
+    assert_eq!(row["target"], "./child.nika");
     assert_eq!(row["chain_head"], "childhead123");
     assert_eq!(row["def_hash"], "childdef456");
     assert_eq!(row["outcome"], "success");
     assert_eq!(
         str_field(completed, "note"),
-        Some("invoke · workflow:./child.nika.yaml")
+        Some("invoke · workflow:./child.nika")
     );
 }
 
@@ -352,7 +352,7 @@ nika: parent
 tasks:
   audit:
     invoke:
-      workflow: \"./child.nika.yaml\"
+      workflow: \"./child.nika\"
     returns: { object: { report: integer } }
 ";
     let (runner, _) = MockChildRunner::new(green_child(None)); // report: \"done\" — a string
@@ -389,7 +389,7 @@ async fn child_failure_surfaces_the_child_code() {
         err.code, "NIKA-EXEC-002",
         "the child's own code — one voice"
     );
-    assert!(err.message.contains("./child.nika.yaml"), "{}", err.message);
+    assert!(err.message.contains("./child.nika"), "{}", err.message);
     assert!(err.message.contains("headxyz"), "{}", err.message);
     assert!(
         !err.transient,
@@ -410,7 +410,7 @@ nika: parent
 tasks:
   audit:
     invoke:
-      workflow: \"./child.nika.yaml\"
+      workflow: \"./child.nika\"
     retry: { max_attempts: 3 }
 ";
     let (runner, calls) = MockChildRunner::new(Box::new(|_| {
@@ -442,7 +442,7 @@ permits:
 tasks:
   audit:
     invoke:
-      workflow: \"./child.nika.yaml\"
+      workflow: \"./child.nika\"
 ";
     let (runner, calls) = MockChildRunner::new(green_child(None));
     let rt = runtime(RuntimeConfig::default()).with_child_runner(runner);

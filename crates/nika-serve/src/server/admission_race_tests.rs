@@ -19,16 +19,16 @@ async fn a_symlink_swap_after_named_lookup_never_admits_or_executes() {
     for directory in [false, true] {
         let world = TestWorld::new();
         let outside = tempfile::tempdir().expect("outside registry");
-        let foreign = outside.path().join("root.nika.yaml");
+        let foreign = outside.path().join("root.nika");
         std::fs::write(
             &foreign,
             WORKFLOW.replace("nika: root", "nika: outside-secret"),
         )
         .expect("foreign workflow");
         let name = if directory {
-            "nested/root.nika.yaml"
+            "nested/root.nika"
         } else {
-            "root.nika.yaml"
+            "root.nika"
         };
         let original = world.workflows.join(name);
         if directory {
@@ -124,7 +124,7 @@ impl ExecutionBackend for CaptureRecordingBackend {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_named_receipt_binds_the_bytes_the_backend_saw_despite_replacement() {
     let world = TestWorld::new();
-    let path = world.workflows.join("root.nika.yaml");
+    let path = world.workflows.join("root.nika");
     let backend = Arc::new(CaptureRecordingBackend {
         seen: Mutex::new(None),
         path: path.clone(),
@@ -143,7 +143,7 @@ async fn the_named_receipt_binds_the_bytes_the_backend_saw_despite_replacement()
         .await;
     let admitted = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "captured-digest",
             &auth_header(),
         ))

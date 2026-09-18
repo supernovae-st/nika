@@ -1,6 +1,6 @@
 ---
 name: nika-migration
-description: Convert existing scripts, CI jobs or prompt chains into .nika.yaml workflows while preserving behavior. Use when an existing automation is being ported.
+description: Convert existing scripts, CI jobs or prompt chains into .nika workflows while preserving behavior. Use when an existing automation is being ported.
 ---
 
 # Migrating existing automation to Nika
@@ -54,7 +54,7 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 2. **Route to a template**: `nika new '?'` lists the embedded
    set; pick the OUTER shape (chain · fanout · gate-and-act ·
    etl-state · agent-loop · human-gated-ship) and instantiate with
-   `nika new <template> <file>.nika.yaml`.
+   `nika new <template> <file>.nika`.
 3. **Map with the table.** Native-first is the law: `invoke: nika:*`
    → `invoke: mcp:<server>/<tool>` → `exec:` last. Every surviving
    `exec:` gets its ledger row (task · command · why no native path ·
@@ -90,7 +90,7 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 
 ## Porting a pre-0.106 workflow file
 
-A `.nika.yaml` written before 0.106 can refuse to check today — the
+A `.nika` written before 0.106 can refuse to check today — the
 flag day changed what an existing file MEANS. Run `nika check <file>
 --fix` first: it migrates three classes mechanically, comment-
 preserving and idempotent.

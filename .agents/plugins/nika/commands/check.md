@@ -1,13 +1,13 @@
 ---
-description: Audit a .nika.yaml workflow before it runs — findings with their NIKA-XXXX codes, cost envelope, permits
-argument-hint: <file.nika.yaml>
+description: Audit a .nika workflow before it runs — findings with their NIKA-XXXX codes, cost envelope, permits
+argument-hint: <file.nika>
 allowed-tools: Bash(nika check:*), Bash(nika explain:*), Read, Glob
 ---
 
 Audit the workflow **before** any run — check is the oracle, the file is
 the contract.
 
-Target: `$ARGUMENTS` (no argument? `Glob` for `*.nika.yaml` — one match
+Target: `$ARGUMENTS` (no argument? `Glob` for `*.nika` — one match
 runs, several ask).
 
 1. Run `nika check $ARGUMENTS --native-strict --json` and read the

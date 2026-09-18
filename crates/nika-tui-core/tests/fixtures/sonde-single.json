@@ -1,7 +1,7 @@
 {
   "name": "sonde-single",
   "workflow": {
-    "file": "sonde-single.nika.yaml",
+    "file": "sonde-single.nika",
     "engine": "0.108.0",
     "prompt": "sonde",
     "permits": [],

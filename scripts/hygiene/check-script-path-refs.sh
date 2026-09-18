@@ -6,7 +6,7 @@
 #
 #   - a commit-msg warning telling the reader to edit commitlint.config.js,
 #     a file this repo does not contain
-#   - a media capture reading examples/showcase/t3-*.nika.yaml, a layout the
+#   - a media capture reading examples/showcase/t3-*.nika, a layout the
 #     pack had flattened away — and it did not fail, because the capture
 #     redirects stderr INTO its artifact, so graph-fanout.mmd shipped
 #     "cannot read ..." where a mermaid DAG belongs

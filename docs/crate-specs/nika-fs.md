@@ -136,7 +136,7 @@ followed (`file_type` is lstat-like) — cycles terminate. Results sorted.
 | 6 PROPERTY | ✅ | 2 proptest invariants · arbitrary-bytes write→read roundtrip · glob returns exactly the created suffix set (32 cases each) |
 | 7 BENCH | N/A | thin `tokio::fs` wrappers, no algorithmic hot path (justified — same class as nika-clock) |
 | 8 DOCS | ✅ | `RUSTDOCFLAGS=-D warnings cargo doc --no-deps -p nika-fs` 0 warnings · every pub item + per-method CANCEL SAFETY |
-| 9 CANARY | N/A | L1 effect, no `.nika.yaml` surface until L2 verbs land (justified — same class as clock/screen/ocr) |
+| 9 CANARY | N/A | L1 effect, no `.nika` surface until L2 verbs land (justified — same class as clock/screen/ocr) |
 | 10 PARITY | ✅ | brouillon `tools/nika-fs` read via `git show brouillon:` · all 12 brouillon test behaviours re-asserted (roundtrips · parent auto-create · hidden-dir skip · `**` recursion · sorted) · Diamond ADDS atomic write + `list_dir` + 4-trait split — CRAFT-fresh per ADR-001 |
 | 11 REVIEW | ✅ | 3-agent swarm 2026-06-10 (spn-nika:code-reviewer + spn-rust:rust-pro + feature-dev:code-reviewer) · verdicts 3× approve-with-P2 · **0 P0/P1** · 8 P2 ALL fixed same session: glob strip_prefix explicit-skip · discriminator-only temp name (ENAMETOOLONG + lossy-collision) · rename-over-dir error-kind assert · dup zero-size test removed · byte-level hidden check (non-UTF-8 fails-closed, was fails-open) · replace-semantics documented (perms/hardlinks/symlink) + pinned by cfg(unix) test · `tmp_sibling` pure helper (empty-parent arm unit-tested) · detach-not-abort cancel doc |
 | 12 ATOMIC | ✅ | 1 commit · Nika 🦋 trailer |

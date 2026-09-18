@@ -77,7 +77,7 @@ fn next_command(mode: ContextMode, glance: Glance, gate: Option<&RunGate>, door:
 struct Glance {
     /// Inside a git repository (any ancestor carries `.git`).
     git: bool,
-    /// `*.nika.yaml` / `*.nika.yml` files under the directory (bounded walk).
+    /// `*.nika` / `*.nika` files under the directory (bounded walk).
     workflows: usize,
     /// An `AGENTS.md` sits at the root — the repo's agents are briefed.
     agents_md: bool,
@@ -201,7 +201,7 @@ pub fn write_first_wow(dest: &Path, force: bool) -> VerbOutput {
     crate::choice::write_first_wow(dest, force)
 }
 
-/// `nika new hello` / `hello.nika.yaml` — the one-shot first file.
+/// `nika new hello` / `hello.nika` — the one-shot first file.
 #[must_use]
 pub fn is_first_wow(from: Option<&str>, dest: Option<&str>) -> bool {
     crate::choice::is_first_wow(from, dest)

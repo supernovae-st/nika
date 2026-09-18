@@ -149,7 +149,7 @@ passthrough). Range registered in the kernel range-registry hub at admission.
   request-shaping output (`git show brouillon:tools/nika-verb-infer/src/lib.rs`
   read-only reference) on the mock provider.
 - **Canary** (Gate 9): N/A justified — no L3 runner admitted yet; the
-  `tests/canary-infer.nika.yaml` lands with `nika-engine` (step 17), same
+  `tests/canary-infer.nika` lands with `nika-engine` (step 17), same
   exemption class as prior pre-engine crates.
 - **Benchmarks** (Gate 7): N/A — network-bound path, no hot loop.
 

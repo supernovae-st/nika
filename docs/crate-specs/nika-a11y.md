@@ -214,7 +214,7 @@ pure transform is the all-OS mandatory gate.
 | 6 | PROPERTY | ✅ | proptest · Guard 3 redaction invariant (every secure node loses its `value`) |
 | 7 | BENCHMARKS | ⚪ N/A | thin `accessibility` adapter · walk latency is OS-bound, not a Nika hot path (Rule 2) |
 | 8 | DOCS | ✅ | `cargo doc --no-deps` 0 warnings · all pub items documented |
-| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika.yaml` surface · the `#[ignore]` real-walk smoke needs AX grant + a focused window |
+| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika` surface · the `#[ignore]` real-walk smoke needs AX grant + a focused window |
 | 10 | PARITY | ⚪ N/A | NEW computer-use crate (M2.3) · no v0.79 brouillon a11y equivalent |
 | 11 | REVIEW SWARM | ✅ | 3-lens review 2026-05-25 · sub-agents hit the 1M-context credit wall → **Foreman-direct** per `orchestrator-autonomous-v6.md` PE-5.1 · rust-pro + Diamond + bug-hunt · all ADMIT · findings fixed (unbounded-recursion → `MAX_WALK_DEPTH` cap · role-arm test gap · `resolve_ref` cache-seed) |
 | 12 | ATOMIC COMMIT | ✅ | the admission commit |

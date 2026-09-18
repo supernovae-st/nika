@@ -555,14 +555,14 @@ mod tests {
         let source = CountingSource {
             reads: RefCell::new(Vec::new()),
             files: BTreeMap::from([
-                ("root.nika.yaml".to_owned(), workflow.to_vec()),
+                ("root.nika".to_owned(), workflow.to_vec()),
                 ("imports/policy.bin".to_owned(), import.to_vec()),
                 ("skills/review/SKILL.md".to_owned(), skill.to_vec()),
             ]),
         };
         let snapshot = ExecutionSnapshot::capture_from(
             &source,
-            Path::new("root.nika.yaml"),
+            Path::new("root.nika"),
             [Path::new("imports/policy.bin")],
             SnapshotLimits::default(),
         )
@@ -570,11 +570,7 @@ mod tests {
         let reads_at_boundary = source.reads.borrow().clone();
         assert_eq!(
             reads_at_boundary,
-            [
-                "root.nika.yaml",
-                "imports/policy.bin",
-                "skills/review/SKILL.md"
-            ]
+            ["root.nika", "imports/policy.bin", "skills/review/SKILL.md"]
         );
         let digest = snapshot.digest().to_owned();
         assert_eq!(source.reads.borrow().as_slice(), reads_at_boundary);
@@ -606,14 +602,10 @@ mod tests {
     }
 
     fn read_owned_world(cx: ExecutionContext<'_>) -> Vec<String> {
-        [
-            "root.nika.yaml",
-            "skills/review/SKILL.md",
-            "imports/policy.bin",
-        ]
-        .into_iter()
-        .filter_map(|path| cx.snapshot().text(path).map(str::to_owned))
-        .collect()
+        ["root.nika", "skills/review/SKILL.md", "imports/policy.bin"]
+            .into_iter()
+            .filter_map(|path| cx.snapshot().text(path).map(str::to_owned))
+            .collect()
     }
 
     #[test]
@@ -621,11 +613,11 @@ mod tests {
         let workflow = b"nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
         let source = CountingSource {
             reads: RefCell::new(Vec::new()),
-            files: BTreeMap::from([("root.nika.yaml".to_owned(), workflow.to_vec())]),
+            files: BTreeMap::from([("root.nika".to_owned(), workflow.to_vec())]),
         };
         let snapshot = ExecutionSnapshot::capture_from(
             &source,
-            Path::new("root.nika.yaml"),
+            Path::new("root.nika"),
             std::iter::empty::<&Path>(),
             SnapshotLimits::default(),
         )

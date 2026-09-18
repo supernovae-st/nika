@@ -36,7 +36,7 @@ fn a_closed_pipe_dies_clean_with_the_unix_code() {
             "  t{i:02}:\n    infer:\n      prompt: \"line {i} long enough to keep the frames coming for the drill\"\n      max_tokens: 32\n"
         );
     }
-    let wf = dir.join("pipe-drill.nika.yaml");
+    let wf = dir.join("pipe-drill.nika");
     std::fs::File::create(&wf)
         .expect("fixture file")
         .write_all(yaml.as_bytes())

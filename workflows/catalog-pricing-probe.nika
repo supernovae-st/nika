@@ -18,8 +18,8 @@
 # that porting it belongs in its own change with its own tests. This
 # workflow produces the provenance half — the half that was missing.
 #
-#   nika check  workflows/catalog-pricing-probe.nika.yaml
-#   nika run    workflows/catalog-pricing-probe.nika.yaml
+#   nika check  workflows/catalog-pricing-probe.nika
+#   nika run    workflows/catalog-pricing-probe.nika
 # fetch the upstream price source · hash it · record the provenance
 nika: catalog-pricing-probe
 

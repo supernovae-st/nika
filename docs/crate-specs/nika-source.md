@@ -4,7 +4,7 @@
 |---|---|
 | Status | **ADMITTED 2026-07-14** — the size-cap split of the `nika-schema` unit (W3 « the contract » pushed the crate past the 15k prod-LOC budget; per the unit-target discipline, D-2026-07-09-N1, one architectural unit may span two workspace members — `nika-schema` stays the unit's front door). |
 | Layer | **L0** — pure, zero I/O, zero async, zero `nika-*` deps. |
-| Design | Source tracking for diagnostics: `FileId` interning (`SourceRegistry`), byte-offset `Span`/`Spanned<T>` carriers, and `LineCol` conversion. The substrate every ladder finding anchors to. |
+| Design | Source tracking for diagnostics: `FileId` interning (`SourceRegistry`), byte-offset `Span`/`Spanned<T>` carriers, and `LineCol` conversion, plus the pure lexical `*.nika` program-source naming contract (no I/O). The substrate every ladder finding anchors to. |
 | Name | `nika-source` (honest: the *source* bookkeeping, not the parser). |
 | LOC budget | ≤400 src (admitted at ~310). ≤1500/file, ≤100/fn. |
 | Deps | `serde` only. |
@@ -36,6 +36,8 @@ pub struct Spanned<T> { value, span }    // #[non_exhaustive] · Spanned::new
 pub struct LineCol { line, col }         // 1-based · for humans
 pub struct SourceRegistry;               // add() → FileId · get() → SourceFile
 pub struct SourceFile { path, content }  // Arc<str> shared content
+pub const PROGRAM_SUFFIX: &str = ".nika";
+pub enum SourceNameKind { CanonicalProgram, RetiredProgram, ProjectFile, RuntimeDir, Other }
 ```
 
 ## 3 · Gates

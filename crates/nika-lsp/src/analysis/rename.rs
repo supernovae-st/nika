@@ -256,7 +256,7 @@ mod tests {
     const DOC: &str = "nika: w\ntasks:\n  fetch:\n    exec: { command: [\"curl\"] }\n  digest:\n    after: { fetch: success }\n    with:\n      article: \"${{ tasks.fetch.output }}\"\n    infer: { prompt: \"sum ${{ with.article }}\", max_tokens: 10 }\n  save:\n    after: { digest: success, fetch: terminal }\n    with:\n      doc: \"${{ tasks.digest.output }}\"\n      raw: \"${{ tasks.fetch.output }}\"\n    exec: { command: [\"tee\", \"${{ with.doc }}\", \"${{ with.raw }}\"] }\n";
 
     fn uri() -> Uri {
-        Uri::from_str("file:///w.nika.yaml").expect("uri")
+        Uri::from_str("file:///w.nika").expect("uri")
     }
 
     fn edits(we: &WorkspaceEdit) -> Vec<TextEdit> {

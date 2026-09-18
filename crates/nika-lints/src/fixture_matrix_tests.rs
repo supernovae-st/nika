@@ -44,7 +44,7 @@ fn fixture(rule: &str, polarity: &str) -> PathBuf {
     root()
         .join(lane)
         .join(rule)
-        .join(format!("{polarity}.nika.yaml"))
+        .join(format!("{polarity}.nika"))
 }
 
 fn read(path: &Path) -> String {

@@ -73,14 +73,14 @@ OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb OPENAI_API_KEY=sk-CAN
 printf '%s' "$OUT" | grep -q "sk-CANARY-9911" && fail "[welcome] key VALUE leaked"
 
 # 2 · scaffold → audit (the inputs trap is TAUGHT) → provision → run → story → verify
-run new-from 0 -- "$BIN" new chain first.nika.yaml
-[ -f first.nika.yaml ] || fail "[new] no file created"
+run new-from 0 -- "$BIN" new chain first.nika
+[ -f first.nika ] || fail "[new] no file created"
 # #1066 · a scaffold whose slots are untouched is not a workflow yet, and
 # `check` refuses it BEFORE the spend. Played first, because a 0 here
 # would mean the refusal is gone — and the marker has to be a VALUE for
 # it to fire at all (a comment dies with the parse, which is how this
 # file used to run green and leave an `output.md` holding its own prompt).
-run check-unfilled 2 -- "$BIN" check first.nika.yaml
+run check-unfilled 2 -- "$BIN" check first.nika
 need check-unfilled "SLOTS"
 need check-unfilled "ready to be filled"
 # It reads as a step, not a fault: the person typed `nika new` and did
@@ -91,11 +91,11 @@ fi
 # Answer the slot the way its author would, then the SAME file audits —
 # the other end of the ratchet: a refusal nobody can clear is a wall.
 sed 's|<SLOT:[^>]*>|Summarise the gathered text in one short paragraph.|' \
-  first.nika.yaml >first.filled && mv first.filled first.nika.yaml
-if grep -q '<SLOT:' first.nika.yaml; then
+  first.nika >first.filled && mv first.filled first.nika
+if grep -q '<SLOT:' first.nika; then
   fail "[fill] a marker survived the fill"
 fi
-run check 0 -- "$BIN" check first.nika.yaml
+run check 0 -- "$BIN" check first.nika
 need check "audited"
 # #1269 · the audit no longer predicts an input failure the file OWNS
 # (the scaffold's `on_error: recover:` rehearses green in an empty
@@ -106,13 +106,13 @@ need check "JOURNEY"  # the data journey rung renders on every audit
 # Provision the input the scaffold DECLARES (./README.md since the
 # pack-SSOT era · ./input.txt before) — the funnel plays the file,
 # it never assumes the era.
-SRC=$(sed -n 's/^  source: "\(\.\/[A-Za-z0-9._-]*\)".*/\1/p' first.nika.yaml | head -1)
+SRC=$(sed -n 's/^  source: "\(\.\/[A-Za-z0-9._-]*\)".*/\1/p' first.nika | head -1)
 echo demo >"${SRC:-./input.txt}"
-run run-mock 0 -- "$BIN" run first.nika.yaml --model mock/echo
+run run-mock 0 -- "$BIN" run first.nika --model mock/echo
 TRACE=$(find .nika/traces -name '*.ndjson' 2>/dev/null | sort | tail -1)
 [ -n "$TRACE" ] || fail "[run] no trace recorded"
 if has_cmd explain; then
-  run explain-file 0 -- "$BIN" explain first.nika.yaml
+  run explain-file 0 -- "$BIN" explain first.nika
   # The ceiling must be stated BEFORE a token is spent — that is the
   # promise, and it holds whatever the scaffold costs. The old pins
   # (`bounded portion` · `unpriced`) render only for an UNBOUNDED plan;
@@ -172,22 +172,22 @@ done
 # without a single write under HOME. (The payload rides a HERESTRING,
 # never an `echo | run` pipe: a piped function runs in a subshell and
 # its OUT would never reach the need() checks below.)
-run guard-clean 0 -- "$BIN" guard --stdin <<<'{"command":"nika run first.nika.yaml","cwd":"."}'
+run guard-clean 0 -- "$BIN" guard --stdin <<<'{"command":"nika run first.nika","cwd":"."}'
 need guard-clean '"permission":"allow"'
 # shellcheck disable=SC2016 # the workflow must reach the file UNEXPANDED
-printf 'nika: consent-dirty\npermits:\n  exec: ["git"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "push?", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: ["git", "push"] }\n' >consent-dirty.nika.yaml
-run guard-dirty 2 -- "$BIN" guard --stdin <<<'{"command":"nika run consent-dirty.nika.yaml","cwd":"."}'
+printf 'nika: consent-dirty\npermits:\n  exec: ["git"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "push?", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: ["git", "push"] }\n' >consent-dirty.nika
+run guard-dirty 2 -- "$BIN" guard --stdin <<<'{"command":"nika run consent-dirty.nika","cwd":"."}'
 need guard-dirty '"permission":"deny"'
 need guard-dirty 'NIKA-SEC-014'
-run consent-check 2 -- "$BIN" check consent-dirty.nika.yaml
+run consent-check 2 -- "$BIN" check consent-dirty.nika
 need consent-check 'NIKA-SEC-014'
 # The affirmative twin: a default-less confirm whose answer IS gated
 # (NEP-0020's human-gated-ship) pauses headless instead of dying — the
 # first-run-killer class. exit 4 + the taught resume line, never a
 # bare refusal.
 # shellcheck disable=SC2016 # the workflow must reach the file UNEXPANDED
-printf 'nika: consent-pause\nmodel: mock/echo\npermits:\n  exec: ["echo"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "continue?" }\n  go:\n    after: { ask: success }\n    with:\n      ok: ${{ tasks.ask.output }}\n    when: ${{ with.ok == true }}\n    exec: { command: ["echo", "went"] }\n' >consent-pause.nika.yaml
-run consent-run 4 -- "$BIN" run consent-pause.nika.yaml
+printf 'nika: consent-pause\nmodel: mock/echo\npermits:\n  exec: ["echo"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "continue?" }\n  go:\n    after: { ask: success }\n    with:\n      ok: ${{ tasks.ask.output }}\n    when: ${{ with.ok == true }}\n    exec: { command: ["echo", "went"] }\n' >consent-pause.nika
+run consent-run 4 -- "$BIN" run consent-pause.nika
 need consent-run '--resume'
 need consent-run '--answer'
 mkdir -p "$HOME_DIR/.cursor" && printf '{}' >"$HOME_DIR/.cursor/mcp.json"
@@ -200,9 +200,9 @@ AFTER=$(find "$HOME_DIR" -type f | sort)
 # 6 · doctor diagnoses offline · broken files fail WITH a code
 run doctor 0 -- "$BIN" doctor
 # shellcheck disable=SC2016 # the ${{ }} island must reach the file UNEXPANDED
-printf 'nika: broken\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: ["echo", "${{ tasks.ghost.output }}"] }\n' >broken.nika.yaml
+printf 'nika: broken\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: ["echo", "${{ tasks.ghost.output }}"] }\n' >broken.nika
 set +e
-OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$BIN" check broken.nika.yaml 2>&1)
+OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$BIN" check broken.nika 2>&1)
 GOT=$?
 set -e
 [ "$GOT" -eq 0 ] && fail "[broken] invalid workflow checked clean"

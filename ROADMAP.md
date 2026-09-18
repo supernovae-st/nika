@@ -241,7 +241,7 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 
 ## Schema envelope — nine keys, forever (Q-R5 · per nika-spec · ADR-113)
 
-Every `.nika.yaml` workflow opens with `nika: <kebab-id>` **forever** — the
+Every `.nika` workflow opens with `nika: <kebab-id>` **forever** — the
 key says « this is a Nika file », the value is the file's NAME (the `v1`
 version slot died losslessly on 2026-08-12: one legal value is not a
 version · ADR-113). The envelope is exactly nine keys · `nika` · `model` ·
@@ -698,7 +698,7 @@ infrastructure. PR-based publishing for quality gate.
 **9 first-class content types** (classified by runtime maturity):
 
 🥇 **Gold (runtime-complete)** — day-one public registry:
-1. **workflow** — `.nika.yaml` DAG, the atomic unit
+1. **workflow** — `.nika` DAG, the atomic unit
 2. **skill** — markdown prompt (absorbs IDE rulesets via `targets:` field for
    Claude Code / Cursor / Windsurf / Zed)
 3. **agent** — agent preset (verb + tools + completion + guardrails + budget)
@@ -866,7 +866,7 @@ outright or reclassified as a future layer-phase deliverable (no version tag).
 
 ## What this roadmap deliberately excludes (never)
 
-- **Visual no-code editor** (anti-positioning — `.nika.yaml` is the user-facing format)
+- **Visual no-code editor** (anti-positioning — `.nika` is the user-facing format)
 - **Chat UI / consumer assistant** (GPT Store territory)
 - **Own model training infrastructure** (HuggingFace territory)
 

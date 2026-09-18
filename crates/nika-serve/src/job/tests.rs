@@ -851,7 +851,7 @@ fn identityless_running_job_restarts_as_recoverable_queued_without_receipt() {
                 key("request-identityless-running"),
                 digest(57),
                 usize::MAX,
-                "root.nika.yaml".to_owned(),
+                "root.nika".to_owned(),
                 "captured-world",
             )
             .expect("create captured job"),
@@ -876,7 +876,7 @@ fn identityless_running_job_restarts_as_recoverable_queued_without_receipt() {
     assert_eq!(recovered.receipt(), None);
     assert_eq!(
         store.queued_jobs_pinned().expect("restart schedule"),
-        vec![(record.id().clone(), "root.nika.yaml".to_owned(), None)]
+        vec![(record.id().clone(), "root.nika".to_owned(), None)]
     );
     let events = store
         .events_after(record.id(), 0, page_limit(MAX_EVENT_PAGE_LEN))
@@ -1177,7 +1177,7 @@ fn a_queued_pin_survives_reopen_without_changing_the_legacy_listing() {
                 key("persisted-access"),
                 digest(82),
                 usize::MAX,
-                "root.nika.yaml".to_owned(),
+                "root.nika".to_owned(),
                 "captured-world",
                 Some("codex".to_owned()),
             )
@@ -1187,13 +1187,13 @@ fn a_queued_pin_survives_reopen_without_changing_the_legacy_listing() {
     let reopened = JobStore::open(root.path()).expect("reopened");
     assert_eq!(
         reopened.queued_jobs().expect("legacy"),
-        vec![(record.id().clone(), "root.nika.yaml".to_owned())]
+        vec![(record.id().clone(), "root.nika".to_owned())]
     );
     assert_eq!(
         reopened.queued_jobs_pinned().expect("pinned"),
         vec![(
             record.id().clone(),
-            "root.nika.yaml".to_owned(),
+            "root.nika".to_owned(),
             Some("codex".to_owned())
         )]
     );

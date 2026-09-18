@@ -272,26 +272,21 @@ mod tests {
         let dir = fresh("run");
         std::fs::write(dir.join("nika.yaml"), "nika: proj\nceiling: 0.01\n").expect("seed");
         std::fs::write(
-            dir.join("wf.nika.yaml"),
+            dir.join("wf.nika"),
             "nika: wf\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
         )
         .expect("wf");
         let prev = std::env::current_dir().expect("cwd");
         std::env::set_current_dir(&dir).expect("chdir");
         let out = crate::verbs::check::run(
-            "wf.nika.yaml",
+            "wf.nika",
             false,
             false,
             None,
             Theme::new(false, true, false),
         );
-        let json = crate::verbs::check::run(
-            "wf.nika.yaml",
-            true,
-            false,
-            None,
-            Theme::new(false, true, false),
-        );
+        let json =
+            crate::verbs::check::run("wf.nika", true, false, None, Theme::new(false, true, false));
         let _ = std::env::set_current_dir(&prev);
         assert!(
             out.text.contains("BUDGET")

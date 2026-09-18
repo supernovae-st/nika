@@ -63,7 +63,7 @@ gates green. The gates are not negotiable:
 6. PROPERTY — proptest for parsers, security, encoding
 7. BENCHMARKS — `benches/` with criterion if hot path
 8. DOCS — `cargo doc --no-deps` with zero warnings; every `pub` item documented
-9. CANARY E2E — `tests/canary-X.nika.yaml` workflow passes
+9. CANARY E2E — `tests/canary-X.nika` workflow passes
 10. PARITY LEGACY — golden test vs `git show brouillon:...` output
 11. REVIEW SWARM — 3 agents in parallel (patterns / idioms / architecture)
 12. ATOMIC COMMIT — one commit, `feat(nika-X): admit to workspace — all 12 gates passed`

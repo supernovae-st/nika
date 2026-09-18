@@ -1,6 +1,6 @@
 ---
 description: Scaffold a workflow from an embedded template, then audit it clean
-argument-hint: "[template] [file.nika.yaml]"
+argument-hint: "[template] [file.nika]"
 allowed-tools: Bash(nika new:*), Bash(nika try:*), Bash(nika check:*), Read, Edit
 ---
 
@@ -11,7 +11,7 @@ Arguments: `$ARGUMENTS` (template + destination; either may be missing).
 
 1. No template named? `nika try` and pick the closest to the
    user's intent (say which and why, one line). No destination? Derive a
-   kebab-case `<name>.nika.yaml` from the intent.
+   kebab-case `<name>.nika` from the intent.
 2. `nika new <template> <file>` — the scriptable scaffold.
 3. Adapt the file to the user's actual task: the envelope stays
    `nika: <id>` (the id lives ON the tag) + a `tasks:` MAP keyed by

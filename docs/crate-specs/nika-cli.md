@@ -45,7 +45,7 @@ Machine modes and Quiet retain their existing announcement policy.
 | `nika doctor` | environment diagnosis (PATH · providers reachable · keys present-not-printed · config) | 0 · 3 |
 | `nika explain NIKA-XXXX` | teach one error code (cause · fix-form · doc link) | 0 · 2 unknown code |
 | `nika completions <shell>` | shell completions (clap-generated) | 0 |
-| `nika new <template\|example\|intent> [dest]` | make one yours (V5 positional): exact template · example slug (verbatim, ingredients included) · plain words BM25-route to the closest skeleton · `'?'` = first-class discovery listing (exit 0 · the `embedded set:` line is the editor wire contract) · a lone `<name>.nika.yaml` = destination, wizard on a terminal · bare `nika new` on a terminal = the guided flow, at most three questions (template → file → model · the model question only fires for skeletons carrying a top-level `model:` · the default file name walks past collisions · Enter-only path lands on the offline mock) · bare in a pipe fails fast naming the grammar | 0 · 2 unknown/bare-in-pipe · 3 env |
+| `nika new <template\|example\|intent> [dest]` | make one yours (V5 positional): exact template · example slug (verbatim, ingredients included) · plain words BM25-route to the closest skeleton · `'?'` = first-class discovery listing (exit 0 · the `embedded set:` line is the editor wire contract) · a lone `<name>.nika` = destination, wizard on a terminal · bare `nika new` on a terminal = the guided flow, at most three questions (template → file → model · the model question only fires for skeletons carrying a top-level `model:` · the default file name walks past collisions · Enter-only path lands on the offline mock) · bare in a pipe fails fast naming the grammar | 0 · 2 unknown/bare-in-pipe · 3 env |
 | `nika spec` (`--schema` prints the JSON Schema) / `nika try [slug]` | the embedded self-contained surface — bare = the showroom list · a slug runs it offline by default (`--model` opts into a real seat · V5) | 0 |
 | `nika lsp` | the in-binary language server (stdio) | — |
 | `nika mcp` | the in-binary MCP server | — |
@@ -161,7 +161,7 @@ frame final (success)
 
 frame final (failure · miette card)
   ✖ summarize failed · NIKA-431 provider refused (429 rate-limit)
-    ┌─ veille-news.nika.yaml:23:9
+    ┌─ veille-news.nika:23:9
     │   model: anthropic/claude-sonnet-4-6
     ╰─ retried 2× · budget exhausted
     fix: add retry.backoff_ms or switch provider — nika explain NIKA-431

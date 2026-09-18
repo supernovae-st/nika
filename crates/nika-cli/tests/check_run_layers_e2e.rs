@@ -109,15 +109,15 @@ fn sorted_rows(rows: &serde_json::Value) -> Vec<serde_json::Value> {
 #[test]
 fn run_refuses_what_check_refuses_on_the_reasoning_floor() {
     let rig = Rig::new("floor");
-    rig.write("floor.nika.yaml", &workflow(32));
-    let check = rig.nika(&["check", "floor.nika.yaml"]);
+    rig.write("floor.nika", &workflow(32));
+    let check = rig.nika(&["check", "floor.nika"]);
     let check_out = text(&check.stdout);
     assert_eq!(check.status.code(), Some(2), "check refuses: {check_out}");
     assert!(
         check_out.contains("MODELS") && check_out.contains("max_tokens"),
         "{check_out}"
     );
-    let run = rig.nika(&["run", "floor.nika.yaml", "--json", "--max-cost-usd", "1"]);
+    let run = rig.nika(&["run", "floor.nika", "--json", "--max-cost-usd", "1"]);
     let stdout = text(&run.stdout);
     let stderr = text(&run.stderr);
     assert_eq!(
@@ -140,8 +140,8 @@ fn run_refuses_what_check_refuses_on_the_reasoning_floor() {
 #[test]
 fn capacity_is_judged_on_both_doors() {
     let rig = Rig::new("capacity");
-    rig.write("cap.nika.yaml", &workflow(200_000));
-    let check = rig.nika(&["check", "cap.nika.yaml", "--json"]);
+    rig.write("cap.nika", &workflow(200_000));
+    let check = rig.nika(&["check", "cap.nika", "--json"]);
     let out = text(&check.stdout);
     assert_eq!(check.status.code(), Some(2), "{out}");
     let verdict: serde_json::Value = serde_json::from_str(&out).expect("check json");
@@ -149,7 +149,7 @@ fn capacity_is_judged_on_both_doors() {
     assert_eq!(verdict["verdicts"]["capacity_fit"], false, "{verdict}");
     assert_eq!(verdict["verdicts"]["run_ready"], false, "{verdict}");
     assert_eq!(verdict["clean"], false, "{verdict}");
-    let run = rig.nika(&["run", "cap.nika.yaml", "--json", "--max-cost-usd", "1"]);
+    let run = rig.nika(&["run", "cap.nika", "--json", "--max-cost-usd", "1"]);
     assert_eq!(run.status.code(), Some(2), "{}", text(&run.stderr));
     assert!(!text(&run.stdout).contains("\"kind\":\"task_started\""));
 }
@@ -160,8 +160,8 @@ fn capacity_is_judged_on_both_doors() {
 #[test]
 fn one_lane_shape_on_three_surfaces() {
     let rig = Rig::new("shape");
-    rig.write("lane.nika.yaml", &workflow(256));
-    let check = rig.nika(&["check", "lane.nika.yaml", "--json", "--access", "codex"]);
+    rig.write("lane.nika", &workflow(256));
+    let check = rig.nika(&["check", "lane.nika", "--json", "--access", "codex"]);
     let check_json: serde_json::Value =
         serde_json::from_str(&text(&check.stdout)).expect("check json");
     let check_rows = sorted_rows(&check_json["access_plan"]);
@@ -173,7 +173,7 @@ fn one_lane_shape_on_three_surfaces() {
 
     let dry = rig.nika(&[
         "run",
-        "lane.nika.yaml",
+        "lane.nika",
         "--access",
         "codex",
         "--dry-run",
@@ -191,7 +191,7 @@ fn one_lane_shape_on_three_surfaces() {
 
     let run = rig.nika(&[
         "run",
-        "lane.nika.yaml",
+        "lane.nika",
         "--access",
         "codex",
         "--json",
@@ -222,15 +222,15 @@ fn one_lane_shape_on_three_surfaces() {
 #[test]
 fn check_access_pins_like_run() {
     let rig = Rig::new("pin");
-    rig.write("lane.nika.yaml", &workflow(256));
-    let api = rig.nika(&["check", "lane.nika.yaml", "--json", "--access", "api"]);
+    rig.write("lane.nika", &workflow(256));
+    let api = rig.nika(&["check", "lane.nika", "--json", "--access", "api"]);
     let api_json: serde_json::Value = serde_json::from_str(&text(&api.stdout)).expect("json");
     assert_eq!(api.status.code(), Some(0), "{api_json}");
     assert_eq!(api_json["access_plan"][0]["pinned"], true, "{api_json}");
     assert_eq!(api_json["access_plan"][0]["chosen"], "api", "{api_json}");
     assert_eq!(api_json["verdicts"]["access_ready"], true, "{api_json}");
 
-    let mock = rig.nika(&["check", "lane.nika.yaml", "--json", "--access", "mock"]);
+    let mock = rig.nika(&["check", "lane.nika", "--json", "--access", "mock"]);
     let mock_json: serde_json::Value = serde_json::from_str(&text(&mock.stdout)).expect("json");
     assert_eq!(
         mock.status.code(),
@@ -247,7 +247,7 @@ fn check_access_pins_like_run() {
 
     let operational = rig.nika(&[
         "check",
-        "lane.nika.yaml",
+        "lane.nika",
         "--access",
         "mock",
         "--profile",
@@ -263,8 +263,8 @@ fn check_access_pins_like_run() {
 #[test]
 fn the_layers_line_names_the_four_questions() {
     let rig = Rig::new("layers");
-    rig.write("lane.nika.yaml", &workflow(256));
-    let check = rig.nika(&["check", "lane.nika.yaml"]);
+    rig.write("lane.nika", &workflow(256));
+    let check = rig.nika(&["check", "lane.nika"]);
     let out = text(&check.stdout);
     assert_eq!(check.status.code(), Some(0), "{out}");
     assert!(
@@ -324,10 +324,10 @@ fn last_frame(stdout: &str) -> serde_json::Value {
 #[test]
 fn a_failed_task_terminal_carries_its_lane() {
     let rig = Rig::new("failed-lane");
-    rig.write("lane.nika.yaml", &workflow(256));
+    rig.write("lane.nika", &workflow(256));
     let run = rig.nika(&[
         "run",
-        "lane.nika.yaml",
+        "lane.nika",
         "--json",
         "--access",
         "api",
@@ -370,10 +370,10 @@ fn a_failed_task_terminal_carries_its_lane() {
 #[test]
 fn a_refused_run_settles_with_its_code() {
     let rig = Rig::new("refused-code");
-    rig.write("lane.nika.yaml", &workflow(256));
+    rig.write("lane.nika", &workflow(256));
     let run = rig.nika(&[
         "run",
-        "lane.nika.yaml",
+        "lane.nika",
         "--json",
         "--access",
         "mock",
@@ -405,10 +405,10 @@ fn a_refused_run_settles_with_its_code() {
 #[test]
 fn a_seated_run_settles_with_its_lanes() {
     let rig = Rig::new("settled-lanes");
-    rig.write("lane.nika.yaml", &workflow(256));
+    rig.write("lane.nika", &workflow(256));
     let run = rig.nika(&[
         "run",
-        "lane.nika.yaml",
+        "lane.nika",
         "--access",
         "codex",
         "--json",
@@ -453,8 +453,8 @@ fn the_run_help_and_the_explain_teach_the_exit_codes() {
 fn the_exit_three_lane_is_json_on_both_verbs() {
     let rig = Rig::new("exit-three");
     for args in [
-        vec!["check", "missing.nika.yaml", "--json"],
-        vec!["run", "missing.nika.yaml", "--json", "--max-cost-usd", "1"],
+        vec!["check", "missing.nika", "--json"],
+        vec!["run", "missing.nika", "--json", "--max-cost-usd", "1"],
     ] {
         let out = rig.nika(&args);
         let stdout = text(&out.stdout);
@@ -494,8 +494,8 @@ fn the_check_help_carries_the_legend_and_the_gate_keys() {
 #[test]
 fn an_outranked_path_rides_the_lane_rows() {
     let rig = Rig::new("outranked");
-    rig.write("lane.nika.yaml", &workflow(256));
-    let out = rig.nika(&["check", "lane.nika.yaml", "--json"]);
+    rig.write("lane.nika", &workflow(256));
+    let out = rig.nika(&["check", "lane.nika", "--json"]);
     let obj: serde_json::Value =
         serde_json::from_str(text(&out.stdout).trim()).expect("one object");
     let lane = &obj["access_plan"][0];
@@ -516,10 +516,10 @@ fn an_outranked_path_rides_the_lane_rows() {
 fn the_operational_footer_prints_on_green_and_the_mock_lane_never_dials() {
     let rig = Rig::new("operational-green");
     rig.write(
-        "mock.nika.yaml",
+        "mock.nika",
         "nika: m\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
     );
-    let out = rig.nika(&["check", "mock.nika.yaml", "--profile", "operational"]);
+    let out = rig.nika(&["check", "mock.nika", "--profile", "operational"]);
     let stdout = text(&out.stdout);
     assert_eq!(out.status.code(), Some(0), "{stdout}");
     assert!(stdout.contains("✔ operational · risk"), "{stdout}");

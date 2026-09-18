@@ -409,14 +409,12 @@ async fn glob_recurses_subdirs() {
     let dir = td();
     let fs = TokioFs;
 
-    fs.write(&dir.path().join("sub").join("deep.nika.yaml"), b"")
+    fs.write(&dir.path().join("sub").join("deep.nika"), b"")
         .await
         .unwrap();
-    fs.write(&dir.path().join("top.nika.yaml"), b"")
-        .await
-        .unwrap();
+    fs.write(&dir.path().join("top.nika"), b"").await.unwrap();
 
-    let matches = fs.glob(dir.path(), "**/*.nika.yaml").await.unwrap();
+    let matches = fs.glob(dir.path(), "**/*.nika").await.unwrap();
     assert_eq!(matches.len(), 2, "`**` must match zero or more components");
 }
 

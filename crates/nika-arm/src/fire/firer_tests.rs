@@ -22,7 +22,7 @@ type RegistryFixture = (String, ArmRegistry);
 /// suite rides, with the overlap policy as the variable.
 fn registry_with(body: &str) -> RegistryFixture {
     let source = format!(
-        "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
+        "nika: proj\narm:\n  - workflow: workflows/doctor.nika\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
     );
     let registry = nika_cadence::parse_registry(&source).expect("parse");
     assert!(
@@ -34,7 +34,7 @@ fn registry_with(body: &str) -> RegistryFixture {
 
 fn minutely_registry(body: &str) -> RegistryFixture {
     let source = format!(
-        "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n{body}"
+        "nika: proj\narm:\n  - workflow: workflows/doctor.nika\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n{body}"
     );
     let registry = nika_cadence::parse_registry(&source).expect("parse");
     assert!(nika_cadence::validate(&registry).next().is_none());
@@ -64,7 +64,7 @@ fn project(tag: &str) -> tempfile::TempDir {
         .expect("tmp dir");
     std::fs::create_dir_all(dir.path().join("workflows")).expect("workflows dir");
     std::fs::write(
-        dir.path().join("workflows/doctor.nika.yaml"),
+        dir.path().join("workflows/doctor.nika"),
         "nika: doctor\npermits: {}\ntasks:\n  answer:\n    infer: { prompt: \"admitted\" }\n",
     )
     .expect("workflow source");
@@ -145,8 +145,8 @@ fn legacy_run_seam_receives_the_exact_admitted_root_source() {
     let dir = project("legacy-run-seam");
     let fixture = registry_with(SAUTER);
     std::fs::write(dir.path().join("nika.yaml"), &fixture.0).expect("project registry");
-    let original = std::fs::read_to_string(dir.path().join("workflows/doctor.nika.yaml"))
-        .expect("root source");
+    let original =
+        std::fs::read_to_string(dir.path().join("workflows/doctor.nika")).expect("root source");
     let seen = Rc::new(Cell::new(false));
     let observed = Rc::clone(&seen);
     let run: RunSeam = Rc::new(move |shot| {
@@ -274,7 +274,7 @@ fn the_claim_precedes_the_run_and_the_receipt_settles_it() {
             "the lock carries OUR pid: {lock}"
         );
         assert_eq!(shot.root(), root.as_path());
-        assert_eq!(shot.workflow(), "workflows/doctor.nika.yaml");
+        assert_eq!(shot.workflow(), "workflows/doctor.nika");
         assert_eq!(shot.ceiling().to_bits(), 0.25f64.to_bits());
         RunUpshot::new(exit::OK, None)
     };
@@ -485,12 +485,12 @@ fn prepared_callback_never_effects_when_the_claim_append_loses() {
 #[test]
 fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
     let dir = project("pin-edit");
-    let source = dir.path().join("workflows/doctor.nika.yaml");
+    let source = dir.path().join("workflows/doctor.nika");
     let original = std::fs::read(&source).expect("source A");
     let registry = registry_with(SAUTER);
     let project = OwnedDir::open(dir.path()).expect("project capability");
     let admitted = ExecutionService::default()
-        .admit(&project, Path::new("workflows/doctor.nika.yaml"))
+        .admit(&project, Path::new("workflows/doctor.nika"))
         .expect("admitted world");
     let expected = ArmGeneration::compute(
         registry.1.beats().next().expect("beat"),
@@ -526,7 +526,7 @@ fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
     assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
     assert_eq!(
         logical_path.borrow().as_deref(),
-        Some("workflows/doctor.nika.yaml"),
+        Some("workflows/doctor.nika"),
         "the captured bytes retain their declared resolution base"
     );
 }
@@ -534,20 +534,20 @@ fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
 #[test]
 fn child_and_skill_edits_after_claim_cannot_change_the_admitted_world() {
     let dir = project("closure-pin-edit");
-    let root = "nika: doctor\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  child:\n    invoke:\n      workflow: \"child.nika.yaml\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+    let root = "nika: doctor\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  child:\n    invoke:\n      workflow: \"child.nika\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
     let child = "nika: child\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }\noutputs:\n  report: { value: \"${{ tasks.fetch.output }}\", type: string }\n";
     let skill = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
-    std::fs::write(dir.path().join("workflows/doctor.nika.yaml"), root).expect("root");
-    std::fs::write(dir.path().join("workflows/child.nika.yaml"), child).expect("child");
+    std::fs::write(dir.path().join("workflows/doctor.nika"), root).expect("root");
+    std::fs::write(dir.path().join("workflows/child.nika"), child).expect("child");
     std::fs::create_dir_all(dir.path().join("workflows/skills/review")).expect("skill dir");
     std::fs::write(dir.path().join("workflows/skills/review/SKILL.md"), skill).expect("skill");
-    let child_path = dir.path().join("workflows/child.nika.yaml");
+    let child_path = dir.path().join("workflows/child.nika");
     let skill_path = dir.path().join("workflows/skills/review/SKILL.md");
     let run: ExecutionRunSeam = Rc::new(move |execution, _shot| {
         std::fs::write(&child_path, "nika: replacement\ntasks: {}\n").expect("mutate child");
         std::fs::write(&skill_path, "replacement").expect("mutate skill");
         assert_eq!(
-            execution.snapshot().text("workflows/child.nika.yaml"),
+            execution.snapshot().text("workflows/child.nika"),
             Some(child)
         );
         assert_eq!(
@@ -584,11 +584,11 @@ fn child_and_skill_edits_after_claim_cannot_change_the_admitted_world() {
 #[test]
 fn a_child_or_skill_edit_between_admissions_mints_a_new_generation() {
     let dir = project("generation-world-edit");
-    let root = "nika: doctor\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  child:\n    invoke:\n      workflow: \"child.nika.yaml\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+    let root = "nika: doctor\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  child:\n    invoke:\n      workflow: \"child.nika\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
     let child = "nika: child\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }\noutputs:\n  report: { value: \"${{ tasks.fetch.output }}\", type: string }\n";
     let skill = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
-    std::fs::write(dir.path().join("workflows/doctor.nika.yaml"), root).expect("root");
-    std::fs::write(dir.path().join("workflows/child.nika.yaml"), child).expect("child");
+    std::fs::write(dir.path().join("workflows/doctor.nika"), root).expect("root");
+    std::fs::write(dir.path().join("workflows/child.nika"), child).expect("child");
     std::fs::create_dir_all(dir.path().join("workflows/skills/review")).expect("skill dir");
     std::fs::write(dir.path().join("workflows/skills/review/SKILL.md"), skill).expect("skill");
     let registry = registry_with(SAUTER);
@@ -597,7 +597,7 @@ fn a_child_or_skill_edit_between_admissions_mints_a_new_generation() {
     let admit = || {
         let project = OwnedDir::open(dir.path()).expect("project capability");
         service
-            .admit(&project, Path::new("workflows/doctor.nika.yaml"))
+            .admit(&project, Path::new("workflows/doctor.nika"))
             .expect("admitted world")
     };
     let base = ArmGeneration::compute(beat, admit().snapshot().digest());
@@ -608,7 +608,7 @@ fn a_child_or_skill_edit_between_admissions_mints_a_new_generation() {
     );
     // Edit ONLY the child — the root bytes never move.
     std::fs::write(
-        dir.path().join("workflows/child.nika.yaml"),
+        dir.path().join("workflows/child.nika"),
         "nika: child-v2\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }\noutputs:\n  report: { value: \"${{ tasks.fetch.output }}\", type: string }\n",
     )
     .expect("edit child");
@@ -618,7 +618,7 @@ fn a_child_or_skill_edit_between_admissions_mints_a_new_generation() {
         "a child-only edit mints a new generation"
     );
     // Restore the child, edit ONLY the skill.
-    std::fs::write(dir.path().join("workflows/child.nika.yaml"), child).expect("restore child");
+    std::fs::write(dir.path().join("workflows/child.nika"), child).expect("restore child");
     std::fs::write(
         dir.path().join("workflows/skills/review/SKILL.md"),
         "---\nname: review\ndescription: Review code.\n---\nRevised.\n",
@@ -637,8 +637,8 @@ fn source_symlink_swap_after_claim_cannot_change_the_pinned_run_bytes() {
     use std::os::unix::fs::symlink;
 
     let dir = project("pin-symlink-swap");
-    let source = dir.path().join("workflows/doctor.nika.yaml");
-    let replacement = dir.path().join("workflows/replacement.nika.yaml");
+    let source = dir.path().join("workflows/doctor.nika");
+    let replacement = dir.path().join("workflows/replacement.nika");
     let original = std::fs::read(&source).expect("source A");
     std::fs::write(
         &replacement,
@@ -648,7 +648,7 @@ fn source_symlink_swap_after_claim_cannot_change_the_pinned_run_bytes() {
     let registry = registry_with(SAUTER);
     let project = OwnedDir::open(dir.path()).expect("project capability");
     let admitted = ExecutionService::default()
-        .admit(&project, Path::new("workflows/doctor.nika.yaml"))
+        .admit(&project, Path::new("workflows/doctor.nika"))
         .expect("admitted world");
     let expected = ArmGeneration::compute(
         registry.1.beats().next().expect("beat"),
@@ -684,8 +684,8 @@ fn a_symlink_workflow_is_refused_before_claim_or_run() {
     use std::os::unix::fs::symlink;
 
     let dir = project("pin-initial-symlink");
-    let source = dir.path().join("workflows/doctor.nika.yaml");
-    let replacement = dir.path().join("workflows/replacement.nika.yaml");
+    let source = dir.path().join("workflows/doctor.nika");
+    let replacement = dir.path().join("workflows/replacement.nika");
     std::fs::write(&replacement, "nika: replacement\npermits: {}\ntasks: {}\n").expect("target");
     std::fs::remove_file(&source).expect("remove source");
     symlink(&replacement, &source).expect("source symlink");
@@ -713,7 +713,7 @@ fn a_symlinked_parent_is_refused_before_claim_or_run() {
     let dir = project("pin-symlinked-parent");
     let outside = tempfile::tempdir().expect("outside");
     std::fs::write(
-        outside.path().join("doctor.nika.yaml"),
+        outside.path().join("doctor.nika"),
         "schema: nika/workflow@0.12\ntasks: {}\n",
     )
     .expect("outside workflow");
@@ -810,7 +810,7 @@ fn a_registry_from_another_project_is_refused_at_construction() {
 #[test]
 fn project_path_replacement_cannot_split_workflow_and_state_custody() {
     let dir = project("pin-root-replacement");
-    let original = std::fs::read_to_string(dir.path().join("workflows/doctor.nika.yaml"))
+    let original = std::fs::read_to_string(dir.path().join("workflows/doctor.nika"))
         .expect("original workflow");
     let seen = Rc::new(Cell::new(false));
     let saw_original = Rc::clone(&seen);
@@ -836,7 +836,7 @@ fn project_path_replacement_cannot_split_workflow_and_state_custody() {
     std::fs::rename(dir.path(), &moved).expect("move visible root");
     std::fs::create_dir_all(dir.path().join("workflows")).expect("replacement root");
     std::fs::write(
-        dir.path().join("workflows/doctor.nika.yaml"),
+        dir.path().join("workflows/doctor.nika"),
         "nika: evil\npermits: {}\ntasks:\n  evil:\n    infer: { prompt: \"evil\" }\n",
     )
     .expect("replacement workflow");
@@ -915,7 +915,7 @@ fn the_queue_redecides_after_the_wait() {
         if let Some((child, lease)) = holder.borrow_mut().take() {
             let claim = Claim::new(
                 SlotId::derive(
-                    "workflows/doctor.nika.yaml",
+                    "workflows/doctor.nika",
                     "TZ=UTC * * * * *",
                     &at("2026-08-19T03:00:00Z"),
                 ),
@@ -1098,11 +1098,8 @@ const TENANT_WORKFLOW: &str = "nika: doctor\ninputs:\n  tenant: { type: string, 
 
 fn tenant_project(tag: &str) -> tempfile::TempDir {
     let dir = project(tag);
-    std::fs::write(
-        dir.path().join("workflows/doctor.nika.yaml"),
-        TENANT_WORKFLOW,
-    )
-    .expect("tenant workflow");
+    std::fs::write(dir.path().join("workflows/doctor.nika"), TENANT_WORKFLOW)
+        .expect("tenant workflow");
     dir
 }
 

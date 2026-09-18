@@ -562,7 +562,7 @@ mod unit {
     /// consults the map.
     #[test]
     fn child_closure_rekeys_the_call_and_absence_disqualifies() {
-        const CALLER: &str = "nika: t\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika.yaml\", args: { name: \"x\" } }\n";
+        const CALLER: &str = "nika: t\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika\", args: { name: \"x\" } }\n";
         const TOOL: &str = "nika: t\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"go?\", default: true } }\n";
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
@@ -579,8 +579,8 @@ mod unit {
             );
             stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx)
         };
-        let d1 = BTreeMap::from([("./child.nika.yaml".to_owned(), "digest-one".to_owned())]);
-        let d2 = BTreeMap::from([("./child.nika.yaml".to_owned(), "digest-two".to_owned())]);
+        let d1 = BTreeMap::from([("./child.nika".to_owned(), "digest-one".to_owned())]);
+        let d2 = BTreeMap::from([("./child.nika".to_owned(), "digest-two".to_owned())]);
 
         let a = stamp_with(CALLER, &d1).expect("eligible");
         let b = stamp_with(CALLER, &d2).expect("eligible");

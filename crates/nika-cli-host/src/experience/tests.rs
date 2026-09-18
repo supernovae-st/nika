@@ -138,7 +138,7 @@ fn a_truncated_inventory_tells_the_truth_before_founding() {
 fn a_clean_workflow_opens_and_the_run_stays_a_human_ask() {
     let state = ExperienceStateV1 {
         workflow: WorkflowStateV1::Clean,
-        workflow_path: Some("wf.nika.yaml".to_owned()),
+        workflow_path: Some("wf.nika".to_owned()),
         ..workspace_state()
     };
     let action = route(&state);

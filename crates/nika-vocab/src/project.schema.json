@@ -30,7 +30,7 @@
           "workflow": {
             "type": "string",
             "pattern": "\\.nika\\.yaml$",
-            "description": "The workflow file, relative to the project root (`workflows/nightly.nika.yaml`)."
+            "description": "The workflow file, relative to the project root (`workflows/nightly.nika`)."
           },
           "cadence": {
             "type": "string",

@@ -54,7 +54,7 @@ fn yaml_scalar(value: &str) -> String {
 }
 
 /// POSIX shell-quote a path for a COPY-PASTEABLE command suggestion — a
-/// workflow named « My Cool Flow » becomes `My Cool Flow.nika.yaml`, and
+/// workflow named « My Cool Flow » becomes `My Cool Flow.nika`, and
 /// the wizard's `nika run <dest>` hint would parse as four arguments and
 /// fail the moment the user pastes it. Only quote when a shell-special
 /// char is present (the common kebab-case path stays bare). Single
@@ -89,13 +89,15 @@ pub fn dispatch(
     audit: &Audit<'_>,
 ) -> Outcome {
     match from {
-        // The third door (V5 grammar): a lone `<name>.nika.yaml` that
+        // The third door (V5 grammar): a lone `<name>.nika` that
         // resolves to NO embedded example names a DESTINATION, not a
         // source — the extension is the tell. A terminal gets the wizard
         // with the given name as the file default; a pipe gets the
         // honest pointer (never a silent intent-route on a filename).
         Some(f)
-            if dest.is_none() && f.ends_with(".nika.yaml") && nika_pack::example(f).is_none() =>
+            if dest.is_none()
+                && nika_source::is_canonical_program_path(f)
+                && nika_pack::example(f).is_none() =>
         {
             if interactive() {
                 let stdin = std::io::stdin();
@@ -223,7 +225,7 @@ fn instantiate_skeleton(
         // different shell command than the one that resolved).
         return Outcome {
             text: format!(
-                "template `{name}` resolved — pass a destination: nika new {} <dest>.nika.yaml",
+                "template `{name}` resolved — pass a destination: nika new {} <dest>.nika",
                 shell_quote(uttered)
             ),
             code: codes::ENV,
@@ -259,7 +261,7 @@ fn instantiate_skeleton(
     if let Some(example) = nika_pack::template_example(name) {
         let _ = write!(
             text,
-            "\n  filled example of this skeleton: nika new {example} example.nika.yaml"
+            "\n  filled example of this skeleton: nika new {example} example.nika"
         );
     }
     let out = Outcome {
@@ -331,7 +333,7 @@ fn clarify(intent: &str, candidates: &[String]) -> Outcome {
     let taught = if nika_pack::example(first).is_some() {
         format!("nika new {first}")
     } else {
-        format!("nika new {first} <dest>.nika.yaml")
+        format!("nika new {first} <dest>.nika")
     };
     Outcome {
         text: format!(
@@ -362,9 +364,9 @@ fn description_of(name: &str) -> Option<String> {
 /// road. The default destination is the slug's basename (a nested slug
 /// flattens — the tiering belongs to the pack, your workspace is flat).
 fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Outcome {
-    let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+    let clean = slug.strip_suffix(".nika").unwrap_or(slug);
     let base = clean.rsplit('/').next().unwrap_or(clean);
-    let fallback = format!("{base}.nika.yaml");
+    let fallback = format!("{base}.nika");
     let dest = dest.unwrap_or(&fallback);
     if Path::new(dest).exists() && !force {
         return Outcome {
@@ -373,11 +375,11 @@ fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Out
         };
     }
     // The pack's self-referential path (`# Run · nika run
-    // examples/<slug>.nika.yaml`) becomes the OWNED destination: a
+    // examples/<slug>.nika`) becomes the OWNED destination: a
     // taught command inside the user's own file must work in the
     // user's own workspace (gauntlet 08-01: pasting the copied
     // comment exited 3 — the example path exists only in the pack).
-    let body = body.replace(&format!("examples/{clean}.nika.yaml"), dest);
+    let body = body.replace(&format!("examples/{clean}.nika"), dest);
     // B01: a take of hello / 01-hello rehearses on mock/echo even when
     // the vendored pack lesson names a local ollama seat (spec pin).
     let body = if matches!(clean, "hello" | "01-hello") {
@@ -481,10 +483,10 @@ fn discovery() -> Outcome {
     }
     let _ = write!(text, "\nembedded set: {}", names.join(" · "));
     text.push_str(
-        "\n\nexamples work here too (complete lessons · verbatim) ·\n  nika new 01-hello my-hello.nika.yaml    # any slug from `nika try`",
+        "\n\nexamples work here too (complete lessons · verbatim) ·\n  nika new 01-hello my-hello.nika    # any slug from `nika try`",
     );
     text.push_str(
-        "\n\ntry ·\n  nika new chain my-first.nika.yaml\n  nika new \"describe the job in plain words\" my.nika.yaml   # routes across jobs · lessons · skeletons\n  nika new                                                          # guided (terminal only)",
+        "\n\ntry ·\n  nika new chain my-first.nika\n  nika new \"describe the job in plain words\" my.nika   # routes across jobs · lessons · skeletons\n  nika new                                                          # guided (terminal only)",
     );
     Outcome {
         text,
@@ -547,19 +549,19 @@ pub(crate) fn template_takes_model(body: &str) -> bool {
 fn wizard_default_dest(base: &str) -> String {
     let candidates = ["my-first", "my-second", "my-third"];
     let free = |stem: &str| {
-        let name = format!("{stem}.nika.yaml");
+        let name = format!("{stem}.nika");
         !Path::new(base).join(&name).exists()
     };
     for stem in candidates {
         if free(stem) {
-            return format!("{stem}.nika.yaml");
+            return format!("{stem}.nika");
         }
     }
     let mut n = 4;
     loop {
         let stem = format!("my-{n}");
         if free(&stem) {
-            return format!("{stem}.nika.yaml");
+            return format!("{stem}.nika");
         }
         n += 1;
     }
@@ -734,7 +736,7 @@ pub(crate) fn workflow_id(dest: &str) -> String {
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let stem = base.strip_suffix(".nika.yaml").unwrap_or(&base);
+    let stem = base.strip_suffix(".nika").unwrap_or(&base);
     let id: String = stem
         .to_ascii_lowercase()
         .chars()
@@ -748,9 +750,9 @@ pub(crate) fn workflow_id(dest: &str) -> String {
     }
 }
 
-/// `hello` / `hello.nika.yaml` → the 01-hello lesson (B01 · one hello).
+/// `hello` / `hello.nika` → the 01-hello lesson (B01 · one hello).
 fn canonical_source(template: &str) -> &str {
-    let t = template.strip_suffix(".nika.yaml").unwrap_or(template);
+    let t = template.strip_suffix(".nika").unwrap_or(template);
     match t {
         "hello" => "01-hello",
         other => other,
@@ -937,8 +939,8 @@ fn read_wizard(
     if dest.is_empty() {
         default_dest.clone_into(&mut dest);
     }
-    if !dest.ends_with(".nika.yaml") {
-        dest.push_str(".nika.yaml");
+    if !nika_source::is_canonical_program_path(&dest) {
+        dest = nika_source::with_program_suffix(&dest).unwrap_or(dest);
     }
 
     let model = if nika_pack::template(&template).is_some_and(template_takes_model) {

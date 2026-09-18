@@ -411,7 +411,7 @@ mod tests {
         let bytes = b"nika: override\nmodel: openai/gpt-5.2\npermits: {}\ntasks:\n  answer:\n    infer: { prompt: hi, max_tokens: 32 }\n";
         let project = nika_fs::OwnedDir::open(directory.path()).expect("held project");
         let service = nika_execution::ExecutionService::default();
-        for logical in ["root.nika.yaml", "-"] {
+        for logical in ["root.nika", "-"] {
             if logical != "-" {
                 std::fs::write(directory.path().join(logical), bytes).expect("root bytes");
             }
@@ -429,7 +429,7 @@ mod tests {
     #[test]
     fn answered_worlds_readmit_captured_bytes_and_task_scope_with_fresh_identities() {
         let directory = tempfile::tempdir().expect("execution project");
-        let root = directory.path().join("root.nika.yaml");
+        let root = directory.path().join("root.nika");
         let source = "nika: root\nmodel: openai/gpt-5.2\npermits: {}\ntasks:\n  chosen:\n    infer: { prompt: captured, max_tokens: 32 }\n  unrelated:\n    infer: { prompt: excluded }\n";
         std::fs::write(&root, source).expect("original workflow");
         let project = nika_fs::OwnedDir::open(directory.path()).expect("held project");
@@ -437,7 +437,7 @@ mod tests {
         let admitted = service
             .admit_with_model_override(
                 &project,
-                std::path::Path::new("root.nika.yaml"),
+                std::path::Path::new("root.nika"),
                 Some("mock/echo"),
             )
             .expect("original world admits");
@@ -485,7 +485,7 @@ mod tests {
     #[test]
     fn invalid_dry_run_override_does_not_reopen_root() {
         let directory = tempfile::tempdir().expect("execution project");
-        let root = directory.path().join("root.nika.yaml");
+        let root = directory.path().join("root.nika");
         std::fs::write(
             &root,
             "nika: root\nmodel: mock/echo\npermits: {}\ntasks:\n  greet:\n    infer: { prompt: hi }\n",
@@ -494,7 +494,7 @@ mod tests {
         let project = nika_fs::OwnedDir::open(directory.path()).expect("held project");
         let service = nika_execution::ExecutionService::default();
         let admitted = service
-            .admit(&project, std::path::Path::new("root.nika.yaml"))
+            .admit(&project, std::path::Path::new("root.nika"))
             .expect("original world admits");
 
         std::fs::write(&root, "nika: replacement\nceiling: 0.50\n")

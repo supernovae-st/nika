@@ -61,7 +61,7 @@ pub enum CadenceErrorKind {
     DateImpossible,
     /// The readable form is not exactly `<jour-fr> <H>h<MM>`.
     PhraseSyntax,
-    /// `workflow:` empty, or not a `*.nika.yaml` path.
+    /// `workflow:` empty, or not a `*.nika` path.
     WorkflowPath,
     /// The same workflow armed twice.
     DuplicateWorkflow,

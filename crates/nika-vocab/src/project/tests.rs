@@ -26,7 +26,7 @@ nika: proj
 ceiling: 0.50          # default max-cost-usd · the per-invocation --max-cost-usd flag ALWAYS wins
 
 arm:                   # the TEAM arming registry (the personal one stays at ~/.nika/arm.yaml)
-  - workflow: workflows/compost-beat.nika.yaml
+  - workflow: workflows/compost-beat.nika
     cadence: "dimanche 18h07"
     où:      local     # local | cloud
     plafond: 2.00      # overrides ceiling for this beat
@@ -63,7 +63,7 @@ fn the_canonical_example_parses_verbatim() {
     let arm = p.arm();
     assert_eq!(arm.len(), 1, "one beat armed: {arm:?}");
     let beat = &arm[0];
-    assert_eq!(beat.workflow, "workflows/compost-beat.nika.yaml");
+    assert_eq!(beat.workflow, "workflows/compost-beat.nika");
     assert_eq!(beat.cadence, "dimanche 18h07");
     assert_eq!(beat.ou, Some(ArmLocus::Local));
     assert_eq!(beat.plafond, 2.00);
@@ -270,7 +270,7 @@ fn the_floor_spellings_round_trip() {
 /// for the cadence arc to consume.
 #[test]
 fn arm_entries_validate_their_shape() {
-    let ok = "nika: proj\narm:\n  - workflow: workflows/w.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 9 * * 1\"\n    plafond: 0.35\n    manqué: rattraper\n  - workflow: workflows/v.nika.yaml\n    cadence: on-webhook\n    où: cloud\n    plafond: 2.00\n    manqué: rattraper-une-fois\n";
+    let ok = "nika: proj\narm:\n  - workflow: workflows/w.nika\n    cadence: \"TZ=Europe/Paris 0 9 * * 1\"\n    plafond: 0.35\n    manqué: rattraper\n  - workflow: workflows/v.nika\n    cadence: on-webhook\n    où: cloud\n    plafond: 2.00\n    manqué: rattraper-une-fois\n";
     let p = parse(ok).expect("two beats parse");
     assert_eq!(p.arm().len(), 2);
     assert_eq!(
@@ -288,15 +288,15 @@ fn arm_entries_validate_their_shape() {
             "workflow",
         ),
         (
-            "workflow: w.nika.yaml\n    plafond: 1.0\n    manqué: sauter",
+            "workflow: w.nika\n    plafond: 1.0\n    manqué: sauter",
             "cadence",
         ),
         (
-            "workflow: w.nika.yaml\n    cadence: \"lundi 9h00\"\n    manqué: sauter",
+            "workflow: w.nika\n    cadence: \"lundi 9h00\"\n    manqué: sauter",
             "plafond",
         ),
         (
-            "workflow: w.nika.yaml\n    cadence: \"lundi 9h00\"\n    plafond: 1.0",
+            "workflow: w.nika\n    cadence: \"lundi 9h00\"\n    plafond: 1.0",
             "manqué",
         ),
     ];
@@ -314,15 +314,15 @@ fn arm_entries_validate_their_shape() {
     }
 
     // The shape laws — each broken entry against one full document.
-    let base = "nika: proj\narm:\n  - workflow: w.nika.yaml\n    cadence: \"lundi 9h00\"\n    plafond: 1.0\n    manqué: sauter\n";
+    let base = "nika: proj\narm:\n  - workflow: w.nika\n    cadence: \"lundi 9h00\"\n    plafond: 1.0\n    manqué: sauter\n";
     let bad_docs = [
-        base.replace("workflow: w.nika.yaml", "workflow: w.yaml"), // not *.nika.yaml
-        base.replace("workflow: w.nika.yaml", "workflow: ''"),     // empty path
+        base.replace("workflow: w.nika", "workflow: w.yaml"), // not *.nika
+        base.replace("workflow: w.nika", "workflow: ''"),     // empty path
         base.replace("manqué: sauter", "où: moon\n    manqué: sauter"), // unknown locus
-        base.replace("plafond: 1.0", "plafond: -1"),               // the pay law
-        base.replace("plafond: 1.0", "plafond: soon"),             // not a number
-        base.replace("manqué: sauter", "manqué: jamais"),          // outside the closed set
-        base.replace("cadence: \"lundi 9h00\"", "cadence: ''"),    // when does it fire?
+        base.replace("plafond: 1.0", "plafond: -1"),          // the pay law
+        base.replace("plafond: 1.0", "plafond: soon"),        // not a number
+        base.replace("manqué: sauter", "manqué: jamais"),     // outside the closed set
+        base.replace("cadence: \"lundi 9h00\"", "cadence: ''"), // when does it fire?
     ];
     for doc in bad_docs {
         let err = parse(&doc).unwrap_err();
@@ -349,7 +349,7 @@ fn arm_entries_validate_their_shape() {
 /// parseurs, jamais en désaccord).
 #[test]
 fn the_thirteen_beat_keys_are_reachable_through_the_project_file() {
-    let src = "nika: proj\nceiling: 0.50\narm:\n  - workflow: t.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n    plafond: 0.10\n    manqué: sauter\n    chevauchement: file\n    après_saut: prochain-créneau\n    actif: false\n    raison: pause estivale\n    jusqu_au: 2026-09-01\n    tolérance: 3/4\n    décalage: hash\n    par: thibaut\n    où: local\n";
+    let src = "nika: proj\nceiling: 0.50\narm:\n  - workflow: t.nika\n    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n    plafond: 0.10\n    manqué: sauter\n    chevauchement: file\n    après_saut: prochain-créneau\n    actif: false\n    raison: pause estivale\n    jusqu_au: 2026-09-01\n    tolérance: 3/4\n    décalage: hash\n    par: thibaut\n    où: local\n";
     let project = parse(src).expect("13 keys are the shape · none is unknown");
     assert_eq!(project.arm().len(), 1);
     let beat = &project.arm()[0];
@@ -384,7 +384,7 @@ fn the_thirteen_beat_keys_are_reachable_through_the_project_file() {
 /// and an absent key reads as empty.
 #[test]
 fn beat_inputs_ride_as_verbatim_scalars() {
-    let src = "nika: proj\narm:\n  - workflow: t.nika.yaml\n    cadence: \"TZ=UTC 0 9 * * 1\"\n    plafond: 0.10\n    manqué: sauter\n    inputs:\n      tenant: acme\n      limit: 5\n      dry: true\n";
+    let src = "nika: proj\narm:\n  - workflow: t.nika\n    cadence: \"TZ=UTC 0 9 * * 1\"\n    plafond: 0.10\n    manqué: sauter\n    inputs:\n      tenant: acme\n      limit: 5\n      dry: true\n";
     let project = parse(src).expect("inputs are the shape");
     let beat = &project.arm()[0];
     let pairs: Vec<(&str, &str)> = beat
@@ -393,7 +393,7 @@ fn beat_inputs_ride_as_verbatim_scalars() {
         .map(|(k, v)| (k.as_str(), v.as_str()))
         .collect();
     assert_eq!(pairs, [("dry", "true"), ("limit", "5"), ("tenant", "acme")]);
-    let plain = parse("nika: proj\narm:\n  - workflow: t.nika.yaml\n    cadence: on-webhook\n    plafond: 0.10\n    manqué: sauter\n")
+    let plain = parse("nika: proj\narm:\n  - workflow: t.nika\n    cadence: on-webhook\n    plafond: 0.10\n    manqué: sauter\n")
         .expect("no inputs");
     assert!(plain.arm()[0].inputs.is_empty());
     // A list or a nested map is not a `--var` value: the shape refuses,
@@ -416,7 +416,7 @@ fn beat_inputs_ride_as_verbatim_scalars() {
 #[test]
 fn a_fourteenth_key_still_refuses_by_name() {
     let err = parse(
-        "nika: proj\narm:\n  - workflow: w.nika.yaml\n    cadence: \"lundi 9h00\"\n    plafond: 1.00\n    manqué: sauter\n    quatorze: true\n",
+        "nika: proj\narm:\n  - workflow: w.nika\n    cadence: \"lundi 9h00\"\n    plafond: 1.00\n    manqué: sauter\n    quatorze: true\n",
     )
     .unwrap_err();
     assert_eq!(err.kind(), ProjectErrorKind::UnknownKey);
@@ -520,7 +520,7 @@ proptest::proptest! {
             for (slug, ou, manque, plafond) in &beats {
                 write!(
                     doc,
-                    "  - workflow: workflows/{slug}.nika.yaml\n    cadence: \"dimanche 18h07\"\n    où: {ou}\n    plafond: {plafond}\n    manqué: {manque}\n"
+                    "  - workflow: workflows/{slug}.nika\n    cadence: \"dimanche 18h07\"\n    où: {ou}\n    plafond: {plafond}\n    manqué: {manque}\n"
                 ).unwrap();
             }
         }
@@ -530,7 +530,7 @@ proptest::proptest! {
         assert_eq!(p.registry.map(|r| r.floor), Some(tier));
         assert_eq!(p.arm().len(), beats.len());
         for (beat, (slug, ou, manque, plafond)) in p.arm().iter().zip(&beats) {
-            assert_eq!(beat.workflow, format!("workflows/{slug}.nika.yaml"));
+            assert_eq!(beat.workflow, format!("workflows/{slug}.nika"));
             assert_eq!(beat.ou.map(ArmLocus::as_str), Some(*ou));
             assert_eq!(beat.manque.as_str(), *manque);
             assert_eq!(beat.plafond.to_bits(), plafond.to_bits());
@@ -557,7 +557,7 @@ proptest::proptest! {
 
 /// The type discriminant is `tasks:`, never the filename — the spec's
 /// rule, and the reason it survives a registry blob, an HTTP body, a
-/// stdin pipe or a chat paste, where `.nika.yaml` is gone.
+/// stdin pipe or a chat paste, where `.nika` is gone.
 #[test]
 fn the_type_discriminant_is_tasks_never_the_filename() {
     use super::is_project_document as is_project;

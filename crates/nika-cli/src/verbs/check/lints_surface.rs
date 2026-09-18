@@ -21,7 +21,7 @@ fn json_exposes_one_obvious_way_hints_as_warnings() {
     };
 
     let dirty = run_json(
-        "d.nika.yaml",
+        "d.nika",
         "nika: skip\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n    on_error: { skip: true }\n  b:\n    with: { data: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"true\", \"${{ with.data }}\"] }\n",
     );
     assert_eq!(dirty.code, 0, "{}", dirty.text);
@@ -44,7 +44,7 @@ fn json_exposes_one_obvious_way_hints_as_warnings() {
     );
 
     let clean = run_json(
-        "c.nika.yaml",
+        "c.nika",
         "nika: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
     );
     assert_eq!(clean.code, 0, "{}", clean.text);

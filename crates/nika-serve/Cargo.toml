@@ -29,6 +29,7 @@ nika-runtime = { path = "../nika-runtime", version = "0.120.0-dev" }
 nika-trace   = { path = "../nika-trace", version = "0.120.0-dev" }    # the ONE verifier `nika trace verify` runs — the verify route projects its machine document (lateral L4→L4 · the nika-mcp → nika-cli-host precedent)
 nika-types = { path = "../nika-types", version = "0.120.0-dev" }
 nika-vocab = { path = "../nika-vocab", version = "0.120.0-dev" }
+nika-source = { path = "../nika-source", version = "0.120.0-dev" } # lexical program-source naming (#1684)
 nix        = { workspace = true, features = ["fs"] }
 serde      = { workspace = true }
 serde_json = { workspace = true }

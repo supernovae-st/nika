@@ -128,7 +128,7 @@ const TABLE: &[Row] = &[
         "workflow",
         FieldType::Str,
         "123",
-        "\"./child.nika.yaml\"",
+        "\"./child.nika\"",
     ),
     row("invoke", "args", FieldType::Map, "123", "{ x: 1 }"),
     // ── agent (spec 02 §agent) ──────────────────────────────────────

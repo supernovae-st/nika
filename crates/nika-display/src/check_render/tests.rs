@@ -38,7 +38,7 @@ mod trifecta_rung_tests {
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
@@ -269,7 +269,7 @@ tasks:
   second:
     exec: { command: [curl, https://example.com/b] }
 ";
-        let out = rendered(yaml, "repeated.nika.yaml");
+        let out = rendered(yaml, "repeated.nika");
         assert_eq!(
             out.matches("[native-first/001]").count(),
             1,
@@ -301,7 +301,7 @@ tasks:
   t:
     exec: { command: [curl, https://example.com/a] }
 ";
-        let out = rendered(hints_only, "drifty.nika.yaml");
+        let out = rendered(hints_only, "drifty.nika");
         assert!(out.contains("NEXT"), "the footer still speaks:\n{out}");
         assert!(
             !out.contains("--fix"),
@@ -318,9 +318,9 @@ tasks:
   u:
     invoke: { tool: nika:raed, args: { path: ./x } }
 ";
-        let out = rendered(renameable, "fixable.nika.yaml");
+        let out = rendered(renameable, "fixable.nika");
         assert!(
-            out.contains("nika check --fix fixable.nika.yaml"),
+            out.contains("nika check --fix fixable.nika"),
             "a typed rename still earns the advice:\n{out}"
         );
     }
@@ -336,7 +336,7 @@ tasks:
   digest:
     exec: { command: [sha256sum, input.txt] }
 ";
-        let out = rendered(yaml, "heterogeneous.nika.yaml");
+        let out = rendered(yaml, "heterogeneous.nika");
         assert_eq!(
             out.matches("[native-first/006]").count(),
             2,
@@ -361,14 +361,14 @@ tasks:
   u:
     invoke: { tool: nika:raed, args: { path: ./x } }
 ";
-        let spaced = rendered(yaml, "my workflow.nika.yaml");
+        let spaced = rendered(yaml, "my workflow.nika");
         assert!(
-            spaced.contains("nika check --fix 'my workflow.nika.yaml'"),
+            spaced.contains("nika check --fix 'my workflow.nika'"),
             "{spaced}"
         );
-        let apostrophe = rendered(yaml, "it's ready.nika.yaml");
+        let apostrophe = rendered(yaml, "it's ready.nika");
         assert!(
-            apostrophe.contains("nika check --fix 'it'\"'\"'s ready.nika.yaml'"),
+            apostrophe.contains("nika check --fix 'it'\"'\"'s ready.nika'"),
             "{apostrophe}"
         );
         let stdin = rendered(yaml, "-");
@@ -378,15 +378,15 @@ tasks:
             "{stdin}"
         );
 
-        let dashed = rendered(yaml, "-workflow.nika.yaml");
+        let dashed = rendered(yaml, "-workflow.nika");
         assert!(
-            dashed.contains("nika check --fix -- -workflow.nika.yaml"),
+            dashed.contains("nika check --fix -- -workflow.nika"),
             "a positional beginning with '-' needs clap's end-of-options separator:\n{dashed}"
         );
 
         let cache = rendered_as(
             yaml,
-            "/home/operator/.nika/registry/acme/report/1.0.0/workflow.nika.yaml",
+            "/home/operator/.nika/registry/acme/report/1.0.0/workflow.nika",
             RepairTarget::RegistryArtifact,
         );
         assert!(
@@ -425,7 +425,7 @@ mod journey_rung_tests {
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
@@ -755,7 +755,7 @@ mod models_rung_tests {
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &audit,
@@ -794,7 +794,7 @@ mod models_rung_liveness_tests {
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             audit,
@@ -863,7 +863,7 @@ mod a_sanctioned_egress_is_stated_never_erased {
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
@@ -997,7 +997,7 @@ mod audited_line_names_the_blast_radius {
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
@@ -1130,7 +1130,7 @@ mod the_failing_verdict_summarises_the_boundary_too {
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
@@ -1257,7 +1257,7 @@ mod permits_panel_under_red_conformance {
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
@@ -1322,7 +1322,7 @@ mod builtin_contract_code_on_tools_and_args {
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
@@ -1337,14 +1337,14 @@ mod builtin_contract_code_on_tools_and_args {
     fn ghost_mcp_tool_uses_the_json_invoke_code() {
         let yaml = "nika: w\npermits:\n  tools: [\"mcp:spotify/search\"]\ntasks:\n  s:\n    invoke:\n      tool: mcp:spotify/search\n      args: { q: x }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
-        let report = nika_check::check_composed(&wf, "w.nika.yaml", &mut |_| {
+        let report = nika_check::check_composed(&wf, "w.nika", &mut |_| {
             Err("no .nika/mcp_servers.json".to_owned())
         });
         let out = render(
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
@@ -1411,7 +1411,7 @@ mod writes_card {
             &report,
             &wf,
             yaml,
-            "w.nika.yaml",
+            "w.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
@@ -1441,7 +1441,7 @@ mod writes_card {
             &report,
             &wf,
             yaml,
-            "seat.nika.yaml",
+            "seat.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
@@ -1463,7 +1463,7 @@ mod writes_card {
             &report,
             &wf,
             yaml,
-            "seat.nika.yaml",
+            "seat.nika",
             RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),

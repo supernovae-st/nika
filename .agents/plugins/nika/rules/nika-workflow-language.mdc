@@ -1,12 +1,12 @@
 ---
 description: Nika workflow language rules for AI assistance
-globs: ["**/*.nika.yaml", "**/*.nika.yml"]
+globs: ["**/*.nika"]
 alwaysApply: false
 ---
 
 # Nika Workflow Language
 
-Envelope: nine keys — `nika` · `model` · `inputs` · `const` · `secrets` · `permits` · `run` · `tasks` · `outputs`. Anything else refuses `NIKA-PARSE-005`. Extensions: `.nika.yaml` (canonical) and `.nika.yml`.
+Envelope: nine keys — `nika` · `model` · `inputs` · `const` · `secrets` · `permits` · `run` · `tasks` · `outputs`. Anything else refuses `NIKA-PARSE-005`. Canonical program files use the `.nika` suffix. Project file remains `nika.yaml`; runtime state remains `.nika/`.
 
 ## Shape
 - `nika:` is a scalar string — the file's kebab-case NAME. That one key carries both the mark and the name; there is no `workflow:` envelope key (it refuses `NIKA-PARSE-005`, as do `types:` · `policy:` · `config:` · `assert:`). `workflow:` survives only INSIDE `invoke:`, to call a child workflow.

@@ -1,6 +1,6 @@
 ---
 name: nika-author
-description: Author or repair a .nika.yaml workflow and return its checked artifact.
+description: Author or repair a .nika workflow and return its checked artifact.
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 

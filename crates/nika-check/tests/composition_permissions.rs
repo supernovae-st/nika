@@ -11,9 +11,9 @@
 use nika_check::{CheckReport, check_composed};
 use nika_schema::{ParseMode, parse, source::FileId};
 
-const PARENT: &str = "workflows/main.nika.yaml";
-const CHILD: &str = "workflows/children/worker.nika.yaml";
-const TARGET: &str = "./children/worker.nika.yaml";
+const PARENT: &str = "workflows/main.nika";
+const CHILD: &str = "workflows/children/worker.nika";
+const TARGET: &str = "./children/worker.nika";
 const ECHO: &str = "exec: { command: [echo, hello] }";
 const ECHO_GRANT: &str = "{ exec: [echo] }";
 

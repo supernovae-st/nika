@@ -409,7 +409,7 @@ this crate's scope justifies today (stretch goal, not a Gate-6 blocker).
 | Gate | Status | Justification |
 |---|---|---|
 | 7 BENCHMARKS | **N/A** | pure value types, no hot path — identical justification to `nika-event`. The static-check surface this feeds is already benchmarked holistically at the `nika-schema` level (`benches/parse_bench.rs`). |
-| 9 CANARY E2E | **N/A** | L0 types, no `.nika.yaml` runtime surface — identical justification to `nika-event`. |
+| 9 CANARY E2E | **N/A** | L0 types, no `.nika` runtime surface — identical justification to `nika-event`. |
 | 10 PARITY LEGACY | **N/A (stronger than usual)** | No brouillon `nika-cap` equivalent — confirmed empirically. The `permits:` concept is **post-brouillon, CRAFT-fresh** (ADR-001): the legacy v0.79 engine had no capability-boundary block at all. Nothing to round-trip against. |
 
 Gates 1-6, 8, 11, 12 apply in full, no exemptions. Gate 5 (mutation ≥90%)

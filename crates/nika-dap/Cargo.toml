@@ -13,6 +13,7 @@ publish                = false  # Internal L4 interface crate (the binary ships,
 [dependencies]
 nika-event  = { path = "../nika-event", version = "0.120.0-dev" }   # the journal taxonomy the replayer walks
 nika-schema = { path = "../nika-schema", version = "0.120.0-dev" }  # parse the workflow for breakpoint line-mapping
+nika-source = { path = "../nika-source", version = "0.120.0-dev" }  # lexical program-source naming (#1684)
 nika-check  = { path = "../nika-check", version = "0.120.0-dev" }  # the check ladder the evidence pack + inventory/drift scans fold
 nika-types  = { path = "../nika-types", version = "0.120.0-dev" }   # field values on replayed frames
 nika-cap    = { path = "../nika-cap", version = "0.120.0-dev" }     # BuiltinEffect — the drift scan's permit taxonomy

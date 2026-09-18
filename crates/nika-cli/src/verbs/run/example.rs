@@ -28,10 +28,7 @@ fn stage_room(
     slug: &str,
     yaml: &str,
 ) -> Result<(std::path::PathBuf, crate::cwd::Lease, tempfile::TempDir), u8> {
-    let stem = slug
-        .strip_suffix(".nika.yaml")
-        .unwrap_or(slug)
-        .replace('/', "-");
+    let stem = slug.strip_suffix(".nika").unwrap_or(slug).replace('/', "-");
     let scratch = tempfile::Builder::new()
         .prefix("nika-rehearsal-")
         .tempdir()
@@ -40,7 +37,7 @@ fn stage_room(
             exit::ENV
         })?;
     let room = scratch.path().join(format!("nika-try-{stem}"));
-    let path = room.join(format!("{stem}.nika.yaml"));
+    let path = room.join(format!("{stem}.nika"));
     if let Err(e) = std::fs::create_dir_all(&room).and_then(|()| std::fs::write(&path, yaml)) {
         eprintln!("nika run: environment: cannot stage example `{slug}`: {e}");
         return Err(exit::ENV);
@@ -60,7 +57,7 @@ fn stage_room(
     Ok((path, lease, scratch))
 }
 
-/// The staged try room is `…/nika-try-<stem>/<stem>.nika.yaml`.
+/// The staged try room is `…/nika-try-<stem>/<stem>.nika`.
 /// Display uses this to name the rehearsal (C12 · UX-3) instead of a
 /// path the sandbox is about to discard.
 pub(super) fn try_rehearsal_slug(path: &str) -> Option<&str> {
@@ -68,7 +65,7 @@ pub(super) fn try_rehearsal_slug(path: &str) -> Option<&str> {
     let parent = path.parent()?.file_name()?.to_str()?;
     let stem = parent.strip_prefix("nika-try-")?;
     let file = path.file_name()?.to_str()?;
-    (file.strip_suffix(".nika.yaml") == Some(stem)).then_some(stem)
+    (file.strip_suffix(".nika") == Some(stem)).then_some(stem)
 }
 
 /// UX-3 · every try card: how to own the file.
@@ -191,7 +188,7 @@ pub fn example(
     // on "not a real answer" and nothing else). Quiet stays out: it
     // promises the compact verdict card and errors, nothing more.
     if mode != RenderMode::Quiet {
-        let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+        let clean = slug.strip_suffix(".nika").unwrap_or(slug);
         eprintln!(
             "\n  {}",
             crate::display::vocab::hint(theme, "rehearsal", &try_own_file_line(clean))
@@ -226,10 +223,7 @@ fn example_mode(quiet: bool, no_progress: bool, mut theme: Theme) -> (RenderMode
 /// tokens than after. Dim-framed, verbatim (the comments ARE the
 /// curriculum); pipes keep their exact bytes.
 fn example_predisplay(slug: &str, yaml: &str, theme: Theme) {
-    let file = format!(
-        "{}.nika.yaml",
-        slug.strip_suffix(".nika.yaml").unwrap_or(slug)
-    );
+    let file = format!("{}.nika", slug.strip_suffix(".nika").unwrap_or(slug));
     println!(
         "{} {} {}",
         theme.logo(),
@@ -296,7 +290,7 @@ fn example_tip(
     if failure.code == "NIKA-SEC-001"
         && let Some(hint) = nika_pack::try_recover_hint(slug)
     {
-        let slug = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
+        let slug = slug.strip_suffix(".nika").unwrap_or(slug);
         return Some(format!(
             "tip: this example calls `{}` inside its declared sandbox; inspect the refusal above.\n        to inspect and adapt the workflow: nika new {slug}",
             hint.missing
@@ -343,15 +337,15 @@ mod tests {
     #[test]
     fn try_rehearsal_slug_reads_the_staged_room() {
         assert_eq!(
-            try_rehearsal_slug("/tmp/nika-try-competitor-radar/competitor-radar.nika.yaml"),
+            try_rehearsal_slug("/tmp/nika-try-competitor-radar/competitor-radar.nika"),
             Some("competitor-radar")
         );
         assert_eq!(
-            try_rehearsal_slug("/tmp/nika-try-01-hello/01-hello.nika.yaml"),
+            try_rehearsal_slug("/tmp/nika-try-01-hello/01-hello.nika"),
             Some("01-hello")
         );
         assert_eq!(
-            try_rehearsal_slug("hello.nika.yaml"),
+            try_rehearsal_slug("hello.nika"),
             None,
             "a workspace run is not a try rehearsal"
         );
