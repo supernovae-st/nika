@@ -447,12 +447,12 @@ fn route(input: &str) -> String {
     match nika_onboard::routing::route_query(input) {
         nika_onboard::routing::RoutedEntry::Example(slug) => {
             format!(
-                "the example `{slug}` fits — read it with `nika try {slug}`, own it with `nika new {slug} <file>`"
+                "the example `{slug}` fits — read it with `nika try {slug}`, own it with `nika compile {slug} <file>`"
             )
         }
         nika_onboard::routing::RoutedEntry::Skeleton(name) => {
             format!(
-                "the template `{name}` fits — `nika new {name} <file>` lays it down with its SLOT lines"
+                "the template `{name}` fits — `nika compile {name} <file>` lays it down with its SLOT lines"
             )
         }
         nika_onboard::routing::RoutedEntry::Clarify(options) => format!(
@@ -528,7 +528,7 @@ mod tests {
         )
         .expect("shape");
         assert!(
-            shape.contains("nika new") || shape.contains("closest shapes"),
+            shape.contains("nika compile") || shape.contains("closest shapes"),
             "{shape}"
         );
         assert!(

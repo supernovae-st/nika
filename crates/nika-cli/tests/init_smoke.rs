@@ -75,22 +75,17 @@ fn the_thirty_second_journey_holds_end_to_end() {
     assert_eq!(code, Some(0), "{text}");
     assert!(text.contains("AGENTS.md"), "{text}");
 
-    // 3 · new — a checked skeleton lands.
-    let (code, text) = step(&["new", "chain", "first.nika.yaml"]);
+    // Compile exposes the missing slot as data, then accepts an explicit answer.
+    let (code, text) = step(&["compile", "chain", "--json"]);
+    assert_eq!(code, Some(2), "{text}");
+    let pending: serde_json::Value = serde_json::from_str(&text).expect("structured result");
+    let key = pending["questions"][0]["key"]
+        .as_str()
+        .expect("question key");
+    assert!(!dir.join("first.nika.yaml").exists());
+    let answer = format!("{key}=\"Summarize the gathered text in one sentence.\"");
+    let (code, text) = step(&["compile", "chain", "first.nika.yaml", "--answer", &answer]);
     assert_eq!(code, Some(0), "{text}");
-
-    // 4 · author — a skeleton is deliberately incomplete. Fill its one
-    //     value before asking the audit to admit it.
-    let path = dir.join("first.nika.yaml");
-    let draft = std::fs::read_to_string(&path).expect("draft");
-    std::fs::write(
-        &path,
-        draft.replace(
-            "<SLOT: what should the model do with the gathered text?>",
-            "Summarize the gathered text in one sentence.",
-        ),
-    )
-    .expect("fill slot");
 
     // 5 · check — the filled workflow passes before any token.
     let (code, text) = step(&["check", "first.nika.yaml"]);
@@ -139,7 +134,7 @@ fn the_first_hour_walks_end_to_end() {
 
     // 1 · the adoption gesture — the showroom file becomes yours.
     let copy = bin()
-        .args(["new", "01-hello"])
+        .args(["compile", "01-hello", "01-hello.nika.yaml"])
         .current_dir(&dir)
         .output()
         .expect("copy runs");
@@ -164,7 +159,7 @@ fn the_first_hour_walks_end_to_end() {
 
     // 3 · `new <example slug>` = the same source, the other handle.
     let new = bin()
-        .args(["new", "01-hello", "twin.nika.yaml"])
+        .args(["compile", "01-hello", "twin.nika.yaml"])
         .current_dir(&dir)
         .output()
         .expect("new runs");
@@ -177,19 +172,15 @@ fn the_first_hour_walks_end_to_end() {
     // two differ in exactly that way and no other.
     let twin = std::fs::read_to_string(dir.join("twin.nika.yaml")).expect("written");
     let orig = std::fs::read_to_string(dir.join("01-hello.nika.yaml")).expect("copied");
+    let mut twin_yaml: serde_json::Value = serde_yaml_bw::from_str(&twin).expect("twin YAML");
+    let orig_yaml: serde_json::Value = serde_yaml_bw::from_str(&orig).expect("original YAML");
+    assert_eq!(twin_yaml["nika"].as_str(), Some("twin"));
+    twin_yaml["nika"] = orig_yaml["nika"].clone();
     assert_eq!(
-        twin.replace("twin.nika.yaml", "01-hello.nika.yaml"),
-        orig,
-        "one resolution · two handles · the same example modulo its own name"
+        twin_yaml, orig_yaml,
+        "only the explicit destination identity differs"
     );
-    assert!(
-        twin.contains("nika run twin.nika.yaml") && !twin.contains("run 01-hello.nika.yaml"),
-        "the copy teaches a command that works where it landed:\n{twin}"
-    );
-    assert!(
-        orig.contains("nika run 01-hello.nika.yaml"),
-        "and so does the one that kept its name:\n{orig}"
-    );
+    assert!(String::from_utf8_lossy(&new.stdout).contains("nika run twin.nika.yaml"));
 
     // 4 · found a second repo around an example, scriptably.
     let home = dir.join("founded");
@@ -347,10 +338,13 @@ fn bare_check_and_run_resolve_the_lazy_way() {
         .expect("binary runs");
     assert_eq!(out.status.code(), Some(3));
     let err = String::from_utf8_lossy(&out.stderr);
-    // The founding door is `nika new hello` — `init` left the first-run
+    // The founding door is `nika compile hello` — `init` left the first-run
     // path when the first-wow cascade landed (a stranger writes ONE file,
     // never founds a repo). This gate follows the door it teaches.
-    assert!(err.contains("nika new hello"), "routes to founding: {err}");
+    assert!(
+        err.contains("nika compile hello"),
+        "routes to founding: {err}"
+    );
 
     // MANY → every candidate named, copy-paste ready.
     let many = base.join("many");

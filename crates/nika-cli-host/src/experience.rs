@@ -205,7 +205,7 @@ pub struct NextActionV1 {
     /// `.nika/traces` count the adoption ladder reads, folded in by
     /// [`Self::with_recorded_runs`]. The router itself executes
     /// nothing; this says whether the PROJECT ever has (#1585: a
-    /// constant `true` sent an agent to `nika new` over 284 traces).
+    /// constant `true` sent an agent to `nika compile` over 284 traces).
     pub nothing_has_run: bool,
 }
 

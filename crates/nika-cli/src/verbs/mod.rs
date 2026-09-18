@@ -12,6 +12,7 @@
 
 pub mod arm;
 pub mod check;
+pub mod compile;
 pub mod context;
 pub mod examples;
 pub mod explain_file;
@@ -24,7 +25,6 @@ pub mod key;
 pub mod list;
 pub mod mcp_pins;
 pub mod model;
-pub mod new;
 pub mod pack_surface;
 pub mod run;
 pub mod serve;

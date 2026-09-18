@@ -4,9 +4,8 @@
 //! The rehearsal kit — what the try room gets beyond the fixtures a body
 //! names ([`nika_pack::try_rehearsal_kit`] · #1544). Try-only by law: the
 //! room is the engine's own temp dir, so the kit's files are written
-//! outright (the staged yaml is too); `nika new` takes the fixtures through
-//! [`crate::fixtures`] and never plants a demo `VERSION` beside an
-//! operator's real repository.
+//! outright (the staged yaml is too). Compile never plants fixture files or
+//! a demo `VERSION` beside an operator's real repository.
 
 use std::path::Path;
 

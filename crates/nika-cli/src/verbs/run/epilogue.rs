@@ -373,7 +373,7 @@ pub(super) fn resume_carry(vars: &[String], model_override: Option<&str>) -> Str
 /// Quote one shell word for the taught line: bare when it is already a
 /// safe word, single-quoted otherwise (embedded single quotes splice
 /// through the POSIX `'\''` idiom — paste-able in sh/bash/zsh).
-fn sh_word(word: &str) -> std::borrow::Cow<'_, str> {
+pub(in crate::verbs) fn sh_word(word: &str) -> std::borrow::Cow<'_, str> {
     let safe = !word.is_empty()
         && word
             .chars()
@@ -537,7 +537,7 @@ mod tests {
         assert!(
             notes
                 .iter()
-                .any(|n| n == "rehearsal. to own the file: nika new competitor-radar"),
+                .any(|n| n == "rehearsal · competitor-radar. explore authoring skeletons: nika compile --list"),
             "UX-3: {notes:?}"
         );
         assert!(

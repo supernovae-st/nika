@@ -1,0 +1,1 @@
+- **One Compile authoring door.** Replaced the retired authoring command and wizard with `nika compile`, using the stateless Compile core for exact skeletons, explicit constant edits and the offline hello lesson. Structured questions remain incomplete without substitution or implicit writes; Ready candidates require an explicit destination and overwrite requires `--force`.

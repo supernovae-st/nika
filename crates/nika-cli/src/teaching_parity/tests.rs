@@ -206,10 +206,10 @@ fn mcp_help_names_the_read_only_oracle_and_the_run_door() {
 
 /// C11 · issues 1249/1317 · the postcard names both first-run doors.
 #[test]
-fn default_help_names_try_and_new() {
+fn default_help_names_try_and_compile() {
     let help = crate::help_card::human_help();
     assert!(help.contains("try"), "C11 try: {help}");
-    assert!(help.contains("new"), "C11 new: {help}");
+    assert!(help.contains("compile"), "C11 compile: {help}");
 }
 
 /// UX-2 · issue 1317 · `permits` is glossed as the file's blast radius.

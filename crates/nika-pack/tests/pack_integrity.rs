@@ -231,7 +231,7 @@ fn hello_aliases_01_hello() {
     let numbered = nika_pack::example("01-hello").expect("01-hello resolves");
     assert_eq!(
         hello, numbered,
-        "nika new hello · nika new 01-hello · nika try 01-hello share one body"
+        "nika compile hello · nika compile 01-hello · nika try 01-hello share one body"
     );
     assert!(
         numbered.lines().any(|l| l.starts_with("model: ")),

@@ -18,7 +18,7 @@
 The binary carries the language artifacts of **its** version: spec prose,
 JSON Schema, canon registry, the canonical examples, the instantiable
 templates and the manifest that hashes them (nika-spec README §The examples
-pack). `nika try` / `nika new` / `nika spec` read this crate — offline, version-locked, verifiable.
+pack). `nika try` / `nika compile` / `nika spec` read this crate — offline, version-locked, verifiable.
 
 ## 2. Public API
 

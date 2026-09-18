@@ -1521,8 +1521,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli_host::metrics::Cta
 impl<T> typenum::type_operators::Same for nika_cli_host::metrics::Cta
 pub type nika_cli_host::metrics::Cta::Output = T
 pub enum nika_cli_host::metrics::DraftSource
-pub nika_cli_host::metrics::DraftSource::Guided
-pub nika_cli_host::metrics::DraftSource::New
+pub nika_cli_host::metrics::DraftSource::Compile
 impl core::clone::Clone for nika_cli_host::metrics::DraftSource
 pub fn nika_cli_host::metrics::DraftSource::clone(&self) -> nika_cli_host::metrics::DraftSource
 impl core::cmp::Eq for nika_cli_host::metrics::DraftSource
@@ -3062,12 +3061,8 @@ pub type nika_cli_host::var_inputs::ValidatedInputs::Output = T
 pub fn nika_cli_host::var_inputs::parse_var_overrides(pairs: &[alloc::string::String], wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_cli_host::var_inputs::ValidatedInputs, alloc::string::String>
 pub mod nika_cli_host::welcome
 pub const nika_cli_host::welcome::SAMPLE: &str
-pub fn nika_cli_host::welcome::first_wow_dest(dest: core::option::Option<&str>) -> &str
-pub fn nika_cli_host::welcome::is_first_wow(from: core::option::Option<&str>, dest: core::option::Option<&str>) -> bool
 pub fn nika_cli_host::welcome::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
-pub fn nika_cli_host::welcome::stamp_cascade_model(path: &std::path::Path) -> core::io::error::Result<()>
 pub fn nika_cli_host::welcome::taught_start_commands() -> alloc::vec::Vec<alloc::string::String>
-pub fn nika_cli_host::welcome::write_first_wow(dest: &std::path::Path, force: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::wire
 pub enum nika_cli_host::wire::WireTarget
 pub nika_cli_host::wire::WireTarget::All

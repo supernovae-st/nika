@@ -92,7 +92,10 @@ fn render_human(
                 "scan partial — the walk gave up before covering the tree"
             );
         } else {
-            let _ = writeln!(s, "no workflows here yet — nika new scaffolds one");
+            let _ = writeln!(
+                s,
+                "no workflows here yet — nika compile hello hello.nika.yaml creates one explicitly"
+            );
         }
         return s;
     }
