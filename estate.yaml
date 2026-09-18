@@ -157,7 +157,7 @@ patterns:
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 233
-  aggregate_sha256: 0adb0d5e489e20b53abf03320ed5bbeb54cd894601ba4fe858347dd401fc7f43
+  aggregate_sha256: 7d66ccd027f1398961105d991ced9dc03e6a15dd86110c585678f77f47d4f573
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -188,7 +188,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 261
-  aggregate_sha256: 39f32f1364f007c0290f29d8f008df41aa6b5889c0226be5c29a69e4ee8b8e35
+  aggregate_sha256: 19c54a7262d204dd30ed5e4fafb8d3ec807e9eff3ca82daa950afd6631172c4a
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
