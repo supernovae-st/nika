@@ -940,6 +940,32 @@ mod tests {
         assert_advisory(&r, "a non-fragment guard");
     }
 
+    /// A fan-out STAGE closed by its `when:` skips for sure: spec 03 runs
+    /// GATE → BINDINGS → `when:` → expansion, so a total-false `when:`
+    /// settles `skipped` before the collection is ever looked at — the
+    /// value reader is the same KG01 leak (measured on the engine: `stage`
+    /// skipped, `publish` wrote `Report: null`). A fan-out on the READER
+    /// stays advisory (`a_fan_out_reader_is_not_a_proven_witness`).
+    #[test]
+    fn a_fan_out_stage_closed_by_its_when_still_skips_for_sure() {
+        let r = report(
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  stage:\n    with: { go: \"${{ tasks.ask.output }}\", items: [\"a\"] }\n    for_each: { items: \"${{ with.items }}\" }\n    when: ${{ with.go == true }}\n    infer: { prompt: \"draft ${{ item }}\", max_tokens: 9 }\n  push:\n    with: { staged: \"${{ tasks.stage.output }}\" }\n    exec: { command: [\"git\", \"push\"] }\n",
+        );
+        assert_eq!(
+            r.consent_findings.len(),
+            1,
+            "{:?} · {:?}",
+            r.consent_findings,
+            r.hints
+        );
+        assert_eq!(r.consent_findings[0].sink, "push");
+        assert!(
+            r.consent_findings[0].detail.contains("skips `stage`"),
+            "{}",
+            r.consent_findings[0].detail
+        );
+    }
+
     /// A `for_each` reader is not a proven runner: a null or empty
     /// collection never iterates (measured: a fan-out over the skipped
     /// stage's null FAILS before any iteration) — the SURE reading never

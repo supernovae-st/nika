@@ -123,15 +123,23 @@ pub fn gate_verdict(task: &RawTask, prompt: &str) -> Gate {
 /// first, so an undecided left is a possible `NIKA-VAR-006` whatever the
 /// right says (`<cross-type> && false` FAILS the task, it does not skip
 /// it), and `==` across two classes errors instead of reading false. A
-/// `for_each` collection and a binding that navigates or computes are
-/// pre-verb steps the fragment does not evaluate — undecided, never
-/// assumed.
+/// binding that navigates or computes is a pre-verb step the fragment
+/// does not evaluate — undecided, never assumed. The steps are read in
+/// the runtime's order (spec 03 · GATE → bindings → `when:` → expansion):
+/// a total-false `when:` skips a `for_each` task BEFORE its collection is
+/// looked at, so it is a sure skip whatever the collection holds; a gate
+/// that lets the task through leaves the expansion (empty · null ·
+/// erroring) undecided.
 #[must_use]
 pub fn gate_certain(task: &RawTask, prompt: &str) -> Gate {
-    if task.for_each.is_some() || !task.with.iter().all(|(_, v)| total_binding(&v.value)) {
+    if !task.with.iter().all(|(_, v)| total_binding(&v.value)) {
         return Gate::Unclear;
     }
-    gate_under(task, prompt, true)
+    match gate_under(task, prompt, true) {
+        Gate::Closed => Gate::Closed,
+        _ if task.for_each.is_some() => Gate::Unclear,
+        verdict => verdict,
+    }
 }
 
 /// A `with:` value whose evaluation cannot error: no island at all, or
@@ -497,6 +505,25 @@ mod tests {
         assert_eq!(readings(&null_test), (Gate::Open, Gate::Open));
         let membership = format!("{with}    when: ${{{{ with.go in [true, 'yes'] }}}}\n");
         assert_eq!(readings(&membership), (Gate::Closed, Gate::Closed));
+    }
+
+    /// `when:` runs BEFORE the fan-out expands (spec 03: GATE → bindings →
+    /// `when:` → expansion): a total-false gate skips a `for_each` task for
+    /// sure, whatever the collection holds — only a gate that lets it
+    /// through leaves the expansion (empty · null · erroring) undecided.
+    #[test]
+    fn a_closed_gate_skips_a_fan_out_before_it_expands() {
+        let fans_out = format!(
+            "    with: {{ {GO}, items: [\"a\"] }}\n    for_each: {{ items: \"${{{{ with.items }}}}\" }}\n"
+        );
+        let closed = format!("{fans_out}    when: ${{{{ with.go == true }}}}\n");
+        assert_eq!(readings(&closed), (Gate::Closed, Gate::Closed));
+        let open = format!("{fans_out}    when: ${{{{ with.go == false }}}}\n");
+        assert_eq!(readings(&open), (Gate::Open, Gate::Unclear));
+        let navigating = format!(
+            "    with: {{ {GO}, items: \"${{{{ tasks.a.output.items }}}}\" }}\n    for_each: {{ items: \"${{{{ with.items }}}}\" }}\n    when: ${{{{ with.go == true }}}}\n"
+        );
+        assert_eq!(readings(&navigating), (Gate::Closed, Gate::Unclear));
     }
 
     /// Bindings and the `for_each` collection are evaluated BEFORE the
