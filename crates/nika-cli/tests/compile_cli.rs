@@ -410,7 +410,7 @@ fn an_explicit_dash_prefixed_path_teaches_a_runnable_file_argument() {
 #[test]
 fn an_equals_prefixed_path_is_taught_as_a_word_no_shell_rewrites() {
     let room = tempfile::tempdir().expect("room");
-    for name in ["=ls.nika.yaml", "=value.nika.yaml"] {
+    for name in ["=ls.nika", "=value.nika"] {
         let out = call(room.path(), &["compile", "hello", name]);
         assert!(out.status.success(), "{out:?}");
         let text = String::from_utf8_lossy(&out.stdout).into_owned();

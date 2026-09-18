@@ -224,7 +224,7 @@ mod tests {
         // zsh rewrites `=ls` to the path of ls and aborts on `=value`.
         assert_eq!(sh_word("=ls"), "'=ls'");
         assert_eq!(sh_word("=value"), "'=value'");
-        assert_eq!(sh_word("=draft.nika.yaml"), "'=draft.nika.yaml'");
+        assert_eq!(sh_word("=draft.nika"), "'=draft.nika'");
         assert_eq!(sh_word("="), "'='");
         assert_eq!(sh_word("==x"), "'==x'");
         // A later `=` is literal in every shell: the carry stays byte-identical.
