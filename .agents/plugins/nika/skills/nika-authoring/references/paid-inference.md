@@ -53,7 +53,7 @@ an anchor substring check does not establish that extracted facts are true.
    Do not perform paid execution while a paid blocker remains; preserve the
    user's selected model during static validation.
 1. **Is an unfamiliar shape still unresolved?** Read the relevant
-   `nika try` / `nika new <slug>` example, then check the actual file.
+   `nika try` gallery or exact `nika compile <skeleton> --json` preview, then check the actual file.
 2. **Is every `exec:` a real tool?** `nika check <file> --native-strict`. A
    `.py`/`.sh` wrapper is not a tool.
 3. **Does any infer name the verdict?** Hint `infer-as-law`. Extract
@@ -64,8 +64,8 @@ an anchor substring check does not establish that extracted facts are true.
 5. **Does a markdown glob include README?** Hint `glob-readme`.
 6. **Did I probe every new builtin on `mock/echo`?** One-task file,
    then wire it. `nika:inspect` is live (`16-inspect-self`).
-7. **Would a closer template have given this graph?** `nika new "?"`
-   and `nika new "the job in plain words"`. Adapt a closer shape only when it materially improves the requested result;
+7. **Would a closer template have given this graph?** `nika compile --list`
+   lists exact skeletons. Preview a named skeleton; unsupported prose stays incomplete. Adapt only when it materially improves the requested result;
    preserve working content and avoid restarting for stylistic conformity.
 8. **Did `nika explain <file>` stay honest?** Waves · cost (FLOOR ≠ $0)
    · touches · the **before a paid model** panel. If a paid-run hint

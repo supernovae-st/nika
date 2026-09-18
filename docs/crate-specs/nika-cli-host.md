@@ -55,6 +55,21 @@ bin never name this crate; its `public-api.txt` is the split's receipt.
 - Tests coupled to cli-side fixtures (retention×trace-store ·
   SAMPLE×check) live cli-side and exercise the re-exported paths.
 
+## Compile transport and materialization
+
+The Compile CLI adapter lives in this existing interface member and is
+re-exported as `nika_cli::verbs::compile`. It owns clap arguments, explicit
+source/destination I/O, atomic publication of Ready candidates, and human/JSON
+rendering. The acyclic lateral dependency on `nika-onboard` consumes the one
+typed Compile core; this adapter does not own compiler semantics or runtime
+admission. Shell-word quoting is shared through `output::sh_word` so the
+Compile next step and Run resume teaching use the same escaping law.
+
+The binary and all dispatch remain in `nika-cli`. Existing CLI integration
+tests exercise the re-exported surface and actual process boundary; the
+quoting law itself is unit-tested here, beside `output::sh_word`. No new
+crate, authority boundary, or exception to the size budget is introduced.
+
 ## Literal input binding
 
 `literal_inputs::{read, validate}` owns bounded native API value decoding and
@@ -66,6 +81,7 @@ and provided/default origins are `api-caller` / `file`. No environment lookup,
 expression interpolation, source mutation or execution lives in this seam.
 The CLI owns stdin selection, conflicts and structured refusal rendering.
 
-`run_protocol` carries the existing pure output/error/pause-envelope, shell-quoted
-carry and resume-hint formatters. CLI rendering retains its tests and reuses those
+`run_protocol` carries the existing pure output/error/pause-envelope, carry and
+resume-hint formatters. The carry quotes through the one shared `output::sh_word`;
+no second quoting law exists. CLI rendering retains its tests and reuses those
 formatters; literal payloads are never copied into the resume command.

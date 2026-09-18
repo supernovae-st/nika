@@ -1,6 +1,6 @@
-# nika-onboard — the onboarding surface (founding wizard + guided first workflow)
+# nika-onboard — the onboarding surface (project bootstrap + stateless Compile)
 
-> L4 · descended from `nika-cli/src/verbs/{new.rs, init/}` at the 15k
+> L4 · descended from the CLI authoring/bootstrap surface at the 15k
 > prod-LOC wall (2026-07-12 · the `nika-display`/`nika-dap`/`nika-tmpl`
 > precedents) — per D-2026-07-09-N1 this is the cli UNIT in a second
 > member, named by parentage.
@@ -13,7 +13,7 @@ keeps the hand · the proof inside the first minute):
 - **`founding`** — `nika init`'s body: the briefs table (`briefs` — the
   scaffold bytes: AGENTS.md contract · per-client thin briefs · schema
   wiring), the recipe register (`recipes` — SETS over the embedded
-  templates through the guided `stamp`, ids explicit under the kebab
+  templates through the bootstrap-only `stamp`, ids explicit under the kebab
   law), the scripted path (`scripted_run` — file receipts and next commands),
   the canvas stamp (`nika.dag.theme` parsed-and-re-emitted into a
   CREATED settings.json, never string-spliced), and the trace cover
@@ -22,16 +22,16 @@ keeps the hand · the proof inside the first minute):
   founded repo cannot commit its own `.nika/traces/` journals).
 - **`wizard`** — the founding conversation on the clack rail (recipe ·
   model · canvas · agents), over any `BufRead`/`Write` pair.
-- **`guided`** — `nika new`'s body: exact-name → BM25 intent routing →
-  the chain default; the three-question wizard; `stamp` (id ·
-  description · model, YAML-safe scalars); the discovery listing with
-  its `embedded set:` wire-contract line.
+- **`bootstrap`** — private init recipe/model prompts and stamping; no authoring
+  intent router, creation command or first-workflow wizard.
+- **`routing`** — read-only gallery discovery shared by MCP; it cannot author.
 
 ## Compile foundation
 
-`compile` is a stateless in-memory authoring foundation, separate from the
-existing `new` routing surface. CREATE accepts exact embedded skeleton names
-and explicit request-local JSON answers. Unsupported natural language returns
+`compile` is a stateless in-memory authoring core behind the CLI creation door. CREATE accepts exact embedded skeleton names
+and explicit request-local JSON answers. `hello` (also `01-hello`) takes the
+embedded hello lesson through the same assembler with explicit `mock/echo`.
+`with_workflow_id` names CREATE source explicitly; EDIT refuses this option. Unsupported natural language returns
 Incomplete with an Unknown diagnostic and no substitute workflow.
 
 EDIT requires the caller's explicit base source and offers two inputs:

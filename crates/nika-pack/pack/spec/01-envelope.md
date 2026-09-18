@@ -836,7 +836,7 @@ these files) should quote-by-default for the four ambiguous-scalar cases above.
 ## File naming (normative)
 
 - **Canonical filename** · `<name>.nika.yaml`. Every tool that CREATES a
-  workflow file (`nika new` · `nika init` · scaffolds · templates) MUST
+  workflow file (`nika compile` · `nika init` · scaffolds · templates) MUST
   emit this form, and every teaching surface writes it.
 - **`.nika.yml`** · accepted by matchers (editors · schema catalogs ·
   hooks) so no real file is ever orphaned — and taught against: a tool

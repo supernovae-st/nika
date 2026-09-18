@@ -116,7 +116,7 @@ fn drive<R: BufRead, W: Write>(
     } else {
         writeln!(
             output,
-            "no choice made · `nika` asks again next time; the verbs stay: nika try · nika new · nika check · nika run"
+            "no choice made · `nika` asks again next time; the verbs stay: nika try · nika compile · nika check · nika run"
         )?;
         return Ok(exit::OK);
     };

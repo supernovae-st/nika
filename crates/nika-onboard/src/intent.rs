@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The intent layer of `nika new <plain words>` (P0-1 · P0-10 ·
+//! Read-only gallery retrieval (P0-1 · P0-10 ·
 //! audit UX 2026-07-30): before ANY template is chosen, the utterance is
 //! read into an [`IntentContract`] — what the human asked for, which
 //! capabilities that implies, what it forbids. The contract is extracted
@@ -585,17 +585,6 @@ pub(crate) enum Facet {
     Skeleton,
 }
 
-impl Facet {
-    /// The display noun (the clarify list's facet chip).
-    pub(crate) fn noun(self) -> &'static str {
-        match self {
-            Self::Job => "job",
-            Self::Lesson => "lesson",
-            Self::Skeleton => "skeleton",
-        }
-    }
-}
-
 /// The facet of a catalog name. Skeletons are the template set; a
 /// leading digit is the curriculum convention (`01-hello`); everything
 /// else in the example corpus is a job.
@@ -677,15 +666,13 @@ fn build_template_index(names: &[String]) -> BmIndex {
 }
 
 /// Route against the WHOLE catalog (jobs + lessons + skeletons) — the
-/// `nika new --from <plain words>` door (G-16: human words must see the
-/// human-worded corpus).
+/// read-only discovery door; this ranking never selects a Compile candidate.
 pub(crate) fn route(intent: &str) -> RoutingOutcome {
     route_impl(intent, &catalog_names(), TAU_CATALOG)
 }
 
-/// Route against the SKELETON set only — the wizard's door (its whole
-/// gesture instantiates a `# SLOT:` file, so its corpus IS the template
-/// set; the index is built on those 10 docs alone, keeping its BM25
+/// Route against the read-only SKELETON gallery; its index is built on
+/// template documents alone, keeping its BM25
 /// scores — and the TAU/MARGIN calibration — exactly as shipped).
 pub(crate) fn route_skeletons(intent: &str) -> RoutingOutcome {
     route_impl(intent, &nika_pack::template_names(), TAU)
@@ -949,7 +936,7 @@ mod tests {
 
     /// The P0-1/P0-10 ratchet, table-driven over the audit fixture: the
     /// RESOLVED template never belongs to the case's forbidden classes,
-    /// and the non-interactive door (`guided::run`) writes ONLY on a
+    /// and Compile never authors from the gallery winner; a
     /// confident route — a clarification is an honest non-zero exit that
     /// names its candidates and leaves the disk untouched; a route lands
     /// a DRAFT that says so and hands over to `nika check`.
@@ -971,79 +958,20 @@ mod tests {
                     case.utterance
                 );
             }
-            let dest = std::env::temp_dir().join(format!(
-                "nika-intent-{}-{}.nika.yaml",
-                std::process::id(),
+            let compiled =
+                crate::compile::compile(&crate::compile::CompileRequest::create(&case.utterance))
+                    .expect("compile fixture");
+            assert_eq!(
+                compiled.status,
+                crate::compile::CompileStatus::Incomplete,
+                "{}",
                 case.id
-            ));
-            let dest_s = dest.to_string_lossy().into_owned();
-            let out = crate::guided::run(&case.utterance, Some(&dest_s), true);
-            match &outcome {
-                RoutingOutcome::Routed { template, .. } => {
-                    assert_eq!(out.code, crate::codes::OK, "{}: {}", case.id, out.text);
-                    assert!(
-                        dest.exists(),
-                        "{}: a confident route lands the file",
-                        case.id
-                    );
-                    let lower = out.text.to_ascii_lowercase();
-                    // A routed SKELETON is a draft (SLOTs to fill) and
-                    // says so; a routed EXAMPLE lands verbatim and says
-                    // « yours now » — calling it a draft would be the
-                    // lie (the catalog widened past skeletons · G-16).
-                    let says_what_it_is = match facet_of(template) {
-                        Facet::Skeleton => lower.contains("draft"),
-                        Facet::Job | Facet::Lesson => lower.contains("yours now"),
-                    };
-                    assert!(
-                        says_what_it_is,
-                        "{}: the message names what landed ({:?}): {}",
-                        case.id,
-                        facet_of(template),
-                        out.text
-                    );
-                    assert!(
-                        out.text.contains("nika check"),
-                        "{}: hands over to check: {}",
-                        case.id,
-                        out.text
-                    );
-                    // The WORD « ready » (the readiness over-promise) —
-                    // never the substring: « already yours, kept » is
-                    // the ingredients note, not a claim.
-                    assert!(
-                        !lower
-                            .split(|c: char| !c.is_alphanumeric())
-                            .any(|w| w == "ready"),
-                        "{}: never « ready »: {}",
-                        case.id,
-                        out.text
-                    );
-                }
-                RoutingOutcome::NeedsClarification { candidates, .. } => {
-                    assert!(
-                        !dest.exists(),
-                        "{}: below the bar, NOTHING is written",
-                        case.id
-                    );
-                    assert_eq!(
-                        out.code,
-                        crate::codes::FILE,
-                        "{}: an honest non-zero exit: {}",
-                        case.id,
-                        out.text
-                    );
-                    for c in candidates {
-                        assert!(
-                            out.text.contains(c.as_str()),
-                            "{}: the error names `{c}`: {}",
-                            case.id,
-                            out.text
-                        );
-                    }
-                }
-            }
-            std::fs::remove_file(&dest).ok();
+            );
+            assert!(
+                compiled.candidate.is_none(),
+                "{}: discovery cannot select authoring source",
+                case.id
+            );
         }
     }
 
@@ -1367,7 +1295,7 @@ mod catalog_routing_laws {
 
     /// The wizard's world is UNTOUCHED: its route sees the skeleton set
     /// only, so a job-shaped utterance still lands the generic skeleton
-    /// there (the SLOT gesture) while the guided door sees the catalog.
+    /// there (the SLOT gesture) while read-only discovery sees the catalog.
     #[test]
     fn the_wizard_route_stays_skeleton_only() {
         match route_skeletons("translate my docs folder to spanish") {

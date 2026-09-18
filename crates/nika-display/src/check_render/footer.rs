@@ -108,7 +108,7 @@ pub(super) fn hints_and_verdict(
 /// The verdict for a scaffold whose only finding is its own unfilled
 /// slots (#1066 constraint 4).
 ///
-/// `✖ findings above` would tell someone who typed `nika new` thirty
+/// `✖ findings above` would tell someone who typed `nika compile` thirty
 /// seconds ago that they broke a file they never wrote. The run still
 /// refuses — the exit code is untouched — only the wording matches what
 /// actually happened.

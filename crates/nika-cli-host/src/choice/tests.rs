@@ -124,7 +124,10 @@ fn authenticated_harness_takes_the_arrow_with_zero_key_zero_download() {
     let dir = tempfile::tempdir().expect("tmp");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     assert!(human.contains("Claude Code"), "{human}");
-    assert!(human.contains("nika new hello"), "{human}");
+    assert!(
+        human.contains("nika compile hello hello.nika.yaml"),
+        "{human}"
+    );
     assert!(!human.contains("xai/grok-4"), "{human}");
 }
 
@@ -261,86 +264,6 @@ fn doctor_json_names_env_vars_never_values() {
 }
 
 #[test]
-fn stamp_writes_the_cascade_model() {
-    let body = "nika: hello\nmodel: ollama/llama3.2:3b\ntasks: {}\n";
-    let stamped = stamp_body(body, "unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M");
-    assert!(stamped.contains("model: 'unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M'"));
-    assert!(!stamped.contains("ollama/"));
-}
-
-#[test]
-fn skeletons_name_only_the_cascade_alias_or_are_stamped() {
-    let dir = pack_template_dir();
-    assert!(dir.is_dir(), "pack templates: {}", dir.display());
-    let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
-    let want = runnable_stamp_model(&choice);
-    assert!(
-        nika_providers::resolve_refusal(&want).is_none(),
-        "stamp must be a runnable provider/model, got {want}"
-    );
-    let mut scanned = 0;
-    for entry in std::fs::read_dir(&dir).expect("templates") {
-        let path = entry.expect("entry").path();
-        if !path
-            .file_name()
-            .is_some_and(|n| n.to_string_lossy().ends_with(".nika.yaml"))
-        {
-            continue;
-        }
-        let Ok(body) = std::fs::read_to_string(&path) else {
-            continue;
-        };
-        scanned += 1;
-        let stamped = stamp_body(&body, &want);
-        let model = stamped
-            .lines()
-            .find(|l| l.starts_with("model: "))
-            .map(|l| l.trim_start_matches("model: ").trim().trim_matches('\''));
-        assert!(
-            model == Some(want.as_str()),
-            "{} kept a model the cascade did not stamp",
-            path.display()
-        );
-        assert!(
-            !stamped
-                .lines()
-                .any(|l| l.starts_with("model: ") && l.contains("unsloth/")),
-            "a stamped skeleton must not use a Hub id as its model"
-        );
-    }
-    assert_eq!(
-        scanned,
-        nika_pack::template_names().len(),
-        "scan the native skeleton set, excluding metadata"
-    );
-}
-
-#[test]
-fn stamp_falls_back_to_mock_when_the_cascade_id_is_not_runnable() {
-    let local = collect_from(&machine(Some(18), vec![], false, &[], true));
-    assert!(
-        nika_providers::resolve_refusal(&local.chosen_model).is_some(),
-        "local chosen_model is a Hub pull id: {}",
-        local.chosen_model
-    );
-    assert_eq!(runnable_stamp_model(&local), "mock/echo");
-
-    let harness = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
-    assert!(harness.chosen_model.starts_with("harness/"));
-    assert_eq!(runnable_stamp_model(&harness), "mock/echo");
-
-    let keyed = collect_from(&machine(
-        Some(18),
-        vec![],
-        false,
-        &["ANTHROPIC_API_KEY"],
-        true,
-    ));
-    assert_eq!(runnable_stamp_model(&keyed), keyed.chosen_model);
-    assert!(nika_providers::resolve_refusal(&keyed.chosen_model).is_none());
-}
-
-#[test]
 fn tty_and_pipe_project_the_same_product() {
     let choice = collect_from(&machine(Some(8), vec![], false, &[], false));
     let dir = tempfile::tempdir().expect("tmp");
@@ -358,7 +281,7 @@ fn tty_and_pipe_project_the_same_product() {
 fn assert_parses(yaml: &str) {
     assert!(
         yaml.contains("\n  greet:\n") || yaml.contains("\n  reply:\n"),
-        "a hello task must be indented under tasks: — a `\\` continuation ate the YAML"
+        "a hello task must be indented under tasks"
     );
     let parsed = nika_schema::parse(
         yaml,
@@ -366,20 +289,6 @@ fn assert_parses(yaml: &str) {
         nika_schema::ParseMode::Strict,
     );
     assert!(parsed.is_ok(), "first-wow yaml must parse");
-}
-
-fn assert_hello_is_mock_echo(yaml: &str) {
-    let model = yaml
-        .lines()
-        .find(|l| l.starts_with("model: "))
-        .expect("hello carries model:");
-    assert!(model.contains("mock/echo"), "hello stays on the mock model");
-    assert!(
-        !model.contains("openai") && !model.contains("anthropic") && !model.contains("gpt-"),
-        "a present vendor key must not switch hello onto a billed seat"
-    );
-    assert!(yaml.contains("infer:"), "hello must use infer");
-    assert!(!yaml.contains("agent:"), "hello must not use agent");
 }
 
 #[test]
@@ -460,115 +369,6 @@ fn seven_gb_does_not_claim_lite() {
 }
 
 #[test]
-fn harness_first_wow_is_infer_mock_so_the_printed_next_runs() {
-    let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
-    assert_eq!(choice.arrow, "harness");
-    let yaml = first_wow_yaml(&choice);
-    assert_hello_is_mock_echo(&yaml);
-    assert!(!yaml.contains("ollama/"), "hello must not select Ollama");
-    assert!(!yaml.contains("xai/grok-4"), "hello must not select Grok");
-    assert!(
-        !yaml.contains("harness/claude"),
-        "hello must not select a harness seat"
-    );
-    assert!(
-        yaml.contains("yaml-language-server"),
-        "hello must retain the language-server directive"
-    );
-    assert_parses(&yaml);
-}
-
-#[test]
-fn key_first_wow_stays_mock_echo_even_with_openai_or_anthropic() {
-    // B01 / B17 / I01: `OPENAI_API_KEY` (or any cascade key) must NOT
-    // switch hello onto a billed seat. The pack lesson is mock/echo.
-    for key in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "XAI_API_KEY"] {
-        let choice = collect_from(&machine(Some(18), vec![], false, &[key], true));
-        assert_eq!(choice.arrow, "key", "{key}");
-        let yaml = first_wow_yaml(&choice);
-        assert_hello_is_mock_echo(&yaml);
-        assert_parses(&yaml);
-    }
-}
-
-#[test]
-fn local_unready_first_wow_runs_on_mock_echo() {
-    let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
-    assert_eq!(choice.arrow, "local");
-    let yaml = first_wow_yaml(&choice);
-    assert_hello_is_mock_echo(&yaml);
-    assert!(
-        !yaml
-            .lines()
-            .any(|l| l.starts_with("model: ") && l.contains("unsloth/")),
-        "Hub ids are pull targets, not model values"
-    );
-    assert_parses(&yaml);
-    let dir = tempfile::tempdir().expect("tmp");
-    let dest = dir.path().join("hello.nika.yaml");
-    let out = write_first_wow_from(&dest, false, &choice);
-    assert_eq!(out.code, 0, "{}", out.text);
-    assert!(out.text.contains("nika run"), "{}", out.text);
-}
-
-#[test]
-fn write_first_wow_refuses_without_force() {
-    let dir = tempfile::tempdir().expect("tmp");
-    let dest = dir.path().join("hello.nika.yaml");
-    let existing = "secrets:\n  token: nika-test-secret-do-not-log\n";
-    std::fs::write(&dest, existing).expect("seed");
-    let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
-    let out = write_first_wow_from(&dest, false, &choice);
-    assert_ne!(out.code, 0);
-    assert!(out.text.contains("--force"), "{}", out.text);
-    let kept = std::fs::read_to_string(&dest).expect("kept");
-    assert!(
-        kept == existing,
-        "refusal must preserve the existing workflow"
-    );
-}
-
-#[test]
-fn write_first_wow_lands_a_file_and_names_run() {
-    let dir = tempfile::tempdir().expect("tmp");
-    let dest = dir.path().join("hello.nika.yaml");
-    let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
-    let out = write_first_wow_from(&dest, false, &choice);
-    assert_eq!(out.code, 0, "{}", out.text);
-    assert!(dest.is_file());
-    assert!(out.text.contains("wrote"), "{}", out.text);
-    assert!(
-        out.text.contains("nika run") && !out.text.contains("--access harness"),
-        "receipt must be a command that exits 0 on a keyless machine: {}",
-        out.text
-    );
-    assert!(
-        !out.text.contains("claude-agent-acp"),
-        "seat ids are NIKA-1802 as --access pins: {}",
-        out.text
-    );
-    let body = std::fs::read_to_string(&dest).expect("body");
-    assert_hello_is_mock_echo(&body);
-    assert!(!body.contains("xai/grok-4"));
-    assert!(!body.contains("ollama/"));
-}
-
-#[test]
-fn stamp_does_not_switch_hello_onto_a_cascade_key() {
-    let pack = nika_pack::example("01-hello").expect("pack 01-hello");
-    assert!(is_hello_lesson(pack));
-    assert!(!is_hello_lesson(
-        "nika: chain\nmodel: mock/echo\npermits: {}\ntasks: {}\n"
-    ));
-    let dir = tempfile::tempdir().expect("tmp");
-    let dest = dir.path().join("01-hello.nika.yaml");
-    std::fs::write(&dest, pack).expect("seed");
-    stamp_model_file(&dest).expect("stamp");
-    let body = std::fs::read_to_string(&dest).expect("body");
-    assert_hello_is_mock_echo(&body);
-}
-
-#[test]
 fn an_empty_model_dir_is_not_ready() {
     let dir = tempfile::tempdir().expect("tmp");
     let repo = dir
@@ -606,14 +406,6 @@ fn pull_repo_dir_strips_the_quant() {
 }
 
 #[test]
-fn first_wow_slug_is_not_the_lesson_pack() {
-    assert!(!is_first_wow(Some("01-hello"), None));
-    assert!(!is_first_wow(Some("chain"), Some("hello.nika.yaml")));
-    assert_eq!(first_wow_dest(None), FIRST_WOW_DEST);
-    assert_eq!(first_wow_dest(Some("hello")), FIRST_WOW_DEST);
-}
-
-#[test]
 fn chosen_access_is_the_seat_when_harness_has_the_arrow() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     assert_eq!(choice.chosen_access.as_deref(), Some("claude-code"));
@@ -626,7 +418,10 @@ fn next_for_a_ready_harness_is_new_hello() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
-    assert!(human.contains("nika new hello"), "{human}");
+    assert!(
+        human.contains("nika compile hello hello.nika.yaml"),
+        "{human}"
+    );
     // « this hardware », not « this machine »: the mirror body's
     // `this machine` section is the environment one, and the same two
     // words named three things on one screen (#1196).
@@ -640,7 +435,13 @@ fn next_for_a_ready_harness_is_new_hello() {
 /// the function's exact image. Run the real thing on real directories.
 #[test]
 fn door_shapes_mirror_the_real_door() {
-    let placeholder = |door: String| door.replace("hello.nika.yaml", "<file>");
+    let placeholder = |door: String| {
+        if door.starts_with("nika run ") {
+            door.replace("hello.nika.yaml", "<file>")
+        } else {
+            door
+        }
+    };
     let dir = tempfile::tempdir().expect("tmp");
     let empty = placeholder(front_door_next(Some(dir.path())));
     std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("hello");
@@ -672,7 +473,7 @@ fn unready_local_next_is_new_hello_not_a_seven_gb_pull() {
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = human.split("Next:").nth(1).expect("Next: block");
     assert!(
-        after.contains("nika new hello"),
+        after.contains("nika compile hello hello.nika.yaml"),
         "empty machine first door is the file that runs:\n{human}"
     );
     assert!(
@@ -701,7 +502,7 @@ fn next_after_hello_exists_is_run_not_new() {
         "a file already here is the next door:\n{human}"
     );
     assert!(
-        !after.contains("nika new hello"),
+        !after.contains("nika compile hello hello.nika.yaml"),
         "new hello after a file exists is the --force dead end:\n{human}"
     );
 }
@@ -725,7 +526,10 @@ fn next_after_hello_with_harness_is_run_not_a_pin() {
         !after.contains("claude-agent-acp"),
         "seat ids are NIKA-1802 as --access pins:\n{human}"
     );
-    assert!(!after.contains("nika new hello"), "{human}");
+    assert!(
+        !after.contains("nika compile hello hello.nika.yaml"),
+        "{human}"
+    );
 }
 
 #[test]
@@ -754,5 +558,8 @@ fn next_with_two_non_hello_files_is_bare_run() {
         after.contains("nika run"),
         "several files → the lazy door, not another scaffold:\n{human}"
     );
-    assert!(!after.contains("nika new hello"), "{human}");
+    assert!(
+        !after.contains("nika compile hello hello.nika.yaml"),
+        "{human}"
+    );
 }

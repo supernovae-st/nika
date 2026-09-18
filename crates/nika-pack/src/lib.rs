@@ -7,7 +7,7 @@
 //! the canonical examples, the instantiable templates and the manifest
 //! that hashes them (nika-spec README §The examples pack). This crate
 //! embeds the pack of the language version this binary speaks, so
-//! `nika try` / `nika new` / `nika spec` work
+//! `nika try` / `nika compile` / `nika spec` work
 //! offline and an installed binary always carries the artifacts of
 //! *its* version.
 //!
@@ -268,7 +268,7 @@ pub fn quickstart() -> &'static str {
 }
 
 /// Bare `hello` is the 01-hello lesson — one file, one model, three doors
-/// (`nika new hello` · `nika new 01-hello` · `nika try hello` / `01-hello`).
+/// (`nika compile hello` · `nika compile 01-hello` · `nika try hello` / `01-hello`).
 fn canonical_example_slug(slug: &str) -> &str {
     let slug = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
     match slug {
@@ -342,7 +342,7 @@ const RELEASE_TRAIN_CHANGELOG: &str = "# Changelog\n\n## [1.2.0]\n\n- The rehear
 /// byte-identical to `spec@SPEC_PIN` — and because the demo belongs to the
 /// rehearsal room, not the file: a `default:` in `release-train` would name
 /// a version its own first gate checks against the repository's real
-/// `./VERSION`. Only the try room takes a kit; `nika new` never plants one
+/// `./VERSION`. Only the try room takes a kit; `nika compile` never plants one
 /// beside an operator's repository. Output-only: constructed solely by
 /// [`try_rehearsal_kit`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -379,7 +379,7 @@ pub fn try_rehearsal_kit(slug: &str) -> Option<RehearsalKit> {
 
 /// Every file under `examples/fixtures/` — (path relative to
 /// `examples/fixtures/`, raw bytes; photos are binary). The ingredients
-/// a take (`nika new <slug>`) delivers beside a recipe that reads them (gauntlet
+/// a take (`nika compile <slug>`) delivers beside a recipe that reads them (gauntlet
 /// 2026-07-31: the recipe without its ingredients was the one
 /// rage-quit — its own header taught an offline run that died on
 /// NIKA-BUILTIN-READ-001).

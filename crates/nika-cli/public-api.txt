@@ -24,6 +24,7 @@ pub use nika_cli::seal::<<nika_dap::sign::*>>
 pub mod nika_cli::verbs
 pub use nika_cli::verbs::VerbOutput
 pub use nika_cli::verbs::catalog
+pub use nika_cli::verbs::compile
 pub use nika_cli::verbs::doctor
 pub use nika_cli::verbs::evidence
 pub use nika_cli::verbs::exit
@@ -805,9 +806,6 @@ pub fn nika_cli::verbs::model::store::resolve_serve_model(arg: &str) -> core::re
 pub fn nika_cli::verbs::model::store::rm(id: &str) -> nika_cli_host::output::VerbOutput
 pub const nika_cli::verbs::model::DEFAULT_PORT: u16
 pub fn nika_cli::verbs::model::serve(gguf: &std::path::Path, tokenizer: core::option::Option<&std::path::Path>, port: u16, model_id: core::option::Option<&str>) -> nika_cli_host::output::VerbOutput
-pub mod nika_cli::verbs::new
-pub fn nika_cli::verbs::new::dispatch(from: core::option::Option<&str>, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
-pub fn nika_cli::verbs::new::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::pack_surface
 pub fn nika_cli::verbs::pack_surface::project_schema() -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::pack_surface::schema() -> nika_cli_host::output::VerbOutput

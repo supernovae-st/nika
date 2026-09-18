@@ -72,13 +72,13 @@ parity remains the consumer's qualification, outside this engine slice.
 |---|---|---|
 | `nika run <file>` | execute a workflow · live render (§3) | 0 ok · 1 workflow failed · 2 file findings · 3 env · 4 paused (ADR-099) |
 | `nika check <file>` | the ADR-092 static ladder (schema→DAG→CEL→effects→permits→cost) | 0 clean · 2 file findings · 3 invalid ambient project |
-| `nika init` | scaffold a repo (.vscode schema wiring · AGENTS.md templates) · bare on a terminal it then OFFERS the guided first workflow (`--yes`/pipe/CI = the classic non-interactive shape byte-for-byte · prompts never appear off-terminal) | 0 · 3 env |
+| `nika init` | scaffold a repo (.vscode schema wiring · AGENTS.md templates) · bare on a terminal asks project-bootstrap questions and teaches Compile (`--yes`/pipe/CI = the classic non-interactive shape byte-for-byte · prompts never appear off-terminal) | 0 · 3 env |
 | `nika inspect <file>` | static anatomy: tasks · verbs · DAG (ASCII §6) · permits · cost interval | 0 · 2 |
 | `nika inspect <file> --format json\|mermaid\|dot\|ascii` | the ONE graph projector (§6) | 0 · 2 |
 | `nika doctor` | environment diagnosis (PATH · providers reachable · keys present-not-printed · config) | 0 · 3 |
 | `nika explain NIKA-XXXX` | teach one error code (cause · fix-form · doc link) | 0 · 2 unknown code |
 | `nika completions <shell>` | shell completions (clap-generated) | 0 |
-| `nika new <template\|example\|intent> [dest]` | make one yours (V5 positional): exact template · example slug (verbatim, ingredients included) · plain words BM25-route to the closest skeleton · `'?'` = first-class discovery listing (exit 0 · the `embedded set:` line is the editor wire contract) · a lone `<name>.nika.yaml` = destination, wizard on a terminal · bare `nika new` on a terminal = the guided flow, at most three questions (template → file → model · the model question only fires for skeletons carrying a top-level `model:` · the default file name walks past collisions · Enter-only path lands on the offline mock) · bare in a pipe fails fast naming the grammar | 0 · 2 unknown/bare-in-pipe · 3 env |
+| `nika compile <skeleton> [dest]` | one stateless authoring core; exact skeleton or hello; no destination previews source and stable questions; repeatable `--answer KEY=JSON_LITERAL`; explicit `--base` + `--change` for conservative constant edits, `--output` for an edit destination; `--json` version 1; `--list` read-only names; only Ready writes an explicit destination, `--force` required on conflict; no wizard on pipe or ambient model stamping | 0 ready/list · 2 authoring validation/incomplete/refused · 3 I/O or machinery |
 | `nika spec` (`--schema` prints the JSON Schema) / `nika try [slug]` | the embedded self-contained surface — bare = the showroom list · a slug runs it offline by default (`--model` opts into a real seat · V5) | 0 |
 | `nika lsp` | the in-binary language server (stdio) | — |
 | `nika mcp` | the in-binary MCP server | — |
@@ -336,7 +336,7 @@ surface auto-escalates permits, ever.
 |---|---|
 | 1 SPEC | ✅ this file (2026-06-11 · ahead of build) |
 | 2 TDD | ✅ RED→GREEN · render frames + verbs + the e2e pipeline |
-| 3 IMPL | ✅ compiles · the full first-15-min verb tree (check · run · trace · inspect · explain · spec · examples · new · doctor · completions · lsp · mcp) |
+| 3 IMPL | ✅ compiles · the full first-15-min verb tree (check · run · trace · inspect · explain · spec · try · compile · doctor · completions · lsp · mcp) |
 | 4 CLIPPY | ✅ 0 warnings (`--all-targets -D warnings`) |
 | 5 MUTATION | ✅ 91.0% killed (264/290 viable) · residual are equivalent (the sparkline `.min()` clamp + unreachable `unwrap_or`) or low-value (infallible-writer `into_error`, best-effort stderr, a few composition-root paths) |
 | 6 PROPERTY | ✅ `tests/fold_property.rs` — the fold's monoid invariants (cost conservation · one-row-per-task · permutation-invariance · sequential≡interleaved-wave) |
@@ -352,3 +352,22 @@ trace NDJSON before the Rust existed (`--demo` included) — the design was
 runnable ahead of the build.
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
+
+Compile incompleteness is structured authoring data, mapped by the CLI to the
+existing FILE/validation class (2). ENV (3) remains I/O/configuration failure.
+ADR-129's INCOMPLETE (5) is specific to unfinished trace evidence and is not
+repurposed. The preview is the pure source-only Check report; Run re-admits.
+No general NL, Graph gate-add, Jev or remote Compile transport is claimed.
+
+Compile destinations must use the canonical `.nika.yaml` suffix; the adapter
+refuses other suffixes without writing. Materialization prepares and syncs a
+temporary file in the destination directory, protects local traces, then
+atomically publishes with no-clobber semantics (or replaces under explicit
+`--force`). A trace-protection failure occurs before destination publication.
+The `.gitignore` protection can remain if later publication fails; a refused
+publication does not claim a workflow was written. Preview and incomplete
+results create neither workflow files nor trace-protection files.
+
+The Compile transport/materializer is owned by `nika-cli-host::compile` and
+re-exported at `verbs::compile`; `nika-onboard` owns its typed core. The CLI
+binary only dispatches. This follows the existing ADR-110 interface split.

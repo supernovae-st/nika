@@ -2,9 +2,9 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The onboarding surface — the founding wizard (`nika init`) and the
-//! guided first workflow (`nika new`).
+//! stateless Compile authoring core.
 //!
-//! Descended from `nika-cli/src/verbs/{new.rs, init/}` at the 15k
+//! Descended from the CLI authoring/bootstrap surface at the 15k
 //! prod-LOC wall (2026-07-12 · the `nika-display`/`nika-dap`/`nika-tmpl`
 //! precedents) — per D-2026-07-09-N1 this is the cli UNIT in a second
 //! member, named by parentage in `docs/crate-specs/nika-onboard.md`.
@@ -22,12 +22,12 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod banner;
+mod bootstrap;
 pub mod briefs;
 pub mod compile;
 pub mod fixtures;
 pub mod founding;
 mod gitignore;
-pub mod guided;
 mod intent;
 pub mod project_file;
 pub mod recipes;

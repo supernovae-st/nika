@@ -487,12 +487,12 @@ pub struct CheckReport {
     /// conditional contracts (`nika:wait`, `nika:fetch`) stay in
     /// `conformance` (the `builtin_shape` ladder) — no double report.
     pub missing_args: Vec<MissingArg>,
-    /// Every value a `nika new` scaffold still expects its author to
+    /// Every value a `nika compile` scaffold still expects its author to
     /// fill (#1066). The marker is a VALUE (`<SLOT: … >`), never a
     /// comment — the parser drops comments, which is exactly how a
     /// scaffold used to run green and leave an `output.md` holding its
     /// own prompt echoed back. A run-blocker, but never worded as a
-    /// fault: the person typed `nika new` and did nothing wrong.
+    /// fault: the person typed `nika compile` and did nothing wrong.
     pub slot_findings: Vec<SlotFinding>,
     /// Every authored `schema:` defect that makes structured output
     /// unsatisfiable or un-compilable (required∉properties · bad `type`

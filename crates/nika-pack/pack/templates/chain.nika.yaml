@@ -23,10 +23,9 @@
 # Run · nika run <file> --model mock/echo    # offline rehearsal · zero keys
 nika: chain-template       # SLOT: kebab-case workflow id
 
-# `nika new` STAMPS this line with a seat this binary can resolve; with no
-# resolvable seat it leaves `mock/echo` (measured on 0.118.7). Whatever rides
-# on the `model:` line is dropped by that stamp — teaching goes above it.
-# `--model mock/echo` keeps the offline rehearsal available either way.
+# This skeleton keeps its authored offline model. Creating a workflow does
+# not select a paid provider from ambient credentials. Choose a different
+# model explicitly for a real run; `--model mock/echo` remains offline.
 model: mock/echo
 
 const:

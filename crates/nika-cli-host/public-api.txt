@@ -179,6 +179,55 @@ pub fn nika_cli_host::clients_registry::coverage(registry: &nika_cli_host::clien
 pub fn nika_cli_host::clients_registry::registry_ships_kit(target: &str) -> bool
 pub fn nika_cli_host::clients_registry::registry_wires(target: &str) -> bool
 pub fn nika_cli_host::clients_registry::vendored() -> core::option::Option<&'static nika_cli_host::clients_registry::ClientsRegistry>
+pub mod nika_cli_host::compile
+pub struct nika_cli_host::compile::CompileArgs
+pub nika_cli_host::compile::CompileArgs::answers: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::compile::CompileArgs::base: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::CompileArgs::change: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::CompileArgs::dest: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::CompileArgs::force: bool
+pub nika_cli_host::compile::CompileArgs::intent: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::CompileArgs::json: bool
+pub nika_cli_host::compile::CompileArgs::list: bool
+pub nika_cli_host::compile::CompileArgs::output: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for nika_cli_host::compile::CompileArgs
+pub fn nika_cli_host::compile::CompileArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli_host::compile::CompileArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli_host::compile::CompileArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_cli_host::compile::CompileArgs
+pub fn nika_cli_host::compile::CompileArgs::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli_host::compile::CompileArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli_host::compile::CompileArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli_host::compile::CompileArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for nika_cli_host::compile::CompileArgs
+pub fn nika_cli_host::compile::CompileArgs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::CompileArgs
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::CompileArgs where U: core::convert::From<T>
+pub fn nika_cli_host::compile::CompileArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::CompileArgs where U: core::convert::Into<T>
+pub type nika_cli_host::compile::CompileArgs::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::CompileArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::CompileArgs where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::CompileArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::CompileArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::compile::CompileArgs where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::CompileArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::CompileArgs where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CompileArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::CompileArgs where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CompileArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::compile::CompileArgs
+pub fn nika_cli_host::compile::CompileArgs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::CompileArgs where T: 'static
+pub fn nika_cli_host::compile::CompileArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::CompileArgs where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CompileArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::CompileArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::CompileArgs
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::CompileArgs
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::CompileArgs
+pub type nika_cli_host::compile::CompileArgs::Output = T
+pub fn nika_cli_host::compile::run(args: &nika_cli_host::compile::CompileArgs) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::doctor
 pub enum nika_cli_host::doctor::Level
 pub nika_cli_host::doctor::Level::Fail
@@ -1563,8 +1612,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli_host::metrics::Cta
 impl<T> typenum::type_operators::Same for nika_cli_host::metrics::Cta
 pub type nika_cli_host::metrics::Cta::Output = T
 pub enum nika_cli_host::metrics::DraftSource
-pub nika_cli_host::metrics::DraftSource::Guided
-pub nika_cli_host::metrics::DraftSource::New
+pub nika_cli_host::metrics::DraftSource::Compile
 impl core::clone::Clone for nika_cli_host::metrics::DraftSource
 pub fn nika_cli_host::metrics::DraftSource::clone(&self) -> nika_cli_host::metrics::DraftSource
 impl core::cmp::Eq for nika_cli_host::metrics::DraftSource
@@ -2297,6 +2345,7 @@ impl<T> typenum::type_operators::Same for nika_cli_host::output::VerbOutput
 pub type nika_cli_host::output::VerbOutput::Output = T
 pub fn nika_cli_host::output::link_host() -> alloc::string::String
 pub fn nika_cli_host::output::linked_path(theme: nika_display::theme::Theme, path: &str) -> alloc::string::String
+pub fn nika_cli_host::output::sh_word(word: &str) -> alloc::borrow::Cow<'_, str>
 pub fn nika_cli_host::output::truecolor_env() -> bool
 pub mod nika_cli_host::probe
 pub use nika_cli_host::probe::KeyAuth
@@ -3114,12 +3163,8 @@ pub type nika_cli_host::var_inputs::ValidatedInputs::Output = T
 pub fn nika_cli_host::var_inputs::parse_var_overrides(pairs: &[alloc::string::String], wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_cli_host::var_inputs::ValidatedInputs, alloc::string::String>
 pub mod nika_cli_host::welcome
 pub const nika_cli_host::welcome::SAMPLE: &str
-pub fn nika_cli_host::welcome::first_wow_dest(dest: core::option::Option<&str>) -> &str
-pub fn nika_cli_host::welcome::is_first_wow(from: core::option::Option<&str>, dest: core::option::Option<&str>) -> bool
 pub fn nika_cli_host::welcome::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
-pub fn nika_cli_host::welcome::stamp_cascade_model(path: &std::path::Path) -> core::io::error::Result<()>
 pub fn nika_cli_host::welcome::taught_start_commands() -> alloc::vec::Vec<alloc::string::String>
-pub fn nika_cli_host::welcome::write_first_wow(dest: &std::path::Path, force: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::wire
 pub enum nika_cli_host::wire::WireTarget
 pub nika_cli_host::wire::WireTarget::All

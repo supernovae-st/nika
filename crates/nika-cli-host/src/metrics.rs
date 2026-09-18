@@ -44,11 +44,11 @@ pub enum EventKind {
     CtaSelected,
     /// The session context resolved (welcome's envelope).
     ContextResolved,
-    /// The guided flow understood a plain-words intent. Reserved.
+    /// A discovery surface understood a plain-words query. Reserved.
     IntentUnderstood,
     /// A preview rendered. Reserved.
     PreviewReached,
-    /// `new`/guided wrote a draft on disk.
+    /// Compile wrote a Ready candidate to an explicit destination.
     DraftCreated,
     /// The check ladder came back green.
     CheckPassed,
@@ -75,7 +75,7 @@ pub enum EventKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Cta {
-    /// Found something — `init` · `new`.
+    /// Found something — `init` · `compile`.
     Create,
     /// Go see — `examples` · `welcome --deep`.
     Discover,
@@ -97,10 +97,8 @@ pub enum Handoff {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DraftSource {
-    /// `nika new <template|example>` — direct instantiation.
-    New,
-    /// The guided conversation materialized its wizard.
-    Guided,
+    /// `nika compile` — a Ready candidate explicitly materialized.
+    Compile,
 }
 
 /// The resolved session shape (`context_resolved`).
@@ -284,7 +282,7 @@ mod tests {
         let facts = Facts {
             cta: Some(Cta::Create),
             handoff: Some(Handoff::GuardAllow),
-            draft: Some(DraftSource::Guided),
+            draft: Some(DraftSource::Compile),
             session: Some(Session::ChatOnly),
             flag: Some(false),
             count: Some(3),
@@ -308,7 +306,7 @@ mod tests {
         );
         assert_eq!(line["facts"]["cta"], "create");
         assert_eq!(line["facts"]["handoff"], "guard_allow");
-        assert_eq!(line["facts"]["draft"], "guided");
+        assert_eq!(line["facts"]["draft"], "compile");
         assert_eq!(line["facts"]["session"], "chat_only");
         assert_eq!(line["facts"]["count"], 3);
     }

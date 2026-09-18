@@ -56,10 +56,10 @@ mod help_postcard_tests {
     use nika_cli_host::help_card::{human_help, permits_teaching};
 
     #[test]
-    fn default_help_names_try_and_new() {
+    fn default_help_names_try_and_compile() {
         let help = human_help();
         assert!(help.contains("try"), "C11 try: {help}");
-        assert!(help.contains("new"), "C11 new: {help}");
+        assert!(help.contains("compile"), "C11 compile: {help}");
     }
 
     #[test]

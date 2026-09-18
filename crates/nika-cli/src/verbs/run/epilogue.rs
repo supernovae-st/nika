@@ -373,7 +373,7 @@ mod tests {
         assert!(
             notes
                 .iter()
-                .any(|n| n == "rehearsal. to own the file: nika new competitor-radar"),
+                .any(|n| n == "rehearsal · competitor-radar. explore authoring skeletons: nika compile --list"),
             "UX-3: {notes:?}"
         );
         assert!(

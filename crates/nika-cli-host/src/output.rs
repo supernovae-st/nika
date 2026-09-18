@@ -112,3 +112,106 @@ pub fn linked_path(theme: crate::Theme, path: &str) -> String {
         Err(_) => path.to_owned(),
     }
 }
+
+/// Quote one shell word for the taught line: bare when it is already a
+/// safe word, single-quoted otherwise (embedded single quotes splice
+/// through the POSIX `'\''` idiom — paste-able in sh/bash/zsh).
+#[must_use]
+pub fn sh_word(word: &str) -> std::borrow::Cow<'_, str> {
+    let safe = !word.is_empty()
+        && word
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_=./:@+-".contains(c));
+    if safe {
+        return std::borrow::Cow::Borrowed(word);
+    }
+    std::borrow::Cow::Owned(format!("'{}'", word.replace('\'', "'\\''")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sh_word;
+    use std::borrow::Cow;
+
+    /// What a POSIX shell reads back from one rendered word: `'…'` is
+    /// literal, `\'` outside quotes is one quote, and a bare character
+    /// must be one no shell expands. `None` = the rendering is unsafe.
+    fn shell_reads(rendered: &str) -> Option<String> {
+        const SPECIAL: &str = "|&;<>()$`\"' \t\n*?[]#~%!{}";
+        let mut out = String::new();
+        let mut chars = rendered.chars();
+        while let Some(c) = chars.next() {
+            match c {
+                '\'' => loop {
+                    match chars.next()? {
+                        '\'' => break,
+                        inner => out.push(inner),
+                    }
+                },
+                '\\' => match chars.next()? {
+                    '\'' => out.push('\''),
+                    _ => return None,
+                },
+                bare if SPECIAL.contains(bare) => return None,
+                bare => out.push(bare),
+            }
+        }
+        Some(out)
+    }
+
+    #[test]
+    fn a_safe_word_stays_bare_and_borrowed() {
+        for word in [
+            "./out/draft.nika.yaml",
+            "page=wifi",
+            "openai/gpt-5.2",
+            "a@b:c+d-e_f",
+        ] {
+            assert!(
+                matches!(sh_word(word), Cow::Borrowed(same) if same == word),
+                "{word}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unsafe_word_is_quoted_and_reads_back_verbatim() {
+        for word in [
+            "",
+            "two words",
+            "it's",
+            "''",
+            "$(rm -rf ~)",
+            "`id`",
+            "a;b|c&d",
+            "*.nika.yaml",
+            "tab\there",
+            "line\nbreak",
+            "say \"hi\"",
+            "back\\slash",
+            "~/draft.nika.yaml",
+            "café.nika.yaml",
+            "#comment",
+            "!history{a,b}",
+        ] {
+            let rendered = sh_word(word);
+            assert!(rendered.starts_with('\''), "{word:?} stayed bare");
+            assert_eq!(shell_reads(&rendered).as_deref(), Some(word), "{rendered}");
+        }
+    }
+
+    #[test]
+    fn every_ascii_character_reads_back_verbatim() {
+        for c in (1u8..128).map(char::from) {
+            let word = format!("a{c}b");
+            let rendered = sh_word(&word);
+            assert_eq!(shell_reads(&rendered).as_deref(), Some(&*word), "{c:?}");
+        }
+    }
+
+    #[test]
+    fn the_embedded_quote_splices_through_the_posix_idiom() {
+        assert_eq!(sh_word("it's"), r"'it'\''s'");
+        assert_eq!(sh_word(""), "''");
+    }
+}
