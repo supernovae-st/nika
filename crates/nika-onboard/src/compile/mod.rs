@@ -18,6 +18,9 @@
 //! again under its actual environment.
 //! Full natural-language authoring, Graph integration, support-triage composition
 //! and SDK/Serve adapters remain separate work. The CLI consumes these typed outcomes.
+//! Private pattern-facet derivation (#1666) walks the parsed AST and Check
+//! facts; it is not a YAML key, a fifth verb, or an SDK noun, and it does
+//! not change CREATE/EDIT.
 //!
 //! ```
 //! use nika_onboard::compile::{compile, CompileRequest, CompileStatus};
@@ -49,6 +52,7 @@
 
 mod edit;
 mod materialize;
+pub(crate) mod pattern;
 mod types;
 
 use std::collections::BTreeSet;
@@ -419,6 +423,9 @@ fn finish(source: String, out: &mut CompileOutcome) {
         }
     };
     let report = nika_check::check(&wf);
+    // Facets are observational in this slice: CREATE/EDIT status, candidate
+    // and diagnostics stay unchanged. The compiler still grants no authority.
+    pattern::observe(out.candidate.as_deref().unwrap_or_default(), &wf, &report);
     for slot in &report.slot_findings {
         if !out
             .questions
