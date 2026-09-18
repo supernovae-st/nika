@@ -48,6 +48,7 @@ pub enum WireTarget {
     Kiro,
     Copilot,
     Amp,
+    Omp,
     /// Only the clients THIS machine shows (the probe's presence truth)
     /// — the recommended door: `wire detected --dry-run`, then
     /// `wire detected`.
@@ -272,7 +273,8 @@ fn expand_target(target: WireTarget) -> Vec<WireTarget> {
 /// gemini-cli fork, same key, its own dotdir · antigravity: standalone
 /// `mcp_config.json` under `~/.gemini/config/` · kimi: two-level
 /// `mcp.json`, machine wiring writes the user file · kiro: the Amazon Q
-/// rebrand, `.kiro` wins over the legacy `~/.aws/amazonq/`).
+/// rebrand, `.kiro` wins over the legacy `~/.aws/amazonq/` · omp:
+/// `~/.omp/agent/mcp.json`, JSON `mcpServers` like the cursor family).
 fn wire_home_family(target: WireTarget, dry_run: bool) -> Option<Result<WireAction, String>> {
     let (segs, label): (&[&str], &str) = match target {
         WireTarget::Cursor => (&[".cursor", "mcp.json"], "cursor"),
@@ -283,6 +285,7 @@ fn wire_home_family(target: WireTarget, dry_run: bool) -> Option<Result<WireActi
         WireTarget::Antigravity => (&[".gemini", "config", "mcp_config.json"], "antigravity"),
         WireTarget::Kimi => (&[".kimi-code", "mcp.json"], "kimi"),
         WireTarget::Kiro => (&[".kiro", "settings", "mcp.json"], "kiro"),
+        WireTarget::Omp => (&[".omp", "agent", "mcp.json"], "omp"),
         _ => return None,
     };
     Some(patch_home_mcp(segs, label, dry_run))
@@ -379,7 +382,8 @@ fn wire_one(target: WireTarget, dir: &str, dry_run: bool) -> Result<WireAction, 
         | WireTarget::Qwen
         | WireTarget::Antigravity
         | WireTarget::Kimi
-        | WireTarget::Kiro => {
+        | WireTarget::Kiro
+        | WireTarget::Omp => {
             unreachable!("wire doors must be resolved before dispatch")
         }
     }

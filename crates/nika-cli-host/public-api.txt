@@ -3088,6 +3088,7 @@ pub nika_cli_host::wire::WireTarget::Junie
 pub nika_cli_host::wire::WireTarget::Kimi
 pub nika_cli_host::wire::WireTarget::Kiro
 pub nika_cli_host::wire::WireTarget::Lmstudio
+pub nika_cli_host::wire::WireTarget::Omp
 pub nika_cli_host::wire::WireTarget::Opencode
 pub nika_cli_host::wire::WireTarget::Qwen
 pub nika_cli_host::wire::WireTarget::Vscode

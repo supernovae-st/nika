@@ -104,6 +104,13 @@ const SIGHT_SPECS: &[SightSpec] = &[
         work: &[&[".vscode", "mcp.json"]],
         server_path: ["servers", "nika"],
     },
+    SightSpec {
+        id: "omp",
+        kind: ConfigKind::Json,
+        home: &[&[".omp", "agent", "mcp.json"]],
+        work: &[],
+        server_path: ["mcpServers", "nika"],
+    },
 ];
 
 /// Resolve the sight rows for THIS machine: every row gated on the
@@ -198,6 +205,24 @@ mod tests {
                 row.paths
             );
         }
+    }
+
+    /// #1661 · omp: JSON, home-only, `mcpServers/nika` — never a
+    /// workspace sight (the wire door is `~/.omp/agent/mcp.json`).
+    #[test]
+    fn omp_sight_is_home_only_json_mcp_servers() {
+        let home = Path::new("/tmp/nika-detect-omp-home");
+        let work = Path::new("/tmp/nika-detect-omp-work");
+        let row = sights(Some(home), work)
+            .into_iter()
+            .find(|row| row.id == "omp")
+            .expect("omp is matrix-claimed");
+        assert_eq!(row.kind, ConfigKind::Json);
+        assert_eq!(row.server_path, ["mcpServers", "nika"]);
+        assert_eq!(
+            row.paths,
+            vec![home.join(".omp").join("agent").join("mcp.json")]
+        );
     }
 
     /// The stale predicate pins the exact `mcp serve --stdio` argv and

@@ -260,7 +260,7 @@ fn amp_dotted_key_preserves_settings_and_respects_jsonc() {
 
 /// The registry law: `wire all` expands to every concrete client —
 /// a variant added to the enum can never be silently dropped. The
-/// count is PINNED (anti-drift: the list moved 15→17→19→21): adding
+/// count is PINNED (anti-drift: the list moved 15→17→19→21→22): adding
 /// a client means updating this pin DELIBERATELY. `All`/`Detected`
 /// are doors, never expansion results.
 #[test]
@@ -268,7 +268,7 @@ fn all_expands_to_every_concrete_target() {
     let expanded = expand_target(WireTarget::All);
     assert_eq!(
         expanded.len(),
-        21,
+        22,
         "the concrete-client pin moved — deliberate?"
     );
     assert_eq!(
@@ -302,6 +302,41 @@ fn kimi_mcp_json_created_and_idempotent() {
 
     let again = patch_cursor_like(&path, "mcpServers", "kimi", false, false).expect("re-run");
     assert!(matches!(again, WireAction::Current(_)));
+    let _ = std::fs::remove_dir_all(home);
+}
+
+/// #1661 · omp: user-home `~/.omp/agent/mcp.json` (`mcpServers` map) —
+/// nested dirs created, then idempotent, other servers and unrelated
+/// keys preserved.
+#[test]
+fn omp_mcp_json_created_idempotent_and_preserves_others() {
+    let home = temp_dir("omp");
+    let path = home.join(".omp").join("agent").join("mcp.json");
+
+    let action = patch_cursor_like(&path, "mcpServers", "omp", false, false).expect("wire");
+    assert!(matches!(action, WireAction::Created(_)), "{action:?}");
+    let doc = read_json(&path).expect("json");
+    assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
+    assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
+
+    let again = patch_cursor_like(&path, "mcpServers", "omp", false, false).expect("re-run");
+    assert!(matches!(again, WireAction::Current(_)));
+
+    std::fs::write(
+        &path,
+        r#"{"keep":true,"mcpServers":{"other":{"command":"x"}}}"#,
+    )
+    .expect("seed");
+    let merged = patch_cursor_like(&path, "mcpServers", "omp", false, false).expect("merge");
+    assert!(matches!(merged, WireAction::Updated(_)), "{merged:?}");
+    let doc = read_json(&path).expect("json");
+    assert_eq!(doc["keep"], true, "unrelated keys preserved");
+    assert_eq!(
+        doc["mcpServers"]["other"]["command"], "x",
+        "other server kept"
+    );
+    assert_eq!(doc["mcpServers"]["nika"]["command"], "nika");
+    assert_eq!(doc["mcpServers"]["nika"]["args"], json!(["mcp"]));
     let _ = std::fs::remove_dir_all(home);
 }
 
@@ -730,6 +765,28 @@ fn detected_targets_cover_only_present_clients() {
     assert_eq!(found.len(), 3);
     assert!(found.contains(&WireTarget::Vscode), "workspace-scope seen");
     assert!(!found.contains(&WireTarget::Windsurf), "absent stays out");
+    let _ = std::fs::remove_dir_all(home);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// #1661 · omp: home-only JSON sight — present `~/.omp/agent/mcp.json`
+/// is detected; an absent file stays out.
+#[test]
+fn detected_targets_include_omp_when_home_config_present() {
+    let home = temp_dir("detected-omp-home");
+    let dir = temp_dir("detected-omp-dir");
+    assert!(
+        !detected_targets_in(&home, &dir).contains(&WireTarget::Omp),
+        "absent omp stays out"
+    );
+
+    std::fs::create_dir_all(home.join(".omp").join("agent")).expect("dir");
+    std::fs::write(home.join(".omp").join("agent").join("mcp.json"), "{}").expect("seed");
+    let found = detected_targets_in(&home, &dir);
+    assert!(
+        found.contains(&WireTarget::Omp),
+        "home-scope omp seen: {found:?}"
+    );
     let _ = std::fs::remove_dir_all(home);
     let _ = std::fs::remove_dir_all(dir);
 }
