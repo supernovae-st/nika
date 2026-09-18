@@ -1,4 +1,4 @@
-- Add a stateless in-memory Compile foundation with structured requests,
+- **Stateless Compile foundation.** Add structured in-memory requests,
   outcomes, stable questions and source-only Check previews. Exact embedded
   skeletons accept explicit answers; unsupported intent stays incomplete.
   Textual and structured constant edits share one operation and guarded
