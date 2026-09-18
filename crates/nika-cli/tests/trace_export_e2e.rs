@@ -14,7 +14,7 @@ use std::process::Command;
 
 fn run_and_export(dir: &std::path::Path) -> serde_json::Value {
     std::fs::write(
-        dir.join("w.nika.yaml"),
+        dir.join("w.nika"),
         r#"nika: export-e2e
 permits: { exec: ["sleep", "true"] }
 tasks:
@@ -32,7 +32,7 @@ tasks:
     .expect("write workflow");
 
     let run = Command::new(env!("CARGO_BIN_EXE_nika"))
-        .args(["run", "w.nika.yaml", "--json", "--color", "never"])
+        .args(["run", "w.nika", "--json", "--color", "never"])
         .current_dir(dir)
         .output()
         .expect("run spawns");
@@ -136,12 +136,12 @@ fn export_projects_the_real_journal_with_true_durations() {
 fn a_failed_run_prints_its_autopsy_a_clean_run_does_not() {
     let dir = tempfile::tempdir().expect("tmpdir");
     std::fs::write(
-        dir.path().join("fail.nika.yaml"),
+        dir.path().join("fail.nika"),
         "nika: fail-ux\npermits: { exec: [\"false\"] }\ntasks:\n  boom:\n    exec:\n      command: [\"false\"]\n",
     )
     .expect("write");
     let out = Command::new(env!("CARGO_BIN_EXE_nika"))
-        .args(["run", "fail.nika.yaml", "--no-progress"])
+        .args(["run", "fail.nika", "--no-progress"])
         .current_dir(dir.path())
         .output()
         .expect("spawns");
@@ -156,12 +156,12 @@ fn a_failed_run_prints_its_autopsy_a_clean_run_does_not() {
     );
 
     std::fs::write(
-        dir.path().join("ok.nika.yaml"),
+        dir.path().join("ok.nika"),
         "nika: ok-ux\npermits: { exec: [\"true\"] }\ntasks:\n  fine:\n    exec:\n      command: [\"true\"]\n",
     )
     .expect("write");
     let out = Command::new(env!("CARGO_BIN_EXE_nika"))
-        .args(["run", "ok.nika.yaml", "--no-progress"])
+        .args(["run", "ok.nika", "--no-progress"])
         .current_dir(dir.path())
         .output()
         .expect("spawns");

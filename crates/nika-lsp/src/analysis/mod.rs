@@ -3,7 +3,7 @@
 
 //! The pure analysis brain — no I/O, no server state.
 //!
-//! Every function here is `(text[, offset]) -> value` over a `.nika.yaml`
+//! Every function here is `(text[, offset]) -> value` over a `.nika`
 //! source, computed against the L0 `nika-schema` parse + check ladder.
 //! Because they are pure, the whole feature surface (diagnostics, hover,
 //! completion, definition, symbols, position mapping) is unit- and

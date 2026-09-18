@@ -274,7 +274,7 @@ fn changing_a_destination_keeps_the_effect_and_does_not_expand_permits() {
 
 #[test]
 fn a_child_dependency_does_not_become_ready_from_a_child_blind_preview() {
-    let source = "nika: composed\nconst: {x: 1}\ntasks:\n  child:\n    invoke: {workflow: './unavailable.nika.yaml'}\n";
+    let source = "nika: composed\nconst: {x: 1}\ntasks:\n  child:\n    invoke: {workflow: './unavailable.nika'}\n";
     let out = compile(&CompileRequest::edit(source, "Set const.x to 2")).unwrap();
     assert_eq!(out.status, CompileStatus::Incomplete);
     assert_eq!(out.check_preview.unwrap().scope, PreviewScope::SourceOnly);

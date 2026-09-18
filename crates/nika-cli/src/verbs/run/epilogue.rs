@@ -620,8 +620,8 @@ mod tests {
         let trace = std::path::Path::new(".nika/traces/t.ndjson");
         let confirm = WorkflowPause::new("approve".into(), "confirm".into(), None, vec![]);
         assert_eq!(
-            super::resume_hint_line("gate.nika.yaml", trace, &confirm, ""),
-            "resume: nika run gate.nika.yaml --resume .nika/traces/t.ndjson \
+            super::resume_hint_line("gate.nika", trace, &confirm, ""),
+            "resume: nika run gate.nika --resume .nika/traces/t.ndjson \
              --answer approve=true · or false"
         );
         let choice = WorkflowPause::new(
@@ -706,10 +706,10 @@ mod tests {
         );
         let trace = std::path::Path::new(".nika/traces/t.ndjson");
         let confirm = WorkflowPause::new("access_gate".into(), "confirm".into(), None, vec![]);
-        let line = super::resume_hint_line("seo-live-review.nika.yaml", trace, &confirm, &carry);
+        let line = super::resume_hint_line("seo-live-review.nika", trace, &confirm, &carry);
         assert_eq!(
             line,
-            "resume: nika run seo-live-review.nika.yaml --var page_type=wifi \
+            "resume: nika run seo-live-review.nika --var page_type=wifi \
              --var 'locales=[\"fr-FR\",\"ar-SA\"]' --model openai/gpt-5.2 \
              --resume .nika/traces/t.ndjson --answer access_gate=true · or false"
         );

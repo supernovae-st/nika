@@ -3,7 +3,7 @@
 # Native authoring index
 
 Discover the installed lessons with `nika try --all` and the skeletons in this index.
-With a Compile-capable engine, preview an exact skeleton with `nika compile <template>`; answer its questions before materializing a candidate at an explicit `.nika.yaml` destination.
+With a Compile-capable engine, preview an exact skeleton with `nika compile <template>`; answer its questions before materializing a candidate at an explicit `.nika` destination.
 The filled lessons below reuse the same workflow logic. Rehearse with `--model mock/echo`; model quality needs a separate evaluation.
 
 | Template | Purpose | Filled lesson |

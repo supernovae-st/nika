@@ -11,7 +11,7 @@
 
 <p align="center">
   Nika turns repeatable AI work into files you can inspect, run and share.<br>
-  Your instructions, tools and rules stay in a readable <code>.nika.yaml</code> file.
+  Your instructions, tools and rules stay in a readable <code>.nika</code> file.
 </p>
 
 <p align="center">
@@ -68,7 +68,7 @@ curl -LsSf https://nika.sh/install.sh | sh
 ```sh
 mkdir first-workflow
 cd first-workflow
-nika compile hello hello.nika.yaml
+nika compile hello hello.nika
 ```
 
 Compile uses the same stateless core for this lesson and exact skeletons. Hello
@@ -78,8 +78,8 @@ call a model, run the workflow, or choose access on your behalf.
 **3. Check and run the file:**
 
 ```sh
-nika check hello.nika.yaml
-nika run hello.nika.yaml
+nika check hello.nika
+nika run hello.nika
 ```
 
 The greeting is a mock echo: this proves the workflow runs without a provider.
@@ -97,10 +97,10 @@ destination writes. Existing destinations require `--force`.
 For an accepted source, a conservative constant edit uses the same core:
 
 ```sh
-nika compile --base workflow.nika.yaml --change 'Set const.topic to "new topic"' --json
+nika compile --base workflow.nika --change 'Set const.topic to "new topic"' --json
 ```
 
-Add `--output edited.nika.yaml` to materialize a Ready edit. The base source
+Add `--output edited.nika` to materialize a Ready edit. The base source
 remains explicit. Unsupported natural language stays incomplete without a
 substitute workflow. Full natural-language authoring and Graph editing are not
 implemented by this bounded CLI.

@@ -478,7 +478,7 @@ mod tests {
     /// pin → guard loop that makes a workflow CI-able).
     #[test]
     fn update_writes_the_golden_and_the_rerun_matches() {
-        let wf = stage("update-then-match.nika.yaml");
+        let wf = stage("update-then-match.nika");
         let file = wf.to_string_lossy();
 
         assert_eq!(run(&file, true, plain_theme()), exit::OK, "--update pins");
@@ -501,7 +501,7 @@ mod tests {
     /// A drifted golden fails the test (exit 1 · the CI gate).
     #[test]
     fn drifted_golden_is_a_mismatch() {
-        let wf = stage("drift.nika.yaml");
+        let wf = stage("drift.nika");
         let file = wf.to_string_lossy();
         std::fs::write(
             golden_path_of(&file),
@@ -514,7 +514,7 @@ mod tests {
     /// No golden + no `--update` = teach, don't guess (exit 3).
     #[test]
     fn missing_golden_exits_env_with_the_hint() {
-        let wf = stage("no-golden.nika.yaml");
+        let wf = stage("no-golden.nika");
         let file = wf.to_string_lossy();
         assert_eq!(run(&file, false, plain_theme()), exit::ENV);
         // The hint itself is pure — assert the teaching content directly.
@@ -527,7 +527,7 @@ mod tests {
     /// says a case is a file and names the flag.
     #[test]
     fn a_var_without_a_case_teaches_that_a_case_is_a_file() {
-        let wf = stage("var-no-case.nika.yaml");
+        let wf = stage("var-no-case.nika");
         let file = wf.to_string_lossy();
         assert_eq!(
             run_case(
@@ -553,7 +553,7 @@ mod tests {
     fn a_case_pins_its_own_golden_under_its_own_inputs() {
         let dir = std::env::temp_dir().join("nika-cli-test-verb");
         std::fs::create_dir_all(&dir).expect("tmp dir");
-        let path = dir.join("rule-table.nika.yaml");
+        let path = dir.join("rule-table.nika");
         std::fs::write(
             &path,
             "nika: rule-table\nmodel: mock/echo\ninputs:\n  n: { type: string, default: \"one\" }\ntasks:\n  gen:\n    infer: { prompt: \"say ${{ inputs.n }}\" }\noutputs:\n  reply: ${{ tasks.gen.output }}\n",
@@ -595,7 +595,7 @@ mod tests {
     fn explicit_answer_runs_a_blocking_prompt_without_a_default() {
         let dir = std::env::temp_dir().join("nika-cli-test-verb");
         std::fs::create_dir_all(&dir).expect("tmp dir");
-        let path = dir.join("answered-gate.nika.yaml");
+        let path = dir.join("answered-gate.nika");
         std::fs::write(
             &path,
             "nika: answered-gate\nmodel: mock/echo\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  approve:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"continue?\" }\noutputs:\n  answer: ${{ tasks.approve.output }}\n",
@@ -629,7 +629,7 @@ mod tests {
 
     #[test]
     fn answer_for_a_non_prompt_task_refuses_instead_of_disappearing() {
-        let wf = stage("non-prompt-answer.nika.yaml");
+        let wf = stage("non-prompt-answer.nika");
         let file = wf.to_string_lossy();
         assert_eq!(
             run_with_answers(&file, true, &["gen=yes".to_owned()], plain_theme()),
@@ -641,7 +641,7 @@ mod tests {
     fn answer_for_an_agent_task_refuses_under_the_mock_plane() {
         let dir = std::env::temp_dir().join("nika-cli-test-verb");
         std::fs::create_dir_all(&dir).expect("tmp dir");
-        let path = dir.join("agent-answer.nika.yaml");
+        let path = dir.join("agent-answer.nika");
         std::fs::write(
             &path,
             "nika: agent-answer\nmodel: mock/echo\ntasks:\n  decide:\n    agent: { prompt: \"continue?\", tools: [] }\n",
@@ -663,7 +663,7 @@ mod tests {
     fn answered_branch_with_a_cloud_pin_still_uses_mock_echo() {
         let dir = std::env::temp_dir().join("nika-cli-test-verb");
         std::fs::create_dir_all(&dir).expect("tmp dir");
-        let path = dir.join("answered-cloud-pin.nika.yaml");
+        let path = dir.join("answered-cloud-pin.nika");
         std::fs::write(
             &path,
             "nika: answered-cloud-pin\nmodel: mock/echo\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  approve:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"continue?\" }\n  paid:\n    with: { go: \"${{ tasks.approve.output }}\" }\n    when: \"${{ with.go == true }}\"\n    infer:\n      model: openai/gpt-4o\n      prompt: hello\noutputs: { reply: \"${{ tasks.paid.output }}\" }\n",
@@ -690,7 +690,7 @@ mod tests {
     fn dirty_workflow_renders_findings_not_a_verdict() {
         let dir = std::env::temp_dir().join("nika-cli-test-verb");
         std::fs::create_dir_all(&dir).expect("tmp dir");
-        let path = dir.join("dirty.nika.yaml");
+        let path = dir.join("dirty.nika");
         // An unknown builtin tool is a CHECK finding (parses clean).
         std::fs::write(
             &path,
@@ -768,8 +768,8 @@ mod tests {
     #[test]
     fn golden_path_appends_the_suffix() {
         assert_eq!(
-            golden_path_of("workflows/brief.nika.yaml"),
-            "workflows/brief.nika.yaml.golden.json"
+            golden_path_of("workflows/brief.nika"),
+            "workflows/brief.nika.golden.json"
         );
     }
 

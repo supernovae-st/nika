@@ -115,7 +115,7 @@ Property testing belongs to the pure state/ledger machines in
 `nika-cadence`; this effect adapter has no independent algebra to duplicate.
 Benchmarks are not applicable: filesystem durability and process execution
 dominate, and no throughput claim is made. The real CLI integration tests are
-the canary; a `.nika.yaml` canary cannot safely manufacture kernel contention,
+the canary; a `.nika` canary cannot safely manufacture kernel contention,
 symlink swaps, or receipt crash boundaries.
 
 ## 5. Admission gates

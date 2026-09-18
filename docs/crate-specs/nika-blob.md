@@ -96,7 +96,7 @@ partial content hashes differently.
 | 6 PROPERTY | ✅ | put→get roundtrip on arbitrary 1..2048-byte payloads · cross-store hash determinism (48 cases) |
 | 7 BENCH | N/A | thin tokio::fs + blake3 wrapper, no algorithmic hot path (justified — clock/fs precedent) |
 | 8 DOCS | ✅ | `RUSTDOCFLAGS=-D warnings cargo doc --no-deps` 0 warnings · private-item rustdoc clean |
-| 9 CANARY | N/A | L1 effect, no `.nika.yaml` surface until L2 (justified) |
+| 9 CANARY | N/A | L1 effect, no `.nika` surface until L2 (justified) |
 | 10 PARITY | ✅ | brouillon CAS behaviours re-asserted (blake3 prefix · sharding · dedup · NotFound) · blake3("hello") known-vector pinned · Diamond ADDS sidecar mime + unique temp + size cap as a ctor knob |
 | 11 REVIEW | ✅ | 3-agent swarm 2026-06-10 · 0 P0 · 1 P1 (README « idempotent » claim · false vs the NotFound-on-missing contract · fixed) · P2s fixed same-session: non-ASCII hash slice-panic → `canonical_raw` up-front validation (also kills the degenerate branches + normalizes uppercase) · stat error-swallow narrowed to NotFound-only · blank-mime rejected · empty-sidecar → octet-stream · spec API + delete contract corrected · prefixless/uppercase/malformed tests added |
 | 12 ATOMIC | ✅ | 1 commit · Nika 🦋 trailer |

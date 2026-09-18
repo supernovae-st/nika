@@ -65,9 +65,37 @@ struct Observed {
     text: String,
 }
 
+/// Spec corpus files stay `input.yaml` (filename-free). The live CLI
+/// admits only `*.nika` on disk, so binary replay copies the fixture
+/// directory into scratch and plants `input.nika` beside the original
+/// siblings — relative fixture paths keep working.
+fn stage_live_program(src: &Path) -> (Option<tempfile::TempDir>, PathBuf) {
+    let name = src.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if nika_source::is_canonical_program_file_name(name) {
+        return (None, src.to_path_buf());
+    }
+    let parent = src.parent().expect("fixture directory");
+    let dir = tempfile::tempdir().expect("tmp");
+    for entry in std::fs::read_dir(parent).expect("read fixture dir") {
+        let entry = entry.expect("entry");
+        if entry.metadata().expect("meta").is_file() {
+            std::fs::copy(entry.path(), dir.path().join(entry.file_name())).expect("copy sibling");
+        }
+    }
+    let dest = dir.path().join("input.nika");
+    std::fs::copy(src, &dest).expect("stage live program");
+    (Some(dir), dest)
+}
+
 fn run_observed(workflow: &Path, envs: &[(String, String)], vars: &[(String, String)]) -> Observed {
+    let (tmp, program) = stage_live_program(workflow);
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
-    cmd.arg("run").arg(workflow).arg("--json");
+    if let Some(ref dir) = tmp {
+        cmd.current_dir(dir.path());
+        cmd.arg("run").arg("input.nika").arg("--json");
+    } else {
+        cmd.arg("run").arg(&program).arg("--json");
+    }
     for (k, v) in vars {
         cmd.arg("--var").arg(format!("{k}={v}"));
     }
@@ -400,7 +428,7 @@ fn agent_completion_fixtures_match_their_run_contract() {
         )
         .expect("expected outcome");
         let observed = run_observed(
-            &fixture.join("input.nika.yaml"),
+            &fixture.join("input.nika"),
             &[("NIKA_KEYCHAIN".to_owned(), "off".to_owned())],
             &[],
         );
@@ -445,7 +473,7 @@ fn deferred_fixtures_match_their_run_contract_and_are_witnessed() {
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-        let input = dir.join("input.nika.yaml");
+        let input = dir.join("input.nika");
         if !input.is_file() {
             continue;
         }
@@ -574,7 +602,7 @@ fn e_diff_runtime_fs_leg() {
         let yaml = format!(
             "nika: ediff-fs\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{path}\" }}\n"
         );
-        let wf = root.join(format!("{name}.nika.yaml"));
+        let wf = root.join(format!("{name}.nika"));
         std::fs::write(&wf, yaml).expect("write workflow");
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
         cmd.arg("run").arg(&wf).arg("--json").current_dir(&root);
@@ -633,7 +661,7 @@ fn e_diff_runtime_net_leg() {
         let yaml = format!(
             "nika: ediff-net\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"{url}\" }}\n"
         );
-        let wf = root.join(format!("{name}.nika.yaml"));
+        let wf = root.join(format!("{name}.nika"));
         std::fs::write(&wf, yaml).expect("write workflow");
         let observed = run_observed(&wf, &[], &[]);
         if observed.ok {

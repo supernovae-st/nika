@@ -38,6 +38,10 @@ and has no keyword. The engine-side kit gate
 (`the_kit_never_teaches_a_form_the_engine_refuses`) now holds those
 spellings, proven by mutation.
 
+## 0.120.0 — 2026-09-18
+
+Lockstep on the engine wave.
+
 ## 0.119.0 — 2026-09-12
 
 Lockstep on the engine wave.
@@ -369,7 +373,7 @@ workflows on its own.
 - `nika-author` subagent: route the intent to a template, fill the
   `# SLOT:` markers, loop `nika check` until rc=0 — read-only, never
   runs the workflow.
-- check-on-edit hook (Cursor): every agent edit to a `*.nika.yaml` is
+- check-on-edit hook (Cursor): every agent edit to a `*.nika` is
   audited immediately; findings in the hook log, never a block.
 - The language rule ships as a bundled file (byte-identical to the
   `nika init` template) and the brand logo replaces the generic tile.

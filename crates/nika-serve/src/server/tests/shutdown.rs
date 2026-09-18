@@ -39,7 +39,7 @@ async fn fill_queue(server: &TestServer, backend: &GatedBackend) {
     for index in 0..JOBS {
         let response = server
             .request(&post_request(
-                r#"{"workflow":"root.nika.yaml"}"#,
+                r#"{"workflow":"root.nika"}"#,
                 &format!("busy-shutdown-{index}"),
                 &auth_header(),
             ))
@@ -94,11 +94,8 @@ async fn restart_only_queued(root: &std::path::Path) {
     let mut world = TestWorld::new();
     world.state = root.to_owned();
     // Restart must read the admission sidecars, even if the registry changed.
-    std::fs::write(
-        world.workflows.join("root.nika.yaml"),
-        "no longer a workflow",
-    )
-    .expect("replace live source");
+    std::fs::write(world.workflows.join("root.nika"), "no longer a workflow")
+        .expect("replace live source");
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world
         .start(backend.clone(), busy_limits(Duration::from_secs(30)))

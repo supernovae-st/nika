@@ -680,7 +680,7 @@ mod tests {
             (
                 // composition: a templated child target (the PURE half of
                 // the spec-14 lane — fires in every check(), reader-less)
-                "nika: w\nconst:\n  v: \"a\"\ntasks:\n  a:\n    invoke: { workflow: \"./x-${{ const.v }}.nika.yaml\" }\n",
+                "nika: w\nconst:\n  v: \"a\"\ntasks:\n  a:\n    invoke: { workflow: \"./x-${{ const.v }}.nika\" }\n",
                 "composition",
                 "COMPOSITION",
             ),
@@ -1003,7 +1003,7 @@ tasks:
     ) -> crate::CheckReport {
         crate::check_composed(
             &parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses"),
-            "wf.nika.yaml",
+            "wf.nika",
             read,
         )
     }

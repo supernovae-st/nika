@@ -15,7 +15,7 @@ use crate::CheckReport;
 /// spend cap and its provenance (`config.max_cost_usd` + `run_budget`).
 /// `nika run --dry-run --json` prints this object; the walk is the same
 /// git-style discovery `nika run` uses, started from the workflow file
-/// so a preview of `prod.nika.yaml` sees the file that would govern a
+/// so a preview of `prod.nika` sees the file that would govern a
 /// run from that directory (#1050).
 #[must_use]
 pub fn payload(file: &str, wf: &RawWorkflow, report: &CheckReport) -> serde_json::Value {
@@ -136,7 +136,7 @@ mod tests {
         let child = root.join("sub");
         std::fs::create_dir_all(&child).expect("mkdir");
         std::fs::write(root.join("nika.yaml"), "nika: proj\nceiling: 0.01\n").expect("seed");
-        let wf_path = child.join("prod.nika.yaml");
+        let wf_path = child.join("prod.nika");
         std::fs::write(
             &wf_path,
             "nika: wf\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
@@ -163,7 +163,7 @@ mod tests {
     fn a_project_file_without_ceiling_leaves_the_plan_silent() {
         let dir = fresh("none");
         std::fs::write(dir.join("nika.yaml"), "nika: proj\n").expect("seed");
-        let wf_path = dir.join("wf.nika.yaml");
+        let wf_path = dir.join("wf.nika");
         std::fs::write(
             &wf_path,
             "nika: wf\ntasks:\n  t:\n    infer: { prompt: hi }\n",
@@ -184,7 +184,7 @@ mod tests {
         std::fs::create_dir_all(&child).expect("mkdir");
         std::fs::write(root.join("nika.yaml"), "nika: root\nceiling: 9.99\n").expect("root");
         std::fs::write(child.join("nika.yaml"), "nika: leaf\nceiling: 0.25\n").expect("leaf");
-        let wf_path = child.join("wf.nika.yaml");
+        let wf_path = child.join("wf.nika");
         std::fs::write(
             &wf_path,
             "nika: wf\ntasks:\n  t:\n    infer: { prompt: hi }\n",

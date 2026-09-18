@@ -45,7 +45,7 @@ fn rig(name: &str) -> (tempfile::TempDir, tempfile::TempDir) {
         .tempdir()
         .expect("project dir");
     std::fs::write(
-        project.path().join("alpha.nika.yaml"),
+        project.path().join("alpha.nika"),
         "nika: alpha\nmodel: mock/echo\ntasks:\n  hello:\n    infer: { prompt: hi, max_tokens: 10 }\n",
     )
     .expect("workflow");
@@ -113,7 +113,7 @@ fn a_pipe_is_the_concierge_and_the_tty_is_the_session() {
         .send_line("what workflows are here?")
         .expect("a fact");
     session
-        .expect("alpha.nika.yaml")
+        .expect("alpha.nika")
         .expect("the workflow listed, no model asked");
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("the session closes");
@@ -132,7 +132,7 @@ fn a_pipe_is_the_concierge_and_the_tty_is_the_session() {
         .collect();
     assert_eq!(
         entries,
-        vec!["alpha.nika.yaml"],
+        vec!["alpha.nika"],
         "nothing written into the project: {entries:?}"
     );
 }

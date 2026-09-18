@@ -9,7 +9,7 @@
 //! audience`), the verb chips from a line scan of the task keys, the
 //! task count from the task-map keys. No engine-side catalog to rot.
 //!
-//! The listing speaks FULL filenames (`01-hello.nika.yaml`) — what you
+//! The listing speaks FULL filenames (`01-hello.nika`) — what you
 //! see is what you type, and the pack's resolver already tolerates the
 //! extension both ways. Sober registers (pipes · `--plain`) keep
 //! escape-free bytes; the machine surface stays `nika_pack` itself.
@@ -171,7 +171,7 @@ fn storefront_slugs() -> &'static [&'static str] {
 
 /// The slugless-`try` choice: the storefront is a TTY rendering — a
 /// pipe gets the full parsable corpus unchanged (the vscode extension
-/// runs bare `try` and anchors on `.nika.yaml` rows, a wire contract;
+/// runs bare `try` and anchors on `.nika` rows, a wire contract;
 /// the same TTY law every interactive surface here follows), and
 /// `--all` forces the shelf on a terminal.
 #[must_use]
@@ -230,7 +230,7 @@ pub fn storefront(theme: Theme) -> VerbOutput {
     let first = slugs.first().copied().unwrap_or("01-hello");
     let _ = write!(
         text,
-        "\nnext ·\n  nika try {first}                    # watch one work · nothing written\n  nika compile --list                 # exact authoring skeletons\n  nika compile hello hello.nika.yaml  # explicit offline first file\n  nika try --all                       # the whole shelf · the numbered path + every job\n\n{}",
+        "\nnext ·\n  nika try {first}                    # watch one work · nothing written\n  nika compile --list                 # exact authoring skeletons\n  nika compile hello hello.nika  # explicit offline first file\n  nika try --all                       # the whole shelf · the numbered path + every job\n\n{}",
         theme.paint(
             Role::Dim,
             "verbs · \u{25c7} infer (ask a model) · \u{25b7} exec (run a command) · \u{25c6} invoke (use a tool) · \u{2726} agent (bounded loop)"
@@ -264,7 +264,7 @@ pub fn list(theme: Theme) -> VerbOutput {
     );
     let width = foundation
         .iter()
-        .map(|s| s.chars().count() + ".nika.yaml".len())
+        .map(|s| s.chars().count() + ".nika".len())
         .max()
         .unwrap_or(0);
     for slug in &foundation {
@@ -301,7 +301,7 @@ pub fn list(theme: Theme) -> VerbOutput {
         );
         let job_width = jobs
             .iter()
-            .map(|s| s.chars().count() + ".nika.yaml".len())
+            .map(|s| s.chars().count() + ".nika".len())
             .max()
             .unwrap_or(0);
         for slug in jobs {
@@ -328,7 +328,7 @@ pub fn list(theme: Theme) -> VerbOutput {
 
     let _ = write!(
         text,
-        "\nnext ·\n  nika try 01-hello                    # see it work · offline · zero keys\n  nika compile hello hello.nika.yaml   # explicit offline first file\n  nika compile --list                  # exact skeleton previews\n\n{}",
+        "\nnext ·\n  nika try 01-hello                    # see it work · offline · zero keys\n  nika compile hello hello.nika   # explicit offline first file\n  nika compile --list                  # exact skeleton previews\n\n{}",
         theme.paint(
             Role::Dim,
             "verbs · \u{25c7} infer (ask a model) · \u{25b7} exec (run a command) · \u{25c6} invoke (use a tool) · \u{2726} agent (bounded loop)"
@@ -421,14 +421,14 @@ mod tests {
     }
 
     /// The full shelf keeps its parsable rows (the vscode extension
-    /// anchors on `.nika.yaml` tokens — a wire contract) AND gains the
+    /// anchors on `.nika` tokens — a wire contract) AND gains the
     /// same verb legend the storefront carries.
     #[test]
     fn the_full_shelf_stays_parsable_and_carries_the_legend() {
         let out = list(Theme::new(false, false, false));
         assert_eq!(out.code, exit::OK);
         assert!(
-            out.text.matches(".nika.yaml").count() >= 30,
+            out.text.matches(".nika").count() >= 30,
             "the shelf lists the corpus: {}",
             out.text
         );
@@ -453,7 +453,7 @@ mod tests {
         let out = list(PLAIN);
         assert_eq!(out.code, exit::OK);
         assert!(out.text.contains("the path"), "{}", out.text);
-        assert!(out.text.contains("01-hello.nika.yaml"), "{}", out.text);
+        assert!(out.text.contains("01-hello.nika"), "{}", out.text);
         // Two groups, not five. The tier headings are gone with the
         // prefix that fed them; what a reader wanted from them is
         // derived from the pack at call time rather than declared.
@@ -468,16 +468,16 @@ mod tests {
             out.text
         );
         assert!(
-            out.text.contains("release-train.nika.yaml") && !out.text.contains("t4-release-train"),
+            out.text.contains("release-train.nika") && !out.text.contains("t4-release-train"),
             "jobs are named, not ranked: {}",
             out.text
         );
         assert!(out.text.contains("next ·"), "the clear path: {}", out.text);
         // Every listed name resolves back through the pack (round-trip).
         for line in out.text.lines() {
-            if let Some(idx) = line.find(".nika.yaml") {
+            if let Some(idx) = line.find(".nika") {
                 let start = line[..idx].rfind(' ').map_or(0, |i| i + 1);
-                let name = &line[start..idx + ".nika.yaml".len()];
+                let name = &line[start..idx + ".nika".len()];
                 assert!(
                     nika_pack::example(name).is_some(),
                     "listed `{name}` must resolve"

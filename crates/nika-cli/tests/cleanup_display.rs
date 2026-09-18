@@ -8,7 +8,7 @@ use std::process::Command;
 fn run_and_replay(yaml: &str) -> (String, String) {
     let room = tempfile::tempdir().expect("isolated room");
     std::fs::create_dir(room.path().join("home")).expect("home");
-    std::fs::write(room.path().join("flow.nika.yaml"), yaml).expect("workflow");
+    std::fs::write(room.path().join("flow.nika"), yaml).expect("workflow");
     let call = |args: &[&str]| {
         Command::new(env!("CARGO_BIN_EXE_nika"))
             .args(args)
@@ -21,7 +21,7 @@ fn run_and_replay(yaml: &str) -> (String, String) {
             .output()
             .expect("isolated CLI")
     };
-    let live = call(&["run", "flow.nika.yaml", "--plain"]);
+    let live = call(&["run", "flow.nika", "--plain"]);
     let live_text = format!(
         "{}\n{}",
         String::from_utf8_lossy(&live.stdout),

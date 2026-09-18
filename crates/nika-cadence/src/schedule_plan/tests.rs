@@ -26,7 +26,7 @@ fn zoned(raw: &str) -> Zoned {
 fn draft(when: ScheduleWhenDraft, missed: MissPolicy) -> ScheduleDraft {
     ScheduleDraft {
         id: "daily-report".to_owned(),
-        workflow: "workflows/report.nika.yaml".to_owned(),
+        workflow: "workflows/report.nika".to_owned(),
         when,
         max_cost_usd: 0.25,
         missed,
@@ -292,7 +292,7 @@ fn a_workflow_path_edit_keeps_the_consumed_once_slot() {
     );
     let durable = state_after(fired.due().slot().expect("the once slot"));
     let mut moved = once(MissPolicy::Rattraper);
-    moved.workflow = "workflows/report-v2.nika.yaml".to_owned();
+    moved.workflow = "workflows/report-v2.nika".to_owned();
     let after_edit = planned(moved, "2026-09-01T09:05:00Z", &durable);
     assert!(
         after_edit.due().slot().is_none(),
@@ -586,7 +586,7 @@ fn projection_is_bounded() {
 #[test]
 fn project_and_api_equivalents_share_revision_and_slots() {
     let registry = parse_registry(
-        "nika: project\narm:\n  - workflow: workflows/report.nika.yaml\n    cadence: TZ=Europe/Paris lundi 9h00\n    plafond: 0.25\n    manqué: rattraper-une-fois\n",
+        "nika: project\narm:\n  - workflow: workflows/report.nika\n    cadence: TZ=Europe/Paris lundi 9h00\n    plafond: 0.25\n    manqué: rattraper-une-fois\n",
     )
     .expect("project registry");
     let beat = registry.beats().next().expect("beat");

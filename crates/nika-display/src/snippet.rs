@@ -124,12 +124,12 @@ mod tests {
     fn frame_paints_the_offending_line_with_a_caret() {
         let out = paint_span(
             YAML,
-            "demo.nika.yaml",
+            "demo.nika",
             span_of("ghost"),
             Theme::new(false, true, false),
         );
         assert!(
-            out.contains("demo.nika.yaml:5:7"),
+            out.contains("demo.nika:5:7"),
             "origin carries path:line:col:\n{out}"
         );
         assert!(
@@ -151,7 +151,7 @@ mod tests {
         let start = u32::try_from(YAML.find("ghost").expect("present")).expect("small");
         let out = paint_span(
             YAML,
-            "demo.nika.yaml",
+            "demo.nika",
             ByteSpan::new(start, start),
             Theme::new(false, true, false),
         );
@@ -165,7 +165,7 @@ mod tests {
     fn plain_theme_emits_zero_ansi() {
         let out = paint_span(
             YAML,
-            "demo.nika.yaml",
+            "demo.nika",
             span_of("ghost"),
             Theme::new(false, true, false),
         );
@@ -182,7 +182,7 @@ mod tests {
         let yaml = "⛨permits: {}\n";
         let out = paint_span(
             yaml,
-            "hello.nika.yaml",
+            "hello.nika",
             ByteSpan::new(0, 0),
             Theme::new(false, true, false),
         );
@@ -201,7 +201,7 @@ mod tests {
         let start = u32::try_from(yaml.find('◇').expect("diamond")).expect("small");
         let out = paint_span(
             yaml,
-            "hello.nika.yaml",
+            "hello.nika",
             ByteSpan::new(start, start),
             Theme::new(false, true, false),
         );
@@ -215,7 +215,7 @@ mod tests {
         let yaml = "⛨permits: {}\n";
         let out = paint_span(
             yaml,
-            "hello.nika.yaml",
+            "hello.nika",
             ByteSpan::new(1, 2),
             Theme::new(false, true, false),
         );

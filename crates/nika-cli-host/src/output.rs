@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn a_safe_word_stays_bare_and_borrowed() {
         for word in [
-            "./out/draft.nika.yaml",
+            "./out/draft.nika",
             "page=wifi",
             "openai/gpt-5.2",
             "a@b:c+d-e_f",
@@ -192,13 +192,13 @@ mod tests {
             "$(rm -rf ~)",
             "`id`",
             "a;b|c&d",
-            "*.nika.yaml",
+            "*.nika",
             "tab\there",
             "line\nbreak",
             "say \"hi\"",
             "back\\slash",
-            "~/draft.nika.yaml",
-            "café.nika.yaml",
+            "~/draft.nika",
+            "café.nika",
             "#comment",
             "!history{a,b}",
         ] {
@@ -224,7 +224,7 @@ mod tests {
         // zsh rewrites `=ls` to the path of ls and aborts on `=value`.
         assert_eq!(sh_word("=ls"), "'=ls'");
         assert_eq!(sh_word("=value"), "'=value'");
-        assert_eq!(sh_word("=draft.nika.yaml"), "'=draft.nika.yaml'");
+        assert_eq!(sh_word("=draft.nika"), "'=draft.nika'");
         assert_eq!(sh_word("="), "'='");
         assert_eq!(sh_word("==x"), "'==x'");
         // A later `=` is literal in every shell: the carry stays byte-identical.

@@ -27,7 +27,7 @@ fn reply_with(path: &str, body: &str) -> String {
 fn a_late_write_error_preserves_uncertainty_and_stops_the_remaining_files() {
     for failed_index in [0, 1] {
         let root = tempfile::tempdir().expect("root");
-        let reply = ["first.nika.yaml", "second.nika.yaml", "third.nika.yaml"]
+        let reply = ["first.nika", "second.nika", "third.nika"]
             .map(|name| reply_with(name, WORKFLOW))
             .join("\n");
         let set = ProjectChangeSet::from_reply(root.path(), "three files", &reply, &[], None)
@@ -59,7 +59,7 @@ fn a_late_write_error_preserves_uncertainty_and_stops_the_remaining_files() {
             WORKFLOW
         );
         assert!(
-            !root.path().join("third.nika.yaml").exists(),
+            !root.path().join("third.nika").exists(),
             "stop after failure"
         );
         let text = failure.refusal_text(&set);
@@ -73,7 +73,7 @@ fn a_late_write_error_preserves_uncertainty_and_stops_the_remaining_files() {
         );
         if failed_index == 1 {
             assert!(
-                text.contains("first.nika.yaml") && text.contains("kept"),
+                text.contains("first.nika") && text.contains("kept"),
                 "{text}"
             );
         }
@@ -89,14 +89,14 @@ fn a_late_write_error_preserves_uncertainty_and_stops_the_remaining_files() {
 fn a_final_symlink_outside_the_root_is_not_witnessed() {
     let root = tempfile::tempdir().expect("root");
     let outside = tempfile::tempdir().expect("outside");
-    let target = outside.path().join("secret.nika.yaml");
+    let target = outside.path().join("secret.nika");
     std::fs::write(&target, OUTSIDE).expect("outside");
-    symlink(&target, root.path().join("link.nika.yaml")).expect("final symlink");
+    symlink(&target, root.path().join("link.nika")).expect("final symlink");
     let leaked = Witness::of(OUTSIDE.as_bytes());
     let err = ProjectChangeSet::from_reply(
         root.path(),
         "g",
-        &reply_with("link.nika.yaml", WORKFLOW),
+        &reply_with("link.nika", WORKFLOW),
         &[],
         None,
     )
@@ -107,7 +107,7 @@ fn a_final_symlink_outside_the_root_is_not_witnessed() {
     );
     let text = err.to_string();
     assert!(
-        text.contains("link.nika.yaml") && text.contains("cannot be witnessed"),
+        text.contains("link.nika") && text.contains("cannot be witnessed"),
         "{text}"
     );
     assert!(
@@ -121,7 +121,7 @@ fn a_final_symlink_outside_the_root_is_not_witnessed() {
 }
 
 /// A parent directory that is a symlink out of the root is the same
-/// leak by another component: `std::fs::read("notes/daily.nika.yaml")`
+/// leak by another component: `std::fs::read("notes/daily.nika")`
 /// follows `notes/`. The declared path has no `..`; `relative_inside_root`
 /// accepts it. The witness must still refuse.
 #[test]
@@ -130,14 +130,14 @@ fn a_parent_symlink_outside_the_root_is_not_witnessed() {
     let outside = tempfile::tempdir().expect("outside");
     let notes = outside.path().join("notes");
     std::fs::create_dir(&notes).expect("outside notes");
-    let target = notes.join("daily.nika.yaml");
+    let target = notes.join("daily.nika");
     std::fs::write(&target, OUTSIDE).expect("outside");
     symlink(&notes, root.path().join("notes")).expect("parent symlink");
     let leaked = Witness::of(OUTSIDE.as_bytes());
     let err = ProjectChangeSet::from_reply(
         root.path(),
         "g",
-        &reply_with("notes/daily.nika.yaml", WORKFLOW),
+        &reply_with("notes/daily.nika", WORKFLOW),
         &[],
         None,
     )
@@ -148,7 +148,7 @@ fn a_parent_symlink_outside_the_root_is_not_witnessed() {
     );
     let text = err.to_string();
     assert!(
-        text.contains("notes/daily.nika.yaml") && text.contains("cannot be witnessed"),
+        text.contains("notes/daily.nika") && text.contains("cannot be witnessed"),
         "{text}"
     );
     assert!(
@@ -168,11 +168,11 @@ fn a_parent_symlink_outside_the_root_is_not_witnessed() {
 #[test]
 fn a_directory_at_the_destination_is_not_a_create() {
     let root = tempfile::tempdir().expect("root");
-    std::fs::create_dir(root.path().join("dir.nika.yaml")).expect("dir");
+    std::fs::create_dir(root.path().join("dir.nika")).expect("dir");
     let err = ProjectChangeSet::from_reply(
         root.path(),
         "g",
-        &reply_with("dir.nika.yaml", WORKFLOW),
+        &reply_with("dir.nika", WORKFLOW),
         &[],
         None,
     )
@@ -182,7 +182,7 @@ fn a_directory_at_the_destination_is_not_a_create() {
         "the class is the file system's: {err}"
     );
     assert!(err.to_string().contains("cannot be witnessed"), "{err}");
-    assert!(root.path().join("dir.nika.yaml").is_dir());
+    assert!(root.path().join("dir.nika").is_dir());
 }
 
 /// A write through the set does not follow a final symlink: the outside
@@ -192,14 +192,14 @@ fn a_directory_at_the_destination_is_not_a_create() {
 fn apply_does_not_write_through_a_final_symlink() {
     let root = tempfile::tempdir().expect("root");
     let outside = tempfile::tempdir().expect("outside");
-    let target = outside.path().join("secret.nika.yaml");
+    let target = outside.path().join("secret.nika");
     std::fs::write(&target, OUTSIDE).expect("outside");
-    symlink(&target, root.path().join("link.nika.yaml")).expect("final symlink");
+    symlink(&target, root.path().join("link.nika")).expect("final symlink");
     let set = ProjectChangeSet {
         root: root.path().to_path_buf(),
         goal: "g".to_owned(),
         changes: vec![ProjectChange::CreateWorkflow {
-            path: PathBuf::from("link.nika.yaml"),
+            path: PathBuf::from("link.nika"),
             content: WORKFLOW.to_owned(),
         }],
         run: None,
@@ -215,7 +215,7 @@ fn apply_does_not_write_through_a_final_symlink() {
         std::fs::read_to_string(&target).expect("untouched"),
         OUTSIDE
     );
-    assert!(root.path().join("link.nika.yaml").is_symlink());
+    assert!(root.path().join("link.nika").is_symlink());
 }
 
 /// A write does not create files under a parent that is a symlink out
@@ -231,7 +231,7 @@ fn apply_does_not_write_through_a_parent_symlink() {
         root: root.path().to_path_buf(),
         goal: "g".to_owned(),
         changes: vec![ProjectChange::CreateWorkflow {
-            path: PathBuf::from("notes/daily.nika.yaml"),
+            path: PathBuf::from("notes/daily.nika"),
             content: WORKFLOW.to_owned(),
         }],
         run: None,
@@ -246,7 +246,7 @@ fn apply_does_not_write_through_a_parent_symlink() {
         "contained refusal, not a silent write: {err}"
     );
     assert!(
-        !notes.join("daily.nika.yaml").exists(),
+        !notes.join("daily.nika").exists(),
         "nothing was created outside the root"
     );
 }
@@ -256,11 +256,11 @@ fn apply_does_not_write_through_a_parent_symlink() {
 #[test]
 fn a_regular_file_is_witnessed_and_an_absent_path_is_a_create() {
     let root = tempfile::tempdir().expect("root");
-    std::fs::write(root.path().join("daily.nika.yaml"), "nika: old\n").expect("seed");
+    std::fs::write(root.path().join("daily.nika"), "nika: old\n").expect("seed");
     let update = ProjectChangeSet::from_reply(
         root.path(),
         "g",
-        &reply_with("daily.nika.yaml", WORKFLOW),
+        &reply_with("daily.nika", WORKFLOW),
         &[],
         None,
     )
@@ -275,15 +275,11 @@ fn a_regular_file_is_witnessed_and_an_absent_path_is_a_create() {
         "{:?}",
         update.changes[0]
     );
-    assert!(
-        update
-            .preview()
-            .contains("replaces `daily.nika.yaml` whole")
-    );
+    assert!(update.preview().contains("replaces `daily.nika` whole"));
     let create = ProjectChangeSet::from_reply(
         root.path(),
         "g",
-        &reply_with("fresh.nika.yaml", WORKFLOW),
+        &reply_with("fresh.nika", WORKFLOW),
         &[],
         None,
     )
@@ -291,7 +287,7 @@ fn a_regular_file_is_witnessed_and_an_absent_path_is_a_create() {
     .expect("a block");
     assert!(matches!(
         &create.changes[0],
-        ProjectChange::CreateWorkflow { path, .. } if path == Path::new("fresh.nika.yaml")
+        ProjectChange::CreateWorkflow { path, .. } if path == Path::new("fresh.nika")
     ));
-    assert!(create.preview().contains("creates `fresh.nika.yaml`"));
+    assert!(create.preview().contains("creates `fresh.nika`"));
 }

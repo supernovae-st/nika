@@ -34,7 +34,7 @@ fn admitted_driver_with_override(
     let project = OwnedDir::open(directory.path())?;
     let service = nika_execution::ExecutionService::default();
     let admitted =
-        service.admit_with_model_override(&project, Path::new("root.nika.yaml"), model_override)?;
+        service.admit_with_model_override(&project, Path::new("root.nika"), model_override)?;
     let session = service.begin(admitted);
     ServiceExecutionDriver::new(session.context(), PathBuf::new())
         .ok_or_else(|| std::io::Error::other("admitted context lost its root").into())
@@ -64,7 +64,7 @@ tasks:
     after: { marker: success }
     infer: { prompt: hi }
 "#;
-    let mut driver = admitted_driver(&[("root.nika.yaml", root)])?;
+    let mut driver = admitted_driver(&[("root.nika", root)])?;
     driver.access_probes.clear();
     Ok(driver)
 }
@@ -125,7 +125,7 @@ async fn execute_derives_an_omitted_plan_from_its_census_and_effective_model() -
 #[tokio::test]
 async fn resident_and_local_runs_rejudge_the_effective_model_before_any_event() -> TestResult<()> {
     let root = "nika: root\nmodel: openai/gpt-5.2\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  first:\n    invoke: { tool: \"nika:jq\", args: { input: 7, expression: \".\" } }\n  say:\n    after: { first: success }\n    infer: { prompt: hi, max_tokens: 32 }\n";
-    let mut driver = admitted_driver_with_override(&[("root.nika.yaml", root)], Some("mock/echo"))?;
+    let mut driver = admitted_driver_with_override(&[("root.nika", root)], Some("mock/echo"))?;
     driver.access_probes.clear();
     let result = driver.execute(ServiceExecutionOptions::new()).await?;
     assert_eq!(result.status(), ServiceExecutionStatus::Refused);
@@ -169,7 +169,7 @@ async fn resident_and_local_runs_rejudge_the_effective_model_before_any_event() 
 #[tokio::test]
 async fn an_effective_override_supplies_a_missing_envelope_model() -> TestResult<()> {
     let root = "nika: root\ntasks:\n  explicit:\n    infer: { model: mock/echo, prompt: first }\n  missing:\n    after: { explicit: success }\n    infer: { prompt: second }\n";
-    let mut driver = admitted_driver(&[("root.nika.yaml", root)])?;
+    let mut driver = admitted_driver(&[("root.nika", root)])?;
     driver.access_probes.clear();
     let plan = driver.resolve_access_plan(None, None);
     assert!(plan.is_admitted());
@@ -214,7 +214,7 @@ tasks:
     after: { explicit: success }
     infer: { prompt: second }
 "#;
-    let mut driver = admitted_driver(&[("root.nika.yaml", root)])?;
+    let mut driver = admitted_driver(&[("root.nika", root)])?;
     driver.access_probes.clear();
     let plan = driver.resolve_access_plan(Some("mock/echo"), None);
     assert!(plan.lane("mock/echo").is_some());
@@ -243,7 +243,7 @@ tasks:
       tool: nika:jq
       args: { input: 1, expression: 'error("cannot open /private/operator-only/secret")' }
 "#;
-    let driver = admitted_driver(&[("root.nika.yaml", root)])?;
+    let driver = admitted_driver(&[("root.nika", root)])?;
     let runtime = driver
         .compose("")?
         .with_access_plan(driver.resolve_access_plan(None, None))?;
@@ -340,7 +340,7 @@ impl ChildTraceFactory for RecordedChildTrace {
 
 fn child_call() -> ChildCall {
     ChildCall {
-        target: "./child.nika.yaml".to_owned(),
+        target: "./child.nika".to_owned(),
         args: BTreeMap::new(),
         depth: 1,
         remaining_budget_usd: None,
@@ -373,10 +373,10 @@ fn codex_probe() -> nika_providers::probe::ProviderProbe {
 
 #[test]
 fn root_and_child_plans_read_the_same_driver_probe_snapshot() -> TestResult<()> {
-    let root = "nika: root\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: hi }\n  call:\n    invoke: { workflow: ./child.nika.yaml }\n";
+    let root = "nika: root\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: hi }\n  call:\n    invoke: { workflow: ./child.nika }\n";
     let child =
         "nika: child\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: child }\n";
-    let mut driver = admitted_driver(&[("root.nika.yaml", root), ("child.nika.yaml", child)])?;
+    let mut driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
     // Replace the captured facts, not the process environment: the production
     // resolver must read this field rather than probe again. No seat is run.
     driver.access_probes = vec![codex_probe()];
@@ -402,10 +402,10 @@ fn root_and_child_plans_read_the_same_driver_probe_snapshot() -> TestResult<()> 
 
 #[test]
 fn a_child_resolves_its_own_model_under_the_parents_explicit_pin() -> TestResult<()> {
-    let root = "nika: root\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: hi }\n  call:\n    invoke: { workflow: ./child.nika.yaml }\n";
+    let root = "nika: root\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: hi }\n  call:\n    invoke: { workflow: ./child.nika }\n";
     let child =
         "nika: child\nmodel: openai/gpt-4.1-mini\ntasks:\n  say:\n    infer: { prompt: child }\n";
-    let driver = admitted_driver(&[("root.nika.yaml", root), ("child.nika.yaml", child)])?;
+    let driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
     let probes = vec![codex_probe()];
     let plan = access::resolve_plan_over(
         driver.workflow(),
@@ -440,10 +440,10 @@ fn a_child_resolves_its_own_model_under_the_parents_explicit_pin() -> TestResult
 
 #[tokio::test]
 async fn an_unavailable_child_pin_refuses_before_starting_its_trace_or_tasks() -> TestResult<()> {
-    let root = "nika: root\ntasks:\n  call:\n    invoke: { workflow: ./child.nika.yaml }\n";
+    let root = "nika: root\ntasks:\n  call:\n    invoke: { workflow: ./child.nika }\n";
     let child = "nika: child\nmodel: mock/echo\ntasks:\n  say:\n    infer: { prompt: child }\n";
     let trace = RecordedChildTrace::default();
-    let driver = admitted_driver(&[("root.nika.yaml", root), ("child.nika.yaml", child)])?
+    let driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?
         .with_child_trace_factory(Arc::new(trace.clone()));
     let plan = driver.resolve_access_plan_over(None, Some("codex"), &[]);
     let runtime = driver
@@ -467,10 +467,10 @@ async fn an_unavailable_child_pin_refuses_before_starting_its_trace_or_tasks() -
 
 #[tokio::test]
 async fn a_captured_child_runs_and_stamps_its_own_frozen_plan() -> TestResult<()> {
-    let root = "nika: root\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: parent }\n  call:\n    invoke: { workflow: ./child.nika.yaml }\n";
+    let root = "nika: root\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: parent }\n  call:\n    invoke: { workflow: ./child.nika }\n";
     let child = "nika: child\nmodel: mock/echo\ntasks:\n  say:\n    infer: { prompt: child }\n";
     let trace = RecordedChildTrace::default();
-    let driver = admitted_driver(&[("root.nika.yaml", root), ("child.nika.yaml", child)])?
+    let driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?
         .with_child_trace_factory(Arc::new(trace.clone()));
     let plan = access::resolve_plan_over(
         driver.workflow(),
@@ -552,9 +552,9 @@ fn absent_parent_caps_every_child_at_zero() {
 
 #[tokio::test]
 async fn service_driver_runs_a_child_from_the_owned_snapshot() -> TestResult<()> {
-    let root = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika.yaml\" }\noutputs:\n  value: ${{ tasks.call.output.value }}\n";
+    let root = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika\" }\noutputs:\n  value: ${{ tasks.call.output.value }}\n";
     let child = "nika: child\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 7, expression: \".\" }\noutputs:\n  value: ${{ tasks.value.output }}\n";
-    let driver = admitted_driver(&[("root.nika.yaml", root), ("child.nika.yaml", child)])?;
+    let driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
     let execution_id = driver.execution_id();
     let result = driver.execute(ServiceExecutionOptions::new()).await?;
     let (status, events) = result.into_parts();
@@ -572,7 +572,7 @@ async fn service_driver_runs_a_child_from_the_owned_snapshot() -> TestResult<()>
 #[tokio::test]
 async fn failed_root_run_projects_a_nika_code_without_paths() -> TestResult<()> {
     let root = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  boom:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \"error(\\\"gauntlet\\\")\" }\n";
-    let driver = admitted_driver(&[("root.nika.yaml", root)])?;
+    let driver = admitted_driver(&[("root.nika", root)])?;
     let result = driver.execute(ServiceExecutionOptions::new()).await?;
     assert_eq!(result.status(), ServiceExecutionStatus::Failed);
     let (code, message) = result.error().expect("failed run diagnosis");
@@ -590,7 +590,7 @@ async fn independently_parsed_workflow_and_report_cannot_replace_the_admitted_pa
     let independent_report = nika_check::check(&independent_workflow);
     assert!(!independent_report.is_clean());
 
-    let driver = admitted_driver(&[("root.nika.yaml", admitted)])?;
+    let driver = admitted_driver(&[("root.nika", admitted)])?;
     assert_eq!(
         driver
             .workflow()
@@ -613,7 +613,7 @@ async fn service_result_exposes_declared_outputs_without_debug_or_event_leakage(
     let root = format!(
         "nika: output-redaction\npermits: {{ tools: [\"nika:jq\"] }}\ntasks:\n  value:\n    invoke: {{ tool: \"nika:jq\", args: {{ input: \"{SECRET}\", expression: \".\" }} }}\noutputs:\n  value: ${{{{ tasks.value.output }}}}\n"
     );
-    let driver = admitted_driver(&[("root.nika.yaml", &root)])?;
+    let driver = admitted_driver(&[("root.nika", &root)])?;
     let result = driver.execute(ServiceExecutionOptions::new()).await?;
     let debug = format!("{result:?}");
     let accessors = format!("{:?} {:?}", result.status(), result.events());
@@ -634,7 +634,7 @@ async fn service_result_never_exposes_pause_material() -> TestResult<()> {
     let root = format!(
         "nika: pause-redaction\npermits: {{ tools: [\"nika:prompt\"] }}\ntasks:\n  ask:\n    invoke: {{ tool: \"nika:prompt\", args: {{ mode: \"input\", message: \"{SECRET_QUESTION}\" }} }}\n"
     );
-    let driver = admitted_driver(&[("root.nika.yaml", &root)])?;
+    let driver = admitted_driver(&[("root.nika", &root)])?;
     let result = driver.execute(ServiceExecutionOptions::new()).await?;
     let debug = format!("{result:?}");
     let accessors = format!("{:?} {:?}", result.status(), result.events());
@@ -654,7 +654,7 @@ async fn service_result_never_exposes_pause_material() -> TestResult<()> {
 #[tokio::test]
 async fn the_options_plan_is_executed_as_resolved() -> TestResult<()> {
     let root = "nika: root\nmodel: mock/echo\ntasks:\n  say:\n    infer: { prompt: hi }\n";
-    let driver = admitted_driver(&[("root.nika.yaml", root)])?;
+    let driver = admitted_driver(&[("root.nika", root)])?;
     // Resolved over the real probe rows: mock is compiled in, always admitted.
     let plan = driver.resolve_access_plan(None, None);
     assert!(plan.is_admitted(), "{plan:?}");

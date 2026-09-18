@@ -25,7 +25,7 @@ const SLOGAN: &str = "Local first. Cloud when you want it.";
 /// No `next` here. Every rung used to carry its own copy of the same
 /// string, and the JSON mirror served those copies while the TTY
 /// derived a fresh one from the directory — so `rungs[].next` kept
-/// saying `nika compile hello hello.nika.yaml` in a folder that already held the file
+/// saying `nika compile hello hello.nika` in a folder that already held the file
 /// (#1187). The next step belongs to the SCREEN, not to a rung.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct Rung {
@@ -625,7 +625,7 @@ fn persist(choice: &InferenceChoice) -> std::io::Result<()> {
 }
 
 /// Default first-file name used only by the concierge's next-command projection.
-const FIRST_WOW_DEST: &str = "hello.nika.yaml";
+const FIRST_WOW_DEST: &str = "hello.nika";
 
 fn first_wow_next(dest: &Path) -> String {
     // Gauntlet W2 (P01 P02 P04 P05 P07 P12 P15): `--access harness` on
@@ -641,21 +641,21 @@ fn first_wow_next(dest: &Path) -> String {
 /// `door_shapes_mirror_the_real_door` runs the real function against
 /// real directories and proves this list is its exact image.
 pub(crate) const DOOR_SHAPES: [&str; 3] = [
-    "nika compile hello hello.nika.yaml",
+    "nika compile hello hello.nika",
     "nika run <file>",
     "nika run",
 ];
 
-/// `Next:` after the user already has a file. Teaching `nika compile hello hello.nika.yaml`
+/// `Next:` after the user already has a file. Teaching `nika compile hello hello.nika`
 /// again is a dead end (`exists — pass --force`) — gulf of execution,
 /// and the tool's own advice caused it (gauntlet P15).
 pub(crate) fn front_door_next(cwd: Option<&Path>) -> String {
     let Some(dir) = cwd else {
-        return "nika compile hello hello.nika.yaml".to_owned();
+        return "nika compile hello hello.nika".to_owned();
     };
     let files = cwd_workflows(dir);
     match files.as_slice() {
-        [] => "nika compile hello hello.nika.yaml".to_owned(),
+        [] => "nika compile hello hello.nika".to_owned(),
         [one] => first_wow_next(Path::new(one)),
         many if many.iter().any(|n| n == FIRST_WOW_DEST) => {
             first_wow_next(Path::new(FIRST_WOW_DEST))
@@ -676,7 +676,7 @@ fn cwd_workflows(cwd: &Path) -> Vec<String> {
         .filter_map(|e| {
             let name = e.file_name();
             let name = name.to_string_lossy();
-            if name.ends_with(".nika.yaml") || name.ends_with(".nika.yml") {
+            if nika_source::is_canonical_program_file_name(&name) {
                 Some(name.into_owned())
             } else {
                 None

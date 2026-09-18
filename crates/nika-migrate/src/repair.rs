@@ -166,7 +166,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let gone = dir.join("gone");
         std::fs::create_dir_all(&gone).expect("subdir");
-        let target = gone.join("wf.nika.yaml");
+        let target = gone.join("wf.nika");
         let target_str = target.to_str().expect("utf8").to_owned();
         std::fs::remove_dir_all(&gone).expect("vanish parent");
         assert!(

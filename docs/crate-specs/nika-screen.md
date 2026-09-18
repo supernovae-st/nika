@@ -113,7 +113,7 @@ pub enum ScreenError { /* BackendNotWired(1000) .. BackendInit(1009) */ }
 | 6 | PROPERTY | ✅ | proptest · `ConsentGate` transitions + `from_u8` fail-closed roundtrip + `LedIndicator` engaged-count (`guards.rs`) |
 | 7 | BENCHMARKS | ⚪ N/A | thin `xcap` adapter · capture latency is OS-bound, not a Nika hot path (exempt · ADR-003 Rule 2) |
 | 8 | DOCS | ✅ | `cargo doc --no-deps` 0 warnings · all pub items documented |
-| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika.yaml` workflow surface · the 2 `#[ignore]` real-capture smoke tests are the E2E (need display + TCC) |
+| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika` workflow surface · the 2 `#[ignore]` real-capture smoke tests are the E2E (need display + TCC) |
 | 10 | PARITY | ⚪ N/A | NEW computer-use crate (M2.1) · no v0.79 brouillon equivalent to golden-test against |
 | 11 | REVIEW SWARM | ✅ | 3-agent swarm 2026-05-25 · feature-dev:code-reviewer + 2× general-purpose (Nika-conventions + Rust-quality) · **all 3 verdict ADMIT** · findings LOW/MED only |
 | 12 | ATOMIC COMMIT | ✅ | the admission commit |

@@ -14,7 +14,7 @@
     "nika": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$",
-      "description": "The file's NAME · kebab-case · and the mark that says « this is a nika file ». One word, one meaning across both document types: `nika.yaml` carries the PROJECT name, a `*.nika.yaml` carries the WORKFLOW name. The document TYPE is read from `tasks:` — present means workflow, absent means project — so it survives a blob, a paste or an HTTP body where the filename does not travel. This key held the literal `v1` until the envelope nuke; it carried zero bits as a version (there is no `nika: v2` — ever) and now carries the file's most necessary field instead."
+      "description": "The file's NAME · kebab-case · and the mark that says « this is a nika file ». One word, one meaning across both document types: `nika.yaml` carries the PROJECT name, a `*.nika` carries the WORKFLOW name. The document TYPE is read from `tasks:` — present means workflow, absent means project — so it survives a blob, a paste or an HTTP body where the filename does not travel. This key held the literal `v1` until the envelope nuke; it carried zero bits as a version (there is no `nika: v2` — ever) and now carries the file's most necessary field instead."
     },
     "model": {
       "type": "string",

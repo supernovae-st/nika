@@ -22,7 +22,7 @@ derivation) and the `check` ladder live in `nika-check` (L0 → this crate).
 ```rust
 use nika_schema::{FileId, ParseMode, RawWorkflow, SchemaError};
 
-let yaml = std::fs::read_to_string("hello.nika.yaml")?;
+let yaml = std::fs::read_to_string("hello.nika")?;
 let workflow: RawWorkflow = nika_schema::parse(&yaml, FileId::new(0), ParseMode::Strict)?;
 
 // Inspect the DAG · the edges are declared, never restated:

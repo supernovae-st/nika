@@ -198,7 +198,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("project");
         let slot = zoned("2026-09-01T09:00:00Z[UTC]");
         let now = zoned("2026-09-01T09:00:02Z[UTC]");
-        let id = SlotId::derive("root.nika.yaml", "TZ=UTC 0 9 * * *", &slot);
+        let id = SlotId::derive("root.nika", "TZ=UTC 0 9 * * *", &slot);
         let held = claim_for_resident(
             dir.path(),
             "root",
@@ -242,7 +242,7 @@ mod tests {
             "the same slot is never fired twice"
         );
         let later = zoned("2026-09-02T09:00:00Z[UTC]");
-        let later_id = SlotId::derive("root.nika.yaml", "TZ=UTC 0 9 * * *", &later);
+        let later_id = SlotId::derive("root.nika", "TZ=UTC 0 9 * * *", &later);
         let next = claim_for_resident(
             dir.path(),
             "root",

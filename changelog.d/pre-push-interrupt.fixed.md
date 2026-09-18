@@ -1,1 +1,0 @@
-- **Interrupted gates stop safely.** An interrupted pre-push gate now exits after its active child finishes instead of releasing its lock and continuing. Interrupting lock acquisition also cleans up a newly acquired lease without leaving later pushes blocked.

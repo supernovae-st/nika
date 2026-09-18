@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Workflow configuration types — the vocabulary of `.nika.yaml` files.
+//! Workflow configuration types — the vocabulary of `.nika` files.
 //!
 //! These types represent the configuration options available in workflow
 //! definitions (per the canonical `nika-spec` v1 language · `spec/01..05`).

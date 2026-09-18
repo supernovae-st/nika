@@ -575,7 +575,7 @@ Every numbered line range was grep-verified against HEAD `9ebaf05ca`.
   (`find_provider`, `find_mcp_server`, etc.). This crate emits the
   `&'static` slices + `phf::Map`s those lookups read; it never parses
   TOML at runtime.
-- **No schema validation of `.nika.yaml` workflows.** That is
+- **No schema validation of `.nika` workflows.** That is
   `nika-schema`'s job (L0 sibling). The two crates share ZERO code and
   ZERO types.
 - **No network / FS verification of MCP servers.** That is

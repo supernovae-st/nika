@@ -40,7 +40,7 @@ The evidence base is executable, not prose: `crates/nika-cli/tests/composition_e
 independent sha256 chain re-walk that does not trust the engine's own
 verifier), the four composition cases in `crates/nika-cli/tests/resume_e2e.rs`
 (condition 8), plus a live run of the taught lesson
-(`crates/nika-pack/pack/examples/10-compose-pipeline.nika.yaml` · offline on
+(`crates/nika-pack/pack/examples/10-compose-pipeline.nika` · offline on
 `mock/echo`) whose two journals pass `nika trace verify` (rc=0 each).
 
 The 2026-07-30 pass added a discipline the earlier ones lacked: each row's
@@ -172,7 +172,7 @@ those two tiers close, and this ADR is re-issued again.
 - `crates/nika-runtime/src/dispatch.rs` — `child_budget` law-6 doc + the workflow-call dispatch
 - `crates/nika-runtime/src/workflow_call.rs` — min(parent remaining, child declared)
 - `crates/nika-check/src/composition.rs` — the static half (`NIKA-COMP-001..004`)
-- `crates/nika-pack/pack/examples/10-compose-pipeline.nika.yaml` + `10-compose-child.nika.yaml` — the taught lesson (spec `examples/`, vendored)
+- `crates/nika-pack/pack/examples/10-compose-pipeline.nika` + `10-compose-child.nika` — the taught lesson (spec `examples/`, vendored)
 - Live run 2026-07-29: parent+child journals under `.nika/traces/`, `nika trace verify` rc=0 each, typed output `{"brief":{"chars":76,…}}` flowed child→parent
 
 ## Alternatives considered

@@ -12,7 +12,7 @@
 //! event stream out, through the chain the `nika run` binary composes:
 //!
 //! ```text
-//! .nika.yaml ──▶ nika-schema   parse + check ladder   (audit BEFORE run)
+//! .nika ──▶ nika-schema   parse + check ladder   (audit BEFORE run)
 //!            ──▶ wave-ordered dispatch through the REAL verb crates
 //!                  infer  → nika-verb-infer  (mock/echo provider · no net)
 //!                  exec   → nika-verb-exec   (MockShell kernel seam)

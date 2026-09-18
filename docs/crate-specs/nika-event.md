@@ -122,7 +122,7 @@ pub struct InMemoryEmitter;             // unbounded() | bounded(cap) · len/is_
 | 6 PROPERTY | ✅ | 4 proptest properties (as_str non-empty · terminal-implies-workflow · bounded never exceeds cap · unbounded accepts N) |
 | 7 BENCHMARKS | N/A | pure value types · no hot path (justified) |
 | 8 DOCS | ✅ | `RUSTDOCFLAGS=-D warnings cargo doc --no-deps` 0 warnings · every pub item documented |
-| 9 CANARY E2E | N/A | L0 types · no `.nika.yaml` runtime surface (justified) |
+| 9 CANARY E2E | N/A | L0 types · no `.nika` runtime surface (justified) |
 | 10 PARITY | N/A | no standalone brouillon `nika-event` crate · event types embedded in the brouillon engine monolith (`tools/nika-engine/src/event/`) · taxonomy is **post-brouillon canonical** (4-verb model D-2026-05-22-N18) · CRAFT-fresh per ADR-001 (justified exemption) |
 | 11 REVIEW SWARM | ✅ | 3-agent parallel (spn-nika:code-reviewer + spn-rust:rust-pro + feature-dev:code-reviewer) |
 | 12 ATOMIC | ✅ | 1 commit · Nika 🦋 trailer |

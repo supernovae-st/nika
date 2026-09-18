@@ -19,7 +19,7 @@ use super::tests::{TestBackend, TestWorld, WORKFLOW, get_request, limits};
 async fn served_registry_is_scoped_to_the_workflows_directory() {
     let world = TestWorld::new();
     std::fs::write(
-        world.root.path().join("top.nika.yaml"),
+        world.root.path().join("top.nika"),
         WORKFLOW.replace("nika: root", "nika: top"),
     )
     .expect("a workflow outside the served registry");
@@ -36,19 +36,23 @@ async fn served_registry_is_scoped_to_the_workflows_directory() {
         .iter()
         .map(|value| value.as_str().expect("name").to_owned())
         .collect::<Vec<_>>();
-    assert_eq!(
-        names,
-        vec!["workflows/root.nika.yaml".to_owned()],
-        "{names:?}"
-    );
+    assert_eq!(names, vec!["workflows/root.nika".to_owned()], "{names:?}");
 
     let inside = server
-        .request(&get_request("/v1/workflows/workflows/root.nika.yaml"))
+        .request(&get_request("/v1/workflows/workflows/root.nika"))
         .await;
     assert_eq!(inside.status, 200, "{}", inside.body);
-    let outside = server
-        .request(&get_request("/v1/workflows/top.nika.yaml"))
-        .await;
+    let outside = server.request(&get_request("/v1/workflows/top.nika")).await;
     assert_eq!(outside.status, 404, "{}", outside.body);
     server.stop().await.expect("stop");
+}
+
+#[test]
+fn registry_names_stay_owned_relative_slash_canonical() {
+    use super::registry::valid_workflow_name;
+    assert!(valid_workflow_name("workflows/root.nika"));
+    assert!(!valid_workflow_name(r"workflows\root.nika"));
+    assert!(!valid_workflow_name("root.nika.yaml"));
+    assert!(!valid_workflow_name("/abs/root.nika"));
+    assert!(!valid_workflow_name("root.nika/"));
 }

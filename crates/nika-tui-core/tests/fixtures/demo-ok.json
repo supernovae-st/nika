@@ -1,7 +1,7 @@
 {
   "name": "demo-ok",
   "workflow": {
-    "file": "rapport-hebdo.nika.yaml",
+    "file": "rapport-hebdo.nika",
     "engine": "0.108.0",
     "prompt": "fais-moi un rapport hebdo des issues github",
     "permits": [

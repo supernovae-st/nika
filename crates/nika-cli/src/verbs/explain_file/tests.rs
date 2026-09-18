@@ -10,7 +10,7 @@ use crate::verbs::exit;
 
 fn tmp(name: &str, content: &str) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!(
-        "nika-explain-file-{}-{name}.nika.yaml",
+        "nika-explain-file-{}-{name}.nika",
         std::process::id(),
     ));
     std::fs::write(&path, content).expect("fixture written");
@@ -195,7 +195,7 @@ fn dispatch_routes_codes_and_files() {
     // A path-shaped query routes to the file narrator — missing file
     // = the loader's own error, never a "unknown code" 404.
     let out = dispatch(
-        "no/such/dir/flow.nika.yaml",
+        "no/such/dir/flow.nika",
         false,
         false,
         crate::display::theme::Theme::new(false, false, false),

@@ -144,7 +144,7 @@ impl ProjectSnapshot {
             w.path == needle
                 || w.path.ends_with(&format!("/{needle}"))
                 || w.name.as_deref() == Some(needle)
-                || w.path.trim_end_matches(".nika.yaml") == needle
+                || w.path.trim_end_matches(".nika") == needle
         });
         let first = hits.next()?;
         if hits.next().is_some() {
@@ -162,12 +162,12 @@ mod tests {
     fn tree() -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("tmp");
         std::fs::write(
-            dir.path().join("a.nika.yaml"),
+            dir.path().join("a.nika"),
             "nika: alpha\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
         )
         .expect("a");
         std::fs::write(
-            dir.path().join("b.nika.yaml"),
+            dir.path().join("b.nika"),
             "nika: beta\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
         )
         .expect("b");
@@ -224,7 +224,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tmp");
         for index in 0..=nika_dap::inventory::MAX_WORKFLOWS {
             std::fs::write(
-                dir.path().join(format!("{index:03}.nika.yaml")),
+                dir.path().join(format!("{index:03}.nika")),
                 "nika: capped\n",
             )
             .expect("workflow");
@@ -275,7 +275,7 @@ mod tests {
         assert_eq!(snap.ceiling, Some(0.25));
         let alpha = snap.find("alpha").expect("by name");
         assert!(alpha.clean, "{alpha:?}");
-        let beta = snap.find("b.nika.yaml").expect("by path");
+        let beta = snap.find("b.nika").expect("by path");
         assert!(!beta.clean, "an exec with no grant is a finding: {beta:?}");
         let facts = snap.facts_lines();
         assert!(facts.iter().any(|l| l.starts_with("root: ")));

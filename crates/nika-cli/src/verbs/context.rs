@@ -75,7 +75,7 @@ fn empty_inventory_line(walk_truncated: bool) -> &'static str {
     if walk_truncated {
         "scan partial — the walk gave up before covering the tree"
     } else {
-        "no workflows here yet — nika compile hello hello.nika.yaml creates one explicitly"
+        "no workflows here yet — nika compile hello hello.nika — that writes one"
     }
 }
 
@@ -205,18 +205,18 @@ mod tests {
         std::fs::create_dir_all(dir.join("node_modules")).expect("mkdir");
         std::fs::create_dir_all(dir.join(".nika/traces")).expect("mkdir");
         std::fs::write(
-            dir.join("good.nika.yaml"),
+            dir.join("good.nika"),
             "nika: good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
         )
         .expect("write");
         // `when:` as a bare string = a conformance finding.
         std::fs::write(
-            dir.join("flows/bad.nika.yaml"),
+            dir.join("flows/bad.nika"),
             "nika: bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
         )
         .expect("write");
         // Hidden from the walk: dependency tree.
-        std::fs::write(dir.join("node_modules/dep.nika.yaml"), "x").expect("write");
+        std::fs::write(dir.join("node_modules/dep.nika"), "x").expect("write");
         // One journal: a started head + a completed tail with cost fields.
         std::fs::write(
             dir.join(".nika/traces/2026-07-08T20-00-00Z-abcd.ndjson"),
@@ -241,8 +241,8 @@ mod tests {
         assert_eq!(found, 2);
         assert_eq!(facts.len(), 2, "{facts:?}");
         // Relative, sorted, dependency trees skipped.
-        assert_eq!(facts[0].path, "flows/bad.nika.yaml");
-        assert_eq!(facts[1].path, "good.nika.yaml");
+        assert_eq!(facts[0].path, "flows/bad.nika");
+        assert_eq!(facts[1].path, "good.nika");
         assert!(!facts[0].path.starts_with('/'), "no absolute paths");
         let bad = &facts[0];
         assert!(!bad.clean);
@@ -279,7 +279,7 @@ mod tests {
         let complete = render(false);
         assert!(
             complete.ends_with(
-                "\nno workflows here yet — nika compile hello hello.nika.yaml creates one explicitly\n"
+                "\nno workflows here yet — nika compile hello hello.nika — that writes one\n"
             ),
             "{complete}"
         );

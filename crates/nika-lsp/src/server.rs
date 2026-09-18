@@ -457,7 +457,7 @@ mod tests {
     use std::str::FromStr;
 
     fn uri() -> Uri {
-        Uri::from_str("file:///w.nika.yaml").expect("uri")
+        Uri::from_str("file:///w.nika").expect("uri")
     }
 
     fn open(docs: &mut Docs, text: &str) {
@@ -544,8 +544,8 @@ mod tests {
         // `uri_key` is the document-map key — it must be the URI's canonical
         // string, not "" / a constant (which would collide every document).
         let u = uri();
-        assert_eq!(uri_key(&u), "file:///w.nika.yaml", "the exact URI string");
-        let other = Uri::from_str("file:///other.nika.yaml").expect("uri");
+        assert_eq!(uri_key(&u), "file:///w.nika", "the exact URI string");
+        let other = Uri::from_str("file:///other.nika").expect("uri");
         assert_ne!(
             uri_key(&u),
             uri_key(&other),
@@ -559,8 +559,8 @@ mod tests {
         // `uri_key` returns a per-URI key (a constant "" / "xyzzy" would make
         // the second insert overwrite the first).
         let mut docs: Docs = BTreeMap::new();
-        let a = Uri::from_str("file:///a.nika.yaml").expect("uri");
-        let b = Uri::from_str("file:///b.nika.yaml").expect("uri");
+        let a = Uri::from_str("file:///a.nika").expect("uri");
+        let b = Uri::from_str("file:///b.nika").expect("uri");
         docs.insert(uri_key(&a).to_owned(), Document::new("nika: v1\n# a\n"));
         docs.insert(uri_key(&b).to_owned(), Document::new("nika: v1\n# b\n"));
         assert_eq!(docs.len(), 2, "two distinct documents, no key collision");
@@ -810,7 +810,7 @@ mod canary {
     use std::thread;
 
     fn uri() -> Uri {
-        Uri::from_str("file:///canary.nika.yaml").expect("uri")
+        Uri::from_str("file:///canary.nika").expect("uri")
     }
 
     /// Send a didOpen notification for `text`.
@@ -904,7 +904,7 @@ mod canary {
     /// Open a `model:`-value document and queue a completion request (id 13).
     fn queue_model_completion(client: &Connection) {
         let model_doc = "nika: w\nmodel: ";
-        let model_uri = Uri::from_str("file:///m.nika.yaml").expect("uri");
+        let model_uri = Uri::from_str("file:///m.nika").expect("uri");
         open_uri(client, &model_uri, model_doc);
         let model_idx = crate::analysis::position::LineIndex::new(model_doc);
         request(
@@ -1015,7 +1015,7 @@ mod canary {
         // 2) A clean workflow with a verb, an `after:` entry and a
         //    template ref riding a `with:` binding (the W2 doors).
         let hello = "nika: hello\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    after: { greet: success }\n    with:\n      msg: \"${{ tasks.greet.output }}\"\n    exec: { command: [\"echo\", \"${{ with.msg }}\"] }\n";
-        let hello_uri = Uri::from_str("file:///hello.nika.yaml").expect("uri");
+        let hello_uri = Uri::from_str("file:///hello.nika").expect("uri");
         open_uri(&client, &hello_uri, hello);
         let idx = crate::analysis::position::LineIndex::new(hello);
         let verb_pos = idx.position(hello.find("infer").expect("verb") + 1);
@@ -1078,7 +1078,7 @@ mod canary {
             .response_result
             .clone()
             .expect("definition result");
-        assert!(def.to_string().contains("hello.nika.yaml"), "def: {def}");
+        assert!(def.to_string().contains("hello.nika"), "def: {def}");
         // completion offers providers at the model value
         let completion = response(13)
             .response_result
@@ -1144,7 +1144,7 @@ mod canary {
             .expect("initialized");
         let hello =
             "nika: hello\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n";
-        let hello_uri = Uri::from_str("file:///hello.nika.yaml").expect("uri");
+        let hello_uri = Uri::from_str("file:///hello.nika").expect("uri");
         open_uri(&client, &hello_uri, hello);
         let idx = crate::analysis::position::LineIndex::new(hello);
         let verb = idx.position(hello.find("infer").expect("verb") + 1);
@@ -1320,12 +1320,12 @@ mod uri_tests {
     #[test]
     fn file_uris_yield_their_parent_percent_decoded() {
         assert_eq!(
-            file_uri_dir(&uri("file:///tmp/proj/flow.nika.yaml")),
+            file_uri_dir(&uri("file:///tmp/proj/flow.nika")),
             Some(std::path::PathBuf::from("/tmp/proj"))
         );
         // %20 — the space class the decoding exists for.
         assert_eq!(
-            file_uri_dir(&uri("file:///tmp/my%20proj/flow.nika.yaml")),
+            file_uri_dir(&uri("file:///tmp/my%20proj/flow.nika")),
             Some(std::path::PathBuf::from("/tmp/my proj"))
         );
     }
@@ -1333,7 +1333,7 @@ mod uri_tests {
     #[test]
     fn multibyte_percent_escapes_decode_as_utf8_not_latin1() {
         assert_eq!(
-            file_uri_dir(&uri("file:///tmp/caf%C3%A9/flow.nika.yaml")),
+            file_uri_dir(&uri("file:///tmp/caf%C3%A9/flow.nika")),
             Some(std::path::PathBuf::from("/tmp/café"))
         );
     }
@@ -1341,7 +1341,7 @@ mod uri_tests {
     #[test]
     fn a_windows_drive_path_sheds_the_uri_slash() {
         assert_eq!(
-            file_uri_dir(&uri("file:///C:/proj/flow.nika.yaml")),
+            file_uri_dir(&uri("file:///C:/proj/flow.nika")),
             Some(std::path::PathBuf::from("C:/proj"))
         );
     }

@@ -183,7 +183,7 @@ is honest at tag time.
 | 6 PROPERTY | ✅ | SSE parser = sensitive parser → proptest chunking-invariance + linear-scan cursor test |
 | 7 BENCH | N/A | network-bound service crate · no algorithmic hot path (http precedent) |
 | 8 DOCS | ✅ | `RUSTDOCFLAGS=-D warnings cargo doc --no-deps` 0 |
-| 9 CANARY | N/A | L1.5 service · no `.nika.yaml` surface until L2 verbs (clock/fs/http precedent) |
+| 9 CANARY | N/A | L1.5 service · no `.nika` surface until L2 verbs (clock/fs/http precedent) |
 | 10 PARITY | ✅ | cross-provider parity matrix (same assertions × every wired profile · the house rule executable) · brouillon rig-construction intentionally NOT carried (CRAFT · §1) · 14-profile set = canon.yaml projection |
 | 11 REVIEW | ✅ | 3-agent swarm 2026-06-11 · 0 P0 · P1s fixed same-session (stream non-2xx typed via `stream_status_error` · SSE quadratic rescan → linear cursor · clippy Gate-4 casts via `Duration::try_from_secs_f64` · layers metadata · spec §2 drift rewritten) · P2s fixed (in-band error transient mapping + terminal contract · extras first-write-wins · stream_options cloud-gated · post-[DONE] guard · catalog-join drift guard · empty-model fail-fast) |
 | 12 ATOMIC | ✅ | 1 commit · Nika 🦋 trailer |

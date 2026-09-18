@@ -287,17 +287,17 @@ fn strict_footers(
     }
 }
 
-/// The project-file route, taken BEFORE the workflow envelope is applied.
-///
-/// The envelope cannot describe a project file — it refuses `ceiling:` as
-/// an unknown field and demands a `tasks:` map, which is the destructive
-/// advice this route exists to end. The discriminant is the spec's
-/// (`01-envelope` §The type discriminant): a `tasks:` key means WORKFLOW,
-/// its absence means PROJECT, at full coverage and independent of the
-/// filename.
+/// `nika.yaml` is project-only; stdin (`-`) stays on the workflow lane.
 fn project_route(path: &str, json: bool) -> Option<VerbOutput> {
+    if path == "-" {
+        return None;
+    }
+    let name = nika_source::path_file_name(path).unwrap_or(path);
+    if name != nika_source::PROJECT_FILE_NAME {
+        return None;
+    }
     let yaml = read_source(path)?;
-    nika_vocab::project::is_project_document(&yaml).then(|| project::judge(path, &yaml, json))
+    Some(project::judge(path, &yaml, json))
 }
 
 /// Read the document once for the discriminant.
@@ -772,10 +772,7 @@ fn naming_note(text: &mut String, theme: Theme, path: &str, wf: &nika_schema::ra
     let Some(stem) = std::path::Path::new(path)
         .file_name()
         .and_then(|f| f.to_str())
-        .and_then(|f| {
-            f.strip_suffix(".nika.yaml")
-                .or_else(|| f.strip_suffix(".nika.yml"))
-        })
+        .and_then(nika_source::program_stem)
     else {
         return;
     };

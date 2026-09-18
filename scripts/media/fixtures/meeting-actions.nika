@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+# media fixture · the chat-to-workflow demo — derived from the embedded
+# showcase workflow examples/showcase/t1-meeting-actions.nika with a
+# defaulted transcript path so the demo runs with zero flags.
+# Transcript → typed action items {owner, task, due}
+nika: meeting-actions
+
+model: mock/echo            # offline demo path · swap for any provider
+
+const:
+  transcript_path: "scripts/media/fixtures/sample-transcript.txt"
+
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs:
+    read: ["scripts/media/fixtures/**"]
+    write: ["./action-items.json"]
+
+tasks:
+  transcript:
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ const.transcript_path }}" }
+
+  extract:
+    with:
+      transcript: ${{ tasks.transcript.output }}
+    infer:
+      prompt: |
+        Extract every action item from this meeting transcript ·
+        ${{ with.transcript }}
+      max_tokens: 600
+      schema:
+        type: object
+        required: [actions]
+        additionalProperties: false
+        properties:
+          actions:
+            type: array
+            items:
+              type: object
+              required: [owner, task]
+              additionalProperties: false
+              properties:
+                owner: { type: string }
+                task: { type: string }
+                due: { type: string }
+
+  save:
+    with:
+      extract_actions: ${{ tasks.extract.output.actions }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./action-items.json"
+        content: "${{ with.extract_actions }}"
+
+outputs:
+  actions:
+    value: ${{ tasks.extract.output.actions }}
+    description: "Typed action items, tracker-ready"

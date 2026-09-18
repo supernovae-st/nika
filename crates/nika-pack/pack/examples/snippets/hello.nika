@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# snippet · the install page's first file — zero setup, zero keys
+#
+# The first file a fresh install runs: one exec, no model, no network.
+# `permits.exec` names the ONE program it may launch — the file is the
+# blast radius from the very first command.
+#
+# Demonstrates ·
+#   - the envelope · `nika: <id>` · the mark AND the file's name
+#   - `permits.exec` · an argv allowlist, no shell anywhere
+#   - one `exec:` task · argv form, never a shell string
+#
+# House rule · the first file a fresh install runs stays GREEN even where
+# the sandbox refuses the confined echo (macOS seatbelt · the `nika test`
+# mock plane): `on_error: recover:` substitutes a LABELLED line, never the
+# output the run could not produce.
+#
+# Run · nika run examples/snippets/hello.nika
+nika: hello
+permits:
+  exec: ["echo"]
+tasks:
+  greet:
+    exec:
+      command: ["echo", "hello", "from", "nika"]
+    on_error:
+      # Catch-all rehearsal arm (the house rule the header states) — a
+      # labelled stand-in, never a fabricated program output.
+      recover: "the sandbox refused the confined echo — no program ran (recovered rehearsal value)"

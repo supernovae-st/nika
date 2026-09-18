@@ -677,7 +677,7 @@ mod tests {
     use super::*;
 
     fn audit(source: &str) -> Audit {
-        audit_source(source, "w.nika.yaml", None, None, AuditOptions::default())
+        audit_source(source, "w.nika", None, None, AuditOptions::default())
             .expect("the fixture parses")
     }
 
@@ -741,7 +741,7 @@ mod tests {
         for access_pin in [None, Some("mock")] {
             let audit = audit_source(
                 MIXED_MODELS,
-                "w.nika.yaml",
+                "w.nika",
                 None,
                 None,
                 AuditOptions::new(None, access_pin),
@@ -806,7 +806,7 @@ mod tests {
     fn the_operational_lane_types_only_the_gate_that_failed() {
         let audit = audit_source(
             "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
-            "w.nika.yaml",
+            "w.nika",
             None,
             None,
             AuditOptions::new(None, Some("not-a-real-access-pin")),
@@ -986,7 +986,7 @@ mod tests {
     fn a_mock_override_supplies_the_mixed_workflows_missing_model() {
         let audit = audit_source(
             MIXED_MODELS,
-            "w.nika.yaml",
+            "w.nika",
             None,
             None,
             AuditOptions::new(Some("mock/echo"), None),
@@ -1014,7 +1014,7 @@ mod tests {
         for model_override in [None, Some("mock/echo")] {
             let audit = audit_source(
                 MIXED_MODELS,
-                "w.nika.yaml",
+                "w.nika",
                 None,
                 None,
                 AuditOptions::new(model_override, Some("not-a-real-access-pin")),
@@ -1041,7 +1041,7 @@ mod tests {
             for access_pin in [None, Some("mock")] {
                 let audit = audit_source(
                     &source,
-                    "w.nika.yaml",
+                    "w.nika",
                     None,
                     None,
                     AuditOptions::new(model_override, access_pin),
@@ -1103,7 +1103,7 @@ mod tests {
         let mut read = |_: &str| Err::<String, String>("no such child".to_owned());
         let audit = audit_source(
             "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
-            "w.nika.yaml",
+            "w.nika",
             Some(&mut read),
             None,
             AuditOptions::default(),

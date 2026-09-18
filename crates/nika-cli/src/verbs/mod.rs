@@ -130,7 +130,7 @@ pub(crate) fn stamp_judged_semantic(wf: &RawWorkflow, report: &mut CheckReport) 
 
 /// The directory a workflow's relative references resolve against — the
 /// folder holding the file the operator named. An empty parent (a bare
-/// `wf.nika.yaml`) joins to the path itself, which is the CWD-relative
+/// `wf.nika`) joins to the path itself, which is the CWD-relative
 /// form and stays correct.
 pub(crate) fn workflow_base(path: &str) -> &std::path::Path {
     std::path::Path::new(path)
@@ -144,7 +144,7 @@ pub(crate) fn workflow_base(path: &str) -> &std::path::Path {
 /// `skills:` path is relative to the FILE that names it, exactly like a
 /// composed child target — `check_composed` has taken that base since
 /// spec 14, and this reader, its declared twin, took none. So
-/// `nika check sub/wf.nika.yaml` run from the repo root read `./s.md`
+/// `nika check sub/wf.nika` run from the repo root read `./s.md`
 /// from the ROOT, not from `sub/`.
 ///
 /// **What deliberately does NOT move: the permits subject.**
@@ -191,7 +191,7 @@ mod tests {
     /// reported on its CONTENT (`no YAML frontmatter`) while the PERMITS
     /// and TRIFECTA rungs both stayed green.
     ///
-    /// Cost of closing it, measured on this tree: 0 of 94 `.nika.yaml`
+    /// Cost of closing it, measured on this tree: 0 of 94 `.nika`
     /// files carry `skills:` (92 carry `permits:`, 12 carry `agent:` ·
     /// the census instrument sees things, so the zero is real).
     /// ⚠️ The instrument had to be rebuilt once: a first version pointed at
@@ -207,7 +207,7 @@ mod tests {
     /// `check_composed` has taken the workflow's own path as its base since
     /// spec 14, and its own comment calls the skills reader « the fs edge
     /// is the skills reader's twin » — but the twin took NO base, so it
-    /// resolved against the process CWD. `nika check sub/wf.nika.yaml` from
+    /// resolved against the process CWD. `nika check sub/wf.nika` from
     /// the repo root looked for `s.md` in the ROOT.
     ///
     /// The fixture is discriminating by construction: the skill exists ONLY
@@ -226,7 +226,7 @@ mod tests {
             "---\nname: probe\ndescription: a valid Agent Skill beside its workflow\n---\nbody\n",
         )
         .expect("skill beside the workflow");
-        let wf_path = dir.join("wf.nika.yaml");
+        let wf_path = dir.join("wf.nika");
         let yaml = concat!(
             "nika: w\n",
             "model: mock/echo\n",
@@ -320,7 +320,7 @@ mod tests {
     fn linked_path_is_byte_identical_when_links_are_off() {
         let dir = std::env::temp_dir().join("nika-cli-linkedpath-tests");
         std::fs::create_dir_all(&dir).expect("tmp dir");
-        let file = dir.join("wf.nika.yaml");
+        let file = dir.join("wf.nika");
         std::fs::write(&file, "nika: v1\n").expect("fixture");
         let path = file.to_str().expect("utf8 path");
 
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     fn parse_error_carries_its_code_message_and_next_action_exactly() {
         let path =
-            std::env::temp_dir().join(format!("nika-parsecode-{}.nika.yaml", std::process::id(),));
+            std::env::temp_dir().join(format!("nika-parsecode-{}.nika", std::process::id(),));
         std::fs::write(
             &path,
             "nika: two-verbs\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n    exec: { run: \"echo hi\" }\n",
@@ -379,7 +379,7 @@ mod tests {
     /// author can delete.
     #[test]
     fn parse_fatal_duplicate_key_names_the_colliding_site() {
-        let path = std::env::temp_dir().join(format!("nika-dup-{}.nika.yaml", std::process::id(),));
+        let path = std::env::temp_dir().join(format!("nika-dup-{}.nika", std::process::id(),));
         std::fs::write(
             &path,
             "nika: dup\ntasks:\n  a:\n    exec: { command: [true] }\n  a:\n    exec: { command: [true] }\n",
@@ -409,7 +409,7 @@ mod tests {
     /// typo (`temperture`) named the field and not the line.
     #[test]
     fn parse_fatal_unknown_field_names_the_key() {
-        let path = std::env::temp_dir().join(format!("nika-unk-{}.nika.yaml", std::process::id(),));
+        let path = std::env::temp_dir().join(format!("nika-unk-{}.nika", std::process::id(),));
         std::fs::write(
             &path,
             "nika: x\ntasks:\n  t:\n    infer:\n      prompt: hi\n      temperture: 0.1\n",
@@ -434,10 +434,8 @@ mod tests {
 
     #[test]
     fn invalid_utf8_workflow_is_a_coded_schema_refusal_not_an_environment_error() {
-        let path = std::env::temp_dir().join(format!(
-            "nika-invalid-utf8-{}.nika.yaml",
-            std::process::id(),
-        ));
+        let path =
+            std::env::temp_dir().join(format!("nika-invalid-utf8-{}.nika", std::process::id(),));
         std::fs::write(&path, [0xff, 0xfe]).expect("invalid UTF-8 fixture written");
 
         let err = load_checked(path.to_str().expect("UTF-8 tmp path"))
@@ -454,7 +452,7 @@ mod tests {
     #[test]
     fn a_missing_workflow_stays_an_environment_error() {
         let path = std::env::temp_dir().join(format!(
-            "nika-definitely-missing-{}.nika.yaml",
+            "nika-definitely-missing-{}.nika",
             std::process::id(),
         ));
         std::fs::remove_file(&path).ok();

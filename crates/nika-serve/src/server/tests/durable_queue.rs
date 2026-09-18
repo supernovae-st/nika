@@ -8,7 +8,7 @@ async fn post_admission_path_mutation_cannot_change_queued_world_across_restart(
     let world = TestWorld::new();
     let hanging = Arc::new(GatedBackend::new());
     let first = world.start(hanging.clone(), bounded_queue_limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
+    let body = r#"{"workflow":"root.nika"}"#;
     let mut ids = Vec::new();
     for index in 0..4 {
         let response = first
@@ -28,7 +28,7 @@ async fn post_admission_path_mutation_cannot_change_queued_world_across_restart(
         first.stop().await,
         Err(ServerError::ShutdownTimeout)
     ));
-    std::fs::write(world.workflows.join("root.nika.yaml"), "not-a-workflow")
+    std::fs::write(world.workflows.join("root.nika"), "not-a-workflow")
         .expect("mutate server-local bytes after snapshot admission");
     let replacement = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let second = world.start(replacement.clone(), limits()).await;
@@ -72,7 +72,7 @@ async fn queue_full_does_not_leave_a_durable_row() {
     let world = TestWorld::new();
     let backend = Arc::new(GatedBackend::new());
     let server = world.start(backend.clone(), bounded_queue_limits()).await;
-    let body = r#"{"workflow":"root.nika.yaml"}"#;
+    let body = r#"{"workflow":"root.nika"}"#;
     for index in 0..4 {
         let response = server
             .request(&post_request(body, &format!("nl-{index}"), &auth_header()))

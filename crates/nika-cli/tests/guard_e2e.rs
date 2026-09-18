@@ -59,7 +59,7 @@ fn guard_stdin(payload: &str) -> (String, i32) {
 #[test]
 fn claude_payload_denies_a_consent_dirty_run() {
     let dir = tempfile::tempdir().expect("dir");
-    let dirty = dir.path().join("dirty.nika.yaml");
+    let dirty = dir.path().join("dirty.nika");
     std::fs::write(&dirty, DIRTY).expect("fixture");
     let payload = format!(
         r#"{{"hook_event_name":"PreToolUse","tool_input":{{"command":"nika run {}"}},"cwd":"{}"}}"#,
@@ -83,7 +83,7 @@ fn claude_payload_denies_a_consent_dirty_run() {
 #[test]
 fn cursor_payload_denies_a_consent_dirty_run() {
     let dir = tempfile::tempdir().expect("dir");
-    let dirty = dir.path().join("dirty.nika.yaml");
+    let dirty = dir.path().join("dirty.nika");
     std::fs::write(&dirty, DIRTY).expect("fixture");
     let payload = format!(
         r#"{{"command":"nika run {}","cwd":"{}"}}"#,
@@ -107,7 +107,7 @@ fn cursor_payload_denies_a_consent_dirty_run() {
 #[test]
 fn claude_payload_allows_a_clean_run() {
     let dir = tempfile::tempdir().expect("dir");
-    let good = dir.path().join("good.nika.yaml");
+    let good = dir.path().join("good.nika");
     std::fs::write(&good, GOOD).expect("fixture");
     let payload = format!(
         r#"{{"hook_event_name":"PreToolUse","tool_input":{{"command":"nika run {}"}},"cwd":"{}"}}"#,
@@ -124,7 +124,7 @@ fn claude_payload_allows_a_clean_run() {
 #[test]
 fn ghost_path_is_a_visible_guard_unavailable() {
     let dir = tempfile::tempdir().expect("dir");
-    let ghost = dir.path().join("ghost.nika.yaml");
+    let ghost = dir.path().join("ghost.nika");
     let payload = format!(
         r#"{{"hook_event_name":"PreToolUse","tool_input":{{"command":"nika run {}"}},"cwd":"{}"}}"#,
         ghost.display(),

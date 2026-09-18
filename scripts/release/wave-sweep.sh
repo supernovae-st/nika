@@ -111,6 +111,14 @@ run perl -pi -e "s/(\"version\": )\"$V\"/\${1}\"$VER\"/" \
   .agents/plugins/nika/plugin.json \
   .agents/plugins/nika/.*-plugin/plugin.json
 
+# 4b · committed OpenAPI info.version. docs.nika.sh publishes this file;
+#     live GET /v1/openapi.json uses CARGO_PKG_VERSION. The snapshot test
+#     ignores version for equality, so a missed carrier leaves -dev in the
+#     published document. One `version` key in the file; schema otherwise
+#     stays the snapshot's.
+run perl -pi -e "s/(\"version\": )\"$V\"/\${1}\"$VER\"/" \
+  crates/nika-serve/openapi.json
+
 # 5 · changelog folds — the fragment assembler owns the engine section;
 #     this sweep delegates to it, then inserts the kit heading above the
 #     NEWEST existing kit heading. Skipped on --dev: the next train has no

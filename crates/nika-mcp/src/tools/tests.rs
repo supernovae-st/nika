@@ -409,7 +409,7 @@ fn dirty_actions_match_the_distinct_serialized_codes_one_for_one() {
 #[test]
 fn check_missing_arg_is_a_tool_error() {
     let error = execute("nika_check", &json!({})).expect_err("workflow source is required");
-    assert_eq!(error, "missing `workflow` (the *.nika.yaml source)");
+    assert_eq!(error, "missing `workflow` (the *.nika source)");
     assert!(
         !error.contains("nika explain"),
         "no source means no code: {error}"
@@ -772,7 +772,7 @@ fn canon_returns_the_ssot() {
 /// answer says its children went unjudged, and names them.
 #[test]
 fn a_composed_workflows_clean_answer_names_its_unjudged_children() {
-    let parent = "nika: parent\ntasks:\n  child:\n    invoke: { workflow: ./child.nika.yaml }\n";
+    let parent = "nika: parent\ntasks:\n  child:\n    invoke: { workflow: ./child.nika }\n";
     let ok = execute(
         "nika_check",
         &json!({ "workflow": parent, "native_strict": false }),
@@ -780,7 +780,7 @@ fn a_composed_workflows_clean_answer_names_its_unjudged_children() {
     .unwrap_or_else(|e| panic!("clean on the source: {e}"));
     assert!(ok.contains("✔ clean"), "{ok}");
     assert!(
-        ok.contains("composition unjudged") && ok.contains("./child.nika.yaml"),
+        ok.contains("composition unjudged") && ok.contains("./child.nika"),
         "the clean answer names what it did not read: {ok}"
     );
     let verbose = execute(
@@ -795,7 +795,7 @@ fn a_composed_workflows_clean_answer_names_its_unjudged_children() {
     assert_eq!(obj["judged"]["composition"], false, "{obj:#}");
     assert_eq!(
         obj["judged"]["children"],
-        json!(["./child.nika.yaml"]),
+        json!(["./child.nika"]),
         "{obj:#}"
     );
 }

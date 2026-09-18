@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn chat_only_on_file_candidate() {
         let dir = tmpdir("file");
-        let file = dir.join("a.nika.yaml");
+        let file = dir.join("a.nika");
         std::fs::write(&file, "x").expect("write");
         let env = resolve(Some(&file), &EnvFacts::default());
         std::fs::remove_dir_all(&dir).ok();

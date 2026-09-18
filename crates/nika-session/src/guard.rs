@@ -515,8 +515,8 @@ mod tests {
     /// grounded, including commands intentionally hidden from the short help.
     #[test]
     fn unique_command_capabilities_stay_grounded() {
-        let reply = "Use `nika inspect flow.nika.yaml --format mermaid`, \
-            `nika catalog --tools`, and `nika check flow.nika.yaml --fix`; \
+        let reply = "Use `nika inspect flow.nika --format mermaid`, \
+            `nika catalog --tools`, and `nika check flow.nika --fix`; \
             `nika list`, `nika guard`, `nika dap`, `nika lsp`, `nika mcp`, \
             `nika arm`, and `nika serve` are installed too.";
         let findings = world().audit(reply);

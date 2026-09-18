@@ -36,8 +36,8 @@ fn missing_mcp_refuses_with_and_without_model_on_json_and_human_doors() {
             for override_model in [true, false] {
                 let room = tempfile::tempdir().expect("room");
                 std::fs::create_dir(room.path().join("home")).expect("home");
-                std::fs::write(room.path().join("mix.nika.yaml"), MISSING_MCP).expect("workflow");
-                let mut args = vec![door, "mix.nika.yaml"];
+                std::fs::write(room.path().join("mix.nika"), MISSING_MCP).expect("workflow");
+                let mut args = vec![door, "mix.nika"];
                 if dry_run {
                     args.push("--dry-run");
                 }
@@ -79,20 +79,14 @@ fn missing_mcp_refuses_with_and_without_model_on_json_and_human_doors() {
 fn legal_override_runs_and_invalid_override_still_refuses() {
     let room = tempfile::tempdir().expect("room");
     std::fs::create_dir(room.path().join("home")).expect("home");
-    std::fs::write(room.path().join("model.nika.yaml"), MODEL).expect("workflow");
+    std::fs::write(room.path().join("model.nika"), MODEL).expect("workflow");
     let bad = call(
         room.path(),
-        &[
-            "run",
-            "model.nika.yaml",
-            "--model",
-            "missing/other",
-            "--json",
-        ],
+        &["run", "model.nika", "--model", "missing/other", "--json"],
     );
     assert_eq!(bad.status.code(), Some(2), "{}", text(&bad));
     for json in [false, true] {
-        let mut args = vec!["run", "model.nika.yaml", "--model", "mock/echo"];
+        let mut args = vec!["run", "model.nika", "--model", "mock/echo"];
         if json {
             args.push("--json");
         }
@@ -122,18 +116,15 @@ fn override_preserves_parse_permissions_and_composition_refusals() {
             "NIKA-SEC-004",
         ),
         (
-            "nika: parent\ntasks:\n  child:\n    invoke: { workflow: './missing.nika.yaml' }\n",
+            "nika: parent\ntasks:\n  child:\n    invoke: { workflow: './missing.nika' }\n",
             "NIKA-COMP-001",
         ),
     ] {
         let room = tempfile::tempdir().expect("room");
         std::fs::create_dir(room.path().join("home")).expect("home");
-        std::fs::write(room.path().join("bad.nika.yaml"), body).expect("workflow");
+        std::fs::write(room.path().join("bad.nika"), body).expect("workflow");
         for door in ["check", "run"] {
-            let out = call(
-                room.path(),
-                &[door, "bad.nika.yaml", "--model", "mock/echo"],
-            );
+            let out = call(room.path(), &[door, "bad.nika", "--model", "mock/echo"]);
             assert_eq!(out.status.code(), Some(2), "{door}: {}", text(&out));
             assert!(text(&out).contains(code), "{door}: {}", text(&out));
             assert!(!room.path().join("marker").exists());

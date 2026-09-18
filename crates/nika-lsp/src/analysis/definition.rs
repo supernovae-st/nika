@@ -296,7 +296,7 @@ mod tests {
     use std::str::FromStr;
 
     fn uri() -> Uri {
-        Uri::from_str("file:///w.nika.yaml").expect("valid uri")
+        Uri::from_str("file:///w.nika").expect("valid uri")
     }
 
     #[test]
@@ -754,7 +754,7 @@ mod tests {
     #[test]
     fn member_ref_jumps_to_its_declaration() {
         let text = "nika: w\nconst:\n  city: \"paris\"\ninputs:\n  REGION: { type: string, required: false, default: \"eu\" }\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ const.city }}\", \"${{ inputs.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
-        let uri: Uri = "file:///w.nika.yaml".parse().expect("uri");
+        let uri: Uri = "file:///w.nika".parse().expect("uri");
         let decl_line = |needle: &str| {
             let at = text.find(needle).expect(needle);
             u32::try_from(text[..at].matches('\n').count()).expect("line fits")

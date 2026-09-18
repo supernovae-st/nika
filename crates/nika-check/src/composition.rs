@@ -115,22 +115,6 @@ fn static_target_defect(target: &str) -> Option<String> {
         );
     }
     if let Some(rest) = target.strip_prefix("registry:") {
-        // ⭐ ONE grammar, two readers. This used to be a second parser —
-        // `rsplit_once('@')` with no charset rule and no SemVer rule —
-        // and it disagreed with the resolver IN BOTH DIRECTIONS:
-        // `@nightly` passed HERE and was refused at resolution (a check
-        // that says « clean » about a ref the resolver rejects lies at
-        // the only moment the author is still reading), while an
-        // unpinned ref was refused here and accepted there.
-        //
-        // The grammar now lives once, at L0 (`nika_vocab::registry_ref`
-        // — the check is L0 and the client is L2, so the shared home
-        // cannot be the client). What stays HERE is the rule that is
-        // genuinely the check's and not the grammar's: a ref must be
-        // PINNED. The resolver legitimately reads unpinned refs through
-        // its own pin ladder; a workflow may not, because a call graph
-        // you cannot bound before the run is one you cannot bound at all
-        // (spec 14 law 1).
         match nika_vocab::registry_ref::parse(rest) {
             Err(defect) => {
                 return Some(format!(
@@ -148,6 +132,24 @@ fn static_target_defect(target: &str) -> Option<String> {
             }
             Ok(_) => {}
         }
+        return None;
+    }
+    if target.contains('\\') || target.starts_with('/') {
+        return Some(
+            "the target must be an owned-relative `*.nika` path (no absolute prefix, no `\\`)"
+                .to_owned(),
+        );
+    }
+    let name = nika_source::path_file_name(target).unwrap_or(target);
+    if nika_source::is_retired_program_file_name(name) {
+        return Some(nika_source::retired_rename_hint(name).unwrap_or_else(|| {
+            format!("`{target}` uses a retired Nika program suffix; rename to `*.nika`")
+        }));
+    }
+    if !nika_source::is_canonical_program_path(target) {
+        return Some(format!(
+            "`{target}` is not a Nika program; live program files use the `*.nika` suffix"
+        ));
     }
     None
 }
@@ -767,8 +769,22 @@ outputs:
     }
 
     #[test]
+    fn retired_child_suffix_is_comp_001_purely() {
+        let wf = parse(&parent_yaml("./child.nika.yaml", "{}"));
+        let f = scan_static(&wf);
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].code, "NIKA-COMP-001");
+        assert!(f[0].detail.contains("retired"), "{}", f[0].detail);
+        assert!(
+            !f[0].detail.contains("cannot read"),
+            "suffix gate is before parse: {}",
+            f[0].detail
+        );
+    }
+
+    #[test]
     fn templated_target_is_comp_001_purely() {
-        let wf = parse(&parent_yaml("./x-${{ inputs.env }}.nika.yaml", "{}"));
+        let wf = parse(&parent_yaml("./x-${{ inputs.env }}.nika", "{}"));
         let f = scan_static(&wf);
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].code, "NIKA-COMP-001");
@@ -788,8 +804,8 @@ outputs:
 
     #[test]
     fn unreadable_child_is_comp_001_resolved() {
-        let wf = parse(&parent_yaml("./ghost.nika.yaml", "{}"));
-        let f = scan_resolved(&wf, "parent.nika.yaml", &mut |_| {
+        let wf = parse(&parent_yaml("./ghost.nika", "{}"));
+        let f = scan_resolved(&wf, "parent.nika", &mut |_| {
             Err("No such file or directory (os error 2)".to_owned())
         });
         assert_eq!(f.len(), 1, "{f:?}");
@@ -807,13 +823,13 @@ permits:
 tasks:
   audit:
     invoke:
-      workflow: \"./child.nika.yaml\"
+      workflow: \"./child.nika\"
       args: { bogus: 1 }
     returns: integer
 ";
         let wf = parse(yaml);
-        let f = scan_resolved(&wf, "parent.nika.yaml", &mut |p| {
-            assert_eq!(p, "child.nika.yaml", "resolved against the parent dir");
+        let f = scan_resolved(&wf, "parent.nika", &mut |p| {
+            assert_eq!(p, "child.nika", "resolved against the parent dir");
             Ok(CHILD_OK.to_owned())
         });
         let codes: Vec<&str> = f.iter().map(|x| x.code).collect();
@@ -836,12 +852,12 @@ permits:
 tasks:
   audit:
     invoke:
-      workflow: \"./child.nika.yaml\"
+      workflow: \"./child.nika\"
       args: { url: \"https://example.com\" }
     returns: { object: { report: string } }
 ";
         let wf = parse(yaml);
-        let f = scan_resolved(&wf, "parent.nika.yaml", &mut |_| Ok(CHILD_OK.to_owned()));
+        let f = scan_resolved(&wf, "parent.nika", &mut |_| Ok(CHILD_OK.to_owned()));
         assert!(f.is_empty(), "{f:?}");
     }
 
@@ -856,15 +872,15 @@ permits:
 tasks:
   audit:
     invoke:
-      workflow: \"./child.nika.yaml\"
+      workflow: \"./child.nika\"
       args: { url: 42 }
   audit2:
     invoke:
-      workflow: \"./child.nika.yaml\"
+      workflow: \"./child.nika\"
       args: { url: \"${{ const.u }}\" }
 ";
         let wf = parse(yaml);
-        let f = scan_resolved(&wf, "parent.nika.yaml", &mut |_| Ok(CHILD_OK.to_owned()));
+        let f = scan_resolved(&wf, "parent.nika", &mut |_| Ok(CHILD_OK.to_owned()));
         assert_eq!(f.len(), 1, "templated arg is the run's to render: {f:?}");
         assert_eq!(f[0].task, "audit");
         assert!(f[0].detail.contains("`url`"), "{}", f[0].detail);
@@ -872,9 +888,9 @@ tasks:
 
     #[test]
     fn self_launch_is_comp_003() {
-        let yaml = parent_yaml("./parent.nika.yaml", "{}");
+        let yaml = parent_yaml("./parent.nika", "{}");
         let wf = parse(&yaml);
-        let f = scan_resolved(&wf, "./parent.nika.yaml", &mut |_| Ok(yaml.clone()));
+        let f = scan_resolved(&wf, "./parent.nika", &mut |_| Ok(yaml.clone()));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].code, "NIKA-COMP-003");
         assert!(f[0].detail.contains("→"), "{}", f[0].detail);
@@ -882,12 +898,12 @@ tasks:
 
     #[test]
     fn two_file_cycle_is_comp_003() {
-        let a = parent_yaml("./b.nika.yaml", "{}");
-        let b = parent_yaml("./a.nika.yaml", "{}");
+        let a = parent_yaml("./b.nika", "{}");
+        let b = parent_yaml("./a.nika", "{}");
         let wf = parse(&a);
-        let f = scan_resolved(&wf, "a.nika.yaml", &mut |p| match p {
-            "b.nika.yaml" => Ok(b.clone()),
-            "a.nika.yaml" => Ok(a.clone()),
+        let f = scan_resolved(&wf, "a.nika", &mut |p| match p {
+            "b.nika" => Ok(b.clone()),
+            "a.nika" => Ok(a.clone()),
             other => Err(format!("unexpected read `{other}`")),
         });
         assert_eq!(f.len(), 1, "{f:?}");
@@ -896,15 +912,15 @@ tasks:
 
     #[test]
     fn acyclic_chain_is_clean_and_reads_are_memoized() {
-        let a = parent_yaml("./b.nika.yaml", "{}");
-        let b = parent_yaml("./c.nika.yaml", "{}");
+        let a = parent_yaml("./b.nika", "{}");
+        let b = parent_yaml("./c.nika", "{}");
         let mut reads = 0usize;
         let wf = parse(&a);
-        let f = scan_resolved(&wf, "a.nika.yaml", &mut |p| {
+        let f = scan_resolved(&wf, "a.nika", &mut |p| {
             reads += 1;
             match p {
-                "b.nika.yaml" => Ok(b.clone()),
-                "c.nika.yaml" => Ok(CHILD_OK.to_owned()),
+                "b.nika" => Ok(b.clone()),
+                "c.nika" => Ok(CHILD_OK.to_owned()),
                 other => Err(format!("unexpected read `{other}`")),
             }
         });
@@ -924,11 +940,11 @@ permits:
 tasks:
   audit:
     invoke:
-      workflow: \"./child.nika.yaml\"
+      workflow: \"./child.nika\"
       args: { url: \"https://api.example.com/x\" }
 ";
         let wf = parse(parent);
-        let f = scan_resolved(&wf, "parent.nika.yaml", &mut |_| Ok(CHILD_OK.to_owned()));
+        let f = scan_resolved(&wf, "parent.nika", &mut |_| Ok(CHILD_OK.to_owned()));
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].code, "NIKA-COMP-002");
         assert!(f[0].detail.contains("exec"), "{}", f[0].detail);
@@ -943,7 +959,7 @@ permits:
 tasks:
   audit:
     invoke:
-      workflow: \"./child.nika.yaml\"
+      workflow: \"./child.nika\"
       args: { url: \"https://example.com\" }
 ";
         let child = "\
@@ -957,7 +973,7 @@ tasks:
     exec: { command: [\"echo\", \"${{ inputs.url }}\"] }
 ";
         let wf = parse(parent);
-        let f = scan_resolved(&wf, "parent.nika.yaml", &mut |_| Ok(child.to_owned()));
+        let f = scan_resolved(&wf, "parent.nika", &mut |_| Ok(child.to_owned()));
         assert!(f.is_empty(), "{f:?}");
     }
 
@@ -966,14 +982,14 @@ tasks:
         // F-O8 « absent = zero authority »: no parent permits ⇒ the parent
         // boundary is ∅ (not « no wall »), so the child's concrete exec
         // need exceeds it — containment refuses (law 3's ∩ cuts to zero).
-        let wf = parse(&parent_yaml("./child.nika.yaml", "{}"));
+        let wf = parse(&parent_yaml("./child.nika", "{}"));
         let child = "\
 nika: child
 tasks:
   go:
     exec: { command: [\"rm\", \"-rf\", \"x\"] }
 ";
-        let f = scan_resolved(&wf, "parent.nika.yaml", &mut |_| Ok(child.to_owned()));
+        let f = scan_resolved(&wf, "parent.nika", &mut |_| Ok(child.to_owned()));
         assert!(
             f.iter().any(|x| x.code == "NIKA-COMP-002"),
             "absent parent boundary = ∅ → the child's need escapes it: {f:?}"
@@ -1049,18 +1065,14 @@ outputs:
 
     #[test]
     fn a_priced_child_folds_into_the_parent_envelope() {
-        let wf = parent_calling("./child.nika.yaml");
+        let wf = parent_calling("./child.nika");
         let child_floor = crate::check(&parse(CHILD_PRICED)).cost.min_path_total_usd;
         assert!(child_floor > 0.0, "the fixture prices");
         let report =
-            crate::check_composed(
-                &wf,
-                "parent.nika.yaml",
-                &mut |_| Ok(CHILD_PRICED.to_owned()),
-            );
+            crate::check_composed(&wf, "parent.nika", &mut |_| Ok(CHILD_PRICED.to_owned()));
         assert_eq!(report.cost.composed.len(), 1, "{:?}", report.cost.composed);
         assert_eq!(report.cost.composed[0].task, "call");
-        assert_eq!(report.cost.composed[0].target, "./child.nika.yaml");
+        assert_eq!(report.cost.composed[0].target, "./child.nika");
         assert!(
             (report.cost.min_path_total_usd - child_floor).abs() < 1e-12,
             "the parent's floor IS the child's: {} vs {child_floor}",
@@ -1083,14 +1095,14 @@ nika: middle
 tasks:
   call:
     invoke:
-      workflow: \"./leaf.nika.yaml\"
+      workflow: \"./leaf.nika\"
 ";
-        let wf = parent_calling("./middle.nika.yaml");
+        let wf = parent_calling("./middle.nika");
         let leaf_floor = crate::check(&parse(CHILD_PRICED)).cost.min_path_total_usd;
-        let report = crate::check_composed(&wf, "parent.nika.yaml", &mut |p| {
+        let report = crate::check_composed(&wf, "parent.nika", &mut |p| {
             Ok(match p {
-                "middle.nika.yaml" => middle.to_owned(),
-                "leaf.nika.yaml" => CHILD_PRICED.to_owned(),
+                "middle.nika" => middle.to_owned(),
+                "leaf.nika" => CHILD_PRICED.to_owned(),
                 other => panic!("unexpected read: {other}"),
             })
         });
@@ -1108,15 +1120,11 @@ tasks:
     #[test]
     fn the_calling_tasks_multipliers_scale_the_child() {
         let wf = parse(
-            "nika: parent\ntasks:\n  call:\n    for_each: { items: [\"a\", \"b\"] }\n    retry: { max_attempts: 3 }\n    invoke:\n      workflow: \"./child.nika.yaml\"\n",
+            "nika: parent\ntasks:\n  call:\n    for_each: { items: [\"a\", \"b\"] }\n    retry: { max_attempts: 3 }\n    invoke:\n      workflow: \"./child.nika\"\n",
         );
         let child = crate::check(&parse(CHILD_PRICED)).cost;
         let report =
-            crate::check_composed(
-                &wf,
-                "parent.nika.yaml",
-                &mut |_| Ok(CHILD_PRICED.to_owned()),
-            );
+            crate::check_composed(&wf, "parent.nika", &mut |_| Ok(CHILD_PRICED.to_owned()));
         assert!(
             (report.cost.min_path_total_usd - 2.0 * child.min_path_total_usd).abs() < 1e-12,
             "2 fanned-out calls, first-try each: {} vs {}",
@@ -1136,12 +1144,11 @@ tasks:
     #[test]
     fn a_gated_call_floors_at_zero_and_an_unknown_fanout_unbounds() {
         let gated = parse(
-            "nika: parent\ntasks:\n  call:\n    when: ${{ inputs.go == \"yes\" }}\n    invoke:\n      workflow: \"./child.nika.yaml\"\n",
+            "nika: parent\ntasks:\n  call:\n    when: ${{ inputs.go == \"yes\" }}\n    invoke:\n      workflow: \"./child.nika\"\n",
         );
         let child = crate::check(&parse(CHILD_PRICED)).cost;
-        let report = crate::check_composed(&gated, "parent.nika.yaml", &mut |_| {
-            Ok(CHILD_PRICED.to_owned())
-        });
+        let report =
+            crate::check_composed(&gated, "parent.nika", &mut |_| Ok(CHILD_PRICED.to_owned()));
         assert_eq!(
             report.cost.min_path_total_usd, 0.0,
             "gates closed ⇒ the cheapest path never calls"
@@ -1152,11 +1159,10 @@ tasks:
         );
 
         let fanned = parse(
-            "nika: parent\ntasks:\n  call:\n    for_each: { items: \"${{ tasks.seed.output }}\" }\n    invoke:\n      workflow: \"./child.nika.yaml\"\n  seed:\n    exec: { command: [\"echo\", \"[]\"] }\n",
+            "nika: parent\ntasks:\n  call:\n    for_each: { items: \"${{ tasks.seed.output }}\" }\n    invoke:\n      workflow: \"./child.nika\"\n  seed:\n    exec: { command: [\"echo\", \"[]\"] }\n",
         );
-        let report = crate::check_composed(&fanned, "parent.nika.yaml", &mut |_| {
-            Ok(CHILD_PRICED.to_owned())
-        });
+        let report =
+            crate::check_composed(&fanned, "parent.nika", &mut |_| Ok(CHILD_PRICED.to_owned()));
         assert!(
             report.cost.has_unbounded,
             "an unknown iteration count makes the call's spend unbounded"
@@ -1171,8 +1177,8 @@ tasks:
   spend:
     infer: { prompt: hi, model: \"anthropic/claude-sonnet-5\" }
 ";
-        let wf = parent_calling("./child.nika.yaml");
-        let report = crate::check_composed(&wf, "parent.nika.yaml", &mut |_| Ok(child.to_owned()));
+        let wf = parent_calling("./child.nika");
+        let report = crate::check_composed(&wf, "parent.nika", &mut |_| Ok(child.to_owned()));
         assert!(
             report.cost.has_unbounded,
             "no max_tokens in the child ⇒ the parent's total is no ceiling"
@@ -1181,8 +1187,8 @@ tasks:
 
     #[test]
     fn an_unreadable_child_contributes_nothing_and_comp_001_owns_it() {
-        let wf = parent_calling("./ghost.nika.yaml");
-        let report = crate::check_composed(&wf, "parent.nika.yaml", &mut |_| {
+        let wf = parent_calling("./ghost.nika");
+        let report = crate::check_composed(&wf, "parent.nika", &mut |_| {
             Err("No such file or directory (os error 2)".to_owned())
         });
         assert!(report.cost.composed.is_empty(), "no double report");
@@ -1200,19 +1206,19 @@ nika: a
 tasks:
   call:
     invoke:
-      workflow: \"./b.nika.yaml\"
+      workflow: \"./b.nika\"
 ";
         let b = "\
 nika: b
 tasks:
   call:
     invoke:
-      workflow: \"./a.nika.yaml\"
+      workflow: \"./a.nika\"
 ";
-        let report = crate::check_composed(&parse(a), "a.nika.yaml", &mut |p| {
+        let report = crate::check_composed(&parse(a), "a.nika", &mut |p| {
             Ok(match p {
-                "a.nika.yaml" => a.to_owned(),
-                "b.nika.yaml" => b.to_owned(),
+                "a.nika" => a.to_owned(),
+                "b.nika" => b.to_owned(),
                 other => panic!("unexpected read: {other}"),
             })
         });

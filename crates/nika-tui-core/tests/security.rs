@@ -25,7 +25,7 @@ fn a_five_thousand_task_chain_folds_without_a_trap() {
         }));
     }
     let wf = serde_json::json!({
-        "file": "chain.nika.yaml", "engine": "test", "prompt": "",
+        "file": "chain.nika", "engine": "test", "prompt": "",
         "permits": [], "missing": "", "tasks": tasks,
     });
     let run: Run = serde_json::from_value(serde_json::json!({
@@ -66,7 +66,7 @@ fn the_input_ceiling_is_a_named_refusal() {
 #[test]
 fn hostile_markup_is_escaped_at_the_source() {
     let wf = serde_json::json!({
-        "file": "x.nika.yaml", "engine": "test", "prompt": "", "permits": [], "missing": "",
+        "file": "x.nika", "engine": "test", "prompt": "", "permits": [], "missing": "",
         "tasks": [{ "id": "a</script><script>b", "verb": "infer", "glyph": "◇", "needs": [] }],
     });
     let run = serde_json::json!({"trace": "t", "when": "recorded", "output": "", "steps": []});
@@ -111,7 +111,7 @@ fn every_one_of_the_five_embedding_escapes_is_proven_alone() {
         // The character rides inside a task id, the caller-controlled byte
         // path this escape exists to cover.
         let wf = serde_json::json!({
-            "file": "x.nika.yaml", "engine": "test", "prompt": "", "permits": [], "missing": "",
+            "file": "x.nika", "engine": "test", "prompt": "", "permits": [], "missing": "",
             "tasks": [{
                 "id": format!("a{raw}b"),
                 "verb": "infer", "glyph": "◇", "needs": [],
@@ -197,7 +197,7 @@ fn the_wave_walk_scales_with_the_chain_not_its_square() {
             })
             .collect();
         serde_json::from_value(serde_json::json!({
-            "file": "c.nika.yaml", "engine": "test", "prompt": "",
+            "file": "c.nika", "engine": "test", "prompt": "",
             "permits": [], "missing": "", "tasks": tasks,
         }))
         .expect("wf")
@@ -290,7 +290,7 @@ fn the_grouping_scales_with_the_tasks_not_their_square() {
             })
             .collect();
         serde_json::from_value(serde_json::json!({
-            "file": "c.nika.yaml", "engine": "test", "prompt": "",
+            "file": "c.nika", "engine": "test", "prompt": "",
             "permits": [], "missing": "", "tasks": tasks,
         }))
         .expect("wf")
@@ -364,7 +364,7 @@ fn the_door_scales_with_the_run_not_its_square() {
             .collect();
         (
             serde_json::json!({
-                "file": "d.nika.yaml", "engine": "test", "prompt": "",
+                "file": "d.nika", "engine": "test", "prompt": "",
                 "permits": [], "missing": "", "tasks": tasks,
             })
             .to_string(),

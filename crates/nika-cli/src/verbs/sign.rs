@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika sign <workflow.nika.yaml>` — author-binding: ONE detached
+//! `nika sign <workflow.nika>` — author-binding: ONE detached
 //! minisign over the EXACT bytes → `<file>.minisig` (the workflow itself
 //! never changes; v1 signs raw bytes · canonical-YAML is a later wave).
 
@@ -10,7 +10,7 @@ use clap::Args;
 
 #[derive(Args)]
 pub struct SignArgs {
-    /// Workflow file (`*.nika.yaml`) to sign — or to verify with `--check`.
+    /// Workflow file (`*.nika`) to sign — or to verify with `--check`.
     pub file: String,
     /// Verify the `<file>.minisig` sidecar instead of minting it
     /// (exits: 0 valid · 2 FILE invalid/forged · 3 ENV missing/none).
@@ -21,8 +21,18 @@ pub struct SignArgs {
 #[must_use]
 pub fn run(args: &SignArgs) -> VerbOutput {
     use crate::seal::WorkflowSig as Ws;
+    if args.file == "-" {
+        return VerbOutput::file(
+            "`nika sign` needs a `*.nika` program path — stdin is not a signing target".to_owned(),
+        );
+    }
+    let source = match crate::verbs::RunSource::capture(&args.file) {
+        Ok(source) => source,
+        Err(out) => return out,
+    };
+    let path = std::path::Path::new(&args.file);
     if args.check {
-        return match crate::seal::check_workflow(std::path::Path::new(&args.file)) {
+        return match crate::seal::check_workflow_bytes(path, source.source().as_bytes()) {
             Ws::Valid(fp) => VerbOutput::ok(format!("valid signature · key {fp}")),
             Ws::Invalid(why) => VerbOutput::file(format!("INVALID signature · {why}")),
             Ws::MissingSidecar => VerbOutput::env("no sidecar — `nika sign` mints one".to_owned()),
@@ -32,7 +42,7 @@ pub fn run(args: &SignArgs) -> VerbOutput {
     let Some((sk, pk_box)) = crate::seal::load_signing_key() else {
         return VerbOutput::env("no run-signing key — `nika key init` mints one".to_owned());
     };
-    match crate::seal::sign_workflow_with(std::path::Path::new(&args.file), &sk, &pk_box) {
+    match crate::seal::sign_workflow_bytes(path, source.source().as_bytes(), &sk, &pk_box) {
         Ok(fp) => VerbOutput::ok(format!("signed {} · key {fp}", args.file)),
         Err(msg) => VerbOutput::env(format!("nika sign: {msg}")),
     }
@@ -49,12 +59,26 @@ mod tests {
         }
     }
 
+    #[test]
+    fn sign_refuses_stdin_dash_and_does_not_mint_a_dash_sidecar() {
+        let out = run(&SignArgs {
+            file: "-".to_owned(),
+            check: false,
+        });
+        assert_eq!(out.code, super::super::exit::FILE, "{}", out.text);
+        assert!(out.text.contains("stdin"), "{}", out.text);
+        assert!(
+            !std::path::Path::new("-.minisig").exists(),
+            "must not emit -.minisig"
+        );
+    }
+
     /// `sign --check` without a sidecar is the ENV class (3) — the
     /// deterministic branch (no custody read happens before it).
     #[test]
     fn check_without_a_sidecar_is_env() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         std::fs::write(&wf, "nika: v1\n").expect("fixture");
         let out = run(&args(&wf, true));
         assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
@@ -66,12 +90,44 @@ mod tests {
     #[test]
     fn check_a_garbage_sidecar_is_file() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         std::fs::write(&wf, "nika: v1\n").expect("fixture");
-        std::fs::write(dir.path().join("flow.nika.yaml.minisig"), "garbage\n").expect("sidecar");
+        std::fs::write(dir.path().join("flow.nika.minisig"), "garbage\n").expect("sidecar");
         let out = run(&args(&wf, true));
         assert_eq!(out.code, super::super::exit::FILE, "{}", out.text);
         assert!(out.text.contains("INVALID signature"), "{}", out.text);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sign_does_not_hang_on_a_fifo_named_nika() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fifo = dir.path().join("pipe.nika");
+        nix::unistd::mkfifo(&fifo, nix::sys::stat::Mode::S_IRUSR).expect("fifo");
+        let start = std::time::Instant::now();
+        let out = run(&args(&fifo, true));
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(2),
+            "FIFO must not block sign"
+        );
+        assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
+        assert!(out.text.contains("not a regular"), "{}", out.text);
+    }
+
+    #[test]
+    fn live_sign_refuses_retired_and_plain_yaml_paths() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let yaml = dir.path().join("notes.yaml");
+        std::fs::write(&yaml, "nika: notes\ntasks: {}\n").expect("yaml");
+        let out = run(&args(&yaml, true));
+        assert_eq!(out.code, super::super::exit::FILE, "{}", out.text);
+        assert!(out.text.contains("not a Nika program"), "{}", out.text);
+
+        let retired = dir.path().join("flow.nika.yaml");
+        std::fs::write(&retired, "nika: flow\ntasks: {}\n").expect("retired");
+        let out = run(&args(&retired, false));
+        assert_eq!(out.code, super::super::exit::FILE, "{}", out.text);
+        assert!(out.text.contains("retired"), "{}", out.text);
     }
 
     /// The sign half answers honestly about custody: on a keyless
@@ -81,11 +137,11 @@ mod tests {
     #[test]
     fn sign_either_mints_the_sidecar_or_names_the_fix() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let wf = dir.path().join("flow.nika.yaml");
+        let wf = dir.path().join("flow.nika");
         std::fs::write(&wf, "nika: v1\n").expect("fixture");
         let out = run(&args(&wf, false));
         if out.code == super::super::exit::OK {
-            assert!(dir.path().join("flow.nika.yaml.minisig").exists());
+            assert!(dir.path().join("flow.nika.minisig").exists());
         } else {
             assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
             assert!(out.text.contains("key"), "{}", out.text);

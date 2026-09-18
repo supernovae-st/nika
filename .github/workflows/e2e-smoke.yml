@@ -142,7 +142,7 @@ jobs:
           # (the string form died at 0.103 — NIKA-PARSE-019) and an absent
           # `permits:` block is ZERO authority (F-O8 · NEP-0003), so the
           # exec grant is explicit.
-          cat > hello.nika.yaml <<'WORKFLOW'
+          cat > hello.nika <<'WORKFLOW'
           nika: hello-smoke
           permits:
             exec: [echo]
@@ -153,7 +153,7 @@ jobs:
           WORKFLOW
 
           # Gate: structural validity
-          if nika check hello.nika.yaml; then
+          if nika check hello.nika; then
             printf '[PASS] nika check exit 0\n'
           else
             printf '::error::[FAIL] nika check exited non-zero\n'
@@ -163,7 +163,7 @@ jobs:
           # Gate: execution — the exec verb runs the shell command. (`nika run`
           # captures task stdout into the structured result rather than echoing
           # it, so we assert a clean exit rather than grepping the human render.)
-          if nika run hello.nika.yaml; then
+          if nika run hello.nika; then
             printf '[PASS] nika run (exec) exit 0\n'
           else
             printf '::error::[FAIL] nika run (exec) exited non-zero\n'
@@ -176,7 +176,7 @@ jobs:
       - name: mock infer (offline)
         run: |
           set -euo pipefail
-          cat > mock-infer.nika.yaml <<'WORKFLOW'
+          cat > mock-infer.nika <<'WORKFLOW'
           nika: mock-infer-smoke
           model: mock/echo
           tasks:
@@ -185,7 +185,7 @@ jobs:
                 prompt: hi
           WORKFLOW
 
-          if nika run mock-infer.nika.yaml; then
+          if nika run mock-infer.nika; then
             printf '[PASS] mock infer exit 0\n'
           else
             printf '::error::[FAIL] mock infer exited non-zero\n'

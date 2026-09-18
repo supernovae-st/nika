@@ -39,12 +39,12 @@ judge() {
 
 for dialect in cursor claude; do
   if [ "$dialect" = cursor ]; then
-    payload='{"command":"nika run fixture.nika.yaml","cwd":"/tmp"}'
+    payload='{"command":"nika run fixture.nika","cwd":"/tmp"}'
     unrelated='{"command":"ls","cwd":"/tmp"}'
     allow='{"permission":"allow"}'
     deny='{"permission":"deny","agent_message":"fixture judge refused"}'
   else
-    payload='{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"nika run fixture.nika.yaml"},"cwd":"/tmp"}'
+    payload='{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"nika run fixture.nika"},"cwd":"/tmp"}'
     unrelated='{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"cwd":"/tmp"}'
     allow='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
     deny='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"fixture judge refused"}}'

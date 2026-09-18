@@ -1,6 +1,6 @@
 ---
 name: nika-authoring
-description: Author, check and repair .nika.yaml workflows and static NIKA findings. Use migration for existing automation ports and debugging for run failures.
+description: Author, check and repair .nika workflows and static NIKA findings. Use migration for existing automation ports and debugging for run failures.
 ---
 
 # Authoring Nika workflows

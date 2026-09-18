@@ -1110,7 +1110,7 @@ mod tests {
     /// outputs.<name> terminal edge + the totals line naming the widest.
     #[test]
     fn flow_joins_plan_edges_with_trace_sizes() {
-        let wf = flow_workflow("flow.nika.yaml");
+        let wf = flow_workflow("flow.nika");
         let tr = flow_trace("flow.ndjson");
         let out = flow(&tr.to_string_lossy(), &wf.to_string_lossy(), plain());
         assert_eq!(out.code, exit::OK, "{}", out.text);
@@ -1165,7 +1165,7 @@ mod tests {
     #[test]
     fn flow_degrades_honestly_without_sizes_and_flags_mismatch() {
         use nika_types::resource::{KeyValue, Value};
-        let wf = flow_workflow("flow-bare.nika.yaml");
+        let wf = flow_workflow("flow-bare.nika");
         let events = vec![
             demo::bare_event(nika_event::EventKind::WorkflowStarted, 0)
                 .with_field(KeyValue::new("workflow", Value::String("other-run".into()))),

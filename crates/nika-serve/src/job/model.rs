@@ -488,7 +488,7 @@ pub struct JobRecord {
     /// Manual or schedule provenance, defaulting to manual for v3 stores.
     #[serde(default)]
     pub(crate) origin: JobOrigin,
-    /// Contained `.nika.yaml` name captured at admission. Empty on stores
+    /// Contained `.nika` name captured at admission. Empty on stores
     /// written before this field existed; those queued rows cannot be
     /// rescheduled after a crash.
     #[serde(default)]

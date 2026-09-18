@@ -44,7 +44,7 @@
   <div class="card" id="card">
     <div class="card-header">
       <div class="dots"><i></i><i></i><i></i></div>
-      <span class="title">release-brief.nika.yaml</span>
+      <span class="title">release-brief.nika</span>
       <span class="badge fail" id="badge-fail" style="position:absolute;right:20px;opacity:0">1 escape</span>
       <span class="badge ok" id="badge-ok" style="position:absolute;right:20px;opacity:0">clean</span>
     </div>
@@ -69,7 +69,7 @@
     <!-- ACT 1 · the audit — captured from the real cli -->
     <div class="act" id="act1">
       <div class="term">
-        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd1">nika check release-brief.nika.yaml</span><span class="caret" id="caret1"></span></span>
+        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd1">nika check release-brief.nika</span><span class="caret" id="caret1"></span></span>
         <span class="ln out1"><span class="ok"> ✔ PLAN    </span> 3 wave(s) · 4 task(s) · max parallelism 2</span>
         <span class="ln out1"><span class="ok"> ✔ SECRETS </span> no information-flow escapes</span>
         <span class="ln out1"><span class="ok"> ✔ TOOLS   </span> every nika: tool names a canonical builtin</span>
@@ -97,7 +97,7 @@
     <!-- ACT 3 · every vector green — captured from the real cli -->
     <div class="act" id="act3">
       <div class="term">
-        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd3">nika check release-brief.nika.yaml</span><span class="caret" id="caret3"></span></span>
+        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd3">nika check release-brief.nika</span><span class="caret" id="caret3"></span></span>
         <span class="ln out3"><span class="ok"> ✔ PLAN    </span> 3 wave(s) · 4 task(s) · max parallelism 2</span>
         <span class="ln out3"><span class="ok"> ✔ SECRETS </span> no information-flow escapes</span>
         <span class="ln out3"><span class="ok"> ✔ TYPES   </span> every deep output reference fits its declared shape</span>

@@ -119,13 +119,13 @@ fn welcome_speaks_the_wired_facet() {
 #[test]
 fn check_refusal_speaks_the_wired_facet() {
     let scratch = scratch_dir("mt-check");
-    let file = scratch.join("azure.nika.yaml");
+    let file = scratch.join("azure.nika");
     std::fs::write(
         &file,
         "nika: azure-seat\nmodel: azure/gpt-4o\npermits: {}\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 5 }\n",
     )
     .expect("plant");
-    let text = surface(&scratch, &["check", "azure.nika.yaml"]);
+    let text = surface(&scratch, &["check", "azure.nika"]);
     let line = text
         .lines()
         .find(|l| l.contains("wired in this build"))

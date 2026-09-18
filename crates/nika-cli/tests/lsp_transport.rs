@@ -64,16 +64,16 @@ fn lsp_survives_a_compact_block_bomb_and_keeps_serving() {
             serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
             // the bomb, delivered as a document.
             serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen",
-                "params":{"textDocument":{"uri":"file:///t/bomb.nika.yaml",
+                "params":{"textDocument":{"uri":"file:///t/bomb.nika",
                     "languageId":"nika","version":1,"text":bomb}}}),
             // a SECOND document, opened AFTER the bomb — its diagnostics only
             // publish if the server survived and kept draining the stream.
             serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen",
-                "params":{"textDocument":{"uri":"file:///t/after.nika.yaml",
+                "params":{"textDocument":{"uri":"file:///t/after.nika",
                     "languageId":"nika","version":1,"text":VALID}}}),
             // a request AFTER the bomb — a reply proves it still answers.
             serde_json::json!({"jsonrpc":"2.0","id":7,"method":"textDocument/hover",
-                "params":{"textDocument":{"uri":"file:///t/after.nika.yaml"},
+                "params":{"textDocument":{"uri":"file:///t/after.nika"},
                     "position":{"line":0,"character":0}}}),
             serde_json::json!({"jsonrpc":"2.0","id":2,"method":"shutdown","params":null}),
             serde_json::json!({"jsonrpc":"2.0","method":"exit"}),
@@ -99,7 +99,7 @@ fn lsp_survives_a_compact_block_bomb_and_keeps_serving() {
     // (3) survival: the post-bomb document published AND the post-bomb request
     // was answered. A crashed or wedged server would show neither.
     assert!(
-        stdout.contains("after.nika.yaml"),
+        stdout.contains("after.nika"),
         "the server kept serving — the post-bomb document published: {stdout}"
     );
     assert!(
@@ -119,7 +119,7 @@ fn lsp_survives_adversarial_request_positions_over_stdio() {
     // butterfly + é in a value, a multibyte task id — every position below
     // lands in, or past, one of this document's multibyte spans.
     let multi = "nika: butterfly\ntasks:\n  café:\n    exec: { command: [\"echo\", \"${{ tasks.café.output }}\"] }\n";
-    let uri = "file:///t/multi.nika.yaml";
+    let uri = "file:///t/multi.nika";
     let max = u32::MAX;
     let mut child = bin()
         .arg("lsp")

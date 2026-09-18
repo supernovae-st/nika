@@ -16,6 +16,305 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.120.0](https://github.com/supernovae-st/nika/compare/v0.119.0..v0.120.0) - 2026-09-18
+
+### Added
+
+- **Scheduled beats carry per-beat inputs.** An `arm:` entry may declare
+  `inputs: { tenant: acme, limit: 5 }` — the `--var KEY=VALUE` pairs every
+  fire binds to the workflow's declared `inputs:`, so a tenant-parameterized
+  workflow is armed once per tenant instead of rendered once per tenant with
+  hardcoded defaults (`NIKA-1708`). One scalar per key, coerced by the declared
+  type at admission exactly as a run's `--var` is; a key the workflow does not
+  declare refuses by name before any claim is written. A beat without inputs
+  keeps its exact generation and schedule revision.
+- **A resumed leg names the trace it continues.** `nika run --resume <trace>` journals `resumed_from` (the resumed journal's trace id) on its boot manifest, says it on `run_settled`, and `nika trace ls --json` lists it, so a continuation renders as one leg chain instead of a nonce lookup.
+- **Serve named-job inputs.** Accept literal JSON input values on named job
+  requests, validate declared keys, types and required values before
+  admission, and carry them through durable recovery to the production runtime.
+  Bind input values into job evidence, record the API caller origin, preserve
+  access pins and frozen workflow bytes, and reject snapshot overlays, null
+  input maps and unknown request fields.
+  Advertise `jobInputs` so clients can refuse older residents before sending
+  values those residents could silently ignore.
+- **Literal native run inputs.** `nika run --inputs-json -` accepts bounded JSON-object stdin with typed validation and `api-caller` origins; `--sdk-identity` advertises `inputsLiteral`, while existing `--var` semantics remain unchanged.
+- **Stateless Compile foundation.** Add structured in-memory requests,
+  outcomes, stable questions and source-only Check previews. Exact embedded
+  skeletons accept explicit answers; unsupported intent stays incomplete.
+  Textual and structured constant edits share one operation and guarded
+  assembler, preserving canonical literal values and unrelated semantics.
+  Compile performs no workflow effects, credential probes or model calls.
+  This is a bounded foundation for #1663; natural-language composition,
+  Graph and SDK/Serve adapters remain separate work. The CLI authoring
+  door is `nika compile` in this release.
+- **Offline text-only agent probes.** `mock/text` returns deterministic text
+  even when tools are offered, allowing completion and budget refusal paths
+  to be exercised without a paid provider. `mock/echo` keeps its existing
+  tool-call behavior.
+- **Eight bounded native authoring skeletons and their shared lessons.**
+  Add bounded batch, record validation, snapshot comparison, deduplication,
+  field projection, parallel review, optional-file recovery and aggregation.
+  Their filled lessons are generated from the same canonical sources used by
+  the documentation, with golden outputs and runtime boundary cases.
+  `nika compile` names a skeleton's filled precedent, and MCP `nika_template`
+  accepts `filled: true` with an exact template name. The native authoring
+  gauntlet now runs in CI. Generic filler words no longer count as evidence
+  for selecting a specific workflow.
+
+### Changed
+
+- **One Compile authoring door.** Replaced the retired authoring command and wizard with `nika compile`, using the stateless Compile core for exact skeletons, explicit constant edits and the offline hello lesson. Structured questions remain incomplete without substitution or implicit writes; Ready candidates require an explicit destination and overwrite requires `--force`.
+  The adapter and atomic materializer use the existing CLI host member; the
+  compiler core remains independent in onboarding. The native authoring
+  gauntlet now consumes structured previews and explicit answers.
+- **Canonical program files are `*.nika`.** Live disk discovery, CLI
+  capture, Serve registry names, cadence references, DAP inventory,
+  session grounding and Compile materialization accept lowercase
+  `.nika` only. `.nika.yaml` / `.nika.yml` are retired with an
+  actionable rename diagnostic; `nika.yaml` remains the project file
+  and `.nika/` remains runtime state. Parser source-string and stdin
+  APIs stay filename-independent. The embedded pack is vendored from
+  nika-spec `e255dbf72336bcb98c8163cd8c087e023051a5ab` via
+  `scripts/sync-pack.sh`.
+- **Agent examples and authoring guidance.** The agent-loop skeleton and
+  code-review example now teach explicit completion and bounded result repair.
+  Guides distinguish cumulative input/output token budgets from per-request
+  context windows and monetary cache pricing. Workflow values and existing
+  golden outcomes are preserved.
+- **Explicit agent completion (breaking).** From the 0.120 development train,
+  an `agent:` task whose effective whitelist grants `nika:done` requires an
+  explicit completion call. Text-only plans receive feedback to continue or
+  finish within the existing turn and token budgets. Without the sentinel
+  grant, natural text completion remains available; exclusions are respected.
+  This prevents a plan-only run from falsely reporting success (#1519).
+
+### Fixed
+
+- **The codex infer seat is re-attested at spawn.** PATH presence admitted
+  the seat and an 8-line shell script named `codex` that spoke the event
+  shape received the full prompt and was believed. The one-shot now probes
+  `codex --version` before any prompt is written: the answer must name
+  `codex-cli` and sit inside the 0.149 floor, the attested version rides the
+  outcome, and the output schema lands owner-only instead of world-readable.
+- **`weekly-radar` and `pr-review-fanout` run green under the macOS
+  seatbelt.** The confined `git` cannot read a `.git` no `permits.fs.read`
+  names, and granting it would complete the NIKA-SEC-009 trifecta. Both
+  examples now recover an explicit "unavailable" value the prompt repeats and
+  the outputs carry, never an empty week or a clean bill of health.
+- **The mock agent plan never invents a filesystem path.** The offline
+  rehearsal called the first granted tool with `path: "mock"`, a path outside
+  every lane a workflow could declare, and the boundary refused it hard
+  (NIKA-SEC-004), so `snippets/delegate` died under `--model mock/echo`. A
+  first-granted tool that reaches `permits.fs` now defers to a granted
+  `nika:done`, or answers in text when no sentinel is granted.
+- **The hygiene privacy scan judges tracked text consistently across platforms.** Arbitrary compressed GIF/MP4 bytes no longer masquerade as private source paths under Linux Git. The mutation suite proves Git's binary exclusion while preserving the existing text mutation cases and public-path exceptions. Classification follows Git, not file extensions; this scan does not inspect readable strings inside files Git treats as binary or claim format-aware inspection of media.
+- **Changelog assembly preserves permissions on GNU and BSD systems.** The mode lookup discards output from a failed `stat` invocation before its fallback, preventing Linux filesystem metadata from reaching `chmod` and blocking release tooling. Disposable-repository tests prove native and partial-output fallback folds retain mode 640 and consume the fragment from the working tree and index.
+- **Check immutable exec programs before launch.** Resolve bare const-backed argv programs, including indexed references, against `permits.exec` even when later arguments are computed. Input defaults remain replaceable at run time; the permissions panel explicitly defers computed programs to runtime enforcement.
+- **Explain reuses value-authority lessons.** Offline explain reuses the parser’s value-authority teaching for retired vars/env forms and presents exec-shape guidance on both CLI and oracle doors.
+  Scalar exec bodies and string commands share the full grammar and migration guidance with explain. The lesson stays intact in parse-fatal JSON without including the source frame.
+- **Exec shape refusals teach both command forms.** Scalar exec refusals and offline explain share pasteable command-argv and explicit-shell examples, with the check --fix migration pointer.
+- **Authentication failures teach the offline route.** Provider authentication refusals share the INFER-001 explanation: present keys are not pre-probed, a mock rehearsal requires removing per-task model pins, and another configured access path can be selected explicitly. Mocked streaming and non-streaming provider matrices retain a single request and terminal auth classification.
+- **Run help states the scope of a model override.** `--model` replaces only the current workflow’s default model. Task pins and invoked children keep their own models, and choosing `mock/echo` does not make their calls or other effects offline.
+- **Model overrides explain the model selections they leave in place.** Check names explicit infer and agent pins and child workflow invocation sites. Human runs with `--model` repeat that admitted scope before provider dispatch, after task selection; the chosen models, access planning and machine output formats remain unchanged. Quiet mode retains its existing announcement policy.
+- **Unpriced cloud models and preview budgets are explicit.** The check cost
+  table distinguishes unpriced catalogued cloud models from local models and
+  unknown provider/model names. The `run --dry-run` help names its budget
+  exemption; previewing does not judge `--max-cost-usd`.
+- **Keep unresolved exec grants comment-only.** `nika check --infer-permits` no longer substitutes `exec: ["sh"]` for a shell body that the runtime cannot admit under a program allowlist. Human and JSON output teach an argv rewrite or explicit program resolution without printing a maximal grant.
+- **Secret-output refusals teach both repair choices.** Remove the output or explicitly sanction its export while preserving existing egress rules. Human and JSON findings share the repair. Local secret usage reports declared egress rules instead of falsely claiming no effect; external sanctioned flows retain their warning.
+- **Exec-floor refusals name the script permissions.** Interpreter repairs name both the executable allowlist and the script's read grant; SEC-001 explains the blocked classes and a confined script-file invocation, without suggesting an internal bypass flag.
+- **Trace show and replay expose recorded gate decisions.** The human read shows each gate's question, answer, decision, source and declared operator in journal order, including refusals. Older missing fields remain explicitly unrecorded. Values are quoted to escape terminal controls, retained without truncation, and read without changing the journal or consulting today's workflow or operator.
+- **Name the correct file for composition permission repairs.** `nika check`
+  distinguishes absent and empty child permissions from a refusing parent.
+  Conservative intersection refusals name both declarations without falsely
+  blaming either side. The permission intersection and runtime authority are
+  unchanged.
+- **Refuse agent tools with no filesystem authority.** A granted filesystem tool now reports an empty required read or write side before the run, teaching either a scoped path grant or removal of the tool. Nonempty path coverage remains a runtime judgment; pure and call-dependent tools retain their existing rules.
+- **Shared fix success messages name the live shape.** The shared fix ladder describes the task map it actually repairs, so CLI and oracle success messages no longer invent a workflow object or rely on CLI-only string replacement.
+- **Fix repairs retired task fields without guessing shell commands.**
+  CLI and MCP repairs map invoke.params to args, sequence-shaped exec.argv
+  to command, and scalar/list for_each collections to items. Conflicting
+  or opaque keys stop the migration pass; payload text, comments and line
+  endings stay intact. Unsupported layouts keep their original finding.
+- **Doctor explains an alternate HOME even in captured output.** Compare HOME with the account database instead of guessing from temporary path names; if the account is unavailable, say the comparison is unknown. HOME selects Nika’s home but does not clear other environment variables. The warning preserves doctor’s exit status and stays off its JSON surface, including on a terminal.
+- **Actionable HTTP authentication failures.** Serve authentication errors distinguish an absent credential from an invalid or mismatched bearer token, without exposing credential bytes or changing authentication checks.
+- **Discoverable health endpoint.** Serve unknown-route errors teach the canonical public `GET /health` endpoint while preserving authentication on `/v1/` paths.
+- **Hello scaffolds teach a small local model and the inference timeout.** The optional local seat is qwen2.5:0.5b instead of a reasoning model. Buffered timeout errors retain their actual duration and explain the 300s local / 30s cloud defaults, the task-level `timeout: 7m` override, and the separate streaming idle guard. New workflows keep their existing offline rehearsal default; transport deadlines and retry classification are unchanged.
+- **Filesystem permit refusals explain path spelling.** The diagnostic names
+  the requested path and declared boundary and explains possible aliases such
+  as `/tmp` and `/private/tmp` on macOS. It teaches consistent spelling before
+  changing grants, without resolving symlinks or widening permissions.
+  The failure plan projects filesystem refusal facts instead of recognizing
+  diagnostic prose, and preserves `NIKA-AUTH-006` for an absent boundary.
+- **Explain missing cadence time zones on the HTTP API.** A zoneless
+  schedule cadence now produces an English refusal with the exact
+  `TZ=<IANA zone>` repair on the public wire.
+- **Serve shutdown has an explicit queue and recovery contract.** The shared
+  30-second drain on SIGINT/SIGTERM, interruption at grace expiry, and queued
+  snapshot recovery are documented and covered by forty-job and isolated
+  signal/SIGKILL tests. The systemd unit allows 45 seconds for drain and cleanup;
+  filesystem or backend cleanup is not claimed to have a hard deadline.
+- **Large fan-outs retain their item evidence within the journal bound.**
+  Large tables use ordered `task_items` pages and a terminal summary;
+  trace readers reconstruct them only when every page and count agrees.
+  Small tables keep their inline shape. The 1 MiB line and 256 MiB file
+  bounds remain in force, including for oversized individual outputs.
+- **The approval claim store is pruned.** A resume that opens `~/.nika/approval-claims` removes the claims whose ticket expired more than the trace retention window ago, and says how many it removed; a claim inside the window stays a live replay guard.
+- **Expose resident store formats and pin v3 evidence.** The public
+  `/health` response reports `storeFormatVersion` for jobs and schedules
+  from the stores' own version constants. A frozen jobs v3 fixture pins
+  queued and settled records, receipts, event hashes, the writer stamp and
+  incarnation without rewriting evidence on read.
+- **Prove named admission across path replacement.** Deterministic HTTP
+  route tests replace files and directories with symlinks between lookup
+  and capture. Both refuse before creating a job or entering the backend;
+  receipts retain the captured snapshot digest when regular files change
+  before or after capture.
+- **Resident journal loss is visible without changing execution status.**
+  Jobs and SSE expose a durable `evidence.status: mirror_lost` with a
+  bounded reason after journal open, write, finalization or record refusal.
+  Lost mirrors advertise no chain head; `nika doctor` reports the affected
+  jobs. Historical records without loss metadata make no new claim.
+- **Expose uncertain trace liveness.** `trace outputs --json` reports the writer lease as alive, dead or unknown separately from run settlement, with null liveness after settlement. Human `trace ls` marks an unjudgeable writer as `running?`; existing machine state words remain stable.
+- **Task-relative nested timeout regression.** The nested-workflow timeout regression now measures the parent task interval from its timeout receipt instead of including process startup and preflight. It also verifies the timeout code, child journal and absence of successful child completion.
+- **Proven prompt gates avoid redundant hints.** A blocking human gate credited by the Trifecta judge no longer adds a `headless-prompt` advisory, allowing the gated workflow to reach zero hints. Uncredited prompts retain their guidance, and a prompt with `default: false` still cannot mitigate `NIKA-SEC-009`.
+- **`nika:grep` refuses files outside its read grants.** A directory-only
+  grant now returns `NIKA-SEC-004` before reading an ungranted file, instead
+  of reporting no matches or partial results as success. Grant both the
+  search root and its files, for example `./notes` and `./notes/*`.
+- **Expression errors list the callable forms the engine accepts.** Unknown
+  global and method calls now teach `size(x)`, `has(x)`, `x.size()`,
+  `x.contains(s)`, `x.startsWith(s)` and `x.endsWith(s)`, as does
+  `nika explain NIKA-VAR-005`. The help derives from the definitions used
+  by both parsers and runtime dispatch; accepted syntax is unchanged.
+- **Value-shape guidance for data tools.** Teach `nika:jq` and `nika:validate` callers that input is a value, never a file path to read, and explain explicit JSON decoding when an object or array is intended while preserving legal string values.
+- **Isolated release-train rehearsal.** `nika try release-train` now stages an isolated demo release and supplies its rehearsal version, reaching the conductor gate offline instead of failing on a missing input. Explicit `--var` values retain precedence; the canonical example and `nika compile` keep the required production version without a demo default.
+- **Model overrides preserve admission refusals.** Model overrides now revalidate workflow composition and MCP server configuration on both check and run, refusing missing servers instead of returning a successful check report without execution. Human MCP diagnostics retain the same registry explanation as JSON.
+- **Unwind cleanups resolve their own `with:` bindings.** Tasks joined by
+  `after: { parent: unwind }` now materialize bindings before their `when:`
+  gate and verb, using the run's value authorities and the parent's fresh
+  record. Invalid bindings are journaled without dispatching the cleanup
+  or changing the parent's outcome; subsequent cleanups still run. Resolved
+  values retain their provenance and remain subject to workflow permissions.
+  Exercised cleanup taint lifts record the cleanup identity, justification,
+  and resolved value digest; skipped or unresolvable cleanups record no lift.
+  Live display and trace replay attribute cleanup witnesses to their declared
+  unwind rows and distinguish success, failure, skip, timeout, and an attempt
+  without a recorded outcome; cleanup does not inflate main-task settlement counts.
+  Shared cleanups retain each parent's outcome using the execution lane's
+  attachment indices; a successful attachment cannot erase another's failure
+  or supply a result to a following cleanup. Final cards use the same main-only count.
+- **Unknown command-form panics carry no command payload.** The five forward-compatibility refusals in command scanning, static argv analysis, permission checking and inference keep their failure signals without formatting command data into panic output. Both current command variants remain handled explicitly.
+- **`nika:jq` binds the keys of an object `input:` as jq variables.** An
+  identifier-shaped key becomes `$key` (the `jq --argjson` shape), so « stamp a
+  sibling onto every row » is `$rows | map(. + {batch: $batch})` instead of the
+  `. as $in` dance or the silent `null` that `.batch` read inside `map` yields
+  under jq's own semantics, which are unchanged; `.` stays the whole input and
+  the run-start clock variable is never shadowed (#1578).
+- **The xai catalog entry describes the models it lists.** The provider
+  advertised "Grok-3, Grok-4" and a `vision` tag while its list carried only
+  grok-3 and grok-3-mini-fast, both text-only per xAI's docs; an author
+  reading the prose would pin `xai/grok-4`, which `nika check` then names as
+  outside this binary's snapshot. The description now names the listed
+  models, the `vision` tag is dropped until a listed model accepts image
+  input, and a catalog test pins the rule for every provider.
+- **Doctor no longer prints the unset media fallback as a listener.** The
+  image and tts rows rendered `local → http://localhost:8080 default` under
+  `ok` when `NIKA_IMAGE_LOCAL_URL` / `NIKA_TTS_LOCAL_URL` were unset,
+  reading as a wired path on the most contended local port. Doctor never
+  probes the media planes, so the rows now name the backend as unset,
+  disclose the engine fallback as unprobed, and mark a set URL as
+  configured, never reachable.
+- **The pricing row says how old its snapshot is at every level.** A
+  47-day-old price table rendered as an unqualified `ok`, so every cost
+  ceiling derived from it read as current; the identity line now carries `N
+  days old` (or `age unknown` when the clock cannot be compared), and the
+  stale branch keeps its threshold and its upgrade fix.
+- **A present cloud key is a path a run can start on.** `nika doctor --json`
+  and `nika welcome --json` reported `seats_ready: []` on a host whose
+  `XAI_API_KEY` was set and whose `best` path named xai: the list held
+  harness seats only. It now names every path a run can start on today, the
+  ready harness seats first (ratified order) and then the configured keyed
+  cloud paths; the `--access` pins keep their own reader, so the adoption
+  ladder and the seat-escape tail never mistake a key for a seat, and a
+  keyless local seed still never enters (presence is not detection).
+- **`nika:convert` reads a string input as JSON text under `from: json`.** A
+  JSON document handed over as a string — an exec stdout, a `nika:read`, a
+  `recover:` literal — is parsed the way every other `from:` format reads its
+  text, so `to: csv` no longer refuses it with « CSV output needs an array of
+  objects »; a string that is not JSON text stays the string value it always
+  was (#1584).
+- **Shallow `welcome --json` reads the trace store for `nothing_has_run`.**
+  The field was a router constant (`true`) while the same cwd held hundreds
+  of sealed traces and `--deep` counted them, so an agent following the
+  short door would offer `nika compile` to a project that had already run and
+  spent money. It is now `true` only while `.nika/traces` is empty (the same
+  count the adoption ladder climbs on), and the machine mirror carries that
+  count as `machine.recorded_runs`.
+- **A foreign journal refuses on resume.** `nika run <file> --resume <trace>` now refuses (exit 3, the cross-project posture) when the journal names another `nika:` id, saying both workflows and both content hashes; the « file CHANGED » notice is kept for the same id with edited bytes.
+- **Run machine refusals use compact JSON lines.** `run --json` emits one
+  compact object for Check and budget refusals, preserving real finding codes
+  before execution. Successful and failed admitted runs keep their NDJSON
+  lifecycle stream; human rendering and `check --json` are unchanged.
+- **Agent exclusions no longer demand authority.** Negative tool rules such as
+  `!nika:done` no longer produce a spurious permission refusal during static
+  checks or runtime dispatch, or appear as required grants in inferred
+  permissions and task capability projections. Positive tool grants retain
+  their boundary checks.
+- **Stable incremental builds.** Build identity watches only existing Git
+  paths. An absent `packed-refs` file previously made every Cargo invocation
+  rebuild the runtime, including every CLI probe in the WASM differential.
+  Packed branches watch their existing ref directory so a new loose ref still
+  refreshes the embedded commit. Both build-script consumers also watch their
+  shared helper source so edits invalidate cached build scripts.
+- **Build identity follows the current worktree.** The runtime and runtime-laws build scripts resolve Cargo's current package directory when executed, so a cached script cannot stamp a neighboring checkout's Spec pin into the build; a relocation regression exercises both real scripts across two distinct pins and rejects missing or inconsistent identities.
+- **Unix cancellation keeps its signal subscriptions for the whole run.**
+  SIGINT/SIGTERM are registered before dispatch and retained between the
+  graceful cancel and immediate abort, closing both subscription windows.
+  CLI signal and cross-door settlement tests hold a task on a controlled
+  FIFO and wait for cancellation acknowledgement before releasing it, with
+  exact task counts and sealed-trace checks instead of timing sleeps.
+- **Agent guidance loads the details relevant to the task.** Workflow
+  authoring uses focused references, and `nika init` includes those
+  resources so generated projects can follow every skill link. Contributor
+  and plugin prompts preserve scope, authorization and completion while
+  clarifying mock effects, cost estimates and trace evidence.
+- **Actionable hygiene failures.** The dashboard preserves complete multiline
+  diagnostics in quiet tables and JSON, including embedded pipes and quotes.
+  A successful first child can no longer hide a later failing self-test.
+- **Reliable project initialization.** `nika init --wire detected` preserves
+  the detected-client scope instead of substituting `all`. Both init paths
+  propagate wiring failures; a refused wire no longer produces a ready panel.
+  New projects receive a human `NIKA.md` guide, file-purpose receipts, Git
+  guidance and an explicit offer for shared project settings. Claude project
+  hooks ship beside Cursor hooks, with project-root paths and canonical scripts.
+  Existing files remain preserved. The optional `nika.yaml` receipt carries
+  its status marker before the next-command block.
+- **Manual issue proof checks read the issue.** Workflow dispatch fetches one
+  current closed-issue snapshot instead of judging empty event fields. The
+  body, labels and close reason reach the same proof gate as normal close
+  events. Fetch failures and invalid snapshots stop without reopening or
+  commenting on the issue; an actual missing proof still refuses the close.
+- **Private OIDC failure diagnostics.** A failed npm release publish distinguishes rejected OIDC exchange from publication refused after successful authentication. Diagnostics use fixed messages and remove private debug logs without printing their contents.
+- **Interrupted gates stop safely.** An interrupted pre-push gate now exits after its active child finishes instead of releasing its lock and continuing. Interrupting lock acquisition also cleans up a newly acquired lease without leaving later pushes blocked.
+- **Manual release replay reuses the original signed payloads.** Native
+  archives, their checksum manifest, and the npm tarball and sidecar are
+  fetched by stable release asset IDs, with missing or changed inputs
+  refused. A single selected payload feeds all downstream consumers;
+  replay attestations are checked before publication, while tag pushes
+  retain their generated bytes and all existing release barriers.
+- **Runtime conformance models.** The check/run verdict oracle preserves a
+  fixture's declared root `mock/*` variant on both sides. Its blanket
+  `mock/echo` override previously changed the new text-only completion and
+  budget probes into tool-calling runs. Live catalog models still run with
+  the offline echo override.
+
+### Security
+
+- **Reject TLS 1.3 handshake messages across encryption-level boundaries.**
+  Update rustls to 0.23.45 in the engine, fuzz and ACP quarantine lockfiles
+  for [RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285.html),
+  with rustls-webpki 0.103.15. Existing dependency policy remains enforced.
 ## [0.119.0](https://github.com/supernovae-st/nika/compare/v0.118.7..v0.119.0) - 2026-09-12
 
 ### Added

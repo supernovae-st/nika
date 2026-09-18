@@ -33,7 +33,7 @@ ask 'a git inspection' '{"command":"git status","cwd":"/tmp"}'
 ask 'the claude dialect too' '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"cwd":"/tmp"}'
 
 # --- ours, and unjudgeable: deny, visibly ---------------------------------
-ask 'a bare run' '{"command":"nika run x.nika.yaml","cwd":"/tmp"}'
+ask 'a bare run' '{"command":"nika run x.nika","cwd":"/tmp"}'
 ask 'an absolute-path run' '{"command":"/opt/nika/bin/nika run x","cwd":"/tmp"}'
 ask 'a wrapped run' '{"command":"sh -c \"nika run x\"","cwd":"/tmp"}'
 ask 'the cargo target name' '{"command":"nika-cli run x","cwd":"/tmp"}'

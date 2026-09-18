@@ -303,7 +303,7 @@ fn parse_arm_entry(node: &Node) -> Result<ArmEntry, ProjectError> {
             missing(
                 "workflow",
                 "REQUIRED — what fires",
-                "workflow: workflows/mon-beat.nika.yaml",
+                "workflow: workflows/mon-beat.nika",
             )
         })?,
         cadence: cadence.ok_or_else(|| {
@@ -357,15 +357,20 @@ fn inputs_map(value: &Node) -> Result<BTreeMap<String, String>, ProjectError> {
     Ok(out)
 }
 
-/// `workflow:` — a non-empty `*.nika.yaml` path (shape only; the
+/// `workflow:` — a non-empty `*.nika` path (shape only; the
 /// file's existence is the consuming edge's call — zero I/O here).
 fn workflow_path(value: &Node) -> Result<String, ProjectError> {
     let raw = scalar(value, "workflow")?.as_str();
-    if raw.is_empty() || !raw.ends_with(".nika.yaml") {
+    if raw.is_empty()
+        || raw.contains('\\')
+        || raw.starts_with('/')
+        || raw.contains(':')
+        || !nika_source::is_canonical_program_path(raw)
+    {
         return Err(ProjectError::at(
             ProjectErrorKind::BadValue,
-            format!("`workflow: {raw}` — a `*.nika.yaml` path relative to the registry"),
-            "workflow: workflows/mon-beat.nika.yaml",
+            format!("`workflow: {raw}` — a `*.nika` path relative to the registry"),
+            "workflow: workflows/mon-beat.nika",
             line_of(value.span()),
         ));
     }

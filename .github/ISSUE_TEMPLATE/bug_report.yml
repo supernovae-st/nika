@@ -27,7 +27,7 @@ body:
     id: repro
     attributes:
       label: Minimal reproduction
-      description: A `.nika.yaml` workflow or the exact commands that reproduce it.
+      description: A `.nika` workflow or the exact commands that reproduce it.
       render: yaml
   - type: dropdown
     id: os

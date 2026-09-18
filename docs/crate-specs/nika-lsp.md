@@ -17,7 +17,7 @@
 
 ## 1. Purpose
 
-`nika-lsp` is the **editor brain** for `.nika.yaml`. It turns the engine's
+`nika-lsp` is the **editor brain** for `.nika`. It turns the engine's
 static guarantees into live, in-editor feedback: red squiggles from the
 ADR-092 check ladder, hover docs for the 4 verbs and the language keywords,
 completion for the locked vocabulary and the workflow's own task ids, an

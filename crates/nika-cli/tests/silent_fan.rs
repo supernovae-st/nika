@@ -61,7 +61,7 @@ tasks:
 #[test]
 fn a_repaired_iteration_lands_on_the_fan_row() {
     let dir = scratch("silent-fan");
-    let wf = write_file(&dir, "fan.nika.yaml", FAN);
+    let wf = write_file(&dir, "fan.nika", FAN);
     write_file(&dir, "items/a.txt", "A\n");
     write_file(&dir, "items/c.txt", "C\n");
 
@@ -98,7 +98,7 @@ fn a_repaired_iteration_lands_on_the_fan_row() {
 #[test]
 fn a_healthy_fan_keeps_its_historical_row() {
     let dir = scratch("healthy-fan");
-    let wf = write_file(&dir, "fan.nika.yaml", FAN);
+    let wf = write_file(&dir, "fan.nika", FAN);
     write_file(&dir, "items/a.txt", "A\n");
     write_file(&dir, "items/GHOST.txt", "G\n");
     write_file(&dir, "items/c.txt", "C\n");

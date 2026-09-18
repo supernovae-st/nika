@@ -7,7 +7,7 @@
 //! overlap lock, the per-tick ceiling and the record — the OS units
 //! (W3) and `serve` (W5) both end here, so the law lives exactly once.
 //! The beat to fire is the workflow file's radical (D4 —
-//! `workflows/doctor.nika.yaml` → `doctor`; a collision takes `-2`,
+//! `workflows/doctor.nika` → `doctor`; a collision takes `-2`,
 //! `-3` in file order), the firing state is the sidecar of
 //! [`ArmState`] (D3), and the clock is injected at the
 //! verb's edge (D5 — `--now`, hidden): the pure decision never reads
@@ -554,7 +554,7 @@ impl FireVerdict {
 }
 
 /// The beat labels, in file order (D4): the workflow file's radical —
-/// `workflows/doctor.nika.yaml` → `doctor` — a collision taking `-2`,
+/// `workflows/doctor.nika` → `doctor` — a collision taking `-2`,
 /// `-3`. The identity lives at L0 since W3 (`nika_cadence::emit::labels`
 /// — the OS units name themselves from the same source); this shim keeps
 /// the verb's call sites, and its pin below guards the delegation.
@@ -1198,7 +1198,7 @@ mod tests {
     /// A one-beat registry (validated green) — the `decide` fixture.
     fn registry_with(body: &str) -> ArmRegistry {
         let text = format!(
-            "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
+            "nika: proj\narm:\n  - workflow: workflows/doctor.nika\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
         );
         let registry = nika_cadence::parse_registry(&text).expect("parse");
         assert!(
@@ -1251,7 +1251,7 @@ mod tests {
         let shot = RunShot {
             project: OwnedDir::open(project.path()).expect("project capability"),
             root: project.path().to_path_buf(),
-            workflow: "workflows/doctor.nika.yaml".to_owned(),
+            workflow: "workflows/doctor.nika".to_owned(),
             source: "nika: doctor\ntasks: {}\n".to_owned(),
             generation: generation.clone(),
             ceiling: 0.25,
@@ -1266,7 +1266,7 @@ mod tests {
         assert_eq!(shot.inputs().collect::<Vec<_>>(), [("tenant", "acme")]);
         assert_eq!(shot.input_vars().collect::<Vec<_>>(), ["tenant=acme"]);
         assert_eq!(shot.root(), project.path());
-        assert_eq!(shot.workflow(), "workflows/doctor.nika.yaml");
+        assert_eq!(shot.workflow(), "workflows/doctor.nika");
         assert_eq!(shot.source(), "nika: doctor\ntasks: {}\n");
         assert_eq!(shot.generation(), &generation);
         assert_eq!(shot.ceiling().to_bits(), 0.25f64.to_bits());
@@ -1351,19 +1351,19 @@ mod tests {
         let text = concat!(
             "nika: proj\n",
             "arm:\n",
-            "  - workflow: a/doctor.nika.yaml\n",
+            "  - workflow: a/doctor.nika\n",
             "    cadence: \"TZ=UTC 0 3 * * *\"\n",
             "    plafond: 0.25\n",
             "    manqué: sauter\n",
-            "  - workflow: b/doctor.nika.yaml\n",
+            "  - workflow: b/doctor.nika\n",
             "    cadence: \"TZ=UTC 0 4 * * *\"\n",
             "    plafond: 0.25\n",
             "    manqué: sauter\n",
-            "  - workflow: c/doctor.nika.yaml\n",
+            "  - workflow: c/doctor.nika\n",
             "    cadence: \"TZ=UTC 0 5 * * *\"\n",
             "    plafond: 0.25\n",
             "    manqué: sauter\n",
-            "  - workflow: nightly.nika.yaml\n",
+            "  - workflow: nightly.nika\n",
             "    cadence: \"TZ=UTC 0 6 * * *\"\n",
             "    plafond: 0.25\n",
             "    manqué: sauter\n",

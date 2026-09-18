@@ -139,7 +139,7 @@ fn mcp_object(text: &str) -> Value {
 fn facade(source: &str, native_strict: bool) -> Value {
     let audit = nika_cli_host::oracle::audit_source(
         source,
-        "parity.nika.yaml",
+        "parity.nika",
         None,
         None,
         nika_cli_host::oracle::AuditOptions::default(),
@@ -198,7 +198,7 @@ fn semantic_env_free(v: &Value) -> Value {
 
 /// One dirty fixture through the three doors.
 fn dirty_parity(rig: &Rig, name: &str, source: &str, expect_code: Option<&str>) {
-    let (code, cli) = rig.cli(&format!("{name}.nika.yaml"), source, &[]);
+    let (code, cli) = rig.cli(&format!("{name}.nika"), source, &[]);
     assert_eq!(code, 2, "{name}: the CLI refuses\n{cli:#}");
     assert_eq!(cli["clean"], false, "{name}: {cli:#}");
     let (is_error, text) = rig.mcp(source, false);
@@ -236,7 +236,7 @@ fn dirty_parity(rig: &Rig, name: &str, source: &str, expect_code: Option<&str>) 
 #[test]
 fn a_clean_file_is_clean_on_the_three_doors() {
     let rig = Rig::new("clean");
-    let (code, cli) = rig.cli("clean.nika.yaml", CLEAN, &[]);
+    let (code, cli) = rig.cli("clean.nika", CLEAN, &[]);
     assert_eq!(code, 0, "{cli:#}");
     assert_eq!(cli["clean"], true, "{cli:#}");
     let (is_error, text) = rig.mcp(CLEAN, true);
@@ -271,7 +271,7 @@ fn a_boundary_finding_is_the_same_finding_on_the_three_doors() {
 fn a_hallucinated_model_is_a_finding_on_the_three_doors() {
     let rig = Rig::new("hallucinated");
     dirty_parity(&rig, "hallucinated", HALLUCINATED, None);
-    let (_, cli) = rig.cli("hallucinated.nika.yaml", HALLUCINATED, &[]);
+    let (_, cli) = rig.cli("hallucinated.nika", HALLUCINATED, &[]);
     assert_eq!(cli["models_resolve"], false, "{cli:#}");
     assert!(
         cli["model_findings"]
@@ -316,10 +316,10 @@ fn a_capacity_cap_is_red_on_the_three_doors() {
 #[test]
 fn the_native_strict_lane_folds_the_same_hint_on_the_three_doors() {
     let rig = Rig::new("native");
-    let (code, cli) = rig.cli("native.nika.yaml", NATIVE, &[]);
+    let (code, cli) = rig.cli("native.nika", NATIVE, &[]);
     assert_eq!(code, 0, "advisory: clean\n{cli:#}");
     assert_eq!(cli["clean"], true, "{cli:#}");
-    let (code, strict) = rig.cli("native.nika.yaml", NATIVE, &["--native-strict"]);
+    let (code, strict) = rig.cli("native.nika", NATIVE, &["--native-strict"]);
     assert_eq!(code, 2, "strict: red\n{strict:#}");
     assert_eq!(strict["native_strict_clean"], false, "{strict:#}");
     let (is_error, text) = rig.mcp(NATIVE, true);

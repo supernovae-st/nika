@@ -27,7 +27,7 @@ impl Rig {
         for sub in ["home", "work"] {
             std::fs::create_dir_all(root.join(sub)).expect("rig dir");
         }
-        std::fs::write(root.join("work").join("wait.nika.yaml"), WORKFLOW).expect("workflow");
+        std::fs::write(root.join("work").join("wait.nika"), WORKFLOW).expect("workflow");
         Self { root }
     }
 
@@ -46,7 +46,7 @@ impl Rig {
 
     fn spawn_run(&self) -> HeldRun {
         HeldRun::spawn(
-            self.command(&["run", "wait.nika.yaml", "--json", "--max-cost-usd", "0.01"]),
+            self.command(&["run", "wait.nika", "--json", "--max-cost-usd", "0.01"]),
             &self.root.join("work"),
         )
     }

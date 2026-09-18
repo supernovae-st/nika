@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # check-on-edit — the plugin's seatbelt: after the agent edits a
-# *.nika.yaml, run the audit so findings reach the agent immediately
+# *.nika, run the audit so findings reach the agent immediately
 # (the file is the contract; check is the oracle).
 #
 # ONE script, TWO dialects, THREE surfaces (Codex emits the Claude Code
@@ -41,7 +41,7 @@ else
 fi
 
 case "$file" in
-  *.nika.yaml | *.nika.yml) ;;
+  *.nika | *.nika) ;;
   *) done_quiet ;;
 esac
 

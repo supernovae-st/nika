@@ -421,7 +421,7 @@ mod tests {
     /// the tempdir rides along so it outlives the session.
     fn journey_fixture() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
         let dir = tempfile::tempdir().expect("tmpdir");
-        let wf = dir.path().join("w.nika.yaml");
+        let wf = dir.path().join("w.nika");
         std::fs::write(
             &wf,
             "nika: journey\ntasks:\n  alpha:\n    exec:\n      command: [\"true\"]\n  beta:\n    after:\n      alpha: success\n    exec:\n      command: [\"true\"]\n",

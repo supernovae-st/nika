@@ -51,7 +51,7 @@ fn command(dir: &std::path::Path) -> Command {
 
 fn execute(source: &str, args: &[&str], bytes: &[u8]) -> (tempfile::TempDir, Output) {
     let dir = tempfile::tempdir().expect("room");
-    std::fs::write(dir.path().join("case.nika.yaml"), source).expect("source");
+    std::fs::write(dir.path().join("case.nika"), source).expect("source");
     let mut child = command(dir.path())
         .args(args)
         .stdin(Stdio::piped())
@@ -73,7 +73,7 @@ fn execute(source: &str, args: &[&str], bytes: &[u8]) -> (tempfile::TempDir, Out
 fn literal(source: &str, bytes: &[u8], mode: &[&str]) -> (tempfile::TempDir, Output) {
     let mut args = vec![
         "run",
-        "case.nika.yaml",
+        "case.nika",
         "--inputs-json",
         "-",
         "--no-gc",
@@ -149,7 +149,7 @@ fn literal_json_reaches_runtime_and_origin_manifest_without_interpretation() {
         json!({"text":"api-caller", "count":"api-caller", "data":"api-caller", "record":"api-caller", "nothing":"api-caller", "region":"file"})
     );
     assert_eq!(
-        std::fs::read_to_string(dir.path().join("case.nika.yaml")).expect("source"),
+        std::fs::read_to_string(dir.path().join("case.nika")).expect("source"),
         WF
     );
 }
@@ -174,7 +174,7 @@ fn unknown_missing_and_wrong_type_values_refuse_before_any_event() {
 fn empty_object_and_absent_channel_keep_defaults_and_optional_absence() {
     let source = "nika: defaults\ninputs:\n  region: {type: string, default: eu}\n  absent: {type: string}\npermits: {tools: ['nika:jq']}\ntasks:\n  echo:\n    invoke:\n      tool: nika:jq\n      args: {input: '${{ inputs.region }}', expression: '.'}\noutputs:\n  value: '${{ tasks.echo.output }}'\n";
     for flag in [vec!["--inputs-json", "-"], vec![]] {
-        let mut args = vec!["run", "case.nika.yaml", "--output", "json", "--no-gc"];
+        let mut args = vec!["run", "case.nika", "--output", "json", "--no-gc"];
         args.extend(flag);
         let (dir, out) = execute(source, &args, b"{}");
         assert!(out.status.success(), "{out:?}");
@@ -215,7 +215,7 @@ fn channel_conflicts_and_inline_forms_refuse_without_consuming_stdin() {
     for args in [
         vec![
             "run",
-            "case.nika.yaml",
+            "case.nika",
             "--inputs-json",
             "-",
             "--var",
@@ -223,7 +223,7 @@ fn channel_conflicts_and_inline_forms_refuse_without_consuming_stdin() {
             "--json",
         ],
         vec!["run", "-", "--inputs-json", "-", "--json"],
-        vec!["run", "case.nika.yaml", "--inputs-json", "{}", "--json"],
+        vec!["run", "case.nika", "--inputs-json", "{}", "--json"],
     ] {
         let code = if args.contains(&"{}") {
             "invalid_inputs_channel"
@@ -232,7 +232,7 @@ fn channel_conflicts_and_inline_forms_refuse_without_consuming_stdin() {
         };
         // Keep the pipe OPEN: conflict must be decided without waiting for EOF.
         let dir = tempfile::tempdir().expect("room");
-        std::fs::write(dir.path().join("case.nika.yaml"), WF).expect("fixture");
+        std::fs::write(dir.path().join("case.nika"), WF).expect("fixture");
         let mut child = command(dir.path())
             .args(args)
             .stdin(Stdio::piped())
@@ -268,7 +268,7 @@ fn operator_vars_still_resolve_explicit_environment_and_coerce_declared_types() 
     );
     let args = [
         "run",
-        "case.nika.yaml",
+        "case.nika",
         "--no-gc",
         "--output",
         "json",
@@ -312,11 +312,7 @@ fn capability_help_and_source_only_check_match_the_channel() {
     assert!(help.status.success());
     let help = String::from_utf8_lossy(&help.stdout);
     assert!(help.contains("--inputs-json") && help.contains("1 MiB"));
-    let (_, check) = execute(
-        WF,
-        &["check", "case.nika.yaml", "--json"],
-        b"not input JSON",
-    );
+    let (_, check) = execute(WF, &["check", "case.nika", "--json"], b"not input JSON");
     assert!(
         check.status.success(),
         "check never requires runtime values: {check:?}"
@@ -325,7 +321,7 @@ fn capability_help_and_source_only_check_match_the_channel() {
     assert!(!String::from_utf8_lossy(&unrelated.stdout).contains("--inputs-json"));
     let (_, check) = execute(
         WF,
-        &["check", "case.nika.yaml", "--inputs-json", "-", "--json"],
+        &["check", "case.nika", "--inputs-json", "-", "--json"],
         b"{}",
     );
     assert!(
@@ -351,7 +347,7 @@ fn literal_inputs_resume_through_the_same_binding_without_an_argv_payload() {
     let mut resumed = command(dir.path())
         .args([
             "run",
-            "case.nika.yaml",
+            "case.nika",
             "--inputs-json",
             "-",
             "--no-gc",
@@ -400,13 +396,13 @@ fn a_foreign_journal_refuses_the_literal_resume_before_any_event() {
     let trace = journals().pop().expect("the paused journal");
     let recorded = std::fs::read(&trace).expect("journal bytes");
     std::fs::write(
-        dir.path().join("other.nika.yaml"),
+        dir.path().join("other.nika"),
         gated.replace("nika: literal-inputs", "nika: another-workflow"),
     )
     .expect("foreign workflow");
     for mode in [&["--json"][..], &["--output", "json"][..]] {
         let mut child = command(dir.path())
-            .args(["run", "other.nika.yaml", "--inputs-json", "-", "--no-gc"])
+            .args(["run", "other.nika", "--inputs-json", "-", "--no-gc"])
             .args(mode)
             .args(["--answer", "approve=yes", "--resume"])
             .arg(&trace)

@@ -16,31 +16,31 @@ fail=0
 say() { printf ' %s\n' "$*"; }
 
 # ── claim checks ────────────────────────────────────────────────────────
-if nika check "$FIX/broken-pr-review.nika.yaml" >/dev/null 2>&1; then
+if nika check "$FIX/broken-pr-review.nika" >/dev/null 2>&1; then
   say "✖ broken-pr-review fixture PASSES check — the static-check-fix asset lies"
   fail=1
 else
   say "✔ broken fixture fails check (as shown)"
 fi
 
-if nika check "$FIX/permits-escape.nika.yaml" >/dev/null 2>&1; then
+if nika check "$FIX/permits-escape.nika" >/dev/null 2>&1; then
   say "✖ permits-escape fixture PASSES check — the permits-audit asset lies"
   fail=1
 else
   say "✔ permits-escape fixture fails check (as shown)"
 fi
 
-if nika check "$FIX/broken-release-notes.nika.yaml" >/dev/null 2>&1; then
+if nika check "$FIX/broken-release-notes.nika" >/dev/null 2>&1; then
   say "✖ broken-release-notes fixture PASSES check — the full-loop asset lies"
   fail=1
 else
   say "✔ broken-release-notes fixture fails check (as shown)"
 fi
 
-for wf in "$FIX/fixed-pr-review.nika.yaml" "$FIX/meeting-actions.nika.yaml" \
-  "$FIX/permits-fits.nika.yaml" "$FIX/recover-fallback.nika.yaml" \
-  "$FIX/fixed-release-notes.nika.yaml" \
-  "crates/nika-pack/pack/examples/pr-review-fanout.nika.yaml"; do
+for wf in "$FIX/fixed-pr-review.nika" "$FIX/meeting-actions.nika" \
+  "$FIX/permits-fits.nika" "$FIX/recover-fallback.nika" \
+  "$FIX/fixed-release-notes.nika" \
+  "crates/nika-pack/pack/examples/pr-review-fanout.nika"; do
   if nika check "$wf" >/dev/null 2>&1; then
     say "✔ $(basename "$wf") clean (as shown)"
   else
@@ -142,8 +142,8 @@ REGISTER = _register()
 
 
 def shows(slug):
-    """Is `slug` a door bare `nika try` names? (rows read `<slug>.nika.yaml`)"""
-    return f"{slug}.nika.yaml" in REGISTER
+    """Is `slug` a door bare `nika try` names? (rows read `<slug>.nika`)"""
+    return f"{slug}.nika" in REGISTER
 
 
 bad = 0

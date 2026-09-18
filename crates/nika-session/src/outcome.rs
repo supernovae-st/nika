@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn a_change_error_carries_its_class() {
-        let stale = Refusal::from_change(&ChangeError::Stale("a.nika.yaml".to_owned()));
+        let stale = Refusal::from_change(&ChangeError::Stale("a.nika".to_owned()));
         assert_eq!(stale.class, RefusalClass::StaleRevision);
         assert!(stale.to_string().contains("changed since this preview"));
         let out = Refusal::from_change(&ChangeError::OutsideRoot("../x".to_owned()));

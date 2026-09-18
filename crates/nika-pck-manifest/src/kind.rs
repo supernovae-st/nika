@@ -15,7 +15,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ArtifactKind {
-    /// A `.nika.yaml` workflow — the atomic unit.
+    /// A `.nika` workflow — the atomic unit.
     Workflow,
     /// A content pack (spec snapshot · templates · examples).
     Pack,

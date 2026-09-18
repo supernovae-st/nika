@@ -104,13 +104,7 @@ mod tests {
     #[test]
     fn the_rung_names_each_slot_its_line_and_one_command() {
         let mut out = String::new();
-        slots_rung(
-            &mut out,
-            &report(SCAFFOLD),
-            SCAFFOLD,
-            "first.nika.yaml",
-            PLAIN,
-        );
+        slots_rung(&mut out, &report(SCAFFOLD), SCAFFOLD, "first.nika", PLAIN);
         assert!(out.contains("SLOTS"), "{out}");
         assert!(
             out.contains("line    8"),
@@ -122,7 +116,7 @@ mod tests {
             "the marker teaches:\n{out}"
         );
         assert!(
-            out.contains("fill them, then: nika check first.nika.yaml"),
+            out.contains("fill them, then: nika check first.nika"),
             "one pasteable command, naming their file:\n{out}"
         );
     }
@@ -132,13 +126,7 @@ mod tests {
     #[test]
     fn the_rung_reads_as_a_step_not_a_failure() {
         let mut out = String::new();
-        slots_rung(
-            &mut out,
-            &report(SCAFFOLD),
-            SCAFFOLD,
-            "first.nika.yaml",
-            PLAIN,
-        );
+        slots_rung(&mut out, &report(SCAFFOLD), SCAFFOLD, "first.nika", PLAIN);
         assert!(out.contains("ready to be filled"), "{out}");
         for scold in ["✖", "error", "invalid", "broken", "failed"] {
             assert!(
@@ -153,13 +141,7 @@ mod tests {
     fn a_filled_file_gets_no_rung_at_all() {
         let filled = SCAFFOLD.replace("<SLOT: the one model job>", "Summarise the release notes.");
         let mut out = String::new();
-        slots_rung(
-            &mut out,
-            &report(&filled),
-            &filled,
-            "first.nika.yaml",
-            PLAIN,
-        );
+        slots_rung(&mut out, &report(&filled), &filled, "first.nika", PLAIN);
         assert!(out.is_empty(), "{out}");
     }
 

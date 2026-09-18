@@ -6,7 +6,7 @@ use super::*;
 #[test]
 fn http_attach_failure_closes_authority_without_activating_arm() {
     let dir = project("attach-failure", HOURLY_A);
-    write_workflow(dir.path(), "doctor.nika.yaml");
+    write_workflow(dir.path(), "doctor.nika");
     let state_root = dir.path().join("serve-state");
     let result = nika_serve::serve_resident_process(
         dir.path(),

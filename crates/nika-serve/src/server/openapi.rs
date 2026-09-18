@@ -447,7 +447,7 @@ fn schedule_put_schema() -> Value {
         "type": "object", "additionalProperties": false,
         "required": ["workflow", "when", "maxCostUsd", "missed"],
         "properties": {
-            "workflow": {"type": "string", "pattern": "^[^/].*\\.nika\\.yaml$", "maxLength": 1024},
+            "workflow": {"type": "string", "pattern": "^[^/].*\\.nika$", "maxLength": 1024},
             "when": {
                 "oneOf": [
                     {"type": "object", "additionalProperties": false, "required": ["kind", "at"], "properties": {"kind": {"const": "once"}, "at": {"type": "string", "format": "date-time"}}},
@@ -503,7 +503,7 @@ fn openapi_path() -> Value {
 fn workflow_list_path() -> Value {
     json!({"get": {
         "summary": "Contained workflow names",
-        "responses": {"200": {"description": "Project-relative .nika.yaml names under the served registry (--workflows)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowList"}}}}, "401": error_ref()}
+        "responses": {"200": {"description": "Project-relative .nika names under the served registry (--workflows)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowList"}}}}, "401": error_ref()}
     }})
 }
 
@@ -520,7 +520,7 @@ fn job_by_name_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies reject both access and inputs overlays, including null or empty maps. Optional inputs are literal JSON values checked against declared keys, types and required values before a job exists; strings are never CLI @env instructions or expressions.",
+        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies reject both access and inputs overlays, including null or empty maps. Optional inputs are literal JSON values checked against declared keys, types and required values before a job exists; strings are never CLI @env instructions or expressions.",
         "required": ["workflow"],
         "properties": {
             "workflow": {"type": "string", "minLength": 1, "maxLength": 4096},

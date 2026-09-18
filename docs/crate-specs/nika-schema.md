@@ -691,7 +691,7 @@ security-sensitive areas. Proptest is required, not optional.
 
 ### 7.3 Snapshot testing (insta)
 
-- Parser golden tests: ~20 reference `.nika.yaml` files parsed to snapshot
+- Parser golden tests: ~20 reference `.nika` files parsed to snapshot
 - Analyzer golden tests: ~10 workflows analyzed to snapshot
 - Error message goldens: every `SchemaError` variant has Display snapshot
 - Taint report goldens: ~5 workflows with known trust propagation

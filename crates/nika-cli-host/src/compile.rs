@@ -48,10 +48,10 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
         return render::listing(args.json);
     }
     let dest = args.dest.as_ref().or(args.output.as_ref());
-    if dest.is_some_and(|path| !path.ends_with(".nika.yaml")) {
+    if dest.is_some_and(|path| !nika_source::is_canonical_program_path(path)) {
         return render::failure(
             "destination_name",
-            "destination must end in .nika.yaml",
+            "destination must be a canonical *.nika program path",
             exit::FILE,
             args.json,
         );
@@ -112,7 +112,7 @@ fn workflow_id(dest: &str) -> String {
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("workflow");
-    let stem = name.strip_suffix(".nika.yaml").unwrap_or(name);
+    let stem = nika_source::program_stem(name).unwrap_or(name);
     let id: String = stem
         .to_ascii_lowercase()
         .chars()

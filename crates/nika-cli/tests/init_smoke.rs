@@ -82,13 +82,13 @@ fn the_thirty_second_journey_holds_end_to_end() {
     let key = pending["questions"][0]["key"]
         .as_str()
         .expect("question key");
-    assert!(!dir.join("first.nika.yaml").exists());
+    assert!(!dir.join("first.nika").exists());
     let answer = format!("{key}=\"Summarize the gathered text in one sentence.\"");
-    let (code, text) = step(&["compile", "chain", "first.nika.yaml", "--answer", &answer]);
+    let (code, text) = step(&["compile", "chain", "first.nika", "--answer", &answer]);
     assert_eq!(code, Some(0), "{text}");
 
     // 5 · check — the filled workflow passes before any token.
-    let (code, text) = step(&["check", "first.nika.yaml"]);
+    let (code, text) = step(&["check", "first.nika"]);
     assert_eq!(code, Some(0), "audit before run: {text}");
 
     // 6 · run offline — the chain skeleton reads ./README.md (the file
@@ -96,7 +96,7 @@ fn the_thirty_second_journey_holds_end_to_end() {
     //     its own, then runs under mock (zero keys, zero network — the
     //     canary env proves the run needed neither).
     std::fs::write(dir.join("README.md"), "# the stranger's repo\n").expect("readme");
-    let (code, text) = step(&["run", "first.nika.yaml", "--model", "mock/echo"]);
+    let (code, text) = step(&["run", "first.nika", "--model", "mock/echo"]);
     assert_eq!(code, Some(0), "first offline run is green: {text}");
     assert!(text.contains("done"), "{text}");
 
@@ -113,7 +113,7 @@ fn the_thirty_second_journey_holds_end_to_end() {
     assert_eq!(code, Some(0), "the chain verifies: {text}");
 
     // 8 · explain — the human story, now with the recorder section live.
-    let (code, text) = step(&["explain", "first.nika.yaml"]);
+    let (code, text) = step(&["explain", "first.nika"]);
     assert_eq!(code, Some(0), "{text}");
     for needle in [
         "the story",
@@ -134,15 +134,12 @@ fn the_first_hour_walks_end_to_end() {
 
     // 1 · the adoption gesture — the showroom file becomes yours.
     let copy = bin()
-        .args(["compile", "01-hello", "01-hello.nika.yaml"])
+        .args(["compile", "01-hello", "01-hello.nika"])
         .current_dir(&dir)
         .output()
         .expect("copy runs");
     assert_eq!(copy.status.code(), Some(0), "copy is green");
-    assert!(
-        dir.join("01-hello.nika.yaml").is_file(),
-        "the file is yours"
-    );
+    assert!(dir.join("01-hello.nika").is_file(), "the file is yours");
 
     // 2 · the bare lazy door finds the only workflow and says so.
     let run = bin()
@@ -159,19 +156,19 @@ fn the_first_hour_walks_end_to_end() {
 
     // 3 · `new <example slug>` = the same source, the other handle.
     let new = bin()
-        .args(["compile", "01-hello", "twin.nika.yaml"])
+        .args(["compile", "01-hello", "twin.nika"])
         .current_dir(&dir)
         .output()
         .expect("new runs");
     assert_eq!(new.status.code(), Some(0), "new-from-example is green");
     // One resolution, two handles — the SAME example, and each copy names
     // ITSELF. Byte-identity was the old assertion and it pinned a bug: the
-    // copy landing as `twin.nika.yaml` still taught `nika run
-    // 01-hello.nika.yaml`, a command that fails in the reader's own
+    // copy landing as `twin.nika` still taught `nika run
+    // 01-hello.nika`, a command that fails in the reader's own
     // directory. The self-reference follows the destination now, so the
     // two differ in exactly that way and no other.
-    let twin = std::fs::read_to_string(dir.join("twin.nika.yaml")).expect("written");
-    let orig = std::fs::read_to_string(dir.join("01-hello.nika.yaml")).expect("copied");
+    let twin = std::fs::read_to_string(dir.join("twin.nika")).expect("written");
+    let orig = std::fs::read_to_string(dir.join("01-hello.nika")).expect("copied");
     let mut twin_yaml: serde_json::Value = serde_yaml_bw::from_str(&twin).expect("twin YAML");
     let orig_yaml: serde_json::Value = serde_yaml_bw::from_str(&orig).expect("original YAML");
     assert_eq!(twin_yaml["nika"].as_str(), Some("twin"));
@@ -180,7 +177,7 @@ fn the_first_hour_walks_end_to_end() {
         twin_yaml, orig_yaml,
         "only the explicit destination identity differs"
     );
-    assert!(String::from_utf8_lossy(&new.stdout).contains("nika run twin.nika.yaml"));
+    assert!(String::from_utf8_lossy(&new.stdout).contains("nika run twin.nika"));
 
     // 4 · found a second repo around an example, scriptably.
     let home = dir.join("founded");
@@ -193,7 +190,7 @@ fn the_first_hour_walks_end_to_end() {
     assert_eq!(init.status.code(), Some(0), "init --example is green");
     let out = String::from_utf8_lossy(&init.stdout);
     assert!(
-        out.contains("created workflows/01-hello.nika.yaml"),
+        out.contains("created workflows/01-hello.nika"),
         "the lesson founds the repo: {out}"
     );
     assert!(out.contains("audited"), "the proof ladder ran: {out}");
@@ -220,10 +217,10 @@ fn init_recipe_scaffolds_the_curriculum_and_audits_it() {
     let stdout = String::from_utf8(out.stdout).expect("utf8");
     // The 4-pattern curriculum lands on disk…
     for rel in [
-        "workflows/01-hello-chain.nika.yaml",
-        "workflows/02-parallel-fanout.nika.yaml",
-        "workflows/03-gated-ship.nika.yaml",
-        "workflows/04-agent-loop.nika.yaml",
+        "workflows/01-hello-chain.nika",
+        "workflows/02-parallel-fanout.nika",
+        "workflows/03-gated-ship.nika",
+        "workflows/04-agent-loop.nika",
     ] {
         assert!(dir.join(rel).is_file(), "{rel} written: {stdout}");
     }
@@ -249,9 +246,9 @@ fn init_recipe_scaffolds_the_curriculum_and_audits_it() {
     );
     // …and the hand-off names the FIRST scaffolded workflow.
     assert!(
-        stdout.contains("$EDITOR workflows/01-hello-chain.nika.yaml")
-            && stdout.contains("nika check workflows/01-hello-chain.nika.yaml")
-            && stdout.contains("nika run workflows/01-hello-chain.nika.yaml --model mock/echo"),
+        stdout.contains("$EDITOR workflows/01-hello-chain.nika")
+            && stdout.contains("nika check workflows/01-hello-chain.nika")
+            && stdout.contains("nika run workflows/01-hello-chain.nika --model mock/echo"),
         "the next block teaches edit → check → run: {stdout}"
     );
     let _ = std::fs::remove_dir_all(&dir);
@@ -279,8 +276,8 @@ fn init_plain_yes_keeps_file_receipts_and_the_handoff() {
         "the project file is laid by default, with its why: {stdout}"
     );
     assert!(
-        stdout.contains("created workflows/01-hello.nika.yaml — ")
-            && stdout.contains("nika run workflows/01-hello.nika.yaml --model mock/echo"),
+        stdout.contains("created workflows/01-hello.nika — ")
+            && stdout.contains("nika run workflows/01-hello.nika --model mock/echo"),
         "the hand-off names the founded lesson: {stdout}"
     );
     assert!(!stdout.contains('\x1b'), "piped init stays escape-free");
@@ -311,7 +308,7 @@ fn bare_check_and_run_resolve_the_lazy_way() {
     // ONE workflow → check runs it and says which (stderr).
     let one = base.join("one");
     std::fs::create_dir_all(&one).expect("mkdir");
-    std::fs::write(one.join("solo.nika.yaml"), hello).expect("seed");
+    std::fs::write(one.join("solo.nika"), hello).expect("seed");
     let out = bin()
         .arg("check")
         .current_dir(&one)
@@ -320,7 +317,7 @@ fn bare_check_and_run_resolve_the_lazy_way() {
     assert_eq!(out.status.code(), Some(0), "auto-resolved audit passes");
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(
-        err.contains("solo.nika.yaml (the only workflow here)"),
+        err.contains("solo.nika (the only workflow here)"),
         "the pick is announced: {err}"
     );
     assert!(
@@ -349,8 +346,8 @@ fn bare_check_and_run_resolve_the_lazy_way() {
     // MANY → every candidate named, copy-paste ready.
     let many = base.join("many");
     std::fs::create_dir_all(&many).expect("mkdir");
-    std::fs::write(many.join("a.nika.yaml"), hello).expect("seed");
-    std::fs::write(many.join("b.nika.yaml"), hello).expect("seed");
+    std::fs::write(many.join("a.nika"), hello).expect("seed");
+    std::fs::write(many.join("b.nika"), hello).expect("seed");
     let out = bin()
         .arg("run")
         .current_dir(&many)
@@ -359,7 +356,7 @@ fn bare_check_and_run_resolve_the_lazy_way() {
     assert_eq!(out.status.code(), Some(3));
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(
-        err.contains("nika run a.nika.yaml") && err.contains("nika run b.nika.yaml"),
+        err.contains("nika run a.nika") && err.contains("nika run b.nika"),
         "each candidate is a paste-ready command: {err}"
     );
     let _ = std::fs::remove_dir_all(&base);

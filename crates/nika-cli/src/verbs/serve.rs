@@ -48,7 +48,7 @@ pub struct ServeArgs {
     #[arg(long, value_name = "ADDR")]
     pub bind: Option<String>,
     /// The served registry: the listener lists, schedules and ADMITS BY NAME
-    /// (`POST /v1/jobs {"workflow": "<name>"}`) only the `.nika.yaml` workflows
+    /// (`POST /v1/jobs {"workflow": "<name>"}`) only the `.nika` workflows
     /// under this directory, named from the project root. A remote world
     /// rides the snapshot `nika check <file> --json --sdk-snapshot` prints.
     /// Requires `--bind`.
@@ -581,11 +581,11 @@ mod tests {
     async fn production_resident_backend_carries_declared_outputs() {
         let directory = tempfile::tempdir().expect("tempdir");
         let source = "nika: http-output\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  value:\n    invoke: { tool: nika:jq, args: { input: 42, expression: \".\" } }\noutputs:\n  answer: ${{ tasks.value.output }}\n";
-        std::fs::write(directory.path().join("flow.nika.yaml"), source).expect("workflow");
+        std::fs::write(directory.path().join("flow.nika"), source).expect("workflow");
         let project = nika_fs::OwnedDir::open(directory.path()).expect("owned project");
         let service = nika_execution::ExecutionService::default();
         let admitted = service
-            .admit(&project, Path::new("flow.nika.yaml"))
+            .admit(&project, Path::new("flow.nika"))
             .expect("admitted");
         let session = service.begin(admitted);
 
@@ -609,11 +609,11 @@ mod tests {
     async fn production_resident_backend_leaves_the_trace_journal_on_disk() {
         let directory = tempfile::tempdir().expect("tempdir");
         let source = "nika: journaled\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  value:\n    invoke: { tool: nika:jq, args: { input: 7, expression: \".\" } }\n";
-        std::fs::write(directory.path().join("flow.nika.yaml"), source).expect("workflow");
+        std::fs::write(directory.path().join("flow.nika"), source).expect("workflow");
         let project = nika_fs::OwnedDir::open(directory.path()).expect("owned project");
         let service = nika_execution::ExecutionService::default();
         let admitted = service
-            .admit(&project, Path::new("flow.nika.yaml"))
+            .admit(&project, Path::new("flow.nika"))
             .expect("admitted");
         let session = service.begin(admitted);
         let trace_id = session.context().trace_id().to_string();
@@ -657,7 +657,7 @@ mod tests {
     }
 
     fn write_workflow(root: &Path, name: &str) {
-        let id = name.strip_suffix(".nika.yaml").unwrap_or(name);
+        let id = name.strip_suffix(".nika").unwrap_or(name);
         let body = format!(
             "nika: {id}\npermits: {{ exec: true }}\ntasks:\n  ok:\n    exec: {{ shell: \"true\" }}\n"
         );
@@ -670,7 +670,7 @@ mod tests {
     const HOURLY_A: &str = concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/doctor.nika.yaml\n",
+        "  - workflow: workflows/doctor.nika\n",
         "    cadence: \"TZ=UTC 0 * * * *\"\n",
         "    plafond: 0.05\n",
         "    manqué: sauter\n",
@@ -680,11 +680,11 @@ mod tests {
     const HOURLY_AB: &str = concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/doctor.nika.yaml\n",
+        "  - workflow: workflows/doctor.nika\n",
         "    cadence: \"TZ=UTC 0 * * * *\"\n",
         "    plafond: 0.05\n",
         "    manqué: sauter\n",
-        "  - workflow: workflows/nightly.nika.yaml\n",
+        "  - workflow: workflows/nightly.nika\n",
         "    cadence: \"TZ=UTC 0 * * * *\"\n",
         "    plafond: 0.05\n",
         "    manqué: sauter\n",
@@ -777,19 +777,19 @@ mod tests {
         let registry_text = concat!(
             "nika: proj\n",
             "arm:\n",
-            "  - workflow: workflows/doctor.nika.yaml\n",
+            "  - workflow: workflows/doctor.nika\n",
             "    cadence: \"TZ=UTC 0 * * * *\"\n",
             "    plafond: 0.05\n",
             "    manqué: sauter\n",
             "    chevauchement: file\n",
-            "  - workflow: workflows/nightly.nika.yaml\n",
+            "  - workflow: workflows/nightly.nika\n",
             "    cadence: \"TZ=UTC 0 * * * *\"\n",
             "    plafond: 0.05\n",
             "    manqué: sauter\n",
         );
         let dir = project("queue", registry_text);
-        write_workflow(dir.path(), "doctor.nika.yaml");
-        write_workflow(dir.path(), "nightly.nika.yaml");
+        write_workflow(dir.path(), "doctor.nika");
+        write_workflow(dir.path(), "nightly.nika");
         // Both beats' last DECIDED slot is 03:00 — at 04:02 both are ON
         // TIME for the 04:00 slot.
         seed_last(dir.path(), "doctor", "2026-08-19T03:00:00Z");
@@ -857,8 +857,8 @@ mod tests {
     #[test]
     fn serve_reloads_the_registry_when_the_file_changes() {
         let dir = project("reload", HOURLY_A);
-        write_workflow(dir.path(), "doctor.nika.yaml");
-        write_workflow(dir.path(), "nightly.nika.yaml");
+        write_workflow(dir.path(), "doctor.nika");
+        write_workflow(dir.path(), "nightly.nika");
         seed_last(dir.path(), "doctor", "2026-08-19T00:00:00Z");
         seed_last(dir.path(), "nightly", "2026-08-19T00:00:00Z");
         let path = dir.path().join("nika.yaml");
@@ -1050,7 +1050,7 @@ mod tests {
     #[test]
     fn second_resident_authority_fails_closed_before_the_resident_can_fire() {
         let dir = project("second-authority", HOURLY_A);
-        write_workflow(dir.path(), "doctor.nika.yaml");
+        write_workflow(dir.path(), "doctor.nika");
         let token = dir.path().join("serve.token");
         std::fs::write(&token, "a".repeat(32)).expect("token");
         #[cfg(unix)]

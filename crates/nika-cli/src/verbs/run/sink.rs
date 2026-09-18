@@ -474,9 +474,9 @@ mod tests {
             sink.print_final();
             String::from_utf8(buf).expect("utf8")
         };
-        let owned = close("workflows/61-xai-hello.nika.yaml");
+        let owned = close("workflows/61-xai-hello.nika");
         assert!(!owned.contains("explore authoring skeletons"), "{owned}");
-        let staged = close("/tmp/nika-try-01-hello/01-hello.nika.yaml");
+        let staged = close("/tmp/nika-try-01-hello/01-hello.nika");
         assert!(
             staged.contains("explore authoring skeletons: nika compile --list"),
             "{staged}"
@@ -830,7 +830,7 @@ mod tests {
             vec!["summarize".to_owned()],
             vec!["write_md".to_owned(), "notify_slack".to_owned()],
         ];
-        let hint = "explore: nika run veille-news.nika.yaml --json > run.ndjson \
+        let hint = "explore: nika run veille-news.nika --json > run.ndjson \
                     · nika trace outputs run.ndjson";
         // The PIPE face — the Plain close, exactly as `run` drives it.
         let mut buf = Vec::new();

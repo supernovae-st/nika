@@ -1,6 +1,6 @@
 # Run Nika Workflow — the composite action (in-repo · `uses: supernovae-st/nika/action@<tag>`)
 #
-# Check-gates then runs one .nika.yaml with a mandatory cost ceiling, and
+# Check-gates then runs one .nika with a mandatory cost ceiling, and
 # names the trace path for upload. The action consumes the PUBLIC binary
 # via the sha256-verified installer — the same door every user walks
 # through (the binary boundary · dogfooding pure).
@@ -12,7 +12,7 @@ branding:
 
 inputs:
   file:
-    description: "Path to the .nika.yaml workflow file"
+    description: "Path to the .nika workflow file"
     required: true
   max-cost-usd:
     description: "Hard USD ceiling for the run (cost honesty: local models are unpriced, never free)"

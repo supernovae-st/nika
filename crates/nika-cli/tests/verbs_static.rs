@@ -76,7 +76,7 @@ fn fixture_path(name: &str, body: &str) -> String {
 
 #[test]
 fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
-    let path = fixture_path("graph.nika.yaml", WORKFLOW);
+    let path = fixture_path("graph.nika", WORKFLOW);
     let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK);
 
@@ -196,7 +196,7 @@ fn graph_mermaid_and_dot_derive_from_the_projection() {
 fn graph_refuses_a_dag_broken_file_with_exit_2() {
     // think depends on a task that doesn't exist → conformance fails.
     let broken = WORKFLOW.replace("probe: success", "ghost: success");
-    let path = fixture_path("graph-broken.nika.yaml", &broken);
+    let path = fixture_path("graph-broken.nika", &broken);
     let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("no valid DAG order"), "{}", out.text);
@@ -206,7 +206,7 @@ fn graph_refuses_a_dag_broken_file_with_exit_2() {
 
 #[test]
 fn inspect_draws_the_wave_groups_with_static_facts() {
-    let path = fixture_path("inspect.nika.yaml", WORKFLOW);
+    let path = fixture_path("inspect.nika", WORKFLOW);
     let out = inspect::run(&path, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
 
@@ -264,7 +264,7 @@ fn inspect_draws_the_wave_groups_with_static_facts() {
 
 #[test]
 fn check_clean_file_exits_0_with_grep_stable_sections() {
-    let path = fixture_path("check-clean.nika.yaml", WORKFLOW);
+    let path = fixture_path("check-clean.nika", WORKFLOW);
     let out = check::run(&path, false, false, None, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     for section in [
@@ -292,7 +292,7 @@ fn check_clean_file_exits_0_with_grep_stable_sections() {
 #[test]
 fn check_dirty_file_exits_2_and_names_the_fix() {
     let dirty = WORKFLOW.replace("\"nika:read\"", "\"nika:reed\"");
-    let path = fixture_path("check-dirty.nika.yaml", &dirty);
+    let path = fixture_path("check-dirty.nika", &dirty);
     let out = check::run(&path, false, false, None, PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("TOOLS"), "{}", out.text);
@@ -306,7 +306,7 @@ fn check_dirty_file_exits_2_and_names_the_fix() {
 
 #[test]
 fn check_json_is_the_report_plus_clean_flag_never_coloured() {
-    let path = fixture_path("check-json.nika.yaml", WORKFLOW);
+    let path = fixture_path("check-json.nika", WORKFLOW);
     // Colour requested — json must ignore it (the contract bytes).
     let coloured = Theme::new(true, false, false);
     let out = check::run(&path, true, false, None, coloured);
@@ -324,7 +324,7 @@ fn check_json_conformance_carries_severity_and_docs_url() {
     // severity + per-code docs page (the rustc --explain move, machine
     // form). Consumers link the code without re-deriving anything.
     let broken = WORKFLOW.replace("probe: success", "ghost: success");
-    let path = fixture_path("check-severity.nika.yaml", &broken);
+    let path = fixture_path("check-severity.nika", &broken);
     let out = check::run(&path, true, false, None, PLAIN);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
     let c = &doc["conformance"][0];
@@ -344,15 +344,15 @@ fn check_parse_error_is_a_file_finding_exit_2() {
     // `tasks:` is the spec's type discriminant: without it this document
     // is a PROJECT, and the project grammar would own the refusal. The
     // PARSE lane is the workflow envelope's.
-    let path = fixture_path("check-parse.nika.yaml", "nika: broken\ntasks: [broken");
+    let path = fixture_path("check-parse.nika", "nika: broken\ntasks: [broken");
     let out = check::run(&path, false, false, None, PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("PARSE"), "{}", out.text);
 }
 
 #[test]
-fn a_document_without_tasks_is_judged_as_a_project() {
-    let path = fixture_path("as-project.nika.yaml", "nika: my-project\nceiling: 0.50\n");
+fn a_project_file_is_judged_as_a_project() {
+    let path = fixture_path("nika.yaml", "nika: my-project\nceiling: 0.50\n");
     let out = check::run(&path, false, false, None, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     assert!(out.text.contains("PROJECT"), "{}", out.text);
@@ -364,15 +364,32 @@ fn a_document_without_tasks_is_judged_as_a_project() {
 }
 
 #[test]
+fn a_program_without_tasks_is_not_sniffed_as_a_project() {
+    let path = fixture_path("as-project.nika", "nika: my-project\nceiling: 0.50\n");
+    let out = check::run(&path, false, false, None, PLAIN);
+    assert_eq!(out.code, exit::FILE, "{}", out.text);
+    assert!(
+        out.text.contains("PARSE") || out.text.contains("NIKA-PARSE"),
+        "a `.nika` file is a program, never a project: {}",
+        out.text
+    );
+    assert!(
+        !out.text.contains("PROJECT"),
+        "must not content-sniff a `.nika` into a project: {}",
+        out.text
+    );
+}
+
+#[test]
 fn check_unreadable_file_is_an_environment_error_exit_3() {
-    let out = check::run("/nonexistent/missing.nika.yaml", false, false, None, PLAIN);
+    let out = check::run("/nonexistent/missing.nika", false, false, None, PLAIN);
     assert_eq!(out.code, exit::ENV);
     assert!(out.text.contains("cannot read"));
 }
 
 #[test]
 fn infer_permits_emits_a_paste_ready_boundary() {
-    let path = fixture_path("permits.nika.yaml", WORKFLOW);
+    let path = fixture_path("permits.nika", WORKFLOW);
     let out = check::run_infer_permits(&path, false);
     assert_eq!(out.code, exit::OK);
     assert!(out.text.contains("permits:"), "{}", out.text);
@@ -443,7 +460,7 @@ fn pack_surface_round_trips_the_embedded_pack() {
     assert_eq!(list.code, exit::OK);
     for slug in &slugs {
         assert!(
-            list.text.contains(&format!("{slug}.nika.yaml")),
+            list.text.contains(&format!("{slug}.nika")),
             "listing names `{slug}` with its extension"
         );
     }
@@ -472,7 +489,7 @@ fn compile_args() -> compile::CompileArgs {
 #[test]
 fn compile_questions_preserve_the_unfilled_check_counterexample() {
     let room = tempfile::tempdir().expect("room");
-    let dest = room.path().join("from-template.nika.yaml");
+    let dest = room.path().join("from-template.nika");
     let mut args = compile::CompileArgs {
         intent: Some("chain".to_owned()),
         dest: Some(dest.to_string_lossy().into_owned()),
@@ -483,7 +500,7 @@ fn compile_questions_preserve_the_unfilled_check_counterexample() {
     assert_eq!(out.code, exit::FILE);
     assert!(!dest.exists(), "incomplete source is not materialized");
     let pending: serde_json::Value = serde_json::from_str(&out.text).expect("structured result");
-    let fixture = room.path().join("unfilled.nika.yaml");
+    let fixture = room.path().join("unfilled.nika");
     std::fs::write(&fixture, pending["candidate"].as_str().expect("candidate"))
         .expect("test fixture");
     let checked = check::run(&fixture.to_string_lossy(), false, false, None, PLAIN);
@@ -517,7 +534,7 @@ fn compile_lists_exact_skeletons_as_a_success() {
 #[test]
 fn compile_keeps_gibberish_incomplete_and_names_discovery() {
     let room = tempfile::tempdir().expect("room");
-    let dest = room.path().join("never-written.nika.yaml");
+    let dest = room.path().join("never-written.nika");
     let out = compile::run(&compile::CompileArgs {
         intent: Some("zzzz qqqq xxxx".to_owned()),
         dest: Some(dest.to_string_lossy().into_owned()),
@@ -554,7 +571,7 @@ tasks:
 outputs:
   result: ${{ tasks.large.output }}
 "#;
-    let path = fixture_path("priced.nika.yaml", priced);
+    let path = fixture_path("priced.nika", priced);
     let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
@@ -586,7 +603,7 @@ fn graph_nodes_always_carry_the_permits_field() {
     // Spec §6 envelope contract: `permits` is present on EVERY node (an
     // array · empty until the per-task effects projector ships). A
     // consumer reading node.permits must never get `undefined`.
-    let path = fixture_path("permits-field.nika.yaml", WORKFLOW);
+    let path = fixture_path("permits-field.nika", WORKFLOW);
     let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
@@ -609,7 +626,7 @@ fn graph_dedups_duplicate_reference_edges() {
         "gathered: ${{ tasks.gather.output }}",
         "gathered: \"${{ tasks.gather.output }} + ${{ tasks.gather.output }}\"",
     );
-    let path = fixture_path("dup-edges.nika.yaml", &dup);
+    let path = fixture_path("dup-edges.nika", &dup);
     let out = graph::run(&path, GraphFormat::Json, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
@@ -654,13 +671,7 @@ fn check_skills_rung_greens_reds_and_teaches() {
     };
 
     // GREEN — the rung names the count, the audit stays clean (exit 0).
-    let green = check::run(
-        &wf_with(&good, "green.nika.yaml"),
-        false,
-        false,
-        None,
-        PLAIN,
-    );
+    let green = check::run(&wf_with(&good, "green.nika"), false, false, None, PLAIN);
     assert_eq!(green.code, exit::OK, "{}", green.text);
     assert!(
         green.text.contains("SKILLS") && green.text.contains("1 skill(s) resolve"),
@@ -669,7 +680,7 @@ fn check_skills_rung_greens_reds_and_teaches() {
     );
 
     // MISSING — NIKA-AGENT-003 · exit 2 · the row names the task + the fix.
-    let missing_path = wf_with(&ghost, "missing.nika.yaml");
+    let missing_path = wf_with(&ghost, "missing.nika");
     let missing = check::run(&missing_path, false, false, None, PLAIN);
     assert_eq!(missing.code, exit::FILE, "{}", missing.text);
     assert!(
@@ -684,7 +695,7 @@ fn check_skills_rung_greens_reds_and_teaches() {
     );
 
     // MALFORMED — NIKA-AGENT-004 · exit 2 · the defect names the repair.
-    let malformed = check::run(&wf_with(&bad, "bad.nika.yaml"), false, false, None, PLAIN);
+    let malformed = check::run(&wf_with(&bad, "bad.nika"), false, false, None, PLAIN);
     assert_eq!(malformed.code, exit::FILE, "{}", malformed.text);
     assert!(
         malformed.text.contains("NIKA-AGENT-004") && malformed.text.contains("frontmatter"),
@@ -709,7 +720,7 @@ fn check_skills_rung_greens_reds_and_teaches() {
         "{payload:#}"
     );
     // …and the green twin: skills_resolve=true · NO skill_findings key.
-    let out = check::run(&wf_with(&good, "green.nika.yaml"), true, false, None, PLAIN);
+    let out = check::run(&wf_with(&good, "green.nika"), true, false, None, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
     assert_eq!(payload["clean"], true);
@@ -725,7 +736,7 @@ fn accents_check_verdict_carries_the_dag_map() {
     let yaml = "nika: m\ntasks:\n  one:\n    infer: { prompt: hi, max_tokens: 5, model: \"mock/echo\" }\n  two:\n    with:\n      prev: ${{ tasks.one.output }}\n    infer: { prompt: \"${{ with.prev }}\", max_tokens: 5, model: \"mock/echo\" }\n";
     let dir = std::env::temp_dir().join(format!("nika-check-map-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&dir);
-    let file = dir.join("map.nika.yaml");
+    let file = dir.join("map.nika");
     std::fs::write(&file, yaml).expect("write");
     let path = file.to_string_lossy().into_owned();
 

@@ -1,6 +1,6 @@
 ---
 description: Compile a reviewable workflow through the stateless engine core
-argument-hint: "[exact-skeleton] [explicit-file.nika.yaml]"
+argument-hint: "[exact-skeleton] [explicit-file.nika]"
 allowed-tools: Bash(nika compile:*), Bash(nika try:*), Bash(nika check:*), Read
 ---
 
@@ -14,7 +14,7 @@ Arguments: `$ARGUMENTS`.
    questions. Answer explicitly with repeatable `--answer KEY=JSON_LITERAL`.
    `nika compile hello` previews the zero-network mock lesson.
 3. Write only to an explicitly requested destination:
-   `nika compile <exact-skeleton> <file>.nika.yaml --answer ...`.
+   `nika compile <exact-skeleton> <file>.nika --answer ...`.
    Do not infer overwrite consent; an existing file requires explicit `--force`.
 4. For an accepted existing source, use
    `nika compile --base <file> --change 'Set const.NAME to JSON_LITERAL' --json`.

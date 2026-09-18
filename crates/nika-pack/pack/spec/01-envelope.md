@@ -35,7 +35,7 @@ That is the whole rule. It holds at **100% coverage** — a workflow
 without tasks is not a workflow, and a project never carries a task
 graph — and it holds **without the filename**, which is the case that
 matters: a file arrives as a registry blob, an HTTP body, a stdin pipe
-(`nika check -`), a chat paste. In all of those `.nika.yaml` is gone and
+(`nika check -`), a chat paste. In all of those the filename is gone and
 the bytes must still say what they are.
 
 `workflow:` used to be the discriminator. It is not a key any more (see
@@ -136,7 +136,7 @@ messages.
 
 ```
 nika.yaml           →  nika: my-project      # the PROJECT's name
-deploy.nika.yaml    →  nika: deploy-to-prod  # the WORKFLOW's name
+deploy.nika         →  nika: deploy-to-prod  # the WORKFLOW's name
 ```
 
 `nika:` always says *« this is a nika file, and it is called X »*. Which
@@ -162,9 +162,12 @@ KIND of file it is comes from `tasks:` — see
 > **The magic-number function survives intact.** What `nika:` was really
 > doing — the `#!/bin/sh` / `%PDF-` / `\x7fELF` job of saying *this
 > byte-stream is a Nika file* — is done by the KEY, never by the value. On
-> disk `.nika.yaml` discriminates; off disk (registry blob · HTTP body ·
-> stdin pipe · chat paste) the extension is gone and the first line is the
-> only discriminator. It still is.
+> disk `.nika` discriminates a program file from project `nika.yaml` and
+> runtime `.nika/`; off disk (registry blob · HTTP body · stdin pipe ·
+> chat paste) the extension is gone. The `nika:` key is the mark that
+> the byte-stream is a Nika file, and `tasks:` is the type discriminant
+> (present = workflow · absent = project). Filename checks do not
+> replace that envelope/parser pair.
 >
 > ⚠️ The choice stays **coupled** to [07 §unknown key](./07-conformance.md):
 > Docker Compose could demote its marker precisely because it chose
@@ -253,7 +256,7 @@ and traces — a value that must stay masked belongs to
 
 **Supplying values at launch** · the caller provides inputs when starting
 the run; how is an engine CLI concern. The reference engine's surface ·
-`nika run flow.nika.yaml --var topic="Rust async 2026"` (repeatable · one
+`nika run flow.nika --var topic="Rust async 2026"` (repeatable · one
 `--var key=value` per input). A supplied value **overrides** a declared
 `default:` and **satisfies** a `required: true` input (conformance rule 5
 below · a missing required input rejects before execution). A value parses
@@ -835,22 +838,62 @@ these files) should quote-by-default for the four ambiguous-scalar cases above.
 
 ## File naming (normative)
 
-- **Canonical filename** · `<name>.nika.yaml`. Every tool that CREATES a
-  workflow file (`nika compile` · `nika init` · scaffolds · templates) MUST
-  emit this form, and every teaching surface writes it.
-- **`.nika.yml`** · accepted by matchers (editors · schema catalogs ·
-  hooks) so no real file is ever orphaned — and taught against: a tool
-  that notices it SHOULD flag « non-canonical filename · rename to
-  `.nika.yaml` » (a dedicated profile diagnostic may be allocated by a
-  future law; the convention is normative today). Tools MUST NOT emit it.
-- **Bare `.nika`** · RESERVED. Never emitted, never claimed by tooling.
+On disk, three roles, three names. The program suffix `.nika` and the
+runtime directory basename `.nika` share a spelling and MUST be
+distinguished by role (regular file vs directory · nonempty stem vs
+empty stem), not treated as one identity.
+
+```text
+project/
+  nika.yaml                 # project / workspace configuration
+  workflows/
+    support-triage.nika     # executable Nika program (YAML-compatible source)
+    child.nika
+  .nika/                    # runtime / internal state
+```
+
+- **Canonical program filename** · `<name>.nika` with a nonempty stem.
+  Every tool that CREATES a workflow file (`nika compile` · `nika init` ·
+  scaffolds · templates) MUST emit this form, and every teaching surface writes it.
+  `support.v2.nika` is a program whose logical stem is `support.v2`.
+  Bare `.nika` (empty stem) is not a program filename. Directories named
+  `something.nika/` are not program files.
+- **Project configuration** · `nika.yaml`. Tools MAY check and load it as
+  a project. They MUST NOT discover, run, or emit it as a workflow
+  program. A `nika.yaml` that carries `tasks:` is refused at that
+  pathname (a project never carries a task graph) and MUST NOT be
+  coerced into a workflow through the project filename. Off disk, the
+  content discriminant (`tasks:` present or absent) remains the type
+  rule for filename-free bytes.
+- **Runtime directory** · `.nika/`. Internal state, never a program source.
+- **Retired suffixes** · `.nika.yaml` and `.nika.yml` are not live
+  program paths. Matchers MUST NOT accept them as programs; tools MUST
+  NOT emit or discover them. An explicit live path with either suffix is
+  refused with an actionable rename diagnostic — no silent fallback, no
+  content-sniffing of `foo.yaml` / `foo.yml`. A dedicated profile
+  diagnostic MAY be allocated by a future law; the hard cut is
+  normative today.
+- **Case** · the suffix is exact lowercase `.nika`. `foo.NIKA` and
+  `foo.Nika` are not program filenames; tools MUST NOT case-fold the
+  extension even on a case-insensitive filesystem.
+- **Lookalikes** · `foo.nika.evil`, `foo.nika.minisig`,
+  `foo.nika.golden.json` are not program sources. Detached signatures
+  and golden sidecars live beside the program (`support.nika.minisig`,
+  `support.nika.golden.json`) and MUST NOT be classified as programs.
+- **Off-disk source** · a registry blob, HTTP body, stdin pipe, SDK
+  string or pack entry has no filename. The envelope/parser still decide
+  validity from bytes. Filename checks do not replace `nika:` as the
+  mark or `tasks:` as the type discriminant.
 - **Media type** · `application/vnd.nika+yaml` is the reserved media type
   for workflow documents (vendor-tree registration per RFC 6838 is a
-  post-1.0 gesture). Do not invent alternatives.
+  post-1.0 gesture). Do not invent alternatives. This statement is
+  unchanged by the suffix cut.
 
-One suffix, one grammar: a split-suffix ecosystem (`.yml` and `.yaml`
-both canonical) fragments globs, schema catalogs and CI matchers
-forever — that lesson is upstream, and this door closes pre-1.0.
+YAML remains the serialization. `.nika` is the language's program
+artifact. One suffix, one grammar: a dual-suffix ecosystem fragments
+globs, schema catalogs and CI matchers forever — that lesson is
+upstream, and this door closes pre-1.0 as a hard cut, not a
+compatibility matrix.
 
 ---
 
@@ -906,9 +949,9 @@ A v0.1-compliant engine MUST ·
 
 1. Reject any file missing `nika:` or carrying an empty `tasks:` with a clear error (`NIKA-PARSE-002`)
 2. Validate the `nika:` value as a kebab-case id `^[a-z][a-z0-9-]*$` · reject any other shape (`v1` · `My_Flow` · `1.0` …) with a clear error (`NIKA-PARSE-003`)
-3. Read the document TYPE from `tasks:` — present means workflow, absent means project — never from the filename
+3. Read the document TYPE from `tasks:` — present means workflow, absent means project — never from the filename, for filename-free source (stdin · HTTP · pack blob). Live on-disk program entry requires a canonical `<name>.nika` path (this chapter §File naming). `nika.yaml` is project configuration only: a `tasks:` map at that pathname is refused, not coerced into a workflow. Retired `.nika.yaml` / `.nika.yml` paths MUST NOT be accepted as programs.
 4. Make workflow-level `model`, `inputs`, `const`, `secrets` available to all tasks as defaults
-5. Validate typed `inputs` (type + required) before execution · reject missing required inputs · refuse every declared `default:` / typed `const:` value that does not conform to its declared `type:` (`NIKA-DEFAULT-001`)
+5. Validate typed `inputs` (type + required) before execution · reject missing required inputs before the prologue (`NIKA-1708` · zero task events) · refuse every declared `default:` / typed `const:` value that does not conform to its declared `type:` (`NIKA-DEFAULT-001`)
 6. Validate each typed `outputs` value against its declared `type:` at run end · a value that does not match its declared type fails the run (`NIKA-VAR-009` · `validation_error`): the callable contract is enforced on BOTH halves (typed in via `inputs`, typed out via `outputs`) · symmetric with rule 5
 7. Mask resolved `secrets` values in all logs · traces · journal events
 8. Enforce a declared `permits:` block on both surfaces: refuse statically-detectable escapes at check time, and fail any runtime effect outside the boundary with `NIKA-SEC-004` · once `permits:` is present every category is default-deny unless listed

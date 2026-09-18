@@ -39,10 +39,10 @@ git -C "$WORK" -c user.email=demo@nika.sh -c user.name=maintainer commit -q --al
 git -C "$WORK" -c user.email=demo@nika.sh -c user.name=maintainer commit -q --allow-empty -m "feat: mermaid projector for graph command"
 git -C "$WORK" -c user.email=demo@nika.sh -c user.name=maintainer commit -q --allow-empty -m "fix: atomic writes on check repairs"
 
-cp "$ROOT/scripts/media/fixtures/broken-release-notes.nika.yaml" "$WORK/release-notes.nika.yaml"
+cp "$ROOT/scripts/media/fixtures/broken-release-notes.nika" "$WORK/release-notes.nika"
 # The hero story reads the meeting-actions pair (offline mock run · the
 # transcript path mirrors the fixture's const so the demo needs zero flags).
-cp "$ROOT/scripts/media/fixtures/meeting-actions.nika.yaml" "$WORK/meeting-actions.nika.yaml"
+cp "$ROOT/scripts/media/fixtures/meeting-actions.nika" "$WORK/meeting-actions.nika"
 mkdir -p "$WORK/scripts/media/fixtures"
 cp "$ROOT/scripts/media/fixtures/sample-transcript.txt" "$WORK/scripts/media/fixtures/sample-transcript.txt"
 cp "$TAPE" "$WORK/$NAME.tape"

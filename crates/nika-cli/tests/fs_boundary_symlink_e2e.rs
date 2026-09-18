@@ -59,13 +59,13 @@ tasks:
 fn an_exact_grant_swapped_between_check_and_run_is_refused() {
     let dir = std::env::temp_dir().join(format!("nika-toctou-e2e-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("oob")).expect("scratch");
-    std::fs::write(dir.join("toctou-probe.nika.yaml"), SONDE).expect("workflow");
+    std::fs::write(dir.join("toctou-probe.nika"), SONDE).expect("workflow");
     std::fs::write(dir.join("allowed.txt"), "IN-BOUNDS\n").expect("honest file");
     std::fs::write(dir.join("oob/secret.txt"), "OUT-OF-BOUNDS-SECRET\n").expect("secret");
 
     // 1 · the honest tree checks green (the house law: never run unchecked).
     let check = bin()
-        .args(["check", "toctou-probe.nika.yaml"])
+        .args(["check", "toctou-probe.nika"])
         .current_dir(&dir)
         .output()
         .expect("binary runs");
@@ -79,7 +79,7 @@ fn an_exact_grant_swapped_between_check_and_run_is_refused() {
     // 2 · the honest run serves the honest file — the instrument is
     // qualified (the grant works before the pivot).
     let honest = bin()
-        .args(["run", "toctou-probe.nika.yaml", "--color", "never"])
+        .args(["run", "toctou-probe.nika", "--color", "never"])
         .current_dir(&dir)
         .output()
         .expect("binary runs");
@@ -99,7 +99,7 @@ fn an_exact_grant_swapped_between_check_and_run_is_refused() {
     // 4 · the run refuses — the builtin arm judges the effective path
     // identity, never the spelled string alone.
     let swapped = bin()
-        .args(["run", "toctou-probe.nika.yaml", "--color", "never"])
+        .args(["run", "toctou-probe.nika", "--color", "never"])
         .current_dir(&dir)
         .output()
         .expect("binary runs");

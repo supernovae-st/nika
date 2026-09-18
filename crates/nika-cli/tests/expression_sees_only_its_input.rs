@@ -141,7 +141,7 @@ fn no_authority_shape_lets_an_expression_read_the_environment() {
         let dir = tempfile::tempdir().expect("tempdir");
         let wf = write(
             dir.path(),
-            "probe.nika.yaml",
+            "probe.nika",
             &workflow_with(permits, "env.NIKA_TEST_AMBIENT_CANARY"),
         );
 
@@ -183,7 +183,7 @@ fn no_authority_shape_lets_an_expression_read_the_environment() {
 #[allow(clippy::cast_precision_loss, clippy::float_cmp)] // jq's clock wire is exact f64
 fn the_clock_is_accepted_and_rebound_to_workflow_started() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let wf = write(dir.path(), "probe.nika.yaml", &workflow_with("", "now"));
+    let wf = write(dir.path(), "probe.nika", &workflow_with("", "now"));
     let checked = invoke("check", &wf);
     assert!(
         checked.status.success(),
@@ -234,7 +234,7 @@ fn refused_identically_by_check_and_run() {
     let dir = tempfile::tempdir().expect("tempdir");
     let wf = write(
         dir.path(),
-        "probe.nika.yaml",
+        "probe.nika",
         &workflow_with("", "env.NIKA_TEST_AMBIENT_CANARY"),
     );
     let checked = invoke("check", &wf);
@@ -270,7 +270,7 @@ fn ordinary_programs_are_untouched() {
     let dir = tempfile::tempdir().expect("tempdir");
     let wf = write(
         dir.path(),
-        "probe.nika.yaml",
+        "probe.nika",
         &workflow_with("", ". + {y: (0 | gmtime | .[0])}"),
     );
     let checked = invoke("check", &wf);

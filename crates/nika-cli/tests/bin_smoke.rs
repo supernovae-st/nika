@@ -76,7 +76,7 @@ tasks:
 fn check_valid_exits_zero() {
     let dir = std::env::temp_dir().join("nika-bin-smoke-ok");
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let wf = write_fixture(&dir, "ok.nika.yaml", VALID);
+    let wf = write_fixture(&dir, "ok.nika", VALID);
 
     let out = bin().arg("check").arg(&wf).output().expect("binary runs");
     assert_eq!(
@@ -91,8 +91,8 @@ fn check_valid_exits_zero() {
 fn list_prints_exactly_the_two_workflows_below_cwd() {
     let dir = workspace_tmp_dir("nika-bin-list-two");
     std::fs::create_dir_all(dir.join("nested")).expect("nested dir");
-    write_fixture(&dir, "alpha.nika.yaml", "nika: alpha\n");
-    write_fixture(&dir.join("nested"), "beta.nika.yml", "nika: beta\n");
+    write_fixture(&dir, "alpha.nika", "nika: alpha\n");
+    write_fixture(&dir.join("nested"), "beta.nika", "nika: beta\n");
     write_fixture(&dir, "nika.yaml", "nika: v1\n");
 
     let out = bin()
@@ -109,7 +109,7 @@ fn list_prints_exactly_the_two_workflows_below_cwd() {
     );
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "alpha.nika.yaml\nnested/beta.nika.yml\n"
+        "alpha.nika\nnested/beta.nika\n"
     );
     assert!(out.stderr.is_empty(), "list stderr must stay empty");
     let _ = std::fs::remove_dir_all(&dir);
@@ -121,7 +121,7 @@ fn run_clean_workflow_exits_zero() {
     // coverage. A clean workflow runs through the L3 runtime and exits 0.
     let dir = std::env::temp_dir().join(format!("nika-bin-run-ok-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let wf = write_fixture(&dir, "ok.nika.yaml", VALID);
+    let wf = write_fixture(&dir, "ok.nika", VALID);
 
     let out = bin()
         .arg("run")
@@ -147,7 +147,7 @@ fn run_failed_task_exits_one_not_two() {
     // and the one locked exit code the smoke suite never pinned.
     let dir = std::env::temp_dir().join(format!("nika-bin-run-fail-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let wf = write_fixture(&dir, "fail.nika.yaml", FAILING);
+    let wf = write_fixture(&dir, "fail.nika", FAILING);
 
     let out = bin()
         .arg("run")
@@ -171,7 +171,7 @@ fn run_invalid_dag_exits_two_not_one() {
     // workflow-failed 1. Pins that `run` never collapses the two.
     let dir = std::env::temp_dir().join(format!("nika-bin-run-cyc-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let wf = write_fixture(&dir, "cyc.nika.yaml", INVALID);
+    let wf = write_fixture(&dir, "cyc.nika", INVALID);
 
     let out = bin()
         .arg("run")
@@ -210,7 +210,7 @@ tasks:
   compress:
     exec: { command: ["tar", "--version"] }
 "#;
-    let wf = write_fixture(&dir, "poisoned.nika.yaml", poisoned);
+    let wf = write_fixture(&dir, "poisoned.nika", poisoned);
 
     let out = bin()
         .arg("run")
@@ -251,7 +251,7 @@ tasks:
   compress:
     exec: { command: ["echo", "z"] }
 "#;
-    let ok = write_fixture(&dir, "clean.nika.yaml", clean);
+    let ok = write_fixture(&dir, "clean.nika", clean);
     let out = bin()
         .arg("run")
         .arg(&ok)
@@ -282,7 +282,7 @@ fn run_dry_run_executes_zero_effects() {
     // fail the run — it exits 0 after showing the plan.
     let dir = std::env::temp_dir().join(format!("nika-bin-dry-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let wf = write_fixture(&dir, "dry.nika.yaml", FAILING);
+    let wf = write_fixture(&dir, "dry.nika", FAILING);
 
     let out = bin()
         .arg("run")
@@ -309,7 +309,7 @@ fn run_quiet_is_compact_no_storyboard() {
     // `--quiet`: the final verdict card only · NO per-task storyboard row.
     let dir = std::env::temp_dir().join(format!("nika-bin-quiet-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let wf = write_fixture(&dir, "ok.nika.yaml", VALID);
+    let wf = write_fixture(&dir, "ok.nika", VALID);
 
     let out = bin()
         .arg("run")
@@ -336,7 +336,7 @@ fn run_no_progress_emits_no_ansi() {
     // cursor escapes even on a TTY (CI-stable capture).
     let dir = std::env::temp_dir().join(format!("nika-bin-plain-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let wf = write_fixture(&dir, "ok.nika.yaml", VALID);
+    let wf = write_fixture(&dir, "ok.nika", VALID);
 
     let out = bin()
         .arg("run")
@@ -367,7 +367,7 @@ fn run_human_flags_conflict_with_machine_modes() {
     // it (an outputs export of a run that never executed would be a lie).
     let dir = std::env::temp_dir().join(format!("nika-bin-conflict-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let wf = write_fixture(&dir, "ok.nika.yaml", VALID);
+    let wf = write_fixture(&dir, "ok.nika", VALID);
 
     for human in ["--quiet", "--no-progress"] {
         let out = bin()
@@ -434,7 +434,7 @@ fn run_human_flags_conflict_with_machine_modes() {
 fn check_cycle_exits_two_with_findings() {
     let dir = std::env::temp_dir().join("nika-bin-smoke-bad");
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let wf = write_fixture(&dir, "cycle.nika.yaml", INVALID);
+    let wf = write_fixture(&dir, "cycle.nika", INVALID);
 
     let out = bin().arg("check").arg(&wf).output().expect("binary runs");
     assert_eq!(
@@ -449,10 +449,7 @@ fn check_json_is_uncoloured_and_parseable_both_ways() {
     let dir = std::env::temp_dir().join("nika-bin-smoke-json");
     std::fs::create_dir_all(&dir).expect("tmp dir");
 
-    for (name, yaml, expect_clean) in [
-        ("ok.nika.yaml", VALID, true),
-        ("bad.nika.yaml", INVALID, false),
-    ] {
+    for (name, yaml, expect_clean) in [("ok.nika", VALID, true), ("bad.nika", INVALID, false)] {
         let wf = write_fixture(&dir, name, yaml);
         let out = bin()
             .arg("check")
@@ -481,7 +478,7 @@ fn check_json_is_uncoloured_and_parseable_both_ways() {
 fn missing_file_is_an_environment_error() {
     let out = bin()
         .arg("check")
-        .arg("/nonexistent/ghost.nika.yaml")
+        .arg("/nonexistent/ghost.nika")
         .output()
         .expect("binary runs");
     assert_eq!(
@@ -696,9 +693,9 @@ fn check_many_files_keeps_worst_exit_and_json_stays_single() {
     let clean =
         "nika: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
     let broken = "nika: bad\ntasks:\n  t:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 10, model: \"mock/echo\" }\n";
-    let a = dir.join("a.nika.yaml");
-    let b = dir.join("broken.nika.yaml");
-    let c = dir.join("c.nika.yaml");
+    let a = dir.join("a.nika");
+    let b = dir.join("broken.nika");
+    let c = dir.join("c.nika");
     std::fs::write(&a, clean).expect("fixture a");
     std::fs::write(&b, broken).expect("fixture b");
     std::fs::write(&c, clean).expect("fixture c");
@@ -711,11 +708,11 @@ fn check_many_files_keeps_worst_exit_and_json_stays_single() {
     assert_eq!(out.status.code(), Some(2), "worst exit survives");
     let stdout = String::from_utf8(out.stdout).expect("utf8");
     let tail = stdout
-        .split_once("broken.nika.yaml")
+        .split_once("broken.nika")
         .map(|s| s.1)
         .expect("broken report present");
     assert!(
-        tail.contains("c.nika.yaml"),
+        tail.contains("c.nika"),
         "the file after the failure still audited: {stdout}"
     );
 
@@ -953,7 +950,7 @@ fn lsp_serves_initialize_diagnostics_and_clean_exit() {
                 "params":{"processId":null,"rootUri":null,"capabilities":{}}}),
             serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
             serde_json::json!({"jsonrpc":"2.0","method":"textDocument/didOpen",
-                "params":{"textDocument":{"uri":"file:///t/probe.nika.yaml",
+                "params":{"textDocument":{"uri":"file:///t/probe.nika",
                     "languageId":"nika","version":1,"text":VALID}}}),
             serde_json::json!({"jsonrpc":"2.0","id":2,"method":"shutdown","params":null}),
             serde_json::json!({"jsonrpc":"2.0","method":"exit"}),
@@ -1036,7 +1033,7 @@ fn explain_narrates_a_file_and_still_teaches_codes() {
     std::fs::create_dir_all(&dir).expect("mkdir");
     let wf = write_fixture(
         &dir,
-        "story.nika.yaml",
+        "story.nika",
         "nika: smoke-story\n\nmodel: mock/echo\n\ntasks:\n  draft:\n    infer: { prompt: \"draft\", max_tokens: 10 }\n  polish:\n    after:\n      draft: success\n    infer: { prompt: \"polish\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.polish.output }}\n",
     );
     let out = bin()
@@ -1117,7 +1114,7 @@ fn the_dag_draws_in_the_terminal() {
     std::fs::create_dir_all(&dir).expect("mkdir");
     let wf = write_fixture(
         &dir,
-        "diamond.nika.yaml",
+        "diamond.nika",
         "nika: smoke-diamond\nmodel: mock/echo\ntasks:\n  fetch:\n    infer: { prompt: \"g\", max_tokens: 10 }\n  sum:\n    after:\n      fetch: success\n    infer: { prompt: \"s\", max_tokens: 10 }\n  crit:\n    after:\n      fetch: success\n    infer: { prompt: \"c\", max_tokens: 10 }\n  publish:\n    after:\n      sum: success\n      crit: success\n    infer: { prompt: \"p\", max_tokens: 10 }\n",
     );
     let out = bin()
@@ -1161,12 +1158,12 @@ fn context_aggregates_the_workspace_value_free() {
     std::fs::create_dir_all(dir.join("flows")).expect("mkdir");
     write_fixture(
         &dir,
-        "good.nika.yaml",
+        "good.nika",
         "nika: smoke-good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
     );
     write_fixture(
         &dir.join("flows"),
-        "bad.nika.yaml",
+        "bad.nika",
         "nika: smoke-bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
     );
     let out = bin()
@@ -1206,7 +1203,7 @@ fn context_aggregates_the_workspace_value_free() {
     let text = String::from_utf8_lossy(&human.stdout);
     assert_eq!(human.status.code(), Some(0), "{text}");
     assert!(
-        text.contains("good.nika.yaml") && text.contains("clean"),
+        text.contains("good.nika") && text.contains("clean"),
         "{text}"
     );
     assert!(text.contains("nika welcome --deep --json"), "{text}");
@@ -1359,7 +1356,7 @@ fn default_help_leads_with_the_postcard_and_names_every_verb() {
         );
     }
     assert!(
-        text.contains("nika x.nika.yaml") && text.contains("nika --help --all"),
+        text.contains("nika x.nika") && text.contains("nika --help --all"),
         "{text}"
     );
 }
@@ -1370,7 +1367,7 @@ fn default_help_leads_with_the_postcard_and_names_every_verb() {
 fn new_hello_writes_the_first_wow_file() {
     let dir = workspace_tmp_dir("nika-new-hello");
     let mut cmd = bin();
-    cmd.args(["compile", "hello", "hello.nika.yaml"])
+    cmd.args(["compile", "hello", "hello.nika"])
         .current_dir(&dir)
         .env("HOME", &dir)
         .env_remove("ANTHROPIC_API_KEY")
@@ -1388,12 +1385,8 @@ fn new_hello_writes_the_first_wow_file() {
         Some(0),
         "nika compile hello must write: {stdout}{stderr}"
     );
-    let dest = dir.join("hello.nika.yaml");
-    assert!(
-        dest.is_file(),
-        "hello.nika.yaml landed in {}",
-        dir.display()
-    );
+    let dest = dir.join("hello.nika");
+    assert!(dest.is_file(), "hello.nika landed in {}", dir.display());
     let body = std::fs::read_to_string(&dest).expect("body");
     assert!(body.contains("nika: hello"), "{body}");
     assert!(!body.contains("nika: v1"), "{body}");
@@ -1410,7 +1403,7 @@ fn new_hello_writes_the_first_wow_file() {
     );
 
     let check = bin()
-        .args(["check", "hello.nika.yaml"])
+        .args(["check", "hello.nika"])
         .current_dir(&dir)
         .env("HOME", &dir)
         .stdin(std::process::Stdio::null())

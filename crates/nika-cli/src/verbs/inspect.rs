@@ -399,7 +399,7 @@ mod tests {
 
     fn tmp(content: &str) -> std::path::PathBuf {
         let path = std::env::temp_dir().join(format!(
-            "nika-inspect-{}-{}.nika.yaml",
+            "nika-inspect-{}-{}.nika",
             std::process::id(),
             content.len(),
         ));
@@ -447,7 +447,7 @@ mod tests {
             &report,
             &wf,
             src,
-            "w.nika.yaml",
+            "w.nika",
             nika_display::check_render::RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &nika_display::check_render::ModelsAudit::new(Vec::new(), 0, 0),

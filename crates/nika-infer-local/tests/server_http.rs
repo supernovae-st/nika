@@ -88,7 +88,7 @@ fn completions_round_trip_through_the_wire() {
 /// POSTs, the sidecar answers, the bytes parse where the consumer looks.
 /// Asserting the untyped pointers (not our own `ChatResponse` deserialization)
 /// is the point — a serde rename would pass the typed round-trip yet silently
-/// break the external parser. The workflow-level `.nika.yaml` canary lands once
+/// break the external parser. The workflow-level `.nika` canary lands once
 /// a verb routes `model: local/<x>` to this sidecar.
 #[test]
 fn served_bytes_are_wire_valid_at_the_openai_compat_paths() {

@@ -116,7 +116,8 @@ mod tests {
             seen += 1;
         }
         for slug in nika_pack::example_slugs() {
-            let body = nika_pack::example(&slug).expect("embedded");
+            let body =
+                nika_pack::example(&slug).unwrap_or_else(|| panic!("embedded missing {slug}"));
             let s = sentence(body).unwrap_or_default();
             assert!(s.split_whitespace().count() >= 4, "{slug}: « {s} »");
             seen += 1;

@@ -119,7 +119,7 @@ pub(super) fn foreign(key: &str) -> Option<&'static str> {
         "uses" | "steps" | "jobs" | "script" => Some(
             "a task body is one of the four verbs — `infer:` · `exec:` · `invoke:` · \
              `agent:` — and there is no action-reference field; a reusable unit is \
-             another workflow, called with `invoke: { workflow: ./child.nika.yaml }` \
+             another workflow, called with `invoke: { workflow: ./child.nika }` \
              (spec 14 §composition)",
         ),
         "run" => Some(

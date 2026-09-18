@@ -62,7 +62,7 @@ done
 # the screen instead of naming a verb, so it survives the next change of
 # door. `|| true` keeps a screen with no promise reportable (the `fail`
 # below) rather than killing the run under `set -o pipefail`.
-FIRST=$(printf '%s' "$OUT" | grep -oE 'nika compile hello hello\.nika\.yaml|nika try [a-z0-9-]+' | head -1 || true)
+FIRST=$(printf '%s' "$OUT" | grep -oE 'nika compile hello hello\.nika|nika try [a-z0-9-]+' | head -1 || true)
 [ -n "$FIRST" ] || fail "[welcome] no first command promised"
 # shellcheck disable=SC2086 # the promise is played verbatim, word-split intended
 [ -n "$FIRST" ] && run first-promise 0 -- "$BIN" ${FIRST#nika }
@@ -74,24 +74,24 @@ printf '%s' "$OUT" | grep -q "sk-CANARY-9911" && fail "[welcome] key VALUE leake
 
 # 2 · scaffold → audit (the inputs trap is TAUGHT) → provision → run → story → verify
 run compile-preview 2 -- "$BIN" compile chain --json
-[ ! -f first.nika.yaml ] || fail "[compile-preview] implicit file"
+[ ! -f first.nika ] || fail "[compile-preview] implicit file"
 # Preserve the old SLOT refusal counterexample as an explicit test fixture.
 # Compile itself never materializes an incomplete result.
 printf '%s' "$OUT" >pending.json
-python3 -c 'import json; d=json.load(open("pending.json")); assert d["status"] == "incomplete"; open("unfilled.nika.yaml","w").write(d["candidate"])'
+python3 -c 'import json; d=json.load(open("pending.json")); assert d["status"] == "incomplete"; open("unfilled.nika","w").write(d["candidate"])'
 ANSWER=$(python3 -c 'import json; d=json.load(open("pending.json")); print(d["questions"][0]["key"] + "=" + json.dumps("Summarise the gathered text in one short paragraph."))')
-run check-unfilled 2 -- "$BIN" check unfilled.nika.yaml
+run check-unfilled 2 -- "$BIN" check unfilled.nika
 need check-unfilled "SLOTS"
 need check-unfilled "ready to be filled"
 if printf '%s' "$OUT" | grep -qF "findings above"; then
   fail "[check-unfilled] a scaffold is not a fault"
 fi
-run compile-answered 0 -- "$BIN" compile chain first.nika.yaml --answer "$ANSWER"
-[ -f first.nika.yaml ] || fail "[compile] no Ready file created"
-if grep -q '<SLOT:' first.nika.yaml; then
+run compile-answered 0 -- "$BIN" compile chain first.nika --answer "$ANSWER"
+[ -f first.nika ] || fail "[compile] no Ready file created"
+if grep -q '<SLOT:' first.nika; then
   fail "[fill] a marker survived the fill"
 fi
-run check 0 -- "$BIN" check first.nika.yaml
+run check 0 -- "$BIN" check first.nika
 need check "audited"
 # #1269 · the audit no longer predicts an input failure the file OWNS
 # (the scaffold's `on_error: recover:` rehearses green in an empty
@@ -102,13 +102,13 @@ need check "JOURNEY"          # the data journey rung renders on every audit
 # Provision the input the scaffold DECLARES (./README.md since the
 # pack-SSOT era · ./input.txt before) — the funnel plays the file,
 # it never assumes the era.
-SRC=$(sed -n 's/^  source: "\(\.\/[A-Za-z0-9._-]*\)".*/\1/p' first.nika.yaml | head -1)
+SRC=$(sed -n 's/^  source: "\(\.\/[A-Za-z0-9._-]*\)".*/\1/p' first.nika | head -1)
 echo demo >"${SRC:-./input.txt}"
-run run-mock 0 -- "$BIN" run first.nika.yaml --model mock/echo
+run run-mock 0 -- "$BIN" run first.nika --model mock/echo
 TRACE=$(find .nika/traces -name '*.ndjson' 2>/dev/null | sort | tail -1)
 [ -n "$TRACE" ] || fail "[run] no trace recorded"
 if has_cmd explain; then
-  run explain-file 0 -- "$BIN" explain first.nika.yaml
+  run explain-file 0 -- "$BIN" explain first.nika
   # The ceiling must be stated BEFORE a token is spent — that is the
   # promise, and it holds whatever the scaffold costs. The old pins
   # (`bounded portion` · `unpriced`) render only for an UNBOUNDED plan;
@@ -168,22 +168,22 @@ done
 # without a single write under HOME. (The payload rides a HERESTRING,
 # never an `echo | run` pipe: a piped function runs in a subshell and
 # its OUT would never reach the need() checks below.)
-run guard-clean 0 -- "$BIN" guard --stdin <<<'{"command":"nika run first.nika.yaml","cwd":"."}'
+run guard-clean 0 -- "$BIN" guard --stdin <<<'{"command":"nika run first.nika","cwd":"."}'
 need guard-clean '"permission":"allow"'
 # shellcheck disable=SC2016 # the workflow must reach the file UNEXPANDED
-printf 'nika: consent-dirty\npermits:\n  exec: ["git"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "push?", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: ["git", "push"] }\n' >consent-dirty.nika.yaml
-run guard-dirty 2 -- "$BIN" guard --stdin <<<'{"command":"nika run consent-dirty.nika.yaml","cwd":"."}'
+printf 'nika: consent-dirty\npermits:\n  exec: ["git"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "push?", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: ["git", "push"] }\n' >consent-dirty.nika
+run guard-dirty 2 -- "$BIN" guard --stdin <<<'{"command":"nika run consent-dirty.nika","cwd":"."}'
 need guard-dirty '"permission":"deny"'
 need guard-dirty 'NIKA-SEC-014'
-run consent-check 2 -- "$BIN" check consent-dirty.nika.yaml
+run consent-check 2 -- "$BIN" check consent-dirty.nika
 need consent-check 'NIKA-SEC-014'
 # The affirmative twin: a default-less confirm whose answer IS gated
 # (NEP-0020's human-gated-ship) pauses headless instead of dying — the
 # first-run-killer class. exit 4 + the taught resume line, never a
 # bare refusal.
 # shellcheck disable=SC2016 # the workflow must reach the file UNEXPANDED
-printf 'nika: consent-pause\nmodel: mock/echo\npermits:\n  exec: ["echo"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "continue?" }\n  go:\n    after: { ask: success }\n    with:\n      ok: ${{ tasks.ask.output }}\n    when: ${{ with.ok == true }}\n    exec: { command: ["echo", "went"] }\n' >consent-pause.nika.yaml
-run consent-run 4 -- "$BIN" run consent-pause.nika.yaml
+printf 'nika: consent-pause\nmodel: mock/echo\npermits:\n  exec: ["echo"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "continue?" }\n  go:\n    after: { ask: success }\n    with:\n      ok: ${{ tasks.ask.output }}\n    when: ${{ with.ok == true }}\n    exec: { command: ["echo", "went"] }\n' >consent-pause.nika
+run consent-run 4 -- "$BIN" run consent-pause.nika
 need consent-run '--resume'
 need consent-run '--answer'
 mkdir -p "$HOME_DIR/.cursor" && printf '{}' >"$HOME_DIR/.cursor/mcp.json"
@@ -196,9 +196,9 @@ AFTER=$(find "$HOME_DIR" -type f | sort)
 # 6 · doctor diagnoses offline · broken files fail WITH a code
 run doctor 0 -- "$BIN" doctor
 # shellcheck disable=SC2016 # the ${{ }} island must reach the file UNEXPANDED
-printf 'nika: broken\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: ["echo", "${{ tasks.ghost.output }}"] }\n' >broken.nika.yaml
+printf 'nika: broken\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: ["echo", "${{ tasks.ghost.output }}"] }\n' >broken.nika
 set +e
-OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb NIKA_KEYCHAIN=off "$BIN" check broken.nika.yaml 2>&1)
+OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb NIKA_KEYCHAIN=off "$BIN" check broken.nika 2>&1)
 GOT=$?
 set -e
 [ "$GOT" -eq 0 ] && fail "[broken] invalid workflow checked clean"

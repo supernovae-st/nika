@@ -114,7 +114,7 @@ mod tests {
     fn taking_the_real_example_never_plants_a_demo_release() {
         let dir = room("new");
         let body = nika_pack::example("release-train").expect("example");
-        crate::fixtures::materialize(body, &dir.join("release.nika.yaml")).expect("take");
+        crate::fixtures::materialize(body, &dir.join("release.nika")).expect("take");
         assert!(!dir.join("VERSION").exists());
         assert!(!dir.join("CHANGELOG.md").exists());
         let _ = std::fs::remove_dir_all(&dir);
@@ -139,7 +139,7 @@ mod tests {
             supplied_vars("release-train", &["hold_for=2s".to_owned()]).collect::<Vec<_>>(),
             [format!("{key}={value}")]
         );
-        assert_eq!(supplied_vars("release-train.nika.yaml", &[]).count(), 1);
+        assert_eq!(supplied_vars("release-train.nika", &[]).count(), 1);
         assert!(supplied_vars("hello", &[]).next().is_none());
     }
 }

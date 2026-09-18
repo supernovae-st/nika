@@ -64,7 +64,7 @@ fn assert_all_ascii(what: &str, bytes: &[u8]) {
 #[test]
 fn check_ascii_emits_only_ascii_bytes() {
     let dir = workspace_tmp_dir("nika-ascii-check");
-    let wf = dir.join("ok.nika.yaml");
+    let wf = dir.join("ok.nika");
     let mut f = std::fs::File::create(&wf).expect("fixture file");
     f.write_all(VALID.as_bytes()).expect("fixture body");
 
@@ -104,7 +104,7 @@ fn welcome_ascii_emits_only_ascii_bytes() {
     let proj = dir.join("proj");
     std::fs::create_dir_all(&proj).expect("proj dir");
     std::fs::create_dir(proj.join(".git")).expect("git marker");
-    let wf = proj.join("ok.nika.yaml");
+    let wf = proj.join("ok.nika");
     let mut f = std::fs::File::create(&wf).expect("fixture file");
     f.write_all(VALID.as_bytes()).expect("fixture body");
 
@@ -132,7 +132,7 @@ fn welcome_ascii_emits_only_ascii_bytes() {
 #[test]
 fn plain_implies_the_ascii_byte_contract() {
     let dir = workspace_tmp_dir("nika-plain-check");
-    let wf = dir.join("ok.nika.yaml");
+    let wf = dir.join("ok.nika");
     let mut f = std::fs::File::create(&wf).expect("fixture file");
     f.write_all(VALID.as_bytes()).expect("fixture body");
 

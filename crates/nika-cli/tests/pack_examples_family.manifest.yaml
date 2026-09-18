@@ -1,6 +1,6 @@
 # pack_examples_family manifest — the run contract for every shipped example.
 #
-# One row per `pack/examples/**.nika.yaml` slug. The harness
+# One row per `pack/examples/**.nika` slug. The harness
 # (`pack_examples_family.rs`) refuses a corpus/example drift: a slug with no
 # row, or a row naming no slug, fails the completeness test.
 #

@@ -10,7 +10,7 @@ runs? What do I get?
 |---:|---|---|---|
 | 0.0–3.2s | Intent writes itself | “Turn this meeting into clear action items.” Words appear character by character; `meeting`, `clear`, and `action items` receive distinct semantic color. | What do I give Nika? |
 | 3.2–5.3s | Capabilities connect | Apps, MCP, APIs, and built-ins connect to the request as four explicit inputs—not a logo cloud. | What can it use? |
-| 5.3–8.5s | Intent becomes source | The sentence resolves into `meeting-actions.nika.yaml`. Beside the real syntax, plain-language cards say: read the meeting, ask one model, write the result. | What does Nika create? |
+| 5.3–8.5s | Intent becomes source | The sentence resolves into `meeting-actions.nika`. Beside the real syntax, plain-language cards say: read the meeting, ask one model, write the result. | What does Nika create? |
 | 8.5–11.2s | Check before run | The file compiles into the canonical three-node DAG from `nika inspect`; a receipt exposes three steps, two allowed tools, and one model. | Can I inspect it first? |
 | 11.2–15.3s | Run the graph | A single signal travels Read → Extract → Save. Each node has exactly one state: waiting, running, done. | What actually runs? |
 | 15.3–18.6s | Result + proof | The real action items appear beside a verified run receipt and the real shortened trace hash. | What do I get, and can I trust the record? |
@@ -30,7 +30,7 @@ runs? What do I get?
 
 ## Truth sources
 
-- Workflow: `scripts/media/fixtures/meeting-actions.nika.yaml`
+- Workflow: `scripts/media/fixtures/meeting-actions.nika`
 - Canonical graph: `nika inspect` format 3 — `transcript → extract → save`
 - Validation: `nika check` — 3 tasks, 2 allowed tools, 1 model
 - Output: `media/raw/action-items.json`

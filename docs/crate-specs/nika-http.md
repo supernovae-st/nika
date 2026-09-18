@@ -135,7 +135,7 @@ defeats layer 2. Narrowed, not eliminated; per-request IP pinning is a
 | 6 PROPERTY | ✅ | MANDATORY (security): private-v4-range→SsrfBlocked (256 cases) · public-v4→allowed · v4↔mapped-v6 verdict equivalence · foreign-scheme→blocked |
 | 7 BENCH | N/A | network-bound effect crate, no algorithmic hot path (justified) |
 | 8 DOCS | ✅ | `RUSTDOCFLAGS=-D warnings cargo doc --no-deps` 0 warnings · private-item rustdoc clean (vector 28) · per-method CANCEL SAFETY + §3 |
-| 9 CANARY | N/A | L1 effect, no `.nika.yaml` surface until L2 verbs (justified — clock/fs precedent) |
+| 9 CANARY | N/A | L1 effect, no `.nika` surface until L2 verbs (justified — clock/fs precedent) |
 | 10 PARITY | ✅ | all brouillon ssrf vectors re-asserted (localhost · RFC1918 · CGN · v4-mapped · metadata · file:// · public-allowed) · Diamond ADDS DNS-resolve-check + per-hop re-check + size cap + streaming + redirect demotion |
 | 11 REVIEW | ✅ | 3-agent swarm 2026-06-10 · 0 P0/P1 · P2 fixed same-session (3 dead BLOCKED_HOSTNAMES entries removed + trailing-dot normalize · README added · TLS-init + 303/301/307/308 demotion tests + v6 embedded-v4 collapse) |
 | 12 ATOMIC | ✅ | 1 commit · Nika 🦋 trailer |

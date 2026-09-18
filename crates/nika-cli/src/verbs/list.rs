@@ -42,16 +42,16 @@ mod tests {
         let dir = tempfile::tempdir().expect("scratch");
         std::fs::create_dir_all(dir.path().join("nested")).expect("nested");
         std::fs::create_dir_all(dir.path().join(".git")).expect("hidden");
-        std::fs::write(dir.path().join("z.nika.yaml"), "nika: z\n").expect("workflow");
-        std::fs::write(dir.path().join("nested/a.nika.yml"), "nika: a\n").expect("nested workflow");
+        std::fs::write(dir.path().join("z.nika"), "nika: z\n").expect("workflow");
+        std::fs::write(dir.path().join("nested/a.nika"), "nika: a\n").expect("nested workflow");
         std::fs::write(dir.path().join("nika.yaml"), "nika: proj\n").expect("project file");
-        std::fs::write(dir.path().join(".git/hidden.nika.yaml"), "nika: hidden\n")
+        std::fs::write(dir.path().join(".git/hidden.nika"), "nika: hidden\n")
             .expect("hidden workflow");
 
         let out = run(dir.path());
 
         assert_eq!(out.code, crate::verbs::exit::OK);
-        assert_eq!(out.text, "nested/a.nika.yml\nz.nika.yaml\n");
+        assert_eq!(out.text, "nested/a.nika\nz.nika\n");
     }
 
     #[test]

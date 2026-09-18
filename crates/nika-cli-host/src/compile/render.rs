@@ -17,7 +17,7 @@ pub(super) fn listing(json_output: bool) -> VerbOutput {
         json!({"compile_version":1,"skeletons":names}).to_string()
     } else {
         format!(
-            "exact skeletons · {}\nPreview: nika compile <slug> · write: nika compile <slug> <file>.nika.yaml",
+            "exact skeletons · {}\nPreview: nika compile <slug> · write: nika compile <slug> <file>.nika",
             names.join(" · ")
         )
     })

@@ -35,7 +35,7 @@ fail() {
 }
 say() { printf '%s\n' "$*"; }
 
-cat >wf.nika.yaml <<'YAML'
+cat >wf.nika <<'YAML'
 nika: trust
 model: mock/echo
 # F-O8 · absent permits is the EMPTY boundary since 0.106, and this fixture
@@ -59,17 +59,17 @@ YAML
 say "── trust battery · $("$BIN" --version)"
 
 # T1 · run → resume (skips) → --from (subtree re-runs)
-"$BIN" run wf.nika.yaml --json >run1.ndjson 2>/dev/null || fail "[T1] first run"
+"$BIN" run wf.nika --json >run1.ndjson 2>/dev/null || fail "[T1] first run"
 TRACE=$(/bin/ls -t .nika/traces/*.ndjson 2>/dev/null | head -1)
 [ -n "$TRACE" ] || fail "[T1] no trace recorded"
-OUT=$("$BIN" run wf.nika.yaml --resume "$TRACE" --color never 2>&1)
+OUT=$("$BIN" run wf.nika --resume "$TRACE" --color never 2>&1)
 printf '%s' "$OUT" | grep -q "cache hit" || fail "[T1] resume shows no visible cache hit"
-OUT=$("$BIN" run wf.nika.yaml --resume "$TRACE" --from think --color never 2>&1)
+OUT=$("$BIN" run wf.nika --resume "$TRACE" --from think --color never 2>&1)
 printf '%s' "$OUT" | grep -qE "1 skipped.*1 ran live|1 skipped.*2 ran live|ran live" \
   || fail "[T1] --from did not re-run the subtree: $OUT"
 
 # T2 · reproduce: two runs of the same workflow → REPRODUCED
-"$BIN" run wf.nika.yaml --json >run2.ndjson 2>/dev/null || fail "[T2] second run"
+"$BIN" run wf.nika --json >run2.ndjson 2>/dev/null || fail "[T2] second run"
 T_OLD=$(/bin/ls -t .nika/traces/*.ndjson | tail -1)
 T_NEW=$(/bin/ls -t .nika/traces/*.ndjson | head -1)
 OUT=$("$BIN" trace reproduce "$T_OLD" "$T_NEW" 2>&1)

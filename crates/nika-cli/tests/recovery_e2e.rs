@@ -27,7 +27,7 @@ const FAILING: &str = "nika: rail-witness\npermits: { exec: true }\ntasks:\n  bo
 #[test]
 fn explain_opens_on_the_recovery_rail_after_a_real_failure() {
     let dir = tempfile::tempdir().expect("dir");
-    let wf = dir.path().join("rail.nika.yaml");
+    let wf = dir.path().join("rail.nika");
     std::fs::write(&wf, FAILING).expect("fixture");
 
     // ACT 1 · the real run fails (exit 1 — the workflow ran, a task

@@ -15,8 +15,8 @@
 - id: nika-check
   name: nika check
   description: >-
-    Statically audit .nika.yaml workflows (DAG, types, permits, secret
+    Statically audit .nika workflows (DAG, types, permits, secret
     flows, cost floor) before they land — audit-before-run at commit time.
   entry: nika check
   language: system
-  files: '\.nika\.yaml$'
+  files: '\.nika$'

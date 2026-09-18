@@ -10,7 +10,7 @@ fn trace_show_and_replay_expose_the_recorded_gate_without_reexecuting() {
     let room = tempfile::tempdir().expect("isolated room");
     let home = room.path().join("home");
     std::fs::create_dir(&home).expect("home");
-    std::fs::write(room.path().join("flow.nika.yaml"),
+    std::fs::write(room.path().join("flow.nika"),
         "nika: gate-display\nmodel: mock/echo\npermits: { tools: [nika:prompt] }\ntasks:\n  approve:\n    invoke:\n      tool: nika:prompt\n      args: { mode: confirm, message: 'ship it?' }\n"
     ).expect("workflow");
     let call = |args: &[&str], operator: &str| {
@@ -27,13 +27,7 @@ fn trace_show_and_replay_expose_the_recorded_gate_without_reexecuting() {
             .expect("isolated CLI")
     };
     let run = call(
-        &[
-            "run",
-            "flow.nika.yaml",
-            "--answer",
-            "approve=true",
-            "--json",
-        ],
+        &["run", "flow.nika", "--answer", "approve=true", "--json"],
         "alice-ci",
     );
     assert!(
@@ -48,7 +42,7 @@ fn trace_show_and_replay_expose_the_recorded_gate_without_reexecuting() {
         .find(|p| p.extension().is_some_and(|e| e == "ndjson"))
         .expect("journal");
     let before = std::fs::read(&trace).expect("journal bytes");
-    std::fs::remove_file(room.path().join("flow.nika.yaml")).expect("reading needs no workflow");
+    std::fs::remove_file(room.path().join("flow.nika")).expect("reading needs no workflow");
     for verb in ["show", "replay"] {
         let read = call(&["trace", verb, trace.to_str().expect("path")], "bob-now");
         let text = String::from_utf8(read.stdout).expect("text");

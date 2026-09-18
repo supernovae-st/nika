@@ -23,7 +23,7 @@
 //!
 //! # async fn example() -> Result<(), FsError> {
 //! let fs = TokioFs;
-//! let content = fs.read_to_string(Path::new("workflow.nika.yaml")).await?;
+//! let content = fs.read_to_string(Path::new("workflow.nika")).await?;
 //! println!("{content}");
 //! # Ok(())
 //! # }

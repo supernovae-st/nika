@@ -5,8 +5,8 @@
 # against the REAL installed binary in a staged git workdir. Every command
 # shown exists in the released CLI; every line of output is the binary's own.
 # The workflow pair is honesty-gated by validate-media.sh:
-#   fixtures/broken-release-notes.nika.yaml must keep FAILING `nika check`,
-#   fixtures/fixed-release-notes.nika.yaml must stay clean.
+#   fixtures/broken-release-notes.nika must keep FAILING `nika check`,
+#   fixtures/fixed-release-notes.nika must stay clean.
 Output full-loop.gif
 
 Set Shell zsh
@@ -29,10 +29,10 @@ Type "setopt interactive_comments && clear"
 Enter
 Show
 
-Type "# an agent wrote release-notes.nika.yaml — audit it BEFORE it spends"
+Type "# an agent wrote release-notes.nika — audit it BEFORE it spends"
 Enter
 Sleep 900ms
-Type "nika check release-notes.nika.yaml"
+Type "nika check release-notes.nika"
 Enter
 Sleep 5200ms
 
@@ -41,10 +41,10 @@ Enter
 Type "# every finding names its fix — apply the two renames it suggested"
 Enter
 Sleep 800ms
-Type "sed -i '' 's/digets/digest/; s/wrte/write/' release-notes.nika.yaml"
+Type "sed -i '' 's/digets/digest/; s/wrte/write/' release-notes.nika"
 Enter
 Sleep 700ms
-Type "nika check release-notes.nika.yaml"
+Type "nika check release-notes.nika"
 Enter
 Sleep 5000ms
 
@@ -53,7 +53,7 @@ Enter
 Type "# clean — run it (mock/echo: offline, zero keys · or ollama/…, any provider)"
 Enter
 Sleep 900ms
-Type "nika run release-notes.nika.yaml --model mock/echo"
+Type "nika run release-notes.nika --model mock/echo"
 Enter
 Sleep 3600ms
 

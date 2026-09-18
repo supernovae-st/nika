@@ -106,7 +106,7 @@ GPU abort) kills only the child; the lean core detects the broken pipe and
 restarts/degrades. `catch_unwind` is the inner backstop, the process boundary
 is the real containment.
 
-## 5bis. Connection path — wiring the island into a `.nika.yaml`
+## 5bis. Connection path — wiring the island into a `.nika`
 
 **Status update 2026-06-11 (same day · the server hop is BUILT):** the
 `server` module ships behind an orthogonal `server` feature (ADR-093 ·
@@ -117,12 +117,12 @@ spec provider canon (`canon.yaml` provider list + `providers-v0.1.md`) and
 the provider-prefix validation surface (nika-schema) — DEFERRED to a window
 where those canon surfaces are not mid-arc in a concurrent session. Until
 then the crate is a *served* island: reachable over HTTP, not yet routable
-from a `.nika.yaml`.
+from a `.nika`.
 
 **The path (3 hops · each side already exists):**
 
 ```
-.nika.yaml `model: local/qwen3`
+.nika `model: local/qwen3`
    │
    ▼  nika-providers · a NEW "local" Profile (wire: OpenAiCompat · base_url:
    │   http://127.0.0.1:<port> · requires_key: false) — ONE catalog row, the
@@ -184,7 +184,7 @@ layer (L3), not here — this crate stays the backend + the (thin) server.
 | 6 PROPERTY | ✅ protocol round-trip · min-p (keeps-max + floor) · top-nσ (temperature-invariance + keeps-max) · token-mask (exact-zeroing) · repeat-penalty (never-raises) |
 | 7 BENCH | ✅ decode-loop hot path (`benches/logits_bench.rs` · criterion · vocab 151,936): min-p **~126µs** · top-nσ **~438µs** · token-mask/repeat-penalty single-pass — all negligible vs a multi-ms CPU forward step (the per-token overhead budget). Model tok/s is e2e-gated (the real-GGUF test prints it) |
 | 8 DOCS | ✅ cargo doc 0 both axes |
-| 9 CANARY | ✅ end-to-end HTTP canary — `tests/server_http.rs::served_bytes_are_wire_valid_at_the_openai_compat_paths` drives a real TCP request → the live `serve()` sidecar → response, asserting the UNTYPED JSON pointer paths (`/choices/0/message/{content,role}` · `/choices/0/finish_reason` · `/usage/*` · `/id`) the engine's `nika-providers` OpenAiCompat parser walks — on the served bytes, so a serde rename can't pass silently. No verb consumes the crate yet (grep-verified), so the workflow-level `.nika.yaml` canary lands with the verb that routes `model: local/<x>` here. |
+| 9 CANARY | ✅ end-to-end HTTP canary — `tests/server_http.rs::served_bytes_are_wire_valid_at_the_openai_compat_paths` drives a real TCP request → the live `serve()` sidecar → response, asserting the UNTYPED JSON pointer paths (`/choices/0/message/{content,role}` · `/choices/0/finish_reason` · `/usage/*` · `/id`) the engine's `nika-providers` OpenAiCompat parser walks — on the served bytes, so a serde rename can't pass silently. No verb consumes the crate yet (grep-verified), so the workflow-level `.nika` canary lands with the verb that routes `model: local/<x>` here. |
 | 10 PARITY | ✅ wire-level self-consistency (tests/wire_contract.rs pins the exact JSON paths + literals nika-providers' parser reads) · real-model e2e green (Qwen3-1.7B Q8 · CPU · EOS/Length/determinism) |
 | 11 REVIEW | ✅ scaffold 3-lens (ce287e8c) + candle-backend adversarial review folded (2 P1 + 3 P2/P3: stop-tail window made conservative · OOM phrase-match not substring · tail-decode error propagated · device stored at load · bench black_box) · **final admission swarm 2026-06-16**: rust-security PASS no-blockers (network/model/permits SOUND · 0 production unwrap clippy-enforced on default+`server`) + spn-refuter (sole gap = Gate-9, now closed). Folded — **P2-1** wire `max_tokens` clamped to remaining context (pure `budget` module · 5 unit tests · no OOM / no past-window desync · honest doc) · **P2-3** token math saturating (local invariant) · **P2-2** Slowloris noted (Known Limitations §4bis · loopback-only, out of threat model). |
 | 12 ATOMIC | 1 admission = 1 commit |

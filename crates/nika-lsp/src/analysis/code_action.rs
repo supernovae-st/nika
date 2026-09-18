@@ -193,7 +193,7 @@ mod tests {
     };
 
     fn uri() -> Uri {
-        "file:///wf.nika.yaml".parse().expect("static uri")
+        "file:///wf.nika".parse().expect("static uri")
     }
 
     fn actions(text: &str) -> Vec<CodeActionOrCommand> {

@@ -138,7 +138,7 @@ fn init_founding_wizard_golden_path_lands_the_curriculum() {
     p.send_line("").expect("Enter = skip");
     // Then the writes + the proof + the panel.
     p.expect("created AGENTS.md").expect("scaffold report");
-    p.expect("workflows/01-hello-chain.nika.yaml")
+    p.expect("workflows/01-hello-chain.nika")
         .expect("the curriculum scaffolds");
     p.expect("proof").expect("the audit step announces itself");
     p.expect("audited").expect("the ladder ran");
@@ -153,10 +153,10 @@ fn init_founding_wizard_golden_path_lands_the_curriculum() {
         "wiring written"
     );
     for rel in [
-        "workflows/01-hello-chain.nika.yaml",
-        "workflows/02-parallel-fanout.nika.yaml",
-        "workflows/03-gated-ship.nika.yaml",
-        "workflows/04-agent-loop.nika.yaml",
+        "workflows/01-hello-chain.nika",
+        "workflows/02-parallel-fanout.nika",
+        "workflows/03-gated-ship.nika",
+        "workflows/04-agent-loop.nika",
     ] {
         assert!(dir.join(rel).is_file(), "{rel} written");
     }
@@ -188,7 +188,7 @@ fn init_example_lane_founds_around_one_lesson() {
     p.expect("project file").expect("the project-file beat");
     p.send_line("").expect("Enter = lay it (#1283)");
     p.expect("created AGENTS.md").expect("briefs land");
-    p.expect("workflows/01-hello.nika.yaml")
+    p.expect("workflows/01-hello.nika")
         .expect("the lesson lands verbatim");
     p.expect("proof").expect("the audit step");
     p.expect("audited").expect("the ladder ran");
@@ -197,7 +197,7 @@ fn init_example_lane_founds_around_one_lesson() {
     assert_eq!(exit_code(&mut p), 0, "init accepts its taught draft class");
 
     let body =
-        std::fs::read_to_string(dir.join("workflows/01-hello.nika.yaml")).expect("lesson written");
+        std::fs::read_to_string(dir.join("workflows/01-hello.nika")).expect("lesson written");
     assert!(
         body.contains("nika: hello"),
         "verbatim example body: {body}"
@@ -235,7 +235,7 @@ fn init_starter_recipe_hands_over_to_explicit_compile() {
     p.expect(Eof).expect("ends without a second wizard");
     assert_eq!(exit_code(&mut p), 0);
     assert!(dir.join("AGENTS.md").is_file());
-    assert!(!dir.join("my-first.nika.yaml").exists());
+    assert!(!dir.join("my-first.nika").exists());
 }
 
 #[test]

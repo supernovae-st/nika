@@ -36,7 +36,9 @@ if [ -n "${CI:-}" ]; then
     exit 1
   fi
   # CI: the FULL battery — lib AND integration targets (tests/).
-  exec cargo nextest run --workspace
+  # --no-fail-fast: keep going after the first red so one Linux run
+  # reports the whole remaining batch (CI still exits non-zero).
+  exec cargo nextest run --workspace --no-fail-fast
 fi
 
 if command -v cargo-nextest >/dev/null 2>&1; then

@@ -211,6 +211,49 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::DiagnosticKin
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::DiagnosticKind
 impl<T> typenum::type_operators::Same for nika_onboard::compile::DiagnosticKind
 pub type nika_onboard::compile::DiagnosticKind::Output = T
+#[non_exhaustive] pub enum nika_onboard::compile::MaterializeError
+pub nika_onboard::compile::MaterializeError::AlreadyExists(alloc::string::String)
+pub nika_onboard::compile::MaterializeError::Io
+pub nika_onboard::compile::MaterializeError::Io::path: alloc::string::String
+pub nika_onboard::compile::MaterializeError::Io::source: core::io::error::Error
+pub nika_onboard::compile::MaterializeError::NotAProgramPath(alloc::string::String)
+pub nika_onboard::compile::MaterializeError::NotReady
+impl core::error::Error for nika_onboard::compile::MaterializeError
+pub fn nika_onboard::compile::MaterializeError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_onboard::compile::MaterializeError
+pub fn nika_onboard::compile::MaterializeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_onboard::compile::MaterializeError
+pub fn nika_onboard::compile::MaterializeError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::MaterializeError
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::MaterializeError where U: core::convert::From<T>
+pub fn nika_onboard::compile::MaterializeError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::MaterializeError where U: core::convert::Into<T>
+pub type nika_onboard::compile::MaterializeError::Error = core::convert::Infallible
+pub fn nika_onboard::compile::MaterializeError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::MaterializeError where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::MaterializeError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::MaterializeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_onboard::compile::MaterializeError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_onboard::compile::MaterializeError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_onboard::compile::MaterializeError where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::MaterializeError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::MaterializeError where T: ?core::marker::Sized
+pub fn nika_onboard::compile::MaterializeError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::MaterializeError where T: ?core::marker::Sized
+pub fn nika_onboard::compile::MaterializeError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::compile::MaterializeError
+pub fn nika_onboard::compile::MaterializeError::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_onboard::compile::MaterializeError where T: core::fmt::Display
+pub fn nika_onboard::compile::MaterializeError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::MaterializeError where T: 'static
+pub fn nika_onboard::compile::MaterializeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::MaterializeError where T: ?core::marker::Sized
+pub fn nika_onboard::compile::MaterializeError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::MaterializeError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::MaterializeError
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::MaterializeError
+impl<T> typenum::type_operators::Same for nika_onboard::compile::MaterializeError
+pub type nika_onboard::compile::MaterializeError::Output = T
 #[non_exhaustive] pub enum nika_onboard::compile::PreviewScope
 pub nika_onboard::compile::PreviewScope::SourceOnly
 impl core::clone::Clone for nika_onboard::compile::PreviewScope
@@ -639,6 +682,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::Represent
 impl<T> typenum::type_operators::Same for nika_onboard::compile::RepresentationError
 pub type nika_onboard::compile::RepresentationError::Output = T
 pub fn nika_onboard::compile::compile(request: &nika_onboard::compile::CompileRequest) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
+pub fn nika_onboard::compile::materialize_ready(outcome: &nika_onboard::compile::CompileOutcome, dest: &std::path::Path, overwrite: bool) -> core::result::Result<(), nika_onboard::compile::MaterializeError>
 pub mod nika_onboard::fixtures
 pub fn nika_onboard::fixtures::fixture_prefixes(body: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_onboard::fixtures::materialize(body: &str, dest: &std::path::Path) -> core::io::error::Result<(usize, usize)>

@@ -319,7 +319,7 @@ mod tests {
     fn waves_agree_with_the_engine() {
         let (wf, report) = checked(YAML_DIAMOND);
         assert!(!report.waves.is_empty(), "the fixture must be checkable");
-        let model_wf = workflow_of(&wf, "t.nika.yaml");
+        let model_wf = workflow_of(&wf, "t.nika");
         let ours = derive::waves(&model_wf);
 
         assert_eq!(
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn implicit_data_edges_become_needs() {
         let (wf, _) = checked(YAML_DIAMOND);
-        let model_wf = workflow_of(&wf, "t.nika.yaml");
+        let model_wf = workflow_of(&wf, "t.nika");
         let by_id: BTreeMap<&str, &model::Task> =
             model_wf.tasks.iter().map(|t| (t.id.as_str(), t)).collect();
         assert_eq!(by_id["a"].needs, Vec::<String>::new(), "a is a root");
@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn the_digest_names_the_holder_and_the_spend() {
         let (wf, _) = checked(YAML_DIAMOND);
-        let model_wf = workflow_of(&wf, "t.nika.yaml");
+        let model_wf = workflow_of(&wf, "t.nika");
         let run = run_of(vec![
             step("a", 0.0, 1.0, Some(0.10)),
             step("b", 1.0, 1.0, Some(0.02)),
@@ -401,7 +401,7 @@ mod tests {
     #[test]
     fn an_unmetered_run_says_so_never_a_zero() {
         let (wf, _) = checked(YAML_DIAMOND);
-        let model_wf = workflow_of(&wf, "t.nika.yaml");
+        let model_wf = workflow_of(&wf, "t.nika");
         let run = run_of(vec![
             step("a", 0.0, 1.0, None),
             step("b", 1.0, 1.0, None),
@@ -421,7 +421,7 @@ mod tests {
     #[test]
     fn a_holder_nobody_waited_for_is_not_named() {
         let (wf, _) = checked(YAML_DIAMOND);
-        let model_wf = workflow_of(&wf, "t.nika.yaml");
+        let model_wf = workflow_of(&wf, "t.nika");
         let run = run_of(vec![
             step("a", 0.0, 1.0, None),
             step("b", 1.0, 1.0, None),
@@ -439,7 +439,7 @@ mod tests {
     #[test]
     fn a_broken_run_names_no_holder() {
         let (wf, _) = checked(YAML_DIAMOND);
-        let model_wf = workflow_of(&wf, "t.nika.yaml");
+        let model_wf = workflow_of(&wf, "t.nika");
         let mut steps = vec![
             step("a", 0.0, 1.0, None),
             step("b", 1.0, 1.0, None),
@@ -462,7 +462,7 @@ mod tests {
     #[test]
     fn a_journal_without_a_trace_id_withholds_the_receipt() {
         let (wf, _) = checked(YAML_DIAMOND);
-        let model_wf = workflow_of(&wf, "t.nika.yaml");
+        let model_wf = workflow_of(&wf, "t.nika");
         let run = model::Run::new(
             String::new(),
             String::new(),

@@ -350,7 +350,7 @@ fn claim_and_receipt_stay_on_the_held_directory_after_path_swap() {
         .expect("beat lock");
     let lease = attempt.lease.expect("lease");
     let claim = Claim::new(
-        SlotId::derive("doctor.nika.yaml", "TZ=UTC 0 3 * * *", &now),
+        SlotId::derive("doctor.nika", "TZ=UTC 0 3 * * *", &now),
         ts("2026-08-20T03:00:00Z"),
         ts("2026-08-19T03:02:00Z"),
     );
@@ -606,7 +606,7 @@ fn the_watermark_tracks_the_decision_and_a_readonly_sidecar_fails_loudly() {
 fn an_orphan_claim_is_visible_until_its_receipt_lands() {
     let (_dir, state) = state("unsettled");
     let identity = SlotId::derive(
-        "workflows/doctor.nika.yaml",
+        "workflows/doctor.nika",
         "TZ=UTC 0 3 * * *",
         &at("2026-08-19T03:00:00Z"),
     );
@@ -644,7 +644,7 @@ fn an_orphan_claim_is_visible_until_its_receipt_lands() {
 fn a_deleted_anchored_receipt_cannot_forge_an_orphan() {
     let (dir, state) = state("unsettled-rollback");
     let identity = SlotId::derive(
-        "workflows/doctor.nika.yaml",
+        "workflows/doctor.nika",
         "TZ=UTC 0 3 * * *",
         &at("2026-08-19T03:00:00Z"),
     );
@@ -682,7 +682,7 @@ fn a_deleted_anchored_receipt_cannot_forge_an_orphan() {
 fn a_forged_tail_cannot_settle_or_inflate_the_verified_ledger() {
     let (dir, state) = state("aggregate-tamper");
     let identity = SlotId::derive(
-        "workflows/doctor.nika.yaml",
+        "workflows/doctor.nika",
         "TZ=UTC 0 3 * * *",
         &at("2026-08-19T03:00:00Z"),
     );
@@ -739,16 +739,8 @@ fn a_parseable_forged_last_cache_never_overrides_the_chain() {
 #[test]
 fn a_receipt_with_the_wrong_slot_or_fence_is_rejected() {
     let (_dir, state) = state("unsettled-exact");
-    let first = SlotId::derive(
-        "a.nika.yaml",
-        "TZ=UTC 0 3 * * *",
-        &at("2026-08-19T03:00:00Z"),
-    );
-    let other = SlotId::derive(
-        "b.nika.yaml",
-        "TZ=UTC 0 3 * * *",
-        &at("2026-08-19T03:00:00Z"),
-    );
+    let first = SlotId::derive("a.nika", "TZ=UTC 0 3 * * *", &at("2026-08-19T03:00:00Z"));
+    let other = SlotId::derive("b.nika", "TZ=UTC 0 3 * * *", &at("2026-08-19T03:00:00Z"));
     let claim = Claim::new(
         first.clone(),
         ts("2026-08-20T03:00:00Z"),
@@ -779,11 +771,7 @@ fn a_receipt_with_the_wrong_slot_or_fence_is_rejected() {
 #[test]
 fn an_earlier_receipt_is_rejected_before_a_later_claim() {
     let (_dir, state) = state("unsettled-order");
-    let identity = SlotId::derive(
-        "a.nika.yaml",
-        "TZ=UTC 0 3 * * *",
-        &at("2026-08-19T03:00:00Z"),
-    );
+    let identity = SlotId::derive("a.nika", "TZ=UTC 0 3 * * *", &at("2026-08-19T03:00:00Z"));
     let mut early = entry(FireKind::Failed);
     early.slot_id = Some(identity.clone());
     early.fencing = Some(FencingToken::new(2));
@@ -812,7 +800,7 @@ fn an_earlier_receipt_is_rejected_before_a_later_claim() {
 #[test]
 fn the_slot_id_derives_in_the_cadence_machine() {
     let identity = SlotId::derive(
-        "workflows/doctor.nika.yaml",
+        "workflows/doctor.nika",
         "TZ=UTC 0 3 * * *",
         &at("2026-08-19T03:00:00Z"),
     );

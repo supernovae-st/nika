@@ -121,7 +121,7 @@ mod tests {
             "pr-risk-review",
             "1.0.0",
             ArtifactKind::Workflow,
-            vec![FileEntry::new("pr-risk-review.nika.yaml", s2())],
+            vec![FileEntry::new("pr-risk-review.nika", s2())],
             b3(),
         )
     }

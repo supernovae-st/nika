@@ -194,7 +194,7 @@ frame final (success)
 
 frame final (failure · miette card)
   ✖ summarize failed · NIKA-431 provider refused (429 rate-limit)
-    ┌─ veille-news.nika.yaml:23:9
+    ┌─ veille-news.nika:23:9
     │   model: anthropic/claude-sonnet-4-6
     ╰─ retried 2× · budget exhausted
     fix: add retry.backoff_ms or switch provider — nika explain NIKA-431
@@ -359,7 +359,7 @@ ADR-129's INCOMPLETE (5) is specific to unfinished trace evidence and is not
 repurposed. The preview is the pure source-only Check report; Run re-admits.
 No general NL, Graph gate-add, Jev or remote Compile transport is claimed.
 
-Compile destinations must use the canonical `.nika.yaml` suffix; the adapter
+Compile destinations must use the canonical `.nika` suffix; the adapter
 refuses other suffixes without writing. Materialization prepares and syncs a
 temporary file in the destination directory, protects local traces, then
 atomically publishes with no-clobber semantics (or replaces under explicit

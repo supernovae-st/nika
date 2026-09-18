@@ -33,7 +33,7 @@ async fn pause_closes_observation_with_durable_result_and_evidence() {
     let server = world.start(Arc::new(PausingBackend), limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "pause-result",
             &auth_header(),
         ))

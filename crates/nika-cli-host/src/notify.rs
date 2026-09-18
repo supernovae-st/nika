@@ -391,7 +391,7 @@ mod tests {
             &p,
             "2026-08-06T09-07-18Z-402b",
             "/tmp/t.ndjson",
-            "nika run wf.nika.yaml --resume /tmp/t.ndjson --answer approve=<value>",
+            "nika run wf.nika --resume /tmp/t.ndjson --answer approve=<value>",
         );
         assert_eq!(
             json,
@@ -403,7 +403,7 @@ mod tests {
              \"data\":{\"workflow\":\"gate-probe\",\"task\":\"approve\",\
              \"mode\":\"confirm\",\"message\":\"Deploy to production?\",\
              \"trace_path\":\"/tmp/t.ndjson\",\
-             \"resume_hint\":\"nika run wf.nika.yaml --resume /tmp/t.ndjson --answer approve=<value>\"}}"
+             \"resume_hint\":\"nika run wf.nika --resume /tmp/t.ndjson --answer approve=<value>\"}}"
         );
     }
 

@@ -15,7 +15,7 @@ use crate::runtime::{SessionRuntime, TurnOutcome};
 
 const GOAL: &str = "Compose a short poem about a violet comet.";
 const ANSWER: &str = "A violet comet crosses the quiet sky.";
-const PROPOSAL: &str = "Here it is.\n\n```yaml path=daily.nika.yaml\nnika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\noutputs:\n  said: ${{ tasks.t.output }}\n```\n";
+const PROPOSAL: &str = "Here it is.\n\n```yaml path=daily.nika\nnika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\noutputs:\n  said: ${{ tasks.t.output }}\n```\n";
 
 type Seen = Arc<Mutex<Vec<String>>>;
 
@@ -208,7 +208,7 @@ fn reopening_does_not_restore_the_authority_of_a_pending_proposal() {
         refused(resumed.consent("yes")).class,
         RefusalClass::WrongState
     );
-    assert!(!root.path().join("daily.nika.yaml").exists());
+    assert!(!root.path().join("daily.nika").exists());
     assert!(seen.lock().expect("record").is_empty());
 }
 
@@ -227,7 +227,7 @@ fn a_run_request_without_an_observation_remains_uncertain_and_is_not_replayed() 
         first.consent_to(&id, "yes"),
         TurnOutcome::RunRequested { .. }
     ));
-    let landed = std::fs::read(root.path().join("daily.nika.yaml")).expect("landed file");
+    let landed = std::fs::read(root.path().join("daily.nika")).expect("landed file");
     drop(first);
 
     let (mut resumed, seen) = open(root.path(), &[ANSWER]);
@@ -242,7 +242,7 @@ fn a_run_request_without_an_observation_remains_uncertain_and_is_not_replayed() 
         RefusalClass::WrongState
     );
     assert_eq!(
-        std::fs::read(root.path().join("daily.nika.yaml")).expect("same file"),
+        std::fs::read(root.path().join("daily.nika")).expect("same file"),
         landed
     );
     assert!(!root.path().join(".nika/traces").exists());
@@ -265,7 +265,7 @@ fn an_append_failure_prevents_consent_and_poisoning_survives_filesystem_repair()
         refused(session.consent_to(&id, "yes")).class,
         RefusalClass::Io
     );
-    assert!(!root.path().join("daily.nika.yaml").exists());
+    assert!(!root.path().join("daily.nika").exists());
     std::fs::remove_dir(&journal).expect("remove obstruction");
     std::fs::rename(&saved, &journal).expect("restore original journal");
     let before = seen.lock().expect("record").len();
@@ -279,7 +279,7 @@ fn an_append_failure_prevents_consent_and_poisoning_survives_filesystem_repair()
         before,
         "poisoned runtime cannot call a model"
     );
-    assert!(!root.path().join("daily.nika.yaml").exists());
+    assert!(!root.path().join("daily.nika").exists());
 }
 
 #[test]
@@ -572,7 +572,7 @@ fn closing_expires_a_pending_proposal_in_ephemeral_and_durable_sessions() {
             refused(session.consent_to(&id, "yes")).class,
             RefusalClass::WrongState
         );
-        assert!(!root.path().join("daily.nika.yaml").exists());
+        assert!(!root.path().join("daily.nika").exists());
     }
 }
 
@@ -584,7 +584,7 @@ fn closing_expires_a_pending_gate_without_preparing_a_resume() {
     // state, not tracing or executing a workflow to manufacture that state.
     let trace = root.path().join("paused.ndjson");
     session.pending_gate = Some(crate::change::PendingGate {
-        workflow: PathBuf::from("daily.nika.yaml"),
+        workflow: PathBuf::from("daily.nika"),
         trace: trace.clone(),
         task: "approval".to_owned(),
         message: "Continue?".to_owned(),
@@ -634,14 +634,14 @@ fn a_late_history_activation_error_also_blocks_the_ephemeral_runtime() {
 fn a_completed_io_refusal_preserves_effect_uncertainty_and_its_context() {
     let root = tempfile::tempdir().expect("project");
     let home = tempfile::tempdir().expect("home");
-    let path = root.path().join("partial.nika.yaml");
+    let path = root.path().join("partial.nika");
     let (mut session, _) = open(root.path(), &[ANSWER]);
     session.enable_history(home.path()).expect("fresh history");
-    let detail = "partial.nika.yaml may have changed: injected error after replacement";
+    let detail = "partial.nika may have changed: injected error after replacement";
     let outcome = session.recorded(super::history::Operation::Consent, "yes", |_| {
         nika_fs::OwnedDir::open(root.path())
             .expect("project capability")
-            .write_atomic("partial.nika.yaml", "nika: partially-observed\n")
+            .write_atomic("partial.nika", "nika: partially-observed\n")
             .expect("real completed replacement before the injected error");
         TurnOutcome::Refusal(Refusal::new(RefusalClass::Io, detail))
     });
@@ -701,7 +701,7 @@ fn a_failed_final_journal_barrier_withholds_the_run_request_after_real_apply() {
         prepared
     });
     assert_eq!(refused(outcome).class, RefusalClass::Io);
-    let landed = std::fs::read(root.path().join("daily.nika.yaml")).expect("actual applied file");
+    let landed = std::fs::read(root.path().join("daily.nika")).expect("actual applied file");
     let calls = seen.lock().expect("record").len();
     assert!(matches!(
         session.turn("Compose a second poem."),
@@ -732,7 +732,7 @@ fn a_failed_final_journal_barrier_withholds_the_run_request_after_real_apply() {
     ));
     assert_uncertain(&seen.lock().expect("record")[0]);
     assert_eq!(
-        std::fs::read(root.path().join("daily.nika.yaml")).expect("same applied bytes"),
+        std::fs::read(root.path().join("daily.nika")).expect("same applied bytes"),
         landed
     );
     assert!(
@@ -927,7 +927,7 @@ fn the_project_record_is_written_at_the_consent_and_read_at_open() {
     assert_eq!(state.decisions.len(), 1);
     assert!(
         state.decisions[0].starts_with(&format!("applied proposal {id}"))
-            && state.decisions[0].contains("daily.nika.yaml"),
+            && state.decisions[0].contains("daily.nika"),
         "{:?}",
         state.decisions
     );
@@ -978,14 +978,13 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
     )
     .expect("the paused trace");
     let (mut first, _) = open(root.path(), &[PROPOSAL]);
-    let TurnOutcome::Proposal { id, .. } = first.turn("write daily.nika.yaml and run it once")
-    else {
+    let TurnOutcome::Proposal { id, .. } = first.turn("write daily.nika and run it once") else {
         panic!("a proposal");
     };
     let TurnOutcome::RunRequested { run, .. } = first.consent_to(&id, "yes") else {
         panic!("a clean check requests the run");
     };
-    assert_eq!(run.workflow, PathBuf::from("daily.nika.yaml"));
+    assert_eq!(run.workflow, PathBuf::from("daily.nika"));
     let TurnOutcome::GateAsk { id: gate, question } = first.observe_run(4, Some(&trace)) else {
         panic!("a pause with a gate asks");
     };
@@ -996,7 +995,7 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
     assert_eq!(
         state.pending,
         Some(crate::state::Pending::Gate {
-            workflow: PathBuf::from("daily.nika.yaml"),
+            workflow: PathBuf::from("daily.nika"),
             trace: trace.clone(),
             task: "approve".to_owned(),
             mode: "confirm".to_owned(),
@@ -1029,7 +1028,7 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
     // nothing waits, nothing is invented
     let mut orphaned = crate::state::SessionState::new("2026-09-13T19:09:09Z".to_owned());
     orphaned.pending = Some(crate::state::Pending::Gate {
-        workflow: PathBuf::from("daily.nika.yaml"),
+        workflow: PathBuf::from("daily.nika"),
         trace: trace.clone(),
         task: "approve".to_owned(),
         mode: "confirm".to_owned(),

@@ -84,7 +84,7 @@ impl Rig {
                 std::fs::set_permissions(&path, perm).expect("chmod");
             }
         }
-        std::fs::write(root.join("work").join("lane.nika.yaml"), WORKFLOW).expect("workflow");
+        std::fs::write(root.join("work").join("lane.nika"), WORKFLOW).expect("workflow");
         Self { root }
     }
 
@@ -159,7 +159,7 @@ fn field<'a>(
 fn the_run_rides_the_seat_the_plan_admitted() {
     let rig = Rig::new("seat", true);
     let out = rig.nika(
-        &["run", "lane.nika.yaml", "--json", "--max-cost-usd", "1"],
+        &["run", "lane.nika", "--json", "--max-cost-usd", "1"],
         false,
     );
     let stdout = text(&out.stdout);
@@ -196,7 +196,7 @@ fn the_run_rides_the_seat_the_plan_admitted() {
 #[test]
 fn the_announce_names_the_path_the_run_takes() {
     let rig = Rig::new("announce", true);
-    let out = rig.nika(&["run", "lane.nika.yaml", "--max-cost-usd", "1"], false);
+    let out = rig.nika(&["run", "lane.nika", "--max-cost-usd", "1"], false);
     let stderr = text(&out.stderr);
     assert_eq!(
         out.status.code(),
@@ -220,14 +220,7 @@ fn the_announce_names_the_path_the_run_takes() {
 fn a_pinned_api_path_never_borrows_the_seat() {
     let rig = Rig::new("pin-api", true);
     let out = rig.nika(
-        &[
-            "run",
-            "lane.nika.yaml",
-            "--access",
-            "api",
-            "--max-cost-usd",
-            "1",
-        ],
+        &["run", "lane.nika", "--access", "api", "--max-cost-usd", "1"],
         true,
     );
     let stdout = text(&out.stdout);
@@ -256,7 +249,7 @@ fn the_mock_override_leaves_the_seat_unannounced() {
     let out = rig.nika(
         &[
             "run",
-            "lane.nika.yaml",
+            "lane.nika",
             "--model",
             "mock/echo",
             "--max-cost-usd",
@@ -288,7 +281,7 @@ fn the_mock_override_leaves_the_seat_unannounced() {
 #[test]
 fn check_names_the_path_the_run_takes() {
     let rig = Rig::new("check", true);
-    let out = rig.nika(&["check", "lane.nika.yaml", "--json"], false);
+    let out = rig.nika(&["check", "lane.nika", "--json"], false);
     let stdout = text(&out.stdout);
     assert_eq!(out.status.code(), Some(0), "clean: {stdout}");
     let verdict: serde_json::Value = serde_json::from_str(&stdout).expect("check json");
@@ -304,7 +297,7 @@ fn check_names_the_path_the_run_takes() {
 #[test]
 fn a_signed_in_unproven_seat_does_not_outrank_a_key() {
     let rig = Rig::new("unproven-seat", true);
-    let out = rig.nika(&["check", "lane.nika.yaml", "--json"], true);
+    let out = rig.nika(&["check", "lane.nika", "--json"], true);
     let stdout = text(&out.stdout);
     assert_eq!(out.status.code(), Some(0), "{stdout}");
     let verdict: serde_json::Value = serde_json::from_str(&stdout).expect("check json");
@@ -328,10 +321,7 @@ fn a_signed_in_unproven_seat_does_not_outrank_a_key() {
         !rig.root.join("home/seat-invocations").exists(),
         "check probes sign-in without executing a model turn"
     );
-    let unpinned = rig.nika(
-        &["run", "lane.nika.yaml", "--json", "--max-cost-usd", "1"],
-        true,
-    );
+    let unpinned = rig.nika(&["run", "lane.nika", "--json", "--max-cost-usd", "1"], true);
     let stdout = text(&unpinned.stdout);
     assert_eq!(
         unpinned.status.code(),
@@ -357,7 +347,7 @@ fn a_seat_pin_overrides_a_competing_key() {
     let pinned = rig.nika(
         &[
             "run",
-            "lane.nika.yaml",
+            "lane.nika",
             "--access",
             "codex",
             "--json",
@@ -386,7 +376,7 @@ fn a_seat_pin_overrides_a_competing_key() {
 #[test]
 fn no_path_refuses_before_the_first_task() {
     let rig = Rig::new("no-path", false);
-    let out = rig.nika(&["run", "lane.nika.yaml", "--max-cost-usd", "1"], false);
+    let out = rig.nika(&["run", "lane.nika", "--max-cost-usd", "1"], false);
     let stdout = text(&out.stdout);
     let stderr = text(&out.stderr);
     assert_eq!(
@@ -453,8 +443,8 @@ impl Rig {
 
     /// Run the gated workflow up to its pause on the seat; the trace path.
     fn pause_on_the_seat(&self) -> String {
-        self.write("gate.nika.yaml", GATED);
-        let out = self.nika(&["run", "gate.nika.yaml", "--max-cost-usd", "1"], false);
+        self.write("gate.nika", GATED);
+        let out = self.nika(&["run", "gate.nika", "--max-cost-usd", "1"], false);
         assert_eq!(
             out.status.code(),
             Some(4),
@@ -478,7 +468,7 @@ fn resume_cannot_switch_access_silently() {
     let out = rig.nika(
         &[
             "run",
-            "gate.nika.yaml",
+            "gate.nika",
             "--resume",
             &trace,
             "--answer",
@@ -521,7 +511,7 @@ fn an_explicit_pin_declares_the_access_change_on_resume() {
     let out = rig.nika(
         &[
             "run",
-            "gate.nika.yaml",
+            "gate.nika",
             "--resume",
             &trace,
             "--answer",
@@ -560,7 +550,7 @@ fn a_seated_resume_keeps_its_lane_and_its_cache() {
     let out = rig.nika(
         &[
             "run",
-            "gate.nika.yaml",
+            "gate.nika",
             "--resume",
             &trace,
             "--answer",
@@ -620,9 +610,9 @@ fn json_object(stdout: &str) -> serde_json::Value {
 fn a_pinned_seat_without_its_product_binary_refuses_on_three_doors() {
     let rig = Rig::new("no-product", true);
     std::fs::remove_file(rig.root.join("bin").join("codex")).expect("the product goes");
-    std::fs::write(rig.root.join("work").join("seat.nika.yaml"), SEAT_ONLY).expect("workflow");
+    std::fs::write(rig.root.join("work").join("seat.nika"), SEAT_ONLY).expect("workflow");
     let check = rig.nika(
-        &["check", "seat.nika.yaml", "--json", "--access", "codex"],
+        &["check", "seat.nika", "--json", "--access", "codex"],
         false,
     );
     let obj = json_object(&text(&check.stdout));
@@ -634,7 +624,7 @@ fn a_pinned_seat_without_its_product_binary_refuses_on_three_doors() {
         "{obj:#}"
     );
     let dry = rig.nika(
-        &["run", "seat.nika.yaml", "--dry-run", "--access", "codex"],
+        &["run", "seat.nika", "--dry-run", "--access", "codex"],
         false,
     );
     let dry_out = text(&dry.stdout);
@@ -651,7 +641,7 @@ fn a_pinned_seat_without_its_product_binary_refuses_on_three_doors() {
     let run = rig.nika(
         &[
             "run",
-            "seat.nika.yaml",
+            "seat.nika",
             "--json",
             "--access",
             "codex",
@@ -683,8 +673,8 @@ fn a_pinned_seat_without_its_product_binary_refuses_on_three_doors() {
 #[test]
 fn a_model_less_infer_needs_a_model_or_a_seat() {
     let rig = Rig::new("model-less", true);
-    std::fs::write(rig.root.join("work").join("seat.nika.yaml"), SEAT_ONLY).expect("workflow");
-    let check = rig.nika(&["check", "seat.nika.yaml", "--json"], false);
+    std::fs::write(rig.root.join("work").join("seat.nika"), SEAT_ONLY).expect("workflow");
+    let check = rig.nika(&["check", "seat.nika", "--json"], false);
     assert_eq!(check.status.code(), Some(0), "advisory: legal");
     let obj = json_object(&text(&check.stdout));
     assert_eq!(obj["verdicts"]["access_ready"], false, "{obj:#}");
@@ -694,17 +684,14 @@ fn a_model_less_infer_needs_a_model_or_a_seat() {
             .is_some_and(|b| b.contains("names no model") && b.contains("--access")),
         "{obj:#}"
     );
-    let operational = rig.nika(
-        &["check", "seat.nika.yaml", "--profile", "operational"],
-        false,
-    );
+    let operational = rig.nika(&["check", "seat.nika", "--profile", "operational"], false);
     assert_eq!(
         operational.status.code(),
         Some(2),
         "{}",
         text(&operational.stdout)
     );
-    let dry = rig.nika(&["run", "seat.nika.yaml", "--dry-run"], false);
+    let dry = rig.nika(&["run", "seat.nika", "--dry-run"], false);
     assert_eq!(dry.status.code(), Some(3), "{}", text(&dry.stdout));
     assert!(
         text(&dry.stdout).contains("names no model"),
@@ -712,7 +699,7 @@ fn a_model_less_infer_needs_a_model_or_a_seat() {
         text(&dry.stdout)
     );
     let run = rig.nika(
-        &["run", "seat.nika.yaml", "--json", "--max-cost-usd", "1"],
+        &["run", "seat.nika", "--json", "--max-cost-usd", "1"],
         false,
     );
     let stdout = text(&run.stdout);
@@ -729,7 +716,7 @@ fn a_model_less_infer_needs_a_model_or_a_seat() {
     assert_eq!(settled["cause"], "refused", "{settled}");
     // Pinned to the present seat: ready, and the run rides it.
     let pinned = rig.nika(
-        &["check", "seat.nika.yaml", "--json", "--access", "codex"],
+        &["check", "seat.nika", "--json", "--access", "codex"],
         false,
     );
     let obj = json_object(&text(&pinned.stdout));
@@ -737,7 +724,7 @@ fn a_model_less_infer_needs_a_model_or_a_seat() {
     let run = rig.nika(
         &[
             "run",
-            "seat.nika.yaml",
+            "seat.nika",
             "--json",
             "--access",
             "codex",

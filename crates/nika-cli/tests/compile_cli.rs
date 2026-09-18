@@ -62,14 +62,14 @@ fn explicit_literal_and_edit_keep_exact_data_and_every_unrelated_value() {
         &[
             "compile",
             "classify-and-route",
-            "source.nika.yaml",
+            "source.nika",
             "--answer",
             &answer,
             "--json",
         ],
     );
     assert_eq!(made.status.code(), Some(0), "{}", result(&made));
-    let source = std::fs::read_to_string(room.path().join("source.nika.yaml")).expect("source");
+    let source = std::fs::read_to_string(room.path().join("source.nika")).expect("source");
     let core = compile(
         &CompileRequest::create("classify-and-route")
             .with_workflow_id("source")
@@ -84,21 +84,21 @@ fn explicit_literal_and_edit_keep_exact_data_and_every_unrelated_value() {
         &[
             "compile",
             "--base",
-            "source.nika.yaml",
+            "source.nika",
             "--change",
             &change,
             "--output",
-            "edited.nika.yaml",
+            "edited.nika",
             "--json",
         ],
     );
     assert_eq!(edited.status.code(), Some(0), "{}", result(&edited));
-    let after = std::fs::read_to_string(room.path().join("edited.nika.yaml")).expect("edited");
+    let after = std::fs::read_to_string(room.path().join("edited.nika")).expect("edited");
     let expected = compile(&CompileRequest::set_constant(&source, "request", payload))
         .expect("structured operation");
     assert_eq!(Some(&after), expected.candidate.as_ref());
     assert_eq!(
-        std::fs::read_to_string(room.path().join("source.nika.yaml")).expect("base"),
+        std::fs::read_to_string(room.path().join("source.nika")).expect("base"),
         source
     );
     let mut before: Value = serde_yaml_bw::from_str(&source).expect("before");
@@ -121,36 +121,33 @@ fn unsupported_prose_missing_target_and_unknown_answers_never_write() {
         "agentic research",
         "ask for approval before sending",
         "please create something",
-        "team-standup.nika.yaml",
+        "team-standup.nika",
     ] {
-        let out = call(
-            room.path(),
-            &["compile", intent, "unwanted.nika.yaml", "--json"],
-        );
+        let out = call(room.path(), &["compile", intent, "unwanted.nika", "--json"]);
         let got = result(&out);
         assert_eq!(out.status.code(), Some(2), "{intent}: {got}");
         assert_eq!(got["status"], "incomplete");
         assert!(got["candidate"].is_null());
-        assert!(!room.path().join("unwanted.nika.yaml").exists());
+        assert!(!room.path().join("unwanted.nika").exists());
     }
     let pending = call(
         room.path(),
         &[
             "compile",
             "chain",
-            "unwanted.nika.yaml",
+            "unwanted.nika",
             "--answer",
             "permits.exec=[\"sh\"]",
             "--json",
         ],
     );
     assert_eq!(pending.status.code(), Some(2));
-    assert!(!room.path().join("unwanted.nika.yaml").exists());
+    assert!(!room.path().join("unwanted.nika").exists());
     let base = compile(&CompileRequest::create("hello"))
         .expect("hello")
         .candidate
         .expect("candidate");
-    std::fs::write(room.path().join("base.nika.yaml"), &base).expect("base");
+    std::fs::write(room.path().join("base.nika"), &base).expect("base");
     for change in [
         "Set const.missing to 7",
         "Add a Graph approval gate",
@@ -161,24 +158,24 @@ fn unsupported_prose_missing_target_and_unknown_answers_never_write() {
             &[
                 "compile",
                 "--base",
-                "base.nika.yaml",
+                "base.nika",
                 "--change",
                 change,
                 "--output",
-                "unwanted.nika.yaml",
+                "unwanted.nika",
                 "--json",
             ],
         );
         assert_eq!(out.status.code(), Some(2));
         assert_eq!(result(&out)["candidate"], base);
-        assert!(!room.path().join("unwanted.nika.yaml").exists());
+        assert!(!room.path().join("unwanted.nika").exists());
     }
 }
 
 #[test]
 fn destination_conflict_preserves_bytes_and_force_is_explicit() {
     let room = tempfile::tempdir().expect("room");
-    let dest = "team's notes.nika.yaml";
+    let dest = "team's notes.nika";
     std::fs::write(room.path().join(dest), b"existing\x00bytes").expect("seed");
     let out = call(room.path(), &["compile", "hello", dest, "--json"]);
     assert_eq!(out.status.code(), Some(3));
@@ -193,7 +190,7 @@ fn destination_conflict_preserves_bytes_and_force_is_explicit() {
         "{}",
         String::from_utf8_lossy(&out.stdout)
     );
-    assert!(String::from_utf8_lossy(&out.stdout).contains("nika run 'team'\\''s notes.nika.yaml'"));
+    assert!(String::from_utf8_lossy(&out.stdout).contains("nika run 'team'\\''s notes.nika'"));
     let body: Value =
         serde_yaml_bw::from_str(&std::fs::read_to_string(room.path().join(dest)).expect("file"))
             .expect("yaml");
@@ -212,7 +209,7 @@ fn hello_alias_is_the_same_core_and_ambient_keys_never_select_a_provider() {
     assert_eq!(hello.status, CompileStatus::Ready);
     assert_eq!(hello.candidate, numbered.candidate);
     let out = command(room.path())
-        .args(["compile", "hello", "hello.nika.yaml", "--json"])
+        .args(["compile", "hello", "hello.nika", "--json"])
         .env("TYPESAFE_API_KEY", "synthetic-typesafe-canary")
         .env("OPENAI_API_KEY", "synthetic-openai-canary")
         .env("ANTHROPIC_API_KEY", "synthetic-anthropic-canary")
@@ -221,12 +218,12 @@ fn hello_alias_is_the_same_core_and_ambient_keys_never_select_a_provider() {
         .expect("keyed Compile");
     assert!(out.status.success(), "{}", result(&out));
     assert!(!String::from_utf8_lossy(&out.stdout).contains("canary"));
-    let source = std::fs::read_to_string(room.path().join("hello.nika.yaml")).expect("hello");
+    let source = std::fs::read_to_string(room.path().join("hello.nika")).expect("hello");
     let yaml: Value = serde_yaml_bw::from_str(&source).expect("yaml");
     assert_eq!(yaml["model"], "mock/echo");
     assert!(!room.path().join(".nika").exists());
     let run = command(room.path())
-        .args(["run", "hello.nika.yaml", "--output", "json"])
+        .args(["run", "hello.nika", "--output", "json"])
         .env("TYPESAFE_API_KEY", "synthetic-typesafe-canary")
         .env("OPENAI_API_KEY", "synthetic-openai-canary")
         .env("ANTHROPIC_API_KEY", "synthetic-anthropic-canary")
@@ -266,7 +263,7 @@ fn no_model_template_uses_core_and_invalid_adapter_inputs_are_explicit() {
         &[
             "compile",
             "--base",
-            "absent.nika.yaml",
+            "absent.nika",
             "--change",
             "Set const.x to 1",
             "--json",
@@ -292,15 +289,15 @@ fn noncanonical_destinations_refuse_without_any_file() {
 fn failed_trace_protection_preserves_existing_destination_and_drops_temporary_file() {
     let room = tempfile::tempdir().expect("room");
     std::fs::create_dir(room.path().join(".gitignore")).expect("unwritable protection target");
-    std::fs::write(room.path().join("hello.nika.yaml"), "original bytes").expect("seed");
+    std::fs::write(room.path().join("hello.nika"), "original bytes").expect("seed");
     let out = call(
         room.path(),
-        &["compile", "hello", "hello.nika.yaml", "--force", "--json"],
+        &["compile", "hello", "hello.nika", "--force", "--json"],
     );
     assert_eq!(out.status.code(), Some(3));
     assert_eq!(result(&out)["error"]["code"], "destination");
     assert_eq!(
-        std::fs::read_to_string(room.path().join("hello.nika.yaml")).expect("original"),
+        std::fs::read_to_string(room.path().join("hello.nika")).expect("original"),
         "original bytes"
     );
     assert_eq!(
@@ -308,18 +305,15 @@ fn failed_trace_protection_preserves_existing_destination_and_drops_temporary_fi
         2,
         "no temporary file survives"
     );
-    let out = call(
-        room.path(),
-        &["compile", "hello", "absent.nika.yaml", "--json"],
-    );
+    let out = call(room.path(), &["compile", "hello", "absent.nika", "--json"]);
     assert_eq!(out.status.code(), Some(3));
-    assert!(!room.path().join("absent.nika.yaml").exists());
+    assert!(!room.path().join("absent.nika").exists());
 }
 
 #[test]
 fn concurrent_creators_publish_exactly_one_complete_candidate() {
     let room = tempfile::tempdir().expect("room");
-    let args = ["compile", "hello", "race.nika.yaml", "--json"];
+    let args = ["compile", "hello", "race.nika", "--json"];
     let mut first = command(room.path())
         .args(args)
         .stdout(Stdio::null())
@@ -339,7 +333,7 @@ fn concurrent_creators_publish_exactly_one_complete_candidate() {
     let expected =
         compile(&CompileRequest::create("hello").with_workflow_id("race")).expect("core");
     assert_eq!(
-        std::fs::read_to_string(room.path().join("race.nika.yaml")).expect("complete file"),
+        std::fs::read_to_string(room.path().join("race.nika")).expect("complete file"),
         expected.candidate.expect("candidate")
     );
 }
@@ -358,24 +352,24 @@ fn create_identity_cannot_rename_an_edit_and_expression_answers_stay_refused() {
     assert_eq!(renamed.status, CompileStatus::Refused);
     assert_eq!(renamed.candidate.as_deref(), Some(source.as_str()));
     let room = tempfile::tempdir().expect("room");
-    std::fs::write(room.path().join("base.nika.yaml"), &source).expect("base");
+    std::fs::write(room.path().join("base.nika"), &source).expect("base");
     let out = call(
         room.path(),
         &[
             "compile",
             "--base",
-            "base.nika.yaml",
+            "base.nika",
             "--change",
             "Set const.request to \"${{ env.SECRET }}\"",
             "--output",
-            "refused.nika.yaml",
+            "refused.nika",
             "--json",
         ],
     );
     assert_eq!(out.status.code(), Some(2));
     assert_eq!(result(&out)["status"], "refused");
     assert_eq!(result(&out)["candidate"], source);
-    assert!(!room.path().join("refused.nika.yaml").exists());
+    assert!(!room.path().join("refused.nika").exists());
 }
 
 #[test]
@@ -400,16 +394,10 @@ fn source_only_preview_does_not_read_ambient_project_policy() {
 #[test]
 fn an_explicit_dash_prefixed_path_teaches_a_runnable_file_argument() {
     let room = tempfile::tempdir().expect("room");
-    let out = call(
-        room.path(),
-        &["compile", "hello", "--output=-hello.nika.yaml"],
-    );
+    let out = call(room.path(), &["compile", "hello", "--output=-hello.nika"]);
     assert!(out.status.success());
-    assert!(String::from_utf8_lossy(&out.stdout).contains("nika run ./-hello.nika.yaml"));
-    let run = call(
-        room.path(),
-        &["run", "./-hello.nika.yaml", "--output", "json"],
-    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("nika run ./-hello.nika"));
+    let run = call(room.path(), &["run", "./-hello.nika", "--output", "json"]);
     assert!(run.status.success());
     assert!(result(&run)["greeting"].as_str().is_some());
 }
@@ -422,7 +410,7 @@ fn an_explicit_dash_prefixed_path_teaches_a_runnable_file_argument() {
 #[test]
 fn an_equals_prefixed_path_is_taught_as_a_word_no_shell_rewrites() {
     let room = tempfile::tempdir().expect("room");
-    for name in ["=ls.nika.yaml", "=value.nika.yaml"] {
+    for name in ["=ls.nika", "=value.nika"] {
         let out = call(room.path(), &["compile", "hello", name]);
         assert!(out.status.success(), "{out:?}");
         let text = String::from_utf8_lossy(&out.stdout).into_owned();

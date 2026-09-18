@@ -57,7 +57,7 @@ fn welcome_next_after_hello_is_run_not_new() {
         String::from_utf8_lossy(&vacant.stdout)
     );
 
-    let wrote = nika(&dir, &["compile", "hello", "hello.nika.yaml"]);
+    let wrote = nika(&dir, &["compile", "hello", "hello.nika"]);
     assert_eq!(
         wrote.status.code(),
         Some(0),
@@ -68,11 +68,11 @@ fn welcome_next_after_hello_is_run_not_new() {
 
     let again = nika(&dir, &["welcome"]);
     let after = next_of(&again);
-    assert!(after.contains("nika run hello.nika.yaml"), "{after}");
+    assert!(after.contains("nika run hello.nika"), "{after}");
     assert!(!after.contains("--access harness"), "{after}");
     assert!(!after.contains("nika compile hello"), "{after}");
 
-    let ran = nika(&dir, &["run", "hello.nika.yaml", "--max-cost-usd", "0.01"]);
+    let ran = nika(&dir, &["run", "hello.nika", "--max-cost-usd", "0.01"]);
     assert_eq!(
         ran.status.code(),
         Some(0),

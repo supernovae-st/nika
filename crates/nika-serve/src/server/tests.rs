@@ -40,7 +40,7 @@ impl TestWorld {
         let token = root.path().join("serve.token");
         std::fs::create_dir(&workflows).expect("workflow root");
         std::fs::create_dir(&state).expect("state root");
-        std::fs::write(workflows.join("root.nika.yaml"), WORKFLOW).expect("workflow");
+        std::fs::write(workflows.join("root.nika"), WORKFLOW).expect("workflow");
         std::fs::write(&token, format!("{TOKEN}\n")).expect("token");
         secure_file(&token);
         Self {
@@ -464,7 +464,7 @@ async fn workflows_list_and_metadata_are_authenticated_and_contained() {
     let world = TestWorld::new();
     std::fs::create_dir(world.workflows.join("nested")).expect("nested dir");
     std::fs::write(
-        world.workflows.join("nested/child.nika.yaml"),
+        world.workflows.join("nested/child.nika"),
         WORKFLOW.replace("nika: root", "nika: child"),
     )
     .expect("nested workflow");
@@ -483,18 +483,15 @@ async fn workflows_list_and_metadata_are_authenticated_and_contained() {
         .iter()
         .map(|value| value.as_str().expect("name").to_owned())
         .collect::<Vec<_>>();
-    assert!(names.contains(&"root.nika.yaml".to_owned()), "{names:?}");
-    assert!(
-        names.contains(&"nested/child.nika.yaml".to_owned()),
-        "{names:?}"
-    );
+    assert!(names.contains(&"root.nika".to_owned()), "{names:?}");
+    assert!(names.contains(&"nested/child.nika".to_owned()), "{names:?}");
     let meta = server
-        .request(&get_request("/v1/workflows/nested/child.nika.yaml"))
+        .request(&get_request("/v1/workflows/nested/child.nika"))
         .await;
     assert_eq!(meta.status, 200);
-    assert_eq!(meta.json()["workflow"], "nested/child.nika.yaml");
+    assert_eq!(meta.json()["workflow"], "nested/child.nika");
     let traversal = server
-        .request(&get_request("/v1/workflows/../root.nika.yaml"))
+        .request(&get_request("/v1/workflows/../root.nika"))
         .await;
     assert_eq!(traversal.status, 404);
     server.stop().await.expect("clean stop");
@@ -517,7 +514,7 @@ async fn missing_idempotency_key_and_deep_json_refuse_without_execution() {
     for _ in 0..128 {
         deep.push('[');
     }
-    deep.push_str("\"root.nika.yaml\"");
+    deep.push_str("\"root.nika\"");
     for _ in 0..128 {
         deep.push(']');
     }
@@ -566,7 +563,7 @@ async fn job_events_are_authenticated_allowlisted_and_resumable() {
     let server = world.start(backend, limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "sse-complete",
             &auth_header(),
         ))
@@ -642,7 +639,7 @@ async fn sse_outlives_request_timeout_and_disconnect_does_not_block_execution() 
     let server = world.start(backend.clone(), live_sse_limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "sse-live",
             &auth_header(),
         ))
@@ -708,7 +705,7 @@ async fn sse_client_ceiling_refuses_the_next_stream() {
     let server = world.start(backend.clone(), one_sse_limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "sse-cap",
             &auth_header(),
         ))
@@ -747,7 +744,7 @@ async fn interrupted_event_stream_redacts_payload_fields() {
     let first = world.start(hanging.clone(), short_shutdown_limits()).await;
     let created = first
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "sse-redact",
             &auth_header(),
         ))
@@ -832,7 +829,7 @@ async fn queued_cancel_mints_identity_and_receipt_without_entering_the_backend()
         .await;
     let first = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "cancel-queue-blocker",
             &auth_header(),
         ))
@@ -844,7 +841,7 @@ async fn queued_cancel_mints_identity_and_receipt_without_entering_the_backend()
 
     let queued = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "cancel-queued",
             &auth_header(),
         ))
@@ -918,7 +915,7 @@ async fn cancel_after_terminal_settlement_is_a_read_only_replay() {
     let server = world.start(backend, limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "cancel-after-terminal",
             &auth_header(),
         ))
@@ -958,7 +955,7 @@ async fn live_sse_advertises_bounded_reconnect_and_heartbeats_without_advancing_
     let server = world.start(backend.clone(), live_sse_limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "sse-heartbeat",
             &auth_header(),
         ))
@@ -1007,7 +1004,7 @@ async fn trace_verification_refuses_honestly_without_a_remote_trace_authority() 
     let server = world.start(backend, limits()).await;
     let created = server
         .request(&post_request(
-            r#"{"workflow":"root.nika.yaml"}"#,
+            r#"{"workflow":"root.nika"}"#,
             "trace-verdict",
             &auth_header(),
         ))
@@ -1101,7 +1098,7 @@ pub(super) fn post_request(body: &str, key: &str, authorization: &str) -> String
 }
 
 pub(super) fn snapshot_body(source: &str) -> String {
-    let path = "root.nika.yaml";
+    let path = "root.nika";
     let unit_digest = hex_digest(source.as_bytes());
     let mut world = Sha256::new();
     world.update(b"nika-execution-snapshot\0");

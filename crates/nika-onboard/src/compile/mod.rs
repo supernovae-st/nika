@@ -11,9 +11,11 @@
 //! Re-emission refuses source whose literal semantics cannot be proven stable.
 //! Top-level answer objects with both `type` and `value` are refused in this slice.
 //!
-//! This module does not materialize files, execute workflows, probe credentials,
-//! resolve connections or grant permits. Source-only preview is not full host Check
-//! or admission: Run must judge the candidate again under its actual environment.
+//! `compile()` does not materialize files, execute workflows, probe credentials,
+//! resolve connections or grant permits. [`materialize_ready`] is the opt-in
+//! `.nika` write adapter: no silent overwrite, run, or grant. Source-only
+//! preview is not full host Check or admission: Run must judge the candidate
+//! again under its actual environment.
 //! Full natural-language authoring, Graph integration, support-triage composition
 //! and SDK/Serve adapters remain separate work. The CLI consumes these typed outcomes.
 //!
@@ -46,6 +48,7 @@
 //! ```
 
 mod edit;
+mod materialize;
 mod types;
 
 use std::collections::BTreeSet;
@@ -54,6 +57,7 @@ use nika_schema::{FileId, ParseMode, raw::RawWorkflow};
 use serde_json::Value;
 use types::{EditChange, Input};
 
+pub use materialize::{MaterializeError, materialize_ready};
 pub use types::{
     AuthoringCognition, CompileDiagnostic, CompileError, CompileOutcome, CompilePreview,
     CompileProvenance, CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind,

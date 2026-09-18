@@ -95,7 +95,7 @@ impl ArmRegistry {
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct Beat {
-    /// The workflow to fire — a repo-relative `*.nika.yaml` path. Its
+    /// The workflow to fire — a repo-relative `*.nika` path. Its
     /// EXISTENCE is judged at the L4 edge (this crate never touches a
     /// filesystem); the path's SHAPE is judged here.
     pub workflow: String,

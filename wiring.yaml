@@ -412,85 +412,85 @@ capabilities:
   # undeclared) · a row without proven_by stays a finding by design
   - id: template.agent-loop
     kind: template
-    declared_at: crates/nika-pack/pack/templates/agent-loop.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/agent-loop.nika
     shipped_when: "default"
     reachable_by: "nika compile agent-loop <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/init_smoke.rs
   - id: template.api-upload-and-create
     kind: template
-    declared_at: crates/nika-pack/pack/templates/api-upload-and-create.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/api-upload-and-create.nika
     shipped_when: "default"
     reachable_by: "nika compile api-upload-and-create <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/verdict_coverage_oracle.rs
   - id: template.chain
     kind: template
-    declared_at: crates/nika-pack/pack/templates/chain.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/chain.nika
     shipped_when: "default"
     reachable_by: "nika compile chain <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/composition_e2e.rs
   - id: template.classify-and-route
     kind: template
-    declared_at: crates/nika-pack/pack/templates/classify-and-route.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/classify-and-route.nika
     shipped_when: "default"
     reachable_by: "nika compile classify-and-route <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
   - id: template.corpus-qa
     kind: template
-    declared_at: crates/nika-pack/pack/templates/corpus-qa.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/corpus-qa.nika
     shipped_when: "default"
     reachable_by: "nika compile corpus-qa <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
   - id: template.docker-report
     kind: template
-    declared_at: crates/nika-pack/pack/templates/docker-report.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/docker-report.nika
     shipped_when: "default"
     reachable_by: "nika compile docker-report <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
   - id: template.document-to-fields
     kind: template
-    declared_at: crates/nika-pack/pack/templates/document-to-fields.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/document-to-fields.nika
     shipped_when: "default"
     reachable_by: "nika compile document-to-fields <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
   - id: template.etl-state
     kind: template
-    declared_at: crates/nika-pack/pack/templates/etl-state.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/etl-state.nika
     shipped_when: "default"
     reachable_by: "nika compile etl-state <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/pack_templates_family.rs
   - id: template.evaluate-and-optimize
     kind: template
-    declared_at: crates/nika-pack/pack/templates/evaluate-and-optimize.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/evaluate-and-optimize.nika
     shipped_when: "default"
     reachable_by: "nika compile evaluate-and-optimize <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
   - id: template.fanout
     kind: template
-    declared_at: crates/nika-pack/pack/templates/fanout.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/fanout.nika
     shipped_when: "default"
     reachable_by: "nika compile fanout <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/init_smoke.rs
   - id: template.gate-and-act
     kind: template
-    declared_at: crates/nika-pack/pack/templates/gate-and-act.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/gate-and-act.nika
     shipped_when: "default"
     reachable_by: "nika compile gate-and-act <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/wizard_pty.rs
   - id: template.human-gated-ship
     kind: template
-    declared_at: crates/nika-pack/pack/templates/human-gated-ship.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/human-gated-ship.nika
     shipped_when: "default"
     reachable_by: "nika compile human-gated-ship <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest) · crates/nika-cli/tests/pack_templates_family.rs
   - id: template.media-asset-pack
     kind: template
-    declared_at: crates/nika-pack/pack/templates/media-asset-pack.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/media-asset-pack.nika
     shipped_when: "default"
     reachable_by: "nika compile media-asset-pack <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)
   - id: template.website-brief
     kind: template
-    declared_at: crates/nika-pack/pack/templates/website-brief.nika.yaml
+    declared_at: crates/nika-pack/pack/templates/website-brief.nika
     shipped_when: "default"
     reachable_by: "nika compile website-brief <file>"
     proven_by: rust   # crates/nika-pack/tests/pack_integrity.rs (every embedded template parses and matches the manifest)

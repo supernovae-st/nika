@@ -141,7 +141,7 @@ enum Command {
     /// and compare the typed `outputs:` against `<file>.golden.json`.
     #[command(hide = true, display_order = 21, after_help = help_card::TEST_EXITS)]
     Test {
-        /// Workflow file (`*.nika.yaml`).
+        /// Workflow file (`*.nika`).
         file: Option<String>,
         /// (Re)write the golden from this run instead of comparing.
         #[arg(long)]
@@ -164,7 +164,7 @@ enum Command {
     /// machine surfaces · human stays the default).
     #[command(hide = true, display_order = 43)]
     Inspect {
-        /// Workflow file (`*.nika.yaml`) · `-` reads stdin.
+        /// Workflow file (`*.nika`) · `-` reads stdin.
         file: String,
         /// Project the graph instead of the human anatomy (json
         /// canonical · mermaid/dot derived — the docs/site surfaces).
@@ -179,7 +179,7 @@ enum Command {
     Explain {
         /// An error code (`NIKA-440` · bare `440` · `DAG-003`), a hint
         /// identity (`jq-as-map` · `native-first/006`), or a workflow
-        /// file path (`*.nika.yaml` · `-` reads stdin).
+        /// file path (`*.nika` · `-` reads stdin).
         code: String,
         /// File form only: emit the versioned machine projection
         /// (`explain_version: 1` · the check report's own vocabulary).
@@ -254,7 +254,7 @@ enum Command {
         /// Print the canon.yaml single source of truth.
         #[arg(long)]
         canon: bool,
-        /// Print the embedded JSON Schema for `*.nika.yaml` (the old
+        /// Print the embedded JSON Schema for `*.nika` (the old
         /// `schema` verb, one roof).
         #[arg(long, conflicts_with = "canon")]
         schema: bool,
@@ -405,7 +405,7 @@ struct DoctorArgs {
 // (same as TraceArgs), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
 struct RunArgs {
-    /// Workflow file (`*.nika.yaml`) · or a `registry:owner/name[@version]`
+    /// Workflow file (`*.nika`) · or a `registry:owner/name[@version]`
     /// verified pull (cached + offline; `permits:` never govern the fetch).
     /// OMITTED with exactly one workflow in this workspace → that one
     /// runs (announced); zero or several → the honest routing.
@@ -699,7 +699,7 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
 }
 
 /// A workflow file typed bare IS a request to run it. A colleague sends
-/// `notes.nika.yaml`; the person types its name the way one opens a file,
+/// `notes.nika`; the person types its name the way one opens a file,
 /// and clap answered `unrecognized subcommand` (gauntlet P5 · 2026-08-25).
 ///
 /// Deliberately narrow: the name must END in the workflow suffix AND be a
@@ -708,7 +708,7 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
 /// clap's error, which is the better answer for a name that does not exist.
 fn is_runnable_workflow(arg: &std::ffi::OsStr) -> bool {
     arg.to_str().is_some_and(|s| {
-        (s.ends_with(".nika.yaml") || s.ends_with(".nika.yml")) && std::path::Path::new(s).is_file()
+        nika_source::is_canonical_program_path(s) && std::path::Path::new(s).is_file()
     })
 }
 
@@ -745,7 +745,7 @@ fn real_main() -> std::process::ExitCode {
     if let Some(code) = front_door(&argv) {
         return code;
     }
-    // `nika notes.nika.yaml` means `nika run notes.nika.yaml`. Spliced
+    // `nika notes.nika` means `nika run notes.nika`. Spliced
     // before clap sees it, so the verb, its flags and its help stay
     // untouched — the file just gains the verb the person left implicit.
     let argv: Vec<std::ffi::OsString> = if argv.first().is_some_and(|a| is_runnable_workflow(a)) {
@@ -1044,9 +1044,9 @@ mod tests {
     /// silently disarms every comparison) refuses at parse time on
     /// BOTH — the drift where one door validated and the other let
     /// the disarmed value through is pinned shut.
-    /// Gauntlet P5 · 2026-08-25. A colleague sends a `.nika.yaml`; the
+    /// Gauntlet P5 · 2026-08-25. A colleague sends a `.nika`; the
     /// person types its name the way one opens a file, and clap answered
-    /// `unrecognized subcommand 'notes.nika.yaml'` — a wall where a run
+    /// `unrecognized subcommand 'notes.nika'` — a wall where a run
     /// was meant.
     ///
     /// The routing is deliberately narrow, and this test pins BOTH ends:
@@ -1056,12 +1056,12 @@ mod tests {
     #[test]
     fn a_workflow_file_typed_bare_is_a_run_and_nothing_else_is() {
         let dir = tempfile::tempdir().expect("tmp");
-        let here = dir.path().join("notes.nika.yaml");
+        let here = dir.path().join("notes.nika");
         std::fs::write(&here, "nika: notes\n").expect("write");
 
         assert!(
             is_runnable_workflow(here.as_os_str()),
-            "a real .nika.yaml routes to run"
+            "a real .nika routes to run"
         );
         // The misspelling is the fixture: this is what a person types when
         // they mean `check`, and clap's did-you-mean is the better answer
@@ -1073,7 +1073,7 @@ mod tests {
             "a mistyped verb keeps clap's suggestion"
         );
         assert!(
-            !is_runnable_workflow(dir.path().join("absent.nika.yaml").as_os_str()),
+            !is_runnable_workflow(dir.path().join("absent.nika").as_os_str()),
             "a suffix that names nothing keeps clap's error"
         );
         assert!(
@@ -1092,9 +1092,9 @@ mod tests {
     #[test]
     fn the_budget_guard_holds_on_both_doors() {
         for argv in [
-            vec!["nika", "run", "wf.nika.yaml", "--max-cost-usd", "nan"],
+            vec!["nika", "run", "wf.nika", "--max-cost-usd", "nan"],
             vec!["nika", "try", "01-hello", "--max-cost-usd", "nan"],
-            vec!["nika", "run", "wf.nika.yaml", "--max-cost-usd", "inf"],
+            vec!["nika", "run", "wf.nika", "--max-cost-usd", "inf"],
             vec!["nika", "try", "01-hello", "--max-cost-usd", "-1"],
         ] {
             assert!(
@@ -1103,7 +1103,7 @@ mod tests {
             );
         }
         for argv in [
-            vec!["nika", "run", "wf.nika.yaml", "--max-cost-usd", "0.05"],
+            vec!["nika", "run", "wf.nika", "--max-cost-usd", "0.05"],
             vec!["nika", "try", "01-hello", "--max-cost-usd", "0.05"],
         ] {
             assert!(Cli::try_parse_from(&argv).is_ok(), "{argv:?} must parse");
@@ -1122,14 +1122,8 @@ mod tests {
         // and the resident's refusals name it, so `--help` names it too.
         assert!(!adapter.is_hide_set());
         assert!(
-            Cli::try_parse_from([
-                "nika",
-                "check",
-                "flow.nika.yaml",
-                "--json",
-                "--sdk-snapshot",
-            ])
-            .is_ok()
+            Cli::try_parse_from(["nika", "check", "flow.nika", "--json", "--sdk-snapshot",])
+                .is_ok()
         );
     }
 
@@ -1201,7 +1195,7 @@ mod tests {
     /// V5 · the three doors. Bare `nika try` lists the showroom (the
     /// user-sim finding kept: a door with nothing behind it answers
     /// with what there IS); `nika try 01-hello` parses the slug;
-    /// `nika compile "plain words" out.nika.yaml` parses positionally
+    /// `nika compile "plain words" out.nika` parses positionally
     /// (N-4 · the `--from` flag is gone); and the dead top-level verbs
     /// (`examples` · `evidence` · `receipt`) refuse — one door each,
     /// no ghosts (no-legacy law).
@@ -1213,9 +1207,8 @@ mod tests {
         assert!(
             matches!(cli.command, Some(Command::Try(ref a)) if a.slug.as_deref() == Some("01-hello"))
         );
-        let cli =
-            Cli::try_parse_from(["nika", "compile", "chase unpaid invoices", "mine.nika.yaml"])
-                .expect("parses");
+        let cli = Cli::try_parse_from(["nika", "compile", "chase unpaid invoices", "mine.nika"])
+            .expect("parses");
         assert!(matches!(
             cli.command,
             Some(Command::Compile(verbs::compile::CompileArgs {
@@ -1230,7 +1223,7 @@ mod tests {
             vec!["nika", "evidence"],
             vec!["nika", "receipt", "show"],
             vec!["nika", "new"],
-            vec!["nika", "compile", "--from", "chain", "x.nika.yaml"],
+            vec!["nika", "compile", "--from", "chain", "x.nika"],
         ] {
             assert!(
                 Cli::try_parse_from(&dead).is_err(),
@@ -1258,12 +1251,14 @@ mod tests {
         );
         for command in taught {
             let filled = command
-                .replace("<file>", "wf.nika.yaml")
+                .replace("<file>", "wf.nika")
                 .replace("<usd>", "0.05")
                 .replace("<project>", "proj");
+            // `cd x && nika …` is parsed from the nika tail. Search for a
+            // command start (` nika `), not the suffix in `wf.nika --flag`.
             let tail = filled
-                .rfind("nika ")
-                .map_or(filled.as_str(), |i| &filled[i..]);
+                .rfind(" nika ")
+                .map_or(filled.as_str(), |i| filled[i + 1..].trim());
             let argv: Vec<&str> = tail.split_whitespace().collect();
             assert!(
                 Cli::try_parse_from(&argv).is_ok(),
@@ -1277,7 +1272,7 @@ mod tests {
         let cli = Cli::try_parse_from([
             "nika",
             "test",
-            "etl-state.nika.yaml",
+            "etl-state.nika",
             "--answer",
             "approve=false",
             "--answer",

@@ -28,7 +28,7 @@ or disclosure beyond the minimal public health identity.
 |---|---|---|---|
 | socket | network client, including loopback peers | HTTP adapter | explicit bind; protected routes authenticate before parse |
 | reverse proxy | forwarded headers and connection metadata | application identity | proxy does not grant auth; only the Bearer credential does |
-| workflow registry | path/name from request | held registry root | relative `.nika.yaml` entry only; no absolute, traversal, or replaced link |
+| workflow registry | path/name from request | held registry root | relative `.nika` entry only; no absolute, traversal, or replaced link |
 | source capture | mutable filesystem | owned bytes + logical base | one capture; check and run consume the same bytes |
 | execution | admitted request | shared L3 service | idempotency bound before effects; runtime owns the verdict |
 | event stream | job journal | SSE client | same auth as job; monotonic resume cursor; redacted payloads |
@@ -73,7 +73,7 @@ alone.
 | route class | public? | effects? | mandatory controls |
 |---|---:|---:|---|
 | `GET /health` | yes | no | fixed response schema; EngineIdentity only |
-| `/v1/workflows` | no | no | Bearer auth before listing; `.nika.yaml` names only |
+| `/v1/workflows` | no | no | Bearer auth before listing; `.nika` names only |
 | `/v1/workflows/{name}` | no | no | Bearer auth; contained relative name metadata; no source bytes |
 | `/v1/jobs/{opaque-id}` | no | no | Bearer auth before lookup; uniform unknown-id response |
 | `/v1/jobs/{opaque-id}/events` | no | no | Bearer auth; bounded SSE buffer and reconnect delay; monotonic `Last-Event-ID`; cursor-neutral heartbeats; redaction |
@@ -111,7 +111,7 @@ of the live routes, never a second authority.
 
 ### Workflow and path custody
 
-- Discovery accepts `.nika.yaml` only.
+- Discovery accepts `.nika` only.
 - Requested names are relative to one held registry root and cannot contain an
   absolute prefix, `..`, NUL, or platform separator ambiguity.
 - Source, child workflows, and skills are captured with a logical base; the

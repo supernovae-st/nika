@@ -94,7 +94,7 @@ while IFS=$'\t' read -r id model key_env base_url_env _notes; do
   fi
 
   for s in "${SCENARIOS[@]}"; do
-    wf="$BATTERY/$s.nika.yaml"
+    wf="$BATTERY/$s.nika"
     t0=$(date +%s)
     out="$({ timeout 240 "$NIKA" run "$wf" --model "$model" --color never --json; } 2>&1)"
     rc=$?

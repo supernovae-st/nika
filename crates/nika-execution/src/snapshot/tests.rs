@@ -6,7 +6,7 @@
 use super::*;
 
 fn valid_snapshot() -> ExecutionSnapshot {
-    let root = "root.nika.yaml".to_owned();
+    let root = "root.nika".to_owned();
     let unit = CapturedUnit::new(
         root.clone(),
         SnapshotUnitKind::Root,
@@ -41,19 +41,19 @@ fn the_mcp_registry_rides_the_captured_world_when_a_workflow_names_a_server() {
     )
     .expect("pins");
     std::fs::write(
-        dir.path().join("mcp.nika.yaml"),
+        dir.path().join("mcp.nika"),
         b"nika: mcp\npermits:\n  tools: [\"mcp:sandbox/echo\"]\ntasks:\n  call:\n    invoke:\n      tool: \"mcp:sandbox/echo\"\n      args: { text: hi }\n",
     )
     .expect("workflow");
     std::fs::write(
-        dir.path().join("plain.nika.yaml"),
+        dir.path().join("plain.nika"),
         b"nika: plain\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 4 }\n",
     )
     .expect("workflow");
     let project = nika_fs::OwnedDir::open(dir.path()).expect("open");
     let limits = SnapshotLimits::default();
     let with_mcp =
-        ExecutionSnapshot::capture(&project, Path::new("mcp.nika.yaml"), limits).expect("captured");
+        ExecutionSnapshot::capture(&project, Path::new("mcp.nika"), limits).expect("captured");
     assert!(
         with_mcp
             .units()
@@ -72,8 +72,8 @@ fn the_mcp_registry_rides_the_captured_world_when_a_workflow_names_a_server() {
     with_mcp
         .revalidate(limits)
         .expect("readmits whole with the registry");
-    let plain = ExecutionSnapshot::capture(&project, Path::new("plain.nika.yaml"), limits)
-        .expect("captured");
+    let plain =
+        ExecutionSnapshot::capture(&project, Path::new("plain.nika"), limits).expect("captured");
     assert!(
         !plain
             .units()
@@ -91,17 +91,13 @@ fn public_readmission_revalidates_owned_bytes_without_a_reader() {
         .expect("owned snapshot readmits");
 
     assert_eq!(admitted.snapshot().digest(), digest);
-    assert_eq!(admitted.snapshot().root(), "root.nika.yaml");
+    assert_eq!(admitted.snapshot().root(), "root.nika");
 }
 
 #[test]
 fn readmission_refuses_stale_unit_and_aggregate_identities() {
     let mut stale_unit = valid_snapshot();
-    stale_unit
-        .units
-        .get_mut("root.nika.yaml")
-        .expect("root")
-        .digest = "0".repeat(64);
+    stale_unit.units.get_mut("root.nika").expect("root").digest = "0".repeat(64);
     assert!(matches!(
         crate::ExecutionService::default().readmit_snapshot(stale_unit),
         Err(ExecutionError::UnitDigestMismatch { .. })
@@ -119,7 +115,7 @@ fn readmission_refuses_stale_unit_and_aggregate_identities() {
 fn readmission_refuses_an_owned_but_unreachable_unit() {
     let mut snapshot = valid_snapshot();
     let orphan = CapturedUnit::new(
-        "orphan.nika.yaml".to_owned(),
+        "orphan.nika".to_owned(),
         SnapshotUnitKind::Child,
         b"nika: orphan\npermits: {}\ntasks: {}\n".to_vec(),
     );
@@ -165,7 +161,7 @@ fn encode_round_trip_preserves_owned_bytes_and_refuses_tampering() {
 
 #[test]
 fn encoded_snapshot_round_trip_preserves_json_escaped_paths() {
-    let root = "quoted\"root.nika.yaml".to_owned();
+    let root = "quoted\"root.nika".to_owned();
     let unit = CapturedUnit::new(root.clone(), SnapshotUnitKind::Root, Vec::new());
     let units = BTreeMap::from([(root.clone(), unit)]);
     let snapshot = ExecutionSnapshot {
@@ -216,7 +212,7 @@ fn root_and_unit_path_metadata_are_independently_bounded() {
 
     let oversized_path = serde_json::json!({
         "format_version": SNAPSHOT_FORMAT_VERSION,
-        "root": "root.nika.yaml",
+        "root": "root.nika",
         "digest": "0".repeat(SHA256_HEX_BYTES),
         "units": [{
             "path": "p".repeat(MAX_LOGICAL_PATH_BYTES + 1),
@@ -236,14 +232,14 @@ fn root_and_unit_path_metadata_are_independently_bounded() {
 #[test]
 fn excessive_unit_count_and_hex_fail_with_typed_limits() {
     let unit = serde_json::json!({
-        "path": "root.nika.yaml",
+        "path": "root.nika",
         "kind": 0,
         "digest": sha256_hex(&[]),
         "bytes_hex": "",
     });
     let excessive_count = serde_json::json!({
         "format_version": SNAPSHOT_FORMAT_VERSION,
-        "root": "root.nika.yaml",
+        "root": "root.nika",
         "digest": "0".repeat(SHA256_HEX_BYTES),
         "units": [unit.clone(), unit],
     })
@@ -256,10 +252,10 @@ fn excessive_unit_count_and_hex_fail_with_typed_limits() {
 
     let excessive_hex = serde_json::json!({
         "format_version": SNAPSHOT_FORMAT_VERSION,
-        "root": "root.nika.yaml",
+        "root": "root.nika",
         "digest": "0".repeat(SHA256_HEX_BYTES),
         "units": [{
-            "path": "root.nika.yaml",
+            "path": "root.nika",
             "kind": 0,
             "digest": sha256_hex(&[0, 0]),
             "bytes_hex": "0000",
@@ -277,10 +273,10 @@ fn excessive_unit_count_and_hex_fail_with_typed_limits() {
 fn malformed_hex_and_digest_metadata_fail_without_truncation() {
     let malformed_hex = serde_json::json!({
         "format_version": SNAPSHOT_FORMAT_VERSION,
-        "root": "root.nika.yaml",
+        "root": "root.nika",
         "digest": "0".repeat(SHA256_HEX_BYTES),
         "units": [{
-            "path": "root.nika.yaml",
+            "path": "root.nika",
             "kind": 0,
             "digest": sha256_hex(&[0]),
             "bytes_hex": "0G",
@@ -294,10 +290,10 @@ fn malformed_hex_and_digest_metadata_fail_without_truncation() {
 
     let tampered_unit_digest = serde_json::json!({
         "format_version": SNAPSHOT_FORMAT_VERSION,
-        "root": "root.nika.yaml",
+        "root": "root.nika",
         "digest": "0".repeat(SHA256_HEX_BYTES),
         "units": [{
-            "path": "root.nika.yaml",
+            "path": "root.nika",
             "kind": 0,
             "digest": "f".repeat(SHA256_HEX_BYTES),
             "bytes_hex": "",
@@ -311,7 +307,7 @@ fn malformed_hex_and_digest_metadata_fail_without_truncation() {
 
     let oversized_digest = serde_json::json!({
         "format_version": SNAPSHOT_FORMAT_VERSION,
-        "root": "root.nika.yaml",
+        "root": "root.nika",
         "digest": "f".repeat(SHA256_HEX_BYTES + 1),
         "units": [],
     })
@@ -366,7 +362,7 @@ fn aggregate_limit_preflights_every_unit_before_decoding_any_body() {
     let mut snapshot = valid_snapshot();
     let root_bytes = snapshot
         .units
-        .get("root.nika.yaml")
+        .get("root.nika")
         .map(|unit| unit.bytes.len())
         .unwrap_or_default();
     snapshot.units.insert(
@@ -404,8 +400,8 @@ proptest::proptest! {
             (a.logical_path().to_owned(), a),
         ]);
         proptest::prop_assert_eq!(
-            snapshot_digest("root.nika.yaml", &first),
-            snapshot_digest("root.nika.yaml", &second),
+            snapshot_digest("root.nika", &first),
+            snapshot_digest("root.nika", &second),
         );
     }
 

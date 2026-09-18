@@ -42,8 +42,8 @@ impl Rig {
         for sub in ["home", "work"] {
             std::fs::create_dir_all(root.join(sub)).expect("rig dir");
         }
-        std::fs::write(root.join("work").join("ok.nika.yaml"), OK).expect("workflow");
-        std::fs::write(root.join("work").join("fail.nika.yaml"), FAIL).expect("workflow");
+        std::fs::write(root.join("work").join("ok.nika"), OK).expect("workflow");
+        std::fs::write(root.join("work").join("fail.nika"), FAIL).expect("workflow");
         Self { root }
     }
 
@@ -192,7 +192,7 @@ fn a_succeeded_run_settles_the_same_on_every_door() {
     let rig = Rig::new("ok");
     agree(
         &rig,
-        "ok.nika.yaml",
+        "ok.nika",
         &Verdict {
             status: "succeeded".to_owned(),
             cause: "normal".to_owned(),
@@ -206,7 +206,7 @@ fn a_succeeded_run_settles_the_same_on_every_door() {
 #[test]
 fn a_failed_run_settles_the_same_on_every_door_and_names_its_failure() {
     let rig = Rig::new("fail");
-    let (code, lines) = rig.run_json("fail.nika.yaml");
+    let (code, lines) = rig.run_json("fail.nika");
     assert_ne!(code, 0, "a failed run exits non-zero");
     let settled = lines
         .iter()
@@ -219,7 +219,7 @@ fn a_failed_run_settles_the_same_on_every_door_and_names_its_failure() {
     assert_eq!(settled["error"]["task"], "b", "the failing task is named");
     agree(
         &rig,
-        "fail.nika.yaml",
+        "fail.nika",
         &Verdict {
             status: "failed".to_owned(),
             cause: "task_failed".to_owned(),

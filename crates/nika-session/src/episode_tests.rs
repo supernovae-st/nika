@@ -181,7 +181,7 @@ const ASK: &str =
 /// session's own durable files — nothing else was written.
 fn assert_landed_beside_evidence(world: &World, before: Vec<(PathBuf, Vec<u8>)>, own: &[&str]) {
     let mut expected = before;
-    expected.push((PathBuf::from("brief.nika.yaml"), BRIEF.as_bytes().to_vec()));
+    expected.push((PathBuf::from("brief.nika"), BRIEF.as_bytes().to_vec()));
     expected.sort();
     let (evidence, tree): (Vec<_>, Vec<_>) = listing(world.root())
         .into_iter()
@@ -210,7 +210,7 @@ fn assert_consent_evidence(world: &World, id: &ProposalId) {
         consents[0].decision,
         crate::consent::ConsentDecision::Applied
     );
-    assert_eq!(consents[0].written, [PathBuf::from("brief.nika.yaml")]);
+    assert_eq!(consents[0].written, [PathBuf::from("brief.nika")]);
     assert_eq!(consents[0].witnesses.len(), 1);
     assert_eq!(
         consents[0].witnesses[0].before, None,
@@ -221,7 +221,7 @@ fn assert_consent_evidence(world: &World, id: &ProposalId) {
         Witness::of(BRIEF.as_bytes()).0,
         "the exact bytes the human saw"
     );
-    assert_eq!(consents[0].run, Some(PathBuf::from("brief.nika.yaml")));
+    assert_eq!(consents[0].run, Some(PathBuf::from("brief.nika")));
 }
 
 /// The information suffices: the brief is proposed from the exact bytes,
@@ -232,7 +232,7 @@ fn assert_consent_evidence(world: &World, id: &ProposalId) {
 #[test]
 fn the_brief_lands_on_a_named_consent_and_the_run_stays_data() {
     let world = World::new();
-    let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika.yaml", BRIEF)])]);
+    let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika", BRIEF)])]);
     let before = listing(world.root());
     let (id, preview) = propose(
         &mut s,
@@ -245,12 +245,12 @@ fn the_brief_lands_on_a_named_consent_and_the_run_stays_data() {
         );
     }
     for row in [
-        "creates `brief.nika.yaml`",
+        "creates `brief.nika`",
         "clean ✔",
         "reads ./pages/one.html",
         "writes ./out/brief.md",
         "model mock/echo",
-        "run `brief.nika.yaml` once (--max-cost-usd 0.05",
+        "run `brief.nika` once (--max-cost-usd 0.05",
     ] {
         assert!(preview.contains(row), "{row}: {preview}");
     }
@@ -264,13 +264,13 @@ fn the_brief_lands_on_a_named_consent_and_the_run_stays_data() {
         panic!("a clean check requests the run");
     };
     assert!(
-        report.contains("applied · wrote `brief.nika.yaml`") && report.contains("clean ✔"),
+        report.contains("applied · wrote `brief.nika`") && report.contains("clean ✔"),
         "{report}"
     );
-    assert_eq!(run.workflow, PathBuf::from("brief.nika.yaml"));
+    assert_eq!(run.workflow, PathBuf::from("brief.nika"));
     assert!((run.max_cost_usd - 0.05).abs() < f64::EPSILON);
     assert_eq!(
-        std::fs::read_to_string(world.at("brief.nika.yaml")).expect("landed"),
+        std::fs::read_to_string(world.at("brief.nika")).expect("landed"),
         BRIEF,
         "byte for byte"
     );
@@ -291,8 +291,7 @@ fn the_brief_lands_on_a_named_consent_and_the_run_stays_data() {
         state
             .decisions
             .iter()
-            .any(|d| d.starts_with(&format!("applied proposal {id}"))
-                && d.contains("brief.nika.yaml")),
+            .any(|d| d.starts_with(&format!("applied proposal {id}")) && d.contains("brief.nika")),
         "{:?}",
         state.decisions
     );
@@ -311,7 +310,7 @@ fn the_brief_lands_on_a_named_consent_and_the_run_stays_data() {
         s.snapshot
             .workflows
             .iter()
-            .any(|w| w.path.ends_with("brief.nika.yaml"))
+            .any(|w| w.path.ends_with("brief.nika"))
     );
 }
 
@@ -322,7 +321,7 @@ fn the_brief_lands_on_a_named_consent_and_the_run_stays_data() {
 #[test]
 fn the_player_sees_the_bundle_and_never_the_oracle() {
     let world = World::new();
-    let (mut s, seen) = open(&world, &[proposal(&[("brief.nika.yaml", BRIEF)])]);
+    let (mut s, seen) = open(&world, &[proposal(&[("brief.nika", BRIEF)])]);
     let (id, preview) = propose(&mut s, ASK);
     let prompts = seen.lock().expect("seen").clone();
     assert_eq!(prompts.len(), 1);
@@ -378,7 +377,7 @@ fn the_player_sees_the_bundle_and_never_the_oracle() {
 #[test]
 fn a_destination_that_appears_after_the_preview_leaves_the_world_untouched() {
     let world = World::new();
-    let block = proposal(&[("brief.nika.yaml", BRIEF)]);
+    let block = proposal(&[("brief.nika", BRIEF)]);
     let (mut s, _seen) = open(&world, &[block.clone(), block]);
     let (first, _) = propose(&mut s, ASK);
     assert!(
@@ -389,7 +388,7 @@ fn a_destination_that_appears_after_the_preview_leaves_the_world_untouched() {
         "a question holds it"
     );
     // the causal event: another hand lands bytes at the destination
-    std::fs::write(world.at("brief.nika.yaml"), FOREIGN).expect("the event");
+    std::fs::write(world.at("brief.nika"), FOREIGN).expect("the event");
     let before = listing(world.root());
     let stale = refused(s.consent_to(&first, "yes"));
     assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
@@ -419,18 +418,15 @@ fn a_destination_that_appears_after_the_preview_leaves_the_world_untouched() {
     assert_ne!(second, first, "a new preview is a new identity");
     let witness = Witness::of(FOREIGN.as_bytes());
     assert!(
-        preview.contains("replaces `brief.nika.yaml` whole") && preview.contains(witness.short()),
+        preview.contains("replaces `brief.nika` whole") && preview.contains(witness.short()),
         "{preview}"
     );
     let TurnOutcome::Facts(report) = s.consent_to(&second, "yes") else {
         panic!("applied");
     };
-    assert!(
-        report.contains("applied · wrote `brief.nika.yaml`"),
-        "{report}"
-    );
+    assert!(report.contains("applied · wrote `brief.nika`"), "{report}");
     assert_eq!(
-        std::fs::read_to_string(world.at("brief.nika.yaml")).expect("landed"),
+        std::fs::read_to_string(world.at("brief.nika")).expect("landed"),
         BRIEF
     );
 }
@@ -441,15 +437,15 @@ fn a_destination_that_appears_after_the_preview_leaves_the_world_untouched() {
 #[test]
 fn a_witnessed_file_that_changes_or_disappears_after_the_preview_is_refused() {
     let world = World::new();
-    std::fs::write(world.at("brief.nika.yaml"), "nika: old\n").expect("seed");
-    let block = proposal(&[("brief.nika.yaml", BRIEF)]);
+    std::fs::write(world.at("brief.nika"), "nika: old\n").expect("seed");
+    let block = proposal(&[("brief.nika", BRIEF)]);
     let (mut s, _seen) = open(&world, &[block.clone(), block]);
-    let (first, preview) = propose(&mut s, "rewrite brief.nika.yaml as a brief from the pages");
+    let (first, preview) = propose(&mut s, "rewrite brief.nika as a brief from the pages");
     assert!(
         preview.contains(Witness::of(b"nika: old\n").short()),
         "{preview}"
     );
-    std::fs::write(world.at("brief.nika.yaml"), "nika: changed-meanwhile\n").expect("the change");
+    std::fs::write(world.at("brief.nika"), "nika: changed-meanwhile\n").expect("the change");
     let before = listing(world.root());
     assert_eq!(
         refused(s.consent_to(&first, "yes")).class,
@@ -460,12 +456,12 @@ fn a_witnessed_file_that_changes_or_disappears_after_the_preview_is_refused() {
         refused(s.consent_to(&first, "yes")).class,
         RefusalClass::WrongState
     );
-    let (second, preview) = propose(&mut s, "rewrite brief.nika.yaml again");
+    let (second, preview) = propose(&mut s, "rewrite brief.nika again");
     assert!(
         preview.contains(Witness::of(b"nika: changed-meanwhile\n").short()),
         "the new revision witnesses what is there now: {preview}"
     );
-    std::fs::remove_file(world.at("brief.nika.yaml")).expect("the disappearance");
+    std::fs::remove_file(world.at("brief.nika")).expect("the disappearance");
     let before = listing(world.root());
     let stale = refused(s.consent_to(&second, "yes"));
     assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
@@ -474,7 +470,7 @@ fn a_witnessed_file_that_changes_or_disappears_after_the_preview_is_refused() {
         before,
         "nothing created in its place"
     );
-    assert!(!world.at("brief.nika.yaml").exists());
+    assert!(!world.at("brief.nika").exists());
     assert_eq!(
         refused(s.consent_to(&second, "yes")).class,
         RefusalClass::WrongState
@@ -490,27 +486,23 @@ fn a_set_whose_second_target_goes_stale_writes_nothing_at_all() {
     let world = World::new();
     let (mut s, _seen) = open(
         &world,
-        &[proposal(&[
-            ("brief.nika.yaml", BRIEF),
-            ("note.nika.yaml", NOTE),
-        ])],
+        &[proposal(&[("brief.nika", BRIEF), ("note.nika", NOTE)])],
     );
     let (id, preview) = propose(&mut s, "make the brief and a note about it");
     assert!(
-        preview.contains("creates `brief.nika.yaml`")
-            && preview.contains("creates `note.nika.yaml`"),
+        preview.contains("creates `brief.nika`") && preview.contains("creates `note.nika`"),
         "{preview}"
     );
-    std::fs::write(world.at("note.nika.yaml"), FOREIGN).expect("the event");
+    std::fs::write(world.at("note.nika"), FOREIGN).expect("the event");
     let before = listing(world.root());
     let stale = refused(s.consent_to(&id, "yes"));
     assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
     assert!(
-        stale.text.contains("`note.nika.yaml`"),
+        stale.text.contains("`note.nika`"),
         "the refusal names the stale target: {stale}"
     );
     assert!(
-        !world.at("brief.nika.yaml").exists(),
+        !world.at("brief.nika").exists(),
         "the fresh first file is not written either"
     );
     assert_eq!(listing(world.root()), before);
@@ -529,7 +521,7 @@ fn reduced_two_changes_one_stale_witness_apply_writes_nothing() {
     let set = ProjectChangeSet::from_reply(
         world.root(),
         "the brief and a note",
-        &proposal(&[("brief.nika.yaml", BRIEF), ("note.nika.yaml", NOTE)]),
+        &proposal(&[("brief.nika", BRIEF), ("note.nika", NOTE)]),
         &[],
         None,
     )
@@ -541,11 +533,11 @@ fn reduced_two_changes_one_stale_witness_apply_writes_nothing() {
             .iter()
             .all(|c| matches!(c, ProjectChange::CreateWorkflow { .. }))
     );
-    std::fs::write(world.at("note.nika.yaml"), FOREIGN).expect("the event");
+    std::fs::write(world.at("note.nika"), FOREIGN).expect("the event");
     let before = listing(world.root());
     let err = set.apply().expect_err("stale");
     assert!(
-        matches!(err, ChangeError::Stale(ref p) if p == "note.nika.yaml"),
+        matches!(err, ChangeError::Stale(ref p) if p == "note.nika"),
         "{err}"
     );
     assert_eq!(
@@ -562,11 +554,11 @@ fn reduced_two_changes_one_stale_witness_apply_writes_nothing() {
 #[test]
 fn a_restarted_host_holds_no_consent_from_the_previous_session() {
     let world = World::new();
-    let (mut first, _seen) = open(&world, &[proposal(&[("brief.nika.yaml", BRIEF)])]);
+    let (mut first, _seen) = open(&world, &[proposal(&[("brief.nika", BRIEF)])]);
     let (id, _) = propose(&mut first, ASK);
     let before = listing(world.root());
     drop(first); // the interruption
-    let (mut restarted, _seen) = open(&world, &[proposal(&[("brief.nika.yaml", BRIEF)])]);
+    let (mut restarted, _seen) = open(&world, &[proposal(&[("brief.nika", BRIEF)])]);
     assert!(restarted.pending_proposal().is_none());
     let old = refused(restarted.consent_to(&id, "yes"));
     assert_eq!(old.class, RefusalClass::WrongState, "{old}");
@@ -594,24 +586,24 @@ fn a_missing_grant_is_named_at_preview_and_stops_the_run_never_the_preparation()
         !ungranted.contains("permits:"),
         "the grant is gone from the bytes"
     );
-    let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika.yaml", &ungranted)])]);
+    let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika", &ungranted)])]);
     let (id, preview) = propose(&mut s, &format!("{ASK} and run it once"));
     assert!(
         preview.contains("findings ✖") && preview.contains("NIKA-AUTH-006"),
         "the checker's finding rides the preview: {preview}"
     );
-    assert!(preview.contains("run `brief.nika.yaml` once"), "{preview}");
+    assert!(preview.contains("run `brief.nika` once"), "{preview}");
     let TurnOutcome::Facts(report) = s.consent_to(&id, "yes") else {
         panic!("landed, not run");
     };
     assert!(
-        report.contains("applied · wrote `brief.nika.yaml`")
+        report.contains("applied · wrote `brief.nika`")
             && report.contains("findings ✖")
             && report.contains("the run was not started"),
         "{report}"
     );
     assert_eq!(
-        std::fs::read_to_string(world.at("brief.nika.yaml")).expect("landed"),
+        std::fs::read_to_string(world.at("brief.nika")).expect("landed"),
         ungranted
     );
     assert!(!world.at("out").exists());
@@ -666,7 +658,7 @@ fn an_unreadable_destination_is_named_at_proposal_not_promised_as_create() {
     use std::os::unix::fs::PermissionsExt as _;
     const SECRET: &str = "nika: secret-on-disk\n";
     let world = World::new();
-    let dest = world.at("brief.nika.yaml");
+    let dest = world.at("brief.nika");
     std::fs::write(&dest, SECRET).expect("seed");
     std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o000)).expect("chmod");
     let restore = RestorePerms {
@@ -677,16 +669,16 @@ fn an_unreadable_destination_is_named_at_proposal_not_promised_as_create() {
         note_coverage_limit(&why);
         return;
     }
-    let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika.yaml", BRIEF)])]);
+    let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika", BRIEF)])]);
     let outcome = s.turn(ASK);
     let refusal = refused(outcome);
     assert_eq!(refusal.class, RefusalClass::Io, "{refusal}");
     assert!(
-        !refusal.text.contains("creates `brief.nika.yaml`"),
+        !refusal.text.contains("creates `brief.nika`"),
         "no create is promised over unwitnessed bytes: {refusal}"
     );
     assert!(
-        refusal.text.contains("brief.nika.yaml")
+        refusal.text.contains("brief.nika")
             && (refusal.text.contains("cannot be witnessed")
                 || refusal.text.contains("unreadable")),
         "the refusal names that the target exists and was not seen: {refusal}"
@@ -710,14 +702,13 @@ fn a_partial_apply_names_the_file_that_landed_and_leaves_the_proposal_undecided(
     let (mut s, _seen) = open(
         &world,
         &[proposal(&[
-            ("brief.nika.yaml", BRIEF),
-            ("locked/note.nika.yaml", NOTE),
+            ("brief.nika", BRIEF),
+            ("locked/note.nika", NOTE),
         ])],
     );
     let (id, preview) = propose(&mut s, "make the brief and a note about it");
     assert!(
-        preview.contains("creates `brief.nika.yaml`")
-            && preview.contains("creates `locked/note.nika.yaml`"),
+        preview.contains("creates `brief.nika`") && preview.contains("creates `locked/note.nika`"),
         "{preview}"
     );
     std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o555)).expect("ro");
@@ -739,12 +730,12 @@ fn a_partial_apply_names_the_file_that_landed_and_leaves_the_proposal_undecided(
         return;
     }
     assert_eq!(
-        std::fs::read_to_string(world.at("brief.nika.yaml")).expect("first landed"),
+        std::fs::read_to_string(world.at("brief.nika")).expect("first landed"),
         BRIEF
     );
-    assert!(!world.at("locked/note.nika.yaml").exists());
+    assert!(!world.at("locked/note.nika").exists());
     assert!(
-        io.text.contains("brief.nika.yaml")
+        io.text.contains("brief.nika")
             && (io.text.contains("written before") || io.text.contains("kept")),
         "the refusal names what landed: {io}"
     );
@@ -756,7 +747,7 @@ fn a_partial_apply_names_the_file_that_landed_and_leaves_the_proposal_undecided(
         s.snapshot
             .workflows
             .iter()
-            .any(|w| w.path.ends_with("brief.nika.yaml")),
+            .any(|w| w.path.ends_with("brief.nika")),
         "the snapshot re-observes the landed workflow"
     );
     assert!(s.pending_proposal().is_none());
@@ -777,15 +768,15 @@ fn a_symlinked_destination_is_refused_at_proposal_not_witnessed() {
     const SECRET: &str = "OUTSIDE-SECRET-BYTES-do-not-hash\n";
     let world = World::new();
     let outside = tempfile::tempdir().expect("outside");
-    let target = outside.path().join("secret.nika.yaml");
+    let target = outside.path().join("secret.nika");
     std::fs::write(&target, SECRET).expect("outside");
-    std::os::unix::fs::symlink(&target, world.at("brief.nika.yaml")).expect("final symlink");
+    std::os::unix::fs::symlink(&target, world.at("brief.nika")).expect("final symlink");
     let leaked = Witness::of(SECRET.as_bytes());
-    let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika.yaml", BRIEF)])]);
+    let (mut s, _seen) = open(&world, &[proposal(&[("brief.nika", BRIEF)])]);
     let refusal = refused(s.turn(ASK));
     assert_eq!(refusal.class, RefusalClass::Io, "{refusal}");
     assert!(
-        !refusal.text.contains("replaces `brief.nika.yaml`")
+        !refusal.text.contains("replaces `brief.nika`")
             && !refusal.text.contains(leaked.short())
             && !refusal.text.contains(SECRET.trim()),
         "the outside hash and bytes stay out of the refusal: {refusal}"

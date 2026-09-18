@@ -57,14 +57,14 @@ fn input_limits() -> ServerLimits {
 }
 fn input_world() -> TestWorld {
     let world = TestWorld::new();
-    std::fs::write(world.workflows.join("root.nika.yaml"), INPUT_WORKFLOW).expect("workflow");
+    std::fs::write(world.workflows.join("root.nika"), INPUT_WORKFLOW).expect("workflow");
     world
 }
 fn values(ticket: &str) -> Value {
     json!({"ticket":ticket,"count":42,"tags":["é","東京"],"record":{"name":"🦋"}})
 }
 fn body(inputs: Value) -> String {
-    let mut request = json!({"workflow":"root.nika.yaml"});
+    let mut request = json!({"workflow":"root.nika"});
     request["inputs"] = inputs;
     request.to_string()
 }
@@ -180,8 +180,7 @@ fn export_evidence(world: &TestWorld, jobs: &[Value]) {
     if let Some(output) = std::env::var_os("NIKA_SERVE_INPUT_EVIDENCE") {
         let output = PathBuf::from(output);
         std::fs::create_dir_all(&output).expect("evidence directory");
-        std::fs::write(output.join("workflow.nika.yaml"), INPUT_WORKFLOW)
-            .expect("workflow evidence");
+        std::fs::write(output.join("workflow.nika"), INPUT_WORKFLOW).expect("workflow evidence");
         std::fs::write(
             output.join("results.json"),
             serde_json::to_vec_pretty(&jobs).expect("results"),
@@ -216,7 +215,7 @@ async fn inputs_refuse_missing_unknown_wrong_type_null_and_unknown_envelopes_bef
     let mut null_value = values("x");
     null_value["ticket"] = Value::Null;
     let cases = [
-        (r#"{"workflow":"root.nika.yaml"}"#.to_owned(), "NIKA-1708"),
+        (r#"{"workflow":"root.nika"}"#.to_owned(), "NIKA-1708"),
         (body(json!({})), "NIKA-1708"),
         (body(unknown), "unknown_input"),
         (body(wrong), "input_type_mismatch"),
@@ -226,7 +225,7 @@ async fn inputs_refuse_missing_unknown_wrong_type_null_and_unknown_envelopes_bef
         (body(Value::Null), "malformed_snapshot"),
         (body(json!([])), "malformed_snapshot"),
         (
-            json!({"workflow":"root.nika.yaml","inputs":values("x"),"access":null}).to_string(),
+            json!({"workflow":"root.nika","inputs":values("x"),"access":null}).to_string(),
             "malformed_snapshot",
         ),
     ];
@@ -239,7 +238,7 @@ async fn inputs_refuse_missing_unknown_wrong_type_null_and_unknown_envelopes_bef
         assert!(response.json().get("id").is_none());
     }
     let checked = server
-        .request(&check_request(r#"{"workflow":"root.nika.yaml"}"#))
+        .request(&check_request(r#"{"workflow":"root.nika"}"#))
         .await;
     assert_eq!(
         checked.status, 200,
@@ -262,7 +261,7 @@ async fn inputs_refuse_missing_unknown_wrong_type_null_and_unknown_envelopes_bef
         "secrets",
         "unexpected",
     ] {
-        let mut request = json!({"workflow":"root.nika.yaml","inputs":values("x")});
+        let mut request = json!({"workflow":"root.nika","inputs":values("x")});
         request[field] = Value::Null;
         let response = server
             .request(&post_request(&request.to_string(), field, &auth_header()))
@@ -347,7 +346,7 @@ async fn exact_input_request_replays_after_source_change_and_restart_and_other_v
     let id = response.json()["id"].as_str().expect("id").to_owned();
     let original = result(&first, &id).await;
     assert_eq!(original["status"], "succeeded", "{original}");
-    std::fs::write(world.workflows.join("root.nika.yaml"), "broken").expect("changed workflow");
+    std::fs::write(world.workflows.join("root.nika"), "broken").expect("changed workflow");
     let replay = first
         .request(&post_request(&request, "retry", &auth_header()))
         .await;
@@ -376,7 +375,7 @@ async fn queued_inputs_survive_restart_without_live_source_and_tampering_is_dete
     let world = input_world();
     let owned = nika_fs::OwnedDir::open(&world.workflows).expect("owned root");
     let admitted = ExecutionService::default()
-        .admit(&owned, std::path::Path::new("root.nika.yaml"))
+        .admit(&owned, std::path::Path::new("root.nika"))
         .expect("admit");
     let inputs: BTreeMap<String, Value> = serde_json::from_value(values("queued")).expect("values");
     super::super::inputs::validate(&admitted, &inputs).expect("input validation");
@@ -387,7 +386,7 @@ async fn queued_inputs_survive_restart_without_live_source_and_tampering_is_dete
             crate::IdempotencyKey::new("queued-inputs".to_owned()).expect("key"),
             crate::RequestDigest::from_bytes(Sha256::digest(request.as_bytes()).into()),
             64,
-            "root.nika.yaml".to_owned(),
+            "root.nika".to_owned(),
             &admitted.snapshot().encode().expect("world"),
             None,
             inputs,
@@ -395,7 +394,7 @@ async fn queued_inputs_survive_restart_without_live_source_and_tampering_is_dete
         .expect("persist queued");
     let id = admission.record().id().as_str().to_owned();
     drop(store);
-    std::fs::write(world.workflows.join("root.nika.yaml"), "broken").expect("mutate live source");
+    std::fs::write(world.workflows.join("root.nika"), "broken").expect("mutate live source");
     let state_path = world.state.join("jobs/state.json");
     let original = std::fs::read(&state_path).expect("state");
     let mut stripped: Value = serde_json::from_slice(&original).expect("state JSON");

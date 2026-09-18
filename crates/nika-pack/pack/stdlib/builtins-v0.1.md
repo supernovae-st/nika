@@ -217,7 +217,7 @@ refusal, not evidence that the pattern has no matches.
 ```yaml
 invoke: { tool: "nika:jq", args: { expression: ".items | map(.price) | add", input: "${{ tasks.X.output }}" } }
 ```
-Run a jq expression. **The single data-transform-and-extraction language**: map · filter · select · group_by · reshape · string-interpolation `"\(.x)"` · `@base64`/`@base64d` encoders (the embedded jaq has NO `@csv`/`@tsv` — use `nika:convert to: csv`) · array `flatten` · `leaf_paths`/`getpath`/`setpath`. The same jq used in `extract:` bindings (see `04-variables.md`). **jq is also the law after an extract**: the model emits facts (`infer.schema:` as `type: integer` for numeric enums); this builtin (or `nika:decide`) names the level. Do not pay a second `infer:` to score. Teaching shape · `examples/13-extract-then-law.nika.yaml`. After `. as $c`, write `($c | map(...))` — a bare `map(` maps the current value (hint `jq-as-map`).
+Run a jq expression. **The single data-transform-and-extraction language**: map · filter · select · group_by · reshape · string-interpolation `"\(.x)"` · `@base64`/`@base64d` encoders (the embedded jaq has NO `@csv`/`@tsv` — use `nika:convert to: csv`) · array `flatten` · `leaf_paths`/`getpath`/`setpath`. The same jq used in `extract:` bindings (see `04-variables.md`). **jq is also the law after an extract**: the model emits facts (`infer.schema:` as `type: integer` for numeric enums); this builtin (or `nika:decide`) names the level. Do not pay a second `infer:` to score. Teaching shape · `examples/13-extract-then-law.nika`. After `. as $c`, write `($c | map(...))` — a bare `map(` maps the current value (hint `jq-as-map`).
 
 **`input` is any JSON value**: a single ref (`input: "${{ tasks.X.output }}"`) OR a **constructed array for multi-input ops**. Recursive merge of two objects (this is exactly why `json_merge` is NOT a builtin · jaq's `*` does it) ·
 ```yaml
@@ -290,7 +290,7 @@ invoke:
     bundle: "./decisions/pr-triage.bundle.json"   # path OR inline bundle object
     evidence: "${{ tasks.collect.output }}"       # the EvidenceSnapshot { t, evidence: [...] }
 ```
-The deterministic decision kernel (spec [11-decision.md](../spec/11-decision.md)) · evaluates a portable **Decision Bundle** against an **EvidenceSnapshot** and returns the full Decision Receipt (outcome ∈ {recommend · defer · human_required · opted_out · overridden} · per-dimension term-by-term contributions · intervals · conflicts+witnesses · determination provenance). PURE compute — zero required effects (a `bundle:` path reads like any declared `fs.read`; an inline object needs no filesystem) · zero floats (fixed-point basis-points) · same inputs, same bytes, both evaluators (the stdlib-Python reference interpreter is the conformance oracle — byte-equal canonical JSON). **The LLM never decides**: `infer:` produces closed cited facts; this kernel applies the rubric. The lighter teaching shape (no bundle) is `nika:jq` after the extract — `examples/13-extract-then-law.nika.yaml`. Throws · `NIKA-DECIDE-001` (the bundle violates its own laws) · `NIKA-DECIDE-002` (the snapshot does not satisfy the evidence schema) · both `validation_error`, deterministic.
+The deterministic decision kernel (spec [11-decision.md](../spec/11-decision.md)) · evaluates a portable **Decision Bundle** against an **EvidenceSnapshot** and returns the full Decision Receipt (outcome ∈ {recommend · defer · human_required · opted_out · overridden} · per-dimension term-by-term contributions · intervals · conflicts+witnesses · determination provenance). PURE compute — zero required effects (a `bundle:` path reads like any declared `fs.read`; an inline object needs no filesystem) · zero floats (fixed-point basis-points) · same inputs, same bytes, both evaluators (the stdlib-Python reference interpreter is the conformance oracle — byte-equal canonical JSON). **The LLM never decides**: `infer:` produces closed cited facts; this kernel applies the rubric. The lighter teaching shape (no bundle) is `nika:jq` after the extract — `examples/13-extract-then-law.nika`. Throws · `NIKA-DECIDE-001` (the bundle violates its own laws) · `NIKA-DECIDE-002` (the snapshot does not satisfy the evidence schema) · both `validation_error`, deterministic.
 
 ### `nika:date`
 ```yaml
@@ -464,7 +464,7 @@ agent:
   tools: ["nika:done", "nika:compose"]   # done first · mock/echo closes at turn one
 ```
 The teaching shape is
-[`examples/15-compose-self-check.nika.yaml`](../examples/15-compose-self-check.nika.yaml).
+[`examples/15-compose-self-check.nika`](../examples/15-compose-self-check.nika).
 The agent loop's self-verification intrinsic · the model passes a workflow
 YAML draft it wrote, and gets the FULL `nika check` verdict back as JSON:
 conformance violations (with codes + repair hints), secret-flow findings,
@@ -500,7 +500,7 @@ Throws · `NIKA-BUILTIN-INSPECT-001` if `view:` value not in the canonical enum.
 The reference engine injects a live cell at composition and writes it
 as tasks settle. `available: true` once the DAG is seeded at run start.
 The teaching shape is
-[`examples/16-inspect-self.nika.yaml`](../examples/16-inspect-self.nika.yaml).
+[`examples/16-inspect-self.nika`](../examples/16-inspect-self.nika).
 Probe any new builtin with `mock/echo` *before* wiring it after a paid
 infer.
 
@@ -782,7 +782,7 @@ narrate:
         output_dir: "./assets/audio"
 ```
 
-Teaching shape · [`17-tts-self`](../examples/17-tts-self.nika.yaml)
+Teaching shape · [`17-tts-self`](../examples/17-tts-self.nika)
 (`provider: mock` · a real WAV · offline).
 
 The image family's contract, applied to audio: ONE audio file lands under

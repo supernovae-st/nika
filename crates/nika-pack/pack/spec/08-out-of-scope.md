@@ -142,7 +142,7 @@ dialect, so the tail is if anything **understated**.
 ```yaml
 # NOT supported in v0.1
 import:
-  - ./shared/auth.nika.yaml
+  - ./shared/auth.nika
 tasks: ...
 ```
 
@@ -159,7 +159,7 @@ tasks: ...
 ```yaml
 sub:
     invoke:
-      workflow: ./subroutine.nika.yaml   # a STATIC target · never templated (NIKA-COMP-001)
+      workflow: ./subroutine.nika   # a STATIC target · never templated (NIKA-COMP-001)
       args:
         topic: "${{ inputs.topic }}"     # each key must fit a DECLARED child input
     returns: { object: { summary: string } }

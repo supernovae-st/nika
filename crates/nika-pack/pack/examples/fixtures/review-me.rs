@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Fixture for examples/06-code-review.nika.yaml.
+// Fixture for examples/06-code-review.nika.
 // It has two defects on purpose — the agent is supposed to find them.
 
 /// Returns the mean of the samples.

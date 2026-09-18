@@ -53,7 +53,7 @@ Nika is a workflow engine for AI — a single Rust binary that reads a
 YAML file and executes a DAG of verbs:
 
 ```yaml
-# workflow.nika.yaml
+# workflow.nika
 nika: summarize-article
 permits:
   net: { http: ["example.com"] }
@@ -130,7 +130,7 @@ gates are green in the same atomic commit. Full spec:
 6. **Property** — `proptest` on sensitive surfaces (parsers, encoding)
 7. **Benchmarks** — `benches/` on hot paths (exempt otherwise, documented)
 8. **Docs** — `cargo doc --no-deps` zero warnings
-9. **Canary E2E** — `tests/canary-<name>.nika.yaml` (exempt L0-L1)
+9. **Canary E2E** — `tests/canary-<name>.nika` (exempt L0-L1)
 10. **Legacy parity** — golden test vs `git show brouillon:...` output
 11. **Review swarm** — three agents in parallel, P0/P1 fixed same session
 12. **Atomic commit** — one admission, one commit

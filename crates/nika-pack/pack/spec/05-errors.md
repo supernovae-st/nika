@@ -86,6 +86,17 @@ wrote or a caller who typed nothing.
 
 Error codes follow the format `NIKA-<NAMESPACE>-<NNN>` where namespace is 2-9 uppercase letters and NNN is a 3-digit zero-padded number. A code MAY add an **optional sub-namespace** for self-documentation · `NIKA-<NAMESPACE>-<SUB>-<NNN>` (4-segment), used per-builtin (`NIKA-BUILTIN-WAIT-001` · each builtin owns its own 001-099) or per-field (`NIKA-PARSE-WHEN-001` · the `when:` field of a parse error). The canonical regex is `^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$` (also the `retry.on_codes` / `on_error.on_codes` validation pattern). The sub-namespace segment admits underscores so underscore-named builtins encode cleanly (`NIKA-BUILTIN-JSON_MERGE_PATCH-001`).
 
+**The launch/admission exception (normative · narrow).** One plane stands
+outside this grammar by construction: the *pre-admission* refusal, where a run
+is judged before any task exists. There is no task to retry, catch or route,
+so `retry.on_codes` / `on_error.on_codes` keep the canonical pattern above —
+unchanged — and can never name these codes. The launch plane spells its code
+as the exact bare numeric `NIKA-1708` (a required input with no value at
+launch · concrete table below): that single spelling is the whole exception —
+no namespace is allocated for the plane and no numeric block is reserved. No
+other numeric code is public surface; an engine's remaining internal numbers
+stay internal machinery per §Taxonomy ownership.
+
 | Namespace | Scope | Reserved range |
 |---|---|---|
 | `NIKA-PARSE` | YAML parse + envelope validation | 001-099 |
@@ -237,6 +248,7 @@ these from this file alone.
 | `NIKA-BUILTIN-001` | builtin `invoke:` violates its statically-checkable arg contract (e.g. `nika:fetch` without `url:` · `nika:jq` arg shape) | `validation_error` | false |
 | `NIKA-BUILTIN-DONE-001` | `nika:done` invoked outside an `agent:` loop | `validation_error` | false |
 | `NIKA-DRIFT-001` | declared-but-unused — an `inputs:`/`const:`/`secrets:` name or a `permits:` entry (exec program · tool glob · net host · fs path) that nothing in the body references · **advisory check hint — never fails the audit** (the report's `is_clean` ignores hints; dead declarations are smell, not failure) · the reverse direction (used-but-undeclared) is the hard `NIKA-VAR-001`/`NIKA-DAG-002`/`NIKA-SEC-004` surface, so **no `NIKA-DRIFT-002` exists** (an unemittable code would be dead weight — the no-duplication law is structural: hard codes name references, drift names declarations, never the same yaml site) · a dynamic consumer POISONS the used set (a shell-form exec hides its programs · an exec child hides the fs path sets · a dynamic URL/path hides the host/path set · an `agent:` whitelist dispatches dynamically — glob ⊆ glob is undecidable) and the category stays silent rather than risk a false positive · the fs read set DOES model the two decidable runtime gates (`nika:glob`'s literal walk root · a `nika:fetch` `multipart:` file part's literal path) · reference implementation nika#661 | `validation_error` | false |
+| `NIKA-1708` | admission refuses a `required: true` input that has neither a declared `default:` nor a caller-supplied value — before the prologue: zero task events, zero spend, zero inference ([04 §inputs](./04-variables.md)) · the launch plane's bare-numeric spelling (§Error code namespaces exception) · an omitted optional input and a required input satisfied by its `default:` are lawful | `validation_error` | false |
 
 
 `NIKA-PARSE-015` is **retired** (never reuse): the typed-`vars:` 6-enum class
@@ -287,7 +299,8 @@ is `NIKA-VAR-021`. The allocation hole is deliberate.
 **This table, not any engine's source code, owns the taxonomy.** A
 conformant engine (the Rust reference included) *derives* its error types
 from this section: every spec-relevant error it emits MUST carry a code
-matching the canonical regex, in the namespace this table assigns to the
+matching the canonical regex — or the launch plane's narrow numeric spelling
+of §Error code namespaces — in the namespace this table assigns to the
 failure's scope, with the category semantics of §Categories. An engine MAY
 keep richer internal error machinery (the reference engine's internal
 diagnostics codes, subsystem-specific numbering, extra metadata). Internal
@@ -343,7 +356,7 @@ A task MAY declare a `retry:` block. Retries apply to **transient** errors only 
 >    *on error* would put the two on the same clock in the reader's head, and
 >    they are not.
 > 2. **The corpus does not pay for it.** Measured 2026-08-12 over every
->    `*.nika.yaml` in the studio (873 files · 3 093 tasks · walked from disk,
+>    `*.nika` in the studio (873 files · 3 093 tasks · walked from disk,
 >    not grepped) · `on_error:` alone **240** tasks · `retry:` alone **41** ·
 >    **both on one task 31**. Co-occurrence is **31/312 = 9.9 %** of the
 >    tasks that carry either. A merge would fold 31 sites and hand the other

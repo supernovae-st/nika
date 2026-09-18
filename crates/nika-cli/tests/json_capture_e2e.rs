@@ -35,11 +35,11 @@ fn bin() -> Command {
 fn a_no_trace_json_capture_is_a_verifiable_terminal_journal() {
     let dir = std::env::temp_dir().join(format!("nika-no-trace-capture-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("run dir");
-    std::fs::write(dir.join("chain.nika.yaml"), CHAIN).expect("workflow");
+    std::fs::write(dir.join("chain.nika"), CHAIN).expect("workflow");
     let run = bin()
         .args([
             "run",
-            "chain.nika.yaml",
+            "chain.nika",
             "--json",
             "--color",
             "never",

@@ -43,7 +43,7 @@
   <div class="card" id="card">
     <div class="card-header">
       <div class="dots"><i></i><i></i><i></i></div>
-      <span class="title">pr-review.nika.yaml</span>
+      <span class="title">pr-review.nika</span>
       <span class="badge fail" id="badge-fail" style="position:absolute;right:20px;opacity:0">2 findings</span>
       <span class="badge ok" id="badge-ok" style="position:absolute;right:20px;opacity:0">clean</span>
     </div>
@@ -72,8 +72,8 @@
     <!-- ACT 1 · the audit sees what eyes miss -->
     <div class="act" id="act1">
       <div class="term">
-        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd1">nika check pr-review.nika.yaml</span><span class="caret" id="caret1"></span></span>
-        <span class="ln out1 dim">nika check · pr-review.nika.yaml</span>
+        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd1">nika check pr-review.nika</span><span class="caret" id="caret1"></span></span>
+        <span class="ln out1 dim">nika check · pr-review.nika</span>
         <span class="ln out1" id="didyoumean"><span class="hl"><span class="fail"> ✖ CONFORM  </span><span class="code-chip">NIKA-DAG-002</span> unknown dependency: task <span class="accent">`comment`</span> depends on <span class="accent">`asses`</span>, which does not exist — did you mean <span class="accent">`assess`</span>?</span></span>
         <span class="ln out1"><span class="fail"> ✖ CONFORM  </span><span class="code-chip">NIKA-VAR-021</span> task <span class="accent">`assess`</span> a verb field references <span class="accent">`tasks.diff`</span> — outside the boundary; hoist it into <span class="accent">`with:`</span></span>
         <span class="ln out1 dim">   PLAN     (skipped — no valid DAG order while conformance fails)</span>
@@ -103,7 +103,7 @@
     <!-- ACT 3 · the fixed workflow: every vector green -->
     <div class="act" id="act3">
       <div class="term">
-        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd3">nika check pr-review.nika.yaml</span><span class="caret" id="caret3"></span></span>
+        <span class="ln"><span class="prompt">$ </span><span class="cmd" id="cmd3">nika check pr-review.nika</span><span class="caret" id="caret3"></span></span>
         <span class="ln out3"><span class="ok"> ✔ PLAN    </span> 3 wave(s) · 3 task(s) · max parallelism 1</span>
         <span class="ln out3"><span class="ok"> ✔ SECRETS </span> no information-flow escapes</span>
         <span class="ln out3"><span class="ok"> ✔ TYPES   </span> every deep output reference fits its declared shape</span>

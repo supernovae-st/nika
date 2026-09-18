@@ -3,7 +3,7 @@
 
 //! The Nika language server (`nika lsp`, stdio).
 //!
-//! `nika-lsp` is the editor brain for `.nika.yaml`. It turns the engine's
+//! `nika-lsp` is the editor brain for `.nika`. It turns the engine's
 //! static guarantees into live, in-editor feedback over any LSP client
 //! (VS Code, Cursor, Zed, Neovim, Helix) ·
 //!

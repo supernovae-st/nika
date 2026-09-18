@@ -565,7 +565,7 @@ mod tests {
     #[test]
     fn a_task_level_workflow_key_is_not_the_envelope() {
         // `workflow:` indented (an invoke child call) is not the identity block
-        let src = "nika: hello\ntasks:\n  child:\n    invoke:\n      workflow: ./other.nika.yaml\n";
+        let src = "nika: hello\ntasks:\n  child:\n    invoke:\n      workflow: ./other.nika\n";
         assert_eq!(identity(src), IdentityOutcome::Clean);
     }
 }

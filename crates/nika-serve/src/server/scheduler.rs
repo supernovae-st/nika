@@ -651,7 +651,7 @@ mod tests {
         let store = crate::ScheduleStore::open(root.path()).expect("store");
         let draft = ScheduleDraft::new(
             "rollback".to_owned(),
-            "root.nika.yaml".to_owned(),
+            "root.nika".to_owned(),
             nika_cadence::ScheduleWhenDraft::Once {
                 at: "2026-09-01T09:00:00Z".to_owned(),
             },
@@ -702,14 +702,14 @@ mod tests {
         let dir = tempfile::tempdir().expect("project");
         let workflows = dir.path().join("workflows");
         std::fs::create_dir_all(workflows.join("skills/review")).expect("skill dir");
-        let root = "nika: doctor\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  child:\n    invoke:\n      workflow: \"child.nika.yaml\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+        let root = "nika: doctor\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  child:\n    invoke:\n      workflow: \"child.nika\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
         let child = "nika: child\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }\noutputs:\n  report: { value: \"${{ tasks.fetch.output }}\", type: string }\n";
         let skill = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
-        std::fs::write(workflows.join("doctor.nika.yaml"), root).expect("root");
-        std::fs::write(workflows.join("child.nika.yaml"), child).expect("child");
+        std::fs::write(workflows.join("doctor.nika"), root).expect("root");
+        std::fs::write(workflows.join("child.nika"), child).expect("child");
         std::fs::write(workflows.join("skills/review/SKILL.md"), skill).expect("skill");
         let registry = nika_cadence::parse_registry(
-            "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n    manqué: sauter\n",
+            "nika: proj\narm:\n  - workflow: workflows/doctor.nika\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n    manqué: sauter\n",
         )
         .expect("parse");
         let definition =
@@ -720,7 +720,7 @@ mod tests {
         let admit = || {
             let project = nika_fs::OwnedDir::open(dir.path()).expect("project capability");
             service
-                .admit(&project, Path::new("workflows/doctor.nika.yaml"))
+                .admit(&project, Path::new("workflows/doctor.nika"))
                 .expect("admitted world")
         };
         let base = generation(&definition, &admit());
@@ -731,7 +731,7 @@ mod tests {
         );
         // Edit ONLY the child — the root bytes never move.
         std::fs::write(
-            workflows.join("child.nika.yaml"),
+            workflows.join("child.nika"),
             "nika: child-v2\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }\noutputs:\n  report: { value: \"${{ tasks.fetch.output }}\", type: string }\n",
         )
         .expect("edit child");
@@ -741,7 +741,7 @@ mod tests {
             "a child-only edit mints a new generation"
         );
         // Restore the child, edit ONLY the skill.
-        std::fs::write(workflows.join("child.nika.yaml"), child).expect("restore child");
+        std::fs::write(workflows.join("child.nika"), child).expect("restore child");
         std::fs::write(
             workflows.join("skills/review/SKILL.md"),
             "---\nname: review\ndescription: Review code.\n---\nRevised.\n",

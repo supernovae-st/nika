@@ -45,7 +45,7 @@ manifest="crates/${crate}/Cargo.toml"
 src="crates/${crate}/src"
 tests="crates/${crate}/tests"
 benches="crates/${crate}/benches"
-canary="tests/canary/${crate}.nika.yaml"
+canary="tests/canary/${crate}.nika"
 ran_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # Hygiene: the crate directory must exist before we claim anything.

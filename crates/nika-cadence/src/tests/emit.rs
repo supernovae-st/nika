@@ -62,11 +62,11 @@ fn ctx_with_env() -> EmitCtx {
 const TWO_BEATS: &str = concat!(
     "nika: proj\n",
     "arm:\n",
-    "  - workflow: workflows/weekly.nika.yaml\n",
+    "  - workflow: workflows/weekly.nika\n",
     "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
     "    plafond: 0.25\n",
     "    manqué: rattraper-une-fois\n",
-    "  - workflow: workflows/nightly.nika.yaml\n",
+    "  - workflow: workflows/nightly.nika\n",
     "    cadence: \"TZ=Europe/Paris 0,30 3 1 * *\"\n",
     "    plafond: 1.0\n",
     "    manqué: sauter\n",
@@ -305,7 +305,7 @@ fn a_beat_in_another_zone_refuses_on_launchd_and_rides_systemd() {
     let reg = registry(concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/doctor.nika.yaml\n",
+        "  - workflow: workflows/doctor.nika\n",
         "    cadence: \"TZ=Asia/Tokyo 0 3 * * *\"\n",
         "    plafond: 0.25\n",
         "    manqué: sauter\n",
@@ -330,7 +330,7 @@ fn a_webhook_beat_refuses_the_clock_surfaces() {
     let reg = registry(concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/hook.nika.yaml\n",
+        "  - workflow: workflows/hook.nika\n",
         "    cadence: \"on-webhook\"\n",
         "    plafond: 0.25\n",
         "    manqué: sauter\n",
@@ -352,7 +352,7 @@ fn past_the_interval_budget_the_render_refuses_with_the_count() {
     let reg = registry(concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/dense.nika.yaml\n",
+        "  - workflow: workflows/dense.nika\n",
         "    cadence: \"TZ=Europe/Paris */2 */2 1,15 * *\"\n",
         "    plafond: 0.25\n",
         "    manqué: sauter\n",
@@ -378,7 +378,7 @@ fn the_v0_unsupported_policies_refuse_with_their_version() {
         ("    décalage: hash\n", "décalage:"),
     ] {
         let reg = registry(&format!(
-            "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n    plafond: 0.25\n    manqué: sauter\n{extra}"
+            "nika: proj\narm:\n  - workflow: workflows/doctor.nika\n    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n    plafond: 0.25\n    manqué: sauter\n{extra}"
         ));
         let refusal =
             emit::render(&reg, &ctx(), Target::Launchd, Mode::PerBeat).expect_err("D6 refuse");
@@ -398,7 +398,7 @@ fn the_v0_unsupported_policies_refuse_with_their_version() {
     let reg = registry(concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/doctor.nika.yaml\n",
+        "  - workflow: workflows/doctor.nika\n",
         "    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n",
         "    plafond: 0.25\n",
         "    manqué: rattraper\n",
@@ -423,11 +423,11 @@ fn deux_beats_meme_workflow_rendent_deux_labels() {
     let reg = registry(concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: a/doctor.nika.yaml\n",
+        "  - workflow: a/doctor.nika\n",
         "    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n",
         "    plafond: 0.25\n",
         "    manqué: sauter\n",
-        "  - workflow: b/doctor.nika.yaml\n",
+        "  - workflow: b/doctor.nika\n",
         "    cadence: \"TZ=Europe/Paris 0 4 * * *\"\n",
         "    plafond: 0.25\n",
         "    manqué: sauter\n",
@@ -447,18 +447,18 @@ fn suspended_and_cloud_beats_emit_nothing() {
     let reg = registry(concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/local.nika.yaml\n",
+        "  - workflow: workflows/local.nika\n",
         "    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n",
         "    plafond: 0.25\n",
         "    manqué: sauter\n",
-        "  - workflow: workflows/sommeil.nika.yaml\n",
+        "  - workflow: workflows/sommeil.nika\n",
         "    cadence: \"TZ=Europe/Paris 0 4 * * *\"\n",
         "    plafond: 0.25\n",
         "    manqué: sauter\n",
         "    actif: false\n",
         "    raison: \"pause\"\n",
         "    jusqu_au: \"2099-12-31\"\n",
-        "  - workflow: workflows/nuage.nika.yaml\n",
+        "  - workflow: workflows/nuage.nika\n",
         "    cadence: \"TZ=Europe/Paris 0 5 * * *\"\n",
         "    où: cloud\n",
         "    plafond: 0.25\n",
@@ -498,7 +498,7 @@ fn check_budget(cadence_text: &str) {
     let cadence = Cadence::parse(cadence_text).expect("le corpus se parse");
     let expected = expected_dicts(&cadence);
     let reg = registry(&format!(
-        "nika: proj\narm:\n  - workflow: w.nika.yaml\n    cadence: \"{cadence_text}\"\n    plafond: 0.25\n    manqué: sauter\n"
+        "nika: proj\narm:\n  - workflow: w.nika\n    cadence: \"{cadence_text}\"\n    plafond: 0.25\n    manqué: sauter\n"
     ));
     let ctx = EmitCtx::new(
         PathBuf::from("/usr/local/bin/nika"),

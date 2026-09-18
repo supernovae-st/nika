@@ -163,7 +163,7 @@ mod tests {
             goal: "a brief".to_owned(),
             changes: vec![
                 ProjectChange::CreateWorkflow {
-                    path: PathBuf::from("brief.nika.yaml"),
+                    path: PathBuf::from("brief.nika"),
                     content: "nika: brief\n".to_owned(),
                 },
                 ProjectChange::UpdateProjectFile {
@@ -172,7 +172,7 @@ mod tests {
                 },
             ],
             run: Some(crate::change::RunRequest {
-                workflow: PathBuf::from("brief.nika.yaml"),
+                workflow: PathBuf::from("brief.nika"),
                 vars: Vec::new(),
                 max_cost_usd: 0.05,
             }),
@@ -190,13 +190,13 @@ mod tests {
             &set,
             &id,
             ConsentDecision::Applied,
-            &[PathBuf::from("brief.nika.yaml"), PathBuf::from("nika.yaml")],
+            &[PathBuf::from("brief.nika"), PathBuf::from("nika.yaml")],
             "2026-09-13T19:09:09Z".to_owned(),
         );
         assert_eq!(record.version, 1);
         assert_eq!(record.proposal, id.as_str());
         assert_eq!(record.witnesses.len(), 2);
-        assert_eq!(record.witnesses[0].path, PathBuf::from("brief.nika.yaml"));
+        assert_eq!(record.witnesses[0].path, PathBuf::from("brief.nika"));
         assert_eq!(
             record.witnesses[0].before, None,
             "a create witnesses absence"
@@ -207,7 +207,7 @@ mod tests {
             record.witnesses[1].before.as_deref(),
             Some(Witness::of(b"nika: old\n").0.as_str())
         );
-        assert_eq!(record.run, Some(PathBuf::from("brief.nika.yaml")));
+        assert_eq!(record.run, Some(PathBuf::from("brief.nika")));
         let line = serde_json::to_string(&record).expect("one line");
         assert!(!line.contains('\n'));
         let value: serde_json::Value = serde_json::from_str(&line).expect("json");
@@ -229,7 +229,7 @@ mod tests {
             &set,
             &ProposalId::of("one"),
             ConsentDecision::Applied,
-            &[PathBuf::from("brief.nika.yaml")],
+            &[PathBuf::from("brief.nika")],
             "2026-09-13T19:09:09Z".to_owned(),
         );
         let second = ConsentRecord::of(

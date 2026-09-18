@@ -1,7 +1,7 @@
 {
   "name": "sonde-diamant",
   "workflow": {
-    "file": "sonde-diamant.nika.yaml",
+    "file": "sonde-diamant.nika",
     "engine": "0.108.0",
     "prompt": "sonde",
     "permits": [],

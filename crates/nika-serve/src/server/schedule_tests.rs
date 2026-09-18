@@ -177,7 +177,7 @@ async fn shutdown_keeps_store_alive_until_scheduled_observation_finishes() {
     let created = server
         .request(&put_request(
             "shutdown-once",
-            &body_at("root.nika.yaml", 0.25, "2026-09-01T09:00:00Z"),
+            &body_at("root.nika", 0.25, "2026-09-01T09:00:00Z"),
             "If-None-Match: *\r\n",
             true,
         ))
@@ -241,7 +241,7 @@ async fn live_once_wakes_executes_persists_and_does_not_rearm_after_restart() {
     let created = server
         .request(&put_request(
             "live-once",
-            &body_at("root.nika.yaml", 0.25, at),
+            &body_at("root.nika", 0.25, at),
             "If-None-Match: *\r\n",
             true,
         ))
@@ -249,7 +249,7 @@ async fn live_once_wakes_executes_persists_and_does_not_rearm_after_restart() {
     assert_eq!(created.status, 200, "{}", created.body);
     clock.wait_for_sleeps(2).await;
     std::fs::write(
-        world.workflows.join("root.nika.yaml"),
+        world.workflows.join("root.nika"),
         "nika: root-updated\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 2, expression: \".\" }\n",
     )
     .expect("mutate workflow before fire");
@@ -331,7 +331,7 @@ async fn a_schedule_ceiling_above_the_server_default_is_clamped_never_widened() 
     let created = server
         .request(&put_request(
             "clamped-once",
-            &body_at("root.nika.yaml", 5.0, "2026-09-01T09:00:00Z"),
+            &body_at("root.nika", 5.0, "2026-09-01T09:00:00Z"),
             "If-None-Match: *\r\n",
             true,
         ))
@@ -372,7 +372,7 @@ async fn a_zoneless_cadence_teaches_the_fix_in_the_public_wire_voice() {
     let backend = Arc::new(CountingBackend::default());
     let server = world.start(backend.clone(), limits()).await;
     let request = json!({
-        "workflow": "root.nika.yaml",
+        "workflow": "root.nika",
         "when": {"kind": "cadence", "expression": "0 9 * * *"},
         "maxCostUsd": 0.01,
         "missed": "skip"
@@ -406,7 +406,7 @@ async fn a_zoneless_cadence_teaches_the_fix_in_the_public_wire_voice() {
 async fn create_get_lost_response_retry_and_exact_update_etag() {
     let world = TestWorld::new();
     let server = world.start(Arc::new(NoopBackend), limits()).await;
-    let first_body = body("root.nika.yaml", 0.25);
+    let first_body = body("root.nika", 0.25);
     let first = server
         .request(&put_request(
             "daily",
@@ -446,7 +446,7 @@ async fn create_get_lost_response_retry_and_exact_update_etag() {
     assert_eq!(retry.json()["changed"], false);
     assert_eq!(retry.header("etag"), Some(etag.as_str()));
 
-    let second_body = body("root.nika.yaml", 0.50);
+    let second_body = body("root.nika", 0.50);
     let stale = server
         .request(&put_request(
             "daily",
@@ -479,7 +479,7 @@ async fn concurrent_exact_updates_have_one_winner() {
     let first = server
         .request(&put_request(
             "race",
-            &body("root.nika.yaml", 0.25),
+            &body("root.nika", 0.25),
             "If-None-Match: *\r\n",
             true,
         ))
@@ -487,13 +487,13 @@ async fn concurrent_exact_updates_have_one_winner() {
     let etag = first.header("etag").expect("etag").to_owned();
     let left = put_request(
         "race",
-        &body("root.nika.yaml", 0.50),
+        &body("root.nika", 0.50),
         &format!("If-Match: {etag}\r\n"),
         true,
     );
     let right = put_request(
         "race",
-        &body("root.nika.yaml", 0.75),
+        &body("root.nika", 0.75),
         &format!("If-Match: {etag}\r\n"),
         true,
     );
@@ -518,12 +518,7 @@ async fn auth_precedes_parsing_and_preconditions_are_mandatory() {
         .await;
     assert_eq!(unauthorized.status, 401);
     let missing = server
-        .request(&put_request(
-            "auth",
-            &body("root.nika.yaml", 0.25),
-            "",
-            true,
-        ))
+        .request(&put_request("auth", &body("root.nika", 0.25), "", true))
         .await;
     assert_eq!(missing.status, 412);
     server.stop().await.expect("stop");
@@ -535,15 +530,15 @@ async fn bodies_paths_symlinks_and_secret_shapes_fail_closed() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::symlink;
-        let outside = world.root.path().join("outside.nika.yaml");
+        let outside = world.root.path().join("outside.nika");
         std::fs::write(&outside, "nika: outside\ntasks: {}\n").expect("outside");
-        symlink(&outside, world.workflows.join("linked.nika.yaml")).expect("symlink");
+        symlink(&outside, world.workflows.join("linked.nika")).expect("symlink");
     }
     let server = world.start(Arc::new(NoopBackend), limits()).await;
     let escape = server
         .request(&put_request(
             "escape",
-            &body("../outside.nika.yaml", 0.25),
+            &body("../outside.nika", 0.25),
             "If-None-Match: *\r\n",
             true,
         ))
@@ -552,7 +547,7 @@ async fn bodies_paths_symlinks_and_secret_shapes_fail_closed() {
     let absolute = server
         .request(&put_request(
             "absolute",
-            &body("/tmp/outside.nika.yaml", 0.25),
+            &body("/tmp/outside.nika", 0.25),
             "If-None-Match: *\r\n",
             true,
         ))
@@ -563,7 +558,7 @@ async fn bodies_paths_symlinks_and_secret_shapes_fail_closed() {
         let symlinked = server
             .request(&put_request(
                 "linked",
-                &body("linked.nika.yaml", 0.25),
+                &body("linked.nika", 0.25),
                 "If-None-Match: *\r\n",
                 true,
             ))
@@ -571,7 +566,7 @@ async fn bodies_paths_symlinks_and_secret_shapes_fail_closed() {
         assert_eq!(symlinked.status, 422, "{}", symlinked.body);
     }
     let secret = json!({
-        "workflow": "root.nika.yaml",
+        "workflow": "root.nika",
         "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
         "maxCostUsd": 0.25,
         "missed": "skip",
@@ -611,7 +606,7 @@ async fn lowering_requires_cost_and_refuses_arbitrary_vars() {
         (
             "vars",
             json!({
-                "workflow": "root.nika.yaml",
+                "workflow": "root.nika",
                 "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
                 "maxCostUsd": 0.25,
                 "missed": "skip",
@@ -621,7 +616,7 @@ async fn lowering_requires_cost_and_refuses_arbitrary_vars() {
         (
             "missing-cost",
             json!({
-                "workflow": "root.nika.yaml",
+                "workflow": "root.nika",
                 "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
                 "missed": "skip"
             }),
@@ -646,7 +641,7 @@ async fn active_unplannable_schedule_is_refused_before_persistence() {
     let world = TestWorld::new();
     let server = world.start(Arc::new(NoopBackend), limits()).await;
     let candidate = json!({
-        "workflow": "root.nika.yaml",
+        "workflow": "root.nika",
         "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
         "maxCostUsd": 0.25,
         "missed": "skip",
@@ -677,7 +672,7 @@ async fn active_unplannable_schedule_is_refused_before_persistence() {
 async fn a_schedule_cannot_reach_outside_the_served_registry() {
     let world = TestWorld::new();
     std::fs::write(
-        world.root.path().join("top.nika.yaml"),
+        world.root.path().join("top.nika"),
         "nika: top\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n",
     )
     .expect("a workflow outside the served registry");
@@ -692,7 +687,7 @@ async fn a_schedule_cannot_reach_outside_the_served_registry() {
     let outside = server
         .request(&put_request(
             "top",
-            &body("top.nika.yaml", 0.25),
+            &body("top.nika", 0.25),
             "If-None-Match: *\r\n",
             true,
         ))
@@ -707,7 +702,7 @@ async fn a_schedule_cannot_reach_outside_the_served_registry() {
     let inside = server
         .request(&put_request(
             "inside",
-            &body("workflows/root.nika.yaml", 0.25),
+            &body("workflows/root.nika", 0.25),
             "If-None-Match: *\r\n",
             true,
         ))
@@ -722,7 +717,7 @@ async fn validation_and_fire_share_the_resident_workflow_root() {
     let decoy = world.root.path().join("decoy-workflows");
     std::fs::create_dir(&decoy).expect("decoy root");
     std::fs::write(
-        decoy.join("decoy.nika.yaml"),
+        decoy.join("decoy.nika"),
         "nika: decoy\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n",
     )
     .expect("decoy workflow");
@@ -732,7 +727,7 @@ async fn validation_and_fire_share_the_resident_workflow_root() {
     let decoy_only = server
         .request(&put_request(
             "decoy",
-            &body("decoy.nika.yaml", 0.25),
+            &body("decoy.nika", 0.25),
             "If-None-Match: *\r\n",
             true,
         ))
@@ -741,7 +736,7 @@ async fn validation_and_fire_share_the_resident_workflow_root() {
     let resident = server
         .request(&put_request(
             "resident-root",
-            &body("root.nika.yaml", 0.25),
+            &body("root.nika", 0.25),
             "If-None-Match: *\r\n",
             true,
         ))
@@ -779,7 +774,7 @@ async fn no_schedule_list_delete_trigger_backfill_or_arm_routes_exist() {
 fn write_daily_beat(world: &TestWorld) {
     std::fs::write(
         world.workflows.join("nika.yaml"),
-        "nika: proj\narm:\n  - workflow: root.nika.yaml\n    cadence: \"TZ=UTC 1 8 * * *\"\n    plafond: 0.25\n    manqué: sauter\n",
+        "nika: proj\narm:\n  - workflow: root.nika\n    cadence: \"TZ=UTC 1 8 * * *\"\n    plafond: 0.25\n    manqué: sauter\n",
     )
     .expect("project nika.yaml");
 }
@@ -788,7 +783,7 @@ fn write_project_beat(world: &TestWorld, extra: &str) {
     std::fs::write(
         world.workflows.join("nika.yaml"),
         format!(
-            "nika: proj\narm:\n  - workflow: root.nika.yaml\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n    manqué: sauter\n{extra}"
+            "nika: proj\narm:\n  - workflow: root.nika\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n    manqué: sauter\n{extra}"
         ),
     )
     .expect("project nika.yaml");
@@ -875,7 +870,7 @@ async fn a_fire_time_admission_failure_is_contained_to_the_schedule() {
         .start_with_clock(backend.clone(), limits(), clock.clone())
         .await;
     clock.wait_for_sleeps(1).await;
-    std::fs::remove_file(world.workflows.join("root.nika.yaml")).expect("the workflow vanishes");
+    std::fs::remove_file(world.workflows.join("root.nika")).expect("the workflow vanishes");
     clock.advance_to("2026-09-01T08:01:01Z[UTC]");
     clock.wait_for_sleeps(2).await;
     let finding = project_finding(&server, "root").await;
@@ -961,7 +956,7 @@ async fn active_overlap_replace_is_refused_before_persistence() {
     let world = TestWorld::new();
     let server = world.start(Arc::new(NoopBackend), limits()).await;
     let candidate = json!({
-        "workflow": "root.nika.yaml",
+        "workflow": "root.nika",
         "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
         "maxCostUsd": 0.25,
         "missed": "skip",
@@ -998,7 +993,7 @@ async fn active_overlap_queue_is_refused_before_persistence() {
     let world = TestWorld::new();
     let server = world.start(Arc::new(NoopBackend), limits()).await;
     let candidate = json!({
-        "workflow": "root.nika.yaml",
+        "workflow": "root.nika",
         "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
         "maxCostUsd": 0.25,
         "missed": "skip",
@@ -1035,7 +1030,7 @@ async fn active_after_skip_on_completion_is_refused_before_persistence() {
     let world = TestWorld::new();
     let server = world.start(Arc::new(NoopBackend), limits()).await;
     let candidate = json!({
-        "workflow": "root.nika.yaml",
+        "workflow": "root.nika",
         "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
         "maxCostUsd": 0.25,
         "missed": "skip",
@@ -1142,7 +1137,7 @@ async fn active_tolerance_is_refused_before_persistence() {
     let world = TestWorld::new();
     let server = world.start(Arc::new(NoopBackend), limits()).await;
     let candidate = json!({
-        "workflow": "root.nika.yaml",
+        "workflow": "root.nika",
         "when": {"kind": "once", "at": "2099-09-01T07:00:00Z"},
         "maxCostUsd": 0.25,
         "missed": "skip",
@@ -1201,7 +1196,7 @@ async fn project_beat_with_tolerance_surfaces_a_load_finding_and_never_fires() {
 async fn a_project_beat_whose_pause_until_passed_fires_and_a_bound_one_stays_paused() {
     let world = TestWorld::new();
     std::fs::write(
-        world.workflows.join("report.nika.yaml"),
+        world.workflows.join("report.nika"),
         "nika: report\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 2, expression: \".\" }\n",
     )
     .expect("report workflow");
@@ -1209,14 +1204,14 @@ async fn a_project_beat_whose_pause_until_passed_fires_and_a_bound_one_stays_pau
         world.workflows.join("nika.yaml"),
         concat!(
             "nika: proj\narm:\n",
-            "  - workflow: root.nika.yaml\n",
+            "  - workflow: root.nika\n",
             "    cadence: \"TZ=UTC * * * * *\"\n",
             "    plafond: 0.25\n",
             "    manqué: sauter\n",
             "    actif: false\n",
             "    raison: \"maintenance\"\n",
             "    jusqu_au: \"2026-08-31\"\n",
-            "  - workflow: report.nika.yaml\n",
+            "  - workflow: report.nika\n",
             "    cadence: \"TZ=UTC * * * * *\"\n",
             "    plafond: 0.25\n",
             "    manqué: sauter\n",

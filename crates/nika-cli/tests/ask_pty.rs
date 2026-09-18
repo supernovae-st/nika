@@ -51,7 +51,7 @@ fn fresh_dir(tag: &str) -> tempfile::TempDir {
 /// check teaches.
 const GATED: &str = "nika: gate-ask\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"deploy the thing?\" }\n  after:\n    with:\n      approved: ${{ tasks.ask.output }}\n    when: ${{ with.approved == true }}\n    exec: { command: [\"echo\", \"went\", \"${{ with.approved }}\"] }\n";
 
-/// Spawn `nika run gate.nika.yaml` on a PTY in `dir` — colour env
+/// Spawn `nika run gate.nika` on a PTY in `dir` — colour env
 /// hermetic (the nika#675 lesson), `NO_COLOR` pinned so every `expect`
 /// needle sits on plain bytes.
 fn spawn_gate_run(dir: &std::path::Path) -> LoggedSession {
@@ -59,11 +59,11 @@ fn spawn_gate_run(dir: &std::path::Path) -> LoggedSession {
 }
 
 fn spawn_workflow(dir: &std::path::Path, source: &str, args: &[&str]) -> LoggedSession {
-    std::fs::write(dir.join("gate.nika.yaml"), source).expect("fixture written");
+    std::fs::write(dir.join("gate.nika"), source).expect("fixture written");
     let home = dir.join("home");
     std::fs::create_dir(&home).expect("isolated approval claim store");
     let mut cmd = Command::new(bin());
-    cmd.args(["run", "gate.nika.yaml", "--no-gc"])
+    cmd.args(["run", "gate.nika", "--no-gc"])
         .args(args)
         .current_dir(dir);
     cmd.env_remove("NO_COLOR")
@@ -153,7 +153,7 @@ fn the_gate_asks_on_a_terminal_and_the_answer_completes_the_run() {
 
     // The run parks first — durable pause, taught resume line — THEN asks.
     p.expect("paused").expect("the paused card speaks");
-    p.expect("resume: nika run gate.nika.yaml")
+    p.expect("resume: nika run gate.nika")
         .expect("the durable escape is taught before the ask");
     p.expect("deploy the thing?")
         .expect("the gate's own message");
@@ -211,12 +211,12 @@ outputs:
     let mut p = spawn_workflow(dir, source, &["--model", "mock/echo", "--access", "mock"]);
     p.expect("first gate?").expect("first gate asks");
     p.expect("[y/N]").expect("first answer shape");
-    std::fs::write(dir.join("gate.nika.yaml"), "not: the admitted workflow\n")
+    std::fs::write(dir.join("gate.nika"), "not: the admitted workflow\n")
         .expect("replace the visible root between legs");
     p.send_line("y").expect("first answer");
     p.expect("second gate?").expect("second gate asks");
     p.expect("[y/N]").expect("second answer shape");
-    std::fs::remove_file(dir.join("gate.nika.yaml")).expect("remove the visible root");
+    std::fs::remove_file(dir.join("gate.nika")).expect("remove the visible root");
     p.send_line("y").expect("second answer");
     p.expect(Eof).expect("conversation ends");
     assert_eq!(exit_code(&mut p), 0, "both captured gates complete");

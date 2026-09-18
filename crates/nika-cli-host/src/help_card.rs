@@ -31,7 +31,7 @@ pub const TEST_EXITS: &str = "exit codes · 0 the golden matches · 1 the mock r
 pub fn human_help() -> &'static str {
     "nika             a plan from a file\n\
      nika try         example gallery · author: nika compile --list\n\
-     nika compile hello hello.nika.yaml   one file that runs on this machine\n\
+     nika compile hello hello.nika   one file that runs on this machine\n\
      nika run         run a file\n\
      nika check       audit · in the file, permits = what this file is allowed to touch\n\
      nika doctor      PATH, model, sandbox · isolate with env -i HOME=$scratch PATH=\"$PATH\" nika …\n"

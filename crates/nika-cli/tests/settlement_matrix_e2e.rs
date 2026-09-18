@@ -106,13 +106,13 @@ impl Rig {
             std::fs::create_dir_all(root.join(sub)).expect("rig dir");
         }
         for (file, body) in [
-            ("clean.nika.yaml", CLEAN),
-            ("fail.nika.yaml", FAIL),
-            ("recover.nika.yaml", RECOVER),
-            ("fan.nika.yaml", FAN),
-            ("gate.nika.yaml", GATE),
-            ("wait.nika.yaml", WAIT),
-            ("held.nika.yaml", held_run::WORKFLOW),
+            ("clean.nika", CLEAN),
+            ("fail.nika", FAIL),
+            ("recover.nika", RECOVER),
+            ("fan.nika", FAN),
+            ("gate.nika", GATE),
+            ("wait.nika", WAIT),
+            ("held.nika", held_run::WORKFLOW),
         ] {
             std::fs::write(root.join("work").join(file), body).expect("workflow");
         }
@@ -151,7 +151,7 @@ impl Rig {
     }
 
     fn spawn_wait(&self) -> Child {
-        self.command(&["run", "wait.nika.yaml", "--json", "--max-cost-usd", "0.01"])
+        self.command(&["run", "wait.nika", "--json", "--max-cost-usd", "0.01"])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -306,7 +306,7 @@ fn unmetered(
 #[test]
 fn row_clean_every_door_says_succeeded() {
     let rig = Rig::new("clean");
-    let (code, lines) = rig.run_json(&["clean.nika.yaml"]);
+    let (code, lines) = rig.run_json(&["clean.nika"]);
     assert_eq!(code, 0);
     // ADR-129 · the local door names the evidence it left, and the word
     // agrees with the receipt (this rig holds no signing key: unsealed).
@@ -327,7 +327,7 @@ fn row_clean_every_door_says_succeeded() {
 #[test]
 fn row_failure_every_door_names_the_same_failed_task() {
     let rig = Rig::new("fail");
-    let (code, lines) = rig.run_json(&["fail.nika.yaml"]);
+    let (code, lines) = rig.run_json(&["fail.nika"]);
     assert_eq!(code, 1, "the WORKFLOW class");
     let settled = settled_of(&lines);
     let error_code = settled["error"]["code"].as_str().expect("named").to_owned();
@@ -342,7 +342,7 @@ fn row_failure_every_door_names_the_same_failed_task() {
 #[test]
 fn row_recovery_the_lineage_reaches_every_door() {
     let rig = Rig::new("recover");
-    let (code, lines) = rig.run_json(&["recover.nika.yaml"]);
+    let (code, lines) = rig.run_json(&["recover.nika"]);
     assert_eq!(code, 0, "a recovered task is a success");
     let trace = doors_agree(
         &rig,
@@ -370,7 +370,7 @@ fn row_recovery_the_lineage_reaches_every_door() {
 #[test]
 fn row_fan_out_every_item_terminal_reaches_the_machine_read() {
     let rig = Rig::new("fan");
-    let (code, lines) = rig.run_json(&["fan.nika.yaml"]);
+    let (code, lines) = rig.run_json(&["fan.nika"]);
     assert_eq!(code, 1);
     let settled = settled_of(&lines);
     let error_code = settled["error"]["code"].as_str().expect("named").to_owned();
@@ -402,7 +402,7 @@ fn row_fan_out_every_item_terminal_reaches_the_machine_read() {
 #[test]
 fn row_human_gate_pauses_and_the_same_run_resumes_on_every_door() {
     let rig = Rig::new("gate");
-    let (code, lines) = rig.run_json(&["gate.nika.yaml"]);
+    let (code, lines) = rig.run_json(&["gate.nika"]);
     assert_eq!(code, 4, "the PAUSED class");
     // the pause is a settlement too: paused · human_gate · one task ran
     let terminal = terminal_of(&lines);
@@ -427,8 +427,7 @@ fn row_human_gate_pauses_and_the_same_run_resumes_on_every_door() {
     let outputs = rig.json(&["trace", "outputs", &trace, "--json"]);
     assert_eq!(outputs["state"], "paused");
     // the SAME run resumes with the answer
-    let (code, resumed) =
-        rig.run_json(&["gate.nika.yaml", "--resume", &trace, "--answer", "gate=yes"]);
+    let (code, resumed) = rig.run_json(&["gate.nika", "--resume", &trace, "--answer", "gate=yes"]);
     assert_eq!(code, 0, "the resumed run succeeds");
     doors_agree(
         &rig,
@@ -439,7 +438,7 @@ fn row_human_gate_pauses_and_the_same_run_resumes_on_every_door() {
     let out = rig
         .command(&[
             "run",
-            "gate.nika.yaml",
+            "gate.nika",
             "--resume",
             &trace,
             "--answer",
@@ -457,7 +456,7 @@ fn row_human_gate_pauses_and_the_same_run_resumes_on_every_door() {
 fn row_cancel_every_door_says_cancelled_by_the_operator() {
     let rig = Rig::new("cancel");
     let mut child = held_run::HeldRun::spawn(
-        rig.command(&["run", "held.nika.yaml", "--json", "--max-cost-usd", "0.01"]),
+        rig.command(&["run", "held.nika", "--json", "--max-cost-usd", "0.01"]),
         &rig.root.join("work"),
     );
     child.signal(nix::sys::signal::Signal::SIGINT);

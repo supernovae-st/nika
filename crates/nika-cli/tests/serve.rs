@@ -45,7 +45,7 @@ const TOUCH: &str = "nika: dry-only\npermits: { exec: true }\ntasks:\n  effect:\
 const DAILY_3AM: &str = concat!(
     "nika: proj\n",
     "arm:\n",
-    "  - workflow: workflows/doctor.nika.yaml\n",
+    "  - workflow: workflows/doctor.nika\n",
     "    cadence: \"TZ=UTC 0 3 * * *\"\n",
     "    plafond: 0.05\n",
     "    manqué: sauter\n",
@@ -55,7 +55,7 @@ const DAILY_3AM: &str = concat!(
 const EVERY_MINUTE: &str = concat!(
     "nika: proj\n",
     "arm:\n",
-    "  - workflow: workflows/doctor.nika.yaml\n",
+    "  - workflow: workflows/doctor.nika\n",
     "    cadence: \"TZ=UTC * * * * *\"\n",
     "    plafond: 0.05\n",
     "    manqué: sauter\n",
@@ -76,7 +76,7 @@ fn history(dir: &std::path::Path, label: &str) -> String {
 fn succeeded_resident_job(dir: &std::path::Path, label: &str) -> Option<serde_json::Value> {
     let text = std::fs::read_to_string(dir.join(".nika/serve/jobs/state.json")).ok()?;
     let state: serde_json::Value = serde_json::from_str(&text).ok()?;
-    let workflow = format!("workflows/{label}.nika.yaml");
+    let workflow = format!("workflows/{label}.nika");
     state["jobs"].as_array()?.iter().find_map(|job| {
         let record = job.get("record")?;
         let origin = &record["receipt"]["origin"];
@@ -125,7 +125,7 @@ fn tree_snapshot(root: &std::path::Path) -> Vec<(std::path::PathBuf, Option<Vec<
 
 #[test]
 fn serve_once_fires_what_is_due_and_exits_zero() {
-    let dir = project("once", DAILY_3AM, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("once", DAILY_3AM, &[("doctor.nika", TRUE)]);
     let out = bin()
         .args(["serve", "--once", "--now", "2026-08-19T03:02:00Z"])
         .current_dir(&dir)
@@ -149,7 +149,7 @@ fn serve_once_fires_what_is_due_and_exits_zero() {
 
 #[test]
 fn serve_once_dry_reports_due_beat_without_state_trace_or_effect() {
-    let dir = project("once-dry", DAILY_3AM, &[("doctor.nika.yaml", TOUCH)]);
+    let dir = project("once-dry", DAILY_3AM, &[("doctor.nika", TOUCH)]);
     let out = bin()
         .args(["serve", "--once", "--dry", "--now", "2026-08-19T03:02:00Z"])
         .current_dir(&dir)
@@ -170,11 +170,7 @@ fn serve_once_dry_reports_due_beat_without_state_trace_or_effect() {
 
 #[test]
 fn serve_once_dry_keeps_an_existing_sidecar_byte_identical() {
-    let dir = project(
-        "once-dry-existing",
-        DAILY_3AM,
-        &[("doctor.nika.yaml", TRUE)],
-    );
+    let dir = project("once-dry-existing", DAILY_3AM, &[("doctor.nika", TRUE)]);
     let seed = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-18T03:02:00Z"])
         .current_dir(&dir)
@@ -207,7 +203,7 @@ fn serve_once_dry_keeps_an_existing_sidecar_byte_identical() {
 
 #[test]
 fn serve_loop_fires_two_beats_in_slot_order() {
-    let dir = project("loop", EVERY_MINUTE, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("loop", EVERY_MINUTE, &[("doctor.nika", TRUE)]);
     let out = bin()
         .args([
             "serve",
@@ -245,13 +241,13 @@ fn serve_never_fires_a_cloud_beat() {
     let registry = concat!(
         "nika: proj\n",
         "arm:\n",
-        "  - workflow: workflows/doctor.nika.yaml\n",
+        "  - workflow: workflows/doctor.nika\n",
         "    cadence: \"TZ=UTC * * * * *\"\n",
         "    où: cloud\n",
         "    plafond: 0.05\n",
         "    manqué: sauter\n",
     );
-    let dir = project("cloud", registry, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("cloud", registry, &[("doctor.nika", TRUE)]);
     let out = bin()
         .args(["serve", "--once", "--now", "2026-08-19T03:02:00Z"])
         .current_dir(&dir)
@@ -279,7 +275,7 @@ fn serve_never_fires_a_cloud_beat() {
 #[cfg(unix)]
 #[test]
 fn serve_stops_cleanly_on_sigterm() {
-    let dir = project("sigterm", EVERY_MINUTE, &[("doctor.nika.yaml", TRUE)]);
+    let dir = project("sigterm", EVERY_MINUTE, &[("doctor.nika", TRUE)]);
     let mut child = bin()
         .args(["serve"])
         .current_dir(&dir)

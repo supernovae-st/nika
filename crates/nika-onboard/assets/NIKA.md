@@ -1,21 +1,21 @@
 # Nika in this project
 
-Workflows are `*.nika.yaml` files. A plain `nika init` founds the project
-around the hello lesson, `workflows/01-hello.nika.yaml` (the file
+Workflows are `*.nika` files. A plain `nika init` founds the project
+around the hello lesson, `workflows/01-hello.nika` (the file
 `nika try 01-hello` rehearses). Audit it, run it offline, then create and
 check your own file:
 
 ```sh
-nika check workflows/01-hello.nika.yaml
-nika run workflows/01-hello.nika.yaml --model mock/echo
-nika compile 01-hello my-first.nika.yaml
-nika check my-first.nika.yaml
+nika check workflows/01-hello.nika
+nika run workflows/01-hello.nika --model mock/echo
+nika compile 01-hello my-first.nika
+nika check my-first.nika
 ```
 
 Init preserves the gallery lesson and its local model; the run override above
 rehearses it without a provider. Compile hello always emits `mock/echo`, even
 when keys exist. `nika compile chain --json` shows its required questions; answer them with
-`--answer KEY=JSON_LITERAL` and name `chain.nika.yaml` explicitly to write. Provide
+`--answer KEY=JSON_LITERAL` and name `chain.nika` explicitly to write. Provide
 the `README.md` it reads before checking and running it.
 
 A model override only mocks inference;

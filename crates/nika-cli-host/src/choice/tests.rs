@@ -124,10 +124,7 @@ fn authenticated_harness_takes_the_arrow_with_zero_key_zero_download() {
     let dir = tempfile::tempdir().expect("tmp");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     assert!(human.contains("Claude Code"), "{human}");
-    assert!(
-        human.contains("nika compile hello hello.nika.yaml"),
-        "{human}"
-    );
+    assert!(human.contains("nika compile hello hello.nika"), "{human}");
     assert!(!human.contains("xai/grok-4"), "{human}");
 }
 
@@ -418,10 +415,7 @@ fn next_for_a_ready_harness_is_new_hello() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
-    assert!(
-        human.contains("nika compile hello hello.nika.yaml"),
-        "{human}"
-    );
+    assert!(human.contains("nika compile hello hello.nika"), "{human}");
     // « this hardware », not « this machine »: the mirror body's
     // `this machine` section is the environment one, and the same two
     // words named three things on one screen (#1196).
@@ -437,18 +431,18 @@ fn next_for_a_ready_harness_is_new_hello() {
 fn door_shapes_mirror_the_real_door() {
     let placeholder = |door: String| {
         if door.starts_with("nika run ") {
-            door.replace("hello.nika.yaml", "<file>")
+            door.replace("hello.nika", "<file>")
         } else {
             door
         }
     };
     let dir = tempfile::tempdir().expect("tmp");
     let empty = placeholder(front_door_next(Some(dir.path())));
-    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("hello");
+    std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("hello");
     let one = placeholder(front_door_next(Some(dir.path())));
-    std::fs::write(dir.path().join("a.nika.yaml"), "nika: a\n").expect("a");
-    std::fs::remove_file(dir.path().join("hello.nika.yaml")).expect("drop hello");
-    std::fs::write(dir.path().join("b.nika.yaml"), "nika: b\n").expect("b");
+    std::fs::write(dir.path().join("a.nika"), "nika: a\n").expect("a");
+    std::fs::remove_file(dir.path().join("hello.nika")).expect("drop hello");
+    std::fs::write(dir.path().join("b.nika"), "nika: b\n").expect("b");
     let many = placeholder(front_door_next(Some(dir.path())));
     let measured = [empty, one, many];
     for shape in DOOR_SHAPES {
@@ -473,7 +467,7 @@ fn unready_local_next_is_new_hello_not_a_seven_gb_pull() {
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = human.split("Next:").nth(1).expect("Next: block");
     assert!(
-        after.contains("nika compile hello hello.nika.yaml"),
+        after.contains("nika compile hello hello.nika"),
         "empty machine first door is the file that runs:\n{human}"
     );
     assert!(
@@ -494,15 +488,15 @@ fn next_block(human: &str) -> &str {
 fn next_after_hello_exists_is_run_not_new() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
-    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("seed");
+    std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("seed");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
-        after.contains("nika run hello.nika.yaml"),
+        after.contains("nika run hello.nika"),
         "a file already here is the next door:\n{human}"
     );
     assert!(
-        !after.contains("nika compile hello hello.nika.yaml"),
+        !after.contains("nika compile hello hello.nika"),
         "new hello after a file exists is the --force dead end:\n{human}"
     );
 }
@@ -511,11 +505,11 @@ fn next_after_hello_exists_is_run_not_new() {
 fn next_after_hello_with_harness_is_run_not_a_pin() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
-    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("seed");
+    std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("seed");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
-        after.contains("nika run hello.nika.yaml"),
+        after.contains("nika run hello.nika"),
         "a file already here is the next door:\n{human}"
     );
     assert!(
@@ -526,22 +520,19 @@ fn next_after_hello_with_harness_is_run_not_a_pin() {
         !after.contains("claude-agent-acp"),
         "seat ids are NIKA-1802 as --access pins:\n{human}"
     );
-    assert!(
-        !after.contains("nika compile hello hello.nika.yaml"),
-        "{human}"
-    );
+    assert!(!after.contains("nika compile hello hello.nika"), "{human}");
 }
 
 #[test]
 fn next_prefers_hello_when_other_workflows_sit_beside_it() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
-    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("hello");
-    std::fs::write(dir.path().join("other.nika.yaml"), "nika: other\n").expect("other");
+    std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("hello");
+    std::fs::write(dir.path().join("other.nika"), "nika: other\n").expect("other");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
-        after.contains("nika run hello.nika.yaml"),
+        after.contains("nika run hello.nika"),
         "first-wow stays the one Next when it is here:\n{human}"
     );
 }
@@ -550,16 +541,13 @@ fn next_prefers_hello_when_other_workflows_sit_beside_it() {
 fn next_with_two_non_hello_files_is_bare_run() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
-    std::fs::write(dir.path().join("a.nika.yaml"), "nika: a\n").expect("a");
-    std::fs::write(dir.path().join("b.nika.yaml"), "nika: b\n").expect("b");
+    std::fs::write(dir.path().join("a.nika"), "nika: a\n").expect("a");
+    std::fs::write(dir.path().join("b.nika"), "nika: b\n").expect("b");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
         after.contains("nika run"),
         "several files → the lazy door, not another scaffold:\n{human}"
     );
-    assert!(
-        !after.contains("nika compile hello hello.nika.yaml"),
-        "{human}"
-    );
+    assert!(!after.contains("nika compile hello hello.nika"), "{human}");
 }

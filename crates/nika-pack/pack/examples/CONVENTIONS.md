@@ -46,8 +46,8 @@ Verify:
 
 ```bash
 export NIKA_BIN=/path/to/engine/target/debug/nika-cli
-"$NIKA_BIN" check examples/og-images.nika.yaml --native-strict   # rc=0, no hints
-"$NIKA_BIN" run   examples/og-images.nika.yaml                   # rc=0, artifacts land
+"$NIKA_BIN" check examples/og-images.nika --native-strict   # rc=0, no hints
+"$NIKA_BIN" run   examples/og-images.nika                   # rc=0, artifacts land
 ```
 
 ---
@@ -77,7 +77,7 @@ the body.
 #
 # Needs · ./data/sales.csv (columns · region,revenue).
 #
-# Run · nika run examples/csv-chart-report.nika.yaml
+# Run · nika run examples/csv-chart-report.nika
 ```
 
 Order, and what each line owes:
@@ -428,8 +428,8 @@ lands a FILE there that every later `create_dirs` under `./out` trips on —
 
 Measured on a real OpenAI `nika run` of a 40+ task extract → jq law →
 builtins workflow. The engine now hints or accepts these; do not rediscover
-them with tokens. The shape is [`13-extract-then-law`](13-extract-then-law.nika.yaml).
-The named bundle is [`14-decide-publish`](14-decide-publish.nika.yaml).
+them with tokens. The shape is [`13-extract-then-law`](13-extract-then-law.nika).
+The named bundle is [`14-decide-publish`](14-decide-publish.nika).
 
 1. **Integer facts, not digit strings.** `enum: ["0","1","3"]` — models emit
    JSON `3`. Prefer `type: integer`. Hint `digit-string-enum`.
@@ -515,7 +515,7 @@ python3 -c "import json,sys; json.load(open('out/thing.json')); print('VALID')"
 The whole corpus in one pass:
 
 ```bash
-for f in examples/**/*.nika.yaml templates/*.nika.yaml; do
+for f in examples/**/*.nika templates/*.nika; do
   "$NIKA_BIN" check "$f" --native-strict | tail -1
 done
 ```

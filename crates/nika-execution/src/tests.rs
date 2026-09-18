@@ -34,9 +34,9 @@ fn snapshot_admission_refuses_static_model_findings_before_execution() {
         let root = format!(
             "nika: root\nmodel: {model}\ntasks:\n  say:\n    infer: {{ prompt: hi, max_tokens: {tokens} }}\n"
         );
-        let (_tmp, owned) = project(&[("root.nika.yaml", &root)]);
+        let (_tmp, owned) = project(&[("root.nika", &root)]);
         let service = ExecutionService::default();
-        let admitted = service.admit(&owned, Path::new("root.nika.yaml"));
+        let admitted = service.admit(&owned, Path::new("root.nika"));
         assert!(
             matches!(&admitted, Err(ExecutionError::CheckFailed { findings })
             if !findings.is_empty()),
@@ -53,12 +53,12 @@ fn snapshot_admission_refuses_static_model_findings_before_execution() {
 #[test]
 fn effective_override_admits_the_owned_bytes_without_rewriting_the_snapshot() {
     let root = "nika: root\nmodel: openai/gpt-5.2\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 32 }\n";
-    let (_tmp, owned) = project(&[("root.nika.yaml", root)]);
+    let (_tmp, owned) = project(&[("root.nika", root)]);
     let service = ExecutionService::default();
     let admitted = service
-        .admit_with_model_override(&owned, Path::new("root.nika.yaml"), Some("mock/echo"))
+        .admit_with_model_override(&owned, Path::new("root.nika"), Some("mock/echo"))
         .expect("effective mock has no reasoning floor");
-    assert_eq!(admitted.snapshot().text("root.nika.yaml"), Some(root));
+    assert_eq!(admitted.snapshot().text("root.nika"), Some(root));
     let digest = admitted.snapshot().digest().to_owned();
     let snapshot = admitted.snapshot().clone();
     assert!(service.readmit_snapshot(snapshot.clone()).is_err());
@@ -69,7 +69,7 @@ fn effective_override_admits_the_owned_bytes_without_rewriting_the_snapshot() {
     let captured = service
         .admit_root_bytes_with_model_override(
             &owned,
-            Path::new("root.nika.yaml"),
+            Path::new("root.nika"),
             root.as_bytes(),
             Some("mock/echo"),
         )
@@ -79,17 +79,17 @@ fn effective_override_admits_the_owned_bytes_without_rewriting_the_snapshot() {
 
 #[test]
 fn a_root_override_cannot_waive_a_captured_childs_own_capacity_gate() {
-    let root = "nika: root\nmodel: openai/gpt-5.2\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 32 }\n  call:\n    invoke: { workflow: ./child.nika.yaml }\n";
+    let root = "nika: root\nmodel: openai/gpt-5.2\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 32 }\n  call:\n    invoke: { workflow: ./child.nika }\n";
     let child = "nika: child\nmodel: openai/gpt-5.2\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 200000 }\n";
-    let (_tmp, owned) = project(&[("root.nika.yaml", root), ("child.nika.yaml", child)]);
+    let (_tmp, owned) = project(&[("root.nika", root), ("child.nika", child)]);
     let result = ExecutionService::default().admit_with_model_override(
         &owned,
-        Path::new("root.nika.yaml"),
+        Path::new("root.nika"),
         Some("mock/echo"),
     );
     assert!(
         matches!(result, Err(ExecutionError::CheckFailed { findings })
-        if findings.iter().any(|finding| finding.contains("child.nika.yaml") && finding.contains("exceeds")))
+        if findings.iter().any(|finding| finding.contains("child.nika") && finding.contains("exceeds")))
     );
 }
 
@@ -175,29 +175,24 @@ where
 
 #[test]
 fn child_replacement_interleaved_after_read_cannot_change_admitted_bytes() {
-    let parent = parent("child.nika.yaml");
-    let (tmp, owned) = project(&[("root.nika.yaml", &parent), ("child.nika.yaml", CHILD)]);
-    let child = tmp.path().join("child.nika.yaml");
-    let snapshot = capture_while_replacing(
-        &owned,
-        Path::new("root.nika.yaml"),
-        "child.nika.yaml",
-        move || fs::write(child, b"nika: replaced\n").expect("replace child"),
-    );
-    assert_eq!(snapshot.text("child.nika.yaml"), Some(CHILD));
+    let parent = parent("child.nika");
+    let (tmp, owned) = project(&[("root.nika", &parent), ("child.nika", CHILD)]);
+    let child = tmp.path().join("child.nika");
+    let snapshot =
+        capture_while_replacing(&owned, Path::new("root.nika"), "child.nika", move || {
+            fs::write(child, b"nika: replaced\n").expect("replace child");
+        });
+    assert_eq!(snapshot.text("child.nika"), Some(CHILD));
 }
 
 #[test]
 fn skill_mutation_after_capture_cannot_change_admitted_bytes() {
     let root = "nika: root\nmodel: mock/echo\npermits:\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
     let skill = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
-    let (tmp, owned) = project(&[("root.nika.yaml", root), ("skills/review/SKILL.md", skill)]);
-    let snapshot = ExecutionSnapshot::capture(
-        &owned,
-        Path::new("root.nika.yaml"),
-        SnapshotLimits::default(),
-    )
-    .expect("capture");
+    let (tmp, owned) = project(&[("root.nika", root), ("skills/review/SKILL.md", skill)]);
+    let snapshot =
+        ExecutionSnapshot::capture(&owned, Path::new("root.nika"), SnapshotLimits::default())
+            .expect("capture");
     fs::write(tmp.path().join("skills/review/SKILL.md"), b"replacement").expect("mutate");
     assert_eq!(snapshot.text("skills/review/SKILL.md"), Some(skill));
     assert_eq!(
@@ -210,21 +205,21 @@ fn skill_mutation_after_capture_cannot_change_admitted_bytes() {
 
 #[test]
 fn nested_child_replacement_interleaved_after_read_cannot_change_admitted_bytes() {
-    let root = parent("nested/middle.nika.yaml");
-    let middle = "nika: middle\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  leaf:\n    invoke:\n      workflow: \"leaf.nika.yaml\"\n      args: { url: \"${{ inputs.url }}\" }\n    returns: { object: { report: string } }\noutputs:\n  report: { value: \"${{ tasks.leaf.output.report }}\", type: string }\n";
+    let root = parent("nested/middle.nika");
+    let middle = "nika: middle\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  leaf:\n    invoke:\n      workflow: \"leaf.nika\"\n      args: { url: \"${{ inputs.url }}\" }\n    returns: { object: { report: string } }\noutputs:\n  report: { value: \"${{ tasks.leaf.output.report }}\", type: string }\n";
     let (tmp, owned) = project(&[
-        ("root.nika.yaml", &root),
-        ("nested/middle.nika.yaml", middle),
-        ("nested/leaf.nika.yaml", CHILD),
+        ("root.nika", &root),
+        ("nested/middle.nika", middle),
+        ("nested/leaf.nika", CHILD),
     ]);
-    let child = tmp.path().join("nested/leaf.nika.yaml");
+    let child = tmp.path().join("nested/leaf.nika");
     let snapshot = capture_while_replacing(
         &owned,
-        Path::new("root.nika.yaml"),
-        "nested/leaf.nika.yaml",
+        Path::new("root.nika"),
+        "nested/leaf.nika",
         move || fs::write(child, b"nika: attacker\n").expect("replace nested child"),
     );
-    assert_eq!(snapshot.text("nested/leaf.nika.yaml"), Some(CHILD));
+    assert_eq!(snapshot.text("nested/leaf.nika"), Some(CHILD));
 }
 
 #[cfg(unix)]
@@ -232,42 +227,37 @@ fn nested_child_replacement_interleaved_after_read_cannot_change_admitted_bytes(
 fn symlink_swap_interleaved_after_read_cannot_redirect_execution() {
     use std::os::unix::fs::symlink;
 
-    let parent = parent("child.nika.yaml");
-    let (tmp, owned) = project(&[("root.nika.yaml", &parent), ("child.nika.yaml", CHILD)]);
-    let child = tmp.path().join("child.nika.yaml");
+    let parent = parent("child.nika");
+    let (tmp, owned) = project(&[("root.nika", &parent), ("child.nika", CHILD)]);
+    let child = tmp.path().join("child.nika");
     let outside = tempfile::NamedTempFile::new().expect("outside");
     fs::write(outside.path(), b"nika: attacker\n").expect("outside write");
     let outside_path = outside.path().to_owned();
-    let snapshot = capture_while_replacing(
-        &owned,
-        Path::new("root.nika.yaml"),
-        "child.nika.yaml",
-        move || {
+    let snapshot =
+        capture_while_replacing(&owned, Path::new("root.nika"), "child.nika", move || {
             fs::remove_file(&child).expect("remove child");
             symlink(outside_path, child).expect("swap");
-        },
-    );
-    assert_eq!(snapshot.text("child.nika.yaml"), Some(CHILD));
+        });
+    assert_eq!(snapshot.text("child.nika"), Some(CHILD));
 }
 
 #[test]
 fn directory_replacement_interleaved_after_read_cannot_redirect_execution() {
-    let root = parent("world/child.nika.yaml");
-    let (tmp, owned) = project(&[("root.nika.yaml", &root), ("world/child.nika.yaml", CHILD)]);
+    let root = parent("world/child.nika");
+    let (tmp, owned) = project(&[("root.nika", &root), ("world/child.nika", CHILD)]);
     let world = tmp.path().join("world");
     let original_world = tmp.path().join("original-world");
     let snapshot = capture_while_replacing(
         &owned,
-        Path::new("root.nika.yaml"),
-        "world/child.nika.yaml",
+        Path::new("root.nika"),
+        "world/child.nika",
         move || {
             fs::rename(&world, original_world).expect("rename original directory");
             fs::create_dir(&world).expect("replacement directory");
-            fs::write(world.join("child.nika.yaml"), b"nika: attacker\n")
-                .expect("replacement child");
+            fs::write(world.join("child.nika"), b"nika: attacker\n").expect("replacement child");
         },
     );
-    assert_eq!(snapshot.text("world/child.nika.yaml"), Some(CHILD));
+    assert_eq!(snapshot.text("world/child.nika"), Some(CHILD));
 }
 
 #[test]
@@ -276,9 +266,9 @@ fn directory_replacement_interleaved_after_read_cannot_redirect_execution() {
     reason = "the synchronous ByteSource race needs an OS thread held at explicit barriers"
 )]
 fn root_replacement_interleaved_after_read_cannot_change_admitted_bytes() {
-    let (tmp, owned) = project(&[("root.nika.yaml", pure_root())]);
-    let (source, captured, replaced) = interleaving_source(&owned, "root.nika.yaml");
-    let root = tmp.path().join("root.nika.yaml");
+    let (tmp, owned) = project(&[("root.nika", pure_root())]);
+    let (source, captured, replaced) = interleaving_source(&owned, "root.nika");
+    let root = tmp.path().join("root.nika");
     let attacker = std::thread::spawn(move || {
         captured.wait();
         fs::write(root, b"nika: attacker\n").expect("replace root");
@@ -286,13 +276,13 @@ fn root_replacement_interleaved_after_read_cannot_change_admitted_bytes() {
     });
     let snapshot = ExecutionSnapshot::capture_from(
         &source,
-        Path::new("root.nika.yaml"),
+        Path::new("root.nika"),
         std::iter::empty::<&Path>(),
         SnapshotLimits::default(),
     )
     .expect("capture owns the already-read root");
     attacker.join().expect("attacker");
-    assert_eq!(snapshot.text("root.nika.yaml"), Some(pure_root()));
+    assert_eq!(snapshot.text("root.nika"), Some(pure_root()));
 }
 
 #[test]
@@ -303,7 +293,7 @@ fn root_replacement_interleaved_after_read_cannot_change_admitted_bytes() {
 fn skill_registry_reload_interleaved_after_read_cannot_change_admission() {
     const ROOT: &str = "nika: root\nmodel: mock/echo\npermits:\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
     const SKILL: &str = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
-    let (tmp, owned) = project(&[("root.nika.yaml", ROOT), ("skills/review/SKILL.md", SKILL)]);
+    let (tmp, owned) = project(&[("root.nika", ROOT), ("skills/review/SKILL.md", SKILL)]);
     let (source, captured, replaced) = interleaving_source(&owned, "skills/review/SKILL.md");
     let skill = tmp.path().join("skills/review/SKILL.md");
     let attacker = std::thread::spawn(move || {
@@ -313,7 +303,7 @@ fn skill_registry_reload_interleaved_after_read_cannot_change_admission() {
     });
     let snapshot = ExecutionSnapshot::capture_from(
         &source,
-        Path::new("root.nika.yaml"),
+        Path::new("root.nika"),
         std::iter::empty::<&Path>(),
         SnapshotLimits::default(),
     )
@@ -330,25 +320,21 @@ fn skill_registry_reload_interleaved_after_read_cannot_change_admission() {
 
 #[test]
 fn cycles_are_refused() {
-    let a = parent("b.nika.yaml");
-    let b = parent("a.nika.yaml");
-    let (_tmp, owned) = project(&[("a.nika.yaml", &a), ("b.nika.yaml", &b)]);
-    let error =
-        ExecutionSnapshot::capture(&owned, Path::new("a.nika.yaml"), SnapshotLimits::default())
-            .expect_err("cycle");
+    let a = parent("b.nika");
+    let b = parent("a.nika");
+    let (_tmp, owned) = project(&[("a.nika", &a), ("b.nika", &b)]);
+    let error = ExecutionSnapshot::capture(&owned, Path::new("a.nika"), SnapshotLimits::default())
+        .expect_err("cycle");
     assert!(matches!(error, ExecutionError::DependencyCycle { .. }));
 }
 
 #[test]
 fn duplicate_logical_aliases_are_refused() {
-    let root = "nika: root\npermits:\n  exec: [\"echo\"]\ntasks:\n  one:\n    invoke: { workflow: \"child.nika.yaml\", args: { url: x } }\n  two:\n    invoke: { workflow: \"./child.nika.yaml\", args: { url: y } }\n".to_owned();
-    let (_tmp, owned) = project(&[("root.nika.yaml", &root), ("child.nika.yaml", CHILD)]);
-    let error = ExecutionSnapshot::capture(
-        &owned,
-        Path::new("root.nika.yaml"),
-        SnapshotLimits::default(),
-    )
-    .expect_err("alias duplicate");
+    let root = "nika: root\npermits:\n  exec: [\"echo\"]\ntasks:\n  one:\n    invoke: { workflow: \"child.nika\", args: { url: x } }\n  two:\n    invoke: { workflow: \"./child.nika\", args: { url: y } }\n".to_owned();
+    let (_tmp, owned) = project(&[("root.nika", &root), ("child.nika", CHILD)]);
+    let error =
+        ExecutionSnapshot::capture(&owned, Path::new("root.nika"), SnapshotLimits::default())
+            .expect_err("alias duplicate");
     assert!(matches!(
         error,
         ExecutionError::DuplicateLogicalIdentity { .. }
@@ -358,12 +344,12 @@ fn duplicate_logical_aliases_are_refused() {
 #[test]
 fn identical_duplicate_imports_are_refused() {
     let (_tmp, owned) = project(&[
-        ("root.nika.yaml", pure_root()),
+        ("root.nika", pure_root()),
         ("imports/policy.bin", "policy-v1"),
     ]);
     let error = ExecutionSnapshot::capture_with_imports(
         &owned,
-        Path::new("root.nika.yaml"),
+        Path::new("root.nika"),
         [
             Path::new("imports/policy.bin"),
             Path::new("imports/policy.bin"),
@@ -379,15 +365,12 @@ fn identical_duplicate_imports_are_refused() {
 
 #[test]
 fn child_local_static_defects_are_refused() {
-    let root = parent("child.nika.yaml");
+    let root = parent("child.nika");
     let child = "nika: child\npermits: {}\ntasks:\n  broken:\n    after: [missing]\n    invoke: { tool: nika:jq, args: { input: 1, expression: \".\" } }\n";
-    let (_tmp, owned) = project(&[("root.nika.yaml", &root), ("child.nika.yaml", child)]);
-    let error = ExecutionSnapshot::capture(
-        &owned,
-        Path::new("root.nika.yaml"),
-        SnapshotLimits::default(),
-    )
-    .expect_err("child check");
+    let (_tmp, owned) = project(&[("root.nika", &root), ("child.nika", child)]);
+    let error =
+        ExecutionSnapshot::capture(&owned, Path::new("root.nika"), SnapshotLimits::default())
+            .expect_err("child check");
     assert!(matches!(
         error,
         ExecutionError::CheckFailed { .. } | ExecutionError::Parse { .. }
@@ -396,9 +379,9 @@ fn child_local_static_defects_are_refused() {
 
 #[test]
 fn parse_refuse_stamps_the_spec_code_in_the_detail() {
-    let (_tmp, owned) = project(&[("bad.nika.yaml", "nika: v1\nworkflow: nope\n")]);
+    let (_tmp, owned) = project(&[("bad.nika", "nika: v1\nworkflow: nope\n")]);
     let error = ExecutionService::default()
-        .admit(&owned, Path::new("bad.nika.yaml"))
+        .admit(&owned, Path::new("bad.nika"))
         .expect_err("fourteen-key parse");
     let text = error.to_string();
     assert!(
@@ -410,13 +393,10 @@ fn parse_refuse_stamps_the_spec_code_in_the_detail() {
 #[test]
 fn check_refuse_stamps_the_analysis_code_in_the_detail() {
     let body = "nika: boom\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
-    let (_tmp, owned) = project(&[("boom.nika.yaml", body)]);
-    let error = ExecutionSnapshot::capture(
-        &owned,
-        Path::new("boom.nika.yaml"),
-        SnapshotLimits::default(),
-    )
-    .expect_err("undeclared exec");
+    let (_tmp, owned) = project(&[("boom.nika", body)]);
+    let error =
+        ExecutionSnapshot::capture(&owned, Path::new("boom.nika"), SnapshotLimits::default())
+            .expect_err("undeclared exec");
     let text = error.to_string();
     assert!(
         text.contains("NIKA-AUTH-006") || text.contains("NIKA-SEC-"),
@@ -426,56 +406,54 @@ fn check_refuse_stamps_the_analysis_code_in_the_detail() {
 
 #[test]
 fn depth_count_and_size_limits_fail_closed() {
-    let root = parent("child.nika.yaml");
-    let (_tmp, owned) = project(&[("root.nika.yaml", &root), ("child.nika.yaml", CHILD)]);
+    let root = parent("child.nika");
+    let (_tmp, owned) = project(&[("root.nika", &root), ("child.nika", CHILD)]);
     let depth = SnapshotLimits::new(0, 8, 8_192, 16_384);
     assert!(matches!(
-        ExecutionSnapshot::capture(&owned, Path::new("root.nika.yaml"), depth),
+        ExecutionSnapshot::capture(&owned, Path::new("root.nika"), depth),
         Err(ExecutionError::DepthLimit { .. })
     ));
 
     let count = SnapshotLimits::new(8, 1, 8_192, 16_384);
     assert!(matches!(
-        ExecutionSnapshot::capture(&owned, Path::new("root.nika.yaml"), count),
+        ExecutionSnapshot::capture(&owned, Path::new("root.nika"), count),
         Err(ExecutionError::UnitCountLimit { .. })
     ));
 
     let size = SnapshotLimits::new(8, 8, 16, 16_384);
     assert!(matches!(
-        ExecutionSnapshot::capture(&owned, Path::new("root.nika.yaml"), size),
+        ExecutionSnapshot::capture(&owned, Path::new("root.nika"), size),
         Err(ExecutionError::UnitSizeLimit { .. })
     ));
 
     let total = SnapshotLimits::new(8, 8, 8_192, root.len());
     assert!(matches!(
-        ExecutionSnapshot::capture(&owned, Path::new("root.nika.yaml"), total),
+        ExecutionSnapshot::capture(&owned, Path::new("root.nika"), total),
         Err(ExecutionError::TotalSizeLimit { .. })
     ));
 }
 
 #[test]
 fn digest_is_stable_for_the_same_owned_world() {
-    let parent = parent("child.nika.yaml");
-    let (_a_tmp, a) = project(&[("root.nika.yaml", &parent), ("child.nika.yaml", CHILD)]);
-    let (_b_tmp, b) = project(&[("root.nika.yaml", &parent), ("child.nika.yaml", CHILD)]);
-    let left =
-        ExecutionSnapshot::capture(&a, Path::new("root.nika.yaml"), SnapshotLimits::default())
-            .expect("left");
-    let right =
-        ExecutionSnapshot::capture(&b, Path::new("root.nika.yaml"), SnapshotLimits::default())
-            .expect("right");
+    let parent = parent("child.nika");
+    let (_a_tmp, a) = project(&[("root.nika", &parent), ("child.nika", CHILD)]);
+    let (_b_tmp, b) = project(&[("root.nika", &parent), ("child.nika", CHILD)]);
+    let left = ExecutionSnapshot::capture(&a, Path::new("root.nika"), SnapshotLimits::default())
+        .expect("left");
+    let right = ExecutionSnapshot::capture(&b, Path::new("root.nika"), SnapshotLimits::default())
+        .expect("right");
     assert_eq!(left.digest(), right.digest());
 }
 
 #[test]
 fn explicit_imports_join_the_same_immutable_world() {
     let (tmp, owned) = project(&[
-        ("root.nika.yaml", pure_root()),
+        ("root.nika", pure_root()),
         ("imports/policy.bin", "policy-v1"),
     ]);
     let snapshot = ExecutionSnapshot::capture_with_imports(
         &owned,
-        Path::new("root.nika.yaml"),
+        Path::new("root.nika"),
         [Path::new("imports/policy.bin")],
         SnapshotLimits::default(),
     )
@@ -495,12 +473,12 @@ fn explicit_imports_join_the_same_immutable_world() {
 
 #[test]
 fn execute_performs_zero_opens_after_admission() {
-    let (tmp, owned) = project(&[("root.nika.yaml", pure_root())]);
+    let (tmp, owned) = project(&[("root.nika", pure_root())]);
     let service = ExecutionService::default();
     let admitted = service
-        .admit(&owned, Path::new("root.nika.yaml"))
+        .admit(&owned, Path::new("root.nika"))
         .expect("admit");
-    fs::remove_file(tmp.path().join("root.nika.yaml")).expect("remove admitted source");
+    fs::remove_file(tmp.path().join("root.nika")).expect("remove admitted source");
     let verdict = service.execute(admitted, snapshot_digest);
     assert_eq!(verdict.outcome(), verdict.snapshot_digest());
     assert_eq!(verdict.trace_id(), verdict.execution_id().into());
@@ -510,19 +488,16 @@ fn execute_performs_zero_opens_after_admission() {
 fn debug_surfaces_do_not_disclose_captured_or_outcome_payloads() {
     const SECRET_SHAPED: &str = "sk-live-w02-must-never-reach-debug";
     let root = format!("{}# {SECRET_SHAPED}\n", pure_root());
-    let (_tmp, owned) = project(&[("root.nika.yaml", &root)]);
+    let (_tmp, owned) = project(&[("root.nika", &root)]);
     let service = ExecutionService::default();
     let admitted = service
-        .admit(&owned, Path::new("root.nika.yaml"))
+        .admit(&owned, Path::new("root.nika"))
         .expect("admit");
 
     let snapshot_debug = format!("{:?}", admitted.snapshot());
     let unit_debug = format!(
         "{:?}",
-        admitted
-            .snapshot()
-            .unit("root.nika.yaml")
-            .expect("root unit")
+        admitted.snapshot().unit("root.nika").expect("root unit")
     );
     let admitted_debug = format!("{admitted:?}");
     assert!(!snapshot_debug.contains(SECRET_SHAPED));
@@ -533,7 +508,7 @@ fn debug_surfaces_do_not_disclose_captured_or_outcome_payloads() {
     assert!(!context_debug.outcome().contains(SECRET_SHAPED));
 
     let admitted = service
-        .admit(&owned, Path::new("root.nika.yaml"))
+        .admit(&owned, Path::new("root.nika"))
         .expect("readmit");
     let verdict = service.execute(admitted, secret_shaped_outcome);
     let verdict_debug = format!("{verdict:?}");
@@ -543,24 +518,21 @@ fn debug_surfaces_do_not_disclose_captured_or_outcome_payloads() {
 
 #[test]
 fn owned_root_bytes_capture_stdin_world_without_a_dash_file() {
-    let root = "nika: stdin\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  audit:\n    invoke:\n      workflow: \"child.nika.yaml\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+    let root = "nika: stdin\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  audit:\n    invoke:\n      workflow: \"child.nika\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
     let skill = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
-    let (tmp, owned) = project(&[
-        ("child.nika.yaml", CHILD),
-        ("skills/review/SKILL.md", skill),
-    ]);
+    let (tmp, owned) = project(&[("child.nika", CHILD), ("skills/review/SKILL.md", skill)]);
     let service = ExecutionService::default();
     let admitted = service
         .admit_root_bytes(&owned, Path::new("-"), root.as_bytes())
         .expect("admit stdin world");
 
-    fs::write(tmp.path().join("child.nika.yaml"), b"nika: replaced\n").expect("mutate child");
+    fs::write(tmp.path().join("child.nika"), b"nika: replaced\n").expect("mutate child");
     fs::write(tmp.path().join("skills/review/SKILL.md"), b"replacement").expect("mutate skill");
 
     assert!(!tmp.path().join("-").exists());
     assert_eq!(admitted.snapshot().root(), "-");
     assert_eq!(admitted.snapshot().text("-"), Some(root));
-    assert_eq!(admitted.snapshot().text("child.nika.yaml"), Some(CHILD));
+    assert_eq!(admitted.snapshot().text("child.nika"), Some(CHILD));
     assert_eq!(
         admitted.snapshot().text("skills/review/SKILL.md"),
         Some(skill)
@@ -579,7 +551,7 @@ fn owned_root_bytes_obey_the_same_size_ceiling() {
 }
 
 fn snapshot_digest(cx: crate::ExecutionContext<'_>) -> String {
-    assert_eq!(cx.snapshot().text("root.nika.yaml"), Some(pure_root()));
+    assert_eq!(cx.snapshot().text("root.nika"), Some(pure_root()));
     cx.snapshot().digest().to_owned()
 }
 

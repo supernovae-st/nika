@@ -20,7 +20,7 @@ fn registry_run_refusal_keeps_copy_guidance_and_never_names_cache_as_fixable() {
     let dir =
         std::env::temp_dir().join(format!("nika-registry-run-refusal-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("registry-run arena");
-    let path = dir.join("cached.nika.yaml");
+    let path = dir.join("cached.nika");
     std::fs::write(
         &path,
         "nika: cached\npermits: { exec: [date] }\ntasks:\n  clock:\n    exec: { command: [date] }\n  broken:\n    infer: { prompt: '${{ tasks.ghost.output }}', model: mock/echo }\n",
@@ -70,7 +70,7 @@ fn dry_run_payload_projects_the_versioned_plan() {
     )
     .expect("fixture parses");
     let report = nika_check::check(&wf);
-    let p = nika_check::plan::payload("demo.nika.yaml", &wf, &report);
+    let p = nika_check::plan::payload("demo.nika", &wf, &report);
     assert_eq!(p["plan_version"], 1);
     assert_eq!(p["workflow"], "demo");
     assert_eq!(p["waves"], json!([["a"], ["b"]]));
@@ -142,7 +142,7 @@ fn stage(name: &str, yaml: &str) -> std::path::PathBuf {
 #[test]
 fn model_override_runs_a_local_model_workflow_offline() {
     let wf = stage(
-        "override-infer.nika.yaml",
+        "override-infer.nika",
         "nika: override-infer\nmodel: ollama/llama3.1\ntasks:\n  think:\n    infer: { prompt: \"hello\" }\n",
     );
     let code = run(
@@ -177,7 +177,7 @@ fn model_override_runs_a_local_model_workflow_offline() {
 #[test]
 fn model_override_replaces_the_resolved_model() {
     let wf = stage(
-        "override-swap.nika.yaml",
+        "override-swap.nika",
         "nika: override-swap\nmodel: ollama/llama3.1\ntasks:\n  ask:\n    infer: { prompt: \"bonjour\" }\n",
     );
     // With the override → mock/echo resolves with no provider → OK.
@@ -215,7 +215,7 @@ fn model_override_replaces_the_resolved_model() {
 #[test]
 fn answer_without_resume_preseeds_the_gate() {
     let wf = stage(
-        "answer-fresh.nika.yaml",
+        "answer-fresh.nika",
         "nika: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n  done:\n    after: { ask: success }\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
     );
     let req = nika_dap::resume::ResumeRequest {
@@ -256,7 +256,7 @@ fn answer_without_resume_preseeds_the_gate() {
 #[test]
 fn answer_without_resume_still_refuses_an_unknown_task() {
     let wf = stage(
-        "answer-unknown.nika.yaml",
+        "answer-unknown.nika",
         "nika: gated\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n",
     );
     let req = nika_dap::resume::ResumeRequest {
@@ -325,13 +325,13 @@ fn var_flag_satisfies_a_required_var() {
     // NIKA-1708 · exit 3) — before the DAG spends a task; the mid-DAG
     // NIKA-VAR-001 at the first `${{ inputs.topic }}` read was the bug.
     assert_eq!(
-        run_with_vars("var-missing.nika.yaml", &[]),
+        run_with_vars("var-missing.nika", &[]),
         exit::ENV,
         "an unsatisfied required input refuses at admission (#603)"
     );
     // With `--var topic=rust` the SAME workflow runs green.
     assert_eq!(
-        run_with_vars("var-provided.nika.yaml", &["topic=rust".to_owned()]),
+        run_with_vars("var-provided.nika", &["topic=rust".to_owned()]),
         exit::OK,
         "--var makes the required-var workflow runnable"
     );
@@ -341,13 +341,13 @@ fn var_flag_satisfies_a_required_var() {
 fn var_flag_refuses_unknown_keys_and_bad_shapes() {
     // A typo'd key must refuse LOUDLY (exit 3 · never silently ignored).
     assert_eq!(
-        run_with_vars("var-unknown.nika.yaml", &["topik=rust".to_owned()]),
+        run_with_vars("var-unknown.nika", &["topik=rust".to_owned()]),
         exit::ENV,
         "unknown --var key is refused"
     );
     // A pair without `=` is an operator input error, same class.
     assert_eq!(
-        run_with_vars("var-shape.nika.yaml", &["topic".to_owned()]),
+        run_with_vars("var-shape.nika", &["topic".to_owned()]),
         exit::ENV,
         "malformed --var pair is refused"
     );
@@ -505,7 +505,7 @@ fn require_signature_refuses_unsigned_before_execution() {
     let _lease = crate::cwd::enter(&dir).expect("enter sig sentinel");
     let sentinel = dir.join("sentinel.txt");
     let yaml = "nika: sig-gate\nmodel: mock/echo\npermits: { exec: [\"touch\"] }\ntasks:\n  touch:\n    exec: { command: [\"touch\", \"./sentinel.txt\"] }\n";
-    let wf = dir.join("sig-gate.nika.yaml");
+    let wf = dir.join("sig-gate.nika");
     std::fs::write(&wf, yaml).expect("sig fixture");
     let gated = run(
         &wf.to_string_lossy(),
@@ -556,7 +556,7 @@ fn require_signature_refuses_unsigned_before_execution() {
     assert_eq!(planned, exit::OK, "the workflow itself is runnable");
 }
 
-/// A `.nika.yaml` naming a local seat, so the swap is VISIBLE: whatever
+/// A `.nika` naming a local seat, so the swap is VISIBLE: whatever
 /// the plan prints, it cannot have come from both models.
 #[cfg(test)]
 fn ollama_fixture() -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) {
@@ -581,7 +581,7 @@ fn ollama_fixture() -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) 
 fn dry_run_plan_names_the_overridden_model() {
     let (wf, _) = ollama_fixture();
     let (wf, report) = dry_run_swap(&wf, "mock/echo").expect("mock/echo resolves in this binary");
-    let p = nika_check::plan::payload("hello-ai.nika.yaml", &wf, &report);
+    let p = nika_check::plan::payload("hello-ai.nika", &wf, &report);
     let model = p["cost"]["tasks"][0]["model"]
         .as_str()
         .expect("the plan prices one task");
@@ -609,14 +609,14 @@ fn dry_run_refuses_a_model_that_does_not_resolve() {
 #[test]
 fn dry_run_without_the_flag_keeps_the_files_model() {
     let (wf, report) = ollama_fixture();
-    let p = nika_check::plan::payload("hello-ai.nika.yaml", &wf, &report);
+    let p = nika_check::plan::payload("hello-ai.nika", &wf, &report);
     assert_eq!(p["cost"]["tasks"][0]["model"], "ollama/llama3.2:3b");
 }
 
 #[test]
 fn dry_run_refuses_an_unknown_access_pin() {
     let wf = stage(
-        "dry-run-unknown-access.nika.yaml",
+        "dry-run-unknown-access.nika",
         "nika: dry-run-access\nmodel: mock/echo\npermits: {}\ntasks:\n  ask:\n    infer: { prompt: \"hello\" }\n",
     );
     let code = run(
@@ -644,7 +644,7 @@ fn dry_run_refuses_an_unknown_access_pin() {
 #[test]
 fn mock_model_with_harness_pin_refuses_before_a_live_seat() {
     let wf = stage(
-        "mock-never-harness.nika.yaml",
+        "mock-never-harness.nika",
         "nika: mock-never-harness\nmodel: mock/echo\npermits: {}\ntasks:\n  ask:\n    infer: { prompt: \"hello\" }\n",
     );
     let code = run(
@@ -678,7 +678,7 @@ fn clean_gate_renders_the_report_that_refused_without_rechecking_files() {
     let room = tempfile::tempdir().expect("room");
     let _cwd = crate::cwd::enter(room.path()).expect("cwd lease");
     let yaml = "nika: ghost\npermits: { tools: ['mcp:sandboxfs/write_file'] }\ntasks:\n  w:\n    invoke: { tool: 'mcp:sandboxfs/write_file', args: {} }\n";
-    let source = crate::verbs::RunSource::from_bytes("ghost.nika.yaml", yaml.as_bytes().to_vec())
+    let source = crate::verbs::RunSource::from_bytes("ghost.nika", yaml.as_bytes().to_vec())
         .expect("source");
     let (wf, report) = crate::verbs::load_checked_run_source(&source).expect("parsed");
     assert!(!report.is_clean());

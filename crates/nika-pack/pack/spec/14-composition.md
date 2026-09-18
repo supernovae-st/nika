@@ -28,7 +28,7 @@
 tasks:
   audit:
     invoke:
-      workflow: "./audits/site-audit.nika.yaml"   # a STATIC path …
+      workflow: "./audits/site-audit.nika"   # a STATIC path …
       args:                                        # … or registry:owner/name@version (pinned)
         url: "${{ inputs.target }}"
     returns:                  # the child's typed outputs — composed, not re-declared

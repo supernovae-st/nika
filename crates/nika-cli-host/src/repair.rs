@@ -73,9 +73,9 @@ mod tests {
         let cache_root = root.join(".nika/registry");
         let cache = cache_root.join("acme/report");
         std::fs::create_dir_all(&cache).expect("cache dirs");
-        let target = cache.join("workflow.nika.yaml");
+        let target = cache.join("workflow.nika");
         std::fs::write(&target, "nika: cached\ntasks: {}\n").expect("cache fixture");
-        let dotdot = cache.join("../report/workflow.nika.yaml");
+        let dotdot = cache.join("../report/workflow.nika");
 
         for path in [&target, &dotdot] {
             assert_eq!(
@@ -86,14 +86,14 @@ mod tests {
             );
         }
 
-        let missing = root.join("ordinary-missing.nika.yaml");
+        let missing = root.join("ordinary-missing.nika");
         assert_eq!(
             repair_target_for_path_under(&missing.to_string_lossy(), None),
             RepairTarget::WorkspaceFile,
             "a missing ordinary file reaches the read-first refusal"
         );
 
-        let lookalike = root.join("project/.nika/registry/workflow.nika.yaml");
+        let lookalike = root.join("project/.nika/registry/workflow.nika");
         std::fs::create_dir_all(lookalike.parent().expect("lookalike parent"))
             .expect("lookalike dirs");
         std::fs::write(&lookalike, "nika: local\ntasks: {}\n").expect("lookalike fixture");
@@ -114,17 +114,14 @@ mod tests {
         let cache_root = root.join(".nika/registry");
         let cache_dir = cache_root.join("acme/report");
         std::fs::create_dir_all(&cache_dir).expect("cache dirs");
-        let cached = cache_dir.join("workflow.nika.yaml");
+        let cached = cache_dir.join("workflow.nika");
         std::fs::write(&cached, "nika: cached\ntasks: {}\n").expect("cache fixture");
 
-        let file_alias = root.join("cache-file-alias.nika.yaml");
+        let file_alias = root.join("cache-file-alias.nika");
         symlink(&cached, &file_alias).expect("cache file symlink");
         let parent_alias = root.join("cache-parent");
         symlink(&cache_root, &parent_alias).expect("cache parent symlink");
-        for path in [
-            file_alias,
-            parent_alias.join("acme/report/workflow.nika.yaml"),
-        ] {
+        for path in [file_alias, parent_alias.join("acme/report/workflow.nika")] {
             assert_eq!(
                 repair_target_for_path_under(&path.to_string_lossy(), Some(&cache_root)),
                 RepairTarget::RegistryArtifact,
@@ -133,9 +130,9 @@ mod tests {
             );
         }
 
-        let workspace = root.join("workspace.nika.yaml");
+        let workspace = root.join("workspace.nika");
         std::fs::write(&workspace, "nika: workspace\ntasks: {}\n").expect("workspace fixture");
-        let workspace_alias = root.join("workspace-alias.nika.yaml");
+        let workspace_alias = root.join("workspace-alias.nika");
         symlink(&workspace, &workspace_alias).expect("workspace symlink");
         assert_eq!(
             repair_target_for_path_under(&workspace_alias.to_string_lossy(), Some(&cache_root)),

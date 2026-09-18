@@ -22,17 +22,17 @@ fn hello_scaffold_runs_offline_and_teaches_the_local_timeout_override() {
             .output()
             .expect("isolated CLI")
     };
-    let new = call(&["compile", "01-hello", "hello.nika.yaml"]);
+    let new = call(&["compile", "01-hello", "hello.nika"]);
     assert!(
         new.status.success(),
         "{}",
         String::from_utf8_lossy(&new.stderr)
     );
-    let text = std::fs::read_to_string(room.path().join("hello.nika.yaml")).expect("scaffold");
+    let text = std::fs::read_to_string(room.path().join("hello.nika")).expect("scaffold");
     let yaml: serde_yaml_bw::Value = serde_yaml_bw::from_str(&text).expect("yaml");
     assert_eq!(yaml["model"].as_str(), Some("mock/echo"));
     assert!(!text.contains("<SLOT:"), "{text}");
-    let run = call(&["run", "hello.nika.yaml", "--output", "json"]);
+    let run = call(&["run", "hello.nika", "--output", "json"]);
     assert!(
         run.status.success(),
         "{}",

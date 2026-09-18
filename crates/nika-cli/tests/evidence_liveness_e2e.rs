@@ -34,7 +34,7 @@ impl Rig {
         for sub in ["home", "work"] {
             std::fs::create_dir_all(root.join(sub)).expect("rig dir");
         }
-        std::fs::write(root.join("work").join("wait.nika.yaml"), WAIT).expect("workflow");
+        std::fs::write(root.join("work").join("wait.nika"), WAIT).expect("workflow");
         Self { root }
     }
 
@@ -50,7 +50,7 @@ impl Rig {
     }
 
     fn spawn_run(&self) -> Child {
-        self.command(&["run", "wait.nika.yaml", "--json", "--max-cost-usd", "0.01"])
+        self.command(&["run", "wait.nika", "--json", "--max-cost-usd", "0.01"])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -182,7 +182,7 @@ fn an_alive_writer_refuses_a_resume() {
     let out = rig
         .command(&[
             "run",
-            "wait.nika.yaml",
+            "wait.nika",
             "--resume",
             &trace,
             "--max-cost-usd",

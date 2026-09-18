@@ -125,7 +125,7 @@ pub(crate) fn render(lines: &[(char, String)]) -> String {
 /// since #158, now the hand-off of the workflow-less founds only
 /// (`--recipe minimal` · a headless `starter`): a plain init founds
 /// around [`DEFAULT_EXAMPLE`] and hands over to THAT file (#1283).
-pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika try 01-hello   # offline rehearsal\n  nika compile hello hello.nika.yaml   # explicit first file · mock/echo\n  nika compile --list   # exact skeletons; missing answers remain questions\n  nika check hello.nika.yaml   # audit before run";
+pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika try 01-hello   # offline rehearsal\n  nika compile hello hello.nika   # explicit first file · mock/echo\n  nika compile --list   # exact skeletons; missing answers remain questions\n  nika check hello.nika   # audit before run";
 
 /// The scriptable path — briefs report with purposes, then each
 /// flagged extra as its own receipt block, then the hand-off. The door
@@ -202,7 +202,7 @@ pub fn scripted_run(
             text,
             "· starter's workflow step is a conversation — a script cannot answer it. \
              The project files were scaffolded; run bare `nika init` on a terminal for the questions, \
-             or `nika compile hello hello.nika.yaml` for an explicit first file."
+             or `nika compile hello hello.nika` for an explicit first file."
         );
     }
 
@@ -285,7 +285,7 @@ fn scaffold_report(
                 let _ = writeln!(text, "✔ created {rel} — {}", briefs::purpose(&rel));
                 // The proof ladder audits WORKFLOWS — the generated
                 // index rides the report but never the check.
-                if path.ends_with(".nika.yaml") {
+                if nika_source::is_canonical_program_path(path) {
                     created.push(path.clone());
                 }
             }
@@ -567,7 +567,7 @@ mod tests {
         );
         assert_eq!(out.code, codes::OK, "{}", out.text);
         assert!(
-            out.text.contains("created workflows/01-hello.nika.yaml"),
+            out.text.contains("created workflows/01-hello.nika"),
             "{}",
             out.text
         );
@@ -577,12 +577,11 @@ mod tests {
             out.text
         );
         assert!(
-            out.text.contains("nika run workflows/01-hello.nika.yaml"),
+            out.text.contains("nika run workflows/01-hello.nika"),
             "tailored next: {}",
             out.text
         );
-        let body =
-            std::fs::read_to_string(tmp.join("workflows/01-hello.nika.yaml")).expect("written");
+        let body = std::fs::read_to_string(tmp.join("workflows/01-hello.nika")).expect("written");
         assert_eq!(
             body,
             nika_pack::example("01-hello").expect("embedded"),
@@ -645,7 +644,7 @@ mod tests {
                 &audit,
                 &stub_wire,
             );
-            let source = std::fs::read_to_string(tmp.join("workflows/03-exec-pipeline.nika.yaml"))
+            let source = std::fs::read_to_string(tmp.join("workflows/03-exec-pipeline.nika"))
                 .expect("effectful example");
             assert!(
                 source.contains("exec:"),
@@ -687,10 +686,10 @@ mod tests {
         std::fs::remove_dir_all(&tmp).ok();
         assert_eq!(out.code, codes::OK);
         assert!(out.text.contains("next ·"), "{}", out.text);
-        assert!(out.text.contains("nika check workflows/01-hello.nika.yaml"));
+        assert!(out.text.contains("nika check workflows/01-hello.nika"));
         assert!(
             out.text
-                .contains("nika run workflows/01-hello.nika.yaml --model mock/echo")
+                .contains("nika run workflows/01-hello.nika --model mock/echo")
         );
     }
 
@@ -716,13 +715,11 @@ mod tests {
         );
         assert!(
             out.text
-                .contains("✔ created workflows/01-hello.nika.yaml — a workflow"),
+                .contains("✔ created workflows/01-hello.nika — a workflow"),
             "the workflow row says why: {}",
             out.text
         );
-        assert!(
-            tmp.join("nika.yaml").exists() && tmp.join("workflows/01-hello.nika.yaml").exists()
-        );
+        assert!(tmp.join("nika.yaml").exists() && tmp.join("workflows/01-hello.nika").exists());
         assert!(
             !out.text.contains(NEXT_BLOCK) && !out.text.contains("--project-file"),
             "the hand-off is the founded file, the team block names the laid file: {}",
@@ -979,8 +976,7 @@ mod tests {
         );
         assert_eq!(out.code, codes::OK, "{}", out.text);
         assert!(
-            out.text
-                .contains("✔ created workflows/01-hello-chain.nika.yaml"),
+            out.text.contains("✔ created workflows/01-hello-chain.nika"),
             "{}",
             out.text
         );
@@ -991,11 +987,11 @@ mod tests {
         );
         assert!(
             out.text
-                .contains("nika run workflows/01-hello-chain.nika.yaml --model mock/echo"),
+                .contains("nika run workflows/01-hello-chain.nika --model mock/echo"),
             "the hand-off names the first workflow: {}",
             out.text
         );
-        assert!(tmp.join("workflows/04-agent-loop.nika.yaml").exists());
+        assert!(tmp.join("workflows/04-agent-loop.nika").exists());
         std::fs::remove_dir_all(&tmp).ok();
     }
 

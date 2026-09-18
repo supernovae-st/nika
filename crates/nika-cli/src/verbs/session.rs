@@ -444,7 +444,7 @@ mod tests {
         let home = tempfile::tempdir().expect("home");
         let project = tempfile::tempdir().expect("project");
         std::fs::write(
-            project.path().join("hello.nika.yaml"),
+            project.path().join("hello.nika"),
             "nika: hello\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
         )
         .expect("workflow");
@@ -469,7 +469,7 @@ mod tests {
         assert!(text.contains("`9` is not a choice"), "{text}");
         assert!(text.contains("nika · session"), "{text}");
         assert!(text.contains("no conversational AI"), "{text}");
-        assert!(text.contains("hello.nika.yaml"), "the fact answers: {text}");
+        assert!(text.contains("hello.nika"), "the fact answers: {text}");
         assert!(
             UserIntelligencePreference::load(home.path()).is_some(),
             "the choice holds"

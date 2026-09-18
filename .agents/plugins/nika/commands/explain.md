@@ -1,6 +1,6 @@
 ---
 description: Narrate a workflow (waves · cost · touches · how to run) or teach a NIKA-XXXX error code
-argument-hint: <file.nika.yaml | NIKA-XXXX>
+argument-hint: <file.nika | NIKA-XXXX>
 allowed-tools: Bash(nika explain:*), Read
 ---
 

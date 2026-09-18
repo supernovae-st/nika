@@ -362,7 +362,7 @@ fn sealed_pack_exports_with_journal_provenance() {
 fn hash_checked_workflow_adds_receipt_and_trifecta() {
     let (pk, sk) = keypair();
     let (raw, _, fp, pk) = sealed_journal_with(&pk, &sk);
-    let wf_path = stage("filearm", "wf.nika.yaml", WF_YAML);
+    let wf_path = stage("filearm", "wf.nika", WF_YAML);
     let keys = vec![(fp, pk)];
     let (out, pack) = pack_over("filearm", &raw, Some(&wf_path), &keys);
 
@@ -501,7 +501,7 @@ fn hash_mismatch_workflow_never_leaks_into_the_pack() {
     let (raw, _, fp, pk) = sealed_journal_with(&pk, &sk);
     let other = stage(
         "mismatch",
-        "other.nika.yaml",
+        "other.nika",
         "nika: other\ntasks:\n  b:\n    exec: { command: [\"echo\", \"yo\"] }\n",
     );
     let keys = vec![(fp, pk)];
@@ -531,7 +531,7 @@ fn hash_mismatch_on_an_old_journal_nulls_the_boundary() {
     let (raw, _) = chained(&[started_v1(), completed()]);
     let other = stage(
         "mismatch-old",
-        "other.nika.yaml",
+        "other.nika",
         "nika: other\ntasks:\n  b:\n    exec: { command: [\"echo\", \"yo\"] }\n",
     );
     let (out, pack) = pack_over("mismatch-old", &raw, Some(&other), &[]);

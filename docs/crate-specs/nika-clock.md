@@ -65,7 +65,7 @@ admission swarm.*
 | 6 PROPERTY | N/A | no parser/encoding/security surface — timing behaviour covered by async tests (justified) |
 | 7 BENCH | N/A | trivial std/tokio wrappers, no hot path (justified) |
 | 8 DOCS | ✅ | `RUSTDOCFLAGS=-D warnings cargo doc` 0 warnings |
-| 9 CANARY | N/A | L1 effect, no `.nika.yaml` surface (justified) |
+| 9 CANARY | N/A | L1 effect, no `.nika` surface (justified) |
 | 10 PARITY | ✅ | brouillon `tools/nika-clock` `SystemClock` exists; tests assert the SAME properties (monotonic `now` · `sleep` advances · `elapsed` non-negative). Diamond trait ADDS `system_now` (wall clock) + uses `trait_variant` native-async (brouillon used `async_trait`) — CRAFT-fresh against the evolved trait per ADR-001 |
 | 11 REVIEW | ✅ | spn-rust:rust-pro + Foreman-direct (model-context-required fallback PE-5.1) |
 | 12 ATOMIC | ✅ | 1 commit · Nika 🦋 trailer |

@@ -116,7 +116,7 @@ tasks:
 /// Seed the failing rehearsal: the workflow + the note `fix` edits.
 fn fail_dir() -> tempfile::TempDir {
     let dir = tempfile::tempdir().expect("tmpdir");
-    std::fs::write(dir.path().join("w.nika.yaml"), FAIL_WF).expect("workflow");
+    std::fs::write(dir.path().join("w.nika"), FAIL_WF).expect("workflow");
     std::fs::write(dir.path().join("note.txt"), "a draft note").expect("the edit target");
     dir
 }
@@ -127,7 +127,7 @@ fn fail_dir() -> tempfile::TempDir {
 fn a_failed_run_quarantines_its_semi_written_outputs_and_attests_them() {
     let dir = fail_dir();
     let envs = signing_key(dir.path());
-    let run = nika_run(dir.path(), "w.nika.yaml", &envs);
+    let run = nika_run(dir.path(), "w.nika", &envs);
     assert_eq!(
         run.status.code(),
         Some(1),
@@ -181,7 +181,7 @@ fn a_failed_run_quarantines_its_semi_written_outputs_and_attests_them() {
 fn a_successful_run_attests_no_quarantine() {
     let dir = tempfile::tempdir().expect("tmpdir");
     std::fs::write(
-        dir.path().join("w.nika.yaml"),
+        dir.path().join("w.nika"),
         r#"
 nika: quarantine-clean
 permits:
@@ -194,7 +194,7 @@ tasks:
     )
     .expect("workflow");
     let envs = signing_key(dir.path());
-    let run = nika_run(dir.path(), "w.nika.yaml", &envs);
+    let run = nika_run(dir.path(), "w.nika", &envs);
     assert_eq!(
         run.status.code(),
         Some(0),
@@ -225,7 +225,7 @@ tasks:
 fn the_next_run_reading_the_old_path_fails_loud() {
     let dir = fail_dir();
     let envs = signing_key(dir.path());
-    let first = nika_run(dir.path(), "w.nika.yaml", &envs);
+    let first = nika_run(dir.path(), "w.nika", &envs);
     assert_eq!(first.status.code(), Some(1), "the debt run failed");
     assert!(
         !dir.path().join("semi.txt").exists(),
@@ -233,7 +233,7 @@ fn the_next_run_reading_the_old_path_fails_loud() {
     );
 
     std::fs::write(
-        dir.path().join("reader.nika.yaml"),
+        dir.path().join("reader.nika"),
         r#"
 nika: quarantine-reader
 permits:
@@ -245,7 +245,7 @@ tasks:
 "#,
     )
     .expect("reader workflow");
-    let second = nika_run(dir.path(), "reader.nika.yaml", &envs);
+    let second = nika_run(dir.path(), "reader.nika", &envs);
     let stdout = String::from_utf8(second.stdout).expect("utf8");
     assert_eq!(
         second.status.code(),

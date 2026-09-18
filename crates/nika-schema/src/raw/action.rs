@@ -365,11 +365,8 @@ mod tests {
         assert_eq!(a.tool().expect("tool target").value, "nika:fetch");
         assert!(a.workflow().is_none(), "a tool invoke has no workflow");
         assert!(a.args.is_none());
-        let w = RawInvokeAction::workflow_call(span_str("./child.nika.yaml"));
-        assert_eq!(
-            w.workflow().expect("workflow target").value,
-            "./child.nika.yaml"
-        );
+        let w = RawInvokeAction::workflow_call(span_str("./child.nika"));
+        assert_eq!(w.workflow().expect("workflow target").value, "./child.nika");
         assert!(w.tool().is_none(), "a workflow call has no tool");
     }
 

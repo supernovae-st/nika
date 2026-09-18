@@ -11,7 +11,7 @@ export function mountFileReview() {
   `);
   document.querySelector('.yaml-window').insertAdjacentHTML('beforeend', `
     <aside class="file-review" aria-label="Illustrative workflow source review">
-      <header><span class="review-file-icon" aria-hidden="true">{ }</span><div><small>SHARE THE SOURCE</small><strong>checkout.nika.yaml</strong></div><div class="review-people"><img src="${engineer}" alt="Author"/><img src="${reviewer}" alt="Reviewer"/></div></header>
+      <header><span class="review-file-icon" aria-hidden="true">{ }</span><div><small>SHARE THE SOURCE</small><strong>checkout.nika</strong></div><div class="review-people"><img src="${engineer}" alt="Author"/><img src="${reviewer}" alt="Reviewer"/></div></header>
       <div class="review-diff"><div><span>REVIEW THE CHANGE</span><small>previous → proposed</small></div><code class="diff-before"><i>−</i>max_parallel: <b>2</b></code><code class="diff-after"><i>+</i>max_parallel: <b>3</b></code></div>
       <div class="review-comment"><img src="${reviewer}" alt=""/><div><strong>Keep it bounded.</strong><p>Three pages in parallel.<br/>Retries and timeout stay explicit.</p></div></div>
       <footer class="review-history"><span>v1</span><svg viewBox="0 0 112 16" aria-hidden="true"><path d="M2 8H108m-6-5 6 5-6 5"/></svg><span class="review-version">v2</span><strong>Change it. Keep its history.</strong></footer>

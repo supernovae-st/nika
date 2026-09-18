@@ -44,7 +44,7 @@ use crate::{output::VerbOutput, probe};
 /// `--json` served a third that had never met either fix (#1187).
 ///
 /// `door` is the directory's own answer ([`crate::choice::front_door_next`] ·
-/// the cwd key that stopped `nika compile hello hello.nika.yaml` being taught into
+/// the cwd key that stopped `nika compile hello hello.nika` being taught into
 /// `--force`, gauntlet P15). Everything below it is a VERDICT
 /// overruling a listing, in the order the old menu ranked them:
 /// P0-3 (a file the ladder has not seen clean is audited, never run),
@@ -79,7 +79,7 @@ fn next_command(mode: ContextMode, glance: Glance, gate: Option<&RunGate>, door:
 struct Glance {
     /// Inside a git repository (any ancestor carries `.git`).
     git: bool,
-    /// `*.nika.yaml` / `*.nika.yml` files under the directory (bounded walk).
+    /// `*.nika` / `*.nika` files under the directory (bounded walk).
     workflows: usize,
     /// An `AGENTS.md` sits at the root — the repo's agents are briefed.
     agents_md: bool,

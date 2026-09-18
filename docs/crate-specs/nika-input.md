@@ -223,7 +223,7 @@ Invariant #27).
 | 6 | PROPERTY | ✅ | proptest `redact_leaks_nothing_proptest` · Guard 1 no-content-leak under arbitrary input |
 | 7 | BENCHMARKS | ⚪ N/A | thin `enigo` adapter · post latency is OS-bound, not a Nika hot path (Rule 2) |
 | 8 | DOCS | ✅ | **measured 2026-06-10** `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` 0 |
-| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika.yaml` surface · a `#[ignore]` real-dispatch smoke needs consent grant |
+| 9 | CANARY E2E | ⚪ N/A | L1 effect crate · no `.nika` surface · a `#[ignore]` real-dispatch smoke needs consent grant |
 | 10 | PARITY | ⚪ N/A | NEW computer-use crate (M2.4) · no v0.79 brouillon synthetic-input equivalent |
 | 11 | REVIEW SWARM | ✅ | 3-lens adversarially-verified swarm (security + rust-arch + contract · 26 agents) ran ON B.2 · 9 confirmed findings ALL folded into B.3 same-session (P1 `InputDeviceDyn` · monotonic fail-closed consent clock · `TypedText` structural Guard-1 · no-`Default` derive · proof-minting pin) |
 | 12 | ATOMIC COMMIT | ✅ | the admission commit (B.2 `95fcf4002` + B.3 `c27bd850e` + B.4 close) |

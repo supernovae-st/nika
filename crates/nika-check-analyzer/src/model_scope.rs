@@ -55,8 +55,8 @@ mod tests {
              \x20 inherited:\n    infer: { prompt: hi, max_tokens: 10 }\n\
              \x20 pinned:\n    infer: { model: mock/echo, prompt: hi, max_tokens: 10 }\n\
              \x20 agent:\n    agent: { model: anthropic/claude-sonnet-5, prompt: hi, max_tokens_total: 10 }\n\
-             \x20 child:\n    invoke: { workflow: ./child.nika.yaml }\n\
-             \x20 child_again:\n    invoke: { workflow: ./child.nika.yaml }\n\
+             \x20 child:\n    invoke: { workflow: ./child.nika }\n\
+             \x20 child_again:\n    invoke: { workflow: ./child.nika }\n\
              \x20 tool:\n    invoke: { tool: nika:log, args: { message: hi } }\n\
              \x20 exec:\n    exec: { command: [echo, hi] }\n",
             FileId::new(0),
@@ -73,7 +73,7 @@ mod tests {
         assert!(!rows[0].1.contains("metered"));
         assert!(!rows[0].1.contains("keeps its own access path"));
         assert!(!rows[0].1.contains("stays live and metered"));
-        assert!(rows[2].1.contains("child workflow `./child.nika.yaml`"));
+        assert!(rows[2].1.contains("child workflow `./child.nika`"));
         assert!(rows[2].1.contains("parent-only"));
     }
 
