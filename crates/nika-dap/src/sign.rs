@@ -68,9 +68,26 @@ pub fn sign_workflow_with(
     sk: &minisign::SecretKey,
     pk_box: &str,
 ) -> Result<String, String> {
-    let data = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?; // seam-bypass-ok: CLI reads the named workflow file
+    let data = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?; // seam-bypass-ok: library helper for hermetic tests
+    sign_workflow_bytes(path, &data, sk, pk_box)
+}
+
+/// Sign already-captured program bytes and write `<path>.minisig`.
+///
+/// The CLI captures through the regular-file door first so a FIFO named
+/// `*.nika` cannot block `fs::read`.
+///
+/// # Errors
+///
+/// A reason string when signing or writing the sidecar fails.
+pub fn sign_workflow_bytes(
+    path: &Path,
+    data: &[u8],
+    sk: &minisign::SecretKey,
+    pk_box: &str,
+) -> Result<String, String> {
     let comment = format!("nika-fp:{}", fingerprint(pk_box));
-    let sig = minisign::sign(None, sk, Cursor::new(&data), Some(&comment), None)
+    let sig = minisign::sign(None, sk, Cursor::new(data), Some(&comment), None)
         .map_err(|e| format!("cannot sign {}: {e}", path.display()))?;
     let write = std::fs::write(sidecar_path(path), sig.into_string()); // seam-bypass-ok: CLI writes the sidecar beside the named file
     write.map_err(|e| format!("cannot write {}: {e}", sidecar_path(path).display()))?;
@@ -199,6 +216,32 @@ mod tests {
             unreachable!("a fresh signature must verify")
         };
         assert_eq!(got, fp);
+    }
+
+    /// A renamed `*.nika` plus its moved sidecar still verifies: the
+    /// signature is over bytes, the sidecar lives beside the new name.
+    #[test]
+    fn renamed_nika_and_moved_sidecar_still_verify() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (pk, sk) = keypair();
+        let wf = dir.path().join("flow.nika");
+        let bytes = b"nika: signed\n";
+        std::fs::write(&wf, bytes).expect("fixture");
+        sign_workflow_with(&wf, &sk, pk.trim()).expect("signs");
+        let renamed = dir.path().join("other.nika");
+        std::fs::rename(&wf, &renamed).expect("rename program");
+        std::fs::rename(sidecar_path(&wf), sidecar_path(&renamed)).expect("move sidecar");
+        let WorkflowSig::Valid(_) =
+            check_workflow_bytes_against(&renamed, bytes, &[pk.trim().to_owned()])
+        else {
+            panic!("moved sidecar must verify the same bytes");
+        };
+        let WorkflowSig::Invalid(why) =
+            check_workflow_bytes_against(&renamed, b"nika: altered\n", &[pk.trim().to_owned()])
+        else {
+            panic!("altered bytes must not verify");
+        };
+        assert!(why.contains("bad signature"), "{why}");
     }
 
     /// One flipped byte in the workflow turns the verdict into the

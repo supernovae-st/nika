@@ -65,9 +65,37 @@ struct Observed {
     text: String,
 }
 
+/// Spec corpus files stay `input.yaml` (filename-free). The live CLI
+/// admits only `*.nika` on disk, so binary replay copies the fixture
+/// directory into scratch and plants `input.nika` beside the original
+/// siblings — relative fixture paths keep working.
+fn stage_live_program(src: &Path) -> (Option<tempfile::TempDir>, PathBuf) {
+    let name = src.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if nika_source::is_canonical_program_file_name(name) {
+        return (None, src.to_path_buf());
+    }
+    let parent = src.parent().expect("fixture directory");
+    let dir = tempfile::tempdir().expect("tmp");
+    for entry in std::fs::read_dir(parent).expect("read fixture dir") {
+        let entry = entry.expect("entry");
+        if entry.metadata().expect("meta").is_file() {
+            std::fs::copy(entry.path(), dir.path().join(entry.file_name())).expect("copy sibling");
+        }
+    }
+    let dest = dir.path().join("input.nika");
+    std::fs::copy(src, &dest).expect("stage live program");
+    (Some(dir), dest)
+}
+
 fn run_observed(workflow: &Path, envs: &[(String, String)], vars: &[(String, String)]) -> Observed {
+    let (tmp, program) = stage_live_program(workflow);
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
-    cmd.arg("run").arg(workflow).arg("--json");
+    if let Some(ref dir) = tmp {
+        cmd.current_dir(dir.path());
+        cmd.arg("run").arg("input.nika").arg("--json");
+    } else {
+        cmd.arg("run").arg(&program).arg("--json");
+    }
     for (k, v) in vars {
         cmd.arg("--var").arg(format!("{k}={v}"));
     }

@@ -206,6 +206,13 @@ fn leg_b_the_wasm_rows_equal_the_cli_rows_on_the_shared_legs() {
             })
             .collect();
 
+        // Spec corpus files stay `input.yaml` (bytes, filename-free). The
+        // live CLI admits only `*.nika` on disk, so the CLI half of this
+        // diff stages a canonical copy. Wasm `check()` still reads the
+        // original bytes.
+        let staged = tempfile::tempdir().expect("tmp");
+        let program = staged.path().join("input.nika");
+        std::fs::write(&program, &yaml).expect("stage live program");
         // the SAME TREE's CLI — never the release binary, whose code may
         // legitimately postdate or predate this branch. The cargo bin
         // target is `nika` (ADR-135): the name the packaging ships, born
@@ -213,7 +220,7 @@ fn leg_b_the_wasm_rows_equal_the_cli_rows_on_the_shared_legs() {
         let out = std::process::Command::new("cargo")
             .args(["run", "-q", "-p", "nika-cli", "--bin", "nika", "--"])
             .args(["check", "--json", "--"])
-            .arg(input)
+            .arg(&program)
             .output()
             .expect("cargo run -p nika-cli --bin nika");
         let stdout = String::from_utf8_lossy(&out.stdout);

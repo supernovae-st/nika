@@ -4299,6 +4299,7 @@ dependencies = [
  "nika-schema",
  "proptest",
  "serde_json",
+ "tempfile",
  "uuid",
  "wasm-bindgen",
 ]
