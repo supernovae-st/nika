@@ -297,11 +297,25 @@ fn a_missing_required_input_is_refused_before_any_task_event() {
         String::from_utf8_lossy(&out.stderr)
     );
     let stdout = String::from_utf8(out.stdout).expect("utf8");
+    assert_eq!(stdout.lines().count(), 1, "one compact refusal: {stdout}");
+    let frame: serde_json::Value = serde_json::from_str(&stdout).expect("JSON refusal");
+    assert_eq!(frame["error"]["code"], "NIKA-1708");
+    assert!(frame.get("kind").is_none(), "a refusal is not a run event");
     assert!(
-        stdout.trim().is_empty(),
-        "refused BEFORE any event — not even the prologue on the journal stream: {stdout}"
+        stdout.contains("`needle`") && stdout.contains("--var needle=<value>"),
+        "the refusal names the input and its satisfaction: {stdout}"
     );
-    let stderr = String::from_utf8(out.stderr).expect("utf8");
+    let diagnostic = String::from_utf8(out.stderr).expect("utf8");
+    assert!(diagnostic.contains("NIKA-1708"), "{diagnostic}");
+    let human = bin()
+        .arg("run")
+        .arg(&wf)
+        .args(["--color", "never"])
+        .output()
+        .expect("human lane runs");
+    assert_eq!(human.status.code(), Some(3));
+    assert!(human.stdout.is_empty(), "no run event before admission");
+    let stderr = String::from_utf8(human.stderr).expect("utf8");
     assert!(stderr.contains("NIKA-1708"), "the launch class: {stderr}");
     assert!(stderr.contains("`needle`"), "the input is named: {stderr}");
     assert!(
