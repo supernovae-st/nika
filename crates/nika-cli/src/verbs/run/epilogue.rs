@@ -231,6 +231,18 @@ pub(super) fn emit_diagnostic(text: &str, output_json: bool) {
     }
 }
 
+/// Frame an existing Check verdict for `run --json` without changing its
+/// findings or re-checking the workflow. `check --json` remains a document;
+/// each object on the run stream must occupy exactly one line (#1650).
+pub(super) fn emit_check_refusal(text: &str) {
+    match serde_json::from_str::<Value>(text) {
+        Ok(value @ Value::Object(_)) => println!("{value}"),
+        // Rendering may itself return an environment diagnostic. Keep that
+        // refusal machine-readable too; never emit a teaching-line dialect.
+        _ => println!("{}", error_envelope_line(envelope_message(text))),
+    }
+}
+
 /// Print the machine failure envelope when in `--output json` mode (the
 /// ENV-class exits inside `run` share this one seam).
 pub(super) fn emit_error_envelope(message: &str, output_json: bool) {

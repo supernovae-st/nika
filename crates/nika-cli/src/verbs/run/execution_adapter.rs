@@ -157,22 +157,23 @@ pub(super) fn run_admitted(
     no_outputs: bool,
     max_cost_usd: Option<f64>,
 ) -> RunVerdict {
+    let machine = output_json || json;
     let (project, root, display_root) = match execution_project(file) {
         Ok(parts) => parts,
         Err(error) => {
-            epilogue::emit_diagnostic(&format!("nika run: environment: {error}"), output_json);
+            epilogue::emit_diagnostic(&format!("nika run: environment: {error}"), machine);
             return RunVerdict::bare(exit::ENV);
         }
     };
     let service = nika_execution::ExecutionService::default();
     let admitted = match admit_source(&service, &project, &root, preview, model_override) {
         Ok(admitted) => admitted,
-        Err(error) => return admission_refusal(&error, output_json),
+        Err(error) => return admission_refusal(&error, machine),
     };
     if admitted.snapshot().text(admitted.snapshot().root()) != Some(preview.source()) {
         epilogue::emit_diagnostic(
             "nika run: execution admission: workflow changed during admission; retry the run",
-            output_json,
+            machine,
         );
         return RunVerdict::bare(exit::ENV);
     }
@@ -223,18 +224,19 @@ fn run_admitted_context(
     request: &CliExecutionRequest<'_>,
     display_root: std::path::PathBuf,
 ) -> RunVerdict {
+    let machine = request.output_json || request.json;
     let Some(world) = AdmittedWorld::from_context(context, display_root, !request.no_trace_file)
     else {
-        return admitted_root_refusal(request.output_json);
+        return admitted_root_refusal(machine);
     };
-    let world = match world.with_task_scope(request.task_filter, request.output_json) {
+    let world = match world.with_task_scope(request.task_filter, machine) {
         Ok(world) => world,
         Err(verdict) => return *verdict,
     };
     let wf = world.driver.workflow().clone();
     let report = world.driver.report().clone();
     request.announce_model_scope(&report);
-    let inputs = match inputs::validated_var_overrides(request.vars, &wf, request.output_json) {
+    let inputs = match inputs::validated_var_overrides(request.vars, &wf, machine) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -265,7 +267,7 @@ fn run_admitted_context(
         &report,
         request.model_override,
         request.max_cost_usd,
-        request.output_json,
+        machine,
     ) {
         return RunVerdict::bare(code);
     }
@@ -275,7 +277,7 @@ fn run_admitted_context(
         source,
         request.model_override,
         (&plan, request.access_pin),
-        request.output_json || request.json,
+        machine,
     ) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
@@ -287,7 +289,7 @@ fn run_admitted_context(
         inputs,
         setup,
         request.max_cost_usd,
-        (request.no_trace_file, request.output_json),
+        (request.no_trace_file, machine),
         &world,
     ) {
         // #1438 · ONE cancel context: the driver flips it on the first signal.
