@@ -2,6 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Pure run protocol formatting shared by operator and literal input channels.
+use crate::output::sh_word;
 use nika_runtime::WorkflowPause;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -97,20 +98,6 @@ pub fn resume_carry(vars: &[String], model_override: Option<&str>) -> String {
         let _ = write!(carry, " --model {}", sh_word(model));
     }
     carry
-}
-
-/// Quote one shell word for the taught line: bare when it is already a
-/// safe word, single-quoted otherwise (embedded single quotes splice
-/// through the POSIX `'\''` idiom — paste-able in sh/bash/zsh).
-fn sh_word(word: &str) -> std::borrow::Cow<'_, str> {
-    let safe = !word.is_empty()
-        && word
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "_=./:@+-".contains(c));
-    if safe {
-        return std::borrow::Cow::Borrowed(word);
-    }
-    std::borrow::Cow::Owned(format!("'{}'", word.replace('\'', "'\\''")))
 }
 
 /// ONE `{"error":{"code":…,"message":…}}` line — the machine failure
