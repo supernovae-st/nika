@@ -144,8 +144,9 @@ def main():
             match = re.search(r"^# Expected · (NIKA-[^\s.]+)", negative.read_text(), re.M)
             if not match:
                 raise ValueError(f"missing exact negative diagnostic: {negative}")
-            shutil.copyfile(negative, directory / negative.name)
-            run(name + "-negative", ["check", negative.name, "--json", "--model", "mock/echo"], directory, 2, match[1])
+            staged = directory / f"{name}.nika"
+            shutil.copyfile(negative, staged)
+            run(name + "-negative", ["check", staged.name, "--json", "--model", "mock/echo"], directory, 2, match[1])
 
         def execute_case(case, body, expected=None, blocked=(), files=None):
             directory = root / case
