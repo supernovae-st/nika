@@ -1,0 +1,258 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+use std::collections::BTreeMap;
+
+/// One stateless authoring request. Answers belong to this request, never a chat session.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct CompileRequest {
+    pub(super) input: Input,
+    pub(super) answers: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) enum Input {
+    Create(String),
+    Edit { source: String, change: EditChange },
+}
+
+#[derive(Clone, Debug)]
+pub(super) enum EditChange {
+    Text(String),
+    Constant { name: String, literal_json: String },
+}
+
+impl CompileRequest {
+    /// Create from an exact embedded skeleton name. Other intents remain incomplete.
+    #[must_use]
+    pub fn create(intent: impl Into<String>) -> Self {
+        Self {
+            input: Input::Create(intent.into()),
+            answers: BTreeMap::new(),
+        }
+    }
+
+    /// Edit accepted source using a textual change request, without hidden conversation state.
+    ///
+    /// This foundation supports `Set const.NAME to JSON_LITERAL` and
+    /// `Set const.NAME` followed by an answer to the returned question.
+    /// Unsupported changes preserve the source and remain incomplete.
+    #[must_use]
+    pub fn edit(base_workflow: impl Into<String>, change_request: impl Into<String>) -> Self {
+        Self {
+            input: Input::Edit {
+                source: base_workflow.into(),
+                change: EditChange::Text(change_request.into()),
+            },
+            answers: BTreeMap::new(),
+        }
+    }
+
+    /// Set one existing constant from structured input, without a textual prompt.
+    ///
+    /// `name` is the bare constant name (ASCII letters, digits or underscores),
+    /// not a path. `literal_json` is exactly one JSON literal, decoded and judged
+    /// by the same operation as `Set const.NAME to JSON_LITERAL`. Invalid names,
+    /// absent constants and malformed literals preserve the original source.
+    /// Expression islands and root objects with both `type` and `value` are refused.
+    /// The caller owns source selection, revision checks (CAS) and materialization.
+    #[must_use]
+    pub fn set_constant(
+        base_workflow: impl Into<String>,
+        name: impl Into<String>,
+        literal_json: impl Into<String>,
+    ) -> Self {
+        Self {
+            input: Input::Edit {
+                source: base_workflow.into(),
+                change: EditChange::Constant {
+                    name: name.into(),
+                    literal_json: literal_json.into(),
+                },
+            },
+            answers: BTreeMap::new(),
+        }
+    }
+
+    /// Supply a JSON literal for a stable question key. Invalid answers are
+    /// reported as incomplete authoring data by [`super::compile`], not thrown.
+    /// Objects with both `type` and `value` are refused by this literal-only slice.
+    #[must_use]
+    pub fn answer(mut self, key: impl Into<String>, literal_json: impl Into<String>) -> Self {
+        self.answers.insert(key.into(), literal_json.into());
+        self
+    }
+}
+
+/// Completeness of authoring, never permission to execute.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CompileStatus {
+    /// Candidate exists, all questions are answered and its pure preview is clean.
+    Ready,
+    /// A value, clarification or unsupported semantic region remains unresolved.
+    Incomplete,
+    /// The request violates literal-only or source-preservation policy.
+    Refused,
+}
+
+/// The shape an authoring answer must have; it is not a runtime approval.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum QuestionType {
+    /// A JSON string used as literal text.
+    Text,
+    /// A literal JSON value. Its Nika type is also checked after emission.
+    Literal,
+}
+
+/// A stable question shared by future TTY, SDK and Serve adapters.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CompileQuestion {
+    /// Semantic hole path, such as `const.request`; never a random session id.
+    pub key: String,
+    /// Human wording of the missing value.
+    pub label: String,
+    /// Required answer shape.
+    pub answer_type: QuestionType,
+    /// Why compilation cannot complete without it.
+    pub why: String,
+    /// Whether this question blocks Ready.
+    pub mandatory: bool,
+}
+
+/// What happened to a requested part of authoring.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DiagnosticKind {
+    /// An explicit request or answer was applied.
+    Applied,
+    /// The requested change was not applied.
+    Missed,
+    /// The compiler does not know the requested semantics.
+    Unknown,
+    /// A literal value or clarification must come from the caller.
+    RequiresHuman,
+    /// An explicit compiler policy refused the request.
+    Refused,
+}
+
+/// A structured authoring finding, separate from the Check report.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CompileDiagnostic {
+    /// Disposition of the request fragment.
+    pub kind: DiagnosticKind,
+    /// The request or hole this finding concerns.
+    pub target: String,
+    /// Explanation for the caller; never parsed to recover compiler state.
+    pub message: String,
+}
+
+/// The depth of the preview. Environment checks and admission still belong to Run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PreviewScope {
+    /// The real pure Check ladder over the source. No child files, skill files,
+    /// credential probes, access plan or execution admission were evaluated.
+    SourceOnly,
+}
+
+/// The ordinary Check result, with its intentionally limited evaluation depth.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct CompilePreview {
+    /// The same pure report used by the engine's Check ladder.
+    pub report: nika_check::CheckReport,
+    /// What was judged; a clean report is not an environment/admission claim.
+    pub scope: PreviewScope,
+}
+
+/// This implementation has no authoring model calls, even when ambient keys exist.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AuthoringCognition {
+    /// Deterministic resolution only. Unknown intent cannot silently contact a model.
+    DeterministicOnly,
+}
+
+/// Authoring provenance is not program identity or execution Proof.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CompileProvenance {
+    /// Version of the compiling engine.
+    pub compiler_version: String,
+    /// Exact embedded language-pack source revision.
+    pub spec_pin: String,
+    /// The explicitly selected skeleton, if this is a CREATE request.
+    pub skeleton: Option<String>,
+    /// Authoring cognition policy; independent of runtime model configuration.
+    pub cognition: AuthoringCognition,
+}
+
+/// A reviewable authoring result. No field grants authority, writes or executes source.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct CompileOutcome {
+    /// Whether authoring completed under the supported semantics.
+    pub status: CompileStatus,
+    /// Ordinary `.nika.yaml` source in memory; may still be incomplete.
+    pub candidate: Option<String>,
+    /// Mandatory holes; callers recompile with explicit answers.
+    pub questions: Vec<CompileQuestion>,
+    /// Applied, missed and unknown request fragments.
+    pub diagnostics: Vec<CompileDiagnostic>,
+    /// Requested boundary, derived from the candidate's Check report; not a grant.
+    pub requested_boundary: Option<nika_check::EffectivePermits>,
+    /// The candidate's in-memory static judgment, when it parses.
+    pub check_preview: Option<CompilePreview>,
+    /// Reproduction metadata, not run evidence.
+    pub provenance: CompileProvenance,
+}
+
+/// Compiler machinery failures. Missing answers and unsupported requests are outcomes.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub enum CompileError {
+    /// A declared embedded skeleton has no source body.
+    #[error("embedded skeleton `{0}` has no source")]
+    MissingSkeleton(String),
+    /// The embedded registry supplied a source that the current parser cannot read.
+    #[error("embedded skeleton cannot be parsed: {0}")]
+    Registry(#[source] nika_schema::SchemaError),
+    /// A parsed source could not be represented or emitted by the deterministic assembler.
+    #[error("candidate representation failed: {0}")]
+    Representation(#[from] RepresentationError),
+}
+
+impl CompileError {
+    pub(super) fn representation(error: serde_yaml_bw::Error) -> Self {
+        Self::Representation(RepresentationError { source: error })
+    }
+}
+
+/// The opaque representation backend failure, retained as an error source.
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+#[non_exhaustive]
+pub struct RepresentationError {
+    source: serde_yaml_bw::Error,
+}
+
+impl nika_error::traits::NikaErrorCode for CompileError {
+    fn nika_code(&self) -> nika_error::codes::NikaCode {
+        match self {
+            Self::Registry(error) => error.nika_code(),
+            Self::MissingSkeleton(_) | Self::Representation(_) => nika_error::codes::NIKA_999,
+        }
+    }
+
+    fn spec_code(&self) -> String {
+        match self {
+            Self::Registry(error) => error.spec_code().to_string(),
+            Self::MissingSkeleton(_) | Self::Representation(_) => self.nika_code().to_string(),
+        }
+    }
+}
