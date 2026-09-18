@@ -7,8 +7,8 @@
 
 ## Contract
 
-Two surfaces, one law (questions before writes · the human keeps the
-hand · the proof inside the first minute):
+The onboarding surfaces share one law (questions before writes · the human
+keeps the hand · the proof inside the first minute):
 
 - **`founding`** — `nika init`'s body: the briefs table (`briefs` — the
   scaffold bytes: AGENTS.md contract · per-client thin briefs · schema
@@ -26,6 +26,41 @@ hand · the proof inside the first minute):
   the chain default; the three-question wizard; `stamp` (id ·
   description · model, YAML-safe scalars); the discovery listing with
   its `embedded set:` wire-contract line.
+
+## Compile foundation
+
+`compile` is a stateless in-memory authoring foundation, separate from the
+existing `new` routing surface. CREATE accepts exact embedded skeleton names
+and explicit request-local JSON answers. Unsupported natural language returns
+Incomplete with an Unknown diagnostic and no substitute workflow.
+
+EDIT requires the caller's explicit base source and offers two inputs:
+
+- `CompileRequest::edit(base, "Set const.NAME to JSON_LITERAL")`, also allowing
+  `Set const.NAME` followed by an answer to `const.NAME`.
+- `CompileRequest::set_constant(base, name, literal_json)`, a structured operation
+  for adapters. The bare name and JSON literal are separate arguments; no
+  natural-language prompt is synthesized.
+
+Both lower to the same bounded constant-edit operation, existing-node mutation,
+assembler, canonical parser and pure Check preview. Names contain only ASCII
+letters, digits or underscores; empty, invalid or absent targets and malformed
+JSON preserve the original source and remain Incomplete. The operation cannot
+insert nodes or edit permits, tasks or nested paths. Payloads resembling policy
+or instructions remain literal data; expression islands and root objects with
+both `type` and `value` are refused. Existing typed declarations retain their
+type, and a type-incompatible candidate remains Incomplete under Check.
+
+Emission must preserve the intended canonical literal projection; decoder
+ambiguity or precision loss refuses the edit and retains the original source.
+All unrelated semantic values survive accepted edits. Formatting and comments
+are not preserved by successful re-emission. SLOT values remain mandatory
+questions. Source-only Check is not environment resolution or Run admission.
+
+Compile performs no file access, credential probes, provider calls or execution,
+and keeps no session state. The application owns base revision selection, CAS
+and materialization. This API supplies a constant-edit seam, not a Graph
+implementation, general patch language or full natural-language authoring.
 
 ## The injected seams
 
@@ -46,8 +81,8 @@ exit vocabulary.
 
 - **Own-corpus law (#261), inherited**: every workflow any recipe can
   scaffold is an embedded template VERBATIM through `stamp` — the
-  per-recipe ratchet parses AND checks every scaffold clean (dev-dep on
-  `nika-schema`, test-side only).
+  per-recipe ratchet parses AND checks every scaffold clean (validated through
+  `nika-schema`; Compile also uses that parser in production).
 - **Questions before writes**: cancel at any wizard beat = « nothing
   written », honestly (PTY-pinned at the root).
 - **Readable sober registers**: file rows keep the `✔ created …` / `· skipped …`

@@ -23,6 +23,7 @@
 
 mod banner;
 pub mod briefs;
+pub mod compile;
 pub mod fixtures;
 pub mod founding;
 mod gitignore;

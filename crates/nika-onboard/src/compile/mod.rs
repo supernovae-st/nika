@@ -1,0 +1,446 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Stateless authoring foundation: explicit request → ordinary source → pure Check preview.
+//!
+//! CREATE currently resolves exact embedded skeletons, then asks about their real
+//! unfilled values. EDIT consumes accepted source plus a textual or structured
+//! constant change; both lower to one edit operation before emission/Check.
+//! It never regenerates unrelated tasks. Source selection and CAS stay app-owned.
+//! Unsupported intent stays incomplete, without guessed topology or hidden model calls.
+//! Re-emission refuses source whose literal semantics cannot be proven stable.
+//! Top-level answer objects with both `type` and `value` are refused in this slice.
+//!
+//! This module does not materialize files, execute workflows, probe credentials,
+//! resolve connections or grant permits. Source-only preview is not full host Check
+//! or admission: Run must judge the candidate again under its actual environment.
+//! Full natural-language authoring, Graph integration, support-triage composition
+//! and CLI/SDK/Serve adapters remain separate work.
+//!
+//! ```
+//! use nika_onboard::compile::{compile, CompileRequest, CompileStatus};
+//! let request = CompileRequest::create("classify-and-route")
+//!     .answer("const.request", r#""An outage affects our customers.""#);
+//! let created = compile(&request)?;
+//! assert_eq!(created.status, CompileStatus::Ready);
+//! if let Some(source) = created.candidate {
+//!     let edited = compile(&CompileRequest::edit(source,
+//!         r#"Set const.request to "One customer cannot log in.""#))?;
+//!     assert_eq!(edited.status, CompileStatus::Ready);
+//! }
+//! # Ok::<(), nika_onboard::compile::CompileError>(())
+//! ```
+
+//! A UI can submit an explicit operation against the source it owns:
+//!
+//! ```
+//! use nika_onboard::compile::{compile, CompileRequest, CompileStatus};
+//! let base = compile(&CompileRequest::create("classify-and-route")
+//!     .answer("const.request", r#""Initial request""#))?;
+//! if let Some(source) = base.candidate {
+//!     let edited = compile(&CompileRequest::set_constant(
+//!         source, "request", r#""https://example.invalid/a?q=é#résumé""#))?;
+//!     assert_eq!(edited.status, CompileStatus::Ready);
+//! }
+//! # Ok::<(), nika_onboard::compile::CompileError>(())
+//! ```
+
+mod edit;
+mod types;
+
+use std::collections::BTreeSet;
+
+use nika_schema::{FileId, ParseMode, raw::RawWorkflow};
+use serde_json::Value;
+use types::{EditChange, Input};
+
+pub use types::{
+    AuthoringCognition, CompileDiagnostic, CompileError, CompileOutcome, CompilePreview,
+    CompileProvenance, CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind,
+    PreviewScope, QuestionType, RepresentationError,
+};
+
+/// Compile without effects or hidden state. Repeating a request produces the same candidate.
+///
+/// # Errors
+/// Returns a machinery error only for a corrupt embedded skeleton or representation
+/// failure. Missing values, invalid answers and unsupported user requests are outcomes.
+#[must_use = "the candidate and its authoring questions must be reviewed"]
+pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError> {
+    let mut outcome = initial();
+    match &request.input {
+        Input::Create(intent) => create(intent, request, &mut outcome)?,
+        Input::Edit { source, change } => edit(source, change, request, &mut outcome)?,
+    }
+    Ok(outcome)
+}
+
+fn initial() -> CompileOutcome {
+    CompileOutcome {
+        status: CompileStatus::Incomplete,
+        candidate: None,
+        questions: Vec::new(),
+        diagnostics: Vec::new(),
+        requested_boundary: None,
+        check_preview: None,
+        provenance: CompileProvenance {
+            compiler_version: env!("CARGO_PKG_VERSION").to_owned(),
+            spec_pin: include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../SPEC_PIN"))
+                .trim()
+                .to_owned(),
+            skeleton: None,
+            cognition: AuthoringCognition::DeterministicOnly,
+        },
+    }
+}
+
+fn finding(
+    out: &mut CompileOutcome,
+    kind: DiagnosticKind,
+    target: &str,
+    message: impl Into<String>,
+) {
+    out.diagnostics.push(CompileDiagnostic {
+        kind,
+        target: target.to_owned(),
+        message: message.into(),
+    });
+}
+
+fn question(out: &mut CompileOutcome, key: &str, label: &str, answer_type: QuestionType) {
+    out.questions.push(CompileQuestion {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        answer_type,
+        why: "The compiler cannot invent this authoring value.".to_owned(),
+        mandatory: true,
+    });
+}
+
+fn parse(source: &str) -> Result<RawWorkflow, nika_schema::SchemaError> {
+    nika_schema::parse(source, FileId::new(0), ParseMode::Strict)
+}
+
+fn create(
+    intent: &str,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+) -> Result<(), CompileError> {
+    let slug = intent.trim();
+    // Exact membership, not a fuzzy winner that can silently drop requested work.
+    let names = nika_pack::template_names();
+    if !names.iter().any(|name| name == slug) {
+        finding(
+            out,
+            DiagnosticKind::Unknown,
+            "intent",
+            "This foundation accepts an exact embedded skeleton name. The full requested intent remains unresolved; no substitute workflow was selected.",
+        );
+        return Ok(());
+    }
+    let Some(source) = nika_pack::template(slug) else {
+        // Names and bodies are two projections of the same embedded registry.
+        return Err(CompileError::MissingSkeleton(slug.to_owned()));
+    };
+    out.provenance.skeleton = Some(slug.to_owned());
+    let wf = parse(source).map_err(CompileError::Registry)?;
+    let report = nika_check::check(&wf);
+    let mut doc: Value = serde_yaml_bw::from_str(source).map_err(CompileError::representation)?;
+    let before = doc.clone();
+    let mut recognized = BTreeSet::new();
+    let mut changed = false;
+    for slot in &report.slot_findings {
+        recognized.insert(slot.path.as_str());
+        let answer_type = if slot.path.starts_with("tasks.") || slot.path == "model" {
+            QuestionType::Text
+        } else {
+            QuestionType::Literal
+        };
+        match literal_answer(
+            request.answers.get(&slot.path).map(String::as_str),
+            &slot.path,
+            out,
+        ) {
+            Some(answer) if answer_type != QuestionType::Text || answer.is_string() => {
+                if edit::literal_at(&mut doc, &slot.path)
+                    .is_some_and(|node| edit::fill_slot(node, answer))
+                {
+                    changed = true;
+                    finding(
+                        out,
+                        DiagnosticKind::Applied,
+                        &slot.path,
+                        "Filled the existing semantic hole from an explicit answer.",
+                    );
+                } else {
+                    question(out, &slot.path, &slot.hint, answer_type);
+                    finding(
+                        out,
+                        DiagnosticKind::Missed,
+                        &slot.path,
+                        "This hole requires literal text and must preserve its surrounding value.",
+                    );
+                }
+            }
+            Some(_) => {
+                question(out, &slot.path, &slot.hint, answer_type);
+                finding(
+                    out,
+                    DiagnosticKind::Missed,
+                    &slot.path,
+                    "This hole requires a JSON string.",
+                );
+            }
+            None => question(out, &slot.path, &slot.hint, answer_type),
+        }
+    }
+    unknown_answers(request, &recognized, out);
+    if changed {
+        finish_changed(source, &before, &doc, out)?;
+    } else {
+        finish(source.to_owned(), out);
+    }
+    Ok(())
+}
+
+fn edit(
+    source: &str,
+    change: &EditChange,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+) -> Result<(), CompileError> {
+    let Ok(wf) = parse(source) else {
+        finish(source.to_owned(), out);
+        finding(
+            out,
+            DiagnosticKind::Missed,
+            "base_workflow",
+            "The accepted workflow must parse before any edit is applied.",
+        );
+        return Ok(());
+    };
+    if !nika_check::check(&wf).is_clean() {
+        finish(source.to_owned(), out);
+        finding(
+            out,
+            DiagnosticKind::Missed,
+            "base_workflow",
+            "The accepted workflow must pass pure Check before this localized edit.",
+        );
+        return Ok(());
+    }
+    let Some(edit::ConstantEdit {
+        name,
+        literal_json: inline,
+    }) = edit::operation(change)
+    else {
+        finding(
+            out,
+            DiagnosticKind::Unknown,
+            "change_request",
+            "The entire change request remains unresolved. Use Set const.NAME to JSON_LITERAL or structured set_constant with a bare ASCII constant name. No workflow node was changed.",
+        );
+        finish(source.to_owned(), out);
+        return Ok(());
+    };
+    let key = format!("const.{name}");
+    let mut doc: Value = serde_yaml_bw::from_str(source).map_err(CompileError::representation)?;
+    let before = doc.clone();
+    let Some(node) = edit::literal_at(&mut doc, &key) else {
+        finding(
+            out,
+            DiagnosticKind::Missed,
+            &key,
+            "Only an existing constant can be changed. No node was inserted.",
+        );
+        finish(source.to_owned(), out);
+        return Ok(());
+    };
+    let recognized = BTreeSet::from([key.as_str()]);
+    unknown_answers(request, &recognized, out);
+    let answer = request.answers.get(&key).map(String::as_str);
+    if inline.is_some() && answer.is_some() && inline != answer {
+        finding(
+            out,
+            DiagnosticKind::Unknown,
+            &key,
+            "The change request and answer disagree; neither value was selected.",
+        );
+        question(
+            out,
+            &key,
+            "Supply one unambiguous value in the change request or its answer.",
+            QuestionType::Literal,
+        );
+        finish(source.to_owned(), out);
+        return Ok(());
+    }
+    let Some(value) = literal_answer(inline.or(answer), &key, out) else {
+        question(
+            out,
+            &key,
+            "What literal value should this existing constant have?",
+            QuestionType::Literal,
+        );
+        finish(source.to_owned(), out);
+        return Ok(());
+    };
+    *node = value;
+    finding(
+        out,
+        DiagnosticKind::Applied,
+        &key,
+        "Changed only the requested constant; task identities, other values and declared permits are preserved.",
+    );
+    finish_changed(source, &before, &doc, out)
+}
+
+fn finish_changed(
+    source: &str,
+    before: &Value,
+    after: &Value,
+    out: &mut CompileOutcome,
+) -> Result<(), CompileError> {
+    if let Some(candidate) =
+        edit::emit_preserving(source, before, after).map_err(CompileError::representation)?
+    {
+        finish(candidate, out);
+    } else {
+        out.diagnostics
+            .retain(|d| d.kind != DiagnosticKind::Applied);
+        out.status = CompileStatus::Refused;
+        finding(
+            out,
+            DiagnosticKind::Refused,
+            "candidate",
+            "Literal-preservation policy cannot prove safe re-emission of this source; no changes were applied.",
+        );
+        finish(source.to_owned(), out);
+    }
+    Ok(())
+}
+
+fn literal_answer(raw: Option<&str>, key: &str, out: &mut CompileOutcome) -> Option<Value> {
+    let raw = raw?;
+    let value = match serde_json::from_str::<Value>(raw) {
+        Ok(value) => value,
+        Err(error) => {
+            finding(
+                out,
+                DiagnosticKind::Missed,
+                key,
+                format!("Answer must be a JSON literal: {error}"),
+            );
+            return None;
+        }
+    };
+    if value.get("type").is_some() && value.get("value").is_some() {
+        out.status = CompileStatus::Refused;
+        finding(
+            out,
+            DiagnosticKind::Refused,
+            key,
+            "This literal-only slice does not accept answer objects with both type and value: they can be reinterpreted as constant declarations. No value was applied.",
+        );
+        return None;
+    }
+    if edit::has_expression(&value) {
+        out.status = CompileStatus::Refused;
+        finding(
+            out,
+            DiagnosticKind::Refused,
+            key,
+            "Literal-only authoring policy forbids introducing expression islands through values. No expression was applied.",
+        );
+        return None;
+    }
+    Some(value)
+}
+
+fn unknown_answers(
+    request: &CompileRequest,
+    recognized: &BTreeSet<&str>,
+    out: &mut CompileOutcome,
+) {
+    for key in request
+        .answers
+        .keys()
+        .filter(|key| !recognized.contains(key.as_str()))
+    {
+        finding(
+            out,
+            DiagnosticKind::Missed,
+            key,
+            "No current question owns this answer; it was not applied.",
+        );
+    }
+}
+
+fn finish(source: String, out: &mut CompileOutcome) {
+    out.candidate = Some(source);
+    let wf = match parse(out.candidate.as_deref().unwrap_or_default()) {
+        Ok(wf) => wf,
+        Err(error) => {
+            finding(out, DiagnosticKind::Missed, "candidate", error.to_string());
+            return;
+        }
+    };
+    let report = nika_check::check(&wf);
+    for slot in &report.slot_findings {
+        if !out
+            .questions
+            .iter()
+            .any(|question| question.key == slot.path)
+        {
+            let kind = if slot.path.starts_with("tasks.") || slot.path == "model" {
+                QuestionType::Text
+            } else {
+                QuestionType::Literal
+            };
+            question(out, &slot.path, &slot.hint, kind);
+        }
+    }
+    // These need a reader/registry: the source-only preview must never silently
+    // graduate an unjudged dependency to a complete candidate.
+    for task in &wf.tasks {
+        use nika_schema::raw::{RawAction, RawInvokeTarget};
+        let unjudged = match &task.value.action {
+            RawAction::Invoke(invoke) => match &invoke.target {
+                RawInvokeTarget::Workflow(_) => true,
+                RawInvokeTarget::Tool(tool) => tool.value.starts_with("mcp:"),
+            },
+            RawAction::Agent(agent) => {
+                !agent.skills.is_empty()
+                    || agent
+                        .tools
+                        .iter()
+                        .any(|tool| tool.value.starts_with("mcp:"))
+            }
+            _ => false,
+        };
+        if unjudged {
+            finding(
+                out,
+                DiagnosticKind::Unknown,
+                &task.value.id.value,
+                "Source-only preview cannot resolve this child workflow, MCP registry entry or skill. No environment/admission claim is made.",
+            );
+        }
+    }
+    let unresolved = out
+        .diagnostics
+        .iter()
+        .any(|d| d.kind != DiagnosticKind::Applied);
+    if out.status != CompileStatus::Refused
+        && out.questions.is_empty()
+        && !unresolved
+        && report.is_clean()
+    {
+        out.status = CompileStatus::Ready;
+    }
+    out.requested_boundary = Some(report.permits.clone());
+    out.check_preview = Some(CompilePreview {
+        report,
+        scope: PreviewScope::SourceOnly,
+    });
+}
