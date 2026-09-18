@@ -4262,6 +4262,7 @@ dependencies = [
  "nika-event",
  "nika-pack",
  "nika-schema",
+ "nika-source",
  "nika-types",
  "nika-vocab",
  "proptest",
