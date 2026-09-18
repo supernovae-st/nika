@@ -497,7 +497,7 @@ async fn traversal_extension_confusion_and_oversize_never_execute() {
     for (index, workflow) in [
         "../root.nika",
         "/tmp/root.nika",
-        "root.nika",
+        "root.nika.yaml",
         "nested\\root.nika",
         "root.nika%2fchild.nika",
         "ghost.nika",
@@ -513,9 +513,11 @@ async fn traversal_extension_confusion_and_oversize_never_execute() {
                 &auth_header(),
             ))
             .await;
-        // ADR-131 · the by-name door: a traversal, a wrong extension, a
-        // separator confusion or a ghost is NOT a served name — the 404 that
-        // teaches where the names are, and never an execution.
+        // ADR-131 · the by-name door: a traversal, a retired suffix
+        // (`*.nika.yaml`), a separator confusion or a ghost is NOT a served
+        // name — the 404 that teaches where the names are, and never an
+        // execution. Canonical `root.nika` is a served name and is not in
+        // this list.
         assert_eq!(response.status, 404, "{workflow}: {}", response.body);
         assert_eq!(response.json()["error"]["code"], "not_found", "{workflow}");
         assert!(response.json().get("id").is_none(), "{workflow}");

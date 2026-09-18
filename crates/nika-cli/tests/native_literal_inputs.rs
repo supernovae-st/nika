@@ -312,11 +312,7 @@ fn capability_help_and_source_only_check_match_the_channel() {
     assert!(help.status.success());
     let help = String::from_utf8_lossy(&help.stdout);
     assert!(help.contains("--inputs-json") && help.contains("1 MiB"));
-    let (_, check) = execute(
-        WF,
-        &["check", "case.nika", "--json"],
-        b"not input JSON",
-    );
+    let (_, check) = execute(WF, &["check", "case.nika", "--json"], b"not input JSON");
     assert!(
         check.status.success(),
         "check never requires runtime values: {check:?}"

@@ -1254,9 +1254,11 @@ mod tests {
                 .replace("<file>", "wf.nika")
                 .replace("<usd>", "0.05")
                 .replace("<project>", "proj");
+            // `cd x && nika …` is parsed from the nika tail. Search for a
+            // command start (` nika `), not the suffix in `wf.nika --flag`.
             let tail = filled
-                .rfind("nika ")
-                .map_or(filled.as_str(), |i| &filled[i..]);
+                .rfind(" nika ")
+                .map_or(filled.as_str(), |i| filled[i + 1..].trim());
             let argv: Vec<&str> = tail.split_whitespace().collect();
             assert!(
                 Cli::try_parse_from(&argv).is_ok(),
