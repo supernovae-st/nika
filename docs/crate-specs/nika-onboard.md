@@ -59,6 +59,8 @@ comments, formatting, line endings and all bytes outside that range survive.
 Typed constants retain the declaration around their `value`. Semantic no-ops
 retain the exact original source. Block collections and multi-line scalars are
 refused without changes; this is a bounded editor, not a general YAML CST.
+The emitted candidate must agree with both literal readers, so an accepted
+edit cannot introduce decoder drift that blocks a later unrelated edit.
 CREATE's slot assembler retains its existing guarded re-emission behavior.
 SLOT values remain mandatory
 questions. Source-only Check is not environment resolution or Run admission.

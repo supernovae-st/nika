@@ -51,10 +51,15 @@ pub(super) fn emit(source: &str, before: &Value, after: &Value, name: &str) -> O
     };
     let prefix = source.get(..start)?;
     let suffix = source.get(end..)?;
-    // JSON flow literals preserve quoting and types in YAML. The canonical
-    // projection below still rejects precision loss and decoder disagreement.
+    // YAML 1.1 folds a raw NEL into a space even inside JSON quotes. Escape it
+    // so the next EDIT's secondary decoder reads the same value, including keys.
+    let replacement = replacement.to_string().replace('\u{85}', "\\u0085");
     let candidate = format!("{prefix}{replacement}{suffix}");
-    (super::edit::literal_projection(&candidate).as_ref() == Some(after)).then_some(candidate)
+    // Validate both readers on the OUTPUT too: acceptance must not manufacture
+    // decoder drift that prevents a later unrelated edit of this candidate.
+    (serde_yaml_bw::from_str::<Value>(&candidate).ok().as_ref() == Some(after)
+        && super::edit::literal_projection(&candidate).as_ref() == Some(after))
+    .then_some(candidate)
 }
 
 fn byte_offset(source: &str, character: usize) -> Option<usize> {

@@ -110,6 +110,33 @@ fn crlf_and_noop_edits_do_not_normalize_source() {
 }
 
 #[test]
+fn emitted_unicode_retains_its_value_and_can_be_edited_again() {
+    let prefix = format!("{HEADER}const:\n  payload: ");
+    let suffix = format!(" # inline\n  other: 1{TAIL}");
+    for value in [
+        json!("a\u{85}b"),
+        json!(["a\u{85}b"]),
+        json!({"a\u{85}b": "c\u{85}d"}),
+    ] {
+        assert_edit(&prefix, "100", &suffix, &value);
+        let source = format!("{prefix}100{suffix}");
+        let first = compile(&CompileRequest::set_constant(
+            &source,
+            "payload",
+            value.to_string(),
+        ))
+        .unwrap()
+        .candidate
+        .unwrap();
+        let second = compile(&CompileRequest::set_constant(&first, "other", "2")).unwrap();
+        assert_eq!(second.status, CompileStatus::Ready, "{second:?}");
+        let doc: Value = serde_yaml_bw::from_str(&second.candidate.unwrap()).unwrap();
+        assert_eq!(doc["const"]["payload"], value);
+        assert_eq!(doc["const"]["other"], 2);
+    }
+}
+
+#[test]
 fn unsupported_block_presentations_are_refused_without_losing_comments() {
     for old in [
         "|\n    old text",
