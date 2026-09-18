@@ -112,6 +112,11 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | `GET` | `/v1/jobs/{id}/trace/verify` | exactly one Bearer | typed `unavailable` verdict; no path or invented verification while the remote trace-journal authority is absent |
 | `GET` | `/v1/openapi.json` | exactly one Bearer | OpenAPI 3.1 document of the live routes |
 
+`/health` advertises `jobInputs` when the named job envelope accepts and
+validates literal JSON input bindings. Clients must require this capability
+before sending inputs: older residents may accept unknown request fields
+without applying them. This capability does not authorize snapshot overlays.
+
 Artifact routes return 404. No route returns source bytes,
 idempotency keys, request digests, event payloads, provider/tool data, paths,
 token material, or internal error text. CORS headers are not emitted.
