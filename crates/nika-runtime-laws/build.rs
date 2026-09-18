@@ -18,7 +18,12 @@ use std::process::Command;
 fn main() {
     println!("cargo:rerun-if-env-changed=NIKA_BUILD_SHA");
     watch_git();
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    // Cargo can reuse this build-script executable across linked worktrees.
+    // Resolve the package being built now, not the one that compiled the script.
+    let manifest = match std::env::var_os("CARGO_MANIFEST_DIR") {
+        Some(path) if !path.is_empty() => PathBuf::from(path),
+        _ => fail("CARGO_MANIFEST_DIR is missing or empty"),
+    };
     println!(
         "cargo:rerun-if-changed={}",
         manifest.join("../nika-runtime/build_support.rs").display()

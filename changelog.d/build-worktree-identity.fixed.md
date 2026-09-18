@@ -1,0 +1,1 @@
+- **Build identity follows the current worktree.** The runtime and runtime-laws build scripts resolve Cargo's current package directory when executed, so a cached script cannot stamp a neighboring checkout's Spec pin into the build; a relocation regression exercises both real scripts across two distinct pins and rejects missing or inconsistent identities.
