@@ -449,7 +449,7 @@ pub(crate) fn purpose(path: &str) -> &'static str {
         ".github/copilot-instructions.md" => "Copilot workflow instructions",
         "nika.yaml" => "team defaults: cost ceiling and trace retention, commented until edited",
         "workflows/README.md" => "index of the scaffolded workflows",
-        _ if path.ends_with(".nika") => "a workflow to audit, then run",
+        _ if nika_source::is_canonical_program_path(path) => "a workflow to audit, then run",
         _ if path.ends_with("/session-context.sh") => {
             "session context and binary version diagnosis"
         }
@@ -557,8 +557,8 @@ mod tests {
     /// (awesome-cursorrules PR 332 · issue #390) caught the generator
     /// omitting `max_tokens`/`model` from the infer signature, teaching
     /// env-sourced secrets instead of the declared `secrets:` block, and
-    /// naming one extension while the globs match two. These pins keep
-    /// the teaching surface honest against the schema.
+    /// naming a suffix the globs do not match. These pins keep the
+    /// teaching surface honest against the schema.
     /// The brief is INSTRUCTIONS, and the only honest test of instructions is
     /// to FOLLOW them. An outside evaluation on 2026-08-20 authored a task from
     /// this prose and got `NIKA-PARSE-005` on the first attempt: the `args:`
@@ -630,12 +630,12 @@ mod tests {
             "secrets guidance must teach the declared block"
         );
         assert!(
-            CURSOR_RULES.contains("`.nika` (canonical) and `.nika`"),
-            "prose must name both extensions the globs match"
+            CURSOR_RULES.contains("`.nika` suffix"),
+            "prose must name the canonical program suffix"
         );
         assert!(
             CURSOR_RULES.contains("**/*.nika"),
-            "the yml glob stays — the prose now matches it"
+            "the glob matches the canonical suffix only"
         );
     }
 

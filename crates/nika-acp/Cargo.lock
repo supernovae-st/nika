@@ -2100,6 +2100,7 @@ dependencies = [
  "nika-catalog",
  "nika-check-analyzer",
  "nika-schema",
+ "nika-source",
  "nika-types",
  "nika-vocab",
  "serde",

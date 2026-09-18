@@ -379,7 +379,7 @@ fn found(
     // ── proof: the audit ladder INSIDE the first minute ──
     let created: Vec<&str> = scaffolded
         .iter()
-        .filter(|(p, s)| *s == ScaffoldStatus::Created && p.ends_with(".nika"))
+        .filter(|(p, s)| *s == ScaffoldStatus::Created && nika_source::is_canonical_program_path(p))
         .map(|(p, _)| p.as_str())
         .collect();
     let mut worst = codes::OK;
@@ -455,10 +455,7 @@ fn ready_panel(
     );
     let mut next = if created.is_empty() {
         vec![
-            (
-                "nika compile hello hello.nika".to_owned(),
-                Role::Strong,
-            ),
+            ("nika compile hello hello.nika".to_owned(), Role::Strong),
             ("nika compile --list".to_owned(), Role::Strong),
         ]
     } else if has_drafts {
@@ -774,10 +771,7 @@ mod tests {
         );
         assert!(shown.contains("proof"), "the audit runs: {shown}");
         assert!(v.text.contains("ready"), "the panel: {}", v.text);
-        assert!(
-            v.text
-                .contains("nika run workflows/01-hello-chain.nika")
-        );
+        assert!(v.text.contains("nika run workflows/01-hello-chain.nika"));
         for rel in [
             "AGENTS.md",
             "nika.yaml",

@@ -132,32 +132,17 @@ fn the_one_next_lets_a_verdict_overrule_the_listing() {
     );
     // P0-3 — red outranks everything, and names the exact file.
     assert_eq!(
-        next_command(
-            ws,
-            complete,
-            Some(&gate(false, false)),
-            "nika run a.nika"
-        ),
+        next_command(ws, complete, Some(&gate(false, false)), "nika run a.nika"),
         "nika check a.nika"
     );
     // LOI-3 — a clean PRICED file still runs, capped.
     assert_eq!(
-        next_command(
-            ws,
-            complete,
-            Some(&gate(true, true)),
-            "nika run a.nika"
-        ),
+        next_command(ws, complete, Some(&gate(true, true)), "nika run a.nika"),
         "nika run a.nika --max-cost-usd <usd>"
     );
     // …and an unpriced one carries no placeholder to fill.
     assert_eq!(
-        next_command(
-            ws,
-            complete,
-            Some(&gate(true, false)),
-            "nika run a.nika"
-        ),
+        next_command(ws, complete, Some(&gate(true, false)), "nika run a.nika"),
         "nika run a.nika"
     );
     // P0-4 — a walk that died may not hand out a founding CTA.
@@ -173,12 +158,7 @@ fn the_one_next_lets_a_verdict_overrule_the_listing() {
     // Chat-only claims no folder at all: the isolated example is the
     // one real answer reachable without one.
     assert_eq!(
-        next_command(
-            ContextMode::ChatOnly,
-            complete,
-            None,
-            "nika run a.nika"
-        ),
+        next_command(ContextMode::ChatOnly, complete, None, "nika run a.nika"),
         "nika try 01-hello"
     );
 }
@@ -197,11 +177,7 @@ fn the_first_contact_screen_promises_exactly_one_first_command() {
         1,
         "the screen promises exactly one first command, got {offers:?}:\n{text}"
     );
-    assert_eq!(
-        offers[0].trim(),
-        "nika compile hello hello.nika",
-        "{text}"
-    );
+    assert_eq!(offers[0].trim(), "nika compile hello hello.nika", "{text}");
     assert!(
         !text.contains("start here"),
         "the menu the cascade replaced is gone:\n{text}"
@@ -237,10 +213,7 @@ fn the_json_front_door_answers_the_same_next_as_the_screen() {
     let read_next = |raw: &str| -> serde_json::Value {
         serde_json::from_str::<serde_json::Value>(raw).expect("json")
     };
-    for expected in [
-        "nika compile hello hello.nika",
-        "nika run hello.nika",
-    ] {
+    for expected in ["nika compile hello hello.nika", "nika run hello.nika"] {
         let text = screen(Some(dir.path()), plain());
         let block = text.split("Next:").nth(1).expect("a Next: block");
         assert!(

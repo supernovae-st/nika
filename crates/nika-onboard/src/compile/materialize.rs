@@ -238,11 +238,7 @@ mod tests {
         let created = ready();
         let dir = tempfile::tempdir().expect("tmp");
         let dest = dir.path().join("website-brief.nika");
-        let status = std::process::Command::new("mkfifo")
-            .arg(&dest)
-            .status()
-            .expect("mkfifo");
-        assert!(status.success());
+        nix::unistd::mkfifo(&dest, nix::sys::stat::Mode::S_IRUSR).expect("fifo");
         let err = materialize_ready(&created, &dest, true).expect_err("fifo");
         assert!(matches!(err, MaterializeError::Io { .. }));
         assert!(dest.symlink_metadata().expect("fifo").file_type().is_fifo());

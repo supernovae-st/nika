@@ -124,10 +124,7 @@ fn authenticated_harness_takes_the_arrow_with_zero_key_zero_download() {
     let dir = tempfile::tempdir().expect("tmp");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     assert!(human.contains("Claude Code"), "{human}");
-    assert!(
-        human.contains("nika compile hello hello.nika"),
-        "{human}"
-    );
+    assert!(human.contains("nika compile hello hello.nika"), "{human}");
     assert!(!human.contains("xai/grok-4"), "{human}");
 }
 
@@ -418,10 +415,7 @@ fn next_for_a_ready_harness_is_new_hello() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
-    assert!(
-        human.contains("nika compile hello hello.nika"),
-        "{human}"
-    );
+    assert!(human.contains("nika compile hello hello.nika"), "{human}");
     // « this hardware », not « this machine »: the mirror body's
     // `this machine` section is the environment one, and the same two
     // words named three things on one screen (#1196).
@@ -526,10 +520,7 @@ fn next_after_hello_with_harness_is_run_not_a_pin() {
         !after.contains("claude-agent-acp"),
         "seat ids are NIKA-1802 as --access pins:\n{human}"
     );
-    assert!(
-        !after.contains("nika compile hello hello.nika"),
-        "{human}"
-    );
+    assert!(!after.contains("nika compile hello hello.nika"), "{human}");
 }
 
 #[test]
@@ -558,8 +549,5 @@ fn next_with_two_non_hello_files_is_bare_run() {
         after.contains("nika run"),
         "several files → the lazy door, not another scaffold:\n{human}"
     );
-    assert!(
-        !after.contains("nika compile hello hello.nika"),
-        "{human}"
-    );
+    assert!(!after.contains("nika compile hello hello.nika"), "{human}");
 }

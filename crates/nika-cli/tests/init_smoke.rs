@@ -139,10 +139,7 @@ fn the_first_hour_walks_end_to_end() {
         .output()
         .expect("copy runs");
     assert_eq!(copy.status.code(), Some(0), "copy is green");
-    assert!(
-        dir.join("01-hello.nika").is_file(),
-        "the file is yours"
-    );
+    assert!(dir.join("01-hello.nika").is_file(), "the file is yours");
 
     // 2 · the bare lazy door finds the only workflow and says so.
     let run = bin()

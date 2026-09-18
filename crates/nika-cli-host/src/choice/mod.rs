@@ -676,7 +676,7 @@ fn cwd_workflows(cwd: &Path) -> Vec<String> {
         .filter_map(|e| {
             let name = e.file_name();
             let name = name.to_string_lossy();
-            if name.ends_with(".nika") || name.ends_with(".nika") {
+            if nika_source::is_canonical_program_file_name(&name) {
                 Some(name.into_owned())
             } else {
                 None

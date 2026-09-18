@@ -19,7 +19,7 @@
 
 // Test code speaks expect/unwrap freely (the nika-cli stance, inherited
 // by the descent).
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 mod banner;
 mod bootstrap;

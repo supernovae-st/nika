@@ -123,10 +123,7 @@ fn unsupported_prose_missing_target_and_unknown_answers_never_write() {
         "please create something",
         "team-standup.nika",
     ] {
-        let out = call(
-            room.path(),
-            &["compile", intent, "unwanted.nika", "--json"],
-        );
+        let out = call(room.path(), &["compile", intent, "unwanted.nika", "--json"]);
         let got = result(&out);
         assert_eq!(out.status.code(), Some(2), "{intent}: {got}");
         assert_eq!(got["status"], "incomplete");
@@ -308,10 +305,7 @@ fn failed_trace_protection_preserves_existing_destination_and_drops_temporary_fi
         2,
         "no temporary file survives"
     );
-    let out = call(
-        room.path(),
-        &["compile", "hello", "absent.nika", "--json"],
-    );
+    let out = call(room.path(), &["compile", "hello", "absent.nika", "--json"]);
     assert_eq!(out.status.code(), Some(3));
     assert!(!room.path().join("absent.nika").exists());
 }
@@ -400,16 +394,10 @@ fn source_only_preview_does_not_read_ambient_project_policy() {
 #[test]
 fn an_explicit_dash_prefixed_path_teaches_a_runnable_file_argument() {
     let room = tempfile::tempdir().expect("room");
-    let out = call(
-        room.path(),
-        &["compile", "hello", "--output=-hello.nika"],
-    );
+    let out = call(room.path(), &["compile", "hello", "--output=-hello.nika"]);
     assert!(out.status.success());
     assert!(String::from_utf8_lossy(&out.stdout).contains("nika run ./-hello.nika"));
-    let run = call(
-        room.path(),
-        &["run", "./-hello.nika", "--output", "json"],
-    );
+    let run = call(room.path(), &["run", "./-hello.nika", "--output", "json"]);
     assert!(run.status.success());
     assert!(result(&run)["greeting"].as_str().is_some());
 }

@@ -377,7 +377,11 @@ fn workflows_in(dir: &Path) -> Vec<PathBuf> {
     };
     let mut files: Vec<PathBuf> = read
         .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| p.to_string_lossy().ends_with(".nika"))
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(nika_source::is_canonical_program_file_name)
+        })
         .collect();
     files.sort();
     files

@@ -27,6 +27,9 @@ nika-error = { path = "../nika-error", version = "0.120.0-dev" } # compiler mach
 
 tempfile = { workspace = true } # exclusive dest create + atomic overwrite persist
 
+[dev-dependencies]
+nix = { workspace = true, features = ["fs"] } # FIFO fixture for overwrite-refuse proof
+
 [package.metadata.lore]
 daemon        = "forgeron"
 archetype     = "founder-smith"

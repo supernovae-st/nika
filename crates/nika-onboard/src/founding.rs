@@ -285,7 +285,7 @@ fn scaffold_report(
                 let _ = writeln!(text, "✔ created {rel} — {}", briefs::purpose(&rel));
                 // The proof ladder audits WORKFLOWS — the generated
                 // index rides the report but never the check.
-                if path.ends_with(".nika") {
+                if nika_source::is_canonical_program_path(path) {
                     created.push(path.clone());
                 }
             }
@@ -581,8 +581,7 @@ mod tests {
             "tailored next: {}",
             out.text
         );
-        let body =
-            std::fs::read_to_string(tmp.join("workflows/01-hello.nika")).expect("written");
+        let body = std::fs::read_to_string(tmp.join("workflows/01-hello.nika")).expect("written");
         assert_eq!(
             body,
             nika_pack::example("01-hello").expect("embedded"),
@@ -720,9 +719,7 @@ mod tests {
             "the workflow row says why: {}",
             out.text
         );
-        assert!(
-            tmp.join("nika.yaml").exists() && tmp.join("workflows/01-hello.nika").exists()
-        );
+        assert!(tmp.join("nika.yaml").exists() && tmp.join("workflows/01-hello.nika").exists());
         assert!(
             !out.text.contains(NEXT_BLOCK) && !out.text.contains("--project-file"),
             "the hand-off is the founded file, the team block names the laid file: {}",
@@ -979,8 +976,7 @@ mod tests {
         );
         assert_eq!(out.code, codes::OK, "{}", out.text);
         assert!(
-            out.text
-                .contains("✔ created workflows/01-hello-chain.nika"),
+            out.text.contains("✔ created workflows/01-hello-chain.nika"),
             "{}",
             out.text
         );

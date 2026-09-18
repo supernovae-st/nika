@@ -704,7 +704,7 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
 /// clap's error, which is the better answer for a name that does not exist.
 fn is_runnable_workflow(arg: &std::ffi::OsStr) -> bool {
     arg.to_str().is_some_and(|s| {
-        (s.ends_with(".nika") || s.ends_with(".nika")) && std::path::Path::new(s).is_file()
+        nika_source::is_canonical_program_path(s) && std::path::Path::new(s).is_file()
     })
 }
 
@@ -1117,14 +1117,8 @@ mod tests {
         // and the resident's refusals name it, so `--help` names it too.
         assert!(!adapter.is_hide_set());
         assert!(
-            Cli::try_parse_from([
-                "nika",
-                "check",
-                "flow.nika",
-                "--json",
-                "--sdk-snapshot",
-            ])
-            .is_ok()
+            Cli::try_parse_from(["nika", "check", "flow.nika", "--json", "--sdk-snapshot",])
+                .is_ok()
         );
     }
 
@@ -1208,9 +1202,8 @@ mod tests {
         assert!(
             matches!(cli.command, Some(Command::Try(ref a)) if a.slug.as_deref() == Some("01-hello"))
         );
-        let cli =
-            Cli::try_parse_from(["nika", "compile", "chase unpaid invoices", "mine.nika"])
-                .expect("parses");
+        let cli = Cli::try_parse_from(["nika", "compile", "chase unpaid invoices", "mine.nika"])
+            .expect("parses");
         assert!(matches!(
             cli.command,
             Some(Command::Compile(verbs::compile::CompileArgs {

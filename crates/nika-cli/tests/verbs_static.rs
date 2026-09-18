@@ -654,13 +654,7 @@ fn check_skills_rung_greens_reds_and_teaches() {
     };
 
     // GREEN — the rung names the count, the audit stays clean (exit 0).
-    let green = check::run(
-        &wf_with(&good, "green.nika"),
-        false,
-        false,
-        None,
-        PLAIN,
-    );
+    let green = check::run(&wf_with(&good, "green.nika"), false, false, None, PLAIN);
     assert_eq!(green.code, exit::OK, "{}", green.text);
     assert!(
         green.text.contains("SKILLS") && green.text.contains("1 skill(s) resolve"),

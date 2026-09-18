@@ -29,7 +29,11 @@ fn all_spec_examples_are_valid_strict() {
     let mut entries: Vec<PathBuf> = std::fs::read_dir(&examples)
         .expect("read examples dir")
         .map(|e| e.expect("dir entry").path())
-        .filter(|p| p.to_string_lossy().ends_with(".nika"))
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(nika_source::is_canonical_program_file_name)
+        })
         .collect();
     entries.sort();
 

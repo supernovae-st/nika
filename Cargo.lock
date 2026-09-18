@@ -4847,6 +4847,7 @@ dependencies = [
  "nika-schema",
  "nika-source",
  "nika-vocab",
+ "nix 0.31.3",
  "serde_json",
  "serde_yaml_bw",
  "tempfile",

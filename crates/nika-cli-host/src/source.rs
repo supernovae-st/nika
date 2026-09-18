@@ -158,6 +158,7 @@ fn open_program_file(path: &str) -> Result<std::fs::File, VerbOutput> {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic, clippy::manual_let_else)]
 mod tests {
     use super::*;
     use crate::output::exit;
