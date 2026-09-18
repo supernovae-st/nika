@@ -20,6 +20,21 @@ import tempfile
 import yaml
 
 
+class WorkflowLoader(yaml.SafeLoader):
+    """Nika dates are strings; PyYAML's implicit timestamp is not language data."""
+
+
+WorkflowLoader.yaml_implicit_resolvers = {
+    key: [(tag, pattern) for tag, pattern in entries
+          if tag != "tag:yaml.org,2002:timestamp"]
+    for key, entries in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+
+
+def load_workflow(text):
+    return yaml.load(text, Loader=WorkflowLoader)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", required=True, type=Path)
@@ -30,7 +45,7 @@ def main():
     binary, pack, out = args.binary.resolve(), args.pack.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     templates = pack / "templates"
-    rehearsals = yaml.safe_load((templates / "rehearsals.yaml").read_text())["rehearsals"]
+    rehearsals = load_workflow((templates / "rehearsals.yaml").read_text())["rehearsals"]
     pairs = {row["template"]: row for row in rehearsals}
     results = []
 
@@ -60,19 +75,33 @@ def main():
             directory = root / (name + " project")
             directory.mkdir()
             path = directory / "workflow with spaces.nika.yaml"
+            preview = None
+            body = source.read_text()
+            value_slots = any("<SLOT:" in line and ("#" not in line or line.index("<SLOT:") < line.index("#"))
+                              for line in body.splitlines())
             if args.source_only:
                 shutil.copyfile(source, path)
             else:
-                run(name + "-new", ["new", name, path.name], directory)
-                if not path.is_file():
+                proc, row = run(name + "-preview", ["compile", name, "--json"], directory,
+                                2 if value_slots else 0)
+                preview = json.loads(proc.stdout)
+                require(row, preview.get("status") == ("incomplete" if value_slots else "ready"),
+                        "preview completeness disagrees with the committed skeleton")
+                require(row, preview.get("written") is None and not path.exists(), "preview wrote a file")
+                require(row, isinstance(preview.get("candidate"), str), "missing structured candidate")
+                if not isinstance(preview.get("candidate"), str):
                     continue
-                before = path.read_bytes()
-                _, row = run(name + "-no-overwrite", ["new", name, path.name], directory, 3)
-                require(row, path.read_bytes() == before, "refusal changed the existing file")
-            body = path.read_text()
-            value_slots = any("<SLOT:" in line and ("#" not in line or line.index("<SLOT:") < line.index("#"))
-                              for line in body.splitlines())
-            run(name + "-unfilled", ["check", path.name, "--json", "--model", "mock/echo"], directory, 2 if value_slots else 0)
+                body = preview["candidate"]
+                require(row, load_workflow(body) == load_workflow(source.read_text()),
+                        "preview changed the skeleton semantics")
+                if value_slots:
+                    proc, row = run(name + "-incomplete-no-write", ["compile", name, path.name, "--json"], directory, 2)
+                    require(row, json.loads(proc.stdout).get("written") is None and not path.exists(),
+                            "an incomplete candidate was materialized")
+            # The harness may inspect unfilled source; the product only writes Ready.
+            unfilled = directory / "unfilled.nika.yaml"
+            unfilled.write_text(body)
+            run(name + "-unfilled", ["check", unfilled.name, "--json", "--model", "mock/echo"], directory, 2 if value_slots else 0)
             fill = pairs[name]["fill"] if name in pairs else "answered by the committed corpus golden"
             # Scalar values are filled structurally so quotes and backslashes
             # cannot alter the workflow graph or permits block.
@@ -84,7 +113,26 @@ def main():
                 if isinstance(value, dict):
                     return {k: fill_values(v) for k, v in value.items()}
                 return value
-            path.write_text(yaml.safe_dump(fill_values(yaml.safe_load(body)), sort_keys=False))
+            filled = fill_values(load_workflow(body))
+            if args.source_only:
+                path.write_text(yaml.safe_dump(filled, sort_keys=False))
+            else:
+                command = ["compile", name, path.name, "--json"]
+                for question in preview["questions"]:
+                    command += ["--answer", question["key"] + "=" + json.dumps(fill)]
+                proc, row = run(name + "-compile", command, directory)
+                receipt = json.loads(proc.stdout)
+                require(row, receipt.get("status") == "ready" and receipt.get("written") == path.name,
+                        "answered Compile did not produce a Ready write receipt")
+                require(row, path.is_file(), "Ready Compile did not write its explicit destination")
+                if not path.is_file():
+                    continue
+                filled["nika"] = "workflow-with-spaces"
+                require(row, load_workflow(path.read_text()) == filled,
+                        "answered Compile changed more than the supplied slots and explicit identity")
+                before = path.read_bytes()
+                _, row = run(name + "-no-overwrite", command, directory, 3)
+                require(row, path.read_bytes() == before, "refusal changed the existing file")
             run(name + "-filled", ["check", path.name, "--json", "--native-strict", "--model", "mock/echo"], directory)
             shutil.copyfile(templates / (source.name + ".golden.json"), Path(str(path) + ".golden.json"))
             test_args = ["test", path.name]
@@ -123,29 +171,31 @@ def main():
         for pair in rehearsals:
             example = pair["example"]
             source = pack / "examples" / (example + ".nika.yaml")
-            body = yaml.safe_load(source.read_text())
+            body = load_workflow(source.read_text())
             if not args.source_only:
                 directory = root / (example + "-take")
                 directory.mkdir()
-                _, row = run(example + "-take", ["new", example, "example.nika.yaml"], directory)
-                path = directory / "example.nika.yaml"
-                require(row, path.is_file(), "native take did not produce a file")
-                if path.is_file():
-                    taken = yaml.safe_load(path.read_text())
-                    # Native onboarding stamps the resolvable envelope seat;
-                    # in this empty HOME that is mock/echo. All other source
-                    # fields, including task model pins and bounds, must match.
-                    require(row, taken.get("model") == "mock/echo", "empty-home take did not select the keyless rehearsal seat")
-                    expected_body = {k: v for k, v in body.items() if k != "model"}
-                    require(row, {k: v for k, v in taken.items() if k != "model"} == expected_body,
-                            "native lesson changed more than the envelope model")
-                    body = taken
+                # Filled lessons are discovery, not another creation compiler.
+                # Read the actual embedded source through the public MCP tool;
+                # execution below chooses mock explicitly without changing it.
+                request = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                           "params": {"name": "nika_template", "arguments":
+                                      {"name": pair["template"], "filled": True}}}
+                proc, row = run(example + "-discover", ["mcp"], directory,
+                                stdin=json.dumps(request) + "\n")
+                replies = [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
+                result = next((reply.get("result", {}) for reply in replies if reply.get("id") == 1), {})
+                text = "".join(block.get("text", "") for block in result.get("content", []))
+                require(row, result.get("isError") is False and text == source.read_text(),
+                        "native lesson discovery changed committed source")
+                if text:
+                    body = load_workflow(text)
             expected = json.loads((templates / (pair["template"] + ".nika.yaml.golden.json")).read_text())
             execute_case(example + "-run", body, expected)
 
         for case in json.loads((templates / "rehearsal-cases.json").read_text())["cases"]:
             pair = pairs[case["template"]]
-            body = yaml.safe_load((pack / "examples" / (pair["example"] + ".nika.yaml")).read_text())
+            body = load_workflow((pack / "examples" / (pair["example"] + ".nika.yaml")).read_text())
             body["const"].update(copy.deepcopy(case["const"]))
             execute_case(case["template"] + "-" + case["case"], body,
                          case.get("outputs"), case.get("blocked", ()), case.get("files"))

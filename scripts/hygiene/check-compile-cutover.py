@@ -17,6 +17,7 @@ HISTORY = ("CHANGELOG.md", "changelog.d/", "docs/adr/", "docs/plans/",
 SELF = "scripts/hygiene/check-compile-cutover.py"
 PATTERNS = (
     re.compile(r"\bnika new\b"),
+    re.compile(r'''\[\s*["']new["']\s*,'''),
     re.compile(r"/nika:new\b"),
     re.compile(r"\bCommand::New\b"),
     re.compile(r"\bverbs::new\b"),
@@ -24,8 +25,12 @@ PATTERNS = (
     re.compile(r"\bDraftSource::(?:New|Guided)\b"),
     re.compile(r"(?:verbs/new\.rs|commands/new\.md|verb\.new\b)"),
 )
-DELETED = ("crates/nika-cli/src/verbs/new.rs", "crates/nika-onboard/src/guided.rs",
-           "crates/nika-onboard/src/guided/tests.rs", ".agents/plugins/nika/commands/new.md")
+DELETED = (
+    "crates/nika-cli/src/verbs/new.rs",  # formerly: the retired implementation must be absent
+    "crates/nika-onboard/src/guided.rs",  # formerly: the retired guided fork
+    "crates/nika-onboard/src/guided/tests.rs",  # formerly: tests of the retired fork
+    ".agents/plugins/nika/commands/new.md",  # formerly: the retired plugin door
+)
 
 
 def findings(root, paths):
@@ -69,9 +74,14 @@ def mutation_proof():
         negative = gate()
         assert negative.returncode == 1 and DELETED[0] in negative.stdout, "negative implementation mutation escaped"
         path.unlink()
+        argv_script = root / "scripts/authoring-gauntlet.py"
+        argv_script.write_text('run("case", ["new", name, dest], room)\n')
+        negative = gate()
+        assert negative.returncode == 1 and "scripts/authoring-gauntlet.py:1" in negative.stdout, "argv invocation escaped"
+        argv_script.unlink()
         (root / "CHANGELOG.md").write_text("Historical nika new\n")
         assert gate().returncode == 0, "history was erased"
-    print("PASS cutover negative mutations: README resurrection, retired module; explicit history retained")
+    print("PASS cutover negative mutations: README resurrection, retired module, argv invocation; explicit history retained")
 
 
 if __name__ == "__main__":
