@@ -1,1 +1,0 @@
-- **Private OIDC failure diagnostics.** A failed npm release publish distinguishes rejected OIDC exchange from publication refused after successful authentication. Diagnostics use fixed messages and remove private debug logs without printing their contents.

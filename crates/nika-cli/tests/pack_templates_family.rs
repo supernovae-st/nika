@@ -215,6 +215,7 @@ fn every_shipped_template_audits() {
 fn every_negative_template_refuses_with_its_declared_code() {
     let shelf =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../nika-pack/pack/templates");
+    let dir = scratch_dir("negatives");
     let mut names = std::collections::BTreeSet::new();
     for entry in std::fs::read_dir(shelf).expect("template shelf exists") {
         let path = entry.expect("template entry").path();
@@ -231,7 +232,10 @@ fn every_negative_template_refuses_with_its_declared_code() {
             })
             .expect("negative specimen declares its diagnostic");
         assert!(code.starts_with("NIKA-"), "invalid expected code: {code}");
-        let out = check::run(path.to_str().expect("utf8 path"), false, false, None, PLAIN);
+        // Pack negatives keep generic `.negative.yaml` names. The live
+        // CLI admits `*.nika` only, so audit a canonical scratch copy.
+        let staged = write_at(&dir, template, &body);
+        let out = check::run(&staged, false, false, None, PLAIN);
         assert_ne!(out.code, exit::OK, "{template} unexpectedly accepted");
         assert!(
             out.text.contains(code),
