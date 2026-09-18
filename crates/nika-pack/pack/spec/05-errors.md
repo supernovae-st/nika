@@ -343,7 +343,7 @@ A task MAY declare a `retry:` block. Retries apply to **transient** errors only 
 >    *on error* would put the two on the same clock in the reader's head, and
 >    they are not.
 > 2. **The corpus does not pay for it.** Measured 2026-08-12 over every
->    `*.nika.yaml` in the studio (873 files · 3 093 tasks · walked from disk,
+>    `*.nika` in the studio (873 files · 3 093 tasks · walked from disk,
 >    not grepped) · `on_error:` alone **240** tasks · `retry:` alone **41** ·
 >    **both on one task 31**. Co-occurrence is **31/312 = 9.9 %** of the
 >    tasks that carry either. A merge would fold 31 sites and hand the other

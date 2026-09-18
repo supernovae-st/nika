@@ -14,9 +14,9 @@
 > appealable. **The model never decides** — the law is this chapter's:
 > `infer:`/`agent:` may produce closed, cited semantic *facts*; the
 > decision kernel applies the rubric. The teaching shape is
-> `examples/13-extract-then-law.nika.yaml` (integer facts, then
+> `examples/13-extract-then-law.nika` (integer facts, then
 > `nika:jq`). `nika:decide` is the same law with a named bundle
-> (`examples/14-decide-publish.nika.yaml`).
+> (`examples/14-decide-publish.nika`).
 
 ---
 

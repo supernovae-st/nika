@@ -46,3 +46,13 @@ async fn served_registry_is_scoped_to_the_workflows_directory() {
     assert_eq!(outside.status, 404, "{}", outside.body);
     server.stop().await.expect("stop");
 }
+
+#[test]
+fn registry_names_stay_owned_relative_slash_canonical() {
+    use super::registry::valid_workflow_name;
+    assert!(valid_workflow_name("workflows/root.nika"));
+    assert!(!valid_workflow_name(r"workflows\root.nika"));
+    assert!(!valid_workflow_name("root.nika.yaml"));
+    assert!(!valid_workflow_name("/abs/root.nika"));
+    assert!(!valid_workflow_name("root.nika/"));
+}

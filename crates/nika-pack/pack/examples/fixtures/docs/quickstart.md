@@ -3,7 +3,7 @@
 Install the engine, then audit a workflow before you run it:
 
 ```bash
-nika check my-workflow.nika.yaml
+nika check my-workflow.nika
 ```
 
 The audit prints the plan, the cost ceiling and the capability boundary.

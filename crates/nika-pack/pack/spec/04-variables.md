@@ -179,7 +179,7 @@ tasks:
 
 A `required: true` input has no default: the caller must supply it at
 launch. To supply or override an input ·
-`nika run flow.nika.yaml --var topic="CEL subsets in 2026"` (repeatable ·
+`nika run flow.nika --var topic="CEL subsets in 2026"` (repeatable ·
 engine CLI concern). A `--var` value overrides the declared default and
 satisfies a `required: true` input · an undeclared key is refused before the
 run. See [01-envelope.md](./01-envelope.md#inputs--optional--typed-workflow-inputs)

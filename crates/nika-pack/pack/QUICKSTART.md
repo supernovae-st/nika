@@ -100,7 +100,7 @@ tasks:
 Override any input at launch · `--var key=value` is repeatable ·
 
 ```bash
-nika run translate-anything.nika.yaml --var target_lang="Japanese"
+nika run translate-anything.nika --var target_lang="Japanese"
 ```
 
 A `--var` value overrides the declared default · satisfies a
@@ -199,14 +199,14 @@ The cheapest authoring order, measured on a 40+ task paid extract run:
    `mock/` (`.next` is the first repair; `.compiled` is the proven-law
    bit).
    The shape is
-   [`13-extract-then-law`](./examples/13-extract-then-law.nika.yaml).
+   [`13-extract-then-law`](./examples/13-extract-then-law.nika).
    Prove the law on const fixtures (`unproven-law`). The named bundle
-   is [`14-decide-publish`](./examples/14-decide-publish.nika.yaml).
+   is [`14-decide-publish`](./examples/14-decide-publish.nika).
 5. **An agent that drafts a workflow checks it in the loop.** Grant
    `nika:compose` on `agent.tools` after `nika:done`. Iterate on the
    check JSON until `valid`. Never a standalone `invoke:`
    (`NIKA-BUILTIN-COMPOSE-001`). Checking never executes. Shape:
-   [`15-compose-self-check`](./examples/15-compose-self-check.nika.yaml).
+   [`15-compose-self-check`](./examples/15-compose-self-check.nika).
 6. **Pin the glob** (`exclude: "**/README.md"`) before a fan-out infer
    classifies the table of contents.
 
@@ -217,15 +217,15 @@ Then, and only then, swap `model:` to a paid seat.
 With the reference engine installed (`brew install supernovae-st/tap/nika`) ·
 
 ```bash
-nika check summarize-and-translate.nika.yaml   # static audit, before a single token is spent
-nika run summarize-and-translate.nika.yaml     # execute, locally, today
+nika check summarize-and-translate.nika   # static audit, before a single token is spent
+nika run summarize-and-translate.nika     # execute, locally, today
 ```
 
 No engine handy? Validate against this repo's oracle (zero install beyond
 python3) ·
 
 ```bash
-python3 conformance/runner.py validate summarize-and-translate.nika.yaml
+python3 conformance/runner.py validate summarize-and-translate.nika
 ```
 
 The same file runs on **any** v0.1-compliant engine. The language is the

@@ -43,16 +43,17 @@ pub enum SourceNameKind {
     Other,
 }
 
-/// Last `/`-separated component of a lexical path.
+/// Last `/`- or `\`-separated component of a lexical path.
 ///
-/// A trailing `/` is a directory shape and yields [`None`] — this helper
-/// does not normalize it into a file name.
+/// A trailing `/` or `\` is a directory shape and yields [`None`] — this
+/// helper does not normalize it into a file name. Callers that own
+/// relative `/`-only names (Serve registry) still reject `\` themselves.
 #[must_use]
 pub fn path_file_name(path: &str) -> Option<&str> {
-    if path.is_empty() || path.ends_with('/') {
+    if path.is_empty() || path.ends_with('/') || path.ends_with('\\') {
         return None;
     }
-    let name = path.rsplit('/').next().unwrap_or(path);
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
     if name.is_empty() || name == "." || name == ".." {
         None
     } else {
@@ -135,13 +136,14 @@ pub fn typed_stem(name: &str) -> &str {
     }
 }
 
-/// Append the canonical suffix to a relative dest, preserving directories
-/// (`workflows/foo` → `workflows/foo.nika`). Already-canonical paths are
-/// unchanged. Trailing separators, controls, backslashes, empty names and
-/// retired suffixes yield [`None`] — this is not a live alias.
+/// Append the canonical suffix to a dest, preserving directories
+/// (`workflows/foo` → `workflows/foo.nika`, including native `\` on
+/// Windows). Already-canonical paths are unchanged. Trailing separators,
+/// controls, empty names and retired suffixes yield [`None`] — this is
+/// not a live alias.
 #[must_use]
 pub fn with_program_suffix(path: &str) -> Option<String> {
-    if path.is_empty() || path.ends_with('/') || !is_clean_path(path) {
+    if path.is_empty() || path.ends_with('/') || path.ends_with('\\') || !is_clean_path(path) {
         return None;
     }
     let name = path_file_name(path)?;
@@ -153,7 +155,7 @@ pub fn with_program_suffix(path: &str) -> Option<String> {
 }
 
 fn is_clean_path(path: &str) -> bool {
-    !path.contains('\\') && path.bytes().all(|byte| byte >= 0x20 && byte != 0x7f)
+    path.bytes().all(|byte| byte >= 0x20 && byte != 0x7f)
 }
 
 /// Actionable rename hint for a retired live-program basename.
@@ -236,10 +238,18 @@ mod tests {
         assert_eq!(classify_path(".nika"), SourceNameKind::RuntimeDir);
         assert_eq!(classify_path(".nika/"), SourceNameKind::Other);
         assert!(is_canonical_program_path("/abs/foo.nika"));
+        assert!(is_canonical_program_path(r"C:\abs\foo.nika"));
         assert!(!is_canonical_program_path("../foo.nika.yaml"));
         assert!(!is_canonical_program_path("foo.nika/"));
+        assert!(!is_canonical_program_path(r"foo.nika\"));
         assert_eq!(path_file_name("foo.nika/"), None);
+        assert_eq!(path_file_name(r"foo.nika\"), None);
         assert_eq!(path_file_name("/"), None);
+        assert_eq!(path_file_name(r"\"), None);
+        assert_eq!(
+            path_file_name(r"C:\workflows\support.nika"),
+            Some("support.nika")
+        );
     }
 
     #[test]
@@ -260,7 +270,12 @@ mod tests {
             with_program_suffix("workflows/foo").as_deref(),
             Some("workflows/foo.nika")
         );
+        assert_eq!(
+            with_program_suffix(r"workflows\foo").as_deref(),
+            Some(r"workflows\foo.nika")
+        );
         assert_eq!(with_program_suffix("foo.nika/"), None);
+        assert_eq!(with_program_suffix(r"foo.nika\"), None);
         assert_eq!(with_program_suffix("foo.nika.yaml"), None);
         assert_eq!(with_program_suffix(""), None);
         assert_eq!(with_program_suffix("foo\0bar"), None);

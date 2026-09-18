@@ -3,9 +3,9 @@
 crates/nika-source/src/naming.rs	negative-test	lexical owner of retired suffixes and hostile-case table	nika-source
 crates/nika-cli-host/src/source.rs	negative-test	disk acquisition refusals for retired suffixes	nika-cli-host
 crates/nika-onboard/src/compile/materialize.rs	negative-test	compile adapter refuses a retired destination	nika-onboard
-crates/nika-onboard/src/fixtures.rs	generated-pending	pack dual-read of retired child names until SPEC_PIN	nika-onboard
-crates/nika-pack/src/lib.rs	generated-pending	unpublished dual-read of vendored pack until SPEC_PIN migrates	nika-pack
+crates/nika-serve/src/server/registry_tests.rs	negative-test	owned-relative names reject retired suffix and backslash	nika-serve
 crates/nika-pack/pack/	generated-pending	vendored spec snapshot; replace via scripts/sync-pack.sh, never hand-edit	nika-pack
+changelog.d/1684.changed.md	historical	names the retired suffixes this change retires	docs
 CHANGELOG.md	historical	immutable release notes describing the old suffix	docs
 docs/adr/	historical	architecture records of the previous naming law	docs
 docs/plans/	historical	dated plans	docs

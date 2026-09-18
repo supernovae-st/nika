@@ -44,12 +44,11 @@ fn program_slug(slug: &str) -> &str {
     nika_source::typed_stem(slug)
 }
 
-/// Embedded pack lookup. Canonical `.nika` first; `.nika.yaml` is the
-/// unpublished dual-read of the current vendored snapshot and dies when
-/// `scripts/sync-pack.sh` lands the migrated spec pin (#1684).
+/// Embedded pack lookup. Canonical `.nika` only — retired suffixes are
+/// not a live alias of the vendored snapshot.
 fn pack_program(dir: &str, slug: &str) -> Option<&'static str> {
     let slug = program_slug(slug);
-    file_str(&format!("{dir}/{slug}.nika")).or_else(|| file_str(&format!("{dir}/{slug}.nika.yaml")))
+    file_str(&format!("{dir}/{slug}.nika"))
 }
 
 /// The vendored motion SSOT (`design/motion.yaml` · spec #65) — the
@@ -438,11 +437,10 @@ fn collect_yaml_slugs(dir: &Dir<'static>) -> Vec<String> {
         match entry {
             include_dir::DirEntry::File(f) => {
                 if let Some(name) = f.path().to_str()
-                    && let Some(slug) = name.strip_prefix("examples/").and_then(|n| {
-                        nika_source::program_stem(n).or_else(|| n.strip_suffix(".nika.yaml"))
-                    })
+                    && let Some(rel) = name.strip_prefix("examples/")
+                    && nika_source::is_canonical_program_path(rel)
                 {
-                    out.push(slug.to_owned());
+                    out.push(nika_source::typed_stem(rel).to_owned());
                 }
             }
             include_dir::DirEntry::Dir(d) => out.extend(collect_yaml_slugs(d)),
@@ -475,9 +473,7 @@ pub fn template_names() -> Vec<String> {
         .map(|d| {
             d.files()
                 .filter_map(|f| f.path().file_name()?.to_str())
-                .filter_map(|n| {
-                    nika_source::program_stem(n).or_else(|| n.strip_suffix(".nika.yaml"))
-                })
+                .filter_map(nika_source::program_stem)
                 .map(str::to_owned)
                 .collect()
         })

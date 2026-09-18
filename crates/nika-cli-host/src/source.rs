@@ -98,15 +98,11 @@ impl RunSource {
 /// Live on-disk program entry: canonical `*.nika` only. Stdin is not a
 /// disk path. `nika.yaml` stays a project file, never a workflow.
 /// Trailing separators are directory shapes, not program files.
+/// Regular-file proof is on the opened descriptor, not a metadata race.
 fn refuse_disk_program(path: &str) -> Option<VerbOutput> {
     let name = path_file_name(path).unwrap_or(path);
     match classify_path(path) {
-        SourceNameKind::CanonicalProgram => match std::fs::metadata(path) {
-            Ok(meta) if !meta.is_file() => Some(VerbOutput::env(format!(
-                "`{path}` is not a regular Nika program file"
-            ))),
-            _ => None,
-        },
+        SourceNameKind::CanonicalProgram => None,
         SourceNameKind::RetiredProgram => {
             Some(VerbOutput::file(retired_rename_hint(name).unwrap_or_else(
                 || format!("`{path}` uses a retired Nika program suffix; rename to `*.nika`"),
@@ -122,11 +118,12 @@ fn refuse_disk_program(path: &str) -> Option<VerbOutput> {
 }
 
 /// Open then prove the descriptor is a regular file before reading, so a
-/// FIFO or replaced directory cannot block or race past the suffix gate.
-/// Symlinks to regular files follow the existing CLI policy (`metadata`).
+/// FIFO or swapped special file cannot block or race past the suffix gate.
+/// Symlinks to regular files follow the existing CLI policy (no `O_NOFOLLOW`).
+/// Unix opens `O_NONBLOCK` first, matching `nika-fs` owned-dir acquisition,
+/// then fstats that fd. `O_NONBLOCK` does not change regular-file I/O.
 fn read_regular_program(path: &str) -> Result<Vec<u8>, VerbOutput> {
-    let mut file = std::fs::File::open(path)
-        .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?;
+    let mut file = open_program_file(path)?;
     let meta = file
         .metadata()
         .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?;
@@ -139,6 +136,25 @@ fn read_regular_program(path: &str) -> Result<Vec<u8>, VerbOutput> {
     file.read_to_end(&mut buf)
         .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?;
     Ok(buf)
+}
+
+fn open_program_file(path: &str) -> Result<std::fs::File, VerbOutput> {
+    #[cfg(unix)]
+    {
+        use nix::fcntl::{OFlag, open};
+        use nix::sys::stat::Mode;
+        open(
+            path,
+            OFlag::O_RDONLY | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK,
+            Mode::empty(),
+        )
+        .map(std::fs::File::from)
+        .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::File::open(path).map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))
+    }
 }
 
 #[cfg(test)]

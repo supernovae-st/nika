@@ -33,10 +33,7 @@ fn composition_siblings(body: &str) -> Vec<String> {
             .chars()
             .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
             .collect();
-        if (nika_source::is_canonical_program_file_name(&name)
-            || nika_source::is_retired_program_file_name(&name))
-            && !out.iter().any(|p| p == &name)
-        {
+        if nika_source::is_canonical_program_file_name(&name) && !out.iter().any(|p| p == &name) {
             out.push(name);
         }
     }
@@ -82,10 +79,9 @@ pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
     let base = dest.parent().unwrap_or_else(|| Path::new(""));
     let (mut written, mut kept) = (0, 0);
     for name in &siblings {
-        let slug = nika_source::program_stem(name)
-            .or_else(|| name.strip_suffix(".nika.yaml"))
-            .or_else(|| name.strip_suffix(".nika.yml"))
-            .unwrap_or(name);
+        let Some(slug) = nika_source::program_stem(name) else {
+            continue;
+        };
         let Some(child) = nika_pack::example(slug) else {
             continue;
         };
@@ -191,8 +187,7 @@ mod tests {
         let (written, _) = materialize(body, &dest).expect("child follows");
         assert!(written >= 1, "wrote the child");
         assert!(
-            dir.join("10-compose-child.nika").exists()
-                || dir.join("10-compose-child.nika.yaml").exists(),
+            dir.join("10-compose-child.nika").exists(),
             "the rehearsal room has the sibling"
         );
         let _ = std::fs::remove_dir_all(&dir);
