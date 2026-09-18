@@ -80,6 +80,25 @@ esac
   exit 77
 }
 
+# npm itself warns a processed publish "may take a few minutes" to become
+# visible: v0.120.0 and v0.120.1 both committed, yet answered E404 for over
+# two minutes, and the old ~52s window declared a successful publish lost,
+# costing a full train replay. Readiness is a BOUNDED budget, not a fixed
+# retry count: ten-second cadence under a five-minute default, overridable
+# for a slower registry. An occupied divergent identity still refuses on
+# first sight, and nothing here ever publishes twice. The budget validates
+# before any registry write.
+readiness_budget="${NIKA_NPM_READINESS_SECONDS:-300}"
+case "$readiness_budget" in
+  '' | *[!0-9]*)
+    echo "npm barrier: NIKA_NPM_READINESS_SECONDS must be a positive integer of seconds" >&2
+    exit 64
+    ;;
+esac
+readiness_cadence=10
+[ "$readiness_budget" -ge "$readiness_cadence" ] || readiness_budget="$readiness_cadence"
+readiness_attempts=$((readiness_budget / readiness_cadence))
+
 # npm records its OIDC exchange in the private debug log even at the
 # default console level. Keep that log ephemeral; emit only fixed diagnoses,
 # never its token-bearing contents or a registry-supplied error message.
@@ -88,7 +107,8 @@ if npm publish "$tgz" --provenance --access public --logs-dir "$scratch/npm-logs
 else
   publish_failed=true
 fi
-for attempt in 1 2 3 4 5 6; do
+attempt=1
+while [ "$attempt" -le "$readiness_attempts" ]; do
   : >"$scratch/integrity"
   : >"$scratch/error"
   state=0
@@ -103,7 +123,8 @@ for attempt in 1 2 3 4 5 6; do
     exit 0
   fi
   [ "$state" -eq 44 ] || exit "$state"
-  [ "$attempt" -eq 6 ] || sleep 10
+  [ "$attempt" -eq "$readiness_attempts" ] || sleep "$readiness_cadence"
+  attempt=$((attempt + 1))
 done
 if [ "$publish_failed" = true ]; then
   echo "npm barrier: publish failed and the version remains absent" >&2
@@ -117,6 +138,6 @@ if [ "$publish_failed" = true ]; then
     echo "npm barrier: OIDC exchange outcome unavailable; no authentication conclusion can be drawn from the publish error alone" >&2
   fi
 else
-  echo "npm barrier: publish returned success but the version never became visible" >&2
+  echo "npm barrier: publish returned success but the version never became visible within ${readiness_budget}s" >&2
 fi
 exit 69
