@@ -16,6 +16,46 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.120.1](https://github.com/supernovae-st/nika/compare/v0.120.0..v0.120.1) - 2026-09-18
+
+### Added
+
+- **Compile derives private pattern facets from the AST.** A comment that
+  names `nika:fetch` is not network egress; a `permits.fs` key is not a
+  task id; a real `nika:fetch` invoke is. Index cards require negative
+  scope, including the reserved NONE / NO_COMPATIBLE_PATTERN miss. This
+  is compiler metadata for #1666, not a YAML key, fifth verb or SDK noun.
+
+### Fixed
+
+- **Project schemas follow canonical program names.** The JSON Schema accepts
+  `.nika` workflow references and preserves the project parser's relative-path
+  restrictions. Source paths reject URI sources and control bytes in parent
+  components as well as basenames. Native Windows paths keep their existing
+  caller policies. Pack synchronization prunes excluded repository READMEs
+  instead of embedding stale navigation.
+
+### Security
+
+- **A value read of a stage that CERTAINLY skips on « no » is a
+  `NIKA-SEC-014` refusal.** A refused confirm settles `success`/`false`; a
+  stage gated on the answer then settles `skipped`, and a value edge admits
+  the skip (the binding reads defined-null), so a task that only read the
+  stage's output still reached its verb on « no » under a clean `nika check`.
+  The consent walk now continues past a closed gate over the value-carrying
+  edges and judges each task with two readings of one GATE-v2 fold: cancelled
+  in every refusal run is silence (a same-producer `after: { stage: success }`
+  cancels the reader); its verb reached in every refusal run is the refusal
+  (the finding names the skipped stage) — which requires the stage to skip
+  FOR SURE: plain-read bindings and a `when:` that is false with no step able
+  to error first, with or without a `for_each` (the gate runs before the
+  fan-out expands). Everything else stays the advisory hint, never the code:
+  a laundering hop, an independent `after: { x: success }` prerequisite, a
+  `when:` that may error before it decides — and a gated stage whose OWN
+  bindings navigate or compute (`tasks.merge.output.report`), where the
+  refusal can still reach the reader and its effect stays observable. That
+  gap is reported, not closed: no verb is ever assumed to succeed, and routes
+  that cross no closed gate keep their verdicts and wording unchanged.
 ## [0.120.0](https://github.com/supernovae-st/nika/compare/v0.119.0..v0.120.0) - 2026-09-18
 
 ### Added
