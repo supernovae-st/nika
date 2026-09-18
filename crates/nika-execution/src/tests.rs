@@ -180,7 +180,7 @@ fn child_replacement_interleaved_after_read_cannot_change_admitted_bytes() {
     let child = tmp.path().join("child.nika");
     let snapshot =
         capture_while_replacing(&owned, Path::new("root.nika"), "child.nika", move || {
-            fs::write(child, b"nika: replaced\n").expect("replace child")
+            fs::write(child, b"nika: replaced\n").expect("replace child");
         });
     assert_eq!(snapshot.text("child.nika"), Some(CHILD));
 }
