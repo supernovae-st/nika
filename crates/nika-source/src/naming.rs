@@ -86,9 +86,13 @@ pub fn classify_file_name(name: &str) -> SourceNameKind {
     }
 }
 
-/// Classify the last component of a `/`-separated path string.
+/// Classify the last component of a `/`- or `\`-separated path string.
+/// Control bytes anywhere in the path are refused before basename extraction.
 #[must_use]
 pub fn classify_path(path: &str) -> SourceNameKind {
+    if !is_clean_path(path) {
+        return SourceNameKind::Other;
+    }
     path_file_name(path).map_or(SourceNameKind::Other, classify_file_name)
 }
 
@@ -292,6 +296,31 @@ mod tests {
         );
         assert_eq!(retired_rename_hint("support.nika"), None);
         assert_eq!(retired_rename_hint("nika.yaml"), None);
+    }
+
+    #[test]
+    fn path_classification_refuses_controls_in_parent_and_basename() {
+        for control in (0u8..=0x1f).chain(std::iter::once(0x7f)) {
+            let control = char::from(control);
+            for path in [
+                format!("work{control}flows/foo.nika"),
+                format!("work{control}flows\\foo.nika"),
+                format!("workflows/foo{control}.nika"),
+                format!("workflows/foo.nika{control}"),
+            ] {
+                assert_eq!(classify_path(&path), SourceNameKind::Other, "{path:?}");
+                assert!(!is_canonical_program_path(&path), "{path:?}");
+            }
+        }
+        for path in [
+            "workflows/support.v2.nika",
+            "./workflows/foo.nika",
+            "../foo.nika",
+            "/absolute/foo.nika",
+            r"C:\workflows\foo.nika",
+        ] {
+            assert!(is_canonical_program_path(path), "{path:?}");
+        }
     }
 
     #[test]

@@ -180,6 +180,7 @@ jobs:
         if: matrix.job == 'tests'
         run: |
           set -euo pipefail
+          python3 scripts/ci/test-sync-pack.py
           bash scripts/sync-pack.sh "$GITHUB_WORKSPACE/nika-spec"
           if [ -n "$(git status --porcelain --untracked-files=all -- crates/nika-pack/pack)" ]; then
             git --no-pager diff --stat -- crates/nika-pack/pack
@@ -213,6 +214,8 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/authoring-python"
           "$RUNNER_TEMP/authoring-python/bin/pip" install -r nika-spec/conformance/requirements.txt
           cargo build --locked -p nika-cli --bin nika
+          "$RUNNER_TEMP/authoring-python/bin/python" scripts/ci/test-project-schema.py \
+            --binary target/debug/nika --out "$RUNNER_TEMP/authoring-gauntlet/project-schema.json"
           "$RUNNER_TEMP/authoring-python/bin/python" scripts/authoring-gauntlet.py \
             --binary target/debug/nika --out "$RUNNER_TEMP/authoring-gauntlet"
       - name: Preserve authoring evidence

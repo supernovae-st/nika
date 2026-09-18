@@ -44,10 +44,11 @@ if [[ ! "$spec_sha" =~ ^[0-9a-f]{40}$ ]]; then
 fi
 printf '%s\n' "$spec_sha" >"$PACK/SPEC_SHA"
 
-# READMEs are repo navigation, not pack content — the vendored state
-# has never carried them (verified against the #533 tree).
+# READMEs are repo navigation, not pack content. Delete excluded files too:
+# plain --delete protects exclusions and retained an obsolete examples README
+# after the source-naming migration.
 for d in spec schemas examples templates; do
-  rsync -a --delete --exclude='README.md' "$SPEC/$d/" "$PACK/$d/"
+  rsync -a --delete --delete-excluded --exclude='README.md' "$SPEC/$d/" "$PACK/$d/"
 done
 
 rsync -a --delete --include='*.md' --exclude='*' "$SPEC/stdlib/" "$PACK/stdlib/"
