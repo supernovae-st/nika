@@ -86,9 +86,13 @@ pub fn classify_file_name(name: &str) -> SourceNameKind {
     }
 }
 
-/// Classify the last component of a `/`-separated path string.
+/// Classify the last component of a `/`- or `\`-separated path string.
+/// Control bytes and `scheme://` URIs are refused before basename extraction.
 #[must_use]
 pub fn classify_path(path: &str) -> SourceNameKind {
+    if !is_clean_path(path) {
+        return SourceNameKind::Other;
+    }
     path_file_name(path).map_or(SourceNameKind::Other, classify_file_name)
 }
 
@@ -139,7 +143,7 @@ pub fn typed_stem(name: &str) -> &str {
 /// Append the canonical suffix to a dest, preserving directories
 /// (`workflows/foo` → `workflows/foo.nika`, including native `\` on
 /// Windows). Already-canonical paths are unchanged. Trailing separators,
-/// controls, empty names and retired suffixes yield [`None`] — this is
+/// controls, URIs, empty names and retired suffixes yield [`None`] — this is
 /// not a live alias.
 #[must_use]
 pub fn with_program_suffix(path: &str) -> Option<String> {
@@ -155,7 +159,14 @@ pub fn with_program_suffix(path: &str) -> Option<String> {
 }
 
 fn is_clean_path(path: &str) -> bool {
-    path.bytes().all(|byte| byte >= 0x20 && byte != 0x7f)
+    // RFC 3986 schemes use ASCII, not a language's Unicode letter classes.
+    // Unicode remains valid in ordinary filenames; caller path policy is separate.
+    let is_uri = path.split_once("://").is_some_and(|(scheme, _)| {
+        let mut bytes = scheme.bytes();
+        bytes.next().is_some_and(|byte| byte.is_ascii_alphabetic())
+            && bytes.all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'-' | b'.'))
+    });
+    !is_uri && path.bytes().all(|byte| byte >= 0x20 && byte != 0x7f)
 }
 
 /// Actionable rename hint for a retired live-program basename.
@@ -292,6 +303,57 @@ mod tests {
         );
         assert_eq!(retired_rename_hint("support.nika"), None);
         assert_eq!(retired_rename_hint("nika.yaml"), None);
+    }
+
+    #[test]
+    fn path_classification_refuses_controls_in_parent_and_basename() {
+        for control in (0u8..=0x1f).chain(std::iter::once(0x7f)) {
+            let control = char::from(control);
+            for path in [
+                format!("work{control}flows/foo.nika"),
+                format!("work{control}flows\\foo.nika"),
+                format!("workflows/foo{control}.nika"),
+                format!("workflows/foo.nika{control}"),
+            ] {
+                assert_eq!(classify_path(&path), SourceNameKind::Other, "{path:?}");
+                assert!(!is_canonical_program_path(&path), "{path:?}");
+            }
+        }
+        for path in [
+            "workflows/support.v2.nika",
+            "./workflows/foo.nika",
+            "../foo.nika",
+            "/absolute/foo.nika",
+            r"C:\workflows\foo.nika",
+        ] {
+            assert!(is_canonical_program_path(path), "{path:?}");
+        }
+    }
+
+    #[test]
+    fn uri_sources_are_not_files_but_native_paths_keep_their_shape_policy() {
+        for uri in [
+            "file:///tmp/foo.nika",
+            "https://example.com/foo.nika",
+            "git+ssh://example.com/foo.nika",
+        ] {
+            assert_eq!(classify_path(uri), SourceNameKind::Other, "{uri}");
+            assert_eq!(with_program_suffix(uri), None, "{uri}");
+        }
+        for path in [
+            "../foo.nika",
+            "/absolute/foo.nika",
+            "C:/workflows/foo.nika",
+            r"C:\workflows\foo.nika",
+            "nested/file://foo.nika",
+            "\u{0345}://foo.nika",
+            "\u{2160}://foo.nika",
+            "a\u{0345}://foo.nika",
+            "é://foo.nika",
+        ] {
+            assert!(is_canonical_program_path(path), "{path}");
+            assert_eq!(with_program_suffix(path).as_deref(), Some(path), "{path}");
+        }
     }
 
     #[test]

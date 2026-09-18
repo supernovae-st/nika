@@ -55,25 +55,9 @@
       "lines_sha256": "sha256:3d729e82afaeba099b53fb895da1818e727c5d8a2835421c73cd28c957fed9af"
     },
     {
-      "path": "crates/nika-pack/pack/examples/README.md",
-      "category": "historical",
-      "reason": "vendored spec snapshot names the retired suffixes",
-      "owner": "nika-pack",
-      "count": 22,
-      "lines_sha256": "sha256:b4c61599c1cb1c25d3d35039f770b4ff1783dc6086da00716e4e372d859b17e2"
-    },
-    {
-      "path": "crates/nika-pack/pack/schemas/project.schema.json",
-      "category": "historical",
-      "reason": "vendored spec snapshot names the retired suffixes",
-      "owner": "nika-pack",
-      "count": 1,
-      "lines_sha256": "sha256:b501eb6ee9ea92e9b81748c12097a31de035c93beaeb77e877b176aefdaae18e"
-    },
-    {
       "path": "crates/nika-pack/pack/spec/01-envelope.md",
-      "category": "historical",
-      "reason": "vendored spec snapshot names the retired suffixes",
+      "category": "negative",
+      "reason": "normative refusal of retired program suffixes in the pinned Spec",
       "owner": "nika-pack",
       "count": 2,
       "lines_sha256": "sha256:6e55f7d1bffc84422398a1b85529a217284dc21594046aab9f404e533787b742"
@@ -108,14 +92,6 @@
       "reason": "immutable captured bytes",
       "owner": "crates",
       "digest": "sha256:4ea7526ebb273d2f9ccf49e2bdc317681a04d182f71878c329ae4943dcff3a65"
-    },
-    {
-      "path": "crates/nika-vocab/src/project.schema.json",
-      "category": "historical",
-      "reason": "names a retired program suffix",
-      "owner": "docs",
-      "count": 1,
-      "lines_sha256": "sha256:b501eb6ee9ea92e9b81748c12097a31de035c93beaeb77e877b176aefdaae18e"
     },
     {
       "path": "docs/adr/adr-010-miette-diagnostic-layer.md",
@@ -349,6 +325,14 @@
       "owner": "media",
       "count": 1,
       "lines_sha256": "sha256:42599d45449d95a1bc6bd21b75ef20e5b94378696bbb73dc8d43c0918ab9d429"
+    },
+    {
+      "path": "scripts/ci/test-project-schema.py",
+      "category": "negative",
+      "reason": "actual project-schema validator refusal cases for retired suffixes",
+      "owner": "nika-vocab",
+      "count": 1,
+      "lines_sha256": "sha256:20753bdf8f8c9cefa7ba216edff0ea98a710bfbce8202c563f265b80f8937c05"
     }
   ]
 }
