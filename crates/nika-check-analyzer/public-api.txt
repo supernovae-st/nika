@@ -243,6 +243,106 @@ pub mod nika_check_analyzer::exec_read_path
 pub const nika_check_analyzer::exec_read_path::RULE: &str
 pub fn nika_check_analyzer::exec_read_path::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::exec_read_path::Site>
 pub type nika_check_analyzer::exec_read_path::Site = (alloc::string::String, &'static str, alloc::string::String)
+pub mod nika_check_analyzer::gates
+#[non_exhaustive] pub enum nika_check_analyzer::gates::Gate
+pub nika_check_analyzer::gates::Gate::Closed
+pub nika_check_analyzer::gates::Gate::Open
+pub nika_check_analyzer::gates::Gate::Unclear
+impl core::clone::Clone for nika_check_analyzer::gates::Gate
+pub fn nika_check_analyzer::gates::Gate::clone(&self) -> nika_check_analyzer::gates::Gate
+impl core::cmp::Eq for nika_check_analyzer::gates::Gate
+impl core::cmp::PartialEq for nika_check_analyzer::gates::Gate
+pub fn nika_check_analyzer::gates::Gate::eq(&self, other: &nika_check_analyzer::gates::Gate) -> bool
+impl core::fmt::Debug for nika_check_analyzer::gates::Gate
+pub fn nika_check_analyzer::gates::Gate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check_analyzer::gates::Gate
+impl core::marker::StructuralPartialEq for nika_check_analyzer::gates::Gate
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::gates::Gate
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::gates::Gate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::gates::Gate::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::gates::Gate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::gates::Gate::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::gates::Gate where U: core::convert::From<T>
+pub fn nika_check_analyzer::gates::Gate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::gates::Gate where U: core::convert::Into<T>
+pub type nika_check_analyzer::gates::Gate::Error = core::convert::Infallible
+pub fn nika_check_analyzer::gates::Gate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::gates::Gate where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::gates::Gate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::gates::Gate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::gates::Gate where T: core::clone::Clone
+pub type nika_check_analyzer::gates::Gate::Owned = T
+pub fn nika_check_analyzer::gates::Gate::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::gates::Gate::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::gates::Gate where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::gates::Gate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::gates::Gate where T: ?core::marker::Sized
+pub fn nika_check_analyzer::gates::Gate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::gates::Gate where T: ?core::marker::Sized
+pub fn nika_check_analyzer::gates::Gate::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::gates::Gate where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::gates::Gate::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::gates::Gate
+pub fn nika_check_analyzer::gates::Gate::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::gates::Gate where T: core::clone::Clone
+pub fn nika_check_analyzer::gates::Gate::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::gates::Gate where T: 'static
+pub fn nika_check_analyzer::gates::Gate::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check_analyzer::gates::Gate where T: core::marker::Copy
+pub fn nika_check_analyzer::gates::Gate::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check_analyzer::gates::K3
+pub nika_check_analyzer::gates::K3::False
+pub nika_check_analyzer::gates::K3::True
+pub nika_check_analyzer::gates::K3::Unknown
+impl nika_check_analyzer::gates::K3
+pub fn nika_check_analyzer::gates::K3::and(self, rhs: Self) -> Self
+pub fn nika_check_analyzer::gates::K3::negate(self) -> Self
+pub fn nika_check_analyzer::gates::K3::or(self, rhs: Self) -> Self
+impl core::clone::Clone for nika_check_analyzer::gates::K3
+pub fn nika_check_analyzer::gates::K3::clone(&self) -> nika_check_analyzer::gates::K3
+impl core::cmp::Eq for nika_check_analyzer::gates::K3
+impl core::cmp::PartialEq for nika_check_analyzer::gates::K3
+pub fn nika_check_analyzer::gates::K3::eq(&self, other: &nika_check_analyzer::gates::K3) -> bool
+impl core::fmt::Debug for nika_check_analyzer::gates::K3
+pub fn nika_check_analyzer::gates::K3::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check_analyzer::gates::K3
+impl core::marker::StructuralPartialEq for nika_check_analyzer::gates::K3
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::gates::K3
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::gates::K3 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::gates::K3::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::gates::K3 where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::gates::K3::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::gates::K3 where U: core::convert::From<T>
+pub fn nika_check_analyzer::gates::K3::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::gates::K3 where U: core::convert::Into<T>
+pub type nika_check_analyzer::gates::K3::Error = core::convert::Infallible
+pub fn nika_check_analyzer::gates::K3::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::gates::K3 where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::gates::K3::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::gates::K3::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::gates::K3 where T: core::clone::Clone
+pub type nika_check_analyzer::gates::K3::Owned = T
+pub fn nika_check_analyzer::gates::K3::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::gates::K3::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::gates::K3 where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::gates::K3::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::gates::K3 where T: ?core::marker::Sized
+pub fn nika_check_analyzer::gates::K3::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::gates::K3 where T: ?core::marker::Sized
+pub fn nika_check_analyzer::gates::K3::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::gates::K3 where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::gates::K3::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::gates::K3
+pub fn nika_check_analyzer::gates::K3::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::gates::K3 where T: core::clone::Clone
+pub fn nika_check_analyzer::gates::K3::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::gates::K3 where T: 'static
+pub fn nika_check_analyzer::gates::K3::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check_analyzer::gates::K3 where T: core::marker::Copy
+pub fn nika_check_analyzer::gates::K3::as_out(&mut self) -> outref::Out<'_, T>
+pub fn nika_check_analyzer::gates::gate_certain(task: &nika_schema::raw::task::RawTask, prompt: &str) -> nika_check_analyzer::gates::Gate
+pub fn nika_check_analyzer::gates::gate_verdict(task: &nika_schema::raw::task::RawTask, prompt: &str) -> nika_check_analyzer::gates::Gate
+pub fn nika_check_analyzer::gates::parse_gate(src: &str) -> core::option::Option<nika_tmpl::expression::ast::Expr>
 pub mod nika_check_analyzer::model_scope
 pub fn nika_check_analyzer::model_scope::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub mod nika_check_analyzer::native_first
@@ -254,6 +354,48 @@ pub fn nika_check_analyzer::read_paths::static_read_paths(wf: &nika_schema::raw:
 pub mod nika_check_analyzer::schema_value
 pub fn nika_check_analyzer::schema_value::json_matches_type(value: &serde_json::value::Value, type_name: &str) -> bool
 pub fn nika_check_analyzer::schema_value::kind(v: &serde_json::value::Value) -> &'static str
+pub mod nika_check_analyzer::settle
+pub struct nika_check_analyzer::settle::Settled(_)
+impl nika_check_analyzer::settle::Settled
+pub fn nika_check_analyzer::settle::Settled::of(&self, task: usize) -> u8
+impl core::clone::Clone for nika_check_analyzer::settle::Settled
+pub fn nika_check_analyzer::settle::Settled::clone(&self) -> nika_check_analyzer::settle::Settled
+impl core::fmt::Debug for nika_check_analyzer::settle::Settled
+pub fn nika_check_analyzer::settle::Settled::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::settle::Settled
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::settle::Settled where U: core::convert::From<T>
+pub fn nika_check_analyzer::settle::Settled::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::settle::Settled where U: core::convert::Into<T>
+pub type nika_check_analyzer::settle::Settled::Error = core::convert::Infallible
+pub fn nika_check_analyzer::settle::Settled::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::settle::Settled where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::settle::Settled::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::settle::Settled::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::settle::Settled where T: core::clone::Clone
+pub type nika_check_analyzer::settle::Settled::Owned = T
+pub fn nika_check_analyzer::settle::Settled::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::settle::Settled::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::settle::Settled where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::settle::Settled::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::settle::Settled where T: ?core::marker::Sized
+pub fn nika_check_analyzer::settle::Settled::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::settle::Settled where T: ?core::marker::Sized
+pub fn nika_check_analyzer::settle::Settled::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::settle::Settled where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::settle::Settled::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::settle::Settled
+pub fn nika_check_analyzer::settle::Settled::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::settle::Settled where T: core::clone::Clone
+pub fn nika_check_analyzer::settle::Settled::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::settle::Settled where T: 'static
+pub fn nika_check_analyzer::settle::Settled::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_check_analyzer::settle::S_ALL: u8
+pub const nika_check_analyzer::settle::S_CANCELLED: u8
+pub const nika_check_analyzer::settle::S_FAILURE: u8
+pub const nika_check_analyzer::settle::S_SKIPPED: u8
+pub const nika_check_analyzer::settle::S_SUCCESS: u8
+pub fn nika_check_analyzer::settle::edge_mask(kind: nika_check_analyzer::edges::EdgeKind) -> u8
+pub fn nika_check_analyzer::settle::fold_settled(tasks: usize, edges: &[nika_check_analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>], fact: core::option::Option<(usize, u8)>, admitted: impl core::ops::function::Fn(usize) -> u8) -> nika_check_analyzer::settle::Settled
 pub mod nika_check_analyzer::silent_literal
 pub fn nika_check_analyzer::silent_literal::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub mod nika_check_analyzer::static_args

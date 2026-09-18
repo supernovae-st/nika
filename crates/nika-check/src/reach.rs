@@ -43,18 +43,16 @@ use nika_schema::types::{OnErrorAction, WhenGate};
 use nika_types::suggest::damerau_levenshtein;
 
 use super::ByteSpan;
+// The gate substrate (Kleene-3 · the gate island) and the settled-state
+// domain (the bitset · the pass-set masks) live in the analyzer member —
+// ONE copy, shared with the consent lane (descended 2026-09-18).
+use crate::analyzer::gates::{K3, parse_gate};
+use crate::analyzer::settle::{S_ALL, S_CANCELLED, S_FAILURE, S_SKIPPED, S_SUCCESS, edge_mask};
 
 /// The `when:`-observable terminal statuses (spec `03-dag.md` §Task
 /// states — `pending`/`running` are non-terminal and never observable
 /// by a gate, which evaluates once all deps are terminal).
 pub const STATUS_VOCAB: [&str; 4] = ["success", "failure", "skipped", "cancelled"];
-
-/// Bit per terminal status.
-const S_SUCCESS: u8 = 1;
-const S_FAILURE: u8 = 2;
-const S_SKIPPED: u8 = 4;
-const S_CANCELLED: u8 = 8;
-const S_ALL: u8 = S_SUCCESS | S_FAILURE | S_SKIPPED | S_CANCELLED;
 
 /// Gates referencing more distinct tasks than this are not enumerated
 /// (4^6 = 4096 evaluations max per gate) — treated satisfiable, which
@@ -106,38 +104,6 @@ pub struct GateFinding {
     pub fix: Option<String>,
     /// The gate's source span.
     pub span: Option<ByteSpan>,
-}
-
-/// Kleene three-valued logic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum K3 {
-    True,
-    False,
-    Unknown,
-}
-
-impl K3 {
-    pub(crate) fn negate(self) -> Self {
-        match self {
-            Self::True => Self::False,
-            Self::False => Self::True,
-            Self::Unknown => Self::Unknown,
-        }
-    }
-    pub(crate) fn and(self, rhs: Self) -> Self {
-        match (self, rhs) {
-            (Self::False, _) | (_, Self::False) => Self::False,
-            (Self::True, Self::True) => Self::True,
-            _ => Self::Unknown,
-        }
-    }
-    pub(crate) fn or(self, rhs: Self) -> Self {
-        match (self, rhs) {
-            (Self::True, _) | (_, Self::True) => Self::True,
-            (Self::False, Self::False) => Self::False,
-            _ => Self::Unknown,
-        }
-    }
 }
 
 /// The closest vocabulary word, with a CLOSED-VOCABULARY threshold:
@@ -438,8 +404,10 @@ fn enumerate<'d>(
         match eval_k3(expr, sigma, b) {
             K3::True => verdict.satisfiable = true,
             K3::False => verdict.falsifiable = true,
-            // Unknown: could go either way at runtime — both
-            K3::Unknown => {
+            // Unknown — and any value `K3` may grow (it is `#[non_exhaustive]`
+            // · FCI-002): could go either way at runtime — both, the one
+            // reading that never declares a gate dead.
+            _ => {
                 verdict.satisfiable = true;
                 verdict.falsifiable = true;
             }
@@ -541,24 +509,6 @@ fn status_bindings(task: &nika_schema::raw::RawTask) -> StatusBindings {
         }
     }
     out
-}
-
-/// The bit-mask of settled states an edge admits (GATE-v2 pass-sets ·
-/// `analyzer::edges::EdgeKind::admits` projected onto the bitset).
-fn edge_mask(kind: crate::analyzer::edges::EdgeKind) -> u8 {
-    use crate::analyzer::edges::SettledState;
-    let mut mask = 0;
-    for (state, bit) in [
-        (SettledState::Success, S_SUCCESS),
-        (SettledState::Failure, S_FAILURE),
-        (SettledState::Skipped, S_SKIPPED),
-        (SettledState::Cancelled, S_CANCELLED),
-    ] {
-        if kind.admits(state) {
-            mask |= bit;
-        }
-    }
-    mask
 }
 
 /// One task's possible terminal-status set — pushing findings along
@@ -713,13 +663,6 @@ fn dead_detail<'e>(expr: &'e Expr, possible: &BTreeMap<&str, u8>, b: &'e StatusB
         "the `when:` gate is FALSE under every reachable combination of upstream \
          statuses — this task can never run{upstream}"
     )
-}
-
-/// Parse the single boolean island of a `when:` gate.
-pub(crate) fn parse_gate(src: &str) -> Option<Expr> {
-    let islands = scan_templates(src).ok()?;
-    let island = islands.into_iter().next()?;
-    Some(island.expr)
 }
 
 #[cfg(test)]

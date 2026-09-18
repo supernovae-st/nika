@@ -676,7 +676,7 @@ fn gated_scans(
     }
     (
         trifecta::scan_trifecta(wf, edges, topo_waves),
-        consent::scan_consent(wf, edges),
+        consent::scan_consent(wf, edges, topo_waves),
         order::scan_order(wf, edges),
     )
 }
