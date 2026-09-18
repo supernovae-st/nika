@@ -4830,14 +4830,18 @@ dependencies = [
 name = "nika-onboard"
 version = "0.120.0-dev"
 dependencies = [
+ "miette",
  "nika-bm25",
  "nika-catalog",
  "nika-check",
  "nika-display",
+ "nika-error",
  "nika-pack",
  "nika-schema",
  "nika-vocab",
  "serde_json",
+ "serde_yaml_bw",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
