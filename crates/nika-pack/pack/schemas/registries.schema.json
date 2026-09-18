@@ -343,7 +343,7 @@
     },
     "id": {
      "type": "string",
-     "pattern": "^NIKA-[A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}$"
+     "pattern": "^NIKA-([A-Z]{2,9}(-[A-Z][A-Z0-9_]{1,15})?-[0-9]{3}|1708)$"
     },
     "status": {
      "$ref": "#/$defs/lifecycle"
