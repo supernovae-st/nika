@@ -54,3 +54,18 @@ bin never name this crate; its `public-api.txt` is the split's receipt.
   unit's members).
 - Tests coupled to cli-side fixtures (retention×trace-store ·
   SAMPLE×check) live cli-side and exercise the re-exported paths.
+
+## Literal input binding
+
+`literal_inputs::{read, validate}` owns bounded native API value decoding and
+declared-input validation beside the unchanged `var_inputs` operator binder.
+The reader consumes at most 1 MiB + 1 bytes; JSON grammar/depth/numbers belong
+to serde_json, with duplicate map keys rejected at every nesting level. Types
+use canonical `parse_type` / `fits`, required values use the runtime refusal,
+and provided/default origins are `api-caller` / `file`. No environment lookup,
+expression interpolation, source mutation or execution lives in this seam.
+The CLI owns stdin selection, conflicts and structured refusal rendering.
+
+`run_protocol` carries the existing pure output/error/pause-envelope, shell-quoted
+carry and resume-hint formatters. CLI rendering retains its tests and reuses those
+formatters; literal payloads are never copied into the resume command.

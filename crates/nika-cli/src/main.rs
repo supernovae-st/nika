@@ -472,6 +472,10 @@ struct RunArgs {
     /// parses (numbers · booleans · arrays), else a string. Unknown keys refused.
     #[arg(long = "var", value_name = "KEY=VALUE")]
     var: Vec<String>,
+    /// Bind literal JSON values from stdin: `--inputs-json -` (object, at most
+    /// 1 MiB). No coercion or @env lookup. Conflicts with --var and `run -`.
+    #[arg(long, value_name = "-")]
+    inputs_json: Option<String>,
     /// Resume from a prior run's NDJSON trace (`nika run … --json >
     /// trace.ndjson`): every task whose identity matches a journaled
     /// success is skipped with a visible `task_cache_hit` — an edited
@@ -960,7 +964,7 @@ fn run_verb(
     let file = args.file.as_deref().unwrap_or_default();
     let repair_target =
         repair_target.unwrap_or_else(|| nika_cli::registry::repair_target_for_path(file));
-    verbs::run::run_with_repair_target(
+    verbs::run::run_with_inputs_json(
         file,
         args.json,
         args.output.as_deref(),
@@ -970,6 +974,7 @@ fn run_verb(
         args.model.as_deref(),
         args.access.as_deref(),
         &args.var,
+        args.inputs_json.as_deref(),
         resume.as_ref(),
         args.no_trace_file || env_flag("NIKA_NO_TRACE_FILE"),
         args.task.as_deref(),

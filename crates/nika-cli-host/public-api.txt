@@ -1405,6 +1405,48 @@ pub fn nika_cli_host::help_card::isolation_warning() -> core::option::Option<all
 pub fn nika_cli_host::help_card::isolation_warning_text(home: &str) -> alloc::string::String
 pub fn nika_cli_host::help_card::misplaced_fix_teaching() -> &'static str
 pub fn nika_cli_host::help_card::permits_teaching() -> &'static str
+pub mod nika_cli_host::literal_inputs
+#[non_exhaustive] pub struct nika_cli_host::literal_inputs::Refusal
+impl nika_cli_host::literal_inputs::Refusal
+pub fn nika_cli_host::literal_inputs::Refusal::code(&self) -> &str
+pub fn nika_cli_host::literal_inputs::Refusal::message(&self) -> &str
+impl core::error::Error for nika_cli_host::literal_inputs::Refusal
+impl core::fmt::Debug for nika_cli_host::literal_inputs::Refusal
+pub fn nika_cli_host::literal_inputs::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_cli_host::literal_inputs::Refusal
+pub fn nika_cli_host::literal_inputs::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli_host::literal_inputs::Refusal
+impl<T, U> core::convert::Into<U> for nika_cli_host::literal_inputs::Refusal where U: core::convert::From<T>
+pub fn nika_cli_host::literal_inputs::Refusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::literal_inputs::Refusal where U: core::convert::Into<T>
+pub type nika_cli_host::literal_inputs::Refusal::Error = core::convert::Infallible
+pub fn nika_cli_host::literal_inputs::Refusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::literal_inputs::Refusal where U: core::convert::TryFrom<T>
+pub type nika_cli_host::literal_inputs::Refusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::literal_inputs::Refusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_cli_host::literal_inputs::Refusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_cli_host::literal_inputs::Refusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_cli_host::literal_inputs::Refusal where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::literal_inputs::Refusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::literal_inputs::Refusal where T: ?core::marker::Sized
+pub fn nika_cli_host::literal_inputs::Refusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::literal_inputs::Refusal where T: ?core::marker::Sized
+pub fn nika_cli_host::literal_inputs::Refusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::literal_inputs::Refusal
+pub fn nika_cli_host::literal_inputs::Refusal::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_cli_host::literal_inputs::Refusal where T: core::fmt::Display
+pub fn nika_cli_host::literal_inputs::Refusal::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_cli_host::literal_inputs::Refusal where T: 'static
+pub fn nika_cli_host::literal_inputs::Refusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::literal_inputs::Refusal where T: ?core::marker::Sized
+pub fn nika_cli_host::literal_inputs::Refusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::literal_inputs::Refusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::literal_inputs::Refusal
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::literal_inputs::Refusal
+impl<T> typenum::type_operators::Same for nika_cli_host::literal_inputs::Refusal
+pub type nika_cli_host::literal_inputs::Refusal::Output = T
+pub fn nika_cli_host::literal_inputs::read(reader: impl alloc::io::read::Read) -> core::result::Result<alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, nika_cli_host::literal_inputs::Refusal>
+pub fn nika_cli_host::literal_inputs::validate(values: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_cli_host::var_inputs::ValidatedInputs, nika_cli_host::literal_inputs::Refusal>
 pub mod nika_cli_host::machine_truth
 pub struct nika_cli_host::machine_truth::MachineTruth
 pub nika_cli_host::machine_truth::MachineTruth::catalog_entries: usize
@@ -2851,6 +2893,16 @@ pub use nika_cli_host::retention::newest_per_workflow
 pub fn nika_cli_host::retention::fmt_bytes(bytes: u64) -> alloc::string::String
 pub fn nika_cli_host::retention::gc_at_run_start(dir: &std::path::Path, no_gc: bool, dry_run: bool) -> core::option::Option<alloc::string::String>
 pub fn nika_cli_host::retention::gc_line(report: &nika_dap::retention::GcReport) -> alloc::string::String
+pub mod nika_cli_host::run_protocol
+pub fn nika_cli_host::run_protocol::envelope_message(text: &str) -> &str
+pub fn nika_cli_host::run_protocol::error_envelope_line(message: &str) -> alloc::string::String
+pub fn nika_cli_host::run_protocol::first_nika_code(text: &str) -> core::option::Option<&str>
+pub fn nika_cli_host::run_protocol::json_type_name(value: &serde_json::value::Value) -> &'static str
+pub fn nika_cli_host::run_protocol::outputs_json_line(outputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> alloc::string::String
+pub fn nika_cli_host::run_protocol::outputs_note(outputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<alloc::string::String>
+pub fn nika_cli_host::run_protocol::paused_envelope_line(pause: &nika_runtime::pause::WorkflowPause, carry: &str) -> alloc::string::String
+pub fn nika_cli_host::run_protocol::resume_carry(vars: &[alloc::string::String], model_override: core::option::Option<&str>) -> alloc::string::String
+pub fn nika_cli_host::run_protocol::resume_hint_line(file: &str, trace: &std::path::Path, pause: &nika_runtime::pause::WorkflowPause, carry: &str) -> alloc::string::String
 pub mod nika_cli_host::run_settlement
 pub use nika_cli_host::run_settlement::RunCause
 pub use nika_cli_host::run_settlement::RunSettlement
