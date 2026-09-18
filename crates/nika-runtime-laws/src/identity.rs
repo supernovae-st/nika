@@ -15,7 +15,13 @@ pub const MACHINE_PROTOCOL_VERSION: u32 = 1;
 /// siblings without introducing a dependency edge solely for one constant.
 pub const MACHINE_SNAPSHOT_FORMAT_VERSION: u32 = 1;
 
-const SUPPORTED_CAPABILITIES: &[&str] = &["check", "executionSnapshot", "eventStream", "trace"];
+const SUPPORTED_CAPABILITIES: &[&str] = &[
+    "check",
+    "executionSnapshot",
+    "eventStream",
+    "trace",
+    "inputsLiteral",
+];
 
 /// The engine, source and machine-protocol identity compiled into this build.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

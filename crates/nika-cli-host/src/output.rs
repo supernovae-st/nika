@@ -115,10 +115,14 @@ pub fn linked_path(theme: crate::Theme, path: &str) -> String {
 
 /// Quote one shell word for the taught line: bare when it is already a
 /// safe word, single-quoted otherwise (embedded single quotes splice
-/// through the POSIX `'\''` idiom — paste-able in sh/bash/zsh).
+/// through the POSIX `'\''` idiom — paste-able in sh/bash/zsh). A word
+/// that STARTS with `=` is never bare: zsh's EQUALS expansion rewrites
+/// `=name` to a command path or aborts the line. A later `=` is literal
+/// in every shell, so `key=value` stays byte-identical.
 #[must_use]
 pub fn sh_word(word: &str) -> std::borrow::Cow<'_, str> {
     let safe = !word.is_empty()
+        && !word.starts_with('=')
         && word
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || "_=./:@+-".contains(c));
@@ -133,11 +137,15 @@ mod tests {
     use super::sh_word;
     use std::borrow::Cow;
 
-    /// What a POSIX shell reads back from one rendered word: `'…'` is
-    /// literal, `\'` outside quotes is one quote, and a bare character
-    /// must be one no shell expands. `None` = the rendering is unsafe.
+    /// What sh, bash and zsh all read back from one rendered word: `'…'`
+    /// is literal, `\'` outside quotes is one quote, and a bare character
+    /// must be one no shell expands — including zsh's EQUALS rule, which
+    /// rewrites a word that STARTS with a bare `=`. `None` = unsafe.
     fn shell_reads(rendered: &str) -> Option<String> {
         const SPECIAL: &str = "|&;<>()$`\"' \t\n*?[]#~%!{}";
+        if rendered.starts_with('=') {
+            return None;
+        }
         let mut out = String::new();
         let mut chars = rendered.chars();
         while let Some(c) = chars.next() {
@@ -203,9 +211,28 @@ mod tests {
     #[test]
     fn every_ascii_character_reads_back_verbatim() {
         for c in (1u8..128).map(char::from) {
-            let word = format!("a{c}b");
-            let rendered = sh_word(&word);
-            assert_eq!(shell_reads(&rendered).as_deref(), Some(&*word), "{c:?}");
+            // Mid-word and first position: zsh judges the leading one alone.
+            for word in [format!("a{c}b"), format!("{c}b")] {
+                let rendered = sh_word(&word);
+                assert_eq!(shell_reads(&rendered).as_deref(), Some(&*word), "{word:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_leading_equals_is_quoted_and_a_later_one_stays_bare() {
+        // zsh rewrites `=ls` to the path of ls and aborts on `=value`.
+        assert_eq!(sh_word("=ls"), "'=ls'");
+        assert_eq!(sh_word("=value"), "'=value'");
+        assert_eq!(sh_word("=draft.nika.yaml"), "'=draft.nika.yaml'");
+        assert_eq!(sh_word("="), "'='");
+        assert_eq!(sh_word("==x"), "'==x'");
+        // A later `=` is literal in every shell: the carry stays byte-identical.
+        for word in ["page=wifi", "a==b", "k="] {
+            assert!(
+                matches!(sh_word(word), Cow::Borrowed(same) if same == word),
+                "{word}"
+            );
         }
     }
 

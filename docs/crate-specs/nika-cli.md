@@ -31,6 +31,39 @@ task selection and before composition/dispatch. The notice names retained
 task pins and child invocation sites; it does not choose models or access.
 Machine modes and Quiet retain their existing announcement policy.
 
+### Literal native inputs (#1683)
+
+`nika run <file> --inputs-json -` reads one UTF-8 JSON object from stdin,
+limited to 1 MiB of serialized bytes (including whitespace). The reader takes
+at most the ceiling plus one byte before refusing oversize input; duplicate
+keys at any depth, malformed JSON/UTF-8 and non-object roots refuse. This
+channel conflicts with `--var` and workflow-source stdin (`nika run -`), before
+reading either source. Only `-` is accepted; values never ride a bulk argv flag.
+
+Values bind the admitted workflow's declared `inputs:` using the canonical
+`parse_type` / `fits` and `required_inputs_refusal` laws. There is no coercion,
+`@env:` lookup, expression interpretation, source rewrite or authority overlay.
+Provided keys carry `api-caller`; defaults carry `file`; unsupplied optional
+keys have no origin. Existing `--var` operator syntax and origins are unchanged.
+The same selected values bind resumed legs; a separate resume invocation must
+resend the JSON object on stdin (the resume hint carries `--inputs-json -`,
+never the payload). Check remains source-only.
+
+Refusals precede `workflow_started` and trace creation. Both machine modes
+emit the existing single-line `{"error":{"code":...,"message":...}}` envelope,
+with typed codes, not codes extracted from prose. Input/channel failures use
+ENV exit 3, consistent with existing operator-input admission; missing required
+values retain runtime code `NIKA-1708`. Other codes are `invalid_inputs_channel`,
+`input_channel_conflict`, `input_read_failed`, `inputs_too_large`,
+`invalid_inputs_utf8`, `invalid_inputs_json` (including duplicate keys),
+`invalid_inputs_root`, `unknown_input`, `invalid_input_type` and
+`input_type_mismatch`. No new NIKA error range is allocated.
+
+`--sdk-identity` advertises `inputsLiteral`; HTTP retains `jobInputs`.
+The SDK must test capability presence before admission and handle early pipe
+closure/cancellation; there is no fallback to `--var`. Native/HTTP packed SDK
+parity remains the consumer's qualification, outside this engine slice.
+
 ## 2. Verb surface
 
 ### 1.0 launch floor (locked · D-2026-06-10-N6 · amended D-2026-06-20-N1 — was "v0.81")

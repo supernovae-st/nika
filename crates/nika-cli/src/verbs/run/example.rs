@@ -152,7 +152,7 @@ pub fn example(
         false,
         model_override,
         access_pin,
-        &run_vars,
+        super::inputs::InputBindings::Operator(&run_vars),
         resume_req.as_ref(),
         // No run journal: the example is staged to a TEMP file — `.nika/
         // traces/` belongs to workspace runs (the same drive underneath,

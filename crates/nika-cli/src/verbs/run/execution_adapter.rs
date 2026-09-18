@@ -91,7 +91,7 @@ struct CliExecutionRequest<'a> {
     dry_run: bool,
     model_override: Option<&'a str>,
     access_pin: Option<&'a str>,
-    vars: &'a [String],
+    binding: inputs::InputBindings<'a>,
     resume: Option<&'a ResumeRequest>,
     no_trace_file: bool,
     task_filter: Option<&'a str>,
@@ -130,7 +130,7 @@ pub(crate) fn run_arm_context(
         dry_run: false,
         model_override: None,
         access_pin: None,
-        vars: &vars,
+        binding: inputs::InputBindings::Operator(&vars),
         resume: None,
         no_trace_file: false,
         task_filter: None,
@@ -150,7 +150,7 @@ pub(super) fn run_admitted(
     dry_run: bool,
     model_override: Option<&str>,
     access_pin: Option<&str>,
-    vars: &[String],
+    binding: inputs::InputBindings<'_>,
     resume: Option<&ResumeRequest>,
     no_trace_file: bool,
     task_filter: Option<&str>,
@@ -187,7 +187,7 @@ pub(super) fn run_admitted(
         dry_run,
         model_override,
         access_pin,
-        vars,
+        binding,
         resume,
         no_trace_file,
         task_filter,
@@ -236,7 +236,7 @@ fn run_admitted_context(
     let wf = world.driver.workflow().clone();
     let report = world.driver.report().clone();
     request.announce_model_scope(&report);
-    let inputs = match inputs::validated_var_overrides(request.vars, &wf, machine) {
+    let inputs = match request.binding.validate(&wf, machine) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -302,7 +302,7 @@ fn run_admitted_context(
         request.file,
         (&wf, &report),
         request.resume.is_some_and(|resume| resume.trace.is_some()),
-        request.vars,
+        request.binding,
         request.model_override,
         request.access_pin,
         request.max_cost_usd,
@@ -510,7 +510,7 @@ mod tests {
             dry_run: true,
             model_override: Some("nonexistent/model"),
             access_pin: None,
-            vars: &[],
+            binding: inputs::InputBindings::Operator(&[]),
             resume: None,
             no_trace_file: true,
             task_filter: None,

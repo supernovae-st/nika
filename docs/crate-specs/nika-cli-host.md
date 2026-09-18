@@ -69,3 +69,19 @@ The binary and all dispatch remain in `nika-cli`. Existing CLI integration
 tests exercise the re-exported surface and actual process boundary; the
 quoting law itself is unit-tested here, beside `output::sh_word`. No new
 crate, authority boundary, or exception to the size budget is introduced.
+
+## Literal input binding
+
+`literal_inputs::{read, validate}` owns bounded native API value decoding and
+declared-input validation beside the unchanged `var_inputs` operator binder.
+The reader consumes at most 1 MiB + 1 bytes; JSON grammar/depth/numbers belong
+to serde_json, with duplicate map keys rejected at every nesting level. Types
+use canonical `parse_type` / `fits`, required values use the runtime refusal,
+and provided/default origins are `api-caller` / `file`. No environment lookup,
+expression interpolation, source mutation or execution lives in this seam.
+The CLI owns stdin selection, conflicts and structured refusal rendering.
+
+`run_protocol` carries the existing pure output/error/pause-envelope, carry and
+resume-hint formatters. The carry quotes through the one shared `output::sh_word`;
+no second quoting law exists. CLI rendering retains its tests and reuses those
+formatters; literal payloads are never copied into the resume command.
