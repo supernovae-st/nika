@@ -29,3 +29,9 @@ The wave engine · dispatch · settle · recover · the pause and approval plane
 ## Boundaries (the seams the operator crate reaches)
 
 `TaskContract{of, lowered, check_fit}` · `decode_bytes` · `ValueTaint{of_task, bare, label}` · `task_integrity` · `scrub_outputs` · `RedactingSink` · `REDACTED` · `resolve_secrets` · `SandboxDecision` · `SandboxVerdict` · `select_command_sandbox` · `PermitWitness` · `PermitDecision` — `pub` here, `pub(crate) use` in `nika-runtime`.
+
+### Native input capability
+
+The shared engine identity advertises `inputsLiteral` for the CLI's bounded
+`run --inputs-json -` producer. This additive token does not rename Serve's
+`jobInputs` envelope capability or grant authority beyond declared inputs.

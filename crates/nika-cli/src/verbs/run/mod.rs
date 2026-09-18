@@ -43,8 +43,10 @@ mod execution_adapter;
 #[cfg(test)]
 mod extinction_tests;
 mod provenance;
-pub use provenance::run_with_repair_target;
+pub(crate) use provenance::run_verdict;
+pub use provenance::{run_with_inputs_json, run_with_repair_target};
 mod heartbeat;
+mod literal_inputs;
 mod resume_setup;
 mod teardown;
 mod thread;
@@ -182,7 +184,7 @@ pub fn run(
         dry_run,
         model_override,
         access_pin,
-        vars,
+        inputs::InputBindings::Operator(vars),
         resume,
         no_trace_file,
         task_filter,
@@ -213,71 +215,6 @@ fn preflight(
     })?;
     run_start_gc(no_gc, dry_run);
     Ok((output_json, max_cost_usd))
-}
-
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
-#[must_use]
-pub(crate) fn run_verdict(
-    file: &str,
-    json: bool,
-    output: Option<&str>,
-    theme: Theme,
-    mode: RenderMode,
-    dry_run: bool,
-    model_override: Option<&str>,
-    access_pin: Option<&str>,
-    vars: &[String],
-    resume: Option<&ResumeRequest>,
-    no_trace_file: bool,
-    task_filter: Option<&str>,
-    no_outputs: bool,
-    max_cost_usd: Option<f64>,
-    no_gc: bool,
-    require_signature: bool,
-    repair_target: Option<nika_display::check_render::RepairTarget>,
-) -> RunVerdict {
-    let (output_json, max_cost_usd) = match preflight(output, json, max_cost_usd, no_gc, dry_run) {
-        Ok(pair) => pair,
-        Err(verdict) => return *verdict,
-    };
-    let (source, wf, report) =
-        match provenance::capture_checked_source(file, repair_target, (output_json, json)) {
-            Ok(checked) => checked,
-            Err(verdict) => return *verdict,
-        };
-    let file_owned = source.logical_path().to_owned();
-    let file = file_owned.as_str();
-    if require_signature && let Err(code) = require_signature_gate(&source, output_json || json) {
-        return RunVerdict::bare(code);
-    }
-    let (_wf, _report, _skills) = match scoped_clean_gate(
-        wf,
-        report,
-        task_filter,
-        &source,
-        json,
-        theme,
-        (output_json, model_override),
-    ) {
-        Ok(triple) => triple,
-        Err(code) => return RunVerdict::bare(code),
-    };
-    run_admitted(
-        file,
-        &source,
-        (json, output_json),
-        theme,
-        mode,
-        dry_run,
-        model_override,
-        access_pin,
-        vars,
-        resume,
-        no_trace_file,
-        task_filter,
-        no_outputs,
-        max_cost_usd,
-    )
 }
 
 /// The access announce (D-2026-08-04-N1 · P2.6 + R-4), PROJECTED from
@@ -349,7 +286,7 @@ fn execute_and_ask(
     file: &str,
     (wf, report): (&RawWorkflow, &CheckReport),
     resumed: bool,
-    vars: &[String],
+    binding: inputs::InputBindings<'_>,
     model_override: Option<&str>,
     access_pin: Option<&str>,
     max_cost_usd: Option<f64>,
@@ -366,7 +303,7 @@ fn execute_and_ask(
     // The re-invocation carry (`--var`/`--model`) every taught resume
     // line re-supplies — a required-input workflow refuses a var-less
     // resume, so a taught line without them failed on paste.
-    let carry = epilogue::resume_carry(vars, model_override);
+    let carry = binding.resume_carry(model_override);
     let future = execute(
         runtime,
         (file, wf),
@@ -409,7 +346,7 @@ fn execute_and_ask(
         verdict = answered_leg(
             file,
             &request,
-            vars,
+            binding,
             model_override,
             access_pin,
             max_cost_usd,
@@ -434,7 +371,7 @@ fn execute_and_ask(
 fn answered_leg(
     file: &str,
     request: &ResumeRequest,
-    vars: &[String],
+    binding: inputs::InputBindings<'_>,
     model_override: Option<&str>,
     access_pin: Option<&str>,
     max_cost_usd: Option<f64>,
@@ -459,7 +396,7 @@ fn answered_leg(
     ) {
         eprintln!("{notice}");
     }
-    let inputs = match inputs::validated_var_overrides(vars, wf, output_json) {
+    let inputs = match binding.validate(wf, output_json || json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -495,7 +432,7 @@ fn answered_leg(
     // #1438 · the continuation listens like the first leg: the same
     // cancel, observed at the runtime's wave boundary.
     let runtime = runtime.with_cancel(cancel.clone());
-    let carry = epilogue::resume_carry(vars, model_override);
+    let carry = binding.resume_carry(model_override);
     let future = execute(
         &runtime,
         (file, wf),

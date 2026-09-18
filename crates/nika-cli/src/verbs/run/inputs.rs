@@ -25,3 +25,29 @@ pub(super) fn validated_var_overrides(
     }
     Ok(validated)
 }
+
+/// The input channel is selected once; resumed legs retain the same literal map.
+#[derive(Clone, Copy)]
+pub(crate) enum InputBindings<'a> {
+    Operator(&'a [String]),
+    Literal(&'a std::collections::BTreeMap<String, serde_json::Value>),
+}
+
+impl InputBindings<'_> {
+    pub(super) fn validate(self, wf: &RawWorkflow, machine: bool) -> Result<ValidatedInputs, u8> {
+        match self {
+            Self::Operator(vars) => validated_var_overrides(vars, wf, machine),
+            Self::Literal(values) => super::literal_inputs::validate(values, wf)
+                .map_err(|error| super::literal_inputs::refuse(&error, machine)),
+        }
+    }
+
+    pub(super) fn resume_carry(self, model: Option<&str>) -> String {
+        match self {
+            Self::Operator(vars) => epilogue::resume_carry(vars, model),
+            // Never place the payload in argv or reinterpret it as --var.
+            // A separate resume invocation must resend the object on stdin.
+            Self::Literal(_) => format!("{} --inputs-json -", epilogue::resume_carry(&[], model)),
+        }
+    }
+}

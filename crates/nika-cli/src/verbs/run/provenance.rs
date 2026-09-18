@@ -37,7 +37,67 @@ pub fn run_with_repair_target(
         dry_run,
         model_override,
         access_pin,
+        inputs::InputBindings::Operator(vars),
+        resume,
+        no_trace_file,
+        task_filter,
+        no_outputs,
+        max_cost_usd,
+        no_gc,
+        require_signature,
+        Some(repair_target),
+    )
+    .code
+}
+
+/// Execute with an optional literal JSON-object stdin channel (`Some("-")`).
+/// `--var` and workflow-source stdin conflict with that channel; refusals use
+/// the run machine envelope before execution. Existing callers can keep [`run`].
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+#[must_use]
+pub fn run_with_inputs_json(
+    file: &str,
+    json: bool,
+    output: Option<&str>,
+    theme: Theme,
+    mode: RenderMode,
+    dry_run: bool,
+    model_override: Option<&str>,
+    access_pin: Option<&str>,
+    vars: &[String],
+    inputs_json: Option<&str>,
+    resume: Option<&ResumeRequest>,
+    no_trace_file: bool,
+    task_filter: Option<&str>,
+    no_outputs: bool,
+    max_cost_usd: Option<f64>,
+    no_gc: bool,
+    require_signature: bool,
+    repair_target: nika_display::check_render::RepairTarget,
+) -> u8 {
+    let literal = match super::literal_inputs::capture(
+        inputs_json,
         vars,
+        file,
+        json || output == Some("json"),
+    ) {
+        Ok(value) => value,
+        Err(code) => return code,
+    };
+    let binding = literal.as_ref().map_or(
+        inputs::InputBindings::Operator(vars),
+        inputs::InputBindings::Literal,
+    );
+    run_verdict(
+        file,
+        json,
+        output,
+        theme,
+        mode,
+        dry_run,
+        model_override,
+        access_pin,
+        binding,
         resume,
         no_trace_file,
         task_filter,
@@ -77,4 +137,69 @@ fn refuse_source(out: &crate::verbs::VerbOutput, output_json: bool, json: bool) 
         epilogue::emit_diagnostic(&refusal_text(out), output_json);
     }
     Box::new(RunVerdict::bare(out.code))
+}
+
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+#[must_use]
+pub(crate) fn run_verdict(
+    file: &str,
+    json: bool,
+    output: Option<&str>,
+    theme: Theme,
+    mode: RenderMode,
+    dry_run: bool,
+    model_override: Option<&str>,
+    access_pin: Option<&str>,
+    binding: inputs::InputBindings<'_>,
+    resume: Option<&ResumeRequest>,
+    no_trace_file: bool,
+    task_filter: Option<&str>,
+    no_outputs: bool,
+    max_cost_usd: Option<f64>,
+    no_gc: bool,
+    require_signature: bool,
+    repair_target: Option<nika_display::check_render::RepairTarget>,
+) -> RunVerdict {
+    let (output_json, max_cost_usd) = match preflight(output, json, max_cost_usd, no_gc, dry_run) {
+        Ok(pair) => pair,
+        Err(verdict) => return *verdict,
+    };
+    let (source, wf, report) =
+        match provenance::capture_checked_source(file, repair_target, (output_json, json)) {
+            Ok(checked) => checked,
+            Err(verdict) => return *verdict,
+        };
+    let file_owned = source.logical_path().to_owned();
+    let file = file_owned.as_str();
+    if require_signature && let Err(code) = require_signature_gate(&source, output_json || json) {
+        return RunVerdict::bare(code);
+    }
+    let (_wf, _report, _skills) = match scoped_clean_gate(
+        wf,
+        report,
+        task_filter,
+        &source,
+        json,
+        theme,
+        (output_json, model_override),
+    ) {
+        Ok(triple) => triple,
+        Err(code) => return RunVerdict::bare(code),
+    };
+    run_admitted(
+        file,
+        &source,
+        (json, output_json),
+        theme,
+        mode,
+        dry_run,
+        model_override,
+        access_pin,
+        binding,
+        resume,
+        no_trace_file,
+        task_filter,
+        no_outputs,
+        max_cost_usd,
+    )
 }
