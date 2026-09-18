@@ -152,17 +152,17 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 1065
-  aggregate_sha256: de51e369ff5dcd4c51d462c2b76e4629fb3070847049f6833f8ff0b9f111dce4
+  aggregate_sha256: 5fa27030e218ef1667b12d37834ae388e7ac075f13bf8739262834e672ee9941
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 233
-  aggregate_sha256: 7d66ccd027f1398961105d991ced9dc03e6a15dd86110c585678f77f47d4f573
+  aggregate_sha256: 56d4308a8d93867bfb2aa4db25a949572c9f1f5d55167681f104851dab78ac9c
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 151
-  aggregate_sha256: 18c2f9fc902d1bea21ac2734cf8e237ff9572328219c9c8de581b96ffa91832a
+  aggregate_sha256: 8f34023d4c439b95b8e3c333b6146c789e10555bb3245b624475a3c7bafa8108
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
@@ -188,7 +188,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 261
-  aggregate_sha256: 19c54a7262d204dd30ed5e4fafb8d3ec807e9eff3ca82daa950afd6631172c4a
+  aggregate_sha256: 44013e0f8f815bcf5981cd64742b32d1fad4d1aa5e2e10a23e2fedbcb6a3340e
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
