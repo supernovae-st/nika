@@ -26,6 +26,7 @@ REFUSED = (
     "foo.nika\\", "/absolute/foo.nika", "workflows\\foo.nika", "C:foo.nika",
     "file:///tmp/foo.nika", "https://example.com/foo.nika", "foo.nika\n",
     "foo\n.nika", "foo\x00.nika", "foo\x7f.nika", "work\x00flows/foo.nika",
+    "\u0345://foo.nika", "\u2160://foo.nika", "a\u0345://foo.nika", "é://foo.nika",
 )
 
 

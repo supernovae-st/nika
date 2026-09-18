@@ -159,10 +159,12 @@ pub fn with_program_suffix(path: &str) -> Option<String> {
 }
 
 fn is_clean_path(path: &str) -> bool {
+    // RFC 3986 schemes use ASCII, not a language's Unicode letter classes.
+    // Unicode remains valid in ordinary filenames; caller path policy is separate.
     let is_uri = path.split_once("://").is_some_and(|(scheme, _)| {
-        let mut chars = scheme.chars();
-        chars.next().is_some_and(char::is_alphabetic)
-            && chars.all(|ch| ch.is_alphanumeric() || matches!(ch, '+' | '-' | '.'))
+        let mut bytes = scheme.bytes();
+        bytes.next().is_some_and(|byte| byte.is_ascii_alphabetic())
+            && bytes.all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'-' | b'.'))
     });
     !is_uri && path.bytes().all(|byte| byte >= 0x20 && byte != 0x7f)
 }
@@ -344,6 +346,10 @@ mod tests {
             "C:/workflows/foo.nika",
             r"C:\workflows\foo.nika",
             "nested/file://foo.nika",
+            "\u{0345}://foo.nika",
+            "\u{2160}://foo.nika",
+            "a\u{0345}://foo.nika",
+            "é://foo.nika",
         ] {
             assert!(is_canonical_program_path(path), "{path}");
             assert_eq!(with_program_suffix(path).as_deref(), Some(path), "{path}");
