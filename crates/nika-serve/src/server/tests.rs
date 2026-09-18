@@ -449,6 +449,8 @@ mod cancel_race;
 #[cfg(test)]
 mod durable_queue;
 #[cfg(test)]
+mod inputs;
+#[cfg(test)]
 mod pause_boundary;
 #[cfg(test)]
 mod request_lifecycle;

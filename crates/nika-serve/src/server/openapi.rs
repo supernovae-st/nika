@@ -114,6 +114,7 @@ fn schemas() -> Value {
                 }
             },
             "JobByName": job_by_name_schema(),
+            "CheckByName": check_by_name_schema(),
             "ExecutionSnapshot": {
                 "type": "object",
                 "additionalProperties": false,
@@ -519,10 +520,15 @@ fn job_by_name_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies do not carry this field.",
+        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies reject both access and inputs overlays, including null or empty maps. Optional inputs are literal JSON values checked against declared keys, types and required values before a job exists; strings are never CLI @env instructions or expressions.",
         "required": ["workflow"],
         "properties": {
             "workflow": {"type": "string", "minLength": 1, "maxLength": 4096},
+            "inputs": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Literal JSON overrides for declared workflow inputs. Unknown keys, wrong types and missing required values refuse with 422; defaults remain authored. A present null is refused. Inputs bind exact request identity and survive durable queue recovery; workflow bytes are unchanged."
+            },
             "access": {
                 "type": "string",
                 "minLength": 1,
@@ -533,12 +539,26 @@ fn job_by_name_schema() -> Value {
     })
 }
 
+fn check_by_name_schema() -> Value {
+    let job = job_by_name_schema();
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["workflow"],
+        "description": "Source-only Check by served name. Required launch inputs may remain unsupplied; caller inputs are accepted only on POST /v1/jobs and are refused here. Check does not execute an access plan.",
+        "properties": {
+            "workflow": job["properties"]["workflow"],
+            "access": job["properties"]["access"]
+        }
+    })
+}
+
 fn jobs_path() -> Value {
     json!({"post": {
         "summary": "Admit a workflow as a durable job — by served name, or as immutable snapshot bytes",
         "description": "Two forms, one admission (ADR-131). `{\"workflow\": \"<name>\"}` names a workflow the served registry lists: the resident captures its world through ExecutionService, exactly as a schedule does. Optional `access` on that form is CLI `--access` for this job only. A snapshot body is the world `nika check <file> --json --sdk-snapshot` prints, decoded and readmitted through the same ExecutionService; its digests are optional caller-supplied integrity digests (a content assertion, never a signature). Snapshot jobs inherit the resident's unpinned plan. The server never interprets a caller filesystem path. Idempotency binds to the exact request bytes.",
         "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}],
-        "requestBody": snapshot_request_body(),
+        "requestBody": snapshot_request_body("JobByName"),
         "responses": {
             "202": {"description": "Created", "content": json_job()},
             "200": {"description": "Idempotent replay", "content": json_job()},
@@ -558,7 +578,7 @@ fn check_path() -> Value {
     json!({"post": {
         "summary": "Judge a workflow without creating a job — by served name, or as immutable snapshot bytes",
         "description": "Runs the same admission as POST /v1/jobs (ADR-131 · both forms) over the exact request body, and creates nothing.",
-        "requestBody": snapshot_request_body(),
+        "requestBody": snapshot_request_body("CheckByName"),
         "responses": {
             "200": {"description": "Compact snapshot validation acknowledgement, not the full engine check report", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SnapshotValidationAck"}}}},
             "401": error_ref(), "408": error_named("Request deadline"),
@@ -616,9 +636,9 @@ fn job_trace_verify_path() -> Value {
     }})
 }
 
-fn snapshot_request_body() -> Value {
+fn snapshot_request_body(named: &str) -> Value {
     json!({"required": true, "content": {"application/json": {"schema": {"oneOf": [
-        {"$ref": "#/components/schemas/JobByName"},
+        {"$ref": format!("#/components/schemas/{named}")},
         {"$ref": "#/components/schemas/ExecutionSnapshot"}
     ]}}}})
 }

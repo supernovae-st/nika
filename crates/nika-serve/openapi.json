@@ -40,6 +40,27 @@
       }
     },
     "schemas": {
+      "CheckByName": {
+        "additionalProperties": false,
+        "description": "Source-only Check by served name. Required launch inputs may remain unsupplied; caller inputs are accepted only on POST /v1/jobs and are refused here. Check does not execute an access plan.",
+        "properties": {
+          "access": {
+            "description": "Access pin, same vocabulary as `--access` (class or harness id). A pin never silently substitutes a metered seat.",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workflow": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow"
+        ],
+        "type": "object"
+      },
       "Error": {
         "additionalProperties": false,
         "properties": {
@@ -293,13 +314,18 @@
       },
       "JobByName": {
         "additionalProperties": false,
-        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies do not carry this field.",
+        "description": "The by-name form (ADR-131): a workflow the served registry lists (GET /v1/workflows · project-root-relative, `.nika.yaml`). The resident captures its world exactly as a schedule does — the one owner of the snapshot and its digest domain. Idempotency binds to these request bytes. Optional `access` is the same pin as CLI `--access` (a pin is a pin). Absent: the resident's unpinned plan. Snapshot bodies reject both access and inputs overlays, including null or empty maps. Optional inputs are literal JSON values checked against declared keys, types and required values before a job exists; strings are never CLI @env instructions or expressions.",
         "properties": {
           "access": {
             "description": "Access pin, same vocabulary as `--access` (class or harness id). A pin never silently substitutes a metered seat.",
             "maxLength": 64,
             "minLength": 1,
             "type": "string"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "description": "Literal JSON overrides for declared workflow inputs. Unknown keys, wrong types and missing required values refuse with 422; defaults remain authored. A present null is refused. Inputs bind exact request identity and survive durable queue recovery; workflow bytes are unchanged.",
+            "type": "object"
           },
           "workflow": {
             "maxLength": 4096,
@@ -1019,7 +1045,7 @@
               "schema": {
                 "oneOf": [
                   {
-                    "$ref": "#/components/schemas/JobByName"
+                    "$ref": "#/components/schemas/CheckByName"
                   },
                   {
                     "$ref": "#/components/schemas/ExecutionSnapshot"

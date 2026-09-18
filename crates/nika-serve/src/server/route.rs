@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::sync::Arc;
 
@@ -51,15 +52,55 @@ struct SnapshotWireUnit<'a> {
 /// The by-name form of the job door (ADR-131 · #1441): the world lives in
 /// the served registry and the resident captures it — the one owner.
 #[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct JobByName {
     /// Owned, not borrowed: a name with an escape (`nested\\root`) must
     /// still reach the name judge, which refuses it as not served.
     workflow: String,
-    #[serde(default)]
-    units: Option<serde::de::IgnoredAny>,
+    /// Literal JSON values; a present null is not an absent map.
+    #[serde(default, deserialize_with = "present_inputs")]
+    inputs: Option<BTreeMap<String, serde_json::Value>>,
     /// Same vocabulary as `--access`. Only absence inherits the unpinned plan.
     #[serde(default, deserialize_with = "present_access")]
     access: Option<String>,
+}
+
+/// Only envelope keys, without retaining snapshot units or caller values.
+struct EnvelopeKeys(BTreeSet<String>);
+
+impl<'de> serde::Deserialize<'de> for EnvelopeKeys {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Keys;
+        impl<'de> serde::de::Visitor<'de> for Keys {
+            type Value = BTreeSet<String>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a job request object")
+            }
+
+            fn visit_map<M: serde::de::MapAccess<'de>>(
+                self,
+                mut map: M,
+            ) -> Result<Self::Value, M::Error> {
+                let mut keys = BTreeSet::new();
+                while let Some(key) = map.next_key::<String>()? {
+                    map.next_value::<serde::de::IgnoredAny>()?;
+                    keys.insert(key);
+                }
+                Ok(keys)
+            }
+        }
+        deserializer.deserialize_map(Keys).map(Self)
+    }
+}
+
+fn present_inputs<'de, D>(
+    deserializer: D,
+) -> Result<Option<BTreeMap<String, serde_json::Value>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    <BTreeMap<String, serde_json::Value> as serde::Deserialize>::deserialize(deserializer).map(Some)
 }
 
 /// A present pin must be a string; JSON null must not silently erase it.
@@ -225,15 +266,19 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
     // --sdk-snapshot` prints (digests optional: computed when absent,
     // checked when present).
     match named_job(&body) {
-        Ok(Some((name, access))) => {
-            let admitted = match admit_by_name(&name, &state).await {
+        Ok(Some(job)) => {
+            let admitted = match admit_by_name(&job.workflow, &state).await {
                 Ok(admitted) => admitted,
                 Err(response) => return response,
             };
+            let inputs = job.inputs.unwrap_or_default();
+            if let Err(error) = super::inputs::validate(&admitted, &inputs) {
+                return error.into_response();
+            }
             let Ok(world) = admitted.snapshot().encode() else {
                 return admission_refused().into_response();
             };
-            return admit_job(state, key, digest, name, world, access).await;
+            return admit_job(state, key, digest, job.workflow, world, job.access, inputs).await;
         }
         Ok(None) => {}
         Err(error) => return error.into_response(),
@@ -242,32 +287,50 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
         Ok(admitted) => admitted,
         Err(response) => return response,
     };
+    if let Err(error) = super::inputs::validate(&admitted, &BTreeMap::new()) {
+        return error.into_response();
+    }
     let workflow = admitted.snapshot().root().to_owned();
     // The stored world is the engine's canonical encoding: digests the
     // caller omitted are present from here on.
     let Ok(world) = admitted.snapshot().encode() else {
         return admission_refused().into_response();
     };
-    admit_job(state, key, digest, workflow, world, None).await
+    admit_job(state, key, digest, workflow, world, None, BTreeMap::new()).await
 }
 
 /// The by-name form, when the body is one (`{"workflow": "<name>"}` with no
 /// `units`); `Ok(None)` for a snapshot body. Optional `access` is the CLI
 /// pin. An empty pin is NIKA-1802 — never silently unpinned.
-fn named_job(body: &[u8]) -> Result<Option<(String, Option<String>)>, ApiError> {
-    let probe: JobByName = match serde_json::from_slice(body) {
-        Ok(probe) => probe,
-        Err(_) => return Ok(None),
+fn named_job(body: &[u8]) -> Result<Option<JobByName>, ApiError> {
+    // Inspect only envelope keys; do not allocate unbounded snapshot units
+    // before the existing streaming unit-count guard gets to judge them.
+    let Ok(EnvelopeKeys(object)) = serde_json::from_slice::<EnvelopeKeys>(body) else {
+        return Ok(None);
     };
-    if probe.units.is_some() {
+    if object.contains("units") {
+        // A frozen world has no request overlay, even when its value is null.
+        if object
+            .iter()
+            .any(|key| !matches!(key.as_str(), "format_version" | "root" | "digest" | "units"))
+        {
+            return Err(invalid_job_envelope());
+        }
         return Ok(None);
     }
-    let access = match probe.access {
-        None => None,
-        Some(pin) if pin.trim().is_empty() => return Err(empty_access_pin()),
-        Some(pin) => Some(pin),
-    };
-    Ok(Some((probe.workflow, access)))
+    let job: JobByName = serde_json::from_slice(body).map_err(|_| invalid_job_envelope())?;
+    if job.access.as_ref().is_some_and(|pin| pin.trim().is_empty()) {
+        return Err(empty_access_pin());
+    }
+    Ok(Some(job))
+}
+
+fn invalid_job_envelope() -> ApiError {
+    ApiError::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "malformed_snapshot",
+        "use workflow with optional literal inputs and access; unknown fields, null inputs/pins and snapshot overlays are refused",
+    )
 }
 
 fn empty_access_pin() -> ApiError {
@@ -334,7 +397,19 @@ async fn check_snapshot(
     // The check door admits by name too (ADR-131): the same two forms, the
     // same admission, the compact acknowledgement.
     let admitted = match named_job(&body) {
-        Ok(Some((name, _))) => admit_by_name(&name, &state).await,
+        Ok(Some(job)) => {
+            // Check judges source, not launch bindings. Do not require values
+            // here or silently accept an envelope the source-only check ignores.
+            if job.inputs.is_some() {
+                return ApiError::new(
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    "check_inputs_unsupported",
+                    "source-only Check does not accept caller inputs; supply them on POST /v1/jobs",
+                )
+                .into_response();
+            }
+            admit_by_name(&job.workflow, &state).await
+        }
         Ok(None) => readmit_body(&body, &state).await,
         Err(error) => return error.into_response(),
     };
@@ -499,10 +574,11 @@ async fn admit_job(
     workflow: String,
     world: String,
     access_pin: Option<String>,
+    inputs: BTreeMap<String, serde_json::Value>,
 ) -> Response<ResponseBody> {
     match state
         .coordinator
-        .admit_manual(key, digest, workflow, world, access_pin)
+        .admit_manual_inputs(key, digest, workflow, world, access_pin, inputs)
         .await
     {
         Ok(admission) => admission_response(admission),

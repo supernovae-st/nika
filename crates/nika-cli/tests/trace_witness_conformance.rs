@@ -112,6 +112,7 @@ fn runtime_trace_fixtures_hold_their_verify_verdict() {
             other => panic!("{name}: unknown fixture verdict {other}"),
         }
         assert_cost_projection(&expected, &out.text, &name);
+        assert_prologue_projection(&expected, &trace, &name);
         if let Some(items) = expected["items"].as_object() {
             assert_item_projection(&trace, &name, items);
         }
@@ -120,6 +121,24 @@ fn runtime_trace_fixtures_hold_their_verify_verdict() {
         seen >= 9,
         "the spec runtime/trace corpus has >= 9 fixtures (saw {seen})"
     );
+}
+
+fn assert_prologue_projection(expected: &serde_json::Value, trace: &std::path::Path, name: &str) {
+    if let Some(prologue) = expected.get("prologue") {
+        use std::io::BufRead;
+        let file = std::fs::File::open(trace).expect("readable journal");
+        let first = std::io::BufReader::new(file)
+            .lines()
+            .next()
+            .expect("journal has a prologue")
+            .expect("readable first frame");
+        let frame = serde_json::from_str(&first).expect("prologue JSON");
+        assert_eq!(
+            prologue_difference(prologue, &frame),
+            None,
+            "{name}: boot facts"
+        );
+    }
 }
 
 fn assert_item_projection(
@@ -151,4 +170,120 @@ fn assert_cost_projection(expected: &serde_json::Value, text: &str, name: &str) 
             "{name}: cost_replay `{cost}` renders `{marker}`: {text}"
         );
     }
+}
+
+/// Semantic boot claims are independent of an intact unkeyed chain.
+fn prologue_difference(expected: &serde_json::Value, frame: &serde_json::Value) -> Option<String> {
+    if frame["kind"] != "workflow_started" {
+        return Some("missing initial workflow_started".into());
+    }
+    let Some(fields) = frame["fields"].as_array() else {
+        return Some("malformed prologue fields".into());
+    };
+    let mut values = std::collections::BTreeMap::new();
+    for field in fields {
+        let Some(key) = field["key"].as_str() else {
+            return Some("malformed prologue field".into());
+        };
+        if values.insert(key, &field["value"]).is_some() {
+            return Some(format!("duplicate prologue field {key}"));
+        }
+    }
+    for (property, present) in [("present", true), ("absent", false)] {
+        if let Some(keys) = expected[property].as_array() {
+            for key in keys {
+                let key = key.as_str().expect("fixture field name");
+                if values.contains_key(key) != present {
+                    return Some(format!("prologue {key}: expected {property}"));
+                }
+            }
+        }
+    }
+    if let Some(want) = expected.get("input_origins") {
+        let Some(raw) = values.get("inputs").and_then(|value| value.as_str()) else {
+            return Some("missing inputs origin map".into());
+        };
+        let Ok(origins) = unique_origins(raw) else {
+            return Some("malformed inputs origin map".into());
+        };
+        let got = serde_json::to_value(origins).expect("origin map serializes");
+        if &got != want {
+            return Some(format!("input origins: want {want}, got {got}"));
+        }
+    }
+    None
+}
+
+fn unique_origins(
+    raw: &str,
+) -> Result<std::collections::BTreeMap<String, String>, serde_json::Error> {
+    struct OriginMap;
+    impl<'de> serde::de::Visitor<'de> for OriginMap {
+        type Value = std::collections::BTreeMap<String, String>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("a string map with unique input names")
+        }
+
+        fn visit_map<M: serde::de::MapAccess<'de>>(
+            self,
+            mut map: M,
+        ) -> Result<Self::Value, M::Error> {
+            let mut origins = std::collections::BTreeMap::new();
+            while let Some((name, origin)) = map.next_entry::<String, String>()? {
+                if origins.insert(name, origin).is_some() {
+                    return Err(serde::de::Error::custom("duplicate input origin"));
+                }
+            }
+            Ok(origins)
+        }
+    }
+    let mut decoder = serde_json::Deserializer::from_str(raw);
+    let origins = serde::Deserializer::deserialize_map(&mut decoder, OriginMap)?;
+    decoder.end()?;
+    Ok(origins)
+}
+
+#[test]
+fn origin_judge_detects_misattribution_and_malformed_boot_facts() {
+    use serde_json::json;
+    let expected = json!({"present": ["inputs"], "absent": ["seed"],
+        "input_origins": {"supplied": "api-caller", "defaulted": "file"}});
+    let boot = |raw: serde_json::Value| {
+        json!({"kind": "workflow_started",
+        "fields": [{"key": "inputs", "value": raw}]})
+    };
+    let valid = json!({"supplied": "api-caller", "defaulted": "file"}).to_string();
+    assert_eq!(prologue_difference(&expected, &boot(json!(valid))), None);
+    for wrong in ["cli-operator", "ci-context", "env", "file"] {
+        let raw = json!({"supplied": wrong, "defaulted": "file"}).to_string();
+        assert!(prologue_difference(&expected, &boot(json!(raw))).is_some());
+    }
+    for raw in [
+        "null",
+        "[]",
+        "{}",
+        "{",
+        "{\"supplied\":true}",
+        "{\"supplied\":\"file\",\"supplied\":\"api-caller\",\"defaulted\":\"file\"}",
+        "{\"supplied\":\"api-caller\",\"defaulted\":\"file\",\"extra\":\"file\"}",
+    ] {
+        assert!(prologue_difference(&expected, &boot(json!(raw))).is_some());
+    }
+    assert!(prologue_difference(&expected, &boot(json!(null))).is_some());
+    let mut duplicate = boot(json!(valid));
+    duplicate["fields"]
+        .as_array_mut()
+        .expect("fields")
+        .push(json!({"key": "inputs", "value": valid}));
+    assert!(prologue_difference(&expected, &duplicate).is_some());
+    let mut missing = boot(json!(valid));
+    missing["kind"] = json!("task_started");
+    assert!(prologue_difference(&expected, &missing).is_some());
+    let mut unexpected = boot(json!(valid));
+    unexpected["fields"]
+        .as_array_mut()
+        .expect("fields")
+        .push(json!({"key": "seed", "value": 0}));
+    assert!(prologue_difference(&expected, &unexpected).is_some());
 }

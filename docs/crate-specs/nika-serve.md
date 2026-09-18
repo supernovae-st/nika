@@ -332,3 +332,42 @@ capabilities require their own typed authorities and tests before projection.
   idempotency, and monotone SSE resume are required before routes.
 - ADR-118 — descriptor-rooted custody precedent through `nika-fs::OwnedDir`.
 - ADR-003 — full 12-gate admission protocol.
+
+## Caller inputs on named jobs (#1642)
+
+`POST /v1/jobs` accepts the closed by-name envelope
+`{ workflow, inputs?, access? }`. A present `inputs` must be a JSON object,
+and a present access pin must be a nonempty string; null never erases either.
+Other envelope fields are refused. Inputs use the declared workflow keys and
+the canonical TypeExpr fit, with the runtime's required-input refusal before a
+job is persisted. There is no CLI coercion, `@env:` lookup or expression
+interpretation: JSON strings are literal data. Declared defaults remain in the
+workflow; source, permits and model are never rewritten.
+
+Source-only `POST /v1/check` continues to accept required-input declarations
+without launch values; it rejects supplied input maps rather than ignoring them.
+The snapshot form rejects input overlays, including empty objects and null.
+A snapshot launch with unsupplied required inputs is also refused before a job
+exists; source-only Check can still accept its declarations.
+A snapshot remains the frozen byte world; no request field can silently overlay
+it. No model/spend controls or jobs collection route are added.
+
+Exact request bytes, including inputs, remain the idempotency identity. The
+validated caller map is persisted on the durable job, with input-bearing jobs
+receiving a queued event whose preimage binds that map. Execution and terminal
+event identity also bind inputs. Jobs without overrides retain the previous
+preimages. Queue recovery reloads the validated store record and frozen world,
+not the live registry. The production backend supplies the map through
+`ServiceExecutionOptions::with_inputs`; custom backends must opt into the input
+method or refuse nonempty bindings. Existing access pins keep their path and
+fail-closed backend contract.
+
+Input origins are journaled at boot: supplied API values are `api-caller`, and
+authored defaults remain `file`. The additive `InputOrigin::ApiCaller` owner is
+`nika-types/src/origins.rs`; it must align with the closed origin vocabulary in
+`nika-spec/spec/04-variables.md` (Input origins, NEP-0014 law 2) before integration.
+No actor identity, human consent, CI context or grant follows from this channel.
+The receipt continues to name job/execution/trace/snapshot identity; input origin
+claims belong to the journal and its evidence projection, not a fabricated
+receipt field. Hash checks detect inconsistent edits, not a coherent rewrite by
+an attacker controlling the entire local store and its unkeyed hashes.

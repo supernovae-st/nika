@@ -15,6 +15,11 @@
 # Cargo project or Rust toolchain. Replace the argv and permit together when
 # adapting it; real builds also need their workspace and toolchain fs grants.
 #
+# House rule · a rehearsal file stays GREEN even where the sandbox refuses
+# the confined program (macOS seatbelt · the `nika test` mock plane):
+# `on_error: recover:` substitutes a LABELLED line, never the output the run
+# could not produce.
+#
 # Run · nika run examples/snippets/run.nika.yaml
 nika: run
 permits:
@@ -23,6 +28,10 @@ tasks:
   hello:
     exec:
       command: ["printf", "%s\n", "Hello from a confined program"]
+    on_error:
+      # Catch-all rehearsal arm (the house rule the header states) — a
+      # labelled stand-in, never a fabricated program output.
+      recover: "the sandbox refused the confined printf — no program ran (recovered rehearsal value)"
 
 outputs:
   message: ${{ tasks.hello.output }}

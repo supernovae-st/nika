@@ -497,6 +497,9 @@ pub struct JobRecord {
     /// Absent: the resident's unpinned plan. A pin is a pin.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) access_pin: Option<String>,
+    /// Literal API input overrides, separate from the immutable workflow world.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(crate) inputs: BTreeMap<String, Value>,
     /// Engine execution identity minted when the captured world is readmitted.
     /// Empty until the worker readmits the POST-time snapshot.
     #[serde(default)]
