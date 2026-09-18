@@ -811,7 +811,7 @@ fn first_line_path(line: &str) -> Option<String> {
 /// A relative path with no `..`, no root, no empty component.
 fn relative_inside_root(path: &str) -> Result<PathBuf, ChangeError> {
     let p = Path::new(path.trim());
-    if path.trim().is_empty() || p.is_absolute() {
+    if path.trim().is_empty() || p.is_absolute() || path.contains('\\') {
         return Err(ChangeError::OutsideRoot(path.to_owned()));
     }
     let mut out = PathBuf::new();

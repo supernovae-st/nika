@@ -361,7 +361,12 @@ fn inputs_map(value: &Node) -> Result<BTreeMap<String, String>, ProjectError> {
 /// file's existence is the consuming edge's call — zero I/O here).
 fn workflow_path(value: &Node) -> Result<String, ProjectError> {
     let raw = scalar(value, "workflow")?.as_str();
-    if raw.is_empty() || !nika_source::is_canonical_program_path(raw) {
+    if raw.is_empty()
+        || raw.contains('\\')
+        || raw.starts_with('/')
+        || raw.contains(':')
+        || !nika_source::is_canonical_program_path(raw)
+    {
         return Err(ProjectError::at(
             ProjectErrorKind::BadValue,
             format!("`workflow: {raw}` — a `*.nika` path relative to the registry"),

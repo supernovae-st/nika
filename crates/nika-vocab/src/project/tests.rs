@@ -318,11 +318,12 @@ fn arm_entries_validate_their_shape() {
     let bad_docs = [
         base.replace("workflow: w.nika", "workflow: w.yaml"), // not *.nika
         base.replace("workflow: w.nika", "workflow: ''"),     // empty path
-        base.replace("manqué: sauter", "où: moon\n    manqué: sauter"), // unknown locus
-        base.replace("plafond: 1.0", "plafond: -1"),          // the pay law
-        base.replace("plafond: 1.0", "plafond: soon"),        // not a number
-        base.replace("manqué: sauter", "manqué: jamais"),     // outside the closed set
-        base.replace("cadence: \"lundi 9h00\"", "cadence: ''"), // when does it fire?
+        base.replace("workflow: w.nika", r"workflow: workflows\w.nika"), // native sep is not owned-relative
+        base.replace("manqué: sauter", "où: moon\n    manqué: sauter"),  // unknown locus
+        base.replace("plafond: 1.0", "plafond: -1"),                     // the pay law
+        base.replace("plafond: 1.0", "plafond: soon"),                   // not a number
+        base.replace("manqué: sauter", "manqué: jamais"),                // outside the closed set
+        base.replace("cadence: \"lundi 9h00\"", "cadence: ''"),          // when does it fire?
     ];
     for doc in bad_docs {
         let err = parse(&doc).unwrap_err();

@@ -21,7 +21,7 @@
 //! prose or registry drift fails before merge rather than reaching a user.
 //!
 //! ```rust
-//! assert_eq!(nika_pack::pack_version(), "0.1.0-draft");
+//! assert_eq!(nika_pack::pack_version(), "0.2.0-draft");
 //! assert!(nika_pack::example("01-hello").is_some());
 //! assert_eq!(nika_pack::example("hello"), nika_pack::example("01-hello"));
 //! assert_eq!(nika_pack::first_shelf().len(), 5);

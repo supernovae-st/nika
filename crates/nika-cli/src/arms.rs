@@ -11,9 +11,7 @@ use nika_cli::verbs;
 use crate::lazy::{check_lazy, resolve_lazy_target};
 use crate::{Cli, emit, help_card, interactive_theme};
 
-/// `nika --help` (#1249): the postcard, then EVERY verb the tree carries
-/// (hidden ones too — a door the help never names is never opened), the
-/// file-as-command gesture and the deeper doors. Derived from the tree.
+/// `nika --help` (#1249): postcard, every verb, file-as-command.
 pub(crate) fn help_page() -> String {
     use std::fmt::Write as _;
     let card = help_card::human_help();
@@ -39,10 +37,7 @@ pub(crate) fn help_page() -> String {
     page
 }
 
-/// `nika notes.yaml` · `nika missing.nika` (#1249): a first word that
-/// is no verb but looks like a file (on disk, or a program/project name)
-/// gets the door named instead of clap's dead end; a typo'd verb keeps
-/// clap's own.
+/// `nika notes.yaml` / `nika missing.nika` (#1249): name the door.
 pub(crate) fn file_near_miss(first: &std::ffi::OsStr) -> Option<String> {
     let s = first.to_str()?;
     let name = nika_source::path_file_name(s).unwrap_or(s);

@@ -243,6 +243,7 @@ pub(crate) fn valid_workflow_path(path: &str) -> bool {
         && nika_source::is_canonical_program_path(path)
         && !path.starts_with('/')
         && !path.contains(':')
+        && !path.contains('\\')
         && !path.split('/').any(|segment| segment == "..")
 }
 

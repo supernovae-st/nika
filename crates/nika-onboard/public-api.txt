@@ -25,8 +25,8 @@ pub fn nika_onboard::compile::AuthoringCognition::equivalent(&self, key: &K) -> 
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::AuthoringCognition where U: core::convert::From<T>
 pub fn nika_onboard::compile::AuthoringCognition::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::AuthoringCognition where U: core::convert::Into<T>
-pub type nika_onboard::compile::AuthoringCognition::Error = never
-pub fn nika_onboard::compile::AuthoringCognition::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::AuthoringCognition::Error = core::convert::Infallible
+pub fn nika_onboard::compile::AuthoringCognition::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::AuthoringCognition where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::AuthoringCognition::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::AuthoringCognition::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -77,8 +77,8 @@ impl<D> owo_colors::OwoColorize for nika_onboard::compile::CompileError
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::CompileError where U: core::convert::From<T>
 pub fn nika_onboard::compile::CompileError::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::CompileError where U: core::convert::Into<T>
-pub type nika_onboard::compile::CompileError::Error = never
-pub fn nika_onboard::compile::CompileError::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::CompileError::Error = core::convert::Infallible
+pub fn nika_onboard::compile::CompileError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::CompileError where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::CompileError::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::CompileError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -124,8 +124,8 @@ pub fn nika_onboard::compile::CompileStatus::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::CompileStatus where U: core::convert::From<T>
 pub fn nika_onboard::compile::CompileStatus::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::CompileStatus where U: core::convert::Into<T>
-pub type nika_onboard::compile::CompileStatus::Error = never
-pub fn nika_onboard::compile::CompileStatus::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::CompileStatus::Error = core::convert::Infallible
+pub fn nika_onboard::compile::CompileStatus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::CompileStatus where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::CompileStatus::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::CompileStatus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -179,8 +179,8 @@ pub fn nika_onboard::compile::DiagnosticKind::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::DiagnosticKind where U: core::convert::From<T>
 pub fn nika_onboard::compile::DiagnosticKind::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::DiagnosticKind where U: core::convert::Into<T>
-pub type nika_onboard::compile::DiagnosticKind::Error = never
-pub fn nika_onboard::compile::DiagnosticKind::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::DiagnosticKind::Error = core::convert::Infallible
+pub fn nika_onboard::compile::DiagnosticKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::DiagnosticKind where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::DiagnosticKind::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::DiagnosticKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -228,8 +228,8 @@ impl<D> owo_colors::OwoColorize for nika_onboard::compile::MaterializeError
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::MaterializeError where U: core::convert::From<T>
 pub fn nika_onboard::compile::MaterializeError::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::MaterializeError where U: core::convert::Into<T>
-pub type nika_onboard::compile::MaterializeError::Error = never
-pub fn nika_onboard::compile::MaterializeError::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::MaterializeError::Error = core::convert::Infallible
+pub fn nika_onboard::compile::MaterializeError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::MaterializeError where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::MaterializeError::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::MaterializeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -273,8 +273,8 @@ pub fn nika_onboard::compile::PreviewScope::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::PreviewScope where U: core::convert::From<T>
 pub fn nika_onboard::compile::PreviewScope::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::PreviewScope where U: core::convert::Into<T>
-pub type nika_onboard::compile::PreviewScope::Error = never
-pub fn nika_onboard::compile::PreviewScope::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::PreviewScope::Error = core::convert::Infallible
+pub fn nika_onboard::compile::PreviewScope::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::PreviewScope where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::PreviewScope::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::PreviewScope::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -325,8 +325,8 @@ pub fn nika_onboard::compile::QuestionType::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::QuestionType where U: core::convert::From<T>
 pub fn nika_onboard::compile::QuestionType::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::QuestionType where U: core::convert::Into<T>
-pub type nika_onboard::compile::QuestionType::Error = never
-pub fn nika_onboard::compile::QuestionType::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::QuestionType::Error = core::convert::Infallible
+pub fn nika_onboard::compile::QuestionType::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::QuestionType where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::QuestionType::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::QuestionType::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -377,8 +377,8 @@ pub fn nika_onboard::compile::CompileDiagnostic::equivalent(&self, key: &K) -> b
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::CompileDiagnostic where U: core::convert::From<T>
 pub fn nika_onboard::compile::CompileDiagnostic::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::CompileDiagnostic where U: core::convert::Into<T>
-pub type nika_onboard::compile::CompileDiagnostic::Error = never
-pub fn nika_onboard::compile::CompileDiagnostic::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::CompileDiagnostic::Error = core::convert::Infallible
+pub fn nika_onboard::compile::CompileDiagnostic::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::CompileDiagnostic where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::CompileDiagnostic::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::CompileDiagnostic::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -423,8 +423,8 @@ impl<D> owo_colors::OwoColorize for nika_onboard::compile::CompileOutcome
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::CompileOutcome where U: core::convert::From<T>
 pub fn nika_onboard::compile::CompileOutcome::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::CompileOutcome where U: core::convert::Into<T>
-pub type nika_onboard::compile::CompileOutcome::Error = never
-pub fn nika_onboard::compile::CompileOutcome::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::CompileOutcome::Error = core::convert::Infallible
+pub fn nika_onboard::compile::CompileOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::CompileOutcome where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::CompileOutcome::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::CompileOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -464,8 +464,8 @@ impl<D> owo_colors::OwoColorize for nika_onboard::compile::CompilePreview
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::CompilePreview where U: core::convert::From<T>
 pub fn nika_onboard::compile::CompilePreview::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::CompilePreview where U: core::convert::Into<T>
-pub type nika_onboard::compile::CompilePreview::Error = never
-pub fn nika_onboard::compile::CompilePreview::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::CompilePreview::Error = core::convert::Infallible
+pub fn nika_onboard::compile::CompilePreview::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::CompilePreview where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::CompilePreview::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::CompilePreview::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -515,8 +515,8 @@ pub fn nika_onboard::compile::CompileProvenance::equivalent(&self, key: &K) -> b
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::CompileProvenance where U: core::convert::From<T>
 pub fn nika_onboard::compile::CompileProvenance::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::CompileProvenance where U: core::convert::Into<T>
-pub type nika_onboard::compile::CompileProvenance::Error = never
-pub fn nika_onboard::compile::CompileProvenance::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::CompileProvenance::Error = core::convert::Infallible
+pub fn nika_onboard::compile::CompileProvenance::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::CompileProvenance where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::CompileProvenance::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::CompileProvenance::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -567,8 +567,8 @@ pub fn nika_onboard::compile::CompileQuestion::equivalent(&self, key: &K) -> boo
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::CompileQuestion where U: core::convert::From<T>
 pub fn nika_onboard::compile::CompileQuestion::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::CompileQuestion where U: core::convert::Into<T>
-pub type nika_onboard::compile::CompileQuestion::Error = never
-pub fn nika_onboard::compile::CompileQuestion::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::CompileQuestion::Error = core::convert::Infallible
+pub fn nika_onboard::compile::CompileQuestion::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::CompileQuestion where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::CompileQuestion::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::CompileQuestion::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -611,8 +611,8 @@ impl<D> owo_colors::OwoColorize for nika_onboard::compile::CompileRequest
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::CompileRequest where U: core::convert::From<T>
 pub fn nika_onboard::compile::CompileRequest::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::CompileRequest where U: core::convert::Into<T>
-pub type nika_onboard::compile::CompileRequest::Error = never
-pub fn nika_onboard::compile::CompileRequest::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::CompileRequest::Error = core::convert::Infallible
+pub fn nika_onboard::compile::CompileRequest::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::CompileRequest where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::CompileRequest::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::CompileRequest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -654,8 +654,8 @@ impl<D> owo_colors::OwoColorize for nika_onboard::compile::RepresentationError
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::RepresentationError where U: core::convert::From<T>
 pub fn nika_onboard::compile::RepresentationError::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::RepresentationError where U: core::convert::Into<T>
-pub type nika_onboard::compile::RepresentationError::Error = never
-pub fn nika_onboard::compile::RepresentationError::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::compile::RepresentationError::Error = core::convert::Infallible
+pub fn nika_onboard::compile::RepresentationError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::RepresentationError where U: core::convert::TryFrom<T>
 pub type nika_onboard::compile::RepresentationError::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::compile::RepresentationError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -711,8 +711,8 @@ pub fn nika_onboard::founding::CanvasTheme::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_onboard::founding::CanvasTheme where U: core::convert::From<T>
 pub fn nika_onboard::founding::CanvasTheme::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::founding::CanvasTheme where U: core::convert::Into<T>
-pub type nika_onboard::founding::CanvasTheme::Error = never
-pub fn nika_onboard::founding::CanvasTheme::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::founding::CanvasTheme::Error = core::convert::Infallible
+pub fn nika_onboard::founding::CanvasTheme::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::founding::CanvasTheme where U: core::convert::TryFrom<T>
 pub type nika_onboard::founding::CanvasTheme::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::founding::CanvasTheme::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -761,8 +761,8 @@ impl<D> owo_colors::OwoColorize for nika_onboard::project_file::Outcome
 impl<T, U> core::convert::Into<U> for nika_onboard::project_file::Outcome where U: core::convert::From<T>
 pub fn nika_onboard::project_file::Outcome::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::project_file::Outcome where U: core::convert::Into<T>
-pub type nika_onboard::project_file::Outcome::Error = never
-pub fn nika_onboard::project_file::Outcome::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::project_file::Outcome::Error = core::convert::Infallible
+pub fn nika_onboard::project_file::Outcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::project_file::Outcome where U: core::convert::TryFrom<T>
 pub type nika_onboard::project_file::Outcome::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::project_file::Outcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -808,8 +808,8 @@ pub fn nika_onboard::routing::RoutedEntry::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_onboard::routing::RoutedEntry where U: core::convert::From<T>
 pub fn nika_onboard::routing::RoutedEntry::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::routing::RoutedEntry where U: core::convert::Into<T>
-pub type nika_onboard::routing::RoutedEntry::Error = never
-pub fn nika_onboard::routing::RoutedEntry::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::routing::RoutedEntry::Error = core::convert::Infallible
+pub fn nika_onboard::routing::RoutedEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::routing::RoutedEntry where U: core::convert::TryFrom<T>
 pub type nika_onboard::routing::RoutedEntry::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::routing::RoutedEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
@@ -846,8 +846,8 @@ impl<D> owo_colors::OwoColorize for nika_onboard::Outcome
 impl<T, U> core::convert::Into<U> for nika_onboard::Outcome where U: core::convert::From<T>
 pub fn nika_onboard::Outcome::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_onboard::Outcome where U: core::convert::Into<T>
-pub type nika_onboard::Outcome::Error = never
-pub fn nika_onboard::Outcome::try_from(value: U) -> core::result::Result<T, never>
+pub type nika_onboard::Outcome::Error = core::convert::Infallible
+pub fn nika_onboard::Outcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
 impl<T, U> core::convert::TryInto<U> for nika_onboard::Outcome where U: core::convert::TryFrom<T>
 pub type nika_onboard::Outcome::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_onboard::Outcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>

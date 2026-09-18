@@ -643,7 +643,8 @@ impl<'a, S: ByteSource> SnapshotBuilder<'a, S> {
     ) -> Result<(), ExecutionError> {
         if matches!(kind, SnapshotUnitKind::Root | SnapshotUnitKind::Child)
             && logical_path != "-"
-            && !nika_source::is_canonical_program_path(logical_path)
+            && (logical_path.contains('\\')
+                || !nika_source::is_canonical_program_path(logical_path))
         {
             return Err(ExecutionError::InvalidLogicalPath {
                 path: logical_path.to_owned(),

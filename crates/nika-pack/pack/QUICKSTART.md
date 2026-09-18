@@ -6,7 +6,7 @@
 >
 > **Status** · authoring, static checking AND execution all work TODAY:
 > `brew install supernovae-st/tap/nika`, then `nika check` + `nika run` on
-> any file in this page. The spec text itself is v0.1.0-draft (GA hardening
+> any file in this page. The spec text itself is v0.2.0-draft (GA hardening)
 > in progress); the language family v1 is already frozen — there is no
 > `nika: v2`, ever.
 

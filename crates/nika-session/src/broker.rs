@@ -155,6 +155,9 @@ impl ContextBroker {
         if !canonical.starts_with(&root) {
             return None;
         }
+        if name.contains('\\') {
+            return None;
+        }
         let file = canonical.file_name()?.to_str()?;
         if !(nika_source::is_canonical_program_file_name(file) || file == "nika.yaml") {
             return None;

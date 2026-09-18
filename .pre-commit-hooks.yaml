@@ -19,4 +19,4 @@
     flows, cost floor) before they land — audit-before-run at commit time.
   entry: nika check
   language: system
-  files: '\.nika\.yaml$'
+  files: '\.nika$'

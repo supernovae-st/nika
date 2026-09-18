@@ -287,12 +287,7 @@ fn strict_footers(
     }
 }
 
-/// The project-file route, taken BEFORE the workflow envelope is applied.
-///
-/// `nika.yaml` is project configuration only: even a document that carries
-/// `tasks:` must not become a workflow through this pathname. Parser
-/// source-string APIs remain filename-independent; stdin (`-`) is not
-/// routed here.
+/// `nika.yaml` is project-only; stdin (`-`) stays on the workflow lane.
 fn project_route(path: &str, json: bool) -> Option<VerbOutput> {
     if path == "-" {
         return None;

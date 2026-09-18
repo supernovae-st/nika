@@ -148,6 +148,24 @@ fn static_target_defect(target: &str) -> Option<String> {
             }
             Ok(_) => {}
         }
+        return None;
+    }
+    if target.contains('\\') || target.starts_with('/') {
+        return Some(
+            "the target must be an owned-relative `*.nika` path (no absolute prefix, no `\\`)"
+                .to_owned(),
+        );
+    }
+    let name = nika_source::path_file_name(target).unwrap_or(target);
+    if nika_source::is_retired_program_file_name(name) {
+        return Some(nika_source::retired_rename_hint(name).unwrap_or_else(|| {
+            format!("`{target}` uses a retired Nika program suffix; rename to `*.nika`")
+        }));
+    }
+    if !nika_source::is_canonical_program_path(target) {
+        return Some(format!(
+            "`{target}` is not a Nika program; live program files use the `*.nika` suffix"
+        ));
     }
     None
 }
@@ -764,6 +782,20 @@ outputs:
         format!(
             "nika: parent\ntasks:\n  audit:\n    invoke:\n      workflow: \"{target}\"\n      args: {args}\n"
         )
+    }
+
+    #[test]
+    fn retired_child_suffix_is_comp_001_purely() {
+        let wf = parse(&parent_yaml("./child.nika.yaml", "{}"));
+        let f = scan_static(&wf);
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].code, "NIKA-COMP-001");
+        assert!(f[0].detail.contains("retired"), "{}", f[0].detail);
+        assert!(
+            !f[0].detail.contains("cannot read"),
+            "suffix gate is before parse: {}",
+            f[0].detail
+        );
     }
 
     #[test]

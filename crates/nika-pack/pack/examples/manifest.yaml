@@ -3,7 +3,7 @@
 # contract. DO NOT EDIT · regenerate: python3 scripts/showcase-projector.py --write
 # Consumers · the reference engine embeds this pack (nika try ·
 # nika spec) · docs + website render projections of the same files.
-pack_version: 0.1.0-draft
+pack_version: 0.2.0-draft
 workflow_count: 61
 foundation:
   - file: examples/01-hello.nika

@@ -1133,6 +1133,8 @@ fn the_workflow_path_is_relative_to_the_registry() {
         "../hors-registre/a.nika",
         "beats/.nika",
         "sub/.nika",
+        r"workflows\a.nika",
+        r"C:\abs\a.nika",
     ] {
         let yaml = format!(
             "

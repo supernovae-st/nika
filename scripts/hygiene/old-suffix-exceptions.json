@@ -1,0 +1,346 @@
+{
+  "selftest": {
+    "inject_path": "CHANGELOG.md",
+    "new_file": "docs/plans/_ratchet-injection.nika.yaml",
+    "new_prefix_file": "fuzz/corpus/_ratchet-injection.nika.yaml",
+    "escaped_file": "scripts/hygiene/_escaped-alias.md"
+  },
+  "exceptions": [
+    {
+      "path": "CHANGELOG.md",
+      "category": "historical",
+      "reason": "release notes naming the retired suffixes",
+      "owner": "docs",
+      "count": 15,
+      "lines_sha256": "sha256:28f73521b0e5343b4c08a79bd4c19283c100e32d9da9f6ad5d89903df54f0de3"
+    },
+    {
+      "path": "changelog.d/1684.changed.md",
+      "category": "historical",
+      "reason": "release notes naming the retired suffixes",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:1f98d297e1db644f8a6c608b70c56ce4454b0933b9306f99932b6ebe4fc8220a"
+    },
+    {
+      "path": "crates/nika-check/src/composition.rs",
+      "category": "negative",
+      "reason": "compose child retired-suffix COMP-001 regression",
+      "owner": "nika-check",
+      "count": 1,
+      "lines_sha256": "sha256:84f53320d5ef4ef4238c54fff7977a53ea2bf26d06cda20315d0b63c814a5634"
+    },
+    {
+      "path": "crates/nika-cli-host/src/source.rs",
+      "category": "negative",
+      "reason": "disk acquisition refusals for retired suffixes",
+      "owner": "nika-cli-host",
+      "count": 3,
+      "lines_sha256": "sha256:99278b6afc2c73b9b49abb4391c2c1df0f0e3ef8f416f8afc63176c9a099eb45"
+    },
+    {
+      "path": "crates/nika-onboard/src/compile/materialize.rs",
+      "category": "negative",
+      "reason": "compile adapter refuses a retired destination",
+      "owner": "nika-onboard",
+      "count": 1,
+      "lines_sha256": "sha256:3d729e82afaeba099b53fb895da1818e727c5d8a2835421c73cd28c957fed9af"
+    },
+    {
+      "path": "crates/nika-pack/pack/examples/README.md",
+      "category": "historical",
+      "reason": "vendored spec snapshot names the retired suffixes",
+      "owner": "nika-pack",
+      "count": 22,
+      "lines_sha256": "sha256:b4c61599c1cb1c25d3d35039f770b4ff1783dc6086da00716e4e372d859b17e2"
+    },
+    {
+      "path": "crates/nika-pack/pack/schemas/project.schema.json",
+      "category": "historical",
+      "reason": "vendored spec snapshot names the retired suffixes",
+      "owner": "nika-pack",
+      "count": 1,
+      "lines_sha256": "sha256:b501eb6ee9ea92e9b81748c12097a31de035c93beaeb77e877b176aefdaae18e"
+    },
+    {
+      "path": "crates/nika-pack/pack/spec/01-envelope.md",
+      "category": "historical",
+      "reason": "vendored spec snapshot names the retired suffixes",
+      "owner": "nika-pack",
+      "count": 2,
+      "lines_sha256": "sha256:6e55f7d1bffc84422398a1b85529a217284dc21594046aab9f404e533787b742"
+    },
+    {
+      "path": "crates/nika-serve/src/server/registry_tests.rs",
+      "category": "negative",
+      "reason": "owned-relative names reject retired suffix and backslash",
+      "owner": "nika-serve",
+      "count": 1,
+      "lines_sha256": "sha256:60fa51f43b72ec34b75fc7dcea7fb86c7b9928dd6de39b83a18968d846be33bb"
+    },
+    {
+      "path": "crates/nika-source/src/naming.rs",
+      "category": "negative",
+      "reason": "lexical owner of retired suffixes and hostile-case table",
+      "owner": "nika-source",
+      "count": 17,
+      "lines_sha256": "sha256:25a94b7061bb81d9966f3108e6767aab62a6ef2ed8f77f6e3c82e1db02e06bf6"
+    },
+    {
+      "path": "crates/nika-tui-core/tests/proptest.proptest-regressions",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "crates",
+      "digest": "sha256:4ea7526ebb273d2f9ccf49e2bdc317681a04d182f71878c329ae4943dcff3a65"
+    },
+    {
+      "path": "crates/nika-vocab/src/project.schema.json",
+      "category": "historical",
+      "reason": "names a retired program suffix",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:b501eb6ee9ea92e9b81748c12097a31de035c93beaeb77e877b176aefdaae18e"
+    },
+    {
+      "path": "docs/adr/adr-010-miette-diagnostic-layer.md",
+      "category": "historical",
+      "reason": "architecture record of the previous naming law",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:6cd8953b1e951fa110bc672761a634d71e0e2d9ceb84ac83cfcdc0767cb3c63e"
+    },
+    {
+      "path": "docs/adr/adr-038-nika-bm25-admission.md",
+      "category": "historical",
+      "reason": "architecture record of the previous naming law",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:e2ea7d6654d98648fd6f015c7d9fb91751786655e89b005b5b4d366419e9a197"
+    },
+    {
+      "path": "docs/adr/adr-080-mcp-stdio-cve-sandbox.md",
+      "category": "historical",
+      "reason": "architecture record of the previous naming law",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:d6e6165c126d54b9b771771814c8f492831e2e8370d9e463b85124f68d5aab4c"
+    },
+    {
+      "path": "docs/adr/adr-093-infer-local-http-server-tiny-http.md",
+      "category": "historical",
+      "reason": "architecture record of the previous naming law",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:8e4f54bd4262a3eee9537966b65090537b9b92781856667560bb524538741e1a"
+    },
+    {
+      "path": "docs/adr/adr-099-durable-lite-run-resume.md",
+      "category": "historical",
+      "reason": "architecture record of the previous naming law",
+      "owner": "docs",
+      "count": 2,
+      "lines_sha256": "sha256:16d350a58c57dd559a321179cb5088f826e4e724e92255c6ca8ade523089f159"
+    },
+    {
+      "path": "docs/adr/adr-117-nika-serve-network-boundary.md",
+      "category": "historical",
+      "reason": "architecture record of the previous naming law",
+      "owner": "docs",
+      "count": 2,
+      "lines_sha256": "sha256:a1ab05e3efc401b4fe613e5aff43ec0a013728de67a1be2acbe2d6b2f820dff8"
+    },
+    {
+      "path": "docs/adr/adr-125-native-session-runtime.md",
+      "category": "historical",
+      "reason": "architecture record of the previous naming law",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:6fcad443fca0b47e03161c39d1edbafcdccfe450253955dec9ad10dc8ff0a05d"
+    },
+    {
+      "path": "docs/adr/adr-126-project-changes-from-the-session.md",
+      "category": "historical",
+      "reason": "architecture record of the previous naming law",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:7ebc61f05c130abcba5d5c1b88bc51bfabf53776e08b3664dfdfaffc65d3d9f2"
+    },
+    {
+      "path": "docs/findings/2026-08-19-authoring-depth-mega-plan.md",
+      "category": "historical",
+      "reason": "dated finding",
+      "owner": "docs",
+      "count": 2,
+      "lines_sha256": "sha256:21770b171fee8680af1944f9935d4eec830f40ccc89a12500c717bea40b424fb"
+    },
+    {
+      "path": "docs/plans/2026-07-29-ARC-RECORD.md",
+      "category": "historical",
+      "reason": "dated plan",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:8b593351006d4c8884109c32d66a8c730898e687948561042cd805a3fe518d0e"
+    },
+    {
+      "path": "docs/plans/2026-07-29-HANDOFF.md",
+      "category": "historical",
+      "reason": "dated plan",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:ed250d3235a3afc2efe00c39391bfd846fae98aede19a7e1a6d89df65a9be583"
+    },
+    {
+      "path": "docs/plans/2026-07-29-audit-run-3-agent-loop-budget.md",
+      "category": "historical",
+      "reason": "dated plan",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:ec8507560addb7f500f8d51f61066b4f4d4566066fbf8515ffc4b8e79029909b"
+    },
+    {
+      "path": "docs/plans/2026-07-29-audit-run-5-decay-verdict-gate.md",
+      "category": "historical",
+      "reason": "dated plan",
+      "owner": "docs",
+      "count": 1,
+      "lines_sha256": "sha256:c1796bc24229a0689df3ecf5b4e765883e136859c6bdd6f1d6b1eca0b6dfe7f8"
+    },
+    {
+      "path": "fuzz/corpus/parse_workflow/01-hello",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "fuzz",
+      "digest": "sha256:8d5f674d0eb132e038d425c88f7f1771afb0c8e2eacff1aed8594855a9a00d7a"
+    },
+    {
+      "path": "fuzz/corpus/parse_workflow/228caa4e7379e7efd4f461a3ca18e3726fc56334",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "fuzz",
+      "digest": "sha256:e0f72705972bd33b979263eae9a5d96eb30aaa531a149a761d94c6c9474f068e"
+    },
+    {
+      "path": "fuzz/corpus/parse_workflow/405eb1b7ef9410fdd39ba29daadfc5ff04cb4ae2",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "fuzz",
+      "digest": "sha256:480873307cf14097956fd606aa9b1078fcfb037c356d2b38c77bbbef648b2e30"
+    },
+    {
+      "path": "fuzz/corpus/parse_workflow/4ad3fde2c169ccc1d10d7ae02dc6c9ba67e373bd",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "fuzz",
+      "digest": "sha256:39ae8e00a1089d153b5f97b01374939ddb4becec8e2d1b1ef0a6229b9914f7a2"
+    },
+    {
+      "path": "fuzz/corpus/parse_workflow/8e9c2a2c089eefa556ed7b5d2dc4a35795804fee",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "fuzz",
+      "digest": "sha256:c0410be6c2bd17f643b479ec87bb997c07d16f26d9123ce6955b4fe03780f97c"
+    },
+    {
+      "path": "fuzz/corpus/parse_workflow/bd21f06dc5cd6b859d0d00063b4123b37c1d4342",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "fuzz",
+      "digest": "sha256:973723e768a80d713b4d7b09653bb9f64f7558f272b155e2d7663547ca8d2af0"
+    },
+    {
+      "path": "media/raw/check-broken.txt",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "media",
+      "digest": "sha256:b0c9405db0d19b0a476b32162df86cd6ebe42afe712709d35994b1d97157ec9f"
+    },
+    {
+      "path": "media/raw/check-fanout.txt",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "media",
+      "digest": "sha256:ecf87570a87a8ffaee8dd44e7b169d280bb5f2f3a03b914fd4f919e7af001ff7"
+    },
+    {
+      "path": "media/raw/check-fixed.txt",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "media",
+      "digest": "sha256:27c998207766915a5cf2ed40a851ff4ebfc9c4a30b5117209f7fde0626f4dcf9"
+    },
+    {
+      "path": "media/raw/check-meeting.txt",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "media",
+      "digest": "sha256:c98913d4b9e1896c20cc0023d4ef69188b2ea940f5a2dca1299afff43ede054a"
+    },
+    {
+      "path": "media/raw/check-permits-escape.txt",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "media",
+      "digest": "sha256:864b95e467cbc328748f4ce6b3e7c8f2e8d03024003ab8eb1e8c4dfde68e595d"
+    },
+    {
+      "path": "media/raw/check-permits-fits.txt",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "media",
+      "digest": "sha256:40309fc387cc07e29f56024247026456914b531dd5907f56fc6acbb5d33c7aac"
+    },
+    {
+      "path": "media/raw/fix-diff.txt",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "media",
+      "digest": "sha256:5ecb8ef82893c3c2e118e74db7af336d4177094a46eb1b317969c0ef992b89c7"
+    },
+    {
+      "path": "media/raw/permits-fix-diff.txt",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "media",
+      "digest": "sha256:e61a8f110905cd538e2618e722930233a9bb7e9f8329a0e19af4a9ec15209768"
+    },
+    {
+      "path": "media/raw/transcripts.json",
+      "category": "frozen",
+      "reason": "immutable captured bytes",
+      "owner": "media",
+      "digest": "sha256:0a9921fe42129477566f515ba164a0c1e2d1c8cfc65553dc9e43b916f740743f"
+    },
+    {
+      "path": "scripts/hygiene/check-source-naming.py",
+      "category": "ratchet",
+      "reason": "forbidden-pattern data for this gate",
+      "owner": "hygiene",
+      "count": 37,
+      "lines_sha256": "sha256:79b499c3bde76fcbb426f16e977ed3173865a44df6bdc1e90ca43497b7b27218"
+    },
+    {
+      "path": "scripts/hygiene/check-source-naming.sh",
+      "category": "ratchet",
+      "reason": "forbidden-pattern data for this gate",
+      "owner": "hygiene",
+      "count": 1,
+      "lines_sha256": "sha256:781baded0bb049bd35d4952dc143e2b7ffcf75cccf0df263eeefdcf4412e336c"
+    },
+    {
+      "path": "scripts/hygiene/old-suffix-exceptions.json",
+      "category": "ratchet",
+      "reason": "forbidden-pattern data for this gate",
+      "owner": "hygiene",
+      "count": 2,
+      "lines_sha256": "sha256:298475eed95d45de9663c4b08a3cabf74c09c91d40fc40e67705c9cefd96684a"
+    },
+    {
+      "path": "scripts/media/validate-media.sh",
+      "category": "historical",
+      "reason": "media tape validator still names captured old paths",
+      "owner": "media",
+      "count": 1,
+      "lines_sha256": "sha256:42599d45449d95a1bc6bd21b75ef20e5b94378696bbb73dc8d43c0918ab9d429"
+    }
+  ]
+}

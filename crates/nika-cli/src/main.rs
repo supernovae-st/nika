@@ -708,13 +708,7 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     }
 }
 
-/// A workflow file typed bare IS a request to run it. A colleague sends
-/// `notes.nika`; the person types its name the way one opens a file,
-/// and clap answered `unrecognized subcommand` (gauntlet P5 · 2026-08-25).
-///
-/// Deliberately narrow: the name must be a canonical `*.nika` program AND
-/// a file on disk. Retired suffixes are not runnable. A typo'd verb keeps
-/// clap's own did-you-mean; a suffix that names nothing keeps clap's error.
+/// Bare `*.nika` on disk is `nika run`; retired suffixes are not runnable.
 fn is_runnable_workflow(arg: &std::ffi::OsStr) -> bool {
     arg.to_str().is_some_and(|s| {
         nika_source::is_canonical_program_path(s) && std::path::Path::new(s).is_file()
