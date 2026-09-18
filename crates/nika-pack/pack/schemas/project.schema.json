@@ -29,7 +29,7 @@
         "properties": {
           "workflow": {
             "type": "string",
-            "pattern": "\\.nika\\.yaml$",
+            "pattern": "^(?!/)[^:\\\\\\u0000-\\u001f\\u007f]*[^/:\\\\\\u0000-\\u001f\\u007f]\\.nika(?![\\s\\S])",
             "description": "The workflow file, relative to the project root (`workflows/nightly.nika`)."
           },
           "cadence": {

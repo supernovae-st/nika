@@ -55,14 +55,6 @@
       "lines_sha256": "sha256:3d729e82afaeba099b53fb895da1818e727c5d8a2835421c73cd28c957fed9af"
     },
     {
-      "path": "crates/nika-pack/pack/schemas/project.schema.json",
-      "category": "historical",
-      "reason": "vendored spec snapshot names the retired suffixes",
-      "owner": "nika-pack",
-      "count": 1,
-      "lines_sha256": "sha256:b501eb6ee9ea92e9b81748c12097a31de035c93beaeb77e877b176aefdaae18e"
-    },
-    {
       "path": "crates/nika-pack/pack/spec/01-envelope.md",
       "category": "negative",
       "reason": "normative refusal of retired program suffixes in the pinned Spec",

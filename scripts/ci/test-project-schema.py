@@ -36,6 +36,46 @@ def project(name):
     }]}
 
 
+def assert_project_verdict(checked, name, accepted, path):
+    evidence = (name, checked.returncode, checked.stdout, checked.stderr)
+    assert checked.returncode == (0 if accepted else 2), evidence
+    verdict = json.loads(checked.stdout)
+    assert verdict["report_version"] == 1 and verdict["kind"] == "project", evidence
+    assert verdict["file"] == str(path) and verdict["clean"] is accepted, evidence
+    findings = verdict["findings"]
+    if accepted:
+        assert findings == [], evidence
+    else:
+        assert len(findings) == 1, evidence
+        assert findings[0]["code"] == "project.bad-value", evidence
+        assert findings[0]["message"].startswith(f"`workflow: {name}`"), evidence
+        assert "a `*.nika` path relative to the registry" in findings[0]["message"], evidence
+
+
+def check_verdict_judge():
+    """A process failure or an unrelated finding must never prove refusal."""
+    path, name = Path("nika.yaml"), "invalid.yaml"
+    good = {"report_version": 1, "kind": "project", "file": str(path), "clean": False,
+            "findings": [{"code": "project.bad-value",
+                          "message": f"`workflow: {name}` — a `*.nika` path relative to the registry"}]}
+
+    def result(code, payload):
+        return subprocess.CompletedProcess([], code, json.dumps(payload), "")
+
+    assert_project_verdict(result(2, good), name, False, path)
+    bad = [result(code, good) for code in (-11, 127, 1, 0)]
+    bad.append(result(2, {**good, "findings": [{"code": "project.unknown-key", "message": "unrelated"}]}))
+    bad.append(result(2, {**good, "findings": [{"code": "project.bad-value", "message": "`cadence: invalid`"}]}))
+    bad.append(subprocess.CompletedProcess([], 2, "INJECTED unrelated failure", ""))
+    for checked in bad:
+        try:
+            assert_project_verdict(checked, name, False, path)
+        except (AssertionError, json.JSONDecodeError):
+            continue
+        raise AssertionError(f"unrelated failure accepted: {checked}")
+    print(f"PASS native verdict judge refuses {len(bad)} crash/exit/diagnostic mutations")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, help="also compare emission and parser verdicts")
@@ -43,7 +83,10 @@ def main():
     args = parser.parse_args()
     if args.out and not args.binary:
         parser.error("--out requires a real --binary")
+    check_verdict_judge()
     raw = (ROOT / "crates/nika-vocab/src/project.schema.json").read_text()
+    packed = (ROOT / "crates/nika-pack/pack/schemas/project.schema.json").read_text()
+    assert raw == packed, "embedded Spec projection differs from engine vocab owner"
     schema = json.loads(raw)
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
@@ -76,10 +119,13 @@ def main():
             for name, accepted in cases:
                 path = Path(room) / "nika.yaml"
                 path.write_text(yaml.safe_dump(project(name), allow_unicode=True))
-                checked = call("check", str(path))
-                assert (checked.returncode == 0) == accepted, (name, checked.stdout, checked.stderr)
+                checked = call("check", str(path), "--json")
+                assert_project_verdict(checked, name, accepted, path)
             print(f"PASS real CLI emission and project parser: {len(cases)} workflow cases")
             if args.out:
+                changed = subprocess.check_output(
+                    ["git", "diff", "HEAD", "--name-only"], cwd=ROOT, text=True).strip()
+                assert not changed, f"emission receipt requires unchanged tracked source: {changed}"
                 args.out.parent.mkdir(parents=True, exist_ok=True)
                 args.out.write_text(emitted.stdout)
                 version = call("--version")
@@ -87,6 +133,9 @@ def main():
                 receipt = {
                     "source_sha": subprocess.check_output(
                         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+                    "source_tree_sha": subprocess.check_output(
+                        ["git", "rev-parse", "HEAD^{tree}"], cwd=ROOT, text=True).strip(),
+                    "tracked_source_clean": True,
                     "binary_version": version.stdout.strip(),
                     "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
                     "project_schema_sha256": hashlib.sha256(emitted.stdout.encode()).hexdigest(),

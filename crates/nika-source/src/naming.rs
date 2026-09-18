@@ -87,7 +87,7 @@ pub fn classify_file_name(name: &str) -> SourceNameKind {
 }
 
 /// Classify the last component of a `/`- or `\`-separated path string.
-/// Control bytes anywhere in the path are refused before basename extraction.
+/// Control bytes and `scheme://` URIs are refused before basename extraction.
 #[must_use]
 pub fn classify_path(path: &str) -> SourceNameKind {
     if !is_clean_path(path) {
@@ -143,7 +143,7 @@ pub fn typed_stem(name: &str) -> &str {
 /// Append the canonical suffix to a dest, preserving directories
 /// (`workflows/foo` → `workflows/foo.nika`, including native `\` on
 /// Windows). Already-canonical paths are unchanged. Trailing separators,
-/// controls, empty names and retired suffixes yield [`None`] — this is
+/// controls, URIs, empty names and retired suffixes yield [`None`] — this is
 /// not a live alias.
 #[must_use]
 pub fn with_program_suffix(path: &str) -> Option<String> {
@@ -159,7 +159,12 @@ pub fn with_program_suffix(path: &str) -> Option<String> {
 }
 
 fn is_clean_path(path: &str) -> bool {
-    path.bytes().all(|byte| byte >= 0x20 && byte != 0x7f)
+    let is_uri = path.split_once("://").is_some_and(|(scheme, _)| {
+        let mut chars = scheme.chars();
+        chars.next().is_some_and(char::is_alphabetic)
+            && chars.all(|ch| ch.is_alphanumeric() || matches!(ch, '+' | '-' | '.'))
+    });
+    !is_uri && path.bytes().all(|byte| byte >= 0x20 && byte != 0x7f)
 }
 
 /// Actionable rename hint for a retired live-program basename.
@@ -320,6 +325,28 @@ mod tests {
             r"C:\workflows\foo.nika",
         ] {
             assert!(is_canonical_program_path(path), "{path:?}");
+        }
+    }
+
+    #[test]
+    fn uri_sources_are_not_files_but_native_paths_keep_their_shape_policy() {
+        for uri in [
+            "file:///tmp/foo.nika",
+            "https://example.com/foo.nika",
+            "git+ssh://example.com/foo.nika",
+        ] {
+            assert_eq!(classify_path(uri), SourceNameKind::Other, "{uri}");
+            assert_eq!(with_program_suffix(uri), None, "{uri}");
+        }
+        for path in [
+            "../foo.nika",
+            "/absolute/foo.nika",
+            "C:/workflows/foo.nika",
+            r"C:\workflows\foo.nika",
+            "nested/file://foo.nika",
+        ] {
+            assert!(is_canonical_program_path(path), "{path}");
+            assert_eq!(with_program_suffix(path).as_deref(), Some(path), "{path}");
         }
     }
 
