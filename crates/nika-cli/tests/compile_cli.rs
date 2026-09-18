@@ -413,3 +413,39 @@ fn an_explicit_dash_prefixed_path_teaches_a_runnable_file_argument() {
     assert!(run.status.success());
     assert!(result(&run)["greeting"].as_str().is_some());
 }
+
+/// zsh rewrites a bare word that STARTS with `=` (`=ls` becomes the path of
+/// ls, an unknown name aborts the line); sh reads it literally. The taught
+/// word must read back verbatim in both. Only side-effect-free names reach a
+/// real shell here: `printf` prints, nothing else runs.
+#[cfg(unix)]
+#[test]
+fn an_equals_prefixed_path_is_taught_as_a_word_no_shell_rewrites() {
+    let room = tempfile::tempdir().expect("room");
+    for name in ["=ls.nika.yaml", "=value.nika.yaml"] {
+        let out = call(room.path(), &["compile", "hello", name]);
+        assert!(out.status.success(), "{out:?}");
+        let text = String::from_utf8_lossy(&out.stdout).into_owned();
+        let taught = text
+            .lines()
+            .find_map(|line| line.strip_prefix("next · nika run "))
+            .expect("taught run line");
+        for shell in [&["/bin/sh", "-c"][..], &["/bin/zsh", "-f", "-c"][..]] {
+            if !Path::new(shell[0]).exists() {
+                continue;
+            }
+            let read = Command::new(shell[0])
+                .args(&shell[1..])
+                .arg(format!("printf '%s' {taught}"))
+                .env_clear()
+                .current_dir(room.path())
+                .stdin(Stdio::null())
+                .output()
+                .expect("shell");
+            assert!(read.status.success(), "{} refused {taught}", shell[0]);
+            assert_eq!(String::from_utf8_lossy(&read.stdout), name, "{}", shell[0]);
+        }
+        let run = call(room.path(), &["run", name, "--output", "json"]);
+        assert!(run.status.success(), "{run:?}");
+    }
+}
