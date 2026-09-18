@@ -560,6 +560,7 @@ pub fn nika_onboard::compile::CompileRequest::answer(self, key: impl core::conve
 pub fn nika_onboard::compile::CompileRequest::create(intent: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_onboard::compile::CompileRequest::edit(base_workflow: impl core::convert::Into<alloc::string::String>, change_request: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_onboard::compile::CompileRequest::set_constant(base_workflow: impl core::convert::Into<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>, literal_json: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_onboard::compile::CompileRequest::with_workflow_id(self, id: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_onboard::compile::CompileRequest
 pub fn nika_onboard::compile::CompileRequest::clone(&self) -> nika_onboard::compile::CompileRequest
 impl core::fmt::Debug for nika_onboard::compile::CompileRequest
@@ -704,10 +705,6 @@ pub const nika_onboard::founding::DEFAULT_EXAMPLE: &str
 pub const nika_onboard::founding::RECIPE_NAMES: [&str; 5]
 pub fn nika_onboard::founding::agents_md() -> &'static str
 pub fn nika_onboard::founding::scripted_run(dir: &str, force: bool, recipe: core::option::Option<&str>, example: core::option::Option<&str>, canvas: core::option::Option<nika_onboard::founding::CanvasTheme>, wires: &[&str], audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
-pub mod nika_onboard::guided
-pub fn nika_onboard::guided::dispatch(from: core::option::Option<&str>, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
-pub fn nika_onboard::guided::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_onboard::Outcome
-pub fn nika_onboard::guided::wizard_io(base: &str, dest_hint: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, input: &mut dyn alloc::io::buf_read::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
 pub mod nika_onboard::project_file
 #[non_exhaustive] pub enum nika_onboard::project_file::Outcome
 pub nika_onboard::project_file::Outcome::Created
@@ -740,6 +737,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_onboard::project_file::Outc
 impl<T> typenum::type_operators::Same for nika_onboard::project_file::Outcome
 pub type nika_onboard::project_file::Outcome::Output = T
 pub fn nika_onboard::project_file::ensure(dir: &str, force: bool) -> (alloc::string::String, nika_onboard::project_file::Outcome)
+pub fn nika_onboard::project_file::protect_traces(dir: &std::path::Path) -> core::io::error::Result<()>
 pub fn nika_onboard::project_file::report(path: &str, outcome: &nika_onboard::project_file::Outcome) -> (char, alloc::string::String)
 pub mod nika_onboard::recipes
 pub mod nika_onboard::rehearsal

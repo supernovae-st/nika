@@ -21,9 +21,9 @@ uncertainty in the task; read a second only for a gap the first leaves.
 A small edit to a known workflow does not require creating example files.
 
 ```
-nika try                        # the shelf · the path, then the jobs
-nika new <slug> example.nika.yaml   # take the one matching your intent (table below) — read it
-nika new <second-slug> second.nika.yaml # optional: a different shape still needed
+nika try                        # browse the gallery
+nika compile --list             # exact authoring skeletons
+nika compile <exact-skeleton> --json # preview source and stable questions
 ```
 
 Read for SHAPE, not for prose. Four things, in this order: which verb
@@ -63,21 +63,20 @@ four are the decisions that cost rounds when guessed instead of copied.
 | aggregate bounded integer amounts by key | `25-aggregate-by-key` |
 | a job too big for one file | [composition](composition.md), then `01-hello` for the child |
 
-Second column pinned to the pack by the engine's own test (every slug
-this table names resolves through `nika_pack::example`). Any slug works
-with or without its `showcase/` prefix and with or without the
-`.nika.yaml` extension. `nika new <slug> example.nika.yaml` makes one yours;
-`nika new <name> workflow.nika.yaml` does the same from the template side
-(`nika new '?'` prints that set).
+The second column is pinned to the embedded gallery by an engine test.
+Read those examples through MCP `nika_examples`, or rehearse an exact lesson
+with `nika try <slug>` under its documented mock boundary. Gallery discovery
+is not authoring: Compile accepts its own exact skeleton list and the hello lesson.
 
 ## Skeleton or filled precedent
 
-`nika new '?'` lists the installed skeletons and their paired filled lessons.
-The handoff from `nika new bounded-batch batch.nika.yaml` names its runnable
-precedent. Through MCP, call `nika_template` with an exact `name` and
-`filled: true` to read that same lesson; a missing pair refuses explicitly.
-Omit `filled` to read the skeleton. The generated lessons fill values in the
-canonical template; they are not separate hand-maintained workflow logic.
+`nika compile --list` lists exact skeleton names. Preview with
+`nika compile <name> --json`; answer missing values with explicit
+`--answer KEY=JSON_LITERAL`. Only a Ready candidate and an explicit destination
+write a file. Unsupported prose stays incomplete without substitution.
+Through MCP, `nika_template` with exact `name` and `filled: true` reads the
+paired lesson; a missing pair refuses explicitly. Omit `filled` to read the
+skeleton. This is read-only discovery, not a second authoring implementation.
 
 ## Bound the resource, then test the refusal
 

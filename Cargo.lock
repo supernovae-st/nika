@@ -4383,6 +4383,7 @@ dependencies = [
  "nika-lints",
  "nika-migrate",
  "nika-models",
+ "nika-onboard",
  "nika-pack",
  "nika-providers",
  "nika-registry-client",

@@ -12,7 +12,7 @@
 //!
 //! The human keeps the hand everywhere: an existing file is SKIPPED,
 //! never clobbered — `--force` is the explicit override (same law as
-//! `nika new`). A write failure is the one environment error (`exit 3`).
+//! `nika compile`). A write failure is the one environment error (`exit 3`).
 //! The one append-maybe surface is `.gitignore` (`crate::gitignore` —
 //! adds-only: the trace-cover section joins an existing file, never a
 //! rewrite, and a second run adds nothing).
@@ -125,7 +125,7 @@ pub(crate) fn render(lines: &[(char, String)]) -> String {
 /// since #158, now the hand-off of the workflow-less founds only
 /// (`--recipe minimal` · a headless `starter`): a plain init founds
 /// around [`DEFAULT_EXAMPLE`] and hands over to THAT file (#1283).
-pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika try 01-hello   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new chain my-first.nika.yaml       # the same, scriptable\n  nika check my-first.nika.yaml                  # audit before a single token";
+pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika try 01-hello   # offline rehearsal\n  nika compile hello hello.nika.yaml   # explicit first file · mock/echo\n  nika compile --list   # exact skeletons; missing answers remain questions\n  nika check hello.nika.yaml   # audit before run";
 
 /// The scriptable path — briefs report with purposes, then each
 /// flagged extra as its own receipt block, then the hand-off. The door
@@ -202,7 +202,7 @@ pub fn scripted_run(
             text,
             "· starter's workflow step is a conversation — a script cannot answer it. \
              The project files were scaffolded; run bare `nika init` on a terminal for the questions, \
-             or `nika new \"<your job in plain words>\" <file>.nika.yaml` for the twin."
+             or `nika compile hello hello.nika.yaml` for an explicit first file."
         );
     }
 
@@ -1029,7 +1029,7 @@ mod tests {
         }
         let (starter, minimal) = (&said[0], &said[1]);
         assert!(
-            starter.contains("a script cannot answer it") && starter.contains("nika new"),
+            starter.contains("a script cannot answer it") && starter.contains("nika compile"),
             "starter names the missing half and the twin: {starter}"
         );
         assert!(

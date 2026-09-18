@@ -36,7 +36,7 @@ use std::process::Command;
 /// If the `enum Command` scan silently returns nothing, every loop below
 /// passes over an empty set and proves the harness instead of the CLI.
 const CORE: &[&str] = &[
-    "catalog", "check", "doctor", "lsp", "mcp", "new", "run", "test",
+    "catalog", "check", "doctor", "lsp", "mcp", "compile", "run", "test",
 ];
 
 /// `PascalCase` → kebab, the same shape the prober's `pascal_to_kebab` uses.

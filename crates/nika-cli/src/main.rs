@@ -279,24 +279,10 @@ enum Command {
     /// owned. Bare `nika try` lists what there is to see.
     #[command(hide = true, display_order = 10)]
     Try(try_args::TryArgs),
-    /// The ONE creation door: describe the job in plain words (routes),
-    /// or name a slug/skeleton (takes it, ingredients included) — the
-    /// destination derives from the slug. Plain words route across jobs,
-    /// lessons and skeletons. Bare `nika new` on a terminal is the guided
-    /// flow; `nika new '?'` lists the skeleton set.
+    /// Compile an exact skeleton or conservative edit into a reviewable workflow.
+    /// No destination: preview only; unknown intent stays incomplete.
     #[command(display_order = 11)]
-    New {
-        /// Plain-words intent, an example slug, or a skeleton name
-        /// (`'?'` lists the set). Omitted on a terminal → the guided
-        /// three-question flow; omitted in a pipe → fail fast.
-        intent: Option<String>,
-        /// Destination path (`*.nika.yaml`) — defaults to
-        /// `<slug>.nika.yaml` beside you.
-        dest: Option<String>,
-        /// Overwrite an existing destination.
-        #[arg(long)]
-        force: bool,
-    },
+    Compile(verbs::compile::CompileArgs),
     /// Generate shell completions (bash · zsh · fish · elvish · powershell).
     #[command(hide = true, display_order = 63)]
     Completions {
@@ -849,16 +835,7 @@ fn dispatch_verb(
         }),
         Command::Try(a) => try_args::listing(&a, plain_theme)
             .map_or_else(|| try_args::rehearse(&a, plain_theme), |o| emit(&o)),
-        Command::New {
-            intent,
-            dest,
-            force,
-        } => emit(&verbs::new::dispatch(
-            intent.as_deref(),
-            dest.as_deref(),
-            force,
-            plain_theme,
-        )),
+        Command::Compile(args) => emit(&verbs::compile::run(&args)),
         Command::Completions { shell } => {
             write_completions(shell, &mut std::io::stdout());
             0
@@ -1219,7 +1196,7 @@ mod tests {
     /// V5 · the three doors. Bare `nika try` lists the showroom (the
     /// user-sim finding kept: a door with nothing behind it answers
     /// with what there IS); `nika try 01-hello` parses the slug;
-    /// `nika new "plain words" out.nika.yaml` parses positionally
+    /// `nika compile "plain words" out.nika.yaml` parses positionally
     /// (N-4 · the `--from` flag is gone); and the dead top-level verbs
     /// (`examples` · `evidence` · `receipt`) refuse — one door each,
     /// no ghosts (no-legacy law).
@@ -1231,22 +1208,24 @@ mod tests {
         assert!(
             matches!(cli.command, Some(Command::Try(ref a)) if a.slug.as_deref() == Some("01-hello"))
         );
-        let cli = Cli::try_parse_from(["nika", "new", "chase unpaid invoices", "mine.nika.yaml"])
-            .expect("parses");
+        let cli =
+            Cli::try_parse_from(["nika", "compile", "chase unpaid invoices", "mine.nika.yaml"])
+                .expect("parses");
         assert!(matches!(
             cli.command,
-            Some(Command::New {
+            Some(Command::Compile(verbs::compile::CompileArgs {
                 intent: Some(_),
                 dest: Some(_),
                 ..
-            })
+            }))
         ));
         for dead in [
             vec!["nika", "examples"],
             vec!["nika", "examples", "run", "01-hello"],
             vec!["nika", "evidence"],
             vec!["nika", "receipt", "show"],
-            vec!["nika", "new", "--from", "chain", "x.nika.yaml"],
+            vec!["nika", "new"],
+            vec!["nika", "compile", "--from", "chain", "x.nika.yaml"],
         ] {
             assert!(
                 Cli::try_parse_from(&dead).is_err(),
@@ -1337,7 +1316,7 @@ mod tests {
         assert!(!bash.contains("nika-cli"), "the seed name never leaks");
     }
     /// Human default help is a postcard. The rest is `--help --all`.
-    /// Visible clap verbs: new · run · check · doctor. Nothing is deleted.
+    /// Visible clap verbs: compile · run · check · doctor.
     #[test]
     fn the_default_human_help_is_five_lines_and_hides_nothing_forever() {
         let help = help_card::human_help();
@@ -1347,12 +1326,12 @@ mod tests {
             "human default help is ≤ 8 lines, got {lines}:\n{help}"
         );
         assert!(
-            help.contains("nika new hello"),
+            help.contains("nika compile hello"),
             "day-one help names the first-wow file:\n{help}"
         );
         assert!(
-            help.contains("try") && help.contains("new"),
-            "C11 · issue 1249/1317: the postcard names try and new:\n{help}"
+            help.contains("try") && help.contains("compile"),
+            "C11 · issue 1249/1317: the postcard names try and compile:\n{help}"
         );
         let cmd = <Cli as clap::CommandFactory>::command();
         let total = cmd
@@ -1365,8 +1344,8 @@ mod tests {
             .map(clap::Command::get_name)
             .collect();
         let expected: std::collections::BTreeSet<&str> =
-            ["new", "run", "check", "doctor"].into_iter().collect();
-        assert_eq!(visible, expected, "day-one verbs: new run check doctor");
+            ["compile", "run", "check", "doctor"].into_iter().collect();
+        assert_eq!(visible, expected, "day-one verbs: compile run check doctor");
         let run = cmd.find_subcommand("run").expect("run");
         let access = run
             .get_arguments()

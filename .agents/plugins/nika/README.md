@@ -27,7 +27,7 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 | `nika-migrator` subagent | ports existing automation: inventory → native-first mapping → check loop → golden pin |
 | language rule | the 4-verb surface (`infer` · `exec` · `invoke` · `agent`), auto-loaded on `*.nika.yaml` |
 | delegation rule | teaches the agent WHEN to propose a workflow (repeatable · multi-step · spend-bound AI work) and which bundled surface to reach for |
-| `/nika:check` · `/nika:explain` · `/nika:new` | audit a file · explain a finding code · scaffold from a template |
+| `/nika:check` · `/nika:explain` · `/nika:compile` | audit a file · explain a finding code · compile an exact skeleton or conservative edit |
 | `/nika:trace` · `/nika:permits` | read a run's flight recorder (verdict · root cause · resume line) · infer and paste the tightest permits boundary |
 | `/nika:doctor` | diagnose this machine's Nika surface — binary · installed plugin kits (train drift, per-client fix) · providers · wiring — advisory by design, never breaks automation |
 | session-context hook | a workspace with workflows greets the agent with the full nika map at session start (surfaces · laws · where traces live) — Cursor **and** Claude Code dialects |

@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 pub struct CompileRequest {
     pub(super) input: Input,
     pub(super) answers: BTreeMap<String, String>,
+    pub(super) workflow_id: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -30,6 +31,7 @@ impl CompileRequest {
         Self {
             input: Input::Create(intent.into()),
             answers: BTreeMap::new(),
+            workflow_id: None,
         }
     }
 
@@ -46,6 +48,7 @@ impl CompileRequest {
                 change: EditChange::Text(change_request.into()),
             },
             answers: BTreeMap::new(),
+            workflow_id: None,
         }
     }
 
@@ -72,7 +75,16 @@ impl CompileRequest {
                 },
             },
             answers: BTreeMap::new(),
+            workflow_id: None,
         }
+    }
+
+    /// Name a newly created workflow explicitly, independently of its skeleton.
+    /// EDIT refuses this option: destination selection must not alter an accepted base.
+    #[must_use]
+    pub fn with_workflow_id(mut self, id: impl Into<String>) -> Self {
+        self.workflow_id = Some(id.into());
+        self
     }
 
     /// Supply a JSON literal for a stable question key. Invalid answers are

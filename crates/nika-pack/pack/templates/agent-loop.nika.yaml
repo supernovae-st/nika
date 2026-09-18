@@ -26,15 +26,9 @@
 #     · nika run <file> --var goal="triage the open bugs"    # a real seat
 nika: agent-loop-template       # SLOT: kebab-case workflow id
 
-# SLOT: a TOOL-CALLING model · local by default. This seat is measured, not
-# assumed: `ollama/qwen2.5:14b` completes the planning call in ~65s under the
-# ceiling below. A reasoning seat (`ollama/qwen3.5:4b`) spends its whole
-# budget thinking and never emits JSON here — the guaranteed offline path is
-# `--model mock/echo`, which needs no seat at all.
-# `nika new` STAMPS this line: it rewrites `model:` with a seat this binary
-# can resolve, and whatever rides on the line is dropped — so the teaching
-# lives here, above it. Measured on 0.118.7: with no resolvable seat the
-# stamp leaves `mock/echo`, the offline path this file guarantees.
+# This skeleton keeps its authored offline model. Creating a workflow does
+# not select a paid provider from ambient credentials. Choose a different
+# model explicitly for a real run; `--model mock/echo` remains offline.
 model: mock/echo
 
 inputs:

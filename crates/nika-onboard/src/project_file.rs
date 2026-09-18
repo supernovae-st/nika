@@ -76,6 +76,18 @@ pub fn report(path: &str, outcome: &Outcome) -> (char, String) {
     }
 }
 
+/// Protect local run traces beside an explicitly materialized workflow.
+/// Uses the same adds-only ignore policy as project bootstrap.
+/// # Errors
+/// Returns the filesystem failure to the materializing caller.
+pub fn protect_traces(dir: &std::path::Path) -> std::io::Result<()> {
+    let (_, outcome) = crate::gitignore::ensure(&dir.to_string_lossy());
+    if let crate::gitignore::Outcome::Failed(message) = outcome {
+        return Err(std::io::Error::other(message));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

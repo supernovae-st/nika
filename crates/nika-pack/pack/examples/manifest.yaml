@@ -60,7 +60,7 @@ foundation:
     sha256_16: fdf06a683a40cbce
 templates:
   - file: templates/agent-loop.nika.yaml
-    sha256_16: eb548e36322fc953
+    sha256_16: 921d0aed0ec1c3ff
   - file: templates/aggregate-by-key.nika.yaml
     sha256_16: 714a78d386265c64
   - file: templates/api-upload-and-create.nika.yaml
@@ -68,29 +68,29 @@ templates:
   - file: templates/bounded-batch.nika.yaml
     sha256_16: 2f35945bb4c17e27
   - file: templates/chain.nika.yaml
-    sha256_16: b119cf4d30583cb1
+    sha256_16: 73fc191156d5406a
   - file: templates/classify-and-route.nika.yaml
-    sha256_16: 3508a4ecda80da2f
+    sha256_16: e2091532a61c87b7
   - file: templates/corpus-qa.nika.yaml
-    sha256_16: 564b25bc17f9d180
+    sha256_16: ace0946ebb9398b1
   - file: templates/deduplicate-records.nika.yaml
     sha256_16: 101c3cc378e078d5
   - file: templates/docker-report.nika.yaml
-    sha256_16: 92f9c240939def46
+    sha256_16: 1219423a0feed01c
   - file: templates/document-to-fields.nika.yaml
-    sha256_16: b753f6589c5b46b7
+    sha256_16: 53ad03ae7d88dd4d
   - file: templates/etl-state.nika.yaml
     sha256_16: d7f6795d4124c091
   - file: templates/evaluate-and-optimize.nika.yaml
-    sha256_16: fff18b32fdc7a56b
+    sha256_16: f5d78ebea0514b4c
   - file: templates/fanout.nika.yaml
-    sha256_16: 25b3784599bd4491
+    sha256_16: 76195a7f0219c86f
   - file: templates/gate-and-act.nika.yaml
     sha256_16: 7e5da4d28a5d9cb0
   - file: templates/human-gated-ship.nika.yaml
     sha256_16: ea79920ec5520013
   - file: templates/media-asset-pack.nika.yaml
-    sha256_16: 3d133b951fc2b855
+    sha256_16: 5493e809bb1cb9bc
   - file: templates/parallel-review.nika.yaml
     sha256_16: c924312a828603bf
   - file: templates/project-public-fields.nika.yaml
@@ -102,7 +102,7 @@ templates:
   - file: templates/validate-records.nika.yaml
     sha256_16: 9ba6e1415af8bf5f
   - file: templates/website-brief.nika.yaml
-    sha256_16: c62d5e2345c011cd
+    sha256_16: b6bb60abbc2fd7c4
 showcase:
   - file: examples/bookmark-triage.nika.yaml
     name: bookmark-triage

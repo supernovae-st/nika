@@ -5,7 +5,7 @@ version.workspace = true
 edition     = "2024"
 rust-version = "1.88"
 license     = "AGPL-3.0-or-later"
-description = "nika's onboarding surface — the founding wizard (init) and the guided first workflow (new): recipes over the embedded templates, the clack-rail conversation, the audit-before-run proof"
+description = "nika's onboarding surface — project bootstrap (init), read-only gallery discovery and the stateless Compile core"
 repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]

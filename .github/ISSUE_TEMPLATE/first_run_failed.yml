@@ -36,7 +36,7 @@ body:
         - install
         - nika welcome
         - nika init
-        - nika new
+        - nika compile
         - nika check
         - nika run
         - nika explain

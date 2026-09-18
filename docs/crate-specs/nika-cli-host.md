@@ -54,3 +54,18 @@ bin never name this crate; its `public-api.txt` is the split's receipt.
   unit's members).
 - Tests coupled to cli-side fixtures (retention×trace-store ·
   SAMPLE×check) live cli-side and exercise the re-exported paths.
+
+## Compile transport and materialization
+
+The Compile CLI adapter lives in this existing interface member and is
+re-exported as `nika_cli::verbs::compile`. It owns clap arguments, explicit
+source/destination I/O, atomic publication of Ready candidates, and human/JSON
+rendering. The acyclic lateral dependency on `nika-onboard` consumes the one
+typed Compile core; this adapter does not own compiler semantics or runtime
+admission. Shell-word quoting is shared through `output::sh_word` so the
+Compile next step and Run resume teaching use the same escaping law.
+
+The binary and all dispatch remain in `nika-cli`. Existing CLI integration
+tests exercise the re-exported surface and actual process boundary; the
+quoting law itself is unit-tested here, beside `output::sh_word`. No new
+crate, authority boundary, or exception to the size budget is introduced.

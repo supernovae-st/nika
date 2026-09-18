@@ -3,7 +3,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 #![allow(clippy::disallowed_types)]
 
-//! First-wow binary path: empty dir → `nika new hello` → `nika run`
+//! First-wow binary path: empty dir → `nika compile hello` → `nika run`
 //! that file exits 0. Split from `bin_smoke.rs` (1500 LOC cap).
 
 use std::process::{Command, Stdio};
@@ -52,12 +52,12 @@ fn welcome_next_after_hello_is_run_not_new() {
     let vacant = nika(&dir, &["welcome"]);
     assert_eq!(vacant.status.code(), Some(0));
     assert!(
-        next_of(&vacant).contains("nika new hello"),
+        next_of(&vacant).contains("nika compile hello"),
         "{}",
         String::from_utf8_lossy(&vacant.stdout)
     );
 
-    let wrote = nika(&dir, &["new", "hello"]);
+    let wrote = nika(&dir, &["compile", "hello", "hello.nika.yaml"]);
     assert_eq!(
         wrote.status.code(),
         Some(0),
@@ -70,7 +70,7 @@ fn welcome_next_after_hello_is_run_not_new() {
     let after = next_of(&again);
     assert!(after.contains("nika run hello.nika.yaml"), "{after}");
     assert!(!after.contains("--access harness"), "{after}");
-    assert!(!after.contains("nika new hello"), "{after}");
+    assert!(!after.contains("nika compile hello"), "{after}");
 
     let ran = nika(&dir, &["run", "hello.nika.yaml", "--max-cost-usd", "0.01"]);
     assert_eq!(

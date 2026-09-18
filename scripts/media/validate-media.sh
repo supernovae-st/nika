@@ -191,10 +191,10 @@ for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
 # user keeps after the first minute. Pin presence AND order so another rewrite
 # cannot put proof before the run or silently bring the showroom back.
 readme = pathlib.Path("README.md").read_text(encoding="utf-8")
-front_door = ["nika new", "nika check", "nika run", "nika trace verify"]
+front_door = ["nika compile", "nika check", "nika run", "nika trace verify"]
 positions = [readme.find(command) for command in front_door]
 if any(position < 0 for position in positions) or positions != sorted(positions):
-    print(" x README.md: front door must teach new → check → run → trace verify")
+    print(" x README.md: front door must teach compile → check → run → trace verify")
     bad = 1
 if re.search(r"\bnika try\b", readme):
     print(" x README.md: showroom `nika try` leaked into the ownership path")
