@@ -424,7 +424,7 @@ struct RunArgs {
     /// OMITTED with exactly one workflow in this workspace → that one
     /// runs (announced); zero or several → the honest routing.
     file: Option<String>,
-    /// Stream NDJSON events instead of the live render (CI · agents).
+    /// Machine NDJSON: compact events or one pre-run refusal object, never pretty JSON.
     #[arg(long)]
     json: bool,
     /// Print the typed `outputs:` as ONE JSON object on stdout

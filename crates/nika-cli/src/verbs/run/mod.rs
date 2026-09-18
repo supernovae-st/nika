@@ -198,6 +198,7 @@ pub fn run(
 /// Resolve output/ceiling and run the opportunistic trace collection.
 fn preflight(
     output: Option<&str>,
+    json: bool,
     max_cost_usd: Option<f64>,
     no_gc: bool,
     dry_run: bool,
@@ -209,7 +210,7 @@ fn preflight(
     let max_cost_usd = match ceiling::from_cwd(max_cost_usd) {
         Ok(v) => v,
         Err(e) => {
-            epilogue::emit_diagnostic(&e.to_string(), output_json);
+            epilogue::emit_diagnostic(&e.to_string(), output_json || json);
             return Err(Box::new(RunVerdict::bare(exit::ENV)));
         }
     };
@@ -238,7 +239,7 @@ pub(crate) fn run_verdict(
     require_signature: bool,
     repair_target: Option<nika_display::check_render::RepairTarget>,
 ) -> RunVerdict {
-    let (output_json, max_cost_usd) = match preflight(output, max_cost_usd, no_gc, dry_run) {
+    let (output_json, max_cost_usd) = match preflight(output, json, max_cost_usd, no_gc, dry_run) {
         Ok(pair) => pair,
         Err(verdict) => return *verdict,
     };
@@ -249,7 +250,7 @@ pub(crate) fn run_verdict(
         };
     let file_owned = source.logical_path().to_owned();
     let file = file_owned.as_str();
-    if require_signature && let Err(code) = require_signature_gate(&source, output_json) {
+    if require_signature && let Err(code) = require_signature_gate(&source, output_json || json) {
         return RunVerdict::bare(code);
     }
     let (_wf, _report, _skills) = match scoped_clean_gate(
@@ -835,7 +836,11 @@ fn scoped_clean_gate(
             json,
             theme,
         );
-        epilogue::emit_diagnostic(&out.text, output_json);
+        if json {
+            epilogue::emit_check_refusal(&out.text);
+        } else {
+            epilogue::emit_diagnostic(&out.text, output_json);
+        }
         out.code
     };
     // Judge the effective model with the same file context as check; an
@@ -855,7 +860,7 @@ fn scoped_clean_gate(
         );
         return Err(refuse(&wf, &report, &skills));
     }
-    let (wf, report) = apply_task_scope(wf, report, task_filter, output_json)?;
+    let (wf, report) = apply_task_scope(wf, report, task_filter, output_json || json)?;
     if !report.is_clean() {
         let skills = crate::verbs::resolve_workflow_skills(
             &wf,

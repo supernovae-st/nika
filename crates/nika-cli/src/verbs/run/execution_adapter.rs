@@ -160,19 +160,22 @@ pub(super) fn run_admitted(
     let (project, root, display_root) = match execution_project(file) {
         Ok(parts) => parts,
         Err(error) => {
-            epilogue::emit_diagnostic(&format!("nika run: environment: {error}"), output_json);
+            epilogue::emit_diagnostic(
+                &format!("nika run: environment: {error}"),
+                output_json || json,
+            );
             return RunVerdict::bare(exit::ENV);
         }
     };
     let service = nika_execution::ExecutionService::default();
     let admitted = match admit_source(&service, &project, &root, preview, model_override) {
         Ok(admitted) => admitted,
-        Err(error) => return admission_refusal(&error, output_json),
+        Err(error) => return admission_refusal(&error, output_json || json),
     };
     if admitted.snapshot().text(admitted.snapshot().root()) != Some(preview.source()) {
         epilogue::emit_diagnostic(
             "nika run: execution admission: workflow changed during admission; retry the run",
-            output_json,
+            output_json || json,
         );
         return RunVerdict::bare(exit::ENV);
     }
@@ -225,16 +228,21 @@ fn run_admitted_context(
 ) -> RunVerdict {
     let Some(world) = AdmittedWorld::from_context(context, display_root, !request.no_trace_file)
     else {
-        return admitted_root_refusal(request.output_json);
+        return admitted_root_refusal(request.output_json || request.json);
     };
-    let world = match world.with_task_scope(request.task_filter, request.output_json) {
-        Ok(world) => world,
-        Err(verdict) => return *verdict,
-    };
+    let world =
+        match world.with_task_scope(request.task_filter, request.output_json || request.json) {
+            Ok(world) => world,
+            Err(verdict) => return *verdict,
+        };
     let wf = world.driver.workflow().clone();
     let report = world.driver.report().clone();
     request.announce_model_scope(&report);
-    let inputs = match inputs::validated_var_overrides(request.vars, &wf, request.output_json) {
+    let inputs = match inputs::validated_var_overrides(
+        request.vars,
+        &wf,
+        request.output_json || request.json,
+    ) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -265,7 +273,7 @@ fn run_admitted_context(
         &report,
         request.model_override,
         request.max_cost_usd,
-        request.output_json,
+        request.output_json || request.json,
     ) {
         return RunVerdict::bare(code);
     }
@@ -287,7 +295,7 @@ fn run_admitted_context(
         inputs,
         setup,
         request.max_cost_usd,
-        (request.no_trace_file, request.output_json),
+        (request.no_trace_file, request.output_json || request.json),
         &world,
     ) {
         // #1438 · ONE cancel context: the driver flips it on the first signal.

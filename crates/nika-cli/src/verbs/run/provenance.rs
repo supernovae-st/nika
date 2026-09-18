@@ -72,7 +72,7 @@ pub(super) fn capture_checked_source(
 /// (W3-F10); the human and `--output json` lanes keep their voices.
 fn refuse_source(out: &crate::verbs::VerbOutput, output_json: bool, json: bool) -> Box<RunVerdict> {
     if json {
-        println!("{}", crate::verbs::check::parse_fatal_json(out).text);
+        epilogue::emit_check_refusal(&crate::verbs::check::parse_fatal_json(out).text);
     } else {
         epilogue::emit_diagnostic(&refusal_text(out), output_json);
     }
