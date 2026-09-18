@@ -51,6 +51,14 @@ or instructions remain literal data; expression islands and root objects with
 both `type` and `value` are refused. Existing typed declarations retain their
 type, and a type-incompatible candidate remains Incomplete under Check.
 
+Every answer door (CREATE answers and the text, answer and structured EDIT
+inputs) shares one guarded literal path. An integer answer outside the canonical
+reader's exact `i64` range is refused from the answer's own text, at any depth,
+before a decoder can round it; a whole f64 would otherwise satisfy even a
+`type: integer` constant. Fraction and exponent answers are floats under the
+f64 contract and quoted digits stay text. This is a refusal, not arbitrary
+precision.
+
 Emission must preserve the intended canonical literal projection; decoder
 ambiguity or precision loss refuses the edit and retains the original source.
 All unrelated semantic values survive accepted edits. EDIT replaces only the
