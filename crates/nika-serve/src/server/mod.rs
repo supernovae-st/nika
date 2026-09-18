@@ -6,6 +6,7 @@ mod cancel;
 mod config;
 mod coordinator;
 mod error;
+mod inputs;
 mod listen;
 mod model;
 mod openapi;
@@ -272,6 +273,28 @@ pub trait ExecutionBackend: Send + Sync + 'static {
                 Box::pin(async move { ExecutionOutcome::failed("NIKA-1801", message) })
             }
             None => self.execute_with_cancel(context, max_cost_usd, cancel),
+        }
+    }
+
+    /// Execute with literal caller inputs. A backend must explicitly support
+    /// them; the default refuses nonempty bindings instead of silently dropping them.
+    fn execute_with_inputs<'a>(
+        &'a self,
+        context: ExecutionContext<'a>,
+        max_cost_usd: Option<f64>,
+        access_pin: Option<&str>,
+        inputs: &BTreeMap<String, serde_json::Value>,
+        cancel: nika_types::cancel::CancelCtx,
+    ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        if inputs.is_empty() {
+            self.execute_with_access(context, max_cost_usd, access_pin, cancel)
+        } else {
+            Box::pin(async {
+                ExecutionOutcome::failed(
+                    "inputs_unsupported",
+                    "execution backend does not support caller inputs",
+                )
+            })
         }
     }
 
@@ -1040,6 +1063,12 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
             };
         }
     };
+    let record = state
+        .store
+        .get(task.id.clone())
+        .await?
+        .ok_or_else(|| crate::JobStoreError::JobNotFound(task.id.clone()))?;
+    let inputs = record.inputs;
     let mut guard = RunningGuard::new(state.store.clone(), task.id.clone(), task.prestarted);
     if !task.prestarted && !start_running(&mut guard, &admitted).await? {
         return Ok(());
@@ -1055,6 +1084,7 @@ async fn run_job(state: Arc<AuthorityState>, mut task: ExecutionTask) -> Result<
         task.origin,
         task.max_cost_usd,
         task.access_pin,
+        inputs,
         cancel,
     )
     .await
@@ -1128,13 +1158,15 @@ async fn settle_disposition(
     origin: JobOrigin,
     max_cost_usd: Option<f64>,
     access_pin: Option<String>,
+    inputs: BTreeMap<String, serde_json::Value>,
     cancel: nika_types::cancel::CancelCtx,
 ) -> Result<(), ServerError> {
     let session = state.service.begin(admitted);
-    let execute = state.backend.execute_with_access(
+    let execute = state.backend.execute_with_inputs(
         session.context(),
         max_cost_usd,
         access_pin.as_deref(),
+        &inputs,
         cancel.clone(),
     );
     // A cancel signal gives the runtime a grace to reach its next wave

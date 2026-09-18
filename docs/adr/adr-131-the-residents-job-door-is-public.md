@@ -90,3 +90,15 @@ received — a content assertion. The OpenAPI, the refusal text, `nika
 explain` and this ADR now say « caller-supplied integrity digest ». The
 wire code `snapshot_tampered` stays (a stable word since 0.116); its
 words changed.
+
+## Amendment · literal caller inputs on the named door (#1642)
+
+The named form additionally accepts `inputs`, a JSON object of literal values
+for declared workflow inputs. Canonical key/type/required validation precedes
+job creation. Exact request bytes retain idempotency ownership; the durable
+input map is hash-bound and passed separately to the runtime without altering
+snapshot bytes. Snapshot request bodies reject extra input fields, even an
+empty object or null. Unknown envelope fields and null access pins are refused.
+`@env:` and expression-like strings are data, never server-side instructions.
+Supplied values carry the additive `api-caller` origin, subject to the normative
+Input origins amendment in spec 04; defaults remain `file`.

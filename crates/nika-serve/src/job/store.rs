@@ -10,7 +10,6 @@ use nika_fs::OwnedDir;
 use nix::fcntl::{Flock, FlockArg};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha2::{Digest as _, Sha256};
 
 mod admission;
 mod binding;
@@ -22,8 +21,8 @@ mod format_tests;
 
 use binding::{
     attach_interrupted_receipt, ensure_receipt_matches, has_complete_execution_identity,
-    hash_execution_identity, migrate_legacy_nonterminal_record, validate_identity_binding,
-    validate_snapshot_digest, validate_terminal_record,
+    hash_event, hash_execution_identity, migrate_legacy_nonterminal_record,
+    validate_identity_binding, validate_snapshot_digest, validate_terminal_record,
 };
 use migration::decode_state;
 
@@ -252,7 +251,7 @@ impl JobStore {
         max_jobs: usize,
         workflow: String,
     ) -> Result<Admission, JobStoreError> {
-        self.create_or_replay_inner(key, digest, max_jobs, workflow, None, None)
+        self.create_or_replay_inner(key, digest, max_jobs, workflow, None, None, BTreeMap::new())
     }
 
     /// Create or replay while persisting the POST-time execution world.
@@ -271,7 +270,15 @@ impl JobStore {
         workflow: String,
         world: &str,
     ) -> Result<Admission, JobStoreError> {
-        self.create_or_replay_inner(key, digest, max_jobs, workflow, Some(world), None)
+        self.create_or_replay_inner(
+            key,
+            digest,
+            max_jobs,
+            workflow,
+            Some(world),
+            None,
+            BTreeMap::new(),
+        )
     }
 
     /// Create or replay while persisting the POST-time world and access pin.
@@ -287,7 +294,36 @@ impl JobStore {
         world: &str,
         access_pin: Option<String>,
     ) -> Result<Admission, JobStoreError> {
-        self.create_or_replay_inner(key, digest, max_jobs, workflow, Some(world), access_pin)
+        self.create_or_replay_inner(
+            key,
+            digest,
+            max_jobs,
+            workflow,
+            Some(world),
+            access_pin,
+            BTreeMap::new(),
+        )
+    }
+
+    pub(crate) fn create_or_replay_captured_inputs(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        max_jobs: usize,
+        workflow: String,
+        world: &str,
+        access_pin: Option<String>,
+        inputs: BTreeMap<String, Value>,
+    ) -> Result<Admission, JobStoreError> {
+        self.create_or_replay_inner(
+            key,
+            digest,
+            max_jobs,
+            workflow,
+            Some(world),
+            access_pin,
+            inputs,
+        )
     }
 
     fn create_or_replay_inner(
@@ -298,6 +334,7 @@ impl JobStore {
         workflow: String,
         world: Option<&str>,
         access_pin: Option<String>,
+        inputs: BTreeMap<String, Value>,
     ) -> Result<Admission, JobStoreError> {
         key.validate()?;
         digest.validate()?;
@@ -337,6 +374,7 @@ impl JobStore {
             origin: crate::JobOrigin::Manual,
             workflow,
             access_pin,
+            inputs,
             execution_id: String::new(),
             trace_id: String::new(),
             snapshot_digest: String::new(),
@@ -352,14 +390,22 @@ impl JobStore {
         if let Some(world) = world {
             self.dir.write_atomic(&world_file(&record.id), world)?;
         }
-        state.jobs.push(StoredJob {
+        let mut stored = StoredJob {
             record: record.clone(),
             events: Vec::new(),
             event_count: 0,
             event_head: None,
             identity_digest: None,
             terminal_sequence: None,
-        });
+        };
+        // Bind caller values before execution, including during durable queue recovery.
+        // The payload carries no values; the event preimage binds the input map.
+        if !record.inputs.is_empty() {
+            let queued = serde_json::json!({"kind": crate::JobEventKind::Queued, "status": JobStatus::Queued});
+            let batch = ValidatedEventBatch::for_transition(std::slice::from_ref(&queued))?;
+            stored.append_payloads(&batch, &self.now())?;
+        }
+        state.jobs.push(stored);
         self.persist(&state)?;
         Ok(Admission::Created(record))
     }
@@ -1162,6 +1208,11 @@ fn unique_job_id(state: &PersistedState) -> JobId {
 }
 
 fn validate_events(job: &StoredJob) -> Result<(), JobStoreError> {
+    if !job.record.inputs.is_empty() && job.events.is_empty() {
+        return Err(JobStoreError::Corrupt(
+            "input bindings require an admission event".to_owned(),
+        ));
+    }
     if usize::try_from(job.event_count).ok() != Some(job.events.len())
         || job.event_head.as_ref() != job.events.last().map(|event| &event.hash)
     {
@@ -1218,46 +1269,6 @@ fn validate_events(job: &StoredJob) -> Result<(), JobStoreError> {
         previous = Some(&event.hash);
     }
     Ok(())
-}
-
-fn hash_event(
-    record: &JobRecord,
-    terminal_sequence: Option<u64>,
-    sequence: u64,
-    previous_hash: Option<&EventHash>,
-    payload: &Value,
-) -> Result<EventHash, JobStoreError> {
-    let preimage = if terminal_sequence == Some(sequence) {
-        serde_json::json!({
-            "job_id": record.id.as_str(),
-            "payload": payload,
-            "previous_hash": previous_hash.map(EventHash::as_str),
-            "request_digest": record.request_digest.as_str(),
-            "sequence": sequence,
-            "terminal_binding": {
-                "execution_id": &record.execution_id,
-                "outputs": &record.outputs,
-                "receipt": &record.receipt,
-                "snapshot_digest": &record.snapshot_digest,
-                "status": record.status,
-                "trace_id": &record.trace_id,
-            },
-        })
-    } else {
-        serde_json::json!({
-            "job_id": record.id.as_str(),
-            "payload": payload,
-            "previous_hash": previous_hash.map(EventHash::as_str),
-            "request_digest": record.request_digest.as_str(),
-            "sequence": sequence,
-        })
-    };
-    let canonical = serde_json::to_vec(&preimage)
-        .map_err(|_| JobStoreError::Corrupt("event preimage cannot be encoded".to_owned()))?;
-    let mut hasher = Sha256::new();
-    hasher.update(EVENT_HASH_DOMAIN);
-    hasher.update(canonical);
-    Ok(EventHash::from_bytes(hasher.finalize().into()))
 }
 
 fn validate_initialization_marker(marker: &str) -> Result<(), JobStoreError> {

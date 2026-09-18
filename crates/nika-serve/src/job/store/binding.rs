@@ -5,7 +5,8 @@ use sha2::{Digest as _, Sha256};
 
 use crate::{JobOrigin, JobReceipt, JobRecord, JobStoreError, RequestDigest};
 
-use super::{EventHash, IDENTITY_HASH_DOMAIN, StoredJob};
+use super::{EVENT_HASH_DOMAIN, EventHash, IDENTITY_HASH_DOMAIN, StoredJob};
+use serde_json::Value;
 
 pub(super) fn validate_snapshot_digest(value: &str) -> Result<(), JobStoreError> {
     RequestDigest::new(value.to_owned()).map(|_| ())
@@ -82,7 +83,7 @@ pub(super) fn hash_execution_identity(record: &JobRecord) -> Result<EventHash, J
     // Preserve the exact v3 manual preimage so existing durable stores remain
     // readable. Schedule provenance is additive and participates in the
     // identity binding for every newly-introduced scheduled run.
-    let preimage = if record.origin == JobOrigin::Manual {
+    let mut preimage = if record.origin == JobOrigin::Manual {
         serde_json::json!({
             "execution_id": &record.execution_id,
             "job_id": record.id.as_str(),
@@ -100,6 +101,10 @@ pub(super) fn hash_execution_identity(record: &JobRecord) -> Result<EventHash, J
             "trace_id": &record.trace_id,
         })
     };
+    if !record.inputs.is_empty() {
+        preimage["inputs"] = serde_json::to_value(&record.inputs)
+            .map_err(|_| JobStoreError::Corrupt("input binding cannot be encoded".to_owned()))?;
+    }
     let canonical = serde_json::to_vec(&preimage)
         .map_err(|_| JobStoreError::Corrupt("identity preimage cannot be encoded".to_owned()))?;
     let mut hasher = Sha256::new();
@@ -141,4 +146,48 @@ pub(super) fn validate_terminal_record(record: &JobRecord) -> Result<(), JobStor
         })?;
     }
     Ok(())
+}
+
+pub(super) fn hash_event(
+    record: &JobRecord,
+    terminal_sequence: Option<u64>,
+    sequence: u64,
+    previous_hash: Option<&EventHash>,
+    payload: &Value,
+) -> Result<EventHash, JobStoreError> {
+    let mut preimage = if terminal_sequence == Some(sequence) {
+        serde_json::json!({
+            "job_id": record.id.as_str(),
+            "payload": payload,
+            "previous_hash": previous_hash.map(EventHash::as_str),
+            "request_digest": record.request_digest.as_str(),
+            "sequence": sequence,
+            "terminal_binding": {
+                "execution_id": &record.execution_id,
+                "outputs": &record.outputs,
+                "receipt": &record.receipt,
+                "snapshot_digest": &record.snapshot_digest,
+                "status": record.status,
+                "trace_id": &record.trace_id,
+            },
+        })
+    } else {
+        serde_json::json!({
+            "job_id": record.id.as_str(),
+            "payload": payload,
+            "previous_hash": previous_hash.map(EventHash::as_str),
+            "request_digest": record.request_digest.as_str(),
+            "sequence": sequence,
+        })
+    };
+    if !record.inputs.is_empty() {
+        preimage["inputs"] = serde_json::to_value(&record.inputs)
+            .map_err(|_| JobStoreError::Corrupt("input binding cannot be encoded".to_owned()))?;
+    }
+    let canonical = serde_json::to_vec(&preimage)
+        .map_err(|_| JobStoreError::Corrupt("event preimage cannot be encoded".to_owned()))?;
+    let mut hasher = Sha256::new();
+    hasher.update(EVENT_HASH_DOMAIN);
+    hasher.update(canonical);
+    Ok(EventHash::from_bytes(hasher.finalize().into()))
 }

@@ -1,4 +1,9 @@
-use super::*;
+use super::{
+    BTreeSet, Deserialize, EventHash, IncarnationLedger, JobEvent, JobRecord, JobStatus,
+    JobStoreError, LEGACY_STATE_VERSION, PersistedState, STATE_VERSION, StoredJob, Value,
+    hash_event, hash_execution_identity, migrate_legacy_nonterminal_record,
+    validate_approval_event, validate_terminal_record,
+};
 use crate::JobEventKind as Kind;
 
 #[derive(Debug, Deserialize)]
@@ -20,6 +25,11 @@ impl LegacyPersistedStateV2 {
         let mut ids = BTreeSet::new();
         let mut keys = BTreeSet::new();
         for job in &self.jobs {
+            if !job.record.inputs.is_empty() {
+                return Err(JobStoreError::Corrupt(
+                    "legacy job cannot carry API input bindings".to_owned(),
+                ));
+            }
             job.record.id.validate()?;
             job.record.idempotency_key.validate()?;
             job.record.request_digest.validate()?;

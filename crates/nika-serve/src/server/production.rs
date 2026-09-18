@@ -3,6 +3,7 @@
 
 //! Production composition for the resident authority.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -53,6 +54,7 @@ impl ResidentExecutionBackend {
         context: nika_execution::ExecutionContext<'a>,
         max_cost_usd: Option<f64>,
         access_pin: Option<&str>,
+        inputs: BTreeMap<String, serde_json::Value>,
         cancel: Option<CancelCtx>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         let display_root = self.display_root.clone();
@@ -65,6 +67,7 @@ impl ResidentExecutionBackend {
                 context,
                 max_cost_usd,
                 access_pin.as_deref(),
+                inputs,
                 cancel,
             )
             .await
@@ -105,7 +108,7 @@ impl ExecutionBackend for ResidentExecutionBackend {
         &'a self,
         context: nika_execution::ExecutionContext<'a>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        self.drive(context, None, None, None)
+        self.drive(context, None, None, BTreeMap::new(), None)
     }
 
     fn execute_with_cancel<'a>(
@@ -114,7 +117,7 @@ impl ExecutionBackend for ResidentExecutionBackend {
         max_cost_usd: Option<f64>,
         cancel: CancelCtx,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        self.drive(context, max_cost_usd, None, Some(cancel))
+        self.drive(context, max_cost_usd, None, BTreeMap::new(), Some(cancel))
     }
 
     fn execute_with_max_cost<'a>(
@@ -122,7 +125,7 @@ impl ExecutionBackend for ResidentExecutionBackend {
         context: nika_execution::ExecutionContext<'a>,
         max_cost_usd: Option<f64>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        self.drive(context, max_cost_usd, None, None)
+        self.drive(context, max_cost_usd, None, BTreeMap::new(), None)
     }
 
     fn execute_with_access<'a>(
@@ -132,7 +135,30 @@ impl ExecutionBackend for ResidentExecutionBackend {
         access_pin: Option<&str>,
         cancel: CancelCtx,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        self.drive(context, max_cost_usd, access_pin, Some(cancel))
+        self.drive(
+            context,
+            max_cost_usd,
+            access_pin,
+            BTreeMap::new(),
+            Some(cancel),
+        )
+    }
+
+    fn execute_with_inputs<'a>(
+        &'a self,
+        context: nika_execution::ExecutionContext<'a>,
+        max_cost_usd: Option<f64>,
+        access_pin: Option<&str>,
+        inputs: &BTreeMap<String, serde_json::Value>,
+        cancel: CancelCtx,
+    ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        self.drive(
+            context,
+            max_cost_usd,
+            access_pin,
+            inputs.clone(),
+            Some(cancel),
+        )
     }
 
     fn trace_journal_dir(&self) -> Option<PathBuf> {
@@ -178,6 +204,7 @@ async fn drive_resident_execution(
     context: nika_execution::ExecutionContext<'_>,
     max_cost_usd: Option<f64>,
     access_pin: Option<&str>,
+    inputs: BTreeMap<String, serde_json::Value>,
     operator_cancel: Option<CancelCtx>,
 ) -> ExecutionOutcome {
     // The journal a `nika run` would leave, under the project the resident
@@ -195,6 +222,19 @@ async fn drive_resident_execution(
         let lane = JournalLane(Arc::clone(&journal));
         Arc::new(move || Box::new(lane.clone()))
     };
+    // Defaults retain file provenance; explicit HTTP bindings never infer a
+    // person, CI context or environment read from the server process.
+    let mut input_origins = nika_runtime::input_origins(
+        context.workflow(),
+        &BTreeMap::new(),
+        &BTreeSet::new(),
+        false,
+    );
+    input_origins.extend(
+        inputs
+            .keys()
+            .map(|name| (name.clone(), nika_types::InputOrigin::ApiCaller)),
+    );
     let Some(driver) = ServiceExecutionDriver::new(context, display_root.clone()) else {
         return ExecutionOutcome::failed(
             "admission_refused",
@@ -217,6 +257,8 @@ async fn drive_resident_execution(
         display_root,
         operator_cancel,
         max_cost_usd,
+        inputs,
+        input_origins,
     };
     match tokio::task::spawn_blocking(move || run_admitted_resident_job(job, cancel_rx)).await {
         Ok(outcome) => outcome,
@@ -235,6 +277,8 @@ struct ResidentJob {
     display_root: PathBuf,
     operator_cancel: Option<CancelCtx>,
     max_cost_usd: Option<f64>,
+    inputs: BTreeMap<String, serde_json::Value>,
+    input_origins: BTreeMap<String, nika_types::InputOrigin>,
 }
 
 fn run_admitted_resident_job(
@@ -257,8 +301,12 @@ fn run_admitted_resident_job(
         display_root,
         operator_cancel,
         max_cost_usd,
+        inputs,
+        input_origins,
     } = job;
     let options = ServiceExecutionOptions::new()
+        .with_inputs(inputs)
+        .with_input_origins(input_origins)
         .with_max_cost_usd(max_cost_usd)
         .with_access_plan(plan)
         .with_mirror(mirror)
