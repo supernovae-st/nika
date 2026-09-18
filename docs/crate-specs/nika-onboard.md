@@ -62,6 +62,11 @@ and keeps no session state. The application owns base revision selection, CAS
 and materialization. This API supplies a constant-edit seam, not a Graph
 implementation, general patch language or full natural-language authoring.
 
+Private pattern-facet derivation (#1666) lives beside Compile. It parses with
+the same schema door, reads Check `needed` as the membrane, and never text-scans
+comments. Task ids come from the `tasks:` map only. It is not a public YAML key,
+a fifth verb, or an SDK noun, and it does not change CREATE/EDIT.
+
 ## The injected seams
 
 The composition root (`nika-cli`) owns what proving and wiring MEAN;
