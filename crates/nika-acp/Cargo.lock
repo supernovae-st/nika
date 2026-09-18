@@ -1984,7 +1984,7 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
 name = "nika-acp"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "agent-client-protocol",
  "futures-core",
@@ -2008,11 +2008,11 @@ dependencies = [
 
 [[package]]
 name = "nika-bm25"
-version = "0.120.0"
+version = "0.120.1"
 
 [[package]]
 name = "nika-builtin"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "blake3",
  "bytes",
@@ -2045,7 +2045,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cap"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "nika-types",
  "serde",
@@ -2054,7 +2054,7 @@ dependencies = [
 
 [[package]]
 name = "nika-catalog"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "miette",
  "nika-catalog-codegen",
@@ -2069,7 +2069,7 @@ dependencies = [
 
 [[package]]
 name = "nika-catalog-codegen"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "phf_codegen 0.14.0",
  "phf_shared 0.14.0",
@@ -2081,7 +2081,7 @@ dependencies = [
 
 [[package]]
 name = "nika-cel"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "nika-tmpl",
  "serde_json",
@@ -2090,11 +2090,11 @@ dependencies = [
 
 [[package]]
 name = "nika-chart"
-version = "0.120.0"
+version = "0.120.1"
 
 [[package]]
 name = "nika-check"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "nika-cap",
  "nika-catalog",
@@ -2110,7 +2110,7 @@ dependencies = [
 
 [[package]]
 name = "nika-check-analyzer"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "jaq-core",
  "jaq-json",
@@ -2127,7 +2127,7 @@ dependencies = [
 
 [[package]]
 name = "nika-clock"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "nika-kernel",
  "tokio",
@@ -2135,7 +2135,7 @@ dependencies = [
 
 [[package]]
 name = "nika-dataflow"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "jaq-core",
  "jaq-json",
@@ -2153,7 +2153,7 @@ dependencies = [
 
 [[package]]
 name = "nika-error"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "miette",
  "nika-tmpl",
@@ -2165,7 +2165,7 @@ dependencies = [
 
 [[package]]
 name = "nika-event"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "miette",
  "nika-error",
@@ -2179,7 +2179,7 @@ dependencies = [
 
 [[package]]
 name = "nika-exec-runner"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "nika-cap",
  "nika-kernel",
@@ -2191,7 +2191,7 @@ dependencies = [
 
 [[package]]
 name = "nika-extract"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "dom_smoothie",
  "ego-tree",
@@ -2208,7 +2208,7 @@ dependencies = [
 
 [[package]]
 name = "nika-fs"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "bytes",
  "globset",
@@ -2219,11 +2219,11 @@ dependencies = [
 
 [[package]]
 name = "nika-fx"
-version = "0.120.0"
+version = "0.120.1"
 
 [[package]]
 name = "nika-harness"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "futures-core",
  "miette",
@@ -2239,7 +2239,7 @@ dependencies = [
 
 [[package]]
 name = "nika-http"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2253,7 +2253,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "nika-error",
  "nika-kernel-ai",
@@ -2264,7 +2264,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-ai"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2280,7 +2280,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-core"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2296,7 +2296,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-mock"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2309,7 +2309,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-plugin"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "miette",
  "nika-error",
@@ -2320,7 +2320,7 @@ dependencies = [
 
 [[package]]
 name = "nika-kernel-runtime"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "miette",
  "nika-error",
@@ -2332,7 +2332,7 @@ dependencies = [
 
 [[package]]
 name = "nika-proof"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "blake3",
  "nika-check",
@@ -2341,7 +2341,7 @@ dependencies = [
 
 [[package]]
 name = "nika-providers"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2354,7 +2354,7 @@ dependencies = [
 
 [[package]]
 name = "nika-runtime"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "blake3",
  "futures-util",
@@ -2392,7 +2392,7 @@ dependencies = [
 
 [[package]]
 name = "nika-runtime-laws"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "miette",
  "nika-cap",
@@ -2414,21 +2414,21 @@ dependencies = [
 
 [[package]]
 name = "nika-sandbox-landlock"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "nika-kernel",
 ]
 
 [[package]]
 name = "nika-sandbox-seatbelt"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "nika-kernel",
 ]
 
 [[package]]
 name = "nika-schema"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "marked-yaml",
  "miette",
@@ -2445,7 +2445,7 @@ dependencies = [
 
 [[package]]
 name = "nika-secret"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "nika-schema",
  "serde_json",
@@ -2453,18 +2453,18 @@ dependencies = [
 
 [[package]]
 name = "nika-source"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "nika-tmpl"
-version = "0.120.0"
+version = "0.120.1"
 
 [[package]]
 name = "nika-types"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "loom",
  "serde",
@@ -2475,7 +2475,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-agent"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2498,7 +2498,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-exec"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "miette",
  "nika-error",
@@ -2508,7 +2508,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-infer"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "jsonschema",
  "miette",
@@ -2524,7 +2524,7 @@ dependencies = [
 
 [[package]]
 name = "nika-verb-invoke"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "miette",
  "nika-error",
@@ -2536,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "nika-vocab"
-version = "0.120.0"
+version = "0.120.1"
 dependencies = [
  "marked-yaml",
  "nika-cap",
