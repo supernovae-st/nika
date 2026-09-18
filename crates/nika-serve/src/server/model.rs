@@ -146,12 +146,19 @@ struct StoreFormatVersion {
     schedules: u32,
 }
 
-const HTTP_ADAPTER_CAPABILITIES: &[&str] = &["check", "executionSnapshot", "eventStream", "cancel"];
+const HTTP_ADAPTER_CAPABILITIES: &[&str] = &[
+    "check",
+    "executionSnapshot",
+    "eventStream",
+    "cancel",
+    "jobInputs",
+];
 const HTTP_ADAPTER_SCHEDULE_CAPABILITIES: &[&str] = &[
     "check",
     "executionSnapshot",
     "eventStream",
     "cancel",
+    "jobInputs",
     "schedule",
 ];
 

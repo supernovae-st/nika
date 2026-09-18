@@ -20,6 +20,8 @@ pub enum InputOrigin {
     /// value was read from the OS environment through the explicit
     /// spelling, never an ambient guess.
     Env,
+    /// Literal value supplied through a programmatic API, without actor or grant inference.
+    ApiCaller,
     /// The declared `default:` in the workflow file filled the input.
     File,
 }
@@ -33,6 +35,7 @@ impl InputOrigin {
             Self::CiContext => "ci-context",
             Self::Env => "env",
             Self::File => "file",
+            Self::ApiCaller => "api-caller",
         }
     }
 }
@@ -47,6 +50,11 @@ mod tests {
         assert_eq!(InputOrigin::CiContext.as_str(), "ci-context");
         assert_eq!(InputOrigin::Env.as_str(), "env");
         assert_eq!(InputOrigin::File.as_str(), "file");
+        assert_eq!(InputOrigin::ApiCaller.as_str(), "api-caller");
+        assert_eq!(
+            serde_json::to_value(InputOrigin::ApiCaller).expect("serializes"),
+            "api-caller"
+        );
         assert_eq!(
             serde_json::to_value(InputOrigin::CiContext).expect("serializes"),
             serde_json::Value::from("ci-context"),

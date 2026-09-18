@@ -2337,6 +2337,7 @@ pub fn nika_types::net::method_replays_effects(method: &str) -> bool
 pub fn nika_types::net::retry_is_effect_safe<'a>(method: &str, header_names: impl core::iter::traits::collect::IntoIterator<Item = &'a str>) -> bool
 pub mod nika_types::origins
 #[non_exhaustive] pub enum nika_types::origins::InputOrigin
+pub nika_types::origins::InputOrigin::ApiCaller
 pub nika_types::origins::InputOrigin::CiContext
 pub nika_types::origins::InputOrigin::CliOperator
 pub nika_types::origins::InputOrigin::Env
@@ -2625,6 +2626,7 @@ impl<T> core::convert::From<T> for nika_types::extract::ExtractMode
 pub fn nika_types::extract::ExtractMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::extract::ExtractMode where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_types::prelude::InputOrigin
+pub nika_types::prelude::InputOrigin::ApiCaller
 pub nika_types::prelude::InputOrigin::CiContext
 pub nika_types::prelude::InputOrigin::CliOperator
 pub nika_types::prelude::InputOrigin::Env
@@ -5883,6 +5885,7 @@ impl<T> core::convert::From<T> for nika_types::extract::ExtractMode
 pub fn nika_types::extract::ExtractMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::extract::ExtractMode where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_types::InputOrigin
+pub nika_types::InputOrigin::ApiCaller
 pub nika_types::InputOrigin::CiContext
 pub nika_types::InputOrigin::CliOperator
 pub nika_types::InputOrigin::Env

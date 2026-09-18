@@ -78,6 +78,7 @@ impl ResidentExecutionCoordinator {
         Ok(Some(admission))
     }
 
+    #[cfg(test)]
     pub(super) async fn admit_manual(
         &self,
         key: IdempotencyKey,
@@ -85,6 +86,26 @@ impl ResidentExecutionCoordinator {
         workflow: String,
         world: String,
         access_pin: Option<String>,
+    ) -> Result<Admission, ServerError> {
+        self.admit_manual_inputs(
+            key,
+            digest,
+            workflow,
+            world,
+            access_pin,
+            std::collections::BTreeMap::new(),
+        )
+        .await
+    }
+
+    pub(super) async fn admit_manual_inputs(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        workflow: String,
+        world: String,
+        access_pin: Option<String>,
+        inputs: std::collections::BTreeMap<String, serde_json::Value>,
     ) -> Result<Admission, ServerError> {
         let permit = self
             .jobs
@@ -100,6 +121,7 @@ impl ResidentExecutionCoordinator {
                 workflow,
                 world,
                 access_pin,
+                inputs,
             )
             .await?;
         match &admission {

@@ -257,6 +257,7 @@ impl JobStore {
             origin,
             workflow,
             access_pin: None,
+            inputs: std::collections::BTreeMap::new(),
             execution_id,
             trace_id,
             snapshot_digest,

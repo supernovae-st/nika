@@ -11,7 +11,7 @@ foundation:
   - file: examples/02-parallel-fanout.nika.yaml
     sha256_16: ac5a690f683bacec
   - file: examples/03-exec-pipeline.nika.yaml
-    sha256_16: 3852aedb06d434e9
+    sha256_16: 22eba0d81d1f9f65
   - file: examples/04-schema-retry.nika.yaml
     sha256_16: dfb28dabdf785a50
   - file: examples/05-fetch-chain.nika.yaml
@@ -162,8 +162,8 @@ showcase:
     sha256_16: faf2632973595843
   - file: examples/model-bench.nika.yaml
     name: model-bench
-    constructs: [local_model, outputs, with]
-    sha256_16: caab575b93161167
+    constructs: [outputs, with]
+    sha256_16: a1f9cd16b0b7886b
   - file: examples/og-images.nika.yaml
     name: og-images
     constructs: [outputs]
@@ -218,11 +218,11 @@ snippets:
   - file: examples/snippets/hello-ai.nika.yaml
     sha256_16: f194702c5c1b64e3
   - file: examples/snippets/hello.nika.yaml
-    sha256_16: 5a3a52ef2dcdd9b3
+    sha256_16: f1a5ad77315353f8
   - file: examples/snippets/not-found.nika.yaml
     sha256_16: 4057827521611aad
   - file: examples/snippets/run.nika.yaml
-    sha256_16: 07e34dc41ecd3f93
+    sha256_16: 62e759b6e1a8bb6e
   - file: examples/snippets/think.nika.yaml
     sha256_16: 1bc9b9ba09e202fe
   - file: examples/snippets/use-a-tool.nika.yaml

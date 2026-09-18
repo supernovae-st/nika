@@ -193,8 +193,22 @@ which ·
 |---|---|
 | `cli-operator` | `--var name=value`, typed by a human at a terminal |
 | `ci-context` | `--var name=value` arriving through a pipeline — the caller is not a human |
+| `api-caller` | an explicitly supplied value arriving through a programmatic launch API, including Serve |
 | `env` | `--var name=@env:VAR` · the **declared** environment channel, read through its explicit spelling |
 | `file` | the workflow's own declared `default:` filled the input |
+
+An API-supplied value keeps `api-caller` through queueing, restart and
+execution. A default filled from the workflow keeps `file`, even when an
+API launched the run. The origin names the supplying **channel**, not an
+authenticated identity, a human approval, or a grant. It MUST NOT be
+inferred from an ambient CI variable or attributed to `cli-operator`
+merely because a server uses the engine's command or library internally.
+
+API values are typed data. A string beginning with `@env:` or containing
+`${{ ... }}` MUST NOT be interpreted as a request to read host credentials
+or evaluate an expression. The explicit CLI environment channel above
+does not implicitly extend to API payloads. These rules add no workflow
+key and no authority to the declared boundary.
 
 The origin **is journaled at boot** — it rides the prologue manifest
 ([17 §the prologue](./17-trace.md)) — and from there rises into the run's

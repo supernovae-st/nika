@@ -163,3 +163,5 @@ verbs	(positive)	positive-check	conformance/tests/deep/033-decide-inline-pair
 verbs	NIKA-AGENT-001	run-fail	conformance/tests/runtime/agent/004-text-with-done-exhausts-turns
 verbs	(positive)	positive-run	conformance/tests/runtime/agent/005-text-without-done-completes
 verbs	NIKA-AGENT-002	run-fail	conformance/tests/runtime/agent/006-text-with-done-exhausts-tokens
+variables	(input-origin)	journal-prologue	conformance/tests/runtime/trace/007-boot-manifest-and-known-pin
+variables	(input-origin)	journal-prologue	conformance/tests/runtime/trace/010-api-input-origins
