@@ -11,11 +11,9 @@
 # Run · nika run <file> --model mock/echo
 nika: document-to-fields       # SLOT: kebab-case workflow id
 
-# SLOT: the seat this file runs on — a local one first (`ollama/…`), a hosted
-# one when the job needs it. `nika new` STAMPS this line: it rewrites `model:`
-# with a seat this binary can resolve, and whatever rides on the line is
-# dropped — a marker THERE never reaches the reader, so it lives here.
-# Measured on 0.118.7: with no resolvable seat the stamp leaves `mock/echo`.
+# This skeleton keeps its authored offline model. Creating a workflow does
+# not select a paid provider from ambient credentials. Choose a different
+# model explicitly for a real run; `--model mock/echo` remains offline.
 model: mock/echo
 
 const:

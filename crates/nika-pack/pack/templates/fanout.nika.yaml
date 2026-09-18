@@ -44,14 +44,9 @@
 #       nika run <file> --model <provider/model> --max-cost-usd 0.25     # a real seat · the fan's cap
 nika: fanout-template       # SLOT: kebab-case workflow id
 
-# SLOT: provider/model · local · zero key. House seat — `ollama/qwen3.5:4b`,
-# a THINKING model: the ceilings below leave room for the think block, which
-# counts against `max_tokens` too.
-# `--model mock/echo` needs no seat and is the path this file guarantees.
-# `nika new` STAMPS this line: it rewrites `model:` with a seat this binary
-# can resolve, and whatever rides on the line is dropped — so the teaching
-# lives here, above it. Measured on 0.118.7: with no resolvable seat the
-# stamp leaves `mock/echo`, the offline path this file guarantees.
+# This skeleton keeps its authored offline model. Creating a workflow does
+# not select a paid provider from ambient credentials. Choose a different
+# model explicitly for a real run; `--model mock/echo` remains offline.
 model: mock/echo
 
 run:
