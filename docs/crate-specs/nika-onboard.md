@@ -76,7 +76,10 @@ them when raw. The escape only proposes a token: the two-reader comparison
 still decides every candidate, so such literals stay editable and an
 unreadable one is refused. A value written by omission (`key:` with nothing
 after it) is refused explicitly, since the parser marks it at the next token
-and never at the target; a written `~` or `null` remains editable.
+and never at the target; a written `~` or `null` remains editable. A typed
+declaration whose `value` is omitted or null never reaches that refusal: such
+a base already fails pure Check, so the request stays Incomplete with the
+source unchanged.
 
 Scope limitations of this bounded editor, not a verified general
 source-preserving edit contract:
