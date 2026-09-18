@@ -4,8 +4,8 @@
 //! The three semantic doors — the ONE catalog behind every taught
 //! first-contact command.
 //!
-//! `try` (discover · see without owning) · `new` (create · take a
-//! slug or route plain words) · `init` (project · found a repo). The
+//! `try` (discover · see without owning) · `compile` (create · take a
+//! exact skeleton or conservative edit) · `init` (project · found a repo). The
 //! concierge rows, the JSON mirror and the metrics classification all
 //! derive their door commands from here, and the parse ratchet in
 //! `nika-cli` replays every taught command against the live clap
@@ -23,7 +23,7 @@
 pub enum DoorId {
     /// See a canonical workflow work — nothing written, nothing owned.
     Discover,
-    /// Take a workflow for yourself — a slug, or plain words routed.
+    /// Compile a reviewable candidate from an exact skeleton or explicit edit.
     Create,
     /// Found (or re-enter) a repo — wiring, rules, the wizard.
     Project,
@@ -40,7 +40,7 @@ impl DoorId {
     pub const fn command(self) -> &'static str {
         match self {
             Self::Discover => "nika try",
-            Self::Create => "nika new",
+            Self::Create => "nika compile",
             Self::Project => "nika init",
         }
     }
@@ -51,7 +51,7 @@ impl DoorId {
     pub const fn blurb(self) -> &'static str {
         match self {
             Self::Discover => "the showroom · offline",
-            Self::Create => "guided first workflow",
+            Self::Create => "compile a workflow",
             Self::Project => "found this repo (wizard)",
         }
     }
@@ -75,7 +75,7 @@ mod tests {
             assert!(cmd.starts_with("nika "), "{cmd} speaks the binary name");
             let verb = cmd.trim_start_matches("nika ");
             assert!(
-                ["try", "new", "init"].contains(&verb),
+                ["try", "compile", "init"].contains(&verb),
                 "{verb} is one of the three doors"
             );
         }

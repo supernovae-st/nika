@@ -8,13 +8,14 @@ check your own file:
 ```sh
 nika check workflows/01-hello.nika
 nika run workflows/01-hello.nika --model mock/echo
-nika new 01-hello my-first.nika
+nika compile 01-hello my-first.nika
 nika check my-first.nika
 ```
 
-The hello lesson names a small local model; `--model mock/echo` rehearses it
-with no key and no network. For a read-and-infer skeleton, use
-`nika new chain chain.nika`, fill its `<SLOT: …>` prompt and provide
+Init preserves the gallery lesson and its local model; the run override above
+rehearses it without a provider. Compile hello always emits `mock/echo`, even
+when keys exist. `nika compile chain --json` shows its required questions; answer them with
+`--answer KEY=JSON_LITERAL` and name `chain.nika` explicitly to write. Provide
 the `README.md` it reads before checking and running it.
 
 A model override only mocks inference;
@@ -26,8 +27,8 @@ workflow's permits and model pins before running a different template.
 Plain `nika init --yes` lays the project files, `nika.yaml` and the hello
 lesson. `nika init --recipe agentic --yes` founds around a workflow
 curriculum instead, and `--recipe minimal` lays the project files only.
-`starter` uses a conversation on a terminal; headless callers can use
-`nika new`.
+`starter` bootstraps the project and then teaches explicit Compile.
+Compile accepts exact skeletons; unsupported prose remains incomplete.
 
 ## Team settings
 

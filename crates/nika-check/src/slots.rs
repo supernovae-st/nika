@@ -3,7 +3,7 @@
 
 //! The unfilled-scaffold class — a skeleton is not yet a workflow.
 //!
-//! `nika new chain` laid ten `# SLOT:` **comments**. The parser drops
+//! `nika compile chain` laid ten `# SLOT:` **comments**. The parser drops
 //! comments by construction, so `check` mentioned none of them, the run
 //! exited 0, and `output.md` was left holding the scaffold's own prompt
 //! echoed back by a mock — a file that outlives the terminal line which
@@ -42,7 +42,7 @@ pub const MARKER_OPEN: &str = "<SLOT:";
 
 /// One value a scaffold left for its author.
 ///
-/// Not an error in the usual sense: the person typed `nika new` and did
+/// Not an error in the usual sense: the person typed `nika compile` and did
 /// nothing wrong. The render says so — the wording is « ready to be
 /// filled », never « broken » — but it IS a refusal, because a run over
 /// an unfilled scaffold spends money to produce a lie.

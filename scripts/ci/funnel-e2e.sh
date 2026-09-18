@@ -28,7 +28,7 @@ run() { # run <name> <expected-exit> -- cmd...
   shift 2
   [ "$1" = "--" ] && shift
   set +e
-  OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$@" 2>&1)
+  OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb NIKA_KEYCHAIN=off "$@" 2>&1)
   local got=$?
   set -e
   if [ "$got" -ne "$want" ]; then
@@ -42,7 +42,7 @@ need() { printf '%s' "$OUT" | grep -qF -- "$2" || fail "[$1] missing: $2"; }
 # A taught/promised verb must EXIST — listed in the tree OR deliberately
 # hidden (the hook verbs: `guard` rides the wired shims, hidden from the
 # listing by design): ask the verb itself rather than the listing.
-has_cmd() { env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$BIN" "$1" --help >/dev/null 2>&1; }
+has_cmd() { env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb NIKA_KEYCHAIN=off "$BIN" "$1" --help >/dev/null 2>&1; }
 
 say "── funnel e2e · $("$BIN" --version)"
 
@@ -57,41 +57,37 @@ for c in $(printf '%s' "$OUT" | grep -oE '→ nika [a-z-]+' | awk '{print $3}' |
   has_cmd "$c" || fail "[welcome] promises 'nika $c' — clap tree lacks it"
 done
 # The screen's ONE next step, played verbatim. It used to be a `nika try`
-# slug; the first-wow cascade made it `nika new <name>` — a stranger writes
+# slug; the first-wow cascade made it `nika compile <name>` — a stranger writes
 # a file rather than watching a rehearsal. The gate reads the promise off
 # the screen instead of naming a verb, so it survives the next change of
 # door. `|| true` keeps a screen with no promise reportable (the `fail`
 # below) rather than killing the run under `set -o pipefail`.
-FIRST=$(printf '%s' "$OUT" | grep -oE 'nika (new|try) [a-z0-9-]+' | head -1 || true)
+FIRST=$(printf '%s' "$OUT" | grep -oE 'nika compile hello hello\.nika|nika try [a-z0-9-]+' | head -1 || true)
 [ -n "$FIRST" ] || fail "[welcome] no first command promised"
 # shellcheck disable=SC2086 # the promise is played verbatim, word-split intended
 [ -n "$FIRST" ] && run first-promise 0 -- "$BIN" ${FIRST#nika }
 run welcome-json 0 -- "$BIN" welcome --json
 need welcome-json '"welcome_version"'
 # sovereignty canary: a key VALUE must never surface
-OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb OPENAI_API_KEY=sk-CANARY-9911 "$BIN" welcome --json 2>&1)
+OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb NIKA_KEYCHAIN=off OPENAI_API_KEY=sk-CANARY-9911 "$BIN" welcome --json 2>&1)
 printf '%s' "$OUT" | grep -q "sk-CANARY-9911" && fail "[welcome] key VALUE leaked"
 
 # 2 · scaffold → audit (the inputs trap is TAUGHT) → provision → run → story → verify
-run new-from 0 -- "$BIN" new chain first.nika
-[ -f first.nika ] || fail "[new] no file created"
-# #1066 · a scaffold whose slots are untouched is not a workflow yet, and
-# `check` refuses it BEFORE the spend. Played first, because a 0 here
-# would mean the refusal is gone — and the marker has to be a VALUE for
-# it to fire at all (a comment dies with the parse, which is how this
-# file used to run green and leave an `output.md` holding its own prompt).
-run check-unfilled 2 -- "$BIN" check first.nika
+run compile-preview 2 -- "$BIN" compile chain --json
+[ ! -f first.nika ] || fail "[compile-preview] implicit file"
+# Preserve the old SLOT refusal counterexample as an explicit test fixture.
+# Compile itself never materializes an incomplete result.
+printf '%s' "$OUT" >pending.json
+python3 -c 'import json; d=json.load(open("pending.json")); assert d["status"] == "incomplete"; open("unfilled.nika","w").write(d["candidate"])'
+ANSWER=$(python3 -c 'import json; d=json.load(open("pending.json")); print(d["questions"][0]["key"] + "=" + json.dumps("Summarise the gathered text in one short paragraph."))')
+run check-unfilled 2 -- "$BIN" check unfilled.nika
 need check-unfilled "SLOTS"
 need check-unfilled "ready to be filled"
-# It reads as a step, not a fault: the person typed `nika new` and did
-# nothing wrong.
 if printf '%s' "$OUT" | grep -qF "findings above"; then
   fail "[check-unfilled] a scaffold is not a fault"
 fi
-# Answer the slot the way its author would, then the SAME file audits —
-# the other end of the ratchet: a refusal nobody can clear is a wall.
-sed 's|<SLOT:[^>]*>|Summarise the gathered text in one short paragraph.|' \
-  first.nika >first.filled && mv first.filled first.nika
+run compile-answered 0 -- "$BIN" compile chain first.nika --answer "$ANSWER"
+[ -f first.nika ] || fail "[compile] no Ready file created"
 if grep -q '<SLOT:' first.nika; then
   fail "[fill] a marker survived the fill"
 fi
@@ -101,8 +97,8 @@ need check "audited"
 # (the scaffold's `on_error: recover:` rehearses green in an empty
 # directory) — what it still teaches is the declared boundary itself.
 need check "read:./README.md" # the declared input trap is taught BEFORE the run
-need check "risk "    # the risk rung names the autonomy class on the verdict line
-need check "JOURNEY"  # the data journey rung renders on every audit
+need check "risk "            # the risk rung names the autonomy class on the verdict line
+need check "JOURNEY"          # the data journey rung renders on every audit
 # Provision the input the scaffold DECLARES (./README.md since the
 # pack-SSOT era · ./input.txt before) — the funnel plays the file,
 # it never assumes the era.
@@ -202,7 +198,7 @@ run doctor 0 -- "$BIN" doctor
 # shellcheck disable=SC2016 # the ${{ }} island must reach the file UNEXPANDED
 printf 'nika: broken\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: ["echo", "${{ tasks.ghost.output }}"] }\n' >broken.nika
 set +e
-OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$BIN" check broken.nika 2>&1)
+OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb NIKA_KEYCHAIN=off "$BIN" check broken.nika 2>&1)
 GOT=$?
 set -e
 [ "$GOT" -eq 0 ] && fail "[broken] invalid workflow checked clean"
@@ -213,7 +209,7 @@ printf '%s' "$OUT" | grep -qE "NIKA-[A-Z0-9-]+[0-9]" || fail "[broken] no error 
 # gate holds). curl ships on every runner this plays on; loopback only.
 if command -v curl >/dev/null 2>&1; then
   MCP_PORT=$((20000 + RANDOM % 20000))
-  env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb \
+  env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb NIKA_KEYCHAIN=off \
     "$BIN" mcp --transport http --port "$MCP_PORT" >/dev/null 2>&1 &
   MCP_PID=$!
   # the bind is asynchronous — poll briefly instead of a blind sleep

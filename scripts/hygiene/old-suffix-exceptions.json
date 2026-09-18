@@ -39,6 +39,14 @@
       "lines_sha256": "sha256:99278b6afc2c73b9b49abb4391c2c1df0f0e3ef8f416f8afc63176c9a099eb45"
     },
     {
+      "path": "crates/nika-cli/tests/compile_cli.rs",
+      "category": "negative",
+      "reason": "compile dest refusals for retired suffixes",
+      "owner": "nika-cli",
+      "count": 1,
+      "lines_sha256": "sha256:350ef1c4f3f9667f154e917cdfe0c0287669d2cffc42b87209a3129d8ad5d5fd"
+    },
+    {
       "path": "crates/nika-onboard/src/compile/materialize.rs",
       "category": "negative",
       "reason": "compile adapter refuses a retired destination",

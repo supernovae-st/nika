@@ -16,7 +16,7 @@
 //! - **the wired events land** — `check` green → `check_passed` ·
 //!   `welcome` → `context_resolved` + one `cta_impression` per move
 //!   (+ `human_run_handoff` when the run CTA leads) · `guard` allow →
-//!   `human_run_handoff/guard_allow` · `new <source>` → `draft_created`;
+//!   `human_run_handoff/guard_allow` · `compile <source> <dest>` → `draft_created`;
 //! - **content-free by construction** — no journal line carries the
 //!   scratch path, the workflow id, or anything but the whitelisted
 //!   enums/bools/counters.
@@ -195,15 +195,15 @@ fn guard_allow_journals_the_handoff() {
     let _ = std::fs::remove_dir_all(&home);
 }
 
-/// `nika new <example> <dest>` writes the draft and journals it.
+/// `nika compile <example> <dest>` writes the draft and journals it.
 #[test]
-fn new_journals_the_draft() {
-    let home = workspace_tmp_dir("nika-metrics-new");
+fn compile_journals_the_draft() {
+    let home = workspace_tmp_dir("nika-metrics-compile");
     let proj = home.join("proj");
     std::fs::create_dir_all(&proj).expect("proj dir");
 
     let out = bin()
-        .arg("new")
+        .arg("compile")
         .arg("01-hello")
         .arg("draft.nika")
         .current_dir(&proj)
@@ -223,6 +223,6 @@ fn new_journals_the_draft() {
         .iter()
         .find(|e| e["event"] == "draft_created")
         .expect("the write journaled");
-    assert_eq!(draft["facts"]["draft"], "new");
+    assert_eq!(draft["facts"]["draft"], "compile");
     let _ = std::fs::remove_dir_all(&home);
 }

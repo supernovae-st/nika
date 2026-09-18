@@ -20,7 +20,7 @@ pub(crate) fn examples(args: &Value) -> Result<String, String> {
         Some(slug) => match nika_pack::example(slug) {
             Some(body) => Ok(body.to_owned()),
             // RAMS-11: a PLAIN-WORDS miss routes through the SAME door
-            // the CLI walks (`nika new <words>` · whole catalog) — one
+            // the CLI walks (`nika compile <words>` · whole catalog) — one
             // router, one calibration. Only multi-word queries route:
             // a single token is a slug (typo'd or adversarial) and the
             // unknown-key contract holds — the router never sees the

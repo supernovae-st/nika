@@ -115,22 +115,6 @@ fn static_target_defect(target: &str) -> Option<String> {
         );
     }
     if let Some(rest) = target.strip_prefix("registry:") {
-        // ⭐ ONE grammar, two readers. This used to be a second parser —
-        // `rsplit_once('@')` with no charset rule and no SemVer rule —
-        // and it disagreed with the resolver IN BOTH DIRECTIONS:
-        // `@nightly` passed HERE and was refused at resolution (a check
-        // that says « clean » about a ref the resolver rejects lies at
-        // the only moment the author is still reading), while an
-        // unpinned ref was refused here and accepted there.
-        //
-        // The grammar now lives once, at L0 (`nika_vocab::registry_ref`
-        // — the check is L0 and the client is L2, so the shared home
-        // cannot be the client). What stays HERE is the rule that is
-        // genuinely the check's and not the grammar's: a ref must be
-        // PINNED. The resolver legitimately reads unpinned refs through
-        // its own pin ladder; a workflow may not, because a call graph
-        // you cannot bound before the run is one you cannot bound at all
-        // (spec 14 law 1).
         match nika_vocab::registry_ref::parse(rest) {
             Err(defect) => {
                 return Some(format!(

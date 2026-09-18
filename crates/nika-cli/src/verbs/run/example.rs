@@ -70,7 +70,7 @@ pub(super) fn try_rehearsal_slug(path: &str) -> Option<&str> {
 
 /// UX-3 · every try card: how to own the file.
 pub(super) fn try_own_file_line(slug: &str) -> String {
-    format!("rehearsal. to own the file: nika new {slug}")
+    format!("rehearsal · {slug}. explore authoring skeletons: nika compile --list")
 }
 
 /// `nika try <slug>` — execute one EMBEDDED example through the
@@ -292,7 +292,7 @@ fn example_tip(
     {
         let slug = slug.strip_suffix(".nika").unwrap_or(slug);
         return Some(format!(
-            "tip: this example calls `{}` inside its declared sandbox; inspect the refusal above.\n        to inspect and adapt the workflow: nika new {slug}",
+            "tip: this example calls `{}` inside its declared sandbox; inspect the refusal above.\n        authoring skeletons: nika compile --list (example: {slug})",
             hint.missing
         ));
     }
@@ -351,7 +351,7 @@ mod tests {
         );
         assert_eq!(
             try_own_file_line("competitor-radar"),
-            "rehearsal. to own the file: nika new competitor-radar"
+            "rehearsal · competitor-radar. explore authoring skeletons: nika compile --list"
         );
     }
 
@@ -469,7 +469,7 @@ mod tests {
         let git = example_tip("standup-digest", &belt, true, "mock/echo")
             .expect("C06 must teach even under --model");
         assert!(git.contains("`git`"), "{git}");
-        assert!(git.contains("nika new standup-digest"), "{git}");
+        assert!(git.contains("nika compile --list"), "{git}");
         assert!(!git.contains("has no"), "{git}");
         assert!(!git.contains("exit 127"), "{git}");
         assert!(!git.contains("empty log"), "{git}");

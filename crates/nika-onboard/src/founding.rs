@@ -12,7 +12,7 @@
 //!
 //! The human keeps the hand everywhere: an existing file is SKIPPED,
 //! never clobbered — `--force` is the explicit override (same law as
-//! `nika new`). A write failure is the one environment error (`exit 3`).
+//! `nika compile`). A write failure is the one environment error (`exit 3`).
 //! The one append-maybe surface is `.gitignore` (`crate::gitignore` —
 //! adds-only: the trace-cover section joins an existing file, never a
 //! rewrite, and a second run adds nothing).
@@ -125,7 +125,7 @@ pub(crate) fn render(lines: &[(char, String)]) -> String {
 /// since #158, now the hand-off of the workflow-less founds only
 /// (`--recipe minimal` · a headless `starter`): a plain init founds
 /// around [`DEFAULT_EXAMPLE`] and hands over to THAT file (#1283).
-pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika try 01-hello   # offline proof · zero keys\n  nika new                                       # your first workflow — guided on a terminal\n  nika new chain my-first.nika       # the same, scriptable\n  nika check my-first.nika                  # audit before a single token";
+pub(crate) const NEXT_BLOCK: &str = "next ·\n  nika try 01-hello   # offline rehearsal\n  nika compile hello hello.nika   # explicit first file · mock/echo\n  nika compile --list   # exact skeletons; missing answers remain questions\n  nika check hello.nika   # audit before run";
 
 /// The scriptable path — briefs report with purposes, then each
 /// flagged extra as its own receipt block, then the hand-off. The door
@@ -202,7 +202,7 @@ pub fn scripted_run(
             text,
             "· starter's workflow step is a conversation — a script cannot answer it. \
              The project files were scaffolded; run bare `nika init` on a terminal for the questions, \
-             or `nika new \"<your job in plain words>\" <file>.nika` for the twin."
+             or `nika compile hello hello.nika` for an explicit first file."
         );
     }
 
@@ -285,7 +285,7 @@ fn scaffold_report(
                 let _ = writeln!(text, "✔ created {rel} — {}", briefs::purpose(&rel));
                 // The proof ladder audits WORKFLOWS — the generated
                 // index rides the report but never the check.
-                if nika_source::is_canonical_program_path(path) {
+                if path.ends_with(".nika") {
                     created.push(path.clone());
                 }
             }
@@ -581,7 +581,8 @@ mod tests {
             "tailored next: {}",
             out.text
         );
-        let body = std::fs::read_to_string(tmp.join("workflows/01-hello.nika")).expect("written");
+        let body =
+            std::fs::read_to_string(tmp.join("workflows/01-hello.nika")).expect("written");
         assert_eq!(
             body,
             nika_pack::example("01-hello").expect("embedded"),
@@ -719,7 +720,9 @@ mod tests {
             "the workflow row says why: {}",
             out.text
         );
-        assert!(tmp.join("nika.yaml").exists() && tmp.join("workflows/01-hello.nika").exists());
+        assert!(
+            tmp.join("nika.yaml").exists() && tmp.join("workflows/01-hello.nika").exists()
+        );
         assert!(
             !out.text.contains(NEXT_BLOCK) && !out.text.contains("--project-file"),
             "the hand-off is the founded file, the team block names the laid file: {}",
@@ -976,7 +979,8 @@ mod tests {
         );
         assert_eq!(out.code, codes::OK, "{}", out.text);
         assert!(
-            out.text.contains("✔ created workflows/01-hello-chain.nika"),
+            out.text
+                .contains("✔ created workflows/01-hello-chain.nika"),
             "{}",
             out.text
         );
@@ -1025,7 +1029,7 @@ mod tests {
         }
         let (starter, minimal) = (&said[0], &said[1]);
         assert!(
-            starter.contains("a script cannot answer it") && starter.contains("nika new"),
+            starter.contains("a script cannot answer it") && starter.contains("nika compile"),
             "starter names the missing half and the twin: {starter}"
         );
         assert!(

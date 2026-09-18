@@ -49,6 +49,27 @@ fn assert_teaching(source: &str, code: &str) {
         !message.contains("source-frame-only"),
         "source frame leaked: {payload}"
     );
+    let compiled = call(&[
+        "compile",
+        "--base",
+        "source-frame-only.nika",
+        "--change",
+        "Set const.x to 1",
+        "--json",
+    ]);
+    assert_eq!(compiled.status.code(), Some(2));
+    let compiled: serde_json::Value =
+        serde_json::from_slice(&compiled.stdout).expect("Compile JSON");
+    assert_eq!(compiled["status"], "incomplete");
+    assert_eq!(compiled["candidate"], source);
+    assert!(
+        compiled["diagnostics"]
+            .as_array()
+            .expect("diagnostics")
+            .iter()
+            .any(|d| d["message"].as_str().is_some_and(|s| s.contains(&lesson))),
+        "{compiled}"
+    );
     let explain = call(&["explain", code]);
     assert!(explain.status.success());
     assert!(

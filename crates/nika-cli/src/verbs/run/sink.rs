@@ -231,7 +231,7 @@ impl<W: Write> FoldSink<W> {
             // here (sizes are a stat, the display crate holds no I/O).
             RenderMode::Plain => {
                 // Only a staged try room is a rehearsal to own — a workspace
-                // path printed « to own the file: nika new <path> » (#1587).
+                // path printed « to own the file: nika compile <path> » (#1587).
                 let notes = super::epilogue::fruit_notes(
                     &self.view,
                     self.trace_recorded,
@@ -459,7 +459,7 @@ mod tests {
     }
 
     /// #1587 — a workspace run is not a rehearsal to own: the plain close
-    /// names `nika new <slug>` ONLY for a staged try room, never for the
+    /// names authoring discovery ONLY for a staged try room, never for the
     /// file the operator already owns (a billed xAI run printed it).
     #[test]
     fn plain_close_names_the_own_door_only_for_a_try_room() {
@@ -475,10 +475,10 @@ mod tests {
             String::from_utf8(buf).expect("utf8")
         };
         let owned = close("workflows/61-xai-hello.nika");
-        assert!(!owned.contains("to own the file"), "{owned}");
+        assert!(!owned.contains("explore authoring skeletons"), "{owned}");
         let staged = close("/tmp/nika-try-01-hello/01-hello.nika");
         assert!(
-            staged.contains("to own the file: nika new 01-hello"),
+            staged.contains("explore authoring skeletons: nika compile --list"),
             "{staged}"
         );
     }

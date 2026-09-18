@@ -576,7 +576,7 @@ fn ollama_fixture() -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) 
 /// Before the fix this asserted `ollama/llama3.2:3b` — the plan card and
 /// the `plan_version: 1` object both carried the file's model while the
 /// run would have used the flag's. Reproduced against the published
-/// 0.111.0 on `nika new snippets/hello-ai`, unedited.
+/// 0.111.0 on `nika compile snippets/hello-ai`, unedited.
 #[test]
 fn dry_run_plan_names_the_overridden_model() {
     let (wf, _) = ollama_fixture();

@@ -63,90 +63,52 @@ not an echo or a simulated answer.
 curl -LsSf https://nika.sh/install.sh | sh
 ```
 
-**2. Take the ready-to-use meeting workflow:**
+**2. Create the offline hello lesson at an explicit destination:**
 
 ```sh
-mkdir meeting-follow-up
-cd meeting-follow-up
-nika new meeting-actions
+mkdir first-workflow
+cd first-workflow
+nika compile hello hello.nika
 ```
 
-**3. Give it your notes.** Open `examples/fixtures/meeting-transcript.txt` in
-your editor and replace the sample with your meeting transcript. Keeping that
-filename means the workflow's read permission already matches. You do not need
-to learn YAML before getting a result.
+Compile uses the same stateless core for this lesson and exact skeletons. Hello
+always uses `mock/echo`, including when provider keys are present. It does not
+call a model, run the workflow, or choose access on your behalf.
 
-**4. Check and run with your existing OpenAI API access:**
+**3. Check and run the file:**
 
 ```sh
-nika check --model openai/gpt-4.1-mini
-nika run --model openai/gpt-4.1-mini --access api
+nika check hello.nika
+nika run hello.nika
 ```
 
-This uses `OPENAI_API_KEY` from your terminal environment. It makes a real,
-billable model call and sends the transcript to your selected provider. Use
-notes you are allowed to process there. No credentials go in the workflow.
-
-`nika check` prints its verdict before a token is spent. Two of its lines
-say where your notes go and what the run may cost:
-
-```
- ✔ JOURNEY cloud endpoint openai · task data leaves this machine · retention 30 · training no
- ✔ audited · 4 tasks · 4 waves · permits tools:nika:log,nika:read,nika:write read:examples/fixtures/meeting-transcript.txt write:out/action-items.json · est out ≤$0.0048 · 0 hints · risk supervised
-```
-
-No key at hand yet? Rehearse the whole plan with no key and no network:
-
-```sh
-nika check --model mock/echo
-nika run --model mock/echo
-```
-
-The mock run needs no access pin; the result is an echo, not an extraction.
-
-**Your result is `out/action-items.json`:** one entry per commitment, with an
-owner, a task and a deadline when one was stated. Open that file. Review the
-extraction before acting on it; a valid JSON shape does not guarantee accuracy.
-
-Next meeting: replace the transcript and run the same command again. The
-workflow stays yours; no prompt chain to rebuild and no manual copy-and-paste
-between the model's answer and the output file.
-
-<details>
-<summary><strong>Already signed into Codex instead of using an API key?</strong></summary>
-
-Keep the same workflow and transcript. Use a model available on your Codex seat:
-
-```sh
-nika check --model openai/gpt-5.2
-nika run --model openai/gpt-5.2 --access codex
-```
-
-The run uses the installed, signed-in Codex CLI and its subscription quota.
-It does not require an OpenAI API key. If this model is unavailable on your
-account, select one your seat supports in both commands.
-
-`nika doctor` reports detected access and setup guidance. Detection does not
-prove that a login is valid; the run checks that. Harness support is task-specific:
-this structured `infer` example uses the Codex adapter, not an interchangeable
-promise for every agent CLI. A refused access path never silently becomes a mock.
-
-</details>
+The greeting is a mock echo: this proves the workflow runs without a provider.
+The file stays yours to inspect, review in Git, and share. Run records its local
+trace under `.nika/traces/`; creation adds that directory to `.gitignore`.
 
 ## Make it yours
 
-Open `meeting-actions.nika` when you want to change what gets extracted.
-Its four steps read the transcript, ask the model for structured action items,
-save the JSON and report the output path. Review a diff, keep a history in Git,
-or send a teammate the file.
+`nika compile --list` lists exact skeletons. Preview one with
+`nika compile <slug> --json`, then answer its stable questions with repeatable
+`--answer KEY=JSON_LITERAL`. An incomplete result includes its candidate and
+questions; it does not write a file. Only a Ready candidate plus an explicit
+destination writes. Existing destinations require `--force`.
 
-Other API providers and local models use the same workflow with a different
-`--model`. See the [model setup documentation](https://docs.nika.sh).
+For an accepted source, a conservative constant edit uses the same core:
 
-For a new job, run `nika new` in a terminal and follow the guided questions.
-It selects a starting example or template; it does not magically implement
-every arbitrary request. Review the file, fill any marked slots, configure
-the needed tools, then follow its printed check and run commands.
+```sh
+nika compile --base workflow.nika --change 'Set const.topic to "new topic"' --json
+```
+
+Add `--output edited.nika` to materialize a Ready edit. The base source
+remains explicit. Unsupported natural language stays incomplete without a
+substitute workflow. Full natural-language authoring and Graph editing are not
+implemented by this bounded CLI.
+
+Compile's Check preview judges source only. `nika check` and `nika run` judge
+the actual environment separately. For a real model, choose the provider and
+access explicitly; [model setup documentation](https://docs.nika.sh) explains
+local, API and supported harness choices. `nika try` remains the example gallery.
 
 ## Why keep the plan in a file?
 

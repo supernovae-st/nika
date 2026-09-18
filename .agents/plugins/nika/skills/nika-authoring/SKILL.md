@@ -17,7 +17,7 @@ installed engine capabilities and host tools determine what is available.
 For a small edit, inspect the named file and affected dependencies. For a new
 job, `nika list` lists candidates; it does not certify them. Use
 `nika explain <candidate>` to understand an existing owner before creating a
-replacement. `nika try` and `nika new '?'` expose examples and templates when
+replacement. `nika try` and `nika compile --list` expose examples and templates when
 an unfamiliar structure needs one. Read the relevant example, not a fixed quota.
 Use `nika --version` and the installed schema/catalog for exact names; preserve
 the user's model and do not invent an identifier from a marketing name.

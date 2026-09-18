@@ -51,10 +51,12 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 1. **Read the source completely.** Inventory: inputs · outputs · side
    effects · credentials · the failure the author feared (that guard
    clause is the intent — keep it).
-2. **Route to a template**: `nika new '?'` lists the embedded
+2. **Inspect an exact skeleton**: `nika compile --list` lists the embedded
    set; pick the OUTER shape (chain · fanout · gate-and-act ·
-   etl-state · agent-loop · human-gated-ship) and instantiate with
-   `nika new <template> <file>.nika`.
+   etl-state · agent-loop · human-gated-ship) and preview with
+   `nika compile <template> --json`. Answer its stable questions explicitly,
+   then name a destination to write a Ready candidate. Unsupported migration
+   intent remains incomplete; do not substitute a nearby shape for the request.
 3. **Map with the table.** Native-first is the law: `invoke: nika:*`
    → `invoke: mcp:<server>/<tool>` → `exec:` last. Every surviving
    `exec:` gets its ledger row (task · command · why no native path ·

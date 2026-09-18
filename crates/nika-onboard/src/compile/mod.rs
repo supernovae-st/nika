@@ -17,7 +17,7 @@
 //! preview is not full host Check or admission: Run must judge the candidate
 //! again under its actual environment.
 //! Full natural-language authoring, Graph integration, support-triage composition
-//! and CLI/SDK/Serve adapters remain separate work.
+//! and SDK/Serve adapters remain separate work. The CLI consumes these typed outcomes.
 //!
 //! ```
 //! use nika_onboard::compile::{compile, CompileRequest, CompileStatus};
@@ -72,6 +72,19 @@ pub use types::{
 #[must_use = "the candidate and its authoring questions must be reviewed"]
 pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError> {
     let mut outcome = initial();
+    if request.workflow_id.is_some() && matches!(request.input, Input::Edit { .. }) {
+        outcome.status = CompileStatus::Refused;
+        finding(
+            &mut outcome,
+            DiagnosticKind::Refused,
+            "nika",
+            "An edit cannot rename its accepted base through CREATE options.",
+        );
+        if let Input::Edit { source, .. } = &request.input {
+            outcome.candidate = Some(source.clone());
+        }
+        return Ok(outcome);
+    }
     match &request.input {
         Input::Create(intent) => create(intent, request, &mut outcome)?,
         Input::Edit { source, change } => edit(source, change, request, &mut outcome)?,
@@ -90,7 +103,10 @@ fn initial() -> CompileOutcome {
         provenance: CompileProvenance {
             compiler_version: env!("CARGO_PKG_VERSION").to_owned(),
             spec_pin: include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../SPEC_PIN"))
-                .trim()
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty() && !line.starts_with('#'))
+                .unwrap_or("")
                 .to_owned(),
             skeleton: None,
             cognition: AuthoringCognition::DeterministicOnly,
@@ -132,18 +148,21 @@ fn create(
 ) -> Result<(), CompileError> {
     let slug = intent.trim();
     // Exact membership, not a fuzzy winner that can silently drop requested work.
-    let names = nika_pack::template_names();
-    if !names.iter().any(|name| name == slug) {
+    let hello = matches!(slug, "hello" | "01-hello");
+    let source = if hello {
+        nika_pack::example("01-hello")
+    } else if nika_pack::template_names().iter().any(|name| name == slug) {
+        nika_pack::template(slug)
+    } else {
         finding(
             out,
             DiagnosticKind::Unknown,
             "intent",
-            "This foundation accepts an exact embedded skeleton name. The full requested intent remains unresolved; no substitute workflow was selected.",
+            "Use an exact embedded skeleton name or hello. The requested intent remains unresolved; no substitute workflow was selected.",
         );
         return Ok(());
-    }
-    let Some(source) = nika_pack::template(slug) else {
-        // Names and bodies are two projections of the same embedded registry.
+    };
+    let Some(source) = source else {
         return Err(CompileError::MissingSkeleton(slug.to_owned()));
     };
     out.provenance.skeleton = Some(slug.to_owned());
@@ -153,6 +172,16 @@ fn create(
     let before = doc.clone();
     let mut recognized = BTreeSet::new();
     let mut changed = false;
+    if hello {
+        // One embedded lesson, one assembler: the authoring hello is an offline
+        // rehearsal even when the gallery lesson demonstrates a local provider.
+        doc["model"] = Value::String("mock/echo".to_owned());
+        changed = true;
+    }
+    if let Some(id) = &request.workflow_id {
+        doc["nika"] = Value::String(id.clone());
+        changed = true;
+    }
     for slot in &report.slot_findings {
         recognized.insert(slot.path.as_str());
         let answer_type = if slot.path.starts_with("tasks.") || slot.path == "model" {

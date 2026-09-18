@@ -12,7 +12,7 @@
 //!
 //! This walks the family through the mock provider — offline, deterministic,
 //! zero keys, zero spend — because a skeleton a stranger scaffolds with
-//! `nika new` and cannot run is a broken first minute.
+//! `nika compile` and cannot run is a broken first minute.
 
 use nika_cli::Theme;
 use nika_cli::verbs::{check, exit};
@@ -48,7 +48,7 @@ fn scratch_dir(tag: &str) -> std::path::PathBuf {
     dir
 }
 
-/// Lay one template down on disk, alone, the way `nika new` hands it
+/// Lay one template down on disk, alone, the way `nika compile` hands it
 /// over — with its `<SLOT: …>` markers still in place.
 fn plant_as_shipped(dir: &std::path::Path, name: &str) -> String {
     let body = nika_pack::template(name).unwrap_or_else(|| panic!("pack carries `{name}`"));

@@ -17,9 +17,9 @@ use std::path::Path;
 use nika_display::chrome;
 use nika_display::theme::{Role, Theme};
 
+use crate::bootstrap;
 use crate::founding::{BriefOutcome, CanvasTheme, apply_briefs, proof_receipts, wire_receipts};
 use crate::gitignore;
-use crate::guided;
 use crate::project_file;
 use crate::recipes::{RECIPES, Recipe, ScaffoldStatus, scaffold, takes_model};
 use crate::{Audit, Outcome, Wire, codes};
@@ -84,7 +84,7 @@ pub fn wizard_io(
             text: "cancelled — nothing written".to_owned(),
             code: codes::ENV,
         },
-        Ok(Some(choices)) => found(dir, force, theme, &choices, input, out, (audit, wire)),
+        Ok(Some(choices)) => found(dir, force, theme, &choices, out, (audit, wire)),
     }
 }
 
@@ -138,7 +138,7 @@ fn converse(
     // ── model (only when a recipe skeleton takes one — an example never
     // asks: the lesson already carries its own `model:` line) ──
     let model = if example.is_none() && takes_model(recipe) {
-        match guided::ask_model(input, out, theme)? {
+        match bootstrap::ask_model(input, out, theme)? {
             Some(m) => Some(m),
             None => return Ok(None),
         }
@@ -186,7 +186,7 @@ fn ask_canvas(
     for (i, (c, note)) in CANVAS_MENU.iter().enumerate() {
         writeln!(out, "{}", chrome::rail_pick(theme, i + 1, c.as_str(), note))?;
     }
-    let Some(canvas) = guided::ask_validated(
+    let Some(canvas) = bootstrap::ask_validated(
         input,
         out,
         theme,
@@ -223,7 +223,7 @@ fn ask_wires(
         "{}",
         chrome::rail_pick(theme, WIRE_MENU.len() + 1, "all", "every supported client")
     )?;
-    let Some(wires) = guided::ask_validated(
+    let Some(wires) = bootstrap::ask_validated(
         input,
         out,
         theme,
@@ -264,7 +264,7 @@ fn ask_project_file(
         "{}",
         chrome::rail_head(theme, "project file — lay a starter nika.yaml?")
     )?;
-    guided::ask_validated(
+    bootstrap::ask_validated(
         input,
         out,
         theme,
@@ -319,7 +319,6 @@ fn found(
     force: bool,
     theme: Theme,
     choices: &Choices,
-    input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
     (audit, wire): (&Audit<'_>, &Wire<'_>),
 ) -> Outcome {
@@ -377,18 +376,10 @@ fn found(
         };
     }
 
-    // starter hands over to the guided three-question flow — its
-    // materialize step already audits and teaches; the panel would
-    // double the hand-off.
-    if choices.example.is_none() && choices.recipe.name == "starter" {
-        writeln!(out).ok();
-        return guided::wizard_io(dir, None, force, theme, input, out, audit);
-    }
-
     // ── proof: the audit ladder INSIDE the first minute ──
     let created: Vec<&str> = scaffolded
         .iter()
-        .filter(|(p, s)| *s == ScaffoldStatus::Created && nika_source::is_canonical_program_path(p))
+        .filter(|(p, s)| *s == ScaffoldStatus::Created && p.ends_with(".nika"))
         .map(|(p, _)| p.as_str())
         .collect();
     let mut worst = codes::OK;
@@ -462,7 +453,15 @@ fn ready_panel(
         || format!("nika run {first} --model mock/echo"),
         |m| format!("nika run {first} --model {m}"),
     );
-    let mut next = if has_drafts {
+    let mut next = if created.is_empty() {
+        vec![
+            (
+                "nika compile hello hello.nika".to_owned(),
+                Role::Strong,
+            ),
+            ("nika compile --list".to_owned(), Role::Strong),
+        ]
+    } else if has_drafts {
         vec![
             (
                 format!("$EDITOR {first}   # fill the remaining `<SLOT: …>` values"),
@@ -566,7 +565,7 @@ fn ask_blueprint(
     out: &mut dyn std::io::Write,
     theme: Theme,
 ) -> std::io::Result<Option<(&'static Recipe, Option<String>)>> {
-    let Some(pick) = guided::ask_validated(
+    let Some(pick) = bootstrap::ask_validated(
         input,
         out,
         theme,
@@ -628,7 +627,7 @@ fn ask_example_slug(
     out: &mut dyn std::io::Write,
     theme: Theme,
 ) -> std::io::Result<Option<String>> {
-    guided::ask_validated(
+    bootstrap::ask_validated(
         input,
         out,
         theme,
@@ -775,7 +774,10 @@ mod tests {
         );
         assert!(shown.contains("proof"), "the audit runs: {shown}");
         assert!(v.text.contains("ready"), "the panel: {}", v.text);
-        assert!(v.text.contains("nika run workflows/01-hello-chain.nika"));
+        assert!(
+            v.text
+                .contains("nika run workflows/01-hello-chain.nika")
+        );
         for rel in [
             "AGENTS.md",
             "nika.yaml",
@@ -1192,16 +1194,12 @@ mod tests {
         assert_eq!(resolve_wires("6"), vec!["all"]);
     }
 
-    /// The starter recipe hands over to the shared three-question flow —
-    /// one io script drives both wizards end-to-end.
+    /// Bootstrap completes without starting a second authoring conversation.
     #[test]
-    fn starter_hands_over_to_the_guided_flow() {
+    fn starter_hands_over_to_explicit_compile() {
         let dir = fresh_dir("starter");
         let d = dir.to_str().expect("utf8");
-        // recipe 2 (starter) · canvas skip · agents skip · project file
-        // skip · then the new wizard: intent Enter (chain) · file Enter ·
-        // model Enter (mock)
-        let mut input = std::io::Cursor::new(b"2\n\n\n\n\n\n\n".to_vec());
+        let mut input = std::io::Cursor::new(b"2\n\n\n\n".to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
             d,
@@ -1215,11 +1213,15 @@ mod tests {
         assert_eq!(v.code, codes::OK, "{}", v.text);
         let shown = String::from_utf8(out).expect("utf8");
         assert!(
-            shown.contains("your first workflow"),
-            "the guided flow ran: {shown}"
+            !shown.contains("your first workflow"),
+            "no second wizard: {shown}"
         );
-        assert!(dir.join("my-first.nika").exists(), "the guided file landed");
-        assert!(v.text.contains("audited"), "its audit spoke: {}", v.text);
+        assert!(!dir.join("my-first.nika").exists());
+        assert!(
+            v.text.contains("nika compile"),
+            "explicit next gesture: {}",
+            v.text
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 }

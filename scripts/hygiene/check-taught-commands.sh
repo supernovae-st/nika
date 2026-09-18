@@ -21,6 +21,12 @@ set -uo pipefail
 
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 
+# Static retirement is part of the same blocking teaching gate.
+if ! python3 "$repo/scripts/hygiene/check-compile-cutover.py"; then
+  echo "FAIL taught-commands: retired authoring surface"
+  exit 2
+fi
+
 # The binary under test, most-specific first: an explicit NIKA_BIN, the
 # session target dir (the house's concurrent-build discipline), then
 # the repo's own target. A stale local target must never shadow the
@@ -48,13 +54,13 @@ if [ -z "$bin" ]; then
   exit 1
 fi
 
-# The teaching surfaces. `try` and `new` earn their place first: the
+# The teaching surfaces. `try` and `compile` earn their place first: the
 # dead-door class was BORN of the `examples` → `try` rename, and those
 # two verbs teach the most commands per screen (the storefront's four
 # doors · the clarify hint). A script is not a terminal, so `try`
 # renders its full shelf here — the same wire contract the editor
 # extension reads.
-SURFACES=("--plain" "welcome --deep --plain" "doctor --plain" "try" "new")
+SURFACES=("--plain" "welcome --deep --plain" "doctor --plain" "try" "compile")
 
 fail=0
 swept=0

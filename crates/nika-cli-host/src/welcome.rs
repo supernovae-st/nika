@@ -44,7 +44,7 @@ use crate::{output::VerbOutput, probe};
 /// `--json` served a third that had never met either fix (#1187).
 ///
 /// `door` is the directory's own answer ([`crate::choice::front_door_next`] ·
-/// the cwd key that stopped `nika new hello` being taught into
+/// the cwd key that stopped `nika compile hello hello.nika` being taught into
 /// `--force`, gauntlet P15). Everything below it is a VERDICT
 /// overruling a listing, in the order the old menu ranked them:
 /// P0-3 (a file the ladder has not seen clean is audited, never run),
@@ -66,7 +66,9 @@ fn next_command(mode: ContextMode, glance: Glance, gate: Option<&RunGate>, door:
         }
         // P0-4 — a walk that died before it finished cannot hand out a
         // founding CTA that presumes an empty workspace.
-        _ if !glance.complete && door.starts_with("nika new") => "nika welcome --deep".to_owned(),
+        _ if !glance.complete && door.starts_with("nika compile") => {
+            "nika welcome --deep".to_owned()
+        }
         _ => door.to_owned(),
     }
 }
@@ -184,34 +186,6 @@ fn under_home(path: &str) -> String {
         Some(rest) if rest.starts_with('/') => format!("~{rest}"),
         _ => path.to_owned(),
     }
-}
-
-/// Stamp the cascade's `model:` onto a file `nika new` just wrote.
-/// The hello lesson is left on `mock/echo` (B01).
-///
-/// # Errors
-/// Returns when the file cannot be read or rewritten.
-pub fn stamp_cascade_model(path: &Path) -> std::io::Result<()> {
-    crate::choice::stamp_model_file(path)
-}
-
-/// Write the first-wow workflow (`nika new hello`).
-#[must_use]
-pub fn write_first_wow(dest: &Path, force: bool) -> VerbOutput {
-    crate::choice::write_first_wow(dest, force)
-}
-
-/// `nika new hello` / `hello.nika` — the one-shot first file.
-#[must_use]
-pub fn is_first_wow(from: Option<&str>, dest: Option<&str>) -> bool {
-    crate::choice::is_first_wow(from, dest)
-}
-
-/// Destination `nika new hello` writes. The slug `hello` still lands a
-/// workflow file, not a bare path.
-#[must_use]
-pub fn first_wow_dest(dest: Option<&str>) -> &str {
-    crate::choice::first_wow_dest(dest)
 }
 
 /// The `nika welcome` verb. `json` emits the versioned machine projection
@@ -362,7 +336,7 @@ impl Mirror {
 /// The concierge's CTA classes (W8 metrics): found (`init` · `new`) ·
 /// go see (`examples` · `--deep`) · keep going (`run` · `check`).
 fn cta_class(cmd: &str) -> crate::metrics::Cta {
-    if cmd.starts_with("nika init") || cmd.starts_with("nika new") {
+    if cmd.starts_with("nika init") || cmd.starts_with("nika compile") {
         crate::metrics::Cta::Create
     } else if cmd.starts_with("nika run") || cmd.starts_with("nika check") {
         crate::metrics::Cta::Continue

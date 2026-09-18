@@ -3,15 +3,8 @@
 
 //! The recipe's ingredients — ONE implementation for every taking door.
 //!
-//! A taken example must run first try in an empty directory (user
-//! gauntlet 2026-07-31 · the one rage-quit: the copied recipe read
-//! `examples/fixtures/support-queue.json` and its own header taught an
-//! offline rehearsal that died on `NIKA-BUILTIN-READ-001`). The copy
-//! door was repaired first; the guided door (`nika new <words>`)
-//! then routed MORE people into the same broken socket (the sequence
-//! law: a better router multiplies whatever the take delivers). Both
-//! doors now share this one materializer — a future door inherits the
-//! repair by construction.
+//! Init and Try stage a lesson's declared companion files through this owner.
+//! Compile only returns source: it never materializes fixtures or reads files.
 
 use std::path::Path;
 

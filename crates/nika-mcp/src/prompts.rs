@@ -42,7 +42,11 @@ const COMMANDS: [(&str, &str, &str); 5] = [
         "Explain a workflow or an error code",
         command!("explain.md"),
     ),
-    ("new", "Scaffold a workflow", command!("new.md")),
+    (
+        "compile",
+        "Compile a reviewable workflow",
+        command!("compile.md"),
+    ),
     (
         "trace",
         "Read a run's flight recorder",
@@ -173,7 +177,7 @@ mod tests {
         let catalog = catalog();
         let listed = catalog.as_array().expect("the catalog is an array");
         let names: Vec<&str> = listed.iter().filter_map(|p| p["name"].as_str()).collect();
-        assert_eq!(names, ["check", "explain", "new", "trace", "permits"]);
+        assert_eq!(names, ["check", "explain", "compile", "trace", "permits"]);
     }
 
     #[test]
@@ -199,16 +203,16 @@ mod tests {
 
     #[test]
     fn a_quoted_frontmatter_hint_reaches_the_client_unquoted() {
-        // `new` carries `argument-hint: "[template] [file.nika]"` —
+        // `compile` carries `argument-hint: "[template] [file.nika]"` —
         // the quotes are YAML syntax (a bare `[` would be a flow sequence),
         // and a client that renders them shows stray punctuation.
         let catalog = catalog();
         let listed = catalog.as_array().expect("array");
-        let new_prompt = listed
+        let compile_prompt = listed
             .iter()
-            .find(|p| p["name"] == "new")
-            .expect("`new` is served");
-        let hint = new_prompt["arguments"][0]["description"]
+            .find(|p| p["name"] == "compile")
+            .expect("`compile` is served");
+        let hint = compile_prompt["arguments"][0]["description"]
             .as_str()
             .expect("a hint");
         assert!(!hint.starts_with('"'), "the YAML quotes leaked: {hint}");

@@ -27,7 +27,7 @@ separate host decision; an offline model does not bypass it.
 ## Validation and execution
 
 1. **Reuse the relevant workflow or example.** For a new structure,
-   inspect the shelf with `nika try` and read a matching `nika new <slug>`.
+   inspect the shelf with `nika try` and read a matching `nika compile <slug>`.
    For a small repair, keep the existing file and change only what the
    task and diagnostics require.
 2. **Write the file.** The envelope is `nika: <id>` (kebab-case — the

@@ -30,8 +30,8 @@ pub const TEST_EXITS: &str = "exit codes · 0 the golden matches · 1 the mock r
 #[must_use]
 pub fn human_help() -> &'static str {
     "nika             a plan from a file\n\
-     nika try         rehearsal · to own the file: nika new <slug>\n\
-     nika new hello   one file that runs on this machine\n\
+     nika try         example gallery · author: nika compile --list\n\
+     nika compile hello hello.nika   one file that runs on this machine\n\
      nika run         run a file\n\
      nika check       audit · in the file, permits = what this file is allowed to touch\n\
      nika doctor      PATH, model, sandbox · isolate with env -i HOME=$scratch PATH=\"$PATH\" nika …\n"
@@ -175,7 +175,7 @@ mod tests {
     fn the_postcard_names_try_new_permits_and_isolation() {
         let help = human_help();
         assert!(help.contains("try"), "C11: {help}");
-        assert!(help.contains("new"), "C11: {help}");
+        assert!(help.contains("compile"), "C11: {help}");
         assert!(
             help.contains("what this file is allowed to touch"),
             "UX-2: {help}"

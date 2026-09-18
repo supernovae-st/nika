@@ -691,7 +691,7 @@ fn examples_with_unknown_slug_is_a_tool_error_naming_the_list() {
 }
 
 /// RAMS-11: the oracle walks the CLI's routing door on plain words —
-/// the SAME query `nika new` routes lands the SAME entry here, and
+/// the read-only gallery query routes through the shared discovery owner, and
 /// the interpretation is SAID in a leading YAML comment.
 #[test]
 fn examples_route_plain_words_through_the_one_door() {

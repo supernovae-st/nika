@@ -24,6 +24,7 @@ pub mod access;
 pub mod catalog;
 pub(crate) mod choice;
 pub mod clients_registry;
+pub mod compile;
 pub(crate) mod context_envelope;
 pub use context_envelope::find_git_root;
 pub(crate) mod detect;

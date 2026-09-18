@@ -10,7 +10,7 @@
 
 use std::path::Path;
 
-use crate::guided;
+use crate::bootstrap;
 
 /// One project recipe: a name the wizard lists, a tagline, and the
 /// `(template, destination, workflow-id)` rows it scaffolds under the
@@ -25,7 +25,7 @@ pub(crate) struct Recipe {
 
 /// The recipe register (wizard order — the agentic curriculum leads
 /// because founding an agentic project is the verb's whole point;
-/// `starter` keeps the one-guided-workflow flow; `minimal` is the
+/// `starter` keeps the one-bootstrap-workflow flow; `minimal` is the
 /// briefs-only floor, today's `--yes` shape).
 pub(crate) const RECIPES: [Recipe; 5] = [
     Recipe {
@@ -44,7 +44,7 @@ pub(crate) const RECIPES: [Recipe; 5] = [
     },
     Recipe {
         name: "starter",
-        tagline: "one guided workflow — the three-question flow",
+        tagline: "one bootstrap workflow — the three-question flow",
         workflows: &[],
     },
     Recipe {
@@ -100,7 +100,7 @@ pub(crate) fn recipe(name: &str) -> Option<&'static Recipe> {
 pub(crate) fn takes_model(r: &Recipe) -> bool {
     r.workflows
         .iter()
-        .any(|(tpl, _, _)| nika_pack::template(tpl).is_some_and(guided::template_takes_model))
+        .any(|(tpl, _, _)| nika_pack::template(tpl).is_some_and(bootstrap::template_takes_model))
 }
 
 /// Materialize a recipe's workflows under `dir` — template VERBATIM
@@ -150,7 +150,7 @@ fn readme(r: &Recipe) -> String {
     );
     for (i, (tpl, rel, _)) in r.workflows.iter().enumerate() {
         let tag = nika_pack::template(tpl)
-            .map(|b| crate::guided::tagline(tpl, b))
+            .map(|b| crate::bootstrap::tagline(tpl, b))
             .unwrap_or_default();
         let file = rel.strip_prefix("workflows/").unwrap_or(rel);
         let _ = std::fmt::Write::write_fmt(
@@ -205,7 +205,7 @@ pub(crate) fn scaffold_example(
     let readme_status = if Path::new(&readme_dest).exists() && !force {
         ScaffoldStatus::Skipped
     } else {
-        let tag = crate::guided::tagline(clean, body);
+        let tag = crate::bootstrap::tagline(clean, body);
         let text = format!(
             "# workflows — founded from an example\n\n> Scaffolded by `nika init` (generated — regenerate by re-running\n> `nika init --example {clean}` with `--force`).\n\n## {base}.nika\n\n{tag}\n\n```sh\nnika check {rel}\nnika run {rel} --model mock/echo   # simulated envelope inference; tools and effects remain real\n```\n\nEvery finding teaches: `nika explain NIKA-XXXX`. The full contract\nlives in `AGENTS.md` at the repo root.\n"
         );
@@ -241,8 +241,8 @@ fn scaffold_one(
     if Path::new(dest).exists() && !force {
         return ScaffoldStatus::Skipped;
     }
-    let stamp_model = model.filter(|_| guided::template_takes_model(body));
-    let mut stamped = guided::stamp(body, id, stamp_model);
+    let stamp_model = model.filter(|_| bootstrap::template_takes_model(body));
+    let mut stamped = bootstrap::stamp(body, id, stamp_model);
     // A recipe file lives under `workflows/` and runs from the REPO root
     // — the skeleton's repo-root README default would miss in a freshly
     // founded (empty) directory, so the scaffold points it at the index

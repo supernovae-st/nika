@@ -605,12 +605,12 @@ fn init_scaffolds_a_repo_and_is_idempotent() {
 }
 
 #[test]
-fn bare_new_in_a_pipe_fails_fast_naming_the_flag() {
-    // clig.dev: never REQUIRE interactivity. Bare `nika new` without a
+fn bare_compile_in_a_pipe_fails_fast_naming_discovery() {
+    // clig.dev: never REQUIRE interactivity. Bare `nika compile` without a
     // terminal must not hang waiting on stdin — it fails fast, names the
     // missing flag, and still hands over the template set (wire line).
     let out = bin()
-        .arg("new")
+        .arg("compile")
         .stdin(std::process::Stdio::null())
         .output()
         .expect("binary runs");
@@ -621,25 +621,28 @@ fn bare_new_in_a_pipe_fails_fast_naming_the_flag() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert!(
-        text.contains("nika new '?'"),
+        text.contains("nika compile --list"),
         "names the discovery form: {text}"
     );
-    assert!(text.contains("embedded set:"), "hands over the set: {text}");
+    assert!(
+        text.contains("no substitute workflow"),
+        "honest incomplete: {text}"
+    );
 }
 
 #[test]
 fn discovery_query_is_a_success_at_the_binary_plane() {
-    // `nika new '?'` is the documented discovery command — exit 0
+    // `nika compile --list` is the documented discovery command — exit 0
     // (a question answered is a success), the wire-contract line intact.
     let out = bin()
-        .arg("new")
-        .arg("?")
+        .arg("compile")
+        .arg("--list")
         .stdin(std::process::Stdio::null())
         .output()
         .expect("binary runs");
     assert_eq!(out.status.code(), Some(0), "discovery is a success");
     let stdout = String::from_utf8(out.stdout).expect("utf8");
-    assert!(stdout.contains("embedded set:"), "{stdout}");
+    assert!(stdout.contains("exact skeletons"), "{stdout}");
 }
 
 #[test]
@@ -1322,7 +1325,7 @@ fn default_help_leads_with_the_postcard_and_names_every_verb() {
     assert!(lines.len() > 6 && lines[0].starts_with("nika "), "{text}");
     for verb in [
         "try",
-        "new",
+        "compile",
         "run",
         "check",
         "doctor",
@@ -1364,7 +1367,7 @@ fn default_help_leads_with_the_postcard_and_names_every_verb() {
 fn new_hello_writes_the_first_wow_file() {
     let dir = workspace_tmp_dir("nika-new-hello");
     let mut cmd = bin();
-    cmd.args(["new", "hello"])
+    cmd.args(["compile", "hello", "hello.nika"])
         .current_dir(&dir)
         .env("HOME", &dir)
         .env_remove("ANTHROPIC_API_KEY")
@@ -1380,7 +1383,7 @@ fn new_hello_writes_the_first_wow_file() {
     assert_eq!(
         out.status.code(),
         Some(0),
-        "nika new hello must write: {stdout}{stderr}"
+        "nika compile hello must write: {stdout}{stderr}"
     );
     let dest = dir.join("hello.nika");
     assert!(dest.is_file(), "hello.nika landed in {}", dir.display());

@@ -8,7 +8,7 @@
 
 use nika_cli::Theme;
 use nika_cli::verbs::graph::{GraphFormat, project, to_dot, to_mermaid};
-use nika_cli::verbs::{check, exit, explain, graph, inspect, new, pack_surface};
+use nika_cli::verbs::{check, compile, exit, explain, graph, inspect, pack_surface};
 use nika_schema::{FileId, ParseMode};
 
 const PLAIN: Theme = Theme::new(false, false, false);
@@ -453,79 +453,80 @@ fn pack_surface_round_trips_the_embedded_pack() {
     // tests/run_verb.rs (the static suite can't drive a real run).
 }
 
-// ─── new · template instantiation (the own-corpus law) ──────────────────
+// ─── Compile · the own-corpus law through the typed adapter ────────────
 
-#[test]
-fn new_writes_a_template_draft_that_its_own_check_teaches() {
-    let dir = std::env::temp_dir().join("nika-cli-verbs-static");
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    let dest = dir.join("from-template.nika");
-    let dest_str = dest.to_string_lossy().into_owned();
-    let _ = std::fs::remove_file(&dest);
-
-    let names = nika_pack::template_names();
-    assert!(!names.is_empty(), "pack carries templates");
-    let template = names
-        .iter()
-        .find(|n| n.contains("chain"))
-        .unwrap_or(&names[0]);
-
-    let out = new::run(template, Some(&dest_str), false);
-    assert_eq!(out.code, exit::OK, "{}", out.text);
-    assert!(
-        out.text.contains("SLOT"),
-        "points at the slots: {}",
-        out.text
-    );
-
-    // A skeleton is deliberately unfinished: its own ladder must refuse
-    // execution for the authored slots and teach the edit → check handoff.
-    let checked = check::run(&dest_str, false, false, None, PLAIN);
-    assert_eq!(
-        checked.code,
-        exit::FILE,
-        "the shipped template stays a draft until its slots are filled: {}",
-        checked.text
-    );
-    assert!(checked.text.contains("SLOTS"), "{}", checked.text);
-    assert!(
-        checked.text.contains("not a workflow yet"),
-        "{}",
-        checked.text
-    );
-
-    // Refuse-overwrite is the default posture.
-    let refused = new::run(template, Some(&dest_str), false);
-    assert_eq!(refused.code, exit::ENV);
-    assert!(refused.text.contains("--force"));
-    // And --force is the explicit override.
-    assert_eq!(new::run(template, Some(&dest_str), true).code, exit::OK);
+fn compile_args() -> compile::CompileArgs {
+    compile::CompileArgs {
+        intent: None,
+        dest: None,
+        output: None,
+        base: None,
+        change: None,
+        answers: Vec::new(),
+        force: false,
+        json: false,
+        list: false,
+    }
 }
 
 #[test]
-fn new_answers_the_discovery_query_as_a_success() {
-    // `?` is the canonical discovery query — first-class since the
-    // 2026-07-07 field walk (it used to reuse the unknown-template error
-    // and exit 2 · a documented command must not read as a failure). The
-    // `embedded set:` wire line survives verbatim for the editor probes,
-    // and a passed dest is never written.
-    let out = new::run("?", Some("/tmp/never-written.nika"), false);
-    assert_eq!(out.code, exit::OK, "{}", out.text);
-    assert!(out.text.contains("embedded set:"), "{}", out.text);
-    assert!(!std::path::Path::new("/tmp/never-written.nika").exists());
+fn compile_questions_preserve_the_unfilled_check_counterexample() {
+    let room = tempfile::tempdir().expect("room");
+    let dest = room.path().join("from-template.nika");
+    let mut args = compile::CompileArgs {
+        intent: Some("chain".to_owned()),
+        dest: Some(dest.to_string_lossy().into_owned()),
+        json: true,
+        ..compile_args()
+    };
+    let out = compile::run(&args);
+    assert_eq!(out.code, exit::FILE);
+    assert!(!dest.exists(), "incomplete source is not materialized");
+    let pending: serde_json::Value = serde_json::from_str(&out.text).expect("structured result");
+    let fixture = room.path().join("unfilled.nika");
+    std::fs::write(&fixture, pending["candidate"].as_str().expect("candidate"))
+        .expect("test fixture");
+    let checked = check::run(&fixture.to_string_lossy(), false, false, None, PLAIN);
+    assert_eq!(checked.code, exit::FILE);
+    assert!(checked.text.contains("SLOTS") && checked.text.contains("not a workflow yet"));
+    let key = pending["questions"][0]["key"].as_str().expect("question");
+    args.answers = vec![format!("{key}=\"Summarize the gathered text.\"")];
+    assert_eq!(compile::run(&args).code, exit::OK);
+    let bytes = std::fs::read(&dest).expect("ready file");
+    let refused = compile::run(&args);
+    assert_eq!(refused.code, exit::ENV);
+    assert!(refused.text.contains("--force"));
+    assert_eq!(std::fs::read(&dest).expect("unchanged"), bytes);
+    args.force = true;
+    assert_eq!(compile::run(&args).code, exit::OK);
+}
+
+#[test]
+fn compile_lists_exact_skeletons_as_a_success() {
+    let out = compile::run(&compile::CompileArgs {
+        list: true,
+        ..compile_args()
+    });
+    assert_eq!(out.code, exit::OK);
+    assert!(out.text.contains("exact skeletons"));
     for name in nika_pack::template_names() {
         assert!(out.text.contains(&name), "set names {name}");
     }
 }
 
 #[test]
-fn new_refuses_gibberish_and_names_the_set() {
-    // Zero-evidence text (no shared term with any template body) keeps
-    // the honest unknown-template error + the wire-contract set line.
-    let out = new::run("zzzz qqqq xxxx", Some("/tmp/never-written.nika"), false);
+fn compile_keeps_gibberish_incomplete_and_names_discovery() {
+    let room = tempfile::tempdir().expect("room");
+    let dest = room.path().join("never-written.nika");
+    let out = compile::run(&compile::CompileArgs {
+        intent: Some("zzzz qqqq xxxx".to_owned()),
+        dest: Some(dest.to_string_lossy().into_owned()),
+        ..compile_args()
+    });
     assert_eq!(out.code, exit::FILE);
-    assert!(out.text.contains("no template or intent matches"));
-    assert!(out.text.contains("embedded set:"));
+    assert!(out.text.contains("no substitute workflow"));
+    assert!(out.text.contains("nika compile --list"));
+    assert!(!dest.exists());
 }
 
 #[test]
@@ -653,7 +654,13 @@ fn check_skills_rung_greens_reds_and_teaches() {
     };
 
     // GREEN — the rung names the count, the audit stays clean (exit 0).
-    let green = check::run(&wf_with(&good, "green.nika"), false, false, None, PLAIN);
+    let green = check::run(
+        &wf_with(&good, "green.nika"),
+        false,
+        false,
+        None,
+        PLAIN,
+    );
     assert_eq!(green.code, exit::OK, "{}", green.text);
     assert!(
         green.text.contains("SKILLS") && green.text.contains("1 skill(s) resolve"),

@@ -4,7 +4,8 @@
 //! The inference cascade — ONE object, four rungs, the screen is a projection.
 //!
 //! Source unique for `nika` (TTY and pipe), `welcome`, `doctor --json`,
-//! and the `model:` `nika new` writes. Sort: ready first, then scale rank.
+//! for execution recommendations. Compile never consumes this cascade.
+//! Sort: ready first, then scale rank.
 //! No editorial. A detected, authenticated harness seat takes the arrow.
 
 use std::fmt::Write as _;
@@ -24,7 +25,7 @@ const SLOGAN: &str = "Local first. Cloud when you want it.";
 /// No `next` here. Every rung used to carry its own copy of the same
 /// string, and the JSON mirror served those copies while the TTY
 /// derived a fresh one from the directory — so `rungs[].next` kept
-/// saying `nika new hello` in a folder that already held the file
+/// saying `nika compile hello hello.nika` in a folder that already held the file
 /// (#1187). The next step belongs to the SCREEN, not to a rung.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct Rung {
@@ -41,7 +42,7 @@ pub(crate) struct InferenceChoice {
     pub rungs: Vec<Rung>,
     /// Featured rung id after sort (the arrow).
     pub arrow: String,
-    /// What `nika new` writes into `model:`.
+    /// Suggested execution model; never an authoring mutation.
     pub chosen_model: String,
     pub slogan: String,
     pub ram_gb: Option<u32>,
@@ -623,146 +624,8 @@ fn persist(choice: &InferenceChoice) -> std::io::Result<()> {
     std::fs::write(path, body)
 }
 
-/// Replace the top-level `model:` of a scaffold with a model THIS
-/// binary can sit on. Hub ids (`unsloth/…`) and harness seat ids are
-/// pull / `--access` targets — MODELS refuses them as `model:`.
-///
-/// The hello lesson is forced onto `mock/echo` (B01 / B17 / I01). Pack
-/// `01-hello` may name a local ollama seat; a take must still rehearse
-/// keyless. A present `OPENAI_API_KEY` must not rewrite it onto a billed
-/// seat.
-pub(crate) fn stamp_model_file(path: &Path) -> std::io::Result<()> {
-    let body = std::fs::read_to_string(path)?;
-    let model = if is_hello_lesson(&body) {
-        "mock/echo".to_owned()
-    } else {
-        runnable_stamp_model(&collect())
-    };
-    std::fs::write(path, stamp_body(&body, &model))
-}
-
-/// The one hello (`nika: hello` · pack `01-hello` / `nika new hello`).
-#[must_use]
-pub(crate) fn is_hello_lesson(body: &str) -> bool {
-    body.lines().any(|line| {
-        let t = line.trim();
-        t == "nika: hello" || t.starts_with("nika: hello ")
-    })
-}
-
-/// The `model:` a scaffold may carry. `chosen_model` stays the cascade
-/// identity (what we'd pull, which seat we'd pin); the file that runs
-/// must resolve in this binary.
-#[must_use]
-pub(crate) fn runnable_stamp_model(choice: &InferenceChoice) -> String {
-    if nika_providers::resolve_refusal(&choice.chosen_model).is_none() {
-        choice.chosen_model.clone()
-    } else {
-        "mock/echo".to_owned()
-    }
-}
-
-/// Stamp `model:` on a template body. Inserts one if the skeleton has none.
-#[must_use]
-pub(crate) fn stamp_body(body: &str, model: &str) -> String {
-    let scalar = yaml_scalar(model);
-    let mut found = false;
-    let mut out: Vec<String> = body
-        .lines()
-        .map(|line| {
-            if line.starts_with("model: ") {
-                found = true;
-                format!("model: {scalar}")
-            } else {
-                line.to_owned()
-            }
-        })
-        .collect();
-    if !found {
-        let mut inserted = false;
-        let mut with = Vec::new();
-        for line in out {
-            with.push(line.clone());
-            if !inserted && line.starts_with("nika: ") {
-                with.push(format!("model: {scalar}"));
-                inserted = true;
-            }
-        }
-        out = with;
-    }
-    let mut text = out.join("\n");
-    if !text.ends_with('\n') {
-        text.push('\n');
-    }
-    text
-}
-
-fn yaml_scalar(value: &str) -> String {
-    let plain = |c: char| c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '_' | '-');
-    if !value.is_empty() && value.chars().all(plain) {
-        value.to_owned()
-    } else {
-        format!("'{}'", value.replace('\'', "''"))
-    }
-}
-
-/// The first-wow slug `nika new hello` writes.
-pub(crate) const FIRST_WOW_SLUG: &str = "hello";
-/// Default dest for the first-wow file.
-pub(crate) const FIRST_WOW_DEST: &str = "hello.nika";
-
-const FIRST_WOW_MODELINE: &str =
-    "# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json\n";
-const FIRST_WOW_PROMPT: &str =
-    "Reply with one short sentence confirming you can hear me. No preamble.";
-
-/// `nika new hello` / `nika new hello.nika` — the one-shot first file.
-#[must_use]
-pub(crate) fn is_first_wow(from: Option<&str>, dest: Option<&str>) -> bool {
-    matches!(from, Some(FIRST_WOW_SLUG | FIRST_WOW_DEST))
-        || (from.is_none() && matches!(dest, Some(FIRST_WOW_SLUG | FIRST_WOW_DEST)))
-}
-
-/// Where `nika new hello` writes. `hello` as dest still lands a workflow file.
-#[must_use]
-pub(crate) fn first_wow_dest(dest: Option<&str>) -> &str {
-    match dest {
-        None | Some(FIRST_WOW_SLUG) => FIRST_WOW_DEST,
-        Some(path) => path,
-    }
-}
-
-/// Write the first-wow workflow. Always the pack `01-hello` body
-/// (`mock/echo`) — a present vendor key must not switch the file
-/// onto a billed seat (B01 / B17 / I01).
-#[must_use]
-pub(crate) fn write_first_wow(dest: &Path, force: bool) -> crate::output::VerbOutput {
-    write_first_wow_from(dest, force, &collect())
-}
-
-#[must_use]
-pub(crate) fn write_first_wow_from(
-    dest: &Path,
-    force: bool,
-    choice: &InferenceChoice,
-) -> crate::output::VerbOutput {
-    if dest.exists() && !force {
-        return crate::output::VerbOutput::env(format!(
-            "{} exists — pass --force to overwrite",
-            dest.display()
-        ));
-    }
-    let dest_s = dest.display().to_string();
-    let body = first_wow_yaml(choice).replace("examples/01-hello.nika", &dest_s);
-    match std::fs::write(dest, body) {
-        Ok(()) => crate::output::VerbOutput::ok(format!(
-            "wrote {} · {}",
-            dest.display(),
-            first_wow_next(dest)
-        )),
-        Err(e) => crate::output::VerbOutput::env(format!("cannot write {}: {e}", dest.display())),
-    }
-}
+/// Default first-file name used only by the concierge's next-command projection.
+const FIRST_WOW_DEST: &str = "hello.nika";
 
 fn first_wow_next(dest: &Path) -> String {
     // Gauntlet W2 (P01 P02 P04 P05 P07 P12 P15): `--access harness` on
@@ -777,18 +640,22 @@ fn first_wow_next(dest: &Path) -> String {
 /// A hand-written mirror of a function is a lie waiting to happen, so
 /// `door_shapes_mirror_the_real_door` runs the real function against
 /// real directories and proves this list is its exact image.
-pub(crate) const DOOR_SHAPES: [&str; 3] = ["nika new hello", "nika run <file>", "nika run"];
+pub(crate) const DOOR_SHAPES: [&str; 3] = [
+    "nika compile hello hello.nika",
+    "nika run <file>",
+    "nika run",
+];
 
-/// `Next:` after the user already has a file. Teaching `nika new hello`
+/// `Next:` after the user already has a file. Teaching `nika compile hello hello.nika`
 /// again is a dead end (`exists — pass --force`) — gulf of execution,
 /// and the tool's own advice caused it (gauntlet P15).
 pub(crate) fn front_door_next(cwd: Option<&Path>) -> String {
     let Some(dir) = cwd else {
-        return "nika new hello".to_owned();
+        return "nika compile hello hello.nika".to_owned();
     };
     let files = cwd_workflows(dir);
     match files.as_slice() {
-        [] => "nika new hello".to_owned(),
+        [] => "nika compile hello hello.nika".to_owned(),
         [one] => first_wow_next(Path::new(one)),
         many if many.iter().any(|n| n == FIRST_WOW_DEST) => {
             first_wow_next(Path::new(FIRST_WOW_DEST))
@@ -809,7 +676,7 @@ fn cwd_workflows(cwd: &Path) -> Vec<String> {
         .filter_map(|e| {
             let name = e.file_name();
             let name = name.to_string_lossy();
-            if nika_source::is_canonical_program_file_name(&name) {
+            if name.ends_with(".nika") || name.ends_with(".nika") {
                 Some(name.into_owned())
             } else {
                 None
@@ -818,31 +685,6 @@ fn cwd_workflows(cwd: &Path) -> Vec<String> {
         .collect();
     names.sort();
     names
-}
-
-/// The first-wow body is pack `01-hello` — one hello, always `mock/echo`.
-/// The cascade still chooses a billed seat for OTHER scaffolds; hello
-/// is the rehearsal that must run on a keyless (and a keyed) machine.
-#[must_use]
-pub(crate) fn first_wow_yaml(_choice: &InferenceChoice) -> String {
-    if let Some(body) = nika_pack::example("01-hello") {
-        // Pack 01-hello may name ollama; the first-wow take is always
-        // the rehearsal seat (B01). Comments on the model: line go with
-        // the stamp.
-        stamp_body(body, "mock/echo")
-    } else {
-        let model = yaml_scalar("mock/echo");
-        format!(
-            "{FIRST_WOW_MODELINE}nika: hello\nmodel: {model}\npermits: {{}}\ntasks:\n  greet:\n    infer:\n      prompt: \"{FIRST_WOW_PROMPT}\"\n      max_tokens: 64\noutputs:\n  greeting: ${{{{ tasks.greet.output }}}}\n"
-        )
-    }
-}
-
-/// Pack skeletons — the cascade stamps them at `nika new`.
-#[must_use]
-#[cfg(test)]
-pub(crate) fn pack_template_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../nika-pack/pack/templates")
 }
 
 #[cfg(test)]

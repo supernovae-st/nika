@@ -230,7 +230,7 @@ pub fn storefront(theme: Theme) -> VerbOutput {
     let first = slugs.first().copied().unwrap_or("01-hello");
     let _ = write!(
         text,
-        "\nnext ·\n  nika try {first}                    # watch one work · nothing written\n  nika new {first}                    # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one\n  nika try --all                       # the whole shelf · the numbered path + every job\n\n{}",
+        "\nnext ·\n  nika try {first}                    # watch one work · nothing written\n  nika compile --list                 # exact authoring skeletons\n  nika compile hello hello.nika  # explicit offline first file\n  nika try --all                       # the whole shelf · the numbered path + every job\n\n{}",
         theme.paint(
             Role::Dim,
             "verbs · \u{25c7} infer (ask a model) · \u{25b7} exec (run a command) · \u{25c6} invoke (use a tool) · \u{2726} agent (bounded loop)"
@@ -328,7 +328,7 @@ pub fn list(theme: Theme) -> VerbOutput {
 
     let _ = write!(
         text,
-        "\nnext ·\n  nika try 01-hello                    # see it work · offline · zero keys\n  nika new 01-hello                    # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one\n\n{}",
+        "\nnext ·\n  nika try 01-hello                    # see it work · offline · zero keys\n  nika compile hello hello.nika   # explicit offline first file\n  nika compile --list                  # exact skeleton previews\n\n{}",
         theme.paint(
             Role::Dim,
             "verbs · \u{25c7} infer (ask a model) · \u{25b7} exec (run a command) · \u{25c6} invoke (use a tool) · \u{2726} agent (bounded loop)"

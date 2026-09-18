@@ -50,7 +50,7 @@ releases. `nika doctor` diagnoses installed plugin drift; init preserves existin
 files, so review a fresh scaffold in a separate directory before updating them.
 
 ## The workflow tools
-- **Author** · `nika new <template> <file>.nika` (or write one —
+- **Author** · `nika compile <template> <file>.nika` (or write one —
   the envelope is `nika: <id>` (kebab-case — the id lives ON the tag)
   + a `tasks:` MAP keyed by task id. A `tasks:` sequence refuses
   `NIKA-PARSE-022`).
@@ -163,7 +163,7 @@ outputs:
 ```
 
 ## Don't invent structure — route to a skeleton
-`nika new '?'` lists the embedded skeletons · `nika try` /
+`nika compile --list` lists the embedded skeletons · `nika try` /
 `show <slug>` reads a runnable example that exercises a construct ·
 `nika spec --schema` is the JSON Schema · `nika spec --canon` is the SSOT ·
 `nika catalog` names the providers/models · `nika catalog --tools` names the `nika:`
@@ -258,7 +258,7 @@ const MCP_SERVERS: &str =
 const COPILOT_INSTRUCTIONS: &str = r"# Nika workflows (`*.nika`) — Copilot brief
 
 Nika workflows are audited BEFORE they run. The loop: author from a
-skeleton (`nika new '?'` lists them) → `nika check <file>` after
+skeleton (`nika compile --list` lists them) → `nika check <file>` after
 EVERY edit → `nika check <file> --fix` heals the mechanical renames →
 repair the rest from the diagnostics (`nika explain NIKA-XXXX`) →
 only a clean file reaches a human.
@@ -449,7 +449,7 @@ pub(crate) fn purpose(path: &str) -> &'static str {
         ".github/copilot-instructions.md" => "Copilot workflow instructions",
         "nika.yaml" => "team defaults: cost ceiling and trace retention, commented until edited",
         "workflows/README.md" => "index of the scaffolded workflows",
-        _ if nika_source::is_canonical_program_path(path) => "a workflow to audit, then run",
+        _ if path.ends_with(".nika") => "a workflow to audit, then run",
         _ if path.ends_with("/session-context.sh") => {
             "session context and binary version diagnosis"
         }
@@ -630,12 +630,12 @@ mod tests {
             "secrets guidance must teach the declared block"
         );
         assert!(
-            CURSOR_RULES.contains("`.nika` suffix"),
-            "prose must name the canonical program suffix"
+            CURSOR_RULES.contains("`.nika` (canonical) and `.nika`"),
+            "prose must name both extensions the globs match"
         );
         assert!(
             CURSOR_RULES.contains("**/*.nika"),
-            "the language glob matches canonical program files"
+            "the yml glob stays — the prose now matches it"
         );
     }
 
@@ -1022,7 +1022,7 @@ mod tests {
     fn agents_md_points_at_the_learning_surface() {
         // A wired agent must know the embedded surfaces exist, or it
         // improvises structure instead of routing to a template.
-        for needle in ["nika new", "nika try", "nika spec --schema"] {
+        for needle in ["nika compile", "nika try", "nika spec --schema"] {
             assert!(
                 AGENTS_MD.contains(needle),
                 "the guide names the discovery command `{needle}`"

@@ -5,11 +5,11 @@
 // Same carve-out as bin_smoke: this suite's WHOLE JOB is to drive the real
 // binary — here through a PTY, because the wizard is TTY-gated by
 // construction (`is_terminal` on both ends) and therefore UNREACHABLE from
-// every piped harness. Without a PTY the guided conversation ships with
+// every piped harness. Without a PTY the bootstrap conversation ships with
 // zero executable coverage (the tests-never-run gate-hole class).
 #![allow(clippy::disallowed_types)]
 
-//! PTY e2e — the guided onboarding conversation against the REAL binary
+//! PTY e2e — bootstrap conversation and noninteractive Compile against the binary
 //! on a REAL pseudo-terminal (expectrl · unix-only; the CI runner is
 //! linux, dev machines are macOS — both covered).
 //!
@@ -84,162 +84,37 @@ fn exit_code(session: &mut LoggedSession) -> i32 {
 }
 
 #[test]
-fn golden_path_lands_an_audited_draft() {
-    let dir = fresh_dir("golden");
-    let dir = dir.path();
-    let mut p = spawn_pty(dir, &["new"], true);
-
-    p.expect("your first workflow").expect("header");
-    p.expect("what should it do?").expect("q1");
-    p.send_line("").expect("enter");
-    p.expect("template `chain`").expect("routed to the default");
-    p.expect("my-first.nika]").expect("file default shown");
-    p.send_line("").expect("enter");
-    p.expect("a number, or any provider/model")
-        .expect("model menu");
-    p.send_line("").expect("enter");
-    p.expect("model `mock/echo`")
-        .expect("offline default echoed");
-    p.expect("stamped workflow `my-first`").expect("summary");
-    // The wow contract: the audit ladder runs INSIDE the wizard.
-    p.expect("nika check · my-first.nika")
-        .expect("embedded ladder");
-    p.expect("not a workflow yet").expect("names the draft");
-    p.expect("scriptable form").expect("teaches its flags form");
-    let m = p.expect(Eof).expect("conversation ends");
+fn compile_on_a_terminal_exposes_questions_without_a_wizard_or_file() {
+    let room = fresh_dir("compile-questions");
+    let mut p = spawn_pty(room.path(), &["compile", "chain"], true);
+    let output = p.expect(Eof).expect("returns without stdin");
+    let text = String::from_utf8_lossy(output.as_bytes());
     assert!(
-        !String::from_utf8_lossy(m.as_bytes()).contains("error"),
-        "clean TAIL after the last anchor (the tee holds the full transcript)"
-    );
-    assert_eq!(exit_code(&mut p), 2, "spec §4 · file finding");
-
-    // DEEP: the artifact stands on its own — a second binary run names
-    // the same unfinished slots instead of pretending the draft is ready.
-    let check = Command::new(bin())
-        .args(["check", "my-first.nika"])
-        .current_dir(dir)
-        .output()
-        .expect("check runs");
-    assert_eq!(
-        check.status.code(),
-        Some(2),
-        "the wizard's draft re-checks as unfinished: {}",
-        String::from_utf8_lossy(&check.stdout)
+        text.contains("Compile incomplete") && text.contains("--answer"),
+        "{text}"
     );
     assert!(
-        String::from_utf8_lossy(&check.stdout).contains("SLOTS"),
-        "the re-check names the unfinished section"
+        !text.contains("what should it do?"),
+        "no conversational fork"
     );
+    assert!(!text.contains('\u{1b}'), "NO_COLOR stays plain");
+    assert_eq!(exit_code(&mut p), 2);
+    assert_eq!(std::fs::read_dir(room.path()).expect("dir").count(), 0);
 }
 
 #[test]
-fn intent_routes_and_the_file_is_stamped() {
-    let dir = fresh_dir("intent");
-    let dir = dir.path();
-    let mut p = spawn_pty(dir, &["new"], true);
-
-    p.expect("what should it do?").expect("q1");
-    p.send_line("summarize every item in parallel")
-        .expect("intent");
-    p.expect("template `fanout`").expect("BM25 routes");
-    p.expect("file ").expect("q2");
-    p.send_line("review-batch").expect("custom name");
-    p.expect("a number, or any provider/model").expect("q3");
-    p.send_line("2").expect("menu pick");
-    p.expect("routed intent → template `fanout`")
-        .expect("summary says the routing");
-    p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 2, "the routed template is a draft");
-
-    // DEEP: the three stamps landed in the file itself.
-    let written = std::fs::read_to_string(dir.join("review-batch.nika")).expect("file written");
-    assert!(
-        written.contains("nika: review-batch"),
-        "the id is stamped on the envelope's one identity key"
+fn unsupported_intent_on_a_terminal_never_routes_to_a_substitute() {
+    let room = fresh_dir("compile-intent");
+    let mut p = spawn_pty(
+        room.path(),
+        &["compile", "summarize every item in parallel"],
+        true,
     );
-    assert!(written.contains("model: mock/echo"), "menu pick stamped");
-}
-
-#[test]
-fn no_model_skeleton_completes_in_two_answers() {
-    let dir = fresh_dir("permodel");
-    let dir = dir.path();
-    let mut p = spawn_pty(dir, &["new"], true);
-
-    p.expect("what should it do?").expect("q1");
-    p.send_line("gate-and-act").expect("exact template name");
-    p.expect("template `gate-and-act`").expect("rung 1");
-    p.expect("file ").expect("q2");
-    p.send_line("").expect("enter");
-    // The whole point: NO model question — the per-task truth instead,
-    // then straight to the summary + ladder. Everything to Eof in one
-    // capture so the absence is assertable.
-    let m = p.expect(Eof).expect("ends");
-    let transcript = String::from_utf8_lossy(m.as_bytes()).into_owned();
-    assert!(
-        transcript.contains("models are per-task in this skeleton"),
-        "{transcript}"
-    );
-    assert!(
-        !transcript.contains("a number, or any provider/model"),
-        "the model question must not fire: {transcript}"
-    );
-    assert!(transcript.contains("models per-task"), "honest summary");
-    assert!(transcript.contains("audited"), "ladder still runs");
-    assert_eq!(
-        exit_code(&mut p),
-        0,
-        "a slot-free template is already runnable"
-    );
-}
-
-#[test]
-fn dest_hint_door_honors_the_given_name() {
-    // The third door (V5 grammar): `nika new some-name.nika` bare on
-    // a terminal — the extension marks a DESTINATION, not an intent. The
-    // wizard runs with the GIVEN name as the file default, Enter keeps it.
-    let dir = fresh_dir("hint");
-    let dir = dir.path();
-    let mut p = spawn_pty(dir, &["new", "team-standup.nika"], true);
-
-    p.expect("what should it do?").expect("q1");
-    p.send_line("").expect("enter");
-    p.expect("[team-standup.nika]")
-        .expect("the hint IS the default");
-    p.send_line("").expect("enter");
-    p.expect("a number, or any provider/model").expect("q3");
-    p.send_line("").expect("enter");
-    p.expect("stamped workflow `team-standup`")
-        .expect("id from the hint");
-    p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 2, "the template is a draft");
-    assert!(dir.join("team-standup.nika").is_file());
-}
-
-#[test]
-fn collision_walk_defaults_to_my_second() {
-    let dir = fresh_dir("collide");
-    let dir = dir.path();
-    std::fs::write(dir.join("my-first.nika"), "taken").expect("seed");
-    let mut p = spawn_pty(dir, &["new"], true);
-
-    p.expect("what should it do?").expect("q1");
-    p.send_line("").expect("enter");
-    // The default walked past the taken name BEFORE asking.
-    p.expect("my-second.nika]")
-        .expect("collision-aware default");
-    p.send_line("").expect("enter");
-    p.expect("a number, or any provider/model").expect("q3");
-    p.send_line("").expect("enter");
-    p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 2, "the template is a draft");
-
-    assert!(dir.join("my-second.nika").is_file(), "written next door");
-    assert_eq!(
-        std::fs::read_to_string(dir.join("my-first.nika")).expect("read"),
-        "taken",
-        "the taken file is untouched"
-    );
+    let output = p.expect(Eof).expect("returns without answering anything");
+    let text = String::from_utf8_lossy(output.as_bytes());
+    assert!(text.contains("no substitute workflow"), "{text}");
+    assert_eq!(exit_code(&mut p), 2);
+    assert_eq!(std::fs::read_dir(room.path()).expect("dir").count(), 0);
 }
 
 #[test]
@@ -341,7 +216,7 @@ fn init_example_lane_founds_around_one_lesson() {
 }
 
 #[test]
-fn init_starter_recipe_hands_over_to_the_guided_flow() {
+fn init_starter_recipe_hands_over_to_explicit_compile() {
     let dir = fresh_dir("init-starter");
     let dir = dir.path();
     let mut p = spawn_pty(dir, &["init", "."], true);
@@ -355,22 +230,12 @@ fn init_starter_recipe_hands_over_to_the_guided_flow() {
     p.expect("project file").expect("the project-file beat");
     p.send_line("").expect("Enter = skip");
     p.expect("created AGENTS.md").expect("scaffold report");
-    // The hand-off: the SAME three-question flow `nika new` speaks.
-    p.expect("your first workflow")
-        .expect("the guided flow took over");
-    p.send_line("").expect("intent Enter (chain)");
-    p.expect("my-first.nika]").expect("file default");
-    p.send_line("").expect("enter");
-    p.expect("a number, or any provider/model")
-        .expect("model menu");
-    p.send_line("").expect("enter");
-    p.expect("nika check · my-first.nika")
-        .expect("its ladder ran");
-    p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 0, "init accepts its taught draft class");
-
-    assert!(dir.join("AGENTS.md").is_file(), "scaffold written");
-    assert!(dir.join("my-first.nika").is_file(), "workflow written");
+    p.expect("nika compile")
+        .expect("explicit authoring handoff");
+    p.expect(Eof).expect("ends without a second wizard");
+    assert_eq!(exit_code(&mut p), 0);
+    assert!(dir.join("AGENTS.md").is_file());
+    assert!(!dir.join("my-first.nika").exists());
 }
 
 #[test]
@@ -389,65 +254,4 @@ fn init_cancel_at_the_first_question_writes_nothing() {
     assert_eq!(exit_code(&mut p), 3, "spec §4 · environment (cancelled)");
     assert!(!dir.join("AGENTS.md").exists(), "no partial scaffold");
     assert!(!dir.join(".vscode").exists(), "no partial wiring");
-}
-
-#[test]
-fn eof_cancels_without_writing() {
-    let dir = fresh_dir("cancel");
-    let dir = dir.path();
-    let mut p = spawn_pty(dir, &["new"], true);
-
-    p.expect("what should it do?").expect("q1");
-    // ^D = EOF mid-conversation: the human left. Cancel, never loop.
-    p.send(ControlCode::EndOfTransmission).expect("^D");
-    p.expect("cancelled — nothing written")
-        .expect("honest cancel");
-    p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 3, "spec §4 · environment (cancelled)");
-
-    let leftovers: Vec<_> = std::fs::read_dir(dir)
-        .expect("dir")
-        .filter_map(Result::ok)
-        .map(|e| e.file_name().to_string_lossy().into_owned())
-        .filter(|n| n.ends_with(".nika"))
-        .collect();
-    assert!(leftovers.is_empty(), "nothing written: {leftovers:?}");
-}
-
-#[test]
-fn colour_lives_on_a_terminal_and_no_color_kills_every_escape() {
-    // Half 1 · a real PTY without NO_COLOR: the semantic accents exist
-    // (the wizard resolves --color auto → TTY → on).
-    let dir = fresh_dir("colour");
-    let dir = dir.path();
-    let mut p = spawn_pty(dir, &["new"], false);
-    p.expect("what should it do?").expect("q1");
-    p.send_line("").expect("enter");
-    p.send_line("").expect("enter");
-    p.send_line("").expect("enter");
-    let m = p.expect(Eof).expect("ends");
-    let coloured = String::from_utf8_lossy(m.as_bytes()).into_owned();
-    assert!(
-        coloured.contains("\u{1b}[36m"),
-        "the single accent paints on a TTY"
-    );
-    assert!(coloured.contains("\u{1b}[2m"), "dim metadata paints");
-    assert_eq!(exit_code(&mut p), 2, "the coloured template is a draft");
-
-    // Half 2 · NO_COLOR on the SAME terminal: zero escapes — the sober
-    // register is a promise even where colour is possible.
-    let dir2 = fresh_dir("nocolour");
-    let dir2 = dir2.path();
-    let mut q = spawn_pty(dir2, &["new"], true);
-    q.expect("what should it do?").expect("q1");
-    q.send_line("").expect("enter");
-    q.send_line("").expect("enter");
-    q.send_line("").expect("enter");
-    let m2 = q.expect(Eof).expect("ends");
-    let plain = String::from_utf8_lossy(m2.as_bytes()).into_owned();
-    assert!(
-        !plain.contains('\u{1b}'),
-        "NO_COLOR strips every escape, even on a terminal"
-    );
-    assert_eq!(exit_code(&mut q), 2, "the plain template is a draft");
 }

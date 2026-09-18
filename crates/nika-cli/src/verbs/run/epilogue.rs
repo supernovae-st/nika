@@ -20,6 +20,7 @@ use nika_runtime::{RunOutcome, WorkflowPause};
 
 use crate::Theme;
 use crate::verbs::exit;
+use nika_cli_host::output::sh_word;
 use nika_dap::resume;
 
 /// The `--resume` post-run summary (`resumed · N skipped · M ran live`) —
@@ -370,20 +371,6 @@ pub(super) fn resume_carry(vars: &[String], model_override: Option<&str>) -> Str
     carry
 }
 
-/// Quote one shell word for the taught line: bare when it is already a
-/// safe word, single-quoted otherwise (embedded single quotes splice
-/// through the POSIX `'\''` idiom — paste-able in sh/bash/zsh).
-fn sh_word(word: &str) -> std::borrow::Cow<'_, str> {
-    let safe = !word.is_empty()
-        && word
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "_=./:@+-".contains(c));
-    if safe {
-        return std::borrow::Cow::Borrowed(word);
-    }
-    std::borrow::Cow::Owned(format!("'{}'", word.replace('\'', "'\\''")))
-}
-
 /// ONE `{"error":{"code":…,"message":…}}` line — the machine failure
 /// contract (F6). `code` is the first NIKA wire code found in the message
 /// (`null` when the failure class carries none, e.g. an unreadable file).
@@ -537,7 +524,7 @@ mod tests {
         assert!(
             notes
                 .iter()
-                .any(|n| n == "rehearsal. to own the file: nika new competitor-radar"),
+                .any(|n| n == "rehearsal · competitor-radar. explore authoring skeletons: nika compile --list"),
             "UX-3: {notes:?}"
         );
         assert!(

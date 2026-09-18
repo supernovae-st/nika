@@ -4,7 +4,7 @@
 //! The SLOTS rung — a scaffold saying which values are still its own.
 //!
 //! This rung blocks the run, and it must not read like a fault. The
-//! person typed `nika new` thirty seconds ago and did nothing wrong;
+//! person typed `nika compile` thirty seconds ago and did nothing wrong;
 //! the file is simply not finished. So it wears the `Warn` face rather
 //! than the `Bad` one, opens on « ready to be filled », names every slot
 //! with its LINE (« some slots are empty » would send someone hunting),
@@ -122,7 +122,7 @@ mod tests {
     }
 
     /// Constraint 4: it must not read as a fault. The person just typed
-    /// `nika new`. The rung blocks the run — it does not scold.
+    /// `nika compile`. The rung blocks the run — it does not scold.
     #[test]
     fn the_rung_reads_as_a_step_not_a_failure() {
         let mut out = String::new();
