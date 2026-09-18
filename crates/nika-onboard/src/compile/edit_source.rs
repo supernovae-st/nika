@@ -17,24 +17,60 @@ pub(super) fn emit(source: &str, before: &Value, after: &Value, name: &str) -> O
     if before == after {
         return Some(source.to_owned());
     }
+    let declaration = before.get("const")?.get(name)?;
+    let mut replacement = after.get("const")?.get(name)?;
+    let typed = declaration.get("type").is_some() && declaration.get("value").is_some();
+    if typed {
+        replacement = replacement.get("value")?;
+    }
+    let (start, end) = literal_range(source, name, typed)?;
+    let prefix = source.get(..start)?;
+    let suffix = source.get(end..)?;
+    let replacement = yaml_safe_json(&replacement.to_string());
+    let candidate = format!("{prefix}{replacement}{suffix}");
+    // Validate both readers on the OUTPUT too: acceptance must not manufacture
+    // decoder drift that prevents a later unrelated edit of this candidate.
+    (serde_yaml_bw::from_str::<Value>(&candidate).ok().as_ref() == Some(after)
+        && super::edit::literal_projection(&candidate).as_ref() == Some(after))
+    .then_some(candidate)
+}
+
+/// Compact JSON is ASCII outside its string literals, so these code points can
+/// only sit inside a string or key, where `\uXXXX` means the same to JSON and
+/// to a YAML double-quoted scalar. A YAML 1.1 reader rejects DEL, the C1
+/// controls and both BMP noncharacters when raw, and folds a raw NEL into a
+/// space. The escape is a proposal: `emit` still proves it with both readers.
+fn yaml_safe_json(token: &str) -> String {
+    token
+        .chars()
+        .map(|c| match c {
+            '\u{7f}'..='\u{9f}' | '\u{fffe}' | '\u{ffff}' => format!("\\u{:04x}", u32::from(c)),
+            _ => c.to_string(),
+        })
+        .collect()
+}
+
+/// Byte range of the constant's literal (the `value` of a typed declaration),
+/// or `None` when its presentation is outside this bounded slice.
+fn literal_range(source: &str, name: &str, typed: bool) -> Option<(usize, usize)> {
     let options = LoaderOptions::default()
         .error_on_duplicate_keys(true)
         .prevent_coercion(true);
     let tree = parse_yaml_with_options(0, source, options).ok()?;
-    let consts = tree.as_mapping()?.get_node("const")?.as_mapping()?;
-    let mut node = consts.get_node(name)?;
     let mut parent = tree.as_mapping()?.get_node("const")?;
-    let declaration = before.get("const")?.get(name)?;
-    let mut replacement = after.get("const")?.get(name)?;
-    if declaration.get("type").is_some() && declaration.get("value").is_some() {
+    let mut node = parent.as_mapping()?.get_node(name)?;
+    if typed {
         parent = node;
         node = node.as_mapping()?.get_node("value")?;
-        replacement = replacement.get("value")?;
     }
     let start = byte_offset(source, node.span().start()?.character())?;
     let parent_start = byte_offset(source, parent.span().start()?.character())?;
     let flow = source.as_bytes().get(parent_start) == Some(&b'{');
     let end = match node {
+        // An omitted value (`key:`) is an empty PLAIN scalar that the parser
+        // marks at the NEXT token: that range is never the target. No written
+        // plain scalar is empty, and `prevent_coercion` keeps `''`/`""` apart.
+        Node::Scalar(scalar) if scalar.may_coerce() && scalar.as_str().is_empty() => return None,
         Node::Scalar(_) => scalar_end(source, start, flow)?,
         Node::Mapping(_) | Node::Sequence(_) => {
             let closing = match source.as_bytes().get(start)? {
@@ -49,17 +85,7 @@ pub(super) fn emit(source: &str, before: &Value, after: &Value, name: &str) -> O
             end.checked_add(1)?
         }
     };
-    let prefix = source.get(..start)?;
-    let suffix = source.get(end..)?;
-    // YAML 1.1 folds a raw NEL into a space even inside JSON quotes. Escape it
-    // so the next EDIT's secondary decoder reads the same value, including keys.
-    let replacement = replacement.to_string().replace('\u{85}', "\\u0085");
-    let candidate = format!("{prefix}{replacement}{suffix}");
-    // Validate both readers on the OUTPUT too: acceptance must not manufacture
-    // decoder drift that prevents a later unrelated edit of this candidate.
-    (serde_yaml_bw::from_str::<Value>(&candidate).ok().as_ref() == Some(after)
-        && super::edit::literal_projection(&candidate).as_ref() == Some(after))
-    .then_some(candidate)
+    Some((start, end))
 }
 
 fn byte_offset(source: &str, character: usize) -> Option<usize> {
@@ -112,4 +138,64 @@ fn scalar_end(source: &str, start: usize, flow: bool) -> Option<usize> {
         .unwrap_or(tail.len());
     let token = tail.get(..end)?.trim_end_matches([' ', '\t']);
     (!token.is_empty()).then_some(start + token.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{literal_range, yaml_safe_json};
+
+    fn located(consts: &str, typed: bool) -> Option<String> {
+        let source = format!("nika: x\nconst:\n{consts}\ntasks: {{}}\n");
+        let (start, end) = literal_range(&source, "payload", typed)?;
+        source.get(start..end).map(str::to_owned)
+    }
+
+    /// The public door cannot tell this guard from the whole-document
+    /// comparison behind it; without the guard these return the NEXT token.
+    #[test]
+    fn an_omitted_value_has_no_range() {
+        for omitted in [
+            "  payload:\n  other: true",
+            "  payload: # only a comment\n  \"other\": true",
+            "  payload:\n  ~: true",
+            "  other: true\n  payload:",
+        ] {
+            assert_eq!(located(omitted, false), None, "{omitted}");
+        }
+        let typed = "  payload:\n    type: string\n    value:\n  other: true";
+        assert_eq!(located(typed, true), None);
+    }
+
+    #[test]
+    fn written_nulls_and_empty_quotes_keep_their_exact_range() {
+        for token in ["~", "null", "''", "\"\""] {
+            let consts = format!("  payload: {token} # inline\n  other: true");
+            assert_eq!(located(&consts, false).as_deref(), Some(token));
+            let typed = format!("  payload:\n    type: string\n    value: {token}\n  other: 1");
+            assert_eq!(located(&typed, true).as_deref(), Some(token));
+        }
+    }
+
+    #[test]
+    fn only_reader_hostile_code_points_are_escaped() {
+        // An escaped backslash before the point must not swallow the new escape.
+        for (c, hex) in [
+            ('\u{7f}', "007f"),
+            ('\u{80}', "0080"),
+            ('\u{85}', "0085"),
+            ('\u{9f}', "009f"),
+            ('\u{fffe}', "fffe"),
+            ('\u{ffff}', "ffff"),
+        ] {
+            let raw = format!("{{\"k{c}\":[\"\\\\{c}\"]}}");
+            let safe = format!("{{\"k\\u{hex}\":[\"\\\\\\u{hex}\"]}}");
+            assert_eq!(yaml_safe_json(&raw), safe);
+            let decoded = serde_json::from_str::<serde_json::Value>(&raw).ok();
+            assert!(decoded.is_some(), "{raw}");
+            assert_eq!(serde_json::from_str(&safe).ok(), decoded);
+        }
+        // Neighbours of each range, BOM, a line separator and non-BMP stay raw.
+        let kept = "[\"~\u{a0}\u{2028}\u{fffd}\u{feff}\u{10000}\",\"\\n\\u0001\"]";
+        assert_eq!(yaml_safe_json(kept), kept);
+    }
 }

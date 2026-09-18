@@ -10,8 +10,11 @@ use serde_json::{Value, json};
 const HEADER: &str = "# Licence stays here\n# café 🦋\nnika: edit-source\n";
 const TAIL: &str = "\n# permits stay here\npermits: {tools: ['nika:jq']}\ntasks:\n  echo:\n    invoke:\n      tool: nika:jq\n      args: {input: '${{ const.payload }}', expression: '.'}\n# end\n";
 
-fn assert_edit(prefix: &str, literal: &str, suffix: &str, value: &Value) {
+/// Both request doors must agree; the shared candidate is returned so a caller
+/// can pin the exact emitted bytes instead of trusting a reparse alone.
+fn assert_edit(prefix: &str, literal: &str, suffix: &str, value: &Value) -> String {
     let source = format!("{prefix}{literal}{suffix}");
+    let mut candidates = Vec::new();
     for request in [
         CompileRequest::edit(&source, format!("Set const.payload to {value}")),
         CompileRequest::set_constant(&source, "payload", value.to_string()),
@@ -32,7 +35,21 @@ fn assert_edit(prefix: &str, literal: &str, suffix: &str, value: &Value) {
             serde_yaml_bw::from_str::<Value>(&candidate).unwrap(),
             expected
         );
+        candidates.push(candidate);
     }
+    assert_eq!(candidates[0], candidates[1]);
+    candidates.remove(0)
+}
+
+fn assert_refused_unchanged(source: &str, name: &str, literal_json: &str) {
+    let out = compile(&CompileRequest::set_constant(source, name, literal_json)).unwrap();
+    assert_eq!(out.status, CompileStatus::Refused, "{source}\n{out:?}");
+    assert_eq!(out.candidate.as_deref(), Some(source));
+    assert!(
+        !out.diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Applied)
+    );
 }
 
 #[test]
@@ -109,30 +126,119 @@ fn crlf_and_noop_edits_do_not_normalize_source() {
     }
 }
 
+/// Accept the value, pin the emitted token, then prove closure: an unrelated
+/// second EDIT still works and restoring the literal restores the exact source.
+/// `old` is both the YAML literal in the base and the JSON answer restoring it.
+fn assert_editable_again(prefix: &str, old: &str, suffix: &str, value: &Value, token: &str) {
+    let first = assert_edit(prefix, old, suffix, value);
+    assert_eq!(first, format!("{prefix}{token}{suffix}"));
+    let second = compile(&CompileRequest::set_constant(&first, "other", "2")).unwrap();
+    assert_eq!(second.status, CompileStatus::Ready, "{second:?}");
+    let second = second.candidate.unwrap();
+    assert_eq!(second, first.replace("other: 1", "other: 2"));
+    let doc: Value = serde_yaml_bw::from_str(&second).unwrap();
+    let payload = &doc["const"]["payload"];
+    let typed = payload.get("type").is_some() && payload.get("value").is_some();
+    assert_eq!(if typed { &payload["value"] } else { payload }, value);
+    assert_eq!(doc["const"]["other"], 2);
+    let restored = compile(&CompileRequest::set_constant(&first, "payload", old)).unwrap();
+    assert_eq!(restored.status, CompileStatus::Ready, "{restored:?}");
+    assert_eq!(restored.candidate, Some(format!("{prefix}{old}{suffix}")));
+}
+
 #[test]
 fn emitted_unicode_retains_its_value_and_can_be_edited_again() {
     let prefix = format!("{HEADER}const:\n  payload: ");
     let suffix = format!(" # inline\n  other: 1{TAIL}");
-    for value in [
-        json!("a\u{85}b"),
-        json!(["a\u{85}b"]),
-        json!({"a\u{85}b": "c\u{85}d"}),
+    // DEL, every C1 control (NEL included) and both BMP noncharacters: raw,
+    // the secondary decoder rejects or folds them, so each is escaped.
+    let hostile = ('\u{7f}'..='\u{9f}').chain(['\u{fffe}', '\u{ffff}']);
+    let mut every = (String::new(), String::new());
+    for c in hostile {
+        let escape = format!("\\u{:04x}", u32::from(c));
+        every.0.push(c);
+        every.1.push_str(&escape);
+        assert_editable_again(
+            &prefix,
+            "100",
+            &suffix,
+            &json!(format!("a{c}b")),
+            &format!("\"a{escape}b\""),
+        );
+        assert_editable_again(
+            &prefix,
+            "100",
+            &suffix,
+            &json!([1, {"deep": [format!("{c}"), true]}]),
+            &format!("[1,{{\"deep\":[\"{escape}\",true]}}]"),
+        );
+        assert_editable_again(
+            &prefix,
+            "100",
+            &suffix,
+            &json!({format!("k{c}"): format!("{c}v")}),
+            &format!("{{\"k{escape}\":\"{escape}v\"}}"),
+        );
+    }
+    // A flow parent and a typed declaration take the same token.
+    let (raw, escaped) = every;
+    assert_editable_again(
+        &format!("{HEADER}const: {{payload: "),
+        "100",
+        &format!(", other: 1}} # after map{TAIL}"),
+        &json!({"k": raw.as_str()}),
+        &format!("{{\"k\":\"{escaped}\"}}"),
+    );
+    assert_editable_again(
+        &format!("{HEADER}const:\n  payload:\n    type: string # declaration\n    value: "),
+        r#""old""#,
+        &format!(" # value comment\n  other: 1{TAIL}"),
+        &json!(raw.as_str()),
+        &format!("\"{escaped}\""),
+    );
+}
+
+#[test]
+fn escaping_stays_inside_the_hostile_set_and_existing_escapes() {
+    let prefix = format!("{HEADER}const:\n  payload: ");
+    let suffix = format!(" # inline\n  other: 1{TAIL}");
+    // Neighbours of each escaped range, a line separator and non-BMP text stay raw.
+    let raw = "~\u{a0}\u{2028}\u{fffd}\u{feff}🦋";
+    assert_editable_again(&prefix, "100", &suffix, &json!(raw), &format!("\"{raw}\""));
+    // An escaped backslash before a hostile point must not swallow the new escape.
+    assert_editable_again(
+        &prefix,
+        "100",
+        &suffix,
+        &json!("\\\u{7f}\"\n"),
+        r#""\\\u007f\"\n""#,
+    );
+}
+
+#[test]
+fn omitted_null_is_refused_while_written_null_stays_editable() {
+    // The parser marks an omitted value at the NEXT token; that range is never
+    // the target, whatever the next token looks like.
+    for consts in [
+        "const:\n  payload:\n  other: true",
+        "const:\n  payload: # only a comment\n  other: true",
+        "const:\n  payload:\n  \"other\": true",
+        "const:\n  payload:\n  ~: true\n  other: true",
+        "const:\n  other: true\n  payload:",
+        "const: {payload: , other: true}",
+        "const: {other: true, payload: }",
     ] {
-        assert_edit(&prefix, "100", &suffix, &value);
-        let source = format!("{prefix}100{suffix}");
-        let first = compile(&CompileRequest::set_constant(
-            &source,
-            "payload",
-            value.to_string(),
-        ))
-        .unwrap()
-        .candidate
-        .unwrap();
-        let second = compile(&CompileRequest::set_constant(&first, "other", "2")).unwrap();
-        assert_eq!(second.status, CompileStatus::Ready, "{second:?}");
-        let doc: Value = serde_yaml_bw::from_str(&second.candidate.unwrap()).unwrap();
-        assert_eq!(doc["const"]["payload"], value);
-        assert_eq!(doc["const"]["other"], 2);
+        let source = format!("{HEADER}{consts}{TAIL}");
+        assert_refused_unchanged(&source, "payload", "7");
+        // The neighbour keeps working: only the omitted marker is out of scope.
+        let out = compile(&CompileRequest::set_constant(&source, "other", "false")).unwrap();
+        assert_eq!(out.status, CompileStatus::Ready, "{source}\n{out:?}");
+    }
+    let prefix = format!("{HEADER}const:\n  payload: ");
+    let suffix = format!(" # inline\n  other: true{TAIL}");
+    for written in ["~", "null"] {
+        let candidate = assert_edit(&prefix, written, &suffix, &json!(7));
+        assert_eq!(candidate, format!("{prefix}7{suffix}"));
     }
 }
 
@@ -146,13 +252,39 @@ fn unsupported_block_presentations_are_refused_without_losing_comments() {
         "\n    x: 1",
     ] {
         let source = format!("{HEADER}const:\n  payload: {old}\n  other: 'keep'{TAIL}");
-        let out = compile(&CompileRequest::set_constant(&source, "payload", "7")).unwrap();
-        assert_eq!(out.status, CompileStatus::Refused, "{out:?}");
-        assert_eq!(out.candidate.as_deref(), Some(source.as_str()));
-        assert!(
-            !out.diagnostics
-                .iter()
-                .any(|d| d.kind == DiagnosticKind::Applied)
-        );
+        assert_refused_unchanged(&source, "payload", "7");
+    }
+}
+
+/// Scope limitation, pinned on purpose: CREATE's assembler emits block forms
+/// for multi-line and collection answers, and the bounded EDIT refuses those
+/// presentations instead of re-emitting the whole document.
+#[test]
+fn create_block_output_is_outside_the_bounded_edit() {
+    let create = |answer: &str| {
+        let request = CompileRequest::create("classify-and-route").answer("const.request", answer);
+        let out = compile(&request).unwrap();
+        assert_eq!(out.status, CompileStatus::Ready, "{out:?}");
+        out.candidate.unwrap()
+    };
+    let one_line = create(r#""One line.""#);
+    let edited = compile(&CompileRequest::set_constant(
+        &one_line,
+        "request",
+        r#""Another line.""#,
+    ))
+    .unwrap();
+    assert_eq!(edited.status, CompileStatus::Ready, "{edited:?}");
+    assert_eq!(
+        edited.candidate,
+        Some(one_line.replace("request: One line.", r#"request: "Another line.""#))
+    );
+    for (answer, block_form) in [
+        (r#""line one\nline two""#, "request: |-\n"),
+        (r#"["a", "b"]"#, "request:\n  - a\n"),
+    ] {
+        let source = create(answer);
+        assert!(source.contains(block_form), "{source}");
+        assert_refused_unchanged(&source, "request", r#""Another line.""#);
     }
 }
