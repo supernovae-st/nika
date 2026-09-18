@@ -75,7 +75,7 @@ fn empty_inventory_line(walk_truncated: bool) -> &'static str {
     if walk_truncated {
         "scan partial — the walk gave up before covering the tree"
     } else {
-        "no workflows here yet — nika compile hello hello.nika creates one explicitly"
+        "no workflows here yet — nika compile hello hello.nika — that writes one"
     }
 }
 
@@ -279,7 +279,7 @@ mod tests {
         let complete = render(false);
         assert!(
             complete.ends_with(
-                "\nno workflows here yet — nika compile hello hello.nika creates one explicitly\n"
+                "\nno workflows here yet — nika compile hello hello.nika — that writes one\n"
             ),
             "{complete}"
         );
