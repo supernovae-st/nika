@@ -207,13 +207,10 @@ fn preflight(
         Ok(flag) => flag,
         Err(code) => return Err(Box::new(RunVerdict::bare(code))),
     };
-    let max_cost_usd = match ceiling::from_cwd(max_cost_usd) {
-        Ok(v) => v,
-        Err(e) => {
-            epilogue::emit_diagnostic(&e.to_string(), output_json || json);
-            return Err(Box::new(RunVerdict::bare(exit::ENV)));
-        }
-    };
+    let max_cost_usd = ceiling::from_cwd(max_cost_usd).map_err(|e| {
+        epilogue::emit_diagnostic(&e.to_string(), output_json || json);
+        Box::new(RunVerdict::bare(exit::ENV))
+    })?;
     run_start_gc(no_gc, dry_run);
     Ok((output_json, max_cost_usd))
 }
@@ -861,19 +858,12 @@ fn scoped_clean_gate(
         return Err(refuse(&wf, &report, &skills));
     }
     let (wf, report) = apply_task_scope(wf, report, task_filter, output_json || json)?;
-    if !report.is_clean() {
-        let skills = crate::verbs::resolve_workflow_skills(
-            &wf,
-            crate::verbs::workflow_base(source.logical_path()),
-        );
-        return Err(refuse(&wf, &report, &skills));
-    }
-    // `skills:` gate (#473 · pre-effect · the SAME rows check renders).
+    // The scoped report and `skills:` gate (#473) share one resolution.
     let resolved = crate::verbs::resolve_workflow_skills(
         &wf,
         crate::verbs::workflow_base(source.logical_path()),
     );
-    if !resolved.findings.is_empty() {
+    if !report.is_clean() || !resolved.findings.is_empty() {
         return Err(refuse(&wf, &report, &resolved));
     }
     Ok((wf, report, resolved.texts))
