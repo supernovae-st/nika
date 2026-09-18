@@ -53,8 +53,14 @@ type, and a type-incompatible candidate remains Incomplete under Check.
 
 Emission must preserve the intended canonical literal projection; decoder
 ambiguity or precision loss refuses the edit and retains the original source.
-All unrelated semantic values survive accepted edits. Formatting and comments
-are not preserved by successful re-emission. SLOT values remain mandatory
+All unrelated semantic values survive accepted edits. EDIT replaces only the
+target literal's source range for single-line scalars and flow collections;
+comments, formatting, line endings and all bytes outside that range survive.
+Typed constants retain the declaration around their `value`. Semantic no-ops
+retain the exact original source. Block collections and multi-line scalars are
+refused without changes; this is a bounded editor, not a general YAML CST.
+CREATE's slot assembler retains its existing guarded re-emission behavior.
+SLOT values remain mandatory
 questions. Source-only Check is not environment resolution or Run admission.
 
 Compile performs no file access, credential probes, provider calls or execution,

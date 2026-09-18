@@ -4838,6 +4838,7 @@ dependencies = [
 name = "nika-onboard"
 version = "0.120.1"
 dependencies = [
+ "marked-yaml",
  "miette",
  "nika-bm25",
  "nika-catalog",

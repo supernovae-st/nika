@@ -51,6 +51,7 @@
 //! ```
 
 mod edit;
+mod edit_source;
 mod materialize;
 pub(crate) mod pattern;
 mod types;
@@ -233,7 +234,7 @@ fn create(
     }
     unknown_answers(request, &recognized, out);
     if changed {
-        finish_changed(source, &before, &doc, out)?;
+        finish_changed(source, &before, &doc, None, out)?;
     } else {
         finish(source.to_owned(), out);
     }
@@ -329,18 +330,23 @@ fn edit(
         &key,
         "Changed only the requested constant; task identities, other values and declared permits are preserved.",
     );
-    finish_changed(source, &before, &doc, out)
+    finish_changed(source, &before, &doc, Some(name), out)
 }
 
 fn finish_changed(
     source: &str,
     before: &Value,
     after: &Value,
+    constant_name: Option<&str>,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
-    if let Some(candidate) =
-        edit::emit_preserving(source, before, after).map_err(CompileError::representation)?
-    {
+    let candidate = match constant_name {
+        Some(name) => edit_source::emit(source, before, after, name),
+        None => {
+            edit::emit_preserving(source, before, after).map_err(CompileError::representation)?
+        }
+    };
+    if let Some(candidate) = candidate {
         finish(candidate, out);
     } else {
         out.diagnostics
@@ -350,7 +356,7 @@ fn finish_changed(
             out,
             DiagnosticKind::Refused,
             "candidate",
-            "Literal-preservation policy cannot prove safe re-emission of this source; no changes were applied.",
+            "Literal/source-preservation policy cannot prove a safe edit of this presentation; no changes were applied.",
         );
         finish(source.to_owned(), out);
     }
