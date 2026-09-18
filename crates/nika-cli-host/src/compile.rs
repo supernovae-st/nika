@@ -4,7 +4,7 @@
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod render;
 
-use super::{VerbOutput, exit};
+use crate::output::{VerbOutput, exit};
 use nika_onboard::compile::{CompileRequest, CompileStatus, compile};
 use std::io::Write as _;
 use std::path::Path;

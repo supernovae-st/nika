@@ -20,6 +20,7 @@ use nika_runtime::{RunOutcome, WorkflowPause};
 
 use crate::Theme;
 use crate::verbs::exit;
+use nika_cli_host::output::sh_word;
 use nika_dap::resume;
 
 /// The `--resume` post-run summary (`resumed · N skipped · M ran live`) —
@@ -368,20 +369,6 @@ pub(super) fn resume_carry(vars: &[String], model_override: Option<&str>) -> Str
         let _ = write!(carry, " --model {}", sh_word(model));
     }
     carry
-}
-
-/// Quote one shell word for the taught line: bare when it is already a
-/// safe word, single-quoted otherwise (embedded single quotes splice
-/// through the POSIX `'\''` idiom — paste-able in sh/bash/zsh).
-pub(in crate::verbs) fn sh_word(word: &str) -> std::borrow::Cow<'_, str> {
-    let safe = !word.is_empty()
-        && word
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || "_=./:@+-".contains(c));
-    if safe {
-        return std::borrow::Cow::Borrowed(word);
-    }
-    std::borrow::Cow::Owned(format!("'{}'", word.replace('\'', "'\\''")))
 }
 
 /// ONE `{"error":{"code":…,"message":…}}` line — the machine failure

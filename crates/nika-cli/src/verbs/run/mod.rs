@@ -39,7 +39,6 @@ mod budget;
 mod ceiling;
 mod dry_run;
 mod epilogue;
-pub(super) use epilogue::sh_word;
 mod execution_adapter;
 #[cfg(test)]
 mod extinction_tests;

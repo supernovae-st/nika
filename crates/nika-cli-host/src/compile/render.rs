@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-use crate::verbs::{VerbOutput, exit};
+use crate::output::{VerbOutput, exit};
 use nika_onboard::compile::{
     AuthoringCognition, CompileOutcome, CompileStatus, DiagnosticKind, PreviewScope, QuestionType,
 };
@@ -91,7 +91,7 @@ pub(super) fn outcome(
             let _ = writeln!(
                 text,
                 "wrote {dest}\nnext · nika run {}",
-                crate::verbs::run::sh_word(&run_path)
+                crate::output::sh_word(&run_path)
             );
         } else if let Some(candidate) = &out.candidate {
             let _ = writeln!(text, "\n{candidate}");
@@ -100,7 +100,7 @@ pub(super) fn outcome(
         }
         text
     };
-    VerbOutput { code, text }
+    VerbOutput { text, code }
 }
 
 fn kind(kind: DiagnosticKind) -> &'static str {

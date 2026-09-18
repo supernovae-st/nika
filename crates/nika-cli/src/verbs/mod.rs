@@ -12,7 +12,6 @@
 
 pub mod arm;
 pub mod check;
-pub mod compile;
 pub mod context;
 pub mod examples;
 pub mod explain_file;
@@ -32,7 +31,7 @@ pub mod session;
 pub mod sign;
 pub mod test;
 pub mod tools;
-pub use nika_cli_host::{catalog, doctor, explain, probe, welcome, wire};
+pub use nika_cli_host::{catalog, compile, doctor, explain, probe, welcome, wire};
 // The trace-reading plane descended to `nika-trace` 2026-08-11 (the 15k
 // prod-LOC wall · D-2026-07-09-N1 one unit, two members · the ADR-110
 // cli-host precedent) — re-exported at the historical verbs:: paths so
