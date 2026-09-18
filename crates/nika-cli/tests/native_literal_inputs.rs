@@ -379,3 +379,57 @@ fn literal_inputs_resume_through_the_same_binding_without_an_argv_payload() {
     expected["region"] = json!("eu");
     assert_eq!(output_json(&out), json!({"value":expected}));
 }
+
+/// The journal's own workflow is the resume's source gate (#1586). A valid
+/// literal map offered to ANOTHER workflow's paused journal grants nothing:
+/// one machine refusal, no event, no new journal, the recorded one untouched.
+#[test]
+fn a_foreign_journal_refuses_the_literal_resume_before_any_event() {
+    let gated = WF.replace("['nika:jq']", "['nika:jq', 'nika:prompt']")
+        .replace("tasks:\n  echo:", "tasks:\n  approve:\n    invoke:\n      tool: nika:prompt\n      args: {mode: input, message: 'continue?'}\n  echo:\n    after: {approve: success}");
+    let bytes = serde_json::to_vec(&values()).expect("JSON");
+    let (dir, paused) = literal(&gated, &bytes, &["--output", "json"]);
+    assert_eq!(paused.status.code(), Some(4), "{paused:?}");
+    let journals = || -> Vec<std::path::PathBuf> {
+        std::fs::read_dir(dir.path().join(".nika/traces"))
+            .expect("traces")
+            .map(|entry| entry.expect("entry").path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "ndjson"))
+            .collect()
+    };
+    let trace = journals().pop().expect("the paused journal");
+    let recorded = std::fs::read(&trace).expect("journal bytes");
+    std::fs::write(
+        dir.path().join("other.nika.yaml"),
+        gated.replace("nika: literal-inputs", "nika: another-workflow"),
+    )
+    .expect("foreign workflow");
+    for mode in [&["--json"][..], &["--output", "json"][..]] {
+        let mut child = command(dir.path())
+            .args(["run", "other.nika.yaml", "--inputs-json", "-", "--no-gc"])
+            .args(mode)
+            .args(["--answer", "approve=yes", "--resume"])
+            .arg(&trace)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("resume");
+        let mut stdin = child.stdin.take().expect("pipe");
+        if let Err(error) = stdin.write_all(&bytes) {
+            assert_eq!(error.kind(), std::io::ErrorKind::BrokenPipe);
+        }
+        drop(stdin);
+        let out = child.wait_with_output().expect("refused");
+        assert_eq!(out.status.code(), Some(3), "{out:?}");
+        let frame = output_json(&out);
+        let message = frame["error"]["message"].as_str().expect("message");
+        assert!(
+            message.contains("`literal-inputs`") && message.contains("`another-workflow`"),
+            "{message}"
+        );
+        assert!(frame.get("kind").is_none(), "no admitted event");
+        assert_eq!(journals(), vec![trace.clone()], "no new journal");
+        assert_eq!(std::fs::read(&trace).expect("journal"), recorded);
+    }
+}
