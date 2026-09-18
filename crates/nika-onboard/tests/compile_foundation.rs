@@ -553,7 +553,7 @@ fn unsupported_natural_language_urls_never_get_a_substitute_workflow() {
         "Lis https://example.invalid/b puis résume le contenu",
         "Lis https://example.invalid/東京?q=é#🦋 puis résume le contenu",
         "Fais le nécessaire",
-        "Classe les demandes clients et propose une réponse",
+        "Résume ce ticket puis propose une réponse",
         "Propose un remboursement sans payer automatiquement",
     ] {
         let created = compile(&CompileRequest::create(intent)).unwrap();
