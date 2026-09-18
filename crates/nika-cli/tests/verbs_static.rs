@@ -351,14 +351,31 @@ fn check_parse_error_is_a_file_finding_exit_2() {
 }
 
 #[test]
-fn a_document_without_tasks_is_judged_as_a_project() {
-    let path = fixture_path("as-project.nika", "nika: my-project\nceiling: 0.50\n");
+fn a_project_file_is_judged_as_a_project() {
+    let path = fixture_path("nika.yaml", "nika: my-project\nceiling: 0.50\n");
     let out = check::run(&path, false, false, None, PLAIN);
     assert_eq!(out.code, exit::OK, "{}", out.text);
     assert!(out.text.contains("PROJECT"), "{}", out.text);
     assert!(
         !out.text.contains("PARSE") && !out.text.contains("missing required"),
         "a project audit must never demand a workflow envelope: {}",
+        out.text
+    );
+}
+
+#[test]
+fn a_program_without_tasks_is_not_sniffed_as_a_project() {
+    let path = fixture_path("as-project.nika", "nika: my-project\nceiling: 0.50\n");
+    let out = check::run(&path, false, false, None, PLAIN);
+    assert_eq!(out.code, exit::FILE, "{}", out.text);
+    assert!(
+        out.text.contains("PARSE") || out.text.contains("NIKA-PARSE"),
+        "a `.nika` file is a program, never a project: {}",
+        out.text
+    );
+    assert!(
+        !out.text.contains("PROJECT"),
+        "must not content-sniff a `.nika` into a project: {}",
         out.text
     );
 }
