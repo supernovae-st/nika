@@ -11,16 +11,8 @@
       "category": "historical",
       "reason": "release notes naming the retired suffixes",
       "owner": "docs",
-      "count": 15,
-      "lines_sha256": "sha256:28f73521b0e5343b4c08a79bd4c19283c100e32d9da9f6ad5d89903df54f0de3"
-    },
-    {
-      "path": "changelog.d/1684.changed.md",
-      "category": "historical",
-      "reason": "release notes naming the retired suffixes",
-      "owner": "docs",
-      "count": 1,
-      "lines_sha256": "sha256:1f98d297e1db644f8a6c608b70c56ce4454b0933b9306f99932b6ebe4fc8220a"
+      "count": 16,
+      "lines_sha256": "sha256:3ed1826016c723f21b560edc51b13d1551d9dcbf3fcb753a6516f94dbe55c805"
     },
     {
       "path": "crates/nika-check/src/composition.rs",
@@ -45,6 +37,14 @@
       "owner": "nika-cli",
       "count": 1,
       "lines_sha256": "sha256:350ef1c4f3f9667f154e917cdfe0c0287669d2cffc42b87209a3129d8ad5d5fd"
+    },
+    {
+      "path": "crates/nika-cli/src/verbs/sign.rs",
+      "category": "negative",
+      "reason": "nika sign refuses a retired program path",
+      "owner": "nika-cli",
+      "count": 1,
+      "lines_sha256": "sha256:ec76d151057747765f9d816efa6b7da347da8cd700c53562382ed2615c2e627f"
     },
     {
       "path": "crates/nika-onboard/src/compile/materialize.rs",
@@ -77,6 +77,14 @@
       "owner": "nika-pack",
       "count": 2,
       "lines_sha256": "sha256:6e55f7d1bffc84422398a1b85529a217284dc21594046aab9f404e533787b742"
+    },
+    {
+      "path": "crates/nika-serve/src/server/tests/request_lifecycle.rs",
+      "category": "negative",
+      "reason": "by-name admission 404s retired suffix and traversals",
+      "owner": "nika-serve",
+      "count": 2,
+      "lines_sha256": "sha256:98d8da247e29924e14c03b5e4f92dc473410bd18acc20b497a57eb15e92afac8"
     },
     {
       "path": "crates/nika-serve/src/server/registry_tests.rs",
@@ -325,14 +333,6 @@
       "owner": "hygiene",
       "count": 37,
       "lines_sha256": "sha256:79b499c3bde76fcbb426f16e977ed3173865a44df6bdc1e90ca43497b7b27218"
-    },
-    {
-      "path": "scripts/hygiene/check-source-naming.sh",
-      "category": "ratchet",
-      "reason": "forbidden-pattern data for this gate",
-      "owner": "hygiene",
-      "count": 1,
-      "lines_sha256": "sha256:781baded0bb049bd35d4952dc143e2b7ffcf75cccf0df263eeefdcf4412e336c"
     },
     {
       "path": "scripts/hygiene/old-suffix-exceptions.json",

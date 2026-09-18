@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Vector 52: live on-disk Nika programs are `*.nika`. Retired
-# `.nika.yaml` / `.nika.yml` must not reappear in tracked pathnames or
-# live text. Exceptions are exact files with pinned hit-count/hash or
-# frozen whole-file digest — never a directory prefix.
+# Vector 52: live on-disk Nika programs are `*.nika`. Retired dual-suffix
+# names must not reappear in tracked pathnames or live text. Exceptions
+# are exact files with pinned hit-count/hash or frozen whole-file digest
+# — never a directory prefix.
 #
 # Exit: 0 green · 2 red.
 

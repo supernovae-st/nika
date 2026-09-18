@@ -95,6 +95,10 @@ jobs:
           # the packaging half, judged without cargo; cargo's own reading is
           # crates/nika-cli/tests/public_binary_identity.rs on the tests leg.
           - public-binary
+          # Live programs are `*.nika`. Retired dual-suffix names must
+          # not reappear except as exact pinned exceptions. Nightly
+          # hygiene-only meant PRs could go green with live retired hits.
+          - source-naming
     env:
       CHECK: ${{ matrix.check }}
     steps:
