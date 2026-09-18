@@ -113,6 +113,56 @@ pub(crate) struct ConsentScan {
 /// (`None` = the route crossed no closed gate — the pre-existing walk).
 type Step = (usize, bool, Option<usize>);
 
+/// The two adjacencies every prompt's walk reads — derived ONCE per check.
+struct Routes {
+    /// Only the edges that ADMIT the refusal — it settles Success, so a
+    /// `failure`/`skipped`-only predicate carries nothing (the pass-set
+    /// is the soundness floor: a predicate-blind walk would red a
+    /// failure-edge route that can never fire).
+    children: Vec<Vec<usize>>,
+    /// The edges a SKIPPED producer still feeds: they carry its value and
+    /// their pass-set admits `skipped`. Its cleanup unit is not one of them
+    /// — a producer that never ran unwinds nothing (spec 03 §unwind).
+    value_on_skip: Vec<Vec<usize>>,
+}
+
+impl Routes {
+    fn of(tasks: usize, edges: &[Edge]) -> Self {
+        let mut children: Vec<Vec<usize>> = vec![Vec::new(); tasks];
+        let mut value_on_skip: Vec<Vec<usize>> = vec![Vec::new(); tasks];
+        let cleanup: BTreeSet<usize> = edges
+            .iter()
+            .filter(|e| !e.kind.is_scheduling())
+            .map(|e| e.to)
+            .collect();
+        for e in edges {
+            if e.kind.admits(SettledState::Success) {
+                children[e.from].push(e.to);
+            }
+            if e.kind.carries_value()
+                && e.kind.admits(SettledState::Skipped)
+                && !cleanup.contains(&e.to)
+            {
+                value_on_skip[e.from].push(e.to);
+            }
+        }
+        Self {
+            children,
+            value_on_skip,
+        }
+    }
+}
+
+/// What the walks accumulate across every prompt of the workflow.
+#[derive(Default)]
+struct Verdicts {
+    /// (gate, sink) → the skipped stage the proven route crossed · `None`
+    /// when a route that crosses no closed gate proves the sink as well.
+    blocked: BTreeMap<(String, String), Option<String>>,
+    /// (gate, sink) pairs the fragment cannot decide.
+    uncertain: BTreeSet<(String, String)>,
+}
+
 /// Judge the affirmative-consent lane over the derived graph. Empty
 /// unless a confirm-mode prompt reaches an egress-capable descendant
 /// over a route that never gates on the answer.
@@ -129,119 +179,117 @@ pub(crate) fn scan_consent(
     if wf.tasks.len() > crate::analysis::ANALYSIS_TASK_CAP {
         return scan;
     }
-    // Only the edges that ADMIT the refusal — it settles Success, so a
-    // `failure`/`skipped`-only predicate carries nothing (the pass-set
-    // is the soundness floor: a predicate-blind walk would red a
-    // failure-edge route that can never fire).
-    let mut children: Vec<Vec<usize>> = vec![Vec::new(); wf.tasks.len()];
-    // The edges a SKIPPED producer still feeds: they carry its value and
-    // their pass-set admits `skipped`. Its cleanup unit is not one of them
-    // — a producer that never ran unwinds nothing (spec 03 §unwind).
-    let mut value_on_skip: Vec<Vec<usize>> = vec![Vec::new(); wf.tasks.len()];
-    let cleanup: BTreeSet<usize> = edges
-        .iter()
-        .filter(|e| !e.kind.is_scheduling())
-        .map(|e| e.to)
-        .collect();
-    for e in edges {
-        if e.kind.admits(SettledState::Success) {
-            children[e.from].push(e.to);
-        }
-        if e.kind.carries_value()
-            && e.kind.admits(SettledState::Skipped)
-            && !cleanup.contains(&e.to)
-        {
-            value_on_skip[e.from].push(e.to);
-        }
-    }
-    // (gate, sink) → the skipped stage the proven route crossed · `None`
-    // when a route that crosses no closed gate proves the sink as well.
-    let mut blocked: BTreeMap<(String, String), Option<String>> = BTreeMap::new();
-    let mut uncertain: BTreeSet<(String, String)> = BTreeSet::new();
+    let routes = Routes::of(wf.tasks.len(), edges);
+    let mut verdicts = Verdicts::default();
     for (idx, task) in wf.tasks.iter().enumerate() {
-        if !is_confirm_prompt(&task.value) {
-            continue;
-        }
-        let prompt = task.value.id.value.as_str();
-        // Folded on first need: a workflow with no value read of a gated
-        // stage never pays for it.
-        let mut refusal: Option<Refusal> = None;
-        // BFS with the route's proof state: tainted `false` = every gate
-        // so far is proven open or closed (the refusal flows), `true` = an
-        // undecidable gate taints the route. The clean state DOMINATES — a
-        // sink reached both ways refuses (one proven route is enough) —
-        // and so does the route that crossed no skipped stage: it is
-        // judged exactly as before, so no earlier verdict can change.
-        let mut seen: BTreeMap<usize, Vec<(bool, bool)>> = BTreeMap::new();
-        let mut queue: VecDeque<Step> = children[idx].iter().map(|&c| (c, false, None)).collect();
-        while let Some((n, tainted, skipped)) = queue.pop_front() {
-            let states = seen.entry(n).or_default();
-            if states
-                .iter()
-                .any(|&(t, s)| (tainted || !t) && (skipped.is_some() || !s))
-            {
-                continue;
-            }
-            states.push((tainted, skipped.is_some()));
-            let t = &wf.tasks[n].value;
-            // A closer confirm gate owns its closure (the approval-batch
-            // precedent).
-            if is_confirm_prompt(t) {
-                continue;
-            }
-            // Past a skipped stage, REACHING a task proves nothing (GATE-v2
-            // is an AND over every incoming edge) — the refusal fold
-            // decides. Cancelled in every run: no effect, nothing handed
-            // on. Verb reached in every run: the witness. Neither: the
-            // advisory.
-            let mut witnessed = true;
-            if skipped.is_some() {
-                let world = refusal.get_or_insert_with(|| Refusal::of(wf, edges, topo_waves, idx));
-                if world.may.of(n) == S_CANCELLED {
-                    continue;
-                }
-                witnessed = world.sure.of(n) == REACHED;
-            }
-            let verdict = gate_verdict(t, prompt);
-            // A gate proven FALSE under the refusal (the affirmative
-            // `when:` · `when: false`) SKIPS its task: every edge that
-            // needs its success is cut, the edges that carry its value
-            // are not.
-            if verdict == Gate::Closed {
-                queue.extend(value_on_skip[n].iter().map(|&c| (c, tainted, Some(n))));
-                continue;
-            }
-            // Open = proven TRUE under the refusal; anything else is the
-            // undecidable gate — the defect is unproven from here on.
-            let open = verdict == Gate::Open;
-            if crate::trifecta::egress_capable(&t.action) {
-                let pair = (prompt.to_owned(), t.id.value.clone());
-                if open && !tainted && witnessed {
-                    // The plainest witness wins whatever the walk order:
-                    // `None` (no closed gate crossed) sorts first.
-                    let via = skipped.map(|s| wf.tasks[s].value.id.value.clone());
-                    let witness = blocked.entry(pair).or_insert_with(|| via.clone());
-                    if via < *witness {
-                        *witness = via;
-                    }
-                } else {
-                    uncertain.insert(pair);
-                }
-            }
-            queue.extend(children[n].iter().map(|&c| (c, tainted || !open, skipped)));
+        if is_confirm_prompt(&task.value) {
+            walk_refusal(wf, edges, topo_waves, &routes, idx, &mut verdicts);
         }
     }
     // A sink that refuses on a proven route keeps no advisory twin.
-    for ((prompt, sink), via) in &blocked {
+    for ((prompt, sink), via) in &verdicts.blocked {
         scan.findings
             .push(consent_finding(prompt, sink, via.as_deref()));
     }
-    for (prompt, sink) in &uncertain {
-        if !blocked.contains_key(&(prompt.clone(), sink.clone())) {
+    for (prompt, sink) in &verdicts.uncertain {
+        if !verdicts
+            .blocked
+            .contains_key(&(prompt.clone(), sink.clone()))
+        {
             scan.hints.push(consent_hint(prompt, sink));
         }
     }
     scan
+}
+
+/// ONE confirm gate's walk (`idx`) — BFS with the route's proof state:
+/// tainted `false` = every gate so far is proven open or closed (the
+/// refusal flows), `true` = an undecidable gate taints the route. The
+/// clean state DOMINATES — a sink reached both ways refuses (one proven
+/// route is enough) — and so does the route that crossed no skipped
+/// stage: it is judged exactly as before, so no earlier verdict can
+/// change.
+fn walk_refusal(
+    wf: &RawWorkflow,
+    edges: &[Edge],
+    topo_waves: &[Vec<usize>],
+    routes: &Routes,
+    idx: usize,
+    verdicts: &mut Verdicts,
+) {
+    let prompt = wf.tasks[idx].value.id.value.as_str();
+    // Folded on first need: a workflow with no value read of a gated
+    // stage never pays for it.
+    let mut refusal: Option<Refusal> = None;
+    let mut seen: BTreeMap<usize, Vec<(bool, bool)>> = BTreeMap::new();
+    let mut queue: VecDeque<Step> = routes.children[idx]
+        .iter()
+        .map(|&c| (c, false, None))
+        .collect();
+    while let Some((n, tainted, skipped)) = queue.pop_front() {
+        let states = seen.entry(n).or_default();
+        if states
+            .iter()
+            .any(|&(t, s)| (tainted || !t) && (skipped.is_some() || !s))
+        {
+            continue;
+        }
+        states.push((tainted, skipped.is_some()));
+        let t = &wf.tasks[n].value;
+        // A closer confirm gate owns its closure (the approval-batch
+        // precedent).
+        if is_confirm_prompt(t) {
+            continue;
+        }
+        // Past a skipped stage, REACHING a task proves nothing (GATE-v2
+        // is an AND over every incoming edge) — the refusal fold
+        // decides. Cancelled in every run: no effect, nothing handed
+        // on. Verb reached in every run: the witness. Neither: the
+        // advisory.
+        let mut witnessed = true;
+        if skipped.is_some() {
+            let world = refusal.get_or_insert_with(|| Refusal::of(wf, edges, topo_waves, idx));
+            if world.may.of(n) == S_CANCELLED {
+                continue;
+            }
+            witnessed = world.sure.of(n) == REACHED;
+        }
+        let verdict = gate_verdict(t, prompt);
+        // A gate proven FALSE under the refusal (the affirmative
+        // `when:` · `when: false`) SKIPS its task: every edge that
+        // needs its success is cut, the edges that carry its value
+        // are not.
+        if verdict == Gate::Closed {
+            queue.extend(
+                routes.value_on_skip[n]
+                    .iter()
+                    .map(|&c| (c, tainted, Some(n))),
+            );
+            continue;
+        }
+        // Open = proven TRUE under the refusal; anything else is the
+        // undecidable gate — the defect is unproven from here on.
+        let open = verdict == Gate::Open;
+        if crate::trifecta::egress_capable(&t.action) {
+            let pair = (prompt.to_owned(), t.id.value.clone());
+            if open && !tainted && witnessed {
+                // The plainest witness wins whatever the walk order:
+                // `None` (no closed gate crossed) sorts first.
+                let via = skipped.map(|s| wf.tasks[s].value.id.value.clone());
+                let witness = verdicts.blocked.entry(pair).or_insert_with(|| via.clone());
+                if via < *witness {
+                    *witness = via;
+                }
+            } else {
+                verdicts.uncertain.insert(pair);
+            }
+        }
+        queue.extend(
+            routes.children[n]
+                .iter()
+                .map(|&c| (c, tainted || !open, skipped)),
+        );
+    }
 }
 
 /// Every outcome of a verb that RAN (`on_error: skip` settles `skipped`)
