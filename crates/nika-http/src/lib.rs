@@ -76,6 +76,9 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod ssrf;
+mod transport;
+
+use transport::map_send_error;
 
 use std::collections::BTreeMap;
 use std::pin::Pin;
@@ -380,7 +383,7 @@ impl ReqwestHttp {
             let response = builder
                 .send()
                 .await
-                .map_err(|e| map_send_error(&e, reported_timeout))?;
+                .map_err(|e| map_send_error(&e, reported_timeout, vetted.as_str()))?;
 
             let status = response.status();
             // Only the FOLLOWABLE 3xx codes drive the loop. 300 Multiple
@@ -439,6 +442,7 @@ impl ReqwestHttp {
         &self,
         response: reqwest::Response,
         final_url: String,
+        deadline: Duration,
     ) -> Result<HttpResponse, HttpError> {
         let max = self.config.max_response_bytes;
         if let Some(len) = response.content_length()
@@ -461,9 +465,11 @@ impl ReqwestHttp {
             .min(PREALLOC_FLOOR);
         let mut collected: Vec<u8> = Vec::with_capacity(usize::try_from(hint).unwrap_or(0));
         let mut response = response;
-        while let Some(chunk) = response.chunk().await.map_err(|e| HttpError::Other {
-            reason: format!("failed to read response body: {e}"),
-        })? {
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|e| map_send_error(&e, deadline, &final_url))?
+        {
             let next_len = collected.len() as u64 + chunk.len() as u64;
             if next_len > max {
                 return Err(HttpError::TooLarge {
@@ -492,7 +498,7 @@ impl HttpGetDyn for ReqwestHttp {
     async fn get(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
         let deadline = request.timeout.unwrap_or(self.config.timeout);
         let (response, final_url) = self.execute(request, Some(deadline)).await?;
-        self.read_capped(response, final_url).await
+        self.read_capped(response, final_url, deadline).await
     }
 }
 
@@ -508,7 +514,7 @@ impl HttpPostDyn for ReqwestHttp {
     async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
         let deadline = request.timeout.unwrap_or(self.config.timeout);
         let (response, final_url) = self.execute(request, Some(deadline)).await?;
-        self.read_capped(response, final_url).await
+        self.read_capped(response, final_url, deadline).await
     }
 
     /// Send a request and receive a streaming response. The body stream
@@ -546,6 +552,7 @@ impl HttpPostDyn for ReqwestHttp {
             seen: 0,
             max,
             timeout,
+            endpoint: final_url.clone(),
             done: false,
         };
 
@@ -761,30 +768,6 @@ fn to_reqwest_method(method: HttpMethod) -> Result<reqwest::Method, HttpError> {
     }
 }
 
-/// Map reqwest send errors onto the kernel error contract.
-///
-/// A [`GuardedResolver`] rejection arrives WRAPPED in reqwest's connect
-/// error — dig the source chain first so an SSRF block keeps its typed
-/// identity instead of collapsing into `Connection`.
-fn map_send_error(error: &reqwest::Error, timeout: Duration) -> HttpError {
-    if let Some(guard) = find_http_error(error) {
-        return guard;
-    }
-    if error.is_timeout() {
-        HttpError::Timeout {
-            duration_ms: u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX),
-        }
-    } else if error.is_connect() {
-        HttpError::Connection {
-            reason: error.to_string(),
-        }
-    } else {
-        HttpError::Other {
-            reason: error.to_string(),
-        }
-    }
-}
-
 /// Walk an error's source chain looking for a kernel [`HttpError`]
 /// (the [`GuardedResolver`] emits one inside reqwest's wrapping).
 /// `HttpError` is not `Clone` — the found variant is reconstructed
@@ -867,6 +850,7 @@ struct CappedStream {
     /// The request timeout, so a mid-stream reqwest error keeps its
     /// Timeout/Connection identity instead of collapsing to `Other`.
     timeout: Duration,
+    endpoint: String,
     done: bool,
 }
 
@@ -886,7 +870,7 @@ impl Stream for CappedStream {
             Poll::Ready(Some(Err(e))) => {
                 self.done = true;
                 let timeout = self.timeout;
-                Poll::Ready(Some(Err(map_send_error(&e, timeout))))
+                Poll::Ready(Some(Err(map_send_error(&e, timeout, &self.endpoint))))
             }
             Poll::Ready(Some(Ok(chunk))) => {
                 // Saturating: matches read_capped's defensive arithmetic.

@@ -70,19 +70,12 @@ impl NikaErrorCode for ProviderError {
             Self::ModelNotFound { .. } => NIKA_331,
             Self::RateLimited { .. } => NIKA_332,
             Self::AuthFailed { .. } => NIKA_333,
-            Self::Other { .. } => NIKA_339,
+            Self::Connection { .. } | Self::Other { .. } => NIKA_339,
         }
     }
 
     fn is_transient(&self) -> bool {
-        matches!(
-            self,
-            Self::RateLimited { .. }
-                | Self::Api {
-                    status: 500..=599,
-                    ..
-                }
-        )
+        ProviderError::is_transient(self)
     }
 }
 
@@ -218,5 +211,25 @@ mod tests {
         .nika_code();
         let _ = MemoryError::EmbeddingFailed { reason: "".into() }.nika_code();
         let _ = MemoryError::Storage { reason: "".into() }.nika_code();
+    }
+}
+
+#[cfg(test)]
+mod connection_tests {
+    use super::*;
+
+    #[test]
+    fn connection_transience_agrees_on_inherent_and_error_trait_doors() {
+        let error = ProviderError::Connection {
+            reason: "connection reset".into(),
+        };
+        assert!(error.is_transient());
+        assert!(NikaErrorCode::is_transient(&error));
+        assert_eq!(error.nika_code(), NIKA_339);
+        let other = ProviderError::Other {
+            reason: "connection reset".into(),
+        };
+        assert!(!other.is_transient(), "text is never the classifier");
+        assert!(!NikaErrorCode::is_transient(&other));
     }
 }

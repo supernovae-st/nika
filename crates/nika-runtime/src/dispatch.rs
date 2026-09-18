@@ -924,7 +924,8 @@ where
             .await;
         match ran {
             Ok(out) => verb_outcome::agent_success(out, access),
-            Err(err) => {
+            Err(mut err) => {
+                let retry_forbidden = agent_buffer.block_connection_replay(&mut err);
                 let split = failed_usage_split(err.spend());
                 let spend = price_failed_spend(err.spend());
                 // A proven seat/access refusal carries the typed field.
@@ -934,6 +935,7 @@ where
                     verb_outcome::proven_seat_refusal(seat, &err, access.as_ref())
                 });
                 Dispatched::verb_err_spent(format!("agent · {lane_model}"), &err, spend)
+                    .with_retry_forbidden(retry_forbidden)
                     .with_failed_usage(split)
                     .with_access_refused(refused)
                     .with_failed_access(access)

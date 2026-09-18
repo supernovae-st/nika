@@ -92,6 +92,17 @@ missing decision or gate answer.
 
 ## Common root causes (check these before anything exotic)
 
+- **Provider connection interrupted**: `NIKA-INFER-001` names the service
+  endpoint and a transport cause when available. Check that endpoint's service;
+  a declared `retry:` can retry a connection failure within its attempt and
+  timeout limits. Without `retry:`, there is one attempt. Authentication errors,
+  malformed responses and capability refusals do not become transient because
+  their message mentions a connection. An interrupted call may still have
+  generated or billed tokens: absent usage is unknown, never proof of zero spend.
+  An agent whose tools already ran suppresses whole-task replay after a connection
+  failure, even with `on_codes`; reconcile those effects before a manual rerun.
+  `--model mock/echo` can rehearse the envelope model; per-task pins and tools
+  retain their own behavior.
 - **Model does not resolve**: `nika check <file> --json` →
   `models_resolve` says whether every `model:` runs in THIS binary;
   `nika catalog` names the env var each provider needs.
@@ -122,6 +133,15 @@ missing decision or gate answer.
   the cap, concurrency or task limits.
 
 ## Tamper evidence
+
+`nika run --json` is an ordered execution journal, not a live provider-token
+feed. Task lifecycle frames are emitted together at task settlement to preserve
+deterministic wave order; a slow earlier task can delay a later task's frames.
+Consequently, adjacent `task_started` and terminal timestamps describe emission,
+not the actual request start. Use the terminal `duration_ms` for elapsed task
+work and `nika trace ls --json` for the writer's liveness. A live writer does not
+prove that its provider is responding. The provider stream API is a separate
+door; workflow `infer:` currently uses buffered inference.
 
 `nika trace verify <trace>` checks the recorded hash links. A consistent
 unkeyed chain alone does not rule out rewriting the entire journal; compare

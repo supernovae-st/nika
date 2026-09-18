@@ -41,6 +41,31 @@ impl BufferingObserver {
         self.events.lock().map_or(0, |events| events.len())
     }
 
+    /// A newly retryable connection fault must not restart an agent's tools.
+    /// Until effect-aware replay is proven, any completed tool vetoes replay,
+    /// including `on_codes`; poisoned evidence fails closed too.
+    pub(crate) fn block_connection_replay(
+        &self,
+        error: &mut nika_verb_agent::VerbAgentError,
+    ) -> bool {
+        let nika_verb_agent::VerbAgentError::Inference {
+            source: nika_kernel::provider::ProviderError::Connection { reason },
+            ..
+        } = error
+        else {
+            return false;
+        };
+        let tool_ran = self.events.lock().map_or(true, |events| {
+            events
+                .iter()
+                .any(|event| matches!(event, AgentEvent::ToolCompleted { .. }))
+        });
+        if tool_ran {
+            reason.push_str(" Prior agent effects cannot be safely replayed; automatic task replay is suppressed.");
+        }
+        tool_ran
+    }
+
     /// Take the buffered events (poisoning recovers the inner state —
     /// telemetry must never panic a run).
     pub(crate) fn into_events(self) -> Vec<AgentEvent> {
