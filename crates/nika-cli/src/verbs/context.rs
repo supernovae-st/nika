@@ -68,6 +68,17 @@ fn render_json(workspace: &Workspace, rollups: &Rollups, probe: &probe::Probe) -
     .to_string()
 }
 
+/// The empty inventory's one line. P0-4: an empty list behind a TRUNCATED
+/// walk is unknown, never « nothing here » — the zero claim is the complete
+/// walk's alone.
+fn empty_inventory_line(walk_truncated: bool) -> &'static str {
+    if walk_truncated {
+        "scan partial — the walk gave up before covering the tree"
+    } else {
+        "no workflows here yet — nika compile hello hello.nika.yaml creates one explicitly"
+    }
+}
+
 /// The human map — one row per workflow, the rollup line, the hand-off.
 fn render_human(
     workspace: &Workspace,
@@ -84,19 +95,7 @@ fn render_human(
     );
     let _ = writeln!(s);
     if workspace.workflows.is_empty() {
-        // P0-4: an empty list behind a TRUNCATED walk is unknown, never
-        // « nothing here » — the zero claim is the complete walk's alone.
-        if workspace.walk_truncated {
-            let _ = writeln!(
-                s,
-                "scan partial — the walk gave up before covering the tree"
-            );
-        } else {
-            let _ = writeln!(
-                s,
-                "no workflows here yet — nika compile hello hello.nika.yaml creates one explicitly"
-            );
-        }
+        let _ = writeln!(s, "{}", empty_inventory_line(workspace.walk_truncated));
         return s;
     }
     let width = workspace
@@ -254,6 +253,43 @@ mod tests {
         assert_eq!(good.tasks, 1);
         assert_eq!(good.workflow.as_deref(), Some("good"));
         assert!(!good.permits_declared);
+    }
+
+    /// P0-4 on the human map: an empty list behind a TRUNCATED walk is
+    /// unknown, never « nothing here » — only the complete walk may claim
+    /// zero and teach the explicit creation door.
+    #[test]
+    fn an_empty_inventory_never_claims_zero_behind_a_partial_walk() {
+        let probe = probe::collect(false);
+        let render = |walk_truncated| {
+            let workspace = Workspace {
+                root: ".".to_owned(),
+                git: false,
+                workflows: Vec::new(),
+                workflows_capped: false,
+                workflows_total_found: 0,
+                walk_truncated,
+                runs: Vec::new(),
+                runs_capped: false,
+                runs_total_found: 0,
+            };
+            let roll = rollups(&workspace.workflows, &workspace.runs);
+            render_human(&workspace, &roll, &probe, plain())
+        };
+        let complete = render(false);
+        assert!(
+            complete.ends_with(
+                "\nno workflows here yet — nika compile hello hello.nika.yaml creates one explicitly\n"
+            ),
+            "{complete}"
+        );
+        assert!(!complete.contains("rollup"), "the empty map stops early");
+        let partial = render(true);
+        assert!(
+            partial.ends_with("\nscan partial — the walk gave up before covering the tree\n"),
+            "{partial}"
+        );
+        assert!(!partial.contains("no workflows here yet"), "{partial}");
     }
 
     #[test]
