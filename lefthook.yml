@@ -19,12 +19,12 @@ source_dir: scripts
 prepare-commit-msg:
   commands:
     inject-coauthor:
-      run: bash scripts/hooks/prepare-commit-msg.sh {1} {2}
+      run: bash scripts/hooks/prepare-commit-msg.sh "{1}" "{2}"
 
 commit-msg:
   commands:
     validate-message:
-      run: bash scripts/hooks/validate-conventional-commit.sh {1}
+      run: bash scripts/hooks/validate-conventional-commit.sh "{1}"
       fail_text: |
         Commit message rejected.
         type(scope): lowercase description

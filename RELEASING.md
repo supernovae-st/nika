@@ -286,8 +286,11 @@ without an explicit operator decision.
 
 6. **Close the release record.** Add the engine release entry to the pinned
    `nika-spec/timeline/timeline.yaml`, let its timeline CI re-prove the tag and
-   publication claims, and verify it renders at [nika.sh/timeline](https://nika.sh/timeline)
-   before declaring the release complete. The binary train may finish before
+   publication claims, and verify the published release index at
+   [docs.nika.sh/changelog/releases](https://docs.nika.sh/changelog/releases)
+   includes the new version before declaring the release complete. The
+   [timeline guide](https://docs.nika.sh/reference/timeline) explains the
+   separate specification record; it is not a live projection of every event. The binary train may finish before
    this cross-repository record update, but the release contract does not.
 
 ## What the machine publishes (per tag)
@@ -302,7 +305,7 @@ without an explicit operator decision.
 | `ghcr.io/supernovae-st/nika:latest` | stable-only floating pointer, moved after finalization |
 | Homebrew formula bump | `supernovae-st/homebrew-tap` (deploy-key scoped) |
 | `supernovae-st-nika-check-wasm-<ver>.tgz` (+ `.sha256`) | the npm tarball, byte-identical to what `npm publish` ships — attested like the binaries |
-| `@supernovae-st/nika-check-wasm` on npm | immutable browser checker; first publication requests npm provenance, while replay independently proves exact SRI (absence requires `NPM_TOKEN`) |
+| `@supernovae-st/nika-check-wasm` on npm | immutable browser checker; first publication requests npm provenance, while replay independently proves exact SRI (first publication requires configured npm trusted-publisher authority) |
 
 The release body starts with the curated **What / Install / Verify /
 Provenance** front page rendered by `scripts/release/render-notes.sh`, with
@@ -331,7 +334,9 @@ chain failing is a stop-the-line event.
 ## The record
 
 Every release is also a claim on the machine-verified timeline ·
-[nika.sh/timeline](https://nika.sh/timeline) renders the spec's
-`timeline/timeline.yaml`, and CI re-proves the provable claims (GitHub ·
-crates.io) on every push and weekly. A release that isn't in the record
+the spec's `timeline/timeline.yaml` carries the record, and CI re-proves its
+provable claims (GitHub · crates.io) on every push and weekly. The
+[documentation timeline guide](https://docs.nika.sh/reference/timeline)
+explains its evidence rules; the [release index](https://docs.nika.sh/changelog/releases)
+is projected from published GitHub releases. A release that isn't in the record
 isn't released; a record that can't be re-proven isn't a record.
