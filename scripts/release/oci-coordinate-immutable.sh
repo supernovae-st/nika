@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Converge one immutable GHCR version tag from a content-addressed manifest.
+# The create path also adds the v-prefixed alias (nika#1634); the occupied
+# early exits never touch it, so replaying a published train cannot retag.
 set -euo pipefail
 
 if [ "$#" -ne 6 ]; then
@@ -137,4 +139,35 @@ occupied="$(digest_of "$version_ref")"
   exit 73
 }
 verify_identity "$version_ref" "$scratch/version.json"
+
+# nika#1634: the release page prints vX.Y.Z, so the manifest this run just
+# committed also carries the v-prefixed alias. The alias converges only on
+# this create path; an alias already occupied by different bytes refuses
+# instead of moving, and an equal one is left alone.
+[ "${version#v}" = "$version" ] || {
+  echo "oci barrier: version already carries a v prefix: $version" >&2
+  exit 64
+}
+alias_ref="${image}:v${version}"
+: >"$lookup_error"
+state=0
+alias_occupied="$(digest_of "$alias_ref" 2>"$lookup_error")" || state=$?
+if [ "$state" -eq 0 ]; then
+  [ "$alias_occupied" = "$candidate" ] || {
+    echo "oci barrier: REFUSED divergent occupied v-alias digest" >&2
+    exit 73
+  }
+else
+  is_explicit_absence "$lookup_error" || {
+    echo "oci barrier: v-alias lookup failed without explicit absence" >&2
+    cat "$lookup_error" >&2
+    exit 69
+  }
+  docker buildx imagetools create --tag "$alias_ref" "${image}@${candidate}"
+  alias_occupied="$(digest_of "$alias_ref")"
+  [ "$alias_occupied" = "$candidate" ] || {
+    echo "oci barrier: committed v-alias digest differs" >&2
+    exit 73
+  }
+fi
 printf '%s\n' "$occupied"

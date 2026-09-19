@@ -469,25 +469,15 @@ fi
 if [ "$1 $2 $3" != 'buildx imagetools inspect' ] \
   && [ "$1 $2 $3" != 'buildx imagetools create' ]; then exit 90; fi
 if [ "$3" = create ]; then
-  printf 'equal\n' >"$OCI_STATE"
-  printf 'create\n' >>"$OCI_LOG"
+  [ "$4" = --tag ] || exit 90
+  printf '%s\n' "${6##*@}" >"$OCI_TAGS/${5##*:}"
+  printf 'create %s\n' "$5" >>"$OCI_LOG"
   exit 0
 fi
 ref="$4"
+tag="${ref##*:}"
 state=equal
 [ -z "${OCI_STATE:-}" ] || state="$(cat "$OCI_STATE")"
-if [[ "$ref" == *:9.9.9 ]] && [ "$state" = absent ]; then
-  echo 'manifest unknown' >&2
-  exit 1
-fi
-if [[ "$ref" == *:9.9.9 ]] && [ "$state" = credential-helper ]; then
-  echo 'error getting credentials - exec: "docker-credential-pass": executable file not found' >&2
-  exit 1
-fi
-if [[ "$ref" == *:9.9.9 ]] && [ "$state" = mixed ]; then
-  echo 'unexpected status 500 Internal Server Error; 401 Unauthorized; secondary: manifest unknown (404 Not Found)' >&2
-  exit 1
-fi
 if [ "${5:-}" = --raw ]; then
   jq -n '
     def digest($n): "sha256:" + ([range(64) | $n] | join(""));
@@ -503,8 +493,31 @@ if [ "${5:-}" = --raw ]; then
   exit 0
 fi
 if printf '%s\n' "$*" | grep -Fq '.Manifest.Digest'; then
-  case "$state" in divergent) printf '"sha256:%064d"\n' 9 ;; *) printf '"sha256:%064d"\n' 1 ;; esac
-  exit 0
+  case "$ref" in
+    *@sha256:*) printf '"%s"\n' "${ref##*@}"; exit 0 ;;
+  esac
+  case "$state" in
+    credential-helper)
+      echo 'error getting credentials - exec: "docker-credential-pass": executable file not found' >&2
+      exit 1
+      ;;
+    mixed)
+      echo 'unexpected status 500 Internal Server Error; 401 Unauthorized; secondary: manifest unknown (404 Not Found)' >&2
+      exit 1
+      ;;
+    divergent)
+      [ "$tag" != 9.9.9 ] || {
+        printf '"sha256:%064d"\n' 9
+        exit 0
+      }
+      ;;
+  esac
+  if [ -f "$OCI_TAGS/$tag" ]; then
+    printf '"%s"\n' "$(cat "$OCI_TAGS/$tag")"
+    exit 0
+  fi
+  echo 'manifest unknown' >&2
+  exit 1
 fi
 revision="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 [ "$state" = label-drift ] && revision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -513,22 +526,38 @@ EOF
 chmod +x "$BIN/docker"
 OCI_STATE="$TEST_ROOT/oci-state"
 OCI_LOG="$TEST_ROOT/oci-log"
+OCI_TAGS="$TEST_ROOT/oci-tags"
+mkdir -p "$OCI_TAGS"
 : >"$OCI_LOG"
 CANDIDATE="sha256:$(printf '%064d' 1)"
 printf 'absent\n' >"$OCI_STATE"
-PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" \
+PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
   ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   https://github.com/supernovae-st/nika >/dev/null
-[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 1 ] || fail 'OCI absent coordinate was not created once'
-PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" \
+# nika#1634: the create path tags the same manifest 9.9.9 and v9.9.9, exactly
+# once each.
+printf 'create ghcr.io/supernovae-st/nika:9.9.9\ncreate ghcr.io/supernovae-st/nika:v9.9.9\n' \
+  >"$TEST_ROOT/oci-log-want"
+diff -u "$TEST_ROOT/oci-log-want" "$OCI_LOG" \
+  || fail 'OCI absent coordinate did not create exactly the version and v-alias tags'
+PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" verify \
   ghcr.io/supernovae-st/nika 9.9.9 - \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   https://github.com/supernovae-st/nika >/dev/null
+# A replay over the occupied version exits on the equal digest without
+# touching either tag: no retag of an already published release.
+PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika >/dev/null
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 2 ] \
+  || fail 'an occupied equal version retagged an already published coordinate'
 printf 'divergent\n' >"$OCI_STATE"
-if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" \
+if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
   ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
@@ -536,7 +565,7 @@ if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" \
   fail 'OCI divergent version passed'
 fi
 printf 'label-drift\n' >"$OCI_STATE"
-if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" \
+if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" verify \
   ghcr.io/supernovae-st/nika 9.9.9 - \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
@@ -545,24 +574,43 @@ if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" \
 fi
 
 printf 'credential-helper\n' >"$OCI_STATE"
-if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" \
+if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
   ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   https://github.com/supernovae-st/nika >/dev/null 2>&1; then
   fail 'credential-helper not-found error was classified as registry absence'
 fi
-[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 1 ] \
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 2 ] \
   || fail 'unknown OCI lookup error reached a write'
 printf 'mixed\n' >"$OCI_STATE"
-if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" \
+if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
   ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   https://github.com/supernovae-st/nika >/dev/null 2>&1; then
   fail 'mixed OCI 500/unauthorized/manifest-unknown granted create authority'
 fi
-[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 1 ] || fail 'mixed OCI lookup reached a write'
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 2 ] || fail 'mixed OCI lookup reached a write'
+
+# A v-alias already occupied by different bytes refuses instead of moving the
+# tag: the version tag commits, then the divergent alias stops the train.
+printf 'equal\n' >"$OCI_STATE"
+rm "$OCI_TAGS/9.9.9"
+printf 'sha256:%064d\n' 9 >"$OCI_TAGS/v9.9.9"
+rc=0
+PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika >"$TEST_ROOT/oci-alias.out" 2>&1 || rc=$?
+[ "$rc" -eq 73 ] || fail 'divergent occupied v-alias was not refused'
+grep -Fq 'REFUSED divergent occupied v-alias digest' "$TEST_ROOT/oci-alias.out" \
+  || fail 'divergent v-alias refusal lost its diagnosis'
+[ "$(cat "$OCI_TAGS/v9.9.9")" = "sha256:$(printf '%064d' 9)" ] \
+  || fail 'the refusal moved the occupied v-alias'
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 3 ] \
+  || fail 'divergent v-alias refusal wrote beyond the version tag'
 
 # Payload proof runs both exact digest platforms and compares each container
 # binary checksum with the corresponding extracted native tarball.
