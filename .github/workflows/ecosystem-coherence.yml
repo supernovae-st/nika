@@ -5,6 +5,15 @@ name: ecosystem coherence
 # pack==spec. WARN: operator-gated lag (OpenVSX publish · docs snapshot) +
 # the lockstep-at-0.97 preview. Read-only · public HTTP · no user input
 # reaches the shell.
+#
+# The durable board is ONE accepted-scope issue — supernovae-st/nika#841,
+# "ecosystem coherence — Project lifecycle, SDK/editor coverage and release
+# pins". Its accepted scope is WIDER than this bot's pin ladder, so
+# publication is identity-keyed (never a title search — a retitle must not
+# fork the board) and asymmetric: FAIL/WARN updates the board in place and
+# reopens it if a human closed it; GREEN only REPORTS pin health — a
+# machine never closes accepted human scope. Lifecycle and SDK/editor
+# acceptance stays with the issue's human reviewers.
 
 on:
   schedule:
@@ -15,6 +24,13 @@ permissions:
   contents: read
   issues: write
 
+# The board identity is explicit and stable: repo#number survives retitles,
+# which a title search does not (the 2026-09 scope-widening retitle is
+# exactly that case). The publisher below reads these two.
+env:
+  BOARD_REPO: supernovae-st/nika
+  BOARD_ISSUE: '841'
+
 jobs:
   coherence:
     name: cross-repo pins
@@ -24,30 +40,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Self-test the bot (offline decision table — grace · lockstep · pre-release · dark surfaces)
         run: python3 scripts/ci/test-ecosystem-coherence.py
+      - name: Self-test the board publisher (fake gh — retitled board · closed board · green stays open · fail-closed)
+        run: python3 scripts/ci/test-ecosystem-coherence-issue.py
       - name: Run the coherence bot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -o pipefail
           python3 scripts/ci/ecosystem-coherence.py | tee bot.out | tee -a "$GITHUB_STEP_SUMMARY"
-      # The findings reach a DURABLE surface: one idempotent issue —
-      # upserted while the board carries findings, closed on GREEN.
-      # Step-summary dies with the run; the issue is where a drift
-      # waits for its human. SECURITY: the body is the bot's own
-      # stdout (repo-owned script over public pins), never event data.
-      - name: The nightly board is an issue
+      # The findings reach a DURABLE surface: the single accepted-scope
+      # issue named above — upserted while the board carries findings,
+      # reported-but-never-closed on GREEN, never duplicated, title/body/
+      # human comments untouched. Step-summary dies with the run; the issue
+      # is where a drift waits for its human. SECURITY: the body is the
+      # bot's own stdout (repo-owned script over public pins), never event
+      # data. A missing/empty/malformed report or a failed GitHub read
+      # fails this step with NO create and NO close — silence never reads
+      # as green.
+      - name: The nightly board is issue supernovae-st/nika#841
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          [ -f bot.out ] || exit 0
-          TITLE="ecosystem coherence — nightly board"
-          NUM="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number' || true)"
-          if grep -qE "^(FAIL|WARN) " bot.out; then
-            BODY="$(printf 'Nightly run %s\n\n```\n%s\n```\n' "$GITHUB_RUN_ID" "$(cat bot.out)")"
-            if [ -n "$NUM" ]; then gh issue comment "$NUM" --body "$BODY" >/dev/null; echo "board updated: #$NUM"
-            else gh issue create --title "$TITLE" --body "$BODY" >/dev/null; echo "board opened"; fi
-          else
-            if [ -n "$NUM" ]; then gh issue close "$NUM" --comment "GREEN — every pin holds (run $GITHUB_RUN_ID)." >/dev/null; echo "board closed"; else echo "green · no board"; fi
-          fi
+          python3 scripts/ci/ecosystem-coherence-issue.py bot.out
