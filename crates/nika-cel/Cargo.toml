@@ -11,7 +11,7 @@ homepage.workspace     = true
 publish                = false  # Internal L0 expression engine.
 
 [dependencies]
-nika-tmpl = { path = "../nika-tmpl", version = "0.120.1" } # shared callable definitions
+nika-tmpl = { path = "../nika-tmpl", version = "0.120.2" } # shared callable definitions
 serde_json = { workspace = true }   # the value currency (the runtime Scope + checker shapes speak it)
 thiserror  = { workspace = true }
 

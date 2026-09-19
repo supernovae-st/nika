@@ -1254,7 +1254,7 @@
   "info": {
     "description": "Authenticated loopback remote execution, declarative schedules and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent.",
     "title": "nika serve",
-    "version": "0.120.1"
+    "version": "0.120.2"
   },
   "openapi": "3.1.0",
   "paths": {
