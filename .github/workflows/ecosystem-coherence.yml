@@ -31,6 +31,12 @@ env:
   BOARD_REPO: supernovae-st/nika
   BOARD_ISSUE: '841'
 
+# Serialize discovery + comment upsert so scheduled/manual runs cannot both
+# create the initial marker comment after observing an empty board.
+concurrency:
+  group: ecosystem-coherence-board-841
+  cancel-in-progress: false
+
 jobs:
   coherence:
     name: cross-repo pins
