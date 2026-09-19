@@ -1,1 +1,0 @@
-- **Pending human approvals render task bindings.** Headless prompt messages and choices now use the same secret-marker renderer as the approval hash, so reviewers see resolved `with:` and `const` values before answering. Secret references stay masked; CLI and Serve wire shapes are unchanged.
