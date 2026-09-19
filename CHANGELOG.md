@@ -37,6 +37,10 @@ pull requests collided on 2026-08-24 with no source overlap between them, and
   can refuse an older resident instead of compiling locally with a
   different core. General language assembly, HOT/WARM/COLD resolution,
   setup requirements and suggested bindings remain absent.
+
+### Fixed
+
+- **Pending human approvals render task bindings.** Headless prompt messages and choices now use the same secret-marker renderer as the approval hash, so reviewers see resolved `with:` and `const` values before answering. Secret references stay masked; CLI and Serve wire shapes are unchanged.
 ## [0.120.2](https://github.com/supernovae-st/nika/compare/v0.120.1..v0.120.2) - 2026-09-19
 
 ### Fixed
