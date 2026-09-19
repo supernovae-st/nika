@@ -44,14 +44,15 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
              engine="0.95.0", vscode="0.96.0", docs="0.95.0", reg_n=21,
              action="0.95.0", starter="0.95.0", certeng="0.95.0",
              pack_sha="b" * 40, engine_pin=None, vscode_release=None,
-             marketplace=None, openvsx=None):
+             marketplace=None, openvsx=None, site_pin_doc=None):
     R = bot.RAW
     return {
         "https://api.github.com/repos/supernovae-st/nika/releases/latest":
             json.dumps({"tag_name": f"v{tag}", "published_at": iso(age_h)}),
         f"{R}/supernovae-st/homebrew-tap/main/Formula/nika.rb": f'  version "{tap}"\n',
         bot.SITE_LLMS: f"# site\nThe engine versions on real semver; currently v{site}.\n",
-        bot.SITE_SPEC_PIN: json.dumps({"spec_commit": pack_sha}),
+        bot.SITE_SPEC_PIN: site_pin_doc if site_pin_doc is not None
+            else json.dumps({"spec_commit": pack_sha}),
         f"{R}/supernovae-st/nika-client/main/package.json": json.dumps({"version": sdk}),
         "https://registry.npmjs.org/@supernovae-st%2Fnika": json.dumps({"dist-tags": {"latest": npm}}),
         f"{R}/supernovae-st/nika/main/crates/nika-pack/pack/VERSION": pack + "\n",
@@ -207,6 +208,23 @@ del tbl[bot.SITE_SPEC_PIN]
 code, f = run(tbl)
 check("T10c unreadable served pin past grace = FAIL",
       code == 1 and any(x[0] == "FAIL" and x[1] == "site spec pin" for x in f), f)
+
+# T10d/e · a malformed served pin (null, empty, number, list, object,
+# non-dict document, non-hex or short strings — the reproduced probe set)
+# is never a silent pass and never a crash: it is unreadable input on the
+# grace ladder.
+MALFORMED_PINS = ['{"spec_commit": null}', '{"spec_commit": ""}', '{"spec_commit": 123}',
+                  '{"spec_commit": []}', '{"spec_commit": {}}', "[]",
+                  json.dumps({"spec_commit": "g" * 40}), json.dumps({"spec_commit": "a" * 39})]
+for doc in MALFORMED_PINS:
+    code, f = run(fixtures(age_h=48.0, site_pin_doc=doc))
+    check("T10d malformed served pin past grace = FAIL unreadable",
+          code == 1 and any(x[0] == "FAIL" and x[1] == "site spec pin" and "unreadable" in x[2]
+                            for x in f), (doc, f))
+    code, f = run(fixtures(age_h=2.0, site_pin_doc=doc))
+    check("T10e malformed served pin inside grace = WARN unreadable",
+          code == 0 and any(x[0] == "WARN" and x[1] == "site spec pin" and "unreadable" in x[2]
+                            for x in f), (doc, f))
 
 # T8a · package.json ahead of its GitHub release is internal/tag drift only.
 # Registries equal to that release are healthy downstream and must not inherit

@@ -77,6 +77,18 @@ def grab(url, extract, surface, *, unreadable="WARN"):
         return None
 
 
+def served_spec_commit(text):
+    """The served pin document must carry spec_commit as a 40-hex string.
+    Null, empty, non-string or non-hex values are unreadable input for the
+    grace ladder — never a silent pass (truthiness skip) and never a crash
+    (slicing a non-string in the mismatch message)."""
+    doc = json.loads(text)
+    pin = doc.get("spec_commit") if isinstance(doc, dict) else None
+    if not isinstance(pin, str) or not re.fullmatch(r"[0-9a-f]{40}", pin):
+        raise ValueError("spec_commit is not a 40-hex commit")
+    return pin
+
+
 def mm(v):
     return ".".join(v.lstrip("v").split(".")[:2])
 
@@ -159,9 +171,7 @@ def main():
     # that repository is not publicly readable, so their OUTPUT is watched
     # instead — the pin the site's spec-resync leg converged on, served
     # publicly. Unreadable follows the tag ladder; a mismatch is a FAIL.
-    site_pin = grab(SITE_SPEC_PIN,
-                    lambda t: json.loads(t)["spec_commit"],
-                    "site spec pin", unreadable=tag_sev)
+    site_pin = grab(SITE_SPEC_PIN, served_spec_commit, "site spec pin", unreadable=tag_sev)
     if site_pin and engine_pin and site_pin != engine_pin:
         FINDINGS.append(("FAIL", "site spec pin",
                          f"served pin {site_pin[:12]} != engine SPEC_PIN {engine_pin[:12]}"))
