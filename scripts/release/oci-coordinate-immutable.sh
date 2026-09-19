@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Converge one immutable GHCR version tag from a content-addressed manifest.
+# The create path converges the v-prefixed alias (nika#1634) BEFORE the
+# version tag, which stays the commit marker: a failed alias leaves the
+# version absent so a re-run re-enters the create path, and the occupied
+# early exits never touch the alias, so replaying a published train cannot
+# retag.
 set -euo pipefail
 
 if [ "$#" -ne 6 ]; then
@@ -17,6 +22,12 @@ case "$mode" in discover | inspect | publish | verify) ;; *)
   exit 64
   ;;
 esac
+# The v-prefixed alias is derived from the bare version; a v input would
+# double the prefix.
+[ "${version#v}" = "$version" ] || {
+  echo "oci barrier: version must be bare X.Y.Z, not: $version" >&2
+  exit 64
+}
 
 scratch="$(mktemp -d)"
 trap 'rm -r "$scratch"' EXIT
@@ -31,7 +42,8 @@ digest_of() {
 }
 
 is_explicit_absence() {
-  local error_file="$1"
+  local ref="$1"
+  local error_file="$2"
   local statuses
   statuses="$(grep -Eo 'HTTP[/ ][^ ]*[[:space:]]+[0-9]{3}|HTTP [0-9]{3}|[0-9]{3} (Not Found|Unauthorized|Forbidden|Internal Server Error)' \
     "$error_file" || true)"
@@ -42,8 +54,8 @@ is_explicit_absence() {
   fi
   grep -Eqi \
     'manifest unknown|MANIFEST_UNKNOWN|NAME_UNKNOWN|unexpected status from HEAD request.*404 Not Found' "$error_file" \
-    || grep -Fqx "ERROR: ${version_ref}: not found" "$error_file" \
-    || grep -Fqx "ERROR: no such manifest: ${version_ref}" "$error_file"
+    || grep -Fqx "ERROR: ${ref}: not found" "$error_file" \
+    || grep -Fqx "ERROR: no such manifest: ${ref}" "$error_file"
 }
 
 verify_identity() {
@@ -94,7 +106,7 @@ if occupied="$(digest_of "$version_ref" 2>"$lookup_error")"; then
   printf '%s\n' "$occupied"
   exit 0
 fi
-if ! is_explicit_absence "$lookup_error"; then
+if ! is_explicit_absence "$version_ref" "$lookup_error"; then
   echo "oci barrier: version lookup failed without explicit absence" >&2
   cat "$lookup_error" >&2
   exit 69
@@ -125,11 +137,48 @@ if [ "$state" -eq 0 ]; then
   printf '%s\n' "$occupied"
   exit 0
 fi
-is_explicit_absence "$lookup_error" || {
+is_explicit_absence "$version_ref" "$lookup_error" || {
   echo "oci barrier: version recheck failed without explicit absence" >&2
   cat "$lookup_error" >&2
   exit 69
 }
+
+# nika#1634: the release page prints vX.Y.Z, so the manifest this run
+# commits also carries the v-prefixed alias. The alias converges BEFORE the
+# version tag, which stays the commit marker: a failed alias leaves the
+# version absent, so a re-run re-enters this create path (an equal alias is
+# then a no-op), and a divergent alias refuses here with zero writes on
+# every replay. The occupied early exits above never touch the alias.
+alias_ref="${image}:v${version}"
+: >"$lookup_error"
+state=0
+alias_occupied="$(digest_of "$alias_ref" 2>"$lookup_error")" || state=$?
+if [ "$state" -eq 0 ]; then
+  [ -n "$alias_occupied" ] || {
+    echo "oci barrier: empty successful v-alias digest lookup" >&2
+    exit 69
+  }
+  [ "$alias_occupied" = "$candidate" ] || {
+    echo "oci barrier: REFUSED divergent occupied v-alias digest" >&2
+    exit 73
+  }
+else
+  is_explicit_absence "$alias_ref" "$lookup_error" || {
+    echo "oci barrier: v-alias lookup failed without explicit absence" >&2
+    cat "$lookup_error" >&2
+    exit 69
+  }
+  docker buildx imagetools create --tag "$alias_ref" "${image}@${candidate}" || {
+    echo "oci barrier: v-alias write failed and the version tag remains absent" >&2
+    exit 69
+  }
+  alias_occupied="$(digest_of "$alias_ref")"
+  [ "$alias_occupied" = "$candidate" ] || {
+    echo "oci barrier: committed v-alias digest differs" >&2
+    exit 73
+  }
+fi
+
 docker buildx imagetools create --tag "$version_ref" "${image}@${candidate}"
 occupied="$(digest_of "$version_ref")"
 [ "$occupied" = "$candidate" ] || {
