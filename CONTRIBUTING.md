@@ -34,10 +34,10 @@ If you are unsure whether something is in scope, open an issue first.
 
 ## Philosophy
 
-- **Real semver toward 1.0** (amended D-2026-06-20-N1). The engine is at 0.91.0 (latest release · main on 0.92.0-dev · release-candidate grade); the first public launch ships as 1.0.0, then 1.x minors add the remaining crates additively toward the ADR-037 count horizon (50-90 · cap 100 · projected, never a gate · ruled D-2026-07-21-N1). Each version is diamond-grade for its declared scope.
+- **Real semver toward 1.0** (amended D-2026-06-20-N1). The current workspace version is declared in `Cargo.toml`; published binaries are listed in [GitHub Releases](https://github.com/supernovae-st/nika/releases). The first public launch ships as 1.0.0, then 1.x minors add the remaining crates additively toward the ADR-037 count horizon (50-90 · cap 100 · projected, never a gate · ruled D-2026-07-21-N1). Each version is diamond-grade for its declared scope.
 - **Quality over speed.** No deadline pressure. A PR lands when it is ready.
 - **Perfect diamond.** Zero band-aid, zero residue, zero ghost reference. Every leftover gets fixed or flagged — never ignored.
-- **Craft, not extraction.** Legacy code at `main` (v0.79.3) is a read-only reference. Diamond rewrites each crate from scratch, guided by the legacy.
+- **Craft, not extraction.** Legacy code on `brouillon` (v0.79.3) is a read-only reference. Diamond rewrites each crate from scratch, guided by the legacy.
 
 ---
 

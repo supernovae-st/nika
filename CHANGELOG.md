@@ -4,8 +4,8 @@ All notable changes to **Nika** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Nika follows [real semver toward 1.0](ROADMAP.md) — incremental quality, diamond-grade at every release (amended D-2026-06-20-N1 · was "forever-v0.x").
 
-Nika Diamond is a ground-up rewrite on the `nika-diamond` orphan branch.
-Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
+Nika Diamond is the ground-up rewrite developed on `main`, beginning at
+v0.80.0. The legacy v0.79.3 tree remains on the read-only `brouillon` branch.
 
 ---
 ## [Unreleased]
@@ -15,6 +15,58 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 <version>`). Do not write bullets here: this file is where four concurrent
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
+
+## [0.120.2](https://github.com/supernovae-st/nika/compare/v0.120.1..v0.120.2) - 2026-09-19
+
+### Fixed
+
+- **The release train also tags `vX.Y.Z` on the same GHCR manifest.** The
+  release page prints `v0.120.1` but the registry only carried `0.120.1`, so
+  `docker pull ghcr.io/supernovae-st/nika:v0.120.1` answered 404. The publish
+  step now converges the v-prefixed alias before the version tag, which stays
+  the commit marker: a failed alias leaves the version absent so a re-run
+  recovers, and an alias occupied by different bytes refuses with zero writes
+  instead of moving it. `latest` is unchanged; already published releases keep
+  their tags until an operator adds the aliases. Refs #1634.
+- **Compile EDIT keeps the source around an edited constant.** Changing one
+  constant replaced the whole accepted workflow with a re-serialized document,
+  dropping the licence header, comments, key order and line endings. EDIT now
+  replaces only the literal's own byte range for single-line scalars, flow
+  collections and the `value` of a typed constant; a semantic no-op returns
+  the exact source. The candidate must agree with both literal readers, so
+  DEL, the C1 controls and U+FFFE/U+FFFF are written as `\uXXXX` and a later
+  unrelated edit still works. Block collections, multi-line scalars and a
+  value written by omission are refused with the source unchanged, including
+  block forms CREATE itself emits; comments inside a replaced flow literal
+  are part of the replaced range. Refs #1663.
+- **Compile refuses integer answers it cannot hold exactly.** An integer
+  literal above `u64::MAX` or below `i64::MIN` was decoded to a rounded f64
+  before any guard ran and came back Ready, even into a `type: integer`
+  constant: `18446744073709551616` was emitted as `1.8446744073709552e+19`.
+  Every answer door (CREATE answers and the text, answer and structured EDIT
+  inputs) now judges the answer's own text and refuses an integer token
+  outside the exact `i64` range at any depth, naming the token and leaving
+  the source or skeleton unchanged. Fraction and exponent answers remain
+  floats and quoted digits remain text; this is a refusal, not arbitrary
+  precision.
+- **The ecosystem coherence bot reads live and served surfaces.** It compared
+  the retired `supernovae.nika-lang` editor listing (frozen at 0.116.3) instead
+  of the live `supernovae.nika`, and the site rows read raw files of a
+  repository that is no longer publicly readable, reported as a permanent WARN.
+  The bot now queries the live extension identity on both registries, reads the
+  deployed site's engine version from `https://nika.sh/llms.txt` and its spec
+  pin from the served well-known document, and a tag-pin or immune surface that
+  stays unreadable past the 24-hour cascade window is a FAIL instead of a
+  permanent WARN.
+### Maintenance
+
+- **Local commit hooks accept checkout paths containing spaces.** Hook arguments
+  stay intact, so the required commit-message validation runs on the right file.
+- **The benchmark runner targets the current checker crate.** It now invokes
+  `nika-check`, so the checker benchmark runs instead of failing on the retired
+  package name. This repairs the measurement path; it is not a performance claim.
+- **Build dependencies and CI actions are refreshed.** The workspace keeps its
+  existing Rust compatibility requirement.
 
 ## [0.120.1](https://github.com/supernovae-st/nika/compare/v0.120.0..v0.120.1) - 2026-09-18
 
