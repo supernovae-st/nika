@@ -611,7 +611,24 @@ if [ "$1 $2 $3" != 'buildx imagetools inspect' ] \
   && [ "$1 $2 $3" != 'buildx imagetools create' ]; then exit 90; fi
 if [ "$3" = create ]; then
   [ "$4" = --tag ] || exit 90
-  printf '%s\n' "${6##*@}" >"$OCI_TAGS/${5##*:}"
+  tag="${5##*:}"
+  state=equal
+  [ -z "${OCI_STATE:-}" ] || state="$(cat "$OCI_STATE")"
+  case "$state" in
+    alias-create-fail)
+      case "$tag" in v*) exit 1 ;; esac
+      ;;
+    alias-create-diverge)
+      case "$tag" in
+        v*)
+          printf 'create %s\n' "$5" >>"$OCI_LOG"
+          printf 'sha256:%064d\n' 9 >"$OCI_TAGS/$tag"
+          exit 0
+          ;;
+      esac
+      ;;
+  esac
+  printf '%s\n' "${6##*@}" >"$OCI_TAGS/$tag"
   printf 'create %s\n' "$5" >>"$OCI_LOG"
   exit 0
 fi
@@ -634,6 +651,7 @@ if [ "${5:-}" = --raw ]; then
   exit 0
 fi
 if printf '%s\n' "$*" | grep -Fq '.Manifest.Digest'; then
+  [ -z "${OCI_LOOKUP_LOG:-}" ] || printf '%s\n' "$ref" >>"$OCI_LOOKUP_LOG"
   case "$ref" in
     *@sha256:*) printf '"%s"\n' "${ref##*@}"; exit 0 ;;
   esac
@@ -652,11 +670,26 @@ if printf '%s\n' "$*" | grep -Fq '.Manifest.Digest'; then
         exit 0
       }
       ;;
+    alias-error)
+      case "$tag" in
+        v*)
+          echo 'unexpected status 500 Internal Server Error' >&2
+          exit 1
+          ;;
+      esac
+      ;;
   esac
   if [ -f "$OCI_TAGS/$tag" ]; then
     printf '"%s"\n' "$(cat "$OCI_TAGS/$tag")"
     exit 0
   fi
+  case "$tag" in
+    v*)
+      # buildx 0.30.1 answers an absent tag with exactly this line
+      printf 'ERROR: %s: not found\n' "$ref" >&2
+      exit 1
+      ;;
+  esac
   echo 'manifest unknown' >&2
   exit 1
 fi
@@ -668,35 +701,51 @@ chmod +x "$BIN/docker"
 OCI_STATE="$TEST_ROOT/oci-state"
 OCI_LOG="$TEST_ROOT/oci-log"
 OCI_TAGS="$TEST_ROOT/oci-tags"
+OCI_LOOKUP_LOG="$TEST_ROOT/oci-lookup-log"
 mkdir -p "$OCI_TAGS"
 : >"$OCI_LOG"
 CANDIDATE="sha256:$(printf '%064d' 1)"
 printf 'absent\n' >"$OCI_STATE"
-PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+: >"$OCI_LOOKUP_LOG"
+out="$(PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
   ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-  https://github.com/supernovae-st/nika >/dev/null
-# nika#1634: the create path tags the same manifest 9.9.9 and v9.9.9, exactly
-# once each.
-printf 'create ghcr.io/supernovae-st/nika:9.9.9\ncreate ghcr.io/supernovae-st/nika:v9.9.9\n' \
+  https://github.com/supernovae-st/nika)"
+[ "$out" = "$CANDIDATE" ] || fail 'OCI publish did not print the committed digest on stdout'
+# nika#1634: the alias converges BEFORE the version tag, which stays the
+# commit marker — the create order is v9.9.9 then 9.9.9, exactly once each,
+# and the absent alias lookup matched the exact buildx not-found line.
+printf 'create ghcr.io/supernovae-st/nika:v9.9.9\ncreate ghcr.io/supernovae-st/nika:9.9.9\n' \
   >"$TEST_ROOT/oci-log-want"
 diff -u "$TEST_ROOT/oci-log-want" "$OCI_LOG" \
-  || fail 'OCI absent coordinate did not create exactly the version and v-alias tags'
+  || fail 'OCI absent coordinate did not create exactly the v-alias then the version tag'
 PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" verify \
   ghcr.io/supernovae-st/nika 9.9.9 - \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   https://github.com/supernovae-st/nika >/dev/null
-# A replay over the occupied version exits on the equal digest without
-# touching either tag: no retag of an already published release.
-PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+# A replay over the occupied version with the alias ABSENT exits on the equal
+# digest without ever reading the alias: no retag of an already published
+# release, and the early exit is pinned to not touch the alias at all.
+printf 'equal\n' >"$OCI_STATE"
+rm "$OCI_TAGS/v9.9.9"
+: >"$OCI_LOOKUP_LOG"
+out="$(PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
   ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-  https://github.com/supernovae-st/nika >/dev/null
+  https://github.com/supernovae-st/nika)"
+[ "$out" = "$CANDIDATE" ] || fail 'replay over an occupied equal version did not print its digest'
 [ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 2 ] \
   || fail 'an occupied equal version retagged an already published coordinate'
+[ ! -e "$OCI_TAGS/v9.9.9" ] || fail 'the occupied early exit recreated the absent v-alias'
+if grep -Fqx 'ghcr.io/supernovae-st/nika:v9.9.9' "$OCI_LOOKUP_LOG"; then
+  fail 'the occupied early exit read the v-alias'
+fi
 printf 'divergent\n' >"$OCI_STATE"
 if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
@@ -734,13 +783,104 @@ if PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TA
 fi
 [ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 2 ] || fail 'mixed OCI lookup reached a write'
 
-# A v-alias already occupied by different bytes refuses instead of moving the
-# tag: the version tag commits, then the divergent alias stops the train.
+# Alias present-equal with the version absent: the equal alias is a no-op and
+# only the version tag is created (kills the present-equal-turned-refusal
+# mutation).
 printf 'equal\n' >"$OCI_STATE"
 rm "$OCI_TAGS/9.9.9"
-printf 'sha256:%064d\n' 9 >"$OCI_TAGS/v9.9.9"
+printf '%s\n' "$CANDIDATE" >"$OCI_TAGS/v9.9.9"
+out="$(PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika)"
+[ "$out" = "$CANDIDATE" ] || fail 'alias-equal publish did not print the committed digest'
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 3 ] || fail 'an equal v-alias was recreated'
+[ "$(sed -n '$p' "$OCI_LOG")" = 'create ghcr.io/supernovae-st/nika:9.9.9' ] \
+  || fail 'the alias-equal path did not create exactly the version tag'
+[ "$(cat "$OCI_TAGS/v9.9.9")" = "$CANDIDATE" ] || fail 'the equal v-alias was moved'
+
+# A v-alias lookup error after the version is proven absent fails 69 with
+# ZERO writes — the version tag must not commit ahead of the alias.
+printf 'alias-error\n' >"$OCI_STATE"
+rm "$OCI_TAGS/9.9.9" "$OCI_TAGS/v9.9.9"
 rc=0
 PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika >"$TEST_ROOT/oci-alias-err.out" 2>&1 || rc=$?
+[ "$rc" -eq 69 ] || fail 'a v-alias lookup error did not fail 69'
+grep -Fq 'v-alias lookup failed without explicit absence' "$TEST_ROOT/oci-alias-err.out" \
+  || fail 'the v-alias lookup error lost its diagnosis'
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 3 ] || fail 'a v-alias lookup error reached a write'
+[ ! -e "$OCI_TAGS/9.9.9" ] || fail 'the version tag committed before the v-alias converged'
+
+# A failed v-alias write fails 69 leaving NO tag behind; the ordinary re-run
+# re-enters the create path and recovers both tags.
+printf 'alias-create-fail\n' >"$OCI_STATE"
+rc=0
+PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika >"$TEST_ROOT/oci-alias-fail.out" 2>&1 || rc=$?
+[ "$rc" -eq 69 ] || fail 'a failed v-alias write did not fail 69'
+grep -Fq 'v-alias write failed and the version tag remains absent' "$TEST_ROOT/oci-alias-fail.out" \
+  || fail 'the failed v-alias write lost its diagnosis'
+if [ -e "$OCI_TAGS/9.9.9" ] || [ -e "$OCI_TAGS/v9.9.9" ]; then
+  fail 'a failed v-alias write left a tag behind'
+fi
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 3 ] || fail 'a failed v-alias write logged a create'
+printf 'equal\n' >"$OCI_STATE"
+out="$(PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika)"
+[ "$out" = "$CANDIDATE" ] || fail 'the re-run after a failed v-alias write did not recover'
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 5 ] \
+  || fail 'the recovery re-run did not create exactly the v-alias and the version tag'
+
+# A v-alias create that commits OTHER bytes (read-back mismatch) refuses 73
+# with the version tag still absent; the replay refuses identically with zero
+# further writes.
+printf 'alias-create-diverge\n' >"$OCI_STATE"
+rm "$OCI_TAGS/9.9.9" "$OCI_TAGS/v9.9.9"
+rc=0
+PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika >"$TEST_ROOT/oci-alias-diverge.out" 2>&1 || rc=$?
+[ "$rc" -eq 73 ] || fail 'a v-alias read-back mismatch did not fail 73'
+grep -Fq 'committed v-alias digest differs' "$TEST_ROOT/oci-alias-diverge.out" \
+  || fail 'the v-alias read-back mismatch lost its diagnosis'
+[ ! -e "$OCI_TAGS/9.9.9" ] || fail 'the version tag committed after a divergent v-alias read-back'
+[ "$(cat "$OCI_TAGS/v9.9.9")" = "sha256:$(printf '%064d' 9)" ] \
+  || fail 'the fake did not record the divergent v-alias'
+rc=0
+PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 73 ] || fail 'the replay after a divergent v-alias read-back did not refuse again'
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 6 ] || fail 'the divergent v-alias replay wrote'
+
+# A v-alias already occupied by foreign bytes refuses 73 with zero writes on
+# every replay — the tag is never moved.
+printf 'equal\n' >"$OCI_STATE"
+rm -f "$OCI_TAGS/9.9.9"
+rc=0
+PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
   bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
   ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
@@ -750,8 +890,32 @@ grep -Fq 'REFUSED divergent occupied v-alias digest' "$TEST_ROOT/oci-alias.out" 
   || fail 'divergent v-alias refusal lost its diagnosis'
 [ "$(cat "$OCI_TAGS/v9.9.9")" = "sha256:$(printf '%064d' 9)" ] \
   || fail 'the refusal moved the occupied v-alias'
-[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 3 ] \
-  || fail 'divergent v-alias refusal wrote beyond the version tag'
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 6 ] \
+  || fail 'divergent v-alias refusal wrote'
+rc=0
+PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika 9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 73 ] || fail 'divergent occupied v-alias was not refused on replay'
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 6 ] \
+  || fail 'divergent v-alias refusal wrote on replay'
+
+# A v-prefixed version is a usage error at validation, before any registry
+# lookup (kills the moved v-prefix guard).
+: >"$OCI_LOOKUP_LOG"
+rc=0
+PATH="$BIN:$PATH" OCI_STATE="$OCI_STATE" OCI_LOG="$OCI_LOG" OCI_TAGS="$OCI_TAGS" \
+  OCI_LOOKUP_LOG="$OCI_LOOKUP_LOG" \
+  bash "$ROOT/scripts/release/oci-coordinate-immutable.sh" publish \
+  ghcr.io/supernovae-st/nika v9.9.9 "$CANDIDATE" \
+  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  https://github.com/supernovae-st/nika >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 64 ] || fail 'a v-prefixed version was accepted'
+[ ! -s "$OCI_LOOKUP_LOG" ] || fail 'the v-prefix guard ran after a registry lookup'
+[ "$(wc -l <"$OCI_LOG" | tr -d ' ')" = 6 ] || fail 'the v-prefix guard ran after a write'
 
 # Payload proof runs both exact digest platforms and compares each container
 # binary checksum with the corresponding extracted native tarball.
