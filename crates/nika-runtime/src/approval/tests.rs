@@ -1152,3 +1152,70 @@ async fn a_choice_answer_must_belong_to_the_resolved_choices() {
         }
     }
 }
+
+#[tokio::test]
+async fn pending_question_matches_the_resumed_decision_for_task_bindings() {
+    let yaml = r#"nika: pending-review
+const:
+  endpoint: https://refund.example.invalid/refund
+  policy: {currency: EUR, cap: 50}
+permits: {exec: [echo], tools: ["nika:prompt"]}
+tasks:
+  prepare:
+    exec: {command: [echo, customer-dev-1]}
+  ask:
+    with:
+      customer: ${{ tasks.prepare.output }}
+      proposal: {amount: 12.5, currency: EUR}
+    invoke:
+      tool: nika:prompt
+      args:
+        message: 'Endpoint: ${{ const.endpoint }} Policy: ${{ const.policy }} Customer: ${{ with.customer }} Proposal: ${{ with.proposal }}'
+"#;
+    let expected = "Endpoint: https://refund.example.invalid/refund Policy: {\"cap\":50,\"currency\":\"EUR\"} Customer: customer-dev-1 Proposal: {\"amount\":12.5,\"currency\":\"EUR\"}";
+    let (outcome, first) = run_gated(
+        yaml,
+        Seams {
+            shell: vec!["customer-dev-1"],
+            tool: vec![blocked_prompt()],
+            pause: true,
+            plan: None,
+            answers: BTreeMap::new(),
+            paused: None,
+        },
+    )
+    .await;
+    let pending = outcome.paused.expect("headless ask pauses");
+    assert_eq!(pending.message.as_deref(), Some(expected));
+    assert!(!pending.message.as_ref().unwrap().contains("${{"));
+    let frame = first
+        .events()
+        .iter()
+        .find(|e| e.kind == EventKind::WorkflowPaused)
+        .unwrap();
+    assert_eq!(str_field(frame, "message"), Some(expected));
+    let shown = pending.approval.unwrap().content_hash;
+    assert_eq!(
+        str_field(frame, "approval_shown_hash"),
+        Some(shown.as_str())
+    );
+    let (resumed, second) = run_gated(
+        yaml,
+        Seams {
+            shell: vec![],
+            tool: vec![ToolResult::success("answer", "false").with_structured(Value::Bool(false))],
+            pause: true,
+            plan: Some(plan_from(&first)),
+            answers: BTreeMap::from([("ask".to_owned(), Value::Bool(false))]),
+            paused: Some(paused_from(&first)),
+        },
+    )
+    .await;
+    assert!(resumed.ok);
+    assert_eq!(resumed.cache_hits, vec!["prepare"]);
+    let frames = decisions(&second);
+    assert_eq!(frames.len(), 1);
+    assert_eq!(frames[0].question.as_deref(), Some(expected));
+    assert_eq!(frames[0].shown_hash, shown);
+    assert_eq!(frames[0].decision, "deny");
+}
