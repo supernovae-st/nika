@@ -4403,6 +4403,7 @@ dependencies = [
  "sha2 0.10.9",
  "sysctl 0.7.1",
  "tempfile",
+ "tokio",
  "toml_edit",
  "url",
 ]
@@ -4845,15 +4846,18 @@ dependencies = [
  "nika-check",
  "nika-display",
  "nika-error",
+ "nika-kernel",
  "nika-pack",
  "nika-schema",
  "nika-source",
  "nika-vocab",
  "nix 0.31.3",
+ "serde",
  "serde_json",
  "serde_yaml_bw",
  "tempfile",
  "thiserror 2.0.20",
+ "tokio",
  "url",
 ]
 

@@ -53,6 +53,57 @@ fn preview_is_the_same_typed_core_and_questions_are_stable() {
 }
 
 #[test]
+fn explicit_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and prepare a support reply";
+    let automatic = command(room.path())
+        .env("OPENAI_API_KEY", "not-a-real-key")
+        .args(["compile", intent, "--json"])
+        .output()
+        .expect("CLI");
+    assert_eq!(result(&automatic)["compile_version"], 1);
+    assert_eq!(
+        result(&automatic)["provenance"]["cognition"],
+        "deterministicOnly"
+    );
+    let explicit = call(
+        room.path(),
+        &[
+            "compile",
+            intent,
+            "--authoring-model",
+            "mock/echo",
+            "--authoring-max-tokens",
+            "1024",
+            "--authoring-timeout",
+            "2",
+            "--json",
+        ],
+    );
+    let document = result(&explicit);
+    assert_eq!(document["compile_version"], 2, "{document}");
+    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
+    assert_ne!(
+        document["status"], "ready",
+        "a schema mock is not a semantic witness"
+    );
+    let invalid = call(
+        room.path(),
+        &[
+            "compile",
+            intent,
+            "--authoring-model",
+            "mock/echo",
+            "--authoring-max-tokens",
+            "0",
+            "--json",
+        ],
+    );
+    assert_eq!(invalid.status.code(), Some(3));
+    assert!(result(&invalid)["error"].is_object());
+}
+
+#[test]
 fn explicit_literal_and_edit_keep_exact_data_and_every_unrelated_value() {
     let room = tempfile::tempdir().expect("room");
     let literal = r#""https://example.invalid/A?query=é%20雪&next=%2F#résumé""#;

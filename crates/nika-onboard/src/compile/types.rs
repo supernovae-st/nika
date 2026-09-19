@@ -10,6 +10,7 @@ pub struct CompileRequest {
     pub(super) input: Input,
     pub(super) answers: BTreeMap<String, String>,
     pub(super) workflow_id: Option<String>,
+    pub(super) authoring: Option<AuthoringPolicy>,
 }
 
 #[derive(Clone, Debug)]
@@ -25,13 +26,22 @@ pub(super) enum EditChange {
 }
 
 impl CompileRequest {
-    /// Create from an exact embedded skeleton name. Other intents remain incomplete.
+    /// Allow one bounded authoring call through `compile_with_provider`.
+    /// This does not select a runtime model or grant workflow authority.
+    #[must_use]
+    pub fn with_authoring_policy(mut self, policy: AuthoringPolicy) -> Self {
+        self.authoring = Some(policy);
+        self
+    }
+    /// Create from an exact skeleton or bounded support clauses. Other intents
+    /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
     pub fn create(intent: impl Into<String>) -> Self {
         Self {
             input: Input::Create(intent.into()),
             answers: BTreeMap::new(),
             workflow_id: None,
+            authoring: None,
         }
     }
 
@@ -49,6 +59,7 @@ impl CompileRequest {
             },
             answers: BTreeMap::new(),
             workflow_id: None,
+            authoring: None,
         }
     }
 
@@ -77,6 +88,7 @@ impl CompileRequest {
             },
             answers: BTreeMap::new(),
             workflow_id: None,
+            authoring: None,
         }
     }
 
@@ -185,18 +197,59 @@ pub struct CompilePreview {
     pub scope: PreviewScope,
 }
 
-/// This implementation has no authoring model calls, even when ambient keys exist.
+/// Authoring cognition is explicit and independent of runtime workflow models.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AuthoringCognition {
     /// Deterministic resolution only. Unknown intent cannot silently contact a model.
     DeterministicOnly,
+    /// One explicitly authorized call through the kernel provider seam.
+    ExplicitProvider,
+}
+
+/// Explicit limits for one authoring call. Ambient credentials are not consent.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct AuthoringPolicy {
+    pub(super) model: String,
+    pub(super) max_tokens: u32,
+    pub(super) timeout: std::time::Duration,
+}
+impl AuthoringPolicy {
+    /// Permit one call with an explicit model, output-token cap and timeout.
+    /// Invalid or unbounded limits yield Incomplete without calling a provider.
+    #[must_use]
+    pub fn new(model: impl Into<String>, max_tokens: u32, timeout: std::time::Duration) -> Self {
+        Self {
+            model: model.into(),
+            max_tokens,
+            timeout,
+        }
+    }
+}
+
+/// Measured authoring metadata; not workflow authority or execution proof.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AuthoringReceipt {
+    /// Explicit model requested for this authoring attempt.
+    pub model: String,
+    /// Provider calls attempted; this slice permits exactly one per request.
+    pub calls: u32,
+    /// Reported input tokens, or unknown when the provider omitted usage.
+    pub input_tokens: Option<u64>,
+    /// Reported output tokens, or unknown when the provider omitted usage.
+    pub output_tokens: Option<u64>,
+    /// Wall time spent awaiting the provider, including timeout/failure.
+    pub elapsed_ms: u64,
 }
 
 /// Authoring provenance is not program identity or execution Proof.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct CompileProvenance {
+    /// Present only on the explicit provider path (wire generation 2).
+    pub authoring: Option<AuthoringReceipt>,
     /// Version of the compiling engine.
     pub compiler_version: String,
     /// Exact embedded language-pack source revision.

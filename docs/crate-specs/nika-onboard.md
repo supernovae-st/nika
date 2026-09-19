@@ -37,7 +37,7 @@ no substitute workflow. A bounded EN/FR whole-clause grammar also composes
 customer lookup, descriptive classification, draft and human-first refund.
 This deterministic development grammar is not arbitrary natural-language understanding.
 
-### Bounded support composition
+### Bounded support composition and explicit authoring
 
 Support composition uses a private typed operation set and reusable structured
 motif builders, not a support skeleton or YAML concatenation. Questions use
@@ -64,6 +64,32 @@ answer. There is no default, recovery or retry on the gate/effect. Source-only
 Check does not prove destination idempotency, external business outcome or
 approval freshness across executions; Run remains responsible for admission.
 
+`AuthoringPolicy::new(model, max_tokens, timeout)` with
+`CompileRequest::with_authoring_policy` permits one call through
+`compile_with_provider(request, provider)`. The caller injects the existing
+kernel `ProviderInferDyn` seam. Limits are 1..8192 output tokens, at most 120
+seconds, and 32768 input-intent bytes. No retries occur. The provider returns a
+closed private JSON semantic plan with exact intent excerpts, operation kinds,
+one effect-policy enum and unresolved regions. Invalid plans, unsupported
+effects, contradictory policy and unknown work stay incomplete. The compiler
+owns task identities, bindings, permits, emission and Check. Neither a source
+excerpt nor model confidence is a proof of semantic equivalence. Independent
+qualification is still required.
+
+The default `compile` path never calls a provider; ambient keys never opt in.
+Exact skeletons and EDIT stay deterministic even through the provider seam.
+The CLI opts in with `--authoring-model`, optional `--authoring-max-tokens`
+(default 2048) and `--authoring-timeout` (default 30 seconds). Only then does
+its adapter use the established environment credential/endpoint ladder.
+Serve remains deterministic; it does not accept this authoring policy yet.
+
+Deterministic outcomes retain the exact generation-1 wire shape. A provider
+attempt emits generation 2 with cognition `explicitProvider` and an
+`authoring` provenance receipt: model, calls, input/output token counts (null
+when unreported), and elapsed milliseconds. No plan IR is public. Generation-1
+clients must not consume generation 2 until they explicitly support it.
+Authoring usage is not runtime execution proof or an asserted billing cost.
+
 For the local JSON-directory motif, Check's trifecta ingress leg (network/MCP
 content) is absent: an empty `trifecta_mitigations` list is not a credited-gate
 proof. The compiler tests the derived dependency edge and execution waves, exact
@@ -76,6 +102,11 @@ must contain exactly a positive `amount` and nonempty `currency`; partial data
 fails before approval. Only customer id, amount and currency enter the POST;
 the original ticket is retained as human-review context. Policy objects remain
 review data, never an automatic eligibility program.
+
+A conservative finite EN/FR sensitive-phrase backstop rejects recognized model
+omissions and inserted approval over recognized automatic-refund instructions.
+This cannot prove arbitrary-language intent preservation: opted-in interpretation
+remains probabilistic, and exact excerpt attribution is not semantic completeness.
 
 EDIT requires the caller's explicit base source and offers two inputs:
 
