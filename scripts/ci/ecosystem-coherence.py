@@ -10,14 +10,18 @@
 #
 # Two severities (operator lock 2026-07-06):
 #   FAIL · pins that MUST be equal — tap formula == latest release tag ·
-#          site ENGINE_VERSION == latest release tag · npm published ==
-#          client-sdk repo version · engine pack VERSION == spec VERSION.
+#          site served engine version (llms.txt) == latest release tag ·
+#          npm published == client-sdk repo version · engine pack VERSION ==
+#          spec VERSION · site served spec pin == engine SPEC_PIN.
 #          A release younger than 24h demotes its tag-pins to WARN (the
 #          cascade window).
 #   WARN · operator-gated or by-design lag — nika-vscode's latest release,
 #          VS Marketplace package and OpenVSX package vs its repo version
 #          (publish = tag, operator) · docs status snapshot vs main workspace
 #          version (docs describe main, which moves).
+#   An UNREADABLE tag-pin or immune surface inherits the tag ladder: WARN
+#   inside the 24h cascade window, FAIL past it — blindness past grace is
+#   itself the finding (nika.sh went dark as a permanent WARN, 2026-09).
 #
 # Lockstep-at-convergence (operator lock 2026-07-06): from engine 0.97.0
 # the satellites (vscode · client-sdk · agents plugin) adopt the engine's
@@ -29,12 +33,25 @@
 import datetime
 import json
 import os
+import re
 import sys
 import urllib.request
 
 RAW = "https://raw.githubusercontent.com"
 VSCODE_RELEASE_API = "https://api.github.com/repos/supernovae-st/nika-vscode/releases/latest"
 VSCODE_MARKETPLACE_API = "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery"
+# The live listing is supernovae.nika; the retired nika-lang identity froze
+# at 0.116.3 and made the bot compare a dead extension (found 2026-09-19).
+VSCODE_EXTENSION_ID = "supernovae.nika"
+OPENVSX_API = f"https://open-vsx.org/api/{VSCODE_EXTENSION_ID.replace('.', '/')}"
+# The nika.sh repository is not publicly readable (404 across the org,
+# 2026-09-19), but the site SERVES what those rows need — and the deployed
+# surface is the better measurement: what a reader sees, not what main
+# intends. The version the site presents as current is the "currently vX.Y.Z"
+# line of llms.txt; the pin its spec-resync leg converged on is the served
+# well-known document.
+SITE_LLMS = "https://nika.sh/llms.txt"
+SITE_SPEC_PIN = "https://nika.sh/.well-known/nika-spec-pin.json"
 FINDINGS = []  # (severity, surface, detail)
 
 
@@ -52,12 +69,24 @@ def fetch(url, timeout=20, *, data=None, extra_headers=None):
         return r.read().decode()
 
 
-def grab(url, extract, surface):
+def grab(url, extract, surface, *, unreadable="WARN"):
     try:
         return extract(fetch(url))
     except Exception as e:  # noqa: BLE001 — a fetch miss is a finding, not a crash
-        FINDINGS.append(("WARN", surface, f"unreadable ({e.__class__.__name__}) · {url}"))
+        FINDINGS.append((unreadable, surface, f"unreadable ({e.__class__.__name__}) · {url}"))
         return None
+
+
+def served_spec_commit(text):
+    """The served pin document must carry spec_commit as a 40-hex string.
+    Null, empty, non-string or non-hex values are unreadable input for the
+    grace ladder — never a silent pass (truthiness skip) and never a crash
+    (slicing a non-string in the mismatch message)."""
+    doc = json.loads(text)
+    pin = doc.get("spec_commit") if isinstance(doc, dict) else None
+    if not isinstance(pin, str) or not re.fullmatch(r"[0-9a-f]{40}", pin):
+        raise ValueError("spec_commit is not a 40-hex commit")
+    return pin
 
 
 def mm(v):
@@ -79,7 +108,7 @@ def vscode_marketplace_version():
     """
     query = {
         "filters": [{
-            "criteria": [{"filterType": 7, "value": "supernovae.nika-lang"}],
+            "criteria": [{"filterType": 7, "value": VSCODE_EXTENSION_ID}],
             "pageNumber": 1,
             "pageSize": 1,
             "sortBy": 0,
@@ -111,15 +140,15 @@ def main():
 
     tap = grab(f"{RAW}/supernovae-st/homebrew-tap/main/Formula/nika.rb",
                lambda t: next(l.split('"')[1] for l in t.splitlines() if l.strip().startswith('version "')),
-               "tap")
+               "tap", unreadable=tag_sev)
     if tap and tap != tag:
         FINDINGS.append((tag_sev, "tap", f"formula {tap} != latest release {tag}"))
 
-    site = grab(f"{RAW}/supernovae-st/nika.sh/main/src/content.ts",
-                lambda t: next(l.split("'")[1] for l in t.splitlines() if "ENGINE_VERSION" in l).lstrip("v"),
-                "site")
+    site = grab(SITE_LLMS,
+                lambda t: re.search(r"currently v(\d+\.\d+\.\d+)", t).group(1),
+                "site", unreadable=tag_sev)
     if site and site != tag:
-        FINDINGS.append((tag_sev, "site", f"ENGINE_VERSION v{site} != latest release {tag}"))
+        FINDINGS.append((tag_sev, "site", f"served llms.txt version v{site} != latest release {tag}"))
 
     sdk_repo = grab(f"{RAW}/supernovae-st/nika-client/main/package.json",
                     lambda t: json.loads(t)["version"], "client-sdk repo")
@@ -138,6 +167,14 @@ def main():
     )
     if pack_sha and engine_pin and pack_sha != engine_pin:
         FINDINGS.append(("FAIL", "pack identity", f"pack {pack_sha[:12]} != SPEC_PIN {engine_pin[:12]}"))
+    # The two immune legs that watched nika.sh raw workflow files moved here:
+    # that repository is not publicly readable, so their OUTPUT is watched
+    # instead — the pin the site's spec-resync leg converged on, served
+    # publicly. Unreadable follows the tag ladder; a mismatch is a FAIL.
+    site_pin = grab(SITE_SPEC_PIN, served_spec_commit, "site spec pin", unreadable=tag_sev)
+    if site_pin and engine_pin and site_pin != engine_pin:
+        FINDINGS.append(("FAIL", "site spec pin",
+                         f"served pin {site_pin[:12]} != engine SPEC_PIN {engine_pin[:12]}"))
     spec_ref = pack_sha if pack_sha and len(pack_sha) == 40 else None
     spec = grab(f"{RAW}/supernovae-st/nika-spec/{spec_ref}/VERSION", str.strip, "spec at pack identity") if spec_ref else None
     if pack and spec and pack != spec:
@@ -177,7 +214,7 @@ def main():
         FINDINGS.append(("WARN", "vscode marketplace",
                          f"unreadable ({e.__class__.__name__}) · {VSCODE_MARKETPLACE_API}"))
         vscode_marketplace = None
-    ovsx = grab("https://open-vsx.org/api/supernovae/nika-lang",
+    ovsx = grab(OPENVSX_API,
                 lambda t: json.loads(t)["version"], "openvsx")
     if vscode_repo and vscode_release and vscode_repo != vscode_release:
         FINDINGS.append(("WARN", "vscode release",
@@ -223,7 +260,7 @@ def main():
     # surfaces: WARN (visible nightly, never a red board on their own).
     act = grab(f"{RAW}/supernovae-st/nika-action/v1/action.yml",
                lambda t: next(l.split("'")[1] for l in t.splitlines() if "default: '0" in l),
-               "action@v1")
+               "action@v1", unreadable=tag_sev)
     if act and act != tag:
         FINDINGS.append((tag_sev, "action@v1",
                          f"served engine-version default {act} != latest release {tag} — bump main + roll v1"))
@@ -248,8 +285,6 @@ def main():
     # drift class it killed. Existence only (content is each repo's own).
     IMMUNE = [
         ("nika-docs", "release-heal.yml"),
-        ("nika.sh", "release-heal.yml"),
-        ("nika.sh", "spec-resync.yml"),
         ("nika-action", "release-heal.yml"),
         ("nika-actions-starter", "release-heal.yml"),
         ("nika-client", "release-heal.yml"),
@@ -260,7 +295,7 @@ def main():
     ]
     for repo, wf in IMMUNE:
         got = grab(f"{RAW}/supernovae-st/{repo}/main/.github/workflows/{wf}", str,
-                   f"immune {repo}")
+                   f"immune {repo}", unreadable=tag_sev)
         if got is not None and "on:" not in got:
             FINDINGS.append(("WARN", f"immune {repo}",
                              f"{wf} exists but carries no trigger — the leg is dead"))

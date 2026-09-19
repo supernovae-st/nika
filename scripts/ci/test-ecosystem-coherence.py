@@ -11,9 +11,15 @@
 #   T2  a day-old release makes a stale tap a hard FAIL (exit 1)
 #   T3  lockstep is WARN below engine 0.97, FAIL from 0.97
 #   T4  a pre-release engine version (0.97.0-rc1) must not crash
-#   T5  every surface unreadable → WARNs only, never a crash, exit 0
+#   T5  every surface unreadable: WARNs only inside the grace window;
+#       tag-pin and immune blindness past the window is itself a FAIL
+#   T7  a missing immune leg follows the same unreadable ladder
 #   T8  editor drift is attributed along repo -> release -> registries,
 #       including reverse drift on every edge
+#   T9  the marketplace query names the live supernovae.nika identity,
+#       never the retired nika-lang one
+#   T10 the site's SERVED spec pin (nika.sh is not publicly readable):
+#       mismatch with engine SPEC_PIN hard-fails, unreadable follows grace
 # Zero network: every URL resolves from the FIXTURES table.
 
 import datetime
@@ -38,13 +44,15 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
              engine="0.95.0", vscode="0.96.0", docs="0.95.0", reg_n=21,
              action="0.95.0", starter="0.95.0", certeng="0.95.0",
              pack_sha="b" * 40, engine_pin=None, vscode_release=None,
-             marketplace=None, openvsx=None):
+             marketplace=None, openvsx=None, site_pin_doc=None):
     R = bot.RAW
     return {
         "https://api.github.com/repos/supernovae-st/nika/releases/latest":
             json.dumps({"tag_name": f"v{tag}", "published_at": iso(age_h)}),
         f"{R}/supernovae-st/homebrew-tap/main/Formula/nika.rb": f'  version "{tap}"\n',
-        f"{R}/supernovae-st/nika.sh/main/src/content.ts": f"export const ENGINE_VERSION = 'v{site}'\n",
+        bot.SITE_LLMS: f"# site\nThe engine versions on real semver; currently v{site}.\n",
+        bot.SITE_SPEC_PIN: site_pin_doc if site_pin_doc is not None
+            else json.dumps({"spec_commit": pack_sha}),
         f"{R}/supernovae-st/nika-client/main/package.json": json.dumps({"version": sdk}),
         "https://registry.npmjs.org/@supernovae-st%2Fnika": json.dumps({"dist-tags": {"latest": npm}}),
         f"{R}/supernovae-st/nika/main/crates/nika-pack/pack/VERSION": pack + "\n",
@@ -58,8 +66,7 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
         bot.VSCODE_MARKETPLACE_API: json.dumps({"results": [{"extensions": [{
             "versions": [{"version": marketplace or vscode}]
         }]}]}),
-        "https://open-vsx.org/api/supernovae/nika-lang":
-            json.dumps({"version": openvsx or vscode}),
+        bot.OPENVSX_API: json.dumps({"version": openvsx or vscode}),
         f"{R}/supernovae-st/nika/main/Cargo.toml": f'version      = "{engine}"\n',
         f"{R}/supernovae-st/nika-docs/main/snippets/_status-snapshot.mdx": f'  version: "{docs}",\n',
         f"{R}/supernovae-st/nika-registry/main/SPEC_PIN": "# pin\n" + "a" * 40 + "\n",
@@ -72,18 +79,19 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
         f"https://api.github.com/repos/supernovae-st/nika/compare/v{tag}...main":
             json.dumps({"ahead_by": 0, "commits": []}),
         **{f"{R}/supernovae-st/{repo}/main/.github/workflows/{wf}": "on:\n  schedule: []\n"
-           for repo, wf in (("nika-docs","release-heal.yml"),("nika.sh","release-heal.yml"),
-                            ("nika.sh","spec-resync.yml"),("nika-action","release-heal.yml"),
+           for repo, wf in (("nika-docs","release-heal.yml"),("nika-action","release-heal.yml"),
                             ("nika-actions-starter","release-heal.yml"),("nika-client","release-heal.yml"),
                             ("nika-plugins","release-heal.yml"),("nika-registry","release-heal.yml"),
                             ("nika-vscode","spec-pin-heal.yml"),("nika","spec-pin-heal.yml"))},
     }
 
 
-def run(table):
+def run(table, captured=None):
     bot.FINDINGS.clear()
     # fetch RAISES on a missing fixture the way urllib raises on a miss.
     def fetch(url, timeout=20, **kwargs):
+        if captured is not None and kwargs.get("data") is not None:
+            captured[url] = kwargs["data"]
         if url in table:
             return table[url]
         raise OSError(f"no fixture for {url}")
@@ -130,13 +138,28 @@ try:
 except Exception as exc:  # noqa: BLE001
     check("T4 pre-release engine survives", False, repr(exc))
 
-# T5 · every surface dark → WARNs only, exit 0 (the bot reports, never dies)
+# T5 · every surface dark: inside the cascade window the bot only WARNs and
+# never dies; past the window, blindness on a tag-pin or immune surface is
+# itself the finding (registry-class surfaces keep their flap tolerance).
+try:
+    code, f = run({"https://api.github.com/repos/supernovae-st/nika/releases/latest":
+                   json.dumps({"tag_name": "v0.95.0", "published_at": iso(2)})})
+    check("T5a dark surfaces in grace = WARNs, no crash",
+          code == 0 and all(x[0] == "WARN" for x in f), f)
+except Exception as exc:  # noqa: BLE001
+    check("T5a dark surfaces in grace = WARNs, no crash", False, repr(exc))
 try:
     code, f = run({"https://api.github.com/repos/supernovae-st/nika/releases/latest":
                    json.dumps({"tag_name": "v0.95.0", "published_at": iso(48)})})
-    check("T5 dark surfaces = WARNs, no crash", code == 0 and all(x[0] == "WARN" for x in f), f)
+    check("T5b dark tag-pin/immune surfaces past grace = FAIL",
+          code == 1
+          and any(x[0] == "FAIL" and x[1] == "site" and "unreadable" in x[2] for x in f)
+          and any(x[0] == "FAIL" and x[1] == "site spec pin" and "unreadable" in x[2] for x in f)
+          and any(x[0] == "FAIL" and x[1] == "immune nika-docs" for x in f)
+          and any(x[0] == "FAIL" and x[1] == "tap" for x in f)
+          and all(x[0] == "WARN" for x in f if x[1] == "npm"), f)
 except Exception as exc:  # noqa: BLE001
-    check("T5 dark surfaces = WARNs, no crash", False, repr(exc))
+    check("T5b dark tag-pin/immune surfaces past grace = FAIL", False, repr(exc))
 
 # T6 · the served action default (the @v1 ref, what users consume) follows
 # the tag ladder: grace WARN → hard FAIL; the deliberate-bump surfaces
@@ -153,16 +176,55 @@ check("T6c deliberate-bump surfaces stay WARN",
       and any(x[1] == "registry certifier" for x in f)
       and all(x[0] == "WARN" for x in f if x[1] in ("actions-starter", "registry certifier")), f)
 
-# T7 · guard-of-guards: a missing immune workflow is a WARN finding
-# (fetch miss), never a crash; a trigger-less one is named.
-tbl = fixtures(age_h=48.0)
+# T7 · guard-of-guards: a missing immune workflow is an unreadable surface —
+# WARN inside the cascade window, FAIL past it; a trigger-less one is named.
+tbl = fixtures(age_h=2.0)
 del tbl[bot.RAW + "/supernovae-st/nika-registry/main/.github/workflows/release-heal.yml"]
 tbl[bot.RAW + "/supernovae-st/nika-plugins/main/.github/workflows/release-heal.yml"] = "name: dead\n"
 code, f = run(tbl)
-check("T7 immune legs watched (missing=WARN · trigger-less named)",
-      any(x[1] == "immune nika-registry" for x in f)
-      and any(x[1] == "immune nika-plugins" and "no trigger" in x[2] for x in f)
-      and all(x[0] == "WARN" for x in f if x[1].startswith("immune")), f)
+check("T7a immune legs watched in grace (missing=WARN · trigger-less named)",
+      code == 0
+      and any(x[0] == "WARN" and x[1] == "immune nika-registry" for x in f)
+      and any(x[1] == "immune nika-plugins" and "no trigger" in x[2] for x in f), f)
+tbl = fixtures(age_h=48.0)
+del tbl[bot.RAW + "/supernovae-st/nika-registry/main/.github/workflows/release-heal.yml"]
+code, f = run(tbl)
+check("T7b missing immune leg past grace = FAIL",
+      code == 1 and any(x[0] == "FAIL" and x[1] == "immune nika-registry" for x in f), f)
+
+# T10 · the site's served spec pin replaces the unreadable nika.sh immune
+# legs: a mismatch with engine SPEC_PIN is a hard FAIL, and an unreadable
+# served pin follows the grace ladder.
+code, f = run(fixtures(engine_pin="d" * 40))
+check("T10a served site pin != engine SPEC_PIN hard-fails",
+      code == 1 and any(x[0] == "FAIL" and x[1] == "site spec pin" and "served pin" in x[2] for x in f), f)
+tbl = fixtures(age_h=2.0)
+del tbl[bot.SITE_SPEC_PIN]
+code, f = run(tbl)
+check("T10b unreadable served pin = WARN inside grace",
+      code == 0 and any(x[0] == "WARN" and x[1] == "site spec pin" for x in f), f)
+tbl = fixtures(age_h=48.0)
+del tbl[bot.SITE_SPEC_PIN]
+code, f = run(tbl)
+check("T10c unreadable served pin past grace = FAIL",
+      code == 1 and any(x[0] == "FAIL" and x[1] == "site spec pin" for x in f), f)
+
+# T10d/e · a malformed served pin (null, empty, number, list, object,
+# non-dict document, non-hex or short strings — the reproduced probe set)
+# is never a silent pass and never a crash: it is unreadable input on the
+# grace ladder.
+MALFORMED_PINS = ['{"spec_commit": null}', '{"spec_commit": ""}', '{"spec_commit": 123}',
+                  '{"spec_commit": []}', '{"spec_commit": {}}', "[]",
+                  json.dumps({"spec_commit": "g" * 40}), json.dumps({"spec_commit": "a" * 39})]
+for doc in MALFORMED_PINS:
+    code, f = run(fixtures(age_h=48.0, site_pin_doc=doc))
+    check("T10d malformed served pin past grace = FAIL unreadable",
+          code == 1 and any(x[0] == "FAIL" and x[1] == "site spec pin" and "unreadable" in x[2]
+                            for x in f), (doc, f))
+    code, f = run(fixtures(age_h=2.0, site_pin_doc=doc))
+    check("T10e malformed served pin inside grace = WARN unreadable",
+          code == 0 and any(x[0] == "WARN" and x[1] == "site spec pin" and "unreadable" in x[2]
+                            for x in f), (doc, f))
 
 # T8a · package.json ahead of its GitHub release is internal/tag drift only.
 # Registries equal to that release are healthy downstream and must not inherit
@@ -209,6 +271,15 @@ openvsx_detail = next(x[2] for x in f if x[1] == "vscode openvsx")
 check("T8e newer OpenVSX is neutral reverse publication drift",
       "differs from latest release 0.114.0" in openvsx_detail
       and "lags" not in openvsx_detail, f)
+
+# T9 · the gallery query must target the live supernovae.nika listing — the
+# retired nika-lang identity answered 0.116.3 forever and the bot compared a
+# dead extension against live releases.
+captured = {}
+code, f = run(fixtures(), captured)
+body = captured.get(bot.VSCODE_MARKETPLACE_API, b"").decode()
+check("T9 marketplace queries the live extension identity",
+      "supernovae.nika" in body and "nika-lang" not in body, body)
 
 print(f"\nself-test: {'PASS (' + str(checks) + '/' + str(checks) + ')' if not fails else 'FAIL ' + str(fails)}")
 sys.exit(1 if fails else 0)
