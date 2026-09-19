@@ -512,16 +512,13 @@ impl EventMapper for GeminiMapper {
         if let Some(err) = v.pointer("/error") {
             // Gemini can inject a top-level error object inside a 200 SSE
             // stream (the other wires close with a non-2xx instead). Route
-            // it through the SAME status table as the http paths so a 429
-            // is RateLimited (not a bare Api) and 401/403 is AuthFailed —
-            // retry loops match on the typed variants. retry_after_ms is
-            // None: headers are not visible inside an SSE body.
+            // it through the same sanitized status table as the HTTP paths.
+            // Retry-After is absent: headers are not visible in an SSE body.
             self.done_sent = true;
             let status = err.pointer("/code").and_then(Value::as_u64).unwrap_or(400);
-            let body = err.to_string();
             out.push(Err(super::status_error(
                 u16::try_from(status).unwrap_or(400),
-                body.as_bytes(),
+                payload.as_bytes(),
                 None,
                 "gemini",
             )));
@@ -953,7 +950,7 @@ mod tests {
         let mut m = GeminiMapper::default();
         let out = m.map(r#"{"error":{"code":429,"message":"quota"}}"#);
         assert!(
-            matches!(out.first(), Some(Err(ProviderError::RateLimited { .. }))),
+            matches!(out.first(), Some(Err(ProviderError::HttpResponse { details })) if details.status() == 429 && details.is_transient()),
             "in-band 429 → RateLimited: {out:?}"
         );
         assert!(m.finish().is_empty(), "no Done after wire error");
@@ -962,13 +959,13 @@ mod tests {
         let out = m.map(r#"{"error":{"code":401,"message":"bad key"}}"#);
         assert!(matches!(
             out.first(),
-            Some(Err(ProviderError::AuthFailed { .. }))
+            Some(Err(ProviderError::HttpResponse { details })) if details.status() == 401
         ));
 
         let mut m = GeminiMapper::default();
         let out = m.map(r#"{"error":{"code":500,"message":"boom"}}"#);
         match out.first() {
-            Some(Err(e @ ProviderError::Api { status: 500, .. })) => {
+            Some(Err(e @ ProviderError::HttpResponse { details })) if details.status() == 500 => {
                 assert!(e.is_transient(), "5xx transient");
             }
             other => panic!("expected Api 500, got {other:?}"),

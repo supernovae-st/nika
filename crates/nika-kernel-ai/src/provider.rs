@@ -22,6 +22,9 @@ use nika_error::cancel::CancelCtx;
 use nika_error::cost::Cost;
 use nika_error::memory::{MemoryDirective, MemoryFrameRef};
 
+mod http_error;
+pub use http_error::ProviderHttpError;
+
 // ─── Message types ───────────────────────────────────────────────────
 
 /// A message in a conversation.
@@ -410,6 +413,13 @@ pub type InferEventStream = Pin<Box<dyn Stream<Item = Result<InferEvent, Provide
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum ProviderError {
+    /// Sanitized metadata from an HTTP response or equivalent in-band error.
+    /// Existing variants remain available for callers constructing errors.
+    #[error("{details}")]
+    HttpResponse {
+        /// Safe status, provider identifiers and retry hint; no response prose.
+        details: ProviderHttpError,
+    },
     /// A transport connection failed or ended before the response completed.
     /// Retry eligibility does not establish whether the provider billed the call.
     #[error("provider connection interrupted: {reason}")]
@@ -466,6 +476,9 @@ impl ProviderError {
     /// Whether this error is transient and may succeed on retry.
     #[must_use]
     pub fn is_transient(&self) -> bool {
+        if let Self::HttpResponse { details } = self {
+            return details.is_transient();
+        }
         matches!(
             self,
             Self::Connection { .. }
