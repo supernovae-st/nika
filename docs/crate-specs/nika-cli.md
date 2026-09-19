@@ -64,6 +64,11 @@ The SDK must test capability presence before admission and handle early pipe
 closure/cancellation; there is no fallback to `--var`. Native/HTTP packed SDK
 parity remains the consumer's qualification, outside this engine slice.
 
+`--sdk-identity` also advertises `compile`: `nika compile --json` speaks the
+`compile_version` 1 foundation wire. The machine document is projected once,
+by `nika_onboard::compile::outcome_document`; this adapter adds only `written`,
+the one fact it owns. Serve prints the same document without it (#1670).
+
 ## 2. Verb surface
 
 ### 1.0 launch floor (locked · D-2026-06-10-N6 · amended D-2026-06-20-N1 — was "v0.81")

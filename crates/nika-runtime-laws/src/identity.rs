@@ -15,12 +15,17 @@ pub const MACHINE_PROTOCOL_VERSION: u32 = 1;
 /// siblings without introducing a dependency edge solely for one constant.
 pub const MACHINE_SNAPSHOT_FORMAT_VERSION: u32 = 1;
 
+// The NATIVE door's tokens. The HTTP door projects its own list (nika-serve), so
+// neither can advertise a route only the other serves. `compile` means exactly
+// "`nika compile --json` speaks the compile_version 1 foundation wire": it promises
+// no authoring cognition beyond what that document's provenance states.
 const SUPPORTED_CAPABILITIES: &[&str] = &[
     "check",
     "executionSnapshot",
     "eventStream",
     "trace",
     "inputsLiteral",
+    "compile",
 ];
 
 /// The engine, source and machine-protocol identity compiled into this build.

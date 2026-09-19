@@ -19,8 +19,9 @@
 //! `.nika` write adapter: no silent overwrite, run, or grant. Source-only
 //! preview is not full host Check or admission: Run must judge the candidate
 //! again under its actual environment.
-//! Full natural-language authoring, Graph integration, support-triage composition
-//! and SDK/Serve adapters remain separate work. The CLI consumes these typed outcomes.
+//! Full natural-language authoring, Graph integration and support-triage composition
+//! remain separate work. Transports (the CLI, Serve) consume these typed outcomes and
+//! print the one machine document of [`outcome_document`]; none re-projects an outcome.
 //! Private pattern-facet derivation (#1666) walks the parsed AST and Check
 //! facts; it is not a YAML key, a fifth verb, or an SDK noun, and it does
 //! not change CREATE/EDIT.
@@ -58,6 +59,7 @@ mod edit_source;
 mod materialize;
 pub(crate) mod pattern;
 mod types;
+mod wire;
 
 use std::collections::BTreeSet;
 
@@ -71,6 +73,7 @@ pub use types::{
     CompileProvenance, CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind,
     PreviewScope, QuestionType, RepresentationError,
 };
+pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 
 /// Compile without effects or hidden state. Repeating a request produces the same candidate.
 ///

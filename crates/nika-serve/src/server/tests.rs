@@ -447,6 +447,8 @@ mod budget;
 #[cfg(test)]
 mod cancel_race;
 #[cfg(test)]
+mod compile;
+#[cfg(test)]
 mod durable_queue;
 #[cfg(test)]
 mod inputs;

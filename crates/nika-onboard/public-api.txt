@@ -8,6 +8,8 @@ pub const nika_onboard::codes::OK: u8
 pub mod nika_onboard::compile
 #[non_exhaustive] pub enum nika_onboard::compile::AuthoringCognition
 pub nika_onboard::compile::AuthoringCognition::DeterministicOnly
+impl nika_onboard::compile::AuthoringCognition
+pub const fn nika_onboard::compile::AuthoringCognition::word(self) -> &'static str
 impl core::clone::Clone for nika_onboard::compile::AuthoringCognition
 pub fn nika_onboard::compile::AuthoringCognition::clone(&self) -> nika_onboard::compile::AuthoringCognition
 impl core::cmp::Eq for nika_onboard::compile::AuthoringCognition
@@ -107,6 +109,8 @@ pub type nika_onboard::compile::CompileError::Output = T
 pub nika_onboard::compile::CompileStatus::Incomplete
 pub nika_onboard::compile::CompileStatus::Ready
 pub nika_onboard::compile::CompileStatus::Refused
+impl nika_onboard::compile::CompileStatus
+pub const fn nika_onboard::compile::CompileStatus::word(self) -> &'static str
 impl core::clone::Clone for nika_onboard::compile::CompileStatus
 pub fn nika_onboard::compile::CompileStatus::clone(&self) -> nika_onboard::compile::CompileStatus
 impl core::cmp::Eq for nika_onboard::compile::CompileStatus
@@ -162,6 +166,8 @@ pub nika_onboard::compile::DiagnosticKind::Missed
 pub nika_onboard::compile::DiagnosticKind::Refused
 pub nika_onboard::compile::DiagnosticKind::RequiresHuman
 pub nika_onboard::compile::DiagnosticKind::Unknown
+impl nika_onboard::compile::DiagnosticKind
+pub const fn nika_onboard::compile::DiagnosticKind::word(self) -> &'static str
 impl core::clone::Clone for nika_onboard::compile::DiagnosticKind
 pub fn nika_onboard::compile::DiagnosticKind::clone(&self) -> nika_onboard::compile::DiagnosticKind
 impl core::cmp::Eq for nika_onboard::compile::DiagnosticKind
@@ -681,8 +687,10 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::Representatio
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::RepresentationError
 impl<T> typenum::type_operators::Same for nika_onboard::compile::RepresentationError
 pub type nika_onboard::compile::RepresentationError::Output = T
+pub const nika_onboard::compile::COMPILE_WIRE_VERSION: u32
 pub fn nika_onboard::compile::compile(request: &nika_onboard::compile::CompileRequest) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
 pub fn nika_onboard::compile::materialize_ready(outcome: &nika_onboard::compile::CompileOutcome, dest: &std::path::Path, overwrite: bool) -> core::result::Result<(), nika_onboard::compile::MaterializeError>
+pub fn nika_onboard::compile::outcome_document(out: &nika_onboard::compile::CompileOutcome) -> serde_json::value::Value
 pub mod nika_onboard::fixtures
 pub fn nika_onboard::fixtures::fixture_prefixes(body: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_onboard::fixtures::materialize(body: &str, dest: &std::path::Path) -> core::io::error::Result<(usize, usize)>

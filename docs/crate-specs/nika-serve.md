@@ -110,6 +110,7 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | `GET` | `/v1/jobs/{id}/events` | exactly one Bearer | SSE `text/event-stream`; `id:` sequence; `data:` `{sequence,kind,status}` plus optional redacted `{code,message}` |
 | `POST` | `/v1/jobs/{id}/cancel` | exactly one Bearer | idempotent terminal job result; active runs receive the engine cancellation token before durable `cancelled` settlement |
 | `GET` | `/v1/jobs/{id}/trace/verify` | exactly one Bearer | typed `unavailable` verdict; no path or invented verification while the remote trace-journal authority is absent |
+| `POST` | `/v1/compile` | exactly one Bearer | the Compile core's machine document (`compile_version` 1) as authoring DATA: 200 for `ready`, `incomplete` and `refused` · 422 typed protocol refusals · also 408/413/415/500/503 |
 | `GET` | `/v1/openapi.json` | exactly one Bearer | OpenAPI 3.1 document of the live routes |
 
 `/health` advertises `jobInputs` when the named job envelope accepts and
@@ -117,7 +118,42 @@ validates literal JSON input bindings. Clients must require this capability
 before sending inputs: older residents may accept unknown request fields
 without applying them. This capability does not authorize snapshot overlays.
 
-Artifact routes return 404. No route returns source bytes,
+### Authoring door (`POST /v1/compile` · #1670)
+
+The compile route is the HTTP transport of the one stateless Compile core
+(`nika_onboard::compile::compile`), reached through a lateral L4→L4 edge (the
+`nika-cli-host → nika-onboard` precedent). It holds no authoring semantics: no
+routing, assembly, policy hole or Check projection lives in this crate. The
+response body is `nika_onboard::compile::outcome_document`, the same document
+`nika compile --json` prints, without the CLI-only `written`.
+
+Foundation scope, unchanged by this transport: CREATE resolves an exact
+embedded skeleton name (or `hello`), EDIT changes one existing constant,
+answers are explicit JSON literals. Any other intent is the core's
+`incomplete`, never a substitute workflow. General language assembly,
+HOT/WARM/COLD resolution, setup requirements and suggested bindings are
+absent, and exact-skeleton reuse is not a measured HOT admission.
+
+| concern | contract |
+|---|---|
+| request | `{compile_version: 1, mode: "create", intent, workflow_id?, answers?}` or `{compile_version: 1, mode: "edit", source, change, answers?}` where `change` is `{text}` or `{set_constant: {name, value}}` · optional `cognition: "deterministicOnly"` |
+| shape policy | unknown fields, a present `null`, duplicate keys (envelope and `answers`) and positional arrays refuse `malformed_compile_request`; foreign vocabulary is named: `compile_version_unsupported`, `compile_mode_unsupported`, `compile_cognition_unsupported` |
+| literals | `answers` values and `set_constant.value` reach the core as the exact text the caller sent (`serde_json` `RawValue`), parsed once, as the CLI's `KEY=JSON_LITERAL` is |
+| bounds | body `min(listener ceiling, 1 MiB)` → 413 · `intent`/`change.text` 4 KiB · `source` 512 KiB · `workflow_id`/`set_constant.name` 128 B · 64 answers × (256 B key, 64 KiB literal) → 422 `compile_limit` · all UTF-8 bytes |
+| custody | no path field exists; an EDIT base travels inline; the served registry is never opened; nothing is written |
+| effects | none: no job, run, approval, trace, schedule or provider contact. `check_preview` is a REVIEW of the source alone; `POST /v1/jobs` judges a candidate again |
+| concurrency | `ServerLimits::with_max_compile_requests` (default 4) compile slots; a slot lives inside the blocking closure, so a timed-out or disconnected caller does not free CPU still in use; excess → 503 `compile_busy`, nothing queues |
+| machinery failure | `CompileError` or a panicked task → 500 `internal_error`; nothing is echoed |
+
+`/health` advertises `compile` exactly when this route is served. The token
+means "this door speaks the `compile_version` 1 foundation wire" and promises
+no authoring cognition beyond what the document's provenance states. The
+native door advertises its own `compile` token for `nika compile --json`; the
+two capability lists are separate projections, so neither door can advertise
+a route only the other serves. A resident without the token must be refused
+by the client, never replaced by a local compile with a different core.
+
+Artifact routes return 404. No route returns the bytes of a served workflow,
 idempotency keys, request digests, event payloads, provider/tool data, paths,
 token material, or internal error text. CORS headers are not emitted.
 `Last-Event-ID` resumes after that sequence. An invalid cursor is 400; a

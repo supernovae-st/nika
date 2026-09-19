@@ -16,6 +16,12 @@ pub(super) fn before_named_capture(probe: &CaptureProbe) {
     }
 }
 
+/// One deterministic action INSIDE the blocking compile section, after its slot
+/// is taken: a test parks the closure there to prove who owns the permit.
+pub(super) fn before_compile(probe: &CaptureProbe) {
+    before_named_capture(probe);
+}
+
 pub(super) fn assert_allowlisted(event: &Value) {
     let object = event.as_object().expect("event object");
     assert!(

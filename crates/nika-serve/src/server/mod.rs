@@ -3,6 +3,7 @@
 
 mod auth;
 mod cancel;
+mod compile;
 mod config;
 mod coordinator;
 mod error;
@@ -312,6 +313,11 @@ pub trait ExecutionBackend: Send + Sync + 'static {
 struct AppState {
     #[cfg(test)]
     before_named_capture: test_support::CaptureProbe,
+    #[cfg(test)]
+    before_compile: test_support::CaptureProbe,
+    /// Authoring CPU slots (#1670). A permit lives inside the blocking compile
+    /// closure, so a timed-out request cannot free a slot still in use.
+    compile_slots: Arc<Semaphore>,
     token: BearerToken,
     store: StoreHandle,
     /// The backend's journal directory (see
@@ -571,6 +577,11 @@ impl BoundServer {
         let state = Arc::new(AppState {
             #[cfg(test)]
             before_named_capture: Arc::default(),
+            #[cfg(test)]
+            before_compile: Arc::default(),
+            compile_slots: Arc::new(Semaphore::new(
+                authority.state.limits.max_compile_requests(),
+            )),
             token: prepared.token,
             store: authority.state.store.clone(),
             journal_dir: authority.state.backend.trace_journal_dir(),

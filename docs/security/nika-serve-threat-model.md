@@ -81,6 +81,7 @@ alone.
 | `GET /v1/jobs/{opaque-id}/trace/verify` | no | no | Bearer auth; typed unavailable verdict until a real journal authority exists; no paths |
 | `GET /v1/openapi.json` | no | no | Bearer auth; live-route document; no credential examples or artifact paths |
 | effecting `/v1/*` POST | no | yes | auth before parse; body limit; content type; idempotency before execution |
+| `POST /v1/compile` | no | no | auth before parse; its own 1 MiB body ceiling and per-field bounds; content type; bounded concurrency; returns authoring data only |
 | artifact routes | absent | — | remain absent until a held typed artifact manifest exists |
 
 Adding a route cannot weaken this table. The OpenAPI document is a projection
@@ -120,6 +121,32 @@ of the live routes, never a second authority.
   admitted root.
 - Client input cannot select an arbitrary trace, ledger, secret, or artifact
   filesystem path.
+
+### Authoring (`POST /v1/compile`)
+
+The compile door is the HTTP transport of the one stateless Compile core. It
+is not an effecting route, and it widens no other route's authority.
+
+- It creates no job, run, approval, schedule or trace, and writes no file. No
+  request field names a host path: an EDIT base travels inline, and the door
+  never opens the served registry, so it cannot disclose a served workflow.
+  The only source it returns is derived from the request's own inline source
+  or from a skeleton embedded in the binary.
+- It reads no environment variable and contacts no provider. The one authoring
+  cognition is `deterministicOnly`; any other requested cognition is a typed
+  refusal. Ambient provider keys are never consent.
+- `check_preview` is a review of the source alone. It grants nothing and admits
+  nothing: a candidate reaches execution only through `POST /v1/jobs`, which
+  judges it again under the real launch bindings.
+- Caller source reaches the same strict parser the snapshot door already feeds
+  (ADR-131). It is bounded tighter here (512 KiB) because authoring work runs
+  on the blocking pool and cannot be cancelled once started.
+- Concurrency is fenced by compile slots. A slot belongs to the CPU work, not
+  to the request: a caller that times out or disconnects does not free it, so
+  repeated cancellation cannot stack unbounded blocking work. Excess requests
+  refuse `compile_busy`; nothing queues.
+- Refusals are fixed strings. Intent, source, answers and literals never
+  appear in an error body, and this route adds no logging.
 
 ### Replay, jobs, and concurrency
 
@@ -224,6 +251,16 @@ transcript is claimed where no such test existed on that SHA.
   receipt, queued cancellation never enters the backend, and concurrent/lost-
   response retries converge on the same terminal record;
 - [x] artifact routes remain absent until their typed authority is admitted;
+- [x] compile: unauthenticated bodies are never collected or judged; unknown fields, present
+  nulls, duplicate keys (envelope and `answers`), positional arrays and foreign
+  vocabulary refuse with fixed strings that echo no request byte; every bound
+  accepts its exact limit and refuses the next byte; hostile source and
+  literals are bounded data, never a server fault; no job, file or registry
+  entry appears; a `ready` candidate the launch cannot satisfy is still refused
+  by `POST /v1/jobs`; a timed-out or disconnected caller keeps its compile slot
+  until the CPU work ends (`server::tests::compile` exercises these boundaries;
+  the shared parity corpus also pins unresolved MCP source as `incomplete`
+  without MCP or provider I/O);
 - [x] SIGINT/SIGTERM stop admission, settle in-flight authority, and leave no
   duplicate-runnable idempotency record.
 

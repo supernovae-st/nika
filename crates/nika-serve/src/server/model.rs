@@ -146,12 +146,16 @@ struct StoreFormatVersion {
     schedules: u32,
 }
 
+// Each token names a route THIS door really serves. `compile` means exactly
+// "POST /v1/compile speaks the compile_version 1 foundation wire" (#1670): it
+// promises no authoring cognition beyond what that document's provenance states.
 const HTTP_ADAPTER_CAPABILITIES: &[&str] = &[
     "check",
     "executionSnapshot",
     "eventStream",
     "cancel",
     "jobInputs",
+    "compile",
 ];
 const HTTP_ADAPTER_SCHEDULE_CAPABILITIES: &[&str] = &[
     "check",
@@ -159,6 +163,7 @@ const HTTP_ADAPTER_SCHEDULE_CAPABILITIES: &[&str] = &[
     "eventStream",
     "cancel",
     "jobInputs",
+    "compile",
     "schedule",
 ];
 
