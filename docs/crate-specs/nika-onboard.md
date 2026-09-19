@@ -51,11 +51,53 @@ or instructions remain literal data; expression islands and root objects with
 both `type` and `value` are refused. Existing typed declarations retain their
 type, and a type-incompatible candidate remains Incomplete under Check.
 
+Every answer door (CREATE answers and the text, answer and structured EDIT
+inputs) shares one guarded literal path. An integer answer outside the canonical
+reader's exact `i64` range is refused from the answer's own text, at any depth,
+before a decoder can round it; a whole f64 would otherwise satisfy even a
+`type: integer` constant. Fraction and exponent answers are floats under the
+f64 contract and quoted digits stay text. This is a refusal, not arbitrary
+precision.
+
 Emission must preserve the intended canonical literal projection; decoder
 ambiguity or precision loss refuses the edit and retains the original source.
-All unrelated semantic values survive accepted edits. Formatting and comments
-are not preserved by successful re-emission. SLOT values remain mandatory
-questions. Source-only Check is not environment resolution or Run admission.
+All unrelated semantic values survive accepted edits. EDIT replaces only the
+target literal's source range for single-line scalars and flow collections;
+comments, formatting, line endings and all bytes outside that range survive.
+Typed constants retain the declaration around their `value`. Semantic no-ops
+retain the exact original source. Block collections and multi-line scalars are
+refused without changes; this is a bounded editor, not a general YAML CST.
+The emitted candidate must agree with both literal readers, so an accepted
+edit cannot introduce decoder drift that blocks a later unrelated edit.
+The replacement token is compact JSON. DEL, the C1 controls U+0080 to U+009F
+(NEL included) and the noncharacters U+FFFE and U+FFFF are written as `\uXXXX`
+escapes in strings and object keys, because a YAML 1.1 reader rejects or folds
+them when raw. The escape only proposes a token: the two-reader comparison
+still decides every candidate, so such literals stay editable and an
+unreadable one is refused. A value written by omission (`key:` with nothing
+after it) is refused explicitly, since the parser marks it at the next token
+and never at the target; a written `~` or `null` remains editable. A typed
+declaration whose `value` is omitted or null never reaches that refusal: such
+a base already fails pure Check, so the request stays Incomplete with the
+source unchanged.
+
+Scope limitations of this bounded editor, not a verified general
+source-preserving edit contract:
+
+- The replaced range is the whole literal. Comments INSIDE a replaced
+  multi-line flow collection belong to that range and disappear; the outcome
+  is still Ready and carries no diagnostic for them. Bytes outside the range
+  survive by construction (prefix, token, suffix); no literal reader sees
+  comments, so that property is demonstrated by tests, not checked at run time.
+- CREATE's slot assembler retains its existing guarded re-emission behavior
+  and emits block forms for multi-line strings and collections. EDIT can
+  therefore refuse a constant that CREATE itself just wrote. There is no
+  fallback whole-document re-emission: the guarantee is untouched bytes
+  outside the literal, also for a comment-free source. Block editing is out
+  of this slice.
+
+SLOT values remain mandatory questions. Source-only Check is not environment
+resolution or Run admission.
 
 Compile performs no file access, credential probes, provider calls or execution,
 and keeps no session state. The application owns base revision selection, CAS
