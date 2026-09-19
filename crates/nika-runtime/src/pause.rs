@@ -25,7 +25,7 @@ use std::collections::BTreeMap;
 use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
 use serde_json::Value;
 
-use crate::expr::{self, Scope};
+use crate::expr::Scope;
 use crate::record::TaskRecord;
 use crate::task::{Finish, RunResult, SettleAs};
 
@@ -198,8 +198,7 @@ pub(crate) fn harness_gate_block(finish: &Finish, wf: &RawWorkflow) -> Option<Wo
 /// scope resolves them, the RAW authored values otherwise (best-effort ·
 /// a payload never blocks the pause itself).
 fn payload_of(task: &RawTask, args: Option<&Value>, scope: &Scope<'_>) -> WorkflowPause {
-    let raw = args.cloned().unwrap_or(Value::Null);
-    let rendered = expr::render_json(&raw, scope).unwrap_or(raw);
+    let rendered = crate::approval::render_prompt_args(task, args, scope);
     let mode = rendered
         .get("mode")
         .and_then(Value::as_str)
@@ -365,6 +364,62 @@ mod tests {
         assert_eq!(pause.mode, "choice");
         assert_eq!(pause.message.as_deref(), Some("deploy?"), "rendered");
         assert_eq!(pause.choices, vec!["yes".to_owned(), "no".to_owned()]);
+    }
+
+    #[test]
+    fn pending_task_bindings_render_only_secret_reference_markers() {
+        let wf = parse(
+            r"nika: masked-review
+secrets:
+  token: {source: env, key: DEV_TOKEN}
+tasks:
+  ask:
+    with: {credential: '${{ secrets.token }}'}
+    invoke:
+      tool: nika:prompt
+      args:
+        mode: choice
+        message: 'Credential reference: ${{ with.credential }}'
+        choices: ['${{ with.credential }}', decline]
+",
+        );
+        let resolved = BTreeMap::from([(
+            "token".to_owned(),
+            serde_json::json!("synthetic-secret-must-not-appear"),
+        )]);
+        let ctx = crate::resume::ResumeContext::of(
+            &wf,
+            &resolved,
+            None,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            None,
+            &BTreeMap::new(),
+        );
+        let marker = ctx.markers()["token"].as_str().unwrap();
+        let pause = prompt_block(
+            &failed_finish("ask", PROMPT_BLOCKED_CODE),
+            &wf,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            ctx.markers(),
+            &crate::approval::ApprovalBook::new(),
+        )
+        .expect("blocked prompt");
+        assert_eq!(
+            pause.message,
+            Some(format!("Credential reference: {marker}"))
+        );
+        assert_eq!(pause.choices, vec![marker, "decline"]);
+        assert!(
+            !pause
+                .message
+                .as_ref()
+                .unwrap()
+                .contains("synthetic-secret-must-not-appear")
+        );
+        assert!(!pause.message.as_ref().unwrap().contains("${{"));
     }
 
     #[test]
