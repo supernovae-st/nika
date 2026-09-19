@@ -47,7 +47,7 @@ async fn hash_schema_reaches_each_wire_unchanged() {
         let response = resolved.infer(request).await;
         assert!(matches!(
             response,
-            Err(ProviderError::Api { status: 400, .. })
+            Err(ProviderError::HttpResponse { details }) if details.status() == 400
         ));
         let requests = http.sent_requests();
         assert_eq!(requests.len(), 1);
