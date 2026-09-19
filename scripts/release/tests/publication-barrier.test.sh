@@ -353,6 +353,19 @@ if [ "$1" = view ]; then
   case "$state" in
     equal|committed) printf '%s\n' "$NPM_SRI" ;;
     divergent) echo 'sha512-wrong' ;;
+    lag|lag-divergent)
+      count_file="$NPM_VIEW_COUNT"
+      n=0
+      [ ! -e "$count_file" ] || n="$(cat "$count_file")"
+      n=$((n + 1))
+      printf '%s\n' "$n" >"$count_file"
+      if [ "$n" -ge "${NPM_VISIBLE_AFTER:-8}" ]; then
+        [ "$state" = lag ] && printf '%s\n' "$NPM_SRI" || echo 'sha512-wrong'
+      else
+        echo 'npm ERR! code E404' >&2
+        exit 1
+      fi
+      ;;
     absent) echo 'npm ERR! code E404' >&2; exit 1 ;;
     unknown) echo 'npm ERR! code E500' >&2; exit 1 ;;
     mixed) echo 'npm ERR! code E500; code E401 unauthorized; secondary npm ERR! code E404' >&2; exit 1 ;;
@@ -361,7 +374,10 @@ if [ "$1" = view ]; then
 fi
 if [ "$1" = publish ]; then
   printf 'publish\n' >>"$NPM_LOG"
-  printf 'committed\n' >"$NPM_STATE"
+  case "$state" in
+    lag|lag-divergent) : ;; # visibility lag outlives the publish call
+    *) printf 'committed\n' >"$NPM_STATE" ;;
+  esac
   [ "${NPM_PUBLISH_ERROR:-0}" = 1 ] && exit 1
   exit 0
 fi
@@ -369,11 +385,14 @@ exit 90
 EOF
 cat >"$BIN/sleep" <<'EOF'
 #!/usr/bin/env bash
+[ -z "${SLEEP_LOG:-}" ] || printf '%s\n' "$1" >>"$SLEEP_LOG"
 exit 0
 EOF
 chmod +x "$BIN/npm" "$BIN/sleep"
 NPM_STATE="$TEST_ROOT/npm-state"
 NPM_LOG="$TEST_ROOT/npm-log"
+NPM_VIEW_COUNT="$TEST_ROOT/npm-view-count"
+SLEEP_LOG="$TEST_ROOT/sleep-log"
 : >"$NPM_LOG"
 printf 'equal\n' >"$NPM_STATE"
 PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
@@ -418,6 +437,128 @@ if PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI
   fail 'an absent version published without GitHub OIDC'
 fi
 [ "$(wc -l <"$NPM_LOG" | tr -d ' ')" = 2 ] || fail 'the OIDC barrier reached npm publish'
+
+# The 35396510947 race: the publish commits but the registry keeps answering
+# E404 past the old ~52s window. A bounded readiness budget rides out the lag,
+# still publishes exactly once, and never retries an occupied version.
+printf 'lag\n' >"$NPM_STATE"
+rm -f "$NPM_VIEW_COUNT"
+: >"$SLEEP_LOG"
+PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
+  NPM_VIEW_COUNT="$NPM_VIEW_COUNT" NPM_VISIBLE_AFTER=8 NIKA_NPM_READINESS_SECONDS=120 \
+  SLEEP_LOG="$SLEEP_LOG" \
+  ACTIONS_ID_TOKEN_REQUEST_URL=https://oidc.test ACTIONS_ID_TOKEN_REQUEST_TOKEN=test \
+  bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish x \
+  "$NPM_TGZ" "$NPM_SHA" >"$TEST_ROOT/npm-lag.out"
+grep -Fq 'publish committed with exact SRI' "$TEST_ROOT/npm-lag.out" \
+  || fail 'lagged visibility inside the readiness budget did not commit'
+[ "$(wc -l <"$NPM_LOG" | tr -d ' ')" = 3 ] || fail 'lagged visibility published more than once'
+[ "$(cat "$NPM_VIEW_COUNT")" = 8 ] || fail 'readiness stopped polling before the version was visible'
+[ "$(wc -l <"$SLEEP_LOG" | tr -d ' ')" = 6 ] \
+  || fail 'readiness polling did not sleep once per invisible cadence'
+[ -z "$(grep -vFx '10' "$SLEEP_LOG" || true)" ] \
+  || fail 'readiness polling slept a non-cadence interval'
+
+# A version that never becomes visible fails 69 inside the bounded window and
+# names the budget; the lookup count stays finite.
+printf 'lag\n' >"$NPM_STATE"
+rm -f "$NPM_VIEW_COUNT"
+: >"$SLEEP_LOG"
+rc=0
+PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
+  NPM_VIEW_COUNT="$NPM_VIEW_COUNT" NPM_VISIBLE_AFTER=99 NIKA_NPM_READINESS_SECONDS=20 \
+  SLEEP_LOG="$SLEEP_LOG" \
+  ACTIONS_ID_TOKEN_REQUEST_URL=https://oidc.test ACTIONS_ID_TOKEN_REQUEST_TOKEN=test \
+  bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish x \
+  "$NPM_TGZ" "$NPM_SHA" >"$TEST_ROOT/npm-timeout.out" 2>&1 || rc=$?
+[ "$rc" -eq 69 ] || fail 'never-visible publish did not fail 69 inside the budget'
+grep -Fq 'never became visible within 20s' "$TEST_ROOT/npm-timeout.out" \
+  || fail 'timeout refusal did not name the readiness budget'
+[ "$(cat "$NPM_VIEW_COUNT")" = 3 ] || fail 'readiness polling was not bounded by the budget'
+[ "$(cat "$SLEEP_LOG")" = 10 ] \
+  || fail 'a two-attempt budget did not sleep exactly one cadence'
+
+# A committed publish whose bytes diverge refuses on first sight, without
+# burning the budget.
+printf 'lag-divergent\n' >"$NPM_STATE"
+rm -f "$NPM_VIEW_COUNT"
+rc=0
+PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
+  NPM_VIEW_COUNT="$NPM_VIEW_COUNT" NPM_VISIBLE_AFTER=2 NIKA_NPM_READINESS_SECONDS=120 \
+  ACTIONS_ID_TOKEN_REQUEST_URL=https://oidc.test ACTIONS_ID_TOKEN_REQUEST_TOKEN=test \
+  bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish x \
+  "$NPM_TGZ" "$NPM_SHA" >"$TEST_ROOT/npm-divergent.out" 2>&1 || rc=$?
+[ "$rc" -eq 73 ] || fail 'divergent committed publish was not refused'
+grep -Fq 'REFUSED divergent committed publish' "$TEST_ROOT/npm-divergent.out" \
+  || fail 'divergent committed publish refusal lost its diagnosis'
+[ "$(cat "$NPM_VIEW_COUNT")" = 2 ] || fail 'divergent identity was not refused on first sight'
+
+# The budget validates as an integer of seconds and floors at one cadence, so
+# a tiny window still performs exactly one readiness lookup.
+rc=0
+before="$(wc -l <"$NPM_LOG" | tr -d ' ')"
+PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
+  NPM_VIEW_COUNT="$NPM_VIEW_COUNT" NIKA_NPM_READINESS_SECONDS=soon \
+  ACTIONS_ID_TOKEN_REQUEST_URL=https://oidc.test ACTIONS_ID_TOKEN_REQUEST_TOKEN=test \
+  bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish x \
+  "$NPM_TGZ" "$NPM_SHA" >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 64 ] || fail 'a non-integer readiness budget was accepted'
+[ "$(wc -l <"$NPM_LOG" | tr -d ' ')" = "$before" ] || fail 'budget validation reached npm publish'
+# A leading zero reads as decimal for `[ -ge ]` but octal for `$(( ))`, which
+# used to defeat the floor (010) or die mid-publish (090); zero is not
+# positive either. All refuse 64 before any registry write.
+for bad_budget in 010 090 0; do
+  rc=0
+  before="$(wc -l <"$NPM_LOG" | tr -d ' ')"
+  PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
+    NPM_VIEW_COUNT="$NPM_VIEW_COUNT" NIKA_NPM_READINESS_SECONDS="$bad_budget" \
+    ACTIONS_ID_TOKEN_REQUEST_URL=https://oidc.test ACTIONS_ID_TOKEN_REQUEST_TOKEN=test \
+    bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish x \
+    "$NPM_TGZ" "$NPM_SHA" >/dev/null 2>&1 || rc=$?
+  [ "$rc" -eq 64 ] || fail "leading-zero readiness budget $bad_budget was accepted"
+  [ "$(wc -l <"$NPM_LOG" | tr -d ' ')" = "$before" ] \
+    || fail "refused readiness budget $bad_budget reached npm publish"
+done
+# A budget below one cadence floors to exactly one attempt: the version never
+# shows, so the refusal is 69 within the floored 10s window after one
+# readiness lookup (the second view; the first is the pre-publish check).
+printf 'lag\n' >"$NPM_STATE"
+rm -f "$NPM_VIEW_COUNT"
+: >"$SLEEP_LOG"
+rc=0
+PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
+  NPM_VIEW_COUNT="$NPM_VIEW_COUNT" NPM_VISIBLE_AFTER=99 NIKA_NPM_READINESS_SECONDS=5 \
+  SLEEP_LOG="$SLEEP_LOG" \
+  ACTIONS_ID_TOKEN_REQUEST_URL=https://oidc.test ACTIONS_ID_TOKEN_REQUEST_TOKEN=test \
+  bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish x \
+  "$NPM_TGZ" "$NPM_SHA" >"$TEST_ROOT/npm-floor.out" 2>&1 || rc=$?
+[ "$rc" -eq 69 ] || fail 'the floored one-cadence budget did not refuse 69'
+grep -Fq 'never became visible within 10s' "$TEST_ROOT/npm-floor.out" \
+  || fail 'the floored budget refusal did not name the floored window'
+[ "$(cat "$NPM_VIEW_COUNT")" = 2 ] \
+  || fail 'the budget floor did not perform exactly one readiness lookup'
+[ ! -s "$SLEEP_LOG" ] || fail 'a single-attempt budget slept'
+
+# The default budget is pinned: with the variable unset the version stays
+# invisible through 30 cadence lookups and the refusal names 300s.
+printf 'lag\n' >"$NPM_STATE"
+rm -f "$NPM_VIEW_COUNT"
+: >"$SLEEP_LOG"
+rc=0
+PATH="$BIN:$PATH" NPM_STATE="$NPM_STATE" NPM_LOG="$NPM_LOG" NPM_SRI="$NPM_SRI" \
+  NPM_VIEW_COUNT="$NPM_VIEW_COUNT" NPM_VISIBLE_AFTER=99 SLEEP_LOG="$SLEEP_LOG" \
+  ACTIONS_ID_TOKEN_REQUEST_URL=https://oidc.test ACTIONS_ID_TOKEN_REQUEST_TOKEN=test \
+  bash "$ROOT/scripts/release/npm-publish-immutable.sh" publish x \
+  "$NPM_TGZ" "$NPM_SHA" >"$TEST_ROOT/npm-default.out" 2>&1 || rc=$?
+[ "$rc" -eq 69 ] || fail 'the default readiness budget did not refuse 69'
+grep -Fq 'never became visible within 300s' "$TEST_ROOT/npm-default.out" \
+  || fail 'the default readiness window is not 300s'
+[ "$(cat "$NPM_VIEW_COUNT")" = 31 ] \
+  || fail 'the default budget did not perform 30 readiness lookups'
+[ "$(wc -l <"$SLEEP_LOG" | tr -d ' ')" = 29 ] \
+  || fail 'the default budget did not sleep once per cadence between lookups'
+[ -z "$(grep -vFx '10' "$SLEEP_LOG" || true)" ] \
+  || fail 'the default budget slept a non-cadence interval'
 
 # OCI: absent/equal/divergent and label drift. The fake exposes two runnable
 # platforms plus their BuildKit attestations, like the real release index.
