@@ -16,6 +16,27 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.120.3](https://github.com/supernovae-st/nika/compare/v0.120.2..v0.120.3) - 2026-09-19
+
+### Added
+
+- **Serve authoring door (foundation).** `POST /v1/compile` is the
+  authenticated, bounded, synchronous HTTP transport of the same stateless
+  Compile core as `nika compile`: exact-skeleton CREATE, constant EDIT from
+  inline source and explicit literal answers return the candidate,
+  questions, unknowns, requested boundary, source-only Check preview and
+  provenance as data (HTTP 200 for `ready`, `incomplete` and `refused`). It
+  creates no job, run, approval or trace, writes no file, names no host
+  path and contacts no provider; ambient keys are never consent, and any
+  cognition other than `deterministicOnly` is a typed refusal. The preview
+  is a review, never admission: `POST /v1/jobs` judges a candidate again.
+  The machine document is now projected once, by
+  `nika_onboard::compile::outcome_document`; the CLI adds only `written`
+  and its `compile_version` 1 output is unchanged. Both doors advertise an
+  additive `compile` capability from their own separate lists, so clients
+  can refuse an older resident instead of compiling locally with a
+  different core. General language assembly, HOT/WARM/COLD resolution,
+  setup requirements and suggested bindings remain absent.
 ## [0.120.2](https://github.com/supernovae-st/nika/compare/v0.120.1..v0.120.2) - 2026-09-19
 
 ### Fixed
