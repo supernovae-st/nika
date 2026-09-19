@@ -59,6 +59,7 @@ impl CompileRequest {
     /// by the same operation as `Set const.NAME to JSON_LITERAL`. Invalid names,
     /// absent constants and malformed literals preserve the original source.
     /// Expression islands and root objects with both `type` and `value` are refused.
+    /// An integer outside the exact `i64` range is refused rather than rounded.
     /// The caller owns source selection, revision checks (CAS) and materialization.
     #[must_use]
     pub fn set_constant(
@@ -90,6 +91,8 @@ impl CompileRequest {
     /// Supply a JSON literal for a stable question key. Invalid answers are
     /// reported as incomplete authoring data by [`super::compile`], not thrown.
     /// Objects with both `type` and `value` are refused by this literal-only slice.
+    /// An integer outside the exact `i64` range is refused rather than rounded;
+    /// fraction and exponent literals are floats and quoted digits stay text.
     #[must_use]
     pub fn answer(mut self, key: impl Into<String>, literal_json: impl Into<String>) -> Self {
         self.answers.insert(key.into(), literal_json.into());

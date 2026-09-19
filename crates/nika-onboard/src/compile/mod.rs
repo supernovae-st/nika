@@ -10,6 +10,9 @@
 //! Unsupported intent stays incomplete, without guessed topology or hidden model calls.
 //! Re-emission refuses source whose literal semantics cannot be proven stable.
 //! Top-level answer objects with both `type` and `value` are refused in this slice.
+//! An integer answer outside the canonical reader's exact `i64` range is refused
+//! before decoding can round it, at any depth; fraction and exponent answers are
+//! floats, and quoted digits stay text. This is not arbitrary precision.
 //!
 //! `compile()` does not materialize files, execute workflows, probe credentials,
 //! resolve connections or grant permits. [`materialize_ready`] is the opt-in
@@ -51,6 +54,7 @@
 //! ```
 
 mod edit;
+mod edit_source;
 mod materialize;
 pub(crate) mod pattern;
 mod types;
@@ -233,7 +237,7 @@ fn create(
     }
     unknown_answers(request, &recognized, out);
     if changed {
-        finish_changed(source, &before, &doc, out)?;
+        finish_changed(source, &before, &doc, None, out)?;
     } else {
         finish(source.to_owned(), out);
     }
@@ -329,18 +333,23 @@ fn edit(
         &key,
         "Changed only the requested constant; task identities, other values and declared permits are preserved.",
     );
-    finish_changed(source, &before, &doc, out)
+    finish_changed(source, &before, &doc, Some(name), out)
 }
 
 fn finish_changed(
     source: &str,
     before: &Value,
     after: &Value,
+    constant_name: Option<&str>,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
-    if let Some(candidate) =
-        edit::emit_preserving(source, before, after).map_err(CompileError::representation)?
-    {
+    let candidate = match constant_name {
+        Some(name) => edit_source::emit(source, before, after, name),
+        None => {
+            edit::emit_preserving(source, before, after).map_err(CompileError::representation)?
+        }
+    };
+    if let Some(candidate) = candidate {
         finish(candidate, out);
     } else {
         out.diagnostics
@@ -350,7 +359,7 @@ fn finish_changed(
             out,
             DiagnosticKind::Refused,
             "candidate",
-            "Literal-preservation policy cannot prove safe re-emission of this source; no changes were applied.",
+            "Literal/source-preservation policy cannot prove a safe edit of this presentation; no changes were applied.",
         );
         finish(source.to_owned(), out);
     }
@@ -371,6 +380,22 @@ fn literal_answer(raw: Option<&str>, key: &str, out: &mut CompileOutcome) -> Opt
             return None;
         }
     };
+    // Judge the answer's own text: `value` already holds the rounded f64, so
+    // every later comparison would agree with the rounding.
+    if let Some(token) = edit::inexact_integer(raw) {
+        out.status = CompileStatus::Refused;
+        finding(
+            out,
+            DiagnosticKind::Refused,
+            key,
+            format!(
+                "Integer `{token}` is outside the exact integer range {} to {}; accepting it would silently round the answer. No value was applied.",
+                i64::MIN,
+                i64::MAX
+            ),
+        );
+        return None;
+    }
     if value.get("type").is_some() && value.get("value").is_some() {
         out.status = CompileStatus::Refused;
         finding(

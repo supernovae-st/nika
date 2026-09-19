@@ -21,6 +21,7 @@ nika-source = { path = "../nika-source", version = "0.120.1" }  # lexical progra
 nika-check  = { path = "../nika-check", version = "0.120.1" }  # the same pure Check core, without environment/admission probes
 
 serde_yaml_bw = { workspace = true } # deterministic emission; edits retain semantic regions
+marked-yaml = { workspace = true } # locate constant nodes with the canonical parser's YAML frontend
 thiserror = { workspace = true }
 miette = { workspace = true }
 nika-error = { path = "../nika-error", version = "0.120.1" } # compiler machinery failures retain the canonical error voice
