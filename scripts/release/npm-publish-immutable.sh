@@ -89,9 +89,12 @@ esac
 # first sight, and nothing here ever publishes twice. The budget validates
 # before any registry write.
 readiness_budget="${NIKA_NPM_READINESS_SECONDS:-300}"
+# `[ -ge ]` reads the budget as decimal while `$(( ))` reads it as octal, so
+# a leading zero would make the two disagree (010 floors to zero lookups, 090
+# dies mid-publish); reject it, zero, and six digits or more up front.
 case "$readiness_budget" in
-  '' | *[!0-9]*)
-    echo "npm barrier: NIKA_NPM_READINESS_SECONDS must be a positive integer of seconds" >&2
+  '' | *[!0-9]* | 0* | ??????*)
+    echo "npm barrier: NIKA_NPM_READINESS_SECONDS must be a positive integer of seconds (1-99999, no leading zeros)" >&2
     exit 64
     ;;
 esac
