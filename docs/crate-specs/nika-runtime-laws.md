@@ -35,3 +35,12 @@ The wave engine · dispatch · settle · recover · the pause and approval plane
 The shared engine identity advertises `inputsLiteral` for the CLI's bounded
 `run --inputs-json -` producer. This additive token does not rename Serve's
 `jobInputs` envelope capability or grant authority beyond declared inputs.
+
+### Native compile capability
+
+`supportedCapabilities` here is the NATIVE door's list; `nika-serve` projects
+its own, so neither door can advertise a route only the other serves. The
+additive `compile` token means exactly "`nika compile --json` speaks the
+`compile_version` 1 foundation wire" (exact-skeleton CREATE, constant EDIT,
+literal answers). It promises no authoring cognition beyond what that
+document's provenance states, and it grants no authority.

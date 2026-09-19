@@ -437,3 +437,95 @@ fn an_equals_prefixed_path_is_taught_as_a_word_no_shell_rewrites() {
         assert!(run.status.success(), "{run:?}");
     }
 }
+
+/// The shared parity set (`nika-onboard/tests/fixtures/compile_parity_v1.json`) also
+/// drives the core's own wire test and the Serve door: three doors, one document.
+#[test]
+fn the_cli_door_prints_the_core_document_for_every_shared_parity_case() {
+    use nika_onboard::compile::outcome_document;
+
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../nika-onboard/tests/fixtures/compile_parity_v1.json"
+    ))
+    .expect("parity fixture");
+    let mut judged = 0;
+    for case in fixture["cases"].as_array().expect("cases") {
+        let doors = case["doors"].as_array().expect("doors");
+        if !doors.iter().any(|door| door == "cli") {
+            continue;
+        }
+        let name = case["name"].as_str().expect("case name");
+        let native = &case["native"];
+        let text = |key: &str| native[key].as_str().expect("native text field");
+        let room = tempfile::tempdir().expect("room");
+        let mut args = vec!["compile".to_owned()];
+        let mut request = if text("mode") == "create" {
+            args.push(text("intent").to_owned());
+            CompileRequest::create(text("intent"))
+        } else {
+            assert_eq!(
+                text("mode"),
+                "edit",
+                "{name}: the CLI has no structured edit flag"
+            );
+            let source = fixture["sources"][text("source_ref")]
+                .as_str()
+                .expect("named source");
+            std::fs::write(room.path().join("base.nika"), source).expect("base");
+            for word in ["--base", "base.nika", "--change", text("change_text")] {
+                args.push(word.to_owned());
+            }
+            CompileRequest::edit(source, text("change_text"))
+        };
+        for pair in native["answers"].as_array().into_iter().flatten() {
+            let key = pair[0].as_str().expect("answer key");
+            let literal = pair[1].as_str().expect("answer literal text");
+            args.push("--answer".to_owned());
+            args.push(format!("{key}={literal}"));
+            request = request.answer(key, literal);
+        }
+        args.push("--json".to_owned());
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        let out = call(room.path(), &args);
+        let mut printed = result(&out);
+        // `written` is the one fact only this door owns; the rest is the core's.
+        let written = printed.as_object_mut().expect("document").remove("written");
+        assert_eq!(
+            written,
+            Some(Value::Null),
+            "{name}: a preview writes nothing"
+        );
+        // Both sides cross the same printer and parser, so a float in the Check report
+        // cannot differ by a parse round trip alone.
+        let core = outcome_document(&compile(&request).expect("core")).to_string();
+        let core: Value = serde_json::from_str(&core).expect("core document");
+        assert_eq!(printed, core, "{name}");
+        let expected_exit = if core["status"] == "ready" { 0 } else { 2 };
+        assert_eq!(out.status.code(), Some(expected_exit), "{name}");
+        if let Some(status) = case["expect"]["status"].as_str() {
+            assert_eq!(printed["status"], status, "{name}");
+        }
+        judged += 1;
+    }
+    assert!(judged >= 25, "the CLI parity set shrank: {judged}");
+}
+
+#[test]
+fn the_native_identity_advertises_the_compile_wire_it_really_serves() {
+    let room = tempfile::tempdir().expect("room");
+    let identity = result(&call(room.path(), &["--sdk-identity"]));
+    assert!(
+        identity["supportedCapabilities"]
+            .as_array()
+            .expect("capabilities")
+            .iter()
+            .any(|token| token == "compile"),
+        "{identity}"
+    );
+    // The token is a promise about THIS door: it answers the generation it names.
+    let listed = result(&call(room.path(), &["compile", "--list", "--json"]));
+    assert_eq!(listed["compile_version"], 1);
+    let hello = result(&call(room.path(), &["compile", "hello", "--json"]));
+    assert_eq!(hello["compile_version"], 1);
+    assert_eq!(hello["status"], "ready");
+}

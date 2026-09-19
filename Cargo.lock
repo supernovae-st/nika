@@ -5061,6 +5061,7 @@ dependencies = [
  "nika-event",
  "nika-execution",
  "nika-fs",
+ "nika-onboard",
  "nika-runtime",
  "nika-service-execution",
  "nika-source",

@@ -65,7 +65,13 @@ pub struct ServerLimits {
     sse_heartbeat: Duration,
     sse_reconnect: Duration,
     default_max_cost_usd: Option<f64>,
+    max_compile_requests: usize,
 }
+
+/// Concurrent `POST /v1/compile` computations out of the box. Authoring is
+/// CPU-bound and cannot be cancelled once started, so at most this many may
+/// occupy the blocking pool that admission and registry reads also use.
+const DEFAULT_MAX_COMPILE_REQUESTS: usize = 4;
 
 impl ServerLimits {
     /// Construct every server ceiling explicitly.
@@ -95,7 +101,16 @@ impl ServerLimits {
             sse_heartbeat: Duration::from_secs(15),
             sse_reconnect: Duration::from_secs(1),
             default_max_cost_usd: Some(DEFAULT_MAX_COST_USD),
+            max_compile_requests: DEFAULT_MAX_COMPILE_REQUESTS,
         }
+    }
+
+    /// Replace the concurrent authoring (`POST /v1/compile`) ceiling. The next
+    /// request beyond it is refused `compile_busy`; nothing queues.
+    #[must_use]
+    pub const fn with_max_compile_requests(mut self, max_compile_requests: usize) -> Self {
+        self.max_compile_requests = max_compile_requests;
+        self
     }
 
     /// Replace the durable job-record ceiling.
@@ -142,6 +157,7 @@ impl ServerLimits {
             && self.max_headers != 0
             && self.max_jobs != 0
             && self.max_sse_clients != 0
+            && self.max_compile_requests != 0
             && !self.sse_heartbeat.is_zero()
             && self.sse_reconnect.as_millis() >= 100
             && self.sse_reconnect.as_millis() <= 30_000
@@ -201,6 +217,10 @@ impl ServerLimits {
 
     pub(crate) const fn default_max_cost_usd(self) -> Option<f64> {
         self.default_max_cost_usd
+    }
+
+    pub(crate) const fn max_compile_requests(self) -> usize {
+        self.max_compile_requests
     }
 
     /// The run's effective per-run spend ceiling (#1349): a declaration

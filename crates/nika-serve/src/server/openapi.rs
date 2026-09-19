@@ -12,7 +12,7 @@ pub(crate) fn document() -> Value {
         "info": {
             "title": "nika serve",
             "version": env!("CARGO_PKG_VERSION"),
-            "description": "Authenticated loopback remote execution and declarative schedules. Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
+            "description": "Authenticated loopback remote execution, declarative schedules and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
         },
         "servers": [{"url": "http://127.0.0.1"}],
         "security": [{"bearerAuth": []}],
@@ -88,6 +88,23 @@ fn job_schema() -> Value {
 }
 
 fn schemas() -> Value {
+    let mut schemas = core_schemas();
+    // The compile door's schemas join outside the literal below: `json!` expands
+    // recursively per token, and that literal is already the crate's largest.
+    if let Some(named) = schemas.as_object_mut() {
+        named.insert(
+            "CompileRequest".to_owned(),
+            super::compile::schema::request(),
+        );
+        named.insert(
+            "CompileOutcome".to_owned(),
+            super::compile::schema::outcome(),
+        );
+    }
+    schemas
+}
+
+fn core_schemas() -> Value {
     json!({
             "Health": health_schema(),
             "WorkflowList": workflow_list_schema(),
@@ -420,6 +437,7 @@ fn paths() -> Value {
         "/v1/workflows/{name}": workflow_metadata_path(),
         "/v1/jobs": jobs_path(),
         "/v1/check": check_path(),
+        "/v1/compile": super::compile::schema::path(),
         "/v1/jobs/{id}": job_path(),
         "/v1/jobs/{id}/status": job_status_path(),
         "/v1/jobs/{id}/events": job_events_path(),
@@ -678,6 +696,7 @@ mod tests {
         "/v1/workflows",
         "/v1/workflows/{name}",
         "/v1/check",
+        "/v1/compile",
         "/v1/jobs",
         "/v1/jobs/{id}",
         "/v1/jobs/{id}/status",

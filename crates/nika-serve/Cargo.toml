@@ -25,6 +25,7 @@ nika-execution = { path = "../nika-execution", version = "0.120.1" }
 nika-service-execution = { path = "../nika-service-execution", version = "0.120.1" }
 nika-event             = { path = "../nika-event", version = "0.120.1" }   # the settlement's RunState — JobStatus is its projection (ADR-130)
 nika-fs    = { path = "../nika-fs", version = "0.120.1" }
+nika-onboard = { path = "../nika-onboard", version = "0.120.1" }  # shared stateless Compile core and wire projection (lateral L4→L4 · #1670)
 nika-runtime = { path = "../nika-runtime", version = "0.120.1" }
 nika-trace   = { path = "../nika-trace", version = "0.120.1" }    # the ONE verifier `nika trace verify` runs — the verify route projects its machine document (lateral L4→L4 · the nika-mcp → nika-cli-host precedent)
 nika-types = { path = "../nika-types", version = "0.120.1" }
@@ -32,7 +33,7 @@ nika-vocab = { path = "../nika-vocab", version = "0.120.1" }
 nika-source = { path = "../nika-source", version = "0.120.1" } # lexical program-source naming (#1684)
 nix        = { workspace = true, features = ["fs"] }
 serde      = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["raw_value"] }  # RawValue — a compile answer reaches the core as the literal text the caller sent, parsed once (CLI parity · additive type, no behaviour change)
 sha2       = { workspace = true }
 subtle     = { workspace = true }
 thiserror  = { workspace = true }

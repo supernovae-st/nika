@@ -3,9 +3,9 @@
 
 use crate::output::{VerbOutput, exit};
 use nika_onboard::compile::{
-    AuthoringCognition, CompileOutcome, CompileStatus, DiagnosticKind, PreviewScope, QuestionType,
+    COMPILE_WIRE_VERSION, CompileOutcome, CompileStatus, outcome_document,
 };
-use serde_json::{Value, json};
+use serde_json::json;
 use std::fmt::Write as _;
 
 pub(super) fn listing(json_output: bool) -> VerbOutput {
@@ -14,7 +14,7 @@ pub(super) fn listing(json_output: bool) -> VerbOutput {
     names.sort();
     names.dedup();
     VerbOutput::ok(if json_output {
-        json!({"compile_version":1,"skeletons":names}).to_string()
+        json!({"compile_version":COMPILE_WIRE_VERSION,"skeletons":names}).to_string()
     } else {
         format!(
             "exact skeletons · {}\nPreview: nika compile <slug> · write: nika compile <slug> <file>.nika",
@@ -27,7 +27,8 @@ pub(super) fn failure(code: &str, message: &str, exit: u8, json_output: bool) ->
     VerbOutput {
         code: exit,
         text: if json_output {
-            json!({"compile_version":1,"error":{"code":code,"message":message}}).to_string()
+            json!({"compile_version":COMPILE_WIRE_VERSION,"error":{"code":code,"message":message}})
+                .to_string()
         } else {
             message.to_owned()
         },
@@ -39,11 +40,7 @@ pub(super) fn outcome(
     written: Option<&str>,
     json_output: bool,
 ) -> VerbOutput {
-    let status = match out.status {
-        CompileStatus::Ready => "ready",
-        CompileStatus::Refused => "refused",
-        _ => "incomplete",
-    };
+    let status = out.status.word();
     // FILE is the existing authoring/validation finding class (2); trace's
     // INCOMPLETE (5) judges an unfinished journal, not authoring questions.
     let code = if out.status == CompileStatus::Ready {
@@ -52,19 +49,13 @@ pub(super) fn outcome(
         exit::FILE
     };
     let text = if json_output {
-        let questions: Vec<Value> = out.questions.iter().map(|q| json!({
-            "key":q.key,"label":q.label,"type":match q.answer_type { QuestionType::Text => "text", QuestionType::Literal => "literal", _ => "unknown" },
-            "why":q.why,"mandatory":q.mandatory })).collect();
-        let diagnostics: Vec<Value> = out
-            .diagnostics
-            .iter()
-            .map(|d| json!({"kind":kind(d.kind),"target":d.target,"message":d.message}))
-            .collect();
-        let preview = out.check_preview.as_ref().map(|p| json!({"scope":match p.scope { PreviewScope::SourceOnly => "sourceOnly", _ => "unknown" },"report":p.report}));
-        json!({"compile_version":1,"status":status,"candidate":out.candidate,"questions":questions,
-            "diagnostics":diagnostics,"requested_boundary":out.requested_boundary,"check_preview":preview,
-            "provenance":{"compiler_version":out.provenance.compiler_version,"spec_pin":out.provenance.spec_pin,
-                "skeleton":out.provenance.skeleton,"cognition":match out.provenance.cognition { AuthoringCognition::DeterministicOnly => "deterministicOnly", _ => "unknown" }},"written":written}).to_string()
+        // The core owns the machine document every transport prints. Only this
+        // adapter materializes files, so `written` is the one fact it adds.
+        let mut document = outcome_document(out);
+        if let Some(object) = document.as_object_mut() {
+            object.insert("written".to_owned(), json!(written));
+        }
+        document.to_string()
     } else {
         let preview = if out.check_preview.is_some() {
             "source-only Check preview"
@@ -80,7 +71,7 @@ pub(super) fn outcome(
             );
         }
         for d in &out.diagnostics {
-            let _ = writeln!(text, "{} · {} · {}", kind(d.kind), d.target, d.message);
+            let _ = writeln!(text, "{} · {} · {}", d.kind.word(), d.target, d.message);
         }
         if let Some(dest) = written {
             let run_path = if dest.starts_with('-') {
@@ -101,14 +92,4 @@ pub(super) fn outcome(
         text
     };
     VerbOutput { text, code }
-}
-
-fn kind(kind: DiagnosticKind) -> &'static str {
-    match kind {
-        DiagnosticKind::Applied => "applied",
-        DiagnosticKind::Missed => "missed",
-        DiagnosticKind::RequiresHuman => "requiresHuman",
-        DiagnosticKind::Refused => "refused",
-        _ => "unknown",
-    }
 }

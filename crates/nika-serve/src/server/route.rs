@@ -209,6 +209,7 @@ async fn route_authenticated(
         }
         (&Method::POST, "/v1/jobs") => create_job(request, state).await,
         (&Method::POST, "/v1/check") => check_snapshot(request, state).await,
+        (&Method::POST, "/v1/compile") => super::compile::handle(request, state).await,
         (&Method::POST, path) if path.ends_with("/cancel") => cancel_job(path, &state).await,
         (&Method::GET, "/v1/openapi.json") => {
             json_response(StatusCode::OK, &super::openapi::document())
@@ -449,7 +450,8 @@ fn admission_refused() -> ApiError {
     )
 }
 
-fn refuse_snapshot_envelope(request: &Request<Incoming>) -> Option<ApiError> {
+/// The JSON-only request gate every body-carrying door shares (jobs · check · compile).
+pub(super) fn refuse_snapshot_envelope(request: &Request<Incoming>) -> Option<ApiError> {
     if !is_json(request.headers()) {
         return Some(ApiError::new(
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
@@ -872,7 +874,7 @@ pub(super) async fn collect_body(
         })
 }
 
-async fn drain_oversized_body(request: Request<Incoming>) {
+pub(super) async fn drain_oversized_body(request: Request<Incoming>) {
     let mut body = request.into_body();
     while matches!(body.frame().await, Some(Ok(_))) {}
 }
@@ -908,7 +910,7 @@ fn invalid_idempotency_key() -> ApiError {
     )
 }
 
-fn content_length(request: &Request<Incoming>) -> Result<Option<usize>, ()> {
+pub(super) fn content_length(request: &Request<Incoming>) -> Result<Option<usize>, ()> {
     let mut values = request.headers().get_all(CONTENT_LENGTH).iter();
     let Some(value) = values.next() else {
         return Ok(None);
@@ -958,7 +960,7 @@ fn job_not_found() -> Response<ResponseBody> {
     ApiError::job_not_found().into_response()
 }
 
-fn body_too_large() -> ApiError {
+pub(super) fn body_too_large() -> ApiError {
     ApiError::new(
         StatusCode::PAYLOAD_TOO_LARGE,
         "body_too_large",

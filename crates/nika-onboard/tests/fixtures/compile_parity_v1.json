@@ -1,0 +1,722 @@
+{
+  "compile_version": 1,
+  "about": "Identical Compile requests for every door. `native` is the recipe for the core and the CLI (answers are [key, literal text] exactly as `--answer KEY=LITERAL` passes them). `http_body` is the verbatim POST /v1/compile body; @@SOURCE:name@@ stands for the JSON-encoded source. `expect` holds only facts the foundation suite already proves; an empty `expect` means door-versus-core equality is the whole claim.",
+  "sources": {
+    "policy": "nika: policy\nconst:\n  cap: {type: integer, value: 500}\n  region: France\npermits: {tools: ['nika:jq']}\ntasks:\n  cap:\n    invoke:\n      tool: nika:jq\n      args: {input: '${{ const.cap }}', expression: '.'}\n",
+    "literal": "nika: literal-edit\nconst: {payload: 0}\npermits: {tools: ['nika:jq']}\ntasks:\n  echo:\n    invoke:\n      tool: nika:jq\n      args: {input: '${{ const.payload }}', expression: '.'}\n",
+    "invalid": "nika: invalid\nconst: {x: 1}\ntasks:\n  effect:\n    exec: {command: [sh, -c, 'echo unsafe']}\n",
+    "malformed": "nika: [bad",
+    "mcp_preview": "nika: mcp-preview\nconst: {payload: original}\npermits: {tools: [\"mcp:unconfigured/send\"]}\ntasks:\n  remote:\n    invoke:\n      tool: mcp:unconfigured/send\n      args: {input: \"${{ const.payload }}\"}\n"
+  },
+  "cases": [
+    {
+      "name": "ready_hello",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "create",
+        "intent": "hello"
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"create\",\"intent\":\"hello\"}",
+      "expect": {
+        "status": "ready",
+        "candidate": "present",
+        "skeleton": "hello",
+        "question_keys": [],
+        "preview": "present"
+      }
+    },
+    {
+      "name": "incomplete_unknown_intent",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "create",
+        "intent": "Route support tickets, look up the customer, draft a reply, and ask me before any refund."
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"create\",\"intent\":\"Route support tickets, look up the customer, draft a reply, and ask me before any refund.\"}",
+      "expect": {
+        "status": "incomplete",
+        "candidate": "absent",
+        "skeleton": null,
+        "preview": "absent",
+        "diagnostics": [
+          [
+            "unknown",
+            "intent"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "questions_pending",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "create",
+        "intent": "classify-and-route"
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"create\",\"intent\":\"classify-and-route\"}",
+      "expect": {
+        "status": "incomplete",
+        "candidate": "present",
+        "skeleton": "classify-and-route",
+        "question_keys": [
+          "const.request"
+        ],
+        "preview": "present"
+      }
+    },
+    {
+      "name": "questions_answered",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "create",
+        "intent": "classify-and-route",
+        "answers": [
+          [
+            "const.request",
+            "\"A widespread outage is affecting support customers.\""
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"create\",\"intent\":\"classify-and-route\",\"answers\":{\"const.request\":\"A widespread outage is affecting support customers.\"}}",
+      "expect": {
+        "status": "ready",
+        "candidate": "present",
+        "skeleton": "classify-and-route",
+        "question_keys": [],
+        "diagnostics": [
+          [
+            "applied",
+            "const.request"
+          ]
+        ],
+        "preview": "present"
+      }
+    },
+    {
+      "name": "refused_expression_literal",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "create",
+        "intent": "classify-and-route",
+        "answers": [
+          [
+            "const.request",
+            "\"${{ secrets.token }}\""
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"create\",\"intent\":\"classify-and-route\",\"answers\":{\"const.request\":\"${{ secrets.token }}\"}}",
+      "expect": {
+        "status": "refused",
+        "candidate": "present",
+        "diagnostics": [
+          [
+            "refused",
+            "const.request"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "unknown_answer_cannot_rewrite_authority",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "create",
+        "intent": "classify-and-route",
+        "answers": [
+          [
+            "const.request",
+            "\"outage\""
+          ],
+          [
+            "permits.exec",
+            "[\"sh\"]"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"create\",\"intent\":\"classify-and-route\",\"answers\":{\"const.request\":\"outage\",\"permits.exec\":[\"sh\"]}}",
+      "expect": {
+        "status": "incomplete",
+        "candidate": "present",
+        "diagnostics": [
+          [
+            "missed",
+            "permits.exec"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "edit_unsupported_change_keeps_source",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "policy",
+        "change_text": "Replace Slack with Teams and remove approval"
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:policy@@,\"change\":{\"text\": \"Replace Slack with Teams and remove approval\"}}",
+      "expect": {
+        "status": "incomplete",
+        "candidate": "source",
+        "diagnostics": [
+          [
+            "unknown",
+            "change_request"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "edit_changed_constant",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "policy",
+        "change_text": "Set const.cap to 250"
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:policy@@,\"change\":{\"text\": \"Set const.cap to 250\"}}",
+      "expect": {
+        "status": "ready",
+        "candidate": "changed",
+        "diagnostics": [
+          [
+            "applied",
+            "const.cap"
+          ]
+        ],
+        "preview": "present",
+        "boundary_mentions": [
+          "nika:jq"
+        ]
+      }
+    },
+    {
+      "name": "edit_set_constant_structured",
+      "doors": [
+        "core",
+        "serve"
+      ],
+      "native": {
+        "mode": "set_constant",
+        "source_ref": "policy",
+        "name": "cap",
+        "literal": "250"
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:policy@@,\"change\":{\"set_constant\":{\"name\":\"cap\",\"value\":250}}}",
+      "expect": {
+        "status": "ready",
+        "candidate": "changed",
+        "diagnostics": [
+          [
+            "applied",
+            "const.cap"
+          ]
+        ],
+        "same_candidate_as": "edit_changed_constant"
+      }
+    },
+    {
+      "name": "edit_question_pending",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "policy",
+        "change_text": "Set const.cap"
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:policy@@,\"change\":{\"text\": \"Set const.cap\"}}",
+      "expect": {
+        "status": "incomplete",
+        "candidate": "source",
+        "question_keys": [
+          "const.cap"
+        ]
+      }
+    },
+    {
+      "name": "edit_question_answered",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "policy",
+        "change_text": "Set const.cap",
+        "answers": [
+          [
+            "const.cap",
+            "250"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:policy@@,\"change\":{\"text\": \"Set const.cap\"},\"answers\":{\"const.cap\":250}}",
+      "expect": {
+        "status": "ready",
+        "candidate": "changed",
+        "same_candidate_as": "edit_changed_constant"
+      }
+    },
+    {
+      "name": "edit_invalid_base_is_incomplete_never_repaired",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "invalid",
+        "change_text": "Set const.x to 2"
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:invalid@@,\"change\":{\"text\": \"Set const.x to 2\"}}",
+      "expect": {
+        "status": "incomplete",
+        "candidate": "source",
+        "preview": "present",
+        "diagnostics": [
+          [
+            "missed",
+            "base_workflow"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "edit_malformed_base",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "malformed",
+        "change_text": "Set const.x to 2"
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:malformed@@,\"change\":{\"text\": \"Set const.x to 2\"}}",
+      "expect": {
+        "status": "incomplete",
+        "candidate": "source",
+        "preview": "absent"
+      }
+    },
+    {
+      "name": "edit_cannot_rename_its_base",
+      "doors": [
+        "core",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "policy",
+        "change_text": "Set const.cap to 250",
+        "workflow_id": "renamed"
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:policy@@,\"change\":{\"text\": \"Set const.cap to 250\"},\"workflow_id\":\"renamed\"}",
+      "expect": {
+        "status": "refused",
+        "candidate": "source",
+        "diagnostics": [
+          [
+            "refused",
+            "nika"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "create_names_the_workflow",
+      "doors": [
+        "core",
+        "serve"
+      ],
+      "native": {
+        "mode": "create",
+        "intent": "hello",
+        "workflow_id": "my-flow"
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"create\",\"intent\":\"hello\",\"workflow_id\":\"my-flow\"}",
+      "expect": {
+        "status": "ready",
+        "candidate": "present",
+        "skeleton": "hello"
+      }
+    },
+    {
+      "name": "literal_float_fraction",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "0.1"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":0.1}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_float_exponent_spelling",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "1E+2"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":1E+2}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_float_negative_zero",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "-0.0"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":-0.0}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_float_long_mantissa",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "3.141592653589793238462643383279"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":3.141592653589793238462643383279}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_float_overflow",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "1e400"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":1e400}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_integer_beyond_u64",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "12345678901234567890123"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":12345678901234567890123}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_integer_i64_min",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "-9223372036854775808"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":-9223372036854775808}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_escaped_string",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "\"say \\\"hi\\\"\\\\ \\n\\ttab\""
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":\"say \\\"hi\\\"\\\\ \\n\\ttab\"}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_unicode_escapes",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "\"caf\\u00e9 \\ud83d\\ude00\""
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":\"caf\\u00e9 \\ud83d\\ude00\"}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_unicode_raw",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "\"réunion — 日本語 😀 ‮RTL‍\""
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":\"réunion — 日本語 😀 ‮RTL‍\"}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_lone_surrogate_escape",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "\"\\ud800\""
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":\"\\ud800\"}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_nul_escape",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "\"a\\u0000b\""
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":\"a\\u0000b\"}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_null_literal",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "null"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":null}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_nested_object",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "{\"a\":[1,{\"b\":null}],\"c\":\"d\"}"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":{\"a\":[1,{\"b\":null}],\"c\":\"d\"}}}",
+      "expect": {}
+    },
+    {
+      "name": "literal_deep_nesting",
+      "doors": [
+        "core",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "literal",
+        "change_text": "Set const.payload",
+        "answers": [
+          [
+            "const.payload",
+            "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"
+          ]
+        ]
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:literal@@,\"change\":{\"text\": \"Set const.payload\"},\"answers\":{\"const.payload\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}}",
+      "expect": {}
+    },
+    {
+      "name": "mcp_source_stays_unresolved_without_io",
+      "doors": [
+        "core",
+        "cli",
+        "serve"
+      ],
+      "native": {
+        "mode": "edit",
+        "source_ref": "mcp_preview",
+        "change_text": "Set const.payload to \"reviewed\""
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"edit\",\"source\":@@SOURCE:mcp_preview@@,\"change\":{\"text\":\"Set const.payload to \\\"reviewed\\\"\"}}",
+      "expect": {
+        "status": "incomplete",
+        "candidate": "changed",
+        "preview": "present",
+        "diagnostics": [
+          [
+            "unknown",
+            "remote"
+          ]
+        ]
+      }
+    }
+  ]
+}

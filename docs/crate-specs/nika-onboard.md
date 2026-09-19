@@ -109,6 +109,23 @@ the same schema door, reads Check `needed` as the membrane, and never text-scans
 comments. Task ids come from the `tasks:` map only. It is not a public YAML key,
 a fifth verb, or an SDK noun, and it does not change CREATE/EDIT.
 
+### The one machine document (`compile_version` 1)
+
+`outcome_document(&CompileOutcome) -> serde_json::Value` is the single machine
+projection of an outcome, and `COMPILE_WIRE_VERSION` its generation. Every
+transport prints it: `nika compile --json` (which adds only `written`, the one
+fact that adapter owns) and Serve's `POST /v1/compile` (#1670). `CompileStatus::word`
+and `DiagnosticKind::word` are its status and disposition words. A transport
+never re-projects an outcome, so the doors cannot drift on status words,
+question shapes, the requested boundary or the Check preview. This renders
+typed results: it is not a second IR and it carries no authoring semantics.
+
+`tests/fixtures/compile_parity_v1.json` holds identical requests for every
+door: a native recipe for the core and the CLI, and the verbatim HTTP body for
+Serve. Each door's test asserts that it prints this core's document for the
+same request. An empty `expect` means door-versus-core equality is the whole
+claim; no case asserts more than the foundation suite already proves.
+
 ## The injected seams
 
 The composition root (`nika-cli`) owns what proving and wiring MEAN;
