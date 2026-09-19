@@ -111,6 +111,7 @@ pub fn outcome_document(out: &CompileOutcome) -> Value {
             "model": receipt.model, "calls": receipt.calls,
             "input_tokens": receipt.input_tokens, "output_tokens": receipt.output_tokens,
             "elapsed_ms": receipt.elapsed_ms,
+            "sampling": {"temperature": null, "seed": null, "effective": "providerDefaultUnknown"},
         });
     }
     document

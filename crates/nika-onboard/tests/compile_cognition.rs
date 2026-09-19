@@ -33,6 +33,8 @@ impl ProviderInferDyn for Provider {
         assert_eq!(request.max_tokens, Some(1024));
         assert_eq!(request.timeout, Some(Duration::from_secs(2)));
         assert!(request.tools.is_empty());
+        assert!(request.temperature.is_none());
+        assert!(request.extra.params.is_empty());
         Ok(InferResponse::new(
             vec![ContentBlock::Text {
                 text: self.text.clone(),
@@ -64,6 +66,10 @@ async fn provider_opt_in_returns_real_questions_and_versioned_usage() {
     assert_eq!(doc["compile_version"], 2);
     assert_eq!(doc["provenance"]["cognition"], "explicitProvider");
     assert_eq!(doc["provenance"]["authoring"]["calls"], 1);
+    assert_eq!(
+        doc["provenance"]["authoring"]["sampling"],
+        json!({"temperature":null,"seed":null,"effective":"providerDefaultUnknown"})
+    );
     assert_eq!(doc["provenance"]["authoring"]["input_tokens"], 120);
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
     let out = compile_with_provider(
@@ -168,7 +174,7 @@ async fn clarification_is_explicit_request_data_and_is_consumed_on_recompile() {
     let out = compile_with_provider(
         &request().answer(
             "intent.clarification",
-            r#""Use a JSON customer directory and keep the reply as a draft.""#,
+            serde_json::to_string(INTENT).unwrap(),
         ),
         &provider,
     )
@@ -253,4 +259,89 @@ async fn recognized_send_omission_never_becomes_a_draft_only_candidate() {
             .iter()
             .any(|q| q.key == "intent.clarification")
     );
+}
+
+#[tokio::test]
+async fn unfamiliar_language_is_not_a_deterministic_contradiction() {
+    for (intent, lookup, classify, draft, effect) in [
+        (
+            "读取客户资料，分类工单并起草回复。任何退款前先获得我的确认。",
+            "读取客户资料",
+            "分类工单",
+            "起草回复",
+            "任何退款前先获得我的确认",
+        ),
+        (
+            "Consulta los datos del cliente, clasifica la solicitud y redacta una respuesta. Antes de devolver dinero, pide mi autorización.",
+            "Consulta los datos del cliente",
+            "clasifica la solicitud",
+            "redacta una respuesta",
+            "Antes de devolver dinero, pide mi autorización",
+        ),
+        (
+            "顧客情報を検索し、問い合わせを分類して返信案を作成する。返金する前に私の承認を求める。",
+            "顧客情報を検索",
+            "問い合わせを分類",
+            "返信案を作成",
+            "返金する前に私の承認を求める",
+        ),
+    ] {
+        let proposal = json!({"steps":[{"operation":"lookup","evidence":lookup},{"operation":"classify","evidence":classify},{"operation":"draft","evidence":draft}],"effect":"human_first_refund","effect_evidence":effect,"unknowns":[]});
+        let req = CompileRequest::create(intent).with_authoring_policy(AuthoringPolicy::new(
+            "mock/authoring",
+            1024,
+            Duration::from_secs(2),
+        ));
+        let out = compile_with_provider(&req, &Provider::new(proposal))
+            .await
+            .unwrap();
+        assert!(
+            out.questions.iter().any(|q| q.key == "const.refund_policy"),
+            "{out:#?}"
+        );
+        assert!(
+            !out.questions
+                .iter()
+                .any(|q| q.key == "intent.clarification")
+        );
+    }
+}
+
+#[tokio::test]
+async fn complete_explicit_replacement_resolves_old_automatic_refund_request() {
+    let req = CompileRequest::create(format!("{INTENT} Refund automatically."))
+        .with_authoring_policy(AuthoringPolicy::new(
+            "mock/authoring",
+            1024,
+            Duration::from_secs(2),
+        ))
+        .answer(
+            "intent.clarification",
+            serde_json::to_string(INTENT).unwrap(),
+        );
+    let out = compile_with_provider(&req, &Provider::new(plan()))
+        .await
+        .unwrap();
+    assert!(
+        out.questions.iter().any(|q| q.key == "const.refund_policy"),
+        "{out:#?}"
+    );
+    assert!(
+        !out.questions
+            .iter()
+            .any(|q| q.key == "intent.clarification")
+    );
+}
+
+#[tokio::test]
+async fn replacement_fragment_does_not_inherit_unstated_operations() {
+    let req = request().answer(
+        "intent.clarification",
+        r#""Instead require fresh approval.""#,
+    );
+    let out = compile_with_provider(&req, &Provider::new(plan()))
+        .await
+        .unwrap();
+    assert!(out.candidate.is_none());
+    assert!(!out.questions.iter().any(|q| q.key == "const.refund_policy"));
 }

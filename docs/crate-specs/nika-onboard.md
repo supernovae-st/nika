@@ -70,8 +70,13 @@ approval freshness across executions; Run remains responsible for admission.
 kernel `ProviderInferDyn` seam. Limits are 1..8192 output tokens, at most 120
 seconds, and 32768 input-intent bytes. No retries occur. The provider returns a
 closed private JSON semantic plan with exact intent excerpts, operation kinds,
-one effect-policy enum and unresolved regions. Invalid plans, unsupported
-effects, contradictory policy and unknown work stay incomplete. The compiler
+one effect-policy enum and unresolved regions. `intent.clarification` asks for
+a complete replacement request, explicitly superseding the earlier intent; the
+caller must restate all work still wanted. A fragment cannot implicitly inherit
+old operations, and stale contradictions are not appended to the new request.
+A reusable program for one ticket per invocation is supported; durable schedules, subscriptions, polling and
+cross-run callback/deduplication handling remain outside this slice.
+Invalid plans, unsupported effects, contradictory policy and unknown work stay incomplete. The compiler
 owns task identities, bindings, permits, emission and Check. Neither a source
 excerpt nor model confidence is a proof of semantic equivalence. Independent
 qualification is still required.
@@ -89,6 +94,10 @@ attempt emits generation 2 with cognition `explicitProvider` and an
 when unreported), and elapsed milliseconds. No plan IR is public. Generation-1
 clients must not consume generation 2 until they explicitly support it.
 Authoring usage is not runtime execution proof or an asserted billing cost.
+The generation-2 receipt records `sampling` with null `temperature` and `seed`
+(omitted requests) and `effective: providerDefaultUnknown`. Provider defaults
+are not known here: no deterministic or repeatable authoring claim follows.
+Deterministic assembly and provider repeatability are separate properties.
 
 For the local JSON-directory motif, Check's trifecta ingress leg (network/MCP
 content) is absent: an empty `trifecta_mitigations` list is not a credited-gate
@@ -105,6 +114,7 @@ review data, never an automatic eligibility program.
 
 A conservative finite EN/FR sensitive-phrase backstop rejects recognized model
 omissions and inserted approval over recognized automatic-refund instructions.
+Absence of recognized EN/FR vocabulary is inconclusive and never a veto.
 This cannot prove arbitrary-language intent preservation: opted-in interpretation
 remains probabilistic, and exact excerpt attribution is not semantic completeness.
 
