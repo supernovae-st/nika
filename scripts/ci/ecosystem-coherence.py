@@ -18,6 +18,9 @@
 #          VS Marketplace package and OpenVSX package vs its repo version
 #          (publish = tag, operator) · docs status snapshot vs main workspace
 #          version (docs describe main, which moves).
+#   An UNREADABLE tag-pin or immune surface inherits the tag ladder: WARN
+#   inside the 24h cascade window, FAIL past it — blindness past grace is
+#   itself the finding (nika.sh went dark as a permanent WARN, 2026-09).
 #
 # Lockstep-at-convergence (operator lock 2026-07-06): from engine 0.97.0
 # the satellites (vscode · client-sdk · agents plugin) adopt the engine's
@@ -35,6 +38,10 @@ import urllib.request
 RAW = "https://raw.githubusercontent.com"
 VSCODE_RELEASE_API = "https://api.github.com/repos/supernovae-st/nika-vscode/releases/latest"
 VSCODE_MARKETPLACE_API = "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery"
+# The live listing is supernovae.nika; the retired nika-lang identity froze
+# at 0.116.3 and made the bot compare a dead extension (found 2026-09-19).
+VSCODE_EXTENSION_ID = "supernovae.nika"
+OPENVSX_API = f"https://open-vsx.org/api/{VSCODE_EXTENSION_ID.replace('.', '/')}"
 FINDINGS = []  # (severity, surface, detail)
 
 
@@ -52,11 +59,11 @@ def fetch(url, timeout=20, *, data=None, extra_headers=None):
         return r.read().decode()
 
 
-def grab(url, extract, surface):
+def grab(url, extract, surface, *, unreadable="WARN"):
     try:
         return extract(fetch(url))
     except Exception as e:  # noqa: BLE001 — a fetch miss is a finding, not a crash
-        FINDINGS.append(("WARN", surface, f"unreadable ({e.__class__.__name__}) · {url}"))
+        FINDINGS.append((unreadable, surface, f"unreadable ({e.__class__.__name__}) · {url}"))
         return None
 
 
@@ -79,7 +86,7 @@ def vscode_marketplace_version():
     """
     query = {
         "filters": [{
-            "criteria": [{"filterType": 7, "value": "supernovae.nika-lang"}],
+            "criteria": [{"filterType": 7, "value": VSCODE_EXTENSION_ID}],
             "pageNumber": 1,
             "pageSize": 1,
             "sortBy": 0,
@@ -111,13 +118,13 @@ def main():
 
     tap = grab(f"{RAW}/supernovae-st/homebrew-tap/main/Formula/nika.rb",
                lambda t: next(l.split('"')[1] for l in t.splitlines() if l.strip().startswith('version "')),
-               "tap")
+               "tap", unreadable=tag_sev)
     if tap and tap != tag:
         FINDINGS.append((tag_sev, "tap", f"formula {tap} != latest release {tag}"))
 
     site = grab(f"{RAW}/supernovae-st/nika.sh/main/src/content.ts",
                 lambda t: next(l.split("'")[1] for l in t.splitlines() if "ENGINE_VERSION" in l).lstrip("v"),
-                "site")
+                "site", unreadable=tag_sev)
     if site and site != tag:
         FINDINGS.append((tag_sev, "site", f"ENGINE_VERSION v{site} != latest release {tag}"))
 
@@ -177,7 +184,7 @@ def main():
         FINDINGS.append(("WARN", "vscode marketplace",
                          f"unreadable ({e.__class__.__name__}) · {VSCODE_MARKETPLACE_API}"))
         vscode_marketplace = None
-    ovsx = grab("https://open-vsx.org/api/supernovae/nika-lang",
+    ovsx = grab(OPENVSX_API,
                 lambda t: json.loads(t)["version"], "openvsx")
     if vscode_repo and vscode_release and vscode_repo != vscode_release:
         FINDINGS.append(("WARN", "vscode release",
@@ -223,7 +230,7 @@ def main():
     # surfaces: WARN (visible nightly, never a red board on their own).
     act = grab(f"{RAW}/supernovae-st/nika-action/v1/action.yml",
                lambda t: next(l.split("'")[1] for l in t.splitlines() if "default: '0" in l),
-               "action@v1")
+               "action@v1", unreadable=tag_sev)
     if act and act != tag:
         FINDINGS.append((tag_sev, "action@v1",
                          f"served engine-version default {act} != latest release {tag} — bump main + roll v1"))
@@ -260,7 +267,7 @@ def main():
     ]
     for repo, wf in IMMUNE:
         got = grab(f"{RAW}/supernovae-st/{repo}/main/.github/workflows/{wf}", str,
-                   f"immune {repo}")
+                   f"immune {repo}", unreadable=tag_sev)
         if got is not None and "on:" not in got:
             FINDINGS.append(("WARN", f"immune {repo}",
                              f"{wf} exists but carries no trigger — the leg is dead"))
