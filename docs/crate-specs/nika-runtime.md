@@ -32,6 +32,18 @@ oversized record. No item is silently truncated, and journal bounds are not
 raised. The wire contract is spec 17's paged item evidence section.
 
 
+## Pending approval rendering
+
+A direct `nika:prompt` pause renders its message and choices using the same
+secret-marker scope and task `with:` bindings as the approval content hash.
+Thus headless CLI consumers can review the resolved question before answering;
+the resumed decision attests the same question. Secret references remain
+markers, not resolved values. An unresolved binding retains the existing raw
+argument fallback and does not relax execution errors. The wire fields and
+approval content recipe are unchanged. This does not add a remote approval
+payload to Serve's conservative service projection.
+
+
 ## 1 · Role
 
 Execute one **checked** workflow wave-by-wave through the four verb
