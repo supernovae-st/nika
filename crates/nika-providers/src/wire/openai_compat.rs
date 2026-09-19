@@ -221,21 +221,17 @@ fn budget_key_sibling(k: &str) -> Option<&'static str> {
     }
 }
 
-/// `OpenAI` keeps legacy Chat Completions models on `max_tokens`, while GPT-5
-/// and o-series reject it and require `max_completion_tokens`.
+/// Route the budget through shared model capabilities; compatible peers retain
+/// their established `max_tokens` contract.
 fn token_budget_key(provider_id: &str, model: &str) -> &'static str {
-    if provider_id == "openai" && openai_uses_max_completion_tokens(model) {
+    if provider_id == "openai"
+        && nika_catalog::model_capabilities(provider_id, model).token_limit_param
+            == nika_catalog::TokenLimitParam::MaxCompletionTokens
+    {
         "max_completion_tokens"
     } else {
         "max_tokens"
     }
-}
-
-fn openai_uses_max_completion_tokens(model: &str) -> bool {
-    let model = model.to_ascii_lowercase();
-    ["gpt-5", "o1", "o3", "o4"]
-        .iter()
-        .any(|prefix| model.starts_with(prefix))
 }
 
 /// Build the `response_format` value for one request, or `None` for plain
@@ -750,6 +746,31 @@ mod tests {
             body.get("max_tokens").is_none(),
             "gpt-5 rejects max_tokens on the OpenAI wire"
         );
+    }
+
+    #[tokio::test]
+    async fn catalog_budget_reaches_the_resolved_provider_http_request() {
+        let fake = FakeHttp::with_json(
+            200,
+            r#"{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{}}"#,
+        );
+        let registry = crate::ProviderRegistry::new(
+            std::sync::Arc::clone(&fake),
+            crate::ProvidersConfig::new()
+                .with_key("openai", nika_kernel::secret::Secret::new("test-key")),
+        );
+        let provider = registry.resolve("openai/gpt-6-astra").expect("resolve");
+        let mut request = req(vec![Message::text(Role::User, "hi")]);
+        request.max_tokens = Some(512);
+        nika_kernel::ai::provider::ProviderInferDyn::infer(&provider, request)
+            .await
+            .expect("infer");
+        let sent = fake.captured();
+        let body: Value =
+            serde_json::from_slice(sent[0].body.as_ref().expect("body")).expect("JSON");
+        assert_eq!(body["max_completion_tokens"], 512);
+        assert!(body.get("max_tokens").is_none());
+        assert!(body.get("temperature").is_none());
     }
 
     #[test]

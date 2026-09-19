@@ -123,6 +123,14 @@ scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["gpt-5-", "gpt-5."] }
 caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
+# Observed OpenAI request validation requires this token-budget parameter.
+# This rule makes no additional capability claims for the model or its family.
+[[rules]]
+name  = "openai-gpt6-astra-token-budget"
+scope = { providers = ["openai"] }
+match = { kind = "exact_any", models = ["gpt-6-astra"] }
+caps  = { token_limit_param = "max-completion-tokens" }
+
 # [6] OpenAI GPT-4o family (gpt-4o, gpt-4o-mini, …). o200k tokenizer.
 #     ⚠ MUST appear BEFORE gpt-4.1 and gpt-4 rules (both have "gpt-4"
 #       prefix overlap). Wrong order = wrong tokenizer on gpt-4o.

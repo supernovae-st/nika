@@ -358,6 +358,23 @@ mod tests {
     }
 
     #[test]
+    fn gpt6_astra_observed_token_budget_is_narrowly_scoped() {
+        let caps = model_capabilities("openai", "gpt-6-astra");
+        let defaults = model_capabilities("unknown", "unknown");
+        assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
+        assert_eq!(caps.reasoning, defaults.reasoning);
+        assert_eq!(caps.supports_temperature, defaults.supports_temperature);
+        assert_eq!(
+            model_capabilities("openrouter", "gpt-6-astra").token_limit_param,
+            TokenLimitParam::MaxTokens
+        );
+        assert_eq!(
+            model_capabilities("openai", "gpt-6-unobserved").token_limit_param,
+            TokenLimitParam::MaxTokens
+        );
+    }
+
+    #[test]
     fn gpt4p1_is_not_reasoning() {
         let caps = model_capabilities("openai", "gpt-4.1");
         assert_eq!(caps.token_limit_param, TokenLimitParam::MaxTokens);
