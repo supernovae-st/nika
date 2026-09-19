@@ -279,7 +279,7 @@ enum Command {
     /// owned. Bare `nika try` lists what there is to see.
     #[command(hide = true, display_order = 10)]
     Try(try_args::TryArgs),
-    /// Compile an exact skeleton or conservative edit into a reviewable workflow.
+    /// Compile a skeleton, bounded support intent or conservative edit into a reviewable workflow.
     /// No destination: preview only; unknown intent stays incomplete.
     #[command(display_order = 11)]
     Compile(verbs::compile::CompileArgs),

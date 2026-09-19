@@ -46,6 +46,22 @@
         "candidate": "absent",
         "skeleton": null,
         "preview": "absent",
+        "question_keys": ["const.customer_directory", "model", "const.refund_endpoint", "const.refund_policy"]
+      }
+    },
+    {
+      "name": "unsupported_automatic_refund",
+      "doors": ["core", "cli", "serve"],
+      "native": {
+        "mode": "create",
+        "intent": "Route support tickets, look up the customer, draft a reply, and refund automatically."
+      },
+      "http_body": "{\"compile_version\":1,\"mode\":\"create\",\"intent\":\"Route support tickets, look up the customer, draft a reply, and refund automatically.\"}",
+      "expect": {
+        "status": "incomplete",
+        "candidate": "absent",
+        "skeleton": null,
+        "preview": "absent",
         "diagnostics": [
           [
             "unknown",

@@ -3,7 +3,7 @@
 
 //! Stateless authoring foundation: explicit request → ordinary source → pure Check preview.
 //!
-//! CREATE currently resolves exact embedded skeletons, then asks about their real
+//! CREATE resolves exact embedded skeletons and bounded support clauses, then asks about their real
 //! unfilled values. EDIT consumes accepted source plus a textual or structured
 //! constant change; both lower to one edit operation before emission/Check.
 //! It never regenerates unrelated tasks. Source selection and CAS stay app-owned.
@@ -19,7 +19,7 @@
 //! `.nika` write adapter: no silent overwrite, run, or grant. Source-only
 //! preview is not full host Check or admission: Run must judge the candidate
 //! again under its actual environment.
-//! Full natural-language authoring, Graph integration and support-triage composition
+//! Full natural-language authoring and Graph integration
 //! remain separate work. Transports (the CLI, Serve) consume these typed outcomes and
 //! print the one machine document of [`outcome_document`]; none re-projects an outcome.
 //! Private pattern-facet derivation (#1666) walks the parsed AST and Check
@@ -58,6 +58,7 @@ mod edit;
 mod edit_source;
 mod materialize;
 pub(crate) mod pattern;
+mod support;
 mod types;
 mod wire;
 
@@ -165,11 +166,14 @@ fn create(
     } else if nika_pack::template_names().iter().any(|name| name == slug) {
         nika_pack::template(slug)
     } else {
+        if support::create(intent, request, out)? {
+            return Ok(());
+        }
         finding(
             out,
             DiagnosticKind::Unknown,
             "intent",
-            "Use an exact embedded skeleton name or hello. The requested intent remains unresolved; no substitute workflow was selected.",
+            "The requested intent is outside the exact skeletons and bounded support clauses; no substitute workflow was selected.",
         );
         return Ok(());
     };
