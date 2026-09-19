@@ -10,8 +10,9 @@
 #
 # Two severities (operator lock 2026-07-06):
 #   FAIL · pins that MUST be equal — tap formula == latest release tag ·
-#          site ENGINE_VERSION == latest release tag · npm published ==
-#          client-sdk repo version · engine pack VERSION == spec VERSION.
+#          site served engine version (llms.txt) == latest release tag ·
+#          npm published == client-sdk repo version · engine pack VERSION ==
+#          spec VERSION · site served spec pin == engine SPEC_PIN.
 #          A release younger than 24h demotes its tag-pins to WARN (the
 #          cascade window).
 #   WARN · operator-gated or by-design lag — nika-vscode's latest release,
@@ -32,6 +33,7 @@
 import datetime
 import json
 import os
+import re
 import sys
 import urllib.request
 
@@ -42,6 +44,14 @@ VSCODE_MARKETPLACE_API = "https://marketplace.visualstudio.com/_apis/public/gall
 # at 0.116.3 and made the bot compare a dead extension (found 2026-09-19).
 VSCODE_EXTENSION_ID = "supernovae.nika"
 OPENVSX_API = f"https://open-vsx.org/api/{VSCODE_EXTENSION_ID.replace('.', '/')}"
+# The nika.sh repository is not publicly readable (404 across the org,
+# 2026-09-19), but the site SERVES what those rows need — and the deployed
+# surface is the better measurement: what a reader sees, not what main
+# intends. The version the site presents as current is the "currently vX.Y.Z"
+# line of llms.txt; the pin its spec-resync leg converged on is the served
+# well-known document.
+SITE_LLMS = "https://nika.sh/llms.txt"
+SITE_SPEC_PIN = "https://nika.sh/.well-known/nika-spec-pin.json"
 FINDINGS = []  # (severity, surface, detail)
 
 
@@ -122,11 +132,11 @@ def main():
     if tap and tap != tag:
         FINDINGS.append((tag_sev, "tap", f"formula {tap} != latest release {tag}"))
 
-    site = grab(f"{RAW}/supernovae-st/nika.sh/main/src/content.ts",
-                lambda t: next(l.split("'")[1] for l in t.splitlines() if "ENGINE_VERSION" in l).lstrip("v"),
+    site = grab(SITE_LLMS,
+                lambda t: re.search(r"currently v(\d+\.\d+\.\d+)", t).group(1),
                 "site", unreadable=tag_sev)
     if site and site != tag:
-        FINDINGS.append((tag_sev, "site", f"ENGINE_VERSION v{site} != latest release {tag}"))
+        FINDINGS.append((tag_sev, "site", f"served llms.txt version v{site} != latest release {tag}"))
 
     sdk_repo = grab(f"{RAW}/supernovae-st/nika-client/main/package.json",
                     lambda t: json.loads(t)["version"], "client-sdk repo")
@@ -145,6 +155,16 @@ def main():
     )
     if pack_sha and engine_pin and pack_sha != engine_pin:
         FINDINGS.append(("FAIL", "pack identity", f"pack {pack_sha[:12]} != SPEC_PIN {engine_pin[:12]}"))
+    # The two immune legs that watched nika.sh raw workflow files moved here:
+    # that repository is not publicly readable, so their OUTPUT is watched
+    # instead — the pin the site's spec-resync leg converged on, served
+    # publicly. Unreadable follows the tag ladder; a mismatch is a FAIL.
+    site_pin = grab(SITE_SPEC_PIN,
+                    lambda t: json.loads(t)["spec_commit"],
+                    "site spec pin", unreadable=tag_sev)
+    if site_pin and engine_pin and site_pin != engine_pin:
+        FINDINGS.append(("FAIL", "site spec pin",
+                         f"served pin {site_pin[:12]} != engine SPEC_PIN {engine_pin[:12]}"))
     spec_ref = pack_sha if pack_sha and len(pack_sha) == 40 else None
     spec = grab(f"{RAW}/supernovae-st/nika-spec/{spec_ref}/VERSION", str.strip, "spec at pack identity") if spec_ref else None
     if pack and spec and pack != spec:
@@ -255,8 +275,6 @@ def main():
     # drift class it killed. Existence only (content is each repo's own).
     IMMUNE = [
         ("nika-docs", "release-heal.yml"),
-        ("nika.sh", "release-heal.yml"),
-        ("nika.sh", "spec-resync.yml"),
         ("nika-action", "release-heal.yml"),
         ("nika-actions-starter", "release-heal.yml"),
         ("nika-client", "release-heal.yml"),

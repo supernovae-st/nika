@@ -18,6 +18,8 @@
 #       including reverse drift on every edge
 #   T9  the marketplace query names the live supernovae.nika identity,
 #       never the retired nika-lang one
+#   T10 the site's SERVED spec pin (nika.sh is not publicly readable):
+#       mismatch with engine SPEC_PIN hard-fails, unreadable follows grace
 # Zero network: every URL resolves from the FIXTURES table.
 
 import datetime
@@ -48,7 +50,8 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
         "https://api.github.com/repos/supernovae-st/nika/releases/latest":
             json.dumps({"tag_name": f"v{tag}", "published_at": iso(age_h)}),
         f"{R}/supernovae-st/homebrew-tap/main/Formula/nika.rb": f'  version "{tap}"\n',
-        f"{R}/supernovae-st/nika.sh/main/src/content.ts": f"export const ENGINE_VERSION = 'v{site}'\n",
+        bot.SITE_LLMS: f"# site\nThe engine versions on real semver; currently v{site}.\n",
+        bot.SITE_SPEC_PIN: json.dumps({"spec_commit": pack_sha}),
         f"{R}/supernovae-st/nika-client/main/package.json": json.dumps({"version": sdk}),
         "https://registry.npmjs.org/@supernovae-st%2Fnika": json.dumps({"dist-tags": {"latest": npm}}),
         f"{R}/supernovae-st/nika/main/crates/nika-pack/pack/VERSION": pack + "\n",
@@ -75,8 +78,7 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
         f"https://api.github.com/repos/supernovae-st/nika/compare/v{tag}...main":
             json.dumps({"ahead_by": 0, "commits": []}),
         **{f"{R}/supernovae-st/{repo}/main/.github/workflows/{wf}": "on:\n  schedule: []\n"
-           for repo, wf in (("nika-docs","release-heal.yml"),("nika.sh","release-heal.yml"),
-                            ("nika.sh","spec-resync.yml"),("nika-action","release-heal.yml"),
+           for repo, wf in (("nika-docs","release-heal.yml"),("nika-action","release-heal.yml"),
                             ("nika-actions-starter","release-heal.yml"),("nika-client","release-heal.yml"),
                             ("nika-plugins","release-heal.yml"),("nika-registry","release-heal.yml"),
                             ("nika-vscode","spec-pin-heal.yml"),("nika","spec-pin-heal.yml"))},
@@ -151,7 +153,8 @@ try:
     check("T5b dark tag-pin/immune surfaces past grace = FAIL",
           code == 1
           and any(x[0] == "FAIL" and x[1] == "site" and "unreadable" in x[2] for x in f)
-          and any(x[0] == "FAIL" and x[1] == "immune nika.sh" for x in f)
+          and any(x[0] == "FAIL" and x[1] == "site spec pin" and "unreadable" in x[2] for x in f)
+          and any(x[0] == "FAIL" and x[1] == "immune nika-docs" for x in f)
           and any(x[0] == "FAIL" and x[1] == "tap" for x in f)
           and all(x[0] == "WARN" for x in f if x[1] == "npm"), f)
 except Exception as exc:  # noqa: BLE001
@@ -187,6 +190,23 @@ del tbl[bot.RAW + "/supernovae-st/nika-registry/main/.github/workflows/release-h
 code, f = run(tbl)
 check("T7b missing immune leg past grace = FAIL",
       code == 1 and any(x[0] == "FAIL" and x[1] == "immune nika-registry" for x in f), f)
+
+# T10 · the site's served spec pin replaces the unreadable nika.sh immune
+# legs: a mismatch with engine SPEC_PIN is a hard FAIL, and an unreadable
+# served pin follows the grace ladder.
+code, f = run(fixtures(engine_pin="d" * 40))
+check("T10a served site pin != engine SPEC_PIN hard-fails",
+      code == 1 and any(x[0] == "FAIL" and x[1] == "site spec pin" and "served pin" in x[2] for x in f), f)
+tbl = fixtures(age_h=2.0)
+del tbl[bot.SITE_SPEC_PIN]
+code, f = run(tbl)
+check("T10b unreadable served pin = WARN inside grace",
+      code == 0 and any(x[0] == "WARN" and x[1] == "site spec pin" for x in f), f)
+tbl = fixtures(age_h=48.0)
+del tbl[bot.SITE_SPEC_PIN]
+code, f = run(tbl)
+check("T10c unreadable served pin past grace = FAIL",
+      code == 1 and any(x[0] == "FAIL" and x[1] == "site spec pin" for x in f), f)
 
 # T8a · package.json ahead of its GitHub release is internal/tag drift only.
 # Registries equal to that release are healthy downstream and must not inherit
