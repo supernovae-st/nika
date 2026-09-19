@@ -858,17 +858,39 @@ fn gated_closures(wf: &RawWorkflow) -> BTreeMap<String, Vec<GatedAction>> {
     out
 }
 
+/// Render both the pending payload and the signed prompt over the SAME
+/// secret-marker scope, including task-local `with:` bindings. Callers must
+/// supply markers, never resolved secret values. Rendering failures retain
+/// the existing raw-argument fallback; this does not change dispatch errors.
+pub(crate) fn render_prompt_args(task: &RawTask, args: Option<&Value>, base: &Scope<'_>) -> Value {
+    let mut with_ns = BTreeMap::new();
+    let with_rendered =
+        task.with
+            .iter()
+            .all(|(key, value)| match expr::render_json(&value.value, base) {
+                Ok(v) => {
+                    with_ns.insert(key.value.clone(), v);
+                    true
+                }
+                Err(_) => false,
+            });
+    let scope = base.with_task_context(
+        if with_rendered { Some(&with_ns) } else { None },
+        None,
+        None,
+        None,
+    );
+    let raw = args.cloned().unwrap_or(Value::Null);
+    expr::render_json(&raw, &scope).unwrap_or(raw)
+}
+
 /// Canonical shown content over the secret-marker scope (NEP-0013 law 1).
 fn canonical_content(task: &RawTask, gated: &[GatedAction], scope: &Scope<'_>) -> (String, Value) {
     let RawAction::Invoke(invoke) = &task.action else {
         // The gate guarantees invoke; keep this helper total regardless.
         return ("confirm".to_owned(), Value::Null);
     };
-    let raw = invoke
-        .args
-        .as_ref()
-        .map_or(Value::Null, |a| a.value.clone());
-    let rendered = expr::render_json(&raw, scope).unwrap_or(raw);
+    let rendered = render_prompt_args(task, invoke.args.as_ref().map(|a| &a.value), scope);
     let mode = rendered
         .get("mode")
         .and_then(Value::as_str)
@@ -937,25 +959,8 @@ where
         // Hash the resolved question, but keep secrets as markers.
         let base =
             Scope::workflow_with_value_authorities(records, inputs, consts, resume_ctx.markers());
-        let mut with_ns = BTreeMap::new();
-        let with_rendered = task.with.iter().all(|(key, value)| {
-            match expr::render_json(&value.value, &base) {
-                Ok(v) => {
-                    with_ns.insert(key.value.clone(), v);
-                    true
-                }
-                // A miss falls back to authored args; the hash still binds.
-                Err(_) => false,
-            }
-        });
-        let scope = base.with_task_context(
-            if with_rendered { Some(&with_ns) } else { None },
-            None,
-            None,
-            None,
-        );
         let gated = self.approvals.gated_for(step);
-        let (mode, content) = canonical_content(task, &gated, &scope);
+        let (mode, content) = canonical_content(task, &gated, &base);
         let question = content["approval"]["message"].as_str().map(str::to_owned);
         let Some(shown_hash) = crate::resume::jcs_blake3_hex(&content) else {
             // The content shape is canonicalizable; still fail closed.
