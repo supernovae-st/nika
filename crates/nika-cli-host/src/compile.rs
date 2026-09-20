@@ -2,6 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! CLI transport and explicit materialization for the stateless Compile core.
+mod authoring;
 mod render;
 
 use crate::output::{VerbOutput, exit};
@@ -13,7 +14,7 @@ use std::path::Path;
 #[derive(Debug, clap::Args)]
 #[group(id = "compile_options", multiple = true)]
 pub struct CompileArgs {
-    /// Exact skeleton name or hello; unsupported words remain incomplete.
+    /// Exact skeleton, hello, or bounded support intent; unknown work remains incomplete.
     pub intent: Option<String>,
     /// Write a Ready candidate here; omitted means preview only.
     #[arg(group = "destination")]
@@ -30,6 +31,15 @@ pub struct CompileArgs {
     /// Answer a stable question: `KEY=JSON_LITERAL` (repeatable).
     #[arg(long = "answer")]
     pub answers: Vec<String>,
+    /// Explicitly permit one provider call to interpret free intent (wire generation 2).
+    #[arg(long, conflicts_with_all = ["base", "list"])]
+    pub authoring_model: Option<String>,
+    /// Maximum authoring output tokens; requires explicit authoring model.
+    #[arg(long, requires = "authoring_model")]
+    pub authoring_max_tokens: Option<u32>,
+    /// Authoring timeout in seconds, at most 120; no retries.
+    #[arg(long, requires = "authoring_model")]
+    pub authoring_timeout: Option<u64>,
     /// Replace the explicitly named destination.
     #[arg(long, requires = "destination")]
     pub force: bool,
@@ -82,10 +92,24 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
         };
         request = request.answer(key, literal);
     }
-    let outcome = match compile(&request) {
+    let result = if args.authoring_model.is_some()
+        && args.base.is_none()
+        && !matches!(
+            args.intent.as_deref().map(str::trim),
+            Some("hello" | "01-hello")
+        )
+        && !nika_pack::template_names()
+            .iter()
+            .any(|name| Some(name.as_str()) == args.intent.as_deref().map(str::trim))
+    {
+        authoring::compile(&request, args)
+    } else {
+        compile(&request).map_err(|error| error.to_string())
+    };
+    let outcome = match result {
         Ok(outcome) => outcome,
         Err(error) => {
-            return render::failure("compile_error", &error.to_string(), exit::ENV, args.json);
+            return render::failure("compile_error", &error, exit::ENV, args.json);
         }
     };
     let mut written = None;

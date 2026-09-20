@@ -3,8 +3,8 @@
 
 //! Stateless authoring foundation: explicit request → ordinary source → pure Check preview.
 //!
-//! CREATE currently resolves exact embedded skeletons, then asks about their real
-//! unfilled values. EDIT consumes accepted source plus a textual or structured
+//! CREATE resolves exact embedded skeletons and a bounded support clause grammar,
+//! then asks about their real unfilled values. EDIT consumes accepted source plus a textual or structured
 //! constant change; both lower to one edit operation before emission/Check.
 //! It never regenerates unrelated tasks. Source selection and CAS stay app-owned.
 //! Unsupported intent stays incomplete, without guessed topology or hidden model calls.
@@ -19,12 +19,15 @@
 //! `.nika` write adapter: no silent overwrite, run, or grant. Source-only
 //! preview is not full host Check or admission: Run must judge the candidate
 //! again under its actual environment.
-//! Full natural-language authoring, Graph integration and support-triage composition
-//! remain separate work. Transports (the CLI, Serve) consume these typed outcomes and
+//! [`compile_with_provider`] accepts explicit bounded authoring policy and an injected
+//! kernel provider. Its closed private semantic plan rejoins deterministic motif
+//! assembly before Check. Model output is never final YAML or runtime authority.
+//! General natural-language qualification and Graph integration remain separate work.
+//! Transports (the CLI, Serve) consume these typed outcomes and
 //! print the one machine document of [`outcome_document`]; none re-projects an outcome.
 //! Private pattern-facet derivation (#1666) walks the parsed AST and Check
-//! facts; it is not a YAML key, a fifth verb, or an SDK noun, and it does
-//! not change CREATE/EDIT.
+//! facts; it is not a YAML key, a fifth verb, or an SDK noun, and it never
+//! grants authority.
 //!
 //! ```
 //! use nika_onboard::compile::{compile, CompileRequest, CompileStatus};
@@ -54,10 +57,12 @@
 //! # Ok::<(), nika_onboard::compile::CompileError>(())
 //! ```
 
+mod cognition;
 mod edit;
 mod edit_source;
 mod materialize;
 pub(crate) mod pattern;
+mod support;
 mod types;
 mod wire;
 
@@ -67,11 +72,12 @@ use nika_schema::{FileId, ParseMode, raw::RawWorkflow};
 use serde_json::Value;
 use types::{EditChange, Input};
 
+pub use cognition::compile_with_provider;
 pub use materialize::{MaterializeError, materialize_ready};
 pub use types::{
-    AuthoringCognition, CompileDiagnostic, CompileError, CompileOutcome, CompilePreview,
-    CompileProvenance, CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind,
-    PreviewScope, QuestionType, RepresentationError,
+    AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileDiagnostic, CompileError,
+    CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion, CompileRequest,
+    CompileStatus, DiagnosticKind, PreviewScope, QuestionType, RepresentationError,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 
@@ -112,6 +118,7 @@ fn initial() -> CompileOutcome {
         requested_boundary: None,
         check_preview: None,
         provenance: CompileProvenance {
+            authoring: None,
             compiler_version: env!("CARGO_PKG_VERSION").to_owned(),
             spec_pin: include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../SPEC_PIN"))
                 .lines()
@@ -165,11 +172,14 @@ fn create(
     } else if nika_pack::template_names().iter().any(|name| name == slug) {
         nika_pack::template(slug)
     } else {
+        if support::create(intent, request, out)? {
+            return Ok(());
+        }
         finding(
             out,
             DiagnosticKind::Unknown,
             "intent",
-            "Use an exact embedded skeleton name or hello. The requested intent remains unresolved; no substitute workflow was selected.",
+            "The requested intent is outside the exact skeletons and bounded support clauses. Use an exact skeleton or explicitly opt in to provider authoring; no substitute workflow was selected.",
         );
         return Ok(());
     };

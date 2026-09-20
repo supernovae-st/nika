@@ -9,6 +9,10 @@ description = "nika's onboarding surface — project bootstrap (init), read-only
 repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.120.3" } # explicit authoring provider seam
+serde = { workspace = true } # private semantic-plan decoder
+tokio = { workspace = true } # bounded authoring timeout
+url = { workspace = true } # explicit HTTP binding host, never inferred authority
 nika-pack    = { path = "../nika-pack", version = "0.120.3" }    # templates · examples (the scaffold corpus)
 nika-vocab   = { path = "../nika-vocab", version = "0.120.3" }   # the project file — the wizard's starter nika.yaml rides its STARTER const (zero drift · D-2026-08-11-N5)
 nika-bm25    = { path = "../nika-bm25", version = "0.120.3" }    # intent→template routing (the deterministic floor)

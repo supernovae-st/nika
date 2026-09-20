@@ -37,6 +37,7 @@ impl AuthoringCognition {
     pub const fn word(self) -> &'static str {
         match self {
             Self::DeterministicOnly => "deterministicOnly",
+            Self::ExplicitProvider => "explicitProvider",
         }
     }
 }
@@ -90,8 +91,8 @@ pub fn outcome_document(out: &CompileOutcome) -> Value {
             "report": p.report,
         })
     });
-    json!({
-        "compile_version": COMPILE_WIRE_VERSION,
+    let mut document = json!({
+        "compile_version": if out.provenance.authoring.is_some() { 2 } else { COMPILE_WIRE_VERSION },
         "status": out.status.word(),
         "candidate": out.candidate,
         "questions": questions,
@@ -104,5 +105,14 @@ pub fn outcome_document(out: &CompileOutcome) -> Value {
             "skeleton": out.provenance.skeleton,
             "cognition": out.provenance.cognition.word(),
         },
-    })
+    });
+    if let Some(receipt) = &out.provenance.authoring {
+        document["provenance"]["authoring"] = json!({
+            "model": receipt.model, "calls": receipt.calls,
+            "input_tokens": receipt.input_tokens, "output_tokens": receipt.output_tokens,
+            "elapsed_ms": receipt.elapsed_ms,
+            "sampling": {"temperature": null, "seed": null, "effective": "providerDefaultUnknown"},
+        });
+    }
+    document
 }

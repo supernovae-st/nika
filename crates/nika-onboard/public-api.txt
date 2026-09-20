@@ -8,6 +8,7 @@ pub const nika_onboard::codes::OK: u8
 pub mod nika_onboard::compile
 #[non_exhaustive] pub enum nika_onboard::compile::AuthoringCognition
 pub nika_onboard::compile::AuthoringCognition::DeterministicOnly
+pub nika_onboard::compile::AuthoringCognition::ExplicitProvider
 impl nika_onboard::compile::AuthoringCognition
 pub const fn nika_onboard::compile::AuthoringCognition::word(self) -> &'static str
 impl core::clone::Clone for nika_onboard::compile::AuthoringCognition
@@ -363,6 +364,99 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::QuestionType
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::QuestionType
 impl<T> typenum::type_operators::Same for nika_onboard::compile::QuestionType
 pub type nika_onboard::compile::QuestionType::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::AuthoringPolicy
+impl nika_onboard::compile::AuthoringPolicy
+pub fn nika_onboard::compile::AuthoringPolicy::new(model: impl core::convert::Into<alloc::string::String>, max_tokens: u32, timeout: core::time::Duration) -> Self
+impl core::clone::Clone for nika_onboard::compile::AuthoringPolicy
+pub fn nika_onboard::compile::AuthoringPolicy::clone(&self) -> nika_onboard::compile::AuthoringPolicy
+impl core::fmt::Debug for nika_onboard::compile::AuthoringPolicy
+pub fn nika_onboard::compile::AuthoringPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::AuthoringPolicy
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::AuthoringPolicy where U: core::convert::From<T>
+pub fn nika_onboard::compile::AuthoringPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::AuthoringPolicy where U: core::convert::Into<T>
+pub type nika_onboard::compile::AuthoringPolicy::Error = core::convert::Infallible
+pub fn nika_onboard::compile::AuthoringPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::AuthoringPolicy where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::AuthoringPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::AuthoringPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::AuthoringPolicy where T: core::clone::Clone
+pub type nika_onboard::compile::AuthoringPolicy::Owned = T
+pub fn nika_onboard::compile::AuthoringPolicy::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::AuthoringPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::AuthoringPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::AuthoringPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::AuthoringPolicy where T: ?core::marker::Sized
+pub fn nika_onboard::compile::AuthoringPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::AuthoringPolicy where T: ?core::marker::Sized
+pub fn nika_onboard::compile::AuthoringPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::AuthoringPolicy where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::AuthoringPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::AuthoringPolicy
+pub fn nika_onboard::compile::AuthoringPolicy::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::AuthoringPolicy where T: core::clone::Clone
+pub fn nika_onboard::compile::AuthoringPolicy::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::AuthoringPolicy where T: 'static
+pub fn nika_onboard::compile::AuthoringPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::AuthoringPolicy where T: ?core::marker::Sized
+pub fn nika_onboard::compile::AuthoringPolicy::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::AuthoringPolicy::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::AuthoringPolicy
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::AuthoringPolicy
+impl<T> typenum::type_operators::Same for nika_onboard::compile::AuthoringPolicy
+pub type nika_onboard::compile::AuthoringPolicy::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::AuthoringReceipt
+pub nika_onboard::compile::AuthoringReceipt::calls: u32
+pub nika_onboard::compile::AuthoringReceipt::elapsed_ms: u64
+pub nika_onboard::compile::AuthoringReceipt::input_tokens: core::option::Option<u64>
+pub nika_onboard::compile::AuthoringReceipt::model: alloc::string::String
+pub nika_onboard::compile::AuthoringReceipt::output_tokens: core::option::Option<u64>
+impl core::clone::Clone for nika_onboard::compile::AuthoringReceipt
+pub fn nika_onboard::compile::AuthoringReceipt::clone(&self) -> nika_onboard::compile::AuthoringReceipt
+impl core::cmp::Eq for nika_onboard::compile::AuthoringReceipt
+impl core::cmp::PartialEq for nika_onboard::compile::AuthoringReceipt
+pub fn nika_onboard::compile::AuthoringReceipt::eq(&self, other: &nika_onboard::compile::AuthoringReceipt) -> bool
+impl core::fmt::Debug for nika_onboard::compile::AuthoringReceipt
+pub fn nika_onboard::compile::AuthoringReceipt::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::AuthoringReceipt
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::AuthoringReceipt
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::AuthoringReceipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::AuthoringReceipt::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::AuthoringReceipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::AuthoringReceipt::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::AuthoringReceipt where U: core::convert::From<T>
+pub fn nika_onboard::compile::AuthoringReceipt::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::AuthoringReceipt where U: core::convert::Into<T>
+pub type nika_onboard::compile::AuthoringReceipt::Error = core::convert::Infallible
+pub fn nika_onboard::compile::AuthoringReceipt::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::AuthoringReceipt where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::AuthoringReceipt::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::AuthoringReceipt::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::AuthoringReceipt where T: core::clone::Clone
+pub type nika_onboard::compile::AuthoringReceipt::Owned = T
+pub fn nika_onboard::compile::AuthoringReceipt::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::AuthoringReceipt::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::AuthoringReceipt where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::AuthoringReceipt::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::AuthoringReceipt where T: ?core::marker::Sized
+pub fn nika_onboard::compile::AuthoringReceipt::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::AuthoringReceipt where T: ?core::marker::Sized
+pub fn nika_onboard::compile::AuthoringReceipt::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::AuthoringReceipt where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::AuthoringReceipt::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::AuthoringReceipt
+pub fn nika_onboard::compile::AuthoringReceipt::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::AuthoringReceipt where T: core::clone::Clone
+pub fn nika_onboard::compile::AuthoringReceipt::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::AuthoringReceipt where T: 'static
+pub fn nika_onboard::compile::AuthoringReceipt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::AuthoringReceipt where T: ?core::marker::Sized
+pub fn nika_onboard::compile::AuthoringReceipt::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::AuthoringReceipt::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::AuthoringReceipt
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::AuthoringReceipt
+impl<T> typenum::type_operators::Same for nika_onboard::compile::AuthoringReceipt
+pub type nika_onboard::compile::AuthoringReceipt::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::CompileDiagnostic
 pub nika_onboard::compile::CompileDiagnostic::kind: nika_onboard::compile::DiagnosticKind
 pub nika_onboard::compile::CompileDiagnostic::message: alloc::string::String
@@ -501,6 +595,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::CompilePr
 impl<T> typenum::type_operators::Same for nika_onboard::compile::CompilePreview
 pub type nika_onboard::compile::CompilePreview::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::CompileProvenance
+pub nika_onboard::compile::CompileProvenance::authoring: core::option::Option<nika_onboard::compile::AuthoringReceipt>
 pub nika_onboard::compile::CompileProvenance::cognition: nika_onboard::compile::AuthoringCognition
 pub nika_onboard::compile::CompileProvenance::compiler_version: alloc::string::String
 pub nika_onboard::compile::CompileProvenance::skeleton: core::option::Option<alloc::string::String>
@@ -609,6 +704,7 @@ pub fn nika_onboard::compile::CompileRequest::answer(self, key: impl core::conve
 pub fn nika_onboard::compile::CompileRequest::create(intent: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_onboard::compile::CompileRequest::edit(base_workflow: impl core::convert::Into<alloc::string::String>, change_request: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_onboard::compile::CompileRequest::set_constant(base_workflow: impl core::convert::Into<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>, literal_json: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_onboard::compile::CompileRequest::with_authoring_policy(self, policy: nika_onboard::compile::AuthoringPolicy) -> Self
 pub fn nika_onboard::compile::CompileRequest::with_workflow_id(self, id: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_onboard::compile::CompileRequest
 pub fn nika_onboard::compile::CompileRequest::clone(&self) -> nika_onboard::compile::CompileRequest
@@ -689,6 +785,7 @@ impl<T> typenum::type_operators::Same for nika_onboard::compile::RepresentationE
 pub type nika_onboard::compile::RepresentationError::Output = T
 pub const nika_onboard::compile::COMPILE_WIRE_VERSION: u32
 pub fn nika_onboard::compile::compile(request: &nika_onboard::compile::CompileRequest) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
+pub async fn nika_onboard::compile::compile_with_provider<P: nika_kernel_ai::provider::ProviderInferDyn>(request: &nika_onboard::compile::CompileRequest, provider: &P) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
 pub fn nika_onboard::compile::materialize_ready(outcome: &nika_onboard::compile::CompileOutcome, dest: &std::path::Path, overwrite: bool) -> core::result::Result<(), nika_onboard::compile::MaterializeError>
 pub fn nika_onboard::compile::outcome_document(out: &nika_onboard::compile::CompileOutcome) -> serde_json::value::Value
 pub mod nika_onboard::fixtures

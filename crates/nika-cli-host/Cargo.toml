@@ -11,6 +11,7 @@ homepage.workspace     = true
 publish                = false  # Internal member of the nika-cli unit (the binary ships, the lib doesn't).
 
 [dependencies]
+tokio = { workspace = true } # explicit bounded authoring provider call
 nika-onboard = { path = "../nika-onboard", version = "0.120.3" } # typed Compile core; host adapter only materializes explicit Ready results
 tempfile = { workspace = true } # atomic same-directory Compile publication and scratch tests
 nika-builtin   = { path = "../nika-builtin", version = "0.120.3" }   # tool surfaces the welcome glance names

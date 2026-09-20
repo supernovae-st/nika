@@ -126,7 +126,7 @@ fn repeated_requests_are_reproducible_and_have_no_session_state() {
 fn unsupported_work_is_never_silently_replaced_by_a_nearby_skeleton() {
     for intent in [
         "classify-and-route then send money",
-        "Route support tickets, look up the customer, draft a reply, and ask me before any refund.",
+        "Route support tickets, look up the customer, draft a reply, and refund automatically.",
     ] {
         let out = compile(&CompileRequest::create(intent)).unwrap();
         assert_eq!(out.status, CompileStatus::Incomplete);

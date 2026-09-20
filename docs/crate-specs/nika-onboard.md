@@ -31,8 +31,106 @@ keeps the hand · the proof inside the first minute):
 `compile` is a stateless in-memory authoring core behind the CLI creation door. CREATE accepts exact embedded skeleton names
 and explicit request-local JSON answers. `hello` (also `01-hello`) takes the
 embedded hello lesson through the same assembler with explicit `mock/echo`.
-`with_workflow_id` names CREATE source explicitly; EDIT refuses this option. Unsupported natural language returns
-Incomplete with an Unknown diagnostic and no substitute workflow.
+`with_workflow_id` names CREATE source explicitly; EDIT refuses this option.
+Unsupported natural language returns Incomplete with an Unknown diagnostic and
+no substitute workflow. A bounded EN/FR whole-clause grammar also composes
+customer lookup, descriptive classification, draft and human-first refund.
+This deterministic development grammar is not arbitrary natural-language understanding.
+
+### Bounded support composition and explicit authoring
+
+Support composition uses a private typed operation set and reusable structured
+motif builders, not a support skeleton or YAML concatenation. Questions use
+`model`, `const.customer_directory`, `const.refund_policy` and
+`const.refund_endpoint`. The directory is an explicitly selected JSON file
+mapping customer ids to records. A missing/malformed record fails, without
+recovery that fabricates a customer. Required runtime inputs are `ticket`,
+`customer_id`. Optional `refund_request` defaults to an empty object; a refund
+request supplies its amount and currency explicitly.
+The endpoint answer explicitly accepts a POST body containing
+customer_id, amount and currency; its hostname alone supplies the requested
+network boundary. Credentials are never invented. No named CRM integration is
+silently replaced by the file lookup.
+Rejected binding answers keep their stable question open beside the Missed
+diagnostic: a glob directory, a bare model id (the answer must name
+`<provider>/<model>`, which the host Check would otherwise refuse as
+NIKA-PROVIDER), and an endpoint that is not a concrete URL, embeds credentials
+in its authority or a credential-like query parameter, carries a fragment, or
+uses cleartext `http` for anything but a loopback development host.
+
+Classification returns descriptive category data, without inventing a queue
+integration. Original customer/ticket facts and their source remain siblings
+of generated prose. Declared claims must contain exact source anchors before
+the gate can run. This proves anchor presence and preservation of original
+data, not semantic truth or completeness of generated prose. Refund policy is
+literal data, never parsed into an automatic eligibility rule. The blocking
+human prompt shows that policy, the destination and the exact POST proposal.
+The POST consumes the same proposal and the current prompt's affirmative
+answer. There is no default, recovery or retry on the gate/effect. Source-only
+Check does not prove destination idempotency, external business outcome or
+approval freshness across executions; Run remains responsible for admission.
+
+`AuthoringPolicy::new(model, max_tokens, timeout)` with
+`CompileRequest::with_authoring_policy` permits one call through
+`compile_with_provider(request, provider)`. The caller injects the existing
+kernel `ProviderInferDyn` seam. Limits are 1..8192 output tokens, at most 120
+seconds, and 32768 input-intent bytes. No retries occur. The provider returns a
+closed private JSON semantic plan with exact intent excerpts, operation kinds,
+one effect-policy enum and unresolved regions. `intent.clarification` asks for
+a complete replacement request, explicitly superseding the earlier intent; the
+caller must restate all work still wanted. A fragment cannot implicitly inherit
+old operations, and stale contradictions are not appended to the new request.
+A reusable program for one ticket per invocation is supported; durable schedules, subscriptions, polling and
+cross-run callback/deduplication handling remain outside this slice.
+Invalid plans, unsupported effects, contradictory policy and unknown work stay incomplete. The compiler
+owns task identities, bindings, permits, emission and Check. Neither a source
+excerpt nor model confidence is a proof of semantic equivalence. Independent
+qualification is still required.
+
+The default `compile` path never calls a provider; ambient keys never opt in.
+Exact skeletons, EDIT and support clauses the bounded grammar resolves stay
+deterministic even through the provider seam: an opted-in provider interprets
+only what the grammar cannot, and a grammar-resolved outcome keeps generation 1.
+The CLI opts in with `--authoring-model`, optional `--authoring-max-tokens`
+(default 2048) and `--authoring-timeout` (default 30 seconds). Only then does
+its adapter use the established environment credential/endpoint ladder.
+Serve remains deterministic; it does not accept this authoring policy yet.
+
+Deterministic outcomes retain the exact generation-1 wire shape. A provider
+attempt emits generation 2 with cognition `explicitProvider` and an
+`authoring` provenance receipt: model, calls, input/output token counts (null
+when unreported), and elapsed milliseconds. No plan IR is public. Generation-1
+clients must not consume generation 2 until they explicitly support it.
+Authoring usage is not runtime execution proof or an asserted billing cost.
+The generation-2 receipt records `sampling` with null `temperature` and `seed`
+(omitted requests) and `effective: providerDefaultUnknown`. Provider defaults
+are not known here: no deterministic or repeatable authoring claim follows.
+Deterministic assembly and provider repeatability are separate properties.
+
+For the local JSON-directory motif, Check's trifecta ingress leg (network/MCP
+content) is absent: an empty `trifecta_mitigations` list is not a credited-gate
+proof. The compiler tests the derived dependency edge and execution waves, exact
+approved payload binding, and approval predicate separately. This does not prove
+cross-run idempotency or freshness of externally supplied runtime answers.
+
+Refund execution is optional per ticket: `inputs.refund_request` defaults to an
+empty object and no human prompt or POST occurs in that case. A nonempty request
+must contain exactly a positive `amount` and nonempty `currency`; partial data
+fails before approval. Only customer id, amount and currency enter the POST;
+the original ticket is retained as human-review context. Policy objects remain
+review data, never an automatic eligibility program.
+
+A conservative finite EN/FR sensitive-phrase backstop rejects recognized model
+omissions and inserted approval over recognized automatic-refund instructions.
+Approval-bypass phrases (`without approval`, `without asking`, `do not ask`,
+`sans accord`, `ne pas demander`, prior or previous approval, `yesterday`,
+`hier`) are matched as whole-word sequences, so `fichier` never reads as
+`hier`. Such a phrase presupposes an effect: it vetoes an inserted human gate
+and equally a plan that reports no effect at all. `automatic` wording alone
+vetoes only an inserted gate, because it also names harmless automation.
+Absence of recognized EN/FR vocabulary is inconclusive and never a veto.
+This cannot prove arbitrary-language intent preservation: opted-in interpretation
+remains probabilistic, and exact excerpt attribution is not semantic completeness.
 
 EDIT requires the caller's explicit base source and offers two inputs:
 
@@ -99,7 +197,7 @@ source-preserving edit contract:
 SLOT values remain mandatory questions. Source-only Check is not environment
 resolution or Run admission.
 
-Compile performs no file access, credential probes, provider calls or execution,
+The synchronous `compile` performs no file access, credential probes, provider calls or execution,
 and keeps no session state. The application owns base revision selection, CAS
 and materialization. This API supplies a constant-edit seam, not a Graph
 implementation, general patch language or full natural-language authoring.
