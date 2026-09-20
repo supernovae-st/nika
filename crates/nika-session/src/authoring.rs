@@ -544,9 +544,7 @@ mod tests {
             other => panic!("a draft needs its model, asked: {other:?}"),
         }
         assert!(matches!(
-            read(
-                "Read ./draft.md and write it to ./final.md, but a human must approve the write first"
-            ),
+            read("Read ./a.md and do something clever with it, then write ./b.md"),
             Reading::Unsettled(_)
         ));
         match read("chain") {
@@ -581,9 +579,8 @@ mod tests {
 
     #[test]
     fn a_plan_that_still_needs_cognition_is_never_replayed() {
-        let mut round = AuthoringRound::new(
-            "Read ./draft.md and write it to ./final.md, but a human must approve the write first",
-        );
+        let mut round =
+            AuthoringRound::new("Read ./a.md and do something clever with it, then write ./b.md");
         let out = compile_deterministic(&round.request()).expect("compiles");
         assert!(
             out.provenance.plan.is_some(),
