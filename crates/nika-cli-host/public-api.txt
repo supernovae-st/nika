@@ -191,6 +191,7 @@ pub nika_cli_host::compile::CompileArgs::base: core::option::Option<alloc::strin
 pub nika_cli_host::compile::CompileArgs::change: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::dest: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::force: bool
+pub nika_cli_host::compile::CompileArgs::hot_policy: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::intent: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::json: bool
 pub nika_cli_host::compile::CompileArgs::list: bool

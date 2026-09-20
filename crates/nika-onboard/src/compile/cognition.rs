@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! One compiler, three internal resolution strategies: HOT, WARM, COLD.
+//! One compiler, three internal resolutions, and a probabilistic frontend before a
+//! deterministic backend.
 //!
-//! HOT: the deterministic reader consumed every clause; zero authoring calls.
-//! WARM: every clause is known but a few carry a small finite set of readings;
-//! an explicit bounded decision seat picks one (or NONE) per clause.
-//! COLD: a clause is unknown to the reader; one explicitly authorized generative
-//! call proposes a private semantic plan, never source or permits.
+//! HOT: the deterministic reader consumed every clause AND the strict admission
+//! contract holds (explicit objects, no coordinated residue, nothing unknown); zero
+//! seat calls. WARM: a finite set of admissible readings or proposals, settled by an
+//! explicit bounded decision seat that may answer NONE. COLD: one or several
+//! explicitly authorized generative proposals of a private semantic plan, never
+//! source or permits, each accountable for every region of the request.
 //! Deterministic policy facts (prohibitions, gates, indecision, contradictions,
-//! bounds) always win over a proposal, and every strategy ends in the same
-//! deterministic assembler and the same Check. The least cognition that can
-//! settle the intent is the one used; a permitted seat is not an obligation.
+//! bounds, approval bypasses) are the floor under every proposal, and every
+//! strategy ends in the same deterministic assembler and the same Check.
+//! A permitted seat is not an obligation; a consumed clause is not understanding.
 use super::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileError, CompileOutcome,
-    CompileRequest, DiagnosticKind, QuestionType, Strategy,
+    CompileRequest, DiagnosticKind, HotPolicy, QuestionType, Strategy,
     decide::{ChoiceOption, ChoiceQuestion, DecisionSeat, NONE_OPTION},
     lexicon::{self, Reading},
     plan::{Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step},
@@ -30,9 +32,9 @@ use serde_json::json;
 /// The explicit cognition a caller permits for one request. Absent seats are not consent.
 #[derive(Clone, Copy)]
 pub struct Cognition<'a, P: ProviderInferDyn = NoProvider> {
-    /// One bounded generative call for COLD, under the request's authoring policy.
+    /// One or several bounded generative calls for COLD, under the request's authoring policy.
     pub provider: Option<&'a P>,
-    /// Bounded closed choices for WARM.
+    /// Bounded closed choices for WARM, before or after COLD.
     pub seat: Option<&'a dyn DecisionSeat>,
 }
 
@@ -68,6 +70,10 @@ struct Proposal {
     obligations: Vec<ProposedObligation>,
     constraints: Vec<String>,
     unknowns: Vec<String>,
+    #[serde(default)]
+    regions: Vec<ProposedRegion>,
+    #[serde(default)]
+    approval_bypass: Option<ProposedBypass>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -94,13 +100,30 @@ struct ProposedObligation {
     value: Option<u32>,
     evidence: String,
 }
+/// One contiguous region of the request and what it is for: the accounting the model owes.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProposedRegion {
+    text: String,
+    role: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProposedBypass {
+    present: bool,
+    #[serde(default)]
+    evidence: String,
+}
 
-const INSTRUCTIONS: &str = r"Interpret the ENTIRE user request as a private semantic plan for a workflow compiler. Return only one JSON object with steps, effects, obligations, constraints, unknowns. Never produce YAML, source, tool calls, credentials, endpoints or permissions.
-steps: the operations requested, in order. op is one of read (consume the document supplied with each invocation; not an external retrieval), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records from an external source, database, directory, catalog, calendar, history, registry, runbook or knowledge base), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
-effects: every action that changes the outside world (create a record, send, publish, post, open a ticket, trigger a payment, mark, order, refund, merge, notify, delete). verb is one of create, send, publish, update, notify, refund, pay, order, merge, delete, effect. target is the verbatim phrase naming the action. policy is one of automatic (requested without a prior human requirement), human_first (only after a fresh explicit human validation of that exact action), forbidden (explicitly prohibited), unspecified (the requester explicitly has not decided and wants to be asked), conflict (requested and prohibited at once). evidence is an exact verbatim substring. Never drop a requested effect; never add one.
+const INSTRUCTIONS: &str = r"Interpret the ENTIRE user request, in whatever language, as a private semantic plan for a workflow compiler. Return only one JSON object with steps, effects, obligations, constraints, unknowns, regions, approval_bypass. Never produce YAML, source, tool calls, credentials, endpoints or permissions.
+steps: the operations requested, in order. op is one of read (consume the document supplied with each invocation; not an external retrieval), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records from an external source, database, directory, catalog, calendar, history, registry, runbook or knowledge base), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing, correct or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
+effects: every action that changes the outside world (create a record, send, publish, post, open a ticket, trigger a payment, mark, order, refund, merge, notify, delete, write a file). verb is one of create, send, publish, update, notify, refund, pay, order, merge, delete, write, effect. target is the verbatim phrase naming the action. policy is one of automatic (requested without a prior human requirement), human_first (only after a fresh explicit human validation of that exact action), forbidden (explicitly prohibited), unspecified (the requester explicitly has not decided and wants to be asked), conflict (requested and prohibited at once). evidence is an exact verbatim substring. Never drop a requested effect; never add one.
 obligations: kind is one of dedup (no second action for the same incoming identifier), retry_bound (a numeric maximum of attempts, cycles or iterations; put the number in value), revision_check (recheck the current version immediately before the final action). A price, deadline, record count or number of proposed time slots is not a bound.
 constraints: verbatim instructions that shape how steps run (what not to infer, what to keep null, what remains a code rule, which sources are excluded).
-unknowns: requested work outside this vocabulary (durable triggers are NOT unknown: one invocation per item is supported; named SaaS systems are NOT unknown: they are lookups or effects the compiler will ask an endpoint or file for). Preserve the meaning expressed in the requester's language; never complete by guessing.";
+unknowns: requested work outside this vocabulary (durable triggers are NOT unknown: one invocation per item is supported; named SaaS systems are NOT unknown: they are lookups or effects the compiler will ask an endpoint or file for).
+regions: partition the WHOLE request into contiguous verbatim excerpts, in order, covering every sentence, each with role operation | effect | policy | obligation | constraint | context | unknown. Nothing meaningful may be left out of regions; a region you cannot map gets role unknown.
+approval_bypass: {present: true|false, evidence: verbatim substring} when the request asks to reuse a prior approval, skip approval, act without asking, or otherwise presuppose an approval it does not give.
+Preserve the meaning expressed in the requester's language; never complete by guessing; never rewrite a literal (URL, path, number, currency, name).";
 
 /// Compile with one explicitly authorized generative provider (COLD only).
 ///
@@ -121,12 +144,12 @@ pub async fn compile_with_provider<P: ProviderInferDyn>(
 }
 
 /// Compile with explicit cognition: a decision seat (WARM) and/or a generative provider (COLD).
-/// Exact skeletons, EDIT, bounded support clauses and fully readable intents keep the
+/// Exact skeletons, EDIT, bounded support clauses and strictly explicit intents keep the
 /// deterministic path and never call either seat.
 ///
 /// # Errors
 /// Returns the same representation/registry machinery failures as [`super::compile`].
-#[allow(clippy::too_many_lines)] // the three strategies read top to bottom as one ladder
+#[allow(clippy::too_many_lines)] // the resolution ladder reads top to bottom
 pub async fn compile_with_cognition<P: ProviderInferDyn>(
     request: &CompileRequest,
     cognition: Cognition<'_, P>,
@@ -173,21 +196,30 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
         out.provenance.strategy = Some(Strategy::Support);
         return Ok(out);
     }
+    let mut route: Vec<String> = Vec::new();
     let mut reading = lexicon::read(&effective_intent);
     backstop(&effective_intent, &mut reading.plan);
-    if reading.complete() {
-        return settle(
-            Strategy::Hot,
-            &reading.plan,
-            &effective_intent,
-            &assembly_request,
-            out,
-        );
+    match admit_hot(&reading, request.hot) {
+        Ok(()) => {
+            route.push("hot".to_owned());
+            record_route(&mut out, &route);
+            return settle(
+                Strategy::Hot,
+                &reading.plan,
+                &effective_intent,
+                &assembly_request,
+                out,
+            );
+        }
+        Err(why) => route.push(format!("hot rejected: {}", why.join("; "))),
     }
-    // WARM: every clause is known; a few carry a small finite set of readings.
+    // WARM on lexical ambiguity: every clause is known; a few carry a finite set of readings
+    // and the rest of the reading is strictly explicit.
     if reading.unresolved.is_empty()
         && !reading.ambiguous.is_empty()
+        && request.hot != HotPolicy::Off
         && let Some(seat) = cognition.seat
+        && lexical_rest_is_explicit(&reading)
     {
         out.provenance.cognition = AuthoringCognition::ExplicitDecision;
         let mut records = Vec::new();
@@ -196,10 +228,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
             let options = ambiguity
                 .options
                 .iter()
-                .map(|op| ChoiceOption {
-                    key: op.word().to_owned(),
-                    description: op.definition().to_owned(),
-                })
+                .map(|op| ChoiceOption::new(op.word(), op.definition()))
                 .collect();
             let question = ChoiceQuestion::new(
                 format!("clause-{index}"),
@@ -242,6 +271,8 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
         }
         out.provenance.decision = Some(json!({"seat": seat.name(), "questions": records}));
         if settled_all {
+            route.push("warm".to_owned());
+            record_route(&mut out, &route);
             return settle(
                 Strategy::Warm,
                 &reading.plan,
@@ -250,9 +281,10 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
                 out,
             );
         }
+        route.push("warm: none".to_owned());
         reading.ambiguous.clear();
     }
-    // COLD: one explicitly authorized generative proposal, constrained by the deterministic facts.
+    // COLD: explicitly authorized generative proposals, constrained by the deterministic facts.
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
         if policy.model.trim().is_empty()
             || !(1..=8192).contains(&policy.max_tokens)
@@ -268,166 +300,58 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
             );
             return Ok(out);
         }
-        if policy.samples <= 1 {
-            if let Some(proposal) = propose(&effective_intent, policy, provider, &mut out).await
-                && let Some(plan) = merge(&effective_intent, proposal, &reading, &mut out)
-            {
-                return settle(
-                    Strategy::Cold,
-                    &plan,
-                    &effective_intent,
-                    &assembly_request,
-                    out,
-                );
-            }
-            return Ok(out);
-        }
+        route.push(format!("cold: {} sample(s)", policy.samples.clamp(1, 5)));
         return sampled(
             &effective_intent,
             policy,
             provider,
+            cognition.seat,
             &reading,
             &assembly_request,
+            route,
             out,
         )
         .await;
     }
+    route.push("needs cognition".to_owned());
+    record_route(&mut out, &route);
     unresolved(&reading, &mut out);
     Ok(out)
 }
 
-/// Best-of-N COLD: N independent proposals, each validated and merged alone; the plan
-/// the other samples agree with most is assembled. Agreement is structural (operations,
-/// effects with their policy, obligations), never a vote that could hide a dropped
-/// effect: a plan that fails the deterministic facts never enters the pool.
-async fn sampled<P: ProviderInferDyn>(
-    intent: &str,
-    policy: &AuthoringPolicy,
-    provider: &P,
-    reading: &Reading,
-    request: &CompileRequest,
-    mut out: CompileOutcome,
-) -> Result<CompileOutcome, CompileError> {
-    let mut accepted: Vec<(usize, Plan)> = Vec::new();
-    let mut rejected: Vec<CompileOutcome> = Vec::new();
-    let mut records = Vec::new();
-    let mut calls = 0;
-    let mut input_tokens: Option<u64> = None;
-    let mut output_tokens: Option<u64> = None;
-    let mut elapsed_ms = 0;
-    for index in 0..policy.samples.clamp(1, 5) as usize {
-        let mut scratch = super::initial();
-        let proposal = propose(intent, policy, provider, &mut scratch).await;
-        if let Some(receipt) = &scratch.provenance.authoring {
-            calls += receipt.calls;
-            elapsed_ms += receipt.elapsed_ms;
-            if let Some(n) = receipt.input_tokens {
-                input_tokens = Some(input_tokens.unwrap_or(0) + n);
-            }
-            if let Some(n) = receipt.output_tokens {
-                output_tokens = Some(output_tokens.unwrap_or(0) + n);
+/// The strict admission contract, the legacy one, or none.
+fn admit_hot(reading: &Reading, hot: HotPolicy) -> Result<(), Vec<String>> {
+    match hot {
+        HotPolicy::Off => Err(vec!["hot policy off".to_owned()]),
+        HotPolicy::Legacy => {
+            if reading.complete() {
+                Ok(())
+            } else {
+                Err(vec!["reading incomplete".to_owned()])
             }
         }
-        let plan = proposal.and_then(|p| merge(intent, p, reading, &mut scratch));
-        let findings: Vec<String> = scratch
-            .diagnostics
-            .iter()
-            .filter(|d| d.kind != DiagnosticKind::Applied)
-            .map(|d| d.message.clone())
-            .collect();
-        records.push(json!({
-            "sample": index,
-            "accepted": plan.is_some(),
-            "signature": plan.as_ref().map(signature),
-            "findings": findings,
-        }));
-        match plan {
-            Some(plan) => accepted.push((index, plan)),
-            None => rejected.push(scratch),
+        HotPolicy::Strict => {
+            let why = reading.hot_rejections();
+            if why.is_empty() { Ok(()) } else { Err(why) }
         }
     }
-    out.provenance.cognition = AuthoringCognition::ExplicitProvider;
-    out.provenance.authoring = Some(AuthoringReceipt {
-        model: policy.model.clone(),
-        calls,
-        input_tokens,
-        output_tokens,
-        elapsed_ms,
-    });
-    // The medoid: the accepted plan whose structure the other accepted plans share most.
-    let chosen = accepted
+}
+
+/// Under the strict contract, a lexical WARM may only settle an otherwise explicit reading.
+fn lexical_rest_is_explicit(reading: &Reading) -> bool {
+    reading
+        .hot_rejections()
         .iter()
-        .enumerate()
-        .map(|(i, (index, plan))| {
-            let mine = signature(plan);
-            // Symmetric-difference similarity: shared items count, extra or missing items cost.
-            let score: isize = accepted
-                .iter()
-                .enumerate()
-                .filter(|(j, _)| *j != i)
-                .map(|(_, (_, other))| similarity(&mine, &signature(other)))
-                .sum();
-            (score, std::cmp::Reverse(*index))
-        })
-        .enumerate()
-        .max_by_key(|(_, key)| *key)
-        .map(|(i, _)| i);
+        .all(|why| why.contains("ambiguous clause"))
+}
+
+fn record_route(out: &mut CompileOutcome, route: &[String]) {
     let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-    decision["cold_samples"] = json!({
-        "requested": policy.samples,
-        "accepted": accepted.len(),
-        "selected": chosen.map(|i| accepted[i].0),
-        "samples": records,
-    });
+    decision["route"] = json!(route);
     out.provenance.decision = Some(decision);
-    if let Some(i) = chosen {
-        let plan = accepted[i].1.clone();
-        return settle(Strategy::Cold, &plan, intent, request, out);
-    }
-    // Every sample was refused: report the first refusal's findings and question.
-    if let Some(first) = rejected.into_iter().next() {
-        out.diagnostics.extend(first.diagnostics);
-        out.questions.extend(first.questions);
-        if out.provenance.plan.is_none() {
-            out.provenance.plan = first.provenance.plan;
-        }
-    }
-    Ok(out)
 }
 
-/// A plan's structural signature: operation words, effect verb:policy words, obligation words.
-fn signature(plan: &Plan) -> Vec<String> {
-    let mut items: Vec<String> = plan
-        .steps
-        .iter()
-        .map(|s| format!("op:{}", s.op.word()))
-        .chain(
-            plan.effects
-                .iter()
-                .map(|e| format!("effect:{}:{}", e.verb.word(), e.policy.word())),
-        )
-        .chain(
-            plan.obligations
-                .iter()
-                .map(|o| format!("obligation:{}", o.kind.word())),
-        )
-        .collect();
-    items.sort();
-    items.dedup();
-    items
-}
-
-fn similarity(a: &[String], b: &[String]) -> isize {
-    let shared = a.iter().filter(|item| b.contains(item)).count();
-    let shared = isize::try_from(shared).unwrap_or(isize::MAX / 4);
-    let (la, lb) = (
-        isize::try_from(a.len()).unwrap_or(isize::MAX / 4),
-        isize::try_from(b.len()).unwrap_or(isize::MAX / 4),
-    );
-    2 * shared - la - lb
-}
-
-/// The deterministic-only door: HOT or an honest unresolved report. Never a seat call.
+/// The deterministic-only door: HOT under the request's contract, or an honest report.
 pub(super) fn hot(
     intent: &str,
     request: &CompileRequest,
@@ -437,23 +361,46 @@ pub(super) fn hot(
     let intent = folded.as_str();
     let mut reading = lexicon::read(intent);
     backstop(intent, &mut reading.plan);
-    if reading.complete() {
-        super::assemble::assemble(&reading.plan, request, out)?;
-        out.provenance.strategy = Some(Strategy::Hot);
-        out.provenance.plan = Some(reading.plan.to_json());
-        return Ok(true);
+    match admit_hot(&reading, request.hot) {
+        Ok(()) => {
+            record_route(out, &["hot".to_owned()]);
+            super::assemble::assemble(&reading.plan, request, out)?;
+            out.provenance.strategy = Some(Strategy::Hot);
+            out.provenance.plan = Some(reading.plan.to_json());
+            Ok(true)
+        }
+        Err(why) => {
+            if reading.plan.steps.is_empty()
+                && reading.plan.effects.is_empty()
+                && reading.ambiguous.is_empty()
+                && reading.unresolved.len() <= 1
+                && reading.clauses <= 1
+            {
+                // Nothing recognizable: keep the historical message of the exact-skeleton door.
+                return Ok(false);
+            }
+            record_route(
+                out,
+                &[
+                    format!("hot rejected: {}", why.join("; ")),
+                    "needs cognition".to_owned(),
+                ],
+            );
+            unresolved(&reading, out);
+            if reading.unresolved.is_empty() && reading.ambiguous.is_empty() {
+                super::finding(
+                    out,
+                    DiagnosticKind::Unknown,
+                    "intent",
+                    format!(
+                        "The deterministic reader cannot admit this request on its own ({}). Permit an authoring model (`--authoring-model`) or a decision seat, or rephrase with explicit operations and literals.",
+                        why.join("; ")
+                    ),
+                );
+            }
+            Ok(true)
+        }
     }
-    if reading.plan.steps.is_empty()
-        && reading.plan.effects.is_empty()
-        && reading.ambiguous.is_empty()
-        && reading.unresolved.len() <= 1
-        && reading.clauses <= 1
-    {
-        // Nothing recognizable: keep the historical message of the exact-skeleton door.
-        return Ok(false);
-    }
-    unresolved(&reading, out);
-    Ok(true)
 }
 
 fn unresolved(reading: &Reading, out: &mut CompileOutcome) {
@@ -487,12 +434,18 @@ fn unresolved(reading: &Reading, out: &mut CompileOutcome) {
     for unknown in &reading.plan.unknowns {
         super::finding(out, DiagnosticKind::Unknown, "intent", unknown.clone());
     }
-    super::question(
-        out,
-        "intent.clarification",
-        "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
-        QuestionType::Text,
-    );
+    if !out
+        .questions
+        .iter()
+        .any(|q| q.key == "intent.clarification")
+    {
+        super::question(
+            out,
+            "intent.clarification",
+            "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
+            QuestionType::Text,
+        );
+    }
     out.provenance.plan = Some(reading.plan.to_json());
 }
 
@@ -544,14 +497,14 @@ async fn propose<P: ProviderInferDyn>(
     infer.timeout = Some(policy.timeout);
     infer.response_format = ResponseFormat::JsonSchema(json!({
     "type":"object","additionalProperties":false,
-    "required":["steps","effects","obligations","constraints","unknowns"],
+    "required":["steps","effects","obligations","constraints","unknowns","regions","approval_bypass"],
     "properties":{
         "steps":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["op","detail","evidence"],"properties":{
             "op":{"type":"string","enum":Op::ALL.iter().map(|o| o.word()).collect::<Vec<_>>()},
             "detail":{"type":"string"},"evidence":{"type":"string","minLength":1},
             "categories":{"type":"array","items":{"type":"string"}}}}},
         "effects":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["verb","target","policy","evidence"],"properties":{
-            "verb":{"type":"string","enum":["create","send","publish","update","notify","refund","pay","order","merge","delete","effect"]},
+            "verb":{"type":"string","enum":["create","send","publish","update","notify","refund","pay","order","merge","delete","write","effect"]},
             "target":{"type":"string"},
             "policy":{"type":"string","enum":["automatic","human_first","forbidden","unspecified","conflict"]},
             "evidence":{"type":"string","minLength":1}}}},
@@ -559,7 +512,12 @@ async fn propose<P: ProviderInferDyn>(
             "kind":{"type":"string","enum":["dedup","retry_bound","revision_check"]},
             "value":{"type":["integer","null"]},"evidence":{"type":"string","minLength":1}}}},
         "constraints":{"type":"array","items":{"type":"string"}},
-        "unknowns":{"type":"array","items":{"type":"string"}}
+        "unknowns":{"type":"array","items":{"type":"string"}},
+        "regions":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["text","role"],"properties":{
+            "text":{"type":"string","minLength":1},
+            "role":{"type":"string","enum":["operation","effect","policy","obligation","constraint","context","unknown"]}}}},
+        "approval_bypass":{"type":"object","additionalProperties":false,"required":["present"],"properties":{
+            "present":{"type":"boolean"},"evidence":{"type":"string"}}}
     }}));
     let start = std::time::Instant::now();
     let result = tokio::time::timeout(policy.timeout, provider.infer(infer)).await;
@@ -626,15 +584,22 @@ fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Option<Proposal
     }
 }
 
-/// The proposal joins the deterministic reading; deterministic facts win every disagreement.
-#[allow(clippy::too_many_lines)] // one validation walk over steps, effects and obligations
+/// The proposal joins the deterministic reading; deterministic facts win every disagreement,
+/// and the proposal must account for every region of the request.
+#[allow(clippy::too_many_lines)] // one validation walk over steps, effects, obligations, regions
 fn merge(
     intent: &str,
     proposal: Proposal,
     reading: &Reading,
     out: &mut CompileOutcome,
 ) -> Option<Plan> {
-    let mut plan = reading.plan.clone();
+    // The deterministic reading contributes its POLICY floor (effects with their policy,
+    // obligations, constraints, bindings, unknowns), never its operation guesses: a clause the
+    // reader consumed is not understanding, and the model must account for every region.
+    let mut plan = Plan {
+        steps: Vec::new(),
+        ..reading.plan.clone()
+    };
     let anchored = |evidence: &str| !evidence.trim().is_empty() && intent.contains(evidence);
     for step in proposal.steps {
         let Some(op) = Op::parse(&step.op) else {
@@ -676,8 +641,11 @@ fn merge(
         }
         if let Some(existing) = plan.effects.iter_mut().find(|e| e.verb == verb) {
             // The deterministic policy is the floor: a model may only strengthen a plain
-            // request. Any other disagreement about a recognized effect is a human question,
-            // never a model verdict.
+            // request. Any other disagreement about a recognized effect is a human question.
+            if !effect.target.trim().is_empty() {
+                existing.target.clone_from(&effect.target);
+                existing.evidence.clone_from(&effect.evidence);
+            }
             if existing.policy == EffectPolicy::Automatic && policy != EffectPolicy::Automatic {
                 existing.policy = policy;
             } else if existing.policy != policy {
@@ -729,7 +697,21 @@ fn merge(
         }
     }
     plan.unknowns.extend(proposal.unknowns);
+    // Semantic accounting: the request must be covered by regions the model can name.
+    if let Some(bypass) = proposal.approval_bypass
+        && bypass.present
+        && anchored(&bypass.evidence)
+    {
+        plan.unknowns.push(format!(
+            "The request presupposes, reuses or skips an approval it does not give ({}); the compiler never grants that authority.",
+            bypass.evidence.trim()
+        ));
+    }
+    for gap in accounting_gaps(intent, &proposal.regions) {
+        plan.unknowns.push(gap);
+    }
     backstop(intent, &mut plan);
+    plan.unknowns.dedup();
     if !plan.unknowns.is_empty() {
         super::finding(
             out,
@@ -756,6 +738,61 @@ fn merge(
     Some(plan)
 }
 
+/// Regions the proposal left unaccounted, or named as unknown. A model that cannot say what a
+/// span of the request is for has not understood it; nothing is dropped silently.
+fn accounting_gaps(intent: &str, regions: &[ProposedRegion]) -> Vec<String> {
+    let mut gaps = Vec::new();
+    if regions.is_empty() {
+        // A seat that returned no regions is not penalized here; the anchored evidence of
+        // steps and effects remains the floor.
+        return gaps;
+    }
+    let mut covered = vec![false; intent.len()];
+    for region in regions {
+        let text = region.text.trim();
+        if text.is_empty() {
+            continue;
+        }
+        let mut from = 0;
+        while let Some(pos) = intent.get(from..).and_then(|rest| rest.find(text)) {
+            let start = from + pos;
+            let end = start + text.len();
+            for flag in covered.iter_mut().take(end).skip(start) {
+                *flag = true;
+            }
+            from = end;
+        }
+        if region.role == "unknown" {
+            gaps.push(format!(
+                "The proposal could not map this part of the request: {text}"
+            ));
+        }
+    }
+    // Any uncovered run of meaningful characters is an unaccounted region.
+    let mut run = String::new();
+    let mut runs = Vec::new();
+    for (index, ch) in intent.char_indices() {
+        let flagged = covered.get(index).copied().unwrap_or(true);
+        if flagged {
+            if run.trim().chars().filter(|c| c.is_alphanumeric()).count() >= 12 {
+                runs.push(run.trim().to_owned());
+            }
+            run.clear();
+        } else {
+            run.push(ch);
+        }
+    }
+    if run.trim().chars().filter(|c| c.is_alphanumeric()).count() >= 12 {
+        runs.push(run.trim().to_owned());
+    }
+    for text in runs {
+        gaps.push(format!(
+            "The proposal does not account for this part of the request: {text}"
+        ));
+    }
+    gaps
+}
+
 fn reject(out: &mut CompileOutcome, why: &str) {
     super::finding(
         out,
@@ -763,6 +800,242 @@ fn reject(out: &mut CompileOutcome, why: &str) {
         "authoring_plan",
         format!("The semantic plan was not assembled: {why}."),
     );
+}
+
+/// COLD with N proposals and, when they disagree, a bounded decision AFTER COLD: the seat
+/// chooses among the distinct admissible plans or answers NONE. Without a seat, the medoid
+/// under a symmetric-difference similarity is kept and the disagreement recorded. A plan that
+/// fails the deterministic facts never enters the pool.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // one experiment path, fully traced
+async fn sampled<P: ProviderInferDyn>(
+    intent: &str,
+    policy: &AuthoringPolicy,
+    provider: &P,
+    seat: Option<&dyn DecisionSeat>,
+    reading: &Reading,
+    request: &CompileRequest,
+    mut route: Vec<String>,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    let mut accepted: Vec<(usize, Plan)> = Vec::new();
+    let mut rejected: Vec<CompileOutcome> = Vec::new();
+    let mut records = Vec::new();
+    let mut calls = 0;
+    let mut input_tokens: Option<u64> = None;
+    let mut output_tokens: Option<u64> = None;
+    let mut elapsed_ms = 0;
+    for index in 0..policy.samples.clamp(1, 5) as usize {
+        let mut scratch = super::initial();
+        let proposal = propose(intent, policy, provider, &mut scratch).await;
+        if let Some(receipt) = &scratch.provenance.authoring {
+            calls += receipt.calls;
+            elapsed_ms += receipt.elapsed_ms;
+            if let Some(n) = receipt.input_tokens {
+                input_tokens = Some(input_tokens.unwrap_or(0) + n);
+            }
+            if let Some(n) = receipt.output_tokens {
+                output_tokens = Some(output_tokens.unwrap_or(0) + n);
+            }
+        }
+        let plan = proposal.and_then(|p| merge(intent, p, reading, &mut scratch));
+        let findings: Vec<String> = scratch
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind != DiagnosticKind::Applied)
+            .map(|d| d.message.clone())
+            .collect();
+        records.push(json!({
+            "sample": index,
+            "accepted": plan.is_some(),
+            "signature": plan.as_ref().map(signature),
+            "findings": findings,
+        }));
+        match plan {
+            Some(plan) => accepted.push((index, plan)),
+            None => rejected.push(scratch),
+        }
+    }
+    out.provenance.cognition = AuthoringCognition::ExplicitProvider;
+    out.provenance.authoring = Some(AuthoringReceipt {
+        model: policy.model.clone(),
+        calls,
+        input_tokens,
+        output_tokens,
+        elapsed_ms,
+    });
+    // Distinct admissible plans, in first-seen order.
+    let mut distinct: Vec<(Vec<String>, usize)> = Vec::new();
+    for (index, plan) in &accepted {
+        let sig = signature(plan);
+        if !distinct.iter().any(|(s, _)| *s == sig) {
+            distinct.push((sig, *index));
+        }
+    }
+    let mut chosen: Option<usize> = None;
+    let mut warm_record = None;
+    let mut seat_declined = false;
+    if distinct.len() >= 2
+        && let Some(seat) = seat
+    {
+        // WARM after COLD: the seat picks among the admissible plans or NONE.
+        let options = distinct
+            .iter()
+            .enumerate()
+            .map(|(k, (sig, _))| {
+                ChoiceOption::new(format!("plan-{k}"), format!("plan with {}", sig.join(", ")))
+            })
+            .collect();
+        let question = ChoiceQuestion::new(
+            "cold-plans",
+            "Several readings of the request survived validation. Choose the one that preserves every requested operation, effect, policy and obligation without adding any; choose none if no reading is faithful.",
+            json!({"request": intent, "plans": distinct.iter().map(|(sig, _)| sig).collect::<Vec<_>>()}),
+            options,
+        );
+        let answer = seat.choose(&question).await;
+        let admitted = match &answer {
+            Ok(answer) => super::decide::admit(&question, answer).map(|()| answer.choice.clone()),
+            Err(error) => Err(error.clone()),
+        };
+        warm_record = Some(match (&answer, &admitted) {
+            (Ok(answer), Ok(_)) => super::decide::record(&question, Ok(answer)),
+            (_, Err(error)) | (Err(error), _) => super::decide::record(&question, Err(error)),
+        });
+        match admitted {
+            Ok(choice) if choice != NONE_OPTION => {
+                let k: usize = choice
+                    .trim_start_matches("plan-")
+                    .parse()
+                    .unwrap_or(usize::MAX);
+                chosen = distinct
+                    .get(k)
+                    .and_then(|(_, index)| accepted.iter().position(|(i, _)| i == index));
+                route.push("warm after cold".to_owned());
+            }
+            Ok(_) => {
+                seat_declined = true;
+                route.push("warm after cold: none".to_owned());
+            }
+            Err(_) => {
+                route.push("warm after cold: seat failed; medoid".to_owned());
+                chosen = medoid(&accepted);
+            }
+        }
+    } else {
+        chosen = medoid(&accepted);
+    }
+    let disagreement = classify_disagreement(&distinct);
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    decision["cold_samples"] = json!({
+        "requested": policy.samples,
+        "accepted": accepted.len(),
+        "distinct": distinct.len(),
+        "disagreement": disagreement,
+        "selected": chosen.map(|i| accepted[i].0),
+        "samples": records,
+    });
+    if let Some(record) = warm_record {
+        decision["warm_after_cold"] = record;
+    }
+    decision["route"] = json!(route);
+    out.provenance.decision = Some(decision);
+    if let Some(i) = chosen {
+        let plan = accepted[i].1.clone();
+        return settle(Strategy::Cold, &plan, intent, request, out);
+    }
+    if seat_declined {
+        // The seat said none of the readings is faithful: a human settles the disagreement.
+        super::finding(
+            &mut out,
+            DiagnosticKind::RequiresHuman,
+            "intent",
+            format!(
+                "The proposals disagree ({}) and the decision seat found none faithful; no candidate was assembled.",
+                disagreement.join(", ")
+            ),
+        );
+        super::question(
+            &mut out,
+            "intent.clarification",
+            "Supply a complete replacement request that states each operation and effect explicitly. It explicitly replaces the earlier intent.",
+            QuestionType::Text,
+        );
+        return Ok(out);
+    }
+    // Every sample was refused: report the first refusal's findings and question.
+    if let Some(first) = rejected.into_iter().next() {
+        out.diagnostics.extend(first.diagnostics);
+        out.questions.extend(first.questions);
+        if out.provenance.plan.is_none() {
+            out.provenance.plan = first.provenance.plan;
+        }
+    }
+    Ok(out)
+}
+
+fn medoid(accepted: &[(usize, Plan)]) -> Option<usize> {
+    accepted
+        .iter()
+        .enumerate()
+        .map(|(i, (index, plan))| {
+            let mine = signature(plan);
+            let score: isize = accepted
+                .iter()
+                .enumerate()
+                .filter(|(j, _)| *j != i)
+                .map(|(_, (_, other))| similarity(&mine, &signature(other)))
+                .sum();
+            (score, std::cmp::Reverse(*index))
+        })
+        .enumerate()
+        .max_by_key(|(_, key)| *key)
+        .map(|(i, _)| i)
+}
+
+/// Where distinct proposals differ: operations, effects, obligations.
+fn classify_disagreement(distinct: &[(Vec<String>, usize)]) -> Vec<String> {
+    let mut kinds = Vec::new();
+    for prefix in ["op:", "effect:", "obligation:"] {
+        let sets: Vec<Vec<&String>> = distinct
+            .iter()
+            .map(|(sig, _)| sig.iter().filter(|s| s.starts_with(prefix)).collect())
+            .collect();
+        if sets.windows(2).any(|w| w[0] != w[1]) {
+            kinds.push(prefix.trim_end_matches(':').to_owned());
+        }
+    }
+    kinds
+}
+
+/// A plan's structural signature: operation words, effect verb:policy words, obligation words.
+fn signature(plan: &Plan) -> Vec<String> {
+    let mut items: Vec<String> = plan
+        .steps
+        .iter()
+        .map(|s| format!("op:{}", s.op.word()))
+        .chain(
+            plan.effects
+                .iter()
+                .map(|e| format!("effect:{}:{}", e.verb.word(), e.policy.word())),
+        )
+        .chain(
+            plan.obligations
+                .iter()
+                .map(|o| format!("obligation:{}", o.kind.word())),
+        )
+        .collect();
+    items.sort();
+    items.dedup();
+    items
+}
+
+fn similarity(a: &[String], b: &[String]) -> isize {
+    let shared = a.iter().filter(|item| b.contains(item)).count();
+    let shared = isize::try_from(shared).unwrap_or(isize::MAX / 4);
+    let (la, lb) = (
+        isize::try_from(a.len()).unwrap_or(isize::MAX / 4),
+        isize::try_from(b.len()).unwrap_or(isize::MAX / 4),
+    );
+    2 * shared - la - lb
 }
 
 /// Recognized EN/FR approval-bypass phrases, matched as whole-word sequences.
@@ -780,8 +1053,9 @@ const APPROVAL_BYPASS: &[&[&str]] = &[
 ];
 
 /// A conservative EN/FR authority backstop applied to EVERY strategy. It cannot prove
-/// arbitrary-language intent preservation; it refuses the recognized bypasses and
-/// keeps recognized money movement from being assembled without a human gate.
+/// arbitrary-language intent preservation (the proposal's own bypass field covers other
+/// languages); it refuses the recognized bypasses and keeps recognized money movement from
+/// being assembled without a human gate.
 fn backstop(intent: &str, plan: &mut Plan) {
     let text = intent.to_lowercase();
     let words: Vec<&str> = text

@@ -11,6 +11,35 @@ pub struct CompileRequest {
     pub(super) answers: BTreeMap<String, String>,
     pub(super) workflow_id: Option<String>,
     pub(super) authoring: Option<AuthoringPolicy>,
+    pub(super) hot: HotPolicy,
+}
+
+/// How much the deterministic reader may decide on its own. False HOT is the P0 defect:
+/// the default admits HOT only on positive structural evidence.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum HotPolicy {
+    /// HOT only when every clause is explicit (short canonical operation, typed literal,
+    /// no coordinated residue) and no ambiguity, policy or authority question remains.
+    #[default]
+    Strict,
+    /// The pre-refactor admission: every clause consumed by the reader. Ablation only.
+    Legacy,
+    /// Never HOT for free prose: exact skeletons and the support grammar only; everything
+    /// else needs a seat. Ablation only.
+    Off,
+}
+
+impl HotPolicy {
+    /// The stable machine word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Strict => "strict",
+            Self::Legacy => "legacy",
+            Self::Off => "off",
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -33,6 +62,12 @@ impl CompileRequest {
         self.authoring = Some(policy);
         self
     }
+    /// Choose the HOT admission contract (Strict by default; Legacy/Off are ablations).
+    #[must_use]
+    pub fn with_hot_policy(mut self, hot: HotPolicy) -> Self {
+        self.hot = hot;
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
@@ -42,6 +77,7 @@ impl CompileRequest {
             answers: BTreeMap::new(),
             workflow_id: None,
             authoring: None,
+            hot: HotPolicy::default(),
         }
     }
 
@@ -60,6 +96,7 @@ impl CompileRequest {
             answers: BTreeMap::new(),
             workflow_id: None,
             authoring: None,
+            hot: HotPolicy::default(),
         }
     }
 
@@ -89,6 +126,7 @@ impl CompileRequest {
             answers: BTreeMap::new(),
             workflow_id: None,
             authoring: None,
+            hot: HotPolicy::default(),
         }
     }
 

@@ -34,6 +34,50 @@ pub(super) struct Reading {
 }
 
 impl Reading {
+    /// Why this reading may NOT be admitted as HOT under the strict contract: every clause
+    /// consumed is not evidence of understanding. A step is explicit when its object is a
+    /// typed literal or a short noun phrase without coordinated residue; an effect when its
+    /// target is short or literal; and nothing ambiguous, unresolved or unknown remains.
+    pub(super) fn hot_rejections(&self) -> Vec<String> {
+        let mut why = Vec::new();
+        if !self.unresolved.is_empty() {
+            why.push(format!("{} unresolved clause(s)", self.unresolved.len()));
+        }
+        if !self.ambiguous.is_empty() {
+            why.push(format!("{} ambiguous clause(s)", self.ambiguous.len()));
+        }
+        if !self.plan.unknowns.is_empty() {
+            why.push("unknown requested work".to_owned());
+        }
+        if self.plan.steps.is_empty() && self.plan.effects.is_empty() {
+            why.push("nothing recognized".to_owned());
+        }
+        for step in &self.plan.steps {
+            let categorical = step.op == Op::Classify && !step.categories.is_empty();
+            if !categorical && !explicit_object(&step.detail) {
+                why.push(format!(
+                    "`{}` object is not explicit: {}",
+                    step.op.word(),
+                    step.detail.trim()
+                ));
+            }
+        }
+        for effect in &self.plan.effects {
+            if matches!(
+                effect.policy,
+                EffectPolicy::Automatic | EffectPolicy::HumanFirst
+            ) && !explicit_object(&effect.target)
+            {
+                why.push(format!(
+                    "`{}` target is not explicit: {}",
+                    effect.verb.word(),
+                    effect.target.trim()
+                ));
+            }
+        }
+        why
+    }
+
     /// HOT is possible only when every clause was consumed and something was asked.
     pub(super) fn complete(&self) -> bool {
         self.unresolved.is_empty()
@@ -348,6 +392,55 @@ const ARTICLES: &[&str] = &[
 /// lowercase matching copy and the evidence copy. Callers anchor against this form.
 pub(super) fn fold_apostrophes(intent: &str) -> String {
     intent.replace(['’', '‘'], "'")
+}
+
+/// A step object the reader may trust without a model: a typed literal (URL, path, email,
+/// timezone, number) or at most four content tokens with no coordinating connector.
+fn explicit_object(detail: &str) -> bool {
+    let lower = normalize(detail);
+    let literal = lower.split_whitespace().any(|w| {
+        let w = w.trim_end_matches(['.', ',', ';', ')']);
+        w.starts_with("http://")
+            || w.starts_with("https://")
+            || w.starts_with("./")
+            || (w.starts_with('/') && w.contains('.'))
+            || (w.contains('@') && w.contains('.'))
+            || w.starts_with("europe/")
+            || w.starts_with("america/")
+            || w.starts_with("asia/")
+            || w.chars().all(|c| c.is_ascii_digit()) && !w.is_empty()
+    });
+    let connectors = [
+        ", ",
+        " and ",
+        " et ",
+        " or ",
+        " ou ",
+        " puis ",
+        " then ",
+        ";",
+        " sans ",
+        " without ",
+        " mais ",
+        " but ",
+    ];
+    let coordinated = connectors.iter().any(|c| lower.contains(c));
+    let content = lower
+        .split(|c: char| {
+            !c.is_alphanumeric()
+                && c != '\''
+                && c != '/'
+                && c != '.'
+                && c != ':'
+                && c != '-'
+                && c != '_'
+        })
+        .filter(|t| !t.is_empty() && !ARTICLES.contains(t))
+        .count();
+    if literal {
+        return !coordinated || content <= 6;
+    }
+    !coordinated && content <= 4
 }
 
 fn normalize(text: &str) -> String {

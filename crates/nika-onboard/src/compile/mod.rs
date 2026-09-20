@@ -81,7 +81,8 @@ pub use materialize::{MaterializeError, materialize_ready};
 pub use types::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileDiagnostic, CompileError,
     CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion, CompileRequest,
-    CompileStatus, DiagnosticKind, PreviewScope, QuestionType, RepresentationError, Strategy,
+    CompileStatus, DiagnosticKind, HotPolicy, PreviewScope, QuestionType, RepresentationError,
+    Strategy,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 

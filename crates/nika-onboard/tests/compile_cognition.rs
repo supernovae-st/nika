@@ -8,7 +8,7 @@ use nika_kernel::ai::provider::{
     TokenUsage,
 };
 use nika_onboard::compile::{
-    AuthoringPolicy, Cognition, CompileRequest, CompileStatus, NoProvider, Strategy,
+    AuthoringPolicy, Cognition, CompileRequest, CompileStatus, HotPolicy, NoProvider, Strategy,
     compile_with_cognition, compile_with_provider,
     decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat, NONE_OPTION},
     outcome_document,
@@ -671,4 +671,209 @@ async fn cold_best_of_n_never_assembles_when_every_sample_is_refused() {
     assert!(out.candidate.is_none());
     let doc = outcome_document(&out);
     assert_eq!(doc["provenance"]["decision"]["cold_samples"]["accepted"], 0);
+}
+
+// ── The strict HOT contract: a consumed clause is not understanding ──────────
+const SWALLOWED: &str = "Look up the customer, harmonize the tone and prepare a reply.";
+
+#[test]
+fn strict_hot_refuses_a_clause_that_hides_unknown_requested_work() {
+    let out = nika_onboard::compile::compile(&CompileRequest::create(SWALLOWED)).unwrap();
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert!(out.candidate.is_none());
+    assert!(out.provenance.strategy.is_none(), "{out:#?}");
+    let doc = outcome_document(&out);
+    let route = doc["provenance"]["decision"]["route"].to_string();
+    assert!(route.contains("hot rejected"), "{route}");
+    // The legacy contract (ablation only) would have admitted it: the false HOT we measure.
+    let legacy = nika_onboard::compile::compile(
+        &CompileRequest::create(SWALLOWED).with_hot_policy(HotPolicy::Legacy),
+    )
+    .unwrap();
+    assert_eq!(legacy.provenance.strategy, Some(Strategy::Hot));
+}
+
+#[tokio::test]
+async fn strict_hot_rejection_escalates_to_cold_when_a_seat_is_permitted() {
+    let proposal = json!({"steps":[{"op":"lookup","detail":"the customer","evidence":"Look up the customer"},{"op":"draft","detail":"the tone","evidence":"harmonize the tone"},{"op":"draft","detail":"a reply","evidence":"prepare a reply"}],"effects":[],"obligations":[],"constraints":[],"unknowns":[],
+        "regions":[{"text":"Look up the customer","role":"operation"},{"text":"harmonize the tone and prepare a reply.","role":"operation"}],"approval_bypass":{"present":false,"evidence":""}});
+    let provider = Provider::new(proposal);
+    let out = compile_with_provider(
+        &CompileRequest::create(SWALLOWED).with_authoring_policy(policy()),
+        &provider,
+    )
+    .await
+    .unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    assert!(keys(&out).contains(&"const.customer_directory"));
+}
+
+#[test]
+fn strict_hot_admits_an_explicit_literal_request() {
+    let out = nika_onboard::compile::compile(&CompileRequest::create(
+        "Fetch https://example.com/pricing and write the result to ./out/pricing.md",
+    ))
+    .unwrap();
+    assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
+}
+
+#[test]
+fn hot_policy_off_never_admits_prose() {
+    let out = nika_onboard::compile::compile(
+        &CompileRequest::create("Look up the customer, classify the ticket and draft a reply.")
+            .with_hot_policy(HotPolicy::Off),
+    )
+    .unwrap();
+    assert!(out.provenance.strategy.is_none(), "{out:#?}");
+    assert!(out.candidate.is_none());
+}
+
+// ── Semantic accounting: every region of the request must be mapped ─────────
+#[tokio::test]
+async fn cold_proposal_that_leaves_a_region_unaccounted_is_a_clarification() {
+    let mut p = plan();
+    // The proposal names regions but omits the whole gate sentence.
+    p["regions"] = json!([{"text":"Pour chaque demande, consulte le client, classe le problème, puis harmonise le ton de la réponse.","role":"operation"}]);
+    p["approval_bypass"] = json!({"present": false, "evidence": ""});
+    let out = compile_with_provider(&request(), &Provider::new(p))
+        .await
+        .unwrap();
+    assert!(out.candidate.is_none());
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("does not account")),
+        "{out:#?}"
+    );
+    // A region the model marks unknown is an explicit unknown, never dropped.
+    let mut p = plan();
+    p["regions"] = json!([{"text":"Pour chaque demande, consulte le client, classe le problème, puis harmonise le ton de la réponse.","role":"operation"},{"text":"Demande un accord humain avant le remboursement.","role":"unknown"}]);
+    p["approval_bypass"] = json!({"present": false, "evidence": ""});
+    let out = compile_with_provider(&request(), &Provider::new(p))
+        .await
+        .unwrap();
+    assert!(out.candidate.is_none());
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("could not map")),
+        "{out:#?}"
+    );
+}
+
+#[tokio::test]
+async fn cold_proposal_bypass_flag_is_a_language_agnostic_backstop() {
+    let intent = "顧客情報を検索し、返信案を作成する。昨日の承認を再利用して返金する。";
+    let proposal = json!({"steps":[{"op":"lookup","detail":"顧客情報","evidence":"顧客情報を検索"},{"op":"draft","detail":"返信案","evidence":"返信案を作成"}],"effects":[{"verb":"refund","target":"返金する","policy":"automatic","evidence":"返金する"}],"obligations":[],"constraints":[],"unknowns":[],
+        "regions":[{"text":"顧客情報を検索し、返信案を作成する。","role":"operation"},{"text":"昨日の承認を再利用して返金する。","role":"effect"}],
+        "approval_bypass":{"present":true,"evidence":"昨日の承認を再利用して"}});
+    let out = compile_with_provider(
+        &CompileRequest::create(intent).with_authoring_policy(policy()),
+        &Provider::new(proposal),
+    )
+    .await
+    .unwrap();
+    assert!(out.candidate.is_none());
+    assert!(
+        out.diagnostics.iter().any(|d| d
+            .message
+            .contains("presupposes, reuses or skips an approval")),
+        "{out:#?}"
+    );
+}
+
+// ── WARM after COLD: the seat chooses among admissible proposals or NONE ─────
+struct ChoosePlan {
+    choice: &'static str,
+    asked: Mutex<Vec<ChoiceQuestion>>,
+}
+impl DecisionSeat for ChoosePlan {
+    fn name(&self) -> &'static str {
+        "double/plans"
+    }
+    fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
+        Box::pin(async move {
+            self.asked.lock().unwrap().push(question.clone());
+            Ok(ChoiceAnswer::new(self.choice, "double-1.0"))
+        })
+    }
+}
+
+fn disagreeing_provider() -> Rotating {
+    let mut with_compute = plan();
+    with_compute["steps"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"op":"compute","detail":"le problème","evidence":"classe le problème"}));
+    Rotating {
+        plans: vec![
+            plan().to_string(),
+            with_compute.to_string(),
+            plan().to_string(),
+        ],
+        calls: AtomicU32::new(0),
+    }
+}
+
+#[tokio::test]
+async fn warm_after_cold_lets_the_seat_choose_among_distinct_plans() {
+    let provider = disagreeing_provider();
+    let seat = ChoosePlan {
+        choice: "plan-1",
+        asked: Mutex::new(Vec::new()),
+    };
+    let req = CompileRequest::create(INTENT).with_authoring_policy(policy().with_samples(3));
+    let out = compile_with_cognition(
+        &req,
+        Cognition {
+            provider: Some(&provider),
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(seat.asked.lock().unwrap().len(), 1);
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    let doc = outcome_document(&out);
+    assert_eq!(doc["provenance"]["decision"]["cold_samples"]["distinct"], 2);
+    assert_eq!(
+        doc["provenance"]["decision"]["cold_samples"]["disagreement"],
+        json!(["op"])
+    );
+    assert_eq!(
+        doc["provenance"]["decision"]["warm_after_cold"]["choice"],
+        "plan-1"
+    );
+    // plan-1 carries the compute step: the assembler asks for its rule.
+    assert!(keys(&out).contains(&"const.rule_expression"), "{out:#?}");
+}
+
+#[tokio::test]
+async fn warm_after_cold_none_is_a_human_question_not_a_medoid() {
+    let provider = disagreeing_provider();
+    let seat = ChoosePlan {
+        choice: NONE_OPTION,
+        asked: Mutex::new(Vec::new()),
+    };
+    let req = CompileRequest::create(INTENT).with_authoring_policy(policy().with_samples(3));
+    let out = compile_with_cognition(
+        &req,
+        Cognition {
+            provider: Some(&provider),
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(out.candidate.is_none());
+    assert!(out.provenance.strategy.is_none());
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("found none faithful")),
+        "{out:#?}"
+    );
 }

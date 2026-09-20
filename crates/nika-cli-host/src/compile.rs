@@ -41,6 +41,9 @@ pub struct CompileArgs {
     /// Authoring timeout in seconds, at most 120; no retries.
     #[arg(long, requires = "authoring_model")]
     pub authoring_timeout: Option<u64>,
+    /// HOT admission contract: strict (default), legacy (pre-refactor, ablation) or off (never HOT for prose).
+    #[arg(long, value_parser = ["strict", "legacy", "off"])]
+    pub hot_policy: Option<String>,
     /// Independent COLD proposals to compare (1..=5); each is one call. Requires the authoring model.
     #[arg(long, requires = "authoring_model")]
     pub authoring_samples: Option<u32>,
@@ -88,6 +91,11 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
         }
         request
     };
+    request = request.with_hot_policy(match args.hot_policy.as_deref() {
+        Some("legacy") => nika_onboard::compile::HotPolicy::Legacy,
+        Some("off") => nika_onboard::compile::HotPolicy::Off,
+        _ => nika_onboard::compile::HotPolicy::Strict,
+    });
     for answer in &args.answers {
         let Some((key, literal)) = answer.split_once('=') else {
             return render::failure(
