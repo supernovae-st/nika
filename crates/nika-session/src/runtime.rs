@@ -164,7 +164,13 @@ pub struct SessionRuntime {
     authoring: Option<AuthoringRound>,
     /// The cognition the compiler may use, derived from the reasoner.
     seat: AuthoringSeat,
+    /// Where a truthful progress line goes while the compiler works
+    /// (presentation only: it never carries workflow meaning).
+    progress: Option<ProgressHook>,
 }
+
+/// A door's sink for progress lines (« Working through this workflow… »).
+pub type ProgressHook = Box<dyn Fn(&str)>;
 
 impl std::fmt::Debug for SessionRuntime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -207,9 +213,23 @@ impl SessionRuntime {
             last_workflow: None,
             authoring: None,
             seat: AuthoringSeat::Deterministic { why: None },
+            progress: None,
         };
         session.refresh_seat();
         session
+    }
+
+    /// Where progress lines go while the compiler works under a seat: a
+    /// door prints them; a remote host projects them. Presentation only.
+    pub fn on_progress(&mut self, hook: ProgressHook) {
+        self.progress = Some(hook);
+    }
+
+    /// One truthful progress line to the door, when one listens.
+    pub(super) fn progress(&self, line: &str) {
+        if let Some(hook) = &self.progress {
+            hook(line);
+        }
     }
 
     /// Open a session that can re-choose its intelligence in-session:

@@ -120,8 +120,9 @@ pub struct AuthoringRound {
     pub intent: String,
     /// `key → JSON literal`, exactly what [`CompileRequest::answer`] takes.
     pub answers: BTreeMap<String, String>,
-    /// `provenance.plan` of the round that settled the reading, when one did.
-    pub plan: Option<Value>,
+    /// The compiler's opaque continuation of this round (today `provenance.plan`,
+    /// replayed through [`CompileRequest::with_plan`]): kept, never inspected.
+    pub continuation: Option<Value>,
     /// The mandatory questions still open, first one first.
     pub questions: Vec<CompileQuestion>,
     /// The compiler's reasons for the open questions (its own words).
@@ -135,7 +136,7 @@ impl AuthoringRound {
         Self {
             intent: intent.into(),
             answers: BTreeMap::new(),
-            plan: None,
+            continuation: None,
             questions: Vec::new(),
             reasons: Vec::new(),
         }
@@ -149,7 +150,7 @@ impl AuthoringRound {
         for (key, literal) in &self.answers {
             request = request.answer(key.clone(), literal.clone());
         }
-        if let Some(plan) = &self.plan {
+        if let Some(plan) = &self.continuation {
             request = request.with_plan(plan.clone());
         }
         request
@@ -159,8 +160,8 @@ impl AuthoringRound {
     /// (a plan that still carries unknown work is never replayed), the
     /// mandatory questions in the compiler's order, its reasons.
     pub fn absorb(&mut self, out: &CompileOutcome) {
-        if self.plan.is_none() && out.provenance.strategy.is_some() {
-            self.plan.clone_from(&out.provenance.plan);
+        if self.continuation.is_none() && out.provenance.strategy.is_some() {
+            self.continuation.clone_from(&out.provenance.plan);
         }
         self.questions = out
             .questions
@@ -296,13 +297,17 @@ pub enum Reading {
     Ready(CompileOutcome),
     /// Mandatory questions remain: the next line answers the first.
     Questions(CompileOutcome),
-    /// The deterministic reader read work it cannot settle alone (its
-    /// route says so): a permitted seat may read it, or the human rephrases.
-    NeedsCognition(CompileOutcome),
+    /// Work was read but not settled under this seat's policy (the
+    /// compiler says so): a wider policy may settle it, or the human
+    /// rephrases. How the compiler tried is its own business.
+    Unsettled(CompileOutcome),
     /// Nothing recognizable as work: no route, no plan, no question.
     NotWork(CompileOutcome),
-    /// The single authorized authoring call failed or timed out; nothing
-    /// was substituted.
+    /// The authoring budget (time) ran out before a trusted candidate;
+    /// not a verdict on the request.
+    BudgetExhausted(CompileOutcome),
+    /// The authorized authoring call failed at the provider; nothing was
+    /// substituted.
     ProviderFailed(CompileOutcome),
     /// The compiler refused the request under its own policy.
     Refused(CompileOutcome),
@@ -328,11 +333,16 @@ impl Reading {
         {
             return Self::Questions(out);
         }
-        if out
+        let provider_findings: Vec<&str> = out
             .diagnostics
             .iter()
-            .any(|d| d.target == "authoring_provider")
-        {
+            .filter(|d| d.target == "authoring_provider")
+            .map(|d| d.message.as_str())
+            .collect();
+        if provider_findings.iter().any(|m| m.contains("timed out")) {
+            return Self::BudgetExhausted(out);
+        }
+        if !provider_findings.is_empty() {
             return Self::ProviderFailed(out);
         }
         let routed = out
@@ -342,7 +352,7 @@ impl Reading {
             .and_then(|d| d.get("route"))
             .is_some();
         if routed || out.provenance.plan.is_some() {
-            return Self::NeedsCognition(out);
+            return Self::Unsettled(out);
         }
         Self::NotWork(out)
     }
@@ -353,8 +363,9 @@ impl Reading {
         match self {
             Self::Ready(o)
             | Self::Questions(o)
-            | Self::NeedsCognition(o)
+            | Self::Unsettled(o)
             | Self::NotWork(o)
+            | Self::BudgetExhausted(o)
             | Self::ProviderFailed(o)
             | Self::Refused(o) => o,
         }
@@ -510,7 +521,7 @@ mod tests {
             read(
                 "Read ./draft.md and write it to ./final.md, but a human must approve the write first"
             ),
-            Reading::NeedsCognition(_)
+            Reading::Unsettled(_)
         ));
         match read("chain") {
             Reading::Questions(out) => assert_eq!(out.questions[0].key, "tasks.think.infer.prompt"),
@@ -525,7 +536,7 @@ mod tests {
         let first = compile_deterministic(&round.request()).expect("first round");
         round.absorb(&first);
         assert_eq!(round.current().map(|q| q.key.as_str()), Some("model"));
-        assert!(round.plan.is_some());
+        assert!(round.continuation.is_some());
         assert_eq!(round.answer_current("mock/echo"), Some("model".to_owned()));
         assert_eq!(round.answers["model"], "\"mock/echo\"");
         assert!(round.current().is_none());
@@ -554,7 +565,7 @@ mod tests {
         );
         round.absorb(&out);
         assert!(
-            round.plan.is_none(),
+            round.continuation.is_none(),
             "unsettled work is read again, never replayed"
         );
     }

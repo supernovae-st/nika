@@ -54,13 +54,13 @@ impl SessionRuntime {
             Reading::NotWork(_) => {
                 let seat_reads = matches!(self.seat, AuthoringSeat::Provider { .. });
                 if seat_reads && !looks_like_discussion(intent) && named_files(intent).is_empty() {
-                    Some(self.cold(round))
+                    Some(self.compile_under_seat(round))
                 } else {
                     None
                 }
             }
-            Reading::NeedsCognition(out) => Some(match &self.seat {
-                AuthoringSeat::Provider { .. } => self.cold(round),
+            Reading::Unsettled(out) => Some(match &self.seat {
+                AuthoringSeat::Provider { .. } => self.compile_under_seat(round),
                 AuthoringSeat::Deterministic { why } => {
                     TurnOutcome::Facts(honest_incomplete(&out, why.as_deref()))
                 }
@@ -69,12 +69,15 @@ impl SessionRuntime {
         }
     }
 
-    /// One explicitly permitted call on the seat's model, for an intent the
-    /// deterministic reader could not settle.
-    fn cold(&mut self, round: AuthoringRound) -> TurnOutcome {
+    /// The same Compile, under the seat the human permitted, for work the
+    /// deterministic policy could not settle. How long it takes and how
+    /// hard it thinks is the compiler's; the human only learns that Nika
+    /// is working (a truthful line, no invented detail).
+    fn compile_under_seat(&mut self, round: AuthoringRound) -> TurnOutcome {
+        self.progress("Working through this workflow…");
         match compile_through(&self.seat, &round.request()) {
             Ok(out) => match Reading::of(out) {
-                Reading::NeedsCognition(out) | Reading::NotWork(out) => {
+                Reading::Unsettled(out) | Reading::NotWork(out) => {
                     TurnOutcome::Facts(honest_incomplete(&out, None))
                 }
                 reading => self.settle(round, reading),
@@ -103,9 +106,13 @@ impl SessionRuntime {
                     question: text,
                 }
             }
-            Reading::NeedsCognition(out) | Reading::NotWork(out) => {
+            Reading::Unsettled(out) | Reading::NotWork(out) => {
                 TurnOutcome::Facts(honest_incomplete(&out, None))
             }
+            Reading::BudgetExhausted(_) => TurnOutcome::Facts(
+                "I couldn't finish a workflow I trust within the current authoring budget — nothing was written; say it again to try once more, or narrow the request"
+                    .to_owned(),
+            ),
             Reading::ProviderFailed(out) => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::IntelligenceRefused,
                 format!(
