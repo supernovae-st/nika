@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Durable-session acceptance tests over the runtime's public doors. The
-//! process fixture uses only scripted reasoning, local files and a real kill;
-//! no provider, workflow execution or paid request is involved.
+//! Durable-session acceptance tests over the runtime's public doors, on
+//! the compiler path: work reaches the ONE compiler (a Ready candidate is
+//! proposed as exact bytes · a typed question owns the next line), consent
+//! lands the bytes and is never a run, an explicit `run …` line requests
+//! the run, and a line that reads as no work reaches the scripted reasoner
+//! in words only. The process fixture uses only scripted reasoning, local
+//! files and a real kill; no provider, workflow execution or paid request
+//! is involved.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -13,9 +18,18 @@ use crate::outcome::{Refusal, RefusalClass};
 use crate::reasoner::{ReasonError, Reply, ScriptedReasoner, SessionReasoner};
 use crate::runtime::{SessionRuntime, TurnOutcome};
 
-const GOAL: &str = "Compose a short poem about a violet comet.";
+/// A line that reads as no work at all: the conversation's, answered by
+/// the reasoner in words (the former poem goal now reads as a draft).
+const GOAL: &str = "What is a violet comet?";
 const ANSWER: &str = "A violet comet crosses the quiet sky.";
-const PROPOSAL: &str = "Here it is.\n\n```yaml path=daily.nika\nnika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\noutputs:\n  said: ${{ tasks.t.output }}\n```\n";
+/// An explicit intent the compiler settles at once — Ready, no question,
+/// no model; its check on disk is clean and a run needs no provider.
+const COPY: &str = "Read ./notes/brief.md and write it to ./out/copy.md";
+/// An intent whose draft needs the model the compiler cannot invent: the
+/// question `model` owns the next line and `mock/echo` settles it.
+const DRAFT: &str = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
+/// Where the session lands a candidate in a root without `workflows/`.
+const LANDED: &str = "compiled-workflow.nika";
 
 type Seen = Arc<Mutex<Vec<String>>>;
 
@@ -50,6 +64,20 @@ fn intelligence() -> ResolvedSessionIntelligence {
     }
 }
 
+/// A project root the compiled intents are grounded in: the brief the
+/// `COPY` and `DRAFT` workflows read exists, so their check on disk is
+/// clean and a `run …` line is requested.
+fn project() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().expect("project");
+    std::fs::create_dir_all(dir.path().join("notes")).expect("notes");
+    std::fs::write(
+        dir.path().join("notes/brief.md"),
+        "# Brief\n\nThe launch moves to October.\n",
+    )
+    .expect("brief");
+    dir
+}
+
 fn open(root: &Path, replies: &[&str]) -> (SessionRuntime, Seen) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let player = Player {
@@ -75,6 +103,13 @@ fn refused(outcome: TurnOutcome) -> Refusal {
     }
 }
 
+fn proposed(outcome: TurnOutcome) -> crate::outcome::ProposalId {
+    match outcome {
+        TurnOutcome::Proposal { id, .. } => id,
+        other => panic!("expected a proposal, got {other:?}"),
+    }
+}
+
 fn assert_uncertain(notice: &str) {
     let lower = notice.to_ascii_lowercase();
     assert!(
@@ -95,9 +130,9 @@ fn assert_uncertain(notice: &str) {
 
 #[test]
 fn reopening_restores_the_goal_and_dialogue_without_calling_the_reasoner() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
-    let (mut first, _) = open(root.path(), &[ANSWER]);
+    let (mut first, seen) = open(root.path(), &[ANSWER]);
     assert!(
         first
             .enable_history(home.path())
@@ -105,11 +140,18 @@ fn reopening_restores_the_goal_and_dialogue_without_calling_the_reasoner() {
             .is_none()
     );
     first.intent.decisions.push("Use a calm tone.".to_owned());
+    // The work is the goal: the compiler proposes, the consent lands.
+    let id = proposed(first.turn(COPY));
+    assert!(matches!(first.consent("yes"), TurnOutcome::Facts(_)));
+    assert!(root.path().join(LANDED).is_file());
+    // An open question of the human's own (a proposal closes the compiler's).
     first
         .intent
         .unresolved
         .push("Choose the closing line.".to_owned());
+    // The conversation, in words: the only line that reaches the reasoner.
     assert!(matches!(first.turn(GOAL), TurnOutcome::Reply(_)));
+    assert_eq!(seen.lock().expect("record").len(), 1);
     drop(first);
 
     let (mut resumed, seen) = open(root.path(), &["A gentler ending."]);
@@ -119,29 +161,38 @@ fn reopening_restores_the_goal_and_dialogue_without_calling_the_reasoner() {
             .expect("resume")
             .is_some()
     );
-    assert_eq!(resumed.intent.goal.as_deref(), Some(GOAL));
-    assert_eq!(resumed.intent.decisions, ["Use a calm tone."]);
+    assert_eq!(resumed.intent.goal.as_deref(), Some(COPY));
+    assert_eq!(resumed.intent.decisions.len(), 2, "{:?}", resumed.intent);
+    assert_eq!(resumed.intent.decisions[0], "Use a calm tone.");
+    assert!(
+        resumed.intent.decisions[1].starts_with(&format!("applied proposal {id}")),
+        "{:?}",
+        resumed.intent.decisions
+    );
     assert_eq!(resumed.intent.unresolved, ["Choose the closing line."]);
     assert!(
         seen.lock().expect("record").is_empty(),
         "opening is observation"
     );
     assert!(matches!(
-        resumed.turn("Make its ending gentler."),
+        resumed.turn("Which ending is gentler?"),
         TurnOutcome::Reply(_)
     ));
     let prompts = seen.lock().expect("record");
     assert_eq!(prompts.len(), 1);
-    assert!(prompts[0].contains(GOAL) && prompts[0].contains(ANSWER));
+    assert!(prompts[0].contains(COPY) && prompts[0].contains(ANSWER));
     assert!(
-        !root.path().join(".nika").exists(),
-        "private history lives outside the project"
+        history_dir(home.path(), root.path())
+            .join("events.ndjson")
+            .is_file()
+            && !root.path().join(".nika/sessions").exists(),
+        "private history lives outside the project; the project keeps only its record"
     );
 }
 
 #[test]
 fn persisted_history_redacts_recognized_values_in_every_intent_field_and_dialogue() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
     let (mut first, _) = open(
         root.path(),
@@ -156,8 +207,10 @@ fn persisted_history_redacts_recognized_values_in_every_intent_field_and_dialogu
         .intent
         .unresolved
         .push("secret=FAKE_UNRESOLVED_SECRET_VALUE".to_owned());
+    // One clause, question-shaped, the value inside it: the compiler reads
+    // no work (a `?` mid-line would cut a second clause it cannot settle).
     assert!(matches!(
-        first.turn("Compose a sonnet. token=FAKE_USER_TOKEN_VALUE"),
+        first.turn("Why is the comet violet, token=FAKE_USER_TOKEN_VALUE?"),
         TurnOutcome::Reply(_)
     ));
     drop(first);
@@ -178,7 +231,7 @@ fn persisted_history_redacts_recognized_values_in_every_intent_field_and_dialogu
     let (mut resumed, seen) = open(root.path(), &[ANSWER]);
     resumed.enable_history(home.path()).expect("resume");
     assert!(matches!(
-        resumed.turn("Continue the sonnet."),
+        resumed.turn("Is the sky violet at night?"),
         TurnOutcome::Reply(_)
     ));
     let prompt = seen.lock().expect("record")[0].clone();
@@ -188,17 +241,20 @@ fn persisted_history_redacts_recognized_values_in_every_intent_field_and_dialogu
 
 #[test]
 fn reopening_does_not_restore_the_authority_of_a_pending_proposal() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
-    let (mut first, _) = open(root.path(), &[PROPOSAL]);
+    let (mut first, seen) = open(root.path(), &[ANSWER]);
     first.enable_history(home.path()).expect("fresh history");
-    let TurnOutcome::Proposal { id, .. } = first.turn("Write me a daily digest workflow.") else {
-        panic!("proposal expected");
-    };
+    let id = proposed(first.turn(COPY));
+    assert!(
+        seen.lock().expect("record").is_empty(),
+        "an explicit intent is compiled, never reasoned"
+    );
     drop(first);
     let (mut resumed, seen) = open(root.path(), &[ANSWER]);
     resumed.enable_history(home.path()).expect("resume");
     assert!(resumed.pending_proposal().is_none());
+    assert!(resumed.pending_question().is_none());
     assert!(resumed.waiting_gate().is_none());
     assert_eq!(
         refused(resumed.consent_to(&id, "yes")).class,
@@ -208,26 +264,95 @@ fn reopening_does_not_restore_the_authority_of_a_pending_proposal() {
         refused(resumed.consent("yes")).class,
         RefusalClass::WrongState
     );
-    assert!(!root.path().join("daily.nika").exists());
+    assert!(!root.path().join(LANDED).exists());
     assert!(seen.lock().expect("record").is_empty());
+}
+
+/// The compiler's typed question is a recorded kind of the transcript and
+/// its label a fact of the durable intent; the round itself (the plan,
+/// the answers) never survives a close — the next line answers no
+/// question, and the work stated again asks again.
+#[test]
+fn an_authoring_question_is_recorded_and_reopening_restores_the_intent_not_the_round() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let (mut first, seen) = open(root.path(), &[ANSWER]);
+    first.enable_history(home.path()).expect("fresh history");
+    let TurnOutcome::Question { key, .. } = first.turn(DRAFT) else {
+        panic!("a draft needs its model: the compiler asks");
+    };
+    assert_eq!(key, "model");
+    assert_eq!(
+        first.pending_question().map(|q| q.key.as_str()),
+        Some("model")
+    );
+    assert!(
+        seen.lock().expect("record").is_empty(),
+        "the compiler asks; no model is consulted"
+    );
+    drop(first);
+    let journal =
+        std::fs::read_to_string(history_dir(home.path(), root.path()).join("events.ndjson"))
+            .expect("history bytes");
+    assert!(
+        journal.contains("\"outcome\":\"question\""),
+        "the question is a recorded kind: {journal}"
+    );
+
+    let (mut resumed, seen) = open(root.path(), &[ANSWER]);
+    resumed.enable_history(home.path()).expect("resume");
+    assert_eq!(resumed.intent.goal.as_deref(), Some(DRAFT));
+    assert_eq!(
+        resumed.intent.unresolved.len(),
+        1,
+        "the open question is a fact of the intent: {:?}",
+        resumed.intent
+    );
+    assert!(
+        resumed.pending_question().is_none(),
+        "the round is not restored"
+    );
+    assert!(resumed.pending_proposal().is_none());
+    assert!(seen.lock().expect("record").is_empty());
+    let orphan = resumed.turn("mock/echo");
+    assert!(
+        !matches!(
+            orphan,
+            TurnOutcome::Proposal { .. } | TurnOutcome::Question { .. }
+        ),
+        "an answer with no question is never a candidate: {orphan:?}"
+    );
+    assert!(!root.path().join(LANDED).exists());
+    let TurnOutcome::Question { key, .. } = resumed.turn(DRAFT) else {
+        panic!("the work stated again asks again");
+    };
+    assert_eq!(key, "model");
+    assert!(matches!(
+        resumed.turn("mock/echo"),
+        TurnOutcome::Proposal { .. }
+    ));
+    assert!(
+        !root.path().join(LANDED).exists(),
+        "a proposal writes nothing"
+    );
 }
 
 #[test]
 fn a_run_request_without_an_observation_remains_uncertain_and_is_not_replayed() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
-    let (mut first, _) = open(root.path(), &[PROPOSAL]);
+    let (mut first, _) = open(root.path(), &[ANSWER]);
     first.enable_history(home.path()).expect("fresh history");
-    let TurnOutcome::Proposal { id, .. } =
-        first.turn("Write me a daily digest workflow and run it once.")
-    else {
-        panic!("proposal expected");
+    let id = proposed(first.turn(COPY));
+    assert!(
+        matches!(first.consent_to(&id, "yes"), TurnOutcome::Facts(_)),
+        "consent lands the bytes and is never a run"
+    );
+    let TurnOutcome::RunRequested { run, .. } = first.turn("run it") else {
+        panic!("an explicit run line requests the accepted workflow");
     };
-    assert!(matches!(
-        first.consent_to(&id, "yes"),
-        TurnOutcome::RunRequested { .. }
-    ));
-    let landed = std::fs::read(root.path().join("daily.nika")).expect("landed file");
+    assert_eq!(run.workflow, PathBuf::from(LANDED));
+    let landed = std::fs::read(root.path().join(LANDED)).expect("landed file");
     drop(first);
 
     let (mut resumed, seen) = open(root.path(), &[ANSWER]);
@@ -242,7 +367,12 @@ fn a_run_request_without_an_observation_remains_uncertain_and_is_not_replayed() 
         RefusalClass::WrongState
     );
     assert_eq!(
-        std::fs::read(root.path().join("daily.nika")).expect("same file"),
+        refused(resumed.turn("run it")).class,
+        RefusalClass::WrongState,
+        "the interrupted request is not replayed: nothing was accepted in this session"
+    );
+    assert_eq!(
+        std::fs::read(root.path().join(LANDED)).expect("same file"),
         landed
     );
     assert!(!root.path().join(".nika/traces").exists());
@@ -250,13 +380,11 @@ fn a_run_request_without_an_observation_remains_uncertain_and_is_not_replayed() 
 
 #[test]
 fn an_append_failure_prevents_consent_and_poisoning_survives_filesystem_repair() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
-    let (mut session, seen) = open(root.path(), &[PROPOSAL]);
+    let (mut session, seen) = open(root.path(), &[ANSWER]);
     session.enable_history(home.path()).expect("fresh history");
-    let TurnOutcome::Proposal { id, .. } = session.turn("Write me a daily digest workflow.") else {
-        panic!("proposal expected");
-    };
+    let id = proposed(session.turn(COPY));
     let journal = history_dir(home.path(), root.path()).join("events.ndjson");
     let saved = journal.with_extension("saved");
     std::fs::rename(&journal, &saved).expect("preserve journal");
@@ -265,11 +393,11 @@ fn an_append_failure_prevents_consent_and_poisoning_survives_filesystem_repair()
         refused(session.consent_to(&id, "yes")).class,
         RefusalClass::Io
     );
-    assert!(!root.path().join("daily.nika").exists());
+    assert!(!root.path().join(LANDED).exists());
     std::fs::remove_dir(&journal).expect("remove obstruction");
     std::fs::rename(&saved, &journal).expect("restore original journal");
     let before = seen.lock().expect("record").len();
-    let why = refused(session.turn("Compose a second poem."));
+    let why = refused(session.turn(GOAL));
     assert!(matches!(
         why.class,
         RefusalClass::Io | RefusalClass::WrongState
@@ -279,12 +407,21 @@ fn an_append_failure_prevents_consent_and_poisoning_survives_filesystem_repair()
         before,
         "poisoned runtime cannot call a model"
     );
-    assert!(!root.path().join("daily.nika").exists());
+    assert!(
+        matches!(session.turn(COPY), TurnOutcome::Refusal(_)),
+        "poisoned runtime cannot compile either"
+    );
+    assert_eq!(
+        refused(session.consent_to(&id, "yes")).class,
+        RefusalClass::Io,
+        "the proposal that was pending cannot be consumed by a poisoned runtime"
+    );
+    assert!(!root.path().join(LANDED).exists());
 }
 
 #[test]
 fn failed_history_enable_cannot_silently_fall_back_to_an_ephemeral_session() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
     std::fs::write(home.path().join(".nika"), b"not a directory").expect("obstruction");
     let (mut session, seen) = open(root.path(), &[ANSWER]);
@@ -296,12 +433,15 @@ fn failed_history_enable_cannot_silently_fall_back_to_an_ephemeral_session() {
         RefusalClass::Io | RefusalClass::WrongState
     ));
     assert!(seen.lock().expect("record").is_empty());
+    assert!(matches!(session.turn(COPY), TurnOutcome::Refusal(_)));
+    assert!(session.pending_proposal().is_none());
+    assert!(!root.path().join(LANDED).exists());
 }
 
 #[test]
 fn corrupt_and_truncated_journals_are_refused_without_changing_their_bytes() {
     for suffix in [b"not-json\n".as_slice(), b"{\"unfinished\":"] {
-        let root = tempfile::tempdir().expect("project");
+        let root = project();
         let home = tempfile::tempdir().expect("home");
         let (mut first, _) = open(root.path(), &[ANSWER]);
         first.enable_history(home.path()).expect("fresh history");
@@ -321,7 +461,7 @@ fn corrupt_and_truncated_journals_are_refused_without_changing_their_bytes() {
 
 #[test]
 fn an_oversized_journal_and_oversized_input_are_refused_before_reasoning() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
     let (mut first, seen) = open(root.path(), &[ANSWER]);
     first.enable_history(home.path()).expect("fresh history");
@@ -352,7 +492,7 @@ fn an_oversized_journal_and_oversized_input_are_refused_before_reasoning() {
 fn symlinked_journal_or_lock_is_refused_without_touching_the_target() {
     use std::os::unix::fs::symlink;
     for name in ["events.ndjson", "session.lock"] {
-        let root = tempfile::tempdir().expect("project");
+        let root = project();
         let home = tempfile::tempdir().expect("home");
         let outside = tempfile::tempdir().expect("outside");
         let (mut first, _) = open(root.path(), &[ANSWER]);
@@ -459,6 +599,9 @@ mod processes {
         }
     }
 
+    /// The child: `blocked` opens a durable session and parks inside the
+    /// reasoner on the conversation line (the marker says it got there);
+    /// `complete` compiles the work, consents, talks once and closes.
     #[test]
     #[ignore = "child-process fixture, launched by the durable-session tests"]
     fn durable_process_helper() {
@@ -477,6 +620,8 @@ mod processes {
         }
         let (mut session, _) = open(&root, &[ANSWER]);
         session.enable_history(&home).expect("durable child");
+        assert!(matches!(session.turn(COPY), TurnOutcome::Proposal { .. }));
+        assert!(matches!(session.consent("yes"), TurnOutcome::Facts(_)));
         assert!(matches!(session.turn(GOAL), TurnOutcome::Reply(_)));
         drop(session);
         mark(&marker);
@@ -484,13 +629,17 @@ mod processes {
 
     #[test]
     fn a_second_process_recovers_the_completed_conversation() {
-        let root = tempfile::tempdir().expect("project");
+        let root = project();
         let home = tempfile::tempdir().expect("home");
         let markers = tempfile::tempdir().expect("markers");
         let marker = markers.path().join("complete");
         let mut first = child(root.path(), home.path(), &marker, "complete");
         await_marker(&mut first, &marker);
         assert!(first.0.wait().expect("child exit").success());
+        assert!(
+            root.path().join(LANDED).is_file(),
+            "the first process landed the accepted candidate"
+        );
         let (mut resumed, seen) = open(root.path(), &["A softer closing line."]);
         assert!(
             resumed
@@ -498,10 +647,20 @@ mod processes {
                 .expect("second process opens")
                 .is_some()
         );
-        assert_eq!(resumed.intent.goal.as_deref(), Some(GOAL));
+        assert_eq!(resumed.intent.goal.as_deref(), Some(COPY));
+        assert!(
+            resumed
+                .intent
+                .decisions
+                .iter()
+                .any(|d| d.starts_with("applied proposal") && d.contains(LANDED)),
+            "{:?}",
+            resumed.intent.decisions
+        );
+        assert!(resumed.pending_proposal().is_none());
         assert!(seen.lock().expect("record").is_empty());
         assert!(matches!(
-            resumed.turn("Make its ending gentler."),
+            resumed.turn("Which ending is gentler?"),
             TurnOutcome::Reply(_)
         ));
         assert!(seen.lock().expect("record")[0].contains(ANSWER));
@@ -509,7 +668,7 @@ mod processes {
 
     #[test]
     fn an_active_process_excludes_another_writer_and_sigkill_leaves_uncertainty() {
-        let root = tempfile::tempdir().expect("project");
+        let root = project();
         let home = tempfile::tempdir().expect("home");
         let markers = tempfile::tempdir().expect("markers");
         let marker = markers.path().join("reasoning");
@@ -540,51 +699,64 @@ mod processes {
             "recovery never replays the interrupted turn"
         );
         assert!(resumed.pending_proposal().is_none());
+        assert!(resumed.pending_question().is_none());
         assert!(resumed.waiting_gate().is_none());
         assert!(
-            !root.path().join(".nika").exists(),
-            "no workflow or trace was created"
+            !root.path().join(".nika").exists() && !root.path().join(LANDED).exists(),
+            "no workflow, record or trace was created"
         );
     }
 }
 
-// Append inside runtime::durable_tests, whose existing helpers provide
-// open/history_dir/refused/assert_uncertain and the scripted fixtures.
-// These are injected late errors after real local writes, not simulated
-// hardware failures or claims that a real fsync error occurred.
+// The injected failures below follow real local writes; they are not
+// simulated hardware failures or claims that a real fsync error occurred.
 
 #[test]
 fn closing_expires_a_pending_proposal_in_ephemeral_and_durable_sessions() {
     for durable in [false, true] {
-        let root = tempfile::tempdir().expect("project");
+        let root = project();
         let home = tempfile::tempdir().expect("home");
-        let (mut session, _) = open(root.path(), &[PROPOSAL]);
+        let (mut session, seen) = open(root.path(), &[ANSWER]);
         if durable {
             session.enable_history(home.path()).expect("fresh history");
         }
-        let TurnOutcome::Proposal { id, .. } = session.turn("Write me a daily digest workflow.")
-        else {
-            panic!("proposal expected");
-        };
+        let id = proposed(session.turn(COPY));
         assert!(matches!(session.turn("/quit"), TurnOutcome::Quit));
         assert!(session.pending_proposal().is_none());
         assert_eq!(
             refused(session.consent_to(&id, "yes")).class,
             RefusalClass::WrongState
         );
-        assert!(!root.path().join("daily.nika").exists());
+        assert!(!root.path().join(LANDED).exists());
+        assert!(seen.lock().expect("record").is_empty());
+    }
+}
+
+#[test]
+fn closing_expires_a_pending_question_without_answering_it() {
+    for durable in [false, true] {
+        let root = project();
+        let home = tempfile::tempdir().expect("home");
+        let (mut session, _) = open(root.path(), &[ANSWER]);
+        if durable {
+            session.enable_history(home.path()).expect("fresh history");
+        }
+        assert!(matches!(session.turn(DRAFT), TurnOutcome::Question { .. }));
+        assert!(matches!(session.turn("/quit"), TurnOutcome::Quit));
+        assert!(!root.path().join(LANDED).exists());
+        assert!(session.pending_proposal().is_none());
     }
 }
 
 #[test]
 fn closing_expires_a_pending_gate_without_preparing_a_resume() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let (mut session, _) = open(root.path(), &[ANSWER]);
     // Seed a gate directly: this test concerns closing the existing machine
     // state, not tracing or executing a workflow to manufacture that state.
     let trace = root.path().join("paused.ndjson");
     session.pending_gate = Some(crate::change::PendingGate {
-        workflow: PathBuf::from("daily.nika"),
+        workflow: PathBuf::from(LANDED),
         trace: trace.clone(),
         task: "approval".to_owned(),
         message: "Continue?".to_owned(),
@@ -605,7 +777,7 @@ fn closing_expires_a_pending_gate_without_preparing_a_resume() {
 
 #[test]
 fn a_late_history_activation_error_also_blocks_the_ephemeral_runtime() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
     let (mut session, seen) = open(root.path(), &[ANSWER]);
     assert!(matches!(session.turn(GOAL), TurnOutcome::Reply(_)));
@@ -617,8 +789,11 @@ fn a_late_history_activation_error_also_blocks_the_ephemeral_runtime() {
             .class,
         RefusalClass::WrongState
     );
+    assert!(matches!(session.turn(COPY), TurnOutcome::Refusal(_)));
+    assert!(session.pending_proposal().is_none());
+    assert!(!root.path().join(LANDED).exists());
     assert!(matches!(
-        session.turn("Compose a second poem."),
+        session.turn("Is the sky violet at night?"),
         TurnOutcome::Refusal(_)
     ));
     assert_eq!(
@@ -632,7 +807,7 @@ fn a_late_history_activation_error_also_blocks_the_ephemeral_runtime() {
 
 #[test]
 fn a_completed_io_refusal_preserves_effect_uncertainty_and_its_context() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
     let path = root.path().join("partial.nika");
     let (mut session, _) = open(root.path(), &[ANSWER]);
@@ -662,7 +837,7 @@ fn a_completed_io_refusal_preserves_effect_uncertainty_and_its_context() {
     assert_uncertain(&notice);
     assert!(seen.lock().expect("record").is_empty());
     assert!(matches!(
-        resumed.turn("Describe the current situation."),
+        resumed.turn("What is the current situation?"),
         TurnOutcome::Reply(_)
     ));
     let prompt = seen.lock().expect("record")[0].clone();
@@ -677,36 +852,41 @@ fn a_completed_io_refusal_preserves_effect_uncertainty_and_its_context() {
     );
 }
 
+/// Consent is never a run: the bytes land at the consent, the run is an
+/// explicit line of its own. When the journal's final barrier fails on
+/// THAT line, the prepared `RunRequested` is withheld from the host — the
+/// run never starts — and recovery discloses the interrupted request
+/// without replaying it.
 #[test]
 fn a_failed_final_journal_barrier_withholds_the_run_request_after_real_apply() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
-    let (mut session, seen) = open(root.path(), &[PROPOSAL]);
+    let (mut session, seen) = open(root.path(), &[ANSWER]);
     session.enable_history(home.path()).expect("fresh history");
-    let TurnOutcome::Proposal { id, .. } =
-        session.turn("Write me a daily digest workflow and run it once.")
-    else {
-        panic!("proposal expected");
-    };
+    let id = proposed(session.turn(COPY));
+    assert!(matches!(
+        session.consent_to(&id, "yes"),
+        TurnOutcome::Facts(_)
+    ));
+    let landed = std::fs::read(root.path().join(LANDED)).expect("actual applied file");
     let journal = history_dir(home.path(), root.path()).join("events.ndjson");
     let saved = journal.with_extension("before-completion");
-    let outcome = session.recorded(super::history::Operation::Consent, "yes", |runtime| {
-        // This invokes the real apply/check/run-request path. The fixture
+    let outcome = session.recorded(super::history::Operation::Turn, "run it", |runtime| {
+        // This invokes the real check/run-request path. The fixture
         // obstructs only the subsequent journal append, before the host is
         // allowed to see and execute the returned RunRequested.
-        let prepared = runtime.consent_unrecorded("yes");
-        assert!(matches!(prepared, TurnOutcome::RunRequested { .. }));
+        let prepared = runtime.turn_unrecorded("run it");
+        assert!(
+            matches!(&prepared, TurnOutcome::RunRequested { run, .. } if run.workflow.as_path() == Path::new(LANDED)),
+            "the accepted workflow is requested: {prepared:?}"
+        );
         std::fs::rename(&journal, &saved).expect("preserve started journal");
         std::fs::create_dir(&journal).expect("prevent completion append");
         prepared
     });
     assert_eq!(refused(outcome).class, RefusalClass::Io);
-    let landed = std::fs::read(root.path().join("daily.nika")).expect("actual applied file");
     let calls = seen.lock().expect("record").len();
-    assert!(matches!(
-        session.turn("Compose a second poem."),
-        TurnOutcome::Refusal(_)
-    ));
+    assert!(matches!(session.turn(GOAL), TurnOutcome::Refusal(_)));
     assert_eq!(seen.lock().expect("record").len(), calls);
     drop(session);
 
@@ -722,17 +902,22 @@ fn a_failed_final_journal_barrier_withholds_the_run_request_after_real_apply() {
         refused(resumed.consent_to(&id, "yes")).class,
         RefusalClass::WrongState
     );
+    assert_eq!(
+        refused(resumed.turn("run it")).class,
+        RefusalClass::WrongState,
+        "the withheld request is not replayed"
+    );
     assert!(
         seen.lock().expect("record").is_empty(),
         "replay does not call a model"
     );
     assert!(matches!(
-        resumed.turn("Describe the current situation."),
+        resumed.turn("What is the current situation?"),
         TurnOutcome::Reply(_)
     ));
     assert_uncertain(&seen.lock().expect("record")[0]);
     assert_eq!(
-        std::fs::read(root.path().join("daily.nika")).expect("same applied bytes"),
+        std::fs::read(root.path().join(LANDED)).expect("same applied bytes"),
         landed
     );
     assert!(
@@ -741,13 +926,58 @@ fn a_failed_final_journal_barrier_withholds_the_run_request_after_real_apply() {
     );
 }
 
-// Append inside runtime::durable_tests. The fake value is intentionally
-// recognized by the line-oriented redactor in the raw reply: formatting
-// Debug first must not flatten the two lines and let it escape via outcome.
+/// The apply itself is the other real effect a journal barrier can
+/// follow: the bytes landed, the report is withheld, and the proposal is
+/// neither pending nor decided again — recovery names the interruption.
+#[test]
+fn a_failed_final_journal_barrier_withholds_the_report_after_a_real_apply() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let (mut session, _) = open(root.path(), &[ANSWER]);
+    session.enable_history(home.path()).expect("fresh history");
+    let id = proposed(session.turn(COPY));
+    let journal = history_dir(home.path(), root.path()).join("events.ndjson");
+    let saved = journal.with_extension("before-completion");
+    let outcome = session.recorded(super::history::Operation::Consent, "yes", |runtime| {
+        let prepared = runtime.consent_unrecorded("yes");
+        assert!(matches!(&prepared, TurnOutcome::Facts(text) if text.starts_with("applied")));
+        std::fs::rename(&journal, &saved).expect("preserve started journal");
+        std::fs::create_dir(&journal).expect("prevent completion append");
+        prepared
+    });
+    assert_eq!(refused(outcome).class, RefusalClass::Io);
+    let landed = std::fs::read(root.path().join(LANDED)).expect("actual applied file");
+    assert!(matches!(session.turn("run it"), TurnOutcome::Refusal(_)));
+    drop(session);
 
+    std::fs::remove_dir(&journal).expect("remove obstruction");
+    std::fs::rename(&saved, &journal).expect("restore interrupted journal");
+    let (mut resumed, seen) = open(root.path(), &[ANSWER]);
+    let notice = resumed
+        .enable_history(home.path())
+        .expect("resume")
+        .expect("recovery notice");
+    assert_uncertain(&notice);
+    assert!(resumed.pending_proposal().is_none());
+    assert_eq!(
+        refused(resumed.consent_to(&id, "yes")).class,
+        RefusalClass::WrongState
+    );
+    assert!(seen.lock().expect("record").is_empty());
+    assert_eq!(
+        std::fs::read(root.path().join(LANDED)).expect("same applied bytes"),
+        landed,
+        "nothing is applied twice"
+    );
+    assert!(!root.path().join(".nika/traces").exists());
+}
+
+// The fake value is intentionally recognized by the line-oriented redactor
+// in the raw reply: formatting Debug first must not flatten the two lines
+// and let it escape via the outcome diagnostic.
 #[test]
 fn diagnostic_history_cannot_leak_a_value_masked_in_the_raw_reply() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let home = tempfile::tempdir().expect("home");
     let reply = "token: ${{ secrets.reference }}\ntoken: FAKE_PRIVATE_VALUE_FROM_SECOND_LINE";
     assert!(
@@ -814,7 +1044,7 @@ mod fifo_history_regression {
     fn a_fifo_history_is_refused_without_blocking_the_host() {
         use std::os::unix::fs::FileTypeExt as _;
 
-        let root = tempfile::tempdir().expect("project");
+        let root = project();
         let home = tempfile::tempdir().expect("home");
         let markers = tempfile::tempdir().expect("markers");
         let (mut first, _) = open(root.path(), &[ANSWER]);
@@ -897,21 +1127,27 @@ mod fifo_history_regression {
 }
 
 /// #1464 · the project's structured record: nothing is written before the
-/// consent; the consent writes the goal and the decision under the
-/// project's `.nika/`; a fresh runtime over the same root reads them back
-/// at open without the transcript and without asking the reasoner; the
-/// consent's evidence (#1465) rides beside it, one line per consent.
+/// consent (not by the compiler's question, not by its proposal); the
+/// consent writes the goal and the decision under the project's `.nika/`
+/// with the answered question no longer open; a fresh runtime over the
+/// same root reads them back at open without the transcript and without
+/// asking the reasoner; the consent's evidence (#1465) rides beside it,
+/// one line per consent.
 #[test]
 fn the_project_record_is_written_at_the_consent_and_read_at_open() {
-    let root = tempfile::tempdir().expect("project");
-    let (mut first, seen) = open(root.path(), &[PROPOSAL]);
+    let root = project();
+    let (mut first, seen) = open(root.path(), &[ANSWER]);
     assert!(
         first.restore_state().is_none(),
         "no record before any session"
     );
-    let TurnOutcome::Proposal { id, .. } = first.turn(GOAL) else {
-        panic!("the scripted reply proposes a file");
-    };
+    assert!(matches!(first.turn(DRAFT), TurnOutcome::Question { .. }));
+    assert_eq!(first.intent.unresolved.len(), 1);
+    let id = proposed(first.turn("mock/echo"));
+    assert!(
+        first.intent.unresolved.is_empty(),
+        "the answered question closed"
+    );
     assert!(
         !root.path().join(".nika").exists(),
         "nothing is written before the consent"
@@ -923,11 +1159,12 @@ fn the_project_record_is_written_at_the_consent_and_read_at_open() {
     let state = crate::state::SessionState::load(root.path())
         .expect("readable")
         .expect("written at the consent");
-    assert_eq!(state.goal.as_deref(), Some(GOAL));
+    assert_eq!(state.goal.as_deref(), Some(DRAFT));
+    assert!(state.unresolved.is_empty(), "{:?}", state.unresolved);
     assert_eq!(state.decisions.len(), 1);
     assert!(
         state.decisions[0].starts_with(&format!("applied proposal {id}"))
-            && state.decisions[0].contains("daily.nika"),
+            && state.decisions[0].contains(LANDED),
         "{:?}",
         state.decisions
     );
@@ -940,15 +1177,16 @@ fn the_project_record_is_written_at_the_consent_and_read_at_open() {
     let (mut resumed, seen_after) = open(root.path(), &["never asked"]);
     let notice = resumed.restore_state().expect("a record restores");
     assert!(notice.contains("session record restored"), "{notice}");
-    assert_eq!(resumed.intent.goal.as_deref(), Some(GOAL));
+    assert_eq!(resumed.intent.goal.as_deref(), Some(DRAFT));
     assert_eq!(resumed.intent.decisions, state.decisions);
     assert!(
         resumed.pending_proposal().is_none(),
         "a proposal never survives a close"
     );
+    assert!(resumed.pending_question().is_none());
     assert!(
-        seen.lock().expect("record").len() == 1 && seen_after.lock().expect("record").is_empty(),
-        "restoring asks no reasoner"
+        seen.lock().expect("record").is_empty() && seen_after.lock().expect("record").is_empty(),
+        "compiling, consenting and restoring ask no reasoner"
     );
 
     std::fs::write(root.path().join(".nika/session-state.json"), "{ broken").expect("damage");
@@ -968,23 +1206,25 @@ fn the_project_record_is_written_at_the_consent_and_read_at_open() {
 /// again, and the answer that resumes is a decision of the record.
 #[test]
 fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() {
-    let root = tempfile::tempdir().expect("project");
+    let root = project();
     let traces = root.path().join(".nika/traces");
     std::fs::create_dir_all(&traces).expect("traces");
-    let trace = traces.join("daily.ndjson");
+    let trace = traces.join("compiled-workflow.ndjson");
     std::fs::write(
         &trace,
         "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"approve\"},{\"key\":\"message\",\"value\":\"ship it?\"},{\"key\":\"mode\",\"value\":\"confirm\"}]}\n",
     )
     .expect("the paused trace");
-    let (mut first, _) = open(root.path(), &[PROPOSAL]);
-    let TurnOutcome::Proposal { id, .. } = first.turn("write daily.nika and run it once") else {
-        panic!("a proposal");
-    };
-    let TurnOutcome::RunRequested { run, .. } = first.consent_to(&id, "yes") else {
+    let (mut first, _) = open(root.path(), &[ANSWER]);
+    let id = proposed(first.turn(COPY));
+    assert!(matches!(
+        first.consent_to(&id, "yes"),
+        TurnOutcome::Facts(_)
+    ));
+    let TurnOutcome::RunRequested { run, .. } = first.turn("run it") else {
         panic!("a clean check requests the run");
     };
-    assert_eq!(run.workflow, PathBuf::from("daily.nika"));
+    assert_eq!(run.workflow, PathBuf::from(LANDED));
     let TurnOutcome::GateAsk { id: gate, question } = first.observe_run(4, Some(&trace)) else {
         panic!("a pause with a gate asks");
     };
@@ -995,7 +1235,7 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
     assert_eq!(
         state.pending,
         Some(crate::state::Pending::Gate {
-            workflow: PathBuf::from("daily.nika"),
+            workflow: PathBuf::from(LANDED),
             trace: trace.clone(),
             task: "approve".to_owned(),
             mode: "confirm".to_owned(),
@@ -1007,9 +1247,13 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
     let notice = resumed.restore_state().expect("a record restores");
     assert!(notice.contains("ship it?"), "the gate asks again: {notice}");
     assert_eq!(resumed.waiting_gate(), Some(gate.clone()));
-    let TurnOutcome::ResumeRequested { answer, .. } = resumed.answer_gate_for(&gate, "yes") else {
+    let TurnOutcome::ResumeRequested {
+        workflow, answer, ..
+    } = resumed.answer_gate_for(&gate, "yes")
+    else {
         panic!("the answer resumes");
     };
+    assert_eq!(workflow, PathBuf::from(LANDED));
     assert_eq!(answer, "approve=true");
     let state = crate::state::SessionState::load(root.path())
         .expect("readable")
@@ -1028,7 +1272,7 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
     // nothing waits, nothing is invented
     let mut orphaned = crate::state::SessionState::new("2026-09-13T19:09:09Z".to_owned());
     orphaned.pending = Some(crate::state::Pending::Gate {
-        workflow: PathBuf::from("daily.nika"),
+        workflow: PathBuf::from(LANDED),
         trace: trace.clone(),
         task: "approve".to_owned(),
         mode: "confirm".to_owned(),
