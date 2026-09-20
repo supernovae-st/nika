@@ -430,6 +430,26 @@ pub(super) fn fold_apostrophes(intent: &str) -> String {
     intent.replace(['’', '‘'], "'")
 }
 
+/// What an object still says after its path literal, beyond one parenthetical hint attached
+/// to the path and trailing punctuation. A non-empty residue is a demand the path did not
+/// settle; the reader must not let it vanish with the path.
+fn residue_after_path(detail: &str, path: &str) -> String {
+    let Some(at) = detail.find(path) else {
+        return String::new();
+    };
+    let mut rest = detail
+        .get(at + path.len()..)
+        .unwrap_or_default()
+        .trim_start_matches(['.', ',', ';', ':'])
+        .trim();
+    if rest.starts_with('(')
+        && let Some(close) = rest.find(')')
+    {
+        rest = rest.get(close + 1..).unwrap_or_default().trim();
+    }
+    rest.trim_matches(|c: char| !c.is_alphanumeric()).to_owned()
+}
+
 /// A step object the reader may trust without a model: a typed literal (URL, path, email,
 /// timezone, number) or at most four content tokens with no coordinating connector.
 fn explicit_object(detail: &str) -> bool {
@@ -473,8 +493,10 @@ fn explicit_object(detail: &str) -> bool {
         })
         .filter(|t| !t.is_empty() && !ARTICLES.contains(t))
         .count();
+    // A literal names the object only when nothing is coordinated beside it: "./orders.csv
+    // and keep the rows that matter" carries a second request the literal does not cover.
     if literal {
-        return !coordinated || content <= 6;
+        return !coordinated && content <= 6;
     }
     !coordinated && content <= 4
 }
@@ -1481,6 +1503,9 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                     policy_literal: None,
                 },
             );
+            if !residue_after_path(&detail, path).is_empty() {
+                reading.unresolved.push(original.to_owned());
+            }
             return true;
         }
         if matches!(head, Head::Choice(options) if options.contains(&Op::Read)) {
@@ -1490,6 +1515,11 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                 detail: path.clone(),
                 categories: Vec::new(),
             });
+            if !residue_after_path(&detail, path).is_empty() {
+                // The path settles the read; what the clause still asks after it does not
+                // vanish with the path (`… and keep the rows that matter`).
+                reading.unresolved.push(original.to_owned());
+            }
             return true;
         }
     }

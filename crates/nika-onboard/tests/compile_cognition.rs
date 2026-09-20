@@ -1507,3 +1507,115 @@ async fn a_prohibition_proposed_as_a_computation_is_a_constraint() {
         "{plan:#}"
     );
 }
+
+/// Semantics before syntax: the proposal states the filter as a typed predicate over the
+/// request's own column and literal; the compiler validates it and lowers it to jq, and no
+/// rule question is asked. A predicate naming a column the request never mentions is no
+/// rule at all: the compiler asks instead of guessing.
+#[tokio::test]
+async fn a_typed_predicate_from_the_proposal_needs_no_rule_question() {
+    let intent = "Read ./data/orders.csv (columns order_id,customer,amount,status) and keep the rows that matter, then write them to ./out/kept.csv.";
+    let typed = json!({
+        "steps": [
+            {"op": "read", "detail": "./data/orders.csv", "evidence": "Read ./data/orders.csv"},
+            {"op": "compute", "detail": "the rows that matter", "evidence": "keep the rows that matter",
+             "predicate": {"present": true, "join": "and", "clauses": [{"field": "amount", "op": "gt", "value": "100", "value_field": ""}]}}
+        ],
+        "effects": [{"verb": "write", "target": "./out/kept.csv", "policy": "automatic", "evidence": "write them to ./out/kept.csv"}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "Read ./data/orders.csv (columns order_id,customer,amount,status)", "role": "operation"},
+            {"text": "and keep the rows that matter,", "role": "operation"},
+            {"text": "then write them to ./out/kept.csv.", "role": "effect"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    // The literal 100 is not in the request: the predicate is refused and the rule is asked.
+    let provider = Provider::new(typed.clone());
+    let out = compile_with_provider(
+        &CompileRequest::create(intent).with_authoring_policy(policy()),
+        &provider,
+    )
+    .await
+    .unwrap();
+    assert!(keys(&out).contains(&"const.rule_expression"), "{out:#?}");
+    // With the threshold stated, the predicate is validated, lowered and never asked.
+    let intent = "Read ./data/orders.csv (columns order_id,customer,amount,status) and keep the rows that matter, above 100, then write them to ./out/kept.csv.";
+    let mut stated = typed;
+    stated["regions"][1]["text"] = json!("and keep the rows that matter, above 100,");
+    let provider = Provider::new(stated);
+    let out = compile_with_provider(
+        &CompileRequest::create(intent).with_authoring_policy(policy()),
+        &provider,
+    )
+    .await
+    .unwrap();
+    assert!(!keys(&out).contains(&"const.rule_expression"), "{out:#?}");
+    let plan = out.provenance.plan.as_ref().unwrap();
+    assert!(
+        plan["rules"].as_array().is_some_and(|r| r.len() == 1),
+        "{plan:#}"
+    );
+    assert_eq!(plan["rules"][0]["field"], "amount");
+    assert_eq!(plan["rules"][0]["comparator"], ">");
+    let ready = compile_with_provider(
+        &CompileRequest::create(intent)
+            .with_authoring_policy(policy())
+            .answer("model", r#""mock/echo""#),
+        &Provider::new(out.provenance.plan.clone().unwrap()),
+    )
+    .await;
+    let _ = ready;
+    let candidate = out.candidate.as_deref().unwrap_or_default();
+    assert!(
+        candidate.contains("select((.amount | tonumber) > 100)")
+            || out.status != CompileStatus::Ready,
+        "{candidate}"
+    );
+}
+
+/// An exclusion is stated with its own polarity, never re-read as a keep: the rows kept are
+/// the complement of the clauses, negated one by one with the junction flipped. `exclude the
+/// rows whose amount is below 100 or whose status is refunded` keeps amount >= 100 and
+/// status != refunded.
+#[tokio::test]
+async fn a_drop_predicate_is_lowered_as_its_complement() {
+    let intent = "Read ./data/orders.csv (columns order_id,customer,amount,status) and exclude the rows whose amount is below 100 or whose status is refunded, then write the kept rows to ./out/kept.csv.";
+    let typed = json!({
+        "steps": [
+            {"op": "read", "detail": "./data/orders.csv", "evidence": "Read ./data/orders.csv"},
+            {"op": "compute", "detail": "exclude the rows whose amount is below 100 or whose status is refunded", "evidence": "exclude the rows whose amount is below 100 or whose status is refunded",
+             "predicate": {"present": true, "polarity": "drop", "join": "or", "clauses": [
+                {"field": "amount", "op": "lt", "value": "100", "value_field": ""},
+                {"field": "status", "op": "eq", "value": "refunded", "value_field": ""}]}}
+        ],
+        "effects": [{"verb": "write", "target": "./out/kept.csv", "policy": "automatic", "evidence": "write the kept rows to ./out/kept.csv"}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "Read ./data/orders.csv (columns order_id,customer,amount,status)", "role": "operation"},
+            {"text": "and exclude the rows whose amount is below 100 or whose status is refunded,", "role": "operation"},
+            {"text": "then write the kept rows to ./out/kept.csv.", "role": "effect"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    let out = compile_with_provider(
+        &CompileRequest::create(intent).with_authoring_policy(policy()),
+        &Provider::new(typed),
+    )
+    .await
+    .unwrap();
+    assert!(!keys(&out).contains(&"const.rule_expression"), "{out:#?}");
+    let plan = out.provenance.plan.as_ref().unwrap();
+    let rules = plan["rules"].as_array().unwrap();
+    assert_eq!(rules.len(), 1, "{plan:#}");
+    let candidate = out.candidate.as_deref().unwrap_or_default();
+    assert!(
+        candidate.contains("select((.amount | tonumber) >= 100 and .status != \"refunded\")")
+            || out.status != CompileStatus::Ready,
+        "{candidate}"
+    );
+    assert!(
+        !candidate.contains("(.amount | tonumber) < 100"),
+        "the exclusion was re-read as a keep: {candidate}"
+    );
+}

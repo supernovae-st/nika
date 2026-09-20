@@ -84,6 +84,8 @@ struct ProposedStep {
     evidence: String,
     #[serde(default, deserialize_with = "nullable_vec")]
     categories: Vec<String>,
+    #[serde(default)]
+    predicate: Option<super::predicate::ProposedPredicate>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -122,12 +124,12 @@ fn nullable_vec<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D
     Ok(Option::<Vec<String>>::deserialize(d)?.unwrap_or_default())
 }
 
-fn nullable_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+pub(super) fn nullable_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
     Ok(Option::<String>::deserialize(d)?.unwrap_or_default())
 }
 
 const INSTRUCTIONS: &str = r"Interpret the ENTIRE user request, in whatever language, as a private semantic plan for a workflow compiler. Return only one JSON object with steps, effects, obligations, constraints, unknowns, regions, approval_bypass. Never produce YAML, source, tool calls, credentials, endpoints or permissions.
-steps: the operations requested, in order. op is one of read (consume a document, text, file, transcript, local folder, glob or set of named files the requester supplies with the invocation; never a named system or store), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records or values from any named external system, store, service, database, directory, catalog, calendar, dashboard, history, registry, runbook or knowledge base; consulting, reading, checking or querying such a source is lookup even when the request says read), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing, correct or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
+steps: the operations requested, in order. op is one of read (consume a document, text, file, transcript, local folder, glob or set of named files the requester supplies with the invocation; never a named system or store), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records or values from any named external system, store, service, database, directory, catalog, calendar, dashboard, history, registry, runbook or knowledge base; consulting, reading, checking or querying such a source is lookup even when the request says read), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing, correct or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code; when it is a row filter over named columns, state it as predicate {present: true, polarity: keep|drop, join: and|or, clauses: [{field, op: gt|ge|lt|le|eq|ne, value, value_field}]} using the request's own column names and literal values exactly as the request states them, never rewriting a comparison: polarity is keep when the clauses describe the rows to keep and drop when they describe the rows to exclude, remove or filter out; value_field names another column when two columns compare and is empty otherwise; predicate.present is false when the computation is not a row filter), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
 effects: every action that changes the outside world (create a record, send, publish, post, open a ticket, trigger a payment, mark, order, refund, merge, notify, delete, write a file). verb is one of create, send, publish, update, notify, refund, pay, order, merge, delete, write, effect. target is the verbatim phrase naming the action. policy is one of automatic (requested without a prior human requirement), human_first (only after a fresh explicit human validation of that exact action), forbidden (explicitly prohibited), unspecified (the requester explicitly has not decided and wants to be asked), conflict (requested and prohibited at once). evidence is an exact verbatim substring. Never drop a requested effect; never add one.
 obligations: kind is one of dedup (no second action for the same incoming identifier), retry_bound (a numeric maximum of attempts, cycles or iterations; put the number in value), revision_check (recheck the current version immediately before the final action). A price, deadline, record count or number of proposed time slots is not a bound.
 constraints: verbatim instructions that shape how steps run (what not to infer, what to keep null, what remains a code rule, which sources are excluded).
@@ -664,7 +666,14 @@ async fn propose<P: ProviderInferDyn>(
         "steps":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["op","detail","evidence"],"properties":{
             "op":{"type":"string","enum":Op::ALL.iter().map(|o| o.word()).collect::<Vec<_>>()},
             "detail":{"type":"string"},"evidence":{"type":"string","minLength":1},
-            "categories":{"type":"array","items":{"type":"string"}}}}},
+            "categories":{"type":"array","items":{"type":"string"}},
+            "predicate":{"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses"],"properties":{
+                "present":{"type":"boolean"},
+                "polarity":{"type":"string","enum":["keep","drop"]},
+                "join":{"type":"string","enum":["and","or"]},
+                "clauses":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["field","op","value","value_field"],"properties":{
+                    "field":{"type":"string"},"op":{"type":"string","enum":["gt","ge","lt","le","eq","ne"]},
+                    "value":{"type":"string"},"value_field":{"type":"string"}}}}}}}}},
         "effects":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["verb","target","policy","evidence"],"properties":{
             "verb":{"type":"string","enum":["create","send","publish","update","notify","refund","pay","order","merge","delete","write","effect"]},
             "target":{"type":"string"},
@@ -716,6 +725,16 @@ async fn propose<P: ProviderInferDyn>(
     decode(&response, out)
 }
 
+/// Typographic quotes read as their plain twins: a model that answers `“version”` for a
+/// request that wrote `"version"` still names the same text.
+fn fold_quote(ch: char) -> char {
+    match ch {
+        '“' | '”' | '„' | '«' | '»' => '"',
+        '‘' | '’' | '‚' => '\'',
+        other => other,
+    }
+}
+
 /// The exact request excerpt a proposal's evidence names: the evidence itself when it is a
 /// verbatim substring, else the request substring it matches once runs of whitespace are
 /// folded on both sides (a model may wrap a line or drop a double space; it may not change
@@ -741,6 +760,7 @@ pub(super) fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
             offsets.push(index);
             pending_space = false;
         }
+        let ch = fold_quote(ch);
         folded.push(ch);
         for _ in 0..ch.len_utf8() {
             offsets.push(index);
@@ -749,6 +769,9 @@ pub(super) fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
     // An excerpt that abbreviates a long clause with an ellipsis names the contiguous span
     // from its first fragment to its last; every fragment must occur, in order, verbatim.
     let fragments: Vec<String> = evidence
+        .chars()
+        .map(fold_quote)
+        .collect::<String>()
         .replace('…', "...")
         .split("...")
         .map(|part| part.split_whitespace().collect::<Vec<_>>().join(" "))
@@ -938,6 +961,13 @@ fn merge(
                 plan.constraints.push(evidence);
             }
             continue;
+        }
+        if op == Op::Compute
+            && let Some(predicate) = step.predicate.as_ref().filter(|p| p.present)
+            && let Some(rule) = super::predicate::typed_rule(intent, &evidence, predicate)
+            && !plan.rules.iter().any(|r| r.text() == rule.text())
+        {
+            plan.rules.push(rule);
         }
         plan.push_step(Step {
             op,

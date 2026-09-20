@@ -29,6 +29,30 @@ pub(super) enum Comparator {
 }
 
 impl Comparator {
+    /// The comparator that holds exactly when this one does not.
+    pub(super) fn negated(self) -> Self {
+        match self {
+            Self::Gt => Self::Le,
+            Self::Ge => Self::Lt,
+            Self::Lt => Self::Ge,
+            Self::Le => Self::Gt,
+            Self::Eq => Self::Ne,
+            Self::Ne => Self::Eq,
+        }
+    }
+
+    /// A comparator named by a word or a symbol (`gt`, `>=`, `eq`, `<>`).
+    pub(super) fn from_word(word: &str) -> Option<Self> {
+        match word.trim().to_ascii_lowercase().as_str() {
+            ">" | "gt" | "greater" => Some(Self::Gt),
+            ">=" | "≥" | "ge" | "gte" => Some(Self::Ge),
+            "<" | "lt" | "less" => Some(Self::Lt),
+            "<=" | "≤" | "le" | "lte" => Some(Self::Le),
+            "==" | "=" | "eq" | "equals" => Some(Self::Eq),
+            "!=" | "<>" | "≠" | "ne" => Some(Self::Ne),
+            _ => None,
+        }
+    }
     pub(super) const fn symbol(self) -> &'static str {
         match self {
             Self::Gt => ">",
@@ -594,7 +618,7 @@ pub(super) struct Clause {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Junction {
+pub(super) enum Junction {
     And,
     Or,
 }
@@ -661,9 +685,68 @@ impl Clause {
         };
         json!({"field": self.field, "comparator": self.comparator.symbol(), "value": value, "value_kind": kind})
     }
+    fn from_json(value: &Value) -> Option<Self> {
+        let field = value.get("field")?.as_str()?.trim().to_owned();
+        let comparator = Comparator::from_word(value.get("comparator")?.as_str()?)?;
+        let literal = value.get("value")?.as_str()?.to_owned();
+        let operand = match value.get("value_kind").and_then(Value::as_str) {
+            Some("number") => Operand::Number(literal),
+            Some("column") => Operand::Column(literal),
+            _ => Operand::Text(literal),
+        };
+        if field.is_empty() {
+            return None;
+        }
+        Some(Self {
+            field,
+            comparator,
+            value: operand,
+        })
+    }
 }
 
 impl Rule {
+    /// A rule the semantic frontend stated as a typed predicate over the request's own
+    /// columns and literals, validated by the compiler; lowered exactly like a parsed one.
+    pub(super) fn typed(text: &str, clauses: Vec<Clause>, junction: Junction) -> Self {
+        Self {
+            text: text.to_owned(),
+            clauses,
+            junction,
+            summary: false,
+        }
+    }
+    /// The excerpt the rule was read from.
+    pub(super) fn text(&self) -> &str {
+        &self.text
+    }
+    /// The inverse of [`Rule::to_json`], for a recorded plan replayed on an answer round.
+    pub(super) fn from_json(value: &Value) -> Option<Self> {
+        let text = value.get("text")?.as_str()?.to_owned();
+        let clauses = value
+            .get("clauses")?
+            .as_array()?
+            .iter()
+            .map(Clause::from_json)
+            .collect::<Option<Vec<_>>>()?;
+        if clauses.is_empty() {
+            return None;
+        }
+        let junction = match value.get("junction").and_then(Value::as_str) {
+            Some("or") => Junction::Or,
+            _ => Junction::And,
+        };
+        let summary = value
+            .get("summary")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        Some(Self {
+            text,
+            clauses,
+            junction,
+            summary,
+        })
+    }
     /// Whether the text also asked for the count and totals the summary stage computes.
     pub(super) const fn summary(&self) -> bool {
         self.summary

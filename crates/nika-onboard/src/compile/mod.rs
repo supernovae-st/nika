@@ -71,6 +71,7 @@ mod materialize;
 mod paths;
 pub(crate) mod pattern;
 mod plan;
+mod predicate;
 mod retrieve;
 mod rules;
 mod shape;

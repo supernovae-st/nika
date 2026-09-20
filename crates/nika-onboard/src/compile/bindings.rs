@@ -346,7 +346,7 @@ pub(super) fn bind(
         // A rule the request states over a parsed source is code the compiler writes;
         // an explicit answer still wins, and anything outside the grammar is asked.
         if !request.answers.contains_key("const.rule_expression")
-            && let Some(rule) = synthesized_rule(step, intent, &b)
+            && let Some(rule) = synthesized_rule(plan, step, intent, &b)
         {
             return Some(RuleBinding::Synthesized(rule));
         }
@@ -535,10 +535,17 @@ fn resolve_directory(
 
 /// The rule a compute step states in words, when the corpus is one structured file whose
 /// parsed records the rule can run over and every part of the detail is in the grammar.
-fn synthesized_rule(step: &Step, intent: &str, b: &Bindings) -> Option<rules::Rule> {
+fn synthesized_rule(plan: &Plan, step: &Step, intent: &str, b: &Bindings) -> Option<rules::Rule> {
     match &b.read {
         Need::Bound(Source::File(path)) if Structured::of(path).is_some() => {
-            rules::synthesize(&step.detail, &super::columns::columns_hint(intent))
+            // The semantic frontend's validated predicate first (meaning before syntax), then
+            // the closed grammar over the step's own words.
+            plan.rules
+                .iter()
+                .find(|rule| rule.text() == step.evidence)
+                .or_else(|| plan.rules.first())
+                .cloned()
+                .or_else(|| rules::synthesize(&step.detail, &super::columns::columns_hint(intent)))
         }
         _ => None,
     }

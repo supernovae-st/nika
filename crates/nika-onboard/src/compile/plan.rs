@@ -12,6 +12,8 @@
 
 use serde_json::{Value, json};
 
+use super::rules;
+
 /// Closed operation vocabulary. Names are private; the assembler owns their structure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Op {
@@ -270,6 +272,9 @@ pub(super) struct Plan {
     pub unknowns: Vec<String>,
     /// Trigger or cadence context the program does not implement (one invocation per item).
     pub trigger: Option<String>,
+    /// Row filters the request states, as typed predicates the compiler validated (from the
+    /// semantic frontend) or parsed (from the closed grammar); lowered to code, never asked.
+    pub rules: Vec<rules::Rule>,
 }
 
 impl Plan {
@@ -326,6 +331,7 @@ impl Plan {
             "constraints": self.constraints,
             "unknowns": self.unknowns,
             "trigger": self.trigger,
+            "rules": self.rules.iter().map(rules::Rule::to_json).collect::<Vec<_>>(),
         })
     }
     /// The faithful inverse of [`Self::to_json`]: a recorded plan (the `provenance.plan`
@@ -371,6 +377,9 @@ impl Plan {
         plan.constraints = words(record, "plan", "constraints")?;
         plan.unknowns = words(record, "plan", "unknowns")?;
         plan.trigger = optional_text(record, "plan", "trigger")?;
+        if let Some(rules) = object.get("rules").and_then(Value::as_array) {
+            plan.rules = rules.iter().filter_map(rules::Rule::from_json).collect();
+        }
         Ok(plan)
     }
     /// Every evidence excerpt must be a verbatim substring of the intent.
@@ -545,6 +554,7 @@ mod tests {
             constraints: vec!["never infer".to_owned()],
             unknowns: vec!["something else".to_owned()],
             trigger: Some("every morning".to_owned()),
+            rules: Vec::new(),
         };
         let record = plan.to_json();
         let back = Plan::from_json(&record).expect("round trip");
