@@ -56,6 +56,8 @@ struct Doc {
     facts: Vec<Fact>,
     /// Whether `inputs.item` is declared.
     item: bool,
+    /// Whether `source_columns` (the CSV source's own header order) was emitted.
+    source_columns: bool,
 }
 
 impl Doc {
@@ -74,6 +76,7 @@ impl Doc {
             last: None,
             facts: Vec::new(),
             item,
+            source_columns: false,
         }
     }
     fn task(&mut self, id: &str, mut node: Value, chain: bool) {
@@ -211,6 +214,10 @@ impl Doc {
 /// Facts that are data, not text: a CSV, YAML or TOML destination receives them through a
 /// conversion stage instead of their JSON text.
 const DATA_FACTS: [&str; 5] = ["computed", "fields", "validation", "records", "record"];
+
+/// Facts that are the rows of the source (or a code rule over them): the only data a
+/// CSV source's column order applies to.
+const ROW_FACTS: [&str; 2] = ["computed", "records"];
 
 /// An anchor law over the whole corpus: every string the step could copy from is a
 /// candidate; non-string facts are compared through their JSON text.
@@ -465,12 +472,41 @@ fn emit_read(d: &mut Doc, plan: &Plan, b: &Bindings) {
             if let Some(format) = Structured::of(path)
                 && b.parses()
             {
+                let writes_csv = b
+                    .writes
+                    .iter()
+                    .any(|w| Structured::of(&w.path) == Some(Structured::Csv));
+                if format == Structured::Csv && writes_csv {
+                    emit_source_columns(d);
+                }
                 emit_parse(d, format);
             }
         }
         Some(source @ (Source::Files(_) | Source::Glob(_))) => emit_fan_out(d, plan, b, source),
         Some(Source::Item) | None => {}
     }
+}
+
+/// The header order of a CSV source: its first line, `\r` trimmed, split on commas,
+/// the surrounding double quotes stripped from each cell. A quoted header holding a
+/// comma is out of scope: the cells are then a superset, still emitted first.
+const SOURCE_COLUMNS: &str =
+    r#"split("\n") | .[0] | rtrimstr("\r") | split(",") | map(ltrimstr("\"") | rtrimstr("\""))"#;
+
+/// A CSV source written back as CSV keeps its column order. The engine never preserves
+/// JSON key order (a parsed row is a sorted object), so the order is read from the
+/// source text itself and handed to the `<stem>_csv` stage as `columns`. Emitted before
+/// `parse_source` so the control chain still follows the parse; only when a `.csv`
+/// destination exists, like the parse itself only when something consumes the rows.
+fn emit_source_columns(d: &mut Doc) {
+    d.tool(
+        "source_columns",
+        "nika:jq",
+        json!({"input": "${{ with.document }}", "expression": SOURCE_COLUMNS}),
+        Some(json!({"document": "${{ tasks.read_source.output }}"})),
+        false,
+    );
+    d.source_columns = true;
 }
 
 /// A structured source is decoded once for code rules; prompts keep the raw text. Emitted
@@ -919,13 +955,18 @@ fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) ->
             && DATA_FACTS.contains(&name)
         {
             let stage = format!("{}_{}", effect.stem, format.word());
-            d.tool(
-                &stage,
-                "nika:convert",
-                json!({"input": "${{ with.data }}", "from": "json", "to": format.word()}),
-                Some(json!({"data": content})),
-                true,
-            );
+            let mut args =
+                json!({"input": "${{ with.data }}", "from": "json", "to": format.word()});
+            let mut with = json!({"data": content});
+            // Rows that derive from a CSV source are written back in the source's own
+            // column order; the header is sorted otherwise. A fact that is not the rows
+            // (extracted fields, a validation report) keeps the sorted header: the source
+            // columns would only pad it with empty ones.
+            if format == Structured::Csv && d.source_columns && ROW_FACTS.contains(&name) {
+                args["columns"] = json!("${{ with.columns }}");
+                with["columns"] = json!("${{ tasks.source_columns.output }}");
+            }
+            d.tool(&stage, "nika:convert", args, Some(with), true);
             content = format!("${{{{ tasks.{stage}.output }}}}");
         }
         let mut with = json!({"content": content});
