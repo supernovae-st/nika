@@ -959,3 +959,294 @@ fn strict_hot_requires_every_cue_to_produce_an_element() {
     let out = nika_onboard::compile::compile(&CompileRequest::create(control)).unwrap();
     assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
 }
+
+// ── The composer: a finite candidate set, deterministic feasibility, one seat call at most ──
+//
+// The coordinated drafting sentence is not explicit under the strict contract and forces
+// COLD; "Fetch <url>" is an explicit literal step of the deterministic reading, so a
+// proposal that drops it drops a recognized operation AND the only URL literal of the
+// request.
+const FETCH_INTENT: &str =
+    "Fetch https://example.com/pricing. Harmonize the tone and prepare a summary.";
+
+fn fetch_plan() -> Value {
+    json!({"steps":[
+        {"op":"fetch","detail":"https://example.com/pricing","evidence":"Fetch https://example.com/pricing"},
+        {"op":"draft","detail":"the tone","evidence":"Harmonize the tone"},
+        {"op":"draft","detail":"a summary","evidence":"prepare a summary"}],
+        "effects":[],"obligations":[],"constraints":[],"unknowns":[]})
+}
+/// Drops the fetch of the literal URL: infeasible, never offered.
+fn dropped_fetch_plan() -> Value {
+    let mut p = fetch_plan();
+    p["steps"].as_array_mut().unwrap().remove(0);
+    p
+}
+/// Reads "prepare a summary" as classification too: a distinct admissible reading.
+fn classified_fetch_plan() -> Value {
+    let mut p = fetch_plan();
+    p["steps"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"op":"classify","detail":"the page","evidence":"prepare a summary"}));
+    p
+}
+fn rotating(plans: &[Value]) -> Rotating {
+    Rotating {
+        plans: plans.iter().map(Value::to_string).collect(),
+        calls: AtomicU32::new(0),
+    }
+}
+fn candidates(doc: &Value) -> Vec<Value> {
+    doc["provenance"]["decision"]["candidates"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+fn route(doc: &Value) -> String {
+    doc["provenance"]["decision"]["route"].to_string()
+}
+
+#[tokio::test]
+async fn compose_records_every_distinct_candidate_and_the_seat_picks_among_feasible_ones() {
+    // (a) two distinct admissible plans, a seat choosing the second: both recorded feasible,
+    // the chosen one assembled.
+    let provider = disagreeing_provider();
+    let seat = ChoosePlan {
+        choice: "plan-1",
+        asked: Mutex::new(Vec::new()),
+    };
+    let req = CompileRequest::create(INTENT).with_authoring_policy(policy().with_samples(3));
+    let out = compile_with_cognition(
+        &req,
+        Cognition {
+            provider: Some(&provider),
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    let doc = outcome_document(&out);
+    let listed = candidates(&doc);
+    assert_eq!(listed.len(), 2, "{doc:#}");
+    for (k, candidate) in listed.iter().enumerate() {
+        assert_eq!(candidate["index"], k, "{candidate}");
+        assert_eq!(candidate["feasible"], true, "{candidate}");
+        assert_eq!(candidate["reasons"], json!([]), "{candidate}");
+        assert_eq!(candidate["source"]["kind"], "cold_sample", "{candidate}");
+        assert!(candidate["signature"].is_array(), "{candidate}");
+        assert!(candidate["plan"]["operations"].is_array(), "{candidate}");
+    }
+    assert_eq!(doc["provenance"]["decision"]["feasible_count"], 2);
+    assert_eq!(doc["provenance"]["decision"]["selected_candidate"], 1);
+    assert!(
+        listed[1]["plan"]["operations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|op| op["op"] == "compute"),
+        "the chosen candidate is the one with the code rule: {doc:#}"
+    );
+    assert!(route(&doc).contains("compose: seat"), "{}", route(&doc));
+    assert!(keys(&out).contains(&"const.rule_expression"), "{out:#?}");
+    // The seat saw exactly the feasible candidates plus NONE, each described by its
+    // signature and what differs.
+    let asked = seat.asked.lock().unwrap();
+    assert_eq!(asked.len(), 1);
+    assert_eq!(asked[0].keys(), ["plan-0", "plan-1", NONE_OPTION]);
+    let with_compute = asked[0].options.iter().find(|o| o.key == "plan-1").unwrap();
+    assert!(
+        with_compute.description.contains("op:compute"),
+        "{}",
+        with_compute.description
+    );
+}
+
+#[tokio::test]
+async fn compose_never_offers_an_infeasible_candidate_to_the_seat() {
+    // (b) the sample that drops the fetch of the literal URL is recorded infeasible with
+    // its reasons and the seat receives only the two feasible readings.
+    let provider = rotating(&[fetch_plan(), dropped_fetch_plan(), classified_fetch_plan()]);
+    let seat = ChoosePlan {
+        choice: "plan-0",
+        asked: Mutex::new(Vec::new()),
+    };
+    let req = CompileRequest::create(FETCH_INTENT).with_authoring_policy(policy().with_samples(3));
+    let out = compile_with_cognition(
+        &req,
+        Cognition {
+            provider: Some(&provider),
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 3);
+    let doc = outcome_document(&out);
+    let listed = candidates(&doc);
+    assert_eq!(listed.len(), 3, "{doc:#}");
+    assert_eq!(doc["provenance"]["decision"]["feasible_count"], 2);
+    let infeasible = &listed[1];
+    assert_eq!(infeasible["feasible"], false, "{infeasible}");
+    assert_eq!(infeasible["source"]["sample"], 1);
+    let reasons = infeasible["reasons"].to_string();
+    assert!(
+        reasons.contains("dropped the recognized operation `fetch`"),
+        "{reasons}"
+    );
+    assert!(reasons.contains("https://example.com/pricing"), "{reasons}");
+    let asked = seat.asked.lock().unwrap();
+    assert_eq!(asked.len(), 1);
+    assert_eq!(asked[0].keys(), ["plan-0", "plan-1", NONE_OPTION]);
+    for option in &asked[0].options {
+        assert!(
+            option.key == NONE_OPTION || option.description.contains("op:fetch"),
+            "an option without the fetch was offered: {option:?}"
+        );
+    }
+    assert_eq!(doc["provenance"]["decision"]["selected_candidate"], 0);
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    // The URL is bound from the request: only the runtime model is asked.
+    assert_eq!(keys(&out), ["model"], "{out:#?}");
+}
+
+#[tokio::test]
+async fn compose_with_a_single_feasible_candidate_never_calls_the_seat() {
+    // (c) one feasible reading beside an infeasible one: no seat call, route "single".
+    let provider = rotating(&[fetch_plan(), dropped_fetch_plan()]);
+    let seat = ChoosePlan {
+        choice: NONE_OPTION,
+        asked: Mutex::new(Vec::new()),
+    };
+    let req = CompileRequest::create(FETCH_INTENT).with_authoring_policy(policy().with_samples(2));
+    let out = compile_with_cognition(
+        &req,
+        Cognition {
+            provider: Some(&provider),
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(seat.asked.lock().unwrap().is_empty(), "{out:#?}");
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    let doc = outcome_document(&out);
+    assert_eq!(candidates(&doc).len(), 2, "{doc:#}");
+    assert_eq!(doc["provenance"]["decision"]["feasible_count"], 1);
+    assert_eq!(doc["provenance"]["decision"]["selected_candidate"], 0);
+    assert!(route(&doc).contains("compose: single"), "{}", route(&doc));
+    assert!(
+        doc["provenance"]["decision"]
+            .get("warm_after_cold")
+            .is_none(),
+        "{doc:#}"
+    );
+    assert_eq!(keys(&out), ["model"], "{out:#?}");
+}
+
+#[tokio::test]
+async fn compose_seat_none_is_a_clarification_with_the_candidates_on_record() {
+    // (d) the seat finds none faithful: nothing assembled, the candidates stay recorded.
+    let provider = disagreeing_provider();
+    let seat = ChoosePlan {
+        choice: NONE_OPTION,
+        asked: Mutex::new(Vec::new()),
+    };
+    let req = CompileRequest::create(INTENT).with_authoring_policy(policy().with_samples(3));
+    let out = compile_with_cognition(
+        &req,
+        Cognition {
+            provider: Some(&provider),
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(out.candidate.is_none());
+    assert!(out.provenance.strategy.is_none());
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    let doc = outcome_document(&out);
+    assert_eq!(candidates(&doc).len(), 2, "{doc:#}");
+    assert_eq!(doc["provenance"]["decision"]["feasible_count"], 2);
+    assert!(doc["provenance"]["decision"]["selected_candidate"].is_null());
+    assert_eq!(
+        doc["provenance"]["decision"]["warm_after_cold"]["choice"],
+        NONE_OPTION
+    );
+    assert!(
+        route(&doc).contains("compose: seat none"),
+        "{}",
+        route(&doc)
+    );
+}
+
+#[tokio::test]
+async fn compose_ranks_deterministically_without_a_seat_and_asks_when_nothing_is_feasible() {
+    // Several feasible candidates and no seat: the documented scorer keeps the candidate
+    // closest to every accepted sample (support-weighted medoid); a tie keeps the first.
+    let provider = rotating(&[fetch_plan(), classified_fetch_plan(), fetch_plan()]);
+    let req = CompileRequest::create(FETCH_INTENT).with_authoring_policy(policy().with_samples(3));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    let doc = outcome_document(&out);
+    assert_eq!(doc["provenance"]["decision"]["feasible_count"], 2);
+    assert_eq!(doc["provenance"]["decision"]["selected_candidate"], 0);
+    assert!(
+        route(&doc).contains("compose: deterministic rank"),
+        "{}",
+        route(&doc)
+    );
+    // Zero feasible candidates: the reasons are the findings and a human settles it.
+    let provider = rotating(&[dropped_fetch_plan()]);
+    let req = CompileRequest::create(FETCH_INTENT).with_authoring_policy(policy().with_samples(2));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert!(out.candidate.is_none());
+    assert!(out.provenance.strategy.is_none(), "{out:#?}");
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        out.diagnostics.iter().any(|d| d
+            .message
+            .contains("dropped the recognized operation `fetch`")),
+        "{out:#?}"
+    );
+    let doc = outcome_document(&out);
+    assert_eq!(candidates(&doc).len(), 1, "{doc:#}");
+    assert_eq!(doc["provenance"]["decision"]["feasible_count"], 0);
+    assert!(doc["provenance"]["decision"]["selected_candidate"].is_null());
+    assert!(
+        route(&doc).contains("compose: none feasible"),
+        "{}",
+        route(&doc)
+    );
+}
+
+#[tokio::test]
+async fn compose_records_pattern_dimensions_without_composing_an_inexpressible_variant() {
+    // The recalled candidates may suggest fan-out or fan-in; the assembler expresses one
+    // linear chain today, so the dimension is recorded and no variant is composed.
+    let provider = Provider::new(plan());
+    let out = compile_with_provider(&request(), &provider).await.unwrap();
+    let doc = outcome_document(&out);
+    let compose = &doc["provenance"]["decision"]["compose"];
+    assert_eq!(compose["cap"], 8, "{doc:#}");
+    let dimensions = compose["pattern_dimensions"].as_array().unwrap();
+    for dimension in dimensions {
+        assert!(
+            matches!(dimension["dimension"].as_str(), Some("fanout" | "fanin")),
+            "{dimension}"
+        );
+        assert!(
+            !dimension["hits"].as_array().unwrap().is_empty(),
+            "{dimension}"
+        );
+        assert_eq!(dimension["expressible"], false, "{dimension}");
+        assert!(dimension["fixed_by_request"].is_boolean(), "{dimension}");
+    }
+    assert!(
+        candidates(&doc)
+            .iter()
+            .all(|c| c["source"]["kind"] == "cold_sample"),
+        "{doc:#}"
+    );
+}
