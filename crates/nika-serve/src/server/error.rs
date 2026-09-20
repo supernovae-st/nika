@@ -117,6 +117,16 @@ impl ApiError {
         }
     }
 
+    /// The stable machine code this refusal carries.
+    pub(crate) const fn code(&self) -> &'static str {
+        self.code
+    }
+
+    /// The one-sentence teaching this refusal carries.
+    pub(crate) const fn message(&self) -> &'static str {
+        self.message
+    }
+
     pub(crate) const fn unauthorized(credential_presented: bool) -> Self {
         Self {
             status: StatusCode::UNAUTHORIZED,

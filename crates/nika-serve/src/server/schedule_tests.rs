@@ -13,7 +13,7 @@ use super::tests::{TestServer, TestWorld, auth_header, get_request, limits};
 use super::{ExecutionBackend, ExecutionDisposition, ExecutionOutcome};
 
 #[derive(Debug)]
-struct NoopBackend;
+pub(super) struct NoopBackend;
 
 impl ExecutionBackend for NoopBackend {
     fn execute<'a>(
@@ -34,7 +34,7 @@ struct CountingBackend {
 }
 
 #[derive(Debug)]
-struct ManualClock {
+pub(super) struct ManualClock {
     now: Mutex<jiff::Zoned>,
     generation: AtomicUsize,
     sleeps: AtomicUsize,
@@ -43,7 +43,7 @@ struct ManualClock {
 }
 
 impl ManualClock {
-    fn new(now: &str) -> Self {
+    pub(super) fn new(now: &str) -> Self {
         Self {
             now: Mutex::new(now.parse().expect("manual zoned time")),
             generation: AtomicUsize::new(0),
@@ -53,13 +53,13 @@ impl ManualClock {
         }
     }
 
-    fn advance_to(&self, now: &str) {
+    pub(super) fn advance_to(&self, now: &str) {
         *self.now.lock().expect("manual clock") = now.parse().expect("advanced zoned time");
         self.generation.fetch_add(1, Ordering::SeqCst);
         self.changed.notify_waiters();
     }
 
-    async fn wait_for_sleeps(&self, minimum: usize) {
+    pub(super) async fn wait_for_sleeps(&self, minimum: usize) {
         tokio::time::timeout(Duration::from_secs(5), async {
             loop {
                 let started = self.sleep_started.notified();
@@ -358,7 +358,7 @@ async fn a_schedule_ceiling_above_the_server_default_is_clamped_never_widened() 
     server.stop().await.expect("clean stop");
 }
 
-fn put_request(id: &str, body: &str, precondition: &str, authenticated: bool) -> String {
+pub(super) fn put_request(id: &str, body: &str, precondition: &str, authenticated: bool) -> String {
     let auth = authenticated.then(auth_header).unwrap_or_default();
     format!(
         "PUT /v1/schedules/{id} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{precondition}{auth}\r\n{body}",

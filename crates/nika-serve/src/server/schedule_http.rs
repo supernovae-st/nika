@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -47,6 +48,12 @@ struct SchedulePutBody {
     pause_reason: Option<String>,
     #[serde(default)]
     pause_until: Option<String>,
+    /// Per-fire inputs (#1370): one JSON scalar per declared input key,
+    /// bound as the `--var` text the CLI edge already judges. A structured
+    /// value is refused at the wire; a workflow that wants structure
+    /// declares a scalar and parses it inside.
+    #[serde(default)]
+    inputs: Option<BTreeMap<String, ScheduleInputBody>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -54,6 +61,26 @@ struct SchedulePutBody {
 enum ScheduleWhenBody {
     Once { at: String },
     Cadence { expression: String },
+}
+
+/// A scalar schedule input on the wire — the same shape the project file
+/// accepts (`inputs: { tenant: acme, limit: 5 }`), rendered to `--var` text.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum ScheduleInputBody {
+    Text(String),
+    Number(serde_json::Number),
+    Flag(bool),
+}
+
+impl ScheduleInputBody {
+    fn into_text(self) -> String {
+        match self {
+            Self::Text(text) => text,
+            Self::Number(number) => number.to_string(),
+            Self::Flag(flag) => flag.to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -112,6 +139,12 @@ impl SchedulePutBody {
         draft.active = self.active;
         draft.pause_reason = self.pause_reason;
         draft.pause_until = self.pause_until;
+        draft.inputs = self
+            .inputs
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(key, value)| (key, value.into_text()))
+            .collect();
         draft
     }
 }
@@ -160,8 +193,20 @@ pub(super) async fn put(
     ) {
         return planner_error_response(&error);
     }
-    if let Err(response) = validate_workflow(&candidate, &state).await {
-        return response;
+    let admitted = match validate_workflow(&candidate, &state).await {
+        Ok(admitted) => admitted,
+        Err(response) => return response,
+    };
+    // The declared inputs are judged here, before the first slot, by the
+    // same law the fire applies (#1370): a typo'd key or a value the declared
+    // type refuses is an operator defect the PUT names, never a silent
+    // schedule that fires nothing.
+    if let Err(refusal) = super::schedule_inputs::bind(&admitted, &candidate) {
+        return json_error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "schedule.inputs",
+            &format!("{} ({})", refusal.message, refusal.code),
+        );
     }
     let schedules = Arc::clone(&state.schedules);
     let applied = tokio::task::spawn_blocking(move || schedules.apply(draft, precondition)).await;
@@ -273,7 +318,7 @@ async fn status_response(
 async fn validate_workflow(
     definition: &ScheduleDefinition,
     state: &AppState,
-) -> Result<(), Response<ResponseBody>> {
+) -> Result<nika_execution::AdmittedExecution, Response<ResponseBody>> {
     // The served registry's scope (#1369): what this listener exposes is
     // what it schedules; the resident's own beats are not this door's.
     if let Some(prefix) = &state.registry_scope
@@ -293,7 +338,7 @@ async fn validate_workflow(
     let admitted =
         tokio::task::spawn_blocking(move || service.admit(&project, Path::new(&workflow))).await;
     match admitted {
-        Ok(Ok(_)) => Ok(()),
+        Ok(Ok(admitted)) => Ok(admitted),
         Ok(Err(error)) => Err(workflow_error_response(&error)),
         Err(_) => Err(ApiError::internal().into_response()),
     }
@@ -399,6 +444,10 @@ fn definition_json(definition: &ScheduleDefinition) -> Value {
         "active": definition.is_active(),
         "pauseReason": definition.pause_reason(),
         "pauseUntil": definition.pause_until(),
+        "inputs": definition
+            .inputs()
+            .map(|(key, text)| (key.to_owned(), Value::String(text.to_owned())))
+            .collect::<serde_json::Map<String, Value>>(),
     })
 }
 

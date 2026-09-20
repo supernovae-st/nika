@@ -15,6 +15,7 @@ mod production;
 mod registry;
 mod route;
 mod schedule_http;
+mod schedule_inputs;
 mod scheduler;
 mod sse;
 mod store;
@@ -1331,6 +1332,8 @@ mod failure_tests;
 mod registry_tests;
 #[cfg(test)]
 mod result_tests;
+#[cfg(test)]
+mod schedule_inputs_tests;
 #[cfg(test)]
 mod schedule_tests;
 #[cfg(test)]
