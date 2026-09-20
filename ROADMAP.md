@@ -105,7 +105,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `34d1d61b0` (`34d1d61b0d9e5a4a1a62e882885d97dcbdfc0d58`)             |
+| HEAD             | `c77cfc203` (`c77cfc20327493d2ac3691894eb234da5664ae40`)             |
 | workspace        | v0.120.3                                  |
 | crates (workspace)| 73                                              |
 | crates (admitted)| 64                                             |
@@ -117,8 +117,19 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 5                                              |
 | L3               | 4                                              |
 | L4               | 15                                              |
-| lib tests        | (skipped — pass --no-quick to compute)                              |
-| clippy           | (skipped)                              |
+| lib tests        | 7941 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
+
+> **Where we are · 2026-09-20.** Engine **v0.120.3** is published from
+> `578352a3` (Serve `POST /v1/compile` foundation, #1709/#1711) and `main`
+> carries the bounded support composition with explicit provider authoring
+> (#1713, independently reviewed; #1714 quota diagnostics). The plugins
+> marketplace (`v0.120.3`) and the One SDK (`@supernovae-st/nika@0.120.3`,
+> qualified against the public archive) are in lockstep. Open gates on the
+> way to 1.0: the 7 shadow zones, `.nika` teaching on the public site
+> (#1684), the quickstart SSOT (#1659), and the compiler's general
+> natural-language and pattern breadth (#1663, #1666). Claims here are
+> pointers; the ledger is the issues and the tags.
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
 WIP · per-layer) are in the AUTO-GENERATED status block above (the
