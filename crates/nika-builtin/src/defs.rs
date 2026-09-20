@@ -285,7 +285,8 @@ fn data_defs() -> Vec<ToolDef> {
                 "from": s("json|yaml|toml|csv"),
                 "to": s("json|yaml|toml|csv"),
                 "has_header": { "type": "boolean", "description": "CSV only (default true)" },
-                "formula_guard": { "type": "boolean", "description": "CSV only · prefix formula-triggering cells (=+-@) with ' against spreadsheet injection · default false (alters data)" }
+                "formula_guard": { "type": "boolean", "description": "CSV only · prefix formula-triggering cells (=+-@) with ' against spreadsheet injection · default false (alters data)" },
+                "columns": { "type": "array", "items": { "type": "string" }, "description": "CSV emit only · the header order: the listed columns first, in this order (a listed column absent from every row is still emitted, empty), then every unlisted key sorted · default sorted" }
             }),
             &["input", "from", "to"],
         ),

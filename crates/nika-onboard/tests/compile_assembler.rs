@@ -491,6 +491,76 @@ async fn a_csv_destination_receives_csv_from_the_computed_rows() {
     assert_eq!(tasks(&doc)["parse_source"]["invoke"]["args"]["from"], "csv");
 }
 
+// ── #1666 · a CSV written back from a CSV source keeps the source's column order ──
+// The engine never preserves JSON key order, so `big_orders_csv` would sort the header
+// (`amount,customer,order_id`) while the requester read `order_id,customer,amount`. The
+// order is read from the source text itself (`source_columns`, a jq over the read
+// document) and handed to the convert stage as `columns`; a source that is not a CSV has
+// no order to keep.
+#[tokio::test]
+async fn a_csv_destination_from_a_csv_source_keeps_the_source_column_order() {
+    let out = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
+    let doc = document(&out);
+    let columns = &tasks(&doc)["source_columns"];
+    assert_eq!(columns["invoke"]["tool"], "nika:jq", "{doc:#}");
+    assert_eq!(columns["invoke"]["args"]["input"], "${{ with.document }}");
+    assert_eq!(
+        columns["with"]["document"],
+        "${{ tasks.read_source.output }}"
+    );
+    let expression = columns["invoke"]["args"]["expression"].as_str().unwrap();
+    assert!(
+        expression.starts_with(r#"split("\n") | .[0]"#),
+        "{expression}"
+    );
+    assert!(expression.contains(r#"rtrimstr("\r")"#), "{expression}");
+    assert!(expression.contains(r#"split(",")"#), "{expression}");
+    assert!(
+        columns.get("after").is_none(),
+        "a data edge, never a control edge: {columns:#}"
+    );
+    let convert = &tasks(&doc)["big_orders_csv"];
+    assert_eq!(
+        convert["invoke"]["args"]["columns"], "${{ with.columns }}",
+        "{doc:#}"
+    );
+    assert_eq!(
+        convert["with"]["columns"],
+        "${{ tasks.source_columns.output }}"
+    );
+    assert_eq!(convert["with"]["data"], "${{ tasks.compute.output }}");
+    // The control chain is unchanged: nothing follows the column read.
+    for (id, task) in tasks(&doc) {
+        assert!(
+            task["after"].get("source_columns").is_none(),
+            "{id} chains on the column read: {doc:#}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_csv_destination_from_a_json_source_has_no_column_order_to_keep() {
+    let intent = BIG_ORDERS.replace("./data/orders.csv", "./data/orders.json");
+    let mut plan = big_orders_plan();
+    plan["steps"][0] =
+        json!({"op":"read","detail":"./data/orders.json","evidence":"Read ./data/orders.json"});
+    let out = compile(&intent, &plan, &[MODEL, RULE]).await;
+    let doc = document(&out);
+    assert_eq!(
+        tasks(&doc)["parse_source"]["invoke"]["tool"],
+        "nika:jq",
+        "{doc:#}"
+    );
+    assert!(tasks(&doc).get("source_columns").is_none(), "{doc:#}");
+    let convert = &tasks(&doc)["big_orders_csv"];
+    assert_eq!(convert["invoke"]["args"]["to"], "csv", "{doc:#}");
+    assert!(
+        convert["invoke"]["args"].get("columns").is_none(),
+        "{doc:#}"
+    );
+    assert!(convert["with"].get("columns").is_none(), "{doc:#}");
+}
+
 // ── D5 · the anchor law judges the corpus the step consumed ──────────────────────
 #[tokio::test]
 async fn extract_anchors_are_checked_against_the_read_document_not_a_phantom_item() {
