@@ -207,6 +207,14 @@ the same schema door, reads Check `needed` as the membrane, and never text-scans
 comments. Task ids come from the `tasks:` map only. It is not a public YAML key,
 a fifth verb, or an SDK noun, and it does not change CREATE/EDIT.
 
+Candidate retrieval (`compile::retrieve` · `compile::retrieve_by_ops`) is the
+lexical recall floor beside it: BM25 over the embedded skeletons and a compact
+projection of the spec's pattern-family inventory (`assets/pattern_families.json`,
+Apache-2.0 development knowledge), with French/English alias tokens and a light
+stemmer. A hit is a candidate to read, never a selection, a semantic truth or
+authority; `tests/compile_retrieval.rs` prints and floors recall@1/@5 on seen
+example intents and unseen paraphrases.
+
 ### The one machine document (`compile_version` 1)
 
 `outcome_document(&CompileOutcome) -> serde_json::Value` is the single machine

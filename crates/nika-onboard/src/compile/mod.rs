@@ -66,6 +66,7 @@ mod lexicon;
 mod materialize;
 pub(crate) mod pattern;
 mod plan;
+mod retrieve;
 mod support;
 mod types;
 mod wire;
@@ -78,6 +79,7 @@ use types::{EditChange, Input};
 
 pub use cognition::{Cognition, NoProvider, compile_with_cognition, compile_with_provider};
 pub use materialize::{MaterializeError, materialize_ready};
+pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileDiagnostic, CompileError,
     CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion, CompileRequest,
