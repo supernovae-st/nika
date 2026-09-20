@@ -26,6 +26,7 @@ nika-types    = { path = "../nika-types", version = "0.120.3" }       # AccessCl
 nika-onboard  = { path = "../nika-onboard", version = "0.120.3" }     # routing::route_query — the ONE intent router
 nika-harness  = { path = "../nika-harness", version = "0.120.3", optional = true }  # the infer-grade seat (the harness reasoner)
 nika-check    = { path = "../nika-check", version = "0.120.3" }       # CheckReport — the preview's effect rows read the report's own permits and requirements
+nika-schema   = { path = "../nika-schema", version = "0.120.3" }      # the parser — the review reads a candidate's tasks from the AST, never from prose
 nika-cap      = { path = "../nika-cap", version = "0.120.3" }         # ExecPermit — the exec grant's shape in the effect rows
 nika-fs       = { path = "../nika-fs", version = "0.120.3" }          # OwnedDir::write_atomic — a change lands by temp + rename below the root's descriptor
 

@@ -618,7 +618,7 @@ pub fn check_on_disk(root: &Path, path: &Path) -> WorkflowAudit {
 
 /// The facade's audit of exact bytes (the preview · child-blind), folded to
 /// the preview's rows.
-fn audit_bytes(path: &Path, source: &str) -> WorkflowAudit {
+pub(crate) fn audit_bytes(path: &Path, source: &str) -> WorkflowAudit {
     let logical = path.display().to_string();
     fold_audit(
         path,
