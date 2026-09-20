@@ -23,7 +23,7 @@
 use std::cmp::Reverse;
 
 use super::lexicon::Reading;
-use super::plan::{EffectPolicy, Plan};
+use super::plan::{Binding, EffectPolicy, EffectVerb, Op, Plan};
 use super::retrieve::Hit;
 use serde_json::{Value, json};
 
@@ -300,9 +300,16 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
     if why.is_empty() { Ok(()) } else { Err(why) }
 }
 
-/// Rule 4: a recognized operation may be re-read, never dropped.
+/// Rule 4: a recognized operation may be re-read, never dropped. The reader is reliable on
+/// the operations its cue table names unambiguously; a validation, a computation or an
+/// exploration it guessed from an instruction ("fais relire", "compare") is advisory and
+/// never vetoes a proposal on its own.
 fn floor_operations(candidate: &Plan, floor: &Plan, why: &mut Vec<String>) {
-    for step in &floor.steps {
+    for step in floor
+        .steps
+        .iter()
+        .filter(|s| !matches!(s.op, Op::Validate | Op::Compute | Op::Explore))
+    {
         let accounted = candidate
             .steps
             .iter()
@@ -363,7 +370,7 @@ fn floor_effects(candidate: &Plan, floor: &Plan, why: &mut Vec<String>) {
 /// Rules 8 and 9: every bound literal carried, no literal invented.
 fn literals(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>) {
     for binding in &floor.bindings {
-        if !carries(candidate, &binding.literal) {
+        if !carries(candidate, binding) {
             why.push(format!(
                 "the {} `{}` is no longer carried by any operation or effect",
                 binding.role, binding.literal
@@ -395,14 +402,37 @@ fn overlaps(a: &str, b: &str) -> bool {
     !a.is_empty() && !b.is_empty() && (a.contains(b) || b.contains(a))
 }
 
-fn carries(plan: &Plan, literal: &str) -> bool {
-    plan.steps
+/// A bound literal is carried when a candidate names it, or when the element that consumes
+/// it in the assembler is present: a URL by a fetch, a path by a read or a write, an email
+/// by an effect that addresses someone, a money policy by the effect that keeps the literal,
+/// a timezone by any step. The reading seeds the bindings themselves, so listing a binding
+/// is never enough on its own.
+fn carries(plan: &Plan, binding: &Binding) -> bool {
+    let literal = binding.literal.as_str();
+    let named = plan
+        .steps
         .iter()
         .any(|s| s.detail.contains(literal) || s.evidence.contains(literal))
         || plan
             .effects
             .iter()
-            .any(|e| e.target.contains(literal) || e.evidence.contains(literal))
+            .any(|e| e.target.contains(literal) || e.evidence.contains(literal));
+    let consumed = match binding.role {
+        "url" => plan.has(Op::Fetch),
+        "path" => plan.has(Op::Read) || plan.effects.iter().any(|e| e.verb == EffectVerb::Write),
+        "email" => plan.effects.iter().any(|e| {
+            matches!(
+                e.verb,
+                EffectVerb::Send | EffectVerb::Notify | EffectVerb::Create | EffectVerb::Update
+            )
+        }),
+        "money_policy" => plan
+            .effects
+            .iter()
+            .any(|e| e.policy_literal.as_deref() == Some(literal)),
+        _ => !plan.steps.is_empty(),
+    };
+    named || consumed
 }
 
 /// The literal-looking tokens of a detail or target: whole URLs, paths and emails, and

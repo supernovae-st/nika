@@ -1250,3 +1250,34 @@ async fn compose_records_pattern_dimensions_without_composing_an_inexpressible_v
         "{doc:#}"
     );
 }
+
+/// A proposal may wrap a line or drop a double space in its evidence; the compiler anchors
+/// it to the exact request excerpt instead of rejecting the whole plan. A changed word is
+/// still no excerpt at all.
+#[tokio::test]
+async fn whitespace_folded_evidence_is_anchored_to_the_exact_excerpt() {
+    let mut folded = plan();
+    folded["steps"][0]["evidence"] = json!("consulte   le\nclient");
+    let provider = Provider::new(folded);
+    let out = compile_with_provider(&request(), &provider).await.unwrap();
+    let doc = outcome_document(&out);
+    let evidence: Vec<&str> = doc["provenance"]["plan"]["operations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|s| s["evidence"].as_str())
+        .collect();
+    assert!(evidence.contains(&"consulte le client"), "{evidence:?}");
+    let mut altered = plan();
+    altered["steps"][0]["evidence"] = json!("consulte la cliente");
+    let provider = Provider::new(altered);
+    let out = compile_with_provider(&request(), &provider).await.unwrap();
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(
+        out.provenance
+            .plan
+            .as_ref()
+            .is_none_or(|p| p["operations"].as_array().is_none_or(Vec::is_empty)),
+        "{out:#?}"
+    );
+}

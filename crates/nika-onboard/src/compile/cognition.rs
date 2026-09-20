@@ -596,6 +596,44 @@ async fn propose<P: ProviderInferDyn>(
     decode(&response, out)
 }
 
+/// The exact request excerpt a proposal's evidence names: the evidence itself when it is a
+/// verbatim substring, else the request substring it matches once runs of whitespace are
+/// folded on both sides (a model may wrap a line or drop a double space; it may not change
+/// a word). None when nothing in the request matches.
+fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
+    let evidence = evidence.trim();
+    if evidence.is_empty() {
+        return None;
+    }
+    if intent.contains(evidence) {
+        return Some(evidence.to_owned());
+    }
+    let mut folded = String::new();
+    let mut offsets: Vec<usize> = Vec::new();
+    let mut pending_space = false;
+    for (index, ch) in intent.char_indices() {
+        if ch.is_whitespace() {
+            pending_space = !folded.is_empty();
+            continue;
+        }
+        if pending_space {
+            folded.push(' ');
+            offsets.push(index);
+            pending_space = false;
+        }
+        folded.push(ch);
+        for _ in 0..ch.len_utf8() {
+            offsets.push(index);
+        }
+    }
+    let needle = evidence.split_whitespace().collect::<Vec<_>>().join(" ");
+    let at = folded.find(&needle)?;
+    let start = *offsets.get(at)?;
+    let last = *offsets.get(at + needle.len() - 1)?;
+    let end = last + intent.get(last..)?.chars().next()?.len_utf8();
+    intent.get(start..end).map(str::to_owned)
+}
+
 fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Option<Proposal> {
     let text = match response.content.as_slice() {
         [ContentBlock::Text { text }]
@@ -642,19 +680,18 @@ fn merge(
         steps: Vec::new(),
         ..reading.plan.clone()
     };
-    let anchored = |evidence: &str| !evidence.trim().is_empty() && intent.contains(evidence);
     for step in proposal.steps {
         let Some(op) = Op::parse(&step.op) else {
             reject(out, "unknown operation in the proposal");
             return None;
         };
-        if !anchored(&step.evidence) {
+        let Some(evidence) = exact_excerpt(intent, &step.evidence) else {
             reject(out, "an operation lacks an exact source excerpt");
             return None;
-        }
+        };
         plan.push_step(Step {
             op,
-            evidence: step.evidence,
+            evidence,
             detail: step.detail,
             categories: step.categories,
         });
@@ -674,19 +711,19 @@ fn merge(
             reject(out, "unknown effect verb or policy in the proposal");
             return None;
         };
-        if !anchored(&effect.evidence) {
+        let Some(evidence) = exact_excerpt(intent, &effect.evidence) else {
             reject(
                 out,
                 "an effect lacks an exact source excerpt; no effect was invented",
             );
             return None;
-        }
+        };
         if let Some(existing) = plan.effects.iter_mut().find(|e| e.verb == verb) {
             // The deterministic policy is the floor: a model may only strengthen a plain
             // request. Any other disagreement about a recognized effect is a human question.
             if !effect.target.trim().is_empty() {
                 existing.target.clone_from(&effect.target);
-                existing.evidence.clone_from(&effect.evidence);
+                existing.evidence.clone_from(&evidence);
             }
             if existing.policy == EffectPolicy::Automatic && policy != EffectPolicy::Automatic {
                 existing.policy = policy;
@@ -702,17 +739,17 @@ fn merge(
             plan.effects.push(Effect {
                 verb,
                 target: effect.target,
-                evidence: effect.evidence,
+                evidence,
                 policy,
                 policy_literal: None,
             });
         }
     }
     for obligation in proposal.obligations {
-        if !anchored(&obligation.evidence) {
+        let Some(evidence) = exact_excerpt(intent, &obligation.evidence) else {
             reject(out, "an obligation lacks an exact source excerpt");
             return None;
-        }
+        };
         let kind = match (obligation.kind.as_str(), obligation.value) {
             ("dedup", _) => ObligationKind::Dedup,
             ("revision_check", _) => ObligationKind::RevisionCheck,
@@ -727,10 +764,7 @@ fn merge(
             .iter()
             .any(|o| o.kind.word() == kind.word())
         {
-            plan.obligations.push(Obligation {
-                kind,
-                evidence: obligation.evidence,
-            });
+            plan.obligations.push(Obligation { kind, evidence });
         }
     }
     for constraint in proposal.constraints {
@@ -742,7 +776,7 @@ fn merge(
     // Semantic accounting: the request must be covered by regions the model can name.
     if let Some(bypass) = proposal.approval_bypass
         && bypass.present
-        && anchored(&bypass.evidence)
+        && exact_excerpt(intent, &bypass.evidence).is_some()
     {
         plan.unknowns.push(format!(
             "The request presupposes, reuses or skips an approval it does not give ({}); the compiler never grants that authority.",
