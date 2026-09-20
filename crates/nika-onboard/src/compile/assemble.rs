@@ -626,7 +626,7 @@ fn emit_draft(d: &mut Doc, guide: &str, step: &Step, retry: Option<u32>) {
         guide,
         d.prompt_tail()
     );
-    let mut node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": 1200, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["body", "facts_used"], "properties": {"body": {"type": "string"}, "facts_used": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["claim", "anchor"], "properties": {"claim": {"type": "string", "minLength": 1}, "anchor": {"type": "string", "minLength": 1}}}}}}}});
+    let mut node = json!({"timeout": INFER_TIMEOUT, "infer": {"max_tokens": 1200, "prompt": prompt, "schema": {"type": "object", "additionalProperties": false, "required": ["body", "facts_used"], "properties": {"body": {"type": "string", "minLength": 1}, "facts_used": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["claim", "anchor"], "properties": {"claim": {"type": "string", "minLength": 1}, "anchor": {"type": "string", "minLength": 1}}}}}}}});
     if let Some(n) = retry {
         node["retry"] = json!({"max_attempts": n});
     }
@@ -635,7 +635,7 @@ fn emit_draft(d: &mut Doc, guide: &str, step: &Step, retry: Option<u32>) {
     d.tool(
         "draft_anchors",
         "nika:jq",
-        json!({"input": input, "expression": anchor_law("facts_used", true)}),
+        json!({"input": input, "expression": format!("(.body | length) > 0 and ({})", anchor_law("facts_used", true))}),
         Some(with),
         false,
     );
