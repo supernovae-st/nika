@@ -148,6 +148,12 @@ const LEXICON: &[(&str, Head)] = &[
     ("compare", Head::Choice(&[Op::Compute, Op::Draft])),
     ("comparez", Head::Choice(&[Op::Compute, Op::Draft])),
     ("comparer", Head::Choice(&[Op::Compute, Op::Draft])),
+    ("fais relire", Head::Op(Op::Validate)),
+    ("faites relire", Head::Op(Op::Validate)),
+    ("relis", Head::Op(Op::Validate)),
+    ("relire", Head::Op(Op::Validate)),
+    ("review", Head::Op(Op::Validate)),
+    ("proofread", Head::Op(Op::Validate)),
     ("valide", Head::Op(Op::Validate)),
     ("validez", Head::Op(Op::Validate)),
     ("valider", Head::Op(Op::Validate)),
@@ -367,6 +373,31 @@ fn split_sentences(intent: &str) -> Vec<&str> {
 }
 
 fn head_of(lower: &str) -> Option<(&'static str, &'static Head)> {
+    if let Some(found) = head_of_exact(lower) {
+        return Some(found);
+    }
+    // "passe ensuite la commande" / "crée alors le compte": one filler after the first word.
+    let mut words = lower.splitn(3, ' ');
+    let (first, second, rest) = (words.next(), words.next(), words.next());
+    if let (Some(first), Some(second), Some(rest)) = (first, second, rest)
+        && matches!(
+            second,
+            "ensuite"
+                | "alors"
+                | "then"
+                | "also"
+                | "aussi"
+                | "puis"
+                | "immédiatement"
+                | "immediately"
+        )
+    {
+        return head_of_exact(&format!("{first} {rest}"));
+    }
+    None
+}
+
+fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut best: Option<(&'static str, &'static Head)> = None;
     for (phrase, head) in LEXICON {
         if lower.starts_with(phrase) {
@@ -444,7 +475,12 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
 }
 
 const TRIGGER_PREFIXES: &[&str] = &[
+    "pour la ",
+    "pour le ",
+    "pour les ",
     "pour chaque ",
+    "for the ",
+    "for every ",
     "quand ",
     "lorsque ",
     "dès que ",
@@ -498,6 +534,8 @@ const ATTEMPT_NOUNS: &[&str] = &[
     "round",
 ];
 const BOUND_WORDS: &[&str] = &[
+    "limite ",
+    "limit ",
     "au maximum",
     "maximum",
     "at most",
@@ -525,10 +563,22 @@ fn retry_bound(lower: &str) -> Option<u32> {
         let Some(number) = number else { continue };
         let next = words.get(index + 1).copied().unwrap_or_default();
         let next2 = words.get(index + 2).copied().unwrap_or_default();
-        if ATTEMPT_NOUNS
-            .iter()
-            .any(|n| next.starts_with(n) || next2.starts_with(n))
-        {
+        let prev = index
+            .checked_sub(2)
+            .and_then(|i| words.get(i))
+            .copied()
+            .unwrap_or_default();
+        let prev2 = index
+            .checked_sub(3)
+            .and_then(|i| words.get(i))
+            .copied()
+            .unwrap_or_default();
+        if ATTEMPT_NOUNS.iter().any(|n| {
+            next.starts_with(n)
+                || next2.starts_with(n)
+                || prev.starts_with(n)
+                || prev2.starts_with(n)
+        }) {
             return Some(number);
         }
     }
@@ -873,6 +923,7 @@ fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadSt
             || text.starts_with("stop the research")
             || text.starts_with("limite ")
             || text.starts_with("limit ")
+            || text.starts_with("bounded to ")
             || text.starts_with("avec au maximum")
             || text.starts_with("with at most")
             || text.starts_with("at most")
@@ -1075,7 +1126,14 @@ pub(super) fn read(intent: &str) -> Reading {
         if body_lower.is_empty() {
             continue;
         }
-        let clauses = split_clauses(body);
+        let negated_sentence = FORBIDDEN_MARKERS.iter().any(|m| body_lower.starts_with(m))
+            || body_lower.starts_with("ne ")
+            || body_lower.starts_with("n'");
+        let clauses = if negated_sentence {
+            vec![body]
+        } else {
+            split_clauses(body)
+        };
         reading.clauses += clauses.len();
         for clause in clauses {
             read_policy_or_clause(clause, &mut reading, &mut state);
@@ -1144,6 +1202,13 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         || text.starts_with("if ")
         || text.starts_with("lorsque ")
         || text.starts_with("unless ")
+        || text.starts_with("laisse ")
+        || text.starts_with("laissez ")
+        || text.starts_with("leave ")
+        || text.starts_with("keep ")
+        || text.starts_with("conserve ")
+        || text.starts_with("garde ")
+        || text.starts_with("ignore ")
     {
         reading.plan.constraints.push(original.to_owned());
         return true;
@@ -1181,7 +1246,17 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         }
         return false;
     };
-    let detail_lower = strip_filler(text.get(phrase.len()..).unwrap_or_default());
+    let mut consumed_head = phrase.len();
+    if !text.starts_with(phrase) {
+        // the head matched with one filler word skipped: consume "<first> <filler>" + the rest of the phrase
+        if let Some((first, rest)) = text.split_once(' ')
+            && let Some((filler, _)) = rest.split_once(' ')
+        {
+            consumed_head =
+                first.len() + 1 + filler.len() + 1 + phrase.len().saturating_sub(first.len() + 1);
+        }
+    }
+    let detail_lower = strip_filler(text.get(consumed_head..).unwrap_or_default());
     let consumed = lower.len() - detail_lower.len();
     let detail = remainder(original, lower, consumed).to_owned();
     let path = detail
