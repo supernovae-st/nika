@@ -9,76 +9,11 @@
 
 use super::plan::{Op, Plan, Step};
 
-/// Comparison cues (EN · FR · ES · IT · PT · DE, diacritics folded) that make the number
-/// beside them a rule for code. Longest phrases first so a window matches whole.
-const COMPARISON_CUES: &[&str] = &[
-    "strictly greater than",
-    "strictly less than",
-    "strictly greater",
-    "strictly less",
-    "greater than",
-    "more than",
-    "less than",
-    "fewer than",
-    "at least",
-    "at most",
-    "above",
-    "below",
-    "over",
-    "under",
-    "exceeds",
-    "exceeding",
-    "plus grand que",
-    "plus grande que",
-    "plus grands que",
-    "plus grandes que",
-    "plus petit que",
-    "plus petite que",
-    "superieur a",
-    "superieure a",
-    "superieurs a",
-    "superieures a",
-    "inferieur a",
-    "inferieure a",
-    "inferieurs a",
-    "inferieures a",
-    "au moins",
-    "au plus",
-    "plus de",
-    "moins de",
-    "mayor que",
-    "mayores que",
-    "mayor a",
-    "menor que",
-    "menores que",
-    "menor a",
-    "mas de",
-    "menos de",
-    "maggiore di",
-    "maggiori di",
-    "minore di",
-    "minori di",
-    "piu di",
-    "meno di",
-    "superiore a",
-    "inferiore a",
-    "maior que",
-    "menor que",
-    "mais de",
-    "menos de",
-    "grosser als",
-    "kleiner als",
-    "mehr als",
-    "weniger als",
-    "mindestens",
-    "hochstens",
-];
-
 /// Symbols that compare the number beside them.
 const COMPARISON_SYMBOLS: &[&str] = &[">=", "<=", "≥", "≤", ">", "<"];
 
 /// A number followed by a size unit bounds prose, not data.
-const SIZE_UNITS: &[&str] = &[
+pub(super) const SIZE_UNITS: &[&str] = &[
     "word",
     "words",
     "mot",
@@ -131,7 +66,7 @@ const SIZE_UNITS: &[&str] = &[
 ];
 
 /// A number followed by an attempt or turn unit bounds a loop, not data.
-const ATTEMPT_UNITS: &[&str] = &[
+pub(super) const ATTEMPT_UNITS: &[&str] = &[
     "attempt",
     "attempts",
     "try",
@@ -168,7 +103,7 @@ const ATTEMPT_UNITS: &[&str] = &[
 ];
 
 /// Lowercase with Latin diacritics folded to ASCII, so every table matches one spelling.
-fn fold(text: &str) -> String {
+pub(super) fn fold(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars().flat_map(char::to_lowercase) {
         match c {
@@ -227,8 +162,9 @@ fn is_number(token: &str) -> bool {
             .all(|c| c.is_ascii_digit() || matches!(c, '.' | ','))
 }
 
-/// A digit beside a comparison cue, not bounded by a size, attempt or turn unit, and
-/// not the concurrency bound the assembler already consumes: a rule that must run as code.
+/// A digit beside a comparison cue (the numeric cues of [`super::rules`]), not bounded by
+/// a size, attempt or turn unit, and not the concurrency bound the assembler already
+/// consumes: a rule that must run as code.
 pub(super) fn numeric_rule(text: &str) -> bool {
     if super::bindings::parallel_bound(text).is_some() {
         return false;
@@ -253,11 +189,11 @@ pub(super) fn numeric_rule(text: &str) -> bool {
         let before = words.get(index.wrapping_sub(1)).map(String::as_str);
         let symbol_beside = before.is_some_and(|w| COMPARISON_SYMBOLS.contains(&w))
             || COMPARISON_SYMBOLS.contains(&after);
-        let phrase_before = (1..=3).any(|width| {
-            index >= width && {
-                let phrase = words[index - width..index].join(" ");
-                COMPARISON_CUES.contains(&phrase.as_str())
-            }
+        let phrase_before = (1..=5).any(|width| {
+            index >= width
+                && words
+                    .get(index - width..index)
+                    .is_some_and(|w| super::rules::numeric_cue(&w.join(" ")).is_some())
         });
         if symbol_beside || phrase_before {
             return true;
