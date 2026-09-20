@@ -289,35 +289,26 @@ fn operations(out: &CompileOutcome, op: &str) -> Vec<Value> {
 // the request, right after the sources, so the draft sees the computed rows.
 #[tokio::test]
 async fn a_numeric_filter_demoted_to_a_constraint_is_promoted_to_a_compute_stage() {
-    let asked = compile(BIG_ORDERS, &demoted_plan(), &[MODEL]).await;
-    assert!(
-        keys(&asked).contains(&"const.rule_expression"),
-        "{asked:#?}"
-    );
-    let text = label(&asked, "const.rule_expression");
-    assert!(
-        text.contains("keep only the rows whose amount is strictly greater than 100"),
-        "{text}"
-    );
-    assert!(text.contains("{document, records}"), "{text}");
-    let ops: Vec<&str> = asked.provenance.plan.as_ref().unwrap()["operations"]
+    let out = compile(BIG_ORDERS, &demoted_plan(), &[MODEL]).await;
+    // The promoted rule states its threshold in words: no rule question is asked.
+    assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
+    let ops: Vec<&str> = out.provenance.plan.as_ref().unwrap()["operations"]
         .as_array()
         .unwrap()
         .iter()
         .map(|o| o["op"].as_str().unwrap())
         .collect();
-    assert_eq!(ops, ["read", "compute", "draft"], "{asked:#?}");
-    let compute = &operations(&asked, "compute")[0];
+    assert_eq!(ops, ["read", "compute", "draft"], "{out:#?}");
+    let compute = &operations(&out, "compute")[0];
     assert_eq!(
         compute["evidence"],
         "keep only the rows whose amount is strictly greater than 100"
     );
     assert_eq!(
-        asked.provenance.plan.as_ref().unwrap()["constraints"],
+        out.provenance.plan.as_ref().unwrap()["constraints"],
         json!([]),
         "the promoted rule leaves the prompt guidance"
     );
-    let out = compile(BIG_ORDERS, &demoted_plan(), &[MODEL, RULE]).await;
     let doc = document(&out);
     let compute = &tasks(&doc)["compute"];
     assert_eq!(compute["invoke"]["tool"], "nika:jq");
@@ -350,6 +341,233 @@ async fn a_numeric_filter_demoted_to_a_constraint_is_promoted_to_a_compute_stage
     assert_eq!(
         computes[0]["detail"],
         "keep only the rows whose amount is strictly greater than 100"
+    );
+}
+
+// ── a rule the request states in words is the jq the workflow runs ──────────────
+// The tournament (2026-09-20, 40 sealed seeds) asked `const.rule_expression` for rules
+// the intent already stated (13 of 40). A numeric or equality rule over a parsed source
+// is synthesized deterministically: a guard asserts the referenced columns exist on the
+// first record, the filter runs as code, and the question is not asked.
+#[tokio::test]
+async fn a_numeric_rule_stated_in_the_request_needs_no_rule_question() {
+    let out = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL]).await;
+    assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
+    let doc = document(&out);
+    assert!(doc["const"].get("rule_expression").is_none(), "{doc:#}");
+    let compute = &tasks(&doc)["compute"];
+    assert_eq!(compute["invoke"]["tool"], "nika:jq");
+    assert_eq!(
+        compute["invoke"]["args"]["expression"],
+        "[.records[] | select((.amount | tonumber) > 100)]",
+        "{doc:#}"
+    );
+    assert_eq!(
+        compute["invoke"]["args"]["input"],
+        json!({"records": "${{ with.records }}"})
+    );
+    assert_eq!(
+        compute["with"]["records"],
+        "${{ tasks.parse_source.output }}"
+    );
+    assert_eq!(compute["after"], json!({"compute_admit": "success"}));
+    let guard = &tasks(&doc)["compute_guard"];
+    assert_eq!(guard["invoke"]["tool"], "nika:jq", "{doc:#}");
+    let expression = guard["invoke"]["args"]["expression"].as_str().unwrap();
+    assert!(expression.contains(r#"has("amount")"#), "{expression}");
+    assert!(expression.contains("length) == 0 or"), "{expression}");
+    let admit = &tasks(&doc)["compute_admit"];
+    assert_eq!(admit["invoke"]["tool"], "nika:assert");
+    assert_eq!(admit["invoke"]["args"]["condition"], "${{ with.ok }}");
+    assert_eq!(admit["with"]["ok"], "${{ tasks.compute_guard.output }}");
+    let message = admit["invoke"]["args"]["message"].as_str().unwrap();
+    assert!(message.contains("`amount`"), "{message}");
+    // The summary and the CSV conversion keep reading the filtered rows.
+    assert_eq!(
+        tasks(&doc)["compute_summary"]["with"]["computed"],
+        "${{ tasks.compute.output }}"
+    );
+    assert_eq!(
+        tasks(&doc)["big_orders_csv"]["with"]["data"],
+        "${{ tasks.compute.output }}"
+    );
+    let rule = &out.provenance.decision.as_ref().unwrap()["rule"];
+    assert_eq!(rule["synthesized"], true, "{rule:#}");
+    assert_eq!(
+        rule["text"],
+        "keep only the rows whose amount is strictly greater than 100"
+    );
+    assert_eq!(rule["fields"], json!(["amount"]));
+    assert_eq!(rule["field"], "amount");
+    assert_eq!(rule["comparator"], ">");
+    assert_eq!(rule["value"], "100");
+    assert_eq!(
+        rule["jq"],
+        "[.records[] | select((.amount | tonumber) > 100)]"
+    );
+    // An explicit answer still wins over the synthesis: the human's expression runs.
+    let answered = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
+    let doc = document(&answered);
+    assert_eq!(
+        tasks(&doc)["compute"]["invoke"]["args"]["expression"],
+        "${{ const.rule_expression }}"
+    );
+    assert!(tasks(&doc).get("compute_guard").is_none(), "{doc:#}");
+    assert!(
+        answered.provenance.decision.as_ref().unwrap()["rule"].is_null(),
+        "{answered:#?}"
+    );
+}
+
+const REFUNDED: &str = "Read ./data/orders.csv (columns order_id,customer,amount,status), keep only the rows whose status is refunded, and write those rows to ./out/refunded.csv.";
+/// A trusted recorded plan (the hot reader drops this filter; the record is the control).
+fn filter_record(source: &str, rule: &str, target: &str) -> Value {
+    json!({"operations":[
+        {"op":"read","detail":source,"evidence":format!("Read {source}"),"categories":[]},
+        {"op":"compute","detail":rule,"evidence":rule,"categories":[]}],
+      "effects":[{"verb":"write","target":target,"policy":"automatic","evidence":format!("to {target}"),"policy_literal":null}],
+      "obligations":[],
+      "bindings":[{"role":"path","literal":source},{"role":"path","literal":target}],
+      "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"})
+}
+
+#[test]
+fn an_equality_rule_on_a_status_column_is_synthesized() {
+    let record = filter_record(
+        "./data/orders.csv",
+        "keep only the rows whose status is refunded",
+        "./out/refunded.csv",
+    );
+    let out = replay(REFUNDED, &record, &[]);
+    assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
+    let doc = document(&out);
+    assert_eq!(
+        tasks(&doc)["compute"]["invoke"]["args"]["expression"],
+        r#"[.records[] | select(.status == "refunded")]"#,
+        "{doc:#}"
+    );
+    let guard = tasks(&doc)["compute_guard"]["invoke"]["args"]["expression"]
+        .as_str()
+        .unwrap();
+    assert!(guard.contains(r#"has("status")"#), "{guard}");
+    assert_eq!(
+        tasks(&doc)["refunded_csv"]["with"]["data"],
+        "${{ tasks.compute.output }}"
+    );
+    assert!(tasks(&doc).get("compute_summary").is_none(), "{doc:#}");
+    let rule = &out.provenance.decision.as_ref().unwrap()["rule"];
+    assert_eq!(rule["comparator"], "==", "{rule:#}");
+    assert_eq!(rule["value"], "refunded");
+    // Two clauses joined by `and`, a quoted value kept in its exact case.
+    let intent = "Read ./data/orders.csv, keep only the rows whose status is \"Shipped\" and whose amount_eur is at least 120, and write those rows to ./out/shipped.csv.";
+    let record = filter_record(
+        "./data/orders.csv",
+        "keep only the rows whose status is \"Shipped\" and whose amount_eur is at least 120",
+        "./out/shipped.csv",
+    );
+    let out = replay(intent, &record, &[]);
+    let doc = document(&out);
+    assert_eq!(
+        tasks(&doc)["compute"]["invoke"]["args"]["expression"],
+        r#"[.records[] | select(.status == "Shipped" and (.amount_eur | tonumber) >= 120)]"#,
+        "{doc:#}"
+    );
+    let rule = &out.provenance.decision.as_ref().unwrap()["rule"];
+    assert_eq!(rule["fields"], json!(["status", "amount_eur"]), "{rule:#}");
+    assert_eq!(rule["clauses"].as_array().unwrap().len(), 2);
+    assert!(rule.get("field").is_none(), "{rule:#}");
+}
+
+const FOLDED: &str = "Read ./data/orders.csv (columns order_id,customer,amount,status), keep only the rows whose amount is strictly greater than 100, and write those rows to ./out/big.csv. Then write ./out/note.md with one line stating how many rows were kept and the total of their amounts.";
+
+// The live authoring seat (xai/grok-3-mini-fast, 2026-09-20) folded the note's claims into
+// the compute detail and proposed no draft step. The trailing count-and-total request is
+// what the summary stage computes: the rule is still synthesized, the summary becomes an
+// output, and no question is asked. The one-line note itself needs the draft the seat
+// dropped; that is the reader's fidelity, not a rule question.
+#[test]
+fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
+    let mut record = filter_record(
+        "./data/orders.csv",
+        "keep only the rows whose amount is strictly greater than 100 and how many rows were kept and the total of their amounts",
+        "./out/big.csv",
+    );
+    record["operations"][1]["evidence"] =
+        json!("keep only the rows whose amount is strictly greater than 100");
+    record["effects"].as_array_mut().unwrap().push(json!({"verb":"write","target":"./out/note.md","policy":"automatic","evidence":"write ./out/note.md with one line stating how many rows were kept and the total of their amounts","policy_literal":null}));
+    record["bindings"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"role":"path","literal":"./out/note.md"}));
+    let out = replay(FOLDED, &record, &[]);
+    assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
+    let doc = document(&out);
+    assert_eq!(
+        tasks(&doc)["compute"]["invoke"]["args"]["expression"],
+        "[.records[] | select((.amount | tonumber) > 100)]",
+        "{doc:#}"
+    );
+    assert_eq!(
+        tasks(&doc)["compute_summary"]["with"]["computed"],
+        "${{ tasks.compute.output }}",
+        "{doc:#}"
+    );
+    assert_eq!(
+        doc["outputs"]["summary"],
+        "${{ tasks.compute_summary.output }}"
+    );
+    assert_eq!(
+        tasks(&doc)["big_csv"]["with"]["data"],
+        "${{ tasks.compute.output }}"
+    );
+    // The prose note takes the count-and-totals summary, the nearest result of its kind;
+    // the one-line wording itself needs the draft step the seat dropped.
+    assert_eq!(
+        tasks(&doc)["write_note"]["with"]["content"],
+        "${{ tasks.compute_summary.output }}",
+        "{doc:#}"
+    );
+    let rule = &out.provenance.decision.as_ref().unwrap()["rule"];
+    assert_eq!(rule["summary"], true, "{rule:#}");
+    assert_eq!(
+        rule["jq"],
+        "[.records[] | select((.amount | tonumber) > 100)]"
+    );
+    // Without the fold, the summary stage is not emitted for a rule nothing later reads.
+    let plain = filter_record(
+        "./data/orders.csv",
+        "keep only the rows whose amount is strictly greater than 100",
+        "./out/big.csv",
+    );
+    let doc = document(&replay(FOLDED, &plain, &[]));
+    assert!(tasks(&doc).get("compute_summary").is_none(), "{doc:#}");
+}
+
+#[tokio::test]
+async fn an_unresolvable_rule_still_asks_for_the_expression() {
+    // The compute detail carries a grouping the grammar does not cover: the question
+    // stays, naming the parsed input shape.
+    let out = compile(ORDERS, &orders_plan(), &[MODEL]).await;
+    assert!(keys(&out).contains(&"const.rule_expression"), "{out:#?}");
+    assert!(
+        label(&out, "const.rule_expression").contains("{document, records}"),
+        "{out:#?}"
+    );
+    // No resolvable field: "units" names no column of the request.
+    let intent = "Read ./data/stock.csv, keep only the products with fewer than 10 units, and write them to ./out/low.csv.";
+    let record = filter_record(
+        "./data/stock.csv",
+        "keep only the products with fewer than 10 units",
+        "./out/low.csv",
+    );
+    let out = replay(intent, &record, &[]);
+    assert_eq!(keys(&out), ["const.rule_expression"], "{out:#?}");
+    assert!(
+        out.provenance
+            .decision
+            .as_ref()
+            .is_none_or(|d| d["rule"].is_null()),
+        "{out:#?}"
     );
 }
 

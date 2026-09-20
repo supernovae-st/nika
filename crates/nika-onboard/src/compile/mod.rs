@@ -60,6 +60,7 @@
 mod assemble;
 mod bindings;
 mod cognition;
+mod columns;
 mod compose;
 pub mod decide;
 mod edit;
@@ -71,6 +72,7 @@ mod paths;
 pub(crate) mod pattern;
 mod plan;
 mod retrieve;
+mod rules;
 mod shape;
 mod support;
 mod types;

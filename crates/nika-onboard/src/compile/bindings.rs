@@ -13,6 +13,7 @@
 
 use super::paths::{self, PathShape, Structured};
 use super::plan::{Effect, EffectPolicy, EffectVerb, Op, Plan, Step};
+use super::rules;
 use super::shape;
 use super::support::{admit_directory, admit_endpoint, admit_model, admit_policy, answer, reject};
 use super::{CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
@@ -92,6 +93,13 @@ pub(super) struct Lookup {
     pub by_id: Option<ById>,
 }
 
+/// The code rule of a compute step: the jq expression the human answered, or the rule
+/// synthesized from the words the request states over the parsed records.
+pub(super) enum RuleBinding {
+    Answered(Value),
+    Synthesized(rules::Rule),
+}
+
 /// One local file the request writes.
 pub(super) struct WriteEffect {
     pub stem: String,
@@ -108,7 +116,7 @@ pub(super) struct Bindings {
     pub search: Need<Value>,
     pub fetch: Need<Value>,
     pub read: Need<Source>,
-    pub rule: Need<Value>,
+    pub rule: Need<RuleBinding>,
     pub dedup: Need<Value>,
     pub wired: Vec<Wired>,
     pub writes: Vec<WriteEffect>,
@@ -335,9 +343,16 @@ pub(super) fn bind(
         per_item,
     };
     b.rule = Need::from_step(plan.step(Op::Compute), |step| {
+        // A rule the request states over a parsed source is code the compiler writes;
+        // an explicit answer still wins, and anything outside the grammar is asked.
+        if !request.answers.contains_key("const.rule_expression")
+            && let Some(rule) = synthesized_rule(step, intent, &b)
+        {
+            return Some(RuleBinding::Synthesized(rule));
+        }
         recognized.insert("const.rule_expression".to_owned());
         let label = rule_label(plan, &b, &step.detail);
-        answer(request, out, "const.rule_expression", &label, true)
+        answer(request, out, "const.rule_expression", &label, true).map(RuleBinding::Answered)
     });
     bind_effects(plan, distributed, request, out, recognized, &mut b);
     bind_named_outputs(plan, request, out, recognized, &mut b);
@@ -515,6 +530,17 @@ fn resolve_directory(
             );
             None
         }
+    }
+}
+
+/// The rule a compute step states in words, when the corpus is one structured file whose
+/// parsed records the rule can run over and every part of the detail is in the grammar.
+fn synthesized_rule(step: &Step, intent: &str, b: &Bindings) -> Option<rules::Rule> {
+    match &b.read {
+        Need::Bound(Source::File(path)) if Structured::of(path).is_some() => {
+            rules::synthesize(&step.detail, &super::columns::columns_hint(intent))
+        }
+        _ => None,
     }
 }
 
