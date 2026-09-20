@@ -17,6 +17,7 @@
 use super::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileError, CompileOutcome,
     CompileRequest, DiagnosticKind, HotPolicy, QuestionType, Strategy,
+    compose::{self, Candidate},
     decide::{ChoiceOption, ChoiceQuestion, DecisionSeat, NONE_OPTION},
     lexicon::{self, Reading},
     plan::{Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step},
@@ -843,10 +844,12 @@ fn reject(out: &mut CompileOutcome, why: &str) {
     );
 }
 
-/// COLD with N proposals and, when they disagree, a bounded decision AFTER COLD: the seat
-/// chooses among the distinct admissible plans or answers NONE. Without a seat, the medoid
-/// under a symmetric-difference similarity is kept and the disagreement recorded. A plan that
-/// fails the deterministic facts never enters the pool.
+/// COLD with N proposals, then the composer: the distinct admissible plans become a finite
+/// candidate set judged by the deterministic feasibility filter. Exactly one feasible
+/// candidate is used without any seat call; several and a seat is ONE closed choice over
+/// the feasible candidates or NONE; several and no seat is the documented deterministic
+/// rank; none is a human question. A plan that fails the deterministic facts never enters
+/// the pool, and an infeasible candidate is recorded but never offered.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // one experiment path, fully traced
 async fn sampled<P: ProviderInferDyn>(
     intent: &str,
@@ -888,7 +891,7 @@ async fn sampled<P: ProviderInferDyn>(
         records.push(json!({
             "sample": index,
             "accepted": plan.is_some(),
-            "signature": plan.as_ref().map(signature),
+            "signature": plan.as_ref().map(compose::signature),
             "findings": findings,
         }));
         match plan {
@@ -904,83 +907,121 @@ async fn sampled<P: ProviderInferDyn>(
         output_tokens,
         elapsed_ms,
     });
-    // Distinct admissible plans, in first-seen order.
-    let mut distinct: Vec<(Vec<String>, usize)> = Vec::new();
-    for (index, plan) in &accepted {
-        let sig = signature(plan);
-        if !distinct.iter().any(|(s, _)| *s == sig) {
-            distinct.push((sig, *index));
+    // Distinct admissible signatures, for the sample record.
+    let mut distinct: Vec<Vec<String>> = Vec::new();
+    for (_, plan) in &accepted {
+        let sig = compose::signature(plan);
+        if !distinct.contains(&sig) {
+            distinct.push(sig);
         }
     }
+    // The composer: the finite candidate set and its deterministic feasibility verdicts.
+    // Recall informs the pattern dimensions only; it never selects.
+    let hits = super::retrieve::retrieve(intent, 5);
+    let composition = compose::compose(&accepted, reading, &hits, intent);
+    let candidates = composition.candidates;
+    let feasible: Vec<usize> = candidates
+        .iter()
+        .enumerate()
+        .filter(|(_, candidate)| candidate.feasible())
+        .map(|(k, _)| k)
+        .collect();
     let mut chosen: Option<usize> = None;
     let mut warm_record = None;
     let mut seat_declined = false;
-    if distinct.len() >= 2
-        && let Some(seat) = seat
-    {
-        // WARM after COLD: the seat picks among the admissible plans or NONE.
-        let options = distinct
-            .iter()
-            .enumerate()
-            .map(|(k, (sig, _))| {
-                ChoiceOption::new(format!("plan-{k}"), format!("plan with {}", sig.join(", ")))
-            })
-            .collect();
-        let question = ChoiceQuestion::new(
-            "cold-plans",
-            "Several readings of the request survived validation. Choose the one that preserves every requested operation, effect, policy and obligation without adding any; choose none if no reading is faithful.",
-            json!({"request": intent, "plans": distinct.iter().map(|(sig, _)| sig).collect::<Vec<_>>()}),
-            options,
-        );
-        let answer = seat.choose(&question).await;
-        let admitted = match &answer {
-            Ok(answer) => super::decide::admit(&question, answer).map(|()| answer.choice.clone()),
-            Err(error) => Err(error.clone()),
-        };
-        warm_record = Some(match (&answer, &admitted) {
-            (Ok(answer), Ok(_)) => super::decide::record(&question, Ok(answer)),
-            (_, Err(error)) | (Err(error), _) => super::decide::record(&question, Err(error)),
-        });
-        match admitted {
-            Ok(choice) if choice != NONE_OPTION => {
-                let k: usize = choice
-                    .trim_start_matches("plan-")
-                    .parse()
-                    .unwrap_or(usize::MAX);
-                chosen = distinct
-                    .get(k)
-                    .and_then(|(_, index)| accepted.iter().position(|(i, _)| i == index));
-                route.push("warm after cold".to_owned());
-            }
-            Ok(_) => {
-                seat_declined = true;
-                route.push("warm after cold: none".to_owned());
-            }
-            Err(_) => {
-                route.push("warm after cold: seat failed; medoid".to_owned());
-                chosen = medoid(&accepted);
+    match (feasible.len(), seat) {
+        (0, _) => route.push("compose: none feasible".to_owned()),
+        (1, _) => {
+            chosen = feasible.first().copied();
+            route.push("compose: single".to_owned());
+        }
+        (_, Some(seat)) => {
+            // ONE closed choice over the feasible candidates, or NONE.
+            let options = feasible
+                .iter()
+                .enumerate()
+                .map(|(k, index)| {
+                    ChoiceOption::new(
+                        format!("plan-{k}"),
+                        compose::describe(&candidates, &feasible, *index),
+                    )
+                })
+                .collect();
+            let question = ChoiceQuestion::new(
+                "cold-plans",
+                "Several readings of the request survived validation. Choose the one that preserves every requested operation, effect, policy and obligation without adding any; choose none if no reading is faithful.",
+                json!({
+                    "request": intent,
+                    "plans": feasible.iter().filter_map(|k| candidates.get(*k)).map(|c| &c.signature).collect::<Vec<_>>(),
+                }),
+                options,
+            );
+            let answer = seat.choose(&question).await;
+            let admitted = match &answer {
+                Ok(answer) => {
+                    super::decide::admit(&question, answer).map(|()| answer.choice.clone())
+                }
+                Err(error) => Err(error.clone()),
+            };
+            warm_record = Some(match (&answer, &admitted) {
+                (Ok(answer), Ok(_)) => super::decide::record(&question, Ok(answer)),
+                (_, Err(error)) | (Err(error), _) => super::decide::record(&question, Err(error)),
+            });
+            match admitted {
+                Ok(choice) if choice != NONE_OPTION => {
+                    let k: usize = choice
+                        .trim_start_matches("plan-")
+                        .parse()
+                        .unwrap_or(usize::MAX);
+                    chosen = feasible.get(k).copied();
+                    route.push("compose: seat".to_owned());
+                }
+                Ok(_) => {
+                    seat_declined = true;
+                    route.push("compose: seat none".to_owned());
+                }
+                Err(_) => {
+                    route.push("compose: seat failed; deterministic rank".to_owned());
+                    chosen = compose::rank(&candidates, &feasible, &accepted);
+                }
             }
         }
-    } else {
-        chosen = medoid(&accepted);
+        (_, None) => {
+            chosen = compose::rank(&candidates, &feasible, &accepted);
+            route.push("compose: deterministic rank".to_owned());
+        }
     }
-    let disagreement = classify_disagreement(&distinct);
+    let disagreement = compose::classify_disagreement(&distinct);
+    let selected = chosen.and_then(|k| candidates.get(k));
     let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
     decision["cold_samples"] = json!({
         "requested": policy.samples,
         "accepted": accepted.len(),
         "distinct": distinct.len(),
         "disagreement": disagreement,
-        "selected": chosen.map(|i| accepted[i].0),
+        "selected": selected.map(Candidate::sample),
         "samples": records,
+    });
+    decision["candidates"] = json!(
+        candidates
+            .iter()
+            .enumerate()
+            .map(|(k, candidate)| candidate.to_json(k))
+            .collect::<Vec<_>>()
+    );
+    decision["feasible_count"] = json!(feasible.len());
+    decision["selected_candidate"] = json!(chosen);
+    decision["compose"] = json!({
+        "cap": compose::CAP,
+        "pattern_dimensions": composition.dimensions.iter().map(compose::Dimension::to_json).collect::<Vec<_>>(),
     });
     if let Some(record) = warm_record {
         decision["warm_after_cold"] = record;
     }
     decision["route"] = json!(route);
     out.provenance.decision = Some(decision);
-    if let Some(i) = chosen {
-        let plan = accepted[i].1.clone();
+    if let Some(candidate) = selected {
+        let plan = candidate.plan.clone();
         return settle(Strategy::Cold, &plan, intent, request, out);
     }
     if seat_declined {
@@ -1002,6 +1043,37 @@ async fn sampled<P: ProviderInferDyn>(
         );
         return Ok(out);
     }
+    if let Some(first) = candidates.first() {
+        // Every admissible proposal failed the deterministic feasibility filter: the
+        // reasons are the findings, and a human settles what the proposals dropped.
+        for (k, candidate) in candidates.iter().enumerate() {
+            for reason in candidate.feasibility.as_ref().err().into_iter().flatten() {
+                super::finding(
+                    &mut out,
+                    DiagnosticKind::Unknown,
+                    "authoring_plan",
+                    format!("Candidate {k} is not feasible: {reason}."),
+                );
+            }
+        }
+        super::finding(
+            &mut out,
+            DiagnosticKind::RequiresHuman,
+            "intent",
+            format!(
+                "No proposal preserved every recognized fact of the request ({} candidate(s) judged infeasible); no candidate was assembled.",
+                candidates.len()
+            ),
+        );
+        super::question(
+            &mut out,
+            "intent.clarification",
+            "Supply a complete replacement request that states each operation, effect and literal explicitly. It explicitly replaces the earlier intent.",
+            QuestionType::Text,
+        );
+        out.provenance.plan = Some(first.plan.to_json());
+        return Ok(out);
+    }
     // Every sample was refused: report the first refusal's findings and question.
     if let Some(first) = rejected.into_iter().next() {
         out.diagnostics.extend(first.diagnostics);
@@ -1011,72 +1083,6 @@ async fn sampled<P: ProviderInferDyn>(
         }
     }
     Ok(out)
-}
-
-fn medoid(accepted: &[(usize, Plan)]) -> Option<usize> {
-    accepted
-        .iter()
-        .enumerate()
-        .map(|(i, (index, plan))| {
-            let mine = signature(plan);
-            let score: isize = accepted
-                .iter()
-                .enumerate()
-                .filter(|(j, _)| *j != i)
-                .map(|(_, (_, other))| similarity(&mine, &signature(other)))
-                .sum();
-            (score, std::cmp::Reverse(*index))
-        })
-        .enumerate()
-        .max_by_key(|(_, key)| *key)
-        .map(|(i, _)| i)
-}
-
-/// Where distinct proposals differ: operations, effects, obligations.
-fn classify_disagreement(distinct: &[(Vec<String>, usize)]) -> Vec<String> {
-    let mut kinds = Vec::new();
-    for prefix in ["op:", "effect:", "obligation:"] {
-        let sets: Vec<Vec<&String>> = distinct
-            .iter()
-            .map(|(sig, _)| sig.iter().filter(|s| s.starts_with(prefix)).collect())
-            .collect();
-        if sets.windows(2).any(|w| w[0] != w[1]) {
-            kinds.push(prefix.trim_end_matches(':').to_owned());
-        }
-    }
-    kinds
-}
-
-/// A plan's structural signature: operation words, effect verb:policy words, obligation words.
-fn signature(plan: &Plan) -> Vec<String> {
-    let mut items: Vec<String> = plan
-        .steps
-        .iter()
-        .map(|s| format!("op:{}", s.op.word()))
-        .chain(
-            plan.effects
-                .iter()
-                .map(|e| format!("effect:{}:{}", e.verb.word(), e.policy.word())),
-        )
-        .chain(
-            plan.obligations
-                .iter()
-                .map(|o| format!("obligation:{}", o.kind.word())),
-        )
-        .collect();
-    items.sort();
-    items.dedup();
-    items
-}
-
-fn similarity(a: &[String], b: &[String]) -> isize {
-    let shared = a.iter().filter(|item| b.contains(item)).count();
-    let shared = isize::try_from(shared).unwrap_or(isize::MAX / 4);
-    let (la, lb) = (
-        isize::try_from(a.len()).unwrap_or(isize::MAX / 4),
-        isize::try_from(b.len()).unwrap_or(isize::MAX / 4),
-    );
-    2 * shared - la - lb
 }
 
 /// Recognized EN/FR approval-bypass phrases, matched as whole-word sequences.

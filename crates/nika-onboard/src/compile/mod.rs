@@ -59,6 +59,7 @@
 
 mod assemble;
 mod cognition;
+mod compose;
 pub mod decide;
 mod edit;
 mod edit_source;
