@@ -345,3 +345,95 @@ async fn replacement_fragment_does_not_inherit_unstated_operations() {
     assert!(out.candidate.is_none());
     assert!(!out.questions.iter().any(|q| q.key == "const.refund_policy"));
 }
+
+#[tokio::test]
+async fn approval_bypass_phrase_with_effect_none_is_a_recognized_omission() {
+    for (intent, lookup, draft) in [
+        (
+            "Look up the customer, draft a reply, and issue store credits without asking me.",
+            "Look up the customer",
+            "draft a reply",
+        ),
+        (
+            "Consulte le client, prépare une réponse et crédite le compte sans mon accord.",
+            "Consulte le client",
+            "prépare une réponse",
+        ),
+        (
+            "Look up the customer, draft a reply, and reuse yesterday's approval for store credits.",
+            "Look up the customer",
+            "draft a reply",
+        ),
+    ] {
+        let proposal = json!({"steps":[{"operation":"lookup","evidence":lookup},{"operation":"draft","evidence":draft}],"effect":"none","effect_evidence":"","unknowns":[]});
+        let req = CompileRequest::create(intent).with_authoring_policy(AuthoringPolicy::new(
+            "mock/authoring",
+            1024,
+            Duration::from_secs(2),
+        ));
+        let out = compile_with_provider(&req, &Provider::new(proposal))
+            .await
+            .unwrap();
+        assert!(out.candidate.is_none(), "{intent}");
+        assert!(
+            out.questions
+                .iter()
+                .any(|q| q.key == "intent.clarification"),
+            "{intent}: {out:#?}"
+        );
+        assert!(
+            !out.questions
+                .iter()
+                .any(|q| q.key == "const.customer_directory"),
+            "{intent}: a dropped effect must not become a lookup+draft candidate"
+        );
+    }
+}
+
+#[tokio::test]
+async fn french_fichier_is_not_the_yesterday_bypass_phrase() {
+    let intent = "Consulte le fichier client, classe le problème, prépare une réponse. Demande un accord humain avant le remboursement.";
+    let proposal = json!({"steps":[{"operation":"lookup","evidence":"Consulte le fichier client"},{"operation":"classify","evidence":"classe le problème"},{"operation":"draft","evidence":"prépare une réponse"}],"effect":"human_first_refund","effect_evidence":"Demande un accord humain avant le remboursement","unknowns":[]});
+    let req = CompileRequest::create(intent).with_authoring_policy(AuthoringPolicy::new(
+        "mock/authoring",
+        1024,
+        Duration::from_secs(2),
+    ));
+    let out = compile_with_provider(&req, &Provider::new(proposal))
+        .await
+        .unwrap();
+    assert!(
+        out.questions.iter().any(|q| q.key == "const.refund_policy"),
+        "{out:#?}"
+    );
+    assert!(
+        !out.questions
+            .iter()
+            .any(|q| q.key == "intent.clarification")
+    );
+}
+
+#[tokio::test]
+async fn automatic_classification_wording_with_effect_none_is_not_a_veto() {
+    let intent = "Look up the customer, classify the ticket automatically, and draft a reply.";
+    let proposal = json!({"steps":[{"operation":"lookup","evidence":"Look up the customer"},{"operation":"classify","evidence":"classify the ticket automatically"},{"operation":"draft","evidence":"draft a reply"}],"effect":"none","effect_evidence":"","unknowns":[]});
+    let req = CompileRequest::create(intent).with_authoring_policy(AuthoringPolicy::new(
+        "mock/authoring",
+        1024,
+        Duration::from_secs(2),
+    ));
+    let out = compile_with_provider(&req, &Provider::new(proposal))
+        .await
+        .unwrap();
+    assert!(
+        out.questions
+            .iter()
+            .any(|q| q.key == "const.customer_directory"),
+        "{out:#?}"
+    );
+    assert!(
+        !out.questions
+            .iter()
+            .any(|q| q.key == "intent.clarification")
+    );
+}

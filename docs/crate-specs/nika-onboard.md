@@ -114,6 +114,12 @@ review data, never an automatic eligibility program.
 
 A conservative finite EN/FR sensitive-phrase backstop rejects recognized model
 omissions and inserted approval over recognized automatic-refund instructions.
+Approval-bypass phrases (`without approval`, `without asking`, `do not ask`,
+`sans accord`, `ne pas demander`, prior or previous approval, `yesterday`,
+`hier`) are matched as whole-word sequences, so `fichier` never reads as
+`hier`. Such a phrase presupposes an effect: it vetoes an inserted human gate
+and equally a plan that reports no effect at all. `automatic` wording alone
+vetoes only an inserted gate, because it also names harmless automation.
 Absence of recognized EN/FR vocabulary is inconclusive and never a veto.
 This cannot prove arbitrary-language intent preservation: opted-in interpretation
 remains probabilistic, and exact excerpt attribution is not semantic completeness.

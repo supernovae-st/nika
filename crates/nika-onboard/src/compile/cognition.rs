@@ -224,7 +224,7 @@ fn validate(intent: &str, plan: SemanticPlan, out: &mut CompileOutcome) -> Optio
             out,
             DiagnosticKind::Unknown,
             "intent",
-            "The proposed effect conflicts with a recognized sensitive-operation or approval phrase. This finite EN/FR backstop cannot prove arbitrary-language intent preservation.",
+            "The intent carries a recognized sensitive-operation or approval-bypass phrase that the proposed plan does not honor, or the plan omits a recognized effect. This finite EN/FR backstop cannot prove arbitrary-language intent preservation.",
         );
         super::question(
             out,
@@ -307,10 +307,14 @@ fn validate(intent: &str, plan: SemanticPlan, out: &mut CompileOutcome) -> Optio
 // Unknown languages and paraphrases still depend on the explicitly opted-in model.
 fn sensitive_mismatch(intent: &str, plan: &SemanticPlan) -> bool {
     let text = intent.to_lowercase();
+    let words: Vec<&str> = text
+        .split(|c: char| !c.is_alphabetic())
+        .filter(|w| !w.is_empty())
+        .collect();
     let refund = text.contains("refund") || text.contains("rembours");
-    let unsupported = text.split(|c: char| !c.is_alphabetic()).any(|w| {
+    let unsupported = words.iter().any(|w| {
         matches!(
-            w,
+            *w,
             "send"
                 | "sending"
                 | "envoyer"
@@ -323,24 +327,35 @@ fn sensitive_mismatch(intent: &str, plan: &SemanticPlan) -> bool {
                 | "exécuter"
         )
     });
-    let bypass = [
-        "automatic",
-        "automatique",
-        "sans mon accord",
-        "sans accord",
-        "without approval",
-        "without asking",
-        "do not ask",
-        "ne pas demander",
-        "yesterday",
-        "hier",
-        "prior approval",
-        "previous approval",
-    ]
-    .iter()
-    .any(|p| text.contains(p));
+    // Whole-word phrases: `hier` is yesterday, never the tail of `fichier`.
+    let approval_bypass = APPROVAL_BYPASS
+        .iter()
+        .any(|phrase| words.windows(phrase.len()).any(|window| window == *phrase));
+    // `automatic` also names harmless automation (classify automatically): it only
+    // contradicts an inserted human gate, never a plan that reports no effect.
+    let automatic = words.iter().any(|w| w.starts_with("automati"));
     let guarded = matches!(plan.effect, Effect::HumanFirstRefund);
+    let none = matches!(plan.effect, Effect::None);
     // No recognized vocabulary is inconclusive, never a contradiction.
     // Exact evidence is validated above; semantic interpretation stays model-owned.
-    unsupported || (refund && matches!(plan.effect, Effect::None)) || (guarded && bypass)
+    // An approval-bypass phrase presupposes an effect, so a plan reporting none
+    // omitted recognized work.
+    unsupported
+        || (refund && none)
+        || (guarded && (automatic || approval_bypass))
+        || (approval_bypass && none)
 }
+
+/// Recognized EN/FR approval-bypass phrases, matched as whole-word sequences.
+const APPROVAL_BYPASS: &[&[&str]] = &[
+    &["without", "approval"],
+    &["without", "asking"],
+    &["do", "not", "ask"],
+    &["sans", "mon", "accord"],
+    &["sans", "accord"],
+    &["ne", "pas", "demander"],
+    &["yesterday"],
+    &["hier"],
+    &["prior", "approval"],
+    &["previous", "approval"],
+];
