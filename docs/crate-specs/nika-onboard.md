@@ -82,7 +82,9 @@ excerpt nor model confidence is a proof of semantic equivalence. Independent
 qualification is still required.
 
 The default `compile` path never calls a provider; ambient keys never opt in.
-Exact skeletons and EDIT stay deterministic even through the provider seam.
+Exact skeletons, EDIT and support clauses the bounded grammar resolves stay
+deterministic even through the provider seam: an opted-in provider interprets
+only what the grammar cannot, and a grammar-resolved outcome keeps generation 1.
 The CLI opts in with `--authoring-model`, optional `--authoring-max-tokens`
 (default 2048) and `--authoring-timeout` (default 30 seconds). Only then does
 its adapter use the established environment credential/endpoint ladder.

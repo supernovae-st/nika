@@ -437,3 +437,26 @@ async fn automatic_classification_wording_with_effect_none_is_not_a_veto() {
             .any(|q| q.key == "intent.clarification")
     );
 }
+
+#[tokio::test]
+async fn exact_support_clauses_never_reach_an_opted_in_provider() {
+    let provider = Provider::new(plan());
+    let req = CompileRequest::create(
+        "Route support tickets, look up the customer, draft a reply, and ask me before any refund",
+    )
+    .with_authoring_policy(AuthoringPolicy::new(
+        "mock/authoring",
+        1024,
+        Duration::from_secs(2),
+    ));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
+    assert!(
+        out.questions.iter().any(|q| q.key == "const.refund_policy"),
+        "{out:#?}"
+    );
+    let doc = outcome_document(&out);
+    assert_eq!(doc["compile_version"], 1);
+    assert_eq!(doc["provenance"]["cognition"], "deterministicOnly");
+    assert!(doc["provenance"].get("authoring").is_none());
+}

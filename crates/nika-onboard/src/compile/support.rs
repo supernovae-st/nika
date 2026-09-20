@@ -44,7 +44,7 @@ pub(super) fn create(
     Ok(true)
 }
 
-fn resolve(intent: &str) -> Result<Option<Plan>, String> {
+pub(super) fn resolve(intent: &str) -> Result<Option<Plan>, String> {
     let text = intent.trim().trim_end_matches('.').to_lowercase();
     let text = text
         .replace(", and ", ",")

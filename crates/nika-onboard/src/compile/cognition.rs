@@ -55,7 +55,8 @@ Effect_evidence: an exact nonempty verbatim substring supporting any effect othe
 The compiler asks for missing runtime model, JSON customer-directory file, refund policy, and refund POST endpoint. Those missing values alone need not be unknowns. Only lookup/classify/draft and a human-first refund are currently constructible. A draft is not send permission.";
 
 /// Compile with one explicitly authorized, bounded call to an injected kernel provider.
-/// Exact skeletons and EDIT retain the deterministic path and never call this provider.
+/// Exact skeletons, EDIT and bounded support clauses the exact grammar resolves retain
+/// the deterministic path and never call this provider.
 ///
 /// The model proposes a private closed plan. The compiler builds ordinary source and
 /// invokes the existing Check. Invalid plans, missing policy and unsupported effects
@@ -102,6 +103,12 @@ pub async fn compile_with_provider<P: ProviderInferDyn>(
     assembly_request.answers.remove("intent.clarification");
     // The question explicitly asks for a complete replacement, never an implicit edit.
     let effective_intent = clarification.unwrap_or_else(|| intent.clone());
+    // The exact grammar keeps its zero-call, fail-closed path when a provider is permitted:
+    // the model interprets only what the bounded clauses cannot resolve.
+    if let Ok(Some(plan)) = super::support::resolve(&effective_intent) {
+        super::support::assemble(&plan, &assembly_request, &mut out)?;
+        return Ok(out);
+    }
     if policy.model.trim().is_empty()
         || !(1..=8192).contains(&policy.max_tokens)
         || policy.timeout.is_zero()
