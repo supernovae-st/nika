@@ -140,7 +140,7 @@ async fn extract_anchors_are_checked_against_the_read_document_not_a_phantom_ite
     assert!(!input.contains_key("item"), "{law:#}");
     let expression = law["expression"].as_str().unwrap();
     assert!(
-        expression.contains("any($corpus[]; contains($f.anchor))"),
+        expression.contains("any($corpus[]; contains($f.anchor | gsub("),
         "{expression}"
     );
     assert!(!expression.contains("$root.item"), "{expression}");
@@ -160,8 +160,44 @@ async fn extract_anchors_are_checked_against_the_read_document_not_a_phantom_ite
         draft_law["expression"]
             .as_str()
             .unwrap()
-            .contains("any($corpus[]; contains($f.anchor))")
+            .contains("any($corpus[]; contains($f.anchor | gsub(")
     );
+}
+
+// ── the draft law judges the body it is given and folds whitespace ──────────────
+// wave16 (19319653) prefixed the law with `(.body | length) > 0` while the law's input
+// carried no `body`: every draft was refused at run time (control 2026-09-20, cases a and
+// c). The body must be bound, excluded from the corpus, and anchors must survive a
+// line wrap.
+#[tokio::test]
+async fn the_draft_law_reads_the_body_it_judges_and_folds_whitespace() {
+    let out = compile(STOCK, &stock_plan(), &[MODEL]).await;
+    let doc = document(&out);
+    let anchors = &tasks(&doc)["draft_anchors"];
+    let law = &anchors["invoke"]["args"];
+    let input = law["input"].as_object().unwrap();
+    assert_eq!(input["body"], "${{ with.body }}", "{law:#}");
+    assert_eq!(
+        anchors["with"]["body"], "${{ tasks.draft.output.body }}",
+        "{anchors:#}"
+    );
+    let expression = law["expression"].as_str().unwrap();
+    assert!(
+        expression.contains("del(.facts_used, .body)"),
+        "the body is never its own anchor corpus: {expression}"
+    );
+    assert!(
+        expression.contains("($root.body | length) > 0"),
+        "{expression}"
+    );
+    assert!(
+        expression.contains(r#"gsub("\\s+"; " ")"#),
+        "anchors are compared after folding runs of whitespace: {expression}"
+    );
+    let extract = tasks(&doc)["extract_anchors"]["invoke"]["args"]["expression"]
+        .as_str()
+        .unwrap();
+    assert!(extract.contains(r#"gsub("\\s+"; " ")"#), "{extract}");
 }
 
 // ── D2 · no phantom `item` for a file → transform → write workflow ────────────────

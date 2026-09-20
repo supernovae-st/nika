@@ -219,6 +219,18 @@ impl Doc {
 /// a human is asked to wait for one step.
 const INFER_TIMEOUT: &str = "5m";
 
+/// Runs of whitespace fold to one space on both sides before an anchor is compared: a
+/// model may wrap a line or drop a double space; it may not change a word.
+const FOLD: &str = r#"gsub("\\s+"; " ")"#;
+
+/// The corpus of a law: every string of the input except the judged keys, non-strings
+/// through their JSON text, whitespace folded.
+fn corpus(excluded: &str) -> String {
+    format!(
+        "[$root | del({excluded}) | .[] | if type == \"string\" then . else tojson end | {FOLD}] as $corpus"
+    )
+}
+
 fn anchor_law(key: &str, required: bool) -> String {
     let empty = if required {
         "($f.anchor | length) > 0 and"
@@ -226,7 +238,17 @@ fn anchor_law(key: &str, required: bool) -> String {
         "($f.anchor | length) == 0 or"
     };
     format!(
-        ". as $root | [$root | del(.{key}) | .[] | if type == \"string\" then . else tojson end] as $corpus | all(.{key}[]; . as $f | {empty} any($corpus[]; contains($f.anchor)))"
+        ". as $root | {} | all(.{key}[]; . as $f | {empty} any($corpus[]; contains($f.anchor | {FOLD})))",
+        corpus(&format!(".{key}"))
+    )
+}
+
+/// The draft law: a nonempty body, and every declared claim anchored in the corpus the
+/// draft was given. The body is judged, never part of its own corpus.
+fn draft_law() -> String {
+    format!(
+        ". as $root | {} | ($root.body | length) > 0 and all(.facts_used[]; . as $f | ($f.anchor | length) > 0 and any($corpus[]; contains($f.anchor | {FOLD})))",
+        corpus(".facts_used, .body")
     )
 }
 
@@ -631,11 +653,14 @@ fn emit_draft(d: &mut Doc, guide: &str, step: &Step, retry: Option<u32>) {
         node["retry"] = json!({"max_attempts": n});
     }
     d.infer("draft", node);
-    let (input, with) = d.law_bindings("facts_used", "${{ tasks.draft.output.facts_used }}");
+    let (mut input, mut with) =
+        d.law_bindings("facts_used", "${{ tasks.draft.output.facts_used }}");
+    input["body"] = json!("${{ with.body }}");
+    with["body"] = json!("${{ tasks.draft.output.body }}");
     d.tool(
         "draft_anchors",
         "nika:jq",
-        json!({"input": input, "expression": format!("(.body | length) > 0 and ({})", anchor_law("facts_used", true))}),
+        json!({"input": input, "expression": draft_law()}),
         Some(with),
         false,
     );
@@ -826,12 +851,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn anchor_laws_read_every_corpus_string() {
+    fn anchor_laws_read_every_corpus_string_with_whitespace_folded() {
         let law = anchor_law("fields", false);
         assert!(law.contains("del(.fields)"));
-        assert!(law.contains("any($corpus[]; contains($f.anchor))"));
+        assert!(
+            law.contains(r#"any($corpus[]; contains($f.anchor | gsub("\\s+"; " ")))"#),
+            "{law}"
+        );
+        assert!(
+            law.contains(r#"tojson end | gsub("\\s+"; " ")] as $corpus"#),
+            "{law}"
+        );
         assert!(law.contains("== 0 or"));
         assert!(anchor_law("facts_used", true).contains("> 0 and"));
+        let draft = draft_law();
+        assert!(draft.contains("del(.facts_used, .body)"), "{draft}");
+        assert!(
+            draft.contains("($root.body | length) > 0 and all(.facts_used[]"),
+            "{draft}"
+        );
     }
 
     #[test]
