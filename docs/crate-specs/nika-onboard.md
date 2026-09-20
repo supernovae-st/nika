@@ -51,6 +51,12 @@ The endpoint answer explicitly accepts a POST body containing
 customer_id, amount and currency; its hostname alone supplies the requested
 network boundary. Credentials are never invented. No named CRM integration is
 silently replaced by the file lookup.
+Rejected binding answers keep their stable question open beside the Missed
+diagnostic: a glob directory, a bare model id (the answer must name
+`<provider>/<model>`, which the host Check would otherwise refuse as
+NIKA-PROVIDER), and an endpoint that is not a concrete URL, embeds credentials
+in its authority or a credential-like query parameter, carries a fragment, or
+uses cleartext `http` for anything but a loopback development host.
 
 Classification returns descriptive category data, without inventing a queue
 integration. Original customer/ticket facts and their source remain siblings

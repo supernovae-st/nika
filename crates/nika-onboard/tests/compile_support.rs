@@ -203,3 +203,96 @@ fn partial_support_intent_names_the_unmatched_clause() {
             .any(|d| d.message.contains("send the reply"))
     );
 }
+
+#[test]
+fn bare_model_id_is_not_an_explicit_provider_binding() {
+    let out = compile(
+        &CompileRequest::create(SUPPORT)
+            .answer("model", r#""gpt-4o""#)
+            .answer("const.customer_directory", r#""customers.json""#)
+            .answer(
+                "const.refund_endpoint",
+                r#""https://refund.example.invalid/refunds""#,
+            )
+            .answer("const.refund_policy", r#""cap 100 EUR""#),
+    )
+    .unwrap();
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert!(out.candidate.is_none());
+    assert!(out.questions.iter().any(|q| q.key == "model"));
+    assert!(out.diagnostics.iter().any(|d| d.target == "model"));
+}
+
+#[test]
+fn rejected_binding_answers_keep_their_stable_question() {
+    let base = || {
+        CompileRequest::create(SUPPORT)
+            .answer("model", r#""mock/echo""#)
+            .answer("const.refund_policy", r#""cap 100 EUR""#)
+    };
+    let glob = compile(
+        &base()
+            .answer("const.customer_directory", r#""customers-*.json""#)
+            .answer(
+                "const.refund_endpoint",
+                r#""https://refund.example.invalid/refund""#,
+            ),
+    )
+    .unwrap();
+    assert_eq!(glob.status, CompileStatus::Incomplete);
+    assert!(glob.candidate.is_none());
+    assert!(
+        glob.questions
+            .iter()
+            .any(|q| q.key == "const.customer_directory"),
+        "{glob:#?}"
+    );
+    for endpoint in [
+        r#""https://user:secret@refund.example.invalid/refund""#,
+        r#""https://refund.example.invalid/refund#approved""#,
+        r#""https://refund.example.invalid/refund?api_key=SECRET""#,
+        r#""https://refund.example.invalid/refund?v=2&access_token=abc""#,
+        r#""http://refund.example.invalid/refund""#,
+        r#""ftp://refund.example.invalid/refund""#,
+        r#""not a url""#,
+    ] {
+        let out = compile(
+            &base()
+                .answer("const.customer_directory", r#""customers.json""#)
+                .answer("const.refund_endpoint", endpoint),
+        )
+        .unwrap();
+        assert_eq!(out.status, CompileStatus::Incomplete, "{endpoint}");
+        assert!(out.candidate.is_none(), "{endpoint}");
+        assert!(
+            out.questions
+                .iter()
+                .any(|q| q.key == "const.refund_endpoint"),
+            "{endpoint}: {out:#?}"
+        );
+    }
+}
+
+#[test]
+fn versioned_query_and_loopback_development_endpoints_stay_explicit_bindings() {
+    for (endpoint, host) in [
+        (
+            r#""https://refund.example.invalid/refund?api-version=2024-01""#,
+            "refund.example.invalid",
+        ),
+        (r#""http://127.0.0.1:8080/refund""#, "127.0.0.1"),
+        (r#""http://localhost:8080/refund""#, "localhost"),
+    ] {
+        let out = compile(
+            &CompileRequest::create(SUPPORT)
+                .answer("model", r#""mock/echo""#)
+                .answer("const.customer_directory", r#""customers.json""#)
+                .answer("const.refund_policy", r#""cap 100 EUR""#)
+                .answer("const.refund_endpoint", endpoint),
+        )
+        .unwrap();
+        assert_eq!(out.status, CompileStatus::Ready, "{endpoint}: {out:#?}");
+        let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+        assert_eq!(doc["permits"]["net"]["http"], json!([host]), "{endpoint}");
+    }
+}

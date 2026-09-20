@@ -106,6 +106,12 @@ pub(super) fn resolve(intent: &str) -> Result<Option<Plan>, String> {
     Ok(Some(Plan { operations }))
 }
 
+const DIRECTORY_LABEL: &str = "Which JSON customer-directory file maps customer ids to records?";
+const MODEL_LABEL: &str = "Which explicit runtime provider/model should classify and draft?";
+const ENDPOINT_LABEL: &str = "Which HTTP endpoint accepts a refund POST with customer_id, amount and currency? No credentials or permission are inferred.";
+const POLICY_LABEL: &str = "What refund cap, currency and eligibility criteria must the human reviewer apply? Supply literal policy data; this is not approval to refund.";
+const POLICY_WHY: &str = "Refund eligibility and limits are business policy. Neither a model nor the compiler may invent them; an authoring answer does not approve a runtime proposal.";
+
 fn answer(
     request: &CompileRequest,
     out: &mut CompileOutcome,
@@ -138,12 +144,28 @@ fn answer(
     None
 }
 
+/// A rejected answer keeps its stable question open, so a client driving the
+/// loop from `questions` can always resume with a corrected value.
+fn reject(out: &mut CompileOutcome, key: &str, label: &str, text: bool, why: &str) {
+    super::finding(out, DiagnosticKind::Missed, key, why);
+    super::question(
+        out,
+        key,
+        label,
+        if text {
+            QuestionType::Text
+        } else {
+            QuestionType::Literal
+        },
+    );
+}
+
 pub(super) fn assemble(
     plan: &Plan,
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
-    let Some((directory, model, policy, endpoint)) = bindings(plan, request, out) else {
+    let Some((directory, model, review)) = bindings(plan, request, out) else {
         return Ok(());
     };
     let mut builder = Assembly::new(
@@ -156,24 +178,8 @@ pub(super) fn assemble(
         builder.classify();
     }
     builder.draft(plan.operations.contains(&Operation::Route));
-    if let (Some(policy), Some(endpoint)) = (policy, endpoint) {
-        let parsed = endpoint.as_str().and_then(|s| url::Url::parse(s).ok());
-        let Some(url) = parsed.filter(|u| {
-            matches!(u.scheme(), "http" | "https")
-                && u.host_str().is_some()
-                && u.username().is_empty()
-                && u.password().is_none()
-                && u.fragment().is_none()
-        }) else {
-            super::finding(
-                out,
-                DiagnosticKind::Missed,
-                "const.refund_endpoint",
-                "A concrete HTTP(S) endpoint without embedded credentials or fragment is required.",
-            );
-            return Ok(());
-        };
-        builder.review(policy, endpoint, url.host_str().unwrap_or_default());
+    if let Some((policy, endpoint, host)) = review {
+        builder.review(policy, endpoint, &host);
     }
     let source = serde_yaml_bw::to_string(&builder.doc).map_err(CompileError::representation)?;
     if super::edit::literal_projection(&source).as_ref() != Some(&builder.doc) {
@@ -190,54 +196,24 @@ pub(super) fn assemble(
     Ok(())
 }
 
-type Bindings = (Value, Value, Option<Value>, Option<Value>);
+/// Literal policy, literal endpoint and the one permitted host.
+type Review = (Value, Value, String);
+type Bindings = (Value, Value, Option<Review>);
 
 fn bindings(plan: &Plan, request: &CompileRequest, out: &mut CompileOutcome) -> Option<Bindings> {
     let directory = answer(
         request,
         out,
         "const.customer_directory",
-        "Which JSON customer-directory file maps customer ids to records?",
+        DIRECTORY_LABEL,
         true,
     );
-    let model = answer(
-        request,
-        out,
-        "model",
-        "Which explicit runtime provider/model should classify and draft?",
-        true,
-    );
+    let model = answer(request, out, "model", MODEL_LABEL, true);
     let review = plan.operations.contains(&Operation::RefundReview);
-    let endpoint = if review {
-        answer(
-            request,
-            out,
-            "const.refund_endpoint",
-            "Which HTTP endpoint accepts a refund POST with customer_id, amount and currency? No credentials or permission are inferred.",
-            true,
-        )
-    } else {
-        None
-    };
-    let policy = if review {
-        let policy = answer(
-            request,
-            out,
-            "const.refund_policy",
-            "What refund cap, currency and eligibility criteria must the human reviewer apply? Supply literal policy data; this is not approval to refund.",
-            false,
-        );
-        if let Some(q) = out
-            .questions
-            .iter_mut()
-            .find(|q| q.key == "const.refund_policy")
-        {
-            "Refund eligibility and limits are business policy. Neither a model nor the compiler may invent them; an authoring answer does not approve a runtime proposal.".clone_into(&mut q.why);
-        }
-        policy
-    } else {
-        None
-    };
+    let endpoint = review
+        .then(|| answer(request, out, "const.refund_endpoint", ENDPOINT_LABEL, true))
+        .flatten();
+    let policy = review.then(|| ask_policy(request, out)).flatten();
     let mut recognized = BTreeSet::from(["const.customer_directory", "model"]);
     if review {
         recognized.extend(["const.refund_policy", "const.refund_endpoint"]);
@@ -246,40 +222,149 @@ fn bindings(plan: &Plan, request: &CompileRequest, out: &mut CompileOutcome) -> 
     let (Some(directory), Some(model)) = (directory, model) else {
         return None;
     };
+    let directory = admit_directory(out, directory)?;
+    let model = admit_model(out, model)?;
+    if !review {
+        return Some((directory, model, None));
+    }
+    let (Some(policy), Some(endpoint)) = (policy, endpoint) else {
+        return None;
+    };
+    let policy = admit_policy(out, policy)?;
+    let host = admit_endpoint(out, &endpoint)?;
+    Some((directory, model, Some((policy, endpoint, host))))
+}
+
+fn ask_policy(request: &CompileRequest, out: &mut CompileOutcome) -> Option<Value> {
+    let policy = answer(request, out, "const.refund_policy", POLICY_LABEL, false);
+    if let Some(q) = out
+        .questions
+        .iter_mut()
+        .find(|q| q.key == "const.refund_policy")
+    {
+        POLICY_WHY.clone_into(&mut q.why);
+    }
+    policy
+}
+
+fn admit_directory(out: &mut CompileOutcome, directory: Value) -> Option<Value> {
     if directory
         .as_str()
         .is_some_and(|path| path.chars().any(|c| matches!(c, '*' | '?' | '[' | ']')))
     {
-        super::finding(
+        reject(
             out,
-            DiagnosticKind::Missed,
             "const.customer_directory",
+            DIRECTORY_LABEL,
+            true,
             "Select one literal JSON file; a glob is not an exact lookup binding.",
         );
         return None;
     }
-    if review && (policy.is_none() || endpoint.is_none()) {
+    Some(directory)
+}
+
+/// The compiler asks for an explicit provider: a bare model id would pass the
+/// source-only preview and be refused by the host Check as NIKA-PROVIDER.
+fn admit_model(out: &mut CompileOutcome, model: Value) -> Option<Value> {
+    let qualified = model.as_str().is_some_and(|s| {
+        !s.chars().any(char::is_whitespace)
+            && s.split_once('/')
+                .is_some_and(|(provider, name)| !provider.is_empty() && !name.is_empty())
+    });
+    if !qualified {
+        reject(
+            out,
+            "model",
+            MODEL_LABEL,
+            true,
+            "Name the runtime model as <provider>/<model>, for example mock/echo; a bare model id is not an explicit provider binding.",
+        );
         return None;
     }
-    if policy.as_ref().is_some_and(|p| {
-        p.as_str().is_none_or(|s| s.trim().is_empty())
-            && p.as_object().is_none_or(serde_json::Map::is_empty)
-    }) {
-        super::finding(
-            out,
-            DiagnosticKind::Missed,
-            "const.refund_policy",
-            "Refund policy requires a nonempty JSON string or object, not an approval flag or isolated number.",
-        );
-        super::question(
+    Some(model)
+}
+
+fn admit_policy(out: &mut CompileOutcome, policy: Value) -> Option<Value> {
+    let empty = policy.as_str().is_none_or(|s| s.trim().is_empty())
+        && policy.as_object().is_none_or(serde_json::Map::is_empty);
+    if empty {
+        reject(
             out,
             "const.refund_policy",
             "Supply explicit refund policy data, not approval.",
-            QuestionType::Literal,
+            false,
+            "Refund policy requires a nonempty JSON string or object, not an approval flag or isolated number.",
         );
         return None;
     }
-    Some((directory, model, policy, endpoint))
+    Some(policy)
+}
+
+fn admit_endpoint(out: &mut CompileOutcome, endpoint: &Value) -> Option<String> {
+    match endpoint_host(endpoint) {
+        Ok(host) => Some(host),
+        Err(why) => {
+            reject(out, "const.refund_endpoint", ENDPOINT_LABEL, true, why);
+            None
+        }
+    }
+}
+
+/// Credential-like query keys never enter a literal URL; secrets have their own door.
+const CREDENTIAL_QUERY_KEYS: &[&str] = &[
+    "key",
+    "token",
+    "secret",
+    "sig",
+    "password",
+    "passwd",
+    "pwd",
+    "auth",
+    "credential",
+    "bearer",
+];
+
+/// The permitted host of an explicit refund endpoint, or why the literal is refused.
+fn endpoint_host(endpoint: &Value) -> Result<String, &'static str> {
+    let Some(url) = endpoint.as_str().and_then(|s| url::Url::parse(s).ok()) else {
+        return Err("A concrete HTTP(S) URL is required.");
+    };
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err("The endpoint must not embed credentials in its authority.");
+    }
+    if url.fragment().is_some() {
+        return Err("The endpoint must not carry a fragment.");
+    }
+    if url.query_pairs().any(|(key, _)| {
+        let key = key.to_ascii_lowercase();
+        CREDENTIAL_QUERY_KEYS
+            .iter()
+            .any(|needle| key.contains(*needle))
+    }) {
+        return Err(
+            "The endpoint query must not carry a credential-like parameter; a literal URL is never a secret door.",
+        );
+    }
+    let Some(host) = url.host() else {
+        return Err("The endpoint needs a concrete host.");
+    };
+    let loopback = match host {
+        url::Host::Domain(domain) => domain.eq_ignore_ascii_case("localhost"),
+        url::Host::Ipv4(ip) => ip.is_loopback(),
+        url::Host::Ipv6(ip) => ip.is_loopback(),
+    };
+    match url.scheme() {
+        "https" => {}
+        "http" if loopback => {}
+        "http" => {
+            return Err(
+                "A cleartext http endpoint is accepted only for a loopback development host; use https for a real refund destination.",
+            );
+        }
+        _ => return Err("Only http(s) endpoints are supported."),
+    }
+    Ok(url.host_str().unwrap_or_default().to_owned())
 }
 
 /// Motifs build structured nodes, not YAML strings or copied workflow skeletons.
