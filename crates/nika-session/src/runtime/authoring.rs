@@ -16,7 +16,7 @@ use nika_onboard::compile::{CompileOutcome, CompileQuestion};
 use super::{DEFAULT_CEILING_USD, SessionRuntime, TurnOutcome, ceiling_in, named_files};
 use crate::authoring::{
     AuthoringError, AuthoringRound, AuthoringSeat, Reading, compile_deterministic, compile_through,
-    is_cancel, looks_like_discussion, reasons,
+    is_cancel, is_greeting, looks_like_discussion, reasons,
 };
 use crate::change::{RunRequest, check_on_disk};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
@@ -45,6 +45,11 @@ impl SessionRuntime {
     /// reader read work it cannot settle alone. `None` when nothing in
     /// the line reads as work — the conversation owns that line.
     pub(super) fn author_unrecorded(&mut self, intent: &str) -> Option<TurnOutcome> {
+        // A lone greeting is the conversation's before any door reads it:
+        // the compiler's exact-skeleton door would take `hello` literally.
+        if is_greeting(intent) {
+            return None;
+        }
         let round = AuthoringRound::new(intent);
         let out = match compile_deterministic(&round.request()) {
             Ok(out) => out,

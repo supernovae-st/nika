@@ -331,3 +331,16 @@ fn a_run_line_needs_a_workflow_and_a_clean_check() {
     assert!(text.contains("NIKA-AUTH-006"), "{text}");
     assert!(!root.path().join("x.txt").exists());
 }
+
+#[test]
+fn a_bare_greeting_is_the_conversations_never_the_hello_skeleton() {
+    let root = world();
+    let mut s = open(root.path(), &["hi!", "de rien"]);
+    let TurnOutcome::Reply(text) = s.turn("hello") else {
+        panic!("a lone greeting is words, not the `hello` lesson compiled");
+    };
+    assert_eq!(text, "hi!");
+    assert!(matches!(s.turn("Merci !"), TurnOutcome::Reply(_)));
+    assert!(s.pending_proposal().is_none());
+    assert!(workflows(root.path()).is_empty());
+}
