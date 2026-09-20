@@ -229,3 +229,34 @@ is honest at tag time.
 - `nika/02-engineering/architecture/blueprint/crate-admission-order.md` (step 8.5 row + D-N17 note)
 - `nika-spec/canon.yaml` `providers:` (SSOT 14) + `stdlib/providers-v0.1.md`
 - brouillon reference (read-only · `git show brouillon:tools/nika-engine/src/provider/…` · rig construction NOT carried)
+
+## Sanitized HTTP failures
+
+The shared buffered and stream-open non-2xx boundary returns the additive,
+in-process `ProviderError::HttpResponse` variant. Its `ProviderHttpError`
+metadata retains the status, recognized provider `error.code`/`error.type`,
+and a bounded Retry-After (numeric seconds or preferred HTTP-date form).
+Response messages, raw bodies, request IDs, unknown identifiers, and invalid
+headers are omitted. The identifier vocabulary is deliberately closed: even
+an identifier-shaped value can contain a credential. New provider codes need
+an explicit vocabulary update before they become visible diagnostics.
+
+`insufficient_quota` or `credit_balance_exhausted` makes the failure terminal,
+even when the provider includes Retry-After. Other 429 responses remain
+transient, as do 5xx responses. This uses the existing `is_transient` retry
+seam and NIKA code ranges: exhausted quota maps to the existing API-error
+code, transient 429 to the existing rate-limit code. Authentication failures
+retain their operator guidance. Legacy error variants remain constructible.
+
+HTTP-date Retry-After is preserved without consulting a clock; only numeric
+seconds produce `retry_after_ms`. A malformed or unknown provider body cannot
+prove quota exhaustion: its status classification remains the fallback.
+Gemini and Anthropic in-band errors use this same sanitization boundary.
+
+An error response supplies no verified token usage or billing evidence. The
+diagnostic therefore says usage and billing are unknown; it does not create
+an inference response or claim zero spend. This change does not alter strict
+Compile response schemas or serialized receipt fields. It does not add an
+OpenAI-compatible in-band error protocol, which is separate from HTTP rejection.
+Tests inject the kernel HTTP effect; no provider credentials or network calls
+are required.

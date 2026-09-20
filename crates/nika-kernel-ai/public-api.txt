@@ -1121,6 +1121,8 @@ pub nika_kernel_ai::provider::ProviderError::AuthFailed
 pub nika_kernel_ai::provider::ProviderError::AuthFailed::reason: alloc::string::String
 pub nika_kernel_ai::provider::ProviderError::Connection
 pub nika_kernel_ai::provider::ProviderError::Connection::reason: alloc::string::String
+pub nika_kernel_ai::provider::ProviderError::HttpResponse
+pub nika_kernel_ai::provider::ProviderError::HttpResponse::details: nika_kernel_ai::provider::ProviderHttpError
 pub nika_kernel_ai::provider::ProviderError::ModelNotFound
 pub nika_kernel_ai::provider::ProviderError::ModelNotFound::model: alloc::string::String
 pub nika_kernel_ai::provider::ProviderError::Other
@@ -1470,6 +1472,41 @@ pub fn nika_kernel_ai::provider::ProviderExtras::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ProviderExtras where T: 'static
 pub fn nika_kernel_ai::provider::ProviderExtras::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::ProviderExtras where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_kernel_ai::provider::ProviderHttpError
+impl nika_kernel_ai::provider::ProviderHttpError
+pub fn nika_kernel_ai::provider::ProviderHttpError::code(&self) -> core::option::Option<&'static str>
+pub fn nika_kernel_ai::provider::ProviderHttpError::error_type(&self) -> core::option::Option<&'static str>
+pub fn nika_kernel_ai::provider::ProviderHttpError::is_quota_exhausted(&self) -> bool
+pub fn nika_kernel_ai::provider::ProviderHttpError::is_transient(&self) -> bool
+pub fn nika_kernel_ai::provider::ProviderHttpError::new(status: u16, code: core::option::Option<&str>, error_type: core::option::Option<&str>, retry_after: core::option::Option<&str>) -> Self
+pub fn nika_kernel_ai::provider::ProviderHttpError::retry_after(&self) -> core::option::Option<&str>
+pub fn nika_kernel_ai::provider::ProviderHttpError::retry_after_ms(&self) -> core::option::Option<u64>
+pub fn nika_kernel_ai::provider::ProviderHttpError::status(&self) -> u16
+impl core::fmt::Debug for nika_kernel_ai::provider::ProviderHttpError
+pub fn nika_kernel_ai::provider::ProviderHttpError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_kernel_ai::provider::ProviderHttpError
+pub fn nika_kernel_ai::provider::ProviderHttpError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::ProviderHttpError
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::ProviderHttpError where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::ProviderHttpError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::ProviderHttpError where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::ProviderHttpError::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::ProviderHttpError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::ProviderHttpError where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::ProviderHttpError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::ProviderHttpError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_kernel_ai::provider::ProviderHttpError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderHttpError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_kernel_ai::provider::ProviderHttpError where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderHttpError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::ProviderHttpError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderHttpError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::ProviderHttpError where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ProviderHttpError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::ProviderHttpError
+pub fn nika_kernel_ai::provider::ProviderHttpError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ProviderHttpError where T: 'static
+pub fn nika_kernel_ai::provider::ProviderHttpError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_ai::provider::ToolDef
 pub nika_kernel_ai::provider::ToolDef::description: alloc::string::String
 pub nika_kernel_ai::provider::ToolDef::name: alloc::string::String

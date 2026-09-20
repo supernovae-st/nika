@@ -10,7 +10,7 @@
 //! Per wired profile (14 of 14 — gemini wired at s8.6):
 //! 1. `infer` returns text content + populated `GenAiAttrs`
 //! 2. `infer_stream` yields ≥1 `Delta` and exactly one terminal `Done`
-//! 3. provider 401 maps to `ProviderError::AuthFailed` (http wires)
+//! 3. provider 401 retains sanitized status and authentication guidance
 //! 4. `ProviderMeta` answers coherently with the wire family
 
 use std::sync::Arc;
@@ -212,7 +212,7 @@ async fn every_wired_profile_stream_maps_401_to_auth_failed() {
             .err()
             .unwrap_or_else(|| panic!("[{id}] stream 401 must error"));
         assert!(
-            matches!(err, ProviderError::AuthFailed { .. }),
+            matches!(&err, ProviderError::HttpResponse { details } if details.status() == 401),
             "[{id}] stream 401 → AuthFailed (same table as infer), got {err:?}"
         );
         assert_eq!(
@@ -250,7 +250,7 @@ async fn every_wired_profile_maps_401_to_auth_failed() {
         );
         let err = rp.infer(request()).await.expect_err("401 must be an error");
         assert!(
-            matches!(err, ProviderError::AuthFailed { .. }),
+            matches!(&err, ProviderError::HttpResponse { details } if details.status() == 401),
             "[{id}] 401 → AuthFailed, got {err:?}"
         );
         assert_eq!(
@@ -611,6 +611,48 @@ async fn every_wire_keeps_connection_failures_transient_and_streams_fused() {
             ] {
                 assert!(message.contains(expected), "{id}: {message}");
             }
+        }
+    }
+}
+
+#[tokio::test]
+async fn every_wired_profile_preserves_quota_failure_without_usage_or_retry() {
+    const BODY: &str = r#"{"error":{"code":"credit_balance_exhausted","type":"insufficient_quota","message":"private prompt sk-secret"}}"#;
+    for (id, _wire, requires_key) in wired_http_profiles() {
+        for streaming in [false, true] {
+            let fake = if streaming {
+                FakeHttp::with_stream(429, BODY, 7)
+            } else {
+                FakeHttp::with_json(429, BODY)
+            };
+            let rp = resolve_on(&fake, id, requires_key);
+            let error = if streaming {
+                rp.infer_stream(request())
+                    .await
+                    .err()
+                    .expect("429 fails before a stream")
+            } else {
+                rp.infer(request())
+                    .await
+                    .expect_err("429 returns no response/usage")
+            };
+            assert!(!error.is_transient(), "{id}: {error}");
+            let ProviderError::HttpResponse { details } = &error else {
+                panic!("{id}: {error:?}")
+            };
+            assert_eq!(details.status(), 429);
+            assert_eq!(details.code(), Some("credit_balance_exhausted"));
+            assert_eq!(details.error_type(), Some("insufficient_quota"));
+            assert_eq!(details.retry_after(), None);
+            assert_eq!(
+                fake.captured().len(),
+                1,
+                "no retry/probe on exhausted credit"
+            );
+            let diagnostic = format!("{error} {error:?}");
+            assert!(diagnostic.contains("usage and billing unknown"));
+            assert!(!diagnostic.contains("private prompt"));
+            assert!(!diagnostic.contains("sk-secret"));
         }
     }
 }

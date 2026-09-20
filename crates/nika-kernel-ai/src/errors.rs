@@ -66,6 +66,13 @@ pub const NIKA_339: NikaCode = NikaCode {
 impl NikaErrorCode for ProviderError {
     fn nika_code(&self) -> NikaCode {
         match self {
+            Self::HttpResponse { details } => match details.status() {
+                _ if details.is_quota_exhausted() => NIKA_330,
+                401 | 403 => NIKA_333,
+                404 => NIKA_331,
+                429 => NIKA_332,
+                _ => NIKA_330,
+            },
             Self::Api { .. } => NIKA_330,
             Self::ModelNotFound { .. } => NIKA_331,
             Self::RateLimited { .. } => NIKA_332,
