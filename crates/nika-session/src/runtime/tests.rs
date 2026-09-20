@@ -19,8 +19,7 @@ const COPY_DEST: &str = "compiled-workflow.nika";
 /// An intent whose model the compiler must ask for.
 const DRAFT: &str = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
 /// Work the deterministic reader cannot settle alone.
-const GATED: &str =
-    "Read ./draft.md and write it to ./final.md, but a human must approve the write first";
+const UNSETTLED: &str = "Read ./a.md and do something clever with it, then write ./b.md";
 /// A line that reads as no work at all: the conversation's.
 const SMALL_TALK: &str = "hello there, how are you today?";
 /// A check-clean workflow that pauses at a human gate: the answer is
@@ -265,7 +264,7 @@ fn without_intelligence_the_facts_stay_free_text_is_refused_and_work_compiles() 
     assert!(matches!(s.turn("mock/echo"), TurnOutcome::Proposal { .. }));
     assert!(matches!(s.consent("no"), TurnOutcome::Facts(_)));
     // Work the reader cannot settle is an honest incomplete naming the fix.
-    let TurnOutcome::Facts(text) = s.turn(GATED) else {
+    let TurnOutcome::Facts(text) = s.turn(UNSETTLED) else {
         panic!("no seat: the reasons are stated, nothing is invented");
     };
     assert!(

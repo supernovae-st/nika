@@ -18,8 +18,7 @@ use crate::reasoner::ScriptedReasoner;
 const DRAFT: &str = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
 const COPY: &str = "Read ./notes/brief.md and write it to ./out/copy.md";
 const COPY_FR: &str = "Lis ./notes/brief.md et écris-le dans ./out/copie.md";
-const GATED: &str =
-    "Read ./draft.md and write it to ./final.md, but a human must approve the write first";
+const UNSETTLED: &str = "Read ./a.md and do something clever with it, then write ./b.md";
 
 fn world() -> tempfile::TempDir {
     let dir = tempfile::tempdir().expect("root");
@@ -264,7 +263,7 @@ fn a_reply_never_becomes_a_file() {
 fn an_intent_the_reader_cannot_settle_is_an_honest_incomplete_without_a_seat() {
     let root = world();
     let mut s = open(root.path(), &[]);
-    let TurnOutcome::Facts(text) = s.turn(GATED) else {
+    let TurnOutcome::Facts(text) = s.turn(UNSETTLED) else {
         panic!("no seat: the deterministic reasons are stated, nothing is invented");
     };
     assert!(
@@ -330,6 +329,36 @@ fn a_run_line_needs_a_workflow_and_a_clean_check() {
     );
     assert!(text.contains("NIKA-AUTH-006"), "{text}");
     assert!(!root.path().join("x.txt").exists());
+}
+
+/// An approval clause in words becomes a `nika:prompt` gate in the
+/// candidate (the compiler's law: requested meaning survives), and the
+/// review names it before any consent.
+#[test]
+fn an_approval_clause_becomes_a_gate_the_review_names() {
+    let root = world();
+    std::fs::write(root.path().join("draft.md"), "the draft\n").expect("draft");
+    let mut s = open(root.path(), &[]);
+    let TurnOutcome::Proposal { preview, .. } =
+        s.turn("Read ./draft.md, ask me to confirm before writing it to ./final.md")
+    else {
+        panic!("an explicit gated intent is Ready with its gate");
+    };
+    assert!(preview.contains("nika:prompt"), "{preview}");
+    assert!(
+        preview.contains("human approval at run · `")
+            && !preview.contains("human approval at run · none"),
+        "the review names the gate: {preview}"
+    );
+    assert!(preview.contains("pauses for a human answer"), "{preview}");
+    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
+    let landed =
+        std::fs::read_to_string(root.path().join("compiled-workflow.nika")).expect("landed");
+    assert!(landed.contains("nika:prompt"), "{landed}");
+    assert!(
+        !root.path().join("final.md").exists(),
+        "consent is never a run"
+    );
 }
 
 #[test]

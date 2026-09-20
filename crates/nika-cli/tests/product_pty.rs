@@ -320,6 +320,62 @@ fn a_gated_effect_waits_for_the_human_and_happens_once() {
     );
 }
 
+/// C' · the gated effect AUTHORED from words: an approval clause becomes a
+/// `nika:prompt` gate the review names, consent lands it, the explicit run
+/// asks the human on the terminal, the same run resumes, the effect
+/// happens exactly once.
+#[test]
+fn an_approval_clause_in_words_becomes_a_gate_answered_in_the_product() {
+    let (project, home) = rig("gate-words");
+    let draft = "the draft to publish\n";
+    std::fs::write(project.path().join("draft.md"), draft).expect("draft");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("Read ./draft.md, ask me to confirm before writing it to ./final.md")
+        .expect("the intent");
+    session
+        .expect("human approval at run · `")
+        .expect("the review names the gate the compiler kept");
+    session.expect("apply? ›").expect("consent prompt");
+    session.send_line("yes").expect("consent");
+    session
+        .expect("applied · wrote `compiled-workflow.nika`")
+        .expect("landed");
+    session.expect("nika ›").expect("prompt");
+    assert!(
+        !project.path().join("final.md").exists(),
+        "consent is never a run"
+    );
+    session.send_line("run it").expect("run");
+    session
+        .expect("[y/N]")
+        .expect("the gate asks the human on the terminal");
+    assert!(
+        !project.path().join("final.md").exists(),
+        "nothing before the answer"
+    );
+    session.send_line("y").expect("the human answers");
+    session
+        .expect("run observed · exit 0")
+        .expect("the same run completes");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert_eq!(
+        std::fs::read_to_string(project.path().join("final.md")).expect("the effect"),
+        draft
+    );
+    assert_eq!(
+        completions(project.path(), "write_output"),
+        1,
+        "exactly once"
+    );
+    let landed =
+        std::fs::read_to_string(project.path().join("compiled-workflow.nika")).expect("landed");
+    assert!(landed.contains("nika:prompt"), "{landed}");
+}
+
 /// D · a draft answered with the offline mock: the same review, the same
 /// consent, the same explicit run — and an honest failure observed (the
 /// mock cannot satisfy the draft's anchor law), no artefact invented, the
