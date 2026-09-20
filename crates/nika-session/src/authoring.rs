@@ -227,6 +227,32 @@ pub fn is_cancel(line: &str) -> bool {
     )
 }
 
+/// A bare greeting or thanks — the conversation's, never the compiler's
+/// (whose exact-skeleton door would read a lone `hello` as the `hello`
+/// lesson). A closed set of whole lines, punctuation aside.
+#[must_use]
+pub fn is_greeting(input: &str) -> bool {
+    let word = input
+        .trim()
+        .trim_end_matches(['!', '.', '?', ',', ' '])
+        .to_lowercase();
+    matches!(
+        word.as_str(),
+        "hello"
+            | "hi"
+            | "hey"
+            | "yo"
+            | "bonjour"
+            | "salut"
+            | "coucou"
+            | "thanks"
+            | "thank you"
+            | "merci"
+            | "bye"
+            | "au revoir"
+    )
+}
+
 /// A line shaped like a question or a request to explain — the
 /// conversation, not work to build (a closed lexical rule, no model).
 #[must_use]
@@ -600,6 +626,14 @@ mod tests {
         assert!(looks_like_discussion("what does alpha.nika do?"));
         assert!(looks_like_discussion("Explique-moi les permits"));
         assert!(looks_like_discussion("hello"));
+        assert!(is_greeting("hello"), "the bare word");
+        assert!(is_greeting(" Hello! "), "case and punctuation aside");
+        assert!(is_greeting("merci."));
+        assert!(
+            !is_greeting("hello there, how are you today?"),
+            "a sentence is not a bare greeting"
+        );
+        assert!(!is_greeting("hello.nika"), "a file is not a greeting");
         assert!(!looks_like_discussion("build me a digest of the docs"));
         assert!(!looks_like_discussion(
             "Lis ./notes/brief.md et écris-le dans ./out/copie.md"
