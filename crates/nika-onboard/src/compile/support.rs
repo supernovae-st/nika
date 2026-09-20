@@ -20,30 +20,6 @@ pub(super) struct Plan {
     pub operations: BTreeSet<Operation>,
 }
 
-pub(super) fn create(
-    intent: &str,
-    request: &CompileRequest,
-    out: &mut CompileOutcome,
-) -> Result<bool, CompileError> {
-    let plan = match resolve(intent) {
-        Ok(Some(plan)) => plan,
-        Ok(None) => return Ok(false),
-        Err(fragment) => {
-            super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "intent",
-                format!(
-                    "Unresolved support clause: {fragment}. No requested operation was dropped."
-                ),
-            );
-            return Ok(true);
-        }
-    };
-    assemble(&plan, request, out)?;
-    Ok(true)
-}
-
 pub(super) fn resolve(intent: &str) -> Result<Option<Plan>, String> {
     let text = intent.trim().trim_end_matches('.').to_lowercase();
     let text = text

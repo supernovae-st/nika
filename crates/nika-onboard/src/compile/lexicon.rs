@@ -261,6 +261,8 @@ const LOOKUP_CUES: &[&str] = &[
     "shopify",
     "runbook",
     "checklist",
+    "knowledge base",
+    "base de connaissances",
     "record",
     "customer",
     "client",
@@ -400,7 +402,9 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
     // A sequencing connector always opens a new clause (an unknown verb after
     // `puis` must stay visible, never be swallowed as the previous object);
     // a coordinating comma or `et`/`and` opens one only before a known head.
-    const STRONG: &[&str] = &[", puis ", " puis ", ", then ", " then "];
+    const STRONG: &[&str] = &[
+        ", puis ", " puis ", ", then ", " then ", ", mais ", " mais ", ", but ", " but ",
+    ];
     const WEAK: &[&str] = &[", et ", " et ", ", and ", " and ", ", "];
     let lower = normalize(sentence);
     if lower.len() != sentence.len() {
@@ -592,6 +596,19 @@ fn effect_words(lower: &str) -> Vec<EffectVerb> {
             verbs.push(EffectVerb::Refund);
         }
     }
+    if (lower.contains("write")
+        || lower.contains("écri")
+        || lower.contains("enregistre")
+        || lower.contains("save"))
+        && (lower.contains("disk")
+            || lower.contains("disque")
+            || lower.contains("file")
+            || lower.contains("fichier")
+            || lower.contains("./"))
+        && !verbs.contains(&EffectVerb::Write)
+    {
+        verbs.push(EffectVerb::Write);
+    }
     for (needle, verb) in [
         ("remboursement", EffectVerb::Refund),
         ("refund", EffectVerb::Refund),
@@ -609,6 +626,16 @@ fn effect_words(lower: &str) -> Vec<EffectVerb> {
         }
     }
     verbs
+}
+
+fn push_obligation(plan: &mut Plan, obligation: Obligation) {
+    if !plan
+        .obligations
+        .iter()
+        .any(|o| o.kind.word() == obligation.kind.word())
+    {
+        plan.obligations.push(obligation);
+    }
 }
 
 fn push_effect(plan: &mut Plan, effect: Effect) {
@@ -635,274 +662,378 @@ fn push_effect(plan: &mut Plan, effect: Effect) {
     }
 }
 
-/// Deterministically read one intent.
-#[allow(clippy::too_many_lines)] // one sentence walk; each policy pattern is one visible arm
+struct ReadState {
+    conflict_marker: bool,
+    final_gate: bool,
+    money_sentences: Vec<String>,
+}
+
+const UNDECIDED_MARKERS: &[&str] = &[
+    "je n'ai pas encore décidé si le workflow doit ",
+    "je n'ai pas encore décidé si le workflow devait ",
+    "je n'ai pas encore décidé si ",
+    "i have not decided whether the workflow should ",
+    "i have not decided whether to ",
+    "i have not decided whether ",
+    "i haven't decided whether to ",
+    "i haven't decided whether ",
+];
+const REVISION_MARKERS: &[&str] = &[
+    "vérifie de nouveau la version",
+    "vérifie à nouveau la version",
+    "re-check the current",
+    "recheck the current",
+    "check the current version again",
+    "re-verify the current",
+];
+const FINAL_GATE_MARKERS: &[&str] = &[
+    "mais cette action finale exige la validation humaine",
+    "cette action finale exige la validation humaine",
+    "this final action requires human validation",
+    "this final action requires human approval",
+    "only after my approval",
+    "only after i approve",
+    "only once i approve",
+    "once i approve",
+    "after my approval",
+    "seulement après mon accord",
+    "après mon accord",
+    "après ma validation",
+    "après validation humaine",
+    "but ask me before",
+    "but get my approval before",
+    "get my approval before",
+    "with my approval before",
+];
+const NAMED_GATE_MARKERS: &[&str] = &[
+    "demande mon accord avant ",
+    "demandez mon accord avant ",
+    "demander mon accord avant ",
+    "demande un accord humain avant ",
+    "demande ma validation avant ",
+    "require my approval before ",
+    "ask me before ",
+    "ask for my approval before ",
+    "obtain my approval before ",
+    "hold every ",
+    "attends ma validation avant ",
+    "wait for my approval before ",
+];
+const FORBIDDEN_MARKERS: &[&str] = &[
+    "il est aussi absolument interdit de ",
+    "il est aussi absolument interdit d'",
+    "il est absolument interdit de ",
+    "il est absolument interdit d'",
+    "il est aussi interdit de ",
+    "il est aussi interdit d'",
+    "il est interdit de ",
+    "il est interdit d'",
+    "it is absolutely forbidden to ",
+    "it is also absolutely forbidden to ",
+    "it is forbidden to ",
+    "never ",
+    "do not ",
+    "don't ",
+    "nothing should be ",
+    "ne jamais ",
+];
+const STOP_MARKERS: &[&str] = &[
+    "arrête-toi après",
+    "aucune autre action n'est demandée",
+    "no other step",
+    "nothing else",
+    "no further action",
+];
+
+fn earliest<'a>(text: &str, markers: &'a [&'a str]) -> Option<(usize, &'a str)> {
+    markers
+        .iter()
+        .filter_map(|m| text.find(m).map(|p| (p, *m)))
+        .min_by_key(|(p, m)| (*p, std::cmp::Reverse(m.len())))
+}
+
+/// The lowercase text before a marker, without the connector that introduced it.
+fn prefix_before(text: &str, pos: usize) -> &str {
+    let before = text.get(..pos).unwrap_or_default().trim();
+    before
+        .trim_end_matches(',')
+        .trim_end_matches(';')
+        .trim()
+        .trim_end_matches(" and")
+        .trim_end_matches(" et")
+        .trim_end_matches(" but")
+        .trim_end_matches(" mais")
+        .trim_end_matches(" puis")
+        .trim_end_matches(" then")
+        .trim()
+}
+
+fn read_prefix(prefix: &str, original: &str, reading: &mut Reading, state: &mut ReadState) {
+    let prefix = strip_filler(prefix);
+    if prefix.is_empty() {
+        return;
+    }
+    // Re-project the lowercase prefix onto the original clause when lengths align.
+    let original_prefix = original
+        .get(..prefix.len().min(original.len()))
+        .filter(|_| normalize(original).len() == original.len())
+        .unwrap_or(prefix);
+    let owned = original_prefix.to_owned();
+    for clause in split_clauses(&owned) {
+        read_policy_or_clause(clause, reading, state);
+    }
+}
+
+fn gate_last_automatic(reading: &mut Reading, state: &mut ReadState) {
+    if let Some(last) = reading
+        .plan
+        .effects
+        .iter_mut()
+        .rev()
+        .find(|e| e.policy == EffectPolicy::Automatic)
+    {
+        last.policy = EffectPolicy::HumanFirst;
+    } else {
+        state.final_gate = true;
+    }
+}
+
+/// One clause: a policy pattern, an obligation, or an operation. A marker found
+/// mid-clause never swallows the request before it.
+#[allow(clippy::too_many_lines)] // one clause walk; each policy family is one visible arm
+fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadState) {
+    let lower = normalize(clause);
+    let text = strip_filler(&lower);
+    if text.is_empty() {
+        return;
+    }
+    if (text.contains("pose-moi la question") || text.contains("ask me the question"))
+        && !text.contains("pas encore décidé")
+    {
+        return;
+    }
+    if STOP_MARKERS.iter().any(|m| text.contains(m)) {
+        reading.plan.constraints.push(clause.to_owned());
+        return;
+    }
+    // Explicit indecision about an effect.
+    if let Some((pos, marker)) = earliest(text, UNDECIDED_MARKERS) {
+        read_prefix(prefix_before(text, pos), clause, reading, state);
+        let target = text
+            .get(pos + marker.len()..)
+            .unwrap_or_default()
+            .split([';', '.'])
+            .next()
+            .unwrap_or_default()
+            .trim();
+        let verb = effect_words(target)
+            .first()
+            .copied()
+            .unwrap_or(EffectVerb::Other);
+        push_effect(
+            &mut reading.plan,
+            Effect {
+                verb,
+                target: target.to_owned(),
+                evidence: clause.to_owned(),
+                policy: EffectPolicy::Undecided,
+                policy_literal: None,
+            },
+        );
+        return;
+    }
+    if (text.contains("pas encore décidé")
+        || text.contains("not decided")
+        || text.starts_with("maybe "))
+        && let Some(verb) = effect_words(text).first().copied()
+    {
+        push_effect(
+            &mut reading.plan,
+            Effect {
+                verb,
+                target: text.to_owned(),
+                evidence: clause.to_owned(),
+                policy: EffectPolicy::Undecided,
+                policy_literal: None,
+            },
+        );
+        return;
+    }
+    // A numeric attempt bound rides the clause; a clause that is only the bound is consumed.
+    if let Some(n) = retry_bound(text) {
+        push_obligation(
+            &mut reading.plan,
+            Obligation {
+                kind: ObligationKind::RetryBound(n),
+                evidence: clause.to_owned(),
+            },
+        );
+        let only_bound = text.starts_with("chaque agent a")
+            || text.starts_with("arrête la recherche")
+            || text.starts_with("stop the research")
+            || text.starts_with("limite ")
+            || text.starts_with("limit ")
+            || text.starts_with("avec au maximum")
+            || text.starts_with("with at most")
+            || text.starts_with("at most")
+            || text.starts_with("au maximum")
+            || text.contains("cycles de correction");
+        if only_bound {
+            return;
+        }
+    }
+    // Recheck the current version before the final action.
+    if let Some((pos, _)) = earliest(text, REVISION_MARKERS) {
+        read_prefix(prefix_before(text, pos), clause, reading, state);
+        push_obligation(
+            &mut reading.plan,
+            Obligation {
+                kind: ObligationKind::RevisionCheck,
+                evidence: clause.to_owned(),
+            },
+        );
+        return;
+    }
+    // Deduplication by identifier.
+    let dedup_head = [
+        "déduplique",
+        "dédoublonne",
+        "dédoublonnez",
+        "dédupliquez",
+        "deduplicate",
+        "dedupe",
+        "remove duplicates",
+        "prevent duplicates",
+        "de-duplicate",
+    ]
+    .iter()
+    .any(|m| text.starts_with(m));
+    if dedup_head
+        || text.contains("no second action for the same")
+        || text.contains("pas de seconde action")
+        || text.contains("évite les doublons")
+        || text.contains("avoid duplicates")
+    {
+        push_obligation(
+            &mut reading.plan,
+            Obligation {
+                kind: ObligationKind::Dedup,
+                evidence: clause.to_owned(),
+            },
+        );
+        return;
+    }
+    // The final action requires a fresh human validation.
+    if let Some((pos, marker)) = earliest(text, FINAL_GATE_MARKERS) {
+        read_prefix(prefix_before(text, pos), clause, reading, state);
+        let after = text.get(pos + marker.len()..).unwrap_or_default();
+        let verbs = effect_words(after);
+        if verbs.is_empty() {
+            gate_last_automatic(reading, state);
+        } else {
+            for verb in verbs {
+                push_effect(
+                    &mut reading.plan,
+                    Effect {
+                        verb,
+                        target: after.trim().to_owned(),
+                        evidence: clause.to_owned(),
+                        policy: EffectPolicy::HumanFirst,
+                        policy_literal: None,
+                    },
+                );
+            }
+        }
+        return;
+    }
+    // A gate naming its effect: "ask me before any refund".
+    if let Some((pos, marker)) = earliest(text, NAMED_GATE_MARKERS) {
+        read_prefix(prefix_before(text, pos), clause, reading, state);
+        let target = text.get(pos + marker.len()..).unwrap_or_default();
+        let verbs = effect_words(target);
+        if verbs.is_empty() {
+            gate_last_automatic(reading, state);
+        } else {
+            for verb in verbs {
+                let literal =
+                    (verb.moves_money() && money_literal(clause)).then(|| clause.to_owned());
+                push_effect(
+                    &mut reading.plan,
+                    Effect {
+                        verb,
+                        target: target.trim().to_owned(),
+                        evidence: clause.to_owned(),
+                        policy: EffectPolicy::HumanFirst,
+                        policy_literal: literal,
+                    },
+                );
+            }
+        }
+        return;
+    }
+    // Explicit prohibition, at the start or after the request it restricts.
+    let forbidden = earliest(text, FORBIDDEN_MARKERS)
+        .map(|(pos, marker)| (pos, text.get(pos + marker.len()..).unwrap_or_default()))
+        .or_else(|| {
+            let negated = (text.starts_with("ne ") || text.starts_with("n'"))
+                && (text.contains(" jamais") || text.contains(" pas ") || text.contains(" aucun"));
+            negated.then_some((0, text))
+        });
+    if let Some((pos, target)) = forbidden {
+        read_prefix(prefix_before(text, pos), clause, reading, state);
+        let verbs = effect_words(target);
+        if verbs.is_empty() {
+            reading.plan.constraints.push(clause.to_owned());
+        } else {
+            for verb in verbs {
+                let policy = if state.conflict_marker {
+                    EffectPolicy::Conflict
+                } else {
+                    EffectPolicy::Forbidden
+                };
+                push_effect(
+                    &mut reading.plan,
+                    Effect {
+                        verb,
+                        target: target.trim().to_owned(),
+                        evidence: clause.to_owned(),
+                        policy,
+                        policy_literal: None,
+                    },
+                );
+            }
+        }
+        return;
+    }
+    read_clause(&lower, clause, reading, &mut state.money_sentences);
+}
+
+/// Deterministically read one intent (already folded by [`fold_apostrophes`]).
 pub(super) fn read(intent: &str) -> Reading {
     let mut reading = Reading::default();
-    let mut final_gate = false;
-    let mut conflict_marker = false;
-    let mut money_sentences: Vec<String> = Vec::new();
+    let mut state = ReadState {
+        conflict_marker: false,
+        final_gate: false,
+        money_sentences: Vec::new(),
+    };
     for sentence in split_sentences(intent) {
         let lower = normalize(sentence);
         let text = strip_filler(&lower);
         if money_literal(sentence) {
-            money_sentences.push(sentence.to_owned());
+            state.money_sentences.push(sentence.to_owned());
             reading.plan.bindings.push(Binding {
                 role: "money_policy",
                 literal: sentence.to_owned(),
             });
         }
-        if let Some(n) = retry_bound(text) {
-            reading.plan.obligations.push(Obligation {
-                kind: ObligationKind::RetryBound(n),
-                evidence: sentence.to_owned(),
-            });
-            if text.starts_with("chaque agent a")
-                || text.starts_with("arrête la recherche")
-                || text.contains("cycles de correction")
-            {
-                continue;
-            }
-        }
         if text.contains("contradiction")
             || text.contains("contradictory")
             || text.contains("these two instructions")
+            || text.contains("ces deux consignes")
         {
-            conflict_marker = true;
+            state.conflict_marker = true;
             reading.plan.constraints.push(sentence.to_owned());
             continue;
-        }
-        if text.contains("vérifie de nouveau la version")
-            || text.contains("re-check the current")
-            || text.contains("recheck the current")
-            || text.contains("check the current version again")
-        {
-            reading.plan.obligations.push(Obligation {
-                kind: ObligationKind::RevisionCheck,
-                evidence: sentence.to_owned(),
-            });
-            continue;
-        }
-        if text.starts_with("déduplique")
-            || text.starts_with("dédoublonne")
-            || text.contains("no second action for the same")
-            || text.contains("pas de seconde action")
-        {
-            reading.plan.obligations.push(Obligation {
-                kind: ObligationKind::Dedup,
-                evidence: sentence.to_owned(),
-            });
-            continue;
-        }
-        if text.contains("cette action finale exige la validation humaine")
-            || text.contains("this final action requires human validation")
-            || text.contains("final action requires human approval")
-        {
-            final_gate = true;
-            continue;
-        }
-        if text.starts_with("arrête-toi après")
-            || text.contains("aucune autre action n'est demandée")
-            || text.contains("no other step")
-            || text.contains("nothing else")
-        {
-            reading.plan.constraints.push(sentence.to_owned());
-            continue;
-        }
-        if (text.contains("pose-moi la question") || text.contains("ask me the question"))
-            && !text.starts_with("je n'ai pas")
-        {
-            continue;
-        }
-        // Explicit indecision about an effect.
-        for marker in [
-            "je n'ai pas encore décidé si le workflow doit ",
-            "je n'ai pas encore décidé si le workflow devait ",
-            "je n'ai pas encore décidé si ",
-            "i have not decided whether the workflow should ",
-            "i have not decided whether to ",
-            "i have not decided whether ",
-        ] {
-            if let Some(pos) = text.find(marker) {
-                let target = text
-                    .get(pos + marker.len()..)
-                    .unwrap_or_default()
-                    .split(['.', ';'])
-                    .next()
-                    .unwrap_or_default()
-                    .trim();
-                let verb = effect_words(target)
-                    .first()
-                    .copied()
-                    .unwrap_or(EffectVerb::Other);
-                push_effect(
-                    &mut reading.plan,
-                    Effect {
-                        verb,
-                        target: target.to_owned(),
-                        evidence: sentence.to_owned(),
-                        policy: EffectPolicy::Undecided,
-                        policy_literal: None,
-                    },
-                );
-                break;
-            }
-        }
-        if text.contains("pas encore décidé")
-            || text.contains("have not decided")
-            || text.starts_with("maybe ")
-        {
-            if !reading
-                .plan
-                .effects
-                .iter()
-                .any(|e| e.policy == EffectPolicy::Undecided)
-                && let Some(verb) = effect_words(text).first().copied()
-            {
-                push_effect(
-                    &mut reading.plan,
-                    Effect {
-                        verb,
-                        target: text.to_owned(),
-                        evidence: sentence.to_owned(),
-                        policy: EffectPolicy::Undecided,
-                        policy_literal: None,
-                    },
-                );
-            }
-            continue;
-        }
-        // Explicit prohibition.
-        let forbidden_target = [
-            "il est aussi absolument interdit de ",
-            "il est aussi absolument interdit d'",
-            "il est absolument interdit de ",
-            "il est absolument interdit d'",
-            "il est aussi interdit de ",
-            "il est aussi interdit d'",
-            "il est interdit de ",
-            "il est interdit d'",
-            "it is absolutely forbidden to ",
-            "it is forbidden to ",
-            "never ",
-            "do not ",
-            "don't ",
-            "nothing should be ",
-        ]
-        .iter()
-        .find_map(|m| text.find(m).map(|pos| (pos, *m)))
-        .and_then(|(pos, m)| text.get(pos + m.len()..))
-        .or_else(|| {
-            let negated = (text.starts_with("ne ") || text.starts_with("n'"))
-                && (text.contains(" jamais") || text.contains(" pas ") || text.contains(" aucun"));
-            negated.then_some(text)
-        });
-        if let Some(target) = forbidden_target {
-            let verbs = effect_words(target);
-            if verbs.is_empty() {
-                reading.plan.constraints.push(sentence.to_owned());
-            } else {
-                for verb in verbs {
-                    let policy = if conflict_marker {
-                        EffectPolicy::Conflict
-                    } else {
-                        EffectPolicy::Forbidden
-                    };
-                    push_effect(
-                        &mut reading.plan,
-                        Effect {
-                            verb,
-                            target: target.trim().to_owned(),
-                            evidence: sentence.to_owned(),
-                            policy,
-                            policy_literal: None,
-                        },
-                    );
-                }
-            }
-            continue;
-        }
-        // Named human gate: "ask me before any refund" / "demande mon accord avant tout remboursement".
-        let gate_markers = [
-            "demande mon accord avant ",
-            "demandez mon accord avant ",
-            "demander mon accord avant ",
-            "demande un accord humain avant ",
-            "require my approval before ",
-            "ask me before ",
-            "ask for my approval before ",
-            "get my approval before ",
-            "obtain my approval before ",
-            "hold every ",
-            "attends ma validation avant ",
-            "wait for my approval before ",
-            "with my approval before ",
-            "après mon accord pour ",
-        ];
-        if let Some((pos, marker)) = gate_markers
-            .iter()
-            .find_map(|m| text.find(m).map(|p| (p, *m)))
-        {
-            let target = text.get(pos + marker.len()..).unwrap_or_default();
-            let verbs = effect_words(target);
-            let before = text
-                .get(..pos)
-                .unwrap_or_default()
-                .trim()
-                .trim_end_matches([',', ' ']);
-            let mut consumed_before = false;
-            if !before.is_empty() {
-                consumed_before = read_clause(before, sentence, &mut reading, &mut money_sentences);
-            }
-            if verbs.is_empty() {
-                // "get my approval before sending it": gate the effect the sentence itself requests.
-                let gated: Vec<EffectVerb> = reading
-                    .plan
-                    .effects
-                    .iter()
-                    .filter(|e| e.policy == EffectPolicy::Automatic)
-                    .map(|e| e.verb)
-                    .collect();
-                if gated.is_empty() {
-                    reading.plan.unknowns.push(format!(
-                        "human approval named without a recognizable effect: {sentence}"
-                    ));
-                }
-                for verb in gated {
-                    push_effect(
-                        &mut reading.plan,
-                        Effect {
-                            verb,
-                            target: target.to_owned(),
-                            evidence: sentence.to_owned(),
-                            policy: EffectPolicy::HumanFirst,
-                            policy_literal: None,
-                        },
-                    );
-                }
-            } else {
-                for verb in verbs {
-                    let literal = money_sentences
-                        .iter()
-                        .find(|s| verb.moves_money() && s.as_str() == sentence)
-                        .cloned();
-                    push_effect(
-                        &mut reading.plan,
-                        Effect {
-                            verb,
-                            target: target.trim().to_owned(),
-                            evidence: sentence.to_owned(),
-                            policy: EffectPolicy::HumanFirst,
-                            policy_literal: literal,
-                        },
-                    );
-                }
-            }
-            let _ = consumed_before;
-            continue;
-        }
-        if text.contains("get my approval before") || text.contains("but get my approval") {
-            final_gate = true;
         }
         // Trigger / cadence prefix, or a supplied document.
         let mut body = sentence;
@@ -947,15 +1078,10 @@ pub(super) fn read(intent: &str) -> Reading {
         let clauses = split_clauses(body);
         reading.clauses += clauses.len();
         for clause in clauses {
-            read_clause(
-                &normalize(clause),
-                clause,
-                &mut reading,
-                &mut money_sentences,
-            );
+            read_policy_or_clause(clause, &mut reading, &mut state);
         }
     }
-    if final_gate {
+    if state.final_gate {
         if let Some(last) = reading
             .plan
             .effects
@@ -973,7 +1099,7 @@ pub(super) fn read(intent: &str) -> Reading {
     }
     for effect in &mut reading.plan.effects {
         if effect.verb.moves_money() && effect.policy_literal.is_none() {
-            effect.policy_literal = money_sentences.first().cloned();
+            effect.policy_literal = state.money_sentences.first().cloned();
         }
     }
     collect_bindings(intent, &mut reading.plan);
@@ -1014,6 +1140,14 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         }
         return true;
     }
+    if text.starts_with("si ")
+        || text.starts_with("if ")
+        || text.starts_with("lorsque ")
+        || text.starts_with("unless ")
+    {
+        reading.plan.constraints.push(original.to_owned());
+        return true;
+    }
     let Some((phrase, head)) = head_of(text) else {
         let declarative = [
             " est ",
@@ -1022,6 +1156,11 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             " contient ",
             " contiennent ",
             " arrive",
+            " annule ",
+            " want ",
+            " veux ",
+            " annulent ",
+            " suffisent",
             " peuvent ",
             " peut ",
             " doit ",
@@ -1100,6 +1239,23 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
         .map(|w| w.trim_end_matches(['.', ',', ';', ')']))
         .find(|w| w.starts_with("http://") || w.starts_with("https://"))
         .map(str::to_owned);
+    if let Some(url) = &url
+        && matches!(
+            head,
+            Head::Op(Op::Draft | Op::Extract | Op::Classify | Op::Validate | Op::Compute)
+        )
+    {
+        reading.plan.bindings.push(Binding {
+            role: "url",
+            literal: url.clone(),
+        });
+        reading.plan.push_step(Step {
+            op: Op::Fetch,
+            evidence: original.to_owned(),
+            detail: url.clone(),
+            categories: Vec::new(),
+        });
+    }
     if let Some(url) = &url
         && matches!(
             head,
@@ -1192,10 +1348,13 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             );
         }
         Head::Dedup => {
-            reading.plan.obligations.push(Obligation {
-                kind: ObligationKind::Dedup,
-                evidence: original.to_owned(),
-            });
+            push_obligation(
+                &mut reading.plan,
+                Obligation {
+                    kind: ObligationKind::Dedup,
+                    evidence: original.to_owned(),
+                },
+            );
         }
     }
     true

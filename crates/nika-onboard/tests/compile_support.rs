@@ -191,17 +191,21 @@ fn authoring_values_cannot_inject_expressions_or_credential_endpoints() {
 }
 
 #[test]
-fn partial_support_intent_names_the_unmatched_clause() {
+fn partial_support_intent_falls_through_to_the_general_reader() {
+    // The exact grammar does not own "send the reply"; the general reader keeps the
+    // effect as a bound question instead of stopping at the grammar's fragment.
     let out = compile(&CompileRequest::create(
         "Look up the customer and draft a reply and send the reply",
     ))
     .unwrap();
     assert!(out.candidate.is_none());
     assert!(
-        out.diagnostics
-            .iter()
-            .any(|d| d.message.contains("send the reply"))
+        out.questions.iter().any(|q| q.key == "const.send_endpoint"),
+        "{out:#?}"
     );
+    let plan = out.provenance.plan.expect("general plan");
+    assert_eq!(plan["effects"][0]["verb"], "send");
+    assert_eq!(plan["effects"][0]["evidence"], "send the reply");
 }
 
 #[test]

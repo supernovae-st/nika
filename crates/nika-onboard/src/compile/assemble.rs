@@ -499,7 +499,7 @@ pub(super) fn assemble(
                     node["retry"] = json!({"max_attempts": n});
                 }
                 d.task("extract", node, true);
-                d.tool("extract_anchors", "nika:jq", json!({"input": {"fields": "${{ with.fields }}", "item": "${{ inputs.item }}"}, "expression": ". as $root | all(.fields[]; (.anchor | length) == 0 or ($root.item | contains(.anchor)))"}), Some(json!({"fields": "${{ tasks.extract.output.fields }}"})), false);
+                d.tool("extract_anchors", "nika:jq", json!({"input": {"fields": "${{ with.fields }}", "item": "${{ inputs.item }}"}, "expression": ". as $root | all(.fields[]; . as $f | ($f.anchor | length) == 0 or ($root.item | contains($f.anchor)))"}), Some(json!({"fields": "${{ tasks.extract.output.fields }}"})), false);
                 d.tool("extract_admit", "nika:assert", json!({"condition": "${{ with.valid }}", "message": "Every extracted anchor must be copied from the supplied text; this is structural evidence, not semantic proof."}), Some(json!({"valid": "${{ tasks.extract_anchors.output }}"})), false);
                 d.facts
                     .push(("fields", "${{ tasks.extract.output.fields }}".to_owned()));
@@ -591,7 +591,7 @@ pub(super) fn assemble(
                     sources[*name] = json!(format!("${{{{ with.{name} }}}}"));
                     with[*name] = json!(template);
                 }
-                d.tool("draft_anchors", "nika:jq", json!({"input": sources, "expression": ". as $root | ($root | del(.facts_used) | tojson) as $corpus | all(.facts_used[]; (.anchor | length) > 0 and ($corpus | contains(.anchor)))"}), Some(with), false);
+                d.tool("draft_anchors", "nika:jq", json!({"input": sources, "expression": ". as $root | ($root | del(.facts_used) | tojson) as $corpus | all(.facts_used[]; . as $fact | ($fact.anchor | length) > 0 and ($corpus | contains($fact.anchor)))"}), Some(with), false);
                 d.tool("draft_admit", "nika:assert", json!({"condition": "${{ with.valid }}", "message": "Every declared draft claim needs an exact source anchor; this is structural evidence, not semantic proof of the prose."}), Some(json!({"valid": "${{ tasks.draft_anchors.output }}"})), false);
                 d.facts
                     .push(("draft", "${{ tasks.draft.output.body }}".to_owned()));

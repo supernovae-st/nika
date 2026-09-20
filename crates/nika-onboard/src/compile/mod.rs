@@ -179,7 +179,9 @@ fn create(
     } else if nika_pack::template_names().iter().any(|name| name == slug) {
         nika_pack::template(slug)
     } else {
-        if support::create(intent, request, out)? {
+        // A partial support match is not a verdict: the general reader is a superset.
+        if let Ok(Some(plan)) = support::resolve(intent) {
+            support::assemble(&plan, request, out)?;
             out.provenance.strategy = Some(types::Strategy::Support);
             return Ok(());
         }
