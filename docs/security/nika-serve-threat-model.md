@@ -270,3 +270,12 @@ Reopen ADR-117 before adding multi-tenancy, browser credential storage,
 in-process TLS, arbitrary workflow uploads, webhook triggers,
 artifact download, or a second authentication mechanism. Each changes a trust
 boundary rather than merely adding a route.
+
+Webhook triggers are reopened by ADR-136 (proposed): one route family,
+`POST /v1/ingress/{hook_id}`, authenticated by a per-binding policy (Standard
+Webhooks HMAC over the raw bytes, or a per-binding token) with a secret held
+as an environment reference, admitted through the same job door with
+`ingress:<schedule>:<delivery-id>` idempotency. Until that ADR is accepted and
+its proof lands, the listener still exposes no ingress route, and the
+app-owned path (the application verifies the sender, then calls the SDK)
+remains the only inbound webhook contract.
