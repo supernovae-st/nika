@@ -483,7 +483,11 @@ fn compile_args() -> compile::CompileArgs {
         authoring_model: None,
         authoring_max_tokens: None,
         authoring_timeout: None,
+        hot_policy: None,
+        authoring_samples: None,
+        decision_model: None,
         force: false,
+        fresh: false,
         json: false,
         list: false,
     }
