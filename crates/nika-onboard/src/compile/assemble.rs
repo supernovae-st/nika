@@ -169,7 +169,7 @@ impl Doc {
     }
     /// The nearest upstream result for a written file: a structured target prefers
     /// data, a prose target prefers text; nothing is invented when no fact exists.
-    fn content_for(&self, path: &str) -> Option<String> {
+    fn content_fact(&self, path: &str) -> Option<&Fact> {
         const PROSE: [&str; 11] = [
             "draft",
             "exploration",
@@ -201,15 +201,15 @@ impl Doc {
         } else {
             PROSE
         };
-        order.iter().find_map(|name| {
-            self.facts
-                .iter()
-                .rev()
-                .find(|f| f.name == *name)
-                .map(|f| f.template.clone())
-        })
+        order
+            .iter()
+            .find_map(|name| self.facts.iter().rev().find(|f| f.name == *name))
     }
 }
+
+/// Facts that are data, not text: a CSV, YAML or TOML destination receives them through a
+/// conversion stage instead of their JSON text.
+const DATA_FACTS: [&str; 5] = ["computed", "fields", "validation", "records", "record"];
 
 /// An anchor law over the whole corpus: every string the step could copy from is a
 /// candidate; non-string facts are compared through their JSON text.
@@ -403,7 +403,9 @@ fn emit_read(d: &mut Doc, b: &Bindings) {
                 false,
             );
             d.fact("document", "${{ tasks.read_source.output }}", Kind::Corpus);
-            if let Some(format) = Structured::of(path) {
+            if let Some(format) = Structured::of(path)
+                && b.parses()
+            {
                 emit_parse(d, format);
             }
         }
@@ -412,7 +414,8 @@ fn emit_read(d: &mut Doc, b: &Bindings) {
     }
 }
 
-/// A structured source is decoded once for code rules; prompts keep the raw text.
+/// A structured source is decoded once for code rules; prompts keep the raw text. Emitted
+/// only when a code rule, an endpoint payload or a structured write consumes the records.
 fn emit_parse(d: &mut Doc, format: Structured) {
     let with = json!({"document": "${{ tasks.read_source.output }}"});
     match format {
@@ -542,6 +545,7 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
                 );
                 d.fact("computed", "${{ tasks.compute.output }}", Kind::Derived);
                 d.root["outputs"]["computed"] = json!("${{ tasks.compute.output }}");
+                emit_compute_summary(d, plan);
             }
         }
         Op::Validate => {
@@ -573,6 +577,37 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
         }
         Op::Read | Op::Fetch | Op::Lookup | Op::Search => {}
     }
+}
+
+/// The deterministic count and totals of a computed result: `{count, totals}` where the
+/// totals sum every numeric column of an array of objects (identifier columns excluded),
+/// rounded to two decimals. A language step that must state how many rows were kept and
+/// what they add up to anchors those claims here, never in its own arithmetic.
+const SUMMARY: &str = r#". as $c | if ($c | type) == "array" then {count: ($c | length), totals: ([$c[] | select(type == "object") | to_entries[] | select(((.key | test("(^|_)id$")) | not) and (((.value | type) == "number") or (((.value | type) == "string") and (.value | test("^-?[0-9]+([.][0-9]+)?$"))))) | {key, value: (.value | tonumber)}] | group_by(.key) | map({key: .[0].key, value: ((map(.value) | add) * 100 | round / 100)}) | from_entries)} else {count: (if ($c | type) == "object" then ($c | length) else 1 end), totals: {}} end"#;
+
+/// Emitted when a language step follows the compute: the summary is a fact it reads.
+fn emit_compute_summary(d: &mut Doc, plan: &Plan) {
+    let later_language = plan
+        .steps
+        .iter()
+        .skip_while(|s| s.op != Op::Compute)
+        .skip(1)
+        .any(|s| matches!(s.op, Op::Draft | Op::Extract | Op::Validate | Op::Explore));
+    if !later_language {
+        return;
+    }
+    d.tool(
+        "compute_summary",
+        "nika:jq",
+        json!({"input": "${{ with.computed }}", "expression": SUMMARY}),
+        Some(json!({"computed": "${{ tasks.compute.output }}"})),
+        false,
+    );
+    d.fact(
+        "summary",
+        "${{ tasks.compute_summary.output }}",
+        Kind::Derived,
+    );
 }
 
 fn emit_extract(d: &mut Doc, plan: &Plan, guide: &str, step: &Step, retry: Option<u32>) {
@@ -688,11 +723,16 @@ fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
 }
 
 /// Every write effect is its own task with its own content binding: the nearest
-/// upstream result. A write with nothing upstream is a finding, never an invented
-/// input. Returns false when a write could not be bound.
+/// upstream result. A CSV, YAML or TOML destination whose content is data gets a
+/// `nika:convert` stage (`<stem>_<ext>`) feeding the write; a JSON destination takes the
+/// data as JSON; a prose destination takes text. A write with nothing upstream is a
+/// finding, never an invented input. Returns false when a write could not be bound.
 fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) -> bool {
     for (index, effect) in writes.iter().enumerate() {
-        let Some(content) = d.content_for(&effect.path) else {
+        let Some((name, mut content)) = d
+            .content_fact(&effect.path)
+            .map(|f| (f.name, f.template.clone()))
+        else {
             super::finding(
                 out,
                 DiagnosticKind::Unknown,
@@ -720,6 +760,20 @@ fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) ->
         };
         d.root["const"][&constant] = json!(effect.path);
         d.writes.push(json!(effect.path));
+        if let Some(format @ (Structured::Csv | Structured::Yaml | Structured::Toml)) =
+            Structured::of(&effect.path)
+            && DATA_FACTS.contains(&name)
+        {
+            let stage = format!("{}_{}", effect.stem, format.word());
+            d.tool(
+                &stage,
+                "nika:convert",
+                json!({"input": "${{ with.data }}", "from": "json", "to": format.word()}),
+                Some(json!({"data": content})),
+                true,
+            );
+            content = format!("${{{{ tasks.{stage}.output }}}}");
+        }
         let mut with = json!({"content": content});
         if effect.gated {
             let review = format!("{task}_review");
@@ -875,25 +929,26 @@ mod tests {
     #[test]
     fn a_written_file_takes_the_nearest_result_of_its_kind() {
         let mut d = Doc::new("t", false);
-        assert_eq!(d.content_for("./out/x.md"), None);
+        let content = |d: &Doc, path: &str| d.content_fact(path).map(|f| f.template.clone());
+        assert_eq!(content(&d, "./out/x.md"), None);
         d.fact("document", "${{ tasks.read_source.output }}", Kind::Corpus);
         d.fact("records", "${{ tasks.parse_source.output }}", Kind::Parsed);
         assert_eq!(
-            d.content_for("./out/x.md").as_deref(),
+            content(&d, "./out/x.md").as_deref(),
             Some("${{ tasks.read_source.output }}")
         );
         assert_eq!(
-            d.content_for("./out/x.json").as_deref(),
+            content(&d, "./out/x.json").as_deref(),
             Some("${{ tasks.parse_source.output }}")
         );
         d.fact("computed", "${{ tasks.compute.output }}", Kind::Derived);
         d.fact("draft", "${{ tasks.draft.output.body }}", Kind::Derived);
         assert_eq!(
-            d.content_for("./out/x.md").as_deref(),
+            content(&d, "./out/x.md").as_deref(),
             Some("${{ tasks.draft.output.body }}")
         );
         assert_eq!(
-            d.content_for("./out/x.json").as_deref(),
+            content(&d, "./out/x.json").as_deref(),
             Some("${{ tasks.compute.output }}")
         );
         // Parsed data never reaches a prompt; every fact reaches a code rule.

@@ -71,6 +71,7 @@ mod paths;
 pub(crate) mod pattern;
 mod plan;
 mod retrieve;
+mod shape;
 mod support;
 mod types;
 mod wire;

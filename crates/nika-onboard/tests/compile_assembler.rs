@@ -126,7 +126,149 @@ fn notes_plan() -> Value {
       "obligations":[],"constraints":["3 lignes max","pas de blabla juste les decisions et les trucs a faire"],"unknowns":[]})
 }
 
+const BIG_ORDERS: &str = "Read ./data/orders.csv, keep only the rows whose amount is strictly greater than 100, and write those rows to ./out/big_orders.csv. Then write ./out/summary.md with one line stating how many rows were kept and the total of their amounts.";
+/// The trusted plan of the fidelity control (case a): the threshold is a compute step.
+fn big_orders_plan() -> Value {
+    json!({"steps":[
+        {"op":"read","detail":"./data/orders.csv","evidence":"Read ./data/orders.csv"},
+        {"op":"compute","detail":"keep only the rows whose amount is strictly greater than 100","evidence":"keep only the rows whose amount is strictly greater than 100"},
+        {"op":"draft","detail":"one line stating how many rows were kept and the total of their amounts","evidence":"one line stating how many rows were kept and the total of their amounts"}],
+      "effects":[
+        {"verb":"write","target":"./out/big_orders.csv","policy":"automatic","evidence":"write those rows to ./out/big_orders.csv"},
+        {"verb":"write","target":"./out/summary.md","policy":"automatic","evidence":"write ./out/summary.md with one line stating how many rows were kept and the total of their amounts"}],
+      "obligations":[],"constraints":[],"unknowns":[]})
+}
+/// The same proposal with the threshold demoted to a prompt instruction.
+fn demoted_plan() -> Value {
+    let mut plan = big_orders_plan();
+    plan["steps"].as_array_mut().unwrap().remove(1);
+    plan["constraints"] = json!(["keep only the rows whose amount is strictly greater than 100"]);
+    plan
+}
+const RULE: (&str, &str) = (
+    "const.rule_expression",
+    r#"".records | map(select((.amount | tonumber) > 100))""#,
+);
+
 const MODEL: (&str, &str) = ("model", r#""mock/echo""#);
+
+fn operations(out: &CompileOutcome, op: &str) -> Vec<Value> {
+    out.provenance.plan.as_ref().unwrap()["operations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|o| o["op"] == op)
+        .cloned()
+        .collect()
+}
+
+// ── a numeric rule is an operation, never prompt guidance ───────────────────────
+// The control (2026-09-20, case a) showed a model reading "strictly greater than 100" as
+// a constraint: the draft was then asked to filter rows in prose. A digit beside a
+// comparison cue is a code rule; the compiler promotes it to a compute stage anchored in
+// the request, right after the sources, so the draft sees the computed rows.
+#[tokio::test]
+async fn a_numeric_filter_demoted_to_a_constraint_is_promoted_to_a_compute_stage() {
+    let asked = compile(BIG_ORDERS, &demoted_plan(), &[MODEL]).await;
+    assert!(
+        keys(&asked).contains(&"const.rule_expression"),
+        "{asked:#?}"
+    );
+    let text = label(&asked, "const.rule_expression");
+    assert!(
+        text.contains("keep only the rows whose amount is strictly greater than 100"),
+        "{text}"
+    );
+    assert!(text.contains("{document, records}"), "{text}");
+    let ops: Vec<&str> = asked.provenance.plan.as_ref().unwrap()["operations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| o["op"].as_str().unwrap())
+        .collect();
+    assert_eq!(ops, ["read", "compute", "draft"], "{asked:#?}");
+    let compute = &operations(&asked, "compute")[0];
+    assert_eq!(
+        compute["evidence"],
+        "keep only the rows whose amount is strictly greater than 100"
+    );
+    assert_eq!(
+        asked.provenance.plan.as_ref().unwrap()["constraints"],
+        json!([]),
+        "the promoted rule leaves the prompt guidance"
+    );
+    let out = compile(BIG_ORDERS, &demoted_plan(), &[MODEL, RULE]).await;
+    let doc = document(&out);
+    let compute = &tasks(&doc)["compute"];
+    assert_eq!(compute["invoke"]["tool"], "nika:jq");
+    assert_eq!(
+        compute["with"]["records"],
+        "${{ tasks.parse_source.output }}"
+    );
+    let summary = &tasks(&doc)["compute_summary"];
+    assert_eq!(summary["invoke"]["tool"], "nika:jq", "{doc:#}");
+    assert_eq!(summary["with"]["computed"], "${{ tasks.compute.output }}");
+    let expression = summary["invoke"]["args"]["expression"].as_str().unwrap();
+    assert!(expression.contains("count:"), "{expression}");
+    assert!(expression.contains("totals:"), "{expression}");
+    let draft = &tasks(&doc)["draft"];
+    assert_eq!(draft["with"]["computed"], "${{ tasks.compute.output }}");
+    assert_eq!(
+        draft["with"]["summary"],
+        "${{ tasks.compute_summary.output }}"
+    );
+    let prompt = draft["infer"]["prompt"].as_str().unwrap();
+    assert!(prompt.contains("summary: ${{ with.summary }}"), "{prompt}");
+    assert!(
+        !prompt.contains("Instruction from the requester: keep only"),
+        "{prompt}"
+    );
+    // Idempotent: a plan that already carries the compute step gains no second one.
+    let again = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
+    let computes = operations(&again, "compute");
+    assert_eq!(computes.len(), 1, "{computes:#?}");
+    assert_eq!(
+        computes[0]["detail"],
+        "keep only the rows whose amount is strictly greater than 100"
+    );
+}
+
+// ── a structured destination receives its format, not JSON ─────────────────────
+// The control (case a) wrote the computed JSON array into ./out/big_orders.csv. A .csv,
+// .yaml or .toml destination whose content is data gets a nika:convert stage feeding
+// the write; .json stays JSON (see two_write_clauses_yield_two_write_tasks_with_typed_content).
+#[tokio::test]
+async fn a_csv_destination_receives_csv_from_the_computed_rows() {
+    let out = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
+    let doc = document(&out);
+    assert_eq!(
+        doc["const"]["output_path"], "./out/big_orders.csv",
+        "{doc:#}"
+    );
+    assert_eq!(doc["const"]["summary_path"], "./out/summary.md");
+    let convert = &tasks(&doc)["big_orders_csv"];
+    assert_eq!(convert["invoke"]["tool"], "nika:convert", "{doc:#}");
+    assert_eq!(convert["invoke"]["args"]["from"], "json");
+    assert_eq!(convert["invoke"]["args"]["to"], "csv");
+    assert_eq!(convert["invoke"]["args"]["input"], "${{ with.data }}");
+    assert_eq!(convert["with"]["data"], "${{ tasks.compute.output }}");
+    assert_eq!(
+        tasks(&doc)["write_output"]["with"]["content"],
+        "${{ tasks.big_orders_csv.output }}"
+    );
+    assert_eq!(
+        tasks(&doc)["write_summary"]["with"]["content"],
+        "${{ tasks.draft.output.body }}"
+    );
+    assert!(
+        doc["permits"]["tools"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("nika:convert"))
+    );
+    // The CSV source is parsed because the compute consumes the rows.
+    assert_eq!(tasks(&doc)["parse_source"]["invoke"]["args"]["from"], "csv");
+}
 
 // ── D5 · the anchor law judges the corpus the step consumed ──────────────────────
 #[tokio::test]
@@ -215,11 +357,9 @@ async fn a_read_transform_write_workflow_declares_no_incoming_item() {
     );
     assert_eq!(doc["const"]["source_path"], "./inventario/stock.json");
     assert_eq!(doc["const"]["output_path"], "./salida/reposicion.md");
-    // A JSON source is also parsed for code, without being pasted twice into prompts.
-    assert_eq!(
-        tasks(&doc)["parse_source"]["invoke"]["args"]["expression"],
-        "fromjson"
-    );
+    // A JSON source is parsed for code only when a code rule, an endpoint payload or a
+    // structured write consumes it; here nothing does, so no parsed copy is emitted.
+    assert!(tasks(&doc).get("parse_source").is_none(), "{doc:#}");
     let prompt = tasks(&doc)["extract"]["infer"]["prompt"].as_str().unwrap();
     assert!(
         prompt.contains("document: ${{ with.document }}"),

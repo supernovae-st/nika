@@ -101,6 +101,16 @@ pub(super) struct Bindings {
 }
 
 impl Bindings {
+    /// Whether a structured source must be decoded for code: a code rule, an endpoint
+    /// payload or a structured write consumes the parsed records; a prompt never does.
+    pub(super) fn parses(&self) -> bool {
+        !matches!(self.rule, Need::Absent)
+            || !self.wired.is_empty()
+            || self
+                .writes
+                .iter()
+                .any(|w| Structured::of(&w.path).is_some())
+    }
     pub(super) fn ready(&self, plan: &Plan) -> bool {
         (!uses_model(plan) || self.model.is_some())
             && self.lookup.settled()

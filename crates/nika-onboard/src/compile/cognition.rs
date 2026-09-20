@@ -497,6 +497,9 @@ pub(super) fn replay(
         out.provenance.plan = Some(plan_record(&plan, strategy));
         return Ok(());
     }
+    // A record from an earlier engine may still carry a numeric rule as guidance.
+    let mut plan = plan;
+    super::shape::promote_numeric_rules(&mut plan, intent);
     super::assemble::assemble(&plan, request, out)?;
     record_retrieval(out, intent, Some(&plan));
     out.provenance.strategy = strategy;
@@ -517,6 +520,7 @@ pub(super) fn hot(
     match admit_hot(intent, &reading, request.hot) {
         Ok(()) => {
             record_route(out, &["hot".to_owned()]);
+            super::shape::promote_numeric_rules(&mut reading.plan, intent);
             super::assemble::assemble(&reading.plan, request, out)?;
             record_retrieval(out, intent, Some(&reading.plan));
             out.provenance.strategy = Some(Strategy::Hot);
@@ -621,10 +625,12 @@ fn settle(
         out.provenance.plan = Some(plan.to_json());
         return Ok(out);
     }
-    super::assemble::assemble(plan, request, &mut out)?;
-    record_retrieval(&mut out, intent, Some(plan));
+    let mut plan = plan.clone();
+    super::shape::promote_numeric_rules(&mut plan, intent);
+    super::assemble::assemble(&plan, request, &mut out)?;
+    record_retrieval(&mut out, intent, Some(&plan));
     out.provenance.strategy = Some(strategy);
-    out.provenance.plan = Some(plan_record(plan, Some(strategy)));
+    out.provenance.plan = Some(plan_record(&plan, Some(strategy)));
     Ok(out)
 }
 
@@ -714,7 +720,7 @@ async fn propose<P: ProviderInferDyn>(
 /// verbatim substring, else the request substring it matches once runs of whitespace are
 /// folded on both sides (a model may wrap a line or drop a double space; it may not change
 /// a word). None when nothing in the request matches.
-fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
+pub(super) fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
     let evidence = evidence.trim();
     if evidence.is_empty() {
         return None;
@@ -961,6 +967,9 @@ fn merge(
     for gap in accounting_gaps(intent, &proposal.regions) {
         plan.unknowns.push(gap);
     }
+    // A numeric rule the model demoted to guidance is an operation: promoted here so the
+    // composer's signature and feasibility see the compute step.
+    super::shape::promote_numeric_rules(&mut plan, intent);
     backstop(intent, &mut plan);
     reconcile_refund_backstop(&mut plan, &proposal.regions);
     plan.unknowns.dedup();
