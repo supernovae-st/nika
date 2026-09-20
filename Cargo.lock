@@ -5135,6 +5135,7 @@ dependencies = [
  "nika-pack",
  "nika-providers",
  "nika-runtime",
+ "nika-schema",
  "nika-source",
  "nika-types",
  "nika-verb-infer",
