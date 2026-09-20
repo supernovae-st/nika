@@ -2,11 +2,35 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The runtime's conversation tests: turns, facts, the guard, consent,
-//! the run request, the gate, the identity a remote host drives by.
+//! the run request, the gate, the identity a remote host drives by — over
+//! the ONE compiler. Work reaches the compiler and its candidate is what a
+//! consent lands; a reply is words and never becomes a file; consent is
+//! never a run; an explicit run line runs only on a clean check on disk.
 
 use super::*;
 use crate::intelligence::{DataLocus, IntelligenceKind};
 use crate::reasoner::{NoReasoner, Reply, ScriptedReasoner};
+
+/// A Ready intent: no question, no model, no seat — the compiler's own
+/// deterministic reading (the authoring suite proves the round itself).
+const COPY: &str = "Read ./notes/brief.md and write it to ./out/copy.md";
+/// Where the session lands COPY's candidate in a root without `workflows/`.
+const COPY_DEST: &str = "compiled-workflow.nika";
+/// An intent whose model the compiler must ask for.
+const DRAFT: &str = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
+/// Work the deterministic reader cannot settle alone.
+const GATED: &str =
+    "Read ./draft.md and write it to ./final.md, but a human must approve the write first";
+/// A line that reads as no work at all: the conversation's.
+const SMALL_TALK: &str = "hello there, how are you today?";
+/// A check-clean workflow that pauses at a human gate: the answer is
+/// bound and gates the write (an unbound gate is refused at check).
+const GATE: &str = "nika: gate\npermits: { fs: { read: [\"./draft.md\"], write: [\"./final.md\"] }, tools: [\"nika:read\", \"nika:prompt\", \"nika:write\"] }\ntasks:\n  read_draft:\n    invoke: { tool: \"nika:read\", args: { path: \"./draft.md\" } }\n  approve:\n    invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"Write final.md?\" } }\n  write_final:\n    after: { approve: success }\n    with: { go: \"${{ tasks.approve.output }}\", text: \"${{ tasks.read_draft.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { tool: \"nika:write\", args: { path: \"./final.md\", content: \"${{ with.text }}\" } }\n";
+/// The event a run paused at that gate leaves in its trace.
+const PAUSED: &str = "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"approve\"},{\"key\":\"mode\",\"value\":\"confirm\"},{\"key\":\"message\",\"value\":\"Write final.md?\"}]}\n";
+/// A workflow with findings (no `permits:` block for its program).
+const DIRTY: &str =
+    "nika: drifted\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n";
 
 /// A seat reasoner whose name is the seat itself, as the harness one is.
 struct Seat(&'static str);
@@ -42,6 +66,28 @@ fn ready(kind: IntelligenceKind, locus: DataLocus) -> ResolvedSessionIntelligenc
         ready: true,
         why: None,
     }
+}
+
+/// A session on a harness seat (words only): authoring stays deterministic.
+fn ready_with(dir: &Path, replies: Vec<&str>) -> SessionRuntime {
+    let seated = ResolvedSessionIntelligence {
+        kind: IntelligenceKind::Harness {
+            seat: "codex".to_owned(),
+        },
+        model: None,
+        locus: DataLocus::Remote {
+            product: "codex".to_owned(),
+        },
+        ready: true,
+        why: None,
+    };
+    SessionRuntime::open(
+        dir,
+        seated,
+        Box::new(ScriptedReasoner::new(
+            replies.into_iter().map(str::to_owned).collect(),
+        )),
+    )
 }
 
 /// A chat turn never writes a temp workflow nor a trace: the tree is
@@ -173,10 +219,12 @@ fn an_invented_grammar_is_corrected_before_the_human_sees_it() {
     );
 }
 
-/// Without conversational intelligence the facts still answer and a
-/// free-text turn is refused with the fix, never routed elsewhere.
+/// Without conversational intelligence the facts still answer; a line
+/// that reads as no work is refused with the fix, never routed elsewhere;
+/// a line that reads as work is compiled all the same — the question, the
+/// proposal and the honest incomplete need no model.
 #[test]
-fn without_intelligence_the_facts_stay_and_free_text_is_refused() {
+fn without_intelligence_the_facts_stay_free_text_is_refused_and_work_compiles() {
     let dir = tree();
     let mut s = SessionRuntime::open(
         dir.path(),
@@ -186,8 +234,51 @@ fn without_intelligence_the_facts_stay_and_free_text_is_refused() {
     assert!(
         matches!(s.turn("which builtins exist?"), TurnOutcome::Facts(ref t) if t.contains("nika:read"))
     );
+    for no_work in [SMALL_TALK, "tell me a joke about comets"] {
+        let TurnOutcome::Refusal(why) = s.turn(no_work) else {
+            panic!("no work in the line: the conversation owns it, and none serves");
+        };
+        assert_eq!(why.class, RefusalClass::NoIntelligence, "{why}");
+        assert!(why.text.contains("no conversational intelligence"), "{why}");
+    }
+    // An imperative line is work, never a reply: the compiler reads it
+    // and asks for what it cannot invent, even with no intelligence.
+    let TurnOutcome::Question { key, .. } = s.turn("write a haiku") else {
+        panic!("an imperative line reaches the compiler");
+    };
+    assert_eq!(key, "model");
+    assert!(matches!(s.turn("cancel"), TurnOutcome::Facts(ref t) if t.contains("discarded")));
+    // Work compiles without any intelligence: the candidate is proposed.
+    let TurnOutcome::Proposal { preview, .. } = s.turn(COPY) else {
+        panic!("an explicit intent is Ready without a seat");
+    };
     assert!(
-        matches!(s.turn("write a haiku"), TurnOutcome::Refusal(ref r) if r.text.contains("no conversational intelligence"))
+        preview.starts_with("Nika proposes `compiled-workflow.nika`:"),
+        "{preview}"
+    );
+    assert!(matches!(s.consent("no"), TurnOutcome::Facts(ref t) if t.contains("discarded")));
+    // A hole the compiler cannot invent is asked, not refused.
+    let TurnOutcome::Question { key, .. } = s.turn(DRAFT) else {
+        panic!("the compiler's question needs no intelligence");
+    };
+    assert_eq!(key, "model");
+    assert!(matches!(s.turn("mock/echo"), TurnOutcome::Proposal { .. }));
+    assert!(matches!(s.consent("no"), TurnOutcome::Facts(_)));
+    // Work the reader cannot settle is an honest incomplete naming the fix.
+    let TurnOutcome::Facts(text) = s.turn(GATED) else {
+        panic!("no seat: the reasons are stated, nothing is invented");
+    };
+    assert!(
+        text.starts_with("I read this as work but cannot settle it"),
+        "{text}"
+    );
+    assert!(
+        text.contains("no conversational intelligence") && text.contains("`/intelligence`"),
+        "the incomplete names the seat that would read it: {text}"
+    );
+    assert!(
+        !dir.path().join(COPY_DEST).exists(),
+        "two discarded proposals and an incomplete wrote nothing"
     );
     assert!(matches!(s.turn("/quit"), TurnOutcome::Quit));
     assert!(s.banner().contains("no conversational AI"));
@@ -197,55 +288,38 @@ fn without_intelligence_the_facts_stay_and_free_text_is_refused() {
         "the path is named once: {}",
         s.banner()
     );
+    assert!(
+        s.banner().contains("authoring · deterministic"),
+        "the banner names the seat authoring reasons with: {}",
+        s.banner()
+    );
 }
 
-const PROPOSED: &str = "Here it is.\n\n```yaml path=daily.nika\nnika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\noutputs:\n  said: ${{ tasks.t.output }}\n```\n";
-
-fn ready_with(dir: &Path, replies: Vec<&str>) -> SessionRuntime {
-    let seated = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Harness {
-            seat: "codex".to_owned(),
-        },
-        model: None,
-        locus: DataLocus::Remote {
-            product: "codex".to_owned(),
-        },
-        ready: true,
-        why: None,
-    };
-    SessionRuntime::open(
-        dir,
-        seated,
-        Box::new(ScriptedReasoner::new(
-            replies.into_iter().map(str::to_owned).collect(),
-        )),
-    )
-}
-
-/// A reply carrying a file is a proposal: nothing is written until the
-/// consent line says yes; `no` discards; the next yes lands the exact
-/// bytes and the real check follows; a new turn discards a pending set.
+/// The compiler's candidate is a proposal: nothing is written until the
+/// consent line says yes; `no` discards; a new turn discards a pending
+/// set; the next yes lands the exact bytes and the real check follows —
+/// and consent is never a run.
 #[test]
 fn a_proposal_lands_only_on_consent() {
     let dir = tree();
-    let mut s = ready_with(dir.path(), vec![PROPOSED, PROPOSED, PROPOSED]);
-    let TurnOutcome::Proposal { preview, .. } = s.turn("write me a daily digest workflow") else {
+    let mut s = ready_with(dir.path(), vec![]);
+    let TurnOutcome::Proposal { preview, .. } = s.turn(COPY) else {
         panic!("a proposal");
     };
     assert!(
-        preview.starts_with("Here it is.\n\n"),
-        "the prose above: {preview}"
+        preview.starts_with("Nika proposes `compiled-workflow.nika`:"),
+        "the review above: {preview}"
     );
     assert!(
-        preview.contains("proposed change · write me a daily digest workflow"),
+        preview.contains(&format!("proposed change · {COPY}")),
         "the header names this turn's request: {preview}"
     );
     assert!(
-        preview.contains("creates `daily.nika`") && preview.contains("clean ✔"),
+        preview.contains("creates `compiled-workflow.nika`") && preview.contains("clean ✔"),
         "{preview}"
     );
     assert!(
-        !dir.path().join("daily.nika").exists(),
+        !dir.path().join(COPY_DEST).exists(),
         "nothing written before consent"
     );
     assert!(matches!(s.consent("no"), TurnOutcome::Facts(ref t) if t.contains("discarded")));
@@ -253,14 +327,11 @@ fn a_proposal_lands_only_on_consent() {
         matches!(s.turn("1"), TurnOutcome::Facts(ref t) if t.contains("already chosen")),
         "a bare digit is the first-screen reflex, never a message for the seat"
     );
-    assert!(!dir.path().join("daily.nika").exists(), "no means nothing");
+    assert!(!dir.path().join(COPY_DEST).exists(), "no means nothing");
     assert!(
         matches!(s.consent("yes"), TurnOutcome::Refusal(ref r) if r.text.contains("nothing is pending"))
     );
-    assert!(matches!(
-        s.turn("again please"),
-        TurnOutcome::Proposal { .. }
-    ));
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
     assert!(
         matches!(s.turn("what workflows are here?"), TurnOutcome::Facts(_)),
         "a new turn"
@@ -269,24 +340,31 @@ fn a_proposal_lands_only_on_consent() {
         matches!(s.consent("yes"), TurnOutcome::Refusal(_)),
         "the new turn discarded the proposal"
     );
-    assert!(matches!(s.turn("once more"), TurnOutcome::Proposal { .. }));
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
     let TurnOutcome::Facts(report) = s.consent("yes") else {
-        panic!("applied");
+        panic!("applied — and never a run");
     };
     assert!(
-        report.contains("applied · wrote `daily.nika`") && report.contains("clean ✔"),
+        report.contains("applied · wrote `compiled-workflow.nika`") && report.contains("clean ✔"),
         "{report}"
     );
-    let on_disk = std::fs::read_to_string(dir.path().join("daily.nika")).expect("landed");
     assert!(
-        on_disk.starts_with("nika: daily\n") && on_disk.ends_with("${{ tasks.t.output }}\n"),
-        "exact bytes"
+        report.contains("say « run it »"),
+        "consent lands; the run is the next explicit line: {report}"
+    );
+    let on_disk = std::fs::read_to_string(dir.path().join(COPY_DEST)).expect("landed");
+    assert!(
+        on_disk.contains("nika:read")
+            && on_disk.contains("./notes/brief.md")
+            && on_disk.contains("nika:write")
+            && on_disk.contains("./out/copy.md"),
+        "the compiler's bytes: {on_disk}"
     );
     assert!(
         s.snapshot
             .workflows
             .iter()
-            .any(|w| w.path.ends_with("daily.nika")),
+            .any(|w| w.path.ends_with(COPY_DEST)),
         "the snapshot sees it"
     );
 }
@@ -296,11 +374,8 @@ fn a_proposal_lands_only_on_consent() {
 #[test]
 fn a_question_at_the_consent_prompt_holds_the_proposal() {
     let dir = tree();
-    let mut s = ready_with(dir.path(), vec![PROPOSED]);
-    assert!(matches!(
-        s.turn("write me a daily digest"),
-        TurnOutcome::Proposal { .. }
-    ));
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
     let TurnOutcome::Held { preview: text, .. } = s.consent("what is permits?") else {
         panic!("held");
     };
@@ -311,7 +386,9 @@ fn a_question_at_the_consent_prompt_holds_the_proposal() {
         panic!("held");
     };
     assert!(
-        text.contains("when it runs:") && text.contains("model mock/echo"),
+        text.contains("when it runs:")
+            && text.contains("./notes/brief.md")
+            && text.contains("./out/copy.md"),
         "the set's own effects: {text}"
     );
     let TurnOutcome::Held { preview: text, .. } = s.consent("hmm") else {
@@ -321,9 +398,9 @@ fn a_question_at_the_consent_prompt_holds_the_proposal() {
         text.contains("not a consent") && text.contains("still waits"),
         "{text}"
     );
-    assert!(!dir.path().join("daily.nika").exists());
+    assert!(!dir.path().join(COPY_DEST).exists());
     assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
-    assert!(dir.path().join("daily.nika").exists());
+    assert!(dir.path().join(COPY_DEST).exists());
 }
 
 /// After a run in a git repository, the missing ignore line is named
@@ -332,7 +409,7 @@ fn a_question_at_the_consent_prompt_holds_the_proposal() {
 fn the_trace_hygiene_note_names_the_missing_ignore_line() {
     let dir = tree();
     std::fs::create_dir_all(dir.path().join(".git")).expect("a git root");
-    let mut s = ready_with(dir.path(), vec![PROPOSED]);
+    let mut s = ready_with(dir.path(), vec![]);
     assert!(s.snapshot.git_root.is_some(), "a git root");
     let TurnOutcome::Facts(line) = s.observe_run(0, Some(Path::new(".nika/traces/t.ndjson")))
     else {
@@ -347,22 +424,32 @@ fn the_trace_hygiene_note_names_the_missing_ignore_line() {
     assert!(!line.contains("not ignored"), "{line}");
 }
 
-/// « create and run it » requests the run ONLY after a clean on-disk
-/// check; findings stop it; the door's observation becomes a fact.
+/// The run is requested ONLY by an explicit run line, after a clean
+/// on-disk check of the workflow last accepted — a consent never runs, a
+/// ceiling in the line is honored, findings on disk stop it, and the
+/// door's observation becomes a fact.
 #[test]
 fn a_run_is_requested_only_on_a_clean_check() {
     let dir = tree();
-    let dirty = "```yaml path=bad.nika\nnika: bad\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
-    let mut s = ready_with(dir.path(), vec![PROPOSED, dirty]);
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
+    let TurnOutcome::Facts(report) = s.consent("yes") else {
+        panic!("a consent lands the bytes and is never a run");
+    };
     assert!(
-        matches!(s.turn("create a digest and run it once"), TurnOutcome::Proposal { ref preview, .. } if preview.contains("run `daily.nika` once"))
+        report.contains("clean ✔") && report.contains("say « run it »"),
+        "{report}"
     );
-    let TurnOutcome::RunRequested { report, run } = s.consent("yes") else {
-        panic!("a clean check requests the run");
+    let TurnOutcome::RunRequested { report, run } = s.turn("run it with a ceiling of 0.05") else {
+        panic!("a clean check requests the run of the accepted workflow");
     };
     assert!(report.contains("clean ✔"), "{report}");
-    assert_eq!(run.workflow, PathBuf::from("daily.nika"));
-    assert!((run.max_cost_usd - DEFAULT_CEILING_USD).abs() < f64::EPSILON);
+    assert_eq!(run.workflow, PathBuf::from(COPY_DEST));
+    assert!(run.vars.is_empty());
+    assert!(
+        (run.max_cost_usd - 0.05).abs() < f64::EPSILON,
+        "the ceiling named in the run line"
+    );
     assert_eq!(
         ceiling_in("create it and run it once with a ceiling of 0.05"),
         Some(0.05)
@@ -384,21 +471,17 @@ fn a_run_is_requested_only_on_a_clean_check() {
         observed.contains("exit 0 · succeeded") && observed.contains("t.ndjson"),
         "{observed}"
     );
-    assert!(matches!(
-        s.turn("make a curl one and run it"),
-        TurnOutcome::Proposal { .. }
-    ));
-    let TurnOutcome::Facts(report) = s.consent("yes") else {
-        panic!("findings stop the run");
+    // The accepted file drifted on disk since the consent: the check that
+    // gates the run is the file as it is now, never the bytes accepted.
+    std::fs::write(dir.path().join(COPY_DEST), DIRTY).expect("drift");
+    let TurnOutcome::Facts(report) = s.turn("run it") else {
+        panic!("findings stop the run before it starts");
     };
     assert!(
         report.contains("findings ✖") && report.contains("the run was not started"),
         "{report}"
     );
-    assert!(
-        dir.path().join("bad.nika").exists(),
-        "the bytes landed; the run did not start"
-    );
+    assert!(report.contains("NIKA-AUTH-006"), "{report}");
 }
 
 /// A paused run returns to the session as a question; the human's line
@@ -406,25 +489,23 @@ fn a_run_is_requested_only_on_a_clean_check() {
 #[test]
 fn a_paused_run_asks_the_human_and_the_answer_resumes_it() {
     let dir = tree();
-    let mut s = ready_with(dir.path(), vec![PROPOSED]);
-    assert!(matches!(
-        s.turn("create a digest and run it"),
-        TurnOutcome::Proposal { .. }
-    ));
-    assert!(matches!(s.consent("yes"), TurnOutcome::RunRequested { .. }));
+    std::fs::write(dir.path().join("draft.md"), "the draft\n").expect("draft");
+    std::fs::write(dir.path().join("gate.nika"), GATE).expect("gate");
+    let mut s = ready_with(dir.path(), vec![]);
+    let TurnOutcome::RunRequested { run, .. } = s.turn("run gate.nika") else {
+        panic!("a named, check-clean gated workflow is requested");
+    };
+    assert_eq!(run.workflow, PathBuf::from("gate.nika"));
     let store = dir.path().join(".nika").join("traces");
     std::fs::create_dir_all(&store).expect("store");
     let trace = store.join("paused.ndjson");
-    std::fs::write(
-        &trace,
-        "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"gate\"},{\"key\":\"mode\",\"value\":\"confirm\"},{\"key\":\"message\",\"value\":\"Ship it?\"}]}\n",
-    )
-    .expect("trace");
-    let TurnOutcome::GateAsk { question, .. } = s.observe_run(4, Some(&trace)) else {
+    std::fs::write(&trace, PAUSED).expect("trace");
+    let TurnOutcome::GateAsk { id, question } = s.observe_run(4, Some(&trace)) else {
         panic!("the gate is asked");
     };
+    assert_eq!(id, GateId::new(&trace, "approve"));
     assert!(
-        question.contains("paused for a human answer") && question.contains("Ship it?"),
+        question.contains("paused for a human answer") && question.contains("Write final.md?"),
         "{question}"
     );
     assert!(
@@ -438,9 +519,9 @@ fn a_paused_run_asks_the_human_and_the_answer_resumes_it() {
     else {
         panic!("the resume");
     };
-    assert_eq!(workflow, PathBuf::from("daily.nika"));
+    assert_eq!(workflow, PathBuf::from("gate.nika"));
     assert_eq!(t, trace);
-    assert_eq!(answer, "gate=true");
+    assert_eq!(answer, "approve=true");
     assert!(
         matches!(s.answer_gate("yes"), TurnOutcome::Refusal(_)),
         "answered once"
@@ -449,66 +530,65 @@ fn a_paused_run_asks_the_human_and_the_answer_resumes_it() {
         matches!(s.observe_run(0, Some(&trace)), TurnOutcome::Facts(_)),
         "a completed resume is a fact"
     );
-}
-
-/// The repair round: a dirty apply, then « fix it » — the reasoner's
-/// repaired file is a witnessed update, consented, checked clean.
-#[test]
-fn a_repair_round_updates_the_witnessed_file_to_clean() {
-    let dir = tree();
-    let dirty = "```yaml path=bad.nika\nnika: bad\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
-    let repaired = "Adding the boundary.\n\n```yaml path=bad.nika\nnika: bad\npermits: { exec: [\"curl\"], net: { http: [\"example.com\"] } }\ntasks:\n  t:\n    exec: { command: [\"curl\", \"https://example.com\"] }\n```\n";
-    let mut s = ready_with(dir.path(), vec![dirty, repaired]);
-    assert!(matches!(
-        s.turn("make a curl one"),
-        TurnOutcome::Proposal { .. }
-    ));
-    let TurnOutcome::Facts(report) = s.consent("yes") else {
-        panic!("applied");
-    };
     assert!(
-        report.contains("findings ✖") && report.contains("NIKA-AUTH-006"),
-        "{report}"
-    );
-    let TurnOutcome::Proposal { preview, .. } = s.turn("fix it") else {
-        panic!("a repair proposal");
-    };
-    assert!(
-        preview.contains("replaces `bad.nika` whole") && preview.contains("clean ✔"),
-        "{preview}"
-    );
-    let TurnOutcome::Facts(report) = s.consent("yes") else {
-        panic!("applied");
-    };
-    assert!(
-        report.contains("clean ✔") && !report.contains("findings ✖"),
-        "{report}"
-    );
-    assert!(
-        std::fs::read_to_string(dir.path().join("bad.nika"))
-            .expect("landed")
-            .contains("permits:")
+        !dir.path().join("final.md").exists(),
+        "the session requests; only the door executes"
     );
 }
 
-/// A reply proposing a path outside the root is refused before any preview.
+/// The destination is the session's choice, never a model's: a reply
+/// naming a path outside the root is words (nothing lands anywhere), and
+/// a real candidate lands under `workflows/` when the project keeps one.
 #[test]
-fn a_path_outside_the_root_is_refused_before_preview() {
+fn the_session_chooses_the_destination_never_the_model() {
     let dir = tree();
-    let evil = "```yaml path=../evil.nika\nnika: evil\n```\n";
+    std::fs::create_dir(dir.path().join(crate::review::WORKFLOWS_DIR)).expect("workflows dir");
+    let evil = "```yaml path=../evil.nika\nnika: evil\ntasks: {}\n```\n";
     let mut s = ready_with(dir.path(), vec![evil]);
+    let TurnOutcome::Reply(text) = s.turn("what is a violet comet?") else {
+        panic!("a reply is words");
+    };
+    assert!(text.contains("evil.nika"), "shown as words: {text}");
     assert!(
-        matches!(s.turn("write one"), TurnOutcome::Refusal(ref r) if r.text.contains("not a path inside the project root"))
+        s.pending_proposal().is_none(),
+        "a reply is never a proposal"
+    );
+    assert!(
+        !dir.path().join("../evil.nika").exists() && !dir.path().join("evil.nika").exists(),
+        "a path a model named lands nowhere"
     );
     assert!(
         matches!(s.consent("yes"), TurnOutcome::Refusal(_)),
         "nothing pending"
     );
+    let TurnOutcome::Proposal { preview, .. } = s.turn(COPY) else {
+        panic!("a proposal");
+    };
+    assert!(
+        preview.starts_with("Nika proposes `workflows/compiled-workflow.nika`:")
+            && preview.contains("creates `workflows/compiled-workflow.nika`"),
+        "the session's destination: {preview}"
+    );
+    let TurnOutcome::Facts(report) = s.consent("yes") else {
+        panic!("applied");
+    };
+    assert!(
+        report.contains("applied · wrote `workflows/compiled-workflow.nika`"),
+        "{report}"
+    );
+    assert!(
+        dir.path()
+            .join(crate::review::WORKFLOWS_DIR)
+            .join(COPY_DEST)
+            .is_file()
+    );
+    assert!(!dir.path().join(COPY_DEST).exists());
 }
 
 /// `/intelligence` asks the first screen again in-session; the next
-/// line is the answer, kept under the home, the reasoner rebuilt; an
-/// unserved pick is refused and the previous choice stands.
+/// line is the answer, kept under the home, the reasoner rebuilt and the
+/// authoring seat re-derived; an unserved pick is refused and the
+/// previous choice stands.
 #[test]
 fn the_intelligence_can_be_rechosen_in_session() {
     let dir = tree();
@@ -528,7 +608,7 @@ fn the_intelligence_can_be_rechosen_in_session() {
         _ => Box::new(ScriptedReasoner::new(vec!["seated".to_owned()])),
     });
     let mut s = SessionRuntime::open_with(dir.path(), census, &pref, Some(home.path()), factory);
-    assert!(matches!(s.turn("hello"), TurnOutcome::Refusal(_)));
+    assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Refusal(_)));
     let TurnOutcome::Ask(screen) = s.turn("/intelligence") else {
         panic!("asks");
     };
@@ -537,13 +617,21 @@ fn the_intelligence_can_be_rechosen_in_session() {
         matches!(s.choose("2"), TurnOutcome::Refusal(ref r) if r.text.contains("previous choice stands"))
     );
     assert!(
-        matches!(s.turn("hello"), TurnOutcome::Refusal(_)),
+        matches!(s.turn(SMALL_TALK), TurnOutcome::Refusal(_)),
         "still none"
     );
+    let TurnOutcome::Facts(chosen) = s.choose("1") else {
+        panic!("the choice is kept");
+    };
     assert!(
-        matches!(s.choose("1"), TurnOutcome::Facts(ref t) if t.contains("codex") && t.contains("kept"))
+        chosen.contains("codex") && chosen.contains("kept"),
+        "{chosen}"
     );
-    assert!(matches!(s.turn("hello"), TurnOutcome::Reply(ref t) if t.contains("seated")));
+    assert!(
+        chosen.contains("authoring · deterministic"),
+        "a harness seat reasons in words; authoring stays deterministic: {chosen}"
+    );
+    assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(ref t) if t.contains("seated")));
     let back = UserIntelligencePreference::load(home.path()).expect("kept under the home");
     assert_eq!(
         back.kind,
@@ -554,7 +642,8 @@ fn the_intelligence_can_be_rechosen_in_session() {
 }
 
 /// An explicit choice this machine cannot serve refuses every
-/// free-text turn with its fix — the facts still answer.
+/// conversational turn with its fix — the facts still answer, and work
+/// still compiles (the compiler needs no seat).
 #[test]
 fn an_unserved_choice_refuses_with_its_fix() {
     let dir = tree();
@@ -578,12 +667,21 @@ fn an_unserved_choice_refuses_with_its_fix() {
         s.banner()
     );
     assert!(
-        matches!(s.turn("hello"), TurnOutcome::Refusal(ref r) if r.text.contains("not installed"))
+        s.banner().contains("authoring · deterministic"),
+        "{}",
+        s.banner()
+    );
+    assert!(
+        matches!(s.turn(SMALL_TALK), TurnOutcome::Refusal(ref r) if r.text.contains("not installed"))
     );
     assert!(matches!(
         s.turn("what workflows are here?"),
         TurnOutcome::Facts(_)
     ));
+    assert!(
+        matches!(s.turn(COPY), TurnOutcome::Proposal { .. }),
+        "work compiles without the seat"
+    );
 }
 
 /// The freeze audit · a stale apply (the file appeared on disk after the
@@ -593,17 +691,17 @@ fn an_unserved_choice_refuses_with_its_fix() {
 #[test]
 fn a_stale_apply_leaves_the_proposal_undecided() {
     let dir = tree();
-    let mut s = ready_with(dir.path(), vec![PROPOSED]);
-    let TurnOutcome::Proposal { id, .. } = s.turn("write me a daily digest workflow") else {
+    let mut s = ready_with(dir.path(), vec![]);
+    let TurnOutcome::Proposal { id, .. } = s.turn(COPY) else {
         panic!("a proposal");
     };
-    std::fs::write(dir.path().join("daily.nika"), "nika: raced\n").expect("the race");
+    std::fs::write(dir.path().join(COPY_DEST), "nika: raced\n").expect("the race");
     let TurnOutcome::Refusal(stale) = s.consent_to(&id, "yes") else {
         panic!("stale");
     };
     assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
     assert_eq!(
-        std::fs::read_to_string(dir.path().join("daily.nika")).expect("still there"),
+        std::fs::read_to_string(dir.path().join(COPY_DEST)).expect("still there"),
         "nika: raced\n",
         "nothing was applied"
     );
@@ -620,12 +718,13 @@ fn a_stale_apply_leaves_the_proposal_undecided() {
 
 /// A remote host judges by identity (ADR-133): a consent naming a
 /// proposal that is not the one waiting is stale and applies nothing;
-/// the same proposal consents once; the same gate answers once.
+/// the same proposal consents once (and lands, never runs); the same gate
+/// answers once.
 #[test]
 fn a_remote_host_drives_the_machine_by_identity() {
     let dir = tree();
-    let mut s = ready_with(dir.path(), vec![PROPOSED, PROPOSED]);
-    let TurnOutcome::Proposal { id, .. } = s.turn("write me a daily digest workflow") else {
+    let mut s = ready_with(dir.path(), vec![]);
+    let TurnOutcome::Proposal { id, .. } = s.turn(COPY) else {
         panic!("a proposal");
     };
     assert_eq!(s.pending_proposal().as_ref(), Some(&id));
@@ -639,14 +738,12 @@ fn a_remote_host_drives_the_machine_by_identity() {
         Some(&id),
         "a stale consent leaves the proposal waiting"
     );
+    assert!(!dir.path().join(COPY_DEST).exists(), "nothing was applied");
     assert!(
-        !dir.path().join("daily.nika").exists(),
-        "nothing was applied"
+        matches!(s.consent_to(&id, "yes"), TurnOutcome::Facts(_)),
+        "the named consent lands the set and never runs it"
     );
-    assert!(matches!(
-        s.consent_to(&id, "yes"),
-        TurnOutcome::Facts(_) | TurnOutcome::RunRequested { .. }
-    ));
+    assert!(dir.path().join(COPY_DEST).is_file());
     let TurnOutcome::Refusal(again) = s.consent_to(&id, "yes") else {
         panic!("consumed");
     };
