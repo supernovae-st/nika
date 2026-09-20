@@ -403,7 +403,7 @@ fn literals(candidate: &Plan, floor: &Plan, intent: &str, why: &mut Vec<String>)
     {
         for token in literal_tokens(text) {
             let present = if token.bytes().all(|b| b.is_ascii_digit()) {
-                intent_runs.contains(&token)
+                intent_runs.contains(&token) || stated_range_covers(intent, &token)
             } else {
                 intent.contains(token.as_str()) || derived_path(&token, intent)
             };
@@ -482,10 +482,76 @@ fn derived_path(token: &str, intent: &str) -> bool {
         return false;
     }
     let mut components = token
-        .split(['/', '.'])
+        .split(['/', '.', '-', '_'])
         .filter(|part| !part.is_empty())
         .peekable();
-    components.peek().is_some() && components.all(|part| intent.contains(part))
+    components.peek().is_some()
+        && components.all(|part| {
+            intent.contains(part)
+                || (part.bytes().all(|b| b.is_ascii_digit()) && stated_range_covers(intent, part))
+        })
+}
+
+/// Words and dashes that join the two ends of a stated numeric range.
+const RANGE_LINKS: &[&str] = &[
+    "to", "through", "thru", "à", "a", "au", "jusqu'à", "hasta", "bis", "fino a", "-", "–", "—",
+    "…", "...", "..",
+];
+
+/// Whether the request states a numeric range that covers `number` ("01 to 04", "1 à 4",
+/// "chapters 1-4", "fiche-01 … fiche-04"): two digit runs joined by a range word or dash.
+/// A number inside a stated range is derived from the request, not invented.
+fn stated_range_covers(intent: &str, number: &str) -> bool {
+    let Ok(n) = number.parse::<u64>() else {
+        return false;
+    };
+    let lower = intent.to_lowercase();
+    let runs: Vec<(usize, usize)> = {
+        let mut out = Vec::new();
+        let mut start: Option<usize> = None;
+        for (i, ch) in lower.char_indices() {
+            match (ch.is_ascii_digit(), start) {
+                (true, None) => start = Some(i),
+                (false, Some(s)) => {
+                    out.push((s, i));
+                    start = None;
+                }
+                _ => {}
+            }
+        }
+        if let Some(s) = start {
+            out.push((s, lower.len()));
+        }
+        out
+    };
+    runs.windows(2).any(|pair| {
+        let (a_start, a_end) = pair[0];
+        let (b_start, b_end) = pair[1];
+        let Some(between) = lower.get(a_end..b_start) else {
+            return false;
+        };
+        let between = between.trim();
+        let link = between
+            .split_whitespace()
+            .map(|w| w.trim_matches(|c: char| c == '`' || c == '"' || c == '\''))
+            .collect::<Vec<_>>();
+        let linked = between.len() <= 12
+            && (RANGE_LINKS.contains(&between) || link.iter().any(|w| RANGE_LINKS.contains(w)));
+        if !linked {
+            return false;
+        }
+        match (
+            lower
+                .get(a_start..a_end)
+                .and_then(|s| s.parse::<u64>().ok()),
+            lower
+                .get(b_start..b_end)
+                .and_then(|s| s.parse::<u64>().ok()),
+        ) {
+            (Some(lo), Some(hi)) => lo <= n && n <= hi && hi.saturating_sub(lo) <= 64,
+            _ => false,
+        }
+    })
 }
 
 fn digit_runs(text: &str) -> Vec<String> {
@@ -816,6 +882,17 @@ mod tests {
         let mut candidate = base();
         candidate.obligations[0].kind = ObligationKind::RetryBound(5);
         assert_eq!(reasons(&candidate).len(), 1);
+    }
+
+    #[test]
+    fn a_number_inside_a_stated_range_is_derived_not_invented() {
+        let intent = "Résume les fiches ./fiches/fiche-01.md à fiche-04.md, chapters 1 to 4, then write ./out/x.md";
+        assert!(stated_range_covers(intent, "02"));
+        assert!(stated_range_covers(intent, "3"));
+        assert!(!stated_range_covers(intent, "07"));
+        assert!(derived_path("./fiches/fiche-03.md", intent));
+        assert!(!derived_path("./fiches/fiche-09.md", intent));
+        assert!(!stated_range_covers("write 150 words to ./out/a.md", "42"));
     }
 
     #[test]

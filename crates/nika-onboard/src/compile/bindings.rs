@@ -740,6 +740,15 @@ fn ask_write_path(
     }
 }
 
+/// The first http(s) URL a phrase names, trailing punctuation stripped.
+fn literal_url(text: &str) -> Option<String> {
+    text.split_whitespace()
+        .map(|word| word.trim_end_matches(['.', ',', ';', ')', ']', '"', '\'', '>']))
+        .map(|word| word.trim_start_matches(['(', '[', '"', '\'', '<']))
+        .find(|word| word.starts_with("http://") || word.starts_with("https://"))
+        .map(str::to_owned)
+}
+
 /// An explicit endpoint, its host, and literal policy data when money moves.
 fn bind_endpoint(
     effect: &Effect,
@@ -754,7 +763,13 @@ fn bind_endpoint(
         "Which HTTPS endpoint accepts a JSON POST to `{}`? No credentials or permission are inferred.",
         effect.target.trim()
     );
-    let endpoint = answer(request, out, &endpoint_key, &label, true);
+    // A URL the request itself names is the endpoint; the question is asked only when the
+    // request names none (an answer still wins when the operator supplies one).
+    let literal = literal_url(&effect.target).or_else(|| literal_url(&effect.evidence));
+    let endpoint = match literal {
+        Some(url) if !request.answers.contains_key(&endpoint_key) => Some(Value::String(url)),
+        _ => answer(request, out, &endpoint_key, &label, true),
+    };
     let policy = if effect.verb.moves_money() {
         let key = format!("const.{slug}_policy");
         recognized.insert(key.clone());

@@ -543,6 +543,28 @@ fn finish(source: String, out: &mut CompileOutcome) {
         && report.is_clean()
     {
         out.status = CompileStatus::Ready;
+    } else if out.status != CompileStatus::Refused
+        && out.questions.is_empty()
+        && !unresolved
+        && !report.is_clean()
+    {
+        // Nothing to ask and nothing else to report: the preview's own refusals are the
+        // reason the candidate is not ready, and they must be visible without opening it.
+        let refusals: Vec<String> = report
+            .findings
+            .iter()
+            .take(3)
+            .map(|f| {
+                format!(
+                    "Check refuses the candidate ({}): {}",
+                    f.code.as_deref().unwrap_or(f.kind),
+                    f.message
+                )
+            })
+            .collect();
+        for message in refusals {
+            finding(out, DiagnosticKind::Unknown, "check_preview", message);
+        }
     }
     out.requested_boundary = Some(report.permits.clone());
     out.check_preview = Some(CompilePreview {
