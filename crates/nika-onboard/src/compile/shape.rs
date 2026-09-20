@@ -489,6 +489,72 @@ pub(super) fn structural(constraint: &str) -> bool {
             .any(|word| padded.contains(&format!(" {word} ")))
 }
 
+/// The first identifier token of a phrase: digits beside letters (`T-4471`, `SKU_12`,
+/// `#88240`) or an email. Never a bare number, a date-like run of digits and hyphens, a
+/// path or a URL.
+pub(super) fn identifier(text: &str) -> Option<String> {
+    text.split_whitespace()
+        .map(|w| {
+            w.trim_matches(|c: char| {
+                matches!(
+                    c,
+                    '.' | ',' | ';' | ':' | '(' | ')' | '"' | '\'' | '«' | '»' | '!' | '?'
+                )
+            })
+        })
+        .filter(|w| !w.is_empty())
+        .find(|w| {
+            let path_or_url =
+                w.contains("://") || w.contains('/') || w.starts_with('.') || w.starts_with('~');
+            if path_or_url {
+                return false;
+            }
+            if w.contains('@') && w.contains('.') && !w.starts_with('@') {
+                return true;
+            }
+            let digits = w.chars().any(|c| c.is_ascii_digit());
+            let letters = w.chars().any(char::is_alphabetic);
+            let joiners = w
+                .chars()
+                .all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '#'));
+            digits && joiners && (letters || w.starts_with('#'))
+        })
+        .map(str::to_owned)
+}
+
+/// A lookup that selects one record by a literal identifier in one JSON file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct LiteralLookup {
+    /// The one JSON file the detail names.
+    pub file: String,
+    /// The identifier token, verbatim.
+    pub id: String,
+    /// The slug of the detail without the identifier (`ticket`), for constant names.
+    pub slug: String,
+}
+
+/// A lookup detail that names exactly one JSON file and an identifier token binds the
+/// file without a directory question and selects the one record at run time.
+pub(super) fn lookup_by_identifier(detail: &str) -> Option<LiteralLookup> {
+    let file = match super::paths::literals(detail).as_slice() {
+        [super::paths::PathShape::File(path)]
+            if super::paths::extension(path).as_deref() == Some("json") =>
+        {
+            path.clone()
+        }
+        _ => return None,
+    };
+    let id = identifier(detail)?;
+    let rest: Vec<&str> = detail
+        .split_whitespace()
+        .filter(|w| {
+            w.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_' && c != '#') != id
+        })
+        .collect();
+    let slug = super::lexicon::slug(&rest.join(" "));
+    Some(LiteralLookup { file, id, slug })
+}
+
 /// The topology the assembler realized for one plan; recorded in provenance, never
 /// authority.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -597,6 +663,55 @@ mod tests {
         assert!(!structural("3 lignes max"));
         assert!(!structural("in a warm, down-to-earth tone"));
         assert!(!structural("Process at most 2 products at a time"));
+    }
+
+    #[test]
+    fn an_identifier_is_digits_beside_letters_never_a_bare_number_a_path_or_a_url() {
+        assert_eq!(
+            identifier("ticket T-4471 in ./data/tickets.json").as_deref(),
+            Some("T-4471")
+        );
+        assert_eq!(identifier("order #88240").as_deref(), Some("#88240"));
+        assert_eq!(identifier("the SKU_12 entry").as_deref(), Some("SKU_12"));
+        assert_eq!(
+            identifier("the customer omar@example.org").as_deref(),
+            Some("omar@example.org")
+        );
+        assert_eq!(identifier("ticket (T-4471)").as_deref(), Some("T-4471"));
+        for none in [
+            "order 88240",
+            "./data/tickets.json",
+            "https://example.invalid/t/T-4471",
+            "orders from 2026-09-20",
+            "le client",
+            "12.5",
+        ] {
+            assert_eq!(identifier(none), None, "{none}");
+        }
+        assert_eq!(
+            lookup_by_identifier("ticket T-4471 in ./data/tickets.json"),
+            Some(LiteralLookup {
+                file: "./data/tickets.json".to_owned(),
+                id: "T-4471".to_owned(),
+                slug: "ticket".to_owned(),
+            })
+        );
+        assert_eq!(
+            lookup_by_identifier("le dossier D-12 dans ./data/dossiers.json")
+                .map(|l| l.slug)
+                .as_deref(),
+            Some("dossier")
+        );
+        // No file, a CSV, or no identifier: the plain lookup with its directory question.
+        assert_eq!(lookup_by_identifier("ticket T-4471"), None);
+        assert_eq!(
+            lookup_by_identifier("ticket T-4471 in ./data/tickets.csv"),
+            None
+        );
+        assert_eq!(
+            lookup_by_identifier("the customer in ./customers.json"),
+            None
+        );
     }
 
     #[test]

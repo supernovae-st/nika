@@ -185,6 +185,93 @@ fn chapters_record() -> Value {
       "unknowns":[],"trigger":"For each of the four files","strategy":"cold"})
 }
 
+const TICKET: &str = "Look up ticket T-4471 in ./data/tickets.json, classify it as billing, shipping or other, and draft a reply to the customer. If it is a refund request, a human must approve before the refund amount is posted to http://127.0.0.1:18471/refunds and the reply is sent to http://127.0.0.1:18471/replies.";
+/// The trusted recorded plan of the fidelity control (case d).
+fn ticket_record() -> Value {
+    json!({"operations":[
+        {"op":"lookup","detail":"ticket T-4471 in ./data/tickets.json","evidence":"Look up ticket T-4471 in ./data/tickets.json","categories":[]},
+        {"op":"classify","detail":"it","evidence":"classify it as billing, shipping or other","categories":["billing","shipping","other"]},
+        {"op":"draft","detail":"a reply to the customer","evidence":"draft a reply to the customer","categories":[]}],
+      "effects":[
+        {"verb":"refund","target":"the refund amount is posted to http://127.0.0.1:18471/refunds","policy":"human_first","evidence":"a human must approve before the refund amount is posted to http://127.0.0.1:18471/refunds","policy_literal":null},
+        {"verb":"send","target":"the reply is sent to http://127.0.0.1:18471/replies","policy":"human_first","evidence":"the reply is sent to http://127.0.0.1:18471/replies","policy_literal":null}],
+      "obligations":[],
+      "bindings":[{"role":"path","literal":"./data/tickets.json"},{"role":"url","literal":"http://127.0.0.1:18471/refunds"},{"role":"url","literal":"http://127.0.0.1:18471/replies"}],
+      "constraints":["If it is a refund request, a human must approve before the refund amount is posted to http://127.0.0.1:18471/refunds and the reply is sent to http://127.0.0.1:18471/replies"],
+      "unknowns":[],"trigger":null,"strategy":"cold"})
+}
+const TICKET_ANSWERS: [(&str, &str); 4] = [
+    MODEL,
+    (
+        "const.refund_endpoint",
+        r#""http://127.0.0.1:18471/refunds""#,
+    ),
+    ("const.send_endpoint", r#""http://127.0.0.1:18471/replies""#),
+    (
+        "const.refund_policy",
+        r#"{"cap":100,"currency":"EUR","eligibility":"duplicate charge or damaged item reported within 30 days"}"#,
+    ),
+];
+
+// ── a lookup by identifier selects one record, never the whole file ─────────────
+// The control (case d) asked a directory question for a file the request already named,
+// declared phantom `inputs.item` and `inputs.record_id`, then died on
+// `cannot index [array] with "T-4471"`. A lookup detail naming one JSON file and an
+// identifier binds the file, keeps the identifier as a constant, asks only which field
+// holds it, and selects the one record so later steps see the record alone.
+#[test]
+fn a_lookup_by_identifier_in_a_json_file_selects_the_one_record() {
+    let asked = replay(TICKET, &ticket_record(), &TICKET_ANSWERS);
+    assert_eq!(keys(&asked), ["const.ticket_id_field"], "{asked:#?}");
+    let text = label(&asked, "const.ticket_id_field");
+    assert!(text.contains("./data/tickets.json"), "{text}");
+    assert!(text.contains("T-4471"), "{text}");
+    let mut answers = TICKET_ANSWERS.to_vec();
+    answers.push(("const.ticket_id_field", r#""id""#));
+    let out = replay(TICKET, &ticket_record(), &answers);
+    let doc = document(&out);
+    assert_eq!(
+        doc["const"]["ticket_directory"], "./data/tickets.json",
+        "{doc:#}"
+    );
+    assert_eq!(doc["const"]["ticket_id"], "T-4471");
+    assert_eq!(doc["const"]["ticket_id_field"], "id");
+    assert!(doc["const"].get("ticket_t_4471_directory").is_none());
+    assert!(
+        doc.get("inputs").is_none(),
+        "a literal lookup is the corpus: no item, no record_id: {doc:#}"
+    );
+    assert_eq!(doc["permits"]["fs"]["read"], json!(["./data/tickets.json"]));
+    let record = &tasks(&doc)["lookup_record"];
+    let input = &record["invoke"]["args"]["input"];
+    assert_eq!(input["id"], "${{ const.ticket_id }}");
+    assert_eq!(input["field"], "${{ const.ticket_id_field }}");
+    let expression = record["invoke"]["args"]["expression"].as_str().unwrap();
+    assert!(expression.contains(r#"if type == "array""#), "{expression}");
+    assert!(expression.contains(".[$l.field] == $l.id"), "{expression}");
+    // Classification, the draft and the payloads see the record, never the file.
+    let classify = tasks(&doc)["classify"]["infer"]["prompt"].as_str().unwrap();
+    assert!(
+        classify.contains("record: ${{ with.record }}"),
+        "{classify}"
+    );
+    assert!(!classify.contains("Item:"), "{classify}");
+    let payload = &tasks(&doc)["refund_payload"]["invoke"]["args"]["input"];
+    assert!(payload.get("record").is_some(), "{payload:#}");
+    assert!(payload.get("item").is_none(), "{payload:#}");
+    assert!(!out.candidate.as_deref().unwrap().contains("inputs."));
+    // The gates still dominate both POSTs.
+    assert_eq!(
+        tasks(&doc)["refund"]["when"],
+        "${{ with.approved == true }}"
+    );
+    assert_eq!(tasks(&doc)["send"]["when"], "${{ with.approved == true }}");
+    assert_eq!(
+        out.provenance.decision.as_ref().unwrap()["shape"]["word"],
+        "human_gated"
+    );
+}
+
 fn operations(out: &CompileOutcome, op: &str) -> Vec<Value> {
     out.provenance.plan.as_ref().unwrap()["operations"]
         .as_array()

@@ -375,14 +375,51 @@ fn refused(plan: &Plan, out: &mut CompileOutcome) -> bool {
     false
 }
 
+/// The record keyed by the invocation's `record_id` in an object directory.
+const SELECT_BY_KEY: &str = ". as $lookup | ($lookup.directory | fromjson)[$lookup.id]";
+
+/// The one record whose field equals the literal identifier: the first match in an array
+/// directory, the keyed entry in an object directory.
+const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | if type == \"array\" then (map(select(type == \"object\" and .[$l.field] == $l.id)) | .[0]) else .[$l.id] end";
+
+/// The jq input and expression that select the looked-up record from the directory
+/// text bound as `with.directory`.
+fn selector(lookup: &bindings::Lookup) -> (Value, &'static str) {
+    match &lookup.by_id {
+        Some(by_id) => {
+            let id = by_id.id_key.trim_start_matches("const.");
+            let field = by_id.field_key.trim_start_matches("const.");
+            (
+                json!({"directory": "${{ with.directory }}", "id": format!("${{{{ const.{id} }}}}"), "field": format!("${{{{ const.{field} }}}}")}),
+                SELECT_BY_FIELD,
+            )
+        }
+        None => (
+            json!({"directory": "${{ with.directory }}", "id": "${{ inputs.record_id }}"}),
+            SELECT_BY_KEY,
+        ),
+    }
+}
+
+/// The directory file is read and one record selected: by the literal identifier the
+/// request names (a constant, no `record_id` input), or by the `record_id` of each
+/// invocation. Later steps see only the record, never the whole file.
 fn emit_lookup(d: &mut Doc, b: &Bindings) {
-    let Some((key, directory)) = b.lookup.bound() else {
+    let Some(lookup) = b.lookup.bound() else {
         return;
     };
-    let name = key.trim_start_matches("const.").to_owned();
-    d.root["const"][&name] = directory.clone();
-    d.reads.push(directory.clone());
-    d.root["inputs"]["record_id"] = json!({"type": "string", "required": true});
+    let name = lookup.key.trim_start_matches("const.").to_owned();
+    d.root["const"][&name] = lookup.directory.clone();
+    d.reads.push(lookup.directory.clone());
+    match &lookup.by_id {
+        Some(by_id) => {
+            d.root["const"][by_id.id_key.trim_start_matches("const.")] = json!(by_id.id);
+            d.root["const"][by_id.field_key.trim_start_matches("const.")] = by_id.field.clone();
+        }
+        None => {
+            d.root["inputs"]["record_id"] = json!({"type": "string", "required": true});
+        }
+    }
     d.tool(
         "lookup_read",
         "nika:read",
@@ -390,7 +427,14 @@ fn emit_lookup(d: &mut Doc, b: &Bindings) {
         None,
         false,
     );
-    d.tool("lookup_record", "nika:jq", json!({"input": {"directory": "${{ with.directory }}", "id": "${{ inputs.record_id }}"}, "expression": ". as $lookup | ($lookup.directory | fromjson)[$lookup.id]"}), Some(json!({"directory": "${{ tasks.lookup_read.output }}"})), false);
+    let (input, expression) = selector(lookup);
+    d.tool(
+        "lookup_record",
+        "nika:jq",
+        json!({"input": input, "expression": expression}),
+        Some(json!({"directory": "${{ tasks.lookup_read.output }}"})),
+        false,
+    );
     d.tool(
         "lookup_valid",
         "nika:jq",
@@ -809,9 +853,9 @@ fn emit_draft_per_item(d: &mut Doc, b: &Bindings, guide: &str, step: &Step, retr
 
 fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
     if plan.obligation("revision_check")
-        && let Some((key, _)) = b.lookup.bound()
+        && let Some(lookup) = b.lookup.bound()
     {
-        let name = key.trim_start_matches("const.").to_owned();
+        let name = lookup.key.trim_start_matches("const.").to_owned();
         d.tool(
             "revision_reread",
             "nika:read",
@@ -819,7 +863,14 @@ fn emit_revision_check(d: &mut Doc, plan: &Plan, b: &Bindings) {
             None,
             true,
         );
-        d.tool("revision_record", "nika:jq", json!({"input": {"directory": "${{ with.directory }}", "id": "${{ inputs.record_id }}"}, "expression": ". as $lookup | ($lookup.directory | fromjson)[$lookup.id]"}), Some(json!({"directory": "${{ tasks.revision_reread.output }}"})), false);
+        let (input, expression) = selector(lookup);
+        d.tool(
+            "revision_record",
+            "nika:jq",
+            json!({"input": input, "expression": expression}),
+            Some(json!({"directory": "${{ tasks.revision_reread.output }}"})),
+            false,
+        );
         d.tool("revision_stable", "nika:jq", json!({"input": {"before": "${{ with.before }}", "after": "${{ with.after }}"}, "expression": ".before == .after"}), Some(json!({"before": "${{ tasks.lookup_record.output }}", "after": "${{ tasks.revision_record.output }}"})), false);
         d.tool("revision_admit", "nika:assert", json!({"condition": "${{ with.stable }}", "message": "The record changed since it was read; the final action is not allowed on a stale version."}), Some(json!({"stable": "${{ tasks.revision_stable.output }}"})), false);
     }

@@ -72,6 +72,26 @@ pub(super) struct Wired {
     pub target: String,
 }
 
+/// A lookup that selects one record by a literal identifier: the identifier and the
+/// field that holds it, both constants of the workflow.
+pub(super) struct ById {
+    /// `const.<slug>_id`, the identifier verbatim.
+    pub id_key: String,
+    pub id: String,
+    /// `const.<slug>_id_field`, the record field holding the identifier (answered).
+    pub field_key: String,
+    pub field: Value,
+}
+
+/// The settled lookup: its directory constant and file, and how the record is selected
+/// (a literal identifier, or the `record_id` input of each invocation).
+pub(super) struct Lookup {
+    /// `const.<slug>_directory`.
+    pub key: String,
+    pub directory: Value,
+    pub by_id: Option<ById>,
+}
+
 /// One local file the request writes.
 pub(super) struct WriteEffect {
     pub stem: String,
@@ -83,8 +103,8 @@ pub(super) struct WriteEffect {
 /// The settled bindings of one plan.
 pub(super) struct Bindings {
     pub model: Option<Value>,
-    /// The constant name and the directory file of a lookup.
-    pub lookup: Need<(String, Value)>,
+    /// The directory file of a lookup and how its record is selected.
+    pub lookup: Need<Lookup>,
     pub search: Need<Value>,
     pub fetch: Need<Value>,
     pub read: Need<Source>,
@@ -241,15 +261,7 @@ pub(super) fn bind(
         None
     };
     let lookup = Need::from_step(plan.step(Op::Lookup), |step| {
-        let key = format!("const.{}", source_slug(Op::Lookup, &step.detail));
-        recognized.insert(key.clone());
-        let label = format!(
-            "Which JSON file maps record ids to the records for `{}`? No external system is connected by the compiler.",
-            step.detail.trim()
-        );
-        let value =
-            answer(request, out, &key, &label, true).and_then(|v| admit_directory(out, v))?;
-        Some((key, value))
+        resolve_lookup(step, request, out, recognized)
     });
     let search = Need::from_step(plan.step(Op::Search), |_| {
         recognized.insert("const.search_root".to_owned());
@@ -274,8 +286,12 @@ pub(super) fn bind(
         Need::Absent
     };
     let fan_out = matches!(read, Need::Bound(Source::Files(_) | Source::Glob(_)));
-    let has_corpus =
-        matches!(read, Need::Bound(Source::File(_))) || fan_out || !matches!(fetch, Need::Absent);
+    // A literal lookup is material of its own: the record it selects is the corpus.
+    let literal_lookup = matches!(&lookup, Need::Bound(l) if l.by_id.is_some());
+    let has_corpus = matches!(read, Need::Bound(Source::File(_)))
+        || fan_out
+        || !matches!(fetch, Need::Absent)
+        || literal_lookup;
     let item = !has_corpus
         || matches!(read, Need::Bound(Source::Item))
         || plan.has(Op::Search)
@@ -356,6 +372,50 @@ fn refuse_per_item_placeholder(effect: &Effect, out: &mut CompileOutcome) -> boo
         QuestionType::Text,
     );
     true
+}
+
+/// The lookup step settles its directory: a detail naming one JSON file and an
+/// identifier binds the file itself and asks only which field holds the identifier (the
+/// record is selected at run time); any other detail asks for the JSON directory file and
+/// reads the record keyed by each invocation's `record_id`.
+fn resolve_lookup(
+    step: &Step,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Option<Lookup> {
+    if let Some(literal) = shape::lookup_by_identifier(&step.detail) {
+        let field_key = format!("const.{}_id_field", literal.slug);
+        recognized.insert(field_key.clone());
+        let label = format!(
+            "Which field of each record in `{}` holds the identifier `{}` (for example `id`)? Answer the field name as a JSON string.",
+            literal.file, literal.id
+        );
+        let field = answer(request, out, &field_key, &label, true)?;
+        return Some(Lookup {
+            key: format!("const.{}_directory", literal.slug),
+            directory: json!(literal.file),
+            by_id: Some(ById {
+                id_key: format!("const.{}_id", literal.slug),
+                id: literal.id,
+                field_key,
+                field,
+            }),
+        });
+    }
+    let key = format!("const.{}", source_slug(Op::Lookup, &step.detail));
+    recognized.insert(key.clone());
+    let label = format!(
+        "Which JSON file maps record ids to the records for `{}`? No external system is connected by the compiler.",
+        step.detail.trim()
+    );
+    let directory =
+        answer(request, out, &key, &label, true).and_then(|v| admit_directory(out, v))?;
+    Some(Lookup {
+        key,
+        directory,
+        by_id: None,
+    })
 }
 
 /// The read step settles where the document comes from: the supplied item when it
