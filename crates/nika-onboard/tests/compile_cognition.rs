@@ -1519,7 +1519,7 @@ async fn a_typed_predicate_from_the_proposal_needs_no_rule_question() {
         "steps": [
             {"op": "read", "detail": "./data/orders.csv", "evidence": "Read ./data/orders.csv"},
             {"op": "compute", "detail": "the rows that matter", "evidence": "keep the rows that matter",
-             "predicate": {"present": true, "join": "and", "clauses": [{"field": "amount", "op": "gt", "value": "100", "value_field": ""}]}}
+             "computation": {"present": true, "join": "and", "clauses": [{"field": "amount", "op": "gt", "value": "100", "value_field": ""}]}}
         ],
         "effects": [{"verb": "write", "target": "./out/kept.csv", "policy": "automatic", "evidence": "write them to ./out/kept.csv"}],
         "obligations": [], "constraints": [], "unknowns": [],
@@ -1585,7 +1585,7 @@ async fn a_drop_predicate_is_lowered_as_its_complement() {
         "steps": [
             {"op": "read", "detail": "./data/orders.csv", "evidence": "Read ./data/orders.csv"},
             {"op": "compute", "detail": "exclude the rows whose amount is below 100 or whose status is refunded", "evidence": "exclude the rows whose amount is below 100 or whose status is refunded",
-             "predicate": {"present": true, "polarity": "drop", "join": "or", "clauses": [
+             "computation": {"present": true, "polarity": "drop", "join": "or", "clauses": [
                 {"field": "amount", "op": "lt", "value": "100", "value_field": ""},
                 {"field": "status", "op": "eq", "value": "refunded", "value_field": ""}]}}
         ],
@@ -1836,4 +1836,104 @@ fn requested_meaning_survives_the_deterministic_door() {
             "{repro} is not READY: {realized:#?}"
         );
     }
+}
+
+/// A grouping stated as meaning: one output row per distinct value of a column with the
+/// aggregates the request names, sorted and projected as the request fixes them. The
+/// compiler validates every column and output name against the request, lowers the whole
+/// computation to jq in a fixed order, and the CSV written carries the produced columns.
+#[tokio::test]
+async fn a_typed_grouping_is_lowered_with_its_aggregates_and_output_columns() {
+    let intent = "Read ./umsatz/q3.csv (columns datum,filiale,betrag_cents) and write ./out/pro_filiale.csv with the columns filiale,summe_cents,anzahl: one row per filiale, summe_cents the sum of betrag_cents of that filiale, anzahl the number of its rows, sorted by filiale ascending.";
+    let typed = json!({
+        "steps": [
+            {"op": "read", "detail": "./umsatz/q3.csv", "evidence": "Read ./umsatz/q3.csv"},
+            {"op": "compute", "detail": "one row per filiale, summe_cents the sum of betrag_cents of that filiale, anzahl the number of its rows, sorted by filiale ascending", "evidence": "one row per filiale, summe_cents the sum of betrag_cents of that filiale, anzahl the number of its rows, sorted by filiale ascending",
+             "computation": {"present": true, "polarity": "keep", "join": "and", "clauses": [], "group_by": "filiale",
+                             "aggregations": [{"field": "betrag_cents", "op": "sum", "as": "summe_cents", "round": ""}, {"field": "", "op": "count", "as": "anzahl", "round": ""}],
+                             "sort_by": "filiale", "order": "asc", "columns": ["filiale", "summe_cents", "anzahl"]}}
+        ],
+        "effects": [{"verb": "write", "target": "./out/pro_filiale.csv", "policy": "automatic", "evidence": "write ./out/pro_filiale.csv with the columns filiale,summe_cents,anzahl"}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "Read ./umsatz/q3.csv (columns datum,filiale,betrag_cents)", "role": "operation"},
+            {"text": "and write ./out/pro_filiale.csv with the columns filiale,summe_cents,anzahl:", "role": "effect"},
+            {"text": "one row per filiale, summe_cents the sum of betrag_cents of that filiale, anzahl the number of its rows, sorted by filiale ascending.", "role": "operation"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    let out = compile_with_provider(
+        &CompileRequest::create(intent).with_authoring_policy(policy()),
+        &Provider::new(typed),
+    )
+    .await
+    .unwrap();
+    assert!(!keys(&out).contains(&"const.rule_expression"), "{out:#?}");
+    let plan = out.provenance.plan.as_ref().unwrap();
+    let rules = plan["rules"].as_array().unwrap();
+    assert_eq!(rules.len(), 1, "{plan:#}");
+    assert_eq!(rules[0]["shape"]["group_by"], "filiale");
+    let candidate = out.candidate.as_deref().unwrap_or_default();
+    assert!(
+        candidate.contains(".records | group_by(.filiale) | map({\"filiale\": (.[0] | .filiale), \"summe_cents\": (map(.betrag_cents | tonumber) | add // 0), \"anzahl\": length}) | sort_by(.filiale) | map({\"filiale\": .filiale, \"summe_cents\": .summe_cents, \"anzahl\": .anzahl})"),
+        "{candidate}"
+    );
+    assert!(
+        candidate.contains("has(\"filiale\")") && candidate.contains("has(\"betrag_cents\")"),
+        "the guard proves the source columns: {candidate}"
+    );
+    assert!(
+        !candidate.contains("has(\"summe_cents\")"),
+        "a produced name is never a source column: {candidate}"
+    );
+    assert!(
+        candidate.contains("- filiale\n")
+            && candidate.contains("- summe_cents\n")
+            && candidate.contains("- anzahl\n"),
+        "the CSV carries the produced columns: {candidate}"
+    );
+}
+
+/// Totals over every row are the outputs the request names, lowered to one object and
+/// exposed one by one, an average rounded as the request states.
+#[tokio::test]
+async fn typed_totals_become_named_outputs() {
+    let intent = "Read ./encuesta.csv (columns respuesta_id,nota) and expose two outputs: respuestas, the number of rows, and nota_media, the average of nota rounded to 1 decimal. Write nothing.";
+    let typed = json!({
+        "steps": [
+            {"op": "read", "detail": "./encuesta.csv", "evidence": "Read ./encuesta.csv"},
+            {"op": "compute", "detail": "respuestas, the number of rows, and nota_media, the average of nota rounded to 1 decimal", "evidence": "respuestas, the number of rows, and nota_media, the average of nota rounded to 1 decimal",
+             "computation": {"present": true, "polarity": "keep", "join": "and", "clauses": [], "group_by": "",
+                             "aggregations": [{"field": "", "op": "count", "as": "respuestas", "round": ""}, {"field": "nota", "op": "avg", "as": "nota_media", "round": "1"}],
+                             "sort_by": "", "order": "", "columns": []}}
+        ],
+        "effects": [{"verb": "write", "target": "nothing", "policy": "forbidden", "evidence": "Write nothing."}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "Read ./encuesta.csv (columns respuesta_id,nota)", "role": "operation"},
+            {"text": "and expose two outputs: respuestas, the number of rows, and nota_media, the average of nota rounded to 1 decimal.", "role": "operation"},
+            {"text": "Write nothing.", "role": "policy"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    let out = compile_with_provider(
+        &CompileRequest::create(intent).with_authoring_policy(policy()),
+        &Provider::new(typed),
+    )
+    .await
+    .unwrap();
+    assert!(!keys(&out).contains(&"const.rule_expression"), "{out:#?}");
+    let candidate = out.candidate.as_deref().unwrap_or_default();
+    assert!(
+        candidate.contains(".records | {\"respuestas\": length, \"nota_media\": (((if length == 0 then 0 else ((map(.nota | tonumber) | add) / length) end) * 10 | round) / 10)}"),
+        "{candidate}"
+    );
+    assert!(
+        candidate.contains("respuestas: ${{ tasks.compute.output.respuestas }}"),
+        "{candidate}"
+    );
+    assert!(
+        candidate.contains("nota_media: ${{ tasks.compute.output.nota_media }}"),
+        "{candidate}"
+    );
 }

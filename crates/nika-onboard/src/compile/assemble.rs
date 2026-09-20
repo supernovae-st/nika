@@ -58,6 +58,8 @@ struct Doc {
     item: bool,
     /// Whether `source_columns` (the CSV source's own header order) was emitted.
     source_columns: bool,
+    /// The columns a typed computation writes, when it fixes them (a grouping, a projection).
+    computed_columns: Option<Vec<String>>,
 }
 
 impl Doc {
@@ -77,6 +79,7 @@ impl Doc {
             facts: Vec::new(),
             item,
             source_columns: false,
+            computed_columns: None,
         }
     }
     /// A task id not yet taken: a second draft is `draft_2`, never a silent overwrite of the
@@ -762,7 +765,15 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
         Some(json!({"records": records})),
         true,
     );
+    d.computed_columns = rule.output_columns();
     emit_computed(d, plan, rule.summary());
+    // Totals over every row are the outputs the request named, one by one.
+    for name in rule.totals_names() {
+        let bare = name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if bare {
+            d.root["outputs"][&name] = json!(format!("${{{{ tasks.compute.output.{name} }}}}"));
+        }
+    }
 }
 
 /// The deterministic count and totals of a computed result: `{count, totals}` where the
@@ -1035,7 +1046,13 @@ fn emit_writes(d: &mut Doc, writes: &[WriteEffect], out: &mut CompileOutcome) ->
             // column order; the header is sorted otherwise. A fact that is not the rows
             // (extracted fields, a validation report) keeps the sorted header: the source
             // columns would only pad it with empty ones.
-            if format == Structured::Csv && d.source_columns && ROW_FACTS.contains(&name) {
+            if format == Structured::Csv
+                && name == "computed"
+                && let Some(columns) = &d.computed_columns
+            {
+                // A grouped or projected computation writes the columns it produced.
+                args["columns"] = json!(columns);
+            } else if format == Structured::Csv && d.source_columns && ROW_FACTS.contains(&name) {
                 args["columns"] = json!("${{ with.columns }}");
                 with["columns"] = json!("${{ tasks.source_columns.output }}");
             }

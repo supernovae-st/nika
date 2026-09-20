@@ -17,6 +17,8 @@
 use super::shape::{ATTEMPT_UNITS, SIZE_UNITS, fold};
 use serde_json::{Value, json};
 
+pub(super) use super::aggregate::{AggOp, Aggregation, Shape};
+
 /// The six comparisons a rule may state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Comparator {
@@ -641,10 +643,12 @@ pub(super) struct Rule {
     junction: Junction,
     /// The text also asked how many rows were kept or what they add up to.
     summary: bool,
+    /// What happens to the rows after the filter.
+    shape: Shape,
 }
 
 /// The jq path of one column: a bare identifier as `.name`, anything else bracketed.
-fn key(field: &str) -> String {
+pub(super) fn key(field: &str) -> String {
     let bare = field
         .chars()
         .next()
@@ -708,13 +712,27 @@ impl Clause {
 impl Rule {
     /// A rule the semantic frontend stated as a typed predicate over the request's own
     /// columns and literals, validated by the compiler; lowered exactly like a parsed one.
-    pub(super) fn typed(text: &str, clauses: Vec<Clause>, junction: Junction) -> Self {
+    pub(super) fn typed(
+        text: &str,
+        clauses: Vec<Clause>,
+        junction: Junction,
+        shape: Shape,
+    ) -> Self {
         Self {
             text: text.to_owned(),
             clauses,
             junction,
             summary: false,
+            shape,
         }
+    }
+    /// The columns the computation writes, in order, when it fixes them.
+    pub(super) fn output_columns(&self) -> Option<Vec<String>> {
+        self.shape.output_columns()
+    }
+    /// The names of the totals, when the computation is totals over every row.
+    pub(super) fn totals_names(&self) -> Vec<String> {
+        self.shape.totals_names()
     }
     /// The excerpt the rule was read from.
     pub(super) fn text(&self) -> &str {
@@ -729,7 +747,8 @@ impl Rule {
             .iter()
             .map(Clause::from_json)
             .collect::<Option<Vec<_>>>()?;
-        if clauses.is_empty() {
+        let shape = Shape::from_json(value.get("shape"))?;
+        if clauses.is_empty() && shape == Shape::default() {
             return None;
         }
         let junction = match value.get("junction").and_then(Value::as_str) {
@@ -745,24 +764,47 @@ impl Rule {
             clauses,
             junction,
             summary,
+            shape,
         })
     }
     /// Whether the text also asked for the count and totals the summary stage computes.
     pub(super) const fn summary(&self) -> bool {
         self.summary
     }
-    /// Every column the rule reads, first use first.
+    /// Every source column the rule reads, first use first: the clauses, the group column,
+    /// the aggregated columns, a sort or a projection on a source column (a sort or a
+    /// projection on a produced name reads nothing from the source).
     pub(super) fn fields(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
-        for clause in &self.clauses {
-            let mut names = vec![clause.field.as_str()];
-            if let Operand::Column(other) = &clause.value {
-                names.push(other.as_str());
+        let mut push = |name: &str| {
+            if !out.iter().any(|f| f == name) {
+                out.push(name.to_owned());
             }
-            for name in names {
-                if !out.iter().any(|f| f == name) {
-                    out.push(name.to_owned());
-                }
+        };
+        for clause in &self.clauses {
+            push(&clause.field);
+            if let Operand::Column(other) = &clause.value {
+                push(other);
+            }
+        }
+        let shape = &self.shape;
+        let produced = shape.produced();
+        if let Some(group) = &shape.group_by {
+            push(group);
+        }
+        for aggregation in &shape.aggregations {
+            if let Some(field) = &aggregation.field {
+                push(field);
+            }
+        }
+        if let Some((field, _)) = &shape.sort_by
+            && !produced.contains(&field.as_str())
+        {
+            push(field);
+        }
+        if produced.is_empty() {
+            for column in &shape.columns {
+                push(column);
             }
         }
         out
@@ -774,9 +816,15 @@ impl Rule {
             .collect::<Vec<_>>()
             .join(&format!(" {} ", self.junction.word()))
     }
-    /// The filter over the parsed records.
+    /// The computation over the parsed records: the filter, then the shape's stages in
+    /// their fixed order.
     pub(super) fn jq(&self) -> String {
-        format!("[.records[] | select({})]", self.predicate())
+        let filtered = if self.clauses.is_empty() {
+            ".records".to_owned()
+        } else {
+            format!("[.records[] | select({})]", self.predicate())
+        };
+        self.shape.lower(filtered)
     }
     /// True when the records are an array whose first record carries every column the
     /// rule reads (an empty array passes): a wrong column fails loudly, never filters
@@ -813,6 +861,7 @@ impl Rule {
             "jq": self.jq(),
             "synthesized": true,
             "summary": self.summary,
+            "shape": self.shape.to_json(),
         });
         if let [only] = self.clauses.as_slice() {
             let clause = only.to_json();
@@ -1173,6 +1222,7 @@ pub(super) fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
         clauses,
         junction: junction.unwrap_or(Junction::And),
         summary,
+        shape: Shape::default(),
     })
 }
 

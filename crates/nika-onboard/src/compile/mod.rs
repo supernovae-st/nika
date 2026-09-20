@@ -57,6 +57,7 @@
 //! # Ok::<(), nika_onboard::compile::CompileError>(())
 //! ```
 
+mod aggregate;
 mod assemble;
 mod bindings;
 mod cognition;

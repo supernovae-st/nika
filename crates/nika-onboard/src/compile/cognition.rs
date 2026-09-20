@@ -85,7 +85,7 @@ struct ProposedStep {
     #[serde(default, deserialize_with = "nullable_vec")]
     categories: Vec<String>,
     #[serde(default)]
-    predicate: Option<super::predicate::ProposedPredicate>,
+    computation: Option<super::predicate::ProposedComputation>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -120,7 +120,9 @@ struct ProposedBypass {
 
 /// A provider's strict structured-output mode may turn an optional property into an explicit
 /// `null`; the decoder reads it as the absent default rather than refusing the plan.
-fn nullable_vec<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+pub(super) fn nullable_vec<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Vec<String>, D::Error> {
     Ok(Option::<Vec<String>>::deserialize(d)?.unwrap_or_default())
 }
 
@@ -129,7 +131,7 @@ pub(super) fn nullable_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<
 }
 
 const INSTRUCTIONS: &str = r"Interpret the ENTIRE user request, in whatever language, as a private semantic plan for a workflow compiler. Return only one JSON object with steps, effects, obligations, constraints, unknowns, regions, approval_bypass. Never produce YAML, source, tool calls, credentials, endpoints or permissions.
-steps: the operations requested, in order. op is one of read (consume a document, text, file, transcript, local folder, glob or set of named files the requester supplies with the invocation; never a named system or store), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records or values from any named external system, store, service, database, directory, catalog, calendar, dashboard, history, registry, runbook or knowledge base; consulting, reading, checking or querying such a source is lookup even when the request says read), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing, correct or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code; when it is a row filter over named columns, state it as predicate {present: true, polarity: keep|drop, join: and|or, clauses: [{field, op: gt|ge|lt|le|eq|ne, value, value_field}]} using the request's own column names and literal values exactly as the request states them, never rewriting a comparison: polarity is keep when the clauses describe the rows to keep and drop when they describe the rows to exclude, remove or filter out; value_field names another column when two columns compare and is empty otherwise; predicate.present is false when the computation is not a row filter), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
+steps: the operations requested, in order. op is one of read (consume a document, text, file, transcript, local folder, glob or set of named files the requester supplies with the invocation; never a named system or store), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records or values from any named external system, store, service, database, directory, catalog, calendar, dashboard, history, registry, runbook or knowledge base; consulting, reading, checking or querying such a source is lookup even when the request says read), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing, correct or draft text without sending it), compute (a threshold, comparison, total, count, average, grouping, sort or projection that must run as code over a parsed table; state it as computation {present: true, polarity: keep|drop, join: and|or, clauses: [{field, op: gt|ge|lt|le|eq|ne, value, value_field}], group_by, aggregations: [{field, op: sum|count|avg|min|max, as, round}], sort_by, order: asc|desc, columns} using the request's own column names, output names and literal values exactly as the request states them, never rewriting a comparison: clauses describe the rows kept (polarity keep) or excluded (polarity drop) and are empty when every row counts; value_field names another column when two columns compare and is empty otherwise; group_by names the column one output row per distinct value is made for, empty otherwise; each aggregation names the output field the request states (as), the source column it aggregates (field, empty for count) and the number of decimals when the request rounds (round, empty otherwise); sort_by and order name the ordering the request states, empty otherwise; columns lists the output columns in the order the request fixes them, empty otherwise; computation.present is false when the step is not such a computation), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
 effects: every action that changes the outside world (create a record, send, publish, post, open a ticket, trigger a payment, mark, order, refund, merge, notify, delete, write a file). verb is one of create, send, publish, update, notify, refund, pay, order, merge, delete, write, effect. target is the verbatim phrase naming the action. policy is one of automatic (requested without a prior human requirement), human_first (only after a fresh explicit human validation of that exact action), forbidden (explicitly prohibited), unspecified (the requester explicitly has not decided and wants to be asked), conflict (requested and prohibited at once). evidence is an exact verbatim substring. Never drop a requested effect; never add one.
 obligations: kind is one of dedup (no second action for the same incoming identifier), retry_bound (a numeric maximum of attempts, cycles or iterations; put the number in value), revision_check (recheck the current version immediately before the final action). A price, deadline, record count or number of proposed time slots is not a bound.
 constraints: verbatim instructions that shape how steps run (what not to infer, what to keep null, what remains a code rule, which sources are excluded).
@@ -667,13 +669,7 @@ async fn propose<P: ProviderInferDyn>(
             "op":{"type":"string","enum":Op::ALL.iter().map(|o| o.word()).collect::<Vec<_>>()},
             "detail":{"type":"string"},"evidence":{"type":"string","minLength":1},
             "categories":{"type":"array","items":{"type":"string"}},
-            "predicate":{"type":"object","additionalProperties":false,"required":["present","polarity","join","clauses"],"properties":{
-                "present":{"type":"boolean"},
-                "polarity":{"type":"string","enum":["keep","drop"]},
-                "join":{"type":"string","enum":["and","or"]},
-                "clauses":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["field","op","value","value_field"],"properties":{
-                    "field":{"type":"string"},"op":{"type":"string","enum":["gt","ge","lt","le","eq","ne"]},
-                    "value":{"type":"string"},"value_field":{"type":"string"}}}}}}}}},
+            "computation": super::predicate::computation_schema()}}},
         "effects":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["verb","target","policy","evidence"],"properties":{
             "verb":{"type":"string","enum":["create","send","publish","update","notify","refund","pay","order","merge","delete","write","effect"]},
             "target":{"type":"string"},
@@ -963,8 +959,8 @@ fn merge(
             continue;
         }
         if op == Op::Compute
-            && let Some(predicate) = step.predicate.as_ref().filter(|p| p.present)
-            && let Some(rule) = super::predicate::typed_rule(intent, &evidence, predicate)
+            && let Some(computation) = step.computation.as_ref().filter(|c| c.present)
+            && let Some(rule) = super::predicate::typed_rule(intent, &evidence, computation)
             && !plan.rules.iter().any(|r| r.text() == rule.text())
         {
             plan.rules.push(rule);
