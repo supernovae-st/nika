@@ -28,7 +28,7 @@ use nika_kernel::ai::provider::{
     StopReason,
 };
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
 
 /// The explicit cognition a caller permits for one request. Absent seats are not consent.
 #[derive(Clone, Copy)]
@@ -191,6 +191,12 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     // Apostrophes fold once here so reading, anchoring and the proposal see one text.
     let effective_intent =
         lexicon::fold_apostrophes(&clarification.unwrap_or_else(|| intent.clone()));
+    // An answer round replays the plan its previous round produced: no reading, no seat,
+    // no proposal, the same candidate.
+    if let Some(record) = &request.plan {
+        replay(&effective_intent, record, &assembly_request, &mut out)?;
+        return Ok(out);
+    }
     // The exact grammar keeps its zero-call, fail-closed path when a provider is permitted.
     if let Ok(Some(plan)) = super::support::resolve(&effective_intent) {
         super::support::assemble(&plan, &assembly_request, &mut out)?;
@@ -352,6 +358,10 @@ fn lexical_rest_is_explicit(intent: &str, reading: &Reading) -> bool {
 /// cases; nothing here selects a candidate, ranks a verdict or widens authority.
 fn record_retrieval(out: &mut CompileOutcome, intent: &str, plan: Option<&Plan>) {
     let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    if decision.get("intent_sha256").is_none() {
+        // The key a transport files a recorded plan under; the same fold as the reader.
+        decision["intent_sha256"] = json!(intent_sha256(intent));
+    }
     if decision.get("retrieval").is_none() {
         decision["retrieval"] = json!({});
     }
@@ -390,6 +400,100 @@ fn record_route(out: &mut CompileOutcome, route: &[String]) {
     out.provenance.decision = Some(decision);
 }
 
+/// The sha256 (lowercase hex) of an intent as the compiler reads it: typographic
+/// apostrophes folded, nothing else changed. A transport keys a recorded plan by this
+/// value so an answer round can find the plan its previous round produced; the compiler
+/// records it in `provenance.decision.intent_sha256` on every general-path outcome.
+#[must_use]
+pub fn intent_sha256(intent: &str) -> String {
+    use sha2::Digest as _;
+    let digest = sha2::Sha256::digest(lexicon::fold_apostrophes(intent).as_bytes());
+    let mut hex = String::with_capacity(64);
+    for byte in digest {
+        use std::fmt::Write as _;
+        let _ = write!(hex, "{byte:02x}");
+    }
+    hex
+}
+
+/// The provenance projection of a settled plan: the plan itself plus the strategy that
+/// settled it, so the record replays under the same name.
+fn plan_record(plan: &Plan, strategy: Option<Strategy>) -> Value {
+    let mut record = plan.to_json();
+    if let Some(strategy) = strategy {
+        record["strategy"] = json!(strategy.word());
+    }
+    record
+}
+
+/// Replay a recorded plan for the same intent: straight to the deterministic assembler,
+/// with zero reading, zero seat calls and zero provider calls. The record's own `strategy`
+/// word is kept as the outcome's strategy; the route says `replayed plan`. A record that
+/// does not parse, is not anchored in this intent or still carries unknown work is a
+/// finding on `recorded_plan`, never a candidate.
+pub(super) fn replay(
+    intent: &str,
+    record: &Value,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+) -> Result<(), CompileError> {
+    let folded = lexicon::fold_apostrophes(intent);
+    let intent = folded.as_str();
+    record_route(out, &["replayed plan".to_owned()]);
+    record_retrieval(out, intent, None);
+    let plan = match Plan::from_json(record) {
+        Ok(plan) => plan,
+        Err(why) => {
+            super::finding(
+                out,
+                DiagnosticKind::Unknown,
+                "recorded_plan",
+                format!(
+                    "The recorded plan cannot be replayed ({why}). Compile the intent again without it."
+                ),
+            );
+            return Ok(());
+        }
+    };
+    let strategy = record
+        .get("strategy")
+        .and_then(Value::as_str)
+        .and_then(Strategy::parse);
+    if !plan.anchored(intent) {
+        super::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "recorded_plan",
+            "The recorded plan is not anchored in this request: an operation, effect or obligation names an excerpt the request does not contain. Compile the intent again without it.",
+        );
+        return Ok(());
+    }
+    if !plan.unknowns.is_empty() {
+        super::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "recorded_plan",
+            "The recorded plan still carries unresolved requested work; no substitute workflow was emitted.",
+        );
+        for unknown in &plan.unknowns {
+            super::finding(out, DiagnosticKind::Unknown, "intent", unknown.clone());
+        }
+        super::question(
+            out,
+            "intent.clarification",
+            "Supply a complete replacement request including all work still wanted. It explicitly replaces the earlier intent.",
+            QuestionType::Text,
+        );
+        out.provenance.plan = Some(plan_record(&plan, strategy));
+        return Ok(());
+    }
+    super::assemble::assemble(&plan, request, out)?;
+    record_retrieval(out, intent, Some(&plan));
+    out.provenance.strategy = strategy;
+    out.provenance.plan = Some(plan_record(&plan, strategy));
+    Ok(())
+}
+
 /// The deterministic-only door: HOT under the request's contract, or an honest report.
 pub(super) fn hot(
     intent: &str,
@@ -406,7 +510,7 @@ pub(super) fn hot(
             super::assemble::assemble(&reading.plan, request, out)?;
             record_retrieval(out, intent, Some(&reading.plan));
             out.provenance.strategy = Some(Strategy::Hot);
-            out.provenance.plan = Some(reading.plan.to_json());
+            out.provenance.plan = Some(plan_record(&reading.plan, Some(Strategy::Hot)));
             Ok(true)
         }
         Err(why) => {
@@ -510,7 +614,7 @@ fn settle(
     super::assemble::assemble(plan, request, &mut out)?;
     record_retrieval(&mut out, intent, Some(plan));
     out.provenance.strategy = Some(strategy);
-    out.provenance.plan = Some(plan.to_json());
+    out.provenance.plan = Some(plan_record(plan, Some(strategy)));
     Ok(out)
 }
 

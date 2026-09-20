@@ -1171,6 +1171,7 @@ pub fn nika_onboard::compile::CompileRequest::edit(base_workflow: impl core::con
 pub fn nika_onboard::compile::CompileRequest::set_constant(base_workflow: impl core::convert::Into<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>, literal_json: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_onboard::compile::CompileRequest::with_authoring_policy(self, policy: nika_onboard::compile::AuthoringPolicy) -> Self
 pub fn nika_onboard::compile::CompileRequest::with_hot_policy(self, hot: nika_onboard::compile::HotPolicy) -> Self
+pub fn nika_onboard::compile::CompileRequest::with_plan(self, plan: serde_json::value::Value) -> Self
 pub fn nika_onboard::compile::CompileRequest::with_workflow_id(self, id: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_onboard::compile::CompileRequest
 pub fn nika_onboard::compile::CompileRequest::clone(&self) -> nika_onboard::compile::CompileRequest
@@ -1348,6 +1349,7 @@ pub const nika_onboard::compile::COMPILE_WIRE_VERSION: u32
 pub fn nika_onboard::compile::compile(request: &nika_onboard::compile::CompileRequest) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
 pub async fn nika_onboard::compile::compile_with_cognition<P: nika_kernel_ai::provider::ProviderInferDyn>(request: &nika_onboard::compile::CompileRequest, cognition: nika_onboard::compile::Cognition<'_, P>) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
 pub async fn nika_onboard::compile::compile_with_provider<P: nika_kernel_ai::provider::ProviderInferDyn>(request: &nika_onboard::compile::CompileRequest, provider: &P) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
+pub fn nika_onboard::compile::intent_sha256(intent: &str) -> alloc::string::String
 pub fn nika_onboard::compile::materialize_ready(outcome: &nika_onboard::compile::CompileOutcome, dest: &std::path::Path, overwrite: bool) -> core::result::Result<(), nika_onboard::compile::MaterializeError>
 pub fn nika_onboard::compile::outcome_document(out: &nika_onboard::compile::CompileOutcome) -> serde_json::value::Value
 pub fn nika_onboard::compile::retrieve(query: &str, k: usize) -> alloc::vec::Vec<nika_onboard::compile::Hit>
