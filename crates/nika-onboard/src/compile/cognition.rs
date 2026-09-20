@@ -680,7 +680,11 @@ fn merge(
             );
             return None;
         }
-        if let Some(existing) = plan.effects.iter_mut().find(|e| e.verb == verb) {
+        if let Some(existing) = plan
+            .effects
+            .iter_mut()
+            .find(|e| e.verb == verb && same_write(verb, &e.target, &effect.target))
+        {
             // The deterministic policy is the floor: a model may only strengthen a plain
             // request. Any other disagreement about a recognized effect is a human question.
             if !effect.target.trim().is_empty() {
@@ -832,6 +836,19 @@ fn accounting_gaps(intent: &str, regions: &[ProposedRegion]) -> Vec<String> {
         ));
     }
     gaps
+}
+
+/// Two writes are one effect only when they name the same file; a write that names no
+/// file joins the recognized one, a write to another file is its own effect.
+fn same_write(verb: EffectVerb, existing: &str, proposed: &str) -> bool {
+    verb != EffectVerb::Write
+        || match (
+            super::paths::single_file(existing),
+            super::paths::single_file(proposed),
+        ) {
+            (Some(a), Some(b)) => a == b,
+            _ => true,
+        }
 }
 
 fn reject(out: &mut CompileOutcome, why: &str) {

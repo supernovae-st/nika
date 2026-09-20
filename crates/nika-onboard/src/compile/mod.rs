@@ -58,12 +58,14 @@
 //! ```
 
 mod assemble;
+mod bindings;
 mod cognition;
 pub mod decide;
 mod edit;
 mod edit_source;
 mod lexicon;
 mod materialize;
+mod paths;
 pub(crate) mod pattern;
 mod plan;
 mod retrieve;
