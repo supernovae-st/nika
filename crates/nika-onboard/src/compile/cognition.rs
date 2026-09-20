@@ -200,7 +200,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     record_retrieval(&mut out, &effective_intent, None);
     let mut reading = lexicon::read(&effective_intent);
     backstop(&effective_intent, &mut reading.plan);
-    match admit_hot(&reading, request.hot) {
+    match admit_hot(&effective_intent, &reading, request.hot) {
         Ok(()) => {
             route.push("hot".to_owned());
             record_route(&mut out, &route);
@@ -220,7 +220,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
         && !reading.ambiguous.is_empty()
         && request.hot != HotPolicy::Off
         && let Some(seat) = cognition.seat
-        && lexical_rest_is_explicit(&reading)
+        && lexical_rest_is_explicit(&effective_intent, &reading)
     {
         out.provenance.cognition = AuthoringCognition::ExplicitDecision;
         let mut records = Vec::new();
@@ -321,7 +321,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
 }
 
 /// The strict admission contract, the legacy one, or none.
-fn admit_hot(reading: &Reading, hot: HotPolicy) -> Result<(), Vec<String>> {
+fn admit_hot(intent: &str, reading: &Reading, hot: HotPolicy) -> Result<(), Vec<String>> {
     match hot {
         HotPolicy::Off => Err(vec!["hot policy off".to_owned()]),
         HotPolicy::Legacy => {
@@ -332,18 +332,18 @@ fn admit_hot(reading: &Reading, hot: HotPolicy) -> Result<(), Vec<String>> {
             }
         }
         HotPolicy::Strict => {
-            let why = reading.hot_rejections();
+            let mut why = reading.hot_rejections();
+            why.extend(super::hot::rejections(intent, reading));
             if why.is_empty() { Ok(()) } else { Err(why) }
         }
     }
 }
 
 /// Under the strict contract, a lexical WARM may only settle an otherwise explicit reading.
-fn lexical_rest_is_explicit(reading: &Reading) -> bool {
-    reading
-        .hot_rejections()
-        .iter()
-        .all(|why| why.contains("ambiguous clause"))
+fn lexical_rest_is_explicit(intent: &str, reading: &Reading) -> bool {
+    let mut why = reading.hot_rejections();
+    why.extend(super::hot::rejections(intent, reading));
+    why.iter().all(|why| why.contains("ambiguous clause"))
 }
 
 /// Recall only: what the embedded candidate index returns for the request text and, once a
@@ -399,7 +399,7 @@ pub(super) fn hot(
     let intent = folded.as_str();
     let mut reading = lexicon::read(intent);
     backstop(intent, &mut reading.plan);
-    match admit_hot(&reading, request.hot) {
+    match admit_hot(intent, &reading, request.hot) {
         Ok(()) => {
             record_route(out, &["hot".to_owned()]);
             super::assemble::assemble(&reading.plan, request, out)?;

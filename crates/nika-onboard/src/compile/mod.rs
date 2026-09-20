@@ -62,6 +62,7 @@ mod cognition;
 pub mod decide;
 mod edit;
 mod edit_source;
+mod hot;
 mod lexicon;
 mod materialize;
 pub(crate) mod pattern;

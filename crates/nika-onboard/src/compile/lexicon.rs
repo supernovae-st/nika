@@ -122,7 +122,7 @@ impl Reading {
     }
 }
 
-enum Head {
+pub(super) enum Head {
     Op(Op),
     Choice(&'static [Op]),
     Effect(EffectVerb),
@@ -546,7 +546,7 @@ fn head_of(lower: &str) -> Option<(&'static str, &'static Head)> {
     None
 }
 
-fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
+pub(super) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut best: Option<(&'static str, &'static Head)> = None;
     for (phrase, head) in LEXICON {
         if lower.starts_with(phrase) {

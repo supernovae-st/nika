@@ -940,3 +940,22 @@ async fn retrieval_is_recorded_as_recall_on_every_route() {
         "{candidate}"
     );
 }
+
+/// Two fresh intents the strict contract still admitted: a fetch whose drafted brief produced no
+/// step, and a bare path read as something to draft. Neither is HOT; the positive control is.
+#[test]
+fn strict_hot_requires_every_cue_to_produce_an_element() {
+    let intent = "Fetch https://www.rfc-editor.org/rfc/rfc2324.txt and pull out the numbered section titles. Then write a plain-English brief of under 150 words explaining what the protocol does and why it is a joke, as 5 bullets, to ./out/rfc2324-brief.md.";
+    let out = nika_onboard::compile::compile(&CompileRequest::create(intent)).unwrap();
+    assert_ne!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    let out = nika_onboard::compile::compile(
+        &CompileRequest::create("Read ./a.txt and write ./b.txt").answer("model", r#""mock/echo""#),
+    )
+    .unwrap();
+    assert_ne!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    let control = "Read ./notes/brief.md, summarize it in three bullets, and write the summary to ./out/summary.md";
+    let out = nika_onboard::compile::compile(&CompileRequest::create(control)).unwrap();
+    assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
+}
