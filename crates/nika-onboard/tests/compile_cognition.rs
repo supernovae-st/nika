@@ -595,3 +595,80 @@ async fn fully_readable_intents_never_call_a_permitted_seat() {
     assert!(seat.asked.lock().unwrap().is_empty());
     assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
 }
+
+// ── COLD best-of-N: agreement, never a vote that hides a dropped effect ───────
+struct Rotating {
+    plans: Vec<String>,
+    calls: AtomicU32,
+}
+impl ProviderInferDyn for Rotating {
+    async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {
+        let index = self.calls.fetch_add(1, Ordering::SeqCst) as usize;
+        let text = self.plans[index % self.plans.len()].clone();
+        Ok(InferResponse::new(
+            vec![ContentBlock::Text { text }],
+            TokenUsage::new(100, 50),
+            StopReason::EndTurn,
+        ))
+    }
+}
+
+#[tokio::test]
+async fn cold_best_of_three_keeps_the_plan_the_others_agree_with() {
+    // Sample 1 reads "classe le problème" as a code rule the request never asked; samples 2 and 3 agree.
+    let mut invented = plan();
+    invented["steps"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"op":"compute","detail":"le problème","evidence":"classe le problème"}));
+    let provider = Rotating {
+        plans: vec![invented.to_string(), plan().to_string(), plan().to_string()],
+        calls: AtomicU32::new(0),
+    };
+    let req = CompileRequest::create(INTENT)
+        .with_authoring_policy(policy().with_samples(3))
+        .answer("model", r#""mock/echo""#)
+        .answer("const.customer_directory", r#""customers.json""#)
+        .answer("const.refund_policy", r#"{"cap":100,"currency":"EUR"}"#)
+        .answer(
+            "const.refund_endpoint",
+            r#""https://refund.example.invalid/refunds""#,
+        );
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 3);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    assert_eq!(receipt.calls, 3);
+    assert_eq!(receipt.input_tokens, Some(300));
+    let doc = outcome_document(&out);
+    assert_eq!(
+        doc["provenance"]["decision"]["cold_samples"]["requested"],
+        3
+    );
+    assert_eq!(doc["provenance"]["decision"]["cold_samples"]["accepted"], 3);
+    let selected = doc["provenance"]["decision"]["cold_samples"]["selected"]
+        .as_u64()
+        .unwrap();
+    assert!(
+        selected == 1 || selected == 2,
+        "the medoid is one of the agreeing samples: {selected}"
+    );
+}
+
+#[tokio::test]
+async fn cold_best_of_n_never_assembles_when_every_sample_is_refused() {
+    let mut unanchored = plan();
+    unanchored["steps"][0]["evidence"] = json!("invented");
+    let provider = Rotating {
+        plans: vec![unanchored.to_string()],
+        calls: AtomicU32::new(0),
+    };
+    let req = CompileRequest::create(INTENT).with_authoring_policy(policy().with_samples(3));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 3);
+    assert_eq!(out.status, CompileStatus::Incomplete);
+    assert!(out.candidate.is_none());
+    let doc = outcome_document(&out);
+    assert_eq!(doc["provenance"]["decision"]["cold_samples"]["accepted"], 0);
+}

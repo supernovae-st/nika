@@ -96,7 +96,7 @@ struct ProposedObligation {
 }
 
 const INSTRUCTIONS: &str = r"Interpret the ENTIRE user request as a private semantic plan for a workflow compiler. Return only one JSON object with steps, effects, obligations, constraints, unknowns. Never produce YAML, source, tool calls, credentials, endpoints or permissions.
-steps: the operations requested, in order. op is one of read (consume the document supplied with each invocation; not an external retrieval), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records from an external source, database, directory, catalog, calendar, history, registry, runbook or knowledge base), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code), validate (verify against explicit criteria). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
+steps: the operations requested, in order. op is one of read (consume the document supplied with each invocation; not an external retrieval), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records from an external source, database, directory, catalog, calendar, history, registry, runbook or knowledge base), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
 effects: every action that changes the outside world (create a record, send, publish, post, open a ticket, trigger a payment, mark, order, refund, merge, notify, delete). verb is one of create, send, publish, update, notify, refund, pay, order, merge, delete, effect. target is the verbatim phrase naming the action. policy is one of automatic (requested without a prior human requirement), human_first (only after a fresh explicit human validation of that exact action), forbidden (explicitly prohibited), unspecified (the requester explicitly has not decided and wants to be asked), conflict (requested and prohibited at once). evidence is an exact verbatim substring. Never drop a requested effect; never add one.
 obligations: kind is one of dedup (no second action for the same incoming identifier), retry_bound (a numeric maximum of attempts, cycles or iterations; put the number in value), revision_check (recheck the current version immediately before the final action). A price, deadline, record count or number of proposed time slots is not a bound.
 constraints: verbatim instructions that shape how steps run (what not to infer, what to keep null, what remains a code rule, which sources are excluded).
@@ -268,21 +268,163 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
             );
             return Ok(out);
         }
-        if let Some(proposal) = propose(&effective_intent, policy, provider, &mut out).await
-            && let Some(plan) = merge(&effective_intent, proposal, &reading, &mut out)
-        {
-            return settle(
-                Strategy::Cold,
-                &plan,
-                &effective_intent,
-                &assembly_request,
-                out,
-            );
+        if policy.samples <= 1 {
+            if let Some(proposal) = propose(&effective_intent, policy, provider, &mut out).await
+                && let Some(plan) = merge(&effective_intent, proposal, &reading, &mut out)
+            {
+                return settle(
+                    Strategy::Cold,
+                    &plan,
+                    &effective_intent,
+                    &assembly_request,
+                    out,
+                );
+            }
+            return Ok(out);
         }
-        return Ok(out);
+        return sampled(
+            &effective_intent,
+            policy,
+            provider,
+            &reading,
+            &assembly_request,
+            out,
+        )
+        .await;
     }
     unresolved(&reading, &mut out);
     Ok(out)
+}
+
+/// Best-of-N COLD: N independent proposals, each validated and merged alone; the plan
+/// the other samples agree with most is assembled. Agreement is structural (operations,
+/// effects with their policy, obligations), never a vote that could hide a dropped
+/// effect: a plan that fails the deterministic facts never enters the pool.
+async fn sampled<P: ProviderInferDyn>(
+    intent: &str,
+    policy: &AuthoringPolicy,
+    provider: &P,
+    reading: &Reading,
+    request: &CompileRequest,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    let mut accepted: Vec<(usize, Plan)> = Vec::new();
+    let mut rejected: Vec<CompileOutcome> = Vec::new();
+    let mut records = Vec::new();
+    let mut calls = 0;
+    let mut input_tokens: Option<u64> = None;
+    let mut output_tokens: Option<u64> = None;
+    let mut elapsed_ms = 0;
+    for index in 0..policy.samples.clamp(1, 5) as usize {
+        let mut scratch = super::initial();
+        let proposal = propose(intent, policy, provider, &mut scratch).await;
+        if let Some(receipt) = &scratch.provenance.authoring {
+            calls += receipt.calls;
+            elapsed_ms += receipt.elapsed_ms;
+            if let Some(n) = receipt.input_tokens {
+                input_tokens = Some(input_tokens.unwrap_or(0) + n);
+            }
+            if let Some(n) = receipt.output_tokens {
+                output_tokens = Some(output_tokens.unwrap_or(0) + n);
+            }
+        }
+        let plan = proposal.and_then(|p| merge(intent, p, reading, &mut scratch));
+        let findings: Vec<String> = scratch
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind != DiagnosticKind::Applied)
+            .map(|d| d.message.clone())
+            .collect();
+        records.push(json!({
+            "sample": index,
+            "accepted": plan.is_some(),
+            "signature": plan.as_ref().map(signature),
+            "findings": findings,
+        }));
+        match plan {
+            Some(plan) => accepted.push((index, plan)),
+            None => rejected.push(scratch),
+        }
+    }
+    out.provenance.cognition = AuthoringCognition::ExplicitProvider;
+    out.provenance.authoring = Some(AuthoringReceipt {
+        model: policy.model.clone(),
+        calls,
+        input_tokens,
+        output_tokens,
+        elapsed_ms,
+    });
+    // The medoid: the accepted plan whose structure the other accepted plans share most.
+    let chosen = accepted
+        .iter()
+        .enumerate()
+        .map(|(i, (index, plan))| {
+            let mine = signature(plan);
+            // Symmetric-difference similarity: shared items count, extra or missing items cost.
+            let score: isize = accepted
+                .iter()
+                .enumerate()
+                .filter(|(j, _)| *j != i)
+                .map(|(_, (_, other))| similarity(&mine, &signature(other)))
+                .sum();
+            (score, std::cmp::Reverse(*index))
+        })
+        .enumerate()
+        .max_by_key(|(_, key)| *key)
+        .map(|(i, _)| i);
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    decision["cold_samples"] = json!({
+        "requested": policy.samples,
+        "accepted": accepted.len(),
+        "selected": chosen.map(|i| accepted[i].0),
+        "samples": records,
+    });
+    out.provenance.decision = Some(decision);
+    if let Some(i) = chosen {
+        let plan = accepted[i].1.clone();
+        return settle(Strategy::Cold, &plan, intent, request, out);
+    }
+    // Every sample was refused: report the first refusal's findings and question.
+    if let Some(first) = rejected.into_iter().next() {
+        out.diagnostics.extend(first.diagnostics);
+        out.questions.extend(first.questions);
+        if out.provenance.plan.is_none() {
+            out.provenance.plan = first.provenance.plan;
+        }
+    }
+    Ok(out)
+}
+
+/// A plan's structural signature: operation words, effect verb:policy words, obligation words.
+fn signature(plan: &Plan) -> Vec<String> {
+    let mut items: Vec<String> = plan
+        .steps
+        .iter()
+        .map(|s| format!("op:{}", s.op.word()))
+        .chain(
+            plan.effects
+                .iter()
+                .map(|e| format!("effect:{}:{}", e.verb.word(), e.policy.word())),
+        )
+        .chain(
+            plan.obligations
+                .iter()
+                .map(|o| format!("obligation:{}", o.kind.word())),
+        )
+        .collect();
+    items.sort();
+    items.dedup();
+    items
+}
+
+fn similarity(a: &[String], b: &[String]) -> isize {
+    let shared = a.iter().filter(|item| b.contains(item)).count();
+    let shared = isize::try_from(shared).unwrap_or(isize::MAX / 4);
+    let (la, lb) = (
+        isize::try_from(a.len()).unwrap_or(isize::MAX / 4),
+        isize::try_from(b.len()).unwrap_or(isize::MAX / 4),
+    );
+    2 * shared - la - lb
 }
 
 /// The deterministic-only door: HOT or an honest unresolved report. Never a seat call.

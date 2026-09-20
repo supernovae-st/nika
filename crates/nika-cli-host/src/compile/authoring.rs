@@ -23,11 +23,10 @@ pub(super) fn compile(
         );
     }
     let request = match args.authoring_model.as_deref() {
-        Some(model) => request.clone().with_authoring_policy(AuthoringPolicy::new(
-            model,
-            max_tokens,
-            Duration::from_secs(timeout),
-        )),
+        Some(model) => request.clone().with_authoring_policy(
+            AuthoringPolicy::new(model, max_tokens, Duration::from_secs(timeout))
+                .with_samples(args.authoring_samples.unwrap_or(1)),
+        ),
         None => request.clone(),
     };
     let runtime = tokio::runtime::Builder::new_current_thread()

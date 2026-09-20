@@ -675,6 +675,7 @@ pub type nika_onboard::compile::Strategy::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::AuthoringPolicy
 impl nika_onboard::compile::AuthoringPolicy
 pub fn nika_onboard::compile::AuthoringPolicy::new(model: impl core::convert::Into<alloc::string::String>, max_tokens: u32, timeout: core::time::Duration) -> Self
+pub fn nika_onboard::compile::AuthoringPolicy::with_samples(self, samples: u32) -> Self
 impl core::clone::Clone for nika_onboard::compile::AuthoringPolicy
 pub fn nika_onboard::compile::AuthoringPolicy::clone(&self) -> nika_onboard::compile::AuthoringPolicy
 impl core::fmt::Debug for nika_onboard::compile::AuthoringPolicy

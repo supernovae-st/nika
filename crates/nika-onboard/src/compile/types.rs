@@ -246,8 +246,16 @@ pub struct AuthoringPolicy {
     pub(super) model: String,
     pub(super) max_tokens: u32,
     pub(super) timeout: std::time::Duration,
+    pub(super) samples: u32,
 }
 impl AuthoringPolicy {
+    /// Ask for `samples` independent proposals (1..=5) and keep the one the others agree
+    /// with most; disagreement is recorded, never voted away. Each sample is one call.
+    #[must_use]
+    pub fn with_samples(mut self, samples: u32) -> Self {
+        self.samples = samples.clamp(1, 5);
+        self
+    }
     /// Permit one call with an explicit model, output-token cap and timeout.
     /// Invalid or unbounded limits yield Incomplete without calling a provider.
     #[must_use]
@@ -256,6 +264,7 @@ impl AuthoringPolicy {
             model: model.into(),
             max_tokens,
             timeout,
+            samples: 1,
         }
     }
 }

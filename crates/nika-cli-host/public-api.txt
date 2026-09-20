@@ -184,6 +184,7 @@ pub struct nika_cli_host::compile::CompileArgs
 pub nika_cli_host::compile::CompileArgs::answers: alloc::vec::Vec<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::authoring_max_tokens: core::option::Option<u32>
 pub nika_cli_host::compile::CompileArgs::authoring_model: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::CompileArgs::authoring_samples: core::option::Option<u32>
 pub nika_cli_host::compile::CompileArgs::authoring_timeout: core::option::Option<u64>
 pub nika_cli_host::compile::CompileArgs::decision_model: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::base: core::option::Option<alloc::string::String>

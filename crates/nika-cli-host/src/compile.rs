@@ -41,6 +41,9 @@ pub struct CompileArgs {
     /// Authoring timeout in seconds, at most 120; no retries.
     #[arg(long, requires = "authoring_model")]
     pub authoring_timeout: Option<u64>,
+    /// Independent COLD proposals to compare (1..=5); each is one call. Requires the authoring model.
+    #[arg(long, requires = "authoring_model")]
+    pub authoring_samples: Option<u32>,
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
     #[arg(long, conflicts_with_all = ["base", "list"])]
     pub decision_model: Option<String>,
