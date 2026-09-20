@@ -500,7 +500,7 @@ pub(super) fn replay(
     // A record from an earlier engine may still carry a numeric rule as guidance.
     let mut plan = plan;
     super::shape::promote_numeric_rules(&mut plan, intent);
-    super::assemble::assemble(&plan, request, out)?;
+    super::assemble::assemble(&plan, intent, request, out)?;
     record_retrieval(out, intent, Some(&plan));
     out.provenance.strategy = strategy;
     out.provenance.plan = Some(plan_record(&plan, strategy));
@@ -521,7 +521,7 @@ pub(super) fn hot(
         Ok(()) => {
             record_route(out, &["hot".to_owned()]);
             super::shape::promote_numeric_rules(&mut reading.plan, intent);
-            super::assemble::assemble(&reading.plan, request, out)?;
+            super::assemble::assemble(&reading.plan, intent, request, out)?;
             record_retrieval(out, intent, Some(&reading.plan));
             out.provenance.strategy = Some(Strategy::Hot);
             out.provenance.plan = Some(plan_record(&reading.plan, Some(Strategy::Hot)));
@@ -627,7 +627,7 @@ fn settle(
     }
     let mut plan = plan.clone();
     super::shape::promote_numeric_rules(&mut plan, intent);
-    super::assemble::assemble(&plan, request, &mut out)?;
+    super::assemble::assemble(&plan, intent, request, &mut out)?;
     record_retrieval(&mut out, intent, Some(&plan));
     out.provenance.strategy = Some(strategy);
     out.provenance.plan = Some(plan_record(&plan, Some(strategy)));

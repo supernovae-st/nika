@@ -13,6 +13,7 @@
 
 use super::paths::{self, PathShape, Structured};
 use super::plan::{Effect, EffectPolicy, EffectVerb, Op, Plan, Step};
+use super::shape;
 use super::support::{admit_directory, admit_endpoint, admit_model, admit_policy, answer, reject};
 use super::{CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
 use serde_json::{Value, json};
@@ -98,9 +99,20 @@ pub(super) struct Bindings {
     /// Whether `inputs.item` is declared: the request is invoked per item, or it
     /// supplies no other material.
     pub item: bool,
+    /// The draft runs once per read item and is folded back in item order: the request
+    /// distributes its draft over the files of a fan-out.
+    pub per_item: bool,
 }
 
 impl Bindings {
+    /// The corpus is several files read in a bounded fan-out.
+    pub(super) fn fan_out(&self) -> bool {
+        matches!(self.read, Need::Bound(Source::Files(_) | Source::Glob(_)))
+    }
+    /// Whether at least one effect waits on a human gate.
+    pub(super) fn gated(&self) -> bool {
+        self.writes.iter().any(|w| w.gated) || self.wired.iter().any(|w| w.gated)
+    }
     /// Whether a structured source must be decoded for code: a code rule, an endpoint
     /// payload or a structured write consumes the parsed records; a prompt never does.
     pub(super) fn parses(&self) -> bool {
@@ -217,6 +229,7 @@ pub(super) fn parallel_bound(constraint: &str) -> Option<u32> {
 /// item and the rule's input shape depend on them.
 pub(super) fn bind(
     plan: &Plan,
+    intent: &str,
     request: &CompileRequest,
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
@@ -278,6 +291,17 @@ pub(super) fn bind(
             }
         }
     }
+    // The request distributes its draft over the files: the fan-in realizes the order
+    // and the headings itself, so those instructions leave the prompts.
+    let distributed = shape::per_item(intent, plan);
+    let per_item = distributed && fan_out && plan.has(Op::Draft);
+    if per_item {
+        for constraint in &plan.constraints {
+            if shape::structural(constraint) && !consumed.contains(constraint) {
+                consumed.push(constraint.clone());
+            }
+        }
+    }
     let mut b = Bindings {
         model,
         lookup,
@@ -292,15 +316,46 @@ pub(super) fn bind(
         consumed,
         max_parallel,
         item,
+        per_item,
     };
     b.rule = Need::from_step(plan.step(Op::Compute), |step| {
         recognized.insert("const.rule_expression".to_owned());
         let label = rule_label(plan, &b, &step.detail);
         answer(request, out, "const.rule_expression", &label, true)
     });
-    bind_effects(plan, request, out, recognized, &mut b);
+    bind_effects(plan, distributed, request, out, recognized, &mut b);
     bind_named_outputs(plan, request, out, recognized, &mut b);
     b
+}
+
+/// A per-item request whose written target is a placeholder ("./out/<name>.md") asks for
+/// one file per item; the compiler emits one written file per request and never lowers
+/// that to a single guessed path.
+fn refuse_per_item_placeholder(effect: &Effect, out: &mut CompileOutcome) -> bool {
+    let placeholder = paths::literals(&effect.target)
+        .into_iter()
+        .find_map(|shape| match shape {
+            PathShape::Placeholder(path) => Some(path),
+            _ => None,
+        });
+    let Some(placeholder) = placeholder else {
+        return false;
+    };
+    super::finding(
+        out,
+        DiagnosticKind::Unknown,
+        "intent",
+        format!(
+            "The request writes one file per item (`{placeholder}`), but a compiled workflow writes one file per request; a single guessed path would drop the per-item files. Name the one file the per-item results merge into, or one request per item."
+        ),
+    );
+    super::question(
+        out,
+        "intent.clarification",
+        "Supply a complete replacement request that names the one file receiving the per-item results, or one request per item. It explicitly replaces the earlier intent.",
+        QuestionType::Text,
+    );
+    true
 }
 
 /// The read step settles where the document comes from: the supplied item when it
@@ -532,6 +587,7 @@ fn wanted(
 /// explicit endpoint. Policy decides whether a human gate dominates it.
 fn bind_effects(
     plan: &Plan,
+    distributed: bool,
     request: &CompileRequest,
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
@@ -549,6 +605,13 @@ fn bind_effects(
         }
         let gated = effect.policy == EffectPolicy::HumanFirst;
         if effect.verb == EffectVerb::Write || file_write(effect).is_some() {
+            if distributed
+                && file_write(effect).is_none()
+                && refuse_per_item_placeholder(effect, out)
+            {
+                b.effects_pending = true;
+                continue;
+            }
             let path = file_write(effect)
                 .or_else(|| ask_write_path(effect, &slug, request, out, recognized, b));
             let Some(path) = path else {

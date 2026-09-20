@@ -309,9 +309,314 @@ pub(super) fn promote_numeric_rules(plan: &mut Plan, intent: &str) {
     }
 }
 
+/// Words that name a heading (EN · FR · ES · IT · DE, folded).
+const HEADING_WORDS: &[&str] = &[
+    "heading",
+    "headings",
+    "header",
+    "headers",
+    "title",
+    "titles",
+    "titre",
+    "titres",
+    "intitule",
+    "en-tete",
+    "entete",
+    "titulo",
+    "titulos",
+    "encabezado",
+    "titolo",
+    "titoli",
+    "intestazione",
+    "uberschrift",
+    "uberschriften",
+];
+
+/// Distributive words and file-name phrases that, beside a heading word, ask for one
+/// heading per item (folded, whole words or phrases).
+const DISTRIBUTIVE_CUES: &[&str] = &[
+    "each",
+    "every",
+    "per",
+    "chaque",
+    "chacun",
+    "chacune",
+    "cada",
+    "ogni",
+    "ciascun",
+    "ciascuno",
+    "jede",
+    "jeden",
+    "jedes",
+    "jeder",
+    "par fichier",
+    "par document",
+    "par note",
+    "named after the file",
+    "nom du fichier",
+    "file name",
+    "filename",
+    "nombre del archivo",
+    "nome del file",
+    "dateiname",
+    "dateinamen",
+];
+
+/// A quantifier that leads a clause and distributes the work over items.
+const LEADING_QUANTIFIERS: &[&str] = &[
+    "for each",
+    "for every",
+    "pour chaque",
+    "pour chacun",
+    "pour chacune",
+    "para cada",
+    "per ogni",
+    "per ciascun",
+    "fur jede",
+    "fur jeden",
+    "fur jedes",
+];
+
+/// Order and heading phrases the fan-in structure realizes itself, so they leave the
+/// prompts once the work is distributed.
+const STRUCTURAL_CUES: &[&str] = &[
+    "in exactly that order",
+    "in that order",
+    "in the listed order",
+    "in order",
+    "in the same order",
+    "dans l'ordre",
+    "dans cet ordre",
+    "dans le meme ordre",
+    "en ese orden",
+    "en el mismo orden",
+    "in quest'ordine",
+    "nello stesso ordine",
+    "in dieser reihenfolge",
+];
+
+/// The folded text with every non-alphanumeric run (apostrophes and hyphens kept) as one
+/// space, padded, so a phrase matches as whole words.
+fn padded(text: &str) -> String {
+    let folded = fold(text);
+    let mut out = String::with_capacity(folded.len() + 2);
+    out.push(' ');
+    let mut space = false;
+    for c in folded.chars() {
+        if c.is_alphanumeric() || matches!(c, '\'' | '-') {
+            out.push(c);
+            space = false;
+        } else if !space {
+            out.push(' ');
+            space = true;
+        }
+    }
+    if !out.ends_with(' ') {
+        out.push(' ');
+    }
+    out
+}
+
+/// A heading word within one clause of a distributive or file-name cue: one heading per
+/// item. The window is sixty characters either side on the padded text.
+fn heading_beside_distributive(text: &str) -> bool {
+    let padded = padded(text);
+    let positions = |table: &[&str]| -> Vec<usize> {
+        let mut found = Vec::new();
+        for word in table {
+            let needle = format!(" {word} ");
+            let mut from = 0;
+            while let Some(at) = padded.get(from..).and_then(|rest| rest.find(&needle)) {
+                found.push(from + at);
+                from += at + needle.len();
+            }
+        }
+        found
+    };
+    let headings = positions(HEADING_WORDS);
+    if headings.is_empty() {
+        return false;
+    }
+    let cues = positions(DISTRIBUTIVE_CUES);
+    headings
+        .iter()
+        .any(|h| cues.iter().any(|c| h.abs_diff(*c) <= 60))
+}
+
+fn led_by_quantifier(text: &str) -> bool {
+    let padded = padded(text);
+    LEADING_QUANTIFIERS
+        .iter()
+        .any(|q| padded.starts_with(&format!(" {q} ")))
+}
+
+/// Whether the request distributes its draft over items: a heading word beside a
+/// distributive or file-name cue anywhere in the request or the plan's elements, or a
+/// draft evidence or plan trigger led by a distributive quantifier. Distributive words
+/// inside one draft's object with a single file and a single length cap ("l'essentiel de
+/// chaque note … en un seul fichier … max 12 lignes") stay one draft.
+pub(super) fn per_item(intent: &str, plan: &Plan) -> bool {
+    if heading_beside_distributive(intent) {
+        return true;
+    }
+    let elements = plan
+        .constraints
+        .iter()
+        .map(String::as_str)
+        .chain(plan.effects.iter().map(|e| e.target.as_str()))
+        .chain(plan.effects.iter().map(|e| e.evidence.as_str()));
+    for text in elements {
+        if heading_beside_distributive(text) {
+            return true;
+        }
+    }
+    plan.steps
+        .iter()
+        .filter(|s| s.op == Op::Draft)
+        .any(|s| led_by_quantifier(&s.evidence))
+        || plan.trigger.as_deref().is_some_and(led_by_quantifier)
+}
+
+/// A constraint the fan-in structure realizes (order, one heading per item): consumed
+/// out of the prompts when the work is distributed.
+pub(super) fn structural(constraint: &str) -> bool {
+    let padded = padded(constraint);
+    STRUCTURAL_CUES
+        .iter()
+        .any(|cue| padded.contains(&format!(" {cue} ")))
+        || HEADING_WORDS
+            .iter()
+            .any(|word| padded.contains(&format!(" {word} ")))
+}
+
+/// The topology the assembler realized for one plan; recorded in provenance, never
+/// authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Shape {
+    /// The corpus is several files read in a bounded fan-out.
+    pub fan_out: bool,
+    /// The draft runs once per read item and is folded back in item order.
+    pub per_item: bool,
+    /// Written files plus wired endpoints.
+    pub outputs: usize,
+    /// A human gate dominates at least one effect.
+    pub gated: bool,
+}
+
+impl Shape {
+    pub(super) const fn word(self) -> &'static str {
+        if self.gated {
+            "human_gated"
+        } else if self.outputs > 1 {
+            "multiple_outputs"
+        } else if self.fan_out && self.per_item {
+            "fan_out_fan_in"
+        } else if self.fan_out {
+            "fan_out_fold"
+        } else {
+            "linear"
+        }
+    }
+    pub(super) fn to_json(self) -> serde_json::Value {
+        serde_json::json!({
+            "word": self.word(),
+            "fan_out": self.fan_out,
+            "per_item": self.per_item,
+            "outputs": self.outputs,
+            "gated": self.gated,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const CHAPTERS: &str = "For each of the four files ./chapters/01-intro.md, ./chapters/02-method.md, ./chapters/03-results.md and ./chapters/04-limits.md, at most 2 at a time, write a two-sentence summary. Then merge the summaries in exactly that order into ./out/digest.md, with one heading per file named after the file.";
+    const CATALOG: &str = "For each of these four product slugs - solar-lamp, wind-chime, rain-barrel, compost-bin - read ./catalog/<slug>.md and draft one two-sentence marketing blurb in a warm, down-to-earth tone. Process at most 2 products at a time, then merge all four blurbs in the listed order into a single ./out/catalog-blurbs.md with the product name as a heading above each blurb.";
+    const NOTES: &str = "bon alors jai un dossier ./notes avec plein de fichiers .md de reunion de la semaine faut que tu me fasse un resumé de chaque en 3 lignes max et que tu me mette tout ca dans ./out/recap-semaine.md avec le nom du fichier en titre stp pas de blabla juste les decisions et les trucs a faire merci";
+    const ONE_FILE: &str = "resume moi tout les notes qui sont dans le dossier ./notes en un seul fichier ./out/resume.md max 12 lignes stp jveux juste lessentiel de chaque note c urgent merci";
+    const ORDERS: &str = "Read the CSV at ./data/orders-2026-09.csv and keep only the rows whose status is \"shipped\" and whose total_eur is above 120. Write the count of those orders per country as JSON to ./out/shipped-by-country.json, then write a short Markdown note naming the top 3 countries to ./out/summary.md.";
+
+    #[test]
+    fn per_item_is_a_heading_beside_a_distributive_cue_or_a_leading_quantifier() {
+        let bare = Plan::default();
+        assert!(
+            per_item(CHAPTERS, &bare),
+            "heading per file named after the file"
+        );
+        assert!(per_item(CATALOG, &bare), "a heading above each blurb");
+        assert!(per_item(NOTES, &bare), "le nom du fichier en titre");
+        // The French notes case: distributive words inside one draft's object, a single
+        // file, a single length cap.
+        let one = Plan {
+            steps: vec![Step {
+                op: Op::Draft,
+                evidence: "resume moi tout les notes qui sont dans le dossier ./notes".to_owned(),
+                detail: "tout les notes … lessentiel de chaque note".to_owned(),
+                categories: Vec::new(),
+            }],
+            constraints: vec!["max 12 lignes".to_owned()],
+            ..Plan::default()
+        };
+        assert!(!per_item(ONE_FILE, &one));
+        assert!(
+            !per_item(ORDERS, &bare),
+            "per country is a grouping, no heading"
+        );
+        // A draft evidence or a trigger led by the quantifier distributes the work.
+        let led = Plan {
+            steps: vec![Step {
+                op: Op::Draft,
+                evidence: "For each of the four files, write a two-sentence summary".to_owned(),
+                detail: "a two-sentence summary".to_owned(),
+                categories: Vec::new(),
+            }],
+            ..Plan::default()
+        };
+        assert!(per_item("write a two-sentence summary", &led));
+        let triggered = Plan {
+            trigger: Some("pour chaque fichier".to_owned()),
+            ..Plan::default()
+        };
+        assert!(per_item("résume", &triggered));
+        // A plan element carrying the heading cue counts even when the intent text is bare.
+        let constrained = Plan {
+            constraints: vec!["with one heading per file named after the file".to_owned()],
+            ..Plan::default()
+        };
+        assert!(per_item("x", &constrained));
+    }
+
+    #[test]
+    fn structural_constraints_are_order_and_heading_cues() {
+        assert!(structural("in exactly that order"));
+        assert!(structural("with one heading per file named after the file"));
+        assert!(structural("dans l'ordre des fichiers"));
+        assert!(structural("avec le nom du fichier en titre"));
+        assert!(!structural("3 lignes max"));
+        assert!(!structural("in a warm, down-to-earth tone"));
+        assert!(!structural("Process at most 2 products at a time"));
+    }
+
+    #[test]
+    fn a_shape_has_one_word() {
+        let shape = |fan_out, per_item, outputs, gated| Shape {
+            fan_out,
+            per_item,
+            outputs,
+            gated,
+        };
+        assert_eq!(shape(false, false, 1, false).word(), "linear");
+        assert_eq!(shape(true, false, 1, false).word(), "fan_out_fold");
+        assert_eq!(shape(true, true, 1, false).word(), "fan_out_fan_in");
+        assert_eq!(shape(false, false, 2, false).word(), "multiple_outputs");
+        assert_eq!(shape(true, true, 1, true).word(), "human_gated");
+        assert_eq!(
+            shape(true, true, 1, false).to_json(),
+            serde_json::json!({"word": "fan_out_fan_in", "fan_out": true, "per_item": true, "outputs": 1, "gated": false})
+        );
+    }
 
     fn step(op: Op, detail: &str, evidence: &str) -> Step {
         Step {

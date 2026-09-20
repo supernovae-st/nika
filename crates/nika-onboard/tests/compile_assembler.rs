@@ -43,6 +43,16 @@ async fn compile(intent: &str, plan: &Value, answers: &[(&str, &str)]) -> Compil
         .unwrap()
 }
 
+/// The answer-round door the CLI control uses: a trusted recorded plan replayed for its
+/// intent, zero provider calls.
+fn replay(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
+    let mut request = CompileRequest::create(intent).with_plan(record.clone());
+    for (key, literal) in answers {
+        request = request.answer(*key, *literal);
+    }
+    nika_onboard::compile::compile(&request).unwrap()
+}
+
 fn keys(out: &CompileOutcome) -> Vec<&str> {
     out.questions.iter().map(|q| q.key.as_str()).collect()
 }
@@ -152,6 +162,29 @@ const RULE: (&str, &str) = (
 
 const MODEL: (&str, &str) = ("model", r#""mock/echo""#);
 
+const CHAPTERS: &str = "For each of the four files ./chapters/01-intro.md, ./chapters/02-method.md, ./chapters/03-results.md and ./chapters/04-limits.md, at most 2 at a time, write a two-sentence summary. Then merge the summaries in exactly that order into ./out/digest.md, with one heading per file named after the file.";
+const CHAPTER_FILES: [&str; 4] = [
+    "./chapters/01-intro.md",
+    "./chapters/02-method.md",
+    "./chapters/03-results.md",
+    "./chapters/04-limits.md",
+];
+/// The trusted recorded plan of the fidelity control (case c).
+fn chapters_record() -> Value {
+    let mut bindings: Vec<Value> = CHAPTER_FILES
+        .iter()
+        .map(|p| json!({"role": "path", "literal": p}))
+        .collect();
+    bindings.push(json!({"role": "path", "literal": "./out/digest.md"}));
+    json!({"operations":[
+        {"op":"read","detail":CHAPTER_FILES.join(" ; "),"evidence":"./chapters/01-intro.md, ./chapters/02-method.md, ./chapters/03-results.md and ./chapters/04-limits.md","categories":[]},
+        {"op":"draft","detail":"a two-sentence summary","evidence":"For each of the four files ./chapters/01-intro.md, ./chapters/02-method.md, ./chapters/03-results.md and ./chapters/04-limits.md, at most 2 at a time, write a two-sentence summary","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/digest.md","policy":"automatic","evidence":"merge the summaries in exactly that order into ./out/digest.md, with one heading per file named after the file","policy_literal":null}],
+      "obligations":[],"bindings":bindings,
+      "constraints":["at most 2 at a time","in exactly that order","with one heading per file named after the file"],
+      "unknowns":[],"trigger":"For each of the four files","strategy":"cold"})
+}
+
 fn operations(out: &CompileOutcome, op: &str) -> Vec<Value> {
     out.provenance.plan.as_ref().unwrap()["operations"]
         .as_array()
@@ -230,6 +263,107 @@ async fn a_numeric_filter_demoted_to_a_constraint_is_promoted_to_a_compute_stage
     assert_eq!(
         computes[0]["detail"],
         "keep only the rows whose amount is strictly greater than 100"
+    );
+}
+
+// ── per-item work fans out and folds back with one heading per file ─────────────
+// The control (case c) produced one aggregate draft over the folded corpus: no headings,
+// chapters missing. A request that distributes its draft over the files is a for_each
+// draft per item, a per-item law, and a fold in item order; the order and heading
+// instructions are structure now, not prompt text.
+#[test]
+fn per_file_summaries_become_a_for_each_draft_folded_with_one_heading_per_file() {
+    let out = replay(CHAPTERS, &chapters_record(), &[MODEL]);
+    let doc = document(&out);
+    assert_eq!(
+        doc["const"]["source_paths"],
+        json!(CHAPTER_FILES),
+        "{doc:#}"
+    );
+    assert!(doc.get("inputs").is_none());
+    let read = &tasks(&doc)["read_source"];
+    assert_eq!(read["for_each"]["max_parallel"], 2, "{read:#}");
+    let items = &tasks(&doc)["draft_items"];
+    assert_eq!(items["invoke"]["tool"], "nika:jq", "{doc:#}");
+    assert_eq!(items["with"]["texts"], "${{ tasks.read_source.output }}");
+    assert_eq!(
+        items["invoke"]["args"]["input"]["paths"],
+        "${{ const.source_paths }}"
+    );
+    assert!(
+        items["invoke"]["args"]["expression"]
+            .as_str()
+            .unwrap()
+            .contains("{path: $r.paths[$i], text: $r.texts[$i]}")
+    );
+    assert!(
+        tasks(&doc).get("documents").is_none(),
+        "nothing else reads the whole corpus: {doc:#}"
+    );
+    let draft = &tasks(&doc)["draft"];
+    assert_eq!(draft["for_each"]["items"], "${{ with.items }}", "{draft:#}");
+    assert_eq!(draft["for_each"]["max_parallel"], 2);
+    assert_eq!(draft["for_each"]["fail_fast"], true);
+    assert_eq!(draft["with"]["items"], "${{ tasks.draft_items.output }}");
+    let prompt = draft["infer"]["prompt"].as_str().unwrap();
+    assert!(prompt.contains("${{ item.text }}"), "{prompt}");
+    assert!(prompt.contains("a two-sentence summary"), "{prompt}");
+    assert!(!prompt.contains("with.document"), "{prompt}");
+    for structural in ["in exactly that order", "heading", "at most 2"] {
+        assert!(!prompt.contains(structural), "{structural}: {prompt}");
+    }
+    let law = tasks(&doc)["draft_anchors"]["invoke"]["args"]["expression"]
+        .as_str()
+        .unwrap();
+    assert!(law.contains("$r.items[$i].text"), "{law}");
+    assert!(law.contains(r#"gsub("\\s+"; " ")"#), "{law}");
+    assert!(
+        law.contains("($r.drafts | length) == ($r.items | length)"),
+        "{law}"
+    );
+    let fold = &tasks(&doc)["draft_fold"];
+    assert_eq!(fold["with"]["drafts"], "${{ tasks.draft.output }}");
+    let expression = fold["invoke"]["args"]["expression"].as_str().unwrap();
+    assert!(
+        expression.contains(r###""## \($r.items[$i].path | split("/") | last)"###),
+        "{expression}"
+    );
+    let write = &tasks(&doc)["write_output"];
+    assert_eq!(write["with"]["content"], "${{ tasks.draft_fold.output }}");
+    assert_eq!(
+        write["after"],
+        json!({"draft_admit": "success"}),
+        "{write:#}"
+    );
+    assert_eq!(doc["outputs"]["draft"], "${{ tasks.draft_fold.output }}");
+    let shape = &out.provenance.decision.as_ref().unwrap()["shape"];
+    assert_eq!(
+        shape,
+        &json!({"word": "fan_out_fan_in", "fan_out": true, "per_item": true, "outputs": 1, "gated": false}),
+        "{shape:#}"
+    );
+}
+
+#[test]
+fn a_per_item_request_with_placeholder_outputs_is_refused_not_lowered() {
+    let intent = "For each of the four files ./chapters/01-intro.md, ./chapters/02-method.md, ./chapters/03-results.md and ./chapters/04-limits.md, write a two-sentence summary to ./out/<name>.md.";
+    let record = json!({"operations":[
+        {"op":"read","detail":CHAPTER_FILES.join(" ; "),"evidence":"./chapters/01-intro.md, ./chapters/02-method.md, ./chapters/03-results.md and ./chapters/04-limits.md","categories":[]},
+        {"op":"draft","detail":"a two-sentence summary","evidence":"For each of the four files ./chapters/01-intro.md, ./chapters/02-method.md, ./chapters/03-results.md and ./chapters/04-limits.md, write a two-sentence summary to ./out/<name>.md","categories":[]}],
+      "effects":[{"verb":"write","target":"./out/<name>.md","policy":"automatic","evidence":"write a two-sentence summary to ./out/<name>.md","policy_literal":null}],
+      "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":"For each of the four files","strategy":"cold"});
+    let out = replay(intent, &record, &[MODEL]);
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(
+        !keys(&out).contains(&"const.output_path"),
+        "a placeholder is never lowered to one guessed path: {out:#?}"
+    );
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Unknown && d.message.contains("one file per item")),
+        "{out:#?}"
     );
 }
 
@@ -467,19 +601,25 @@ async fn several_read_paths_become_a_bounded_fan_out_with_one_permit_per_path() 
     assert_eq!(read["for_each"]["max_parallel"], 2, "{read:#}");
     assert_eq!(read["for_each"]["fail_fast"], true);
     assert_eq!(read["invoke"]["args"]["path"], "${{ item }}");
-    let fold = &tasks(&doc)["documents"];
-    assert_eq!(fold["with"]["texts"], "${{ tasks.read_source.output }}");
+    // "a heading above each blurb": one blurb per file, zipped, drafted per item, folded.
+    let items = &tasks(&doc)["draft_items"];
+    assert_eq!(items["with"]["texts"], "${{ tasks.read_source.output }}");
     assert_eq!(
-        fold["invoke"]["args"]["input"]["paths"],
+        items["invoke"]["args"]["input"]["paths"],
         "${{ const.source_paths }}"
     );
-    assert_eq!(
-        tasks(&doc)["draft"]["with"]["document"],
-        "${{ tasks.documents.output }}"
-    );
+    assert!(tasks(&doc).get("documents").is_none(), "{doc:#}");
+    let draft = &tasks(&doc)["draft"];
+    assert_eq!(draft["with"]["items"], "${{ tasks.draft_items.output }}");
+    assert_eq!(draft["for_each"]["max_parallel"], 2, "{draft:#}");
     // The concurrency bound is structure now, not prompt text.
-    let prompt = tasks(&doc)["draft"]["infer"]["prompt"].as_str().unwrap();
+    let prompt = draft["infer"]["prompt"].as_str().unwrap();
     assert!(!prompt.contains("Process at most 2"), "{prompt}");
+    assert!(prompt.contains("${{ item.text }}"), "{prompt}");
+    assert_eq!(
+        tasks(&doc)["write_output"]["with"]["content"],
+        "${{ tasks.draft_fold.output }}"
+    );
     assert!(
         doc.get("inputs").is_none(),
         "a fan-out over named files has no incoming item"
@@ -561,9 +701,24 @@ async fn a_directory_is_never_read_as_one_file_it_asks_for_a_glob_then_fans_out(
     let read = &tasks(&doc)["read_source"];
     assert_eq!(read["with"]["paths"], "${{ tasks.glob_source.output }}");
     assert_eq!(read["for_each"]["items"], "${{ with.paths }}");
+    // "un resumé de chaque … avec le nom du fichier en titre": one summary per file.
+    let items = &tasks(&doc)["draft_items"];
+    assert_eq!(items["with"]["paths"], "${{ tasks.glob_source.output }}");
     assert_eq!(
-        tasks(&doc)["documents"]["with"]["paths"],
-        "${{ tasks.glob_source.output }}"
+        items["invoke"]["args"]["input"]["paths"],
+        "${{ with.paths }}"
+    );
+    let draft = &tasks(&doc)["draft"];
+    assert_eq!(draft["for_each"]["items"], "${{ with.items }}", "{draft:#}");
+    assert!(draft["for_each"].get("max_parallel").is_none());
+    let prompt = draft["infer"]["prompt"].as_str().unwrap();
+    assert!(
+        prompt.contains("3 lignes max"),
+        "a per-item cap stays: {prompt}"
+    );
+    assert_eq!(
+        tasks(&doc)["write_output"]["with"]["content"],
+        "${{ tasks.draft_fold.output }}"
     );
     assert_eq!(doc["const"]["output_path"], "./out/recap-semaine.md");
     assert!(doc.get("inputs").is_none());
