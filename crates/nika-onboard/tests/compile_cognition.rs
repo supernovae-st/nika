@@ -901,8 +901,8 @@ async fn retrieval_is_recorded_as_recall_on_every_route() {
     let doc = outcome_document(&hot);
     let by_intent = hits(&doc, "by_intent");
     let by_ops = hits(&doc, "by_ops");
-    assert!(!by_intent.is_empty() && by_intent.len() <= 5, "{doc:#}");
-    assert!(!by_ops.is_empty() && by_ops.len() <= 5, "{doc:#}");
+    assert!(!by_intent.is_empty() && by_intent.len() <= 10, "{doc:#}");
+    assert!(!by_ops.is_empty() && by_ops.len() <= 10, "{doc:#}");
     assert!(by_intent.iter().chain(&by_ops).all(well_formed), "{doc:#}");
     // A deterministic rejection still records the recall by intent, and no plan recall.
     let rejected = nika_onboard::compile::compile(&CompileRequest::create(INTENT)).unwrap();

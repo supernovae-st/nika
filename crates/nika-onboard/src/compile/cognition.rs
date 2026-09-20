@@ -116,7 +116,7 @@ struct ProposedBypass {
 }
 
 const INSTRUCTIONS: &str = r"Interpret the ENTIRE user request, in whatever language, as a private semantic plan for a workflow compiler. Return only one JSON object with steps, effects, obligations, constraints, unknowns, regions, approval_bypass. Never produce YAML, source, tool calls, credentials, endpoints or permissions.
-steps: the operations requested, in order. op is one of read (consume the document supplied with each invocation; not an external retrieval), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records from an external source, database, directory, catalog, calendar, history, registry, runbook or knowledge base), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing, correct or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
+steps: the operations requested, in order. op is one of read (consume a document, text, file or transcript the requester supplies with the invocation; never a named system or store), fetch (retrieve one web page by an explicit URL in the request), lookup (retrieve existing records or values from any named external system, store, service, database, directory, catalog, calendar, dashboard, history, registry, runbook or knowledge base; consulting, reading, checking or querying such a source is lookup even when the request says read), search (find passages or files in a corpus of documents by a query), extract (pull structured fields out of free text, a form, a PDF or a transcript), classify (categorize or route into named categories; list the categories verbatim when named), draft (write, summarize, translate, propose in writing, correct or draft text without sending it), compute (a numeric threshold, total or comparison that must run as code), validate (verify against explicit criteria), explore (an open-ended region the request explicitly delegates to agents, bounded by turns). detail is the verbatim object of the operation. evidence is an exact nonempty verbatim substring of the request.
 effects: every action that changes the outside world (create a record, send, publish, post, open a ticket, trigger a payment, mark, order, refund, merge, notify, delete, write a file). verb is one of create, send, publish, update, notify, refund, pay, order, merge, delete, write, effect. target is the verbatim phrase naming the action. policy is one of automatic (requested without a prior human requirement), human_first (only after a fresh explicit human validation of that exact action), forbidden (explicitly prohibited), unspecified (the requester explicitly has not decided and wants to be asked), conflict (requested and prohibited at once). evidence is an exact verbatim substring. Never drop a requested effect; never add one.
 obligations: kind is one of dedup (no second action for the same incoming identifier), retry_bound (a numeric maximum of attempts, cycles or iterations; put the number in value), revision_check (recheck the current version immediately before the final action). A price, deadline, record count or number of proposed time slots is not a bound.
 constraints: verbatim instructions that shape how steps run (what not to infer, what to keep null, what remains a code rule, which sources are excluded).
@@ -368,7 +368,7 @@ fn record_retrieval(out: &mut CompileOutcome, intent: &str, plan: Option<&Plan>)
         )
     };
     if decision["retrieval"].get("by_intent").is_none() {
-        decision["retrieval"]["by_intent"] = project(super::retrieve::retrieve(intent, 5));
+        decision["retrieval"]["by_intent"] = project(super::retrieve::retrieve(intent, 10));
     }
     if let Some(plan) = plan {
         let mut words: Vec<&str> = plan.steps.iter().map(|step| step.op.word()).collect();
@@ -378,7 +378,7 @@ fn record_retrieval(out: &mut CompileOutcome, intent: &str, plan: Option<&Plan>)
                 .iter()
                 .map(|obligation| obligation.kind.word()),
         );
-        decision["retrieval"]["by_ops"] = project(super::retrieve::retrieve_by_ops(&words, 5));
+        decision["retrieval"]["by_ops"] = project(super::retrieve::retrieve_by_ops(&words, 10));
     }
     out.provenance.decision = Some(decision);
 }
