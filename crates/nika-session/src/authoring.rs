@@ -33,10 +33,10 @@ use crate::reasoner::SessionReasoner;
 
 /// The compiler's question for a whole replacement request (its own key).
 const CLARIFICATION_KEY: &str = "intent.clarification";
-/// Output tokens one authoring call may spend (the CLI door's default).
-const AUTHORING_MAX_TOKENS: u32 = 2048;
-/// Wall time one authoring call may take (the compiler's own ceiling is 120 s).
-const AUTHORING_TIMEOUT: Duration = Duration::from_secs(60);
+/// Output tokens one authoring call may spend (the compiler's ceiling; deep work needs room).
+const AUTHORING_MAX_TOKENS: u32 = 8192;
+/// Wall time one authoring call may take (the compiler's own ceiling).
+const AUTHORING_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The cognition the compiler may use for this session's authoring —
 /// derived from the intelligence the human chose, never from the

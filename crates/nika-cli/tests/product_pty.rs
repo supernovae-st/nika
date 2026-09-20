@@ -320,6 +320,83 @@ fn a_gated_effect_waits_for_the_human_and_happens_once() {
     );
 }
 
+/// D · a draft answered with the offline mock: the same review, the same
+/// consent, the same explicit run — and an honest failure observed (the
+/// mock cannot satisfy the draft's anchor law), no artefact invented, the
+/// trace named. A nice chat never turns a red run into a success.
+#[test]
+fn a_draft_with_the_mock_fails_honestly_and_invents_no_artefact() {
+    let (project, home) = rig("draft-mock");
+    std::fs::create_dir_all(project.path().join("notes")).expect("notes");
+    std::fs::write(
+        project.path().join("notes/brief.md"),
+        "# Brief\n\nOctober.\n",
+    )
+    .expect("brief");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md")
+        .expect("the intent");
+    session.expect("reply ›").expect("the model question");
+    session.send_line("mock/echo").expect("the offline mock");
+    session
+        .expect("infer · mock/echo")
+        .expect("the review names the model the draft runs on");
+    session.expect("apply? ›").expect("consent prompt");
+    session.send_line("yes").expect("consent");
+    session
+        .expect("applied · wrote `compiled-workflow.nika`")
+        .expect("landed");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("run it").expect("run");
+    session
+        .expect("run observed · exit 1 · the workflow failed")
+        .expect("the failure is observed as a failure");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert!(
+        !project.path().join("out/summary.md").exists(),
+        "no artefact is invented on a red run"
+    );
+    assert_eq!(
+        traces(project.path()).len(),
+        1,
+        "the red run left its trace"
+    );
+    assert_eq!(completions(project.path(), "write_output"), 0);
+}
+
+/// G · a named workflow and a ceiling in words: the run line names the
+/// file and the ceiling the door announces is the one the human said.
+#[test]
+fn a_named_run_line_carries_its_own_ceiling() {
+    let (project, home) = rig("named-run");
+    std::fs::write(project.path().join("notes.md"), "hello\n").expect("notes");
+    std::fs::write(
+        project.path().join("copy.nika"),
+        "nika: copy\npermits:\n  fs: { read: [\"./notes.md\"], write: [\"./copy.md\"] }\n  tools: [\"nika:read\", \"nika:write\"]\ntasks:\n  read:\n    invoke: { tool: \"nika:read\", args: { path: \"./notes.md\" } }\n  write:\n    with: { text: \"${{ tasks.read.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./copy.md\", content: \"${{ with.text }}\" } }\n",
+    )
+    .expect("workflow");
+    let mut session = open_session(project.path(), home.path());
+    session
+        .send_line("run copy.nika with a ceiling of 0.05")
+        .expect("the run line");
+    session
+        .expect("running `copy.nika` once · ceiling $0.05")
+        .expect("the named file and the human's ceiling");
+    session.expect("run observed · exit 0").expect("succeeded");
+    session.expect("nika ›").expect("prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    assert_eq!(
+        std::fs::read_to_string(project.path().join("copy.md")).expect("artefact"),
+        "hello\n"
+    );
+}
+
 /// The `yes` invariant at the door: a bare `yes` with nothing pending
 /// applies nothing, and a question's answer never crosses into a consent.
 #[test]
