@@ -164,7 +164,9 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     };
     assembly_request.answers.remove("intent.clarification");
     // The question explicitly asks for a complete replacement, never an implicit edit.
-    let effective_intent = clarification.unwrap_or_else(|| intent.clone());
+    // Apostrophes fold once here so reading, anchoring and the proposal see one text.
+    let effective_intent =
+        lexicon::fold_apostrophes(&clarification.unwrap_or_else(|| intent.clone()));
     // The exact grammar keeps its zero-call, fail-closed path when a provider is permitted.
     if let Ok(Some(plan)) = super::support::resolve(&effective_intent) {
         super::support::assemble(&plan, &assembly_request, &mut out)?;
@@ -289,6 +291,8 @@ pub(super) fn hot(
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) -> Result<bool, CompileError> {
+    let folded = lexicon::fold_apostrophes(intent);
+    let intent = folded.as_str();
     let mut reading = lexicon::read(intent);
     backstop(intent, &mut reading.plan);
     if reading.complete() {

@@ -310,14 +310,20 @@ const LEADING_FILLER: &[&str] = &[
     "toujours ",
 ];
 const ARTICLES: &[&str] = &[
-    "le", "la", "les", "l'", "un", "une", "des", "du", "de", "d'", "the", "a", "an", "my", "mon",
-    "ma", "mes", "notre", "nos", "our", "son", "sa", "ses", "its", "their", "leur", "leurs", "ce",
-    "cet", "cette", "ces", "chaque", "each", "every", "tout", "toute", "tous", "toutes", "any",
-    "all", "en", "ensuite",
+    "le", "la", "les", "l", "l'", "d", "qu", "n", "s", "c", "j", "un", "une", "des", "du", "de",
+    "d'", "the", "a", "an", "my", "mon", "ma", "mes", "notre", "nos", "our", "son", "sa", "ses",
+    "its", "their", "leur", "leurs", "ce", "cet", "cette", "ces", "chaque", "each", "every",
+    "tout", "toute", "tous", "toutes", "any", "all", "en", "ensuite",
 ];
 
+/// Typographic apostrophes fold to `'` so byte offsets stay aligned between the
+/// lowercase matching copy and the evidence copy. Callers anchor against this form.
+pub(super) fn fold_apostrophes(intent: &str) -> String {
+    intent.replace(['’', '‘'], "'")
+}
+
 fn normalize(text: &str) -> String {
-    text.to_lowercase().replace(['’', '‘'], "'")
+    fold_apostrophes(text).to_lowercase()
 }
 
 /// The original casing of the remainder after `consumed` lowercase bytes, when safe.
