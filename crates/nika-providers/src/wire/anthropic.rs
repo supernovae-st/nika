@@ -614,10 +614,12 @@ impl EventMapper for AnthropicMapper {
                     Some("api_error") => 500,
                     _ => 400,
                 };
-                out.push(Err(ProviderError::Api {
+                out.push(Err(super::status_error(
                     status,
-                    message: str_at(&v, "/error/message"),
-                }));
+                    payload.as_bytes(),
+                    None,
+                    "anthropic",
+                )));
             }
             _ => {}
         }
@@ -901,7 +903,10 @@ mod tests {
         let err = infer(&rp, req(vec![Message::text(Role::User, "x")]))
             .await
             .unwrap_err();
-        assert!(matches!(err, ProviderError::AuthFailed { .. }), "{err}");
+        assert!(
+            matches!(&err, ProviderError::HttpResponse { details } if details.status() == 401),
+            "{err}"
+        );
     }
 
     #[tokio::test]
@@ -1093,8 +1098,8 @@ mod tests {
                 format!(r#"{{"type":"error","error":{{"type":"{etype}","message":"x"}}}}"#);
             let out = m.map(&payload);
             match out.first() {
-                Some(Err(e @ ProviderError::Api { status: s, .. })) => {
-                    assert_eq!(*s, status, "{etype}");
+                Some(Err(e @ ProviderError::HttpResponse { details })) => {
+                    assert_eq!(details.status(), status, "{etype}");
                     assert_eq!(e.is_transient(), transient, "{etype}");
                 }
                 other => panic!("expected Err(Api), got {other:?}"),

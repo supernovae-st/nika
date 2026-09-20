@@ -8,6 +8,8 @@
 //! `GenAiSystem` attribution table.
 
 pub(crate) mod anthropic;
+#[cfg(test)]
+mod error_tests;
 pub(crate) mod gemini;
 pub(crate) mod mock;
 mod mock_schema;
@@ -24,7 +26,7 @@ use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use futures_core::Stream;
-use nika_kernel::ai::provider::{InferEvent, ProviderError};
+use nika_kernel::ai::provider::{InferEvent, ProviderError, ProviderHttpError};
 use nika_kernel::genai::GenAiSystem;
 use nika_kernel::http::HttpError;
 
@@ -133,8 +135,8 @@ pub(crate) fn map_http_err(e: &HttpError) -> ProviderError {
 }
 
 /// Non-2xx on a streaming open: drain the (effect-capped) error body so the
-/// provider's message + retry-after survive into the same typed mapping as
-/// the non-streaming path (a stream 401 must be `AuthFailed`, not `Api`).
+/// provider's safe identifiers + retry-after survive into the same typed
+/// mapping as the non-streaming path. Raw response prose is never retained.
 pub(crate) async fn stream_status_error(
     resp: nika_kernel::http::HttpStreamResponse,
     model: &str,
@@ -162,40 +164,18 @@ pub(crate) async fn stream_status_error(
     )
 }
 
-/// Non-2xx status + body → typed provider error (shared mapping table —
-/// both dialects put a human message under `error.message`).
+/// Non-2xx status + body → sanitized metadata. Do not retain response prose,
+/// request identifiers, credentials, or arbitrary identifier-shaped strings.
 pub(crate) fn status_error(
     status: u16,
     body: &[u8],
     retry_after: Option<&str>,
-    model: &str,
+    _model: &str,
 ) -> ProviderError {
-    let message = serde_json::from_slice::<serde_json::Value>(body)
-        .ok()
-        .and_then(|v| {
-            v.pointer("/error/message")
-                .or_else(|| v.pointer("/message"))
-                .and_then(|m| m.as_str().map(ToOwned::to_owned))
-        })
-        .unwrap_or_else(|| String::from_utf8_lossy(body).into_owned());
-
-    match status {
-        401 | 403 => ProviderError::AuthFailed { reason: message },
-        // 404 usually means the model id — but with an operator-overridden
-        // base_url it can be a path typo; the model field carries the hint.
-        404 => ProviderError::ModelNotFound {
-            model: model.to_owned(),
-        },
-        429 => ProviderError::RateLimited {
-            // RFC 9110 allows delay-seconds (integer) — some gateways send
-            // fractional seconds; accept both via Duration (rejects NaN /
-            // negative / overflow structurally), round to ms.
-            retry_after_ms: retry_after
-                .and_then(|s| s.trim().parse::<f64>().ok())
-                .and_then(|secs| std::time::Duration::try_from_secs_f64(secs).ok())
-                .map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX)),
-        },
-        _ => ProviderError::Api { status, message },
+    let value = serde_json::from_slice::<serde_json::Value>(body).ok();
+    let field = |name| value.as_ref()?.get("error")?.get(name)?.as_str();
+    ProviderError::HttpResponse {
+        details: ProviderHttpError::new(status, field("code"), field("type"), retry_after),
     }
 }
 
@@ -405,43 +385,32 @@ mod tests {
 
     #[test]
     fn status_error_maps_the_table() {
-        let auth = status_error(401, br#"{"error":{"message":"bad key"}}"#, None, "m");
-        assert!(matches!(auth, ProviderError::AuthFailed { .. }));
-        assert!(
-            auth.to_string()
-                .starts_with("authentication failed: bad key — ")
-        );
+        use nika_kernel::prelude::NikaErrorCode;
+        for (status, code, transient) in [
+            (401, 333, false),
+            (403, 333, false),
+            (404, 331, false),
+            (429, 332, true),
+            (500, 330, true),
+            (400, 330, false),
+        ] {
+            let error = status_error(
+                status,
+                br#"{"error":{"message":"private"}}"#,
+                Some("2"),
+                "m",
+            );
+            assert_eq!(error.nika_code().num, code);
+            assert_eq!(error.is_transient(), transient);
+            let ProviderError::HttpResponse { details } = &error else {
+                panic!("{error:?}")
+            };
+            assert_eq!(details.status(), status);
+            assert_eq!(details.retry_after_ms(), Some(2000));
+            assert!(!error.to_string().contains("private"));
+        }
+        let auth = status_error(401, b"{}", None, "m");
         assert!(auth.to_string().contains("does not probe present keys"));
-
-        let nf = status_error(404, b"{}", None, "anthropic/claude-x");
-        assert!(matches!(nf, ProviderError::ModelNotFound { .. }));
-
-        let rl = status_error(429, b"{}", Some("2"), "m");
-        match rl {
-            ProviderError::RateLimited { retry_after_ms } => {
-                assert_eq!(retry_after_ms, Some(2000));
-            }
-            other => panic!("expected RateLimited, got {other:?}"),
-        }
-
-        let api = status_error(500, br#"{"error":{"message":"boom"}}"#, None, "m");
-        match &api {
-            ProviderError::Api { status, message } => {
-                assert_eq!(*status, 500);
-                assert_eq!(message, "boom");
-            }
-            other => panic!("expected Api, got {other:?}"),
-        }
-        assert!(api.is_transient(), "5xx is transient per kernel contract");
-    }
-
-    #[test]
-    fn status_error_falls_back_to_raw_body() {
-        let api = status_error(502, b"bad gateway", None, "m");
-        match api {
-            ProviderError::Api { message, .. } => assert_eq!(message, "bad gateway"),
-            other => panic!("expected Api, got {other:?}"),
-        }
     }
 
     #[test]
@@ -486,7 +455,7 @@ mod tests {
         assert!(other.is_transient());
     }
 
-    struct Q(std::collections::VecDeque<Result<Bytes, HttpError>>);
+    pub(super) struct Q(pub(super) std::collections::VecDeque<Result<Bytes, HttpError>>);
     impl Stream for Q {
         type Item = Result<Bytes, HttpError>;
         fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -499,9 +468,9 @@ mod tests {
         use std::collections::BTreeMap;
 
         // A 2 KiB message: well over a mutated 1088/0-byte cap, well under
-        // the real 64 KiB one — the full JSON must survive into the error.
+        // the real 64 KiB one — metadata after the message must survive.
         let long = "x".repeat(2048);
-        let body_json = format!(r#"{{"error":{{"message":"{long}"}}}}"#);
+        let body_json = format!(r#"{{"error":{{"message":"{long}","code":"server_error"}}}}"#);
         let chunks: Vec<Result<Bytes, HttpError>> = body_json
             .as_bytes()
             .chunks(100)
@@ -516,9 +485,14 @@ mod tests {
         );
         let err = stream_status_error(resp, "m").await;
         match err {
-            ProviderError::Api { status, message } => {
-                assert_eq!(status, 500);
-                assert_eq!(message.len(), 2048, "full message extracted: cap intact");
+            ProviderError::HttpResponse { details } => {
+                assert_eq!(details.status(), 500);
+                assert_eq!(
+                    details.code(),
+                    Some("server_error"),
+                    "full JSON parsed: cap intact"
+                );
+                assert!(!details.to_string().contains(&long));
             }
             other => panic!("expected Api, got {other:?}"),
         }
