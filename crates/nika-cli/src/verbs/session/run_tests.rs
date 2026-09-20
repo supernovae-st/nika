@@ -12,6 +12,10 @@ use super::{RunRequest, Theme, exit, run_once, run_resume};
 
 const ECHO: &str = "nika: session-receipt\nmodel: mock/echo\ntasks:\n  echo:\n    infer: { prompt: exact-session-result, max_tokens: 20 }\noutputs:\n  result: ${{ tasks.echo.output }}\n";
 const GATE: &str = "nika: session-gate\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"Confirm this session?\" } }\noutputs:\n  answer: ${{ tasks.ask.output }}\n";
+/// A Ready intent the compiler settles with no question and no model; its
+/// run needs `notes/brief.md` and writes `out/copy.md`.
+const COPY: &str = "Read ./notes/brief.md and write it to ./out/copy.md";
+const BRIEF: &str = "# Brief\n\nThe launch moves to October.\n";
 
 fn request(workflow: &str) -> RunRequest {
     RunRequest {
@@ -95,6 +99,11 @@ fn paused_and_resumed_legs_return_their_own_traces() {
     assert_eq!(nika_trace::trace::manage::latest(), Some(foreign));
 }
 
+/// The durable conversation over the ONE compiler: the intent is compiled
+/// and proposed, the consent lands the bytes (never a run), an explicit
+/// run line requests the checked run, the door executes it for real, the
+/// session observes the trace — and a reopened session restores the goal
+/// without replaying any effect.
 #[test]
 fn durable_conversation_runs_a_real_effect_and_reopens_without_replaying_it() {
     use nika_session::intelligence::{
@@ -106,7 +115,10 @@ fn durable_conversation_runs_a_real_effect_and_reopens_without_replaying_it() {
     let root = tempfile::tempdir().expect("project");
     let home = tempfile::tempdir().expect("history home");
     let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
-    let reply = "```yaml path=write.nika\nnika: remembered-write\npermits:\n  tools: [\"nika:write\"]\n  fs: { write: [\"./result.txt\"] }\ntasks:\n  save:\n    invoke: { tool: \"nika:write\", args: { path: \"./result.txt\", content: \"first execution\" } }\n```\n";
+    std::fs::create_dir_all(root.path().join("notes")).expect("notes");
+    std::fs::write(root.path().join("notes/brief.md"), BRIEF).expect("brief");
+    let workflow = root.path().join("compiled-workflow.nika");
+    let copy = root.path().join("out/copy.md");
     let mut census = IntelligenceCensus::empty();
     census.locals.push("ollama".to_owned());
     let preference = UserIntelligencePreference::new(
@@ -115,54 +127,58 @@ fn durable_conversation_runs_a_real_effect_and_reopens_without_replaying_it() {
         },
         None,
     );
+    // The reasoner is never asked: the intent reaches the compiler.
     let open = || {
         SessionRuntime::open(
             root.path(),
             ResolvedSessionIntelligence::resolve(&preference, &census),
-            Box::new(ScriptedReasoner::new(vec![reply.to_owned()])),
+            Box::new(ScriptedReasoner::new(Vec::new())),
         )
     };
     let mut session = open();
     session
         .enable_history(home.path())
         .expect("private history");
-    let goal = "Create a workflow that writes result.txt and run it once.";
-    let proposed = session.turn(goal);
+    let proposed = session.turn(COPY);
     assert!(
         matches!(proposed, TurnOutcome::Proposal { .. }),
         "{proposed:?}"
     );
-    assert!(!root.path().join("result.txt").exists());
-    let TurnOutcome::RunRequested { run, .. } = session.consent("yes") else {
-        panic!("fresh consent must produce a checked run request");
+    assert!(!workflow.exists(), "nothing is written before consent");
+    let TurnOutcome::Facts(report) = session.consent("yes") else {
+        panic!("consent lands the bytes and is never a run");
     };
-    assert!(
-        !root.path().join("result.txt").exists(),
-        "only the host executes"
-    );
+    assert!(report.contains("clean ✔"), "{report}");
+    assert!(workflow.is_file(), "the consent landed the workflow");
+    assert!(!copy.exists(), "consent is never a run");
+    let TurnOutcome::RunRequested { run, .. } = session.turn("run it") else {
+        panic!("an explicit run line requests the checked run");
+    };
+    assert_eq!(run.workflow, PathBuf::from("compiled-workflow.nika"));
+    assert!(!copy.exists(), "only the host executes");
     let (code, trace) = run_once(root.path(), &run, theme());
     assert_eq!(code, exit::OK);
     assert_eq!(
-        std::fs::read_to_string(root.path().join("result.txt")).expect("effect"),
-        "first execution"
+        std::fs::read_to_string(&copy).expect("effect"),
+        BRIEF,
+        "the run copied the brief"
     );
     let trace = trace.expect("effect trace");
     let observed = session.observe_run(code, Some(&trace));
     assert!(matches!(observed, TurnOutcome::Facts(_)));
     drop(session);
 
-    std::fs::write(root.path().join("result.txt"), "changed after execution")
-        .expect("external edit");
+    std::fs::write(&copy, "changed after execution").expect("external edit");
     let mut reopened = open();
     let notice = reopened
         .enable_history(home.path())
         .expect("reopen")
         .expect("restored");
     assert!(!notice.contains("result may be unknown"), "{notice}");
-    assert_eq!(reopened.intent.goal.as_deref(), Some(goal));
+    assert_eq!(reopened.intent.goal.as_deref(), Some(COPY));
     assert!(matches!(reopened.consent("yes"), TurnOutcome::Refusal(_)));
     assert_eq!(
-        std::fs::read_to_string(root.path().join("result.txt")).expect("preserved"),
+        std::fs::read_to_string(&copy).expect("preserved"),
         "changed after execution"
     );
     let histories = home.path().join(".nika/sessions");
