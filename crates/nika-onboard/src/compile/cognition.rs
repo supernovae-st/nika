@@ -746,10 +746,27 @@ pub(super) fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
             offsets.push(index);
         }
     }
-    let needle = evidence.split_whitespace().collect::<Vec<_>>().join(" ");
-    let at = folded.find(&needle)?;
-    let start = *offsets.get(at)?;
-    let last = *offsets.get(at + needle.len() - 1)?;
+    // An excerpt that abbreviates a long clause with an ellipsis names the contiguous span
+    // from its first fragment to its last; every fragment must occur, in order, verbatim.
+    let fragments: Vec<String> = evidence
+        .replace('…', "...")
+        .split("...")
+        .map(|part| part.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|part| !part.is_empty())
+        .collect();
+    if fragments.is_empty() {
+        return None;
+    }
+    let first_at = folded.find(fragments.first()?)?;
+    let mut cursor = first_at + fragments.first()?.len();
+    let mut last_end = cursor;
+    for fragment in fragments.iter().skip(1) {
+        let at = folded.get(cursor..)?.find(fragment.as_str())? + cursor;
+        cursor = at + fragment.len();
+        last_end = cursor;
+    }
+    let start = *offsets.get(first_at)?;
+    let last = *offsets.get(last_end - 1)?;
     let end = last + intent.get(last..)?.chars().next()?.len_utf8();
     intent.get(start..end).map(str::to_owned)
 }

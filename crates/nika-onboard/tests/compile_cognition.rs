@@ -1397,3 +1397,33 @@ async fn the_refund_backstop_yields_to_the_proposals_accounting() {
         "{out:#?}"
     );
 }
+
+/// A proposal may abbreviate a long clause with an ellipsis ("Sépare-les en trois fichiers :
+/// ./out/a.json ... ./out/c.json"); the excerpt is the contiguous request span from the first
+/// fragment to the last. Fragments out of order or absent are still no excerpt.
+#[tokio::test]
+async fn an_ellipsis_in_the_evidence_names_the_span_it_abbreviates() {
+    let mut abbreviated = plan();
+    abbreviated["steps"][0]["evidence"] = json!("consulte ... client");
+    let provider = Provider::new(abbreviated);
+    let out = compile_with_provider(&request(), &provider).await.unwrap();
+    let doc = outcome_document(&out);
+    let evidence: Vec<&str> = doc["provenance"]["plan"]["operations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|s| s["evidence"].as_str())
+        .collect();
+    assert!(evidence.contains(&"consulte le client"), "{evidence:?}");
+    let mut reversed = plan();
+    reversed["steps"][0]["evidence"] = json!("client ... consulte");
+    let provider = Provider::new(reversed);
+    let out = compile_with_provider(&request(), &provider).await.unwrap();
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("lacks an exact source excerpt")),
+        "{out:#?}"
+    );
+}
