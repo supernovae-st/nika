@@ -79,6 +79,18 @@ impl Doc {
             source_columns: false,
         }
     }
+    /// A task id not yet taken: a second draft is `draft_2`, never a silent overwrite of the
+    /// first (which bound the second to itself and cycled).
+    fn unique(&self, base: &str) -> String {
+        let taken = |id: &str| self.root["tasks"].get(id).is_some();
+        if !taken(base) {
+            return base.to_owned();
+        }
+        (2..=64)
+            .map(|n| format!("{base}_{n}"))
+            .find(|id| !taken(id))
+            .unwrap_or_else(|| base.to_owned())
+    }
     fn task(&mut self, id: &str, mut node: Value, chain: bool) {
         if chain && let Some(last) = &self.last {
             node["after"] = json!({last: "success"});
@@ -864,21 +876,26 @@ fn emit_draft(d: &mut Doc, guide: &str, step: &Step, retry: Option<u32>) {
     if let Some(n) = retry {
         node["retry"] = json!({"max_attempts": n});
     }
-    d.infer("draft", node);
-    let (mut input, mut with) =
-        d.law_bindings("facts_used", "${{ tasks.draft.output.facts_used }}");
+    let id = d.unique("draft");
+    d.infer(&id, node);
+    let (mut input, mut with) = d.law_bindings(
+        "facts_used",
+        &format!("${{{{ tasks.{id}.output.facts_used }}}}"),
+    );
+    let body = format!("${{{{ tasks.{id}.output.body }}}}");
     input["body"] = json!("${{ with.body }}");
-    with["body"] = json!("${{ tasks.draft.output.body }}");
+    with["body"] = json!(body);
+    let anchors = format!("{id}_anchors");
     d.tool(
-        "draft_anchors",
+        &anchors,
         "nika:jq",
         json!({"input": input, "expression": draft_law()}),
         Some(with),
         false,
     );
-    d.tool("draft_admit", "nika:assert", json!({"condition": "${{ with.valid }}", "message": "Every declared draft claim needs an exact source anchor; this is structural evidence, not semantic proof of the prose."}), Some(json!({"valid": "${{ tasks.draft_anchors.output }}"})), false);
-    d.fact("draft", "${{ tasks.draft.output.body }}", Kind::Derived);
-    d.root["outputs"]["draft"] = json!("${{ tasks.draft.output.body }}");
+    d.tool(&format!("{id}_admit"), "nika:assert", json!({"condition": "${{ with.valid }}", "message": "Every declared draft claim needs an exact source anchor; this is structural evidence, not semantic proof of the prose."}), Some(json!({"valid": format!("${{{{ tasks.{anchors}.output }}}}")})), false);
+    d.fact("draft", &body, Kind::Derived);
+    d.root["outputs"]["draft"] = json!(body);
 }
 
 /// The draft schema every draft step answers: a body and its anchored claims.

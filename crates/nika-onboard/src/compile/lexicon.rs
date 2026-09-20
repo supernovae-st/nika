@@ -11,9 +11,11 @@
 //! AMBIGUOUS and may be settled by a bounded decision seat. Nothing here invents
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
+use super::paths::Structured;
 use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
+use super::{gates, objects};
 
 /// One clause the lexicon could not settle alone: a small feasible set, never a guess.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,6 +38,11 @@ pub(super) struct Reading {
     /// Clauses kept as constraints only by the declarative heuristic: prose the reader could
     /// not parse. They never make a request HOT.
     pub soft_constraints: Vec<String>,
+    /// What a settled path deferred: the rest of its clause, to be read as a clause of its own.
+    pub pending: Vec<String>,
+    /// Clauses whose whole meaning is a policy on an effect read elsewhere (`a human must
+    /// approve the write first`): accounted for by the policy they set.
+    pub policy_clauses: Vec<String>,
 }
 
 impl Reading {
@@ -86,15 +93,27 @@ impl Reading {
                 self.soft_constraints.len()
             ));
         }
+        // A constraint needs an operation to carry it; reads and writes carry nothing.
+        if !self.plan.constraints.is_empty()
+            && !self.plan.steps.iter().any(|s| s.op.carries_constraints())
+        {
+            why.push(format!(
+                "{} constraint(s) with no operation to carry them",
+                self.plan.constraints.len()
+            ));
+        }
         // Accounting: a clause the reader saw must be the evidence of something it produced.
         for clause in &self.seen {
-            let accounted = self.plan.steps.iter().any(|s| s.evidence == *clause)
-                || self
-                    .plan
-                    .effects
-                    .iter()
-                    .any(|e| e.evidence.contains(clause.as_str()))
-                || self.plan.obligations.iter().any(|o| o.evidence == *clause)
+            // An element read from the prefix of a clause accounts for the clause: the
+            // rest of the clause was its policy (`publish it to ./x.md only after my approval`).
+            let within = |evidence: &str| {
+                !evidence.trim().is_empty()
+                    && (evidence.contains(clause.as_str()) || clause.contains(evidence))
+            };
+            let accounted = self.plan.steps.iter().any(|s| within(&s.evidence))
+                || self.plan.effects.iter().any(|e| within(&e.evidence))
+                || self.plan.obligations.iter().any(|o| within(&o.evidence))
+                || self.policy_clauses.iter().any(|c| within(c))
                 || self
                     .plan
                     .constraints
@@ -430,24 +449,73 @@ pub(super) fn fold_apostrophes(intent: &str) -> String {
     intent.replace(['’', '‘'], "'")
 }
 
-/// What an object still says after its path literal, beyond one parenthetical hint attached
-/// to the path and trailing punctuation. A non-empty residue is a demand the path did not
-/// settle; the reader must not let it vanish with the path.
-fn residue_after_path(detail: &str, path: &str) -> String {
-    let Some(at) = detail.find(path) else {
-        return String::new();
-    };
-    let mut rest = detail
-        .get(at + path.len()..)
-        .unwrap_or_default()
-        .trim_start_matches(['.', ',', ';', ':'])
-        .trim();
-    if rest.starts_with('(')
-        && let Some(close) = rest.find(')')
-    {
-        rest = rest.get(close + 1..).unwrap_or_default().trim();
+/// What a clause still says after its settling path re-enters the reader as a clause of its
+/// own (`… and keep the rows that matter`): it never vanishes with the path.
+fn defer_residue(detail: &str, path: &str, reading: &mut Reading) {
+    let residue = objects::residue_after_path(detail, path);
+    let clause = objects::as_clause(&residue);
+    if !clause.is_empty() {
+        reading.pending.push(clause.to_owned());
     }
-    rest.trim_matches(|c: char| !c.is_alphanumeric()).to_owned()
+}
+
+/// The object a write names before its destination (`write a 3-bullet summary to ./out/x.md`)
+/// either refers back to produced content or names new content the write demands. New
+/// prose content is a draft of that object; new data content is a computation the reader
+/// has no operation for, so the clause stays unresolved rather than becoming a copy.
+fn written_object(
+    detail: &str,
+    detail_lower: &str,
+    path: &str,
+    original: &str,
+    reading: &mut Reading,
+) {
+    if detail.len() != detail_lower.len() {
+        return;
+    }
+    let Some(path_at) = detail.find(path) else {
+        return;
+    };
+    let Some(pos) = objects::destination_at(detail_lower, path_at) else {
+        return;
+    };
+    let (Some(object), Some(object_lower)) = (detail.get(..pos), detail_lower.get(..pos)) else {
+        return;
+    };
+    let refers_back = {
+        let earlier = reading
+            .seen
+            .iter()
+            .rev()
+            .skip(1)
+            .map(String::as_str)
+            .chain(reading.plan.steps.iter().map(|s| s.detail.as_str()));
+        objects::refers_back(object_lower, earlier)
+    };
+    if refers_back {
+        return;
+    }
+    if Structured::of(path).is_some() {
+        reading.unresolved.push(original.to_owned());
+    } else {
+        reading.plan.push_step(Step {
+            op: Op::Draft,
+            evidence: original.to_owned(),
+            detail: object.trim().to_owned(),
+            categories: Vec::new(),
+        });
+    }
+}
+
+/// The earlier of a listed marker and a structural one, as a byte span.
+fn nearest(
+    listed: Option<(usize, usize)>,
+    shaped: Option<(usize, usize)>,
+) -> Option<(usize, usize)> {
+    match (listed, shaped) {
+        (Some(a), Some(b)) => Some(if b.0 < a.0 { b } else { a }),
+        (a, b) => a.or(b),
+    }
 }
 
 /// A step object the reader may trust without a model: a typed literal (URL, path, email,
@@ -835,6 +903,8 @@ fn effect_words(lower: &str) -> Vec<EffectVerb> {
         ("refund", EffectVerb::Refund),
         ("envoi", EffectVerb::Send),
         ("sending", EffectVerb::Send),
+        ("writing", EffectVerb::Write),
+        ("publishing", EffectVerb::Publish),
         ("publication", EffectVerb::Publish),
         ("paiement", EffectVerb::Pay),
         ("payment", EffectVerb::Pay),
@@ -877,6 +947,9 @@ fn push_effect(plan: &mut Plan, effect: Effect) {
         }
         if existing.policy_literal.is_none() {
             existing.policy_literal = effect.policy_literal;
+        }
+        if !objects::has_literal(&existing.target) && objects::has_literal(&effect.target) {
+            existing.target = effect.target;
         }
     } else {
         plan.effects.push(effect);
@@ -1019,10 +1092,21 @@ fn gate_last_automatic(reading: &mut Reading, state: &mut ReadState) {
     }
 }
 
+/// One clause and everything a settled path deferred from it: a residue re-enters as a
+/// clause of its own, seen and accounted for like any other.
+fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadState) {
+    read_one(clause, reading, state);
+    while let Some(next) = reading.pending.pop() {
+        reading.clauses += 1;
+        reading.seen.push(next.clone());
+        read_one(&next, reading, state);
+    }
+}
+
 /// One clause: a policy pattern, an obligation, or an operation. A marker found
 /// mid-clause never swallows the request before it.
 #[allow(clippy::too_many_lines)] // one clause walk; each policy family is one visible arm
-fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadState) {
+fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     let lower = normalize(clause);
     let text = strip_filler(&lower);
     if text.is_empty() {
@@ -1168,11 +1252,18 @@ fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadSt
         );
         return;
     }
-    // The final action requires a fresh human validation.
-    if let Some((pos, marker)) = earliest(text, FINAL_GATE_MARKERS) {
+    // The final action requires a fresh human validation: a listed wording or the shape
+    // (`only after my explicit approval`, `the write needs my approval first`).
+    let listed = earliest(text, FINAL_GATE_MARKERS).map(|(p, m)| (p, p + m.len()));
+    if let Some((pos, end)) = nearest(listed, gates::final_gate(text)) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
-        let after = text.get(pos + marker.len()..).unwrap_or_default();
-        let verbs = effect_words(after);
+        reading.policy_clauses.push(clause.to_owned());
+        let after = text.get(end..).unwrap_or_default();
+        let mut verbs = effect_words(after);
+        if verbs.is_empty() {
+            // `the write needs my approval`: the subject of the requirement is gated.
+            verbs = effect_words(text.get(pos..end).unwrap_or_default());
+        }
         if verbs.is_empty() {
             gate_last_automatic(reading, state);
         } else {
@@ -1181,7 +1272,7 @@ fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadSt
                     &mut reading.plan,
                     Effect {
                         verb,
-                        target: after.trim().to_owned(),
+                        target: objects::destination_target(after).to_owned(),
                         evidence: clause.to_owned(),
                         policy: EffectPolicy::HumanFirst,
                         policy_literal: None,
@@ -1191,11 +1282,14 @@ fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadSt
         }
         return;
     }
-    // A gate naming its effect: "ask me before any refund".
-    if let Some((pos, marker)) = earliest(text, NAMED_GATE_MARKERS) {
+    // A gate naming its effect: "ask me before any refund" (a listed wording or the shape).
+    let listed = earliest(text, NAMED_GATE_MARKERS).map(|(p, m)| (p, p + m.len()));
+    if let Some((pos, end)) = nearest(listed, gates::named_gate(text)) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
-        let target = text.get(pos + marker.len()..).unwrap_or_default();
-        let verbs = effect_words(target);
+        reading.policy_clauses.push(clause.to_owned());
+        let after = text.get(end..).unwrap_or_default();
+        let target = objects::destination_target(after);
+        let verbs = effect_words(after);
         if verbs.is_empty() {
             gate_last_automatic(reading, state);
         } else {
@@ -1231,7 +1325,11 @@ fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadSt
             reading.plan.constraints.push(clause.to_owned());
         } else {
             for verb in verbs {
-                let policy = if state.conflict_marker {
+                let policy = if gates::approval_bound(target) {
+                    // `don't write until i approve`: bounded by an approval, a prohibition
+                    // is the gate it describes, not a ban.
+                    EffectPolicy::HumanFirst
+                } else if state.conflict_marker {
                     EffectPolicy::Conflict
                 } else {
                     EffectPolicy::Forbidden
@@ -1240,7 +1338,7 @@ fn read_policy_or_clause(clause: &str, reading: &mut Reading, state: &mut ReadSt
                     &mut reading.plan,
                     Effect {
                         verb,
-                        target: target.trim().to_owned(),
+                        target: objects::destination_target(target).to_owned(),
                         evidence: clause.to_owned(),
                         policy,
                         policy_literal: None,
@@ -1464,12 +1562,26 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     }
     let detail_lower = strip_filler(text.get(consumed_head..).unwrap_or_default());
     let consumed = lower.len() - detail_lower.len();
-    let detail = remainder(original, lower, consumed).to_owned();
+    let mut detail = remainder(original, lower, consumed).to_owned();
     let path = detail
         .split_whitespace()
         .map(|w| w.trim_end_matches(['.', ',', ';', ')', ':']))
         .find(|w| (w.starts_with("./") || (w.starts_with('/') && w.contains('.'))) && w.len() > 2)
         .map(str::to_owned);
+    let mut detail_lower = detail_lower;
+    let lowered_path: String;
+    if let Some(path) = &path
+        && matches!(head, Head::Effect(_))
+        && detail.trim_start().starts_with(path.as_str())
+        && objects::destination_at(detail_lower, detail.find(path.as_str()).unwrap_or(0)).is_none()
+    {
+        // `write ./total.md; the write needs my approval first`: the path is the whole
+        // object; what follows it is read on its own, never swallowed as the target.
+        defer_residue(&detail, path, reading);
+        detail.clone_from(path);
+        lowered_path = path.to_lowercase();
+        detail_lower = &lowered_path;
+    }
     // A named local path settles the medium: writing TO a path is a file effect,
     // reading a path is the supplied-document read.
     if let Some(path) = &path {
@@ -1503,9 +1615,8 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                     policy_literal: None,
                 },
             );
-            if !residue_after_path(&detail, path).is_empty() {
-                reading.unresolved.push(original.to_owned());
-            }
+            written_object(&detail, detail_lower, path, original, reading);
+            defer_residue(&detail, path, reading);
             return true;
         }
         if matches!(head, Head::Choice(options) if options.contains(&Op::Read)) {
@@ -1515,12 +1626,30 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
                 detail: path.clone(),
                 categories: Vec::new(),
             });
-            if !residue_after_path(&detail, path).is_empty() {
-                // The path settles the read; what the clause still asks after it does not
-                // vanish with the path (`… and keep the rows that matter`).
-                reading.unresolved.push(original.to_owned());
-            }
+            defer_residue(&detail, path, reading);
             return true;
+        }
+        if let Head::Effect(verb) = head {
+            let path_at = detail.find(path.as_str()).unwrap_or(0);
+            if objects::destination_at(detail_lower, path_at).is_some() {
+                // The path is the destination: the effect targets it and the rest of the
+                // clause is read on its own, never swallowed as the target.
+                push_effect(
+                    &mut reading.plan,
+                    Effect {
+                        verb: *verb,
+                        target: path.clone(),
+                        evidence: original.to_owned(),
+                        policy: EffectPolicy::Automatic,
+                        policy_literal: money_literal(original).then(|| original.to_owned()),
+                    },
+                );
+                if matches!(verb, EffectVerb::Write | EffectVerb::Publish) {
+                    written_object(&detail, detail_lower, path, original, reading);
+                }
+                defer_residue(&detail, path, reading);
+                return true;
+            }
         }
     }
     let url = detail

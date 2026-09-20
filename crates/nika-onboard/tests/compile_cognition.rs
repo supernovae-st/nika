@@ -1619,3 +1619,221 @@ async fn a_drop_predicate_is_lowered_as_its_complement() {
         "the exclusion was re-read as a keep: {candidate}"
     );
 }
+
+/// Requested meaning survives the deterministic door. A mandatory clause is realized,
+/// questioned or refused, never dropped into READY: the transformation a write names
+/// (`write a 3-bullet summary to …`), the effect and the gate an asking clause names (`ask me
+/// to confirm before writing it to …`), and an approval stated in any shape (`only after my
+/// explicit approval`). Negatives prove nothing is invented: a plain write gets no gate, a copy
+/// gets no draft.
+#[test]
+#[allow(clippy::too_many_lines)] // one table of wordings, one law
+fn requested_meaning_survives_the_deterministic_door() {
+    struct Case {
+        intent: &'static str,
+        transform: Option<bool>,
+        gate: Option<bool>,
+    }
+    let cases = [
+        // the product-convergence repros
+        Case {
+            intent: "Read ./notes/brief.md and write a 3-bullet summary to ./out/summary.md",
+            transform: Some(true),
+            gate: Some(false),
+        },
+        Case {
+            intent: "Read ./draft.md, ask me to confirm before writing it to ./final.md",
+            transform: Some(false),
+            gate: Some(true),
+        },
+        Case {
+            intent: "Read ./draft.md, draft a short announcement from it, and publish it to ./announce.md only after my explicit approval",
+            transform: Some(true),
+            gate: Some(true),
+        },
+        // paraphrases of the same obligations
+        Case {
+            intent: "Lis ./notes/brief.md et écris un résumé en 3 puces dans ./out/resume.md",
+            transform: Some(true),
+            gate: Some(false),
+        },
+        Case {
+            intent: "Read ./notes/brief.md and write the summary to ./out/summary.md",
+            transform: Some(true),
+            gate: Some(false),
+        },
+        Case {
+            intent: "Read ./notes/brief.md and write a 5-bullet summary to ./out/summary.md",
+            transform: Some(true),
+            gate: Some(false),
+        },
+        Case {
+            intent: "Read ./notes/brief.md and write a French translation to ./out/summary.md",
+            transform: Some(true),
+            gate: Some(false),
+        },
+        Case {
+            intent: "Read ./draft.md and write it to ./final.md only after I approve",
+            transform: Some(false),
+            gate: Some(true),
+        },
+        Case {
+            intent: "Read ./draft.md and write it to ./final.md, but a human must approve the write first",
+            transform: Some(false),
+            gate: Some(true),
+        },
+        Case {
+            intent: "Read ./draft.md and write it to ./final.md; ask me before writing",
+            transform: Some(false),
+            gate: Some(true),
+        },
+        Case {
+            intent: "Read ./draft.md; don't write it to ./final.md until I approve",
+            transform: Some(false),
+            gate: Some(true),
+        },
+        Case {
+            intent: "Lis ./draft.md et attends ma validation avant d'écrire dans ./final.md",
+            transform: Some(false),
+            gate: Some(true),
+        },
+        Case {
+            intent: "Read ./draft.md and publish it to ./final.md only if I explicitly say yes",
+            transform: Some(false),
+            gate: Some(true),
+        },
+        Case {
+            intent: "Read ./draft.md, wait for my confirmation, then write it to ./final.md",
+            transform: Some(false),
+            gate: Some(true),
+        },
+        Case {
+            intent: "Read ./draft.md and write it to ./final.md. Human approval required before the write.",
+            transform: Some(false),
+            gate: Some(true),
+        },
+        Case {
+            intent: "Read ./draft.md and write it to ./final.md after my approval",
+            transform: Some(false),
+            gate: Some(true),
+        },
+        // negatives: nothing invented
+        Case {
+            intent: "Read ./draft.md and write it to ./final.md",
+            transform: Some(false),
+            gate: Some(false),
+        },
+        Case {
+            intent: "Read ./notes/brief.md and write it to ./out/copy.md",
+            transform: Some(false),
+            gate: Some(false),
+        },
+        Case {
+            intent: "Lis ./notes/brief.md et écris-le dans ./out/copie.md",
+            transform: Some(false),
+            gate: Some(false),
+        },
+        Case {
+            intent: "Read every file in ./rfc/*.md and write them combined into ./all.md",
+            transform: Some(false),
+            gate: Some(false),
+        },
+    ];
+    let mut realized = Vec::new();
+    for case in &cases {
+        let mut out = nika_onboard::compile::compile(&CompileRequest::create(case.intent)).unwrap();
+        if keys(&out).contains(&"model") {
+            // A drafted transformation needs a model: the only question a realized case asks.
+            out = nika_onboard::compile::compile(
+                &CompileRequest::create(case.intent).answer("model", r#""mock/echo""#),
+            )
+            .unwrap();
+        }
+        let candidate = out.candidate.clone().unwrap_or_default();
+        let plan = out.provenance.plan.clone().unwrap_or_default();
+        let ops: Vec<String> = plan["operations"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|s| s["op"].as_str().map(str::to_owned))
+            .collect();
+        let has_transform = ops
+            .iter()
+            .any(|o| o != "read" && o != "fetch" && o != "lookup" && o != "search");
+        let human_first = plan["effects"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|e| e["policy"] == "human_first");
+        if out.status != CompileStatus::Ready {
+            // Not READY is never a false ready; the negatives, though, must stay admissible.
+            assert!(
+                case.gate != Some(false) || case.transform != Some(false),
+                "a plain request no longer compiles: {} → {:?}",
+                case.intent,
+                out.diagnostics
+            );
+            continue;
+        }
+        realized.push(case.intent);
+        assert!(!candidate.is_empty(), "{}", case.intent);
+        if let Some(expected) = case.transform {
+            assert_eq!(
+                has_transform, expected,
+                "transform on `{}`: ops {ops:?}\n{candidate}",
+                case.intent
+            );
+            assert_eq!(
+                candidate.contains("infer:"),
+                expected,
+                "infer on `{}`\n{candidate}",
+                case.intent
+            );
+        }
+        if let Some(expected) = case.gate {
+            assert_eq!(
+                human_first, expected,
+                "policy on `{}`: {}",
+                case.intent, plan["effects"]
+            );
+            assert_eq!(
+                candidate.contains("nika:prompt"),
+                expected,
+                "gate on `{}`\n{candidate}",
+                case.intent
+            );
+        }
+        assert!(
+            candidate.contains("nika:write"),
+            "effect on `{}`\n{candidate}",
+            case.intent
+        );
+        if case.gate == Some(true) {
+            // The gate dominates the write: the review task precedes the write and the write
+            // waits for its approval.
+            let review = candidate.find("nika:prompt").unwrap_or(usize::MAX);
+            let write = candidate.rfind("nika:write").unwrap_or(0);
+            assert!(
+                review < write,
+                "the gate must precede the write on `{}`\n{candidate}",
+                case.intent
+            );
+            assert!(
+                candidate.contains("with.approved == true"),
+                "the write must wait for the gate on `{}`\n{candidate}",
+                case.intent
+            );
+        }
+    }
+    // The three repros are realized, not merely refused.
+    for repro in [
+        "Read ./notes/brief.md and write a 3-bullet summary to ./out/summary.md",
+        "Read ./draft.md, ask me to confirm before writing it to ./final.md",
+        "Read ./draft.md, draft a short announcement from it, and publish it to ./announce.md only after my explicit approval",
+    ] {
+        assert!(
+            realized.contains(&repro),
+            "{repro} is not READY: {realized:#?}"
+        );
+    }
+}

@@ -52,6 +52,12 @@ impl Op {
         Self::Validate,
         Self::Explore,
     ];
+    /// Whether the operation can carry the request's constraints: a prompt-bearing step or
+    /// a computation. A plain retrieval carries nothing; a plan of reads and writes with a
+    /// constraint drops the constraint silently.
+    pub(super) const fn carries_constraints(self) -> bool {
+        !matches!(self, Self::Read | Self::Fetch | Self::Lookup | Self::Search)
+    }
     pub(super) const fn word(self) -> &'static str {
         match self {
             Self::Read => "read",

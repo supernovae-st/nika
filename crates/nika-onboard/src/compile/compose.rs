@@ -236,6 +236,23 @@ fn fold(text: &str) -> String {
         .collect()
 }
 
+/// Two targets naming the same URL, path or address.
+fn shares_literal(a: &str, b: &str) -> bool {
+    let literals = |t: &str| -> Vec<String> {
+        t.split_whitespace()
+            .map(|w| w.trim_end_matches(['.', ',', ';', ')', ':']).to_lowercase())
+            .filter(|w| {
+                w.starts_with("http://")
+                    || w.starts_with("https://")
+                    || w.starts_with("./")
+                    || (w.contains('@') && w.contains('.'))
+            })
+            .collect()
+    };
+    let (a, b) = (literals(a), literals(b));
+    a.iter().any(|x| b.contains(x))
+}
+
 /// The deterministic hard filters, in a fixed order so reasons are stable:
 ///
 /// 1. anchored — every operation, effect and obligation carries a nonempty verbatim
@@ -300,6 +317,38 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
         }
     }
     literals(candidate, floor, intent, &mut why);
+    // Rule 12: a constraint needs an operation that carries it. Reads and writes carry no
+    // prompt and no computation: a plan that keeps the constraint and drops every step that
+    // could honour it drops the constraint silently.
+    if !candidate.constraints.is_empty()
+        && !candidate.steps.iter().any(|s| s.op.carries_constraints())
+    {
+        why.push(format!(
+            "{} constraint(s) have no operation to carry them",
+            candidate.constraints.len()
+        ));
+    }
+    // Rule 13: gate dominance. An automatic effect on the clause or the endpoint of a
+    // human-first effect performs the gated action before the gate the request demanded.
+    for gated in candidate
+        .effects
+        .iter()
+        .filter(|e| e.policy == EffectPolicy::HumanFirst)
+    {
+        for other in candidate
+            .effects
+            .iter()
+            .filter(|e| e.policy == EffectPolicy::Automatic)
+        {
+            if other.evidence == gated.evidence || shares_literal(&other.target, &gated.target) {
+                why.push(format!(
+                    "`{}` is automatic on the clause or endpoint that gates `{}`",
+                    other.verb.word(),
+                    gated.verb.word()
+                ));
+            }
+        }
+    }
     // Rule 10: an effect that names content needs a step that produces it (the HOT law,
     // applied to every candidate: a proposal that kept the write, the send or the notify
     // and dropped the draft is not feasible).

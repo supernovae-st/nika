@@ -429,11 +429,22 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
         else {
             continue;
         };
+        // Content may sit before the destination (`write a brief … to ./out/x.md`) or after it
+        // (`escreve em ./out/x.md a lista …`); a gate phrase after the path (`… to ./final.md
+        // until i approve`) is the effect's policy, never something to produce.
         let target = effect.target.to_lowercase();
-        let content = if target.trim().is_empty() {
-            after_head.to_owned()
-        } else {
-            after_head.replace(target.trim(), " ")
+        let content = match after_head.split_once(target.trim()) {
+            Some((before, after)) if !target.trim().is_empty() => {
+                let after = if super::gates::approval_bound(after)
+                    || super::gates::final_gate(after).is_some()
+                {
+                    ""
+                } else {
+                    after
+                };
+                format!("{before} {after}")
+            }
+            _ => after_head.to_owned(),
         };
         let words = content
             .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '\'')
@@ -470,9 +481,26 @@ mod tests {
             why.iter().any(|w| w.contains("a write with no content")),
             "{why:?}"
         );
+        // The written object names new content: the reader now carries it as the draft the
+        // write demands (the transformation never vanishes), and the deterministic door still
+        // refuses it because that object is coordinated prose, not an explicit one.
         let intent = "Fetch https://example.com/rfc.txt and then write a plain brief of under 150 words explaining the protocol, as 5 bullets, to ./out/brief.md.";
         let reading = lexicon::read(intent);
-        let why = rejections(intent, &reading);
+        assert!(
+            reading.plan.steps.iter().any(|s| s.op == Op::Draft),
+            "{:?}",
+            reading.plan.steps
+        );
+        let why = reading.hot_rejections();
+        assert!(
+            why.iter()
+                .any(|w| w.contains("`draft` object is not explicit")),
+            "{why:?}"
+        );
+        // With the draft dropped, the write has no producer and the law still names it.
+        let mut dropped = reading;
+        dropped.plan.steps.retain(|s| s.op != Op::Draft);
+        let why = rejections(intent, &dropped);
         assert!(
             why.iter()
                 .any(|w| w.contains("names content no step produces")),
