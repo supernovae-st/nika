@@ -644,6 +644,17 @@ fn exact_excerpt(intent: &str, evidence: &str) -> Option<String> {
     intent.get(start..end).map(str::to_owned)
 }
 
+/// The head of a rejected excerpt for the finding: enough to see what the model wrote,
+/// never the whole text.
+fn excerpt_head(text: &str) -> String {
+    let trimmed = text.trim();
+    let mut head: String = trimmed.chars().take(80).collect();
+    if head.len() < trimmed.len() {
+        head.push('…');
+    }
+    head
+}
+
 fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Option<Proposal> {
     let text = match response.content.as_slice() {
         [ContentBlock::Text { text }]
@@ -696,7 +707,14 @@ fn merge(
             return None;
         };
         let Some(evidence) = exact_excerpt(intent, &step.evidence) else {
-            reject(out, "an operation lacks an exact source excerpt");
+            reject(
+                out,
+                &format!(
+                    "an operation lacks an exact source excerpt (`{}` names `{}`)",
+                    step.op,
+                    excerpt_head(&step.evidence)
+                ),
+            );
             return None;
         };
         plan.push_step(Step {
@@ -724,7 +742,11 @@ fn merge(
         let Some(evidence) = exact_excerpt(intent, &effect.evidence) else {
             reject(
                 out,
-                "an effect lacks an exact source excerpt; no effect was invented",
+                &format!(
+                    "an effect lacks an exact source excerpt (`{}` names `{}`); no effect was invented",
+                    effect.verb,
+                    excerpt_head(&effect.evidence)
+                ),
             );
             return None;
         };
@@ -761,7 +783,14 @@ fn merge(
     }
     for obligation in proposal.obligations {
         let Some(evidence) = exact_excerpt(intent, &obligation.evidence) else {
-            reject(out, "an obligation lacks an exact source excerpt");
+            reject(
+                out,
+                &format!(
+                    "an obligation lacks an exact source excerpt (`{}` names `{}`)",
+                    obligation.kind,
+                    excerpt_head(&obligation.evidence)
+                ),
+            );
             return None;
         };
         let kind = match (obligation.kind.as_str(), obligation.value) {
