@@ -469,6 +469,58 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::DiagnosticKin
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::DiagnosticKind
 impl<T> typenum::type_operators::Same for nika_onboard::compile::DiagnosticKind
 pub type nika_onboard::compile::DiagnosticKind::Output = T
+#[non_exhaustive] pub enum nika_onboard::compile::HitKind
+pub nika_onboard::compile::HitKind::Family
+pub nika_onboard::compile::HitKind::Skeleton
+impl core::clone::Clone for nika_onboard::compile::HitKind
+pub fn nika_onboard::compile::HitKind::clone(&self) -> nika_onboard::compile::HitKind
+impl core::cmp::Eq for nika_onboard::compile::HitKind
+impl core::cmp::PartialEq for nika_onboard::compile::HitKind
+pub fn nika_onboard::compile::HitKind::eq(&self, other: &nika_onboard::compile::HitKind) -> bool
+impl core::fmt::Debug for nika_onboard::compile::HitKind
+pub fn nika_onboard::compile::HitKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_onboard::compile::HitKind
+impl core::marker::StructuralPartialEq for nika_onboard::compile::HitKind
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::HitKind
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::HitKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::HitKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::HitKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::HitKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::HitKind where U: core::convert::From<T>
+pub fn nika_onboard::compile::HitKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::HitKind where U: core::convert::Into<T>
+pub type nika_onboard::compile::HitKind::Error = core::convert::Infallible
+pub fn nika_onboard::compile::HitKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::HitKind where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::HitKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::HitKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::HitKind where T: core::clone::Clone
+pub type nika_onboard::compile::HitKind::Owned = T
+pub fn nika_onboard::compile::HitKind::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::HitKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::HitKind where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::HitKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::HitKind where T: ?core::marker::Sized
+pub fn nika_onboard::compile::HitKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::HitKind where T: ?core::marker::Sized
+pub fn nika_onboard::compile::HitKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::HitKind where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::HitKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::HitKind
+pub fn nika_onboard::compile::HitKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::HitKind where T: core::clone::Clone
+pub fn nika_onboard::compile::HitKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::HitKind where T: 'static
+pub fn nika_onboard::compile::HitKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard::compile::HitKind where T: core::marker::Copy
+pub fn nika_onboard::compile::HitKind::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::HitKind where T: ?core::marker::Sized
+pub fn nika_onboard::compile::HitKind::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::HitKind::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::HitKind
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::HitKind
+impl<T> typenum::type_operators::Same for nika_onboard::compile::HitKind
+pub type nika_onboard::compile::HitKind::Output = T
 #[non_exhaustive] pub enum nika_onboard::compile::MaterializeError
 pub nika_onboard::compile::MaterializeError::AlreadyExists(alloc::string::String)
 pub nika_onboard::compile::MaterializeError::Io
@@ -1100,6 +1152,53 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::CompileReques
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::CompileRequest
 impl<T> typenum::type_operators::Same for nika_onboard::compile::CompileRequest
 pub type nika_onboard::compile::CompileRequest::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::Hit
+pub nika_onboard::compile::Hit::id: alloc::string::String
+pub nika_onboard::compile::Hit::kind: nika_onboard::compile::HitKind
+pub nika_onboard::compile::Hit::patterns: alloc::vec::Vec<alloc::string::String>
+pub nika_onboard::compile::Hit::score: f64
+pub nika_onboard::compile::Hit::title: alloc::string::String
+impl core::clone::Clone for nika_onboard::compile::Hit
+pub fn nika_onboard::compile::Hit::clone(&self) -> nika_onboard::compile::Hit
+impl core::cmp::PartialEq for nika_onboard::compile::Hit
+pub fn nika_onboard::compile::Hit::eq(&self, other: &nika_onboard::compile::Hit) -> bool
+impl core::fmt::Debug for nika_onboard::compile::Hit
+pub fn nika_onboard::compile::Hit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::Hit
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::Hit
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::Hit where U: core::convert::From<T>
+pub fn nika_onboard::compile::Hit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::Hit where U: core::convert::Into<T>
+pub type nika_onboard::compile::Hit::Error = core::convert::Infallible
+pub fn nika_onboard::compile::Hit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::Hit where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::Hit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::Hit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::Hit where T: core::clone::Clone
+pub type nika_onboard::compile::Hit::Owned = T
+pub fn nika_onboard::compile::Hit::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::Hit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::Hit where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::Hit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::Hit where T: ?core::marker::Sized
+pub fn nika_onboard::compile::Hit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::Hit where T: ?core::marker::Sized
+pub fn nika_onboard::compile::Hit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::Hit where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::Hit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::Hit
+pub fn nika_onboard::compile::Hit::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::Hit where T: core::clone::Clone
+pub fn nika_onboard::compile::Hit::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::Hit where T: 'static
+pub fn nika_onboard::compile::Hit::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::Hit where T: ?core::marker::Sized
+pub fn nika_onboard::compile::Hit::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::Hit::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::Hit
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::Hit
+impl<T> typenum::type_operators::Same for nika_onboard::compile::Hit
+pub type nika_onboard::compile::Hit::Output = T
 pub struct nika_onboard::compile::NoProvider
 impl core::clone::Clone for nika_onboard::compile::NoProvider
 pub fn nika_onboard::compile::NoProvider::clone(&self) -> nika_onboard::compile::NoProvider
@@ -1193,6 +1292,8 @@ pub async fn nika_onboard::compile::compile_with_cognition<P: nika_kernel_ai::pr
 pub async fn nika_onboard::compile::compile_with_provider<P: nika_kernel_ai::provider::ProviderInferDyn>(request: &nika_onboard::compile::CompileRequest, provider: &P) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
 pub fn nika_onboard::compile::materialize_ready(outcome: &nika_onboard::compile::CompileOutcome, dest: &std::path::Path, overwrite: bool) -> core::result::Result<(), nika_onboard::compile::MaterializeError>
 pub fn nika_onboard::compile::outcome_document(out: &nika_onboard::compile::CompileOutcome) -> serde_json::value::Value
+pub fn nika_onboard::compile::retrieve(query: &str, k: usize) -> alloc::vec::Vec<nika_onboard::compile::Hit>
+pub fn nika_onboard::compile::retrieve_by_ops(ops: &[&str], k: usize) -> alloc::vec::Vec<nika_onboard::compile::Hit>
 pub mod nika_onboard::fixtures
 pub fn nika_onboard::fixtures::fixture_prefixes(body: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_onboard::fixtures::materialize(body: &str, dest: &std::path::Path) -> core::io::error::Result<(usize, usize)>
