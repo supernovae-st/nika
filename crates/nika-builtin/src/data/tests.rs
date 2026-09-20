@@ -876,6 +876,113 @@ fn convert_formula_guard_is_a_strict_bool_not_silently_coerced() {
     );
 }
 
+// ─── nika:convert · columns (an explicit header order · #1666) ──────────
+
+#[test]
+fn convert_columns_keeps_the_requested_header_order() {
+    // Without `columns:` the header is sorted (the determinism default,
+    // unchanged); with it, the listed columns lead in exactly that order — a
+    // CSV a requester read as `order_id,customer,amount` is written back the
+    // same way, whatever order the parsed objects happen to hold.
+    let rows = serde_json::json!([
+        {"amount": "150", "customer": "ada", "order_id": "A-1"},
+        {"amount": "300", "customer": "cy", "order_id": "A-3"}
+    ]);
+    let sorted = convert(&args(serde_json::json!({
+        "input": rows.clone(), "from": "json", "to": "csv"
+    })))
+    .expect("ok");
+    assert_eq!(
+        sorted.as_str().expect("string"),
+        "amount,customer,order_id\n150,ada,A-1\n300,cy,A-3\n"
+    );
+    let ordered = convert(&args(serde_json::json!({
+        "input": rows, "from": "json", "to": "csv",
+        "columns": ["order_id", "customer", "amount"]
+    })))
+    .expect("ok");
+    assert_eq!(
+        ordered.as_str().expect("string"),
+        "order_id,customer,amount\nA-1,ada,150\nA-3,cy,300\n"
+    );
+}
+
+#[test]
+fn convert_columns_emits_a_listed_column_absent_from_every_row_empty() {
+    // A requested column no row carries still heads the file, empty: the
+    // requester's layout is the contract, the data merely fills it.
+    let csv = convert(&args(serde_json::json!({
+        "input": [{"a": "1"}, {"a": "2"}],
+        "from": "json", "to": "csv", "columns": ["missing", "a"]
+    })))
+    .expect("ok");
+    assert_eq!(csv.as_str().expect("string"), "missing,a\n,1\n,2\n");
+}
+
+#[test]
+fn convert_columns_appends_unlisted_keys_in_sorted_order() {
+    // Keys the list does not name follow it in the sorted order the default
+    // emits, so a partial list is still deterministic across engines.
+    let csv = convert(&args(serde_json::json!({
+        "input": [{"z": "1", "b": "2", "m": "3", "a": "4"}],
+        "from": "json", "to": "csv", "columns": ["m", "z"]
+    })))
+    .expect("ok");
+    assert_eq!(csv.as_str().expect("string"), "m,z,a,b\n3,1,4,2\n");
+}
+
+#[test]
+fn convert_columns_folds_a_repeated_name_to_its_first_mention() {
+    let csv = convert(&args(serde_json::json!({
+        "input": [{"a": "1", "b": "2"}],
+        "from": "json", "to": "csv", "columns": ["b", "a", "b"]
+    })))
+    .expect("ok");
+    assert_eq!(csv.as_str().expect("string"), "b,a\n2,1\n");
+}
+
+#[test]
+fn convert_columns_keeps_the_formula_guard_at_write_time() {
+    // The guard reads the emitted header and cells after the order is
+    // settled: a `=`-led column name is neutralized wherever the list places
+    // it, and the guard never perturbs the order itself.
+    let csv = convert(&args(serde_json::json!({
+        "input": [{"=evil": "1", "safe": "=cmd"}],
+        "from": "json", "to": "csv", "columns": ["safe", "=evil"], "formula_guard": true
+    })))
+    .expect("ok");
+    assert_eq!(csv.as_str().expect("string"), "safe,'=evil\n'=cmd,1\n");
+}
+
+#[test]
+fn convert_columns_leaves_the_identity_rejection_unchanged() {
+    let identity = convert(&args(serde_json::json!({
+        "input": "a\n1", "from": "csv", "to": "csv", "columns": ["a"]
+    })));
+    assert!(matches!(identity, Err(f) if f.code == "NIKA-BUILTIN-CONVERT-001"));
+}
+
+#[test]
+fn convert_columns_is_a_strict_list_of_strings() {
+    // A list in the wrong shape is a loud CONVERT-001, never silently the
+    // sorted default: the requester asked for an order and would not get it.
+    let malformed = [
+        serde_json::json!("order_id,customer"),
+        serde_json::json!([1, "a"]),
+        serde_json::json!({"a": 1}),
+    ];
+    for bad in malformed {
+        let out = convert(&args(serde_json::json!({
+            "input": [{"a": "1"}], "from": "json", "to": "csv", "columns": bad
+        })));
+        assert!(
+            matches!(&out, Err(f) if f.code == "NIKA-BUILTIN-CONVERT-001"
+                && f.message.contains("columns")),
+            "malformed columns is a loud CONVERT-001: {out:?}"
+        );
+    }
+}
+
 #[test]
 fn hash_blake3_default_and_rejects_broken() {
     let h = hash(&args(serde_json::json!({ "content": "hello" }))).expect("ok");

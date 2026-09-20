@@ -502,10 +502,17 @@ pub(crate) fn convert(args: &Args) -> BuiltinOutcome {
     // here (loud on a non-bool) even for non-csv `to`, matching has_header:
     // an errant flag is an authoring bug in any direction.
     let formula_guard = strict_bool(args, "formula_guard", false, C1)?;
+    // The CSV header order (opt-in · default sorted). The engine never
+    // preserves JSON key order (`serde_json/preserve_order` stays off by
+    // design), so a caller who needs the requester's layout names it here.
+    // Resolved unconditionally like the two flags above: a malformed list is
+    // an authoring bug in any direction, never silently the sorted default.
+    let columns = crate::opt_string_list(args, "columns", C1)?;
 
     let value = parse_format(from, input, has_header).map_err(|e| BuiltinFailure::new(C2, e))?;
     // Emit the target format.
-    emit_format(to, &value, has_header, formula_guard).map_err(|e| BuiltinFailure::new(C1, e))
+    emit_format(to, &value, has_header, formula_guard, columns.as_deref())
+        .map_err(|e| BuiltinFailure::new(C1, e))
 }
 
 /// The CSV formula-injection guard (CWE-1236). A spreadsheet interprets a
@@ -605,12 +612,13 @@ fn emit_format(
     value: &serde_json::Value,
     has_header: bool,
     formula_guard: bool,
+    columns: Option<&[String]>,
 ) -> Result<serde_json::Value, String> {
     let text = match to {
         "json" => return Ok(value.clone()),
         "yaml" => serde_yaml_bw::to_string(value).map_err(|e| format!("to YAML: {e}"))?,
         "toml" => toml_convert::to_string(value).map_err(|e| format!("to TOML: {e}"))?,
-        "csv" => emit_csv(value, has_header, formula_guard)?,
+        "csv" => emit_csv(value, has_header, formula_guard, columns)?,
         other => return Err(format!("unknown to: {other} (json|yaml|toml|csv)")),
     };
     Ok(serde_json::Value::String(text))
@@ -649,31 +657,25 @@ fn parse_csv(text: &str, has_header: bool) -> Result<serde_json::Value, String> 
     Ok(serde_json::Value::Array(rows))
 }
 
-/// An array of objects → CSV (union of keys = header, sorted for
-/// determinism across engines).
+/// An array of objects → CSV. The header is the named `columns` first, in
+/// that order (a listed column no row carries is still emitted, empty), then
+/// every unlisted key sorted — so with no order named it is the union of keys
+/// sorted, for determinism across engines (parsed JSON carries no key order).
 fn emit_csv(
     value: &serde_json::Value,
     has_header: bool,
     formula_guard: bool,
+    columns: Option<&[String]>,
 ) -> Result<String, String> {
     let rows = value
         .as_array()
         .ok_or_else(|| "CSV output needs an array of objects".to_owned())?;
-    let mut headers: Vec<String> = Vec::new();
-    for row in rows {
-        if let Some(obj) = row.as_object() {
-            for key in obj.keys() {
-                if !headers.contains(key) {
-                    headers.push(key.clone());
-                }
-            }
-        }
-    }
-    headers.sort();
+    let headers = csv_headers(rows, columns.unwrap_or_default());
     let mut writer = csv::Writer::from_writer(Vec::new());
     if has_header {
         // A header key is attacker-influenced too (JSON object keys) — guard it
-        // after sorting, at write time, so the guard never perturbs dedup/order.
+        // once the order is settled, at write time, so the guard never perturbs
+        // dedup/order.
         let hdr: Vec<String> = headers
             .iter()
             .map(|h| guard_formula(h.clone(), formula_guard))
@@ -699,6 +701,30 @@ fn emit_csv(
     }
     let bytes = writer.into_inner().map_err(|e| e.to_string())?;
     String::from_utf8(bytes).map_err(|e| e.to_string())
+}
+
+/// The CSV header: the named columns first (a repeated name folds to its first
+/// mention), then every key the list does not name, sorted.
+fn csv_headers(rows: &[serde_json::Value], columns: &[String]) -> Vec<String> {
+    let mut headers: Vec<String> = Vec::new();
+    for column in columns {
+        if !headers.contains(column) {
+            headers.push(column.clone());
+        }
+    }
+    let mut unlisted: Vec<String> = Vec::new();
+    for key in rows
+        .iter()
+        .filter_map(serde_json::Value::as_object)
+        .flat_map(serde_json::Map::keys)
+    {
+        if !headers.contains(key) && !unlisted.contains(key) {
+            unlisted.push(key.clone());
+        }
+    }
+    unlisted.sort();
+    headers.extend(unlisted);
+    headers
 }
 
 // ─── nika:hash · content hashing ────────────────────────────────────────

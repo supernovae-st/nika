@@ -53,7 +53,14 @@ pub static ALL_BUILTINS: &[Builtin] = &[
     Builtin::with_required(
         "convert",
         Data,
-        &["input", "from", "to", "has_header", "formula_guard"],
+        &[
+            "input",
+            "from",
+            "to",
+            "has_header",
+            "formula_guard",
+            "columns",
+        ],
         &["input", "from", "to"],
     ),
     Builtin::with_required(

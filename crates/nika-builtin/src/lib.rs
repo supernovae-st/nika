@@ -839,6 +839,36 @@ pub(crate) fn strict_u64(
     }
 }
 
+/// An optional list of strings — absent → `None`, a JSON array whose every
+/// item is a string → `Some(list)`, anything else (a comma string, a mixed
+/// array, an object) → a LOUD `code` arg error. The list sibling of
+/// [`strict_bool`] and [`strict_u64`]: a PRESENT malformed list is an
+/// authoring bug, never silently the default — a `columns: "a,b"` that fell
+/// back to the sorted header would hand the requester the order they did
+/// not ask for, with no finding to say so.
+pub(crate) fn opt_string_list(
+    args: &Args,
+    key: &str,
+    code: &'static str,
+) -> Result<Option<Vec<String>>, BuiltinFailure> {
+    let Some(value) = args.get(key) else {
+        return Ok(None);
+    };
+    let malformed = || {
+        BuiltinFailure::new(
+            code,
+            format!("`{key}:` must be a list of strings, not {value}"),
+        )
+    };
+    value
+        .as_array()
+        .ok_or_else(malformed)?
+        .iter()
+        .map(|item| item.as_str().map(str::to_owned).ok_or_else(malformed))
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
 #[cfg(test)]
 pub(crate) mod test_rig {
     use super::*;

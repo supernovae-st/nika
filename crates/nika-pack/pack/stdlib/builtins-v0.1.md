@@ -265,10 +265,13 @@ invoke:
     to: json                           # REQUIRED · enum · json | yaml | toml | csv
     has_header: true                   # OPTIONAL · CSV only · default true
     formula_guard: false               # OPTIONAL · CSV emit only · default false (see below)
+    columns: ["order_id", "customer"]  # OPTIONAL · CSV emit only · the header order (see below)
 ```
 Universal format converter · 4 formats v0.1 (`json` · `yaml` · `toml` · `csv`) · 12 directions in scope (4×3 minus identity) · `from == to` is rejected (`NIKA-BUILTIN-CONVERT-001` · `validation_error` · an identity conversion is an authoring bug). Throws · `-002` (the input does not parse as `from:` · `tool_error`).
 
 **`formula_guard`** (CSV emit only · default `false`) · opt-in **CSV formula-injection guard** (CWE-1236). A spreadsheet (Excel · Sheets · LibreOffice) interprets a cell whose FIRST non-whitespace character is `=` `+` `-` `@` (or a leading `\t`/`\r` control char) as a **formula** — so `=HYPERLINK(…)` or `=cmd|…` in untrusted data executes when the file is opened. With `formula_guard: true`, such a cell (data OR header key) is prefixed with a single quote `'` — the OWASP mitigation those apps render as literal text. **Opt-in because it ALTERS data**: a legitimate negative number `-5` becomes the text `'-5`. Enable it when the CSV carries untrusted data AND is destined for a spreadsheet; leave it off (the default) for clean machine round-trips — matching the Rust/Python `csv` ecosystem, where the spreadsheet is the consumer's trust boundary. A non-boolean value is a loud `-001` arg error (never silently read as `false`).
+
+**`columns`** (CSV emit only · default sorted) · the **header order** to emit. Without it the header is the union of the row keys, sorted (deterministic across engines, but a CSV read as `order_id,customer,amount` comes back as `amount,customer,order_id` — the engine never preserves JSON key order). With `columns: ["order_id", "customer", "amount"]` the listed columns lead in exactly that order — a listed column absent from every row is still emitted, empty — then every unlisted key follows in the sorted order the default emits; a repeated name folds to its first mention. `formula_guard` still applies at write time, after the order is settled. A `nika:jq` over the source's first line (`split("\n") | .[0] | rtrimstr("\r") | split(",") | map(ltrimstr("\"") | rtrimstr("\""))`) is the deterministic way to carry a source's own order through a filter and back. A value that is not a list of strings is a loud `-001` arg error (never silently the sorted default).
 
 Pattern · `fetch+extract` symmetry · single super-powerful builtin · `from`/`to` mode parameters · all bidirectional pairs canonical · no per-direction builtin slot.
 
