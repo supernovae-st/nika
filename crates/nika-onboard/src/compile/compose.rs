@@ -257,7 +257,11 @@ fn fold(text: &str) -> String {
 /// 8. literals carried — every literal the reading bound (URL, path, email, timezone)
 ///    is carried verbatim by some candidate operation or effect;
 /// 9. no invented literal — every URL, path, email or number in a candidate detail or
-///    target appears verbatim in the request.
+///    target appears verbatim in the request;
+/// 10. produced content — an effect that names content (a written file's content, a reply
+///     sent, a report published, a note created…) has a draft, extract or compute step, or
+///     a source step under a copy cue;
+/// 11. recheckable revision — a revision check has a lookup to reread.
 pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Result<(), Vec<String>> {
     let mut why: Vec<String> = Vec::new();
     if !candidate.anchored(intent) {
@@ -296,9 +300,12 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
         }
     }
     literals(candidate, floor, intent, &mut why);
-    // Rule 10: a write that names content needs a step that produces it (the HOT law, applied to
-    // every candidate: a proposal that kept the write and dropped the draft is not feasible).
-    super::hot::write_without_producer(candidate, &mut why);
+    // Rule 10: an effect that names content needs a step that produces it (the HOT law,
+    // applied to every candidate: a proposal that kept the write, the send or the notify
+    // and dropped the draft is not feasible).
+    super::hot::unproduced_content(candidate, &mut why);
+    // Rule 11: a revision check needs a lookup to reread.
+    super::hot::unrecheckable_revision(candidate, &mut why);
     why.dedup();
     if why.is_empty() { Ok(()) } else { Err(why) }
 }
@@ -949,6 +956,113 @@ mod tests {
             ]),
             ["op"]
         );
+    }
+
+    // ── rule 10 generalized · a consumer of produced content needs a producer ─────
+    const SEND_INTENT: &str = "Read ./inbox/a.md and send the summary to ops@example.invalid.";
+    const COPY_INTENT: &str =
+        "Read ./inbox/a.md and forward the summary as is to ops@example.invalid.";
+
+    fn send_floor(intent: &str, target: &str, evidence: &str) -> Plan {
+        Plan {
+            steps: vec![step(Op::Read, "./inbox/a.md", "Read ./inbox/a.md")],
+            effects: vec![effect(
+                EffectVerb::Send,
+                target,
+                evidence,
+                EffectPolicy::Automatic,
+            )],
+            bindings: vec![
+                Binding {
+                    role: "path",
+                    literal: "./inbox/a.md".to_owned(),
+                },
+                Binding {
+                    role: "email",
+                    literal: "ops@example.invalid".to_owned(),
+                },
+            ],
+            ..Plan::default()
+        }
+        .tap(|plan| assert!(plan.anchored(intent)))
+    }
+    trait Tap: Sized {
+        fn tap(self, f: impl FnOnce(&Self)) -> Self {
+            f(&self);
+            self
+        }
+    }
+    impl Tap for Plan {}
+
+    #[test]
+    fn a_consumer_of_produced_content_needs_a_producer() {
+        let floor = send_floor(
+            SEND_INTENT,
+            "the summary to ops@example.invalid",
+            "send the summary to ops@example.invalid",
+        );
+        let why = feasibility(&floor, &floor, SEND_INTENT).unwrap_err();
+        assert_eq!(
+            why,
+            ["`send` names content no step produces: summary (the summary to ops@example.invalid)"]
+        );
+        // A draft produces it.
+        let mut drafted = floor.clone();
+        drafted
+            .steps
+            .push(step(Op::Draft, "the summary", "the summary"));
+        assert_eq!(feasibility(&drafted, &floor, SEND_INTENT), Ok(()));
+        // A copy cue beside a source step forwards existing material: nothing to produce.
+        let copied = send_floor(
+            COPY_INTENT,
+            "the summary as is to ops@example.invalid",
+            "forward the summary as is to ops@example.invalid",
+        );
+        assert_eq!(feasibility(&copied, &copied, COPY_INTENT), Ok(()));
+        // A copy cue with no source step still has nothing to send.
+        let mut sourceless = copied.clone();
+        sourceless.steps.clear();
+        sourceless.bindings.retain(|b| b.role != "path");
+        let why = feasibility(&sourceless, &sourceless, COPY_INTENT).unwrap_err();
+        assert!(
+            why.iter()
+                .any(|r| r.starts_with("`send` names content no step produces: summary")),
+            "{why:?}"
+        );
+        // A prohibited effect is never emitted, so it needs no producer.
+        let mut forbidden = floor.clone();
+        forbidden.effects[0].policy = EffectPolicy::Forbidden;
+        assert_eq!(feasibility(&forbidden, &forbidden, SEND_INTENT), Ok(()));
+    }
+
+    // ── rule 11 · a revision check needs a source to recheck ──────────────────────
+    const REVISION_INTENT: &str = "Read ./inbox/a.md, look up the customer record, and recheck the current version before the end.";
+
+    #[test]
+    fn a_revision_check_without_a_lookup_is_infeasible() {
+        let mut floor = Plan {
+            steps: vec![step(Op::Read, "./inbox/a.md", "Read ./inbox/a.md")],
+            obligations: vec![Obligation {
+                kind: ObligationKind::RevisionCheck,
+                evidence: "recheck the current version before the end".to_owned(),
+            }],
+            bindings: vec![Binding {
+                role: "path",
+                literal: "./inbox/a.md".to_owned(),
+            }],
+            ..Plan::default()
+        };
+        let why = feasibility(&floor, &floor, REVISION_INTENT).unwrap_err();
+        assert_eq!(
+            why,
+            ["the obligation `revision_check` has no retrievable source to recheck"]
+        );
+        floor.steps.push(step(
+            Op::Lookup,
+            "the customer record",
+            "look up the customer record",
+        ));
+        assert_eq!(feasibility(&floor, &floor, REVISION_INTENT), Ok(()));
     }
 
     #[test]

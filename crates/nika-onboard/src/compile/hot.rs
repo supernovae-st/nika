@@ -2,14 +2,15 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Strict HOT admission beyond the reader's own rejections: positive evidence that every
-//! operation cue of the request produced an element, that no draft is a bare path, and that
-//! a write effect has a producer for the content it names. These are laws of the reader's
-//! own vocabulary (its cue table and its plan), never rules about a corpus: a cue the reader
-//! knows but did not turn into a step is exactly the case where "consumed" was not
-//! "understood", and the honest answer is to escalate.
+//! operation cue of the request produced an element, that no draft is a bare path, that
+//! every effect has a producer for the content it names, and that a revision check has a
+//! source to reread. These are laws of the reader's own vocabulary (its cue table and its
+//! plan), never rules about a corpus: a cue the reader knows but did not turn into a step
+//! is exactly the case where "consumed" was not "understood", and the honest answer is to
+//! escalate. The composer applies the same producer laws to every proposal.
 
 use super::lexicon::{self, Head, Reading};
-use super::plan::{EffectVerb, ObligationKind, Op, Plan};
+use super::plan::{EffectPolicy, EffectVerb, ObligationKind, Op, Plan};
 
 /// Why a reading may not be admitted as HOT, in addition to [`Reading::hot_rejections`].
 pub(super) fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
@@ -17,7 +18,8 @@ pub(super) fn rejections(intent: &str, reading: &Reading) -> Vec<String> {
     let lower = lexicon::fold_apostrophes(intent).to_lowercase();
     cue_coverage(&lower, reading, &mut why);
     path_as_draft(reading, &mut why);
-    write_without_producer(&reading.plan, &mut why);
+    unproduced_content(&reading.plan, &mut why);
+    unrecheckable_revision(&reading.plan, &mut why);
     why
 }
 
@@ -179,11 +181,241 @@ const LINK_WORDS: &[&str] = &[
     "archivo",
 ];
 
+/// Nouns that name content a step must produce before an effect can carry it (EN · FR ·
+/// ES · IT · PT · DE), in their diacritic-folded lowercase form.
+const PRODUCED_NOUNS: &[&str] = &[
+    "reply",
+    "replies",
+    "report",
+    "reports",
+    "summary",
+    "summaries",
+    "digest",
+    "digests",
+    "brief",
+    "briefs",
+    "note",
+    "notes",
+    "message",
+    "messages",
+    "blurb",
+    "blurbs",
+    "draft",
+    "drafts",
+    "translation",
+    "translations",
+    "recap",
+    "recaps",
+    "memo",
+    "memos",
+    "answer",
+    "response",
+    "reponse",
+    "reponses",
+    "rapport",
+    "rapports",
+    "resume",
+    "resumes",
+    "synthese",
+    "syntheses",
+    "brouillon",
+    "brouillons",
+    "traduction",
+    "traductions",
+    "recapitulatif",
+    "respuesta",
+    "respuestas",
+    "informe",
+    "informes",
+    "resumen",
+    "resumenes",
+    "mensaje",
+    "mensajes",
+    "borrador",
+    "borradores",
+    "traduccion",
+    "traducciones",
+    "nota",
+    "notas",
+    "risposta",
+    "risposte",
+    "rapporto",
+    "rapporti",
+    "riassunto",
+    "riassunti",
+    "messaggio",
+    "messaggi",
+    "bozza",
+    "bozze",
+    "traduzione",
+    "traduzioni",
+    "resposta",
+    "respostas",
+    "relatorio",
+    "relatorios",
+    "resumo",
+    "resumos",
+    "mensagem",
+    "mensagens",
+    "rascunho",
+    "rascunhos",
+    "traducao",
+    "traducoes",
+    "antwort",
+    "antworten",
+    "bericht",
+    "berichte",
+    "zusammenfassung",
+    "zusammenfassungen",
+    "nachricht",
+    "nachrichten",
+    "entwurf",
+    "entwurfe",
+    "ubersetzung",
+    "ubersetzungen",
+    "notiz",
+    "notizen",
+];
+
+/// Cues that an effect carries existing material unchanged: a source step is then its
+/// producer. Matched as whole words or whole phrases on the folded text.
+const COPY_CUES: &[&str] = &[
+    "copy",
+    "copies",
+    "forward",
+    "forwards",
+    "verbatim",
+    "tel quel",
+    "telle quelle",
+    "as is",
+    "as-is",
+    "unchanged",
+    "attach",
+    "attached",
+    "attachment",
+    "piece jointe",
+    "ci-joint",
+    "ci-jointe",
+    "transmets",
+    "transmet",
+    "transmettre",
+    "transfere",
+    "transferer",
+    "sans modification",
+    "reenvia",
+    "reenviar",
+    "inoltra",
+    "inoltrare",
+    "weiterleiten",
+    "raw",
+];
+
+/// Lowercase with French, Spanish, Portuguese and German diacritics folded, so the
+/// noun and cue tables match one spelling.
+fn fold(text: &str) -> String {
+    text.chars()
+        .flat_map(char::to_lowercase)
+        .map(|c| match c {
+            'à' | 'â' | 'ä' | 'á' | 'ã' => 'a',
+            'ç' => 'c',
+            'è' | 'é' | 'ê' | 'ë' => 'e',
+            'î' | 'ï' | 'í' => 'i',
+            'ô' | 'ö' | 'ó' | 'õ' => 'o',
+            'ù' | 'û' | 'ü' | 'ú' => 'u',
+            'ñ' => 'n',
+            'ß' => 's',
+            other => other,
+        })
+        .collect()
+}
+
+/// The first produced-content noun of a phrase, as the phrase spells it.
+fn produced_noun(text: &str) -> Option<String> {
+    let folded = fold(text);
+    let words = text
+        .split(|c: char| !c.is_alphanumeric() && c != '-')
+        .filter(|w| !w.is_empty());
+    let folded_words = folded
+        .split(|c: char| !c.is_alphanumeric() && c != '-')
+        .filter(|w| !w.is_empty());
+    words
+        .zip(folded_words)
+        .find(|(_, folded)| PRODUCED_NOUNS.contains(folded))
+        .map(|(word, _)| word.to_owned())
+}
+
+fn copy_cue(text: &str) -> bool {
+    let padded = format!(
+        " {} ",
+        fold(text).replace(|c: char| !c.is_alphanumeric() && c != '-', " ")
+    );
+    COPY_CUES
+        .iter()
+        .any(|cue| padded.contains(&format!(" {cue} ")))
+}
+
+/// Every effect that names content needs a producer: a write with named content (below),
+/// and a send, publish, notify, create, update or other effect whose target or evidence
+/// names a produced-content noun (a reply, a report, a summary…) needs a draft, an extract
+/// or a compute step, or, under a copy cue (forward, verbatim, tel quel, attach…), a source
+/// step whose material it carries unchanged. A prohibited or contradictory effect is never
+/// emitted, so it needs nothing; a target naming a local file is a write and follows the
+/// write law.
+pub(super) fn unproduced_content(plan: &Plan, why: &mut Vec<String>) {
+    write_without_producer(plan, why);
+    let produces = plan.has(Op::Draft) || plan.has(Op::Extract) || plan.has(Op::Compute);
+    if produces {
+        return;
+    }
+    let sourced = plan
+        .steps
+        .iter()
+        .any(|s| matches!(s.op, Op::Read | Op::Fetch | Op::Lookup | Op::Search));
+    for effect in plan.effects.iter().filter(|e| {
+        matches!(
+            e.verb,
+            EffectVerb::Send
+                | EffectVerb::Publish
+                | EffectVerb::Notify
+                | EffectVerb::Create
+                | EffectVerb::Update
+                | EffectVerb::Other
+        ) && !matches!(e.policy, EffectPolicy::Forbidden | EffectPolicy::Conflict)
+            && super::paths::single_file(&e.target).is_none()
+    }) {
+        let text = format!("{} {}", effect.target, effect.evidence);
+        let Some(noun) = produced_noun(&text) else {
+            continue;
+        };
+        if copy_cue(&text) && sourced {
+            continue;
+        }
+        why.push(format!(
+            "`{}` names content no step produces: {noun} ({})",
+            effect.verb.word(),
+            effect.target.trim()
+        ));
+    }
+}
+
+/// A revision check rereads the record it looked up; without a lookup there is nothing
+/// retrievable to recheck.
+pub(super) fn unrecheckable_revision(plan: &Plan, why: &mut Vec<String>) {
+    if plan
+        .obligations
+        .iter()
+        .any(|o| matches!(o.kind, ObligationKind::RevisionCheck))
+        && !plan.has(Op::Lookup)
+    {
+        why.push("the obligation `revision_check` has no retrievable source to recheck".to_owned());
+    }
+}
+
 /// A write effect that names content ("write a brief of under 150 words … to ./out/x.md",
 /// "escreve em ./out/x.md a lista dos produtos …") needs a step that produces it; with
 /// nothing drafted, extracted or computed, the content would be invented by the assembler.
 /// The target path and the words that only link the write to it never count as content.
-pub(super) fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
+fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
     let produces = plan.has(Op::Draft) || plan.has(Op::Extract) || plan.has(Op::Compute);
     if produces {
         return;
@@ -266,6 +498,70 @@ mod tests {
             why.iter()
                 .any(|w| w.contains("names content no step produces")),
             "{why:?}"
+        );
+    }
+
+    #[test]
+    fn a_send_of_an_unproduced_reply_is_rejected_and_a_drafted_one_admitted() {
+        let intent = "Read ./inbox/a.md and send a reply to ops@example.invalid";
+        let reading = lexicon::read(intent);
+        assert!(
+            reading
+                .plan
+                .effects
+                .iter()
+                .any(|e| e.verb == EffectVerb::Send),
+            "{:?}",
+            reading.plan
+        );
+        let why = rejections(intent, &reading);
+        assert!(
+            why.iter().any(|w| w
+                == "`send` names content no step produces: reply (a reply to ops@example.invalid)"),
+            "{why:?}"
+        );
+        let intent = "Read ./inbox/a.md, draft a reply, and send the reply to ops@example.invalid";
+        let reading = lexicon::read(intent);
+        let why = rejections(intent, &reading);
+        assert!(
+            !why.iter().any(|w| w.contains("no step produces")),
+            "{why:?}"
+        );
+        // Multilingual nouns: a French réponse, a Spanish informe.
+        let mut plan = Plan::default();
+        plan.effects.push(super::super::plan::Effect {
+            verb: EffectVerb::Notify,
+            target: "l'équipe avec la réponse".to_owned(),
+            evidence: "notifie l'équipe avec la réponse".to_owned(),
+            policy: super::super::plan::EffectPolicy::Automatic,
+            policy_literal: None,
+        });
+        let mut why = Vec::new();
+        unproduced_content(&plan, &mut why);
+        assert_eq!(
+            why,
+            ["`notify` names content no step produces: réponse (l'équipe avec la réponse)"]
+        );
+        plan.effects[0].target = "el informe al cliente".to_owned();
+        plan.effects[0].evidence = "publica el informe al cliente".to_owned();
+        plan.effects[0].verb = EffectVerb::Publish;
+        let mut why = Vec::new();
+        unproduced_content(&plan, &mut why);
+        assert_eq!(
+            why,
+            ["`publish` names content no step produces: informe (el informe al cliente)"]
+        );
+        // A revision check needs a lookup to reread.
+        let mut plan = Plan::default();
+        plan.obligations.push(super::super::plan::Obligation {
+            kind: ObligationKind::RevisionCheck,
+            evidence: "recheck".to_owned(),
+        });
+        let mut why = Vec::new();
+        unrecheckable_revision(&plan, &mut why);
+        assert_eq!(
+            why,
+            ["the obligation `revision_check` has no retrievable source to recheck"]
         );
     }
 
