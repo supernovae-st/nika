@@ -122,6 +122,14 @@ fn drive<R: BufRead, W: Write>(
     };
     let mut session =
         SessionRuntime::open_with(cwd, census.clone(), &pref, home, Box::new(reasoner_for));
+    // A truthful line while the compiler works under a seat — to the
+    // terminal the human watches, never a percentage, never an ETA.
+    session.on_progress(Box::new(|line| {
+        use std::io::Write as _;
+        let mut stdout = std::io::stdout().lock();
+        let _ = writeln!(stdout, "{line}");
+        let _ = stdout.flush();
+    }));
     let recovered = match home {
         Some(home) => match session.enable_history(home) {
             Ok(notice) => notice,
