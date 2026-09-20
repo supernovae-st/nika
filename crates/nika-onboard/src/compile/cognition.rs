@@ -197,6 +197,7 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
         return Ok(out);
     }
     let mut route: Vec<String> = Vec::new();
+    record_retrieval(&mut out, &effective_intent, None);
     let mut reading = lexicon::read(&effective_intent);
     backstop(&effective_intent, &mut reading.plan);
     match admit_hot(&reading, request.hot) {
@@ -345,6 +346,43 @@ fn lexical_rest_is_explicit(reading: &Reading) -> bool {
         .all(|why| why.contains("ambiguous clause"))
 }
 
+/// Recall only: what the embedded candidate index returns for the request text and, once a
+/// plan exists, for its operation words. Recorded so recall can be measured against labeled
+/// cases; nothing here selects a candidate, ranks a verdict or widens authority.
+fn record_retrieval(out: &mut CompileOutcome, intent: &str, plan: Option<&Plan>) {
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    if decision.get("retrieval").is_none() {
+        decision["retrieval"] = json!({});
+    }
+    let project = |hits: Vec<super::retrieve::Hit>| -> serde_json::Value {
+        json!(
+            hits.iter()
+                .map(|hit| {
+                    json!({
+                        "id": hit.id,
+                        "kind": if hit.kind == super::retrieve::HitKind::Skeleton { "skeleton" } else { "family" },
+                        "score": (hit.score * 1000.0).round() / 1000.0,
+                    })
+                })
+                .collect::<Vec<_>>()
+        )
+    };
+    if decision["retrieval"].get("by_intent").is_none() {
+        decision["retrieval"]["by_intent"] = project(super::retrieve::retrieve(intent, 5));
+    }
+    if let Some(plan) = plan {
+        let mut words: Vec<&str> = plan.steps.iter().map(|step| step.op.word()).collect();
+        words.extend(plan.effects.iter().map(|effect| effect.verb.word()));
+        words.extend(
+            plan.obligations
+                .iter()
+                .map(|obligation| obligation.kind.word()),
+        );
+        decision["retrieval"]["by_ops"] = project(super::retrieve::retrieve_by_ops(&words, 5));
+    }
+    out.provenance.decision = Some(decision);
+}
+
 fn record_route(out: &mut CompileOutcome, route: &[String]) {
     let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
     decision["route"] = json!(route);
@@ -365,6 +403,7 @@ pub(super) fn hot(
         Ok(()) => {
             record_route(out, &["hot".to_owned()]);
             super::assemble::assemble(&reading.plan, request, out)?;
+            record_retrieval(out, intent, Some(&reading.plan));
             out.provenance.strategy = Some(Strategy::Hot);
             out.provenance.plan = Some(reading.plan.to_json());
             Ok(true)
@@ -386,6 +425,7 @@ pub(super) fn hot(
                     "needs cognition".to_owned(),
                 ],
             );
+            record_retrieval(out, intent, None);
             unresolved(&reading, out);
             if reading.unresolved.is_empty() && reading.ambiguous.is_empty() {
                 super::finding(
@@ -467,6 +507,7 @@ fn settle(
         return Ok(out);
     }
     super::assemble::assemble(plan, request, &mut out)?;
+    record_retrieval(&mut out, intent, Some(plan));
     out.provenance.strategy = Some(strategy);
     out.provenance.plan = Some(plan.to_json());
     Ok(out)

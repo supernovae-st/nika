@@ -877,3 +877,66 @@ async fn warm_after_cold_none_is_a_human_question_not_a_medoid() {
         "{out:#?}"
     );
 }
+
+/// Retrieval is recall only: every route records what the embedded index returned for the
+/// request text, and an assembled plan adds the recall for its operation words. The record
+/// carries ids, kinds and scores; nothing in the candidate or the questions depends on it.
+#[tokio::test]
+async fn retrieval_is_recorded_as_recall_on_every_route() {
+    fn hits(doc: &Value, key: &str) -> Vec<Value> {
+        doc["provenance"]["decision"]["retrieval"][key]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    }
+    fn well_formed(hit: &Value) -> bool {
+        hit["id"].as_str().is_some_and(|id| !id.is_empty())
+            && matches!(hit["kind"].as_str(), Some("family" | "skeleton"))
+            && hit["score"].as_f64().is_some_and(|score| score > 0.0)
+    }
+    // HOT · deterministic, zero calls: recall by intent and by the plan's operation words.
+    let intent = "Read ./notes/brief.md, summarize it in three bullets, and write the summary to ./out/summary.md";
+    let hot = nika_onboard::compile::compile(&CompileRequest::create(intent)).unwrap();
+    assert_eq!(hot.provenance.strategy, Some(Strategy::Hot));
+    let doc = outcome_document(&hot);
+    let by_intent = hits(&doc, "by_intent");
+    let by_ops = hits(&doc, "by_ops");
+    assert!(!by_intent.is_empty() && by_intent.len() <= 5, "{doc:#}");
+    assert!(!by_ops.is_empty() && by_ops.len() <= 5, "{doc:#}");
+    assert!(by_intent.iter().chain(&by_ops).all(well_formed), "{doc:#}");
+    // A deterministic rejection still records the recall by intent, and no plan recall.
+    let rejected = nika_onboard::compile::compile(&CompileRequest::create(INTENT)).unwrap();
+    assert_ne!(rejected.status, CompileStatus::Ready);
+    let doc = outcome_document(&rejected);
+    assert!(!hits(&doc, "by_intent").is_empty(), "{doc:#}");
+    assert!(
+        doc["provenance"]["decision"]["retrieval"]["by_ops"].is_null(),
+        "{doc:#}"
+    );
+    // COLD · the recall for the merged plan's operation words is recorded beside the samples.
+    let provider = Provider::new(plan());
+    let req = request()
+        .answer("model", r#""mock/echo""#)
+        .answer("const.customer_directory", r#""customers.json""#)
+        .answer("const.refund_policy", r#"{"cap":100,"currency":"EUR"}"#)
+        .answer(
+            "const.refund_endpoint",
+            r#""https://refund.example.invalid/refunds""#,
+        );
+    let cold = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(cold.provenance.strategy, Some(Strategy::Cold), "{cold:#?}");
+    let doc = outcome_document(&cold);
+    let by_ops = hits(&doc, "by_ops");
+    assert!(
+        !by_ops.is_empty() && by_ops.iter().all(well_formed),
+        "{doc:#}"
+    );
+    assert!(doc["provenance"]["decision"]["cold_samples"].is_object());
+    // Recall never leaks into the program or the questions.
+    let candidate = cold.candidate.as_deref().unwrap_or_default();
+    assert!(!candidate.contains("retrieval"), "{candidate}");
+    assert!(
+        !candidate.contains(by_ops[0]["id"].as_str().unwrap()),
+        "{candidate}"
+    );
+}
