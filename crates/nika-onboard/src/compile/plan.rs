@@ -135,6 +135,17 @@ impl EffectPolicy {
             Self::Conflict => "conflict",
         }
     }
+    pub(super) fn parse(word: &str) -> Option<Self> {
+        [
+            Self::Automatic,
+            Self::HumanFirst,
+            Self::Forbidden,
+            Self::Undecided,
+            Self::Conflict,
+        ]
+        .into_iter()
+        .find(|policy| policy.word() == word)
+    }
 }
 
 /// Closed effect verbs; `Other` keeps the verbatim target as its only identity.
@@ -242,6 +253,10 @@ pub(super) struct Binding {
     pub literal: String,
 }
 
+/// The closed set of binding roles the reader and the composer emit. A recorded plan may
+/// only name one of these: the assembler matches roles by identity.
+const BINDING_ROLES: [&str; 5] = ["url", "email", "path", "timezone", "money_policy"];
+
 /// The whole private plan.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Plan {
@@ -313,6 +328,51 @@ impl Plan {
             "trigger": self.trigger,
         })
     }
+    /// The faithful inverse of [`Self::to_json`]: a recorded plan (the `provenance.plan`
+    /// value of an earlier outcome) becomes the same private plan, element for element.
+    /// Any element outside the closed vocabulary, any missing field and any wrong type is
+    /// an error naming the offending path; nothing is guessed or dropped. A `strategy`
+    /// word riding the record is the caller's to read; it is not a plan element.
+    ///
+    /// # Errors
+    /// The path and reason the record cannot be read back.
+    pub(super) fn from_json(record: &Value) -> Result<Self, String> {
+        let object = record
+            .as_object()
+            .ok_or_else(|| "the plan record is not an object".to_owned())?;
+        let list = |key: &str| -> Result<&Vec<Value>, String> {
+            object
+                .get(key)
+                .and_then(Value::as_array)
+                .ok_or_else(|| format!("`{key}` is missing or not an array"))
+        };
+        let mut plan = Self::default();
+        for (k, item) in list("operations")?.iter().enumerate() {
+            plan.steps
+                .push(step_from(item, &format!("operations[{k}]"))?);
+        }
+        for (k, item) in list("effects")?.iter().enumerate() {
+            plan.effects
+                .push(effect_from(item, &format!("effects[{k}]"))?);
+        }
+        for (k, item) in list("obligations")?.iter().enumerate() {
+            plan.obligations
+                .push(obligation_from(item, &format!("obligations[{k}]"))?);
+        }
+        for (k, item) in list("bindings")?.iter().enumerate() {
+            plan.bindings
+                .push(binding_from(item, &format!("bindings[{k}]"))?);
+        }
+        for key in ["constraints", "unknowns"] {
+            if object.get(key).is_none() {
+                return Err(format!("`{key}` is missing"));
+            }
+        }
+        plan.constraints = words(record, "plan", "constraints")?;
+        plan.unknowns = words(record, "plan", "unknowns")?;
+        plan.trigger = optional_text(record, "plan", "trigger")?;
+        Ok(plan)
+    }
     /// Every evidence excerpt must be a verbatim substring of the intent.
     pub(super) fn anchored(&self, intent: &str) -> bool {
         self.steps
@@ -326,5 +386,218 @@ impl Plan {
                 .obligations
                 .iter()
                 .all(|o| !o.evidence.trim().is_empty() && intent.contains(&o.evidence))
+    }
+}
+
+/// A required string field of one recorded element.
+fn text(item: &Value, path: &str, key: &str) -> Result<String, String> {
+    item.get(key)
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| format!("`{path}.{key}` is missing or not a string"))
+}
+
+/// An optional string field: absent or null reads as none, anything else must be a string.
+fn optional_text(item: &Value, path: &str, key: &str) -> Result<Option<String>, String> {
+    match item.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(value)) => Ok(Some(value.clone())),
+        Some(_) => Err(format!("`{path}.{key}` is not a string")),
+    }
+}
+
+/// The nonempty verbatim excerpt every operation, effect and obligation carries.
+fn excerpt(item: &Value, path: &str) -> Result<String, String> {
+    let evidence = text(item, path, "evidence")?;
+    if evidence.trim().is_empty() {
+        return Err(format!("`{path}.evidence` is empty"));
+    }
+    Ok(evidence)
+}
+
+/// A list of strings; absent or null reads as empty.
+fn words(item: &Value, path: &str, key: &str) -> Result<Vec<String>, String> {
+    match item.get(key) {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::Array(items)) => items
+            .iter()
+            .enumerate()
+            .map(|(k, v)| {
+                v.as_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| format!("`{path}.{key}[{k}]` is not a string"))
+            })
+            .collect(),
+        Some(_) => Err(format!("`{path}.{key}` is not an array")),
+    }
+}
+
+fn step_from(item: &Value, path: &str) -> Result<Step, String> {
+    let word = text(item, path, "op")?;
+    let op = Op::parse(&word).ok_or_else(|| format!("`{path}.op` is unknown: {word}"))?;
+    Ok(Step {
+        op,
+        evidence: excerpt(item, path)?,
+        detail: text(item, path, "detail")?,
+        categories: words(item, path, "categories")?,
+    })
+}
+
+fn effect_from(item: &Value, path: &str) -> Result<Effect, String> {
+    let word = text(item, path, "verb")?;
+    let verb =
+        EffectVerb::parse(&word).ok_or_else(|| format!("`{path}.verb` is unknown: {word}"))?;
+    let word = text(item, path, "policy")?;
+    let policy =
+        EffectPolicy::parse(&word).ok_or_else(|| format!("`{path}.policy` is unknown: {word}"))?;
+    Ok(Effect {
+        verb,
+        target: text(item, path, "target")?,
+        evidence: excerpt(item, path)?,
+        policy,
+        policy_literal: optional_text(item, path, "policy_literal")?,
+    })
+}
+
+fn obligation_from(item: &Value, path: &str) -> Result<Obligation, String> {
+    let word = text(item, path, "kind")?;
+    let value = item.get("value").and_then(Value::as_u64);
+    let kind = match (word.as_str(), value) {
+        ("dedup", _) => ObligationKind::Dedup,
+        ("revision_check", _) => ObligationKind::RevisionCheck,
+        ("retry_bound", Some(n)) if n > 0 => ObligationKind::RetryBound(
+            u32::try_from(n)
+                .map_err(|_| format!("`{path}.value` exceeds the retry bound range"))?,
+        ),
+        ("retry_bound", _) => return Err(format!("`{path}.value` must be a positive integer")),
+        _ => return Err(format!("`{path}.kind` is unknown: {word}")),
+    };
+    Ok(Obligation {
+        kind,
+        evidence: excerpt(item, path)?,
+    })
+}
+
+fn binding_from(item: &Value, path: &str) -> Result<Binding, String> {
+    let word = text(item, path, "role")?;
+    let role = BINDING_ROLES
+        .into_iter()
+        .find(|role| *role == word)
+        .ok_or_else(|| format!("`{path}.role` is unknown: {word}"))?;
+    Ok(Binding {
+        role,
+        literal: text(item, path, "literal")?,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_full_plan_round_trips_through_its_record() {
+        let plan = Plan {
+            steps: vec![
+                Step {
+                    op: Op::Classify,
+                    evidence: "classify it as urgent or routine".to_owned(),
+                    detail: "it".to_owned(),
+                    categories: vec!["urgent".to_owned(), "routine".to_owned()],
+                },
+                Step {
+                    op: Op::Read,
+                    evidence: "Read ./a.md".to_owned(),
+                    detail: "./a.md".to_owned(),
+                    categories: Vec::new(),
+                },
+            ],
+            effects: vec![Effect {
+                verb: EffectVerb::Refund,
+                target: "le remboursement".to_owned(),
+                evidence: "avant le remboursement".to_owned(),
+                policy: EffectPolicy::HumanFirst,
+                policy_literal: Some("100 EUR max".to_owned()),
+            }],
+            obligations: vec![
+                Obligation {
+                    kind: ObligationKind::RetryBound(3),
+                    evidence: "at most 3 attempts".to_owned(),
+                },
+                Obligation {
+                    kind: ObligationKind::Dedup,
+                    evidence: "never twice".to_owned(),
+                },
+                Obligation {
+                    kind: ObligationKind::RevisionCheck,
+                    evidence: "recheck".to_owned(),
+                },
+            ],
+            bindings: vec![
+                Binding {
+                    role: "url",
+                    literal: "https://example.invalid/x".to_owned(),
+                },
+                Binding {
+                    role: "money_policy",
+                    literal: "100 EUR max".to_owned(),
+                },
+            ],
+            constraints: vec!["never infer".to_owned()],
+            unknowns: vec!["something else".to_owned()],
+            trigger: Some("every morning".to_owned()),
+        };
+        let record = plan.to_json();
+        let back = Plan::from_json(&record).expect("round trip");
+        assert_eq!(back, plan);
+        assert_eq!(back.to_json(), record);
+        let mut with_strategy = record.clone();
+        with_strategy["strategy"] = json!("cold");
+        assert_eq!(
+            Plan::from_json(&with_strategy).expect("strategy rides"),
+            plan
+        );
+    }
+
+    #[test]
+    fn a_defective_record_names_its_path() {
+        let record = Plan::default().to_json();
+        let mut bad = record.clone();
+        bad["operations"] = json!([{"op":"read","detail":"x","evidence":""}]);
+        assert_eq!(
+            Plan::from_json(&bad).unwrap_err(),
+            "`operations[0].evidence` is empty"
+        );
+        let mut bad = record.clone();
+        bad["effects"] = json!([{"verb":"send","target":"t","policy":"later","evidence":"e"}]);
+        assert_eq!(
+            Plan::from_json(&bad).unwrap_err(),
+            "`effects[0].policy` is unknown: later"
+        );
+        let mut bad = record.clone();
+        bad["obligations"] = json!([{"kind":"retry_bound","value":0,"evidence":"e"}]);
+        assert_eq!(
+            Plan::from_json(&bad).unwrap_err(),
+            "`obligations[0].value` must be a positive integer"
+        );
+        let mut bad = record.clone();
+        bad["bindings"] = json!([{"role":"secret","literal":"x"}]);
+        assert_eq!(
+            Plan::from_json(&bad).unwrap_err(),
+            "`bindings[0].role` is unknown: secret"
+        );
+        let mut bad = record;
+        bad["trigger"] = json!(7);
+        assert_eq!(
+            Plan::from_json(&bad).unwrap_err(),
+            "`plan.trigger` is not a string"
+        );
+        assert_eq!(
+            Plan::from_json(&json!([])).unwrap_err(),
+            "the plan record is not an object"
+        );
+        assert_eq!(
+            Plan::from_json(&json!({"operations":[]})).unwrap_err(),
+            "`effects` is missing or not an array"
+        );
     }
 }

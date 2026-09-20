@@ -19,6 +19,7 @@ nika-bm25    = { path = "../nika-bm25", version = "0.120.3" }    # intent→temp
 nika-display = { path = "../nika-display", version = "0.120.3" } # theme + chrome (rail · panel · banner)
 nika-catalog = { path = "../nika-catalog", version = "0.120.3", features = ["providers"] } # the model menu (local first)
 serde_json   = { workspace = true }                              # the canvas stamp (parse + re-emit settings.json)
+sha2         = { workspace = true }                              # the intent sha a recorded plan is keyed by (answer rounds replay, never re-sample)
 
 nika-schema = { path = "../nika-schema", version = "0.120.3" }  # the same strict parser for in-memory compiler candidates
 nika-source = { path = "../nika-source", version = "0.120.3" }  # lexical program-source naming (#1684)

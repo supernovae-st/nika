@@ -81,7 +81,9 @@ use nika_schema::{FileId, ParseMode, raw::RawWorkflow};
 use serde_json::Value;
 use types::{EditChange, Input};
 
-pub use cognition::{Cognition, NoProvider, compile_with_cognition, compile_with_provider};
+pub use cognition::{
+    Cognition, NoProvider, compile_with_cognition, compile_with_provider, intent_sha256,
+};
 pub use materialize::{MaterializeError, materialize_ready};
 pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
@@ -186,6 +188,10 @@ fn create(
     } else if nika_pack::template_names().iter().any(|name| name == slug) {
         nika_pack::template(slug)
     } else {
+        // An answer round replays the plan its previous round produced (zero reading).
+        if let Some(record) = &request.plan {
+            return cognition::replay(intent, record, request, out);
+        }
         // A partial support match is not a verdict: the general reader is a superset.
         if let Ok(Some(plan)) = support::resolve(intent) {
             support::assemble(&plan, request, out)?;
