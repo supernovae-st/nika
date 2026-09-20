@@ -947,22 +947,33 @@ fn a_symlinked_destination_is_never_witnessed_nor_written_through() {
             .is_symlink(),
         "the link itself is not replaced"
     );
-    // the dangling link: the chooser sees absence, the witness does not
+    // the dangling link: invisible to `exists()`, the chooser still steps
+    // aside from it — a candidate never lands on a link of any kind
     let gone = outside.path().join("gone.nika");
     std::os::unix::fs::symlink(&gone, world.at("compiled-workflow-3.nika")).expect("dangling");
     let (third, preview) = propose(&mut s, ASK_FR);
     assert!(
-        preview.contains("creates `compiled-workflow-3.nika`"),
-        "{preview}"
+        preview.contains("creates `compiled-workflow-4.nika`"),
+        "the dangling link is a taken name, never a destination: {preview}"
     );
-    let before = listing(world.root());
-    let stale = refused(s.consent_to(&third, "yes"));
-    assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
-    assert_eq!(listing(world.root()), before, "nothing was written");
+    let TurnOutcome::Facts(report) = s.consent_to(&third, "yes") else {
+        panic!("the fourth name lands");
+    };
+    assert!(
+        report.contains("applied · wrote `compiled-workflow-4.nika`"),
+        "{report}"
+    );
     assert!(!gone.exists(), "nothing was written through the link");
+    assert!(
+        std::fs::symlink_metadata(world.at("compiled-workflow-3.nika"))
+            .expect("the dangling link")
+            .file_type()
+            .is_symlink(),
+        "the dangling link itself is untouched"
+    );
     assert_eq!(
         refused(s.consent_to(&third, "yes")).class,
-        RefusalClass::WrongState,
-        "undecided, never consumed"
+        RefusalClass::AlreadyConsumed,
+        "decided once"
     );
 }

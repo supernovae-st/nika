@@ -3,7 +3,7 @@
 
 //! Unix filesystem-edge tests for [`crate::change`]: a contained witness
 //! (no symlink follow), a directory is not a create, and a write does
-//! not leave the root. Owner seam: [`ProjectChangeSet::from_reply`].
+//! not leave the root. Owner seam: [`ProjectChangeSet::workflow_at`].
 
 #![cfg(unix)]
 
@@ -16,10 +16,6 @@ const WORKFLOW: &str = "nika: daily\nmodel: mock/echo\ntasks:\n  t:\n    infer: 
 
 const OUTSIDE: &str = "OUTSIDE-SECRET-BYTES-do-not-hash\n";
 
-fn reply_with(path: &str, body: &str) -> String {
-    format!("Here is the workflow.\n\n```yaml path={path}\n{body}```\n")
-}
-
 /// A write may report failure after its replacement is visible. The fixture
 /// performs real descriptor-rooted writes, then injects the late error; it
 /// does not claim to simulate hardware failure or a real fsync error.
@@ -27,12 +23,19 @@ fn reply_with(path: &str, body: &str) -> String {
 fn a_late_write_error_preserves_uncertainty_and_stops_the_remaining_files() {
     for failed_index in [0, 1] {
         let root = tempfile::tempdir().expect("root");
-        let reply = ["first.nika", "second.nika", "third.nika"]
-            .map(|name| reply_with(name, WORKFLOW))
-            .join("\n");
-        let set = ProjectChangeSet::from_reply(root.path(), "three files", &reply, &[], None)
-            .expect("legal proposal")
-            .expect("three files");
+        let set = ProjectChangeSet {
+            root: root.path().to_path_buf(),
+            goal: "three files".to_owned(),
+            changes: ["first.nika", "second.nika", "third.nika"]
+                .map(|name| ProjectChange::CreateWorkflow {
+                    path: PathBuf::from(name),
+                    content: WORKFLOW.to_owned(),
+                })
+                .to_vec(),
+            run: None,
+            repairs: Vec::new(),
+            audits: Vec::new(),
+        };
         let mut attempted = Vec::new();
         let failure = set
             .apply_attempt_with(|root, path, body| {
@@ -81,7 +84,7 @@ fn a_late_write_error_preserves_uncertainty_and_stops_the_remaining_files() {
 }
 
 /// A final symlink at the destination is not a contained file: the
-/// public `from_reply` seam must not follow it, hash the outside
+/// public `workflow_at` seam must not follow it, hash the outside
 /// bytes, or preview `replaces` over them. Preexisting: the write
 /// path is already `O_NOFOLLOW` (nika-fs); this leak is the witness
 /// read (`std::fs::read` follows).
@@ -93,14 +96,8 @@ fn a_final_symlink_outside_the_root_is_not_witnessed() {
     std::fs::write(&target, OUTSIDE).expect("outside");
     symlink(&target, root.path().join("link.nika")).expect("final symlink");
     let leaked = Witness::of(OUTSIDE.as_bytes());
-    let err = ProjectChangeSet::from_reply(
-        root.path(),
-        "g",
-        &reply_with("link.nika", WORKFLOW),
-        &[],
-        None,
-    )
-    .expect_err("a symlink is not a contained witness");
+    let err = ProjectChangeSet::workflow_at(root.path(), "g", "link.nika", WORKFLOW.to_owned())
+        .expect_err("a symlink is not a contained witness");
     assert!(
         matches!(err, ChangeError::Io(..)),
         "the class is the file system's: {err}"
@@ -134,14 +131,9 @@ fn a_parent_symlink_outside_the_root_is_not_witnessed() {
     std::fs::write(&target, OUTSIDE).expect("outside");
     symlink(&notes, root.path().join("notes")).expect("parent symlink");
     let leaked = Witness::of(OUTSIDE.as_bytes());
-    let err = ProjectChangeSet::from_reply(
-        root.path(),
-        "g",
-        &reply_with("notes/daily.nika", WORKFLOW),
-        &[],
-        None,
-    )
-    .expect_err("a redirected parent is not a contained witness");
+    let err =
+        ProjectChangeSet::workflow_at(root.path(), "g", "notes/daily.nika", WORKFLOW.to_owned())
+            .expect_err("a redirected parent is not a contained witness");
     assert!(
         matches!(err, ChangeError::Io(..)),
         "the class is the file system's: {err}"
@@ -169,14 +161,8 @@ fn a_parent_symlink_outside_the_root_is_not_witnessed() {
 fn a_directory_at_the_destination_is_not_a_create() {
     let root = tempfile::tempdir().expect("root");
     std::fs::create_dir(root.path().join("dir.nika")).expect("dir");
-    let err = ProjectChangeSet::from_reply(
-        root.path(),
-        "g",
-        &reply_with("dir.nika", WORKFLOW),
-        &[],
-        None,
-    )
-    .expect_err("a directory is not a missing file");
+    let err = ProjectChangeSet::workflow_at(root.path(), "g", "dir.nika", WORKFLOW.to_owned())
+        .expect_err("a directory is not a missing file");
     assert!(
         matches!(err, ChangeError::Io(..)),
         "the class is the file system's: {err}"
@@ -257,15 +243,8 @@ fn apply_does_not_write_through_a_parent_symlink() {
 fn a_regular_file_is_witnessed_and_an_absent_path_is_a_create() {
     let root = tempfile::tempdir().expect("root");
     std::fs::write(root.path().join("daily.nika"), "nika: old\n").expect("seed");
-    let update = ProjectChangeSet::from_reply(
-        root.path(),
-        "g",
-        &reply_with("daily.nika", WORKFLOW),
-        &[],
-        None,
-    )
-    .expect("legal")
-    .expect("a block");
+    let update = ProjectChangeSet::workflow_at(root.path(), "g", "daily.nika", WORKFLOW.to_owned())
+        .expect("legal");
     assert!(
         matches!(
             &update.changes[0],
@@ -276,15 +255,8 @@ fn a_regular_file_is_witnessed_and_an_absent_path_is_a_create() {
         update.changes[0]
     );
     assert!(update.preview().contains("replaces `daily.nika` whole"));
-    let create = ProjectChangeSet::from_reply(
-        root.path(),
-        "g",
-        &reply_with("fresh.nika", WORKFLOW),
-        &[],
-        None,
-    )
-    .expect("legal")
-    .expect("a block");
+    let create = ProjectChangeSet::workflow_at(root.path(), "g", "fresh.nika", WORKFLOW.to_owned())
+        .expect("legal");
     assert!(matches!(
         &create.changes[0],
         ProjectChange::CreateWorkflow { path, .. } if path == Path::new("fresh.nika")

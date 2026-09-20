@@ -19,7 +19,7 @@ use nika_onboard::compile::CompileOutcome;
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 use nika_schema::{FileId, ParseMode};
 
-use crate::change::{ChangeError, ProjectChange, ProjectChangeSet, audit_bytes};
+use crate::change::{ChangeError, ProjectChangeSet};
 
 /// The directory a project keeps its workflows under, when it keeps one.
 pub const WORKFLOWS_DIR: &str = "workflows";
@@ -54,12 +54,19 @@ pub fn destination(root: &Path, candidate: &str) -> Option<PathBuf> {
         PathBuf::new()
     };
     let first = dir.join(format!("{id}.nika"));
-    if !root.join(&first).exists() {
+    if !taken(root, &first) {
         return Some(first);
     }
     (2..=MAX_TWINS)
         .map(|n| dir.join(format!("{id}-{n}.nika")))
-        .find(|twin| !root.join(twin).exists())
+        .find(|twin| !taken(root, twin))
+}
+
+/// Whether anything sits at the destination — a file, a directory, or a
+/// symlink even when it dangles (`exists()` follows a link and would call
+/// a dangling one absent; a candidate never lands on a link of any kind).
+fn taken(root: &Path, rel: &Path) -> bool {
+    std::fs::symlink_metadata(root.join(rel)).is_ok()
 }
 
 /// The candidate's tasks in order — one line each: the id, the verb, the
@@ -135,11 +142,13 @@ pub fn gate_tasks(candidate: &str) -> Vec<String> {
 }
 
 /// The set a consent lands: the candidate's exact bytes at the chosen
-/// destination, audited by the same facade `nika check` uses. No repair
-/// pass touches compiler output: the bytes reviewed are the bytes written.
+/// destination, witnessed and audited by [`ProjectChangeSet::workflow_at`].
+/// No repair pass touches compiler output: the bytes reviewed are the
+/// bytes written.
 ///
 /// # Errors
-/// No destination is free, or the candidate is absent from the outcome.
+/// No destination is free, the candidate is absent from the outcome, or
+/// the destination cannot be witnessed.
 pub fn propose(
     root: &Path,
     goal: &str,
@@ -154,16 +163,12 @@ pub fn propose(
             workflow_id(candidate)
         )));
     };
-    let content = candidate.to_owned();
-    let audits = vec![audit_bytes(&path, &content)];
-    Ok(ProjectChangeSet {
-        root: root.to_path_buf(),
-        goal: goal.to_owned(),
-        changes: vec![ProjectChange::CreateWorkflow { path, content }],
-        run: None,
-        repairs: Vec::new(),
-        audits,
-    })
+    ProjectChangeSet::workflow_at(
+        root,
+        goal,
+        &path.display().to_string(),
+        candidate.to_owned(),
+    )
 }
 
 /// The review: what Nika proposes (the tasks · what it reaches · whether a
