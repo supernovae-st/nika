@@ -360,10 +360,11 @@ where
         //    materializes, then `when:` judges over LOCAL names.
         //    Boundary errors settle failure OUTSIDE on_error scope
         //    (the armor covers the verb, not the boundary). ───────────
-        let boundary_with = match render_boundary_with(task, records, inputs, consts, secrets) {
-            Ok(ns) => ns,
-            Err(err) => return with_error_finish(id, task, &err),
-        };
+        let boundary_with =
+            match render_boundary_with(task, &wf.tasks, records, inputs, consts, secrets) {
+                Ok(ns) => ns,
+                Err(err) => return with_error_finish(id, task, &err),
+            };
         if let Some(finish) = when_finish(task, id.clone(), &boundary_with, inputs, consts, secrets)
         {
             return finish;
@@ -656,6 +657,7 @@ where
                     let locals = IterationLocals { item, index };
                     self.run_iteration(
                         task,
+                        wf,
                         records,
                         (inputs, consts, secrets),
                         locals,
@@ -746,6 +748,7 @@ where
     async fn run_iteration(
         &self,
         task: &RawTask,
+        wf: &RawWorkflow,
         records: &BTreeMap<String, TaskRecord>,
         (inputs, consts, secrets): ValueBags<'_>,
         locals: IterationLocals<'_>,
@@ -756,6 +759,7 @@ where
     ) -> RanTask {
         let with_ns = match render_with(
             task,
+            &wf.tasks,
             records,
             inputs,
             consts,

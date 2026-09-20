@@ -104,6 +104,14 @@ pub struct Scope<'a> {
     /// floors stay on top). Set on the task-dispatch scopes so the exec
     /// sink can enforce `permits.exec` (NIKA-SEC-004); `None` elsewhere.
     permits: Option<&'a Permits>,
+    /// `group.<name>` — the fan-in fold's DECLARED membership (spec 03
+    /// §group): group name → its member task ids in DECLARATION order
+    /// (the source order of `tasks:`, never completion order, so the
+    /// fold's shape is stable across re-runs). Set on the `with:` render
+    /// scopes — the fold's ONE legal door (spec 04 §the reference
+    /// boundary). `None` = nothing bound: a `group.X` read is unresolved
+    /// (NIKA-1702 · loud), never a silent empty array.
+    groups: Option<&'a BTreeMap<String, Vec<String>>>,
 }
 
 impl<'a> Scope<'a> {
@@ -150,6 +158,7 @@ impl<'a> Scope<'a> {
             item: None,
             index: None,
             permits: None,
+            groups: None,
         }
     }
 
@@ -170,6 +179,20 @@ impl<'a> Scope<'a> {
         self.item = item;
         self.index = index;
         self.permits = permits;
+        self
+    }
+
+    /// Bind the fan-in fold's DECLARED membership (spec 03 §group) —
+    /// group name → member task ids in declaration order — so a
+    /// `${{ group.<name> }}` island resolves to one array of member
+    /// records. Membership is declared, never matched: the caller
+    /// derives it from the `group:` keys of `tasks:`, exactly as the
+    /// checker derives the `fan-in` edges. Only the `with:` renders bind
+    /// it (the fold's one door); everywhere else the checker already
+    /// refused the reference, and an unbound root stays loud.
+    #[must_use]
+    pub fn with_groups(mut self, groups: &'a BTreeMap<String, Vec<String>>) -> Self {
+        self.groups = Some(groups);
         self
     }
 
@@ -276,6 +299,15 @@ impl Resolver for ScopeResolver<'_, '_> {
             // `tasks.<id>` now resolves to that record object (CEL owns
             // the `.field` step), so `tasks.x.output.y` deep paths work.
             "tasks" => Some(tasks_object(scope.records)),
+            // `group` → an object of per-name FOLDS: one array of member
+            // records in DECLARATION order (spec 03 §the member record).
+            // The plural reader of `tasks`, bound only where a `with:`
+            // renders (`None` elsewhere → unresolved · loud). A fold with
+            // an unsettled member is ABSENT from the object, so `.name`
+            // raises NIKA-VAR-001 — never a silently smaller array.
+            "group" => scope
+                .groups
+                .map(|groups| groups_object(groups, scope.records)),
             // `secrets.<name>` → the RESOLVED secret values (MINOR-B). The
             // composer injects them (env/file · the sanctioned boundary);
             // when none was injected the map is empty and `.field` raises
@@ -305,6 +337,48 @@ fn tasks_object(records: &BTreeMap<String, TaskRecord>) -> Value {
             .map(|(id, rec)| (id.clone(), record_object(rec)))
             .collect(),
     )
+}
+
+/// The `group` root as a CEL object — one entry per declared group whose
+/// EVERY member has settled, each the fold: the member records in
+/// DECLARATION order (spec 03 §the member record). A group with no
+/// members, or with a member still unsettled, is left out — the fold
+/// can never harvest a partial set and read as clean (the checker's
+/// waves order every member before the fold, so a miss here is a
+/// schedule breach and surfaces as NIKA-VAR-001, loud).
+fn groups_object(
+    groups: &BTreeMap<String, Vec<String>>,
+    records: &BTreeMap<String, TaskRecord>,
+) -> Value {
+    let mut out = serde_json::Map::new();
+    for (name, members) in groups {
+        if members.is_empty() {
+            continue;
+        }
+        let fold: Option<Vec<Value>> = members
+            .iter()
+            .map(|id| records.get(id).map(|rec| member_record(id, rec)))
+            .collect();
+        if let Some(fold) = fold {
+            out.insert(name.clone(), Value::Array(fold));
+        }
+    }
+    Value::Object(out)
+}
+
+/// One member's record inside a fold (spec 03 §the member record · the
+/// set is CLOSED at v1): `id` is the one field a fold cannot reconstruct
+/// from the others; `status` and `output` are both required and neither
+/// is redundant (a skipped leg's red/green fact survives only inside the
+/// output); `duration_ms` and `error` read defined-null.
+fn member_record(id: &str, rec: &TaskRecord) -> Value {
+    const FIELDS: [&str; 4] = ["status", "output", "duration_ms", "error"];
+    let mut map: serde_json::Map<String, Value> = FIELDS
+        .iter()
+        .map(|f| ((*f).to_owned(), rec.field(f).unwrap_or(Value::Null)))
+        .collect();
+    map.insert("id".to_owned(), Value::String(id.to_owned()));
+    Value::Object(map)
 }
 
 /// One [`TaskRecord`] as its CEL object (the closed reserved field set ·
@@ -583,6 +657,102 @@ mod tests {
             render("${{ secrets }}", &scope).expect_err("empty secrets root unbound"),
             DataflowError::UnresolvedTemplate { .. }
         ));
+    }
+
+    /// The fan-in fold (spec 03 §group): `${{ group.<name> }}` resolves
+    /// to ONE array of member records in DECLARATION order — the source
+    /// order of `tasks:`, which is NOT the records map's key order
+    /// (`leg_b` is declared before `leg_a` here) and never completion
+    /// order. Each record is the closed v1 set `id · status · output ·
+    /// duration_ms · error`, read defined-null.
+    #[test]
+    fn group_fold_resolves_member_records_in_declaration_order() {
+        let records = BTreeMap::from([
+            ("leg_a".to_owned(), record(TaskStatus::Skipped, Value::Null)),
+            (
+                "leg_b".to_owned(),
+                record(TaskStatus::Success, serde_json::json!({"exit_code": 0})),
+            ),
+        ]);
+        let inputs = BTreeMap::new();
+        let groups = BTreeMap::from([(
+            "probes".to_owned(),
+            vec!["leg_b".to_owned(), "leg_a".to_owned()],
+        )]);
+        let scope = Scope::workflow(&records, &inputs).with_groups(&groups);
+        let fold = scope
+            .resolve_expr("group.probes")
+            .expect("the fold resolves");
+        assert_eq!(
+            fold,
+            serde_json::json!([
+                {"id": "leg_b", "status": "success", "output": {"exit_code": 0}, "duration_ms": null, "error": null},
+                {"id": "leg_a", "status": "skipped", "output": null, "duration_ms": null, "error": null},
+            ])
+        );
+        // CEL owns the navigation on top of the fold, as over `tasks`.
+        assert_eq!(
+            render("${{ size(group.probes) }}", &scope).expect("size"),
+            "2"
+        );
+        assert_eq!(
+            render("${{ group.probes[1].id }}", &scope).expect("index step"),
+            "leg_a"
+        );
+        // The record set is CLOSED at v1: no `cause`, no stamps, no
+        // `output:` named bindings ride along.
+        let mut keys: Vec<&str> = fold[0]
+            .as_object()
+            .expect("a member record")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["duration_ms", "error", "id", "output", "status"]);
+    }
+
+    /// No membership bound (every scope but a `with:` render) → the root
+    /// is unbound → NIKA-1702, exactly like an unknown root — never an
+    /// empty array where the checker said a fold lives.
+    #[test]
+    fn group_fold_without_bound_membership_is_1702() {
+        let (records, vars) = fixture();
+        let scope = Scope::workflow(&records, &vars);
+        assert!(matches!(
+            render("${{ group.probes }}", &scope).expect_err("unbound root"),
+            DataflowError::UnresolvedTemplate { ref reference } if reference == "group.probes"
+        ));
+    }
+
+    /// A fold never harvests a PARTIAL set: a member without a settled
+    /// record (a schedule breach — the waves order members first) leaves
+    /// its group out, so the read is loud, not a silently smaller array;
+    /// an empty membership is the same fact as an absent one (spec 03).
+    /// A sibling group whose every member settled still folds.
+    #[test]
+    fn group_fold_with_an_unsettled_or_empty_membership_is_1702() {
+        let (records, vars) = fixture();
+        let groups = BTreeMap::from([
+            (
+                "probes".to_owned(),
+                vec!["gather".to_owned(), "ghost".to_owned()],
+            ),
+            ("nobody".to_owned(), Vec::new()),
+            ("whole".to_owned(), vec!["gather".to_owned()]),
+        ]);
+        let scope = Scope::workflow(&records, &vars).with_groups(&groups);
+        assert!(matches!(
+            render("${{ group.probes }}", &scope).expect_err("an unsettled member"),
+            DataflowError::UnresolvedTemplate { ref reference } if reference == "group.probes"
+        ));
+        assert!(matches!(
+            render("${{ group.nobody }}", &scope).expect_err("an empty group"),
+            DataflowError::UnresolvedTemplate { .. }
+        ));
+        assert_eq!(
+            render("${{ group.whole[0].id }}", &scope).expect("the whole group folds"),
+            "gather"
+        );
     }
 
     #[test]

@@ -157,7 +157,7 @@ where
         let mut receipts = Vec::new();
         for (index, cleanup) in cleanups {
             let mut entries = self
-                .run_one_cleanup(cleanup, &cleanup_scope, witness, index, run_start)
+                .run_one_cleanup(cleanup, wf, &cleanup_scope, witness, index, run_start)
                 .await;
             for entry in &mut entries {
                 entry.task = Some(cleanup.id.value.clone());
@@ -176,6 +176,7 @@ where
     async fn run_one_cleanup(
         &self,
         cleanup: &RawTask,
+        wf: &RawWorkflow,
         scope: &Scope<'_>,
         witness: &crate::witness::PermitWitness,
         index: usize,
@@ -186,6 +187,7 @@ where
         // A boundary failure is journaled and never reaches the verb.
         let with_ns = match render_boundary_with(
             cleanup,
+            &wf.tasks,
             scope.records(),
             scope.inputs(),
             scope.consts(),
