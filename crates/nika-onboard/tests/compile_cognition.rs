@@ -494,7 +494,9 @@ impl DecisionSeat for Seat {
         })
     }
 }
-const WARM: &str = "Lis mes disponibilités et celles des participants, puis propose par écrit trois créneaux compatibles.";
+// "cherche les éléments demandés" names no corpus and no record source: a genuine finite ambiguity.
+const WARM: &str =
+    "Cherche les éléments demandés, puis propose par écrit trois créneaux compatibles.";
 
 #[tokio::test]
 async fn warm_settles_a_finite_ambiguity_through_the_seat_and_records_it() {
@@ -515,7 +517,7 @@ async fn warm_settles_a_finite_ambiguity_through_the_seat_and_records_it() {
     let asked = seat.asked.lock().unwrap();
     assert_eq!(asked.len(), 1);
     assert!(asked[0].keys().contains(&NONE_OPTION.to_owned()));
-    assert!(asked[0].keys().contains(&"read".to_owned()));
+    assert!(asked[0].keys().contains(&"search".to_owned()));
     assert!(asked[0].keys().contains(&"lookup".to_owned()));
     let doc = outcome_document(&out);
     assert_eq!(doc["provenance"]["cognition"], "explicitDecision");

@@ -148,6 +148,23 @@ const LEXICON: &[(&str, Head)] = &[
     ("compare", Head::Choice(&[Op::Compute, Op::Draft])),
     ("comparez", Head::Choice(&[Op::Compute, Op::Draft])),
     ("comparer", Head::Choice(&[Op::Compute, Op::Draft])),
+    (
+        "répartis leur révision entre plusieurs agents",
+        Head::Op(Op::Explore),
+    ),
+    ("répartis", Head::Op(Op::Explore)),
+    ("répartissez", Head::Op(Op::Explore)),
+    ("répartir", Head::Op(Op::Explore)),
+    ("distribute", Head::Op(Op::Explore)),
+    ("delegate", Head::Op(Op::Explore)),
+    ("délègue", Head::Op(Op::Explore)),
+    ("explore", Head::Op(Op::Explore)),
+    ("investigate", Head::Op(Op::Explore)),
+    ("corrige", Head::Op(Op::Draft)),
+    ("corrigez", Head::Op(Op::Draft)),
+    ("corriger", Head::Op(Op::Draft)),
+    ("correct", Head::Op(Op::Draft)),
+    ("revise", Head::Op(Op::Draft)),
     ("fais relire", Head::Op(Op::Validate)),
     ("faites relire", Head::Op(Op::Validate)),
     ("relis", Head::Op(Op::Validate)),
@@ -268,6 +285,9 @@ const LOOKUP_CUES: &[&str] = &[
     "runbook",
     "checklist",
     "knowledge base",
+    "disponibilit",
+    "availabilit",
+    "agenda",
     "base de connaissances",
     "record",
     "customer",
@@ -1364,7 +1384,42 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
             });
         }
         Head::Choice(options) => {
-            let settled = if options.contains(&Op::Read)
+            let prose = [
+                "source",
+                "texte",
+                "argument",
+                "contradict",
+                "opinion",
+                "version",
+                "réponse",
+                "text",
+                "answer",
+            ];
+            let numeric = [
+                "prix",
+                "montant",
+                "total",
+                "quantit",
+                "nombre",
+                "chiffre",
+                "valeur",
+                "seuil",
+                "price",
+                "amount",
+                "quantity",
+                "number",
+                "threshold",
+                "count",
+            ];
+            let compare = *options == [Op::Compute, Op::Draft];
+            let settled = if compare
+                && prose.iter().any(|c| detail_lower.contains(c))
+                && !numeric.iter().any(|c| detail_lower.contains(c))
+            {
+                Some(Op::Draft)
+            } else if compare && numeric.iter().any(|c| detail_lower.contains(c)) {
+                Some(Op::Compute)
+            } else if options.contains(&Op::Read)
                 && READ_CUES.iter().any(|c| detail_lower.contains(c))
             {
                 Some(Op::Read)

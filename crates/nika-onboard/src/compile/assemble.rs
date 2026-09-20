@@ -196,10 +196,12 @@ pub(super) fn assemble(
         );
         return Ok(());
     }
-    let uses_model = plan
-        .steps
-        .iter()
-        .any(|s| matches!(s.op, Op::Extract | Op::Classify | Op::Draft | Op::Validate));
+    let uses_model = plan.steps.iter().any(|s| {
+        matches!(
+            s.op,
+            Op::Extract | Op::Classify | Op::Draft | Op::Validate | Op::Explore
+        )
+    });
     let id = request
         .workflow_id
         .as_deref()
@@ -596,6 +598,25 @@ pub(super) fn assemble(
                 d.facts
                     .push(("draft", "${{ tasks.draft.output.body }}".to_owned()));
                 d.root["outputs"]["draft"] = json!("${{ tasks.draft.output.body }}");
+            }
+            Op::Explore => {
+                let turns = retry.unwrap_or(3);
+                let prompt = format!(
+                    "Explore this delegated region and finish with nika:done: {}. Use only the supplied item and facts; you have no tools beyond finishing; never claim to have performed effects.{} {}",
+                    step.detail.trim(),
+                    guide,
+                    d.fact_prompt()
+                );
+                let mut node = json!({"agent": {"prompt": prompt, "max_turns": turns, "max_tokens_total": 4000, "tools": ["nika:done"]}});
+                let with = d.with_facts();
+                if with.as_object().is_some_and(|m| !m.is_empty()) {
+                    node["with"] = with;
+                }
+                d.tools.insert("nika:done");
+                d.task("explore", node, true);
+                d.facts
+                    .push(("exploration", "${{ tasks.explore.output }}".to_owned()));
+                d.root["outputs"]["exploration"] = json!("${{ tasks.explore.output }}");
             }
             Op::Read | Op::Fetch | Op::Lookup | Op::Search => {}
         }

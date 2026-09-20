@@ -33,10 +33,12 @@ pub(super) enum Op {
     Compute,
     /// Validate or verify data against explicit criteria.
     Validate,
+    /// An open-world region the request explicitly delegates to agents; bounded by turns.
+    Explore,
 }
 
 impl Op {
-    pub(super) const ALL: [Self; 9] = [
+    pub(super) const ALL: [Self; 10] = [
         Self::Read,
         Self::Fetch,
         Self::Lookup,
@@ -46,6 +48,7 @@ impl Op {
         Self::Draft,
         Self::Compute,
         Self::Validate,
+        Self::Explore,
     ];
     pub(super) const fn word(self) -> &'static str {
         match self {
@@ -58,6 +61,7 @@ impl Op {
             Self::Draft => "draft",
             Self::Compute => "compute",
             Self::Validate => "validate",
+            Self::Explore => "explore",
         }
     }
     pub(super) fn parse(word: &str) -> Option<Self> {
@@ -87,6 +91,9 @@ impl Op {
                 "compute: a numeric or comparison rule that must run as code, not as model judgement"
             }
             Self::Validate => "validate: verify data against explicit criteria",
+            Self::Explore => {
+                "explore: an open-ended region the request explicitly hands to agents, bounded by a number of turns"
+            }
         }
     }
 }
