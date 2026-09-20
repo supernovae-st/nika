@@ -435,7 +435,7 @@ pub(super) fn fold_apostrophes(intent: &str) -> String {
 fn explicit_object(detail: &str) -> bool {
     let lower = normalize(detail);
     let literal = lower.split_whitespace().any(|w| {
-        let w = w.trim_end_matches(['.', ',', ';', ')']);
+        let w = w.trim_end_matches(['.', ',', ';', ')', ':']);
         w.starts_with("http://")
             || w.starts_with("https://")
             || w.starts_with("./")
@@ -1445,7 +1445,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     let detail = remainder(original, lower, consumed).to_owned();
     let path = detail
         .split_whitespace()
-        .map(|w| w.trim_end_matches(['.', ',', ';', ')']))
+        .map(|w| w.trim_end_matches(['.', ',', ';', ')', ':']))
         .find(|w| (w.starts_with("./") || (w.starts_with('/') && w.contains('.'))) && w.len() > 2)
         .map(str::to_owned);
     // A named local path settles the medium: writing TO a path is a file effect,
@@ -1495,7 +1495,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
     }
     let url = detail
         .split_whitespace()
-        .map(|w| w.trim_end_matches(['.', ',', ';', ')']))
+        .map(|w| w.trim_end_matches(['.', ',', ';', ')', ':']))
         .find(|w| w.starts_with("http://") || w.starts_with("https://"))
         .map(str::to_owned);
     if let Some(url) = &url
@@ -1656,7 +1656,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, _money: &mut 
 
 fn collect_bindings(intent: &str, plan: &mut Plan) {
     for word in intent.split_whitespace() {
-        let token = word.trim_end_matches(['.', ',', ';', ')', ']']);
+        let token = word.trim_end_matches(['.', ',', ';', ')', ']', ':']);
         if token.starts_with("http://") || token.starts_with("https://") {
             plan.bindings.push(Binding {
                 role: "url",

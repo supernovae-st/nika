@@ -229,7 +229,7 @@ const INFER_TIMEOUT: &str = "5m";
 
 /// Runs of whitespace fold to one space on both sides before an anchor is compared: a
 /// model may wrap a line or drop a double space; it may not change a word.
-const FOLD: &str = r#"gsub("\\s+"; " ")"#;
+const FOLD: &str = r#"gsub("\\s+"; " ") | ascii_downcase"#;
 
 /// The corpus of a law: every string of the input except the judged keys, non-strings
 /// through their JSON text, whitespace folded.
@@ -1104,11 +1104,13 @@ mod tests {
         let law = anchor_law("fields", false);
         assert!(law.contains("del(.fields)"));
         assert!(
-            law.contains(r#"any($corpus[]; contains($f.anchor | gsub("\\s+"; " ")))"#),
+            law.contains(
+                r#"any($corpus[]; contains($f.anchor | gsub("\\s+"; " ") | ascii_downcase))"#
+            ),
             "{law}"
         );
         assert!(
-            law.contains(r#"tojson end | gsub("\\s+"; " ")] as $corpus"#),
+            law.contains(r#"tojson end | gsub("\\s+"; " ") | ascii_downcase] as $corpus"#),
             "{law}"
         );
         assert!(law.contains("== 0 or"));

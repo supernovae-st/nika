@@ -1427,3 +1427,83 @@ async fn an_ellipsis_in_the_evidence_names_the_span_it_abbreviates() {
         "{out:#?}"
     );
 }
+
+/// The fourth gate: a Spanish inventory rule ("una línea por cada producto cuyo stock sea menor
+/// que su minimo … Total urgentes: N") was read as a constraint region and produced nothing;
+/// the workflow copied the CSV and reported ready. A producing region without an element is
+/// a dropped clause: the compiler asks instead.
+#[tokio::test]
+async fn a_region_the_proposal_read_but_produced_nothing_for_is_not_understood() {
+    let intent = "Lee ./data/inventario.csv y escribe ./out/alerta.txt con una línea por cada producto cuyo stock sea menor que su minimo.";
+    let dropped = json!({
+        "steps": [{"op": "read", "detail": "./data/inventario.csv", "evidence": "Lee ./data/inventario.csv"}],
+        "effects": [{"verb": "write", "target": "./out/alerta.txt", "policy": "automatic", "evidence": "escribe ./out/alerta.txt"}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "Lee ./data/inventario.csv", "role": "operation"},
+            {"text": "y escribe ./out/alerta.txt", "role": "effect"},
+            {"text": "con una línea por cada producto cuyo stock sea menor que su minimo.", "role": "constraint"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    let provider = Provider::new(dropped);
+    let req = CompileRequest::create(intent)
+        .with_authoring_policy(policy())
+        .answer("model", r#""mock/echo""#);
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("produced nothing for it")),
+        "{out:#?}"
+    );
+}
+
+/// A prohibition proposed as a computation ("Do not copy more than 10 consecutive words")
+/// becomes a constraint that shapes the prompt; no rule question is asked for it.
+#[tokio::test]
+async fn a_prohibition_proposed_as_a_computation_is_a_constraint() {
+    let intent = "Fetch https://example.com/spec and draft ./out/brief.md with 4 bullets in your own words. Do not copy more than 10 consecutive words from the page.";
+    let proposal = json!({
+        "steps": [
+            {"op": "fetch", "detail": "https://example.com/spec", "evidence": "Fetch https://example.com/spec"},
+            {"op": "draft", "detail": "./out/brief.md with 4 bullets in your own words", "evidence": "draft ./out/brief.md with 4 bullets in your own words"},
+            {"op": "compute", "detail": "more than 10 consecutive words", "evidence": "Do not copy more than 10 consecutive words from the page"}
+        ],
+        "effects": [{"verb": "write", "target": "./out/brief.md", "policy": "automatic", "evidence": "draft ./out/brief.md with 4 bullets in your own words"}],
+        "obligations": [], "constraints": [], "unknowns": [],
+        "regions": [
+            {"text": "Fetch https://example.com/spec", "role": "operation"},
+            {"text": "and draft ./out/brief.md with 4 bullets in your own words.", "role": "operation"},
+            {"text": "Do not copy more than 10 consecutive words from the page.", "role": "constraint"}
+        ],
+        "approval_bypass": {"present": false, "evidence": ""}
+    });
+    let provider = Provider::new(proposal);
+    let out = compile_with_provider(
+        &CompileRequest::create(intent).with_authoring_policy(policy()),
+        &provider,
+    )
+    .await
+    .unwrap();
+    assert!(!keys(&out).contains(&"const.rule_expression"), "{out:#?}");
+    let plan = out.provenance.plan.as_ref().unwrap();
+    assert!(
+        plan["operations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|s| s["op"] != "compute"),
+        "{plan:#}"
+    );
+    assert!(
+        plan["constraints"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c.as_str().unwrap_or("").starts_with("Do not copy")),
+        "{plan:#}"
+    );
+}

@@ -810,6 +810,65 @@ fn reconcile_refund_backstop(plan: &mut Plan, regions: &[ProposedRegion]) {
     }
 }
 
+/// Words that open a prohibition in the languages the compiler meets.
+const PROHIBITION_CUES: &[&str] = &[
+    "do not ", "don't ", "never ", "ne ", "n'", "no ", "non ", "nicht ", "keine ", "sans ",
+    "jamais ", "nunca ", "mai ", "niemals ",
+];
+
+/// A prohibition ("Do not copy …", "Ne cite pas …", "No copies …") at the head of an excerpt.
+pub(super) fn starts_with_prohibition(text: &str) -> bool {
+    let lower = text.trim().to_lowercase();
+    PROHIBITION_CUES.iter().any(|cue| lower.starts_with(cue))
+}
+
+/// The model's own accounting, read back: a region it labelled as producing (operation,
+/// effect, obligation, constraint, policy) must overlap an element the merged plan carries
+/// (a step, an effect, an obligation, a constraint or a policy literal). A region consumed
+/// without an element is a clause the proposal dropped, and a dropped clause is not
+/// understood: it becomes an unknown, never a silent omission.
+fn unproduced_regions(plan: &Plan, regions: &[ProposedRegion]) -> Vec<String> {
+    let fold = |text: &str| {
+        text.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    let overlaps = |a: &str, b: &str| {
+        let (a, b) = (fold(a), fold(b));
+        !a.is_empty() && !b.is_empty() && (a.contains(&b) || b.contains(&a))
+    };
+    let mut produced: Vec<String> = Vec::new();
+    produced.extend(plan.steps.iter().map(|s| s.evidence.clone()));
+    produced.extend(plan.effects.iter().map(|e| e.evidence.clone()));
+    produced.extend(plan.obligations.iter().map(|o| o.evidence.clone()));
+    produced.extend(plan.constraints.iter().cloned());
+    produced.extend(plan.effects.iter().filter_map(|e| e.policy_literal.clone()));
+    let mut gaps = Vec::new();
+    for region in regions {
+        let text = region.text.trim();
+        let producing = matches!(
+            region.role.as_str(),
+            "operation" | "effect" | "obligation" | "constraint" | "policy"
+        );
+        if text.is_empty() || !producing {
+            continue;
+        }
+        // A short region (a connector, a heading, a few words) never carries requested work.
+        if text.split_whitespace().count() < 4 {
+            continue;
+        }
+        if produced.iter().any(|p| overlaps(p, text)) {
+            continue;
+        }
+        gaps.push(format!(
+            "The proposal read `{text}` as {} but produced nothing for it; that part of the request is not understood.",
+            region.role
+        ));
+    }
+    gaps
+}
+
 fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Option<Proposal> {
     let text = match response.content.as_slice() {
         [ContentBlock::Text { text }]
@@ -872,6 +931,14 @@ fn merge(
             );
             return None;
         };
+        if op == Op::Compute && starts_with_prohibition(&evidence) {
+            // "Do not copy more than 10 consecutive words" is a rule the prose obeys, not a
+            // computation the workflow runs; it shapes prompts as a constraint.
+            if !plan.constraints.contains(&evidence) {
+                plan.constraints.push(evidence);
+            }
+            continue;
+        }
         plan.push_step(Step {
             op,
             evidence,
@@ -982,6 +1049,9 @@ fn merge(
         ));
     }
     for gap in accounting_gaps(intent, &proposal.regions) {
+        plan.unknowns.push(gap);
+    }
+    for gap in unproduced_regions(&plan, &proposal.regions) {
         plan.unknowns.push(gap);
     }
     // A numeric rule the model demoted to guidance is an operation: promoted here so the

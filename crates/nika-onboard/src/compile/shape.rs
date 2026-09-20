@@ -233,6 +233,11 @@ pub(super) fn numeric_rule(text: &str) -> bool {
     if super::bindings::parallel_bound(text).is_some() {
         return false;
     }
+    // A prohibition ("Do not copy more than 10 consecutive words") is a rule the prose obeys,
+    // never a computation the workflow runs.
+    if super::cognition::starts_with_prohibition(text) {
+        return false;
+    }
     let folded = fold(text);
     let words = tokens(&folded);
     for (index, token) in words.iter().enumerate() {
