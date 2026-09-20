@@ -57,11 +57,15 @@
 //! # Ok::<(), nika_onboard::compile::CompileError>(())
 //! ```
 
+mod assemble;
 mod cognition;
+pub mod decide;
 mod edit;
 mod edit_source;
+mod lexicon;
 mod materialize;
 pub(crate) mod pattern;
+mod plan;
 mod support;
 mod types;
 mod wire;
@@ -72,12 +76,12 @@ use nika_schema::{FileId, ParseMode, raw::RawWorkflow};
 use serde_json::Value;
 use types::{EditChange, Input};
 
-pub use cognition::compile_with_provider;
+pub use cognition::{Cognition, NoProvider, compile_with_cognition, compile_with_provider};
 pub use materialize::{MaterializeError, materialize_ready};
 pub use types::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileDiagnostic, CompileError,
     CompileOutcome, CompilePreview, CompileProvenance, CompileQuestion, CompileRequest,
-    CompileStatus, DiagnosticKind, PreviewScope, QuestionType, RepresentationError,
+    CompileStatus, DiagnosticKind, PreviewScope, QuestionType, RepresentationError, Strategy,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 
@@ -128,6 +132,9 @@ fn initial() -> CompileOutcome {
                 .to_owned(),
             skeleton: None,
             cognition: AuthoringCognition::DeterministicOnly,
+            strategy: None,
+            plan: None,
+            decision: None,
         },
     }
 }
@@ -173,6 +180,10 @@ fn create(
         nika_pack::template(slug)
     } else {
         if support::create(intent, request, out)? {
+            out.provenance.strategy = Some(types::Strategy::Support);
+            return Ok(());
+        }
+        if cognition::hot(intent, request, out)? {
             return Ok(());
         }
         finding(
@@ -187,6 +198,7 @@ fn create(
         return Err(CompileError::MissingSkeleton(slug.to_owned()));
     };
     out.provenance.skeleton = Some(slug.to_owned());
+    out.provenance.strategy = Some(types::Strategy::Skeleton);
     let wf = parse(source).map_err(CompileError::Registry)?;
     let report = nika_check::check(&wf);
     let mut doc: Value = serde_yaml_bw::from_str(source).map_err(CompileError::representation)?;

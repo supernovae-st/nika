@@ -133,12 +133,28 @@ fn every_document_has_exactly_the_generation_one_shape() {
             );
         }
         let provenance = document["provenance"].as_object().expect("provenance");
-        let keys: Vec<_> = provenance.keys().map(String::as_str).collect();
+        // `strategy` is the additive observational fact of the internal resolution
+        // (skeleton · support · hot · warm · cold); `plan`/`decision` appear only on
+        // the general path. Their absence or presence never changes the core shape.
+        let keys: Vec<_> = provenance
+            .keys()
+            .map(String::as_str)
+            .filter(|k| !matches!(*k, "strategy" | "plan" | "decision"))
+            .collect();
         assert_eq!(
             keys,
             ["cognition", "compiler_version", "skeleton", "spec_pin"],
             "{name}"
         );
+        if let Some(strategy) = provenance.get("strategy") {
+            assert!(
+                matches!(
+                    strategy.as_str(),
+                    Some("skeleton" | "support" | "hot" | "warm" | "cold")
+                ),
+                "{name}: {strategy}"
+            );
+        }
         assert_eq!(provenance["cognition"], "deterministicOnly", "{name}");
         assert_eq!(
             provenance["compiler_version"],

@@ -6,8 +6,259 @@ pub const nika_onboard::codes::ENV: u8
 pub const nika_onboard::codes::FILE: u8
 pub const nika_onboard::codes::OK: u8
 pub mod nika_onboard::compile
+pub mod nika_onboard::compile::decide
+#[non_exhaustive] pub struct nika_onboard::compile::decide::ChoiceAnswer
+pub nika_onboard::compile::decide::ChoiceAnswer::choice: alloc::string::String
+pub nika_onboard::compile::decide::ChoiceAnswer::confidence: core::option::Option<f64>
+pub nika_onboard::compile::decide::ChoiceAnswer::input_tokens: core::option::Option<u64>
+pub nika_onboard::compile::decide::ChoiceAnswer::model: alloc::string::String
+pub nika_onboard::compile::decide::ChoiceAnswer::output_tokens: core::option::Option<u64>
+pub nika_onboard::compile::decide::ChoiceAnswer::probabilities: alloc::collections::btree::map::BTreeMap<alloc::string::String, f64>
+impl nika_onboard::compile::decide::ChoiceAnswer
+pub fn nika_onboard::compile::decide::ChoiceAnswer::new(choice: impl core::convert::Into<alloc::string::String>, model: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_onboard::compile::decide::ChoiceAnswer
+pub fn nika_onboard::compile::decide::ChoiceAnswer::clone(&self) -> nika_onboard::compile::decide::ChoiceAnswer
+impl core::cmp::PartialEq for nika_onboard::compile::decide::ChoiceAnswer
+pub fn nika_onboard::compile::decide::ChoiceAnswer::eq(&self, other: &nika_onboard::compile::decide::ChoiceAnswer) -> bool
+impl core::fmt::Debug for nika_onboard::compile::decide::ChoiceAnswer
+pub fn nika_onboard::compile::decide::ChoiceAnswer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::decide::ChoiceAnswer
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::decide::ChoiceAnswer
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::decide::ChoiceAnswer where U: core::convert::From<T>
+pub fn nika_onboard::compile::decide::ChoiceAnswer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::decide::ChoiceAnswer where U: core::convert::Into<T>
+pub type nika_onboard::compile::decide::ChoiceAnswer::Error = core::convert::Infallible
+pub fn nika_onboard::compile::decide::ChoiceAnswer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::decide::ChoiceAnswer where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::decide::ChoiceAnswer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::decide::ChoiceAnswer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::decide::ChoiceAnswer where T: core::clone::Clone
+pub type nika_onboard::compile::decide::ChoiceAnswer::Owned = T
+pub fn nika_onboard::compile::decide::ChoiceAnswer::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::decide::ChoiceAnswer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::decide::ChoiceAnswer where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceAnswer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::decide::ChoiceAnswer where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceAnswer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::decide::ChoiceAnswer where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceAnswer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::decide::ChoiceAnswer where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::decide::ChoiceAnswer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::decide::ChoiceAnswer
+pub fn nika_onboard::compile::decide::ChoiceAnswer::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::decide::ChoiceAnswer where T: core::clone::Clone
+pub fn nika_onboard::compile::decide::ChoiceAnswer::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::decide::ChoiceAnswer where T: 'static
+pub fn nika_onboard::compile::decide::ChoiceAnswer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::decide::ChoiceAnswer where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceAnswer::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::decide::ChoiceAnswer::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::decide::ChoiceAnswer
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::decide::ChoiceAnswer
+impl<T> typenum::type_operators::Same for nika_onboard::compile::decide::ChoiceAnswer
+pub type nika_onboard::compile::decide::ChoiceAnswer::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::decide::ChoiceOption
+pub nika_onboard::compile::decide::ChoiceOption::description: alloc::string::String
+pub nika_onboard::compile::decide::ChoiceOption::key: alloc::string::String
+impl nika_onboard::compile::decide::ChoiceOption
+pub fn nika_onboard::compile::decide::ChoiceOption::new(key: impl core::convert::Into<alloc::string::String>, description: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_onboard::compile::decide::ChoiceOption
+pub fn nika_onboard::compile::decide::ChoiceOption::clone(&self) -> nika_onboard::compile::decide::ChoiceOption
+impl core::cmp::Eq for nika_onboard::compile::decide::ChoiceOption
+impl core::cmp::PartialEq for nika_onboard::compile::decide::ChoiceOption
+pub fn nika_onboard::compile::decide::ChoiceOption::eq(&self, other: &nika_onboard::compile::decide::ChoiceOption) -> bool
+impl core::fmt::Debug for nika_onboard::compile::decide::ChoiceOption
+pub fn nika_onboard::compile::decide::ChoiceOption::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::decide::ChoiceOption
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::decide::ChoiceOption
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::decide::ChoiceOption where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceOption::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::decide::ChoiceOption where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceOption::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::decide::ChoiceOption where U: core::convert::From<T>
+pub fn nika_onboard::compile::decide::ChoiceOption::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::decide::ChoiceOption where U: core::convert::Into<T>
+pub type nika_onboard::compile::decide::ChoiceOption::Error = core::convert::Infallible
+pub fn nika_onboard::compile::decide::ChoiceOption::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::decide::ChoiceOption where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::decide::ChoiceOption::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::decide::ChoiceOption::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::decide::ChoiceOption where T: core::clone::Clone
+pub type nika_onboard::compile::decide::ChoiceOption::Owned = T
+pub fn nika_onboard::compile::decide::ChoiceOption::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::decide::ChoiceOption::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::decide::ChoiceOption where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceOption::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::decide::ChoiceOption where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceOption::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::decide::ChoiceOption where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceOption::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::decide::ChoiceOption where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::decide::ChoiceOption::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::decide::ChoiceOption
+pub fn nika_onboard::compile::decide::ChoiceOption::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::decide::ChoiceOption where T: core::clone::Clone
+pub fn nika_onboard::compile::decide::ChoiceOption::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::decide::ChoiceOption where T: 'static
+pub fn nika_onboard::compile::decide::ChoiceOption::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::decide::ChoiceOption where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceOption::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::decide::ChoiceOption::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::decide::ChoiceOption
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::decide::ChoiceOption
+impl<T> typenum::type_operators::Same for nika_onboard::compile::decide::ChoiceOption
+pub type nika_onboard::compile::decide::ChoiceOption::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::decide::ChoiceQuestion
+pub nika_onboard::compile::decide::ChoiceQuestion::id: alloc::string::String
+pub nika_onboard::compile::decide::ChoiceQuestion::instructions: alloc::string::String
+pub nika_onboard::compile::decide::ChoiceQuestion::options: alloc::vec::Vec<nika_onboard::compile::decide::ChoiceOption>
+pub nika_onboard::compile::decide::ChoiceQuestion::state: serde_json::value::Value
+impl nika_onboard::compile::decide::ChoiceQuestion
+pub fn nika_onboard::compile::decide::ChoiceQuestion::keys(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_onboard::compile::decide::ChoiceQuestion::new(id: impl core::convert::Into<alloc::string::String>, instructions: impl core::convert::Into<alloc::string::String>, state: serde_json::value::Value, options: alloc::vec::Vec<nika_onboard::compile::decide::ChoiceOption>) -> Self
+impl core::clone::Clone for nika_onboard::compile::decide::ChoiceQuestion
+pub fn nika_onboard::compile::decide::ChoiceQuestion::clone(&self) -> nika_onboard::compile::decide::ChoiceQuestion
+impl core::cmp::Eq for nika_onboard::compile::decide::ChoiceQuestion
+impl core::cmp::PartialEq for nika_onboard::compile::decide::ChoiceQuestion
+pub fn nika_onboard::compile::decide::ChoiceQuestion::eq(&self, other: &nika_onboard::compile::decide::ChoiceQuestion) -> bool
+impl core::fmt::Debug for nika_onboard::compile::decide::ChoiceQuestion
+pub fn nika_onboard::compile::decide::ChoiceQuestion::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::decide::ChoiceQuestion
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::decide::ChoiceQuestion
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::decide::ChoiceQuestion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceQuestion::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::decide::ChoiceQuestion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceQuestion::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::decide::ChoiceQuestion where U: core::convert::From<T>
+pub fn nika_onboard::compile::decide::ChoiceQuestion::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::decide::ChoiceQuestion where U: core::convert::Into<T>
+pub type nika_onboard::compile::decide::ChoiceQuestion::Error = core::convert::Infallible
+pub fn nika_onboard::compile::decide::ChoiceQuestion::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::decide::ChoiceQuestion where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::decide::ChoiceQuestion::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::decide::ChoiceQuestion::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::decide::ChoiceQuestion where T: core::clone::Clone
+pub type nika_onboard::compile::decide::ChoiceQuestion::Owned = T
+pub fn nika_onboard::compile::decide::ChoiceQuestion::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::decide::ChoiceQuestion::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::decide::ChoiceQuestion where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceQuestion::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::decide::ChoiceQuestion where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceQuestion::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::decide::ChoiceQuestion where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceQuestion::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::decide::ChoiceQuestion where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::decide::ChoiceQuestion::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::decide::ChoiceQuestion
+pub fn nika_onboard::compile::decide::ChoiceQuestion::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::decide::ChoiceQuestion where T: core::clone::Clone
+pub fn nika_onboard::compile::decide::ChoiceQuestion::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::decide::ChoiceQuestion where T: 'static
+pub fn nika_onboard::compile::decide::ChoiceQuestion::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::decide::ChoiceQuestion where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ChoiceQuestion::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::decide::ChoiceQuestion::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::decide::ChoiceQuestion
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::decide::ChoiceQuestion
+impl<T> typenum::type_operators::Same for nika_onboard::compile::decide::ChoiceQuestion
+pub type nika_onboard::compile::decide::ChoiceQuestion::Output = T
+pub struct nika_onboard::compile::decide::DecisionError(pub alloc::string::String)
+impl core::clone::Clone for nika_onboard::compile::decide::DecisionError
+pub fn nika_onboard::compile::decide::DecisionError::clone(&self) -> nika_onboard::compile::decide::DecisionError
+impl core::cmp::Eq for nika_onboard::compile::decide::DecisionError
+impl core::cmp::PartialEq for nika_onboard::compile::decide::DecisionError
+pub fn nika_onboard::compile::decide::DecisionError::eq(&self, other: &nika_onboard::compile::decide::DecisionError) -> bool
+impl core::error::Error for nika_onboard::compile::decide::DecisionError
+impl core::fmt::Debug for nika_onboard::compile::decide::DecisionError
+pub fn nika_onboard::compile::decide::DecisionError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_onboard::compile::decide::DecisionError
+pub fn nika_onboard::compile::decide::DecisionError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::compile::decide::DecisionError
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::decide::DecisionError
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::decide::DecisionError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::DecisionError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::decide::DecisionError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::DecisionError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::decide::DecisionError where U: core::convert::From<T>
+pub fn nika_onboard::compile::decide::DecisionError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::decide::DecisionError where U: core::convert::Into<T>
+pub type nika_onboard::compile::decide::DecisionError::Error = core::convert::Infallible
+pub fn nika_onboard::compile::decide::DecisionError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::decide::DecisionError where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::decide::DecisionError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::decide::DecisionError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::decide::DecisionError where T: core::clone::Clone
+pub type nika_onboard::compile::decide::DecisionError::Owned = T
+pub fn nika_onboard::compile::decide::DecisionError::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::decide::DecisionError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_onboard::compile::decide::DecisionError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::DecisionError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_onboard::compile::decide::DecisionError where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::DecisionError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::decide::DecisionError where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::DecisionError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::decide::DecisionError where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::DecisionError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::decide::DecisionError where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::decide::DecisionError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::decide::DecisionError
+pub fn nika_onboard::compile::decide::DecisionError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::decide::DecisionError where T: core::clone::Clone
+pub fn nika_onboard::compile::decide::DecisionError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_onboard::compile::decide::DecisionError where T: core::fmt::Display
+pub fn nika_onboard::compile::decide::DecisionError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::decide::DecisionError where T: 'static
+pub fn nika_onboard::compile::decide::DecisionError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::decide::DecisionError where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::DecisionError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::decide::DecisionError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::decide::DecisionError
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::decide::DecisionError
+impl<T> typenum::type_operators::Same for nika_onboard::compile::decide::DecisionError
+pub type nika_onboard::compile::decide::DecisionError::Output = T
+pub struct nika_onboard::compile::decide::ProviderChoice<'p, P: nika_kernel_ai::provider::ProviderInferDyn>
+impl<'p, P: nika_kernel_ai::provider::ProviderInferDyn> nika_onboard::compile::decide::ProviderChoice<'p, P>
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::new(provider: &'p P, model: impl core::convert::Into<alloc::string::String>, timeout: core::time::Duration) -> Self
+impl<P: nika_kernel_ai::provider::ProviderInferDyn> nika_onboard::compile::decide::DecisionSeat for nika_onboard::compile::decide::ProviderChoice<'_, P>
+pub fn nika_onboard::compile::decide::ProviderChoice<'_, P>::choose<'a>(&'a self, question: &'a nika_onboard::compile::decide::ChoiceQuestion) -> nika_onboard::compile::decide::ChoiceFuture<'a>
+pub fn nika_onboard::compile::decide::ProviderChoice<'_, P>::name(&self) -> &str
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::decide::ProviderChoice<'p, P>
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::decide::ProviderChoice<'p, P> where U: core::convert::From<T>
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::decide::ProviderChoice<'p, P> where U: core::convert::Into<T>
+pub type nika_onboard::compile::decide::ProviderChoice<'p, P>::Error = core::convert::Infallible
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::decide::ProviderChoice<'p, P> where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::decide::ProviderChoice<'p, P>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::compile::decide::ProviderChoice<'p, P> where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::decide::ProviderChoice<'p, P> where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::decide::ProviderChoice<'p, P> where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::compile::decide::ProviderChoice<'p, P>
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::decide::ProviderChoice<'p, P> where T: 'static
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::decide::ProviderChoice<'p, P> where T: ?core::marker::Sized
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::decide::ProviderChoice<'p, P>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::decide::ProviderChoice<'p, P>
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::decide::ProviderChoice<'p, P>
+impl<T> typenum::type_operators::Same for nika_onboard::compile::decide::ProviderChoice<'p, P>
+pub type nika_onboard::compile::decide::ProviderChoice<'p, P>::Output = T
+pub const nika_onboard::compile::decide::NONE_OPTION: &str
+pub trait nika_onboard::compile::decide::DecisionSeat: core::marker::Send + core::marker::Sync
+pub fn nika_onboard::compile::decide::DecisionSeat::choose<'a>(&'a self, question: &'a nika_onboard::compile::decide::ChoiceQuestion) -> nika_onboard::compile::decide::ChoiceFuture<'a>
+pub fn nika_onboard::compile::decide::DecisionSeat::name(&self) -> &str
+impl<P: nika_kernel_ai::provider::ProviderInferDyn> nika_onboard::compile::decide::DecisionSeat for nika_onboard::compile::decide::ProviderChoice<'_, P>
+pub fn nika_onboard::compile::decide::ProviderChoice<'_, P>::choose<'a>(&'a self, question: &'a nika_onboard::compile::decide::ChoiceQuestion) -> nika_onboard::compile::decide::ChoiceFuture<'a>
+pub fn nika_onboard::compile::decide::ProviderChoice<'_, P>::name(&self) -> &str
+pub type nika_onboard::compile::decide::ChoiceFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_onboard::compile::decide::ChoiceAnswer, nika_onboard::compile::decide::DecisionError>> + core::marker::Send + 'a)>>
 #[non_exhaustive] pub enum nika_onboard::compile::AuthoringCognition
 pub nika_onboard::compile::AuthoringCognition::DeterministicOnly
+pub nika_onboard::compile::AuthoringCognition::ExplicitDecision
 pub nika_onboard::compile::AuthoringCognition::ExplicitProvider
 impl nika_onboard::compile::AuthoringCognition
 pub const fn nika_onboard::compile::AuthoringCognition::word(self) -> &'static str
@@ -364,6 +615,63 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::QuestionType
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::QuestionType
 impl<T> typenum::type_operators::Same for nika_onboard::compile::QuestionType
 pub type nika_onboard::compile::QuestionType::Output = T
+#[non_exhaustive] pub enum nika_onboard::compile::Strategy
+pub nika_onboard::compile::Strategy::Cold
+pub nika_onboard::compile::Strategy::Hot
+pub nika_onboard::compile::Strategy::Skeleton
+pub nika_onboard::compile::Strategy::Support
+pub nika_onboard::compile::Strategy::Warm
+impl nika_onboard::compile::Strategy
+pub const fn nika_onboard::compile::Strategy::word(self) -> &'static str
+impl core::clone::Clone for nika_onboard::compile::Strategy
+pub fn nika_onboard::compile::Strategy::clone(&self) -> nika_onboard::compile::Strategy
+impl core::cmp::Eq for nika_onboard::compile::Strategy
+impl core::cmp::PartialEq for nika_onboard::compile::Strategy
+pub fn nika_onboard::compile::Strategy::eq(&self, other: &nika_onboard::compile::Strategy) -> bool
+impl core::fmt::Debug for nika_onboard::compile::Strategy
+pub fn nika_onboard::compile::Strategy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_onboard::compile::Strategy
+impl core::marker::StructuralPartialEq for nika_onboard::compile::Strategy
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::Strategy
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::compile::Strategy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::Strategy::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::compile::Strategy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::compile::Strategy::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::Strategy where U: core::convert::From<T>
+pub fn nika_onboard::compile::Strategy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::Strategy where U: core::convert::Into<T>
+pub type nika_onboard::compile::Strategy::Error = core::convert::Infallible
+pub fn nika_onboard::compile::Strategy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::Strategy where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::Strategy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::Strategy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::Strategy where T: core::clone::Clone
+pub type nika_onboard::compile::Strategy::Owned = T
+pub fn nika_onboard::compile::Strategy::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::Strategy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::Strategy where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::Strategy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::Strategy where T: ?core::marker::Sized
+pub fn nika_onboard::compile::Strategy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::Strategy where T: ?core::marker::Sized
+pub fn nika_onboard::compile::Strategy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::Strategy where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::Strategy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::Strategy
+pub fn nika_onboard::compile::Strategy::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::Strategy where T: core::clone::Clone
+pub fn nika_onboard::compile::Strategy::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::Strategy where T: 'static
+pub fn nika_onboard::compile::Strategy::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard::compile::Strategy where T: core::marker::Copy
+pub fn nika_onboard::compile::Strategy::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::Strategy where T: ?core::marker::Sized
+pub fn nika_onboard::compile::Strategy::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::Strategy::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::Strategy
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::Strategy
+impl<T> typenum::type_operators::Same for nika_onboard::compile::Strategy
+pub type nika_onboard::compile::Strategy::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::AuthoringPolicy
 impl nika_onboard::compile::AuthoringPolicy
 pub fn nika_onboard::compile::AuthoringPolicy::new(model: impl core::convert::Into<alloc::string::String>, max_tokens: u32, timeout: core::time::Duration) -> Self
@@ -457,6 +765,50 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::AuthoringRece
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::AuthoringReceipt
 impl<T> typenum::type_operators::Same for nika_onboard::compile::AuthoringReceipt
 pub type nika_onboard::compile::AuthoringReceipt::Output = T
+pub struct nika_onboard::compile::Cognition<'a, P: nika_kernel_ai::provider::ProviderInferDyn>
+pub nika_onboard::compile::Cognition::provider: core::option::Option<&'a P>
+pub nika_onboard::compile::Cognition::seat: core::option::Option<&'a dyn nika_onboard::compile::decide::DecisionSeat>
+impl<'a, P: core::clone::Clone + nika_kernel_ai::provider::ProviderInferDyn> core::clone::Clone for nika_onboard::compile::Cognition<'a, P>
+pub fn nika_onboard::compile::Cognition<'a, P>::clone(&self) -> nika_onboard::compile::Cognition<'a, P>
+impl<'a, P: core::marker::Copy + nika_kernel_ai::provider::ProviderInferDyn> core::marker::Copy for nika_onboard::compile::Cognition<'a, P>
+impl<P: nika_kernel_ai::provider::ProviderInferDyn> core::default::Default for nika_onboard::compile::Cognition<'_, P>
+pub fn nika_onboard::compile::Cognition<'_, P>::default() -> Self
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::Cognition<'a, P>
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::Cognition<'a, P> where U: core::convert::From<T>
+pub fn nika_onboard::compile::Cognition<'a, P>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::Cognition<'a, P> where U: core::convert::Into<T>
+pub type nika_onboard::compile::Cognition<'a, P>::Error = core::convert::Infallible
+pub fn nika_onboard::compile::Cognition<'a, P>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::Cognition<'a, P> where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::Cognition<'a, P>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::Cognition<'a, P>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::Cognition<'a, P> where T: core::clone::Clone
+pub type nika_onboard::compile::Cognition<'a, P>::Owned = T
+pub fn nika_onboard::compile::Cognition<'a, P>::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::Cognition<'a, P>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::Cognition<'a, P> where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::Cognition<'a, P>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::Cognition<'a, P> where T: ?core::marker::Sized
+pub fn nika_onboard::compile::Cognition<'a, P>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::Cognition<'a, P> where T: ?core::marker::Sized
+pub fn nika_onboard::compile::Cognition<'a, P>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::Cognition<'a, P> where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::Cognition<'a, P>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::Cognition<'a, P>
+pub fn nika_onboard::compile::Cognition<'a, P>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::Cognition<'a, P> where T: core::clone::Clone
+pub fn nika_onboard::compile::Cognition<'a, P>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::Cognition<'a, P> where T: 'static
+pub fn nika_onboard::compile::Cognition<'a, P>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard::compile::Cognition<'a, P> where T: core::marker::Copy
+pub fn nika_onboard::compile::Cognition<'a, P>::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::Cognition<'a, P> where T: ?core::marker::Sized
+pub fn nika_onboard::compile::Cognition<'a, P>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::Cognition<'a, P>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::Cognition<'a, P>
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::Cognition<'a, P>
+impl<T> typenum::type_operators::Same for nika_onboard::compile::Cognition<'a, P>
+pub type nika_onboard::compile::Cognition<'a, P>::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::CompileDiagnostic
 pub nika_onboard::compile::CompileDiagnostic::kind: nika_onboard::compile::DiagnosticKind
 pub nika_onboard::compile::CompileDiagnostic::message: alloc::string::String
@@ -598,8 +950,11 @@ pub type nika_onboard::compile::CompilePreview::Output = T
 pub nika_onboard::compile::CompileProvenance::authoring: core::option::Option<nika_onboard::compile::AuthoringReceipt>
 pub nika_onboard::compile::CompileProvenance::cognition: nika_onboard::compile::AuthoringCognition
 pub nika_onboard::compile::CompileProvenance::compiler_version: alloc::string::String
+pub nika_onboard::compile::CompileProvenance::decision: core::option::Option<serde_json::value::Value>
+pub nika_onboard::compile::CompileProvenance::plan: core::option::Option<serde_json::value::Value>
 pub nika_onboard::compile::CompileProvenance::skeleton: core::option::Option<alloc::string::String>
 pub nika_onboard::compile::CompileProvenance::spec_pin: alloc::string::String
+pub nika_onboard::compile::CompileProvenance::strategy: core::option::Option<nika_onboard::compile::Strategy>
 impl core::clone::Clone for nika_onboard::compile::CompileProvenance
 pub fn nika_onboard::compile::CompileProvenance::clone(&self) -> nika_onboard::compile::CompileProvenance
 impl core::cmp::Eq for nika_onboard::compile::CompileProvenance
@@ -744,6 +1099,54 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::CompileReques
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::CompileRequest
 impl<T> typenum::type_operators::Same for nika_onboard::compile::CompileRequest
 pub type nika_onboard::compile::CompileRequest::Output = T
+pub struct nika_onboard::compile::NoProvider
+impl core::clone::Clone for nika_onboard::compile::NoProvider
+pub fn nika_onboard::compile::NoProvider::clone(&self) -> nika_onboard::compile::NoProvider
+impl core::default::Default for nika_onboard::compile::NoProvider
+pub fn nika_onboard::compile::NoProvider::default() -> nika_onboard::compile::NoProvider
+impl core::fmt::Debug for nika_onboard::compile::NoProvider
+pub fn nika_onboard::compile::NoProvider::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_onboard::compile::NoProvider
+impl nika_kernel_ai::provider::ProviderInferDyn for nika_onboard::compile::NoProvider
+pub async fn nika_onboard::compile::NoProvider::infer(&self, _: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::NoProvider
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::NoProvider where U: core::convert::From<T>
+pub fn nika_onboard::compile::NoProvider::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::NoProvider where U: core::convert::Into<T>
+pub type nika_onboard::compile::NoProvider::Error = core::convert::Infallible
+pub fn nika_onboard::compile::NoProvider::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::NoProvider where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::NoProvider::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::NoProvider::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::compile::NoProvider where T: core::clone::Clone
+pub type nika_onboard::compile::NoProvider::Owned = T
+pub fn nika_onboard::compile::NoProvider::clone_into(&self, target: &mut T)
+pub fn nika_onboard::compile::NoProvider::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::compile::NoProvider where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::NoProvider::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::NoProvider where T: ?core::marker::Sized
+pub fn nika_onboard::compile::NoProvider::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::NoProvider where T: ?core::marker::Sized
+pub fn nika_onboard::compile::NoProvider::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::compile::NoProvider where T: core::clone::Clone
+pub unsafe fn nika_onboard::compile::NoProvider::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::compile::NoProvider
+pub fn nika_onboard::compile::NoProvider::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::compile::NoProvider where T: core::clone::Clone
+pub fn nika_onboard::compile::NoProvider::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::NoProvider where T: 'static
+pub fn nika_onboard::compile::NoProvider::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard::compile::NoProvider where T: core::marker::Copy
+pub fn nika_onboard::compile::NoProvider::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::NoProvider where T: ?core::marker::Sized
+pub fn nika_onboard::compile::NoProvider::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::NoProvider::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::NoProvider
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::NoProvider
+impl<T> typenum::type_operators::Same for nika_onboard::compile::NoProvider
+pub type nika_onboard::compile::NoProvider::Output = T
+impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_onboard::compile::NoProvider where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
+pub async fn nika_onboard::compile::NoProvider::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 #[non_exhaustive] pub struct nika_onboard::compile::RepresentationError
 impl core::convert::From<nika_onboard::compile::RepresentationError> for nika_onboard::compile::CompileError
 pub fn nika_onboard::compile::CompileError::from(source: nika_onboard::compile::RepresentationError) -> Self
@@ -785,6 +1188,7 @@ impl<T> typenum::type_operators::Same for nika_onboard::compile::RepresentationE
 pub type nika_onboard::compile::RepresentationError::Output = T
 pub const nika_onboard::compile::COMPILE_WIRE_VERSION: u32
 pub fn nika_onboard::compile::compile(request: &nika_onboard::compile::CompileRequest) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
+pub async fn nika_onboard::compile::compile_with_cognition<P: nika_kernel_ai::provider::ProviderInferDyn>(request: &nika_onboard::compile::CompileRequest, cognition: nika_onboard::compile::Cognition<'_, P>) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
 pub async fn nika_onboard::compile::compile_with_provider<P: nika_kernel_ai::provider::ProviderInferDyn>(request: &nika_onboard::compile::CompileRequest, provider: &P) -> core::result::Result<nika_onboard::compile::CompileOutcome, nika_onboard::compile::CompileError>
 pub fn nika_onboard::compile::materialize_ready(outcome: &nika_onboard::compile::CompileOutcome, dest: &std::path::Path, overwrite: bool) -> core::result::Result<(), nika_onboard::compile::MaterializeError>
 pub fn nika_onboard::compile::outcome_document(out: &nika_onboard::compile::CompileOutcome) -> serde_json::value::Value

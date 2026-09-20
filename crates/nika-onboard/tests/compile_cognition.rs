@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! Explicit authoring provider contracts. All providers are injected hermetic doubles.
+//! Explicit cognition contracts: HOT reads alone, WARM asks a bounded seat, COLD asks
+//! one generative provider. All seats are injected hermetic doubles.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
     TokenUsage,
 };
 use nika_onboard::compile::{
-    AuthoringPolicy, CompileRequest, CompileStatus, compile_with_provider, outcome_document,
+    AuthoringPolicy, Cognition, CompileRequest, CompileStatus, NoProvider, Strategy,
+    compile_with_cognition, compile_with_provider,
+    decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat, NONE_OPTION},
+    outcome_document,
 };
 use serde_json::{Value, json};
 use std::{
-    sync::atomic::{AtomicU32, Ordering},
+    sync::{
+        Mutex,
+        atomic::{AtomicU32, Ordering},
+    },
     time::Duration,
 };
 
@@ -44,33 +51,40 @@ impl ProviderInferDyn for Provider {
         ))
     }
 }
-const INTENT: &str = "Pour chaque demande, consulte le client, classe le problème, puis prépare une réponse. Demande un accord humain avant le remboursement.";
+/// A clause the deterministic reader cannot consume ("harmonise le ton") forces COLD.
+const INTENT: &str = "Pour chaque demande, consulte le client, classe le problème, puis harmonise le ton de la réponse. Demande un accord humain avant le remboursement.";
 fn plan() -> Value {
-    json!({"steps":[{"operation":"lookup","evidence":"consulte le client"},{"operation":"classify","evidence":"classe le problème"},{"operation":"draft","evidence":"prépare une réponse"}],"effect":"human_first_refund","effect_evidence":"Demande un accord humain avant le remboursement","unknowns":[]})
+    json!({"steps":[{"op":"lookup","detail":"le client","evidence":"consulte le client"},{"op":"classify","detail":"le problème","evidence":"classe le problème"},{"op":"draft","detail":"la réponse","evidence":"harmonise le ton de la réponse"}],
+           "effects":[{"verb":"refund","target":"le remboursement","policy":"human_first","evidence":"Demande un accord humain avant le remboursement"}],
+           "obligations":[],"constraints":[],"unknowns":[]})
+}
+fn policy() -> AuthoringPolicy {
+    AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2))
 }
 fn request() -> CompileRequest {
-    CompileRequest::create(INTENT).with_authoring_policy(AuthoringPolicy::new(
-        "mock/authoring",
-        1024,
-        Duration::from_secs(2),
-    ))
+    CompileRequest::create(INTENT).with_authoring_policy(policy())
+}
+fn keys(out: &nika_onboard::compile::CompileOutcome) -> Vec<&str> {
+    out.questions.iter().map(|q| q.key.as_str()).collect()
 }
 
 #[tokio::test]
 async fn provider_opt_in_returns_real_questions_and_versioned_usage() {
     let provider = Provider::new(plan());
     let out = compile_with_provider(&request(), &provider).await.unwrap();
-    assert_eq!(out.status, CompileStatus::Incomplete);
-    assert!(out.questions.iter().any(|q| q.key == "const.refund_policy"));
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert!(keys(&out).contains(&"const.refund_policy"), "{out:#?}");
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
     let doc = outcome_document(&out);
     assert_eq!(doc["compile_version"], 2);
     assert_eq!(doc["provenance"]["cognition"], "explicitProvider");
+    assert_eq!(doc["provenance"]["strategy"], "cold");
     assert_eq!(doc["provenance"]["authoring"]["calls"], 1);
-    assert_eq!(
-        doc["provenance"]["authoring"]["sampling"],
-        json!({"temperature":null,"seed":null,"effective":"providerDefaultUnknown"})
-    );
     assert_eq!(doc["provenance"]["authoring"]["input_tokens"], 120);
+    assert_eq!(
+        doc["provenance"]["plan"]["effects"][0]["policy"],
+        "human_first"
+    );
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
     let out = compile_with_provider(
         &request()
@@ -78,11 +92,11 @@ async fn provider_opt_in_returns_real_questions_and_versioned_usage() {
             .answer("const.customer_directory", r#""customers.json""#)
             .answer(
                 "const.refund_policy",
-                r#""Return unused goods within 14 days; human must verify the receipt.""#,
+                r#"{"cap":100,"currency":"EUR","criteria":"unused purchase within 14 days"}"#,
             )
             .answer(
                 "const.refund_endpoint",
-                r#""https://refund.example.invalid/refund""#,
+                r#""https://refund.example.invalid/refunds""#,
             ),
         &provider,
     )
@@ -90,10 +104,17 @@ async fn provider_opt_in_returns_real_questions_and_versioned_usage() {
     .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(out.check_preview.unwrap().report.is_clean());
+    let source = out.candidate.unwrap();
+    let doc: Value = serde_yaml_bw::from_str(&source).unwrap();
+    assert_eq!(doc["tasks"]["refund"]["invoke"]["args"]["method"], "POST");
     assert_eq!(
-        provider.calls.load(Ordering::SeqCst),
-        2,
-        "one per explicit recompile, not a hidden retry"
+        doc["tasks"]["refund"]["when"],
+        "${{ with.approved == true }}"
+    );
+    assert!(doc["tasks"]["refund_review"]["invoke"]["tool"] == "nika:prompt");
+    assert_eq!(
+        doc["permits"]["net"]["http"],
+        json!(["refund.example.invalid"])
     );
 }
 
@@ -102,11 +123,7 @@ async fn no_opt_in_and_exact_skeleton_never_call_provider_or_change_v1() {
     let provider = Provider::new(plan());
     for req in [
         CompileRequest::create(INTENT),
-        CompileRequest::create("hello").with_authoring_policy(AuthoringPolicy::new(
-            "mock/authoring",
-            1024,
-            Duration::from_secs(2),
-        )),
+        CompileRequest::create("hello").with_authoring_policy(policy()),
     ] {
         let out = compile_with_provider(&req, &provider).await.unwrap();
         let doc = outcome_document(&out);
@@ -119,19 +136,19 @@ async fn no_opt_in_and_exact_skeleton_never_call_provider_or_change_v1() {
 #[tokio::test]
 async fn malformed_unknown_conflicting_and_unanchored_plans_do_not_emit_source() {
     let mut cases = vec![json!({"yaml":"nika: invented"})];
-    for effect in [
-        "automatic_refund",
-        "conflict",
-        "unsupported",
-        "forbidden",
-        "send",
-        "publish",
-    ] {
+    // A model may not weaken, lift or settle the deterministic policy of a recognized effect.
+    for policy in ["automatic", "forbidden", "conflict", "unspecified"] {
         let mut p = plan();
-        p["effect"] = json!(effect);
+        p["effects"][0]["policy"] = json!(policy);
         cases.push(p);
     }
-    for field in ["operation", "evidence"] {
+    // Invented effects need an exact excerpt the request never wrote.
+    for verb in ["send", "publish"] {
+        let mut p = plan();
+        p["effects"].as_array_mut().unwrap().push(json!({"verb":verb,"target":"la réponse","policy":"automatic","evidence":"envoie la réponse"}));
+        cases.push(p);
+    }
+    for field in ["op", "evidence"] {
         let mut p = plan();
         p["steps"][0][field] = json!("invented");
         cases.push(p);
@@ -140,13 +157,17 @@ async fn malformed_unknown_conflicting_and_unanchored_plans_do_not_emit_source()
     p["unknowns"] = json!(["Use a previous approval for a different amount"]);
     cases.push(p);
     let mut p = plan();
-    p["effect_evidence"] = json!("unmentioned refund authority");
+    p["effects"][0]["evidence"] = json!("unmentioned refund authority");
     cases.push(p);
     for p in cases {
-        let provider = Provider::new(p);
+        let provider = Provider::new(p.clone());
         let out = compile_with_provider(&request(), &provider).await.unwrap();
-        assert_eq!(out.status, CompileStatus::Incomplete);
-        assert!(out.candidate.is_none());
+        assert_eq!(out.status, CompileStatus::Incomplete, "{p}");
+        assert!(out.candidate.is_none(), "{p}");
+        assert!(
+            !keys(&out).contains(&"const.refund_policy"),
+            "{p}: {out:#?}"
+        );
         assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
     }
 }
@@ -180,7 +201,7 @@ async fn clarification_is_explicit_request_data_and_is_consumed_on_recompile() {
     )
     .await
     .unwrap();
-    assert!(out.questions.iter().any(|q| q.key == "const.refund_policy"));
+    assert!(keys(&out).contains(&"const.refund_policy"), "{out:#?}");
     assert!(
         !out.diagnostics
             .iter()
@@ -210,54 +231,58 @@ async fn authoring_timeout_is_bounded_and_never_retries() {
 
 #[tokio::test]
 async fn model_cannot_omit_refund_or_insert_approval_into_automatic_refund() {
+    // The deterministic reader recognized the gated refund: a proposal omitting it
+    // cannot drop it, and the human-first policy survives.
     let mut omitted = plan();
-    omitted["effect"] = json!("none");
-    omitted["effect_evidence"] = json!("");
+    omitted["effects"] = json!([]);
     let out = compile_with_provider(&request(), &Provider::new(omitted))
         .await
         .unwrap();
     assert!(out.candidate.is_none());
-    assert!(
-        out.questions
-            .iter()
-            .any(|q| q.key == "intent.clarification")
-    );
+    assert!(keys(&out).contains(&"const.refund_policy"), "{out:#?}");
+    assert!(!keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    // An approval bypass is never compiled, whatever the model says.
     let intent = format!("{INTENT} Rembourse automatiquement sans mon accord.");
-    let req = CompileRequest::create(intent).with_authoring_policy(AuthoringPolicy::new(
-        "mock/authoring",
-        1024,
-        Duration::from_secs(2),
-    ));
+    let req = CompileRequest::create(intent).with_authoring_policy(policy());
     let out = compile_with_provider(&req, &Provider::new(plan()))
         .await
         .unwrap();
-    assert!(
-        out.questions
-            .iter()
-            .any(|q| q.key == "intent.clarification")
-    );
+    assert!(out.candidate.is_none());
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
 }
 
 #[tokio::test]
-async fn recognized_send_omission_never_becomes_a_draft_only_candidate() {
-    let mut proposal = plan();
-    proposal["effect"] = json!("none");
-    proposal["effect_evidence"] = json!("");
+async fn recognized_send_is_a_bound_effect_never_a_draft_only_candidate() {
     let intent =
         "Consulte le client, classe le problème, prépare une réponse et envoyer la réponse.";
-    let req = CompileRequest::create(intent).with_authoring_policy(AuthoringPolicy::new(
-        "mock/authoring",
-        1024,
-        Duration::from_secs(2),
-    ));
-    let out = compile_with_provider(&req, &Provider::new(proposal))
-        .await
-        .unwrap();
+    let out = nika_onboard::compile::compile(&CompileRequest::create(intent)).unwrap();
+    assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
     assert!(out.candidate.is_none());
+    assert!(keys(&out).contains(&"const.send_endpoint"), "{out:#?}");
+    assert!(!keys(&out).contains(&"intent.clarification"));
+    let doc = outcome_document(&out);
+    assert_eq!(doc["provenance"]["plan"]["effects"][0]["verb"], "send");
+    assert_eq!(
+        doc["provenance"]["plan"]["effects"][0]["policy"],
+        "automatic"
+    );
+    let ready = nika_onboard::compile::compile(
+        &CompileRequest::create(intent)
+            .answer("model", r#""mock/echo""#)
+            .answer("const.customer_directory", r#""customers.json""#)
+            .answer(
+                "const.send_endpoint",
+                r#""https://mail.example.invalid/send""#,
+            ),
+    )
+    .unwrap();
+    assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
+    let source = ready.candidate.unwrap();
+    let doc: Value = serde_yaml_bw::from_str(&source).unwrap();
+    assert_eq!(doc["tasks"]["send"]["invoke"]["args"]["method"], "POST");
     assert!(
-        out.questions
-            .iter()
-            .any(|q| q.key == "intent.clarification")
+        doc["tasks"].get("send_review").is_none(),
+        "an automatic send has no invented gate"
     );
 }
 
@@ -286,35 +311,21 @@ async fn unfamiliar_language_is_not_a_deterministic_contradiction() {
             "返金する前に私の承認を求める",
         ),
     ] {
-        let proposal = json!({"steps":[{"operation":"lookup","evidence":lookup},{"operation":"classify","evidence":classify},{"operation":"draft","evidence":draft}],"effect":"human_first_refund","effect_evidence":effect,"unknowns":[]});
-        let req = CompileRequest::create(intent).with_authoring_policy(AuthoringPolicy::new(
-            "mock/authoring",
-            1024,
-            Duration::from_secs(2),
-        ));
+        let proposal = json!({"steps":[{"op":"lookup","detail":lookup,"evidence":lookup},{"op":"classify","detail":classify,"evidence":classify},{"op":"draft","detail":draft,"evidence":draft}],"effects":[{"verb":"refund","target":effect,"policy":"human_first","evidence":effect}],"obligations":[],"constraints":[],"unknowns":[]});
+        let req = CompileRequest::create(intent).with_authoring_policy(policy());
         let out = compile_with_provider(&req, &Provider::new(proposal))
             .await
             .unwrap();
-        assert!(
-            out.questions.iter().any(|q| q.key == "const.refund_policy"),
-            "{out:#?}"
-        );
-        assert!(
-            !out.questions
-                .iter()
-                .any(|q| q.key == "intent.clarification")
-        );
+        assert!(keys(&out).contains(&"const.refund_policy"), "{out:#?}");
+        assert!(!keys(&out).contains(&"intent.clarification"));
+        assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
     }
 }
 
 #[tokio::test]
 async fn complete_explicit_replacement_resolves_old_automatic_refund_request() {
     let req = CompileRequest::create(format!("{INTENT} Refund automatically."))
-        .with_authoring_policy(AuthoringPolicy::new(
-            "mock/authoring",
-            1024,
-            Duration::from_secs(2),
-        ))
+        .with_authoring_policy(policy())
         .answer(
             "intent.clarification",
             serde_json::to_string(INTENT).unwrap(),
@@ -322,15 +333,8 @@ async fn complete_explicit_replacement_resolves_old_automatic_refund_request() {
     let out = compile_with_provider(&req, &Provider::new(plan()))
         .await
         .unwrap();
-    assert!(
-        out.questions.iter().any(|q| q.key == "const.refund_policy"),
-        "{out:#?}"
-    );
-    assert!(
-        !out.questions
-            .iter()
-            .any(|q| q.key == "intent.clarification")
-    );
+    assert!(keys(&out).contains(&"const.refund_policy"), "{out:#?}");
+    assert!(!keys(&out).contains(&"intent.clarification"));
 }
 
 #[tokio::test]
@@ -343,7 +347,7 @@ async fn replacement_fragment_does_not_inherit_unstated_operations() {
         .await
         .unwrap();
     assert!(out.candidate.is_none());
-    assert!(!out.questions.iter().any(|q| q.key == "const.refund_policy"));
+    assert!(!keys(&out).contains(&"const.refund_policy"));
 }
 
 #[tokio::test]
@@ -365,27 +369,19 @@ async fn approval_bypass_phrase_with_effect_none_is_a_recognized_omission() {
             "draft a reply",
         ),
     ] {
-        let proposal = json!({"steps":[{"operation":"lookup","evidence":lookup},{"operation":"draft","evidence":draft}],"effect":"none","effect_evidence":"","unknowns":[]});
-        let req = CompileRequest::create(intent).with_authoring_policy(AuthoringPolicy::new(
-            "mock/authoring",
-            1024,
-            Duration::from_secs(2),
-        ));
+        let proposal = json!({"steps":[{"op":"lookup","detail":"the customer","evidence":lookup},{"op":"draft","detail":"a reply","evidence":draft}],"effects":[],"obligations":[],"constraints":[],"unknowns":[]});
+        let req = CompileRequest::create(intent).with_authoring_policy(policy());
         let out = compile_with_provider(&req, &Provider::new(proposal))
             .await
             .unwrap();
         assert!(out.candidate.is_none(), "{intent}");
         assert!(
-            out.questions
-                .iter()
-                .any(|q| q.key == "intent.clarification"),
+            keys(&out).contains(&"intent.clarification"),
             "{intent}: {out:#?}"
         );
         assert!(
-            !out.questions
-                .iter()
-                .any(|q| q.key == "const.customer_directory"),
-            "{intent}: a dropped effect must not become a lookup+draft candidate"
+            !keys(&out).contains(&"const.customer_directory"),
+            "{intent}: a bypassed authority must not become a lookup+draft candidate"
         );
     }
 }
@@ -393,49 +389,24 @@ async fn approval_bypass_phrase_with_effect_none_is_a_recognized_omission() {
 #[tokio::test]
 async fn french_fichier_is_not_the_yesterday_bypass_phrase() {
     let intent = "Consulte le fichier client, classe le problème, prépare une réponse. Demande un accord humain avant le remboursement.";
-    let proposal = json!({"steps":[{"operation":"lookup","evidence":"Consulte le fichier client"},{"operation":"classify","evidence":"classe le problème"},{"operation":"draft","evidence":"prépare une réponse"}],"effect":"human_first_refund","effect_evidence":"Demande un accord humain avant le remboursement","unknowns":[]});
-    let req = CompileRequest::create(intent).with_authoring_policy(AuthoringPolicy::new(
-        "mock/authoring",
-        1024,
-        Duration::from_secs(2),
-    ));
-    let out = compile_with_provider(&req, &Provider::new(proposal))
+    let req = CompileRequest::create(intent).with_authoring_policy(policy());
+    let out = compile_with_provider(&req, &Provider::new(plan()))
         .await
         .unwrap();
-    assert!(
-        out.questions.iter().any(|q| q.key == "const.refund_policy"),
-        "{out:#?}"
-    );
-    assert!(
-        !out.questions
-            .iter()
-            .any(|q| q.key == "intent.clarification")
-    );
+    assert!(keys(&out).contains(&"const.refund_policy"), "{out:#?}");
+    assert!(!keys(&out).contains(&"intent.clarification"));
+    assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
 }
 
 #[tokio::test]
 async fn automatic_classification_wording_with_effect_none_is_not_a_veto() {
     let intent = "Look up the customer, classify the ticket automatically, and draft a reply.";
-    let proposal = json!({"steps":[{"operation":"lookup","evidence":"Look up the customer"},{"operation":"classify","evidence":"classify the ticket automatically"},{"operation":"draft","evidence":"draft a reply"}],"effect":"none","effect_evidence":"","unknowns":[]});
-    let req = CompileRequest::create(intent).with_authoring_policy(AuthoringPolicy::new(
-        "mock/authoring",
-        1024,
-        Duration::from_secs(2),
-    ));
-    let out = compile_with_provider(&req, &Provider::new(proposal))
+    let req = CompileRequest::create(intent).with_authoring_policy(policy());
+    let out = compile_with_provider(&req, &Provider::new(plan()))
         .await
         .unwrap();
-    assert!(
-        out.questions
-            .iter()
-            .any(|q| q.key == "const.customer_directory"),
-        "{out:#?}"
-    );
-    assert!(
-        !out.questions
-            .iter()
-            .any(|q| q.key == "intent.clarification")
-    );
+    assert!(keys(&out).contains(&"const.customer_directory"), "{out:#?}");
+    assert!(!keys(&out).contains(&"intent.clarification"));
 }
 
 #[tokio::test]
@@ -444,19 +415,181 @@ async fn exact_support_clauses_never_reach_an_opted_in_provider() {
     let req = CompileRequest::create(
         "Route support tickets, look up the customer, draft a reply, and ask me before any refund",
     )
-    .with_authoring_policy(AuthoringPolicy::new(
-        "mock/authoring",
-        1024,
-        Duration::from_secs(2),
-    ));
+    .with_authoring_policy(policy());
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
-    assert!(
-        out.questions.iter().any(|q| q.key == "const.refund_policy"),
-        "{out:#?}"
-    );
+    assert!(keys(&out).contains(&"const.refund_policy"), "{out:#?}");
     let doc = outcome_document(&out);
     assert_eq!(doc["compile_version"], 1);
     assert_eq!(doc["provenance"]["cognition"], "deterministicOnly");
+    assert_eq!(doc["provenance"]["strategy"], "support");
     assert!(doc["provenance"].get("authoring").is_none());
+}
+
+// ── HOT receipts beyond support ────────────────────────────────────────────
+#[test]
+fn hot_reads_a_file_transforms_it_and_writes_the_result_with_zero_calls() {
+    let intent = "Read ./notes/brief.md, summarize it in three bullets, and write the summary to ./out/summary.md";
+    let out = nika_onboard::compile::compile(&CompileRequest::create(intent)).unwrap();
+    assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
+    assert_eq!(keys(&out), ["model"], "{out:#?}");
+    let ready = nika_onboard::compile::compile(
+        &CompileRequest::create(intent).answer("model", r#""mock/echo""#),
+    )
+    .unwrap();
+    assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
+    assert!(ready.check_preview.as_ref().unwrap().report.is_clean());
+    let doc: Value = serde_yaml_bw::from_str(ready.candidate.as_deref().unwrap()).unwrap();
+    assert_eq!(doc["const"]["source_path"], "./notes/brief.md");
+    assert_eq!(doc["const"]["output_path"], "./out/summary.md");
+    assert_eq!(doc["permits"]["fs"]["read"], json!(["./notes/brief.md"]));
+    assert_eq!(doc["permits"]["fs"]["write"], json!(["./out/summary.md"]));
+    assert!(doc["tasks"]["read_source"]["invoke"]["tool"] == "nika:read");
+    assert!(doc["tasks"]["draft"]["infer"].is_object());
+    assert!(doc["tasks"]["write_output"]["invoke"]["tool"] == "nika:write");
+}
+
+#[test]
+fn hot_prohibition_and_indecision_are_honoured_without_a_model() {
+    let forbidden = "Extrais les coordonnées de chaque candidature et prépare un accusé de réception. Il est absolument interdit d'envoyer une invitation.";
+    let out = nika_onboard::compile::compile(
+        &CompileRequest::create(forbidden).answer("model", r#""mock/echo""#),
+    )
+    .unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc = outcome_document(&out);
+    assert_eq!(
+        doc["provenance"]["plan"]["effects"][0]["policy"],
+        "forbidden"
+    );
+    assert!(!out.candidate.as_deref().unwrap().contains("nika:fetch"));
+    let undecided = "Extrais les coordonnées de chaque candidature et prépare un accusé de réception. Je n'ai pas encore décidé si le workflow doit envoyer une invitation. Pose-moi la question avant de choisir.";
+    let out = nika_onboard::compile::compile(&CompileRequest::create(undecided)).unwrap();
+    assert_eq!(out.status, CompileStatus::Incomplete);
+    assert!(keys(&out).contains(&"effect.send.include"), "{out:#?}");
+    let conflict = "Extrais les coordonnées de chaque candidature et prépare un accusé de réception. Envoie ensuite une invitation. Il est aussi absolument interdit d'envoyer une invitation. Ces deux consignes doivent rester visibles comme une contradiction à résoudre.";
+    let out = nika_onboard::compile::compile(&CompileRequest::create(conflict)).unwrap();
+    assert_eq!(out.status, CompileStatus::Refused, "{out:#?}");
+    assert!(out.candidate.is_none());
+}
+
+// ── WARM: a finite ambiguity settled by an injected seat ───────────────────
+struct Seat {
+    choice: &'static str,
+    asked: Mutex<Vec<ChoiceQuestion>>,
+}
+impl DecisionSeat for Seat {
+    fn name(&self) -> &'static str {
+        "double/seat"
+    }
+    fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
+        Box::pin(async move {
+            self.asked.lock().unwrap().push(question.clone());
+            let mut answer = ChoiceAnswer::new(self.choice, "double-1.0");
+            answer.probabilities.insert(self.choice.to_owned(), 0.9);
+            answer.confidence = Some(0.8);
+            answer.input_tokens = Some(40);
+            answer.output_tokens = Some(2);
+            Ok(answer)
+        })
+    }
+}
+const WARM: &str = "Lis mes disponibilités et celles des participants, puis propose par écrit trois créneaux compatibles.";
+
+#[tokio::test]
+async fn warm_settles_a_finite_ambiguity_through_the_seat_and_records_it() {
+    let seat = Seat {
+        choice: "lookup",
+        asked: Mutex::new(Vec::new()),
+    };
+    let out = compile_with_cognition::<NoProvider>(
+        &CompileRequest::create(WARM),
+        Cognition {
+            provider: None,
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.provenance.strategy, Some(Strategy::Warm), "{out:#?}");
+    let asked = seat.asked.lock().unwrap();
+    assert_eq!(asked.len(), 1);
+    assert!(asked[0].keys().contains(&NONE_OPTION.to_owned()));
+    assert!(asked[0].keys().contains(&"read".to_owned()));
+    assert!(asked[0].keys().contains(&"lookup".to_owned()));
+    let doc = outcome_document(&out);
+    assert_eq!(doc["provenance"]["cognition"], "explicitDecision");
+    assert_eq!(doc["provenance"]["decision"]["seat"], "double/seat");
+    assert_eq!(
+        doc["provenance"]["decision"]["questions"][0]["choice"],
+        "lookup"
+    );
+    assert!(
+        keys(&out).iter().any(|k| k.ends_with("_directory")),
+        "{out:#?}"
+    );
+}
+
+#[tokio::test]
+async fn warm_none_never_picks_the_least_wrong_option() {
+    let seat = Seat {
+        choice: NONE_OPTION,
+        asked: Mutex::new(Vec::new()),
+    };
+    let out = compile_with_cognition::<NoProvider>(
+        &CompileRequest::create(WARM),
+        Cognition {
+            provider: None,
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.status, CompileStatus::Incomplete);
+    assert!(out.candidate.is_none());
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    assert!(out.provenance.strategy.is_none());
+}
+
+#[tokio::test]
+async fn warm_seat_cannot_choose_outside_the_offered_options() {
+    let seat = Seat {
+        choice: "send",
+        asked: Mutex::new(Vec::new()),
+    };
+    let out = compile_with_cognition::<NoProvider>(
+        &CompileRequest::create(WARM),
+        Cognition {
+            provider: None,
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(out.candidate.is_none());
+    assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
+    let doc = outcome_document(&out);
+    assert!(doc["provenance"]["decision"]["questions"][0]["error"].is_string());
+}
+
+#[tokio::test]
+async fn fully_readable_intents_never_call_a_permitted_seat() {
+    let seat = Seat {
+        choice: "lookup",
+        asked: Mutex::new(Vec::new()),
+    };
+    let provider = Provider::new(plan());
+    let out = compile_with_cognition(
+        &CompileRequest::create("Look up the customer, classify the ticket and draft a reply.")
+            .with_authoring_policy(policy()),
+        Cognition {
+            provider: Some(&provider),
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.provenance.strategy, Some(Strategy::Hot));
+    assert!(seat.asked.lock().unwrap().is_empty());
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
 }

@@ -4,6 +4,7 @@
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod authoring;
 mod render;
+mod typesafe;
 
 use crate::output::{VerbOutput, exit};
 use nika_onboard::compile::{CompileRequest, CompileStatus, compile};
@@ -40,6 +41,9 @@ pub struct CompileArgs {
     /// Authoring timeout in seconds, at most 120; no retries.
     #[arg(long, requires = "authoring_model")]
     pub authoring_timeout: Option<u64>,
+    /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
+    #[arg(long, conflicts_with_all = ["base", "list"])]
+    pub decision_model: Option<String>,
     /// Replace the explicitly named destination.
     #[arg(long, requires = "destination")]
     pub force: bool,
@@ -92,7 +96,7 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
         };
         request = request.answer(key, literal);
     }
-    let result = if args.authoring_model.is_some()
+    let result = if (args.authoring_model.is_some() || args.decision_model.is_some())
         && args.base.is_none()
         && !matches!(
             args.intent.as_deref().map(str::trim),

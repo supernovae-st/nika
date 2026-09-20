@@ -205,6 +205,38 @@ pub enum AuthoringCognition {
     DeterministicOnly,
     /// One explicitly authorized call through the kernel provider seam.
     ExplicitProvider,
+    /// Bounded closed choices through an explicitly seated decision capability; no generative call.
+    ExplicitDecision,
+}
+
+/// Which internal resolution settled a CREATE; observational, never authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Strategy {
+    /// An exact embedded skeleton.
+    Skeleton,
+    /// The bounded support clause grammar.
+    Support,
+    /// Every clause read deterministically; zero seat calls.
+    Hot,
+    /// Finite ambiguities settled by a bounded decision seat.
+    Warm,
+    /// One generative proposal, constrained by the deterministic facts.
+    Cold,
+}
+
+impl Strategy {
+    /// The stable machine word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Skeleton => "skeleton",
+            Self::Support => "support",
+            Self::Hot => "hot",
+            Self::Warm => "warm",
+            Self::Cold => "cold",
+        }
+    }
 }
 
 /// Explicit limits for one authoring call. Ambient credentials are not consent.
@@ -258,6 +290,12 @@ pub struct CompileProvenance {
     pub skeleton: Option<String>,
     /// Authoring cognition policy; independent of runtime model configuration.
     pub cognition: AuthoringCognition,
+    /// The internal strategy that settled a free intent, when one was engaged.
+    pub strategy: Option<Strategy>,
+    /// The private semantic plan projection (operations, effects, obligations), when read.
+    pub plan: Option<serde_json::Value>,
+    /// Bounded decision records (seat, questions, choices, reported usage), when a seat was asked.
+    pub decision: Option<serde_json::Value>,
 }
 
 /// A reviewable authoring result. No field grants authority, writes or executes source.
